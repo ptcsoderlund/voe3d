@@ -1,0 +1,10 @@
+# Build output
+/build/
+/out/
+/cmake-build-*/
+
+# Editor and tool state
+/.idea/
+/.vscode/
+/.cache/
+compile_commands.json
