@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.28)
+project(voe C)
+include(cmake/voe.cmake)
+add_subdirectory(base)
+add_subdirectory(math)

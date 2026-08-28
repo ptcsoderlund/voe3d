@@ -1,15 +1,4 @@
-# NNN — <title>
+No template needed.
+Just drop an md file in todo in whichever structure you seem fit.  
 
-status: todo | review | complete
-module: <module name, or "-" if cross-cutting>
-decision: <ADR number this implements, or "-">
-blocked-by: <card or decision IDs, or "-">
-claimed-by: <name or agent id, or "-">
-
-## What done looks like
-
-Observable, checkable outcomes. Not a task list — a definition of done.
-
-## Notes
-
-Anything the implementer needs that is not in the ADR.
+agents take from todo and move to Review, human test and Review and move to complete.
