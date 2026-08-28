@@ -1,10 +1,19 @@
+# Everything starting with a dot, at any depth.
+# Nothing dotted belongs in this repository except git's own metadata,
+# which is re-included below.
+.*
+
+# Git metadata that must stay tracked.
+!.gitignore
+!.gitattributes
+!.gitmodules
+!.mailmap
+!.gitkeep
+!.gitkeep.md
+
 # Build output
 /build/
 /out/
 /cmake-build-*/
 
-# Editor and tool state
-/.idea/
-/.vscode/
-/.cache/
 compile_commands.json
