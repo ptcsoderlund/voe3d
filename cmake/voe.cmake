@@ -125,11 +125,13 @@ endfunction()
 
 # platform's bill, in one place. Two things no other folder needs:
 #
-#   - xdg-shell is a protocol description, not a library. wayland-scanner turns
-#     the vendored XML into C at configure-and-build time, into the build tree.
-#     Nothing generated is committed, and the generated files are compiled with
-#     warnings off and reached through a SYSTEM include directory, because they
-#     are wayland-scanner's code and not ours to keep clean.
+#   - A Wayland protocol is a description, not a library. wayland-scanner turns
+#     every XML in platform/protocol/ into C at configure-and-build time, into
+#     the build tree. Nothing generated is committed, and the generated files are
+#     compiled with warnings off and reached through a SYSTEM include directory,
+#     because they are wayland-scanner's code and not ours to keep clean.
+#     protocol/ is globbed for the same reason src/ is: vendoring a protocol is
+#     dropping in a file, and it needs no edit here.
 #   - The Wayland client library and the Win32 libraries are linked, not built.
 #     They are the programmer's to install — the same standing the Windows SDK
 #     already has — which is why this fails configuration with a message rather
@@ -152,31 +154,37 @@ function(voe_platform_backend folder_dir out_sources out_include)
     endif()
 
     set(generated ${CMAKE_BINARY_DIR}/generated/platform)
-    set(xml ${folder_dir}/protocol/xdg-shell.xml)
     file(MAKE_DIRECTORY ${generated})
 
-    add_custom_command(
-        OUTPUT ${generated}/xdg-shell-client-protocol.h
-        COMMAND ${VOE_WAYLAND_SCANNER} client-header ${xml}
-                ${generated}/xdg-shell-client-protocol.h
-        DEPENDS ${xml}
-        COMMENT "wayland-scanner: xdg-shell client header"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT ${generated}/xdg-shell-protocol.c
-        COMMAND ${VOE_WAYLAND_SCANNER} private-code ${xml}
-                ${generated}/xdg-shell-protocol.c
-        DEPENDS ${xml}
-        COMMENT "wayland-scanner: xdg-shell protocol code"
-        VERBATIM)
+    file(GLOB protocols CONFIGURE_DEPENDS ${folder_dir}/protocol/*.xml)
+    if(NOT protocols)
+        message(FATAL_ERROR "voe_platform_backend: no protocol XML in ${folder_dir}/protocol")
+    endif()
 
-    set_source_files_properties(${generated}/xdg-shell-protocol.c
-        PROPERTIES COMPILE_OPTIONS "-w")
+    set(sources "")
+    foreach(xml IN LISTS protocols)
+        cmake_path(GET xml STEM name)
+        set(header ${generated}/${name}-client-protocol.h)
+        set(code ${generated}/${name}-protocol.c)
 
-    set(${out_sources}
-        ${generated}/xdg-shell-protocol.c
-        ${generated}/xdg-shell-client-protocol.h
-        PARENT_SCOPE)
+        add_custom_command(
+            OUTPUT ${header}
+            COMMAND ${VOE_WAYLAND_SCANNER} client-header ${xml} ${header}
+            DEPENDS ${xml}
+            COMMENT "wayland-scanner: ${name} client header"
+            VERBATIM)
+        add_custom_command(
+            OUTPUT ${code}
+            COMMAND ${VOE_WAYLAND_SCANNER} private-code ${xml} ${code}
+            DEPENDS ${xml}
+            COMMENT "wayland-scanner: ${name} protocol code"
+            VERBATIM)
+
+        set_source_files_properties(${code} PROPERTIES COMPILE_OPTIONS "-w")
+        list(APPEND sources ${code} ${header})
+    endforeach()
+
+    set(${out_sources} "${sources}" PARENT_SCOPE)
     set(${out_include} ${generated} PARENT_SCOPE)
 endfunction()
 

@@ -14,9 +14,18 @@
 // pointer and a NULL one is a crash rather than a no-op. Binding low is what
 // keeps the slots this file leaves NULL unreachable.
 //
-// NO DECORATIONS. Wayland does not guarantee server-side decorations and this
-// file does not ask for them, so the window has no titlebar and no border. That
-// is expected — move and resize it with the compositor's own shortcuts.
+// DECORATIONS ARE ASKED FOR, NOT ASSUMED. xdg-decoration is how a client says it
+// would rather the compositor drew the frame, and the compositor answers with
+// the mode it actually chose — which may not be the one asked for. Three
+// outcomes, and all three are normal: the manager is absent from the registry
+// (GNOME's Mutter does not offer the protocol), the manager is there and answers
+// client-side, or it answers server-side and a real titlebar appears.
+//
+// Only the last of those gets a frame. The other two leave the window bare, and
+// bare is not an error: nothing here warns, nothing here fails, and nothing here
+// draws a titlebar of its own. Drawing one needs pointer input and somewhere to
+// draw, neither of which exists yet. Move and resize a bare window with the
+// compositor's own shortcuts.
 //
 // DEVIATION: card 004 ("do not invent an event queue, a callback, or a
 // listener"), narrowest reading, the placeholder buffer below. The card's only
@@ -44,6 +53,7 @@
 
 #include <wayland-client.h>
 
+#include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
 #include <poll.h>
@@ -66,10 +76,12 @@ struct voe_platform_window {
 	struct wl_compositor *compositor;
 	struct wl_shm *shm;
 	struct xdg_wm_base *wm_base;
+	struct zxdg_decoration_manager_v1 *decorations;
 
 	struct wl_surface *surface;
 	struct xdg_surface *xdg_surface;
 	struct xdg_toplevel *toplevel;
+	struct zxdg_toplevel_decoration_v1 *decoration;
 
 	struct wl_shm_pool *pool;
 	struct wl_buffer *buffer;
@@ -81,6 +93,7 @@ struct voe_platform_window {
 	int height;
 	int wanted_width;
 	int wanted_height;
+	uint32_t decoration_mode;
 	bool configured;
 	bool should_close;
 };
@@ -113,6 +126,12 @@ static void registry_global(void *data, struct wl_registry *registry,
 	else if (strcmp(interface, xdg_wm_base_interface.name) == 0)
 		window->wm_base = wl_registry_bind(registry, name,
 						   &xdg_wm_base_interface, 1);
+	// Optional, and absent on a compositor that draws no frames. Everything
+	// downstream checks for NULL rather than assuming it arrived.
+	else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0)
+		window->decorations = wl_registry_bind(registry, name,
+						       &zxdg_decoration_manager_v1_interface,
+						       1);
 }
 
 // Nothing here holds a global long enough to care that one went away.
@@ -178,6 +197,29 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 	.close = toplevel_close,
 	.configure_bounds = NULL,
 	.wm_capabilities = NULL,
+};
+
+// The compositor's answer. It arrives when the decoration object is created and
+// again on every change of state — measured on KWin: one at startup, one when
+// "No Borders" takes the frame away, one when it puts it back. All three said
+// SERVER_SIDE. The mode names who is *responsible* for the frame, and KWin is
+// responsible in both states; it has merely chosen to draw nothing in one of
+// them. So the event fires and the value never moves. Nothing here behaves
+// differently on it: a client that changed its mind about how to draw depending
+// on who drew the frame would be the bug this protocol exists to avoid. It is
+// recorded so voe_platform_window_decorated can report it.
+static void decoration_configure(void *data,
+				 struct zxdg_toplevel_decoration_v1 *decoration,
+				 uint32_t mode)
+{
+	voe_platform_window *window = data;
+
+	(void)decoration;
+	window->decoration_mode = mode;
+}
+
+static const struct zxdg_toplevel_decoration_v1_listener decoration_listener = {
+	.configure = decoration_configure,
 };
 
 // ---------------------------------------------------------- placeholder pixels
@@ -249,6 +291,8 @@ static void close_down(voe_platform_window *window)
 	if (window->pool_fd >= 0)
 		close(window->pool_fd);
 
+	if (window->decoration != NULL)
+		zxdg_toplevel_decoration_v1_destroy(window->decoration);
 	if (window->toplevel != NULL)
 		xdg_toplevel_destroy(window->toplevel);
 	if (window->xdg_surface != NULL)
@@ -256,6 +300,8 @@ static void close_down(voe_platform_window *window)
 	if (window->surface != NULL)
 		wl_surface_destroy(window->surface);
 
+	if (window->decorations != NULL)
+		zxdg_decoration_manager_v1_destroy(window->decorations);
 	if (window->wm_base != NULL)
 		xdg_wm_base_destroy(window->wm_base);
 	if (window->shm != NULL)
@@ -327,6 +373,22 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 		return open_failed(window);
 	xdg_toplevel_add_listener(window->toplevel, &toplevel_listener, window);
 	xdg_toplevel_set_title(window->toplevel, title);
+
+	// Ask for a server-drawn frame. Asking is all a client can do; the reply
+	// comes back through decoration_configure and may say client-side. A
+	// compositor that offers no manager at all is the same outcome by a
+	// shorter route, and neither is worth a word at runtime.
+	if (window->decorations != NULL) {
+		window->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(
+			window->decorations, window->toplevel);
+		if (window->decoration != NULL) {
+			zxdg_toplevel_decoration_v1_add_listener(window->decoration,
+								 &decoration_listener,
+								 window);
+			zxdg_toplevel_decoration_v1_set_mode(window->decoration,
+				ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+		}
+	}
 
 	if (!pool_open(window))
 		return open_failed(window);
@@ -423,6 +485,16 @@ voe_platform_size voe_platform_window_size(voe_platform_window *window)
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
 
 	return (voe_platform_size){ window->width, window->height };
+}
+
+bool voe_platform_window_decorated(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	// Zero until the compositor answers, and zero forever if there was no
+	// manager to ask — neither is server-side, so neither is decorated.
+	return window->decoration_mode ==
+	       ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 }
 
 voe_platform_native voe_platform_window_native(voe_platform_window *window)

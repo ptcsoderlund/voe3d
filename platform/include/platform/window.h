@@ -66,3 +66,30 @@ void voe_platform_window_poll(voe_platform_window *window);
 bool voe_platform_window_should_close(voe_platform_window *window);
 voe_platform_size voe_platform_window_size(voe_platform_window *window);
 voe_platform_native voe_platform_window_native(voe_platform_window *window);
+
+// WHO IS RESPONSIBLE for the window's frame — not whether one is on screen.
+// True when the window system has taken the job: Windows always, Linux when the
+// compositor answered server-side. False when nothing offered the protocol, or
+// when it answered client-side, which is the only case in which drawing our own
+// frame would ever be the right thing to do.
+//
+// The distinction is written down because it was measured, and the measurement
+// is worth more than the function. On KWin, toggling "No Borders" makes the
+// compositor re-answer — the event fires — and the answer is SERVER_SIDE both
+// with a titlebar and without one. KWin is responsible for the frame in both
+// states; it has merely chosen to draw nothing in one of them.
+//
+// SO THIS CANNOT TELL YOU WHETHER A FRAME IS ON SCREEN, and no amount of code
+// here can: the protocol does not carry it. What does change is the client area
+// — 960x540 decorated, 970x567 with the frame gone, the compositor handing over
+// the space the titlebar had. A decoration change is therefore invisible through
+// this function and arrives as a plain resize, which is the event anything
+// holding a swapchain has to react to anyway. Nothing is lost.
+//
+// It can still change while the window is open — a compositor that answers
+// client-side when it draws nothing would move it, and none has been tested that
+// does — so ask rather than remember.
+//
+// Nothing in the engine behaves differently on the answer, and nothing should.
+// It exists to be looked at.
+bool voe_platform_window_decorated(voe_platform_window *window);

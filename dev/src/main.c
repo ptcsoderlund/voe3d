@@ -12,12 +12,27 @@
 // on, the API in platform/window.h has a hole and that is the finding, not a
 // reason to reach for the preprocessor.
 //
-// Run it and it should open a window, print the size whenever it changes, and
-// exit zero when the window is closed. On Linux there is no titlebar and no
-// border — Wayland does not guarantee decorations and nothing here draws them —
-// so use the compositor's own shortcuts. On KWin that is Meta+Up to resize and
-// Alt+F4 to close. It will spin a core while it is open: _poll returns
-// immediately and platform has no way to wait yet.
+// Run it and it should open a window and print a line whenever something about
+// it changes — its size, or who is drawing its frame — then exit zero when the
+// window is closed.
+//
+// WHAT THERE IS TO TRY, since nothing here reads a key and nothing can:
+//
+//   - Resize it. A `size` line should follow. On KWin, Meta+Up maximises.
+//   - Toggle the frame off and on. On KWin: right-click the titlebar ->
+//     More Actions -> No Borders, or Alt+F3 for the same menu. A `size` line
+//     follows and a `decorated` line does not. That is the measured answer and
+//     not a gap: KWin does re-answer on every toggle, and every answer is the
+//     same one, because it is responsible for the frame whether or not it draws
+//     it. The `decorated` check is live — it sees the events — it just never
+//     sees the value move. A compositor that answers differently when it draws
+//     nothing would print here, which is what makes this worth keeping until a
+//     second compositor has been tried.
+//   - Close it. It should print `closed` and exit zero. Alt+F4 works with or
+//     without a titlebar.
+//
+// It will spin a core while it is open: _poll returns immediately and platform
+// has no way to wait yet.
 #include <platform/window.h>
 
 #include <stdio.h>
@@ -26,6 +41,7 @@ int main(void)
 {
 	voe_platform_window *window;
 	voe_platform_size size;
+	bool decorated;
 
 	window = voe_platform_window_new(960, 540, "voe3d — platform window");
 	if (window == NULL) {
@@ -34,18 +50,32 @@ int main(void)
 	}
 
 	size = voe_platform_window_size(window);
-	printf("opened %dx%d\n", size.width, size.height);
+	decorated = voe_platform_window_decorated(window);
+	printf("opened     %dx%d\n", size.width, size.height);
+	printf("decorated  %s\n", decorated ? "yes" : "no");
 	fflush(stdout);
 
 	while (!voe_platform_window_should_close(window)) {
-		voe_platform_size now;
+		voe_platform_size now_size;
+		bool now_decorated;
 
 		voe_platform_window_poll(window);
 
-		now = voe_platform_window_size(window);
-		if (now.width != size.width || now.height != size.height) {
-			size = now;
-			printf("resized %dx%d\n", size.width, size.height);
+		// Poll, then report what changed. Both are asked every frame
+		// because platform hands out state, not events — there is
+		// nothing to subscribe to and nothing that would tell us.
+		now_size = voe_platform_window_size(window);
+		if (now_size.width != size.width ||
+		    now_size.height != size.height) {
+			size = now_size;
+			printf("size       %dx%d\n", size.width, size.height);
+			fflush(stdout);
+		}
+
+		now_decorated = voe_platform_window_decorated(window);
+		if (now_decorated != decorated) {
+			decorated = now_decorated;
+			printf("decorated  %s\n", decorated ? "yes" : "no");
 			fflush(stdout);
 		}
 	}

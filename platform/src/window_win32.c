@@ -169,6 +169,16 @@ voe_platform_size voe_platform_window_size(voe_platform_window *window)
 	return (voe_platform_size){ window->width, window->height };
 }
 
+// Always. WS_OVERLAPPEDWINDOW is a frame, the window manager draws it, and there
+// is no protocol to negotiate and nothing that can take it away. The Wayland
+// side is where this question has more than one answer.
+bool voe_platform_window_decorated(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	return true;
+}
+
 voe_platform_native voe_platform_window_native(voe_platform_window *window)
 {
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");

@@ -8,7 +8,9 @@ Today that is a window; input, files and time will live here too and do not yet.
   callers need: opening a window can fail and returns NULL, and `_poll` folds
   events into state rather than handing them out.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.
-  `wayland-scanner` turns it into C at build time; nothing generated is
-  committed.
+  `wayland-scanner` turns every XML here into C at build time; nothing generated
+  is committed.
+- `protocol/xdg-decoration-unstable-v1.xml` — how a client asks the compositor
+  to draw the window frame. Optional, and the answer may be no.
 - `src/window_wayland.c` — the Linux window. There is no X11 backend.
 - `src/window_win32.c` — the Windows window.
