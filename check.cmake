@@ -221,8 +221,8 @@ foreach(folder IN LISTS folders)
     # The folder's own declared dependencies, read back out of its four lines.
     file(READ "${root}/${folder}/CMakeLists.txt" listfile)
     set(declared "")
-    if(listfile MATCHES "voe_module\\([ \t]*${folder}[ \t]+DEPENDS([^)]*)\\)")
-        string(STRIP "${CMAKE_MATCH_1}" declared)
+    if(listfile MATCHES "voe_(module|executable)\\([ \t]*${folder}[ \t]+DEPENDS([^)]*)\\)")
+        string(STRIP "${CMAKE_MATCH_2}" declared)
         string(REGEX REPLACE "[ \t\r\n]+" ";" declared "${declared}")
     endif()
 

@@ -4,8 +4,14 @@
 # file is what makes four lines enough: the compiler guards, the allowed
 # dependency map, the static library target voe_<folder> and its alias
 # voe::<folder>, the public include directory, the one flag set, a glob of src/
-# so that adding a source file never needs a CMake edit, the same for tests/ so
-# that adding a test never needs one either, and the same for dev/ (ADR-0036).
+# so that adding a source file never needs a CMake edit, and the same for tests/
+# so that adding a test never needs one either.
+#
+# voe_executable() is the same thing for a folder that produces a program rather
+# than a library. The two share everything up to the add_library/add_executable
+# line, which is voe_folder_sources() below; what differs is that a library has
+# an alias, a public include directory and tests, and a program has none of the
+# three because nothing links a program.
 #
 # It also knows one folder by name: platform. platform is the only folder that
 # links something the operating system supplies and the only one that generates a
@@ -69,6 +75,12 @@ function(voe_allowed_deps folder out_var)
         set(deps render scene ecs assets math base)
     elseif(folder STREQUAL "app")
         set(deps base math ecs scene platform assets render 3d)
+    elseif(folder STREQUAL "dev")
+        # dev may depend on anything, app included: it is the one program a
+        # person runs to see the current state, so whatever exists is fair game.
+        # It is a leaf and it stays one — dev appears in no other row, and
+        # putting it in one would be the mistake this map exists to catch.
+        set(deps base math ecs scene platform assets render 3d app)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
@@ -181,33 +193,31 @@ function(voe_platform_link target include_dir)
     endif()
 endfunction()
 
-# voe_module(<folder> [DEPENDS <folder>...])
+# Everything voe_module() and voe_executable() do before they part company: the
+# guards, the dependency-map check, pulling each dependency in, and the src/ glob
+# with one-platform-only sources dropped from it.
 #
-# Inside a function CMAKE_CURRENT_LIST_DIR is the calling listfile's directory,
-# so it is the folder's own directory here — which is why a sibling is reached
-# as ../<dep> and why a standalone configure of one folder works unchanged.
-function(voe_module folder)
-    cmake_parse_arguments(arg "" "" "DEPENDS" ${ARGN})
-    if(arg_UNPARSED_ARGUMENTS)
-        message(FATAL_ERROR "voe_module(${folder}): unexpected argument(s): ${arg_UNPARSED_ARGUMENTS}")
-    endif()
-
+# folder_dir is passed rather than read from CMAKE_CURRENT_LIST_DIR, because that
+# variable follows the listfile being processed and this function is two calls
+# deep. The callers are the ones sitting in the folder's own listfile, so they
+# are the ones that know.
+function(voe_folder_sources caller folder_dir folder deps out_sources)
     voe_guards()
 
     voe_allowed_deps("${folder}" allowed)
-    foreach(dep IN LISTS arg_DEPENDS)
+    foreach(dep IN LISTS deps)
         if(NOT dep IN_LIST allowed)
-            message(FATAL_ERROR "voe_module(${folder}): ${dep} is not an allowed dependency (ADR-0022)")
+            message(FATAL_ERROR "${caller}(${folder}): ${dep} is not an allowed dependency (ADR-0022)")
         endif()
     endforeach()
 
-    foreach(dep IN LISTS arg_DEPENDS)
+    foreach(dep IN LISTS deps)
         if(NOT TARGET voe_${dep})
-            add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../${dep} ${CMAKE_BINARY_DIR}/${dep})
+            add_subdirectory(${folder_dir}/../${dep} ${CMAKE_BINARY_DIR}/${dep})
         endif()
     endforeach()
 
-    file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/src/*.c)
+    file(GLOB sources CONFIGURE_DEPENDS ${folder_dir}/src/*.c)
 
     # A source whose name ends in _wayland or _win32 is one platform's, and the
     # other platform never compiles it. The alternative is #ifdef'ing a whole
@@ -225,6 +235,22 @@ function(voe_module folder)
             list(REMOVE_ITEM sources ${source})
         endif()
     endforeach()
+
+    set(${out_sources} "${sources}" PARENT_SCOPE)
+endfunction()
+
+# voe_module(<folder> [DEPENDS <folder>...])
+#
+# Inside a function CMAKE_CURRENT_LIST_DIR is the calling listfile's directory,
+# so it is the folder's own directory here — which is why a sibling is reached
+# as ../<dep> and why a standalone configure of one folder works unchanged.
+function(voe_module folder)
+    cmake_parse_arguments(arg "" "" "DEPENDS" ${ARGN})
+    if(arg_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "voe_module(${folder}): unexpected argument(s): ${arg_UNPARSED_ARGUMENTS}")
+    endif()
+
+    voe_folder_sources(voe_module ${CMAKE_CURRENT_LIST_DIR} "${folder}" "${arg_DEPENDS}" sources)
 
     if(folder STREQUAL "platform")
         voe_platform_backend(${CMAKE_CURRENT_LIST_DIR} generated generated_dir)
@@ -256,19 +282,36 @@ function(voe_module folder)
         voe_target_settings(${test_target})
         add_test(NAME ${folder}/${test_name} COMMAND ${test_target})
     endforeach()
+endfunction()
 
-    # Dev programs (ADR-0036). One file in dev/, one main(), one executable
-    # voe_<folder>_dev_<file>, built by an ordinary build and never registered
-    # with ctest — a program that wants a desktop and a person is not a test, and
-    # putting it in ctest would hang the check script waiting for someone to
-    # close a window. It links the folder's library and not voe::testing: it is
-    # something to look at, not something that reports.
-    file(GLOB dev_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/dev/*.c)
-    foreach(dev_source IN LISTS dev_sources)
-        cmake_path(GET dev_source STEM dev_name)
-        set(dev_target voe_${folder}_dev_${dev_name})
-        add_executable(${dev_target} ${dev_source})
-        target_link_libraries(${dev_target} PRIVATE voe_${folder})
-        voe_target_settings(${dev_target})
+# voe_executable(<folder> [DEPENDS <folder>...])
+#
+# A folder whose src/ produces a program instead of a library. Same guards, same
+# dependency map, same glob, same flags — a dev program compiled with looser
+# warnings than the engine is a dev program that stops building the day someone
+# looks at it.
+#
+# Three things a library has that this does not: an alias, because nothing links
+# a program; a public include directory, because nothing includes one; and tests,
+# because a folder that is a program has nothing to unit test that would not be
+# better off in a folder that is a library.
+#
+# The target is never registered with ctest. voe_dev opens a window and waits for
+# a person, and a check script waiting for someone to close a window is a check
+# script that hangs.
+
+function(voe_executable folder)
+    cmake_parse_arguments(arg "" "" "DEPENDS" ${ARGN})
+    if(arg_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "voe_executable(${folder}): unexpected argument(s): ${arg_UNPARSED_ARGUMENTS}")
+    endif()
+
+    voe_folder_sources(voe_executable ${CMAKE_CURRENT_LIST_DIR} "${folder}" "${arg_DEPENDS}" sources)
+
+    add_executable(voe_${folder} ${sources})
+    foreach(dep IN LISTS arg_DEPENDS)
+        target_link_libraries(voe_${folder} PRIVATE voe::${dep})
     endforeach()
+
+    voe_target_settings(voe_${folder})
 endfunction()

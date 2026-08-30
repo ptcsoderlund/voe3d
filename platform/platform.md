@@ -12,5 +12,3 @@ Today that is a window; input, files and time will live here too and do not yet.
   committed.
 - `src/window_wayland.c` — the Linux window. There is no X11 backend.
 - `src/window_win32.c` — the Windows window.
-- `dev/window.c` — opens one and prints its size. Built by an ordinary build,
-  never run by the check script, and the only verification this folder has.
