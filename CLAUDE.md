@@ -32,10 +32,25 @@ to C. Read it with this mapping:
 | Platforms | Windows and Linux desktop only |
 | Build | CMake 3.28+, Ninja generator, both platforms |
 
-**Required tools, installed by the programmer:** Clang 18+ (the standalone LLVM
-release is the recommended install on Windows), CMake, `slangc`. On Windows
-also the Windows SDK and MSVC C runtime from Visual Studio or its Build Tools;
-`clang.exe` finds them itself.
+**Required tools, installed by the programmer.** `check.cmake` step 1 checks
+every one of these and names the one that is missing, so a fresh clone fails
+with an answer rather than a compiler error:
+
+| Tool | Both | Windows only | Linux only |
+|---|---|---|---|
+| Clang 18+, GNU driver (standalone LLVM release recommended on Windows) | ● | | |
+| CMake 3.28+ | ● | | |
+| Ninja | ● | | |
+| `slangc` | ● | | |
+| Windows SDK + MSVC C runtime (Visual Studio or its Build Tools) — `clang.exe` finds them itself | | ● | |
+| Wayland development package, providing `wayland-scanner` and the client library | | | ● |
+
+**Optional, and the build never requires them:** the Vulkan SDK — it is the
+easiest way to get `slangc`, and it brings the validation layers, which the
+engine uses when they are present and runs without when they are not. And
+`clang-tidy`, which nothing invokes: `check.cmake` step 7 uses `clang --analyze`,
+which is part of the compiler already required. Neither is on the list above and
+neither may become a build requirement.
 
 **Onboarding invariant:** a programmer clones this repository and builds without
 assembling an environment. The line:
@@ -66,7 +81,12 @@ An option that breaks this is rejected on that ground alone.
    projects. The namespace is spelled out: `voe_math_vec3_add`, `voe_render_…`.
 8. **No CI. `cmake -P check.cmake` is the verification.** It exits zero on the
    coder's machine before a card moves to `review/`, and on the human's before
-   it moves to `complete/`.
+   it moves to `complete/`. That includes step 6 (tests) and step 7
+   (`clang --analyze`) — an analyser warning fails the script exactly as a
+   warning does, and there is no baseline file and no tolerated count. Where the
+   analyser is genuinely wrong — the arena never frees, which a leak checker is
+   built to complain about — suppress it **at that site with a comment saying
+   why**. Never globally, and never by changing correct code to quiet it.
 9. **Do not push or pull.** Remote git operations are the human's.
 10. **Implement on demand. No "in case".** A function is written when something
     calls it; a type when something stores it. The set is not completed for
@@ -85,6 +105,38 @@ An option that breaks this is rejected on that ground alone.
     tests only, never from `src/`. A failure message names the expression, the
     expected value and the actual one, because that message is all the next
     reader gets.
+13. **A failure the world caused is returned. A failure the program caused is an
+    assert.** A bad parameter — a `NULL` where the API requires a thing — is the
+    caller's bug: `VOE_BASE_ASSERT`. A file that will not open, a device that
+    will not create, a compositor that is not there: returned to the caller, who
+    decides.
+
+    **One way to fail** → return `NULL` (from a `_new`) or `false`. Nothing
+    else; do not add an error parameter with one value in it.
+    **Several distinguishable ways** → still return `NULL`, and take one
+    `voe_base_error *error` out-parameter beside it. Where there is nothing to
+    return, the enum *is* the return value and `VOE_BASE_OK` is `0`.
+
+    ```c
+    [[nodiscard]] voe_platform_window *voe_platform_window_new(int w, int h,
+                                                               const char *title);
+    [[nodiscard]] voe_render_device *voe_render_device_new(voe_platform_native n,
+                                                           voe_base_error *error);
+    ```
+
+    **`[[nodiscard]]` on every function that can fail**, no exceptions — with
+    `-Werror` that makes an unchecked failure a build error rather than
+    something review has to catch. `error` may be `NULL` when the caller has
+    decided it does not need to know which way. The codes live in one enum in
+    `base`, are **added when a card needs one** and never in advance, and are
+    **categories, not incidents** — which of them it was goes in the enum, what
+    exactly happened goes in the message at the site.
+14. **Do not recurse over data read from a file.** Recursive descent on a glTF
+    or JSON file is a stack overflow on deep nesting, and it is a real crash on
+    a corrupt or hostile asset that neither `-Werror` nor the analyser will find.
+    Explicit stack, a named nesting limit, refuse the file past it, reason in the
+    file header. This binds `assets`; recursion over data the engine built itself
+    is fine.
 
 ## Folders
 
@@ -190,10 +242,19 @@ zero before the card moves to `review/`.
 the folder scaffolding are in place and card 001 is complete. `math` is the
 first real code and is in progress.
 
-Settled and binding: naming, the build, tests, memory, and the conventions
-above. **Error handling is not decided** — how a genuine, recoverable failure is
-reported (a file that will not open, a model that will not parse) is still open,
-and a card that needs it says so rather than inventing one. Note that running
-out of memory is *not* one of these: that is fatal, and decided.
+Settled and binding: naming, the build, tests, memory, error handling, and the
+conventions above. **Error handling is now decided — rule 13.** Running out of
+memory is not one of those failures: that is fatal, through rule 11.
+
+**Vulkan needs no SDK, and there is nothing to install for it.** The headers are
+vendored into the tree, declarations only; the loader (`vulkan-1.dll`,
+`libvulkan.so.1`) ships with the graphics driver and is opened by name at
+startup, with every entry point resolved through `vkGetInstanceProcAddr`. There
+is no `-l` flag, no import library, and nothing fetched. **So every Vulkan call
+goes through a resolved function pointer** — that table is `render`'s alone,
+resolved once at startup, never reassigned, never passed as a parameter and
+never stored in a component. It is the only place in this engine where function
+pointers are expected, and its file header must say so. A missing loader is a
+returned failure under rule 13, not a crash.
 
 Throwaway spikes do not live in this repository.
