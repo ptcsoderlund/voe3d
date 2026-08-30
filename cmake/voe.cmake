@@ -4,8 +4,15 @@
 # file is what makes four lines enough: the compiler guards, the allowed
 # dependency map, the static library target voe_<folder> and its alias
 # voe::<folder>, the public include directory, the one flag set, a glob of src/
-# so that adding a source file never needs a CMake edit, and the same for
-# tests/ so that adding a test never needs one either.
+# so that adding a source file never needs a CMake edit, the same for tests/ so
+# that adding a test never needs one either, and the same for dev/ (ADR-0036).
+#
+# It also knows one folder by name: platform. platform is the only folder that
+# links something the operating system supplies and the only one that generates a
+# source file, and the four-line rule leaves nowhere else to say so. That
+# knowledge is a function of its own, voe_platform_backend(), kept apart from
+# voe_module() so it is obvious how much of this file is general and how much is
+# one folder's bill.
 #
 # Two things here are contracts with check.cmake, not free to reword:
 #
@@ -104,6 +111,76 @@ function(voe_guards)
     endif()
 endfunction()
 
+# platform's bill, in one place. Two things no other folder needs:
+#
+#   - xdg-shell is a protocol description, not a library. wayland-scanner turns
+#     the vendored XML into C at configure-and-build time, into the build tree.
+#     Nothing generated is committed, and the generated files are compiled with
+#     warnings off and reached through a SYSTEM include directory, because they
+#     are wayland-scanner's code and not ours to keep clean.
+#   - The Wayland client library and the Win32 libraries are linked, not built.
+#     They are the programmer's to install — the same standing the Windows SDK
+#     already has — which is why this fails configuration with a message rather
+#     than trying to fetch anything.
+#
+# out_sources comes back holding the generated .c and .h. The .h is in the list
+# on purpose: naming a generated header as a source is what makes it exist before
+# anything that includes it is compiled.
+function(voe_platform_backend folder_dir out_sources out_include)
+    set(${out_sources} "" PARENT_SCOPE)
+    set(${out_include} "" PARENT_SCOPE)
+
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        return()
+    endif()
+
+    find_program(VOE_WAYLAND_SCANNER wayland-scanner)
+    if(NOT VOE_WAYLAND_SCANNER)
+        message(FATAL_ERROR "VOE3D requires wayland-scanner on Linux. Install the wayland development package.")
+    endif()
+
+    set(generated ${CMAKE_BINARY_DIR}/generated/platform)
+    set(xml ${folder_dir}/protocol/xdg-shell.xml)
+    file(MAKE_DIRECTORY ${generated})
+
+    add_custom_command(
+        OUTPUT ${generated}/xdg-shell-client-protocol.h
+        COMMAND ${VOE_WAYLAND_SCANNER} client-header ${xml}
+                ${generated}/xdg-shell-client-protocol.h
+        DEPENDS ${xml}
+        COMMENT "wayland-scanner: xdg-shell client header"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${generated}/xdg-shell-protocol.c
+        COMMAND ${VOE_WAYLAND_SCANNER} private-code ${xml}
+                ${generated}/xdg-shell-protocol.c
+        DEPENDS ${xml}
+        COMMENT "wayland-scanner: xdg-shell protocol code"
+        VERBATIM)
+
+    set_source_files_properties(${generated}/xdg-shell-protocol.c
+        PROPERTIES COMPILE_OPTIONS "-w")
+
+    set(${out_sources}
+        ${generated}/xdg-shell-protocol.c
+        ${generated}/xdg-shell-client-protocol.h
+        PARENT_SCOPE)
+    set(${out_include} ${generated} PARENT_SCOPE)
+endfunction()
+
+function(voe_platform_link target include_dir)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
+        target_include_directories(${target} SYSTEM PRIVATE ${include_dir})
+        target_link_libraries(${target} PRIVATE PkgConfig::WAYLAND)
+    elseif(WIN32)
+        target_link_libraries(${target} PRIVATE user32)
+    else()
+        message(FATAL_ERROR "VOE3D supports Windows and Linux desktop only. Found: ${CMAKE_SYSTEM_NAME}")
+    endif()
+endfunction()
+
 # voe_module(<folder> [DEPENDS <folder>...])
 #
 # Inside a function CMAKE_CURRENT_LIST_DIR is the calling listfile's directory,
@@ -131,6 +208,29 @@ function(voe_module folder)
     endforeach()
 
     file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/src/*.c)
+
+    # A source whose name ends in _wayland or _win32 is one platform's, and the
+    # other platform never compiles it. The alternative is #ifdef'ing a whole
+    # file out, which leaves an empty translation unit — not valid ISO C, and
+    # -Wpedantic says so. This is a general rule, not platform's: any folder that
+    # ever grows two backends gets it for free.
+    foreach(source IN LISTS sources)
+        set(drop OFF)
+        if(source MATCHES "_wayland\\.c$" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            set(drop ON)
+        elseif(source MATCHES "_win32\\.c$" AND NOT WIN32)
+            set(drop ON)
+        endif()
+        if(drop)
+            list(REMOVE_ITEM sources ${source})
+        endif()
+    endforeach()
+
+    if(folder STREQUAL "platform")
+        voe_platform_backend(${CMAKE_CURRENT_LIST_DIR} generated generated_dir)
+        list(APPEND sources ${generated})
+    endif()
+
     add_library(voe_${folder} STATIC ${sources})
     add_library(voe::${folder} ALIAS voe_${folder})
     target_include_directories(voe_${folder} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -139,6 +239,10 @@ function(voe_module folder)
     endforeach()
 
     voe_target_settings(voe_${folder})
+
+    if(folder STREQUAL "platform")
+        voe_platform_link(voe_${folder} "${generated_dir}")
+    endif()
 
     # Tests. One executable per file in tests/, named <folder>/<file> so that
     # `ctest -R math` runs one folder's tests. A folder with no tests/ globs
@@ -151,5 +255,20 @@ function(voe_module folder)
         target_link_libraries(${test_target} PRIVATE voe_${folder} voe::testing)
         voe_target_settings(${test_target})
         add_test(NAME ${folder}/${test_name} COMMAND ${test_target})
+    endforeach()
+
+    # Dev programs (ADR-0036). One file in dev/, one main(), one executable
+    # voe_<folder>_dev_<file>, built by an ordinary build and never registered
+    # with ctest — a program that wants a desktop and a person is not a test, and
+    # putting it in ctest would hang the check script waiting for someone to
+    # close a window. It links the folder's library and not voe::testing: it is
+    # something to look at, not something that reports.
+    file(GLOB dev_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/dev/*.c)
+    foreach(dev_source IN LISTS dev_sources)
+        cmake_path(GET dev_source STEM dev_name)
+        set(dev_target voe_${folder}_dev_${dev_name})
+        add_executable(${dev_target} ${dev_source})
+        target_link_libraries(${dev_target} PRIVATE voe_${folder})
+        voe_target_settings(${dev_target})
     endforeach()
 endfunction()

@@ -95,7 +95,20 @@ if(NOT code MATCHES "^[0-9]+$")
     step_fail("${step}" "slangc could not be run: ${code}")
 endif()
 
-step_ok("${step} (clang ${clang_major}, cmake ${cmake_version}, slangc)")
+# wayland-scanner is a source-transforming tool on the same footing as slangc and
+# as the Windows SDK: the programmer installs it, the build does not fetch it.
+# platform's only Linux backend is Wayland, so on Linux it is required and on
+# Windows it is not looked for.
+set(tools "clang ${clang_major}, cmake ${cmake_version}, slangc")
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    run_capture(code text wayland-scanner --version)
+    if(NOT code MATCHES "^[0-9]+$")
+        step_fail("${step}" "wayland-scanner could not be run: ${code}")
+    endif()
+    string(APPEND tools ", wayland-scanner")
+endif()
+
+step_ok("${step} (${tools})")
 
 # ------------------------------------------------------------ folder list
 
@@ -195,6 +208,16 @@ set(forbidden "windows.h" "unistd.h" "dlfcn.h" "pthread.h")
 set(violations "")
 
 foreach(folder IN LISTS folders)
+    # platform is the folder that talks to the operating system, so it is the one
+    # folder these two rules do not apply to. Everything else about it is still
+    # checked, including that its public headers name no other folder it does not
+    # depend on. Until card 004 this loop banned an OS header everywhere, message
+    # and behaviour disagreeing, because no folder had yet tried to include one.
+    set(os_headers_allowed OFF)
+    if(folder STREQUAL "platform")
+        set(os_headers_allowed ON)
+    endif()
+
     # The folder's own declared dependencies, read back out of its four lines.
     file(READ "${root}/${folder}/CMakeLists.txt" listfile)
     set(declared "")
@@ -208,13 +231,15 @@ foreach(folder IN LISTS folders)
         file(RELATIVE_PATH shown "${root}" "${source}")
         file(STRINGS "${source}" lines REGEX "^[ \t]*#[ \t]*include")
         foreach(line IN LISTS lines)
-            foreach(bad IN LISTS forbidden)
-                if(line MATCHES "<${bad}>")
-                    list(APPEND violations "${shown}: <${bad}> is not allowed outside platform")
+            if(NOT os_headers_allowed)
+                foreach(bad IN LISTS forbidden)
+                    if(line MATCHES "<${bad}>")
+                        list(APPEND violations "${shown}: <${bad}> is not allowed outside platform")
+                    endif()
+                endforeach()
+                if(line MATCHES "<(X11/|xcb/|wayland)")
+                    list(APPEND violations "${shown}: ${line} is a window-system header")
                 endif()
-            endforeach()
-            if(line MATCHES "<(X11/|xcb/|wayland)")
-                list(APPEND violations "${shown}: ${line} is a window-system header")
             endif()
             if(line MATCHES "[<\"]testing/" AND NOT shown MATCHES "^${folder}/tests/")
                 list(APPEND violations "${shown}: only tests/ may include testing/")
