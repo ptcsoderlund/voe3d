@@ -68,6 +68,23 @@ An option that breaks this is rejected on that ground alone.
    coder's machine before a card moves to `review/`, and on the human's before
    it moves to `complete/`.
 9. **Do not push or pull.** Remote git operations are the human's.
+10. **Implement on demand. No "in case".** A function is written when something
+    calls it; a type when something stores it. The set is not completed for
+    symmetry — `float3` without `float2` is correct if nothing has a `float2`.
+    A card specifying surface nothing uses is over-specified: report it, the
+    same as one that is missing something.
+11. **Memory is an arena you are handed.** Working memory comes from a
+    `voe_base_arena` passed in as a parameter, and is freed by rewinding or
+    destroying the arena — never one allocation at a time. There is no global
+    or default arena. Long-lived or growable data is the exception and uses
+    `new`/`destroy` instead. **Failing to allocate is fatal, not a returned
+    `NULL`.** Do not write a null check after an allocation.
+12. **Tests are plain C programs, one per module.** `<folder>/tests/<module>.c`,
+    an ordinary `main()`, zero for pass. The build finds them; nothing is
+    registered anywhere. Check macros come from `voe::testing` — link it from
+    tests only, never from `src/`. A failure message names the expression, the
+    expected value and the actual one, because that message is all the next
+    reader gets.
 
 ## Folders
 
@@ -104,6 +121,40 @@ turn already-parsed data into draws; no renderer parses a document format.
 to the screen directly: the frame is drawn to a target, and presenting it is a
 separate last step.
 
+## Conventions the world is built on
+
+Silent when wrong. Where these disagree with a reference you are copying from,
+they win and the reference is wrong for this engine.
+
+- **Right-handed, +Y up, −Z forward.** A camera looks along its own −Z. This is
+  glTF's convention, so the importer converts **no** coordinates — and may not
+  be given a conversion later. Layout is a different matter: see below.
+- **Vectors are columns.** `M · v`; composition reads right to left; translation
+  is the last column.
+- **Matrices are stored row-major — `m[row][column]`** — because that is what
+  the same expression means in Slang, so an upload to the GPU is a straight
+  copy. `slangc` must be invoked with `-matrix-layout-row-major`; its default is
+  the other one and getting it wrong transposes every transform without failing
+  to compile. glTF stores column-major, so the importer transposes — layout
+  only, never coordinates.
+- **`math` is spelled the way Slang spells it.** `voe_math_float3`,
+  `voe_math_float4x4`. Operation names follow Slang's operators, not
+  mathematical vocabulary: `_mul` is component-wise `a * b`, **not** a dot
+  product; scalar multiplication is `_scale`.
+- **Depth runs backwards, deliberately.** The near plane is **1.0**, the far
+  plane **0.0**, range 0..1, float depth buffer, `GREATER`, cleared to 0 —
+  orthographic included. Nearly every tutorial does the opposite. Do not
+  "correct" it.
+- **Exactly one Y flip exists in the engine, and it is in the viewport.**
+  Vulkan's clip space is Y-down; that is reconciled with a negative viewport
+  height in `render`, never by negating a row of a projection matrix. Flipping
+  Y reverses apparent winding, so the front-face constant is set to match and
+  proven by a test. Flipping twice is the classic bug and it is invisible until
+  culling is on.
+- **`math` does not know about any graphics API** and does not build projection
+  matrices.
+- Angles are radians. Units are metres and seconds.
+
 ## Build
 
 Every folder's `CMakeLists.txt` is these four lines and nothing else:
@@ -135,8 +186,14 @@ zero before the card moves to `review/`.
 
 ## Status
 
-**No engine source or build files yet.** Architecture, naming and the build
-layout are settled; the first scaffolding cards — `cmake/voe.cmake`,
-`check.cmake`, then `base` and `math` — are being written. Error handling,
-memory allocation and the test mechanism are not yet decided; a card that needs
-one of them says so. Throwaway spikes do not live in this repository.
+**The build works on Linux and Windows.** `cmake/voe.cmake`, `check.cmake` and
+the folder scaffolding are in place and card 001 is complete. `math` is the
+first real code and is in progress.
+
+Settled and binding: naming, the build, tests, memory, and the conventions
+above. **Error handling is not decided** — how a genuine, recoverable failure is
+reported (a file that will not open, a model that will not parse) is still open,
+and a card that needs it says so rather than inventing one. Note that running
+out of memory is *not* one of these: that is fatal, and decided.
+
+Throwaway spikes do not live in this repository.
