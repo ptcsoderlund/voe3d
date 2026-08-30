@@ -27,24 +27,27 @@
 // draw, neither of which exists yet. Move and resize a bare window with the
 // compositor's own shortcuts.
 //
-// DEVIATION: card 004 ("do not invent an event queue, a callback, or a
-// listener"), narrowest reading, the placeholder buffer below. The card's only
-// verification is a person seeing the window, and on Wayland a surface with no
-// buffer ever committed is never mapped: there would be nothing to see and
-// nothing to resize. So this file commits a flat-coloured shared-memory buffer
-// purely so the window exists on screen. It is a stand-in for the Vulkan
-// swapchain, it is the reason wl_shm is bound at all, and every line of it goes
-// when render attaches a real surface. It adds nothing to the public API.
+// NOTHING HERE PUTS A PIXEL ON THE SCREEN, AND THAT IS WHY THE WINDOW IS NOT
+// VISIBLE UNTIL SOMETHING ELSE DOES. A Wayland surface with no buffer ever
+// attached is not mapped at all: it exists, it has a size, it answers configure,
+// and the compositor shows nothing. Card 004 filled that gap with a flat
+// shared-memory buffer; card 007 deleted it, because render now creates a Vulkan
+// swapchain against this surface and the swapchain's first present is what maps
+// the window.
+//
+// So a caller that opens a window and never draws sees no window. That is not a
+// fault here and there is nothing to fix in this file — it is what a Wayland
+// surface is. It is written down because the symptom is an invisible window with
+// no error anywhere, which is a long afternoon for whoever meets it without
+// having read this.
 //
 // A compositor that goes away mid-run sets should_close, because there is no
 // other way out: _poll cannot report anything and the caller is in a loop. That
 // is a papering-over, not a design, and it is written up on card 004.
 //
-// The placeholder's memory is one memfd, mapped once, sized for a window no
-// larger than PLACEHOLDER_MAX_* and never unmapped until the window is
-// destroyed. wl_buffer objects come and go against that one mapping as the
-// window resizes, which is what makes destroying a buffer the compositor may
-// still be reading from harmless: the object goes, the pages stay.
+// _GNU_SOURCE is what makes <poll.h> declare poll() under -std=c23, which the
+// engine builds with. It is a feature-test macro and not a use of any GNU
+// extension.
 #define _GNU_SOURCE
 
 #include <platform/window.h>
@@ -59,22 +62,11 @@
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
-// The largest window the placeholder can fill. Beyond it the buffer is clamped
-// and the window stops growing on screen while _size keeps reporting the truth.
-// A real swapchain has no such limit; this one exists so the mapping can be made
-// once and never moved.
-#define PLACEHOLDER_MAX_WIDTH 2560
-#define PLACEHOLDER_MAX_HEIGHT 1440
-#define PLACEHOLDER_COLOUR 0xff1e1e28u
 
 struct voe_platform_window {
 	struct wl_display *display;
 	struct wl_registry *registry;
 	struct wl_compositor *compositor;
-	struct wl_shm *shm;
 	struct xdg_wm_base *wm_base;
 	struct zxdg_decoration_manager_v1 *decorations;
 
@@ -82,12 +74,6 @@ struct voe_platform_window {
 	struct xdg_surface *xdg_surface;
 	struct xdg_toplevel *toplevel;
 	struct zxdg_toplevel_decoration_v1 *decoration;
-
-	struct wl_shm_pool *pool;
-	struct wl_buffer *buffer;
-	unsigned char *pool_memory;
-	size_t pool_bytes;
-	int pool_fd;
 
 	int width;
 	int height;
@@ -120,9 +106,6 @@ static void registry_global(void *data, struct wl_registry *registry,
 	if (strcmp(interface, wl_compositor_interface.name) == 0)
 		window->compositor = wl_registry_bind(registry, name,
 						      &wl_compositor_interface, 1);
-	else if (strcmp(interface, wl_shm_interface.name) == 0)
-		window->shm = wl_registry_bind(registry, name,
-					       &wl_shm_interface, 1);
 	else if (strcmp(interface, xdg_wm_base_interface.name) == 0)
 		window->wm_base = wl_registry_bind(registry, name,
 						   &xdg_wm_base_interface, 1);
@@ -148,10 +131,10 @@ static const struct wl_registry_listener registry_listener = {
 	.global_remove = registry_global_remove,
 };
 
-// The compositor's half of the resize handshake: it proposes, this acks, and the
-// next commit has to carry a buffer of the acked size. The commit is deliberately
-// not made here — poll does it — so that a configure arriving in the middle of
-// window creation and one arriving mid-frame take the same path.
+// The compositor's half of the resize handshake: it proposes, this acks, and
+// whatever draws into the surface next is expected to be the size that was
+// acked. Nothing is committed here, because nothing here has a buffer to commit
+// — the swapchain does, and it finds out about the new size by asking _size.
 static void surface_configure(void *data, struct xdg_surface *xdg_surface,
 			      uint32_t serial)
 {
@@ -222,75 +205,10 @@ static const struct zxdg_toplevel_decoration_v1_listener decoration_listener = {
 	.configure = decoration_configure,
 };
 
-// ---------------------------------------------------------- placeholder pixels
-
-static int clamp_to(int value, int limit)
-{
-	return value > limit ? limit : value;
-}
-
-static bool pool_open(voe_platform_window *window)
-{
-	size_t bytes = (size_t)PLACEHOLDER_MAX_WIDTH *
-		       (size_t)PLACEHOLDER_MAX_HEIGHT * 4u;
-	void *mapped;
-
-	window->pool_fd = memfd_create("voe-window-placeholder", MFD_CLOEXEC);
-	if (window->pool_fd < 0)
-		return false;
-	if (ftruncate(window->pool_fd, (off_t)bytes) < 0)
-		return false;
-
-	// Sparse: the file is large, and only the pages actually written cost
-	// anything.
-	mapped = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED,
-		      window->pool_fd, 0);
-	if (mapped == MAP_FAILED)
-		return false;
-
-	window->pool_memory = mapped;
-	window->pool_bytes = bytes;
-	window->pool = wl_shm_create_pool(window->shm, window->pool_fd,
-					  (int32_t)bytes);
-	return window->pool != NULL;
-}
-
-// Fill, attach, commit — and only then drop the buffer the compositor was shown
-// last, because the object may go while the pages behind it may not.
-static void present(voe_platform_window *window)
-{
-	int width = clamp_to(window->width, PLACEHOLDER_MAX_WIDTH);
-	int height = clamp_to(window->height, PLACEHOLDER_MAX_HEIGHT);
-	uint32_t *pixel = (uint32_t *)window->pool_memory;
-	struct wl_buffer *buffer;
-
-	for (int i = 0; i < width * height; i++)
-		pixel[i] = PLACEHOLDER_COLOUR;
-
-	buffer = wl_shm_pool_create_buffer(window->pool, 0, width, height,
-					   width * 4, WL_SHM_FORMAT_XRGB8888);
-	wl_surface_attach(window->surface, buffer, 0, 0);
-	wl_surface_damage(window->surface, 0, 0, width, height);
-	wl_surface_commit(window->surface);
-
-	if (window->buffer != NULL)
-		wl_buffer_destroy(window->buffer);
-	window->buffer = buffer;
-}
-
 // -------------------------------------------------------------- open and close
 
 static void close_down(voe_platform_window *window)
 {
-	if (window->buffer != NULL)
-		wl_buffer_destroy(window->buffer);
-	if (window->pool != NULL)
-		wl_shm_pool_destroy(window->pool);
-	if (window->pool_memory != NULL)
-		munmap(window->pool_memory, window->pool_bytes);
-	if (window->pool_fd >= 0)
-		close(window->pool_fd);
-
 	if (window->decoration != NULL)
 		zxdg_toplevel_decoration_v1_destroy(window->decoration);
 	if (window->toplevel != NULL)
@@ -304,8 +222,6 @@ static void close_down(voe_platform_window *window)
 		zxdg_decoration_manager_v1_destroy(window->decorations);
 	if (window->wm_base != NULL)
 		xdg_wm_base_destroy(window->wm_base);
-	if (window->shm != NULL)
-		wl_shm_destroy(window->shm);
 	if (window->compositor != NULL)
 		wl_compositor_destroy(window->compositor);
 	if (window->registry != NULL)
@@ -335,7 +251,6 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	window = calloc(1, sizeof(*window));
 	VOE_BASE_ASSERT(window != NULL, "out of memory opening a window");
 
-	window->pool_fd = -1;
 	window->width = width;
 	window->height = height;
 	window->wanted_width = width;
@@ -353,8 +268,7 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 		return open_failed(window);
 
 	// A compositor that offers no xdg-shell cannot give us a window at all.
-	if (window->compositor == NULL || window->shm == NULL ||
-	    window->wm_base == NULL)
+	if (window->compositor == NULL || window->wm_base == NULL)
 		return open_failed(window);
 	xdg_wm_base_add_listener(window->wm_base, &wm_base_listener, window);
 
@@ -390,14 +304,13 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 		}
 	}
 
-	if (!pool_open(window))
-		return open_failed(window);
-
 	// The empty commit that asks for the first configure, then the wait for
 	// it. Attaching a buffer before that configure is a protocol error, so
-	// there is no window until it arrives. One roundtrip is normally enough;
-	// the loop is for a compositor that takes its time, and giving up is a
-	// failure to open like any other.
+	// whoever draws into this surface may not start until it has arrived —
+	// which is what makes waiting for it part of opening the window rather
+	// than something the first frame could do. One roundtrip is normally
+	// enough; the loop is for a compositor that takes its time, and giving up
+	// is a failure to open like any other.
 	wl_surface_commit(window->surface);
 	for (int attempt = 0; attempt < 4 && !window->configured; attempt++) {
 		if (wl_display_roundtrip(window->display) < 0)
@@ -408,9 +321,6 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 
 	window->width = window->wanted_width;
 	window->height = window->wanted_height;
-	present(window);
-	if (wl_display_roundtrip(window->display) < 0)
-		return open_failed(window);
 
 	return window;
 }
@@ -462,14 +372,14 @@ void voe_platform_window_poll(voe_platform_window *window)
 	if (wl_display_get_error(window->display) != 0)
 		window->should_close = true;
 
-	// The commit the acked configure owes the compositor. Doing it here
-	// rather than in the handler keeps one path for a resize whenever it
-	// lands.
+	// A configure that proposed a new size is folded into the size callers
+	// ask for. Doing it here rather than in the handler keeps one path for a
+	// resize whenever it lands, and whoever is drawing finds out the same way
+	// everyone else does: by asking _size and seeing a different number.
 	if (window->wanted_width != window->width ||
 	    window->wanted_height != window->height) {
 		window->width = window->wanted_width;
 		window->height = window->wanted_height;
-		present(window);
 	}
 }
 
