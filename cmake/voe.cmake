@@ -3,8 +3,9 @@
 # A folder is the unit CMake links, and its CMakeLists.txt is four lines. This
 # file is what makes four lines enough: the compiler guards, the allowed
 # dependency map, the static library target voe_<folder> and its alias
-# voe::<folder>, the public include directory, the one flag set, and a glob of
-# src/ so that adding a source file never needs a CMake edit.
+# voe::<folder>, the public include directory, the one flag set, a glob of src/
+# so that adding a source file never needs a CMake edit, and the same for
+# tests/ so that adding a test never needs one either.
 #
 # Two things here are contracts with check.cmake, not free to reword:
 #
@@ -20,6 +21,23 @@
 # Adding an edge is an architecture change and belongs in a card, not here.
 
 include_guard(GLOBAL)
+
+# Testing is enabled in the scope that includes this file first, and that scope
+# is the top level in both builds we support: the repository root when the whole
+# engine is configured, and the folder itself when one folder is configured
+# standalone. ctest therefore finds the tests either way, and no folder's
+# CMakeLists.txt has to know that tests exist.
+enable_testing()
+
+# voe::testing is the check macros and nothing else — one header, nothing to
+# build, nothing to link. It is deliberately not a folder: it has no
+# CMakeLists.txt, so check.cmake's folder discovery never sees it and the
+# dependency map never needs a row for it. Tests link it. A folder's src/ may
+# not, and check.cmake enforces that rather than trusting it.
+add_library(voe_testing INTERFACE)
+add_library(voe::testing ALIAS voe_testing)
+target_include_directories(voe_testing
+    INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../testing/include)
 
 # The allowed dependency edges. A folder absent from this list has an empty row,
 # so every DEPENDS on it is rejected — which is what makes an unknown folder
@@ -46,6 +64,17 @@ function(voe_allowed_deps folder out_var)
         set(deps base math ecs scene platform assets render 3d)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
+endfunction()
+
+# The one flag set and the one language level, in one place, applied identically
+# to a folder's library and to its test executables. A test compiled with looser
+# flags than the code it tests is a test that lies.
+function(voe_target_settings target)
+    set_target_properties(${target} PROPERTIES
+        C_STANDARD 23
+        C_STANDARD_REQUIRED ON
+        C_EXTENSIONS OFF)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endfunction()
 
 # Run once per CMake run, before any target exists. Guarded by a global property
@@ -109,9 +138,18 @@ function(voe_module folder)
         target_link_libraries(voe_${folder} PUBLIC voe::${dep})
     endforeach()
 
-    set_target_properties(voe_${folder} PROPERTIES
-        C_STANDARD 23
-        C_STANDARD_REQUIRED ON
-        C_EXTENSIONS OFF)
-    target_compile_options(voe_${folder} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    voe_target_settings(voe_${folder})
+
+    # Tests. One executable per file in tests/, named <folder>/<file> so that
+    # `ctest -R math` runs one folder's tests. A folder with no tests/ globs
+    # nothing and is silent, not an error.
+    file(GLOB test_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/tests/*.c)
+    foreach(test_source IN LISTS test_sources)
+        cmake_path(GET test_source STEM test_name)
+        set(test_target voe_test_${folder}_${test_name})
+        add_executable(${test_target} ${test_source})
+        target_link_libraries(${test_target} PRIVATE voe_${folder} voe::testing)
+        voe_target_settings(${test_target})
+        add_test(NAME ${folder}/${test_name} COMMAND ${test_target})
+    endforeach()
 endfunction()

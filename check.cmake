@@ -8,8 +8,8 @@
 # `skip` is a pass: a step whose tool is absent says so and the run continues.
 # Only step 4a is expected to skip in normal use.
 #
-# Steps 1 to 4 shell out to cmake, so a Ninja and a clang must be on PATH.
-# Step 5 reads sources only and needs no toolchain.
+# Every step but 5 shells out to cmake or ctest, so a Ninja and a clang must be
+# on PATH. Step 5 reads sources only and needs no toolchain.
 #
 # Two conventions the steps below rely on:
 #
@@ -216,6 +216,9 @@ foreach(folder IN LISTS folders)
             if(line MATCHES "<(X11/|xcb/|wayland)")
                 list(APPEND violations "${shown}: ${line} is a window-system header")
             endif()
+            if(line MATCHES "[<\"]testing/" AND NOT shown MATCHES "^${folder}/tests/")
+                list(APPEND violations "${shown}: only tests/ may include testing/")
+            endif()
             if(line MATCHES "#[ \t]*include[ \t]*[<\"]([A-Za-z0-9_]+)/")
                 set(named "${CMAKE_MATCH_1}")
                 if(named IN_LIST folders
@@ -237,4 +240,104 @@ step_ok("${step}")
 
 # ---------------------------------------------------------------- 6 tests
 
-step_ok("tests (none yet)")
+# ctest against the build step 3 already made, so this runs what the engine
+# actually builds rather than a configuration invented here. A tree with no
+# tests in it is not a failure; a tree whose tests fail is.
+set(step "tests")
+
+run_capture(code text "${CMAKE_CTEST_COMMAND}"
+    --test-dir "${checkdir}/root" --output-on-failure)
+if(NOT code MATCHES "^[0-9]+$")
+    step_fail("${step}" "ctest could not be run: ${code}")
+endif()
+if(text MATCHES "No tests were found")
+    step_ok("${step} (the tree has none yet)")
+elseif(NOT code EQUAL 0)
+    step_fail("${step}" "${text}")
+else()
+    string(REGEX MATCH "out of ([0-9]+)" matched "${text}")
+    step_ok("${step} (${CMAKE_MATCH_1} passed)")
+endif()
+
+# --------------------------------------------- 6b harness reports a failure
+
+# Step 6 passing proves nothing on its own: a harness that always reports green
+# passes it too, and would make every test written from here on worthless. So a
+# scratch folder with one passing and one deliberately failing test is built and
+# run, and the failure is required to come back — by exit code, by count, and by
+# the text of all three checks, which also proves a run does not stop at the
+# first failure.
+set(step "harness reports a failure")
+
+file(MAKE_DIRECTORY "${checkdir}/harness/include/harness")
+file(MAKE_DIRECTORY "${checkdir}/harness/src")
+file(MAKE_DIRECTORY "${checkdir}/harness/tests")
+file(WRITE "${checkdir}/harness/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.28)
+project(voe_harness C)
+include(${root}/cmake/voe.cmake)
+voe_module(harness)
+")
+file(WRITE "${checkdir}/harness/include/harness/value.h"
+"#pragma once
+int voe_harness_value(void);
+")
+file(WRITE "${checkdir}/harness/src/value.c"
+"#include <harness/value.h>
+int voe_harness_value(void) { return 7; }
+")
+file(WRITE "${checkdir}/harness/tests/pass.c"
+"#include <harness/value.h>
+#include <testing/test.h>
+
+int main(void)
+{
+        VOE_TEST_CHECK(voe_harness_value() == 7);
+        VOE_TEST_CHECK_INT(voe_harness_value(), 7);
+        VOE_TEST_CHECK_FLOAT(1.0, 1.0, 1e-9);
+        return voe_test_result();
+}
+")
+file(WRITE "${checkdir}/harness/tests/fail.c"
+"#include <testing/test.h>
+
+int main(void)
+{
+        VOE_TEST_CHECK(1 == 2);
+        VOE_TEST_CHECK_INT(2 + 2, 5);
+        VOE_TEST_CHECK_FLOAT(0.25, 0.5, 1e-9);
+        return voe_test_result();
+}
+")
+
+run_capture(code text "${CMAKE_COMMAND}"
+    -S "${checkdir}/harness" -B "${checkdir}/harness-build" ${common}
+    -DCMAKE_BUILD_TYPE=Debug)
+if(NOT code MATCHES "^[0-9]+$" OR NOT code EQUAL 0)
+    step_fail("${step}" "the scratch folder did not configure:\n${text}")
+endif()
+
+run_capture(code text "${CMAKE_COMMAND}" --build "${checkdir}/harness-build")
+if(NOT code MATCHES "^[0-9]+$" OR NOT code EQUAL 0)
+    step_fail("${step}" "the scratch tests did not build:\n${text}")
+endif()
+
+run_capture(code text "${CMAKE_CTEST_COMMAND}"
+    --test-dir "${checkdir}/harness-build" --output-on-failure)
+if(code MATCHES "^[0-9]+$" AND code EQUAL 0)
+    step_fail("${step}" "a failing test reported success:\n${text}")
+endif()
+
+# One passing and one failing, and every check in the failing one reported.
+foreach(expected
+        "1 tests failed out of 2"
+        "1 == 2"
+        "2 \\+ 2 == 5"
+        "expected: 5"
+        "off by 0.25")
+    if(NOT text MATCHES "${expected}")
+        step_fail("${step}"
+            "ctest reported failure, but its output lacks '${expected}':\n${text}")
+    endif()
+endforeach()
+step_ok("${step}")
