@@ -73,12 +73,16 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 // failure.
 static bool class_ready(HINSTANCE instance)
 {
+	// IDC_ARROW is an ordinal, not a string, and the header's
+	// MAKEINTRESOURCE gives it the ANSI pointer type unless UNICODE is
+	// defined — which this file does not rely on, naming every W entry point
+	// itself. The cast says what the value already is.
 	WNDCLASSEXW description = {
 		.cbSize = sizeof(description),
 		.style = CS_HREDRAW | CS_VREDRAW,
 		.lpfnWndProc = window_proc,
 		.hInstance = instance,
-		.hCursor = LoadCursorW(NULL, IDC_ARROW),
+		.hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW),
 		.lpszClassName = WINDOW_CLASS,
 	};
 
