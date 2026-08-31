@@ -13,6 +13,14 @@
 # an alias, a public include directory and tests, and a program has none of the
 # three because nothing links a program.
 #
+# Both also drop a compile_commands.json beside the folder's CMakeLists.txt.
+# CMake writes one database per build tree, inside that build tree, which is the
+# one place an editor opening a single folder will not look. The copy is what
+# lets clangd work in a folder without being told where the build is. It is a
+# build step rather than a configure step because the database does not exist
+# until the generate phase has finished, and a copy rather than a symlink
+# because Windows does not hand those out without being asked nicely.
+#
 # It also knows one folder by name: platform. platform is the only folder that
 # links something the operating system supplies and the only one that generates a
 # source file, and the four-line rule leaves nowhere else to say so. That
@@ -41,6 +49,15 @@ include_guard(GLOBAL)
 # standalone. ctest therefore finds the tests either way, and no folder's
 # CMakeLists.txt has to know that tests exist.
 enable_testing()
+
+# The database is exported on every configure, not only the ones a preset drives:
+# check.cmake configures each folder standalone with no preset in sight, and a
+# folder whose editor support depends on which entry point configured it is a
+# folder that works on one machine and not the next. This is a normal variable,
+# so it takes hold in whichever scope included this file first — the repository
+# root in a full build, the folder itself in a standalone one — and every
+# subdirectory inherits it from there.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # voe::testing is the check macros and nothing else — one header, nothing to
 # build, nothing to link. It is deliberately not a folder: it has no
@@ -94,6 +111,35 @@ function(voe_target_settings target)
         C_STANDARD_REQUIRED ON
         C_EXTENSIONS OFF)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endfunction()
+
+# The database, copied out of the build tree to sit beside the CMakeLists.txt of
+# the project that owns it. prefix is the project's name, so the target reads
+# voe_math_compile_commands and the root's reads voe_compile_commands, and every
+# target named after dir gains a dependency on it — which is what makes building
+# one folder refresh that folder's database without building the whole tree.
+#
+# The copy runs on every build rather than being an output with the database as
+# its input, and that is deliberate. Several build trees write to the same file:
+# build/debug, whatever an IDE made, and build/check/root every time check.cmake
+# runs. A rule keyed on timestamps cannot see that a different tree overwrote the
+# copy, because it left the copy newer than this tree's database, so the file
+# would sit there naming a build directory nobody is using and no ordinary build
+# would put it right. Running unconditionally means the last build wins, which is
+# the only answer that is right from the editor's point of view. It costs one
+# file comparison per project, and copy_if_different leaves the timestamp alone
+# when the content matches, so nothing downstream churns.
+function(voe_export_compile_commands prefix dir)
+    add_custom_target(${prefix}_compile_commands ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_BINARY_DIR}/compile_commands.json"
+                "${dir}/compile_commands.json"
+        COMMENT "compile_commands.json -> ${dir}"
+        VERBATIM)
+
+    foreach(target IN LISTS ARGN)
+        add_dependencies(${target} ${prefix}_compile_commands)
+    endforeach()
 endfunction()
 
 # Run once per CMake run, before any target exists. Guarded by a global property
@@ -290,6 +336,8 @@ function(voe_module folder)
         voe_target_settings(${test_target})
         add_test(NAME ${folder}/${test_name} COMMAND ${test_target})
     endforeach()
+
+    voe_export_compile_commands(voe_${folder} ${CMAKE_CURRENT_LIST_DIR} voe_${folder})
 endfunction()
 
 # voe_executable(<folder> [DEPENDS <folder>...])
@@ -322,4 +370,6 @@ function(voe_executable folder)
     endforeach()
 
     voe_target_settings(voe_${folder})
+
+    voe_export_compile_commands(voe_${folder} ${CMAKE_CURRENT_LIST_DIR} voe_${folder})
 endfunction()

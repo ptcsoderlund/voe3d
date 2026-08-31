@@ -16,4 +16,7 @@
 /out/
 /cmake-build-*/
 
+# The compile database. CMake writes one per build tree; every project copies it
+# out to sit beside its own CMakeLists.txt, so this name is matched at any depth
+# and not only at the root.
 compile_commands.json
