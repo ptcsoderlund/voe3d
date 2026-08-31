@@ -87,6 +87,16 @@ typedef struct {
 	PFN_vkCmdPipelineBarrier2 cmd_pipeline_barrier2;
 	PFN_vkCmdBeginRendering cmd_begin_rendering;
 	PFN_vkCmdEndRendering cmd_end_rendering;
+	PFN_vkCreateShaderModule create_shader_module;
+	PFN_vkDestroyShaderModule destroy_shader_module;
+	PFN_vkCreatePipelineLayout create_pipeline_layout;
+	PFN_vkDestroyPipelineLayout destroy_pipeline_layout;
+	PFN_vkCreateGraphicsPipelines create_graphics_pipelines;
+	PFN_vkDestroyPipeline destroy_pipeline;
+	PFN_vkCmdBindPipeline cmd_bind_pipeline;
+	PFN_vkCmdSetViewport cmd_set_viewport;
+	PFN_vkCmdSetScissor cmd_set_scissor;
+	PFN_vkCmdDraw cmd_draw;
 	PFN_vkCreateSemaphore create_semaphore;
 	PFN_vkDestroySemaphore destroy_semaphore;
 	PFN_vkCreateFence create_fence;

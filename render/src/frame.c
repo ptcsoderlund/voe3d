@@ -1,7 +1,15 @@
-// One frame: wait for the last one, take an image, clear it, present it. There
-// is no pipeline, no shader and no vertex here and there does not need to be —
-// a clear is a load operation, and dynamic rendering will do one for you as it
-// begins.
+// One frame: wait for the last one, take an image, clear it, draw the triangle
+// into it, present it. The clear is not a draw — it is the load operation
+// dynamic rendering performs as it begins — so the only thing recorded between
+// begin and end is the triangle.
+//
+// THE ONE Y FLIP IN THIS ENGINE IS THE VIEWPORT BELOW. Vulkan's clip space has
+// +Y pointing down the screen and this engine has +Y up, and the whole of the
+// reconciliation is a negative viewport height here. Never a negated row in a
+// projection matrix, and never both: flipping twice looks exactly like flipping
+// none until something is culled, and then it is a bug nobody can see. The
+// front-face constant that goes with this flip is set on the pipeline in
+// device.c.
 //
 // ONE FRAME IN FLIGHT, AND THAT IS THE WHOLE OF THE SYNCHRONISATION. A fence
 // says the last submit has finished, which is what makes the command buffer and
@@ -27,10 +35,11 @@
 
 #include <stdio.h>
 
-// The colour the window is filled with. There is nothing to choose it by yet —
-// nothing renders — so it is one value in one place, and it is deliberately not
-// the grey the deleted placeholder buffer used, so that nobody looking at a
-// window can wonder which of the two put it there.
+// The colour behind the triangle. It is deliberately none of the three the
+// triangle's corners are, so that a person looking at the window can tell the
+// ground from the thing standing on it, and it is deliberately not the grey the
+// deleted placeholder buffer used, so that nobody can wonder which of the two
+// put it there.
 #define CLEAR_RED 0.04f
 #define CLEAR_GREEN 0.32f
 #define CLEAR_BLUE 0.38f
@@ -78,15 +87,36 @@ static void record(voe_render_device *device, uint32_t index)
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colour,
 	};
+	// y at the bottom and a negative height: the flip, and the only one. The
+	// depth range is the plain 0..1 identity — this engine's reversed depth
+	// lives in the projection matrix that puts the near plane at 1.0, not
+	// here, and there is no depth buffer in this frame to apply it to.
+	VkViewport viewport = {
+		.y = (float)device->extent.height,
+		.width = (float)device->extent.width,
+		.height = -(float)device->extent.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+	};
+	// The scissor is the whole image and takes no part in the flip. It is in
+	// framebuffer coordinates, which have no sign to get wrong.
+	VkRect2D scissor = { .extent = device->extent };
 
 	voe_render_vk.begin_command_buffer(device->commands, &begin);
 
 	voe_render_vk.cmd_pipeline_barrier2(device->commands, &dependency);
 
-	// The clear is the load operation. Beginning and immediately ending is
-	// not a placeholder for a draw that is missing — it is the whole of what
-	// this card asks the GPU to do.
+	// The clear is the load operation, so it has already happened by the time
+	// the first command inside is recorded. Three vertices and no buffer:
+	// the positions and the colours are constants in the shader, looked up by
+	// the index Vulkan hands each invocation.
 	voe_render_vk.cmd_begin_rendering(device->commands, &rendering);
+	voe_render_vk.cmd_set_viewport(device->commands, 0, 1, &viewport);
+	voe_render_vk.cmd_set_scissor(device->commands, 0, 1, &scissor);
+	voe_render_vk.cmd_bind_pipeline(device->commands,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					device->pipeline);
+	voe_render_vk.cmd_draw(device->commands, 3, 1, 0, 0);
 	voe_render_vk.cmd_end_rendering(device->commands);
 
 	barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;

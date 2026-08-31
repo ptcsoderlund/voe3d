@@ -1,8 +1,15 @@
-// Starting the GPU: the loader, the instance, the surface, the graphics card and
-// the logical device, in that order, because each one is what the next is asked
-// for. Everything here happens once. The parts that happen again live in
-// swapchain.c and frame.c — see device_internal.h for why the split is where it
-// is.
+// Starting the GPU: the loader, the instance, the surface, the graphics card, the
+// logical device and the pipeline, in that order, because each one is what the
+// next is asked for. Everything here happens once. The parts that happen again
+// live in swapchain.c and frame.c — see device_internal.h for why the split is
+// where it is.
+//
+// THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/triangle.slang
+// into the build tree and #embed puts the result in the binary below; nothing is
+// read from disk at run time and there is no shader path to get wrong on someone
+// else's machine. The pipeline is here rather than in a file of its own because
+// this file is everything with a startup lifetime, and a pipeline that no resize
+// touches has one.
 //
 // WHY THE ARENA IS A PARAMETER AND WHY IT IS ONLY NEEDED HERE. Startup asks the
 // driver four questions whose answers are arrays whose length is not known until
@@ -321,11 +328,23 @@ static bool create_device(voe_render_device *device)
 		.queueCount = 1,
 		.pQueuePriorities = &priority,
 	};
+	// Slang lowers SV_VertexID to gl_VertexIndex minus gl_BaseVertex, which
+	// makes the compiled shader declare the DrawParameters capability, which
+	// needs this feature turned on or the module is invalid. The subtraction
+	// is of no use to us — nothing here draws with a first vertex that is not
+	// zero — but there is no way to ask slangc for the builtin without it,
+	// and a feature that every 1.3 driver measured reports is a smaller price
+	// than a vertex buffer this card says not to add.
+	VkPhysicalDeviceVulkan11Features features11 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+		.shaderDrawParameters = VK_TRUE,
+	};
 	// Core in 1.3 and supported by every 1.3 implementation, but still off
 	// until asked for: a feature that is core is guaranteed available, not
 	// guaranteed enabled.
 	VkPhysicalDeviceVulkan13Features features13 = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.pNext = &features11,
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE,
 	};
@@ -385,6 +404,178 @@ bool voe_render_device_choose_format(voe_render_device *device,
 			device->format = formats[i];
 			break;
 		}
+	}
+	return true;
+}
+
+// ------------------------------------------------------------------- pipeline
+
+// The compiled shader, in the binary. slangc writes triangle.spv into the build
+// tree and cmake/voe.cmake puts that directory on this file's include path, so
+// the quoted name below resolves to a generated file and never to one in the
+// source tree. There is no fallback path and no file to ship beside the binary.
+//
+// alignas because vkCreateShaderModule takes a const uint32_t *, and #embed can
+// only fill an array of bytes. A char array is aligned for a char; handing a
+// misaligned pointer to the driver is undefined behaviour that happens to work
+// until the day it does not.
+static alignas(uint32_t) const unsigned char triangle_spv[] = {
+#embed "triangle.spv"
+};
+
+// Both entry points live in the one module above, spelled exactly as the shader
+// spells them — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
+// keeps these two strings true.
+#define TRIANGLE_VERTEX_ENTRY "voe_render_triangle_vertex"
+#define TRIANGLE_FRAGMENT_ENTRY "voe_render_triangle_fragment"
+
+static bool create_pipeline(voe_render_device *device)
+{
+	VkShaderModuleCreateInfo module_info = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.codeSize = sizeof(triangle_spv),
+		.pCode = (const uint32_t *)triangle_spv,
+	};
+	VkShaderModule module = VK_NULL_HANDLE;
+	VkPipelineShaderStageCreateInfo stages[2];
+	// Nothing is fed in. The three vertices are constants in the shader and
+	// the draw is vkCmdDraw(3, 1, 0, 0), so there is no binding and no
+	// attribute to describe — this struct is present and empty because
+	// Vulkan requires one, not because anything was left out.
+	VkPipelineVertexInputStateCreateInfo vertex_input = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+	};
+	VkPipelineInputAssemblyStateCreateInfo assembly = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+	};
+	// One of each, and what they are is decided per frame — see the dynamic
+	// state below. Counts here, values in frame.c.
+	VkPipelineViewportStateCreateInfo viewport = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.viewportCount = 1,
+		.scissorCount = 1,
+	};
+	// FRONT FACE IS CLOCKWISE AND THAT IS NOT A MISTAKE. This engine winds
+	// front faces counter-clockwise with +Y up, as glTF does; the viewport
+	// flips Y, which reverses the winding Vulkan sees in framebuffer space,
+	// so the constant that means "front" here is the opposite of the one that
+	// means "front" in the world. Nothing culls yet, so nothing yet proves
+	// this pair right — the test belongs with the card that turns culling on,
+	// and until then this line is the written half of the convention.
+	//
+	// DEVIATION: CLAUDE.md, "the front-face constant is set to match and
+	// proven by a test". Set to match, not proven: with VK_CULL_MODE_NONE
+	// the constant has no observable effect, so there is nothing a test
+	// could assert on. Card 009 says to keep this minimal and culling is
+	// not in it. The proof arrives with the card that turns culling on.
+	VkPipelineRasterizationStateCreateInfo raster = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.polygonMode = VK_POLYGON_MODE_FILL,
+		.cullMode = VK_CULL_MODE_NONE,
+		.frontFace = VK_FRONT_FACE_CLOCKWISE,
+		.lineWidth = 1.0f,
+	};
+	VkPipelineMultisampleStateCreateInfo multisample = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+	};
+	// Written, not blended. The triangle is opaque and there is nothing
+	// underneath it but the clear.
+	VkPipelineColorBlendAttachmentState attachment = {
+		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+				  VK_COLOR_COMPONENT_G_BIT |
+				  VK_COLOR_COMPONENT_B_BIT |
+				  VK_COLOR_COMPONENT_A_BIT,
+	};
+	VkPipelineColorBlendStateCreateInfo blend = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.attachmentCount = 1,
+		.pAttachments = &attachment,
+	};
+	// So that a resize rebuilds the swapchain and nothing else. A pipeline
+	// baked at one size would have to be built again on every resize, which
+	// is a lot of driver work to say a number that changed.
+	VkDynamicState dynamic_states[2] = {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+	VkPipelineDynamicStateCreateInfo dynamic = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.dynamicStateCount = 2,
+		.pDynamicStates = dynamic_states,
+	};
+	// Dynamic rendering has no render pass, so the pipeline is told the
+	// attachment format here instead. It is the swapchain's, which is chosen
+	// once and does not change when the window resizes — which is what makes
+	// this a startup decision and not a per-resize one.
+	VkPipelineRenderingCreateInfo rendering = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+		.colorAttachmentCount = 1,
+		.pColorAttachmentFormats = &device->format.format,
+	};
+	// Empty, and legitimately so: the shader reads no descriptor and no push
+	// constant. Vulkan has no way to say "no layout".
+	VkPipelineLayoutCreateInfo layout = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	};
+	VkGraphicsPipelineCreateInfo info = {
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.pNext = &rendering,
+		.stageCount = 2,
+		.pStages = stages,
+		.pVertexInputState = &vertex_input,
+		.pInputAssemblyState = &assembly,
+		.pViewportState = &viewport,
+		.pRasterizationState = &raster,
+		.pMultisampleState = &multisample,
+		.pColorBlendState = &blend,
+		.pDynamicState = &dynamic,
+	};
+	VkResult result;
+
+	if (voe_render_vk.create_shader_module(device->device, &module_info, NULL,
+					       &module) != VK_SUCCESS) {
+		fprintf(stderr, "render: vkCreateShaderModule failed on triangle.spv\n");
+		return false;
+	}
+
+	stages[0] = (VkPipelineShaderStageCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_VERTEX_BIT,
+		.module = module,
+		.pName = TRIANGLE_VERTEX_ENTRY,
+	};
+	stages[1] = (VkPipelineShaderStageCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+		.module = module,
+		.pName = TRIANGLE_FRAGMENT_ENTRY,
+	};
+
+	if (voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
+						 &device->layout) != VK_SUCCESS) {
+		fprintf(stderr, "render: vkCreatePipelineLayout failed\n");
+		voe_render_vk.destroy_shader_module(device->device, module, NULL);
+		return false;
+	}
+	info.layout = device->layout;
+
+	result = voe_render_vk.create_graphics_pipelines(device->device,
+							 VK_NULL_HANDLE, 1, &info,
+							 NULL, &device->pipeline);
+
+	// The module is the compiler's input and the pipeline has finished
+	// reading it, so it goes away here whether or not the pipeline was made.
+	// Keeping it would be keeping a copy of the shader for nobody.
+	voe_render_vk.destroy_shader_module(device->device, module, NULL);
+
+	if (result != VK_SUCCESS) {
+		fprintf(stderr,
+			"render: vkCreateGraphicsPipelines failed (VkResult %d)\n",
+			(int)result);
+		device->pipeline = VK_NULL_HANDLE;
+		return false;
 	}
 	return true;
 }
@@ -453,6 +644,12 @@ static void close_down(voe_render_device *device)
 		voe_render_vk.device_wait_idle(device->device);
 		voe_render_swapchain_teardown(device);
 
+		if (device->pipeline != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline, NULL);
+		if (device->layout != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline_layout(device->device,
+							      device->layout, NULL);
 		if (device->submitted != VK_NULL_HANDLE)
 			voe_render_vk.destroy_fence(device->device,
 						    device->submitted, NULL);
@@ -524,6 +721,10 @@ voe_render_device *voe_render_device_new(voe_base_arena *arena,
 	if (!create_device(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_device_choose_format(device, arena))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	// After the format and before anything per-frame: the pipeline is told
+	// the format it draws into, and nothing else here depends on it.
+	if (!create_pipeline(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!create_frame_objects(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);

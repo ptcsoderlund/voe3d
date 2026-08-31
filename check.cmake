@@ -74,8 +74,8 @@ if(NOT text MATCHES "clang version ([0-9]+)")
     step_fail("${step}" "could not parse a version out of: ${text}")
 endif()
 set(clang_major "${CMAKE_MATCH_1}")
-if(clang_major LESS 18)
-    step_fail("${step}" "clang major ${clang_major} is below 18")
+if(clang_major LESS 19)
+    step_fail("${step}" "clang major ${clang_major} is below 19")
 endif()
 
 run_capture(code text "${CMAKE_COMMAND}" --version)
@@ -170,13 +170,19 @@ endif()
 
 # -------------------------------------------------------- 4b guard version
 
+# The faked version is one below the floor, and that is the whole value of this
+# step. Anything lower fires the guard whatever the floor is, so it would keep
+# passing after a floor moved and prove nothing; 18 against a floor of 19 fails
+# the moment someone lowers the guard back. When the floor moves again, this
+# number moves with it — as does the string below, which is what proves it was
+# the version guard that fired and not some other configuration error.
 set(step "guard version")
 run_capture(code text "${CMAKE_COMMAND}"
-    -S "${root}" -B "${checkdir}/guard_version" ${common} -DVOE_CHECK_FAKE_CLANG_VERSION=17)
+    -S "${root}" -B "${checkdir}/guard_version" ${common} -DVOE_CHECK_FAKE_CLANG_VERSION=18)
 if(code MATCHES "^[0-9]+$" AND code EQUAL 0)
-    step_fail("${step}" "a faked clang 17 configured; the guard did not fire")
+    step_fail("${step}" "a faked clang 18 configured; the guard did not fire")
 endif()
-if(NOT text MATCHES "Clang 18 or newer")
+if(NOT text MATCHES "Clang 19 or newer")
     step_fail("${step}" "failed, but not on the version guard:\n${text}")
 endif()
 step_ok("${step}")

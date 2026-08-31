@@ -21,17 +21,22 @@
 # until the generate phase has finished, and a copy rather than a symlink
 # because Windows does not hand those out without being asked nicely.
 #
-# It also knows one folder by name: platform. platform is the only folder that
-# links something the operating system supplies and the only one that generates a
-# source file, and the four-line rule leaves nowhere else to say so. That
-# knowledge is a function of its own, voe_platform_backend(), kept apart from
-# voe_module() so it is obvious how much of this file is general and how much is
-# one folder's bill.
+# It also knows two folders by name, because the four-line rule leaves nowhere
+# else to say what they need. platform links something the operating system
+# supplies; render runs slangc over its shaders. Each is a function of its own —
+# voe_platform_backend() and voe_render_shaders() — kept apart from voe_module()
+# so it is obvious how much of this file is general and how much is one folder's
+# bill.
+#
+# Neither is a mechanism for anyone else. The shader rule in particular is
+# deliberately not generalised: render is the only folder with a shader, and
+# where that call belongs when a second one turns up is a question that needs the
+# second folder to answer.
 #
 # Two things here are contracts with check.cmake, not free to reword:
 #
 #   - The guard messages below are searched for by substring (ADR-0005,
-#     "Clang 18 or newer", ADR-0026, ADR-0022). Changing the text breaks the
+#     "Clang 19 or newer", ADR-0026, ADR-0022). Changing the text breaks the
 #     verification silently, because a guard that fires with different wording
 #     still fails configuration and the check still sees a non-zero exit.
 #   - VOE_CHECK_FAKE_CLANG_VERSION exists only so check.cmake can exercise the
@@ -160,8 +165,10 @@ function(voe_guards)
     if(DEFINED VOE_CHECK_FAKE_CLANG_VERSION)
         set(version "${VOE_CHECK_FAKE_CLANG_VERSION}")
     endif()
-    if(version VERSION_LESS 18)
-        message(FATAL_ERROR "VOE3D requires Clang 18 or newer (ADR-0005). Found: ${version}")
+    # 19 and not 18 because #embed is how a compiled shader gets into the binary
+    # (ADR-0046), and clang grew #embed in 19 (ADR-0047).
+    if(version VERSION_LESS 19)
+        message(FATAL_ERROR "VOE3D requires Clang 19 or newer (ADR-0005, ADR-0047). Found: ${version}")
     endif()
 
     if(NOT CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "GNU")
@@ -247,6 +254,80 @@ function(voe_platform_link target include_dir)
     endif()
 endfunction()
 
+# render's bill, in one place, and the second folder this file knows by name.
+#
+# A shader is a description too, the same as a Wayland protocol is: slangc turns
+# every .slang in render/shaders/ into a SPIR-V module in the build tree, and
+# nothing generated is committed. shaders/ is globbed for the same reason src/
+# is, so adding a shader needs no edit here.
+#
+# THE SPIR-V IS NOT COMPILED, IT IS EMBEDDED. Nothing links it and nothing reads
+# it from disk at run time: a C file #embeds the .spv and the bytes end up in the
+# binary (ADR-0046). That is why the generated directory comes back to be handed
+# to the compiler rather than added to the sources, and it is the whole reason
+# the Clang floor is 19.
+#
+# It is handed over as --embed-dir and NOT as an include directory. #embed has a
+# search path of its own and does not look at -I, so an -I here finds nothing —
+# and because the diagnostic for that lands on a line already inside a
+# declaration, the mistake reads as a broken array rather than as a missing flag.
+#
+# #embed is invisible to CMake's dependency scanning, so the tie between the .spv
+# and the object file that embeds it is made by hand, with OBJECT_DEPENDS on the
+# folder's sources. That property does two jobs at once and both are needed: it
+# orders the build, so the .spv exists before anything tries to embed it, and it
+# rebuilds the object when the shader changes. It is set on every source in the
+# folder rather than on the one file that embeds today, because naming that file
+# here would put a source file's name back into CMake, which is the thing the
+# glob exists to avoid.
+#
+# Three flags, and none of them is a preference:
+#
+#   -matrix-layout-row-major     this engine stores matrices row-major so that an
+#                                upload is a straight copy. slangc's default is
+#                                the other one, and getting it wrong transposes
+#                                every transform without failing to compile.
+#   -fvk-use-entrypoint-name     keep the entry point names the shader gave them.
+#                                Without it a single-entry-point module is called
+#                                `main`, and the C side names entry points.
+#   -target spirv                the only target this engine has.
+function(voe_render_shaders folder_dir out_compiled out_include)
+    find_program(VOE_SLANGC slangc)
+    if(NOT VOE_SLANGC)
+        message(FATAL_ERROR "VOE3D requires slangc. It is a source-transforming tool, so it is installed by the programmer; the Vulkan SDK is the easiest way to get one.")
+    endif()
+
+    set(generated ${CMAKE_BINARY_DIR}/generated/render)
+    file(MAKE_DIRECTORY ${generated})
+
+    file(GLOB shaders CONFIGURE_DEPENDS ${folder_dir}/shaders/*.slang)
+    if(NOT shaders)
+        message(FATAL_ERROR "voe_render_shaders: no shaders in ${folder_dir}/shaders")
+    endif()
+
+    set(compiled "")
+    foreach(shader IN LISTS shaders)
+        cmake_path(GET shader STEM name)
+        set(spv ${generated}/${name}.spv)
+
+        add_custom_command(
+            OUTPUT ${spv}
+            COMMAND ${VOE_SLANGC} ${shader}
+                    -target spirv
+                    -matrix-layout-row-major
+                    -fvk-use-entrypoint-name
+                    -o ${spv}
+            DEPENDS ${shader}
+            COMMENT "slangc: ${name}"
+            VERBATIM)
+
+        list(APPEND compiled ${spv})
+    endforeach()
+
+    set(${out_compiled} "${compiled}" PARENT_SCOPE)
+    set(${out_include} ${generated} PARENT_SCOPE)
+endfunction()
+
 # Everything voe_module() and voe_executable() do before they part company: the
 # guards, the dependency-map check, pulling each dependency in, and the src/ glob
 # with one-platform-only sources dropped from it.
@@ -311,9 +392,22 @@ function(voe_module folder)
         list(APPEND sources ${generated})
     endif()
 
+    # Not appended to sources: a .spv is embedded, not compiled. See
+    # voe_render_shaders() for why the tie is OBJECT_DEPENDS.
+    if(folder STREQUAL "render")
+        voe_render_shaders(${CMAKE_CURRENT_LIST_DIR} compiled shader_dir)
+        set_source_files_properties(${sources} PROPERTIES
+            OBJECT_DEPENDS "${compiled}")
+    endif()
+
     add_library(voe_${folder} STATIC ${sources})
     add_library(voe::${folder} ALIAS voe_${folder})
     target_include_directories(voe_${folder} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+
+    # PRIVATE: the SPIR-V is render's own and nothing outside it embeds anything.
+    if(folder STREQUAL "render")
+        target_compile_options(voe_${folder} PRIVATE --embed-dir=${shader_dir})
+    endif()
     foreach(dep IN LISTS arg_DEPENDS)
         target_link_libraries(voe_${folder} PUBLIC voe::${dep})
     endforeach()

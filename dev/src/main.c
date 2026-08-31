@@ -1,8 +1,7 @@
 // voe_dev — the one program a person runs to see what the engine can currently
-// do. Today it opens a window and fills it with a colour the graphics card put
-// there. Later it draws a triangle. There is one of these and it always shows
-// the current state, so what is here now is expected to be deleted rather than
-// kept behind a flag when the next thing lands.
+// do. Today it opens a window and draws a triangle in it. There is one of these
+// and it always shows the current state, so what is here now is expected to be
+// deleted rather than kept behind a flag when the next thing lands.
 //
 // NO ENGINE LOGIC LIVES HERE. This file is a call site. Anything in it that
 // starts to look worth keeping belongs in a folder, with a test — the moment it
@@ -12,16 +11,25 @@
 // on, the API in platform/window.h or render/device.h has a hole and that is the
 // finding, not a reason to reach for the preprocessor.
 //
-// Run it and it should open a window filled with a flat blue-green, print a line
+// Run it and it should open a window on a flat blue-green with a triangle in the
+// middle of it, red at the apex, green at the bottom left, blue at the bottom
+// right, and the colours blended smoothly between them. It prints a line
 // whenever something about the window changes — its size, or who is drawing its
-// frame — and exit zero when the window is closed.
+// frame — and exits zero when the window is closed.
+//
+// THE APEX POINTS UP, AND THAT IS THE THING TO LOOK AT. Vulkan's clip space has
+// +Y down and this engine has +Y up; a triangle hanging apex-down means the one
+// Y flip the engine is allowed went the wrong way or happened twice. The corner
+// colours are the other check: a flat fill would mean the fragment stage never
+// interpolated anything.
 //
 // WHAT THERE IS TO TRY, since nothing here reads a key and nothing can:
 //
-//   - Resize it. A `size` line should follow and the colour should still fill
-//     the window, corner to corner, with no border and no tearing at the edge.
-//     That is the swapchain being rebuilt; there is no other visible sign of it.
-//     On KWin, Meta+Up maximises.
+//   - Resize it. A `size` line should follow, the background should still reach
+//     every corner with no border and no tearing at the edge, and the triangle
+//     should stretch with the window rather than stay put or get clipped. That
+//     is the swapchain being rebuilt and the viewport following it; there is no
+//     other visible sign of either. On KWin, Meta+Up maximises.
 //   - Toggle the frame off and on. On KWin: right-click the titlebar ->
 //     More Actions -> No Borders, or Alt+F3 for the same menu. A `size` line
 //     follows and a `decorated` line does not. That is the measured answer and
@@ -61,7 +69,7 @@ int main(void)
 	voe_platform_size size;
 	bool decorated;
 
-	window = voe_platform_window_new(960, 540, "voe3d — a cleared frame");
+	window = voe_platform_window_new(960, 540, "voe3d — a triangle");
 	if (window == NULL) {
 		fprintf(stderr, "could not open a window\n");
 		return 1;

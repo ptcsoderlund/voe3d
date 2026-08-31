@@ -49,6 +49,14 @@ struct voe_render_device {
 	// format.
 	VkSurfaceFormatKHR format;
 
+	// The triangle's pipeline, and the layout it needs in order to exist.
+	// Startup's, not the swapchain's: the viewport and the scissor are
+	// dynamic state, so a resize changes neither of these and there is
+	// nothing here to rebuild. The layout is empty — the shader takes no
+	// descriptors and no push constants — and Vulkan still wants one.
+	VkPipelineLayout layout;
+	VkPipeline pipeline;
+
 	VkSwapchainKHR swapchain;
 	VkExtent2D extent;
 

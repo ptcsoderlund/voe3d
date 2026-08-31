@@ -31,8 +31,14 @@
 //
 // IT DRAWS TO THE WINDOW DIRECTLY. The engine's eventual shape draws a frame to
 // an offscreen target and presents that as a separate step; this clears the
-// swapchain image itself, because a target that nothing renders into is a layer
-// with nothing on either side of it.
+// swapchain image and draws into it, because a target that nothing renders into
+// is a layer with nothing on either side of it.
+//
+// WHAT IT DRAWS IS ONE TRIANGLE AND THERE IS NO WAY TO ASK FOR ANYTHING ELSE.
+// The shader is compiled into the binary and the draw is fixed; the point of it
+// is that the shader toolchain works end to end, not that the renderer takes
+// instructions. Nothing here accepts a scene, and the API that will grow one
+// gets designed against 3d.
 //
 // SIZE IS PASSED IN, EVERY FRAME, AND IT IS THE WINDOW'S ANSWER. This folder
 // never asks the window how big it is: platform owns that truth, the caller
@@ -65,9 +71,9 @@ typedef struct voe_render_device voe_render_device;
 						       voe_base_error *error);
 void voe_render_device_destroy(voe_render_device *device);
 
-// Clears the window and presents it. size is the window's current client area;
-// when it differs from the one the swapchain was built at, the swapchain is
-// rebuilt here before anything is drawn.
+// Clears the window, draws the triangle and presents it. size is the window's
+// current client area; when it differs from the one the swapchain was built at,
+// the swapchain is rebuilt here before anything is drawn.
 //
 // A zero-sized window — minimised, or mid-resize on some compositors — draws
 // nothing and returns true. It is not an error and it must not be treated as

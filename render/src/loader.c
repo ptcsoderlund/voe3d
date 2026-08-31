@@ -190,6 +190,20 @@ void voe_render_loader_device(VkDevice device)
 	DEVICE_FUNCTION(cmd_end_rendering, vkCmdEndRendering);
 	DEVICE_FUNCTION(queue_submit2, vkQueueSubmit2);
 
+	// The pipeline and the draw. The shader module is made and thrown away
+	// inside device.c, which is why its two live next to the pipeline's
+	// rather than anywhere else.
+	DEVICE_FUNCTION(create_shader_module, vkCreateShaderModule);
+	DEVICE_FUNCTION(destroy_shader_module, vkDestroyShaderModule);
+	DEVICE_FUNCTION(create_pipeline_layout, vkCreatePipelineLayout);
+	DEVICE_FUNCTION(destroy_pipeline_layout, vkDestroyPipelineLayout);
+	DEVICE_FUNCTION(create_graphics_pipelines, vkCreateGraphicsPipelines);
+	DEVICE_FUNCTION(destroy_pipeline, vkDestroyPipeline);
+	DEVICE_FUNCTION(cmd_bind_pipeline, vkCmdBindPipeline);
+	DEVICE_FUNCTION(cmd_set_viewport, vkCmdSetViewport);
+	DEVICE_FUNCTION(cmd_set_scissor, vkCmdSetScissor);
+	DEVICE_FUNCTION(cmd_draw, vkCmdDraw);
+
 	DEVICE_FUNCTION(create_semaphore, vkCreateSemaphore);
 	DEVICE_FUNCTION(destroy_semaphore, vkDestroySemaphore);
 	DEVICE_FUNCTION(create_fence, vkCreateFence);

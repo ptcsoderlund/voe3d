@@ -1,9 +1,10 @@
 # render
 
 The GPU, and the only folder that names Vulkan. A device opened onto a window, a
-swapchain, and a frame — nothing above them. Not scenes, not entities, not files,
-and no abstraction over Vulkan: there is one graphics API and there will not be a
-second.
+swapchain, a pipeline and a frame — nothing above them. Not scenes, not entities,
+not files, and no abstraction over Vulkan: there is one graphics API and there
+will not be a second. The only folder with shaders, and the only one slangc is
+run over.
 
 - `include/render/device.h` — the whole public surface: open a device on a
   window, ask it for a frame, destroy it. Its header says why that is one object
@@ -21,9 +22,13 @@ second.
 - `src/device_internal.h` — the struct the three files below share, and where the
   split between them runs.
 - `src/device.c` — starting up: the instance, the surface, the graphics card, the
-  logical device. Everything that happens once.
+  logical device, the triangle's pipeline. Everything that happens once,
+  including the `#embed` that puts the compiled shader in the binary.
 - `src/swapchain.c` — the images the window is made of, thrown away and built
   again on every resize.
-- `src/frame.c` — one frame: wait, acquire, clear, present.
+- `src/frame.c` — one frame: wait, acquire, clear, draw, present. Holds the
+  engine's only Y flip; its header says why that is the viewport's job.
 - `tests/loader.c` — that a machine with a driver and no SDK reaches Vulkan.
+- `shaders/triangle.slang` — three vertices and their colours, with no vertex
+  buffer behind them. The first shader in the engine.
 - `vulkan/` — the Khronos headers, vendored. See `vulkan/vulkan.md`.

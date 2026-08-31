@@ -26,9 +26,9 @@ to C. Read it with this mapping:
 | | |
 |---|---|
 | Language | C23 (plain C — not C++) |
-| Compiler | **Clang 18+ only, as the GNU-driver `clang` on both platforms.** Not `clang-cl`, not MSVC, not GCC — including GCC on Linux. CMake fails configuration for anything else |
+| Compiler | **Clang 19+ only, as the GNU-driver `clang` on both platforms.** Not `clang-cl`, not MSVC, not GCC — including GCC on Linux. CMake fails configuration for anything else. 19 and not 18 because a compiled shader reaches the binary through `#embed` |
 | Graphics | Vulkan 1.3 only |
-| Shaders | Slang, compiled to SPIR-V |
+| Shaders | Slang, compiled to SPIR-V by `slangc` at build time and `#embed`ded in the binary. Nothing is read from disk at run time |
 | Platforms | Windows and Linux desktop only |
 | Build | CMake 3.28+, Ninja generator, both platforms |
 
@@ -38,7 +38,7 @@ with an answer rather than a compiler error:
 
 | Tool | Both | Windows only | Linux only |
 |---|---|---|---|
-| Clang 18+, GNU driver (standalone LLVM release recommended on Windows) | ● | | |
+| Clang 19+, GNU driver (standalone LLVM release recommended on Windows) | ● | | |
 | CMake 3.28+ | ● | | |
 | Ninja | ● | | |
 | `slangc` | ● | | |
