@@ -116,6 +116,15 @@ function(voe_target_settings target)
         C_STANDARD_REQUIRED ON
         C_EXTENSIONS OFF)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+    # libm is the other half of the C standard library on glibc, split off for
+    # historical reasons. On Windows it is in the CRT and there is nothing to
+    # link. It is not a third-party dependency, so it sits here with the
+    # language level rather than in a folder's bill. PRIVATE still reaches
+    # whatever links the static library: CMake records it as LINK_ONLY.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_libraries(${target} PRIVATE m)
+    endif()
 endfunction()
 
 # The database, copied out of the build tree to sit beside the CMakeLists.txt of

@@ -15,3 +15,10 @@ inline; no systems here, because nothing here owns an identity.
 - `src/float3.c` — the float3 operations.
 - `src/float4.c` — the float4 operations.
 - `src/float4x4.c` — the float4x4 operations, including the inverse.
+- `tests/float2.c` — the float2 operations, checked from outside.
+- `tests/float3.c` — the float3 operations, and that the cross product is
+  right-handed.
+- `tests/float4.c` — the float4 operations, and that w counts in all of them.
+- `tests/float4x4.c` — the layout and the multiplication convention as two
+  separate claims. Its header says which half of the layout rule a GPU has to
+  prove instead.
