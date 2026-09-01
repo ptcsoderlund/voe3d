@@ -582,6 +582,10 @@ static bool create_pipeline(voe_render_device *device)
 
 // ------------------------------------------------------------- the frame's own
 
+// One of everything per frame slot, and one pool behind all of it. Nothing here
+// is indexed by anything but a slot, and the loop below is the whole of that: a
+// per-frame resource added by a later card gets a line in it and needs no array
+// of its own.
 static bool create_frame_objects(voe_render_device *device)
 {
 	VkCommandPoolCreateInfo pool = {
@@ -592,13 +596,14 @@ static bool create_frame_objects(voe_render_device *device)
 	VkCommandBufferAllocateInfo commands = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
+		.commandBufferCount = VOE_RENDER_FRAMES_IN_FLIGHT,
 	};
+	VkCommandBuffer buffers[VOE_RENDER_FRAMES_IN_FLIGHT];
 	VkSemaphoreCreateInfo semaphore = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 	};
-	// Created signalled, so the first frame's wait returns immediately
-	// rather than waiting for a submit that has not happened.
+	// Created signalled, so the first frame on every slot waits on a fence
+	// that is already up rather than on a submit that has not happened.
 	VkFenceCreateInfo fence = {
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
@@ -610,23 +615,34 @@ static bool create_frame_objects(voe_render_device *device)
 		return false;
 	}
 
+	// One call for every slot, because vkAllocateCommandBuffers takes a
+	// count and there is nothing to be had from asking it that many times.
+	// The handles are spread one to a slot below, and the pool takes every
+	// one of them back when it is destroyed.
 	commands.commandPool = device->pool;
 	if (voe_render_vk.allocate_command_buffers(device->device, &commands,
-						   &device->commands) != VK_SUCCESS) {
+						   buffers) != VK_SUCCESS) {
 		fprintf(stderr, "render: vkAllocateCommandBuffers failed\n");
 		return false;
 	}
 
-	if (voe_render_vk.create_semaphore(device->device, &semaphore, NULL,
-					   &device->acquired) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateSemaphore failed\n");
-		return false;
-	}
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		device->frames[i].commands = buffers[i];
 
-	if (voe_render_vk.create_fence(device->device, &fence, NULL,
-				       &device->submitted) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateFence failed\n");
-		return false;
+		if (voe_render_vk.create_semaphore(device->device, &semaphore,
+						   NULL,
+						   &device->frames[i].acquired) !=
+		    VK_SUCCESS) {
+			fprintf(stderr, "render: vkCreateSemaphore failed\n");
+			return false;
+		}
+
+		if (voe_render_vk.create_fence(device->device, &fence, NULL,
+					       &device->frames[i].submitted) !=
+		    VK_SUCCESS) {
+			fprintf(stderr, "render: vkCreateFence failed\n");
+			return false;
+		}
 	}
 
 	return true;
@@ -650,12 +666,18 @@ static void close_down(voe_render_device *device)
 		if (device->layout != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline_layout(device->device,
 							      device->layout, NULL);
-		if (device->submitted != VK_NULL_HANDLE)
-			voe_render_vk.destroy_fence(device->device,
-						    device->submitted, NULL);
-		if (device->acquired != VK_NULL_HANDLE)
-			voe_render_vk.destroy_semaphore(device->device,
-							device->acquired, NULL);
+		// The command buffers are not freed one at a time: destroying the
+		// pool below takes every one of them with it.
+		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+			if (device->frames[i].submitted != VK_NULL_HANDLE)
+				voe_render_vk.destroy_fence(device->device,
+							    device->frames[i].submitted,
+							    NULL);
+			if (device->frames[i].acquired != VK_NULL_HANDLE)
+				voe_render_vk.destroy_semaphore(device->device,
+								device->frames[i].acquired,
+								NULL);
+		}
 		if (device->pool != VK_NULL_HANDLE)
 			voe_render_vk.destroy_command_pool(device->device,
 							   device->pool, NULL);

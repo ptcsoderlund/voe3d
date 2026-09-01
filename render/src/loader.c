@@ -210,4 +210,5 @@ void voe_render_loader_device(VkDevice device)
 	DEVICE_FUNCTION(destroy_fence, vkDestroyFence);
 	DEVICE_FUNCTION(wait_for_fences, vkWaitForFences);
 	DEVICE_FUNCTION(reset_fences, vkResetFences);
+	DEVICE_FUNCTION(get_fence_status, vkGetFenceStatus);
 }

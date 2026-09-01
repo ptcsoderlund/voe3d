@@ -23,6 +23,22 @@
 // returns an index we cannot draw to.
 #define VOE_RENDER_MAX_IMAGES 8
 
+// How many frames the CPU may have submitted and unfinished at once, and the
+// length of every per-slot array in this engine.
+//
+// THE NUMBER IS NOT THE DECISION. Read this constant everywhere and never assume
+// its value: a literal 2 anywhere that means "frames in flight" is a bug, and
+// going to three has to be this line and nothing else.
+//
+// IT IS NOT THE SWAPCHAIN IMAGE COUNT AND NEVER STANDS IN FOR IT. That is a
+// number the driver chooses from the surface, for reasons that have nothing to
+// do with how far ahead the CPU may run. They are often both 2 or 3 and that is
+// a coincidence; the first driver that reports a different minimum breaks
+// anything that leant on it. See voe_render_frame below for the half of the
+// synchronisation that follows this constant, and voe_render_image for the half
+// that follows the images.
+#define VOE_RENDER_FRAMES_IN_FLIGHT 2
+
 // One swapchain image and the two things that belong to it for its whole life.
 //
 // drawn is per image and not per frame on purpose. vkQueuePresentKHR waits on it
@@ -33,6 +49,29 @@ struct voe_render_image {
 	VkImage image;
 	VkImageView view;
 	VkSemaphore drawn;
+};
+
+// Everything with a one-frame lifetime, in one struct, one per frame slot. This
+// is the shape: a per-frame resource — a uniform buffer, a descriptor set, a
+// staging buffer — becomes a field here and is reached through the slot, and it
+// needs no new array and no new index.
+//
+// THE TWO SEMAPHORE KINDS HAVE DIFFERENT LIFETIMES AND MUST NOT BE FLATTENED
+// INTO ONE. acquired is here, per slot, because the fence beside it is what says
+// the submit that last waited on it has finished — that is the only thing that
+// makes it safe to hand to another acquire. drawn is not here: it is per image,
+// on voe_render_image above, because present is what waits on it and present
+// hands back no fence to say when it stopped. Moving either one to the other's
+// array is a race the validation layers do not reliably catch — an intermittent
+// hang on one driver and never on the machine it was written on.
+//
+// submitted is the fence for this slot's last submit, and waiting on it at the
+// top of a frame is waiting for the frame VOE_RENDER_FRAMES_IN_FLIGHT ago, not
+// the previous one. That gap is the whole of the overlap.
+struct voe_render_frame {
+	VkCommandBuffer commands;
+	VkSemaphore acquired;
+	VkFence submitted;
 };
 
 struct voe_render_device {
@@ -70,13 +109,17 @@ struct voe_render_device {
 	uint32_t image_count;
 	struct voe_render_image images[VOE_RENDER_MAX_IMAGES];
 
-	// One frame in flight, so one of each. The fence is what makes reusing
-	// the command buffer and the acquired semaphore safe: nothing is touched
-	// until the submit that last used it has finished on the GPU.
+	// The frame slots, and the one pool every command buffer in them comes
+	// out of. Startup's, not the swapchain's: none of it depends on the
+	// images, so a resize rebuilds none of it.
+	//
+	// slot is the one the next frame will use, advanced modulo the constant
+	// the moment a submit succeeds — because a submit is what puts a slot in
+	// flight, and a frame that returns before submitting must come back to
+	// the same slot with its fence still signalled.
 	VkCommandPool pool;
-	VkCommandBuffer commands;
-	VkSemaphore acquired;
-	VkFence submitted;
+	struct voe_render_frame frames[VOE_RENDER_FRAMES_IN_FLIGHT];
+	uint32_t slot;
 
 	// Set when a present said the swapchain no longer matches the surface.
 	// The rebuild happens at the top of the next frame rather than here,

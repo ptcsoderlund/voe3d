@@ -1,7 +1,7 @@
 # 012 — two frames in flight
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 
 Decided by ADR-0050, at the principal's direction. Today `frame.c` says so itself:
@@ -62,3 +62,43 @@ check has to be written.
 Present mode and frame pacing. FIFO stays. `MAILBOX` versus FIFO is the *other*
 thing "triple buffering" means, it needs honest timing numbers to argue from, and
 those arrive with the frame-loop-and-timing card.
+
+## Notes — what was done and how it was verified
+
+Implemented in `render` only. Nothing outside it was touched, no `BLOCKED:` and
+no `DEVIATION:` markers were left.
+
+The shape, for the cards that follow: `VOE_RENDER_FRAMES_IN_FLIGHT` and a
+`struct voe_render_frame` in `device_internal.h` hold everything with a
+one-frame lifetime — today the command buffer, the acquire semaphore and the
+fence. A per-frame resource added later becomes a field on that struct and a
+line in `create_frame_objects`; it needs no array and no index of its own.
+`drawn` stayed on `voe_render_image`, per swapchain image, and the reasoning for
+the split is written next to both structs. There is no literal 2 anywhere.
+
+The assert, since C proves none of this: `frame_at()` and `image_at()` in
+`frame.c` are now the only places either array is indexed, and each asserts its
+own bound. `record()` and `submit()` take pointers rather than indices, so past
+the acquire there is no index left to swap. Beside them, a debug assert that the
+fence just waited on is signalled before its slot's acquire semaphore is handed
+to `vkAcquireNextImageKHR` — waiting on another slot's fence leaves this one
+unsignalled and fires it. That is the one shape of this bug the validation
+layers do not reliably report. It needed `vkGetFenceStatus`, added to the loader
+table and called from nowhere else.
+
+The slot advances modulo the constant immediately after a successful submit, not
+at the end of the frame: a submit is what puts a slot in flight, and a frame
+that turns back earlier — no swapchain, a stale one, an acquire that found the
+surface gone — must come back to the same slot with its fence still signalled.
+
+Verified on Linux, Wayland/KWin, clang 22, Debug:
+
+- `cmake -P check.cmake` — all 15 steps ok. Includes `standalone render`,
+  `root configure and build`, `tests (6 passed)` and `analyser (22 files)` with
+  no findings.
+- `voe_dev` run by the principal against a Debug build with
+  `VK_LAYER_KHRONOS_validation` present: no validation output across many
+  frames, and none across resize or minimise. No assert fired and it did not
+  hang on restore.
+
+Windows unrun, as always.

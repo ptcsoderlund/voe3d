@@ -103,6 +103,10 @@ typedef struct {
 	PFN_vkDestroyFence destroy_fence;
 	PFN_vkWaitForFences wait_for_fences;
 	PFN_vkResetFences reset_fences;
+	// Asked in debug builds only, by the assert in frame.c that a slot's
+	// fence really is the one that was just waited on. Nothing in a release
+	// build calls it.
+	PFN_vkGetFenceStatus get_fence_status;
 	PFN_vkQueueSubmit2 queue_submit2;
 } voe_render_vk_table;
 
