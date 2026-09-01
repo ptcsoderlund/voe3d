@@ -1,15 +1,26 @@
-// One frame: wait for the last one, take an image, clear it, draw the triangle
-// into it, present it. The clear is not a draw — it is the load operation
-// dynamic rendering performs as it begins — so the only thing recorded between
-// begin and end is the triangle.
+// One frame: wait for the last one on this slot, draw the scene into the slot's
+// offscreen target, take a swapchain image, copy the target into it, present it.
+// The clear is not a draw — it is the load operation dynamic rendering performs
+// as it begins — so the only thing recorded inside the rendering is the triangle.
 //
-// THE ONE Y FLIP IN THIS ENGINE IS THE VIEWPORT BELOW. Vulkan's clip space has
-// +Y pointing down the screen and this engine has +Y up, and the whole of the
-// reconciliation is a negative viewport height here. Never a negated row in a
-// projection matrix, and never both: flipping twice looks exactly like flipping
-// none until something is culled, and then it is a bug nobody can see. The
-// front-face constant that goes with this flip is set on the pipeline in
-// device.c.
+// NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into an image the
+// engine owns (target.c) and the swapchain image is written once, by a blit, as
+// the last thing a frame does. That separation is what a post-process pass, a
+// render resolution different from the window's, and an editor viewport all need
+// in order to exist at all.
+//
+// THE COPY IS A BLIT AND THAT IS A STARTING POINT. vkCmdBlitImage is one call
+// and it scales, which is everything this card needs. A full-screen quad becomes
+// necessary the moment anything wants to run a shader between the target and the
+// screen — tone mapping first — and that is the card that replaces this.
+//
+// THE ONE Y FLIP IN THIS ENGINE IS voe_render_frame_viewport BELOW. Vulkan's
+// clip space has +Y pointing down the screen and this engine has +Y up, and the
+// whole of the reconciliation is a negative viewport height there. Never a
+// negated row in a projection matrix, and never both: flipping twice looks
+// exactly like flipping none until something is culled, and then it is a bug
+// nobody can see. The front-face constant that goes with this flip is set on the
+// pipeline in device.c, and the pair of them is proven by render/tests/offscreen.c.
 //
 // TWO INDICES RUN THROUGH THIS FILE AND THEY ARE NOT INTERCHANGEABLE. A frame
 // slot counts how far ahead the CPU is allowed to run and is bounded by
@@ -24,8 +35,8 @@
 // ONE, AND THAT GAP IS THE WHOLE OF THE OVERLAP. Waiting on this slot's fence
 // leaves every frame submitted since it still running on the GPU; one slot would
 // put the wait back on the previous frame and there would be no overlap left.
-// What that fence makes safe is this slot's own command buffer and its own
-// acquire semaphore, and nothing else.
+// What that fence makes safe is this slot's own command buffer, its own acquire
+// semaphore and its own target, and nothing else.
 //
 // THE TWO SEMAPHORE KINDS HAVE DIFFERENT LIFETIMES. The acquire semaphore is per
 // slot, guarded by the fence beside it. The rendering-finished semaphore is per
@@ -33,11 +44,20 @@
 // fence to say when it stopped. See device_internal.h for the full reasoning;
 // flattening the two is a race the validation layers do not reliably catch.
 //
-// TWO BARRIERS, BOTH REQUIRED, BOTH synchronization2. An acquired image is in
-// whatever layout the presentation engine left it, which is why the first one
-// comes from UNDEFINED and the contents are not preserved; a clear overwrites
-// every pixel, so nothing is lost. The second one hands it back in the layout
-// present demands.
+// THE ACQUIRE IS WAITED ON AT THE BLIT AND NOT BEFORE. The first thing a frame
+// does to a swapchain image is now a transfer, not a colour write, and the scene
+// does not touch that image at all — so drawing the target can start while the
+// presentation engine is still finished with the image, and only the copy has to
+// wait. The wait stage and the stage the swapchain image's barriers name are the
+// same one on purpose; making them disagree is how a layout transition ends up
+// ordered before the semaphore it depends on.
+//
+// FOUR BARRIERS, ALL synchronization2. Two put the target into the layout the
+// next thing needs — drawn into, then read out of — and two do the same for the
+// swapchain image, which arrives in whatever layout the presentation engine left
+// it and leaves in the one present demands. Both images come from UNDEFINED,
+// because in both cases every pixel is about to be overwritten and there is
+// nothing to preserve.
 //
 // A SWAPCHAIN GOES STALE AND THAT IS ORDINARY. Out-of-date means the surface
 // changed under us and the swapchain has to be built again; suboptimal means it
@@ -79,14 +99,27 @@ static struct voe_render_image *image_at(voe_render_device *device,
 	return &device->images[index];
 }
 
-static void record(voe_render_device *device,
-		   const struct voe_render_frame *frame,
-		   const struct voe_render_image *image)
+VkViewport voe_render_frame_viewport(VkExtent2D extent)
 {
-	VkCommandBufferBeginInfo begin = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	// y at the bottom and a negative height: the flip, and the only one. The
+	// depth range is the plain 0..1 identity — this engine's reversed depth
+	// lives in the projection matrix that puts the near plane at 1.0, not
+	// here, and there is no depth buffer in this frame to apply it to.
+	VkViewport viewport = {
+		.y = (float)extent.height,
+		.width = (float)extent.width,
+		.height = -(float)extent.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
 	};
+
+	return viewport;
+}
+
+void voe_render_frame_draw(voe_render_device *device,
+			   const struct voe_render_frame *frame,
+			   VkViewport viewport)
+{
 	VkImageMemoryBarrier2 barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 		.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -96,7 +129,7 @@ static void record(voe_render_device *device,
 		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = image->image,
+		.image = frame->target.image,
 		.subresourceRange = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.levelCount = 1,
@@ -110,7 +143,7 @@ static void record(voe_render_device *device,
 	};
 	VkRenderingAttachmentInfo colour = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.imageView = image->view,
+		.imageView = frame->target.view,
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -119,27 +152,18 @@ static void record(voe_render_device *device,
 	};
 	VkRenderingInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-		.renderArea = { .extent = device->extent },
+		.renderArea = { .extent = device->resolution },
 		.layerCount = 1,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colour,
 	};
-	// y at the bottom and a negative height: the flip, and the only one. The
-	// depth range is the plain 0..1 identity — this engine's reversed depth
-	// lives in the projection matrix that puts the near plane at 1.0, not
-	// here, and there is no depth buffer in this frame to apply it to.
-	VkViewport viewport = {
-		.y = (float)device->extent.height,
-		.width = (float)device->extent.width,
-		.height = -(float)device->extent.height,
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f,
-	};
-	// The scissor is the whole image and takes no part in the flip. It is in
-	// framebuffer coordinates, which have no sign to get wrong.
-	VkRect2D scissor = { .extent = device->extent };
+	// The scissor is the whole target and takes no part in the flip. It is
+	// in framebuffer coordinates, which have no sign to get wrong.
+	VkRect2D scissor = { .extent = device->resolution };
 
-	voe_render_vk.begin_command_buffer(frame->commands, &begin);
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing with a NULL device");
+	VOE_BASE_DEBUG_ASSERT(frame->target.image != VK_NULL_HANDLE,
+			      "drawing into a frame slot that has no target");
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
@@ -156,14 +180,99 @@ static void record(voe_render_device *device,
 	voe_render_vk.cmd_draw(frame->commands, 3, 1, 0, 0);
 	voe_render_vk.cmd_end_rendering(frame->commands);
 
+	// Left ready to be copied out of, by whoever asked for the drawing. A
+	// frame blits it into a swapchain image; the offscreen test copies it
+	// into memory it can read. ALL_TRANSFER and not the blit alone, because
+	// those are two different stages and this barrier has to cover both —
+	// naming one of them leaves the other reading an image this dependency
+	// does not reach, which synchronization validation reports and nothing
+	// else does.
 	barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-	barrier.dstAccessMask = 0;
+	barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+	barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
 	barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
+}
+
+// The target onto the screen, and the whole of what the swapchain image is for.
+// The two extents are the same number today and the blit still reads both, so
+// that the day the target stops being the window's size this file needs no edit.
+static void blit_to_screen(voe_render_device *device,
+			   const struct voe_render_frame *frame,
+			   const struct voe_render_image *image)
+{
+	VkImageMemoryBarrier2 barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+		.srcStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT,
+		.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = image->image,
+		.subresourceRange = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+		},
+	};
+	VkDependencyInfo dependency = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.imageMemoryBarrierCount = 1,
+		.pImageMemoryBarriers = &barrier,
+	};
+	VkImageBlit region = {
+		.srcSubresource = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.layerCount = 1,
+		},
+		.srcOffsets = { { 0, 0, 0 },
+				{ (int32_t)device->resolution.width,
+				  (int32_t)device->resolution.height, 1 } },
+		.dstSubresource = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.layerCount = 1,
+		},
+		.dstOffsets = { { 0, 0, 0 },
+				{ (int32_t)device->extent.width,
+				  (int32_t)device->extent.height, 1 } },
+	};
+
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
+	// LINEAR, which does nothing at all while the two extents match and is
+	// the right answer the moment they do not. NEAREST would be a decision
+	// to look worse later for no gain now.
+	voe_render_vk.cmd_blit_image(frame->commands, frame->target.image,
+				     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				     image->image,
+				     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+				     &region, VK_FILTER_LINEAR);
+
+	barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+	barrier.dstAccessMask = 0;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
+}
+
+static void record(voe_render_device *device,
+		   const struct voe_render_frame *frame,
+		   const struct voe_render_image *image)
+{
+	VkCommandBufferBeginInfo begin = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	};
+
+	voe_render_vk.begin_command_buffer(frame->commands, &begin);
+	voe_render_frame_draw(device, frame,
+			      voe_render_frame_viewport(device->resolution));
+	blit_to_screen(device, frame, image);
 	voe_render_vk.end_command_buffer(frame->commands);
 }
 
@@ -179,10 +288,14 @@ static bool submit(voe_render_device *device,
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
 		.commandBuffer = frame->commands,
 	};
+	// The blit, because that is the first thing in this submit that touches
+	// the acquired image, and it is the stage the barriers around it name.
+	// Everything before it draws into a target of our own and has no reason
+	// to wait for the presentation engine at all.
 	VkSemaphoreSubmitInfo wait = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.semaphore = frame->acquired,
-		.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.stageMask = VK_PIPELINE_STAGE_2_BLIT_BIT,
 	};
 	VkSemaphoreSubmitInfo signal = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
@@ -210,6 +323,17 @@ static bool submit(voe_render_device *device,
 	return true;
 }
 
+// The targets and the swapchain are built from the same window size and rebuilt
+// together, because the target is the resolution and the swapchain is where it
+// lands. Order matters only in that a target that cannot be made is a device
+// that cannot draw, and there is no point building a swapchain for it.
+static bool rebuild(voe_render_device *device, voe_platform_size size)
+{
+	if (!voe_render_target_build(device, size))
+		return false;
+	return voe_render_swapchain_build(device, size);
+}
+
 bool voe_render_device_frame(voe_render_device *device, voe_platform_size size)
 {
 	struct voe_render_frame *frame;
@@ -224,6 +348,8 @@ bool voe_render_device_frame(voe_render_device *device, voe_platform_size size)
 	};
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing with a NULL device");
+	VOE_BASE_DEBUG_ASSERT(!device->headless,
+			      "asking a device with no window for a frame");
 
 	// A window with no area has no images and nothing to present. Skipped,
 	// not failed — it comes back the moment the window does.
@@ -233,7 +359,7 @@ bool voe_render_device_frame(voe_render_device *device, voe_platform_size size)
 	if (device->rebuild || device->swapchain == VK_NULL_HANDLE ||
 	    size.width != device->built.width ||
 	    size.height != device->built.height) {
-		if (!voe_render_swapchain_build(device, size))
+		if (!rebuild(device, size))
 			return false;
 	}
 	if (device->swapchain == VK_NULL_HANDLE)

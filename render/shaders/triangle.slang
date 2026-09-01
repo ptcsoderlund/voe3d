@@ -10,10 +10,12 @@
 // stage forces and it may as well be the shape the first one has.
 //
 // THE TRIANGLE IS WOUND COUNTER-CLOCKWISE WITH +Y UP, which is glTF's
-// front-facing winding and so this engine's. On screen it comes out clockwise,
-// because the viewport flips Y — see the pipeline in device.c, which sets the
-// front-face constant to match. Nothing culls yet, so nothing here proves that
-// pair is right.
+// front-facing winding and so this engine's. It stays counter-clockwise on
+// screen, because the viewport flips Y and that is what the flip is for: the
+// pipeline in device.c names the same winding this file does, with no
+// translation between them. Culling is on, so this is proved rather than
+// asserted — render/tests/offscreen.c draws these three vertices and requires
+// them to survive, and draws them mirrored and requires them not to.
 //
 // IT IS ASYMMETRIC IN Y ON PURPOSE. The apex is up and the base is down, so a
 // person looking at the window can see whether the Y flip went the right way.

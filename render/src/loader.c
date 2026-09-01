@@ -123,7 +123,7 @@ void voe_render_loader_close(void)
 	memset(&voe_render_vk, 0, sizeof(voe_render_vk));
 }
 
-void voe_render_loader_instance(VkInstance instance)
+void voe_render_loader_instance(VkInstance instance, bool surface)
 {
 	VOE_BASE_ASSERT(instance != VK_NULL_HANDLE,
 			"resolving instance functions without an instance");
@@ -135,19 +135,25 @@ void voe_render_loader_instance(VkInstance instance)
 			  vkGetPhysicalDeviceProperties);
 	INSTANCE_FUNCTION(get_queue_family_properties,
 			  vkGetPhysicalDeviceQueueFamilyProperties);
+	INSTANCE_FUNCTION(get_memory_properties,
+			  vkGetPhysicalDeviceMemoryProperties);
 	INSTANCE_FUNCTION(create_device, vkCreateDevice);
 
-	// VK_KHR_surface's, and required because the instance was created with
-	// that extension enabled or not created at all.
-	INSTANCE_FUNCTION(destroy_surface, vkDestroySurfaceKHR);
-	INSTANCE_FUNCTION(get_surface_support,
-			  vkGetPhysicalDeviceSurfaceSupportKHR);
-	INSTANCE_FUNCTION(get_surface_capabilities,
-			  vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
-	INSTANCE_FUNCTION(get_surface_formats,
-			  vkGetPhysicalDeviceSurfaceFormatsKHR);
-	INSTANCE_FUNCTION(get_surface_present_modes,
-			  vkGetPhysicalDeviceSurfacePresentModesKHR);
+	// VK_KHR_surface's, and required whenever that extension was enabled —
+	// which is every instance opened on a window. A headless one enables it
+	// nowhere and asks for none of these, so they stay null and the loader
+	// is not accused of missing something it was never asked for.
+	if (surface) {
+		INSTANCE_FUNCTION(destroy_surface, vkDestroySurfaceKHR);
+		INSTANCE_FUNCTION(get_surface_support,
+				  vkGetPhysicalDeviceSurfaceSupportKHR);
+		INSTANCE_FUNCTION(get_surface_capabilities,
+				  vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
+		INSTANCE_FUNCTION(get_surface_formats,
+				  vkGetPhysicalDeviceSurfaceFormatsKHR);
+		INSTANCE_FUNCTION(get_surface_present_modes,
+				  vkGetPhysicalDeviceSurfacePresentModesKHR);
+	}
 
 	// Absent whenever the debug-utils extension was not enabled, which is
 	// the normal case on a machine with no Vulkan SDK. Left NULL and never
@@ -158,7 +164,7 @@ void voe_render_loader_instance(VkInstance instance)
 				   vkDestroyDebugUtilsMessengerEXT);
 }
 
-void voe_render_loader_device(VkDevice device)
+void voe_render_loader_device(VkDevice device, bool swapchain)
 {
 	VOE_BASE_ASSERT(device != VK_NULL_HANDLE,
 			"resolving device functions without a device");
@@ -167,11 +173,26 @@ void voe_render_loader_device(VkDevice device)
 	DEVICE_FUNCTION(device_wait_idle, vkDeviceWaitIdle);
 	DEVICE_FUNCTION(get_device_queue, vkGetDeviceQueue);
 
-	DEVICE_FUNCTION(create_swapchain, vkCreateSwapchainKHR);
-	DEVICE_FUNCTION(destroy_swapchain, vkDestroySwapchainKHR);
-	DEVICE_FUNCTION(get_swapchain_images, vkGetSwapchainImagesKHR);
-	DEVICE_FUNCTION(acquire_next_image, vkAcquireNextImageKHR);
-	DEVICE_FUNCTION(queue_present, vkQueuePresentKHR);
+	// VK_KHR_swapchain's, and the same story as the surface functions
+	// above: enabled and required on a window, never asked for headless.
+	if (swapchain) {
+		DEVICE_FUNCTION(create_swapchain, vkCreateSwapchainKHR);
+		DEVICE_FUNCTION(destroy_swapchain, vkDestroySwapchainKHR);
+		DEVICE_FUNCTION(get_swapchain_images, vkGetSwapchainImagesKHR);
+		DEVICE_FUNCTION(acquire_next_image, vkAcquireNextImageKHR);
+		DEVICE_FUNCTION(queue_present, vkQueuePresentKHR);
+	}
+
+	// The offscreen target and the copy out of it. Core, so they are here
+	// whether or not there is a swapchain to copy into.
+	DEVICE_FUNCTION(create_image, vkCreateImage);
+	DEVICE_FUNCTION(destroy_image, vkDestroyImage);
+	DEVICE_FUNCTION(get_image_memory_requirements,
+			vkGetImageMemoryRequirements);
+	DEVICE_FUNCTION(bind_image_memory, vkBindImageMemory);
+	DEVICE_FUNCTION(allocate_memory, vkAllocateMemory);
+	DEVICE_FUNCTION(free_memory, vkFreeMemory);
+	DEVICE_FUNCTION(cmd_blit_image, vkCmdBlitImage);
 
 	DEVICE_FUNCTION(create_image_view, vkCreateImageView);
 	DEVICE_FUNCTION(destroy_image_view, vkDestroyImageView);

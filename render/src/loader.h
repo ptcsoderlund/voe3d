@@ -54,7 +54,12 @@ typedef struct {
 	PFN_vkEnumeratePhysicalDevices enumerate_physical_devices;
 	PFN_vkGetPhysicalDeviceProperties get_physical_device_properties;
 	PFN_vkGetPhysicalDeviceQueueFamilyProperties get_queue_family_properties;
+	PFN_vkGetPhysicalDeviceMemoryProperties get_memory_properties;
 	PFN_vkCreateDevice create_device;
+
+	// VK_KHR_surface's, and all five are absent on a headless instance,
+	// which is created without that extension. Nothing on that path calls
+	// one: see the surface argument to voe_render_loader_instance below.
 	PFN_vkDestroySurfaceKHR destroy_surface;
 	PFN_vkGetPhysicalDeviceSurfaceSupportKHR get_surface_support;
 	PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR get_surface_capabilities;
@@ -71,11 +76,27 @@ typedef struct {
 	PFN_vkDestroyDevice destroy_device;
 	PFN_vkDeviceWaitIdle device_wait_idle;
 	PFN_vkGetDeviceQueue get_device_queue;
+
+	// VK_KHR_swapchain's, and all five are absent on a headless device for
+	// the same reason the surface functions are absent from a headless
+	// instance. See the swapchain argument to voe_render_loader_device.
 	PFN_vkCreateSwapchainKHR create_swapchain;
 	PFN_vkDestroySwapchainKHR destroy_swapchain;
 	PFN_vkGetSwapchainImagesKHR get_swapchain_images;
 	PFN_vkAcquireNextImageKHR acquire_next_image;
 	PFN_vkQueuePresentKHR queue_present;
+
+	// The offscreen target: an image of our own, the memory under it, and
+	// the copy that puts what was drawn into the swapchain image at the end
+	// of a frame.
+	PFN_vkCreateImage create_image;
+	PFN_vkDestroyImage destroy_image;
+	PFN_vkGetImageMemoryRequirements get_image_memory_requirements;
+	PFN_vkBindImageMemory bind_image_memory;
+	PFN_vkAllocateMemory allocate_memory;
+	PFN_vkFreeMemory free_memory;
+	PFN_vkCmdBlitImage cmd_blit_image;
+
 	PFN_vkCreateImageView create_image_view;
 	PFN_vkDestroyImageView destroy_image_view;
 	PFN_vkCreateCommandPool create_command_pool;
@@ -126,5 +147,12 @@ void voe_render_loader_close(void);
 // aborts if the driver does not export something core to the version we asked
 // for — a loader that answered vkCreateDevice and then does not know
 // vkDestroyDevice is broken in a way no caller can act on.
-void voe_render_loader_instance(VkInstance instance);
-void voe_render_loader_device(VkDevice device);
+//
+// surface and swapchain say whether the instance and the device were created
+// with VK_KHR_surface and VK_KHR_swapchain enabled. A function belonging to an
+// extension that was never enabled is not there to resolve, and asking for it is
+// not a broken driver — so it is skipped and left NULL rather than aborted on.
+// Both are true for a device opened on a window and both are false for a
+// headless one; there is no third combination.
+void voe_render_loader_instance(VkInstance instance, bool surface);
+void voe_render_loader_device(VkDevice device, bool swapchain);

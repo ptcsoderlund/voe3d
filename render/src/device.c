@@ -1,8 +1,8 @@
 // Starting the GPU: the loader, the instance, the surface, the graphics card, the
 // logical device and the pipeline, in that order, because each one is what the
 // next is asked for. Everything here happens once. The parts that happen again
-// live in swapchain.c and frame.c — see device_internal.h for why the split is
-// where it is.
+// live in target.c, swapchain.c and frame.c — see device_internal.h for why the
+// split is where it is.
 //
 // THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/triangle.slang
 // into the build tree and #embed puts the result in the binary below; nothing is
@@ -21,6 +21,15 @@
 //
 // EVERY FAILURE HERE PRINTS ONE LINE AND RETURNS A CATEGORY. The category is all
 // a caller can act on; the line is what a person needs. See base/error.h.
+//
+// THERE ARE TWO WAYS IN AND ONE OF THEM HAS NO WINDOW. voe_render_device_new
+// opens a device on a window; voe_render_device_new_headless opens one on
+// nothing, for render/tests/offscreen.c. They are the same function with one
+// argument between them, and every place that argument is read says so — the
+// instance extensions, the surface, the queue family, the format, the device
+// extensions and the swapchain. Six places, and there are no others: everything
+// past the graphics card is identical, which is what makes a test on a headless
+// device a test of the code that ships.
 #include "device_internal.h"
 
 #include "backend.h"
@@ -46,6 +55,14 @@
 // Vulkan 1.3 is the floor: dynamic rendering and synchronization2 are core in
 // it, and both are what this folder is written against.
 #define REQUIRED_VERSION VK_API_VERSION_1_3
+
+// UNORM and not SRGB, so that the colour a clear is given is the colour that
+// reaches the screen. An SRGB swapchain would convert it, which is right the day
+// this engine renders in linear light and wrong today, when the only thing it
+// draws is one colour that a person is looking at to see whether the GPU is
+// working. It is what the surface is asked for and what a headless device takes
+// without asking anyone.
+#define PREFERRED_FORMAT VK_FORMAT_B8G8R8A8_UNORM
 
 static void report(voe_base_error *error, voe_base_error code)
 {
@@ -180,8 +197,14 @@ static bool create_instance(voe_render_device *device, voe_base_arena *arena)
 	};
 	VkResult result;
 
-	extensions[extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
-	extensions[extension_count++] = voe_render_backend_extension();
+	// A headless instance names no window system at all. It opens no surface,
+	// so these two would be enabled and never called — and on a build box
+	// with no compositor the platform's one is not there to enable, which is
+	// what would otherwise stop the offscreen test running headless.
+	if (!device->headless) {
+		extensions[extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+		extensions[extension_count++] = voe_render_backend_extension();
+	}
 	if (validate)
 		extensions[extension_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 
@@ -192,13 +215,17 @@ static bool create_instance(voe_render_device *device, voe_base_arena *arena)
 
 	result = voe_render_vk.create_instance(&info, NULL, &device->instance);
 	if (result != VK_SUCCESS) {
+		// Named one per line rather than summarised, because which of
+		// them the driver would not have is the whole of the answer.
 		fprintf(stderr,
-			"render: vkCreateInstance failed (VkResult %d) with %s enabled\n",
-			(int)result, voe_render_backend_extension());
+			"render: vkCreateInstance failed (VkResult %d) with these extensions asked for:\n",
+			(int)result);
+		for (uint32_t i = 0; i < extension_count; i++)
+			fprintf(stderr, "render:     %s\n", extensions[i]);
 		return false;
 	}
 
-	voe_render_loader_instance(device->instance);
+	voe_render_loader_instance(device->instance, !device->headless);
 	if (validate)
 		attach_messenger(device);
 	return true;
@@ -207,11 +234,13 @@ static bool create_instance(voe_render_device *device, voe_base_arena *arena)
 // -------------------------------------------------------------- graphics cards
 
 // A queue family that can do both, because this engine has one queue and no
-// reason yet to have two. VK_QUEUE_MAX_ENUM is the "none of them" answer, which
-// is safe because it is not a family index anything could return.
-static uint32_t present_and_graphics_family(voe_render_device *device,
-					    VkPhysicalDevice physical,
-					    voe_base_arena *arena)
+// reason yet to have two. A headless device has no surface to present to, so
+// graphics alone is the whole of what it asks for. UINT32_MAX is the "none of
+// them" answer, which is safe because it is not a family index anything could
+// return.
+static uint32_t graphics_family(voe_render_device *device,
+				VkPhysicalDevice physical,
+				voe_base_arena *arena)
 {
 	uint32_t count = 0;
 	VkQueueFamilyProperties *families;
@@ -228,6 +257,8 @@ static uint32_t present_and_graphics_family(voe_render_device *device,
 
 		if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0)
 			continue;
+		if (device->headless)
+			return i;
 		if (voe_render_vk.get_surface_support(physical, i,
 						      device->surface,
 						      &presents) != VK_SUCCESS)
@@ -273,7 +304,7 @@ static bool choose_physical_device(voe_render_device *device,
 		if (properties.apiVersion < REQUIRED_VERSION)
 			continue;
 
-		family = present_and_graphics_family(device, cards[i], arena);
+		family = graphics_family(device, cards[i], arena);
 		if (family == UINT32_MAX)
 			continue;
 
@@ -292,8 +323,9 @@ static bool choose_physical_device(voe_render_device *device,
 
 	if (best == VK_NULL_HANDLE) {
 		fprintf(stderr,
-			"render: none of the %u graphics cards on this machine offers Vulkan 1.3 and a queue that can present to this window\n",
-			count);
+			"render: none of the %u graphics cards on this machine offers Vulkan 1.3 and a queue that can draw%s\n",
+			count,
+			device->headless ? "" : " and present to this window");
 		return false;
 	}
 
@@ -348,12 +380,14 @@ static bool create_device(voe_render_device *device)
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE,
 	};
+	// The one extension, and a headless device does not enable it: there is
+	// no surface for a swapchain to be made from and nothing to present to.
 	VkDeviceCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.pNext = &features13,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &queue,
-		.enabledExtensionCount = 1,
+		.enabledExtensionCount = device->headless ? 0 : 1,
 		.ppEnabledExtensionNames = extensions,
 	};
 	VkResult result;
@@ -366,22 +400,30 @@ static bool create_device(voe_render_device *device)
 		return false;
 	}
 
-	voe_render_loader_device(device->device);
+	voe_render_loader_device(device->device, !device->headless);
 	voe_render_vk.get_device_queue(device->device, device->queue_family, 0,
 				       &device->queue);
 	return true;
 }
 
-// UNORM and not SRGB, so that the colour a clear is given is the colour that
-// reaches the screen. An SRGB swapchain would convert it, which is right the day
-// this engine renders in linear light and wrong today, when the only thing it
-// draws is one colour that a person is looking at to see whether the GPU is
-// working.
+// The format the surface will take, which the offscreen targets then take too —
+// see the format field in device_internal.h for why those are the same thing
+// today and will not stay that way.
 bool voe_render_device_choose_format(voe_render_device *device,
 				     voe_base_arena *arena)
 {
 	uint32_t count = 0;
 	VkSurfaceFormatKHR *formats;
+
+	// Nothing to ask and nothing to satisfy: a headless device presents to
+	// no screen, so it takes the format the loop below would have preferred
+	// and is done. The colour space is a property of a surface and means
+	// nothing here; it is filled in so the field is never read unset.
+	if (device->headless) {
+		device->format.format = PREFERRED_FORMAT;
+		device->format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		return true;
+	}
 
 	if (voe_render_vk.get_surface_formats(device->physical, device->surface,
 					      &count, NULL) != VK_SUCCESS ||
@@ -399,7 +441,7 @@ bool voe_render_device_choose_format(voe_render_device *device,
 
 	device->format = formats[0];
 	for (uint32_t i = 0; i < count; i++) {
-		if (formats[i].format == VK_FORMAT_B8G8R8A8_UNORM &&
+		if (formats[i].format == PREFERRED_FORMAT &&
 		    formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
 			device->format = formats[i];
 			break;
@@ -456,24 +498,37 @@ static bool create_pipeline(voe_render_device *device)
 		.viewportCount = 1,
 		.scissorCount = 1,
 	};
-	// FRONT FACE IS CLOCKWISE AND THAT IS NOT A MISTAKE. This engine winds
-	// front faces counter-clockwise with +Y up, as glTF does; the viewport
-	// flips Y, which reverses the winding Vulkan sees in framebuffer space,
-	// so the constant that means "front" here is the opposite of the one that
-	// means "front" in the world. Nothing culls yet, so nothing yet proves
-	// this pair right — the test belongs with the card that turns culling on,
-	// and until then this line is the written half of the convention.
+	// FRONT FACE IS COUNTER-CLOCKWISE, WHICH IS THE SAME WORD THE WORLD USES,
+	// AND THAT IS THE WHOLE POINT OF THE FLIP. This engine winds front faces
+	// counter-clockwise with +Y up, as glTF does. Vulkan decides facing from
+	// framebuffer coordinates, so without the negative viewport height it
+	// would want the opposite constant — the flip is what puts the two
+	// systems into agreement, and once they agree the constant here is
+	// spelled the way the convention is spelled and no translation happens
+	// anywhere.
 	//
-	// DEVIATION: CLAUDE.md, "the front-face constant is set to match and
-	// proven by a test". Set to match, not proven: with VK_CULL_MODE_NONE
-	// the constant has no observable effect, so there is nothing a test
-	// could assert on. Card 009 says to keep this minimal and culling is
-	// not in it. The proof arrives with the card that turns culling on.
+	// IT SAID CLOCKWISE UNTIL THIS CARD, AND THAT WAS THE DOUBLE NEGATIVE
+	// CLAUDE.md WARNS ABOUT. The reasoning written here was that the flip
+	// reverses the winding so the constant must be reversed too; the flip is
+	// what removes the reversal, and applying both left a front face Vulkan
+	// called a back one. Nothing culled, so nothing showed it, which is
+	// exactly the failure mode the rule about proving this with a test names.
+	//
+	// THESE TWO LINES AND THE VIEWPORT'S SIGN ARE ONE FACT IN THREE PLACES,
+	// AND render/tests/offscreen.c IS WHAT HOLDS THEM TOGETHER. Culling makes
+	// the combination observable at last: that test draws the triangle into
+	// an offscreen image through the engine's own viewport and reads it back,
+	// then draws it again through the mirror of that viewport — the same
+	// triangle wound the other way — and requires the first to appear and the
+	// second to leave nothing behind. Change either line here, or the sign in
+	// voe_render_frame_viewport, and it fails. Change all three and it still
+	// fails, which is the point: flipping twice looks exactly like flipping
+	// none until something is culled.
 	VkPipelineRasterizationStateCreateInfo raster = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_NONE,
-		.frontFace = VK_FRONT_FACE_CLOCKWISE,
+		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.lineWidth = 1.0f,
 	};
 	VkPipelineMultisampleStateCreateInfo multisample = {
@@ -506,9 +561,11 @@ static bool create_pipeline(voe_render_device *device)
 		.pDynamicStates = dynamic_states,
 	};
 	// Dynamic rendering has no render pass, so the pipeline is told the
-	// attachment format here instead. It is the swapchain's, which is chosen
-	// once and does not change when the window resizes — which is what makes
-	// this a startup decision and not a per-resize one.
+	// attachment format here instead. It is the target's, which is the
+	// surface's, chosen once and unchanged by a resize — which is what makes
+	// this a startup decision and not a per-resize one. The day the target
+	// stops sharing the swapchain's format, this line follows the target and
+	// not the screen.
 	VkPipelineRenderingCreateInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
 		.colorAttachmentCount = 1,
@@ -659,6 +716,7 @@ static void close_down(voe_render_device *device)
 	if (device->device != VK_NULL_HANDLE) {
 		voe_render_vk.device_wait_idle(device->device);
 		voe_render_swapchain_teardown(device);
+		voe_render_target_teardown(device);
 
 		if (device->pipeline != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
@@ -705,21 +763,23 @@ static voe_render_device *open_failed(voe_render_device *device,
 	return NULL;
 }
 
-voe_render_device *voe_render_device_new(voe_base_arena *arena,
-					 voe_platform_native native,
-					 voe_platform_size size,
-					 voe_base_error *error)
+// Both entry points below, and the one difference between them is headless. Read
+// the six places it is asked about from the note at the top of this file; every
+// other line here runs identically either way.
+static voe_render_device *open_device(voe_base_arena *arena,
+				      voe_platform_native native,
+				      voe_platform_size size,
+				      voe_base_error *error, bool headless)
 {
 	voe_render_device *device;
 
 	VOE_BASE_ASSERT(arena != NULL, "opening a device without an arena");
-	VOE_BASE_DEBUG_ASSERT(native.window != 0,
-			      "opening a device on a window that is not there");
 
 	report(error, VOE_BASE_OK);
 
 	device = calloc(1, sizeof(*device));
 	VOE_BASE_ASSERT(device != NULL, "out of memory opening a device");
+	device->headless = headless;
 
 	// No Vulkan on the machine at all. The one failure a person can fix by
 	// installing something, and the reason this function returns a pointer
@@ -730,9 +790,12 @@ voe_render_device *voe_render_device_new(voe_base_arena *arena,
 	if (!create_instance(device, arena))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
-	device->surface = voe_render_backend_surface_new(device->instance, native);
-	if (device->surface == VK_NULL_HANDLE)
-		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!headless) {
+		device->surface = voe_render_backend_surface_new(device->instance,
+								 native);
+		if (device->surface == VK_NULL_HANDLE)
+			return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	}
 
 	// The machine has Vulkan and no card on it can do what we need. That is
 	// a different answer from the two above and a caller may want to say so
@@ -750,11 +813,40 @@ voe_render_device *voe_render_device_new(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!create_frame_objects(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	// Targets before the swapchain, because the targets are the resolution
+	// and the swapchain is only where a frame is copied at the end. A device
+	// whose targets could not be made cannot draw, and there would be
+	// nothing to present.
+	if (!voe_render_target_build(device, size))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_swapchain_build(device, size))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
 	say_which_card(device);
 	return device;
+}
+
+voe_render_device *voe_render_device_new(voe_base_arena *arena,
+					 voe_platform_native native,
+					 voe_platform_size size,
+					 voe_base_error *error)
+{
+	VOE_BASE_DEBUG_ASSERT(native.window != 0,
+			      "opening a device on a window that is not there");
+
+	return open_device(arena, native, size, error, false);
+}
+
+voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
+						  voe_platform_size size,
+						  voe_base_error *error)
+{
+	// A native window that is not there, and nothing reads it: the surface
+	// is the one thing it would have been for and headless does not make
+	// one.
+	voe_platform_native native = { 0 };
+
+	return open_device(arena, native, size, error, true);
 }
 
 void voe_render_device_destroy(voe_render_device *device)

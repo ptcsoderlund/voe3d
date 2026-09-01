@@ -1,6 +1,13 @@
-// The swapchain: the images the window is actually made of, and the only part of
-// a device that is thrown away and built again while the program runs. Every
-// resize comes through here. See device_internal.h for why this is its own file.
+// The swapchain: the images the window is actually made of. Nothing draws into
+// one — a frame is drawn into a target of the engine's own (target.c) and blitted
+// here at the end — so these images are a destination for a copy and nothing
+// else, and the usage flag below says exactly that. See device_internal.h for
+// why this is its own file.
+//
+// IT IS NO LONGER THE RESOLUTION. What size the engine renders at is the
+// target's, and this is only where the result lands; the two are built from the
+// same window size today and the blit between them scales, which is what makes
+// them free to differ later.
 //
 // THE EXTENT IS THE SURFACE'S, NOT THE WINDOW'S, AND THAT IS NOT A CONTRADICTION.
 // The window's size is what tells us to rebuild — it is the only thing that
@@ -12,9 +19,10 @@
 // the window's size is used, clamped to what the surface will take.
 //
 // A ZERO EXTENT BUILDS NOTHING AND IS NOT A FAILURE. A minimised window has no
-// images to draw into and no driver will make a swapchain for one. This leaves
+// images to present and no driver will make a swapchain for one. This leaves
 // the swapchain absent and says so by leaving the handle null; frame.c skips a
-// frame it has no swapchain for and tries again next time round.
+// frame it has no swapchain for and tries again next time round. A device with
+// no window at all takes the same answer for the same reason.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -187,10 +195,16 @@ bool voe_render_swapchain_build(voe_render_device *device,
 {
 	VkSurfaceCapabilitiesKHR capabilities;
 	VkExtent2D extent;
+	// TRANSFER_DST because a frame ends by blitting the target into one of
+	// these, and COLOR_ATTACHMENT because a swapchain image is required to
+	// support it and asking for it costs nothing — dropping it would be a
+	// claim that no card in this engine will ever draw straight to the
+	// screen again, which is not this card's to make.
 	VkSwapchainCreateInfoKHR info = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.imageArrayLayers = 1,
-		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+			      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.presentMode = PRESENT_MODE,
 		.clipped = VK_TRUE,
@@ -198,6 +212,11 @@ bool voe_render_swapchain_build(voe_render_device *device,
 	VkResult result;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a swapchain for nothing");
+
+	// No surface, nothing to present to, and nothing to build. A headless
+	// device draws into its targets and something else reads them.
+	if (device->headless)
+		return true;
 
 	voe_render_swapchain_teardown(device);
 	device->rebuild = false;
@@ -208,6 +227,18 @@ bool voe_render_swapchain_build(voe_render_device *device,
 						   &capabilities) != VK_SUCCESS) {
 		fprintf(stderr,
 			"render: vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed\n");
+		return false;
+	}
+
+	// Every driver measured offers it and the specification does not require
+	// it, so it is asked about rather than assumed. Refused with a message,
+	// because the alternative is a validation error at create time saying
+	// the same thing less clearly — and the fix would be a full-screen quad,
+	// which is a card and not a fallback to hide here.
+	if ((capabilities.supportedUsageFlags &
+	     VK_IMAGE_USAGE_TRANSFER_DST_BIT) == 0) {
+		fprintf(stderr,
+			"render: this surface will not take a swapchain image that can be copied into, and that is how a frame reaches the screen\n");
 		return false;
 	}
 
