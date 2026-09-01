@@ -44,7 +44,22 @@ int main(void)
 	// Reported and sane: the call goes through a pointer resolved out of the
 	// library, and what comes back is at least the 1.1 that being able to
 	// make the call at all implies.
-	VOE_TEST_CHECK(voe_render_vk.enumerate_instance_version != NULL);
+	//
+	// The null case returns instead of reporting and carrying on. A true
+	// return from voe_render_loader_open() has already established this
+	// pointer — loader.c will not open without it — so it cannot happen
+	// here. What the guard buys is that if it ever does, the test says so
+	// and stops, rather than calling through null and dying where a test
+	// is supposed to report. It is also what lets check.cmake step 7 see
+	// the invariant, which lives in another translation unit and is
+	// invisible to the analyser.
+	if (voe_render_vk.enumerate_instance_version == NULL) {
+		VOE_TEST_CHECK(
+			voe_render_vk.enumerate_instance_version != NULL);
+		voe_render_loader_close();
+		return voe_test_result();
+	}
+
 	VOE_TEST_CHECK(voe_render_vk.enumerate_instance_version(&version) ==
 		       VK_SUCCESS);
 	VOE_TEST_CHECK(VK_API_VERSION_MAJOR(version) >= 1);
