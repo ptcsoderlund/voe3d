@@ -15,12 +15,30 @@
 // and behind its neighbour. Between them there is nothing an orbiting camera and
 // a rotating object could both explain.
 //
-// THIS IS STILL A PLACEHOLDER AND THE CAMERA IS STILL A CONSTANT. render has no
-// scene to ask and must not grow one: a camera driven by a person arrives with
-// card 016, geometry that is not a cube with the card that loads a file, and
-// many objects with the card that needs a table to keep them in. What is worth
-// keeping here is the plumbing under it — buffers, an upload, a descriptor, a
-// depth test, a push constant per draw — not the arrangement.
+// THIS IS STILL A PLACEHOLDER, AND WHAT IS LEFT OF IT IS THE ARRANGEMENT RATHER
+// THAN THE CAMERA. render has no scene to ask and must not grow one: geometry
+// that is not a cube arrives with the card that loads a file, and many objects
+// with the card that needs a table to keep them in. What is worth keeping here
+// is the plumbing under it — buffers, an upload, a descriptor, a depth test, a
+// push constant per draw — not the two cubes.
+//
+// THERE ARE TWO CAMERAS AND THE CALLER CHOOSES BETWEEN THEM EVERY FRAME. The
+// orbit is a function of the clock and takes no input; the flown one is a
+// position and two angles moved by what a person did. Both build a view matrix
+// through the same look_at below, so whichever is in use, everything downstream
+// of it is the same code — and a bug in the matrix chain shows up in both rather
+// than in one.
+//
+// THE FLOWN CAMERA'S NUMBERS ARE HERE, WITH THE ORBIT'S, BECAUSE THIS FOLDER
+// STILL OWNS THE CAMERA. How fast it walks, how far a mouse turns it and how
+// close to straight up it may look are #defines below — the same standing
+// FIELD_OF_VIEW and ORBIT_RADIUS have. What the caller supplies is which way,
+// not how fast; include/render/device.h says why the split falls there.
+//
+// AND IT KNOWS NOTHING ABOUT A KEYBOARD. voe_render_camera_input is a direction
+// and a mouse delta, not a key. Which key means forward is the caller's business
+// and it stays out of this folder, which is the same rule that keeps the window's
+// size a parameter rather than a question render asks.
 //
 // THE MODEL MATRIX IS A PUSH CONSTANT AND THE CAMERA IS A UNIFORM BUFFER, AND
 // THE SPLIT IS BY HOW OFTEN EACH CHANGES. The camera is written once per frame
@@ -99,6 +117,33 @@
 #define ORBIT_RADIUS 4.0f
 #define ORBIT_HEIGHT 1.8f
 #define ORBIT_SECONDS 12.0f
+
+// The flown camera's three numbers.
+//
+// Metres per second, and metres per second with `fast` held. Three is a brisk
+// walk, which is the right order of magnitude for a scene one metre across —
+// something the size of a building wants a different number and it wants it from
+// outside this folder, which is the card that gives the camera a home.
+#define FLY_METRES_PER_SECOND 3.0f
+#define FLY_FAST_MULTIPLIER 4.0f
+
+// Radians per unit of whatever the window system called mouse movement. There is
+// no principled value for this: the unit is the compositor's on one platform and
+// the mouse's own counts on the other — see voe_platform_input_motion — so this
+// is a number picked by moving a mouse and looking, and it is the one line to
+// change when it feels wrong. A quarter of a degree per unit, roughly, which
+// puts a half-turn at about a hand's width of desk.
+#define FLY_RADIANS_PER_UNIT 0.004f
+
+// How close to straight up or straight down the camera may look, in radians.
+//
+// IT IS NOT π/2 AND THE CLAMP IS NOT COSMETIC. look_at builds the camera's right
+// axis by crossing the world's up vector with the direction of view; looking
+// exactly along up makes those two parallel, the cross product zero, and the
+// normalize that follows a division by zero — so the view matrix fills with NaN
+// and the whole frame disappears. A degree short of it is enough and it is what
+// every camera like this does.
+#define FLY_PITCH_LIMIT 1.5533431f
 
 // The second cube's spin, and how far along +X it stands from the first.
 //
@@ -222,28 +267,178 @@ voe_math_float4x4 voe_render_cube_projection(VkExtent2D extent)
 	return projection;
 }
 
-void voe_render_cube_uniforms_fill(struct voe_render_uniforms *uniforms,
-				   VkExtent2D extent, float seconds)
+// Where the orbiting camera's eye is at this many seconds in.
+//
+// sine on x and cosine on z, so that a growing angle carries the eye from +Z
+// towards +X — the same direction a positive rotation about +Y turns, which is
+// the engine's handedness and what math/tests/quat.c proves. Cosine on x instead
+// would orbit the other way and look exactly as convincing.
+//
+// Zero seconds therefore puts the eye straight above and behind the origin on
+// the +Z axis, pitched down at it. That is also the only moment every test in
+// this folder that draws ever sees, because nothing but a real frame advances
+// the clock.
+//
+// It is a function rather than four lines inside the fill below because two
+// things ask where the orbit is: the orbit, and the flown camera taking over
+// from it.
+static voe_math_float3 orbit_eye(float seconds)
 {
-	// The orbit. sine on x and cosine on z, so that a growing angle carries
-	// the eye from +Z towards +X — the same direction a positive rotation
-	// about +Y turns, which is the engine's handedness and what
-	// math/tests/quat.c proves. Cosine on x instead would orbit the other
-	// way and look exactly as convincing.
-	//
-	// Zero seconds therefore puts the eye straight above and behind the
-	// origin on the +Z axis, pitched down at it. That is also the only
-	// moment every test in this folder that draws ever sees, because nothing
-	// but a real frame advances the clock.
 	float angle = seconds * TURN / ORBIT_SECONDS;
-	voe_math_float3 eye = { sinf(angle) * ORBIT_RADIUS, ORBIT_HEIGHT,
-				cosf(angle) * ORBIT_RADIUS };
-	voe_math_float3 origin = { 0.0f, 0.0f, 0.0f };
+
+	return (voe_math_float3){ sinf(angle) * ORBIT_RADIUS, ORBIT_HEIGHT,
+				  cosf(angle) * ORBIT_RADIUS };
+}
+
+// Which way the flown camera is looking, from its two angles. Unit by
+// construction, so nothing normalizes it.
+//
+// READ IT AGAINST yaw's COMMENT IN device_internal.h AND THE SIGNS ARE THE WHOLE
+// OF THIS FUNCTION. At yaw and pitch zero this is (0, 0, -1), which is where a
+// camera in this engine looks; a positive yaw swings it towards -X, which is a
+// left turn, because a positive rotation about +Y takes +Z to +X and the
+// direction of view is the negative of that. Both cosines carry the pitch, so
+// the vector stays unit without a normalize.
+static voe_math_float3 fly_forward(float yaw, float pitch)
+{
+	float flat = cosf(pitch);
+
+	return (voe_math_float3){ -sinf(yaw) * flat, sinf(pitch),
+				  -cosf(yaw) * flat };
+}
+
+// The flown camera's right, and it is horizontal whatever the pitch is.
+//
+// THAT IS THE WHOLE REASON IT IS NOT cross(forward, up). The cross product is
+// this vector multiplied by cos(pitch), so normalizing it gives exactly what is
+// written here — and written here it costs no normalize and it does not divide
+// by zero when the pitch is straight up. Horizontal is also what strafing should
+// be: looking at the floor and stepping right should step right, not into the
+// floor.
+static voe_math_float3 fly_right(float yaw)
+{
+	return (voe_math_float3){ cosf(yaw), 0.0f, -sinf(yaw) };
+}
+
+void voe_render_cube_camera_step(struct voe_render_camera *camera,
+				 voe_render_camera_input input, float seconds,
+				 float dt)
+{
+	voe_math_float3 world_up = { 0.0f, 1.0f, 0.0f };
+	voe_math_float3 direction = { 0.0f, 0.0f, 0.0f };
+	float length;
+	float speed = FLY_METRES_PER_SECOND;
+
+	VOE_BASE_DEBUG_ASSERT(camera != NULL, "flying nothing");
+
+	// Not flying, and nothing to remember: the orbit is a function of the
+	// clock and keeps no state at all.
+	if (!input.fly) {
+		camera->flying = false;
+		return;
+	}
+
+	// The frame control is taken. Put where the orbit had reached and
+	// pointed the way the orbit was pointing — which is at the origin — so
+	// that the picture does not move on the frame a person takes over.
+	//
+	// The two angles come back out of the direction with the inverses of
+	// fly_forward: pitch is the arcsine of the y it built, and yaw is the
+	// arctangent of the other two with both signs put back. Seeding a
+	// position and leaving the angles at zero would have the camera in the
+	// right place looking the wrong way, which reads as a jump.
+	if (!camera->flying) {
+		voe_math_float3 eye = orbit_eye(seconds);
+		voe_math_float3 view = voe_math_float3_normalize(
+			voe_math_float3_neg(eye));
+
+		camera->eye = eye;
+		camera->pitch = asinf(view.y);
+		camera->yaw = atan2f(-view.x, -view.z);
+		camera->flying = true;
+	}
+
+	// The mouse. Right and down are both positive out of platform, and both
+	// turn the camera that way: yaw comes down because a positive yaw is a
+	// left turn, and pitch comes down because looking down is a smaller
+	// pitch. Neither is scaled by dt — a mouse reports how far it moved, not
+	// how fast, so a frame that took twice as long has twice the movement in
+	// it already and multiplying again would make looking around depend on
+	// the frame rate.
+	camera->yaw -= input.look_x * FLY_RADIANS_PER_UNIT;
+	camera->pitch -= input.look_y * FLY_RADIANS_PER_UNIT;
+
+	// Kept inside one turn. sinf and cosf do not care how large the angle
+	// is, but the subtraction above does: adding four thousandths to a yaw
+	// of ten thousand radians loses most of it, and ten thousand radians is
+	// twenty minutes of spinning.
+	camera->yaw = fmodf(camera->yaw, TURN);
+
+	// The clamp, and it is not cosmetic — see FLY_PITCH_LIMIT.
+	camera->pitch = fmaxf(-FLY_PITCH_LIMIT,
+			      fminf(FLY_PITCH_LIMIT, camera->pitch));
+
+	// Where a step goes, in the camera's frame for two of the three axes and
+	// the world's for the third.
+	//
+	// UP IS THE WORLD'S AND NOT THE CAMERA'S, ON PURPOSE. A camera looking
+	// at the floor should still rise when asked to rise; using its own up
+	// would send it forwards instead, which is correct for a spacecraft and
+	// wrong for anything a person is trying to fly around a scene with.
+	direction = voe_math_float3_add(
+		direction, voe_math_float3_scale(
+				   fly_forward(camera->yaw, camera->pitch),
+				   input.forward));
+	direction = voe_math_float3_add(
+		direction,
+		voe_math_float3_scale(fly_right(camera->yaw), input.right));
+	direction = voe_math_float3_add(
+		direction, voe_math_float3_scale(world_up, input.up));
+
+	if (input.fast)
+		speed *= FLY_FAST_MULTIPLIER;
+
+	// NORMALIZED, SO THAT TWO KEYS ARE NOT FASTER THAN ONE. Forward and
+	// right together are a vector of length root two, and moving along it
+	// unscaled is the oldest bug in this kind of camera: a diagonal is forty
+	// per cent quicker than a straight line and it is invisible until
+	// someone races along one. The length is tested rather than normalized
+	// blind, because normalizing a vector of no length is a division by zero
+	// and standing still is the commonest case there is.
+	length = voe_math_float3_length(direction);
+	if (length > 0.0f)
+		camera->eye = voe_math_float3_add(
+			camera->eye,
+			voe_math_float3_scale(direction, speed * dt / length));
+}
+
+void voe_render_cube_uniforms_fill(struct voe_render_uniforms *uniforms,
+				   VkExtent2D extent,
+				   const struct voe_render_camera *camera,
+				   float seconds)
+{
 	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_math_float3 eye;
+	voe_math_float3 target;
 
 	VOE_BASE_DEBUG_ASSERT(uniforms != NULL, "filling nothing with matrices");
+	VOE_BASE_DEBUG_ASSERT(camera != NULL, "a frame with no camera in it");
 
-	uniforms->view = look_at(eye, origin, up);
+	// The two cameras, and this is the only place either of them turns into
+	// a view matrix. A flown camera is a point and a direction, so its
+	// target is one step along where it looks; the orbit is a point and the
+	// origin, which is what makes the still cube hold the centre of the
+	// frame.
+	if (camera->flying) {
+		eye = camera->eye;
+		target = voe_math_float3_add(
+			eye, fly_forward(camera->yaw, camera->pitch));
+	} else {
+		eye = orbit_eye(seconds);
+		target = (voe_math_float3){ 0.0f, 0.0f, 0.0f };
+	}
+
+	uniforms->view = look_at(eye, target, up);
 	uniforms->projection = voe_render_cube_projection(extent);
 }
 

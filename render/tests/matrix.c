@@ -243,6 +243,10 @@ static void check_scene(void)
 		// knowing the period the right way round.
 		float seconds = (float)sample;
 		struct voe_render_uniforms uniforms;
+		// A zeroed camera is one that is not being flown, which is the
+		// orbit — the only camera this claim is about. The flown one is
+		// render/tests/camera.c's.
+		struct voe_render_camera orbiting = { 0 };
 		voe_math_float3 origin = { 0.0f, 0.0f, 0.0f };
 		voe_math_float3 eye;
 		voe_math_float4 clip;
@@ -250,7 +254,8 @@ static void check_scene(void)
 		voe_math_float4x4 identity;
 		voe_math_float4x4 turning;
 
-		voe_render_cube_uniforms_fill(&uniforms, extent, seconds);
+		voe_render_cube_uniforms_fill(&uniforms, extent, &orbiting,
+					      seconds);
 
 		// Where the camera is, recovered from the view matrix: the view
 		// matrix takes the eye to the origin of view space, so the

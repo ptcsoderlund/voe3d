@@ -127,6 +127,39 @@ struct voe_render_push {
 	voe_math_float4x4 model;
 };
 
+// Where the camera is and which way it is looking, when it is being flown. The
+// state that has to survive between two frames, and nothing more: the matrices
+// are built from this every frame and never stored.
+//
+// AN ANGLE PAIR AND NOT A MATRIX, AND NOT A QUATERNION EITHER. What a mouse
+// gives is a change in yaw and a change in pitch, and what a fly camera needs is
+// that pitch cannot go past straight up — which is a clamp on a number and has
+// no meaning on a matrix. Accumulating into a rotation instead is also how a
+// camera acquires roll it was never asked for: two rotations composed in the
+// order the mouse happened to move leave the horizon tilted, and every frame
+// after that makes it worse. Two floats cannot do that.
+//
+// SO THERE IS NO ROLL IN HERE AND THAT IS THE POINT RATHER THAN A GAP. A camera
+// a person flies wants the horizon level; something that wants to barrel-roll is
+// a different camera and it stores a rotation.
+//
+// flying IS THE PREVIOUS FRAME'S ANSWER AND IT IS WHAT MAKES THE HANDOVER
+// SMOOTH. The frame the caller first asks to fly, eye, yaw and pitch are seeded
+// from wherever the orbit had reached, so the view does not jump; that needs to
+// know that last frame was not flying, which is the only thing this field is
+// for.
+struct voe_render_camera {
+	voe_math_float3 eye;
+	// Radians. Zero looks along -Z, and a positive angle turns towards -X,
+	// which is a left turn — the engine's handedness, the same direction
+	// math/tests/quat.c proves a positive rotation about +Y goes.
+	float yaw;
+	// Radians. Positive looks up, and it is clamped short of straight up
+	// where a look-at's up vector stops meaning anything.
+	float pitch;
+	bool flying;
+};
+
 // One swapchain image and the two things that belong to it for its whole life.
 //
 // drawn is per image and not per frame on purpose. vkQueuePresentKHR waits on it
@@ -292,6 +325,12 @@ struct voe_render_device {
 	// rate.
 	float seconds;
 
+	// The flown camera, when it is being flown. Zeroed at startup, which is
+	// not flying, which is the orbit — so a device nobody has handed any
+	// input to draws exactly what card 015 drew, and the two tests in this
+	// folder that draw a frame never mention it.
+	struct voe_render_camera camera;
+
 	// The size every slot's target is, and the resolution the engine draws
 	// at. It is the window's size today and it is not the swapchain's: what
 	// reconciles the two is the blit at the end of a frame, which scales.
@@ -450,12 +489,32 @@ void voe_render_cube_teardown(voe_render_device *device);
 // distinguishable from a rotating object. See cube.c's header.
 #define VOE_RENDER_CUBE_COUNT 2
 
-// cube.c. The camera's two matrices for a target of this size, at this many
-// seconds in, ready to be copied into a slot's uniform buffer. The camera is on
-// a hardcoded orbit in that file — this folder has no scene to ask and no input
-// to read.
+// cube.c. The camera's two matrices for a target of this size, ready to be
+// copied into a slot's uniform buffer.
+//
+// TWO CAMERAS, AND camera->flying CHOOSES. Flying, the view comes from where the
+// camera is and which way it is looking; not flying, it comes from the hardcoded
+// orbit at this many seconds in, which is what card 015 built and what the tests
+// here see. seconds is read only in the second case and the projection is the
+// same either way.
 void voe_render_cube_uniforms_fill(struct voe_render_uniforms *uniforms,
-				   VkExtent2D extent, float seconds);
+				   VkExtent2D extent,
+				   const struct voe_render_camera *camera,
+				   float seconds);
+
+// cube.c. Moves and turns the camera by what the caller says the person did,
+// over `dt` seconds. Called once per frame, before the matrices are built.
+//
+// IT IS WHERE THE HANDOVER FROM THE ORBIT HAPPENS. The first frame look.fly is
+// true, the camera is placed where the orbit had reached at `seconds` and
+// pointed the way the orbit was pointing, so taking control does not jump; the
+// first frame it is false again, nothing is stored and the orbit resumes from
+// its own clock, which never stopped. Handing back therefore does jump, and
+// that is the honest half of it — the orbit is a function of time and it does
+// not wait.
+void voe_render_cube_camera_step(struct voe_render_camera *camera,
+				 voe_render_camera_input input, float seconds,
+				 float dt);
 
 // cube.c. Where cube `index` is at this many seconds in, as the matrix a draw
 // pushes. index is below VOE_RENDER_CUBE_COUNT and asserts if it is not.

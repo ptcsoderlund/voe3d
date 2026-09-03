@@ -11,8 +11,9 @@ pair per frame slot — and the colour one is copied onto the window afterwards.
 Nothing draws into a swapchain image.
 
 - `include/render/device.h` — the whole public surface: open a device on a
-  window, ask it for a frame, destroy it. Its header says why that is one object
-  and not four.
+  window, ask it for a frame with what the person did to the camera, destroy it.
+  Its header says why that is one object and not four, and why the camera is
+  moved by a description of input rather than by a matrix.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -33,16 +34,17 @@ Nothing draws into a swapchain image.
 - `src/buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one. Its header says why every later upload is this.
 - `src/cube.c` — the two cubes: one set of vertices and indices, a matrix each,
-  the camera on its orbit, the projection matrix, and the descriptor the shader
-  reads the camera through. Its header says why there are two of them, why the
-  per-object matrix is a push constant, and which parts of it are placeholders.
+  the two cameras — the orbit and the flown one — the projection matrix, and the
+  descriptor the shader reads the camera through. Its header says why there are
+  two cubes, why there are two cameras, why the per-object matrix is a push
+  constant, and which parts of it are placeholders.
 - `src/target.c` — the colour and depth images a frame is drawn into, one pair per
   frame slot, thrown away and built again on every resize.
 - `src/swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
-- `src/frame.c` — one frame: wait, write the camera, draw each cube into the
-  target, acquire, blit, present. Holds the engine's only Y flip and the counted
-  clock the scene moves on; its header says why each is where it is.
+- `src/frame.c` — one frame: wait, move the camera, write it, draw each cube into
+  the target, acquire, blit, present. Holds the engine's only Y flip and the
+  counted clock the scene moves on; its header says why each is where it is.
 - `src/probe.c` — the pipeline that reads a matrix and reports what it saw, built
   only when a test asks. Its header says why it is not built at startup.
 - `tests/loader.c` — that a machine with a driver and no SDK reaches Vulkan.

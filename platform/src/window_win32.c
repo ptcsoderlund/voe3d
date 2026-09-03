@@ -16,7 +16,44 @@
 // window is not destroyed there. Destroying it is voe_platform_window_destroy's
 // job, and a window that tore itself down inside poll would leave the caller
 // holding a pointer to nothing until it next thought to ask.
+//
+// INPUT IS HERE AND NOT IN A FILE OF ITS OWN, FOR THE SAME REASON THE WAYLAND
+// SIDE'S IS. Every keystroke and every mouse movement arrives as a message to
+// the window procedure below, dispatched by the same PeekMessageW loop a resize
+// comes through. What the handlers fill is src/input.h, which is the half that
+// is not Windows' and is shared with Wayland.
+//
+// A KEY IS A PLACE AND NOT A LETTER, WHICH IS WHY WM_CHAR IS NOWHERE IN HERE.
+// WM_KEYDOWN carries a virtual key, which is a position on the keyboard;
+// WM_CHAR carries the character the active layout would type, which is a
+// different question and one nothing in this engine asks. TranslateMessageW is
+// still called in the pump because it is what a Windows message loop does and
+// removing it would be a change nothing asked for — the WM_CHAR it synthesises
+// simply falls through to DefWindowProcW.
+//
+// WM_SYSKEYDOWN IS HANDLED ALONGSIDE WM_KEYDOWN AND MUST NOT BE SWALLOWED.
+// Windows sends the SYS form for a key pressed while Alt is held, and for F10.
+// The engine wants to know the key moved either way, so both are recorded — but
+// the SYS pair then falls through to DefWindowProcW rather than returning zero,
+// because that is what opens the window menu on Alt and closes the window on
+// Alt+F4. A handler that returned zero here would take Alt+F4 away and it would
+// not be obvious why.
+//
+// MOUSE LOOK IS RAW INPUT AND NOT WM_MOUSEMOVE. WM_MOUSEMOVE reports where the
+// cursor is in the client area, which stops at the edge of the window; a camera
+// needs how far the mouse moved, which does not. WM_INPUT reports the device's
+// own relative counts and keeps reporting them when the cursor is against a
+// screen edge, which is the whole reason it is registered for.
+//
+// THE LOCK IS A CLIP AND A HIDE, AND THERE IS NOTHING TO NEGOTIATE. Unlike
+// Wayland, nothing here can refuse: ClipCursor confines the cursor to the client
+// rectangle and ShowCursor hides it, so the flag src/input.h keeps is set from
+// what was asked for rather than from an answer. ShowCursor is a counter and not
+// a switch, which is what makes hiding reversible here and not on the other
+// platform — see include/platform/input.h, which says why the two differ.
 #include <platform/window.h>
+
+#include "input.h"
 
 #include <base/assert.h>
 
@@ -38,12 +75,186 @@ struct voe_platform_window {
 	int width;
 	int height;
 	bool should_close;
+
+	// The lock is wanted, and the window has focus. Both have to hold for
+	// the cursor to actually be clipped, which is what makes this side
+	// behave the way the Wayland side's persistent lock does: losing focus
+	// gives the cursor back, and getting focus takes it again with nothing
+	// asked for in between.
+	bool lock_wanted;
+	bool focused;
+
+	struct voe_platform_input input;
 };
 
 static voe_platform_window *window_of(HWND hwnd)
 {
 	return (voe_platform_window *)(uintptr_t)GetWindowLongPtrW(hwnd,
 								   GWLP_USERDATA);
+}
+
+// A virtual key to one of the nine keys this engine reads, or
+// VOE_PLATFORM_KEY_COUNT for everything else. The letters are their own ASCII
+// capitals, which is what Windows defines VK_A..VK_Z to be and why there are no
+// constants for them to name.
+//
+// VK_SHIFT AND VK_CONTROL ARRIVE AS THE UNSIDED VIRTUAL KEY AND THAT IS ENOUGH.
+// Windows sends the generic VK for both ends unless the window asks for the
+// sided ones, and include/platform/input.h folds left and right into one key
+// anyway — so the two agree by doing nothing.
+static voe_platform_key key_of(WPARAM virtual_key)
+{
+	switch (virtual_key) {
+	case 'W':
+		return VOE_PLATFORM_KEY_W;
+	case 'A':
+		return VOE_PLATFORM_KEY_A;
+	case 'S':
+		return VOE_PLATFORM_KEY_S;
+	case 'D':
+		return VOE_PLATFORM_KEY_D;
+	case VK_SPACE:
+		return VOE_PLATFORM_KEY_SPACE;
+	case VK_CONTROL:
+		return VOE_PLATFORM_KEY_CONTROL;
+	case VK_SHIFT:
+		return VOE_PLATFORM_KEY_SHIFT;
+	case VK_TAB:
+		return VOE_PLATFORM_KEY_TAB;
+	case VK_ESCAPE:
+		return VOE_PLATFORM_KEY_ESCAPE;
+	default:
+		return VOE_PLATFORM_KEY_COUNT;
+	}
+}
+
+static void key_set(voe_platform_window *window, WPARAM virtual_key, bool down)
+{
+	voe_platform_key key = key_of(virtual_key);
+
+	if (key != VOE_PLATFORM_KEY_COUNT)
+		window->input.keys[key] = down;
+}
+
+// Focus arrived, so rebuild what is held from what the OS says is held. This is
+// the counterpart of clearing everything on the way out, and it is the same
+// thing wl_keyboard.enter's key array does on the other platform — without it,
+// alt-tabbing back in while holding W leaves W reading up until it is pressed
+// again.
+//
+// GetAsyncKeyState AND NOT GetKeyState, BECAUSE THE QUESTION IS ABOUT NOW.
+// GetKeyState answers as of the last message this thread took off the queue,
+// which at WM_SETFOCUS is a moment before focus arrived; GetAsyncKeyState reads
+// the hardware state. The high bit is "down" — the low bit means something else
+// entirely and reading the whole value as a bool is the classic mistake here.
+static void focus_gained(voe_platform_window *window)
+{
+	static const int VIRTUAL_KEYS[VOE_PLATFORM_KEY_COUNT] = {
+		[VOE_PLATFORM_KEY_W] = 'W',
+		[VOE_PLATFORM_KEY_A] = 'A',
+		[VOE_PLATFORM_KEY_S] = 'S',
+		[VOE_PLATFORM_KEY_D] = 'D',
+		[VOE_PLATFORM_KEY_SPACE] = VK_SPACE,
+		[VOE_PLATFORM_KEY_CONTROL] = VK_CONTROL,
+		[VOE_PLATFORM_KEY_SHIFT] = VK_SHIFT,
+		[VOE_PLATFORM_KEY_TAB] = VK_TAB,
+		[VOE_PLATFORM_KEY_ESCAPE] = VK_ESCAPE,
+	};
+
+	for (int key = 0; key < VOE_PLATFORM_KEY_COUNT; key++)
+		window->input.keys[key] =
+			(GetAsyncKeyState(VIRTUAL_KEYS[key]) & 0x8000) != 0;
+}
+
+// Where the cursor may go while the pointer is locked: the client area, in
+// screen coordinates, which is what ClipCursor wants and not what GetClientRect
+// hands back. Re-applied on every ask because a window that moved or resized has
+// left the old rectangle somewhere it no longer is.
+static void clip_to_client(voe_platform_window *window)
+{
+	RECT client;
+	POINT top_left = { 0, 0 };
+
+	if (!GetClientRect(window->hwnd, &client))
+		return;
+	if (!ClientToScreen(window->hwnd, &top_left))
+		return;
+
+	client.left += top_left.x;
+	client.right += top_left.x;
+	client.top += top_left.y;
+	client.bottom += top_left.y;
+	ClipCursor(&client);
+}
+
+// Take the cursor or give it back, from the two flags that decide it. Every path
+// that changes either flag ends here, so there is one place that knows what the
+// cursor is doing and it cannot get out of step with itself.
+//
+// ShowCursor IS A COUNTER, WHICH IS WHY THIS GUARDS ON pointer_locked RATHER
+// THAN CALLING IT EVERY TIME. Hiding four times needs showing four times, so a
+// caller asking for a lock once a frame with no guard here would push the count
+// down by sixty a second and never bring it back. The flag is what keeps the
+// calls paired.
+static void apply_lock(voe_platform_window *window)
+{
+	bool wanted = window->lock_wanted && window->focused;
+
+	if (wanted == window->input.pointer_locked) {
+		// Already where it should be. The clip is still refreshed,
+		// because a window that moved has left it behind.
+		if (wanted)
+			clip_to_client(window);
+		return;
+	}
+
+	if (wanted) {
+		clip_to_client(window);
+		ShowCursor(FALSE);
+	} else {
+		// NULL releases the cursor to the whole desktop. It is a global
+		// setting, so leaving it behind would confine the cursor for
+		// every other program on the machine.
+		ClipCursor(NULL);
+		ShowCursor(TRUE);
+	}
+	window->input.pointer_locked = wanted;
+}
+
+// One WM_INPUT message, which may carry several mouse movements. Only the mouse
+// is registered for, so nothing here checks which device it was.
+//
+// MOUSE_MOVE_ABSOLUTE IS A REAL CASE, IT IS DROPPED, AND THE CONSEQUENCE IS THAT
+// SOME MACHINES HAVE NO MOUSE LOOK AT ALL. A tablet, a touch digitiser, and the
+// mice some remote-desktop sessions and virtual machines present report where the
+// pointer is rather than how far it moved. Adding those coordinates up as though
+// they were deltas sends the camera to the far corner of the world on the first
+// event, so they are skipped — and skipping them means a device that only ever
+// reports this way moves the camera not at all. Keys still work.
+//
+// IT IS NOT A FEW LINES TO FIX AND THAT IS WHY IT IS REPORTED HERE RATHER THAN
+// HALF-DONE. Differencing consecutive absolute positions is easy on its own, but
+// it does not survive the lock above: a cursor clipped to the client rectangle
+// stops at the edge, so the differences go to nought exactly when a person is
+// still turning. Making it work means locking a different way — recentring the
+// cursor every frame and measuring from the middle — which is a second lock
+// strategy, not a branch in this function. Whoever meets a dead mouse on a
+// virtual machine should read this paragraph and write that card.
+static void raw_input(voe_platform_window *window, HRAWINPUT handle)
+{
+	RAWINPUT raw;
+	UINT size = sizeof(raw);
+
+	if (GetRawInputData(handle, RID_INPUT, &raw, &size,
+			    sizeof(RAWINPUTHEADER)) == (UINT)-1)
+		return;
+	if (raw.header.dwType != RIM_TYPEMOUSE)
+		return;
+	if ((raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)
+		return;
+
+	window->input.motion_x += (float)raw.data.mouse.lLastX;
+	window->input.motion_y += (float)raw.data.mouse.lLastY;
 }
 
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
@@ -62,6 +273,43 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	case WM_SIZE:
 		window->width = LOWORD(lparam);
 		window->height = HIWORD(lparam);
+		// A window that has just changed size has a client rectangle
+		// somewhere else, and a clip left where it was would hold the
+		// cursor outside it.
+		apply_lock(window);
+		return 0;
+	case WM_KEYDOWN:
+		key_set(window, wparam, true);
+		return 0;
+	case WM_KEYUP:
+		key_set(window, wparam, false);
+		return 0;
+	// Recorded and then handed on, so that Alt and Alt+F4 still do what
+	// Windows means them to do. See the header.
+	case WM_SYSKEYDOWN:
+		key_set(window, wparam, true);
+		return DefWindowProcW(hwnd, message, wparam, lparam);
+	case WM_SYSKEYUP:
+		key_set(window, wparam, false);
+		return DefWindowProcW(hwnd, message, wparam, lparam);
+	case WM_INPUT:
+		raw_input(window, (HRAWINPUT)lparam);
+		// Handed on as well: the documentation asks for it, and the
+		// system does cleanup for the message there.
+		return DefWindowProcW(hwnd, message, wparam, lparam);
+	case WM_SETFOCUS:
+		window->focused = true;
+		focus_gained(window);
+		apply_lock(window);
+		return 0;
+	case WM_KILLFOCUS:
+		// The clip is not ours to hold while somebody else has focus,
+		// and a hidden cursor over another window is worse still. Both
+		// come back on the way in, without the caller asking again —
+		// lock_wanted is still set and apply_lock reads it.
+		window->focused = false;
+		voe_platform_input_focus_lost(&window->input);
+		apply_lock(window);
 		return 0;
 	default:
 		return DefWindowProcW(hwnd, message, wparam, lparam);
@@ -133,14 +381,69 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	}
 
 	SetWindowLongPtrW(window->hwnd, GWLP_USERDATA, (LONG_PTR)(uintptr_t)window);
+
+	// The mouse, as a raw device, so that WM_INPUT arrives with relative
+	// counts. Registered before the window is shown so no movement is
+	// missed, and not checked: a machine that refuses this has a keyboard
+	// and no mouse look, which is the same outcome as a compositor without
+	// the relative-pointer protocol and is not a failure to open a window.
+	//
+	// The usage page and usage are HID's numbering for "generic desktop,
+	// mouse" and there are no constants for them in windows.h. RIDEV_INPUTSINK
+	// is deliberately absent: it would deliver movement while another program
+	// has focus, which is a keylogger's flag and not a game's.
+	RAWINPUTDEVICE mouse = {
+		.usUsagePage = 0x01,
+		.usUsage = 0x02,
+		.dwFlags = 0,
+		.hwndTarget = window->hwnd,
+	};
+
+	RegisterRawInputDevices(&mouse, 1, sizeof(mouse));
+
 	ShowWindow(window->hwnd, SW_SHOW);
 
+	// ShowWindow activates the window and WM_SETFOCUS has already been
+	// through the procedure by here — but only if this window really got
+	// focus, which a shell policy or another program grabbing it can
+	// prevent. Asking rather than assuming costs one call and means the
+	// flag is right either way.
+	if (GetFocus() == window->hwnd && !window->focused) {
+		window->focused = true;
+		focus_gained(window);
+	}
+
 	return window;
+}
+
+// The two functions src/input.h declares, and the whole of what input.c knows
+// about this file.
+struct voe_platform_input *voe_platform_window_input(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window for input");
+
+	return &window->input;
+}
+
+void voe_platform_window_lock_pointer(voe_platform_window *window, bool lock)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "locking a NULL window's pointer");
+
+	window->lock_wanted = lock;
+	apply_lock(window);
 }
 
 void voe_platform_window_destroy(voe_platform_window *window)
 {
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "destroying a NULL window");
+
+	// The clip is a machine-wide setting and the hidden cursor is a count,
+	// so a window that went away while holding either would leave the
+	// desktop worse than it found it. Both are given back before anything
+	// is torn down.
+	window->lock_wanted = false;
+	window->focused = false;
+	apply_lock(window);
 
 	if (window->hwnd != NULL)
 		DestroyWindow(window->hwnd);
@@ -152,6 +455,10 @@ void voe_platform_window_poll(voe_platform_window *window)
 	MSG message;
 
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "polling a NULL window");
+
+	// Before anything is dispatched, so that the motion the messages below
+	// bring is this frame's and not this frame's added to the last one's.
+	voe_platform_input_begin_poll(&window->input);
 
 	while (PeekMessageW(&message, NULL, 0, 0, PM_REMOVE) != 0) {
 		TranslateMessage(&message);

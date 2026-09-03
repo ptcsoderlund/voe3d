@@ -1,7 +1,8 @@
 // A window: it opens, it resizes, it says when the user asked to close it, and
 // it hands out the two OS handles a graphics API needs to draw into it. That is
-// the whole of it. Not input, not files, not time — platform will own those, and
-// the card that first needs one adds it.
+// the whole of it. Not files and not time — platform will own those, and the
+// card that first needs one adds it. Input belongs to a window and is on the
+// next page: see platform/input.h.
 //
 //     voe_platform_window *w = voe_platform_window_new(960, 540, "voe3d");
 //     if (w == NULL)
@@ -12,16 +13,22 @@
 //
 // FAILURE IS A RETURNED NULL, AND ONLY HERE. Opening a window can genuinely
 // fail — no compositor, no display, a session that is not there — and that is
-// not the program being wrong, so it is not an assert. How a recoverable failure
-// gets reported across this engine is not decided yet, and nothing here invents
-// an answer: _new returns NULL and the caller decides. Every other function on
+// not the program being wrong, so it is not an assert. Every other function on
 // this page assumes a window that opened. Running out of memory is a separate
 // matter and stays fatal, through base/assert.h.
 //
-// POLL DOES NOT RETURN EVENTS. It drains whatever the OS has queued and folds it
-// into the window's own state; you then ask for that state with
-// _should_close and _size. There is no event queue, no callback and no listener,
-// because nothing in this engine consumes a keystroke yet. Call it once a frame.
+// A window that opened but has no keyboard and no mouse is not one of those
+// failures. It is a window: it draws, it resizes and it closes, and every key on
+// it reads as up. See platform/input.h.
+//
+// POLL DOES NOT RETURN EVENTS, AND THAT IS THE WHOLE FOLDER'S SHAPE AND NOT JUST
+// THIS PAGE'S. It drains whatever the OS has queued and folds it into the
+// window's own state; you then ask for that state with _should_close, _size,
+// _decorated and everything in platform/input.h. There is no event queue, no
+// callback and no listener anywhere in platform. Call it once a frame, and note
+// that it is the only poll there is — input has no second one, and a frame that
+// forgets this one gets a window that never closes and a keyboard that never
+// moves.
 //
 // _poll returns immediately whether or not anything happened. It is not a wait,
 // and platform has no way to wait yet, so a loop with nothing else in it will

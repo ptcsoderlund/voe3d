@@ -1,7 +1,7 @@
 # 016 — an input layer
 
 status: todo
-claimed-by: -
+claimed-by: claude-code (kanban-coder)
 blocked-by: 015
 
 Keyboard and mouse, in `platform`, on both platforms. Ships with a consumer:

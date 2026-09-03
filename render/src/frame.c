@@ -4,13 +4,20 @@
 // performs as it begins — so the only things recorded inside the rendering are
 // the draws.
 //
-// THE CLOCK IS COUNTED HERE AND IT IS THE ONLY MOVING PART OF THE SCENE. A
-// recorded frame adds a nominal frame's worth of seconds to device->seconds, and
-// cube.c turns that one number into an orbiting camera and a spinning cube. It
-// is counted and not measured because this engine has no clock yet — platform
-// will own one, card 020 is the card that brings it, and everything downstream
-// of this line is already in seconds so that replacing it is one line. See
-// NOMINAL_FRAME_SECONDS below.
+// THE CLOCK IS COUNTED HERE AND IT IS WHAT MOVES THE SCENE THAT NOBODY IS
+// DRIVING. A recorded frame adds a nominal frame's worth of seconds to
+// device->seconds, and cube.c turns that one number into a spinning cube and —
+// while nobody is flying it — an orbiting camera. It is counted and not measured
+// because this engine has no clock yet: platform will own one, card 020 is the
+// card that brings it, and everything downstream of this line is already in
+// seconds so that replacing it is one line. See NOMINAL_FRAME_SECONDS below.
+//
+// THE CAMERA IS STEPPED ON THAT SAME NOMINAL FRAME, BESIDE THE CLOCK AND FOR THE
+// SAME REASON. Both happen after every early return this function has, so a
+// frame that turned back without drawing — no swapchain, a stale one, a window
+// with no area — advances neither. A camera that moved on a frame that was never
+// drawn would drift by one frame's worth of input every time the window
+// resized.
 //
 // NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into images the
 // engine owns (target.c) and the swapchain image is written once, by a blit, as
@@ -255,7 +262,7 @@ void voe_render_frame_draw(voe_render_device *device,
 	// the command buffer instead and need no such argument: a command buffer
 	// this slot is recording is one the GPU has already finished with.
 	voe_render_cube_uniforms_fill(&uniforms, device->resolution,
-				      device->seconds);
+				      &device->camera, device->seconds);
 	memcpy(frame->uniforms_mapped, &uniforms, sizeof(uniforms));
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
@@ -458,7 +465,8 @@ static bool rebuild(voe_render_device *device, voe_platform_size size)
 	return voe_render_swapchain_build(device, size);
 }
 
-bool voe_render_device_frame(voe_render_device *device, voe_platform_size size)
+bool voe_render_device_frame(voe_render_device *device, voe_platform_size size,
+			     voe_render_camera_input look)
 {
 	struct voe_render_frame *frame;
 	struct voe_render_image *image;
@@ -546,6 +554,16 @@ bool voe_render_device_frame(voe_render_device *device, voe_platform_size size)
 	// a frame is therefore at zero, which is what makes the tests that call
 	// voe_render_frame_draw directly deterministic.
 	device->seconds += NOMINAL_FRAME_SECONDS;
+
+	// The camera, moved by what the caller says the person did, on the same
+	// nominal frame the clock just advanced by. It is stepped here rather
+	// than inside the recording for the reason the clock is: everything
+	// above this line is a frame that turned back without drawing, and a
+	// camera that had already moved for it would drift by one frame's worth
+	// of input every time the swapchain went stale.
+	voe_render_cube_camera_step(&device->camera, look, device->seconds,
+				    NOMINAL_FRAME_SECONDS);
+
 	record(device, frame, image);
 	if (!submit(device, frame, image))
 		return false;
