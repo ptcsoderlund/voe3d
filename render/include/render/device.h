@@ -35,12 +35,21 @@
 // the window is not, and an editor viewport all need in order to be possible at
 // all. None of it is visible from out here: the same call draws the same frame.
 //
-// WHAT IT DRAWS IS ONE CUBE AND THERE IS NO WAY TO ASK FOR ANYTHING ELSE. The
-// geometry, the camera and the matrices are all constants inside the folder, the
-// shader is compiled into the binary and the draw is fixed; the point of it is
-// that the buffers, the depth test and the matrix upload work end to end, not
-// that the renderer takes instructions. Nothing here accepts a scene, and the
-// API that will grow one gets designed against 3d.
+// WHAT IT DRAWS IS TWO CUBES ON A HARDCODED ORBIT AND THERE IS NO WAY TO ASK FOR
+// ANYTHING ELSE. The geometry, the camera, the two matrices and the motion are
+// all constants inside the folder, the shader is compiled into the binary and
+// the draws are fixed; the point of it is that the buffers, the depth test, the
+// matrix upload and a matrix per object work end to end, not that the renderer
+// takes instructions. Nothing here accepts a scene, and the API that will grow
+// one gets designed against 3d.
+//
+// IT MOVES ON ITS OWN AND THE CALLER IS NOT ASKED WHAT TIME IT IS. One cube
+// turns, the other does not, and the camera orbits both — three motions, because
+// with fewer an orbiting camera and a rotating cube look the same. Every call to
+// _frame advances that by a nominal frame's worth of time, so the speed follows
+// the display's refresh rate until something in the engine can measure a frame.
+// A caller that wants to drive the camera itself is card 016, not a parameter
+// here.
 //
 // IT IS SOLID, WHICH MEANS THERE IS A DEPTH BUFFER BEHIND THIS CALL. One per
 // frame slot, rebuilt on a resize with the colour target, and never visible from

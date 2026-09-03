@@ -15,6 +15,11 @@
 // m[0][3], m[1][3], m[2][3]. Composition reads right to left, so mul(a, b)
 // applies b first.
 //
+// _from_quat turns a rotation into a matrix, and it is the only place a
+// quaternion becomes sixteen floats. It asserts that its argument is unit
+// length, because the formula it uses is the short one that only holds there;
+// see quat.h.
+//
 // _transform_point and _transform_dir are affine: they assume the matrix has no
 // projective part and skip the w divide. Point takes the translation, direction
 // does not. Projection matrices are not built here — they encode a clip-space
@@ -25,6 +30,7 @@
 
 #include <math/float3.h>
 #include <math/float4.h>
+#include <math/quat.h>
 
 typedef struct {
 	float m[4][4];
@@ -33,6 +39,7 @@ typedef struct {
 voe_math_float4x4 voe_math_float4x4_identity(void);
 voe_math_float4x4 voe_math_float4x4_from_translation(voe_math_float3 t);
 voe_math_float4x4 voe_math_float4x4_from_scale(voe_math_float3 s);
+voe_math_float4x4 voe_math_float4x4_from_quat(voe_math_quat q);
 
 voe_math_float4x4 voe_math_float4x4_mul(voe_math_float4x4 a, voe_math_float4x4 b);
 voe_math_float4 voe_math_float4x4_mul_float4(voe_math_float4x4 m, voe_math_float4 v);

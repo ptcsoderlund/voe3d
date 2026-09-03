@@ -11,10 +11,14 @@ inline; no systems here, because nothing here owns an identity.
   multiplies.
 - `include/math/float4x4.h` — a row-major 4x4 matrix. Its header carries the
   layout rule, the multiplication convention, and the slangc flag they cost.
+- `include/math/quat.h` — a unit quaternion, the engine's rotation type. Its
+  header says why its name is not Slang's and why there is one way to build one.
 - `src/float2.c` — the float2 operations.
 - `src/float3.c` — the float3 operations.
 - `src/float4.c` — the float4 operations.
-- `src/float4x4.c` — the float4x4 operations, including the inverse.
+- `src/float4x4.c` — the float4x4 operations, including the inverse and the
+  matrix a rotation becomes.
+- `src/quat.c` — the one way to build a rotation.
 - `tests/float2.c` — the float2 operations, checked from outside.
 - `tests/float3.c` — the float3 operations, and that the cross product is
   right-handed.
@@ -22,3 +26,5 @@ inline; no systems here, because nothing here owns an identity.
 - `tests/float4x4.c` — the layout and the multiplication convention as two
   separate claims. Its header says which half of the layout rule a GPU has to
   prove instead.
+- `tests/quat.c` — which way a rotation turns and by how much, on all three
+  axes, through the matrix it becomes.

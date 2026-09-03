@@ -1,6 +1,15 @@
-// The cube: eight vertices and thirty-six indices, fed in from buffers, placed
-// by three matrices. It replaced triangle.slang, which had no vertex buffer and
-// no matrix behind it and so had nothing left to prove once these existed.
+// The cubes: eight vertices and thirty-six indices, fed in from buffers, placed
+// by three matrices — two of them the camera's, shared by every draw in a frame,
+// and one of them the object's, pushed in between two draws. It replaced
+// triangle.slang, which had no vertex buffer and no matrix behind it and so had
+// nothing left to prove once these existed.
+//
+// THE OBJECT'S MATRIX IS A PUSH CONSTANT AND THE CAMERA'S TWO ARE A CONSTANT
+// BUFFER, WHICH IS THE SPLIT BY HOW OFTEN EACH CHANGES. There are two cubes and
+// one draw each, so the model matrix is the only thing one draw is told that the
+// draw beside it is not. cube.c's header carries the reasoning; what matters
+// here is that the two blocks are separate, so the vertex stage reads the
+// object's matrix from the command buffer and the camera's from memory.
 //
 // ONE FILE, TWO ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
 // to cube.spv with both entry points in it, and device.c names them by the names
@@ -32,8 +41,9 @@
 // no texture coordinates to disagree about per face; the card that adds them
 // rewrites this data.
 
+// The camera. One per frame, and the same one for every draw in it — which is
+// what makes it the buffer's half of the split above.
 struct voe_render_cube_uniforms {
-	float4x4 model;
 	float4x4 view;
 	float4x4 projection;
 };
@@ -42,6 +52,16 @@ struct voe_render_cube_uniforms {
 // layout that matches it and frame.c binds one of these per frame slot.
 [[vk::binding(0, 0)]]
 ConstantBuffer<voe_render_cube_uniforms> voe_render_cube_matrices;
+
+// Where this cube is. Sixty-four bytes, matching struct voe_render_push in
+// device_internal.h field for field, and the range device.c declares on the
+// pipeline layout is the vertex stage's only.
+struct voe_render_cube_push {
+	float4x4 model;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<voe_render_cube_push> voe_render_cube_object;
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same two numbers in its VkVertexInputAttributeDescription and
@@ -64,7 +84,7 @@ voe_render_cube_vertex(voe_render_cube_vertex_in vertex)
 	float4 world;
 	float4 eye;
 
-	world = mul(voe_render_cube_matrices.model, float4(vertex.position, 1.0));
+	world = mul(voe_render_cube_object.model, float4(vertex.position, 1.0));
 	eye = mul(voe_render_cube_matrices.view, world);
 	out.position = mul(voe_render_cube_matrices.projection, eye);
 	out.colour = vertex.colour;

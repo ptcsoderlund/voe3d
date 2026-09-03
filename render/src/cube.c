@@ -1,22 +1,43 @@
-// The cube: its eight vertices, its thirty-six indices, the three matrices that
-// place it, and the descriptor the shader reads them through. Everything in here
-// has a startup lifetime — a resize changes the projection's aspect ratio and
-// nothing else, and that is recomputed per frame rather than stored.
+// The cubes: eight vertices and thirty-six indices shared by both of them, the
+// matrices that place them, the camera that looks at them, and the descriptor
+// the shader reads it through. The geometry and the descriptor have a startup
+// lifetime; the matrices are built fresh every frame from one number, because
+// the scene now moves.
 //
-// THIS IS THE TRIANGLE'S REPLACEMENT AND IT IS STILL A PLACEHOLDER. The cube is
-// a constant in this file exactly as the triangle's three vertices were
-// constants in its shader, and the camera below is a constant beside it. render
-// has no scene to ask and must not grow one: a camera that can be moved arrives
-// with the card that gives it something to be moved by, and geometry that is not
-// a cube arrives with the card that loads a file. What is worth keeping here is
-// the plumbing under it — buffers, an upload, a descriptor, a depth test — not
-// the shape.
+// TWO CUBES, ONE TURNING AND ONE STANDING STILL, AND THAT IS THE POINT RATHER
+// THAN A DEMO. With one object you cannot tell an orbiting camera from a
+// rotating cube — the picture is identical. Three independent motions can each
+// be told apart, so a mistake in the view matrix, the model matrix or the
+// projection shows up as a specific wrong thing instead of "something looks
+// off". The still one is at the origin, which is also what the camera looks at,
+// so it holds the centre of the frame while its faces turn; the turning one
+// stands to one side, so parallax carries it across the frame and in front of
+// and behind its neighbour. Between them there is nothing an orbiting camera and
+// a rotating object could both explain.
 //
-// EIGHT VERTICES, NOT TWENTY-FOUR, AND THAT IS THE CARD'S DECISION. A corner
-// shared by three faces can share one position and one colour, but it cannot
-// share three different texture coordinates; the moment texture coordinates
-// exist this becomes twenty-four vertices and the data below is rewritten. That
-// is known and accepted rather than discovered later.
+// THIS IS STILL A PLACEHOLDER AND THE CAMERA IS STILL A CONSTANT. render has no
+// scene to ask and must not grow one: a camera driven by a person arrives with
+// card 016, geometry that is not a cube with the card that loads a file, and
+// many objects with the card that needs a table to keep them in. What is worth
+// keeping here is the plumbing under it — buffers, an upload, a descriptor, a
+// depth test, a push constant per draw — not the arrangement.
+//
+// THE MODEL MATRIX IS A PUSH CONSTANT AND THE CAMERA IS A UNIFORM BUFFER, AND
+// THE SPLIT IS BY HOW OFTEN EACH CHANGES. The camera is written once per frame
+// and read by every draw in it, which is what a uniform buffer is; the model
+// matrix differs between two draws in the same command buffer, which a single
+// uniform buffer cannot express without either a second buffer, a dynamic offset
+// or a descriptor per object. A push constant is none of those: sixty-four bytes
+// recorded into the command buffer between the two draws, no allocation, no
+// descriptor, and nothing per-object to tear down. It is also the option that
+// runs out first — see voe_render_push in device_internal.h for the size floor —
+// and running out is what the card that introduces many objects has to answer.
+//
+// EIGHT VERTICES, NOT TWENTY-FOUR, AND THAT IS THE EARLIER CARD'S DECISION. A
+// corner shared by three faces can share one position and one colour, but it
+// cannot share three different texture coordinates; the moment texture
+// coordinates exist this becomes twenty-four vertices and the data below is
+// rewritten. That is known and accepted rather than discovered later.
 //
 // THE WINDING IS COUNTER-CLOCKWISE SEEN FROM OUTSIDE, WHICH IS glTF'S AND SO
 // THIS ENGINE'S. Every one of the twelve triangles below is wound so that its
@@ -30,16 +51,29 @@
 // no opinion about cameras, and a projection matrix encodes a clip-space
 // convention that math is explicitly not allowed to know — see float4x4.h. So
 // both are assembled here out of math's vectors, and this file is where this
-// engine's conventions turn into sixteen floats.
+// engine's conventions turn into sixteen floats. The rotation is the exception:
+// a quaternion is a value type with no clip space in it, so it is math's, and
+// voe_math_float4x4_from_quat is what this file calls.
+//
+// THE ORBIT AND THE SPIN TURN THE SAME WAY, AND THAT WAY IS THE ENGINE'S. A
+// positive angle about +Y takes +Z towards +X, which is what math/tests/quat.c
+// proves and what the sines below are written to match. Two conventions here
+// that disagreed would be invisible: both would still turn.
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <math/quat.h>
 
 #include <math.h>
 #include <stdio.h>
 
-// Half the side, so the cube spans one metre. Units are metres (CLAUDE.md).
+// Half the side, so a cube spans one metre. Units are metres (CLAUDE.md).
 #define HALF 0.5f
+
+// A whole turn, in radians. Every period below is a number of seconds for one
+// of these, which is the unit a person can check with a stopwatch — radians per
+// second is not.
+#define TURN 6.2831853f
 
 // 60 degrees of vertical field of view, in radians because every angle in this
 // engine is. Vertical and not horizontal, because the projection below divides
@@ -51,17 +85,40 @@
 // voe_render_cube_projection.
 #define NEAR_PLANE 0.1f
 
-// Where the camera is, and what it looks at. Off-axis in all three, so that
-// three faces of the cube are visible at once and the depth test has something
-// to do — head on, a cube is a square and a broken depth test looks fine.
-#define EYE_X 2.2f
-#define EYE_Y 1.8f
-#define EYE_Z 3.0f
+// The camera's orbit: a circle about +Y through the origin, at a fixed height
+// above it, always looking at it. Above and not level, so that a top face is
+// visible and three faces of a cube are on screen at once — head on, a cube is a
+// square and a broken depth test looks fine.
+//
+// THE RADIUS IS WHAT KEEPS THE NEAR PLANE OUT OF IT. The nearest the eye ever
+// gets to a cube's centre is the radius minus how far that cube stands from the
+// origin, and the nearest corner is another half diagonal in from there; with
+// the numbers below that is over two metres against a near plane of ten
+// centimetres. render/tests/matrix.c does that arithmetic over the whole orbit
+// rather than leaving it to this comment.
+#define ORBIT_RADIUS 4.0f
+#define ORBIT_HEIGHT 1.8f
+#define ORBIT_SECONDS 12.0f
+
+// The second cube's spin, and how far along +X it stands from the first.
+//
+// THE SPIN AXIS IS TILTED ON PURPOSE, AND +Y WOULD HAVE BEEN THE AMBIGUOUS
+// CHOICE. The camera orbits about +Y, so a cube spinning about +Y as well would
+// look like the same motion at a different speed, which is the one thing this
+// arrangement exists to rule out. A tilted axis cannot be confused with an orbit
+// and it brings the top and bottom faces round as well. It need not be unit:
+// voe_math_quat_from_axis_angle normalizes it.
+#define APART 1.6f
+#define SPIN_SECONDS 4.0f
+#define SPIN_AXIS_X 1.0f
+#define SPIN_AXIS_Y 1.0f
+#define SPIN_AXIS_Z 0.0f
 
 // The eight corners, and a colour per corner rather than per face. The colour is
 // the position moved into 0..1, so opposite corners are opposite colours and no
 // two faces read the same — which is the whole of how a person checks by eye
-// that they are looking at the near face and not through it.
+// that they are looking at the near face and not through it. Both cubes are this
+// one buffer: what differs between them is one matrix.
 static const struct voe_render_vertex CUBE_VERTICES[8] = {
 	{ { -HALF, -HALF, -HALF }, { 0.0f, 0.0f, 0.0f } },
 	{ { HALF, -HALF, -HALF }, { 1.0f, 0.0f, 0.0f } },
@@ -166,33 +223,68 @@ voe_math_float4x4 voe_render_cube_projection(VkExtent2D extent)
 }
 
 void voe_render_cube_uniforms_fill(struct voe_render_uniforms *uniforms,
-				   VkExtent2D extent)
+				   VkExtent2D extent, float seconds)
 {
-	voe_math_float3 eye = { EYE_X, EYE_Y, EYE_Z };
+	// The orbit. sine on x and cosine on z, so that a growing angle carries
+	// the eye from +Z towards +X — the same direction a positive rotation
+	// about +Y turns, which is the engine's handedness and what
+	// math/tests/quat.c proves. Cosine on x instead would orbit the other
+	// way and look exactly as convincing.
+	//
+	// Zero seconds therefore puts the eye straight above and behind the
+	// origin on the +Z axis, pitched down at it. That is also the only
+	// moment every test in this folder that draws ever sees, because nothing
+	// but a real frame advances the clock.
+	float angle = seconds * TURN / ORBIT_SECONDS;
+	voe_math_float3 eye = { sinf(angle) * ORBIT_RADIUS, ORBIT_HEIGHT,
+				cosf(angle) * ORBIT_RADIUS };
 	voe_math_float3 origin = { 0.0f, 0.0f, 0.0f };
 	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
 
 	VOE_BASE_DEBUG_ASSERT(uniforms != NULL, "filling nothing with matrices");
 
-	// The identity, and it earns its place by being the slot the next thing
-	// writes into rather than by doing anything today: the cube is at the
-	// origin, nothing moves it, and the card that gives something a
-	// transform is the card that fills this in. Sent because the shader
-	// reads three matrices and a shader that read two would have to be
-	// rewritten then.
-	uniforms->model = voe_math_float4x4_identity();
 	uniforms->view = look_at(eye, origin, up);
 	uniforms->projection = voe_render_cube_projection(extent);
 }
 
+voe_math_float4x4 voe_render_cube_model(uint32_t index, float seconds)
+{
+	voe_math_float3 axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
+	voe_math_float3 offset = { APART, 0.0f, 0.0f };
+
+	VOE_BASE_DEBUG_ASSERT(index < VOE_RENDER_CUBE_COUNT,
+			      "asking where a cube is that there is not");
+
+	// Cube 0 is the still one, it is at the origin, and its matrix is the
+	// identity rather than a translation by nothing — so that a still cube
+	// is still by construction and not by arithmetic that happens to come
+	// out to zero. It is what the camera looks at.
+	if (index == 0)
+		return voe_math_float4x4_identity();
+
+	// Cube 1 turns on its own axis and then stands aside: composition reads
+	// right to left, so the rotation is applied first and the translation
+	// carries the already-turned cube out to +X. The other order would swing
+	// it round the origin instead, which is an orbit and not a spin — and it
+	// would look like a second camera motion, which is the one thing this
+	// scene is arranged to avoid.
+	return voe_math_float4x4_mul(
+		voe_math_float4x4_from_translation(offset),
+		voe_math_float4x4_from_quat(voe_math_quat_from_axis_angle(
+			axis, seconds * TURN / SPIN_SECONDS)));
+}
+
 // ------------------------------------------------------- the descriptor and
 
-// One binding, and both stages named. The vertex stage is the one that
-// transforms a position; the fragment stage is there because
-// matrix_probe.slang reads this same buffer from a fragment shader, which is the
-// only way a shader in this engine can report a value back to the CPU. A layout
-// that named the vertex stage alone would make render/tests/matrix.c invalid
-// rather than failing.
+// One binding and one push constant range, and both stages named on the binding.
+// The vertex stage is the one that transforms a position; the fragment stage is
+// there because matrix_probe.slang reads this same buffer from a fragment
+// shader, which is the only way a shader in this engine can report a value back
+// to the CPU. A layout that named the vertex stage alone would make
+// render/tests/matrix.c invalid rather than failing.
+//
+// The push constant range is the pipeline layout's and so it lives in device.c
+// beside the layout it belongs to, not here.
 static bool build_descriptor_layout(voe_render_device *device)
 {
 	VkDescriptorSetLayoutBinding binding = {

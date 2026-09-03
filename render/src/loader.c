@@ -243,7 +243,11 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(cmd_bind_index_buffer, vkCmdBindIndexBuffer);
 	DEVICE_FUNCTION(cmd_draw_indexed, vkCmdDrawIndexed);
 
-	// The matrices' descriptor.
+	// The per-object matrix. Core 1.0, and the only thing in this engine that
+	// reaches a shader without a buffer under it.
+	DEVICE_FUNCTION(cmd_push_constants, vkCmdPushConstants);
+
+	// The camera's descriptor.
 	DEVICE_FUNCTION(create_descriptor_set_layout,
 			vkCreateDescriptorSetLayout);
 	DEVICE_FUNCTION(destroy_descriptor_set_layout,

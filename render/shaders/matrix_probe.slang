@@ -26,6 +26,13 @@
 // engine actually uploads through and not a second one written to be tested.
 // device.c's descriptor set layout serves both.
 //
+// IT READS view, WHICH IS THE FIRST MEMBER, AND WHICH MEMBER IT IS DOES NOT
+// MATTER. What is under test is the layout of the sixteen floats inside one
+// float4x4, so any member of this struct would do; the first one is chosen so
+// that the offset in the buffer is zero and the test writes at the start of what
+// it mapped. It used to be a member called model, which moved out to a push
+// constant when a second cube arrived and there was a per-object matrix to push.
+//
 // NO VERTEX BUFFER, NO DEPTH, NO CULLING. Three vertices from SV_VertexID cover
 // the whole target, so every pixel carries the answer and the test may sample
 // wherever it likes. probe.c builds this pipeline without a depth attachment and
@@ -33,7 +40,6 @@
 // probe that could be culled would report nothing at all.
 
 struct voe_render_cube_uniforms {
-	float4x4 model;
 	float4x4 view;
 	float4x4 projection;
 };
@@ -72,7 +78,7 @@ voe_render_matrix_probe_vertex(uint index : SV_VertexID)
 float4 voe_render_matrix_probe_fragment(voe_render_matrix_probe_out vertex)
 	: SV_Target
 {
-	float4x4 m = voe_render_cube_matrices.model;
+	float4x4 m = voe_render_cube_matrices.view;
 
 	return float4(m[0][3], m[1][3], m[2][3], 1.0);
 }

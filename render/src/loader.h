@@ -152,9 +152,15 @@ typedef struct {
 	PFN_vkCmdBindIndexBuffer cmd_bind_index_buffer;
 	PFN_vkCmdDrawIndexed cmd_draw_indexed;
 
+	// The per-object matrix, pushed straight into the command buffer rather
+	// than into a buffer of its own. There are two cubes and a draw each, so
+	// the model matrix is the one thing that differs between two draws in one
+	// frame — see cube.c for why that makes it a push constant.
+	PFN_vkCmdPushConstants cmd_push_constants;
+
 	// The one descriptor in this engine: set 0, binding 0, the uniform buffer
-	// holding the three matrices. One layout, one pool, and one set per frame
-	// slot — see cube.c.
+	// holding the camera's two matrices. One layout, one pool, and one set
+	// per frame slot — see cube.c.
 	PFN_vkCreateDescriptorSetLayout create_descriptor_set_layout;
 	PFN_vkDestroyDescriptorSetLayout destroy_descriptor_set_layout;
 	PFN_vkCreateDescriptorPool create_descriptor_pool;

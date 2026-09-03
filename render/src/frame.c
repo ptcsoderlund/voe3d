@@ -1,8 +1,16 @@
-// One frame: wait for the last one on this slot, draw the cube into the slot's
+// One frame: wait for the last one on this slot, draw the cubes into the slot's
 // offscreen target, take a swapchain image, copy the target into it, present it.
 // The clears are not draws — they are the load operations dynamic rendering
-// performs as it begins — so the only thing recorded inside the rendering is the
-// cube.
+// performs as it begins — so the only things recorded inside the rendering are
+// the draws.
+//
+// THE CLOCK IS COUNTED HERE AND IT IS THE ONLY MOVING PART OF THE SCENE. A
+// recorded frame adds a nominal frame's worth of seconds to device->seconds, and
+// cube.c turns that one number into an orbiting camera and a spinning cube. It
+// is counted and not measured because this engine has no clock yet — platform
+// will own one, card 020 is the card that brings it, and everything downstream
+// of this line is already in seconds so that replacing it is one line. See
+// NOMINAL_FRAME_SECONDS below.
 //
 // NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into images the
 // engine owns (target.c) and the swapchain image is written once, by a blit, as
@@ -86,12 +94,25 @@
 #include <stdio.h>
 #include <string.h>
 
-// The colour behind the cube. It is deliberately none of the eight the cube's
-// corners are, so that a person looking at the window can tell the ground from
-// the thing standing on it.
+// The colour behind the cubes. It is deliberately none of the eight a cube's
+// corners are, so that a person looking at the window can tell the background
+// from the things in front of it — and so that render/tests/offscreen.c can take
+// the clear colour out of a corner of the picture and count what differs from
+// it.
 #define CLEAR_RED 0.04f
 #define CLEAR_GREEN 0.32f
 #define CLEAR_BLUE 0.38f
+
+// How much time a recorded frame claims to have taken, in seconds.
+//
+// IT IS A GUESS AND THE ENGINE KNOWS IT. There is nothing here that can ask how
+// long the last frame took: time belongs in platform and platform does not have
+// it yet. Sixty is the refresh rate a desktop most often has, so on such a
+// display the orbit takes the number of seconds cube.c says it does, and on
+// anything else it is off by the ratio of the refresh rates. That is a
+// deliberate placeholder and not a rounding — card 020 is the card that measures
+// a frame, and this line is the whole of what it replaces.
+#define NOMINAL_FRAME_SECONDS (1.0f / 60.0f)
 
 // The only place a frame slot indexes anything, and the only place an image
 // index does. Both asserts are the same mistake read from either end: a slot is
@@ -215,6 +236,7 @@ void voe_render_frame_draw(voe_render_device *device,
 	// in framebuffer coordinates, which have no sign to get wrong.
 	VkRect2D scissor = { .extent = device->resolution };
 	struct voe_render_uniforms uniforms;
+	struct voe_render_push push;
 	VkDeviceSize vertex_offset = 0;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing with a NULL device");
@@ -227,18 +249,22 @@ void voe_render_frame_draw(voe_render_device *device,
 	VOE_BASE_DEBUG_ASSERT(device->index_count > 0,
 			      "drawing a cube whose indices were never uploaded");
 
-	// The matrices, into this slot's own buffer. Safe because the caller has
+	// The camera, into this slot's own buffer. Safe because the caller has
 	// waited on this slot's fence, which is what says the GPU has finished
-	// reading what was in here two frames ago.
-	voe_render_cube_uniforms_fill(&uniforms, device->resolution);
+	// reading what was in here two frames ago. The per-object matrices go in
+	// the command buffer instead and need no such argument: a command buffer
+	// this slot is recording is one the GPU has already finished with.
+	voe_render_cube_uniforms_fill(&uniforms, device->resolution,
+				      device->seconds);
 	memcpy(frame->uniforms_mapped, &uniforms, sizeof(uniforms));
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
 	// Both clears are load operations, so they have already happened by the
 	// time the first command inside is recorded. What is recorded is one
-	// indexed draw: eight vertices out of a buffer, thirty-six indices out
-	// of another, and three matrices out of a descriptor.
+	// indexed draw per cube: the same eight vertices and thirty-six indices
+	// every time, the camera out of a descriptor bound once, and a matrix of
+	// its own pushed in front of each.
 	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
 	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
 	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
@@ -258,8 +284,20 @@ void voe_render_frame_draw(voe_render_device *device,
 	voe_render_vk.cmd_bind_index_buffer(frame->commands,
 					    device->indices.buffer, 0,
 					    VK_INDEX_TYPE_UINT16);
-	voe_render_vk.cmd_draw_indexed(frame->commands, device->index_count, 1,
-				       0, 0, 0);
+
+	// One push and one draw each. Everything above is bound once because it
+	// is the same for both; the push is inside the loop because it is the
+	// only thing that is not, which is the whole shape this card is here to
+	// establish. A third cube is a larger VOE_RENDER_CUBE_COUNT and nothing
+	// else in this file.
+	for (uint32_t cube = 0; cube < VOE_RENDER_CUBE_COUNT; cube++) {
+		push.model = voe_render_cube_model(cube, device->seconds);
+		voe_render_vk.cmd_push_constants(frame->commands, device->layout,
+						 VK_SHADER_STAGE_VERTEX_BIT, 0,
+						 sizeof(push), &push);
+		voe_render_vk.cmd_draw_indexed(frame->commands,
+					       device->index_count, 1, 0, 0, 0);
+	}
 	voe_render_vk.cmd_end_rendering(frame->commands);
 
 	// The colour image is left ready to be copied out of, by whoever asked
@@ -500,6 +538,14 @@ bool voe_render_device_frame(voe_render_device *device, voe_platform_size size)
 
 	voe_render_vk.reset_fences(device->device, 1, &frame->submitted);
 	voe_render_vk.reset_command_buffer(frame->commands, 0);
+
+	// The clock, advanced here and nowhere else: after every reason this
+	// function had to turn back without drawing, and before the recording
+	// that reads it, so that the scene a frame draws is one nominal frame on
+	// from the scene the frame before it drew. A device nobody has asked for
+	// a frame is therefore at zero, which is what makes the tests that call
+	// voe_render_frame_draw directly deterministic.
+	device->seconds += NOMINAL_FRAME_SECONDS;
 	record(device, frame, image);
 	if (!submit(device, frame, image))
 		return false;

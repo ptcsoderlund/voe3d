@@ -32,27 +32,30 @@ Nothing draws into a swapchain image.
   device the tests run on, and why it is not public.
 - `src/buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one. Its header says why every later upload is this.
-- `src/cube.c` — the cube's vertices and indices, the camera and the projection
-  matrix, and the descriptor the shader reads them through. Its header says which
-  parts of it are placeholders and what replaces them.
+- `src/cube.c` — the two cubes: one set of vertices and indices, a matrix each,
+  the camera on its orbit, the projection matrix, and the descriptor the shader
+  reads the camera through. Its header says why there are two of them, why the
+  per-object matrix is a push constant, and which parts of it are placeholders.
 - `src/target.c` — the colour and depth images a frame is drawn into, one pair per
   frame slot, thrown away and built again on every resize.
 - `src/swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
-- `src/frame.c` — one frame: wait, write the matrices, draw into the target,
-  acquire, blit, present. Holds the engine's only Y flip; its header says why
-  that is the viewport's job.
+- `src/frame.c` — one frame: wait, write the camera, draw each cube into the
+  target, acquire, blit, present. Holds the engine's only Y flip and the counted
+  clock the scene moves on; its header says why each is where it is.
 - `src/probe.c` — the pipeline that reads a matrix and reports what it saw, built
   only when a test asks. Its header says why it is not built at startup.
 - `tests/loader.c` — that a machine with a driver and no SDK reaches Vulkan.
-- `tests/matrix.c` — that depth really runs backwards, checked on the CPU, and
-  that slangc really was given `-matrix-layout-row-major`, checked by making a
-  shader report a known matrix back.
+- `tests/matrix.c` — that depth really runs backwards and that the camera's
+  orbit keeps its distance, looks at what it orbits and never clips a cube, both
+  checked on the CPU; and that slangc really was given
+  `-matrix-layout-row-major`, checked by making a shader report a known matrix
+  back.
 - `tests/offscreen.c` — that back faces are culled, and that the Y flip, the
   cube's winding and the front-face constant agree about which way round that is.
   Headless, so it runs under `ctest` with no window anywhere.
-- `shaders/cube.slang` — the cube's two entry points, and the only place a matrix
-  is applied to a position.
+- `shaders/cube.slang` — the cubes' two entry points, and the only place a
+  matrix is applied to a position.
 - `shaders/matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.
 - `vulkan/` — the Khronos headers, vendored. See `vulkan/vulkan.md`.

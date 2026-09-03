@@ -641,12 +641,29 @@ static bool create_pipeline(voe_render_device *device)
 		.pColorAttachmentFormats = &device->format.format,
 		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
-	// One set, holding the three matrices. cube.c made this layout, which is
-	// why it has to have run before this function does.
+	// One set holding the camera, and one push constant range holding the
+	// matrix that differs between the two draws in a frame. cube.c made the
+	// set layout, which is why it has to have run before this function does;
+	// the range is described here because it belongs to the pipeline layout
+	// and to nothing else.
+	//
+	// THE VERTEX STAGE ALONE, UNLIKE THE DESCRIPTOR BESIDE IT. A push
+	// constant is only read where a position is transformed, and naming the
+	// fragment stage as well would spend part of a budget with a documented
+	// floor of 128 bytes on a stage that does not read it. The probe pipeline
+	// shares this layout and pushes nothing, which is allowed: a range
+	// nothing writes is a range nothing reads.
+	VkPushConstantRange push = {
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.offset = 0,
+		.size = sizeof(struct voe_render_push),
+	};
 	VkPipelineLayoutCreateInfo layout = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
 		.pSetLayouts = &device->descriptor_layout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &push,
 	};
 	VkGraphicsPipelineCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,

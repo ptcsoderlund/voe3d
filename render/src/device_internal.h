@@ -90,22 +90,41 @@ struct voe_render_vertex {
 	voe_math_float3 colour;
 };
 
-// The three matrices the vertex shader reads, in the order cube.slang declares
-// them. This struct is memcpy'd into a mapped uniform buffer and read on the
-// other side as three float4x4, which is a straight copy for two reasons that
-// both have to hold: voe_math_float4x4 is row-major and slangc is invoked with
-// -matrix-layout-row-major, and three 64-byte members packed end to end already
-// satisfy the 16-byte alignment a uniform block wants, so there is no padding to
-// declare.
+// The camera, and everything a whole frame shares. This struct is memcpy'd into
+// a mapped uniform buffer and read on the other side as two float4x4, which is a
+// straight copy for two reasons that both have to hold: voe_math_float4x4 is
+// row-major and slangc is invoked with -matrix-layout-row-major, and two 64-byte
+// members packed end to end already satisfy the 16-byte alignment a uniform
+// block wants, so there is no padding to declare.
 //
-// render/tests/matrix.c IS WHAT KEEPS THE FIRST OF THOSE TRUE. Remove the slangc
-// flag and every transform comes out transposed with nothing failing to compile;
-// that test uploads a known matrix through this struct and makes the shader say
-// what it read.
+// THE MODEL MATRIX IS NOT IN HERE, AND THAT IS WHAT MAKES TWO OBJECTS POSSIBLE.
+// Everything in this struct is written once per frame and read by every draw in
+// it; a per-object matrix is the opposite of that, and it goes through
+// voe_render_push below. What is left is exactly "the camera", which is why the
+// struct no longer names a cube.
+//
+// render/tests/matrix.c IS WHAT KEEPS THE ROW-MAJOR CLAIM TRUE. Remove the
+// slangc flag and every transform comes out transposed with nothing failing to
+// compile; that test uploads a known matrix through this struct — through view,
+// which is the first member — and makes the shader say what it read.
 struct voe_render_uniforms {
-	voe_math_float4x4 model;
 	voe_math_float4x4 view;
 	voe_math_float4x4 projection;
+};
+
+// The per-object matrix, and the whole of what one draw is told that the draw
+// beside it is not. Pushed into the command buffer between two draws rather than
+// written to a buffer, and the reasons are in cube.c's header where the two
+// cubes are.
+//
+// SIXTY-FOUR BYTES, WHICH IS WHY THERE IS NOTHING TO QUERY. Vulkan requires
+// maxPushConstantsSize to be at least 128, so one 4x4 matrix fits on every
+// implementation there is and device.c does not have to ask. A second member
+// here is a decision — 128 is the floor, not the typical limit — and the day
+// something wants one, that is the day this gets a comment about what was
+// checked.
+struct voe_render_push {
+	voe_math_float4x4 model;
 };
 
 // One swapchain image and the two things that belong to it for its whole life.
@@ -259,6 +278,20 @@ struct voe_render_device {
 	struct voe_render_buffer indices;
 	uint32_t index_count;
 
+	// How long the engine has been drawing, in seconds, and the only moving
+	// part of the scene in cube.c. Advanced once per recorded frame in
+	// frame.c and read nowhere else.
+	//
+	// IT IS NOT MEASURED, IT IS COUNTED, AND THAT IS THIS CARD'S ONE
+	// PLACEHOLDER. There is no clock in this engine yet — platform will own
+	// one and card 020 is the card that brings it — so a frame adds a
+	// nominal frame's worth of seconds rather than asking how long the last
+	// one took. Everything downstream is already in seconds, so replacing
+	// this with a measured delta is one line in frame.c and nothing else.
+	// What it costs meanwhile is that the orbit's speed follows the refresh
+	// rate.
+	float seconds;
+
 	// The size every slot's target is, and the resolution the engine draws
 	// at. It is the window's size today and it is not the swapchain's: what
 	// reconciles the two is the blit at the end of a frame, which scales.
@@ -324,10 +357,16 @@ void voe_render_target_teardown(voe_render_device *device);
 // in the engine — read frame.c's header before touching it.
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
-// frame.c. Writes this slot's matrices, clears its colour and depth, draws the
+// frame.c. Writes this slot's camera, clears its colour and depth, draws every
 // cube into it, and leaves the colour image in TRANSFER_SRC_OPTIMAL ready to be
 // copied somewhere. The command buffer is the slot's and must already have been
 // begun.
+//
+// WHAT IT DRAWS IS device->seconds AND NOTHING IS PASSED IN. A caller that
+// wanted a particular moment would be a second way to say what the scene is, and
+// render has one. A test calling this on a device it never asked for a frame
+// from therefore sees the scene at zero, which is deterministic and is what
+// render/tests/offscreen.c relies on.
 //
 // IT WRITES THE UNIFORM BUFFER AS WELL AS RECORDING, AND THAT IS SAFE BECAUSE OF
 // THE FENCE. The matrices go into this slot's mapped buffer here, which is a CPU
@@ -405,11 +444,22 @@ void voe_render_buffer_teardown(voe_render_device *device,
 [[nodiscard]] bool voe_render_cube_build(voe_render_device *device);
 void voe_render_cube_teardown(voe_render_device *device);
 
-// cube.c. The three matrices for a target of this size, ready to be copied into
-// a slot's uniform buffer. The model matrix is the identity and the camera is a
-// constant in that file — this folder has no scene to ask.
+// cube.c. How many cubes there are, which is how many draws a frame records and
+// how many model matrices it pushes. Two: one turning on its own axis and one
+// standing still, which is the arrangement that makes an orbiting camera
+// distinguishable from a rotating object. See cube.c's header.
+#define VOE_RENDER_CUBE_COUNT 2
+
+// cube.c. The camera's two matrices for a target of this size, at this many
+// seconds in, ready to be copied into a slot's uniform buffer. The camera is on
+// a hardcoded orbit in that file — this folder has no scene to ask and no input
+// to read.
 void voe_render_cube_uniforms_fill(struct voe_render_uniforms *uniforms,
-				   VkExtent2D extent);
+				   VkExtent2D extent, float seconds);
+
+// cube.c. Where cube `index` is at this many seconds in, as the matrix a draw
+// pushes. index is below VOE_RENDER_CUBE_COUNT and asserts if it is not.
+voe_math_float4x4 voe_render_cube_model(uint32_t index, float seconds);
 
 // cube.c, and named here because it is the one place this engine's reversed depth
 // is written down as arithmetic rather than as a comparison constant. Near plane

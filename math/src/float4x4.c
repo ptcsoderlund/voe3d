@@ -3,6 +3,7 @@
 #include <math/float4x4.h>
 
 #include <assert.h>
+#include <math.h>
 
 // The twelve 2x2 sub-determinants shared by the determinant and the inverse.
 // s holds the six taken from the top two rows, t the six from the bottom two.
@@ -54,6 +55,40 @@ voe_math_float4x4 voe_math_float4x4_from_scale(voe_math_float3 s)
 	r.m[0][0] = s.x;
 	r.m[1][1] = s.y;
 	r.m[2][2] = s.z;
+	return r;
+}
+
+// THE ROTATION HALF OF A TRANSFORM, AND THE ONLY PLACE A QUATERNION BECOMES
+// SIXTEEN FLOATS. The nine elements below are the standard right-handed,
+// column-vector form: read row by row against m[row][column] and a positive
+// angle about +Y takes +Z towards +X, which is this engine's handedness.
+// tests/quat.c is where that is a claim rather than a comment.
+//
+// The unit-length check is inline in the assert and not a local, because a
+// local read by nothing but an assert is an unused variable the moment NDEBUG
+// is defined, and -Werror stops the build over it.
+voe_math_float4x4 voe_math_float4x4_from_quat(voe_math_quat q)
+{
+	voe_math_float4x4 r = voe_math_float4x4_identity();
+
+	// Unit length, because the form below is the short one that only holds
+	// there — a non-unit quaternion scales as well as rotates, silently. The
+	// tolerance is loose because the only builder is _from_axis_angle, whose
+	// error is a rounding or two.
+	assert(fabsf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w - 1.0f) <
+	       1e-3f);
+
+	r.m[0][0] = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+	r.m[0][1] = 2.0f * (q.x * q.y - q.w * q.z);
+	r.m[0][2] = 2.0f * (q.x * q.z + q.w * q.y);
+
+	r.m[1][0] = 2.0f * (q.x * q.y + q.w * q.z);
+	r.m[1][1] = 1.0f - 2.0f * (q.x * q.x + q.z * q.z);
+	r.m[1][2] = 2.0f * (q.y * q.z - q.w * q.x);
+
+	r.m[2][0] = 2.0f * (q.x * q.z - q.w * q.y);
+	r.m[2][1] = 2.0f * (q.y * q.z + q.w * q.x);
+	r.m[2][2] = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
 	return r;
 }
 

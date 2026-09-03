@@ -1,4 +1,4 @@
-// TWO CLAIMS ABOUT MATRICES, AND ONLY ONE OF THEM NEEDS A GRAPHICS CARD.
+// THREE CLAIMS ABOUT MATRICES, AND ONLY ONE OF THEM NEEDS A GRAPHICS CARD.
 //
 // The first is that this engine's depth really does run backwards, and it is
 // checked on the CPU: voe_render_cube_projection is arithmetic, so a test can
@@ -17,6 +17,16 @@
 // sixteen floats mean something else. The matrix below is filled so that all six
 // of those are different numbers, far apart, so the answer names the layout
 // rather than merely differing from it.
+//
+// The third is that the scene cube.c describes is the scene it says it is, and
+// it is checked on the CPU for the same reason the first is: an orbit and two
+// model matrices are arithmetic. The camera keeps its distance and its height
+// and comes back round; it looks at what it aims at, so the origin lands in the
+// middle of the frame from every point on the orbit; the still cube is still to
+// the last bit; and no corner of either cube ever crosses the near plane, which
+// is the card's "nothing clipped when the camera passes close" as a number
+// instead of a look. That last one is the one a person cannot check by eye
+// reliably at all — a clipped corner at the edge of a fast orbit is one frame.
 //
 // WHY THE FLAG IS WORTH A TEST AT ALL. Remove it and nothing fails to compile,
 // nothing warns, and every transform in the engine comes out transposed. That is
@@ -39,6 +49,7 @@
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stdio.h>
 
 // Small and square: every pixel of it is copied to the CPU, and the probe covers
@@ -79,6 +90,27 @@
 // the exact tie-breaking is the implementation's, and the two layouts differ by
 // far more than this.
 #define TOLERANCE 3
+
+// How many points of the orbit the scene checks are sampled. Prime, so that the
+// samples do not land on the quarter turns a mistake is most likely to survive:
+// a view matrix that is only right on the axes is a view matrix that is wrong,
+// and 97 samples of a twelve-second orbit miss every one of them.
+#define ORBIT_SAMPLES 97
+
+// The cube's half side, in metres, which is cube.c's HALF and is stated here
+// rather than shared. It is the one number this file has to know about the
+// geometry, the claim below is what happens at its corners, and a cube that
+// stopped being a metre across would want this line looked at rather than
+// silently followed.
+#define CUBE_HALF 0.5f
+
+// Where the still cube is required to stay, and how far the frame's centre may
+// be from the origin's projection. Both are in the units of what they measure —
+// metres and normalized device coordinates — and both are tight because they are
+// claims about exactness rather than about accuracy: the still cube's matrix is
+// the identity, and the look-at points at its target.
+#define STILL_TOLERANCE 0.0f
+#define CENTRE_TOLERANCE 1e-5f
 
 // ------------------------------------------------ the half with no graphics card
 
@@ -153,6 +185,179 @@ static void check_projection(void)
 	VOE_TEST_CHECK(depth_at(projection, near_plane * 3.0f) < 1.0f);
 }
 
+// ------------------------------------------------- the scene, with no card either
+
+// The eight corners of a cube, in its own space. The order does not matter: what
+// is asked below is a minimum over all of them.
+static voe_math_float3 cube_corner(int corner)
+{
+	voe_math_float3 c;
+
+	c.x = (corner & 1) ? CUBE_HALF : -CUBE_HALF;
+	c.y = (corner & 2) ? CUBE_HALF : -CUBE_HALF;
+	c.z = (corner & 4) ? CUBE_HALF : -CUBE_HALF;
+	return c;
+}
+
+// How far in front of the camera a point is. The camera looks along its own -Z,
+// so a point in view space is in front of it when its z is negative, and the
+// distance is minus that z. Anything the near plane clips reads zero or less
+// here, which is why one number covers both "behind the camera" and "too close".
+static float distance_in_front(voe_math_float4x4 view, voe_math_float4x4 model,
+			       voe_math_float3 point)
+{
+	voe_math_float3 world = voe_math_float4x4_transform_point(model, point);
+
+	return -voe_math_float4x4_transform_point(view, world).z;
+}
+
+// THE ORBIT IS A CIRCLE, IT LOOKS AT WHAT IT ORBITS, AND IT NEVER GETS CLOSE
+// ENOUGH TO CLIP ANYTHING. Three claims over the whole orbit rather than at a
+// handful of angles, because every one of them is exactly true at zero seconds —
+// which is the one moment every other test in this folder sees.
+static void check_scene(void)
+{
+	// A window shape rather than a square, so that an aspect ratio applied
+	// to the wrong axis would move the centre off in one direction. The
+	// numbers below are angles and distances and none of them depends on
+	// this.
+	VkExtent2D extent = { 1280, 720 };
+	voe_math_float4x4 projection = voe_render_cube_projection(extent);
+	float near_plane = projection.m[2][3];
+	// The orbit's own radius and height, taken from the first sample rather
+	// than from a constant this file would then have to keep in step with
+	// cube.c. What is under test is that they do not change, not what they
+	// are.
+	float radius = 0.0f;
+	float height = 0.0f;
+	float closest = 0.0f;
+	voe_math_float3 centre = { 0.0f, 0.0f, 0.0f };
+
+	VOE_TEST_CHECK(near_plane > 0.0f);
+
+	for (int sample = 0; sample < ORBIT_SAMPLES; sample++) {
+		// One second per sample, and nothing here knows cube.c's
+		// period. Ninety-seven seconds is several turns of any orbit a
+		// person would sit and watch, and the claims below hold at every
+		// moment rather than at chosen angles — which is what makes not
+		// knowing the period the right way round.
+		float seconds = (float)sample;
+		struct voe_render_uniforms uniforms;
+		voe_math_float3 origin = { 0.0f, 0.0f, 0.0f };
+		voe_math_float3 eye;
+		voe_math_float4 clip;
+		voe_math_float4x4 still;
+		voe_math_float4x4 identity;
+		voe_math_float4x4 turning;
+
+		voe_render_cube_uniforms_fill(&uniforms, extent, seconds);
+
+		// Where the camera is, recovered from the view matrix: the view
+		// matrix takes the eye to the origin of view space, so the
+		// inverse takes the origin of view space back to the eye.
+		eye = voe_math_float4x4_transform_point(
+			voe_math_float4x4_inverse(uniforms.view), origin);
+
+		// A CIRCLE ABOUT +Y, WHICH IS TWO NUMBERS THAT DO NOT MOVE. An
+		// orbit that drifted in or out, or up and down, would still look
+		// like an orbit.
+		//
+		// Both get a tolerance and neither can be exact, because the eye
+		// came back through a general 4x4 inverse: a tenth of a
+		// millimetre is a couple of parts in ten million of four metres,
+		// which is float arithmetic and not a drift. A real drift over
+		// ninety-seven samples is orders of magnitude past this.
+		if (sample == 0) {
+			radius = sqrtf(eye.x * eye.x + eye.z * eye.z);
+			height = eye.y;
+			VOE_TEST_CHECK(radius > 0.0f);
+		} else {
+			VOE_TEST_CHECK_FLOAT(sqrtf(eye.x * eye.x +
+						   eye.z * eye.z),
+					     radius, 1e-4f);
+			VOE_TEST_CHECK_FLOAT(eye.y, height, 1e-4f);
+		}
+
+		// IT LOOKS AT WHAT IT ORBITS. The origin goes through the view
+		// and the projection and comes out in the middle of the frame,
+		// from every angle. This is the one check that would catch a
+		// look-at whose up vector or whose sign of forward was wrong
+		// without the picture going blank.
+		clip = voe_math_float4x4_mul_float4(
+			projection,
+			voe_math_float4x4_mul_float4(
+				uniforms.view,
+				(voe_math_float4){ 0.0f, 0.0f, 0.0f, 1.0f }));
+		VOE_TEST_CHECK(clip.w > 0.0f);
+		if (clip.w > 0.0f) {
+			VOE_TEST_CHECK_FLOAT(clip.x / clip.w, 0.0f,
+					     CENTRE_TOLERANCE);
+			VOE_TEST_CHECK_FLOAT(clip.y / clip.w, 0.0f,
+					     CENTRE_TOLERANCE);
+		}
+
+		// THE STILL CUBE IS STILL, EXACTLY. Not nearly: cube 0's matrix
+		// is the identity at every moment, so a corner of it is where it
+		// was, to the bit. The card's whole arrangement rests on one of
+		// the two objects not moving, and "nearly still" is a slow drift
+		// nobody would see until the cube had left.
+		still = voe_render_cube_model(0, seconds);
+		identity = voe_math_float4x4_identity();
+		for (int row = 0; row < 4; row++) {
+			for (int column = 0; column < 4; column++)
+				VOE_TEST_CHECK_FLOAT(still.m[row][column],
+						     identity.m[row][column],
+						     STILL_TOLERANCE);
+		}
+
+		// AND THE OTHER ONE TURNS WITHOUT GOING ANYWHERE, WHICH IS WHAT
+		// "on its own axis" MEANS. Its translation column never moves,
+		// so what changes about it is a rotation and nothing else — the
+		// mistake this rules out is composing the translation and the
+		// rotation the other way round, which swings the cube round the
+		// origin and reads as a second camera.
+		turning = voe_render_cube_model(1, seconds);
+		if (sample == 0) {
+			centre = (voe_math_float3){ turning.m[0][3],
+						    turning.m[1][3],
+						    turning.m[2][3] };
+			// Beside the first cube and not on top of it, or there
+			// would be one silhouette and nothing to see.
+			VOE_TEST_CHECK(voe_math_float3_length(centre) >
+				       CUBE_HALF * 2.0f);
+		} else {
+			VOE_TEST_CHECK_FLOAT(turning.m[0][3], centre.x, 0.0f);
+			VOE_TEST_CHECK_FLOAT(turning.m[1][3], centre.y, 0.0f);
+			VOE_TEST_CHECK_FLOAT(turning.m[2][3], centre.z, 0.0f);
+		}
+
+		// NOTHING CROSSES THE NEAR PLANE, AND THAT IS EVERY CORNER OF
+		// EVERY CUBE. The closest one anywhere on the orbit is kept, so
+		// the failure message says how close it actually came rather
+		// than only that it was too close.
+		for (uint32_t cube = 0; cube < VOE_RENDER_CUBE_COUNT; cube++) {
+			voe_math_float4x4 model =
+				voe_render_cube_model(cube, seconds);
+			int corner;
+
+			for (corner = 0; corner < 8; corner++) {
+				float distance = distance_in_front(
+					uniforms.view, model,
+					cube_corner(corner));
+
+				if ((sample == 0 && cube == 0 && corner == 0) ||
+				    distance < closest)
+					closest = distance;
+			}
+		}
+	}
+
+	// A whole near plane of margin and not a hair of it: the claim is that
+	// the orbit was chosen so that nothing can clip, not that it happens not
+	// to on the numbers of the day.
+	VOE_TEST_CHECK(closest > near_plane * 2.0f);
+}
+
 // --------------------------------------------------------- the half that draws
 
 // The one function this test needs that render's own code never calls. Reading
@@ -174,15 +379,15 @@ static bool resolve_readback(voe_render_device *device)
 }
 
 // The matrix under test, written straight into the slot's mapped uniform buffer.
-// The view and projection members are left as they are: the probe reads model
-// and nothing else, and filling them would suggest they mattered.
+// The projection member is left as it is: the probe reads view and nothing else,
+// and filling the other would suggest it mattered.
 static void write_probe_matrix(const struct voe_render_frame *frame)
 {
 	struct voe_render_uniforms *uniforms = frame->uniforms_mapped;
 
 	for (int row = 0; row < 4; row++) {
 		for (int column = 0; column < 4; column++)
-			uniforms->model.m[row][column] =
+			uniforms->view.m[row][column] =
 				PROBE_ELEMENT(row, column);
 	}
 }
@@ -283,6 +488,7 @@ int main(void)
 
 	// First, and with no device at all: the projection is arithmetic.
 	check_projection();
+	check_scene();
 
 	arena = voe_base_arena_new(64 * 1024);
 	device = voe_render_device_new_headless(arena, size, &error);
