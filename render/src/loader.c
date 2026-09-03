@@ -200,6 +200,7 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(create_command_pool, vkCreateCommandPool);
 	DEVICE_FUNCTION(destroy_command_pool, vkDestroyCommandPool);
 	DEVICE_FUNCTION(allocate_command_buffers, vkAllocateCommandBuffers);
+	DEVICE_FUNCTION(free_command_buffers, vkFreeCommandBuffers);
 	DEVICE_FUNCTION(begin_command_buffer, vkBeginCommandBuffer);
 	DEVICE_FUNCTION(end_command_buffer, vkEndCommandBuffer);
 	DEVICE_FUNCTION(reset_command_buffer, vkResetCommandBuffer);
@@ -224,6 +225,34 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(cmd_set_viewport, vkCmdSetViewport);
 	DEVICE_FUNCTION(cmd_set_scissor, vkCmdSetScissor);
 	DEVICE_FUNCTION(cmd_draw, vkCmdDraw);
+
+	// Buffers and the memory under them, and the copy that fills a
+	// device-local one from a staging one. All core 1.0.
+	DEVICE_FUNCTION(create_buffer, vkCreateBuffer);
+	DEVICE_FUNCTION(destroy_buffer, vkDestroyBuffer);
+	DEVICE_FUNCTION(get_buffer_memory_requirements,
+			vkGetBufferMemoryRequirements);
+	DEVICE_FUNCTION(bind_buffer_memory, vkBindBufferMemory);
+	DEVICE_FUNCTION(map_memory, vkMapMemory);
+	DEVICE_FUNCTION(unmap_memory, vkUnmapMemory);
+	DEVICE_FUNCTION(cmd_copy_buffer, vkCmdCopyBuffer);
+
+	// The cube's draw. cmd_draw above is still here because
+	// matrix_probe.slang has no vertex buffer and counts its three vertices.
+	DEVICE_FUNCTION(cmd_bind_vertex_buffers, vkCmdBindVertexBuffers);
+	DEVICE_FUNCTION(cmd_bind_index_buffer, vkCmdBindIndexBuffer);
+	DEVICE_FUNCTION(cmd_draw_indexed, vkCmdDrawIndexed);
+
+	// The matrices' descriptor.
+	DEVICE_FUNCTION(create_descriptor_set_layout,
+			vkCreateDescriptorSetLayout);
+	DEVICE_FUNCTION(destroy_descriptor_set_layout,
+			vkDestroyDescriptorSetLayout);
+	DEVICE_FUNCTION(create_descriptor_pool, vkCreateDescriptorPool);
+	DEVICE_FUNCTION(destroy_descriptor_pool, vkDestroyDescriptorPool);
+	DEVICE_FUNCTION(allocate_descriptor_sets, vkAllocateDescriptorSets);
+	DEVICE_FUNCTION(update_descriptor_sets, vkUpdateDescriptorSets);
+	DEVICE_FUNCTION(cmd_bind_descriptor_sets, vkCmdBindDescriptorSets);
 
 	DEVICE_FUNCTION(create_semaphore, vkCreateSemaphore);
 	DEVICE_FUNCTION(destroy_semaphore, vkDestroySemaphore);

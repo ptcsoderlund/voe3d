@@ -35,11 +35,17 @@
 // the window is not, and an editor viewport all need in order to be possible at
 // all. None of it is visible from out here: the same call draws the same frame.
 //
-// WHAT IT DRAWS IS ONE TRIANGLE AND THERE IS NO WAY TO ASK FOR ANYTHING ELSE.
-// The shader is compiled into the binary and the draw is fixed; the point of it
-// is that the shader toolchain works end to end, not that the renderer takes
-// instructions. Nothing here accepts a scene, and the API that will grow one
-// gets designed against 3d.
+// WHAT IT DRAWS IS ONE CUBE AND THERE IS NO WAY TO ASK FOR ANYTHING ELSE. The
+// geometry, the camera and the matrices are all constants inside the folder, the
+// shader is compiled into the binary and the draw is fixed; the point of it is
+// that the buffers, the depth test and the matrix upload work end to end, not
+// that the renderer takes instructions. Nothing here accepts a scene, and the
+// API that will grow one gets designed against 3d.
+//
+// IT IS SOLID, WHICH MEANS THERE IS A DEPTH BUFFER BEHIND THIS CALL. One per
+// frame slot, rebuilt on a resize with the colour target, and never visible from
+// out here. This engine's depth runs backwards — near at 1.0, far at 0.0 — and
+// nothing outside the folder has to know that either.
 //
 // SIZE IS PASSED IN, EVERY FRAME, AND IT IS THE WINDOW'S ANSWER. This folder
 // never asks the window how big it is: platform owns that truth, the caller

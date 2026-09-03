@@ -1,9 +1,10 @@
-// One frame: wait for the last one on this slot, draw the scene into the slot's
+// One frame: wait for the last one on this slot, draw the cube into the slot's
 // offscreen target, take a swapchain image, copy the target into it, present it.
-// The clear is not a draw — it is the load operation dynamic rendering performs
-// as it begins — so the only thing recorded inside the rendering is the triangle.
+// The clears are not draws — they are the load operations dynamic rendering
+// performs as it begins — so the only thing recorded inside the rendering is the
+// cube.
 //
-// NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into an image the
+// NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into images the
 // engine owns (target.c) and the swapchain image is written once, by a blit, as
 // the last thing a frame does. That separation is what a post-process pass, a
 // render resolution different from the window's, and an editor viewport all need
@@ -17,10 +18,23 @@
 // THE ONE Y FLIP IN THIS ENGINE IS voe_render_frame_viewport BELOW. Vulkan's
 // clip space has +Y pointing down the screen and this engine has +Y up, and the
 // whole of the reconciliation is a negative viewport height there. Never a
-// negated row in a projection matrix, and never both: flipping twice looks
-// exactly like flipping none until something is culled, and then it is a bug
-// nobody can see. The front-face constant that goes with this flip is set on the
-// pipeline in device.c, and the pair of them is proven by render/tests/offscreen.c.
+// negated row in a projection matrix — see voe_render_cube_projection, which
+// deliberately does not have one — and never both: flipping twice looks exactly
+// like flipping none until something is culled, and then it is a bug nobody can
+// see. The front-face constant that goes with this flip is set on the pipeline in
+// device.c, and the pair of them is proven by render/tests/offscreen.c.
+//
+// DEPTH RUNS BACKWARDS AND THE CLEAR IS THE HALF OF IT THAT LIVES HERE. The
+// buffer is cleared to VOE_RENDER_DEPTH_CLEAR, which is 0, which is this
+// engine's far plane; the comparison is GREATER, set on the pipeline in device.c;
+// and the near plane is at 1.0, which comes out of the projection matrix in
+// cube.c. Three files, one convention, and clearing to 1 instead — the habit from
+// every tutorial — leaves a depth test that rejects everything.
+//
+// THE DEPTH IMAGE IS NEVER STORED AND NEVER COPIED. Its storeOp is DONT_CARE
+// because nothing reads it after the rendering ends: it exists to sort fragments
+// within one frame and is rebuilt from the clear on the next. A shadow map or a
+// depth-aware post process is what would change that, and each is its own card.
 //
 // TWO INDICES RUN THROUGH THIS FILE AND THEY ARE NOT INTERCHANGEABLE. A frame
 // slot counts how far ahead the CPU is allowed to run and is bounded by
@@ -36,7 +50,7 @@
 // leaves every frame submitted since it still running on the GPU; one slot would
 // put the wait back on the previous frame and there would be no overlap left.
 // What that fence makes safe is this slot's own command buffer, its own acquire
-// semaphore and its own target, and nothing else.
+// semaphore, its own target, and its own uniform buffer, and nothing else.
 //
 // THE TWO SEMAPHORE KINDS HAVE DIFFERENT LIFETIMES. The acquire semaphore is per
 // slot, guarded by the fence beside it. The rendering-finished semaphore is per
@@ -45,19 +59,20 @@
 // flattening the two is a race the validation layers do not reliably catch.
 //
 // THE ACQUIRE IS WAITED ON AT THE BLIT AND NOT BEFORE. The first thing a frame
-// does to a swapchain image is now a transfer, not a colour write, and the scene
+// does to a swapchain image is a transfer, not a colour write, and the scene
 // does not touch that image at all — so drawing the target can start while the
 // presentation engine is still finished with the image, and only the copy has to
 // wait. The wait stage and the stage the swapchain image's barriers name are the
 // same one on purpose; making them disagree is how a layout transition ends up
 // ordered before the semaphore it depends on.
 //
-// FOUR BARRIERS, ALL synchronization2. Two put the target into the layout the
-// next thing needs — drawn into, then read out of — and two do the same for the
-// swapchain image, which arrives in whatever layout the presentation engine left
-// it and leaves in the one present demands. Both images come from UNDEFINED,
-// because in both cases every pixel is about to be overwritten and there is
-// nothing to preserve.
+// FIVE BARRIERS, ALL synchronization2. Three put the engine's own images into the
+// layout the next thing needs — colour drawn into then read out of, depth drawn
+// into and never read — and two do the same for the swapchain image, which
+// arrives in whatever layout the presentation engine left it and leaves in the
+// one present demands. Every image comes from UNDEFINED, because in every case
+// each pixel is about to be overwritten by a clear or a copy and there is nothing
+// to preserve.
 //
 // A SWAPCHAIN GOES STALE AND THAT IS ORDINARY. Out-of-date means the surface
 // changed under us and the swapchain has to be built again; suboptimal means it
@@ -69,12 +84,11 @@
 #include <base/assert.h>
 
 #include <stdio.h>
+#include <string.h>
 
-// The colour behind the triangle. It is deliberately none of the three the
-// triangle's corners are, so that a person looking at the window can tell the
-// ground from the thing standing on it, and it is deliberately not the grey the
-// deleted placeholder buffer used, so that nobody can wonder which of the two
-// put it there.
+// The colour behind the cube. It is deliberately none of the eight the cube's
+// corners are, so that a person looking at the window can tell the ground from
+// the thing standing on it.
 #define CLEAR_RED 0.04f
 #define CLEAR_GREEN 0.32f
 #define CLEAR_BLUE 0.38f
@@ -101,10 +115,13 @@ static struct voe_render_image *image_at(voe_render_device *device,
 
 VkViewport voe_render_frame_viewport(VkExtent2D extent)
 {
-	// y at the bottom and a negative height: the flip, and the only one. The
-	// depth range is the plain 0..1 identity — this engine's reversed depth
-	// lives in the projection matrix that puts the near plane at 1.0, not
-	// here, and there is no depth buffer in this frame to apply it to.
+	// y at the bottom and a negative height: the flip, and the only one.
+	//
+	// The depth range stays the plain 0..1 identity, and it is not where this
+	// engine's reversed depth lives. That comes out of the projection matrix,
+	// which puts the near plane at 1.0 and the far plane at 0.0; the viewport
+	// maps clip depth to the range a depth buffer stores, and 0..1 is the
+	// whole of that range. Reversing it here as well would reverse it twice.
 	VkViewport viewport = {
 		.y = (float)extent.height,
 		.width = (float)extent.width,
@@ -120,35 +137,71 @@ void voe_render_frame_draw(voe_render_device *device,
 			   const struct voe_render_frame *frame,
 			   VkViewport viewport)
 {
-	VkImageMemoryBarrier2 barrier = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-		.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = frame->target.image,
-		.subresourceRange = {
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.levelCount = 1,
-			.layerCount = 1,
+	// Two images into the layouts the rendering needs. The colour barrier is
+	// index 0 throughout this function, because the second half of the
+	// function reuses it to move the colour image on again and the depth
+	// image needs no second transition.
+	VkImageMemoryBarrier2 barriers[2] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = frame->target.colour.image,
+			.subresourceRange = {
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.levelCount = 1,
+				.layerCount = 1,
+			},
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+			// EARLY_FRAGMENT_TESTS is where the depth clear and the
+			// depth test happen, so it is the stage that has to wait
+			// for this transition rather than the colour output one.
+			.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+			.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = frame->target.depth.image,
+			.subresourceRange = {
+				.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+				.levelCount = 1,
+				.layerCount = 1,
+			},
 		},
 	};
 	VkDependencyInfo dependency = {
 		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-		.imageMemoryBarrierCount = 1,
-		.pImageMemoryBarriers = &barrier,
+		.imageMemoryBarrierCount = 2,
+		.pImageMemoryBarriers = barriers,
 	};
 	VkRenderingAttachmentInfo colour = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.imageView = frame->target.view,
+		.imageView = frame->target.colour.view,
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.clearValue = { .color = { .float32 = { CLEAR_RED, CLEAR_GREEN,
 						       CLEAR_BLUE, 1.0f } } },
+	};
+	// Cleared to the far plane, which is 0 here, and thrown away afterwards:
+	// nothing in this engine reads a depth image once the rendering that
+	// wrote it has ended.
+	VkRenderingAttachmentInfo depth = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageView = frame->target.depth.view,
+		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.clearValue = { .depthStencil = { .depth = VOE_RENDER_DEPTH_CLEAR } },
 	};
 	VkRenderingInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -156,43 +209,76 @@ void voe_render_frame_draw(voe_render_device *device,
 		.layerCount = 1,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colour,
+		.pDepthAttachment = &depth,
 	};
 	// The scissor is the whole target and takes no part in the flip. It is
 	// in framebuffer coordinates, which have no sign to get wrong.
 	VkRect2D scissor = { .extent = device->resolution };
+	struct voe_render_uniforms uniforms;
+	VkDeviceSize vertex_offset = 0;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing with a NULL device");
-	VOE_BASE_DEBUG_ASSERT(frame->target.image != VK_NULL_HANDLE,
-			      "drawing into a frame slot that has no target");
+	VOE_BASE_DEBUG_ASSERT(frame->target.colour.image != VK_NULL_HANDLE,
+			      "drawing into a frame slot that has no colour target");
+	VOE_BASE_DEBUG_ASSERT(frame->target.depth.image != VK_NULL_HANDLE,
+			      "drawing into a frame slot that has no depth target");
+	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
+			      "drawing through a frame slot whose uniform buffer is not mapped");
+	VOE_BASE_DEBUG_ASSERT(device->index_count > 0,
+			      "drawing a cube whose indices were never uploaded");
+
+	// The matrices, into this slot's own buffer. Safe because the caller has
+	// waited on this slot's fence, which is what says the GPU has finished
+	// reading what was in here two frames ago.
+	voe_render_cube_uniforms_fill(&uniforms, device->resolution);
+	memcpy(frame->uniforms_mapped, &uniforms, sizeof(uniforms));
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
-	// The clear is the load operation, so it has already happened by the time
-	// the first command inside is recorded. Three vertices and no buffer:
-	// the positions and the colours are constants in the shader, looked up by
-	// the index Vulkan hands each invocation.
+	// Both clears are load operations, so they have already happened by the
+	// time the first command inside is recorded. What is recorded is one
+	// indexed draw: eight vertices out of a buffer, thirty-six indices out
+	// of another, and three matrices out of a descriptor.
 	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
 	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
 	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
 	voe_render_vk.cmd_bind_pipeline(frame->commands,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					device->pipeline);
-	voe_render_vk.cmd_draw(frame->commands, 3, 1, 0, 0);
+	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,
+					       VK_PIPELINE_BIND_POINT_GRAPHICS,
+					       device->layout, 0, 1,
+					       &frame->descriptor, 0, NULL);
+	voe_render_vk.cmd_bind_vertex_buffers(frame->commands, 0, 1,
+					      &device->vertices.buffer,
+					      &vertex_offset);
+	// UINT16, which is what the cube's index array is. A mesh with more than
+	// 65535 vertices is what makes this a decision rather than a constant,
+	// and that arrives with the card that loads one.
+	voe_render_vk.cmd_bind_index_buffer(frame->commands,
+					    device->indices.buffer, 0,
+					    VK_INDEX_TYPE_UINT16);
+	voe_render_vk.cmd_draw_indexed(frame->commands, device->index_count, 1,
+				       0, 0, 0);
 	voe_render_vk.cmd_end_rendering(frame->commands);
 
-	// Left ready to be copied out of, by whoever asked for the drawing. A
-	// frame blits it into a swapchain image; the offscreen test copies it
-	// into memory it can read. ALL_TRANSFER and not the blit alone, because
-	// those are two different stages and this barrier has to cover both —
-	// naming one of them leaves the other reading an image this dependency
-	// does not reach, which synchronization validation reports and nothing
-	// else does.
-	barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
-	barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	// The colour image is left ready to be copied out of, by whoever asked
+	// for the drawing. A frame blits it into a swapchain image; the offscreen
+	// test copies it into memory it can read. ALL_TRANSFER and not the blit
+	// alone, because those are two different stages and this barrier has to
+	// cover both — naming one of them leaves the other reading an image this
+	// dependency does not reach, which synchronization validation reports and
+	// nothing else does.
+	//
+	// The depth image gets no second barrier: nothing reads it, so there is
+	// no later access for one to order against.
+	barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	barriers[0].srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+	barriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+	barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	dependency.imageMemoryBarrierCount = 1;
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 }
 
@@ -246,7 +332,7 @@ static void blit_to_screen(voe_render_device *device,
 	// LINEAR, which does nothing at all while the two extents match and is
 	// the right answer the moment they do not. NEAREST would be a decision
 	// to look worse later for no gain now.
-	voe_render_vk.cmd_blit_image(frame->commands, frame->target.image,
+	voe_render_vk.cmd_blit_image(frame->commands, frame->target.colour.image,
 				     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				     image->image,
 				     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,

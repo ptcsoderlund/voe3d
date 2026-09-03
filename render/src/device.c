@@ -4,12 +4,24 @@
 // live in target.c, swapchain.c and frame.c — see device_internal.h for why the
 // split is where it is.
 //
-// THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/triangle.slang
-// into the build tree and #embed puts the result in the binary below; nothing is
-// read from disk at run time and there is no shader path to get wrong on someone
+// THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/cube.slang into
+// the build tree and #embed puts the result in the binary below; nothing is read
+// from disk at run time and there is no shader path to get wrong on someone
 // else's machine. The pipeline is here rather than in a file of its own because
 // this file is everything with a startup lifetime, and a pipeline that no resize
 // touches has one.
+//
+// THE PIPELINE IS THE CUBE'S AND SO IT NAMES THINGS cube.c OWNS. Its layout
+// names the descriptor set layout, and its vertex input describes
+// voe_render_vertex — which is why voe_render_cube_build runs before
+// create_pipeline in open_device below and not after it, and why that order is
+// commented there rather than left to be rediscovered.
+//
+// DEPTH IS SET UP HERE AND IT RUNS BACKWARDS. GREATER, not LESS, because the
+// near plane is at 1.0 and the far plane at 0.0. The clear that goes with it is
+// in frame.c and the projection matrix that produces those planes is in cube.c;
+// change any one of the three alone and the picture is wrong in a way that still
+// looks plausible.
 //
 // WHY THE ARENA IS A PARAMETER AND WHY IT IS ONLY NEEDED HERE. Startup asks the
 // driver four questions whose answers are arrays whose length is not known until
@@ -38,6 +50,7 @@
 
 #include <base/assert.h>
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -452,40 +465,67 @@ bool voe_render_device_choose_format(voe_render_device *device,
 
 // ------------------------------------------------------------------- pipeline
 
-// The compiled shader, in the binary. slangc writes triangle.spv into the build
-// tree and cmake/voe.cmake puts that directory on this file's include path, so
-// the quoted name below resolves to a generated file and never to one in the
-// source tree. There is no fallback path and no file to ship beside the binary.
+// The compiled shader, in the binary. slangc writes cube.spv into the build tree
+// and cmake/voe.cmake puts that directory on this file's include path, so the
+// quoted name below resolves to a generated file and never to one in the source
+// tree. There is no fallback path and no file to ship beside the binary.
 //
 // alignas because vkCreateShaderModule takes a const uint32_t *, and #embed can
 // only fill an array of bytes. A char array is aligned for a char; handing a
 // misaligned pointer to the driver is undefined behaviour that happens to work
 // until the day it does not.
-static alignas(uint32_t) const unsigned char triangle_spv[] = {
-#embed "triangle.spv"
+static alignas(uint32_t) const unsigned char cube_spv[] = {
+#embed "cube.spv"
 };
 
 // Both entry points live in the one module above, spelled exactly as the shader
 // spells them — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps these two strings true.
-#define TRIANGLE_VERTEX_ENTRY "voe_render_triangle_vertex"
-#define TRIANGLE_FRAGMENT_ENTRY "voe_render_triangle_fragment"
+#define CUBE_VERTEX_ENTRY "voe_render_cube_vertex"
+#define CUBE_FRAGMENT_ENTRY "voe_render_cube_fragment"
 
 static bool create_pipeline(voe_render_device *device)
 {
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = sizeof(triangle_spv),
-		.pCode = (const uint32_t *)triangle_spv,
+		.codeSize = sizeof(cube_spv),
+		.pCode = (const uint32_t *)cube_spv,
 	};
 	VkShaderModule module = VK_NULL_HANDLE;
 	VkPipelineShaderStageCreateInfo stages[2];
-	// Nothing is fed in. The three vertices are constants in the shader and
-	// the draw is vkCmdDraw(3, 1, 0, 0), so there is no binding and no
-	// attribute to describe — this struct is present and empty because
-	// Vulkan requires one, not because anything was left out.
+	// One buffer, read one vertex at a time. The stride is the struct's own
+	// size rather than a number written out, so a field added to
+	// voe_render_vertex cannot leave this behind.
+	VkVertexInputBindingDescription binding = {
+		.binding = 0,
+		.stride = sizeof(struct voe_render_vertex),
+		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+	};
+	// THESE TWO LOCATIONS AND cube.slang's TWO vk::location NUMBERS ARE ONE
+	// FACT IN TWO PLACES. Both are stated rather than counted, and both
+	// offsets come from offsetof rather than from adding up sizes — which is
+	// what makes reordering the struct's fields harmless and renaming one of
+	// them a compile error instead of a wrong picture.
+	VkVertexInputAttributeDescription attributes[2] = {
+		{
+			.location = 0,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.offset = offsetof(struct voe_render_vertex, position),
+		},
+		{
+			.location = 1,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.offset = offsetof(struct voe_render_vertex, colour),
+		},
+	};
 	VkPipelineVertexInputStateCreateInfo vertex_input = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &binding,
+		.vertexAttributeDescriptionCount = 2,
+		.pVertexAttributeDescriptions = attributes,
 	};
 	VkPipelineInputAssemblyStateCreateInfo assembly = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -507,23 +547,24 @@ static bool create_pipeline(voe_render_device *device)
 	// spelled the way the convention is spelled and no translation happens
 	// anywhere.
 	//
-	// IT SAID CLOCKWISE UNTIL THIS CARD, AND THAT WAS THE DOUBLE NEGATIVE
-	// CLAUDE.md WARNS ABOUT. The reasoning written here was that the flip
-	// reverses the winding so the constant must be reversed too; the flip is
-	// what removes the reversal, and applying both left a front face Vulkan
-	// called a back one. Nothing culled, so nothing showed it, which is
-	// exactly the failure mode the rule about proving this with a test names.
+	// IT SAID CLOCKWISE ONCE, AND THAT WAS THE DOUBLE NEGATIVE CLAUDE.md
+	// WARNS ABOUT. The reasoning written here was that the flip reverses the
+	// winding so the constant must be reversed too; the flip is what removes
+	// the reversal, and applying both left a front face Vulkan called a back
+	// one. Nothing culled, so nothing showed it, which is exactly the failure
+	// mode the rule about proving this with a test names.
 	//
 	// THESE TWO LINES AND THE VIEWPORT'S SIGN ARE ONE FACT IN THREE PLACES,
-	// AND render/tests/offscreen.c IS WHAT HOLDS THEM TOGETHER. Culling makes
-	// the combination observable at last: that test draws the triangle into
-	// an offscreen image through the engine's own viewport and reads it back,
-	// then draws it again through the mirror of that viewport — the same
-	// triangle wound the other way — and requires the first to appear and the
-	// second to leave nothing behind. Change either line here, or the sign in
-	// voe_render_frame_viewport, and it fails. Change all three and it still
-	// fails, which is the point: flipping twice looks exactly like flipping
-	// none until something is culled.
+	// AND render/tests/offscreen.c IS WHAT HOLDS THEM TOGETHER. That test
+	// draws the cube into an offscreen image through the engine's own viewport
+	// and reads the centre pixel back, then draws it again through the mirror
+	// of that viewport — every face wound the other way — and requires the
+	// first to show the near face and the second to show the far one. The
+	// cube's near and far faces differ in one colour channel by construction,
+	// so the two cases cannot be confused. Change either line here, or the
+	// sign in voe_render_frame_viewport, and it fails. Change all three and it
+	// still fails, which is the point: flipping twice looks exactly like
+	// flipping none until something is culled.
 	VkPipelineRasterizationStateCreateInfo raster = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
@@ -535,7 +576,30 @@ static bool create_pipeline(voe_render_device *device)
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
 	};
-	// Written, not blended. The triangle is opaque and there is nothing
+	// GREATER, AND THAT IS THE WHOLE OF THIS ENGINE'S REVERSED DEPTH ON THE
+	// PIPELINE'S SIDE. A fragment survives when it is *nearer*, and nearer
+	// means a larger depth here, because the projection in cube.c puts the
+	// near plane at 1.0 and the far plane at 0.0. LESS_OR_EQUAL is what every
+	// tutorial writes and it would keep the farthest fragment instead — on a
+	// convex shape like a cube that still draws something, which is why the
+	// card asks for the comparison to be flipped on purpose and looked at.
+	//
+	// depthBoundsTestEnable stays off: it clips against a depth range and
+	// this engine has nothing that wants that. The two bounds below are the
+	// full range and are ignored while the test is off; they are stated so
+	// that a reader does not have to wonder whether a zero here means the
+	// near plane.
+	VkPipelineDepthStencilStateCreateInfo depth = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		.depthTestEnable = VK_TRUE,
+		.depthWriteEnable = VK_TRUE,
+		.depthCompareOp = VK_COMPARE_OP_GREATER,
+		.depthBoundsTestEnable = VK_FALSE,
+		.stencilTestEnable = VK_FALSE,
+		.minDepthBounds = 0.0f,
+		.maxDepthBounds = 1.0f,
+	};
+	// Written, not blended. The cube is opaque and there is nothing
 	// underneath it but the clear.
 	VkPipelineColorBlendAttachmentState attachment = {
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
@@ -548,9 +612,10 @@ static bool create_pipeline(voe_render_device *device)
 		.attachmentCount = 1,
 		.pAttachments = &attachment,
 	};
-	// So that a resize rebuilds the swapchain and nothing else. A pipeline
-	// baked at one size would have to be built again on every resize, which
-	// is a lot of driver work to say a number that changed.
+	// So that a resize rebuilds the targets and the swapchain and nothing
+	// else. A pipeline baked at one size would have to be built again on
+	// every resize, which is a lot of driver work to say a number that
+	// changed.
 	VkDynamicState dynamic_states[2] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR,
@@ -566,15 +631,22 @@ static bool create_pipeline(voe_render_device *device)
 	// this a startup decision and not a per-resize one. The day the target
 	// stops sharing the swapchain's format, this line follows the target and
 	// not the screen.
+	// Dynamic rendering has no render pass, so both attachment formats are
+	// declared here instead. They have to match what frame.c attaches, and a
+	// depth format declared with no depth attachment — or the other way
+	// round — is invalid rather than merely wrong.
 	VkPipelineRenderingCreateInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
 		.colorAttachmentCount = 1,
 		.pColorAttachmentFormats = &device->format.format,
+		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
-	// Empty, and legitimately so: the shader reads no descriptor and no push
-	// constant. Vulkan has no way to say "no layout".
+	// One set, holding the three matrices. cube.c made this layout, which is
+	// why it has to have run before this function does.
 	VkPipelineLayoutCreateInfo layout = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 1,
+		.pSetLayouts = &device->descriptor_layout,
 	};
 	VkGraphicsPipelineCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -586,14 +658,18 @@ static bool create_pipeline(voe_render_device *device)
 		.pViewportState = &viewport,
 		.pRasterizationState = &raster,
 		.pMultisampleState = &multisample,
+		.pDepthStencilState = &depth,
 		.pColorBlendState = &blend,
 		.pDynamicState = &dynamic,
 	};
 	VkResult result;
 
+	VOE_BASE_DEBUG_ASSERT(device->descriptor_layout != VK_NULL_HANDLE,
+			      "building the pipeline before the cube's descriptor layout exists");
+
 	if (voe_render_vk.create_shader_module(device->device, &module_info, NULL,
 					       &module) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateShaderModule failed on triangle.spv\n");
+		fprintf(stderr, "render: vkCreateShaderModule failed on cube.spv\n");
 		return false;
 	}
 
@@ -601,13 +677,13 @@ static bool create_pipeline(voe_render_device *device)
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_VERTEX_BIT,
 		.module = module,
-		.pName = TRIANGLE_VERTEX_ENTRY,
+		.pName = CUBE_VERTEX_ENTRY,
 	};
 	stages[1] = (VkPipelineShaderStageCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 		.module = module,
-		.pName = TRIANGLE_FRAGMENT_ENTRY,
+		.pName = CUBE_FRAGMENT_ENTRY,
 	};
 
 	if (voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
@@ -724,6 +800,11 @@ static void close_down(voe_render_device *device)
 		if (device->layout != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline_layout(device->device,
 							      device->layout, NULL);
+		// After the pipeline and its layout, because the layout named the
+		// descriptor set layout this takes away. Before the command pool,
+		// because nothing in here needs one and the order still reads the
+		// way the build order reversed.
+		voe_render_cube_teardown(device);
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
@@ -807,11 +888,18 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_device_choose_format(device, arena))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	// After the format and before anything per-frame: the pipeline is told
-	// the format it draws into, and nothing else here depends on it.
-	if (!create_pipeline(device))
-		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	// THESE THREE ARE IN THIS ORDER AND THE ORDER IS FORCED. The frame
+	// objects come first because the command pool is one of them and the
+	// cube's staging upload records into a command buffer out of it. The cube
+	// comes next because it makes the descriptor set layout and the uniform
+	// buffer for every slot. The pipeline comes last because its layout names
+	// that descriptor set layout and its vertex input describes the cube's
+	// vertex — build it first and it names a handle that is still null.
 	if (!create_frame_objects(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_cube_build(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!create_pipeline(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// Targets before the swapchain, because the targets are the resolution
 	// and the swapchain is only where a frame is copied at the end. A device

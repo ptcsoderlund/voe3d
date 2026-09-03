@@ -102,6 +102,9 @@ typedef struct {
 	PFN_vkCreateCommandPool create_command_pool;
 	PFN_vkDestroyCommandPool destroy_command_pool;
 	PFN_vkAllocateCommandBuffers allocate_command_buffers;
+	// Only the staging upload in buffer.c frees one: every other command
+	// buffer in the engine lives as long as the pool it came from.
+	PFN_vkFreeCommandBuffers free_command_buffers;
 	PFN_vkBeginCommandBuffer begin_command_buffer;
 	PFN_vkEndCommandBuffer end_command_buffer;
 	PFN_vkResetCommandBuffer reset_command_buffer;
@@ -129,6 +132,36 @@ typedef struct {
 	// build calls it.
 	PFN_vkGetFenceStatus get_fence_status;
 	PFN_vkQueueSubmit2 queue_submit2;
+
+	// Buffers, and the memory under them. The vertex and index buffers live
+	// in device-local memory and are filled through a host-visible staging
+	// buffer, which is what map_memory and cmd_copy_buffer are for; the
+	// uniform buffers are host-visible and stay mapped for their whole life.
+	// See buffer.c.
+	PFN_vkCreateBuffer create_buffer;
+	PFN_vkDestroyBuffer destroy_buffer;
+	PFN_vkGetBufferMemoryRequirements get_buffer_memory_requirements;
+	PFN_vkBindBufferMemory bind_buffer_memory;
+	PFN_vkMapMemory map_memory;
+	PFN_vkUnmapMemory unmap_memory;
+	PFN_vkCmdCopyBuffer cmd_copy_buffer;
+
+	// Drawing the cube: two buffers bound, and a draw that reads indices
+	// rather than counting vertices.
+	PFN_vkCmdBindVertexBuffers cmd_bind_vertex_buffers;
+	PFN_vkCmdBindIndexBuffer cmd_bind_index_buffer;
+	PFN_vkCmdDrawIndexed cmd_draw_indexed;
+
+	// The one descriptor in this engine: set 0, binding 0, the uniform buffer
+	// holding the three matrices. One layout, one pool, and one set per frame
+	// slot — see cube.c.
+	PFN_vkCreateDescriptorSetLayout create_descriptor_set_layout;
+	PFN_vkDestroyDescriptorSetLayout destroy_descriptor_set_layout;
+	PFN_vkCreateDescriptorPool create_descriptor_pool;
+	PFN_vkDestroyDescriptorPool destroy_descriptor_pool;
+	PFN_vkAllocateDescriptorSets allocate_descriptor_sets;
+	PFN_vkUpdateDescriptorSets update_descriptor_sets;
+	PFN_vkCmdBindDescriptorSets cmd_bind_descriptor_sets;
 } voe_render_vk_table;
 
 extern voe_render_vk_table voe_render_vk;

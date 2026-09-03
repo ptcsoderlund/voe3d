@@ -13,11 +13,20 @@
 // image of the engine's own, one per frame slot, and copying that into the
 // acquired swapchain image is a separate last step. The swapchain is therefore
 // no longer where the resolution is decided — see resolution below.
+//
+// DEPTH RUNS BACKWARDS EVERYWHERE IN HERE, AND IT IS NOT AN OVERSIGHT. The near
+// plane is 1.0, the far plane is 0.0, the buffer is cleared to 0 and the
+// comparison is GREATER. Every tutorial does the opposite; CLAUDE.md says not to
+// correct it, and the reason it is worth the confusion is that a float depth
+// buffer has most of its precision near 0, which is where the far plane now is.
+// VOE_RENDER_DEPTH_FORMAT and voe_render_cube_projection are the two places the
+// convention is actually spelled out.
 #pragma once
 
 #include "loader.h"
 
 #include <base/arena.h>
+#include <math/float4x4.h>
 #include <platform/window.h>
 #include <render/device.h>
 
@@ -45,6 +54,60 @@
 // that follows the images.
 #define VOE_RENDER_FRAMES_IN_FLIGHT 2
 
+// The depth format, and it is not negotiable in the way a colour format is: this
+// engine reverses depth, so it wants all the precision it can get near zero and
+// a normalised integer format would spend that precision in the wrong place.
+// D32_SFLOAT is required of every Vulkan implementation as a depth attachment,
+// so there is nothing to query and nothing to fall back to.
+#define VOE_RENDER_DEPTH_FORMAT VK_FORMAT_D32_SFLOAT
+
+// The value the depth buffer is cleared to, which is the far plane, which is 0.
+// Named because a literal 0.0f in a clear is indistinguishable from a literal
+// 0.0f that means "nothing here yet", and one of those is load-bearing.
+#define VOE_RENDER_DEPTH_CLEAR 0.0f
+
+// A buffer and the memory under it, which in this engine are always made and
+// thrown away together. One allocation per buffer, exactly as target.c makes one
+// per image, and the same note applies: an engine that made many of these would
+// sub-allocate out of a few large blocks instead. This one makes four.
+struct voe_render_buffer {
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+};
+
+// One vertex of the cube, and the only vertex format in the engine. Position and
+// colour, both float3, because there are no texture coordinates yet — the card
+// that adds them rewrites this struct, the cube's data and the two attribute
+// descriptions in device.c together.
+//
+// THE FIELD ORDER IS THE ATTRIBUTE ORDER AND BOTH ARE STATED, NOT COUNTED.
+// cube.slang gives its inputs vk::location 0 and 1 explicitly and device.c's
+// VkVertexInputAttributeDescription names the same two numbers with offsetof, so
+// a field inserted in the middle of this struct moves one offset and breaks
+// nothing silently.
+struct voe_render_vertex {
+	voe_math_float3 position;
+	voe_math_float3 colour;
+};
+
+// The three matrices the vertex shader reads, in the order cube.slang declares
+// them. This struct is memcpy'd into a mapped uniform buffer and read on the
+// other side as three float4x4, which is a straight copy for two reasons that
+// both have to hold: voe_math_float4x4 is row-major and slangc is invoked with
+// -matrix-layout-row-major, and three 64-byte members packed end to end already
+// satisfy the 16-byte alignment a uniform block wants, so there is no padding to
+// declare.
+//
+// render/tests/matrix.c IS WHAT KEEPS THE FIRST OF THOSE TRUE. Remove the slangc
+// flag and every transform comes out transposed with nothing failing to compile;
+// that test uploads a known matrix through this struct and makes the shader say
+// what it read.
+struct voe_render_uniforms {
+	voe_math_float4x4 model;
+	voe_math_float4x4 view;
+	voe_math_float4x4 projection;
+};
+
 // One swapchain image and the two things that belong to it for its whole life.
 //
 // drawn is per image and not per frame on purpose. vkQueuePresentKHR waits on it
@@ -57,22 +120,37 @@ struct voe_render_image {
 	VkSemaphore drawn;
 };
 
-// The offscreen colour image one frame slot draws into, and the memory under it.
-// This is what the engine renders to; the swapchain image is only where the
-// result is copied at the end.
+// An image the engine allocated, with the memory under it and a view onto it.
+// The three always arrive together and always go away together, which is the
+// whole reason they are one struct: target.c builds two of these and the code
+// that builds either one is the same code.
 //
-// IT IS COLOUR ONLY AND THAT IS DELIBERATE, NOT UNFINISHED. Nothing drawn today
-// has depth, and a depth target nothing tests against is a target nothing reads.
-// It arrives with the card that draws a cube, as another field here and on the
-// same per-slot pattern.
+// IT IS ALSO WHAT KEEPS target.c CLEAR OF `VkImage *`. Every Vulkan handle is a
+// pointer behind a typedef, so a helper taking one out by address would be the
+// double dereference rule 6 forbids and specifically forbids hiding behind a
+// typedef. Handing the helper this struct instead is one level, and the only
+// place a handle's address is taken is the Vulkan call that demands it — which
+// guidelines.md allows, because conforming to the library is the exception.
+struct voe_render_allocated_image {
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView view;
+};
+
+// What one frame slot draws into: a colour image and a depth image. This is what
+// the engine renders to; the swapchain image is only where the colour half is
+// copied at the end, and the depth half never leaves the graphics card at all.
+//
+// NEITHER HALF IS THE DEFAULT ONE. Colour was the only image here until the cube
+// arrived, and leaving it unqualified would have left `image` meaning one of two
+// images. Both are named and neither is implied.
 //
 // There is no extent in here because there is only ever one: every slot's target
 // is built at the same size, and that size is device->resolution below. Two
 // copies of one number is two chances for them to disagree.
 struct voe_render_target {
-	VkImage image;
-	VkDeviceMemory memory;
-	VkImageView view;
+	struct voe_render_allocated_image colour;
+	struct voe_render_allocated_image depth;
 };
 
 // Everything with a one-frame lifetime, in one struct, one per frame slot. This
@@ -97,11 +175,32 @@ struct voe_render_target {
 // The target is per slot for exactly the reason the command buffer is: the GPU
 // may still be reading the frame before last, so a single target shared by every
 // slot would be written by one frame while another was still blitting it.
+//
+// THE UNIFORM BUFFER IS PER SLOT FOR THAT SAME REASON, AND ONE SHARED BUFFER
+// WOULD BE A RACE RATHER THAN A SAVING. The matrices are written by the CPU at
+// the top of a frame and read by the GPU some time later; a single buffer would
+// be rewritten while a frame still in flight was reading it, and the symptom is
+// one frame drawn with another frame's camera — occasional, invisible on a still
+// image, and impossible to attribute. The fence at the top of the frame is what
+// makes this slot's buffer safe to write, and it guards nothing else's.
+//
+// IT STAYS MAPPED FOR ITS WHOLE LIFE. Uniforms are host-visible and coherent and
+// are written every frame, so mapping and unmapping around each write would be
+// two driver calls to say what one pointer already says. The pointer is kept
+// here; there is no second place that knows it.
 struct voe_render_frame {
 	VkCommandBuffer commands;
 	VkSemaphore acquired;
 	VkFence submitted;
 	struct voe_render_target target;
+
+	struct voe_render_buffer uniforms;
+	// Where uniforms.memory is mapped, for the lifetime of the buffer.
+	// Written through as a struct voe_render_uniforms and never read back.
+	void *uniforms_mapped;
+	// Points at uniforms.buffer, allocated from device->descriptor_pool and
+	// freed with it. A set is not destroyed on its own anywhere in here.
+	VkDescriptorSet descriptor;
 };
 
 struct voe_render_device {
@@ -131,13 +230,34 @@ struct voe_render_device {
 	// copy.
 	VkSurfaceFormatKHR format;
 
-	// The triangle's pipeline, and the layout it needs in order to exist.
+	// The cube's pipeline, and the layout it needs in order to exist.
 	// Startup's, not the swapchain's: the viewport and the scissor are
 	// dynamic state, so a resize changes neither of these and there is
-	// nothing here to rebuild. The layout is empty — the shader takes no
-	// descriptors and no push constants — and Vulkan still wants one.
+	// nothing here to rebuild.
+	//
+	// The layout is no longer empty — it names descriptor_layout below, and
+	// so does the probe's pipeline, which is why the layout is the device's
+	// and not the pipeline's private business.
 	VkPipelineLayout layout;
 	VkPipeline pipeline;
+
+	// Set 0, binding 0: one uniform buffer, read by the vertex stage. One
+	// layout describes every slot's set, and the pool below is sized for
+	// exactly VOE_RENDER_FRAMES_IN_FLIGHT of them and never grows — sets are
+	// allocated once at startup and freed by destroying the pool.
+	VkDescriptorSetLayout descriptor_layout;
+	VkDescriptorPool descriptor_pool;
+
+	// The cube: one vertex buffer, one index buffer, both device-local and
+	// both filled once at startup through a staging buffer that is gone
+	// before the first frame. Startup's, and untouched by a resize.
+	//
+	// indices IS THE DRAW'S COUNT AND NOT THE BUFFER'S SIZE. Two numbers that
+	// are 36 and 72 respectively, and reading one for the other draws either
+	// twice the cube or half of it.
+	struct voe_render_buffer vertices;
+	struct voe_render_buffer indices;
+	uint32_t index_count;
 
 	// The size every slot's target is, and the resolution the engine draws
 	// at. It is the window's size today and it is not the swapchain's: what
@@ -185,9 +305,9 @@ struct voe_render_device {
 					      voe_platform_size size);
 void voe_render_swapchain_teardown(voe_render_device *device);
 
-// target.c. The offscreen images, one per frame slot, all built at size. Same
-// contract as the pair above: safe on a device that never had any, and idle
-// before anything is taken away.
+// target.c. The offscreen images — colour and depth both, one pair per frame
+// slot, all built at size. Same contract as the pair above: safe on a device
+// that never had any, and idle before anything is taken away.
 [[nodiscard]] bool voe_render_target_build(voe_render_device *device,
 					   voe_platform_size size);
 void voe_render_target_teardown(voe_render_device *device);
@@ -204,15 +324,22 @@ void voe_render_target_teardown(voe_render_device *device);
 // in the engine — read frame.c's header before touching it.
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
-// frame.c. Clears a slot's target and draws the scene into it, leaving the
-// target in TRANSFER_SRC_OPTIMAL and ready to be copied somewhere. The command
-// buffer is the slot's and must already have been begun.
+// frame.c. Writes this slot's matrices, clears its colour and depth, draws the
+// cube into it, and leaves the colour image in TRANSFER_SRC_OPTIMAL ready to be
+// copied somewhere. The command buffer is the slot's and must already have been
+// begun.
+//
+// IT WRITES THE UNIFORM BUFFER AS WELL AS RECORDING, AND THAT IS SAFE BECAUSE OF
+// THE FENCE. The matrices go into this slot's mapped buffer here, which is a CPU
+// write to memory the GPU may have been reading up until the fence at the top of
+// the frame was signalled. Every caller has waited on that fence.
 //
 // THE VIEWPORT IS A PARAMETER BECAUSE THE TWO CALLERS HAND IN DIFFERENT ONES. A
 // frame hands in voe_render_frame_viewport(); render/tests/offscreen.c hands in
-// that one and then its mirror image, because the same triangle drawn through a
-// mirrored viewport is wound the other way round in framebuffer space — which is
-// how a back face gets in front of the rasteriser without a second shader and
+// that one and then its mirror image, because the same geometry drawn through a
+// mirrored viewport is wound the other way round in framebuffer space — so every
+// face the engine would cull is drawn and every face it would draw is culled.
+// That gets a back face in front of the rasteriser without a second shader and
 // without touching the pipeline whose front-face constant is the thing under
 // test.
 void voe_render_frame_draw(voe_render_device *device,
@@ -238,3 +365,78 @@ void voe_render_frame_draw(voe_render_device *device,
 [[nodiscard]] voe_render_device *
 voe_render_device_new_headless(voe_base_arena *arena, voe_platform_size size,
 			       voe_base_error *error);
+
+// buffer.c. A buffer of size with usage, in memory that has properties, and the
+// one allocation under it. build/teardown rather than new/destroy because the
+// struct is the caller's and only what is inside it belongs to these — the same
+// shape voe_render_target_build has, for the same reason.
+//
+// Teardown is safe on a zeroed struct and on one whose build failed part way,
+// and it leaves the struct zeroed. It does not wait for the device to go idle:
+// unlike a target, a buffer here is either startup's or a slot's, and both of
+// those already know when the GPU has finished with them.
+[[nodiscard]] bool voe_render_buffer_build(voe_render_device *device,
+					   struct voe_render_buffer *buffer,
+					   VkDeviceSize size,
+					   VkBufferUsageFlags usage,
+					   VkMemoryPropertyFlags properties);
+void voe_render_buffer_teardown(voe_render_device *device,
+				struct voe_render_buffer *buffer);
+
+// buffer.c. Fills a device-local buffer by copying bytes through a host-visible
+// staging buffer, and this is the pattern every later upload follows — a texture
+// and a loaded mesh both arrive this way, which is why it is a function here and
+// not four lines inside cube.c.
+//
+// IT IS STARTUP'S AND IT BLOCKS. The staging buffer is made, filled, copied and
+// destroyed inside one call, which means waiting for the copy to finish before
+// the staging buffer can go away. That is the right trade for data uploaded once
+// before the first frame and the wrong one for anything uploaded per frame; the
+// day something needs the second, it needs a different function and not a flag
+// on this one.
+[[nodiscard]] bool voe_render_buffer_upload(voe_render_device *device,
+					    const struct voe_render_buffer *buffer,
+					    const void *data, VkDeviceSize size);
+
+// cube.c. Everything the cube needs that a resize does not touch: the descriptor
+// set layout, the pool, one set and one mapped uniform buffer per frame slot,
+// and the two device-local buffers holding the geometry. Startup's, and the
+// counterpart tears down whatever was built before a failure.
+[[nodiscard]] bool voe_render_cube_build(voe_render_device *device);
+void voe_render_cube_teardown(voe_render_device *device);
+
+// cube.c. The three matrices for a target of this size, ready to be copied into
+// a slot's uniform buffer. The model matrix is the identity and the camera is a
+// constant in that file — this folder has no scene to ask.
+void voe_render_cube_uniforms_fill(struct voe_render_uniforms *uniforms,
+				   VkExtent2D extent);
+
+// cube.c, and named here because it is the one place this engine's reversed depth
+// is written down as arithmetic rather than as a comparison constant. Near plane
+// at 1.0, far plane at 0.0, an infinite far distance, and no Y negation anywhere
+// in it — the viewport owns the flip. render/tests/matrix.c checks all three of
+// those claims on the CPU, where no graphics card is needed to disagree.
+voe_math_float4x4 voe_render_cube_projection(VkExtent2D extent);
+
+// probe.c. The pipeline that reads a matrix and reports what it saw, built on
+// demand and owned by the caller — VK_NULL_HANDLE on failure, and destroyed with
+// voe_render_vk.destroy_pipeline. It shares the device's pipeline layout, so it
+// reads the same descriptor the cube does.
+//
+// IT IS BUILT ON DEMAND AND NOT AT STARTUP, WHICH IS THE WHOLE REASON IT IS A
+// FUNCTION. Only render/tests/matrix.c ever asks for it; a shipping device that
+// created it would be paying for a pipeline nothing draws, which is what rule 10
+// is about. The compiled shader is in the binary either way, because
+// --embed-dir is private to this folder's library and a test cannot #embed.
+[[nodiscard]] VkPipeline voe_render_probe_pipeline_new(voe_render_device *device);
+
+// probe.c. Draws the probe over the whole of a slot's colour target and leaves it
+// in TRANSFER_SRC_OPTIMAL, exactly as voe_render_frame_draw leaves it. No depth
+// attachment and no culling: what is under test is a matrix, and a probe that
+// could be culled or depth-rejected would report nothing.
+//
+// The matrix it reports is whatever the caller has already put in the slot's
+// mapped uniform buffer. This writes nothing there.
+void voe_render_probe_draw(voe_render_device *device,
+			   const struct voe_render_frame *frame,
+			   VkPipeline pipeline, VkViewport viewport);
