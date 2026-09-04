@@ -516,8 +516,9 @@ static bool create_pipeline(voe_render_device *device)
 		{
 			.location = 1,
 			.binding = 0,
-			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = offsetof(struct voe_render_vertex, colour),
+			// Two floats, not three: a texture coordinate.
+			.format = VK_FORMAT_R32G32_SFLOAT,
+			.offset = offsetof(struct voe_render_vertex, uv),
 		},
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input = {
@@ -647,14 +648,17 @@ static bool create_pipeline(voe_render_device *device)
 	// the range is described here because it belongs to the pipeline layout
 	// and to nothing else.
 	//
-	// THE VERTEX STAGE ALONE, UNLIKE THE DESCRIPTOR BESIDE IT. A push
-	// constant is only read where a position is transformed, and naming the
-	// fragment stage as well would spend part of a budget with a documented
-	// floor of 128 bytes on a stage that does not read it. The probe pipeline
-	// shares this layout and pushes nothing, which is allowed: a range
-	// nothing writes is a range nothing reads.
+	// BOTH STAGES NOW, AND IT USED TO BE THE VERTEX STAGE ALONE. The model
+	// matrix is read where a position is transformed and nowhere else, which
+	// is why this named one stage until card 017; the texture index beside
+	// it is read by the fragment stage, so the range has to cover both or
+	// the write is invalid. Sixty-eight bytes against a documented floor of
+	// 128 leaves room, and the probe pipeline shares this layout and pushes
+	// nothing, which is allowed: a range nothing writes is a range nothing
+	// reads.
 	VkPushConstantRange push = {
-		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+			      VK_SHADER_STAGE_FRAGMENT_BIT,
 		.offset = 0,
 		.size = sizeof(struct voe_render_push),
 	};

@@ -132,6 +132,7 @@
 // and card 020 is the card that changes that.
 #include <base/arena.h>
 #include <base/error.h>
+#include <assets/image.h>
 #include <platform/input.h>
 #include <platform/window.h>
 #include <render/device.h>
@@ -142,6 +143,23 @@
 // which queue families, which surface formats. It is handed over, used and
 // destroyed here, because nothing the device keeps comes out of it.
 #define STARTUP_SCRATCH (64 * 1024)
+
+// Room for the decoded picture, the filtered scanlines it came from, and the
+// compressed bytes in between — about forty kilobytes for the image below, and
+// this is a round number well above it rather than a computed one, because the
+// arena is destroyed a few lines after it is made.
+#define TEXTURE_SCRATCH (1024 * 1024)
+
+// The picture on the cubes, embedded at build time.
+//
+// IT IS AN "F" BECAUSE AN "F" HAS NO SYMMETRY LEFT TO HIDE BEHIND. A checker
+// board looks right upside down, a mirrored one looks right too, and both are
+// mistakes this card can make. An F read the wrong way round is obvious across
+// the room. The four corner blocks say which corner is which: red is top-left,
+// green top-right, blue bottom-left, yellow bottom-right.
+static const uint8_t TEXTURE_PNG[] = {
+#embed "texture.png"
+};
 
 // The bindings, and the only thing in this file that decides anything. Which key
 // means forward is a call site's business — the engine's job is to know what
@@ -226,6 +244,59 @@ int main(void)
 			voe_base_error_string(error));
 		voe_platform_window_destroy(window);
 		return 1;
+	}
+
+	// THE PICTURE, AND IT ARRIVES THE WAY THE SHADERS DO. platform has no
+	// file API yet, so there is nothing here that opens one; the PNG is
+	// #embedded at build time exactly as render embeds its compiled SPIR-V,
+	// which is also what keeps "nothing is read from disk at run time"
+	// true. See assets/include/assets/image.h.
+	//
+	// THE ARENA GOES AWAY AS SOON AS THE UPLOAD HAS HAPPENED. The decoded
+	// pixels are the GPU's now, and a copy on this side would be a megabyte
+	// nothing reads.
+	{
+		voe_base_arena *pixels = voe_base_arena_new(TEXTURE_SCRATCH);
+		voe_assets_image picture;
+		voe_render_texture texture;
+
+		if (!voe_assets_png_decode(TEXTURE_PNG, sizeof(TEXTURE_PNG),
+					   pixels, &picture, &error)) {
+			fprintf(stderr, "could not read the texture: %s\n",
+				voe_base_error_string(error));
+			voe_base_arena_destroy(pixels);
+			voe_render_device_destroy(gpu);
+			voe_platform_window_destroy(window);
+			return 1;
+		}
+
+		if (!voe_render_texture_create(gpu, picture.width,
+					       picture.height, picture.pixels,
+					       &texture, &error)) {
+			fprintf(stderr, "could not upload the texture: %s\n",
+				voe_base_error_string(error));
+			voe_base_arena_destroy(pixels);
+			voe_render_device_destroy(gpu);
+			voe_platform_window_destroy(window);
+			return 1;
+		}
+
+		// It cannot be stale — it was handed over three lines ago — so a
+		// refusal here would be a bug in render rather than in this
+		// program. Checked because the function is [[nodiscard]] and
+		// because a silently untextured cube is a confusing thing to
+		// debug from the other end.
+		if (!voe_render_device_set_texture(gpu, texture)) {
+			fprintf(stderr, "render refused a texture it just made\n");
+			voe_base_arena_destroy(pixels);
+			voe_render_device_destroy(gpu);
+			voe_platform_window_destroy(window);
+			return 1;
+		}
+
+		voe_base_arena_destroy(pixels);
+		printf("texture    %ux%u in slot %u\n", picture.width,
+		       picture.height, texture.index);
 	}
 
 	size = voe_platform_window_size(window);

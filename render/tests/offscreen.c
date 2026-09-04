@@ -98,6 +98,43 @@ static bool resolve_readback(voe_render_device *device)
 	return copy_image_to_buffer != NULL;
 }
 
+// THE PICTURE THIS FILE PUTS ON THE CUBE, AND EVERY PART OF IT IS LOAD-BEARING.
+// Card 017 textured the cube and took away the per-corner vertex colours this
+// file used to read, so the picture is now the only thing that says which way up
+// a face is and which face it is.
+//
+// RED TOP-LEFT, BLUE BOTTOM-LEFT, GREEN DOWN THE WHOLE RIGHT-HAND SIDE. Red
+// against blue is the vertical question — which way up — and green against both
+// is the horizontal one, which is what says whether the near face or the far one
+// was drawn. There is no fourth colour, deliberately: yellow in the last
+// quadrant would have a largest channel of red, and two quadrants that both read
+// as red is a test that cannot tell them apart.
+//
+// It is four by four rather than two by two so that a blend between two texels
+// never straddles the middle of the picture. Row zero is the top, which is what
+// assets decodes and what Vulkan and glTF both mean by v = 0.
+#define T_R { 220, 40, 40, 255 }
+#define T_G { 40, 200, 40, 255 }
+#define T_B { 40, 60, 220, 255 }
+static const unsigned char QUADRANT_TEXTURE[4][4][4] = {
+	{ T_R, T_R, T_G, T_G },
+	{ T_R, T_R, T_G, T_G },
+	{ T_B, T_B, T_G, T_G },
+	{ T_B, T_B, T_G, T_G },
+};
+
+// Which channel is the largest, which is all this file asks of a colour: the
+// filtering, the format and the card all move the exact numbers about, and none
+// of them turns red into green.
+static uint32_t dominant(const unsigned char *pixel)
+{
+	if (pixel[RED] >= pixel[GREEN] && pixel[RED] >= pixel[BLUE])
+		return RED;
+	if (pixel[GREEN] >= pixel[BLUE])
+		return GREEN;
+	return BLUE;
+}
+
 // The mirror of voe_render_frame_viewport: y at the top and a positive height,
 // which is what the engine would have if it did not flip. Written out rather
 // than derived, so that it stays the mirror even if the real one changes shape.
@@ -177,6 +214,55 @@ static const unsigned char *pixel_at(const unsigned char *image, uint32_t x,
 static bool same_colour(const unsigned char *a, const unsigned char *b)
 {
 	return memcmp(a, b, 4) == 0;
+}
+
+// Where the pixels of one colour sit, on average, in the drawn part of an image.
+//
+// A CENTROID AND NOT A PIXEL AT A CHOSEN PLACE, BECAUSE THE CAMERA IS NOT SQUARE
+// TO THE CUBE. The eye is above and behind the origin, so the near face is not a
+// rectangle in the middle of the picture and the top face is visible above it —
+// which means any fixed coordinate this file could name is one camera change
+// away from landing on a different face and testing nothing. An average over
+// every pixel of a colour has no such coordinate in it, and every visible face
+// carries the picture the same way up, so the answer does not depend on which
+// faces happen to be in view.
+struct centroid {
+	uint64_t x;
+	uint64_t y;
+	uint64_t count;
+};
+
+static struct centroid centroid_of(const unsigned char *image,
+				   const unsigned char *clear, uint32_t channel)
+{
+	struct centroid found = { 0, 0, 0 };
+
+	for (uint32_t y = 0; y < SIDE; y++) {
+		for (uint32_t x = 0; x < SIDE; x++) {
+			const unsigned char *pixel = pixel_at(image, x, y);
+
+			if (same_colour(pixel, clear))
+				continue;
+			if (dominant(pixel) != channel)
+				continue;
+
+			found.x += x;
+			found.y += y;
+			found.count++;
+		}
+	}
+
+	return found;
+}
+
+// Is a's mean smaller than b's? Cross-multiplied rather than divided, so that
+// there is no rounding to argue about and no division by a count of zero — the
+// callers check the counts separately, because "there were no red pixels at all"
+// is a different failure from "they were in the wrong place".
+static bool mean_less(uint64_t a_sum, uint64_t a_count, uint64_t b_sum,
+		      uint64_t b_count)
+{
+	return a_sum * b_count < b_sum * a_count;
 }
 
 // How many pixels of an image are something other than the colour it was cleared
@@ -269,6 +355,33 @@ int main(void)
 		return voe_test_result();
 	}
 
+	// The picture the cube wears for this test. It replaces the default
+	// white one in slot 0, and it must be in place before either case is
+	// recorded because a descriptor write cannot happen between them.
+	{
+		voe_render_texture texture;
+
+		VOE_TEST_CHECK(voe_render_texture_create(
+			device, 4, 4, &QUADRANT_TEXTURE[0][0][0], &texture,
+			&error));
+		VOE_TEST_CHECK(voe_render_device_set_texture(device, texture));
+
+		// The id is a real one and not slot zero's, which is the
+		// default texture nothing hands out. See ADR-0018 and
+		// voe_render_texture in render/device.h.
+		VOE_TEST_CHECK(texture.index > 0);
+		VOE_TEST_CHECK(texture.generation > 0);
+
+		// A generation that was never issued is refused rather than
+		// drawing whatever lives in the slot. This is the whole reason
+		// the id has two halves and it costs one line to prove.
+		VOE_TEST_CHECK(!voe_render_device_set_texture(
+			device, (voe_render_texture){ .index = texture.index,
+						      .generation =
+							      texture.generation +
+							      1 }));
+	}
+
 	record_case(device, &device->frames[0],
 		    voe_render_frame_viewport(device->resolution),
 		    readback.buffer, FRONT_OFFSET);
@@ -321,20 +434,63 @@ int main(void)
 		VOE_TEST_CHECK(!same_colour(front_centre, clear));
 		VOE_TEST_CHECK(!same_colour(back_centre, clear));
 
-		// THE WHOLE CLAIM, IN ONE CHANNEL. Drawn the engine's way, the
-		// centre of the image is on the +Z face, every corner of which
-		// has blue at 1. Drawn through the mirrored viewport, the faces
-		// pointing at us are culled instead and the centre is on the -Z
-		// face, every corner of which has blue at 0.
-		VOE_TEST_CHECK_INT(front_centre[BLUE], 255);
-		VOE_TEST_CHECK_INT(back_centre[BLUE], 0);
+		// THE WHOLE CLAIM, AS TWO COMPARISONS PER IMAGE.
+		//
+		// Drawn the engine's way: the picture is the right way up, so
+		// its red half is above its blue half on the screen; and the
+		// near face is the one that survived culling, so the picture's
+		// green side is to the right, which is where +u points on the
+		// +Z face.
+		//
+		// Drawn through the mirrored viewport, both answers invert, and
+		// they invert for two different reasons that this file is
+		// deliberately checking together. Red falls below blue because
+		// the viewport put screen y the other way up — that is the flip
+		// itself. Green moves to the left because the faces pointing at
+		// us are now wound the other way and culled, so what is seen is
+		// the far face, whose +u points the opposite way in the world.
+		// A mistake in only one of the two would move one of these and
+		// not the other.
+		{
+			struct centroid front_red = centroid_of(
+				pixels + FRONT_OFFSET, clear, RED);
+			struct centroid front_blue = centroid_of(
+				pixels + FRONT_OFFSET, clear, BLUE);
+			struct centroid front_green = centroid_of(
+				pixels + FRONT_OFFSET, clear, GREEN);
+			struct centroid back_red = centroid_of(
+				pixels + BACK_OFFSET, clear, RED);
+			struct centroid back_blue = centroid_of(
+				pixels + BACK_OFFSET, clear, BLUE);
+			struct centroid back_green = centroid_of(
+				pixels + BACK_OFFSET, clear, GREEN);
 
-		// The +Z face's corners run from blue through magenta and white
-		// to cyan, so red and green are somewhere in between and blue
-		// is the largest of the three. This is what pins the near face
-		// as the one that was drawn rather than merely something blue.
-		VOE_TEST_CHECK(front_centre[BLUE] > front_centre[RED]);
-		VOE_TEST_CHECK(front_centre[BLUE] > front_centre[GREEN]);
+			// All three colours reached the screen in both cases.
+			// Without this a texture that failed to bind — every
+			// pixel the same — would pass every comparison below by
+			// comparing nothing with nothing.
+			VOE_TEST_CHECK(front_red.count > 0);
+			VOE_TEST_CHECK(front_blue.count > 0);
+			VOE_TEST_CHECK(front_green.count > 0);
+			VOE_TEST_CHECK(back_red.count > 0);
+			VOE_TEST_CHECK(back_blue.count > 0);
+			VOE_TEST_CHECK(back_green.count > 0);
+
+			// Right way up: red above blue. Upside down: below.
+			VOE_TEST_CHECK(mean_less(front_red.y, front_red.count,
+						 front_blue.y,
+						 front_blue.count));
+			VOE_TEST_CHECK(mean_less(back_blue.y, back_blue.count,
+						 back_red.y, back_red.count));
+
+			// Near face: green to the right of red. Far face: left.
+			VOE_TEST_CHECK(mean_less(front_red.x, front_red.count,
+						 front_green.x,
+						 front_green.count));
+			VOE_TEST_CHECK(mean_less(back_green.x,
+						 back_green.count, back_red.x,
+						 back_red.count));
+		}
 
 		// Anything at all was drawn — which is what an inverted depth
 		// comparison takes away, because a clear of 0 with GREATER

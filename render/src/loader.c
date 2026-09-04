@@ -137,6 +137,8 @@ void voe_render_loader_instance(VkInstance instance, bool surface)
 			  vkGetPhysicalDeviceQueueFamilyProperties);
 	INSTANCE_FUNCTION(get_memory_properties,
 			  vkGetPhysicalDeviceMemoryProperties);
+	INSTANCE_FUNCTION(get_physical_device_format_properties,
+			  vkGetPhysicalDeviceFormatProperties);
 	INSTANCE_FUNCTION(create_device, vkCreateDevice);
 
 	// VK_KHR_surface's, and required whenever that extension was enabled —
@@ -194,6 +196,9 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(free_memory, vkFreeMemory);
 	DEVICE_FUNCTION(cmd_blit_image, vkCmdBlitImage);
 
+	DEVICE_FUNCTION(create_sampler, vkCreateSampler);
+	DEVICE_FUNCTION(destroy_sampler, vkDestroySampler);
+	DEVICE_FUNCTION(cmd_copy_buffer_to_image, vkCmdCopyBufferToImage);
 	DEVICE_FUNCTION(create_image_view, vkCreateImageView);
 	DEVICE_FUNCTION(destroy_image_view, vkDestroyImageView);
 

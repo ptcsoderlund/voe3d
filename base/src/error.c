@@ -14,6 +14,8 @@ const char *voe_base_error_string(voe_base_error error)
 		return "this machine cannot do what the engine requires";
 	case VOE_BASE_ERROR_REFUSED:
 		return "the system refused the operation";
+	case VOE_BASE_ERROR_MALFORMED:
+		return "the data is not what it claims to be";
 	}
 
 	return "unknown error";

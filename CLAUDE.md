@@ -236,6 +236,15 @@ Cards arrive in `todo/` already decided. Implement what the card says; a card
 that is unclear is asked about, not guessed at. `cmake -P check.cmake` exits
 zero before the card moves to `review/`.
 
+**One platform is enough to finish a card (2026-09-04).** There is one machine
+and one operating system on it at a time, so a card is not held in `review/`
+waiting for the other platform. `check.cmake` green on the platform in front of
+you, and the card moves to `complete/`; the other platform is checked whenever
+that machine is next booted, and what it turns up becomes a new card rather than
+reopening the old one. A card's notes say which platform it was verified on and
+what could not be checked there, because that note is what the bug report is
+written against later.
+
 ## Status
 
 **The build works on Linux and Windows.** `cmake/voe.cmake`, `check.cmake` and

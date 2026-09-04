@@ -26,6 +26,7 @@
 #include "loader.h"
 
 #include <base/arena.h>
+#include <math/float2.h>
 #include <math/float4x4.h>
 #include <platform/window.h>
 #include <render/device.h>
@@ -37,6 +38,23 @@
 // clamping would leave images we never made a view for and an acquire that
 // returns an index we cannot draw to.
 #define VOE_RENDER_MAX_IMAGES 8
+
+// How many textures may exist at once, and the length of the array the fragment
+// shader samples.
+//
+// IT IS FIXED BECAUSE THE SHADER'S ARRAY IS FIXED. A descriptor array is
+// declared with a length in the layout and in the shader, and both have to agree
+// with this number; growing it is changing all three together, which is a card,
+// not a runtime decision. Eight is what a cube with one picture on it needs
+// seven fewer of — the number will move the first time something wants it to.
+//
+// EVERY SLOT ALWAYS HOLDS A VALID DESCRIPTOR, WHICH IS WHY THERE IS A DEFAULT
+// TEXTURE. Vulkan requires every element of a descriptor array to be written
+// before the set is used, whether or not the shader reads it, so the slots
+// nothing has claimed point at a one-pixel white image. Sampling an unclaimed
+// slot is then white rather than undefined, and there is no partially-bound
+// extension to ask for.
+#define VOE_RENDER_MAX_TEXTURES 8
 
 // How many frames the CPU may have submitted and unfinished at once, and the
 // length of every per-slot array in this engine.
@@ -87,7 +105,19 @@ struct voe_render_buffer {
 // nothing silently.
 struct voe_render_vertex {
 	voe_math_float3 position;
-	voe_math_float3 colour;
+
+	// WHERE THIS CORNER SITS IN THE TEXTURE, AND WHY THERE ARE NOW
+	// TWENTY-FOUR OF THESE AND NOT EIGHT. A cube corner is shared by three
+	// faces, and those three faces need three different texture
+	// coordinates at that corner — the same point is the top-left of one
+	// face and the bottom-right of another. A vertex carries one of each
+	// attribute, so a corner that needs three UVs is three vertices. Card
+	// 014 said this was coming and this is it.
+	//
+	// (0,0) is the top-left of the image, which is what Vulkan and glTF
+	// both mean by it. See assets/include/assets/image.h for why nothing
+	// turns the picture over on the way in.
+	voe_math_float2 uv;
 };
 
 // The camera, and everything a whole frame shares. This struct is memcpy'd into
@@ -125,6 +155,15 @@ struct voe_render_uniforms {
 // checked.
 struct voe_render_push {
 	voe_math_float4x4 model;
+
+	// WHICH TEXTURE, AS AN INDEX INTO THE SHADER'S ARRAY — AND IT IS THE
+	// SAME NUMBER voe_render_texture CARRIES. That is ADR-0018 made
+	// concrete rather than described: the id handed out by
+	// voe_render_texture_create indexes the descriptor array the fragment
+	// stage samples, so there is no table in between and nothing to keep in
+	// step. The generation half of the id never reaches the GPU; it is what
+	// catches a caller using an id whose texture has gone.
+	uint32_t texture;
 };
 
 // Where the camera is and which way it is looking, when it is being flown. The
@@ -166,6 +205,22 @@ struct voe_render_camera {
 // and there is no fence to say when that wait finished, so the only safe moment
 // to reuse it is when the image it belongs to comes back out of an acquire —
 // which is exactly when this one does.
+// One texture: the image, its memory, its view, and the generation that says
+// which texture it is. See texture.c.
+//
+// `generation` COUNTS UP AND NEVER RESETS, WHICH IS THE WHOLE POINT OF A
+// GENERATIONAL ID. A slot that is freed and claimed again is a different texture
+// living at the same index, and an id handed out before that still names the
+// index. Comparing the generation is what tells the two apart, so a stale id is
+// refused rather than silently drawing whatever moved in.
+struct voe_render_texture_slot {
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView view;
+	uint32_t generation;
+	bool live;
+};
+
 struct voe_render_image {
 	VkImage image;
 	VkImageView view;
@@ -297,6 +352,14 @@ struct voe_render_device {
 	// layout describes every slot's set, and the pool below is sized for
 	// exactly VOE_RENDER_FRAMES_IN_FLIGHT of them and never grows — sets are
 	// allocated once at startup and freed by destroying the pool.
+	// The textures, the one sampler they are all read through, and which of
+	// them the cubes are drawn with. One sampler because nothing yet wants
+	// two filtering rules; the card that wants point sampling is the card
+	// that makes this an array as well.
+	struct voe_render_texture_slot textures[VOE_RENDER_MAX_TEXTURES];
+	VkSampler sampler;
+	voe_render_texture current_texture;
+
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
 
@@ -526,6 +589,20 @@ voe_math_float4x4 voe_render_cube_model(uint32_t index, float seconds);
 // in it — the viewport owns the flip. render/tests/matrix.c checks all three of
 // those claims on the CPU, where no graphics card is needed to disagree.
 voe_math_float4x4 voe_render_cube_projection(VkExtent2D extent);
+
+// texture.c. The sampler and the one-pixel white texture every unclaimed slot
+// points at, made once at startup. False with a message on failure.
+[[nodiscard]] bool voe_render_texture_startup(voe_render_device *device);
+
+// texture.c. Every texture, the sampler, and nothing else. Safe on a device that
+// never got as far as making them.
+void voe_render_texture_shutdown(voe_render_device *device);
+
+// texture.c. Point one frame slot's descriptor set at every texture in the
+// table. Called when a slot's set is built and again whenever the table changes,
+// which is why it takes the set rather than the slot index.
+void voe_render_texture_write_descriptors(voe_render_device *device,
+					  VkDescriptorSet set);
 
 // probe.c. The pipeline that reads a matrix and reports what it saw, built on
 // demand and owned by the caller — VK_NULL_HANDLE on failure, and destroyed with

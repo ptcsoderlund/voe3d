@@ -48,6 +48,18 @@ typedef enum {
 	// caller cannot see. Retrying is sometimes reasonable; that is the
 	// caller's call.
 	VOE_BASE_ERROR_REFUSED,
+
+	// Data that does not say what it claims to say. A file truncated
+	// halfway, a magic number that is not the format's, a header declaring
+	// a size the rest of the file cannot possibly hold. The distinction
+	// from UNSUPPORTED is what the caller can do about it: an unsupported
+	// file is well-formed and this engine will not read it, so another
+	// program would; a malformed one is broken and nothing will read it.
+	//
+	// IT IS ALSO THE CODE A HOSTILE FILE GETS. Nothing downstream of a
+	// decoder may assume a length, a count or a dimension that came out of
+	// a file was sane, and this is what refusing one is reported as.
+	VOE_BASE_ERROR_MALFORMED,
 } voe_base_error;
 
 // One short phrase per code, never NULL, never allocated. It names the category

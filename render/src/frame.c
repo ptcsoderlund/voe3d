@@ -297,11 +297,19 @@ void voe_render_frame_draw(voe_render_device *device,
 	// only thing that is not, which is the whole shape this card is here to
 	// establish. A third cube is a larger VOE_RENDER_CUBE_COUNT and nothing
 	// else in this file.
+	//
+	// BOTH CUBES ARE DRAWN WITH THE SAME TEXTURE, WHICH IS WHAT THERE IS TO
+	// DRAW WITH. The index is pushed rather than bound, so giving the second
+	// cube a different picture is a different number in this loop and not a
+	// second descriptor — which is the property ADR-0018's shader-side index
+	// was for.
 	for (uint32_t cube = 0; cube < VOE_RENDER_CUBE_COUNT; cube++) {
 		push.model = voe_render_cube_model(cube, device->seconds);
+		push.texture = device->current_texture.index;
 		voe_render_vk.cmd_push_constants(frame->commands, device->layout,
-						 VK_SHADER_STAGE_VERTEX_BIT, 0,
-						 sizeof(push), &push);
+						 VK_SHADER_STAGE_VERTEX_BIT |
+							 VK_SHADER_STAGE_FRAGMENT_BIT,
+						 0, sizeof(push), &push);
 		voe_render_vk.cmd_draw_indexed(frame->commands,
 					       device->index_count, 1, 0, 0, 0);
 	}

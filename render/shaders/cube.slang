@@ -33,13 +33,22 @@
 // frame.c. A projection matrix that negated a row as well would flip twice,
 // which looks exactly like not flipping at all until something is culled.
 //
-// THE COLOUR IS THE CORNER'S POSITION AND THAT IS WHAT MAKES THE CUBE READABLE.
-// Each of the eight corners carries a different colour, so every face is a
-// gradient rather than a flat fill and a person can tell which face they are
-// looking at — which is the whole of how "solid, near faces hiding far ones" is
-// checked by eye. There are eight vertices and not twenty-four because there are
-// no texture coordinates to disagree about per face; the card that adds them
-// rewrites this data.
+// THE CUBE IS TEXTURED AND THE PER-CORNER COLOUR IS GONE. It was there so that a
+// person could tell one face from another by eye; a picture does that better,
+// and keeping the colour as a tint would mean the cube never showed what the
+// file actually contains — which is the one thing card 017 has to be checkable
+// by. The data behind this is twenty-four vertices now and not eight, because a
+// corner shared by three faces needs three texture coordinates.
+//
+// WHICH TEXTURE IS A PUSH CONSTANT AND IT INDEXES AN ARRAY, WHICH IS ADR-0018.
+// The id the CPU hands out is the subscript the fragment stage uses, so there is
+// no table in between; changing which picture a cube wears is a different number
+// in the push and not a different descriptor.
+//
+// NOTHING HERE FLIPS THE TEXTURE COORDINATE. (0,0) is the top-left of the image
+// in Vulkan and in glTF, and assets decodes rows top-down, so all three agree
+// and the picture comes out the right way up. The flip everyone adds is
+// OpenGL's, whose texture origin is at the bottom.
 
 // The camera. One per frame, and the same one for every draw in it — which is
 // what makes it the buffer's half of the split above.
@@ -48,16 +57,28 @@ struct voe_render_cube_uniforms {
 	float4x4 projection;
 };
 
-// Set 0, binding 0, and the only descriptor this engine has. device.c builds the
-// layout that matches it and frame.c binds one of these per frame slot.
+// Set 0, binding 0. device.c builds the layout that matches it and frame.c binds
+// one of these per frame slot.
 [[vk::binding(0, 0)]]
 ConstantBuffer<voe_render_cube_uniforms> voe_render_cube_matrices;
+
+// Set 0, binding 1: every texture at once, indexed by the push constant below.
+//
+// THE LENGTH IS VOE_RENDER_MAX_TEXTURES AND IT IS WRITTEN DOWN IN THREE PLACES —
+// device_internal.h, the layout in cube.c, and here. A descriptor array has a
+// fixed length in all three and they have to agree; there is no way to say "as
+// many as the C side thinks" from a shader. Every element is always written,
+// slots nothing has claimed pointing at a one-pixel white texture, because
+// Vulkan requires the whole array to be valid whether or not this samples it.
+[[vk::binding(1, 0)]]
+Sampler2D voe_render_cube_textures[8];
 
 // Where this cube is. Sixty-four bytes, matching struct voe_render_push in
 // device_internal.h field for field, and the range device.c declares on the
 // pipeline layout is the vertex stage's only.
 struct voe_render_cube_push {
 	float4x4 model;
+	uint texture;
 };
 
 [[vk::push_constant]]
@@ -68,12 +89,12 @@ ConstantBuffer<voe_render_cube_push> voe_render_cube_object;
 // two lists that have to agree should not agree by counting.
 struct voe_render_cube_vertex_in {
 	[[vk::location(0)]] float3 position : POSITION;
-	[[vk::location(1)]] float3 colour : COLOUR;
+	[[vk::location(1)]] float2 uv : TEXCOORD;
 };
 
 struct voe_render_cube_vertex_out {
 	float4 position : SV_Position;
-	float3 colour : COLOUR;
+	float2 uv : TEXCOORD;
 };
 
 [shader("vertex")]
@@ -87,12 +108,17 @@ voe_render_cube_vertex(voe_render_cube_vertex_in vertex)
 	world = mul(voe_render_cube_object.model, float4(vertex.position, 1.0));
 	eye = mul(voe_render_cube_matrices.view, world);
 	out.position = mul(voe_render_cube_matrices.projection, eye);
-	out.colour = vertex.colour;
+	out.uv = vertex.uv;
 	return out;
 }
 
 [shader("fragment")]
 float4 voe_render_cube_fragment(voe_render_cube_vertex_out vertex) : SV_Target
 {
-	return float4(vertex.colour, 1.0);
+	// NonUniformResourceIndex is not used and is not needed: every fragment
+	// in a draw reads the same push constant, so the index is uniform across
+	// the whole draw by construction. It would be needed the day the index
+	// came from a vertex attribute or a buffer.
+	return voe_render_cube_textures[voe_render_cube_object.texture]
+		.Sample(vertex.uv);
 }

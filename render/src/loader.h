@@ -89,6 +89,8 @@ typedef struct {
 	// The offscreen target: an image of our own, the memory under it, and
 	// the copy that puts what was drawn into the swapchain image at the end
 	// of a frame.
+	PFN_vkGetPhysicalDeviceFormatProperties get_physical_device_format_properties;
+
 	PFN_vkCreateImage create_image;
 	PFN_vkDestroyImage destroy_image;
 	PFN_vkGetImageMemoryRequirements get_image_memory_requirements;
@@ -99,6 +101,15 @@ typedef struct {
 
 	PFN_vkCreateImageView create_image_view;
 	PFN_vkDestroyImageView destroy_image_view;
+
+	// Textures. The sampler is how a shader reads one, the buffer-to-image
+	// copy is how the pixels get there, and the format properties are asked
+	// because generating mipmaps is a blit and a blit needs the format to
+	// filter linearly — which is a property of the card, not of the format
+	// on paper. See texture.c.
+	PFN_vkCreateSampler create_sampler;
+	PFN_vkDestroySampler destroy_sampler;
+	PFN_vkCmdCopyBufferToImage cmd_copy_buffer_to_image;
 	PFN_vkCreateCommandPool create_command_pool;
 	PFN_vkDestroyCommandPool destroy_command_pool;
 	PFN_vkAllocateCommandBuffers allocate_command_buffers;

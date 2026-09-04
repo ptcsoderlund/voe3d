@@ -159,32 +159,69 @@
 #define SPIN_AXIS_Y 1.0f
 #define SPIN_AXIS_Z 0.0f
 
-// The eight corners, and a colour per corner rather than per face. The colour is
-// the position moved into 0..1, so opposite corners are opposite colours and no
-// two faces read the same — which is the whole of how a person checks by eye
-// that they are looking at the near face and not through it. Both cubes are this
-// one buffer: what differs between them is one matrix.
-static const struct voe_render_vertex CUBE_VERTICES[8] = {
-	{ { -HALF, -HALF, -HALF }, { 0.0f, 0.0f, 0.0f } },
-	{ { HALF, -HALF, -HALF }, { 1.0f, 0.0f, 0.0f } },
-	{ { HALF, HALF, -HALF }, { 1.0f, 1.0f, 0.0f } },
-	{ { -HALF, HALF, -HALF }, { 0.0f, 1.0f, 0.0f } },
-	{ { -HALF, -HALF, HALF }, { 0.0f, 0.0f, 1.0f } },
-	{ { HALF, -HALF, HALF }, { 1.0f, 0.0f, 1.0f } },
-	{ { HALF, HALF, HALF }, { 1.0f, 1.0f, 1.0f } },
-	{ { -HALF, HALF, HALF }, { 0.0f, 1.0f, 1.0f } },
+// TWENTY-FOUR VERTICES AND NOT EIGHT, WHICH IS WHAT TEXTURE COORDINATES COST.
+// Card 014 built this from the eight corners a cube has, and said this was
+// coming; a corner is shared by three faces and those three faces want three
+// different points in the picture at it, so each face gets its own four.
+//
+// THE PER-CORNER COLOUR IS GONE AND THE TEXTURE HAS ITS JOB. It existed so that
+// a person could tell one face from another by eye, which a picture does better;
+// keeping it as a tint would mean the cube never showed the colours the file
+// actually contains, and "is this the right image, the right way up" is the
+// thing this card has to be checkable by.
+//
+// EACH FACE IS LISTED TOP-LEFT, TOP-RIGHT, BOTTOM-RIGHT, BOTTOM-LEFT AS SEEN
+// FROM OUTSIDE, and the UVs say exactly that: (0,0) is the top-left of the
+// image. Reading a face's four lines in order walks the picture the way the eye
+// walks it, so a UV that is wrong is wrong on the page as well as on the cube.
+static const struct voe_render_vertex CUBE_VERTICES[24] = {
+	// +Z: right is +X, up is +Y
+	{ { -HALF, HALF, HALF }, { 0.0f, 0.0f } },
+	{ { HALF, HALF, HALF }, { 1.0f, 0.0f } },
+	{ { HALF, -HALF, HALF }, { 1.0f, 1.0f } },
+	{ { -HALF, -HALF, HALF }, { 0.0f, 1.0f } },
+	// -Z: right is -X, up is +Y
+	{ { HALF, HALF, -HALF }, { 0.0f, 0.0f } },
+	{ { -HALF, HALF, -HALF }, { 1.0f, 0.0f } },
+	{ { -HALF, -HALF, -HALF }, { 1.0f, 1.0f } },
+	{ { HALF, -HALF, -HALF }, { 0.0f, 1.0f } },
+	// +X: right is -Z, up is +Y
+	{ { HALF, HALF, HALF }, { 0.0f, 0.0f } },
+	{ { HALF, HALF, -HALF }, { 1.0f, 0.0f } },
+	{ { HALF, -HALF, -HALF }, { 1.0f, 1.0f } },
+	{ { HALF, -HALF, HALF }, { 0.0f, 1.0f } },
+	// -X: right is +Z, up is +Y
+	{ { -HALF, HALF, -HALF }, { 0.0f, 0.0f } },
+	{ { -HALF, HALF, HALF }, { 1.0f, 0.0f } },
+	{ { -HALF, -HALF, HALF }, { 1.0f, 1.0f } },
+	{ { -HALF, -HALF, -HALF }, { 0.0f, 1.0f } },
+	// +Y: right is +X, and the picture's top points at -Z
+	{ { -HALF, HALF, -HALF }, { 0.0f, 0.0f } },
+	{ { HALF, HALF, -HALF }, { 1.0f, 0.0f } },
+	{ { HALF, HALF, HALF }, { 1.0f, 1.0f } },
+	{ { -HALF, HALF, HALF }, { 0.0f, 1.0f } },
+	// -Y: right is +X, and the picture's top points at +Z
+	{ { -HALF, -HALF, HALF }, { 0.0f, 0.0f } },
+	{ { HALF, -HALF, HALF }, { 1.0f, 0.0f } },
+	{ { HALF, -HALF, -HALF }, { 1.0f, 1.0f } },
+	{ { -HALF, -HALF, -HALF }, { 0.0f, 1.0f } },
 };
 
-// Two triangles per face, six faces, counter-clockwise seen from outside. The
-// faces are in the order +Z -Z +X -X +Y -Y so that a reader can check one
-// against the corner table above without hunting.
+// Two triangles per face, counter-clockwise seen from outside, and now every
+// face indexes its own four vertices rather than sharing corners.
+//
+// THE PATTERN IS THE SAME SIX NUMBERS ON EVERY FACE, WHICH IS THE POINT. With
+// the four listed top-left, top-right, bottom-right, bottom-left, the
+// counter-clockwise order is bottom-left, bottom-right, top-right — 3, 2, 1 —
+// and then 3, 1, 0. A face whose winding is wrong is a face whose four vertices
+// were listed in the wrong order above, and there is only one place to look.
 static const uint16_t CUBE_INDICES[36] = {
-	4, 5, 6, 4, 6, 7, // +Z
-	1, 0, 3, 1, 3, 2, // -Z
-	5, 1, 2, 5, 2, 6, // +X
-	0, 4, 7, 0, 7, 3, // -X
-	7, 6, 2, 7, 2, 3, // +Y
-	0, 1, 5, 0, 5, 4, // -Y
+	3, 2, 1, 3, 1, 0, // +Z
+	7, 6, 5, 7, 5, 4, // -Z
+	11, 10, 9, 11, 9, 8, // +X
+	15, 14, 13, 15, 13, 12, // -X
+	19, 18, 17, 19, 17, 16, // +Y
+	23, 22, 21, 23, 21, 20, // -Y
 };
 
 // ------------------------------------------------------------- the matrices
@@ -482,21 +519,40 @@ voe_math_float4x4 voe_render_cube_model(uint32_t index, float seconds)
 // beside the layout it belongs to, not here.
 static bool build_descriptor_layout(voe_render_device *device)
 {
-	VkDescriptorSetLayoutBinding binding = {
-		.binding = 0,
-		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = 1,
-		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
-			      VK_SHADER_STAGE_FRAGMENT_BIT,
+	// Binding 1 is an ARRAY of VOE_RENDER_MAX_TEXTURES, and its length is one
+	// of the three places that number appears — here, in the shader, and in
+	// the write in texture.c. All three move together or none does.
+	VkDescriptorSetLayoutBinding bindings[2] = {
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+				      VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
+		{
+			.binding = 1,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = VOE_RENDER_MAX_TEXTURES,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 1,
-		.pBindings = &binding,
+		.bindingCount = 2,
+		.pBindings = bindings,
 	};
-	VkDescriptorPoolSize size = {
-		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT,
+	VkDescriptorPoolSize sizes[2] = {
+		{
+			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT,
+		},
+		{
+			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT *
+					   VOE_RENDER_MAX_TEXTURES,
+		},
 	};
 	// Sized for exactly the sets that will ever be asked for, and without
 	// FREE_DESCRIPTOR_SET: nothing frees one, the pool goes away whole at
@@ -505,8 +561,8 @@ static bool build_descriptor_layout(voe_render_device *device)
 	VkDescriptorPoolCreateInfo pool = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.maxSets = VOE_RENDER_FRAMES_IN_FLIGHT,
-		.poolSizeCount = 1,
-		.pPoolSizes = &size,
+		.poolSizeCount = 2,
+		.pPoolSizes = sizes,
 	};
 	VkResult result;
 
@@ -639,12 +695,27 @@ static bool build_geometry(voe_render_device *device)
 	return true;
 }
 
+// The sampler, the default texture, and every frame slot's set pointed at the
+// table. It runs after build_slots because there are no sets to write before
+// that, and before build_geometry only because nothing makes it matter.
+static bool build_textures(voe_render_device *device)
+{
+	if (!voe_render_texture_startup(device))
+		return false;
+
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		voe_render_texture_write_descriptors(
+			device, device->frames[i].descriptor);
+
+	return true;
+}
+
 bool voe_render_cube_build(voe_render_device *device)
 {
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a cube for nothing");
 
 	return build_descriptor_layout(device) && build_slots(device) &&
-	       build_geometry(device);
+	       build_textures(device) && build_geometry(device);
 }
 
 void voe_render_cube_teardown(voe_render_device *device)
@@ -653,6 +724,8 @@ void voe_render_cube_teardown(voe_render_device *device)
 
 	if (device->device == VK_NULL_HANDLE)
 		return;
+
+	voe_render_texture_shutdown(device);
 
 	voe_render_buffer_teardown(device, &device->indices);
 	voe_render_buffer_teardown(device, &device->vertices);

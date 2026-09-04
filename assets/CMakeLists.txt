@@ -1,4 +1,4 @@
 cmake_minimum_required(VERSION 3.28)
-project(voe_dev C)
+project(voe_assets C)
 include(${CMAKE_CURRENT_LIST_DIR}/../cmake/voe.cmake)
-voe_executable(dev DEPENDS render assets platform base)
+voe_module(assets DEPENDS base)

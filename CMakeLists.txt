@@ -4,6 +4,7 @@ include(cmake/voe.cmake)
 add_subdirectory(base)
 add_subdirectory(math)
 add_subdirectory(platform)
+add_subdirectory(assets)
 add_subdirectory(render)
 add_subdirectory(dev)
 

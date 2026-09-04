@@ -91,6 +91,8 @@
 #include <base/error.h>
 #include <platform/window.h>
 
+#include <stdint.h>
+
 typedef struct voe_render_device voe_render_device;
 
 // native and size come from voe_platform_window_native() and
@@ -109,6 +111,52 @@ typedef struct voe_render_device voe_render_device;
 						       voe_platform_size size,
 						       voe_base_error *error);
 void voe_render_device_destroy(voe_render_device *device);
+
+// ------------------------------------------------------------------ textures
+
+// A texture on the GPU, named by a generational id (ADR-0018).
+//
+// `index` IS THE NUMBER THE SHADER USES, NOT A KEY INTO SOMETHING THAT KNOWS THE
+// NUMBER. The fragment stage samples an array of textures and this is the
+// subscript, so there is no lookup table between a caller's id and the GPU's
+// view of it and therefore nothing that can fall out of step.
+//
+// `generation` NEVER REACHES THE GPU AND IS WHAT MAKES A STALE ID SAFE. Slots are
+// reused; an id kept across a texture being destroyed still names a live slot
+// holding something else. The generation is bumped every time a slot is claimed,
+// so an id whose generation no longer matches is refused instead of drawing
+// whatever moved in. An id that was never given out — a zeroed struct — names
+// slot 0 generation 0, which is never handed out for the same reason.
+typedef struct {
+	uint32_t index;
+	uint32_t generation;
+} voe_render_texture;
+
+// Upload width * height RGBA8 pixels and hand back the id that names them.
+//
+// The pixels are copied and the caller's buffer is its own again the moment this
+// returns — which is what lets the arena a decoder used be rewound immediately.
+//
+// FAILS WHEN THE CARD REFUSES OR THERE IS NO SLOT LEFT, and both are the world's
+// doing rather than the caller's, so both are returned. A width or height of
+// zero is the caller's bug and asserts.
+//
+// IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION AND NOT A
+// PER-FRAME ONE. The upload is staged through a buffer that has to be destroyed
+// once the copy is done, and the descriptor sets it rewrites may not be touched
+// while a frame is reading them. Streaming textures in while drawing is a
+// different mechanism and a different card.
+[[nodiscard]] bool voe_render_texture_create(voe_render_device *device,
+					     uint32_t width, uint32_t height,
+					     const uint8_t *rgba,
+					     voe_render_texture *out,
+					     voe_base_error *error);
+
+// Which texture the cubes are drawn with. An id whose generation is stale, or
+// that names no live texture, is refused — and the picture keeps whatever it had
+// rather than the caller finding out by seeing the wrong thing.
+[[nodiscard]] bool voe_render_device_set_texture(voe_render_device *device,
+						 voe_render_texture texture);
 
 // What the person asked the camera to do since the last frame. A zeroed one asks
 // for nothing, which is the orbit — see the header.
