@@ -39,13 +39,13 @@
 // with culling off, because winding and depth are other tests' claims and a
 // probe that could be culled would report nothing at all.
 
-struct voe_render_cube_uniforms {
+struct voe_render_view {
 	float4x4 view;
 	float4x4 projection;
 };
 
 [[vk::binding(0, 0)]]
-ConstantBuffer<voe_render_cube_uniforms> voe_render_cube_matrices;
+ConstantBuffer<voe_render_view> voe_render_camera;
 
 struct voe_render_matrix_probe_out {
 	float4 position : SV_Position;
@@ -78,7 +78,7 @@ voe_render_matrix_probe_vertex(uint index : SV_VertexID)
 float4 voe_render_matrix_probe_fragment(voe_render_matrix_probe_out vertex)
 	: SV_Target
 {
-	float4x4 m = voe_render_cube_matrices.view;
+	float4x4 m = voe_render_camera.view;
 
 	return float4(m[0][3], m[1][3], m[2][3], 1.0);
 }

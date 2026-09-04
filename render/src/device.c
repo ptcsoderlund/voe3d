@@ -4,22 +4,22 @@
 // live in target.c, swapchain.c and frame.c — see device_internal.h for why the
 // split is where it is.
 //
-// THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/cube.slang into
+// THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/draw.slang into
 // the build tree and #embed puts the result in the binary below; nothing is read
 // from disk at run time and there is no shader path to get wrong on someone
 // else's machine. The pipeline is here rather than in a file of its own because
 // this file is everything with a startup lifetime, and a pipeline that no resize
 // touches has one.
 //
-// THE PIPELINE IS THE CUBE'S AND SO IT NAMES THINGS cube.c OWNS. Its layout
-// names the descriptor set layout, and its vertex input describes
-// voe_render_vertex — which is why voe_render_cube_build runs before
+// THE PIPELINE NAMES THINGS THE OTHER STARTUP FILES OWN. Its layout names the
+// descriptor set layout descriptors.c builds, and its vertex input describes
+// voe_render_vertex — which is why voe_render_descriptors_build runs before
 // create_pipeline in open_device below and not after it, and why that order is
 // commented there rather than left to be rediscovered.
 //
 // DEPTH IS SET UP HERE AND IT RUNS BACKWARDS. GREATER, not LESS, because the
 // near plane is at 1.0 and the far plane at 0.0. The clear that goes with it is
-// in frame.c and the projection matrix that produces those planes is in cube.c;
+// in frame.c and the projection matrix that produces those planes is 3d's;
 // change any one of the three alone and the picture is wrong in a way that still
 // looks plausible.
 //
@@ -36,7 +36,7 @@
 //
 // THERE ARE TWO WAYS IN AND ONE OF THEM HAS NO WINDOW. voe_render_device_new
 // opens a device on a window; voe_render_device_new_headless opens one on
-// nothing, for render/tests/offscreen.c. They are the same function with one
+// nothing, for the tests. They are the same function with one
 // argument between them, and every place that argument is read says so — the
 // instance extensions, the surface, the queue family, the format, the device
 // extensions and the swapchain. Six places, and there are no others: everything
@@ -393,17 +393,46 @@ static bool create_device(voe_render_device *device)
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE,
 	};
+	// WHAT THE FRAGMENT STAGE NEEDS IN ORDER TO PICK A TEXTURE AT RUN TIME.
+	// It samples one element of an array of sixty-four, and which element is
+	// a number that came out of a buffer — the same number the CPU handed
+	// out as a texture id (ADR-0018). Indexing a sampled-image array with
+	// anything but a compile-time constant is what this feature permits, and
+	// a device created without it is undefined behaviour that happens to
+	// work on most drivers, which is the worst kind.
+	//
+	// IT IS QUERIED AND NOT ASSUMED, because enabling a feature a card does
+	// not have fails vkCreateDevice outright — which would turn a card that
+	// can very nearly do this into a card that cannot start the engine. Every
+	// Vulkan 1.3 implementation measured offers it; the message below is for
+	// the one that does not, so that the wrong picture has an explanation
+	// sitting above it in the log.
+	VkPhysicalDeviceFeatures2 available = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+	};
+	VkPhysicalDeviceFeatures2 features = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+		.pNext = &features13,
+	};
 	// The one extension, and a headless device does not enable it: there is
 	// no surface for a swapchain to be made from and nothing to present to.
 	VkDeviceCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.pNext = &features13,
+		.pNext = &features,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &queue,
 		.enabledExtensionCount = device->headless ? 0 : 1,
 		.ppEnabledExtensionNames = extensions,
 	};
 	VkResult result;
+
+	voe_render_vk.get_physical_device_features2(device->physical, &available);
+	if (available.features.shaderSampledImageArrayDynamicIndexing)
+		features.features.shaderSampledImageArrayDynamicIndexing =
+			VK_TRUE;
+	else
+		fprintf(stderr,
+			"render: this graphics card cannot index a texture array with a value from a buffer; textures will be wrong\n");
 
 	result = voe_render_vk.create_device(device->physical, &info, NULL,
 					     &device->device);
@@ -465,7 +494,7 @@ bool voe_render_device_choose_format(voe_render_device *device,
 
 // ------------------------------------------------------------------- pipeline
 
-// The compiled shader, in the binary. slangc writes cube.spv into the build tree
+// The compiled shader, in the binary. slangc writes draw.spv into the build tree
 // and cmake/voe.cmake puts that directory on this file's include path, so the
 // quoted name below resolves to a generated file and never to one in the source
 // tree. There is no fallback path and no file to ship beside the binary.
@@ -474,22 +503,22 @@ bool voe_render_device_choose_format(voe_render_device *device,
 // only fill an array of bytes. A char array is aligned for a char; handing a
 // misaligned pointer to the driver is undefined behaviour that happens to work
 // until the day it does not.
-static alignas(uint32_t) const unsigned char cube_spv[] = {
-#embed "cube.spv"
+static alignas(uint32_t) const unsigned char draw_spv[] = {
+#embed "draw.spv"
 };
 
 // Both entry points live in the one module above, spelled exactly as the shader
 // spells them — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps these two strings true.
-#define CUBE_VERTEX_ENTRY "voe_render_cube_vertex"
-#define CUBE_FRAGMENT_ENTRY "voe_render_cube_fragment"
+#define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
+#define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
 
 static bool create_pipeline(voe_render_device *device)
 {
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = sizeof(cube_spv),
-		.pCode = (const uint32_t *)cube_spv,
+		.codeSize = sizeof(draw_spv),
+		.pCode = (const uint32_t *)draw_spv,
 	};
 	VkShaderModule module = VK_NULL_HANDLE;
 	VkPipelineShaderStageCreateInfo stages[2];
@@ -498,34 +527,40 @@ static bool create_pipeline(voe_render_device *device)
 	// voe_render_vertex cannot leave this behind.
 	VkVertexInputBindingDescription binding = {
 		.binding = 0,
-		.stride = sizeof(struct voe_render_vertex),
+		.stride = sizeof(voe_render_vertex),
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 	};
-	// THESE TWO LOCATIONS AND cube.slang's TWO vk::location NUMBERS ARE ONE
+	// THESE THREE LOCATIONS AND draw.slang's THREE vk::location NUMBERS ARE ONE
 	// FACT IN TWO PLACES. Both are stated rather than counted, and both
 	// offsets come from offsetof rather than from adding up sizes — which is
 	// what makes reordering the struct's fields harmless and renaming one of
 	// them a compile error instead of a wrong picture.
-	VkVertexInputAttributeDescription attributes[2] = {
+	VkVertexInputAttributeDescription attributes[3] = {
 		{
 			.location = 0,
 			.binding = 0,
 			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = offsetof(struct voe_render_vertex, position),
+			.offset = offsetof(voe_render_vertex, position),
 		},
 		{
 			.location = 1,
 			.binding = 0,
+			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.offset = offsetof(voe_render_vertex, normal),
+		},
+		{
+			.location = 2,
+			.binding = 0,
 			// Two floats, not three: a texture coordinate.
 			.format = VK_FORMAT_R32G32_SFLOAT,
-			.offset = offsetof(struct voe_render_vertex, uv),
+			.offset = offsetof(voe_render_vertex, uv),
 		},
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = 1,
 		.pVertexBindingDescriptions = &binding,
-		.vertexAttributeDescriptionCount = 2,
+		.vertexAttributeDescriptionCount = 3,
 		.pVertexAttributeDescriptions = attributes,
 	};
 	VkPipelineInputAssemblyStateCreateInfo assembly = {
@@ -557,12 +592,12 @@ static bool create_pipeline(voe_render_device *device)
 	//
 	// THESE TWO LINES AND THE VIEWPORT'S SIGN ARE ONE FACT IN THREE PLACES,
 	// AND render/tests/offscreen.c IS WHAT HOLDS THEM TOGETHER. That test
-	// draws the cube into an offscreen image through the engine's own viewport
+	// draws a cube into an offscreen image through the engine's own viewport
 	// and reads the centre pixel back, then draws it again through the mirror
 	// of that viewport — every face wound the other way — and requires the
 	// first to show the near face and the second to show the far one. The
-	// cube's near and far faces differ in one colour channel by construction,
-	// so the two cases cannot be confused. Change either line here, or the
+	// cube's near and far faces carry the same picture the other way round
+	// by construction, so the two cases cannot be confused. Change either line here, or the
 	// sign in voe_render_frame_viewport, and it fails. Change all three and it
 	// still fails, which is the point: flipping twice looks exactly like
 	// flipping none until something is culled.
@@ -579,8 +614,8 @@ static bool create_pipeline(voe_render_device *device)
 	};
 	// GREATER, AND THAT IS THE WHOLE OF THIS ENGINE'S REVERSED DEPTH ON THE
 	// PIPELINE'S SIDE. A fragment survives when it is *nearer*, and nearer
-	// means a larger depth here, because the projection in cube.c puts the
-	// near plane at 1.0 and the far plane at 0.0. LESS_OR_EQUAL is what every
+	// means a larger depth here, because voe_3d_projection puts the near
+	// plane at 1.0 and the far plane at 0.0. LESS_OR_EQUAL is what every
 	// tutorial writes and it would keep the farthest fragment instead — on a
 	// convex shape like a cube that still draws something, which is why the
 	// card asks for the comparison to be flipped on purpose and looked at.
@@ -600,8 +635,9 @@ static bool create_pipeline(voe_render_device *device)
 		.minDepthBounds = 0.0f,
 		.maxDepthBounds = 1.0f,
 	};
-	// Written, not blended. The cube is opaque and there is nothing
-	// underneath it but the clear.
+	// Written, not blended. Everything this engine draws is opaque and there
+	// is nothing underneath it but the clear; transparency is its own
+	// decision and it starts with sorting.
 	VkPipelineColorBlendAttachmentState attachment = {
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
 				  VK_COLOR_COMPONENT_G_BIT |
@@ -642,25 +678,21 @@ static bool create_pipeline(voe_render_device *device)
 		.pColorAttachmentFormats = &device->format.format,
 		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
-	// One set holding the camera, and one push constant range holding the
-	// matrix that differs between the two draws in a frame. cube.c made the
-	// set layout, which is why it has to have run before this function does;
-	// the range is described here because it belongs to the pipeline layout
-	// and to nothing else.
+	// One set holding everything the shader reads, and one push constant
+	// range holding the one number that differs between two draws in a
+	// frame. descriptors.c made the set layout, which is why it has to have
+	// run before this function does; the range is described here because it
+	// belongs to the pipeline layout and to nothing else.
 	//
-	// BOTH STAGES NOW, AND IT USED TO BE THE VERTEX STAGE ALONE. The model
-	// matrix is read where a position is transformed and nowhere else, which
-	// is why this named one stage until card 017; the texture index beside
-	// it is read by the fragment stage, so the range has to cover both or
-	// the write is invalid. Sixty-eight bytes against a documented floor of
-	// 128 leaves room, and the probe pipeline shares this layout and pushes
-	// nothing, which is allowed: a range nothing writes is a range nothing
-	// reads.
+	// BOTH STAGES, because both read the object's record: the vertex stage
+	// wants its world matrix and the fragment stage wants the shading index
+	// in it. A range that named one stage would make the other's read
+	// invalid.
 	VkPushConstantRange push = {
 		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
 			      VK_SHADER_STAGE_FRAGMENT_BIT,
 		.offset = 0,
-		.size = sizeof(struct voe_render_push),
+		.size = sizeof(uint32_t),
 	};
 	VkPipelineLayoutCreateInfo layout = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -686,11 +718,11 @@ static bool create_pipeline(voe_render_device *device)
 	VkResult result;
 
 	VOE_BASE_DEBUG_ASSERT(device->descriptor_layout != VK_NULL_HANDLE,
-			      "building the pipeline before the cube's descriptor layout exists");
+			      "building the pipeline before the descriptor layout exists");
 
 	if (voe_render_vk.create_shader_module(device->device, &module_info, NULL,
 					       &module) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateShaderModule failed on cube.spv\n");
+		fprintf(stderr, "render: vkCreateShaderModule failed on draw.spv\n");
 		return false;
 	}
 
@@ -698,13 +730,13 @@ static bool create_pipeline(voe_render_device *device)
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_VERTEX_BIT,
 		.module = module,
-		.pName = CUBE_VERTEX_ENTRY,
+		.pName = DRAW_VERTEX_ENTRY,
 	};
 	stages[1] = (VkPipelineShaderStageCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 		.module = module,
-		.pName = CUBE_FRAGMENT_ENTRY,
+		.pName = DRAW_FRAGMENT_ENTRY,
 	};
 
 	if (voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
@@ -825,7 +857,10 @@ static void close_down(voe_render_device *device)
 		// descriptor set layout this takes away. Before the command pool,
 		// because nothing in here needs one and the order still reads the
 		// way the build order reversed.
-		voe_render_cube_teardown(device);
+		voe_render_texture_shutdown(device);
+		voe_render_geometry_shutdown(device);
+		voe_render_shading_shutdown(device);
+		voe_render_descriptors_teardown(device);
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
@@ -871,17 +906,24 @@ static voe_render_device *open_failed(voe_render_device *device,
 static voe_render_device *open_device(voe_base_arena *arena,
 				      voe_platform_native native,
 				      voe_platform_size size,
+				      voe_render_capacities capacities,
 				      voe_base_error *error, bool headless)
 {
 	voe_render_device *device;
 
 	VOE_BASE_ASSERT(arena != NULL, "opening a device without an arena");
+	VOE_BASE_ASSERT(capacities.vertices > 0 && capacities.indices > 0 &&
+				capacities.geometries > 0 &&
+				capacities.objects > 0 &&
+				capacities.shadings > 0,
+			"opening a device with room for nothing — every capacity is a number the caller has to choose");
 
 	report(error, VOE_BASE_OK);
 
 	device = calloc(1, sizeof(*device));
 	VOE_BASE_ASSERT(device != NULL, "out of memory opening a device");
 	device->headless = headless;
+	device->capacities = capacities;
 
 	// No Vulkan on the machine at all. The one failure a person can fix by
 	// installing something, and the reason this function returns a pointer
@@ -909,17 +951,31 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_device_choose_format(device, arena))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	// THESE THREE ARE IN THIS ORDER AND THE ORDER IS FORCED. The frame
-	// objects come first because the command pool is one of them and the
-	// cube's staging upload records into a command buffer out of it. The cube
-	// comes next because it makes the descriptor set layout and the uniform
-	// buffer for every slot. The pipeline comes last because its layout names
-	// that descriptor set layout and its vertex input describes the cube's
-	// vertex — build it first and it names a handle that is still null.
+	// THE REST OF STARTUP IS IN THIS ORDER AND THE ORDER IS FORCED, NOT
+	// PREFERRED. The frame objects come first because the command pool is one
+	// of them and every staging upload below records into a command buffer
+	// out of it. The descriptors come next, because the sets are what the
+	// shading buffer's and the textures' descriptors are written into — so
+	// both of those have to exist after the sets do, and the two writes after
+	// that. The pipeline comes last because its layout names the descriptor
+	// set layout: build it first and it names a handle that is still null.
 	if (!create_frame_objects(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_cube_build(device))
+
+	if (!voe_render_descriptors_build(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_shading_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_geometry_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_texture_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		voe_render_descriptors_write_shadings(device,
+						      device->frames[i].descriptor);
+		voe_render_texture_write_descriptors(device,
+						     device->frames[i].descriptor);
+	}
 	if (!create_pipeline(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// Targets before the swapchain, because the targets are the resolution
@@ -938,16 +994,18 @@ static voe_render_device *open_device(voe_base_arena *arena,
 voe_render_device *voe_render_device_new(voe_base_arena *arena,
 					 voe_platform_native native,
 					 voe_platform_size size,
+					 voe_render_capacities capacities,
 					 voe_base_error *error)
 {
 	VOE_BASE_DEBUG_ASSERT(native.window != 0,
 			      "opening a device on a window that is not there");
 
-	return open_device(arena, native, size, error, false);
+	return open_device(arena, native, size, capacities, error, false);
 }
 
 voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
 						  voe_platform_size size,
+						  voe_render_capacities capacities,
 						  voe_base_error *error)
 {
 	// A native window that is not there, and nothing reads it: the surface
@@ -955,7 +1013,7 @@ voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
 	// one.
 	voe_platform_native native = { 0 };
 
-	return open_device(arena, native, size, error, true);
+	return open_device(arena, native, size, capacities, error, true);
 }
 
 void voe_render_device_destroy(voe_render_device *device)

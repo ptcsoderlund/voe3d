@@ -14,12 +14,13 @@
 // would read every vertex across the bus on every draw. The staging copy pays
 // once at startup instead. Where the trade genuinely goes the other way — data
 // rewritten every frame — the right answer is a host-visible buffer that stays
-// mapped, which is what the uniform buffers in cube.c are and why they do not
-// come through here.
+// mapped, which is what the per-slot buffers in descriptors.c are and why they
+// are built host-visible rather than through the upload below.
 //
 // ONE ALLOCATION PER BUFFER, AND THAT DOES NOT SCALE. Same note as target.c: a
 // driver may refuse after a few thousand vkAllocateMemory calls. This engine
-// makes four buffers and one staging buffer. The allocator is a card of its own.
+// makes a handful of buffers and one staging buffer at a time. The allocator is
+// a card of its own.
 //
 // EVERY FAILURE HERE IS THE DRIVER REFUSING AND IS RETURNED, NOT ASSERTED. A
 // card with no memory type that will do, an allocation that fails: the caller
@@ -164,7 +165,7 @@ static bool fill_staging(voe_render_device *device,
 static bool copy_and_wait(voe_render_device *device,
 			  const struct voe_render_buffer *destination,
 			  const struct voe_render_buffer *staging,
-			  VkDeviceSize size)
+			  VkDeviceSize offset, VkDeviceSize size)
 {
 	VkCommandBufferAllocateInfo allocate = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -177,7 +178,7 @@ static bool copy_and_wait(voe_render_device *device,
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 	};
-	VkBufferCopy region = { .size = size };
+	VkBufferCopy region = { .dstOffset = offset, .size = size };
 	VkCommandBufferSubmitInfo submit_commands = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
 	};
@@ -232,7 +233,8 @@ static bool copy_and_wait(voe_render_device *device,
 
 bool voe_render_buffer_upload(voe_render_device *device,
 			      const struct voe_render_buffer *buffer,
-			      const void *data, VkDeviceSize size)
+			      VkDeviceSize offset, const void *data,
+			      VkDeviceSize size)
 {
 	struct voe_render_buffer staging = { 0 };
 	bool uploaded;
@@ -245,7 +247,7 @@ bool voe_render_buffer_upload(voe_render_device *device,
 			      "uploading before there is a command pool");
 
 	uploaded = fill_staging(device, &staging, data, size) &&
-		   copy_and_wait(device, buffer, &staging, size);
+		   copy_and_wait(device, buffer, &staging, offset, size);
 
 	// The staging buffer has done its whole job either way, and the copy
 	// above has finished reading it.

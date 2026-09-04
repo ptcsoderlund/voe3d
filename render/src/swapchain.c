@@ -215,8 +215,16 @@ bool voe_render_swapchain_build(voe_render_device *device,
 
 	// No surface, nothing to present to, and nothing to build. A headless
 	// device draws into its targets and something else reads them.
-	if (device->headless)
+	//
+	// IT STILL RECORDS THE SIZE IT WAS ASKED FOR, and that is not tidiness:
+	// frame.c compares every frame's size against `built` to decide whether
+	// to rebuild, so a headless device that left it at zero would throw its
+	// targets away and make them again on every single frame.
+	if (device->headless) {
+		device->rebuild = false;
+		device->built = size;
 		return true;
+	}
 
 	voe_render_swapchain_teardown(device);
 	device->rebuild = false;

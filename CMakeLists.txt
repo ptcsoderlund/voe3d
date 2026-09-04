@@ -3,9 +3,12 @@ project(voe C)
 include(cmake/voe.cmake)
 add_subdirectory(base)
 add_subdirectory(math)
+add_subdirectory(ecs)
 add_subdirectory(platform)
+add_subdirectory(scene)
 add_subdirectory(assets)
 add_subdirectory(render)
+add_subdirectory(3d)
 add_subdirectory(dev)
 
 # The root is a project with a CMakeLists.txt too, so it gets its database beside

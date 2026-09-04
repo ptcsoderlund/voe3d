@@ -139,6 +139,8 @@ void voe_render_loader_instance(VkInstance instance, bool surface)
 			  vkGetPhysicalDeviceMemoryProperties);
 	INSTANCE_FUNCTION(get_physical_device_format_properties,
 			  vkGetPhysicalDeviceFormatProperties);
+	INSTANCE_FUNCTION(get_physical_device_features2,
+			  vkGetPhysicalDeviceFeatures2);
 	INSTANCE_FUNCTION(create_device, vkCreateDevice);
 
 	// VK_KHR_surface's, and required whenever that extension was enabled —

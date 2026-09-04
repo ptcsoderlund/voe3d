@@ -470,22 +470,47 @@ refused:
 	return false;
 }
 
-bool voe_render_device_set_texture(voe_render_device *device,
-				   voe_render_texture texture)
+bool voe_render_texture_destroy(voe_render_device *device,
+				voe_render_texture texture)
 {
-	VOE_BASE_DEBUG_ASSERT(device != NULL, "setting a texture on no device");
+	struct voe_render_texture_slot *slot;
 
-	if (texture.index >= VOE_RENDER_MAX_TEXTURES)
-		return false;
-	if (!device->textures[texture.index].live)
-		return false;
-	// THE GENERATION CHECK, WHICH IS THE WHOLE REASON THE ID HAS TWO HALVES.
-	// Without it an id kept across a texture being destroyed would name
-	// whatever claimed the slot next and draw it without complaint.
-	if (device->textures[texture.index].generation != texture.generation)
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a texture on no device");
+
+	// Slot 0 is the white default and is never handed out, so an id naming
+	// it is either a zeroed struct or a mistake; either way there is nothing
+	// of the caller's to destroy.
+	if (texture.index == VOE_RENDER_NO_TEXTURE ||
+	    texture.index >= VOE_RENDER_MAX_TEXTURES)
 		return false;
 
-	device->current_texture = texture;
+	slot = &device->textures[texture.index];
+	if (!slot->live || slot->generation != texture.generation)
+		return false;
+
+	// The image may be in a descriptor set a frame is still reading, and the
+	// rewrite below may not happen while one is. This is the same wait
+	// creating a texture does and the same reason.
+	voe_render_vk.device_wait_idle(device->device);
+
+	voe_render_vk.destroy_image_view(device->device, slot->view, NULL);
+	voe_render_vk.destroy_image(device->device, slot->image, NULL);
+	voe_render_vk.free_memory(device->device, slot->memory, NULL);
+	slot->view = VK_NULL_HANDLE;
+	slot->image = VK_NULL_HANDLE;
+	slot->memory = VK_NULL_HANDLE;
+
+	// The generation is bumped here as well as on a claim, so that the id
+	// just destroyed is refused immediately rather than only once something
+	// else takes the slot.
+	slot->generation++;
+	slot->live = false;
+
+	// Back to the white default, so the array stays valid — every element
+	// has to be a real descriptor whether or not the shader samples it.
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		voe_render_texture_write_descriptors(device,
+						     device->frames[i].descriptor);
 	return true;
 }
 
@@ -567,8 +592,6 @@ bool voe_render_texture_startup(voe_render_device *device)
 
 	slot->generation = 1;
 	slot->live = true;
-	device->current_texture = (voe_render_texture){ .index = 0,
-						       .generation = 1 };
 	return true;
 }
 

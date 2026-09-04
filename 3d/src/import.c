@@ -1,0 +1,512 @@
+// The import: a model's arrays uploaded through `render`, its node tree
+// flattened, and one entity per drawn primitive.
+//
+// THE ORDER IS FORCED AND NOT CHOSEN. Pictures first, because a material names
+// texture ids; materials next, because a primitive names a material; geometry
+// next, because an entity names a range; the tree last, because an entity needs
+// all three. Nothing here can be reordered without something naming an id that
+// does not exist yet.
+//
+// THE TREE IS WALKED WITH AN EXPLICIT STACK IN THE ARENA (rule 14). The stack is
+// as long as the file has nodes, which is enough because `assets` has already
+// checked that no node is claimed as a child twice — so a node is pushed at most
+// once and the walk cannot loop. The depth limit beside it is the rule's named
+// limit, and it is what a file with a legal but absurd nesting is refused past.
+//
+// A WORLD MATRIX IS DECOMPOSED BECAUSE THE COMPONENT HOLDS THREE PARTS. The
+// translation comes straight out of the last column, the scale is the length of
+// each basis vector, and the rotation is what the basis becomes once those
+// lengths are divided out. See rotation_of() for which of the four ways of
+// reading a quaternion out of a matrix this is and why the branch is there.
+//
+// NOTHING HERE UNWINDS ON FAILURE, and the header says so out loud: `render`
+// cannot free geometry yet, and half a model in a world nobody drew costs
+// nothing. A caller that cannot load its model destroys the world.
+#include <3d/import.h>
+#include <3d/material_component.h>
+#include <3d/mesh_component.h>
+#include <assets/model.h>
+#include <base/assert.h>
+#include <math/quat.h>
+#include <scene/transform_system.h>
+
+#include <math.h>
+#include <stdio.h>
+
+// Everything one import needs to carry between its steps.
+struct import {
+	voe_ecs_world *world;
+	voe_render_device *device;
+	voe_base_arena *arena;
+	const voe_assets_model *model;
+
+	// One per picture, one per glTF material, one per primitive — the ids
+	// that came back from the uploads, indexed the way the file indexes
+	// them.
+	voe_render_texture *textures;
+	voe_3d_material *materials;
+	voe_render_geometry *geometries;
+
+	voe_ecs_entity *entities;
+	uint32_t entity_count;
+};
+
+// One frame of the tree walk: which node, where its parent put it, and how deep
+// it is.
+struct frame {
+	uint32_t node;
+	voe_math_float4x4 world;
+	uint32_t depth;
+};
+
+static bool no_room(voe_base_error *error, const char *what)
+{
+	fprintf(stderr,
+		"3d: no room for %s while importing a model — the world or the device was made smaller than this file needs\n",
+		what);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_REFUSED;
+	return false;
+}
+
+// A texture id per picture in the file. `render` deduplicates nothing: the
+// deduplication is that `assets` resolved every glTF texture to a picture, so
+// this uploads each one once and every material that wanted it gets the same id.
+static bool upload_images(struct import *import, voe_base_error *error)
+{
+	const voe_assets_model *model = import->model;
+
+	if (model->image_count == 0)
+		return true;
+
+	import->textures = voe_base_arena_push(
+		import->arena,
+		(size_t)model->image_count * sizeof(*import->textures));
+
+	for (uint32_t i = 0; i < model->image_count; i++) {
+		if (!voe_render_texture_create(import->device,
+					       model->images[i].width,
+					       model->images[i].height,
+					       model->images[i].pixels,
+					       &import->textures[i], error))
+			return false;
+	}
+	return true;
+}
+
+// The id of the picture at `index`, or the "there isn't one" id. A material
+// naming no picture and a material naming one that did not load are the same
+// thing to a shader: it samples white.
+static voe_render_texture texture_at(const struct import *import,
+				     uint32_t index)
+{
+	voe_render_texture none = { .index = VOE_RENDER_NO_TEXTURE,
+				    .generation = 0 };
+
+	if (index == VOE_ASSETS_MODEL_NONE ||
+	    index >= import->model->image_count)
+		return none;
+	return import->textures[index];
+}
+
+static bool upload_materials(struct import *import, voe_base_error *error)
+{
+	const voe_assets_model *model = import->model;
+
+	if (model->material_count == 0)
+		return true;
+
+	import->materials = voe_base_arena_push(
+		import->arena,
+		(size_t)model->material_count * sizeof(*import->materials));
+
+	for (uint32_t i = 0; i < model->material_count; i++) {
+		const voe_assets_material *from = &model->materials[i];
+
+		import->materials[i] = (voe_3d_material){
+			.base_colour = from->base_colour,
+			.metallic = from->metallic,
+			.roughness = from->roughness,
+			.emissive = from->emissive,
+			.base_colour_texture =
+				texture_at(import, from->base_colour_image),
+			.metallic_roughness_texture = texture_at(
+				import, from->metallic_roughness_image),
+			.normal_texture =
+				texture_at(import, from->normal_image),
+			.occlusion_texture =
+				texture_at(import, from->occlusion_image),
+			.emissive_texture =
+				texture_at(import, from->emissive_image),
+		};
+
+		// One record per glTF material and not one per entity, so two
+		// entities wearing one material share the record as well as the
+		// texture ids.
+		if (!voe_3d_material_upload(import->device,
+					    &import->materials[i], error))
+			return false;
+	}
+	return true;
+}
+
+// glTF's default material: white, fully metallic, fully rough, no pictures. It
+// is what an unmaterialled primitive is *defined* to be, so this is the file's
+// answer and not a substitute for it — and it gets a shading record of its own
+// like any other material.
+static bool default_material(struct import *import, voe_3d_material *out,
+			     voe_base_error *error)
+{
+	*out = (voe_3d_material){
+		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+		.metallic = 1.0f,
+		.roughness = 1.0f,
+		.base_colour_texture = { .index = VOE_RENDER_NO_TEXTURE },
+		.metallic_roughness_texture = { .index = VOE_RENDER_NO_TEXTURE },
+		.normal_texture = { .index = VOE_RENDER_NO_TEXTURE },
+		.occlusion_texture = { .index = VOE_RENDER_NO_TEXTURE },
+		.emissive_texture = { .index = VOE_RENDER_NO_TEXTURE },
+	};
+
+	return voe_3d_material_upload(import->device, out, error);
+}
+
+// One primitive's attributes, interleaved into whatever a vertex is on the GPU.
+// The interleaving is here because the layout is `render`'s and `assets` may not
+// name it: separate arrays go in, one array of vertices comes out.
+static bool upload_geometry(struct import *import, voe_base_error *error)
+{
+	const voe_assets_model *model = import->model;
+	struct voe_base_arena_mark mark;
+
+	if (model->primitive_count == 0)
+		return true;
+
+	import->geometries = voe_base_arena_push(
+		import->arena,
+		(size_t)model->primitive_count * sizeof(*import->geometries));
+
+	for (uint32_t i = 0; i < model->primitive_count; i++) {
+		const voe_assets_primitive *primitive = &model->primitives[i];
+		voe_render_vertex *vertices;
+
+		// The interleaved copy is scratch: `render` has taken its own
+		// copy by the time the upload returns, so the arena goes back
+		// to where it was before the next primitive.
+		mark = voe_base_arena_mark(import->arena);
+		vertices = voe_base_arena_push(
+			import->arena, (size_t)primitive->vertex_count *
+					       sizeof(*vertices));
+
+		for (uint32_t v = 0; v < primitive->vertex_count; v++) {
+			vertices[v].position = primitive->positions[v];
+			// A file without normals leaves them at nothing rather
+			// than having this invent them. The card that lights
+			// anything is the card that decides what a mesh with no
+			// normals should look like.
+			vertices[v].normal =
+				primitive->normals != NULL ?
+					primitive->normals[v] :
+					(voe_math_float3){ 0.0f, 0.0f, 0.0f };
+			vertices[v].uv = primitive->uvs != NULL ?
+						 primitive->uvs[v] :
+						 (voe_math_float2){ 0.0f, 0.0f };
+		}
+
+		if (!voe_render_geometry_create(import->device, vertices,
+						primitive->vertex_count,
+						primitive->indices,
+						primitive->index_count,
+						&import->geometries[i], error)) {
+			voe_base_arena_rewind(import->arena, mark);
+			return false;
+		}
+
+		voe_base_arena_rewind(import->arena, mark);
+	}
+	return true;
+}
+
+// ------------------------------------------------------- the node tree
+
+// A rotation out of the rotation part of a basis, which is the one piece of
+// arithmetic in this file that is not obvious.
+//
+// FOUR BRANCHES, AND THE BRANCH IS FOR PRECISION AND NOT FOR CORRECTNESS. Each
+// component of the quaternion can be recovered from the diagonal, and each
+// formula divides by that component — so the one to use is the largest, and the
+// trace says which. Taking the w branch always is the version that works until
+// something is turned by half a turn, where w is zero and the division is by
+// nothing.
+//
+// THE SIGNS FOLLOW voe_math_float4x4_from_quat AND ARE PROVEN BY A ROUND TRIP.
+// A quaternion read out with x, y and z negated describes the opposite rotation,
+// which draws a mirrored model — the exact failure this card's verification
+// looks for. 3d/tests/import.c composes the transform back into a matrix and
+// checks a known point, which is what catches it.
+static voe_math_quat rotation_of(const voe_math_float4x4 *basis)
+{
+	float trace = basis->m[0][0] + basis->m[1][1] + basis->m[2][2];
+	voe_math_quat q;
+	float root;
+	float scale;
+
+	if (trace > 0.0f) {
+		root = sqrtf(trace + 1.0f);
+		scale = 0.5f / root;
+		q.w = 0.5f * root;
+		q.x = (basis->m[2][1] - basis->m[1][2]) * scale;
+		q.y = (basis->m[0][2] - basis->m[2][0]) * scale;
+		q.z = (basis->m[1][0] - basis->m[0][1]) * scale;
+		return q;
+	}
+
+	if (basis->m[0][0] >= basis->m[1][1] &&
+	    basis->m[0][0] >= basis->m[2][2]) {
+		root = sqrtf(1.0f + basis->m[0][0] - basis->m[1][1] -
+			     basis->m[2][2]);
+		scale = 0.5f / root;
+		q.x = 0.5f * root;
+		q.y = (basis->m[0][1] + basis->m[1][0]) * scale;
+		q.z = (basis->m[0][2] + basis->m[2][0]) * scale;
+		q.w = (basis->m[2][1] - basis->m[1][2]) * scale;
+		return q;
+	}
+
+	if (basis->m[1][1] >= basis->m[2][2]) {
+		root = sqrtf(1.0f + basis->m[1][1] - basis->m[0][0] -
+			     basis->m[2][2]);
+		scale = 0.5f / root;
+		q.y = 0.5f * root;
+		q.x = (basis->m[0][1] + basis->m[1][0]) * scale;
+		q.z = (basis->m[1][2] + basis->m[2][1]) * scale;
+		q.w = (basis->m[0][2] - basis->m[2][0]) * scale;
+		return q;
+	}
+
+	root = sqrtf(1.0f + basis->m[2][2] - basis->m[0][0] - basis->m[1][1]);
+	scale = 0.5f / root;
+	q.z = 0.5f * root;
+	q.x = (basis->m[0][2] + basis->m[2][0]) * scale;
+	q.y = (basis->m[1][2] + basis->m[2][1]) * scale;
+	q.w = (basis->m[1][0] - basis->m[0][1]) * scale;
+	return q;
+}
+
+// A world matrix into the three parts the transform component holds. Vectors are
+// columns, so the transformed axes are the matrix's columns and their lengths
+// are the scale; the translation is the last column.
+static voe_scene_transform decomposed(voe_math_float4x4 world)
+{
+	voe_math_float3 axes[3];
+	voe_math_float4x4 basis = world;
+	voe_scene_transform transform;
+	float lengths[3];
+
+	for (uint32_t column = 0; column < 3; column++) {
+		axes[column] = (voe_math_float3){ world.m[0][column],
+						  world.m[1][column],
+						  world.m[2][column] };
+		lengths[column] = voe_math_float3_length(axes[column]);
+	}
+
+	transform.position = (voe_math_float3){ world.m[0][3], world.m[1][3],
+						world.m[2][3] };
+	transform.scale = (voe_math_float3){ lengths[0], lengths[1],
+					     lengths[2] };
+
+	// A zero-length axis is a scale of nothing in that direction — a
+	// flattened object, which a file may legitimately hold. There is no
+	// rotation to recover from it, so the axis is left as it is and the
+	// quaternion comes out of whatever basis remains; dividing by it would
+	// be a division by zero and an object full of NaNs.
+	for (uint32_t column = 0; column < 3; column++) {
+		float length = lengths[column] > 0.0f ? lengths[column] : 1.0f;
+
+		basis.m[0][column] = axes[column].x / length;
+		basis.m[1][column] = axes[column].y / length;
+		basis.m[2][column] = axes[column].z / length;
+	}
+
+	transform.rotation = rotation_of(&basis);
+	return transform;
+}
+
+// One entity per primitive of the node's mesh, with the node's world transform.
+static bool place_node(struct import *import, const struct frame *frame,
+		       voe_base_error *error)
+{
+	const voe_assets_model *model = import->model;
+	const voe_assets_node *node = &model->nodes[frame->node];
+	const voe_assets_mesh *mesh;
+	voe_scene_transform transform;
+
+	if (node->mesh == VOE_ASSETS_MODEL_NONE)
+		return true;
+
+	// A node naming a mesh the file does not describe cannot get this far —
+	// the reader checks it — but this is the index that reaches an array, so
+	// it is checked where the array is rather than trusted from another
+	// folder away. The same goes for every index inside the loop below.
+	if (import->geometries == NULL || node->mesh >= model->mesh_count)
+		return true;
+
+	mesh = &model->meshes[node->mesh];
+	transform = decomposed(frame->world);
+
+	for (uint32_t p = 0; p < mesh->primitive_count; p++) {
+		uint32_t index = mesh->first_primitive + p;
+		const voe_assets_primitive *primitive;
+		voe_3d_material material;
+		voe_ecs_entity entity;
+
+		if (index >= model->primitive_count)
+			return true;
+		primitive = &model->primitives[index];
+
+		// The bound is checked here as well as in the reader, because
+		// this is the index that reaches an array and the number came
+		// out of a file. VOE_ASSETS_MODEL_NONE is above any real count,
+		// so a primitive that named no material takes the same branch:
+		// glTF says an unmaterialled primitive is the default material,
+		// and the default material is white and fully rough.
+		if (import->materials == NULL ||
+		    primitive->material >= model->material_count) {
+			if (!default_material(import, &material, error))
+				return false;
+		} else {
+			material = import->materials[primitive->material];
+		}
+
+		if (!voe_ecs_entity_create(import->world, &entity))
+			return no_room(error, "another entity");
+		if (!voe_scene_transform_add(import->world, entity, transform))
+			return no_room(error, "another transform");
+		if (!voe_3d_mesh_add(import->world, entity,
+				     (voe_3d_mesh){ .geometry =
+							    import->geometries[index] }))
+			return no_room(error, "another mesh component");
+		if (!voe_3d_material_add(import->world, entity, material))
+			return no_room(error, "another material component");
+
+		import->entities[import->entity_count++] = entity;
+	}
+
+	return true;
+}
+
+// How many entities the file will make, so that the array of them is one push.
+static uint32_t count_entities(const voe_assets_model *model)
+{
+	uint32_t total = 0;
+
+	for (uint32_t i = 0; i < model->node_count; i++) {
+		if (model->nodes[i].mesh == VOE_ASSETS_MODEL_NONE)
+			continue;
+		total += model->meshes[model->nodes[i].mesh].primitive_count;
+	}
+	return total;
+}
+
+static bool walk(struct import *import, voe_base_error *error)
+{
+	const voe_assets_model *model = import->model;
+	struct frame *stack;
+	uint32_t open = 0;
+
+	if (model->node_count == 0)
+		return true;
+
+	// As long as the file has nodes, which is enough: `assets` has checked
+	// that no node is claimed as a child twice, so every node is pushed at
+	// most once.
+	stack = voe_base_arena_push(import->arena,
+				    (size_t)model->node_count * sizeof(*stack));
+
+	for (uint32_t i = 0; i < model->root_count; i++) {
+		stack[open++] = (struct frame){
+			.node = model->roots[i],
+			.world = model->nodes[model->roots[i]].local,
+			.depth = 1,
+		};
+	}
+
+	while (open > 0) {
+		struct frame frame = stack[--open];
+		const voe_assets_node *node = &model->nodes[frame.node];
+
+		if (frame.depth > VOE_3D_IMPORT_MAX_DEPTH) {
+			fprintf(stderr,
+				"3d: a model whose nodes nest more than %u deep\n",
+				VOE_3D_IMPORT_MAX_DEPTH);
+			if (error != NULL)
+				*error = VOE_BASE_ERROR_UNSUPPORTED;
+			return false;
+		}
+
+		if (!place_node(import, &frame, error))
+			return false;
+
+		for (uint32_t c = 0; c < node->child_count; c++) {
+			uint32_t child = node->children[c];
+
+			// The parent's matrix on the left: composition reads
+			// right to left, so the child's own transform is
+			// applied first and the parent's carries it into the
+			// world.
+			stack[open++] = (struct frame){
+				.node = child,
+				.world = voe_math_float4x4_mul(
+					frame.world,
+					model->nodes[child].local),
+				.depth = frame.depth + 1,
+			};
+		}
+	}
+
+	return true;
+}
+
+bool voe_3d_import_glb(voe_ecs_world *world, voe_render_device *device,
+		       voe_base_arena *arena, const uint8_t *bytes,
+		       size_t size, voe_3d_import *out, voe_base_error *error)
+{
+	voe_assets_model model;
+	struct import import = { 0 };
+	uint32_t expected;
+
+	VOE_BASE_ASSERT(world != NULL, "importing a model into no world");
+	VOE_BASE_ASSERT(device != NULL, "importing a model with no device");
+	VOE_BASE_ASSERT(arena != NULL, "importing a model without an arena");
+	VOE_BASE_ASSERT(out != NULL, "importing a model into nothing");
+
+	if (!voe_assets_model_read_glb(bytes, size, arena, &model, error))
+		return false;
+
+	import.world = world;
+	import.device = device;
+	import.arena = arena;
+	import.model = &model;
+
+	expected = count_entities(&model);
+	// One push even when it is empty, so that `entities` is never a pointer
+	// nobody may read: a model with nothing drawable in it is unusual and
+	// legal.
+	import.entities = voe_base_arena_push(
+		arena, (size_t)(expected == 0 ? 1 : expected) *
+			       sizeof(*import.entities));
+
+	if (!upload_images(&import, error) ||
+	    !upload_materials(&import, error) ||
+	    !upload_geometry(&import, error) || !walk(&import, error))
+		return false;
+
+	*out = (voe_3d_import){
+		.entities = import.entities,
+		.entity_count = import.entity_count,
+		.texture_count = model.image_count,
+		.material_count = model.material_count,
+		.geometry_count = model.primitive_count,
+	};
+	return true;
+}

@@ -1,7 +1,7 @@
 # 018 — model loading: glTF binary
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-code (kanban-coder)
 blocked-by: 017
 
 Written by us (ADR-0023). **Import only — glTF is never a scene format**
@@ -300,3 +300,132 @@ answer and the picture is the proof.
 - Malformed chunk headers, a truncated file and unsupported features are all
   recoverable failures with tests. Unsupported must say *what* it did not support.
 - `check.cmake` zero. Windows is the principal's.
+
+## Notes (coder, 2026-09-04)
+
+Done in full, all five steps of the suggested order. `check.cmake` exits zero.
+
+### What was made
+
+- **`ecs`** — `world.h` (entities as generational ids, a world out of an arena,
+  fixed capacities), `component.h` (a table per type, entity↔row both ways as one
+  load each, swap-remove), `intent.h` (a queue per type, drained by its owner).
+  A component or intent type is registered against the address of a
+  `struct voe_ecs_key` the owning module defines, so a module's own API takes only
+  the world and no folder has to carry type ids around. No archetypes, no
+  queries, no hierarchy.
+- **`scene`** — `transform` (position, quaternion, scale; the matrix on demand;
+  no parent) and `camera` (eye, yaw, pitch, field of view, two planes; the view
+  matrix, never the projection). Two camera intents: a placement (absolute) and a
+  motion (relative, over a duration). Placements apply before motions in one run,
+  which is what makes a handover from a path to a hand seamless with no special
+  case — card 015's `flying` bool is gone.
+- **`render`** — rebuilt around ids. `voe_render_geometry` is a range in one
+  vertex pool and one index pool; `voe_render_texture` unchanged;
+  `voe_render_shading` is a row in a record buffer the fragment stage reads.
+  A frame is `_begin` / `_draw` / `_end`, and per-object records (world matrix
+  plus shading index) go into one buffer per frame slot. The only push constant
+  left is the object's number. `src/cube.c` is deleted; what was in it is now
+  `descriptors.c`, `geometry.c`, `shading.c`, `scene`'s camera and `3d`'s
+  projection. Indices are 32-bit. `VOE_RENDER_MAX_TEXTURES` is 64.
+- **`3d`** — `projection` (reverse-Z, finite far plane, no Y flip), `mesh` and
+  `material` components, the draw system (one draw per mesh in table order), and
+  `import` (a `.glb` into entities).
+- **`assets`** — `model.h` plus a JSON reader (`src/json.*`), the container
+  (`src/model_glb.c`) and the description (`src/model_gltf.c`). Depends on `math`
+  now.
+- **`dev`** — a world: two placeholder cubes (`src/cubes.*`), the model
+  (`src/model.glb`), one camera. The clock, the orbit and the spin live here as a
+  call site's business until `app` exists, and the file's header says so.
+
+### Verified, on Linux for everything that needs no GPU and on Windows for the rest
+
+- `cmake -P check.cmake` — every step green on Windows (clang 22, 23 tests).
+- On Linux: every folder's sources and tests compile with the same flag set, the
+  17 tests that need no graphics card pass, and `clang --analyze` is clean. The
+  Slang shader and the four Vulkan tests could not run there — no `slangc`, no
+  `ninja`, no Wayland development package on that machine.
+- `render/offscreen` passing on hardware is what says the culling, the one Y
+  flip, the winding and the front-face constant still agree after the rewrite;
+  `render/matrix` says slangc's row-major flag still holds through the new
+  structured buffers; `render/pools` says the ranges do not overlap and a stale
+  id is refused.
+- `grep -r Vk ecs scene 3d` finds nothing. No component holds a pointer.
+- **Not checked on Windows: the dev window.** Three lettered cubes, every "F"
+  upright and reading forwards. That is the mirrored-model check and it is a
+  look, not a test — `3d/tests/import.c` is its automated half.
+- **Not checked at all: Linux at run time.** The machine in front of the coder
+  could not build `platform`, so nothing was drawn on Linux. Whatever that turns
+  up is a new card.
+
+### Deviations and findings
+
+- **DEVIATION: Verify says "`render` names no entity, file, mesh or material",
+  and the body of the card says "bind and draw a mesh by ids" and gives `render`
+  a material record.** Taken as: `render`'s *vocabulary* is GPU-side, so the
+  types are `voe_render_geometry` (a range in the pools) and
+  `voe_render_shading` (a record of factors and texture ids). There is no
+  `voe_render_mesh` and no `voe_render_material`, and nothing in `render` names an
+  entity or a file. The words still appear in comments in `render` that explain
+  what a range is for, because the boundary cannot be explained without them.
+- **Running out of room is `VOE_BASE_ERROR_REFUSED`.** A full pool, a full table
+  and a world with no room left all come back as that, because there is no code
+  for "no room" and rule 13 says a code is added when a card needs one — adding
+  one is an edit to `base`, which this card does not name. If a caller should be
+  able to tell "the file is fine, you asked for too little" from "the driver said
+  no", that is the card that adds the code.
+- **A world matrix is decomposed into position, rotation and scale on import,
+  and shear is lost.** The transform component holds three parts, so a composed
+  matrix has to be taken apart; the quaternion is recovered by a four-branch
+  extraction in `3d/src/import.c` and proven by a round trip in
+  `3d/tests/import.c`. A matrix-to-quaternion function may want to live in `math`
+  eventually; it was kept private here because the card does not name `math`.
+- **The orbit's own tests are gone.** `render/tests/camera.c` checked that the
+  orbit kept its distance, looked at what it orbited and never clipped a cube.
+  The orbit is a placeholder camera path at a call site now, so those claims have
+  nowhere to live; what was worth keeping moved to `scene/tests/camera.c` (the
+  flying camera) and `3d/tests/projection.c` (reversed depth, the aspect ratio).
+- **`shaderSampledImageArrayDynamicIndexing` is now queried and enabled.** The
+  fragment stage indexes the texture array with a number out of a buffer, which
+  needs that feature; it was already being indexed with a push constant before
+  this card without the feature enabled, which was undefined behaviour that
+  happened to work. Enabled where the card offers it, with a message where it does
+  not.
+- **A misplaced comment in `render/src/device_internal.h`, not touched.** The
+  paragraph describing `struct voe_render_image` sits above the one describing
+  `struct voe_render_texture_slot`, so it reads as one comment about the wrong
+  struct. It predates this card and moving it is not this card's.
+- **Animation and skinning are ignored rather than refused.** A file with them
+  loads and draws its bind pose. Refusing would turn most models people have into
+  an error message; the card says skins and joints are later, not never.
+
+## During review (2026-09-04)
+
+The principal added `dev/src/textured_primitives_human.glb` — a Blender export:
+three primitives sharing one material, an albedo map and an ORM map, both a
+thousand pixels square — and asked for it on screen in `dev`.
+
+- `dev` now imports two models rather than one, through one function taking the
+  bytes and an offset, so a third is one line. Each is tried on its own: a file
+  that cannot be read does not take the other one with it.
+- The orbit's radius went from 5.5 to 7.0 metres, because the scene is about nine
+  metres across now. It decides nothing.
+- **The albedo map is what shows. The ORM map is read, uploaded, deduplicated
+  against the same material's normal channel, and stored in the material
+  component, and nothing multiplies by it** — there is no light for a surface to
+  be rough or metallic in front of, and inventing one here would be taking card
+  019's decision. Say the word and occlusion can multiply the base colour today,
+  which is the one use of that map that means something without a light.
+- **This file's material sets `doubleSided: true` and its ORM map is wired into
+  glTF's `metallicRoughnessTexture` *and* its `normalTexture`, with
+  `occlusionTexture` left empty.** Both are honest readings of the file and both
+  are now written down in `assets/include/assets/model.h`: `doubleSided` is
+  ignored because nothing in this engine can cull differently yet, and an
+  occlusion channel that is not in the `occlusionTexture` slot is not an
+  occlusion channel as far as glTF is concerned. If card 019 is to read
+  occlusion from that picture, the export wants `occlusionTexture` pointing at it
+  as well — which is glTF's standard arrangement for a packed ORM.
+- Verified on Linux: the reader parses the file into 3 primitives, 1 material and
+  2 pictures with the albedo and ORM channels on the right slots; everything
+  compiles with the engine's flag set; `clang --analyze` is clean. `check.cmake`
+  and the window itself are the principal's, on Windows.

@@ -1,23 +1,25 @@
-// One frame: wait for the last one on this slot, draw the cubes into the slot's
-// offscreen target, take a swapchain image, copy the target into it, present it.
+// One frame, in three calls: begin waits for the slot and opens a recording,
+// draw records one object into it, end submits it and puts it on the window.
 // The clears are not draws — they are the load operations dynamic rendering
 // performs as it begins — so the only things recorded inside the rendering are
 // the draws.
 //
-// THE CLOCK IS COUNTED HERE AND IT IS WHAT MOVES THE SCENE THAT NOBODY IS
-// DRIVING. A recorded frame adds a nominal frame's worth of seconds to
-// device->seconds, and cube.c turns that one number into a spinning cube and —
-// while nobody is flying it — an orbiting camera. It is counted and not measured
-// because this engine has no clock yet: platform will own one, card 020 is the
-// card that brings it, and everything downstream of this line is already in
-// seconds so that replacing it is one line. See NOMINAL_FRAME_SECONDS below.
+// THREE CALLS AND NOT ONE, BECAUSE THE CALLER IS WHAT KNOWS WHAT TO DRAW. Until
+// card 018 this was a single function and the scene was two cubes inside this
+// folder; now `3d` walks its tables between the begin and the end, and render
+// never learns what a mesh is for.
 //
-// THE CAMERA IS STEPPED ON THAT SAME NOMINAL FRAME, BESIDE THE CLOCK AND FOR THE
-// SAME REASON. Both happen after every early return this function has, so a
-// frame that turned back without drawing — no swapchain, a stale one, a window
-// with no area — advances neither. A camera that moved on a frame that was never
-// drawn would drift by one frame's worth of input every time the window
-// resized.
+// WHAT IS OPEN BETWEEN THEM LIVES IN THE DEVICE. device->recording says a
+// recording is open, device->object_count says how many objects have gone into
+// it, and device->image_index says which swapchain image _end has to blit into.
+// There is exactly one frame open at a time, so a token handed to the caller
+// would be a second place for that to live and a second thing to get wrong.
+//
+// THE CLOCK IS GONE FROM THIS FILE AND SO IS THE CAMERA. Both were here while
+// render owned the scene: a frame counted a nominal frame's worth of seconds and
+// stepped a camera by what the caller said the person did. The camera is
+// `scene`'s now and the clock is the frame loop's, so what arrives here is two
+// matrices that somebody else already worked out.
 //
 // NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into images the
 // engine owns (target.c) and the swapchain image is written once, by a blit, as
@@ -26,68 +28,60 @@
 // in order to exist at all.
 //
 // THE COPY IS A BLIT AND THAT IS A STARTING POINT. vkCmdBlitImage is one call
-// and it scales, which is everything this card needs. A full-screen quad becomes
+// and it scales, which is everything this needs. A full-screen quad becomes
 // necessary the moment anything wants to run a shader between the target and the
 // screen — tone mapping first — and that is the card that replaces this.
 //
 // THE ONE Y FLIP IN THIS ENGINE IS voe_render_frame_viewport BELOW. Vulkan's
 // clip space has +Y pointing down the screen and this engine has +Y up, and the
 // whole of the reconciliation is a negative viewport height there. Never a
-// negated row in a projection matrix — see voe_render_cube_projection, which
-// deliberately does not have one — and never both: flipping twice looks exactly
-// like flipping none until something is culled, and then it is a bug nobody can
-// see. The front-face constant that goes with this flip is set on the pipeline in
-// device.c, and the pair of them is proven by render/tests/offscreen.c.
+// negated row in a projection matrix — voe_3d_projection deliberately does not
+// have one — and never both: flipping twice looks exactly like flipping none
+// until something is culled, and then it is a bug nobody can see. The front-face
+// constant that goes with this flip is set on the pipeline in device.c, and the
+// pair of them is proven by render/tests/offscreen.c.
 //
 // DEPTH RUNS BACKWARDS AND THE CLEAR IS THE HALF OF IT THAT LIVES HERE. The
 // buffer is cleared to VOE_RENDER_DEPTH_CLEAR, which is 0, which is this
 // engine's far plane; the comparison is GREATER, set on the pipeline in device.c;
-// and the near plane is at 1.0, which comes out of the projection matrix in
-// cube.c. Three files, one convention, and clearing to 1 instead — the habit from
-// every tutorial — leaves a depth test that rejects everything.
+// and the near plane is at 1.0, which comes out of the projection matrix in `3d`.
+// Three files, one convention, and clearing to 1 instead — the habit from every
+// tutorial — leaves a depth test that rejects everything.
 //
 // THE DEPTH IMAGE IS NEVER STORED AND NEVER COPIED. Its storeOp is DONT_CARE
 // because nothing reads it after the rendering ends: it exists to sort fragments
-// within one frame and is rebuilt from the clear on the next. A shadow map or a
-// depth-aware post process is what would change that, and each is its own card.
+// within one frame and is rebuilt from the clear on the next.
 //
 // TWO INDICES RUN THROUGH THIS FILE AND THEY ARE NOT INTERCHANGEABLE. A frame
 // slot counts how far ahead the CPU is allowed to run and is bounded by
 // VOE_RENDER_FRAMES_IN_FLIGHT; a swapchain image index is whatever the driver
 // hands back from an acquire and is bounded by the image count it chose. They
-// are often both 2 or 3 and that means nothing. Each array is reached through
-// one accessor below, each accessor asserts its own bound, and past that point
-// the code holds pointers and has no index left to confuse — which is the point
-// of the shape, because the mistake is silent otherwise.
+// are often both 2 or 3 and that means nothing. Each array is reached through one
+// accessor below and each accessor asserts its own bound.
 //
 // THE FENCE WAIT IS FOR THE FRAME VOE_RENDER_FRAMES_IN_FLIGHT AGO, NOT THE LAST
 // ONE, AND THAT GAP IS THE WHOLE OF THE OVERLAP. Waiting on this slot's fence
-// leaves every frame submitted since it still running on the GPU; one slot would
-// put the wait back on the previous frame and there would be no overlap left.
-// What that fence makes safe is this slot's own command buffer, its own acquire
-// semaphore, its own target, and its own uniform buffer, and nothing else.
+// leaves every frame submitted since it still running on the GPU. What that
+// fence makes safe is this slot's own command buffer, its own acquire semaphore,
+// its own target, its own uniform buffer and its own object buffer, and nothing
+// else.
 //
 // THE TWO SEMAPHORE KINDS HAVE DIFFERENT LIFETIMES. The acquire semaphore is per
 // slot, guarded by the fence beside it. The rendering-finished semaphore is per
 // swapchain image, because present is what waits on it and present hands back no
-// fence to say when it stopped. See device_internal.h for the full reasoning;
-// flattening the two is a race the validation layers do not reliably catch.
+// fence to say when it stopped. Flattening the two is a race the validation
+// layers do not reliably catch.
 //
 // THE ACQUIRE IS WAITED ON AT THE BLIT AND NOT BEFORE. The first thing a frame
 // does to a swapchain image is a transfer, not a colour write, and the scene
 // does not touch that image at all — so drawing the target can start while the
 // presentation engine is still finished with the image, and only the copy has to
-// wait. The wait stage and the stage the swapchain image's barriers name are the
-// same one on purpose; making them disagree is how a layout transition ends up
-// ordered before the semaphore it depends on.
+// wait.
 //
-// FIVE BARRIERS, ALL synchronization2. Three put the engine's own images into the
-// layout the next thing needs — colour drawn into then read out of, depth drawn
-// into and never read — and two do the same for the swapchain image, which
-// arrives in whatever layout the presentation engine left it and leaves in the
-// one present demands. Every image comes from UNDEFINED, because in every case
-// each pixel is about to be overwritten by a clear or a copy and there is nothing
-// to preserve.
+// A HEADLESS DEVICE RUNS EVERY LINE OF THIS EXCEPT THE THREE THAT NEED A WINDOW:
+// there is nothing to acquire, nothing to blit into and nothing to present, so
+// _end submits and returns. That is what lets a test drive the same recording
+// path the window does and then read the target itself.
 //
 // A SWAPCHAIN GOES STALE AND THAT IS ORDINARY. Out-of-date means the surface
 // changed under us and the swapchain has to be built again; suboptimal means it
@@ -101,31 +95,19 @@
 #include <stdio.h>
 #include <string.h>
 
-// The colour behind the cubes. It is deliberately none of the eight a cube's
-// corners are, so that a person looking at the window can tell the background
-// from the things in front of it — and so that render/tests/offscreen.c can take
-// the clear colour out of a corner of the picture and count what differs from
-// it.
+// The colour behind everything drawn. It is deliberately none of the colours a
+// test's geometry wears, so that a person looking at the window can tell the
+// background from the things in front of it — and so that
+// render/tests/offscreen.c can take the clear colour out of a corner of the
+// picture and count what differs from it.
 #define CLEAR_RED 0.04f
 #define CLEAR_GREEN 0.32f
 #define CLEAR_BLUE 0.38f
 
-// How much time a recorded frame claims to have taken, in seconds.
-//
-// IT IS A GUESS AND THE ENGINE KNOWS IT. There is nothing here that can ask how
-// long the last frame took: time belongs in platform and platform does not have
-// it yet. Sixty is the refresh rate a desktop most often has, so on such a
-// display the orbit takes the number of seconds cube.c says it does, and on
-// anything else it is off by the ratio of the refresh rates. That is a
-// deliberate placeholder and not a rounding — card 020 is the card that measures
-// a frame, and this line is the whole of what it replaces.
-#define NOMINAL_FRAME_SECONDS (1.0f / 60.0f)
-
 // The only place a frame slot indexes anything, and the only place an image
 // index does. Both asserts are the same mistake read from either end: a slot is
 // not an image index and an image index is not a slot, and with arrays this
-// short a swap lands in range as often as not. Everything downstream takes the
-// pointer these return, so there is no second place to get it wrong.
+// short a swap lands in range as often as not.
 static struct voe_render_frame *frame_at(voe_render_device *device, uint32_t slot)
 {
 	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT,
@@ -139,6 +121,14 @@ static struct voe_render_image *image_at(voe_render_device *device,
 	VOE_BASE_DEBUG_ASSERT(index < device->image_count,
 			      "a per-image array reached with something that is not a swapchain image index");
 	return &device->images[index];
+}
+
+const struct voe_render_frame *
+voe_render_frame_current(const voe_render_device *device)
+{
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "asking no device for its frame slot");
+
+	return frame_at((voe_render_device *)device, device->slot);
 }
 
 VkViewport voe_render_frame_viewport(VkExtent2D extent)
@@ -161,14 +151,27 @@ VkViewport voe_render_frame_viewport(VkExtent2D extent)
 	return viewport;
 }
 
-void voe_render_frame_draw(voe_render_device *device,
-			   const struct voe_render_frame *frame,
-			   VkViewport viewport)
+void voe_render_frame_set_viewport(voe_render_device *device,
+				   VkViewport viewport)
+{
+	VOE_BASE_ASSERT(device != NULL, "setting a viewport on no device");
+	VOE_BASE_ASSERT(device->recording,
+			"setting a viewport with no frame open");
+
+	voe_render_vk.cmd_set_viewport(frame_at(device, device->slot)->commands,
+				       0, 1, &viewport);
+}
+
+// The barriers, the clears and everything a draw needs bound. Recorded once per
+// frame, because none of it differs between two draws in the same frame — the
+// object number a draw pushes is the only thing that does.
+static void open_rendering(voe_render_device *device,
+			   const struct voe_render_frame *frame)
 {
 	// Two images into the layouts the rendering needs. The colour barrier is
-	// index 0 throughout this function, because the second half of the
-	// function reuses it to move the colour image on again and the depth
-	// image needs no second transition.
+	// index 0 throughout this file, because close_rendering reuses it to
+	// move the colour image on again and the depth image needs no second
+	// transition.
 	VkImageMemoryBarrier2 barriers[2] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -188,10 +191,10 @@ void voe_render_frame_draw(voe_render_device *device,
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
 			// EARLY_FRAGMENT_TESTS is where the depth clear and the
 			// depth test happen, so it is the stage that has to wait
 			// for this transition rather than the colour output one.
+			.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
 			.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
 			.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -220,9 +223,7 @@ void voe_render_frame_draw(voe_render_device *device,
 		.clearValue = { .color = { .float32 = { CLEAR_RED, CLEAR_GREEN,
 						       CLEAR_BLUE, 1.0f } } },
 	};
-	// Cleared to the far plane, which is 0 here, and thrown away afterwards:
-	// nothing in this engine reads a depth image once the rendering that
-	// wrote it has ended.
+	// Cleared to the far plane, which is 0 here, and thrown away afterwards.
 	VkRenderingAttachmentInfo depth = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
 		.imageView = frame->target.depth.view,
@@ -242,36 +243,13 @@ void voe_render_frame_draw(voe_render_device *device,
 	// The scissor is the whole target and takes no part in the flip. It is
 	// in framebuffer coordinates, which have no sign to get wrong.
 	VkRect2D scissor = { .extent = device->resolution };
-	struct voe_render_uniforms uniforms;
-	struct voe_render_push push;
+	VkViewport viewport = voe_render_frame_viewport(device->resolution);
 	VkDeviceSize vertex_offset = 0;
-
-	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing with a NULL device");
-	VOE_BASE_DEBUG_ASSERT(frame->target.colour.image != VK_NULL_HANDLE,
-			      "drawing into a frame slot that has no colour target");
-	VOE_BASE_DEBUG_ASSERT(frame->target.depth.image != VK_NULL_HANDLE,
-			      "drawing into a frame slot that has no depth target");
-	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
-			      "drawing through a frame slot whose uniform buffer is not mapped");
-	VOE_BASE_DEBUG_ASSERT(device->index_count > 0,
-			      "drawing a cube whose indices were never uploaded");
-
-	// The camera, into this slot's own buffer. Safe because the caller has
-	// waited on this slot's fence, which is what says the GPU has finished
-	// reading what was in here two frames ago. The per-object matrices go in
-	// the command buffer instead and need no such argument: a command buffer
-	// this slot is recording is one the GPU has already finished with.
-	voe_render_cube_uniforms_fill(&uniforms, device->resolution,
-				      &device->camera, device->seconds);
-	memcpy(frame->uniforms_mapped, &uniforms, sizeof(uniforms));
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
 	// Both clears are load operations, so they have already happened by the
-	// time the first command inside is recorded. What is recorded is one
-	// indexed draw per cube: the same eight vertices and thirty-six indices
-	// every time, the camera out of a descriptor bound once, and a matrix of
-	// its own pushed in front of each.
+	// time the first command inside is recorded.
 	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
 	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
 	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
@@ -282,62 +260,58 @@ void voe_render_frame_draw(voe_render_device *device,
 					       VK_PIPELINE_BIND_POINT_GRAPHICS,
 					       device->layout, 0, 1,
 					       &frame->descriptor, 0, NULL);
+
+	// The two pools, bound once for the whole frame. Every mesh is a range
+	// inside them, which is the property that makes one bind enough.
 	voe_render_vk.cmd_bind_vertex_buffers(frame->commands, 0, 1,
-					      &device->vertices.buffer,
+					      &device->vertices.buffer.buffer,
 					      &vertex_offset);
-	// UINT16, which is what the cube's index array is. A mesh with more than
-	// 65535 vertices is what makes this a decision rather than a constant,
-	// and that arrives with the card that loads one.
 	voe_render_vk.cmd_bind_index_buffer(frame->commands,
-					    device->indices.buffer, 0,
-					    VK_INDEX_TYPE_UINT16);
+					    device->indices.buffer.buffer, 0,
+					    VK_INDEX_TYPE_UINT32);
+}
 
-	// One push and one draw each. Everything above is bound once because it
-	// is the same for both; the push is inside the loop because it is the
-	// only thing that is not, which is the whole shape this card is here to
-	// establish. A third cube is a larger VOE_RENDER_CUBE_COUNT and nothing
-	// else in this file.
-	//
-	// BOTH CUBES ARE DRAWN WITH THE SAME TEXTURE, WHICH IS WHAT THERE IS TO
-	// DRAW WITH. The index is pushed rather than bound, so giving the second
-	// cube a different picture is a different number in this loop and not a
-	// second descriptor — which is the property ADR-0018's shader-side index
-	// was for.
-	for (uint32_t cube = 0; cube < VOE_RENDER_CUBE_COUNT; cube++) {
-		push.model = voe_render_cube_model(cube, device->seconds);
-		push.texture = device->current_texture.index;
-		voe_render_vk.cmd_push_constants(frame->commands, device->layout,
-						 VK_SHADER_STAGE_VERTEX_BIT |
-							 VK_SHADER_STAGE_FRAGMENT_BIT,
-						 0, sizeof(push), &push);
-		voe_render_vk.cmd_draw_indexed(frame->commands,
-					       device->index_count, 1, 0, 0, 0);
-	}
+// Ends the rendering and leaves the colour image ready to be copied out of, by
+// whoever asked for the drawing. A frame blits it into a swapchain image; a test
+// copies it into memory it can read. ALL_TRANSFER and not the blit alone,
+// because those are two different stages and this barrier has to cover both —
+// naming one of them leaves the other reading an image this dependency does not
+// reach, which synchronisation validation reports and nothing else does.
+//
+// The depth image gets no second barrier: nothing reads it, so there is no later
+// access for one to order against.
+static void close_rendering(const struct voe_render_frame *frame)
+{
+	VkImageMemoryBarrier2 barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+		.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT,
+		.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = frame->target.colour.image,
+		.subresourceRange = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+		},
+	};
+	VkDependencyInfo dependency = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.imageMemoryBarrierCount = 1,
+		.pImageMemoryBarriers = &barrier,
+	};
+
 	voe_render_vk.cmd_end_rendering(frame->commands);
-
-	// The colour image is left ready to be copied out of, by whoever asked
-	// for the drawing. A frame blits it into a swapchain image; the offscreen
-	// test copies it into memory it can read. ALL_TRANSFER and not the blit
-	// alone, because those are two different stages and this barrier has to
-	// cover both — naming one of them leaves the other reading an image this
-	// dependency does not reach, which synchronization validation reports and
-	// nothing else does.
-	//
-	// The depth image gets no second barrier: nothing reads it, so there is
-	// no later access for one to order against.
-	barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	barriers[0].srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
-	barriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-	barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	dependency.imageMemoryBarrierCount = 1;
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 }
 
 // The target onto the screen, and the whole of what the swapchain image is for.
 // The two extents are the same number today and the blit still reads both, so
-// that the day the target stops being the window's size this file needs no edit.
+// that the day the target stops being the window's size this needs no edit.
 static void blit_to_screen(voe_render_device *device,
 			   const struct voe_render_frame *frame,
 			   const struct voe_render_image *image)
@@ -399,26 +373,10 @@ static void blit_to_screen(voe_render_device *device,
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 }
 
-static void record(voe_render_device *device,
-		   const struct voe_render_frame *frame,
-		   const struct voe_render_image *image)
-{
-	VkCommandBufferBeginInfo begin = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	};
-
-	voe_render_vk.begin_command_buffer(frame->commands, &begin);
-	voe_render_frame_draw(device, frame,
-			      voe_render_frame_viewport(device->resolution));
-	blit_to_screen(device, frame, image);
-	voe_render_vk.end_command_buffer(frame->commands);
-}
-
 // Where the two lifetimes meet: this waits on the slot's acquire semaphore,
-// signals the image's rendering-finished one, and signals the slot's fence.
-// Three objects across two arrays, and both arrive as pointers so that neither
-// array is indexed here at all.
+// signals the image's rendering-finished one, and signals the slot's fence. A
+// headless device has neither semaphore and waits for and signals nothing but
+// the fence.
 static bool submit(voe_render_device *device,
 		   const struct voe_render_frame *frame,
 		   const struct voe_render_image *image)
@@ -438,19 +396,22 @@ static bool submit(voe_render_device *device,
 	};
 	VkSemaphoreSubmitInfo signal = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		.semaphore = image->drawn,
 		.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 	};
 	VkSubmitInfo2 info = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-		.waitSemaphoreInfoCount = 1,
-		.pWaitSemaphoreInfos = &wait,
 		.commandBufferInfoCount = 1,
 		.pCommandBufferInfos = &commands,
-		.signalSemaphoreInfoCount = 1,
-		.pSignalSemaphoreInfos = &signal,
 	};
 	VkResult result;
+
+	if (image != NULL) {
+		signal.semaphore = image->drawn;
+		info.waitSemaphoreInfoCount = 1;
+		info.pWaitSemaphoreInfos = &wait;
+		info.signalSemaphoreInfoCount = 1;
+		info.pSignalSemaphoreInfos = &signal;
+	}
 
 	result = voe_render_vk.queue_submit2(device->queue, 1, &info,
 					     frame->submitted);
@@ -465,7 +426,8 @@ static bool submit(voe_render_device *device,
 // The targets and the swapchain are built from the same window size and rebuilt
 // together, because the target is the resolution and the swapchain is where it
 // lands. Order matters only in that a target that cannot be made is a device
-// that cannot draw, and there is no point building a swapchain for it.
+// that cannot draw, and there is no point building a swapchain for it. On a
+// headless device the second call does nothing.
 static bool rebuild(voe_render_device *device, voe_platform_size size)
 {
 	if (!voe_render_target_build(device, size))
@@ -473,40 +435,40 @@ static bool rebuild(voe_render_device *device, voe_platform_size size)
 	return voe_render_swapchain_build(device, size);
 }
 
-bool voe_render_device_frame(voe_render_device *device, voe_platform_size size,
-			     voe_render_camera_input look)
+bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
+			    voe_render_view view, bool *drawing)
 {
 	struct voe_render_frame *frame;
-	struct voe_render_image *image;
-	uint32_t index = 0;
-	VkResult result;
-	VkPresentInfoKHR present = {
-		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.waitSemaphoreCount = 1,
-		.swapchainCount = 1,
-		.pImageIndices = &index,
+	VkCommandBufferBeginInfo begin = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 	};
+	VkResult result;
 
-	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing with a NULL device");
-	VOE_BASE_DEBUG_ASSERT(!device->headless,
-			      "asking a device with no window for a frame");
+	VOE_BASE_ASSERT(device != NULL, "beginning a frame on no device");
+	VOE_BASE_ASSERT(drawing != NULL, "beginning a frame with nowhere to say so");
+	VOE_BASE_ASSERT(!device->recording,
+			"beginning a frame while one is already open — every begin needs its end");
+
+	*drawing = false;
 
 	// A window with no area has no images and nothing to present. Skipped,
 	// not failed — it comes back the moment the window does.
 	if (size.width <= 0 || size.height <= 0)
 		return true;
 
-	if (device->rebuild || device->swapchain == VK_NULL_HANDLE ||
+	if (device->rebuild ||
+	    (!device->headless && device->swapchain == VK_NULL_HANDLE) ||
 	    size.width != device->built.width ||
 	    size.height != device->built.height) {
 		if (!rebuild(device, size))
 			return false;
 	}
-	if (device->swapchain == VK_NULL_HANDLE)
+	if (!device->headless && device->swapchain == VK_NULL_HANDLE)
 		return true;
 
-	// The slot this frame is, and the last time anything is indexed until the
-	// acquire below hands back an image.
+	// The slot this frame is, and the last thing indexed until the acquire
+	// below hands back an image.
 	frame = frame_at(device, device->slot);
 
 	// The fence is waited on before the acquire and reset after it, so that
@@ -523,65 +485,150 @@ bool voe_render_device_frame(voe_render_device *device, voe_platform_size size,
 	// The fence just waited on and the semaphore about to be handed to the
 	// acquire have to belong to the same slot, or the semaphore is being
 	// reused while a submit may still be waiting on it. Asking the driver
-	// says so where reading the code only claims it: a wait on some other
-	// slot's fence leaves this one unsignalled and this fires, which is the
-	// one shape of this bug that no validation layer reliably reports.
+	// says so where reading the code only claims it.
 	VOE_BASE_DEBUG_ASSERT(voe_render_vk.get_fence_status(device->device,
 							     frame->submitted) ==
 			      VK_SUCCESS,
-			      "acquiring on a slot whose last submit has not finished");
+			      "beginning a frame on a slot whose last submit has not finished");
 
-	result = voe_render_vk.acquire_next_image(device->device,
-						  device->swapchain, UINT64_MAX,
-						  frame->acquired,
-						  VK_NULL_HANDLE, &index);
-	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		device->rebuild = true;
-		return true;
+	if (!device->headless) {
+		result = voe_render_vk.acquire_next_image(device->device,
+							  device->swapchain,
+							  UINT64_MAX,
+							  frame->acquired,
+							  VK_NULL_HANDLE,
+							  &device->image_index);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			device->rebuild = true;
+			return true;
+		}
+		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+			fprintf(stderr,
+				"render: vkAcquireNextImageKHR failed (VkResult %d)\n",
+				(int)result);
+			return false;
+		}
+		// Suboptimal is still a usable image, so this frame is drawn and
+		// the rebuild waits until it has been presented.
+		if (result == VK_SUBOPTIMAL_KHR)
+			device->rebuild = true;
 	}
-	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-		fprintf(stderr,
-			"render: vkAcquireNextImageKHR failed (VkResult %d)\n",
-			(int)result);
-		return false;
-	}
-	// Suboptimal is still a usable image, so this frame is drawn and the
-	// rebuild waits until it has been presented.
-	if (result == VK_SUBOPTIMAL_KHR)
-		device->rebuild = true;
-
-	image = image_at(device, index);
 
 	voe_render_vk.reset_fences(device->device, 1, &frame->submitted);
 	voe_render_vk.reset_command_buffer(frame->commands, 0);
 
-	// The clock, advanced here and nowhere else: after every reason this
-	// function had to turn back without drawing, and before the recording
-	// that reads it, so that the scene a frame draws is one nominal frame on
-	// from the scene the frame before it drew. A device nobody has asked for
-	// a frame is therefore at zero, which is what makes the tests that call
-	// voe_render_frame_draw directly deterministic.
-	device->seconds += NOMINAL_FRAME_SECONDS;
+	// The camera, into this slot's own buffer. Safe because the fence above
+	// says the GPU has finished reading what was in here two frames ago.
+	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
+			      "beginning a frame whose uniform buffer is not mapped");
+	memcpy(frame->uniforms_mapped, &view, sizeof(view));
 
-	// The camera, moved by what the caller says the person did, on the same
-	// nominal frame the clock just advanced by. It is stepped here rather
-	// than inside the recording for the reason the clock is: everything
-	// above this line is a frame that turned back without drawing, and a
-	// camera that had already moved for it would drift by one frame's worth
-	// of input every time the swapchain went stale.
-	voe_render_cube_camera_step(&device->camera, look, device->seconds,
-				    NOMINAL_FRAME_SECONDS);
+	voe_render_vk.begin_command_buffer(frame->commands, &begin);
+	open_rendering(device, frame);
 
-	record(device, frame, image);
+	device->recording = true;
+	device->object_count = 0;
+	*drawing = true;
+	return true;
+}
+
+bool voe_render_frame_draw(voe_render_device *device,
+			   voe_render_geometry geometry,
+			   voe_render_object object)
+{
+	const struct voe_render_geometry_slot *slot;
+	struct voe_render_frame *frame;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
+	VOE_BASE_ASSERT(device->recording,
+			"drawing with no frame open — voe_render_frame_begin said there was nothing to draw into, or _end has already run");
+
+	slot = voe_render_geometry_at(device, geometry);
+	if (slot == NULL) {
+		fprintf(stderr,
+			"render: a draw named mesh %u generation %u, which is not a mesh this device handed out\n",
+			geometry.index, geometry.generation);
+		return false;
+	}
+
+	if (device->object_count >= device->capacities.objects) {
+		fprintf(stderr,
+			"render: this frame already holds %u objects, which is what the device was made for\n",
+			device->capacities.objects);
+		return false;
+	}
+
+	frame = frame_at(device, device->slot);
+
+	// The record, into this slot's own object buffer at this object's
+	// number. Written rather than staged because the buffer is host-visible
+	// and this slot's; the fence at the top of the frame is what makes that
+	// safe.
+	memcpy((unsigned char *)frame->objects_mapped +
+		       (size_t)device->object_count * sizeof(object),
+	       &object, sizeof(object));
+
+	// The object's number, and the only push constant left in this engine.
+	// The shader reads its own record out of the buffer with it — which is
+	// also why this stops being a push constant the day the draws become
+	// indirect: an indirect draw's shader reads the same number out of its
+	// instance index instead.
+	voe_render_vk.cmd_push_constants(frame->commands, device->layout,
+					 VK_SHADER_STAGE_VERTEX_BIT |
+						 VK_SHADER_STAGE_FRAGMENT_BIT,
+					 0, sizeof(device->object_count),
+					 &device->object_count);
+
+	// first_vertex is the vertexOffset rather than something added to the
+	// indices on the way in, which is what lets a mesh keep the numbering
+	// its file gave it.
+	voe_render_vk.cmd_draw_indexed(frame->commands, slot->index_count, 1,
+				       slot->first_index,
+				       (int32_t)slot->first_vertex, 0);
+
+	device->object_count++;
+	return true;
+}
+
+bool voe_render_frame_end(voe_render_device *device)
+{
+	struct voe_render_frame *frame;
+	struct voe_render_image *image = NULL;
+	VkResult result;
+	VkPresentInfoKHR present = {
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.waitSemaphoreCount = 1,
+		.swapchainCount = 1,
+		.pImageIndices = &device->image_index,
+	};
+
+	VOE_BASE_ASSERT(device != NULL, "ending a frame on no device");
+	VOE_BASE_ASSERT(device->recording,
+			"ending a frame that was never begun");
+
+	frame = frame_at(device, device->slot);
+	if (!device->headless)
+		image = image_at(device, device->image_index);
+
+	close_rendering(frame);
+	if (image != NULL)
+		blit_to_screen(device, frame, image);
+	voe_render_vk.end_command_buffer(frame->commands);
+
+	// Closed before the submit, so that a submit that fails does not leave a
+	// recording open for the next frame to assert on.
+	device->recording = false;
+
 	if (!submit(device, frame, image))
 		return false;
 
 	// The slot is spent the moment the submit lands, and not before: a frame
-	// that turned back above — no swapchain, a stale one, an acquire that
-	// found the surface gone — never put this slot in flight and has to come
-	// back to it with its fence still signalled. Advancing here and not at
-	// the end also covers the presents below that return early.
+	// that turned back in _begin never put this slot in flight and has to
+	// come back to it with its fence still signalled.
 	device->slot = (device->slot + 1) % VOE_RENDER_FRAMES_IN_FLIGHT;
+
+	if (image == NULL)
+		return true;
 
 	present.pWaitSemaphores = &image->drawn;
 	present.pSwapchains = &device->swapchain;

@@ -55,6 +55,10 @@ typedef struct {
 	PFN_vkGetPhysicalDeviceProperties get_physical_device_properties;
 	PFN_vkGetPhysicalDeviceQueueFamilyProperties get_queue_family_properties;
 	PFN_vkGetPhysicalDeviceMemoryProperties get_memory_properties;
+	// Core since Vulkan 1.1, and the floor here is 1.3. Asked one question:
+	// whether this card can index the shader's texture array with a number
+	// that is not a constant — see create_device in device.c.
+	PFN_vkGetPhysicalDeviceFeatures2 get_physical_device_features2;
 	PFN_vkCreateDevice create_device;
 
 	// VK_KHR_surface's, and all five are absent on a headless instance,
