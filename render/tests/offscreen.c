@@ -21,6 +21,21 @@
 // What is under test is therefore exactly what ships: the pools, the object
 // records, the pipeline and the frame.
 //
+// IT HAS ITS OWN SUN NOW, AND IT IS TURNED ROUND FOR THE SECOND CASE. Card 019
+// lights everything, and a surface facing away from the one light in the world
+// is black — which would make every colour claim below read a black pixel and
+// call it red, because "which channel is largest" has no answer for three zeroes.
+// The mirrored case is looking at the far faces of the cube, whose normals point
+// the opposite way to the near ones, so it gets the opposite sun. Each case
+// therefore lights the faces it can actually see, and a light that failed to
+// reach the shader at all fails the counts below rather than moving a centroid.
+//
+// AND THE MATERIAL IS THE PLAINEST ONE THAT KEEPS THE PICTURE'S COLOURS: no
+// metalness, fully rough. A metal has no diffuse response and reflects its own
+// colour in a narrow lobe, so a fully metallic cube is nearly black except where
+// the highlight is — a perfectly good picture and a useless one to ask "is red
+// above blue" of. What is under test here is geometry, not shading.
+//
 // IT USED TO BE A TRIANGLE AND THE CLAIM USED TO BE "NOTHING WAS DRAWN". A
 // single triangle mirrored is culled entirely, so the old test could ask for an
 // image identical to the clear. A cube mirrored is not empty — it is the same
@@ -69,8 +84,10 @@
 #define FRONT_OFFSET ((VkDeviceSize)0)
 #define BACK_OFFSET IMAGE_BYTES
 
-// The channel order of VK_FORMAT_B8G8R8A8_UNORM, which is the format a headless
+// The channel order of VK_FORMAT_B8G8R8A8_SRGB, which is the format a headless
 // device takes and which the test checks it really got before reading a byte.
+// Only the order matters here: every claim below is about which channel is
+// largest, and an sRGB encoding does not turn red into green.
 #define BLUE 0
 #define GREEN 1
 #define RED 2
@@ -232,7 +249,7 @@ static voe_render_view the_camera(VkExtent2D extent)
 	voe_math_float3 x = voe_math_float3_normalize(
 		voe_math_float3_cross(up, z));
 	voe_math_float3 y = voe_math_float3_cross(z, x);
-	voe_render_view view = { 0 };
+	voe_render_view view = { .eye = eye };
 	float focal = 1.0f / tanf(FIELD_OF_VIEW * 0.5f);
 	float aspect = (float)extent.width / (float)extent.height;
 	float span = FAR_PLANE - NEAR_PLANE;
@@ -261,6 +278,25 @@ static voe_render_view the_camera(VkExtent2D extent)
 	return view;
 }
 
+// The sun, for one case. Its direction is the diagonal, so it lights the three
+// faces whose normals point along +X, +Y and +Z — which are the ones the front
+// case sees — and the mirrored case takes the opposite, which lights the three
+// the far side of the cube shows it. A white light of one, because what is being
+// measured is which channel is largest and any positive strength keeps that.
+static voe_render_light the_sun(bool mirrored)
+{
+	// A third each, normalized: the light system does this for a world's
+	// light and this file has no world.
+	float d = mirrored ? 0.57735027f : -0.57735027f;
+	voe_render_light sun = {
+		.direction = { d, d, d },
+		.intensity = 1.0f,
+		.colour = { 1.0f, 1.0f, 1.0f },
+	};
+
+	return sun;
+}
+
 // One case: a frame through the engine's own public calls, then the target
 // copied into the buffer by a command buffer of this file's own.
 //
@@ -277,6 +313,11 @@ static void draw_case(voe_render_device *device, voe_render_geometry cube,
 	voe_platform_size size = { SIDE, SIDE };
 	voe_render_object object = {
 		.world = voe_math_float4x4_identity(),
+		// The cube is not scaled, so its normal matrix is the identity
+		// as well — which is exactly the case where forgetting one
+		// looks right. 3d/tests/normal_matrix.c is where the difference
+		// is the claim.
+		.normal = voe_math_float4x4_identity(),
 		.shading = shading.index,
 	};
 	VkCommandBufferAllocateInfo allocate = {
@@ -329,7 +370,7 @@ static void draw_case(voe_render_device *device, voe_render_geometry cube,
 
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size,
 					      the_camera(device->resolution),
-					      &drawing));
+					      the_sun(mirrored), &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
 		return;
@@ -531,9 +572,12 @@ int main(void)
 	voe_render_geometry cube = { 0 };
 	voe_render_texture texture = { 0 };
 	voe_render_shading shading = { 0 };
+	// No metalness and fully rough: the plainest surface there is, and the
+	// only one whose colour on screen is still the picture's colour. See the
+	// header.
 	voe_render_shading_values values = {
 		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
-		.metallic = 1.0f,
+		.metallic = 0.0f,
 		.roughness = 1.0f,
 	};
 	// vkMapMemory hands back its pointer through a void **, which is
@@ -568,7 +612,7 @@ int main(void)
 	// Everything below reads bytes in this order. A headless device asks no
 	// surface and takes this format outright, so this is a claim about
 	// device.c and not about the machine.
-	VOE_TEST_CHECK_INT(device->format.format, VK_FORMAT_B8G8R8A8_UNORM);
+	VOE_TEST_CHECK_INT(device->format.format, VK_FORMAT_B8G8R8A8_SRGB);
 	VOE_TEST_CHECK_INT(device->resolution.width, SIDE);
 	VOE_TEST_CHECK_INT(device->resolution.height, SIDE);
 
@@ -597,8 +641,9 @@ int main(void)
 	VOE_TEST_CHECK(voe_render_geometry_create(device, CUBE_VERTICES, 24,
 						  CUBE_INDICES, 36, &cube,
 						  &error));
-	VOE_TEST_CHECK(voe_render_texture_create(device, 4, 4,
-						 &QUADRANT_TEXTURE[0][0][0],
+	VOE_TEST_CHECK(voe_render_texture_create(device,
+						 VOE_RENDER_TEXTURE_COLOUR, 4,
+						 4, &QUADRANT_TEXTURE[0][0][0],
 						 &texture, &error));
 
 	// The id is a real one and not slot zero's, which is the white default
@@ -625,13 +670,14 @@ int main(void)
 
 		VOE_TEST_CHECK(voe_render_frame_begin(device, size,
 						      the_camera(device->resolution),
-						      &drawing));
+						      the_sun(false), &drawing));
 		VOE_TEST_CHECK(drawing);
 		if (drawing) {
 			VOE_TEST_CHECK(!voe_render_frame_draw(
 				device, stale,
 				(voe_render_object){
-					.world = voe_math_float4x4_identity() }));
+					.world = voe_math_float4x4_identity(),
+					.normal = voe_math_float4x4_identity() }));
 			VOE_TEST_CHECK(voe_render_frame_end(device));
 			voe_render_vk.device_wait_idle(device->device);
 		}

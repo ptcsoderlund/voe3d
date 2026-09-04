@@ -21,6 +21,11 @@
 // `scene`'s now and the clock is the frame loop's, so what arrives here is two
 // matrices that somebody else already worked out.
 //
+// THE CAMERA AND THE SUN ARE ONE BLOCK IN ONE BUFFER, AND _begin IS WHERE THEY
+// MEET. A caller hands them over separately because they come from two different
+// places; they land adjacent because the shader reads them out of one binding.
+// See struct voe_render_frame_block in device_internal.h.
+//
 // NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into images the
 // engine owns (target.c) and the swapchain image is written once, by a blit, as
 // the last thing a frame does. That separation is what a post-process pass, a
@@ -100,9 +105,16 @@
 // background from the things in front of it — and so that
 // render/tests/offscreen.c can take the clear colour out of a corner of the
 // picture and count what differs from it.
-#define CLEAR_RED 0.04f
-#define CLEAR_GREEN 0.32f
-#define CLEAR_BLUE 0.38f
+//
+// IT IS A LINEAR COLOUR AND NOT THE BYTES THAT REACH THE SCREEN. The target is
+// an sRGB format, so the hardware encodes whatever is written into it — a clear
+// of 0.5 arrives on screen as a byte of about 188 and not 128. These three
+// numbers are the linear form of the same slate blue this was before card 019,
+// which is why they are not the round numbers they used to be: a clear colour
+// written as if it were sRGB comes out of an sRGB target visibly washed out.
+#define CLEAR_RED 0.00304f
+#define CLEAR_GREEN 0.08438f
+#define CLEAR_BLUE 0.11954f
 
 // The only place a frame slot indexes anything, and the only place an image
 // index does. Both asserts are the same mistake read from either end: a slot is
@@ -436,9 +448,12 @@ static bool rebuild(voe_render_device *device, voe_platform_size size)
 }
 
 bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
-			    voe_render_view view, bool *drawing)
+			    voe_render_view view, voe_render_light light,
+			    bool *drawing)
 {
 	struct voe_render_frame *frame;
+	struct voe_render_frame_block block = { .camera = view,
+					       .light = light };
 	VkCommandBufferBeginInfo begin = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
@@ -517,11 +532,12 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	voe_render_vk.reset_fences(device->device, 1, &frame->submitted);
 	voe_render_vk.reset_command_buffer(frame->commands, 0);
 
-	// The camera, into this slot's own buffer. Safe because the fence above
-	// says the GPU has finished reading what was in here two frames ago.
+	// The camera and the sun, into this slot's own buffer. Safe because the
+	// fence above says the GPU has finished reading what was in here two
+	// frames ago.
 	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
 			      "beginning a frame whose uniform buffer is not mapped");
-	memcpy(frame->uniforms_mapped, &view, sizeof(view));
+	memcpy(frame->uniforms_mapped, &block, sizeof(block));
 
 	voe_render_vk.begin_command_buffer(frame->commands, &begin);
 	open_rendering(device, frame);

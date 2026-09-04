@@ -2,11 +2,19 @@
 // texture the material references, and the id of the record `render` holds for
 // it. Read by anyone, const.
 //
-// THIS CARD FILLS IT AND DRAWS WITH THE BASE COLOUR. Metalness, roughness,
-// occlusion and emission are parsed, stored and uploaded because the importer
-// has them and throwing them away would mean parsing the file twice; the card
-// that lights anything is the card that reads them. Storing what the file said
-// is not the same as pretending to shade with it.
+// BASE COLOUR, METALNESS, ROUGHNESS AND OCCLUSION ARE ALL SHADED WITH; EMISSION
+// AND THE NORMAL MAP ARE STORED AND NOT READ. Card 019 lit the engine and reads
+// the first four, factors and pictures both. The other two are still what card
+// 018 made them — parsed, uploaded and waiting — because a normal map needs
+// tangents the importer does not produce and emission without tone mapping is a
+// colour that clips. Storing what the file said is not the same as pretending to
+// shade with it.
+//
+// A TEXTURE ID HERE IS ALREADY IN THE RIGHT COLOUR SPACE. The base colour and
+// emissive ones name pictures uploaded as sRGB and the other three name pictures
+// uploaded raw; that is the importer's doing and there is nothing to say about it
+// at this level except that swapping two of these ids swaps two colour spaces
+// with them. See voe_render_texture_kind.
 //
 // A MISSING TEXTURE IS AN ID AND NOT A NULL. VOE_RENDER_NO_TEXTURE names the
 // one-pixel white default, so a shader may test it and gets white either way —

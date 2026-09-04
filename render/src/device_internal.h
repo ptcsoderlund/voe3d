@@ -89,6 +89,24 @@
 // 0.0f that means "nothing here yet", and one of those is load-bearing.
 #define VOE_RENDER_DEPTH_CLEAR 0.0f
 
+// Everything one frame is drawn with that is not a per-object record: the camera
+// and the sun, in one block, in one uniform buffer per frame slot.
+//
+// IT IS ONE BLOCK AND NOT TWO BINDINGS BECAUSE THEY HAVE THE SAME LIFETIME.
+// Both are written once by voe_render_frame_begin and read by both stages for
+// every draw in the frame, so splitting them would be a second buffer, a second
+// descriptor and a second pool entry to say what one memcpy says. It is internal
+// because the two halves are what a caller hands over separately; only this
+// folder cares that they end up adjacent.
+//
+// draw.slang declares the same two structs in the same order at binding 0.
+// descriptors.c asserts on the sizes and the offsets, so a member that moves is
+// a build error rather than a frame lit from the wrong direction.
+struct voe_render_frame_block {
+	voe_render_view camera;
+	voe_render_light light;
+};
+
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
 // per image, and the same note applies: an engine that made many of these would
@@ -165,6 +183,11 @@ struct voe_render_texture_slot {
 	VkImage image;
 	VkDeviceMemory memory;
 	VkImageView view;
+	// The format this slot's image and view were made with, which is what
+	// says whether the hardware decodes sRGB on a read. It is kept because
+	// the mipmap chain has to ask the card whether it can filter this format
+	// linearly, and the two textures kinds are two different formats.
+	VkFormat format;
 	uint32_t generation;
 	bool live;
 };
@@ -251,7 +274,8 @@ struct voe_render_frame {
 
 	struct voe_render_buffer uniforms;
 	// Where uniforms.memory is mapped, for the lifetime of the buffer.
-	// Written through as a voe_render_view and never read back.
+	// Written through as a struct voe_render_frame_block and never read
+	// back.
 	void *uniforms_mapped;
 
 	// One record per drawn object, this slot's own, written by
@@ -294,6 +318,13 @@ struct voe_render_device {
 	// than the screen, and that is the card that introduces it. Until then
 	// one format is one fewer thing to convert and the blit is a straight
 	// copy.
+	//
+	// IT IS AN sRGB FORMAT AND BOTH IMAGES BEING THAT IS THE POINT. The
+	// frame is drawn in linear light, the target's format encodes it as it
+	// stores it, and the blit into a swapchain image of the same format is
+	// therefore a copy of already-encoded bytes. See PREFERRED_FORMAT in
+	// device.c for why, and what happens on a surface that offers no such
+	// format.
 	VkSurfaceFormatKHR format;
 
 	// The one pipeline, and the layout it needs in order to exist.

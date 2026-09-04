@@ -1,6 +1,6 @@
 // The system that turns the tables into draws. One frame, one call: it finds the
-// camera, works out the two matrices, and issues one draw per mesh in table
-// order.
+// camera and the sun, works out the matrices, and issues one draw per mesh in
+// table order.
 //
 //     if (!voe_3d_draw_system_run(world, gpu, voe_platform_window_size(window)))
 //             break;                          // the GPU stopped answering
@@ -32,6 +32,20 @@
 // A second camera means a second target and a second frame, which is the card
 // that introduces a viewport; until then a world with two of them has a mistake
 // in it and this says so.
+//
+// AND EXACTLY ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE SUN. This engine
+// lights a frame with one directional light (render/device.h), so a second one
+// in the world would be silently ignored — which is worse than being told. A
+// world with none asserts as well rather than drawing everything black: a scene
+// with no sun in it is a program that forgot to make one far more often than it
+// is a deliberately unlit picture, and black is the one result that looks like a
+// broken renderer instead of a missing line. Registering the table is part of
+// building a world that can be drawn; see scene/light_system.h.
+//
+// EVERY DRAWN OBJECT CARRIES A NORMAL MATRIX AS WELL AS A WORLD MATRIX, and this
+// loop is what computes it — one inverse per object per frame. See
+// 3d/normal_matrix.h for why a normal cannot be carried by the world matrix, and
+// what it looks like on screen when it is.
 //
 // THE WINDOW'S SIZE IS PASSED THROUGH AND IS THE ASPECT RATIO'S SOURCE. Its type
 // arrives from `render`'s public header, which is the folder that speaks to the

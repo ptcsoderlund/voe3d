@@ -31,11 +31,19 @@
 // is this engine's exactly. What is transposed is matrix *layout*, and that
 // happens in `assets` before anything here sees it (ADR-0035).
 //
-// EVERY PICTURE IS UPLOADED ONCE AND ITS ID GOES INTO EVERY MATERIAL THAT
-// REFERENCES IT. That is the whole of the deduplication and it falls out of ids
-// being values: `assets` has already resolved a glTF texture to a picture, so
-// two materials over one picture hold the same texture id and the shader samples
-// one slot.
+// EVERY PICTURE IS UPLOADED ONCE PER COLOUR SPACE AND ITS ID GOES INTO EVERY
+// MATERIAL THAT REFERENCES IT THAT WAY ROUND. That is the whole of the
+// deduplication and it falls out of ids being values: `assets` has already
+// resolved a glTF texture to a picture, so two materials over one picture hold
+// the same texture id and the shader samples one slot.
+//
+// PER COLOUR SPACE, BECAUSE A COLOUR MAP AND A DATA MAP ARE DIFFERENT FORMATS.
+// A base colour or emissive picture goes up as VOE_RENDER_TEXTURE_COLOUR and a
+// metallic-roughness, normal or occlusion picture as VOE_RENDER_TEXTURE_DATA;
+// which one a picture is is decided by the material slot that referenced it,
+// because nothing in the picture itself says. A file that references one picture
+// both ways round therefore costs two texture slots — no real exporter does
+// that, and see 3d/src/import.c for why it is allowed rather than refused.
 //
 // IT IS A STARTUP OPERATION. Every upload it does waits for the GPU to go idle,
 // so this is called before the first frame or between frames, and never while
@@ -69,9 +77,11 @@ typedef struct {
 	const voe_ecs_entity *entities;
 	uint32_t entity_count;
 
-	// One per picture the file held, one per glTF material, and one per
-	// primitive: the three things that were uploaded, counted so that a
-	// caller sizing a device's capacities can see what a file cost.
+	// What was uploaded, counted so that a caller sizing a device's
+	// capacities can see what a file cost: one texture per picture per
+	// colour space it was wanted in — so not always the file's picture
+	// count, see above — one material per glTF material, and one geometry
+	// per primitive.
 	uint32_t texture_count;
 	uint32_t material_count;
 	uint32_t geometry_count;

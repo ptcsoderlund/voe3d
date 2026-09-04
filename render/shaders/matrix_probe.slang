@@ -21,10 +21,15 @@
 // quantisation. The values it picks are far enough apart that a rounding mode
 // cannot turn one layout's answer into the other's.
 //
-// IT SHARES THE CUBE'S DESCRIPTOR, ON PURPOSE. Set 0, binding 0, the same
-// uniform struct cube.slang declares, so what is under test is the path the
-// engine actually uploads through and not a second one written to be tested.
-// device.c's descriptor set layout serves both.
+// IT SHARES THE DRAW PIPELINE'S DESCRIPTOR, ON PURPOSE. Set 0, binding 0, so
+// what is under test is the path the engine actually uploads through and not a
+// second one written to be tested. device.c's descriptor set layout serves both.
+//
+// IT DECLARES ONLY THE FRONT OF THAT BLOCK. draw.slang's binding 0 holds the
+// camera and the sun; this reads the first matrix and nothing else, and a
+// uniform block declared shorter than the buffer behind it is allowed. There is
+// nothing to keep in step here beyond that first member's offset, which is
+// zero.
 //
 // IT READS view, WHICH IS THE FIRST MEMBER, AND WHICH MEMBER IT IS DOES NOT
 // MATTER. What is under test is the layout of the sixteen floats inside one

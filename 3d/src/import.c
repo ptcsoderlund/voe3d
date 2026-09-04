@@ -7,6 +7,15 @@
 // all three. Nothing here can be reordered without something naming an id that
 // does not exist yet.
 //
+// THE ONE EXCEPTION IS THAT THE UPLOAD OF THE PICTURES READS THE MATERIALS. A
+// picture is uploaded in one of two colour spaces and nothing in a picture says
+// which — only the material slot that referenced it does — so upload_images
+// walks the materials for their texture indices before it uploads anything, and
+// upload_materials then walks them again for everything else. Two walks over a
+// handful of materials, and the alternative is uploading a picture lazily from
+// inside the material loop, which puts a GPU upload behind a field
+// initialisation.
+//
 // THE TREE IS WALKED WITH AN EXPLICIT STACK IN THE ARENA (rule 14). The stack is
 // as long as the file has nodes, which is enough because `assets` has already
 // checked that no node is claimed as a child twice — so a node is pushed at most
@@ -40,15 +49,21 @@ struct import {
 	voe_base_arena *arena;
 	const voe_assets_model *model;
 
-	// One per picture, one per glTF material, one per primitive — the ids
-	// that came back from the uploads, indexed the way the file indexes
-	// them.
-	voe_render_texture *textures;
+	// One per picture per kind, one per glTF material, one per primitive —
+	// the ids that came back from the uploads, indexed the way the file
+	// indexes them. A slot left at zero is a picture that was never wanted
+	// that way round, which is VOE_RENDER_NO_TEXTURE and samples white.
+	voe_render_texture *colours;
+	voe_render_texture *data;
 	voe_3d_material *materials;
 	voe_render_geometry *geometries;
 
 	voe_ecs_entity *entities;
 	uint32_t entity_count;
+
+	// How many pictures were actually uploaded, which is not the file's
+	// image count when one picture is wanted both ways round.
+	uint32_t texture_count;
 };
 
 // One frame of the tree walk: which node, where its parent put it, and how deep
@@ -69,44 +84,101 @@ static bool no_room(voe_base_error *error, const char *what)
 	return false;
 }
 
-// A texture id per picture in the file. `render` deduplicates nothing: the
-// deduplication is that `assets` resolved every glTF texture to a picture, so
-// this uploads each one once and every material that wanted it gets the same id.
+// Says a picture is wanted, ignoring the indices that name none. Every index
+// here came out of a file, so the bound is checked where the array is reached
+// rather than trusted from a folder away.
+static void wanted(bool *marks, uint32_t count, uint32_t index)
+{
+	if (index < count)
+		marks[index] = true;
+}
+
+// A texture id per picture in the file, in the kind each picture is wanted as.
+//
+// A PICTURE IS UPLOADED ONCE PER KIND AND NOT ONCE. A texture slot holds one
+// format, and a base colour map has to be sRGB while an ORM map has to be raw
+// (render/device.h) — so a file whose one picture is referenced as both costs
+// two slots and there is no way round it short of two views onto one image,
+// which is a card of its own. Nothing real does this: the two kinds of picture
+// are authored differently and an exporter that shared one between them would be
+// wrong about one of the two. What the two arrays buy is that such a file is
+// merely wasteful here rather than wrong.
+//
+// WHICH KIND EACH PICTURE IS COMES OUT OF THE MATERIALS AND NOT OUT OF THE
+// PICTURE. Nothing in a PNG says whether its bytes are a colour, so the only
+// answer is which slot of which material referenced it, which is why the
+// materials are walked before anything is uploaded even though the materials
+// need the ids this produces.
+//
+// `render` DEDUPLICATES NOTHING: the deduplication is that `assets` resolved
+// every glTF texture to a picture, so this uploads each one once per kind and
+// every material that wanted it that way round gets the same id.
 static bool upload_images(struct import *import, voe_base_error *error)
 {
 	const voe_assets_model *model = import->model;
+	uint32_t count = model->image_count;
+	bool *as_colour;
+	bool *as_data;
 
-	if (model->image_count == 0)
+	if (count == 0)
 		return true;
 
-	import->textures = voe_base_arena_push(
-		import->arena,
-		(size_t)model->image_count * sizeof(*import->textures));
+	import->colours = voe_base_arena_push(
+		import->arena, (size_t)count * sizeof(*import->colours));
+	import->data = voe_base_arena_push(
+		import->arena, (size_t)count * sizeof(*import->data));
+	as_colour = voe_base_arena_push(import->arena,
+					(size_t)count * sizeof(*as_colour));
+	as_data = voe_base_arena_push(import->arena,
+				      (size_t)count * sizeof(*as_data));
 
-	for (uint32_t i = 0; i < model->image_count; i++) {
-		if (!voe_render_texture_create(import->device,
+	for (uint32_t i = 0; i < model->material_count; i++) {
+		const voe_assets_material *material = &model->materials[i];
+
+		wanted(as_colour, count, material->base_colour_image);
+		wanted(as_colour, count, material->emissive_image);
+		wanted(as_data, count, material->metallic_roughness_image);
+		wanted(as_data, count, material->normal_image);
+		wanted(as_data, count, material->occlusion_image);
+	}
+
+	for (uint32_t i = 0; i < count; i++) {
+		if (as_colour[i] &&
+		    !voe_render_texture_create(import->device,
+					       VOE_RENDER_TEXTURE_COLOUR,
 					       model->images[i].width,
 					       model->images[i].height,
 					       model->images[i].pixels,
-					       &import->textures[i], error))
+					       &import->colours[i], error))
 			return false;
+		if (as_data[i] &&
+		    !voe_render_texture_create(import->device,
+					       VOE_RENDER_TEXTURE_DATA,
+					       model->images[i].width,
+					       model->images[i].height,
+					       model->images[i].pixels,
+					       &import->data[i], error))
+			return false;
+		import->texture_count += (uint32_t)as_colour[i] +
+					 (uint32_t)as_data[i];
 	}
 	return true;
 }
 
-// The id of the picture at `index`, or the "there isn't one" id. A material
-// naming no picture and a material naming one that did not load are the same
-// thing to a shader: it samples white.
+// The id of the picture at `index` in the kind asked for, or the "there isn't
+// one" id. A material naming no picture and a material naming one that was never
+// uploaded are the same thing to a shader: it samples white.
 static voe_render_texture texture_at(const struct import *import,
+				     const voe_render_texture *ids,
 				     uint32_t index)
 {
 	voe_render_texture none = { .index = VOE_RENDER_NO_TEXTURE,
 				    .generation = 0 };
 
-	if (index == VOE_ASSETS_MODEL_NONE ||
+	if (ids == NULL || index == VOE_ASSETS_MODEL_NONE ||
 	    index >= import->model->image_count)
 		return none;
-	return import->textures[index];
+	return ids[index];
 }
 
 static bool upload_materials(struct import *import, voe_base_error *error)
@@ -129,15 +201,19 @@ static bool upload_materials(struct import *import, voe_base_error *error)
 			.roughness = from->roughness,
 			.emissive = from->emissive,
 			.base_colour_texture =
-				texture_at(import, from->base_colour_image),
-			.metallic_roughness_texture = texture_at(
-				import, from->metallic_roughness_image),
-			.normal_texture =
-				texture_at(import, from->normal_image),
+				texture_at(import, import->colours,
+					   from->base_colour_image),
+			.metallic_roughness_texture =
+				texture_at(import, import->data,
+					   from->metallic_roughness_image),
+			.normal_texture = texture_at(import, import->data,
+						     from->normal_image),
 			.occlusion_texture =
-				texture_at(import, from->occlusion_image),
-			.emissive_texture =
-				texture_at(import, from->emissive_image),
+				texture_at(import, import->data,
+					   from->occlusion_image),
+			.emissive_texture = texture_at(import,
+						       import->colours,
+						       from->emissive_image),
 		};
 
 		// One record per glTF material and not one per entity, so two
@@ -504,7 +580,7 @@ bool voe_3d_import_glb(voe_ecs_world *world, voe_render_device *device,
 	*out = (voe_3d_import){
 		.entities = import.entities,
 		.entity_count = import.entity_count,
-		.texture_count = model.image_count,
+		.texture_count = import.texture_count,
 		.material_count = model.material_count,
 		.geometry_count = model.primitive_count,
 	};

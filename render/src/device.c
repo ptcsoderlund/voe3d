@@ -69,13 +69,26 @@
 // it, and both are what this folder is written against.
 #define REQUIRED_VERSION VK_API_VERSION_1_3
 
-// UNORM and not SRGB, so that the colour a clear is given is the colour that
-// reaches the screen. An SRGB swapchain would convert it, which is right the day
-// this engine renders in linear light and wrong today, when the only thing it
-// draws is one colour that a person is looking at to see whether the GPU is
-// working. It is what the surface is asked for and what a headless device takes
-// without asking anyone.
-#define PREFERRED_FORMAT VK_FORMAT_B8G8R8A8_UNORM
+// SRGB AND NOT UNORM, BECAUSE CARD 019 MADE THIS ENGINE RENDER IN LINEAR LIGHT.
+// Every colour inside a frame is linear — a decoded texture, a light, a factor,
+// the clear — and something has to apply the sRGB curve on the way to the
+// screen. That something is this format: the target and the swapchain image both
+// have it, so the shader writes linear values, the hardware encodes them once as
+// it stores them, and the blit between two images of the same sRGB format is a
+// straight copy. The alternative is writing the curve into the fragment shader
+// by hand, which is the same arithmetic done less exactly in a place a later
+// tone-mapping pass would have to undo it.
+//
+// IT WAS UNORM UNTIL THERE WAS A LIGHT, and that was right at the time: with
+// nothing lit, a texture drawn straight to the screen through an sRGB view came
+// out visibly pale against the same picture in an image viewer. The two halves —
+// this format and the sRGB texture format in texture.c — had to change together
+// and they did.
+//
+// It is what the surface is asked for and what a headless device takes without
+// asking anyone. A surface that offers no sRGB format at all is handled where
+// the asking happens, in voe_render_device_choose_format.
+#define PREFERRED_FORMAT VK_FORMAT_B8G8R8A8_SRGB
 
 static void report(voe_base_error *error, voe_base_error code)
 {
@@ -481,14 +494,34 @@ bool voe_render_device_choose_format(voe_render_device *device,
 		return false;
 	}
 
+	// The preferred one, or any other sRGB one, or whatever the surface put
+	// first. The second choice matters: a driver that offers R8G8B8A8_SRGB
+	// and not B8G8R8A8_SRGB is offering exactly what this engine wants with
+	// the channels the other way round, and the swizzle is the driver's
+	// problem rather than something to fall off a cliff over.
 	device->format = formats[0];
 	for (uint32_t i = 0; i < count; i++) {
-		if (formats[i].format == PREFERRED_FORMAT &&
-		    formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+		if (formats[i].colorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+			continue;
+		if (formats[i].format == PREFERRED_FORMAT) {
 			device->format = formats[i];
-			break;
+			return true;
 		}
+		if (formats[i].format == VK_FORMAT_R8G8B8A8_SRGB)
+			device->format = formats[i];
 	}
+
+	// A surface with no sRGB format on it draws a frame that is too dark,
+	// because nothing then applies the curve the screen expects. It is said
+	// out loud rather than refused: the picture is wrong and the program
+	// still runs, which is the more useful of the two on a machine nobody
+	// here has seen. Every desktop compositor either platform supports
+	// offers one.
+	if (device->format.format != PREFERRED_FORMAT &&
+	    device->format.format != VK_FORMAT_R8G8B8A8_SRGB)
+		fprintf(stderr,
+			"render: this surface offers no sRGB format (taking %d), so the frame will reach the screen too dark\n",
+			(int)device->format.format);
 	return true;
 }
 

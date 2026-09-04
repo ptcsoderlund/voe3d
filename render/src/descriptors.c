@@ -1,11 +1,13 @@
 // Everything the shader reads, and the one layout that describes it: the
 // descriptor set layout, the pool, and per frame slot one set, one mapped
-// uniform buffer for the camera and one mapped buffer of per-object records.
+// uniform buffer for the camera and the sun and one mapped buffer of per-object
+// records.
 // This was the front half of cube.c until card 018 took the cube out of render.
 //
 // FOUR BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
-//   0  the camera, one uniform buffer per frame slot, written once a frame
+//   0  the camera and the sun, one uniform buffer per frame slot, written once
+//      a frame
 //   1  every texture at once, one descriptor array, rewritten when a texture
 //      is created or destroyed and never during a frame
 //   2  the per-object records, one storage buffer per frame slot, written as
@@ -24,10 +26,10 @@
 // and coherent and both are written every frame, so mapping and unmapping around
 // each write would be two driver calls to say what one pointer already says.
 //
-// WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The camera
-// and the object records a frame writes are in this slot's own buffers, which
-// the GPU may have been reading until that fence was signalled — and the fence
-// is waited on before anything here is touched.
+// WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The camera,
+// the sun and the object records a frame writes are in this slot's own buffers,
+// which the GPU may have been reading until that fence was signalled — and the
+// fence is waited on before anything here is touched.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -41,18 +43,30 @@
 // so that the two shader layout rules cannot disagree about them. These are what
 // turns "somebody removed the padding" into a build error rather than a picture
 // that is wrong in a way nobody can see.
-static_assert(sizeof(voe_render_object) == 80,
+static_assert(sizeof(voe_render_object) == 144,
 	      "voe_render_object no longer matches the shader's per-object record");
 static_assert(sizeof(voe_render_shading_values) == 80,
 	      "voe_render_shading_values no longer matches the shader's shading record");
-static_assert(sizeof(voe_render_view) == 128,
+static_assert(sizeof(voe_render_view) == 144,
 	      "voe_render_view no longer matches the shader's camera block");
+static_assert(sizeof(voe_render_light) == 32,
+	      "voe_render_light no longer matches the shader's light block");
+static_assert(sizeof(struct voe_render_frame_block) == 176,
+	      "the per-frame block no longer matches what draw.slang reads at binding 0");
 
 // And the offsets, because the sizes above can stay right while the order goes
 // wrong. Every member a buffer layout rule would have moved is named here: the
-// two that follow a matrix or a vector, and the run of texture ids.
-static_assert(offsetof(voe_render_object, shading) == 64,
-	      "the object record's shading index moved; draw.slang has it at 64");
+// ones that follow a matrix or a vector, and the run of texture ids.
+static_assert(offsetof(voe_render_object, normal) == 64,
+	      "the object record's normal matrix moved; draw.slang has it at 64");
+static_assert(offsetof(voe_render_object, shading) == 128,
+	      "the object record's shading index moved; draw.slang has it at 128");
+static_assert(offsetof(voe_render_view, eye) == 128,
+	      "the camera block's eye moved; draw.slang has it at 128");
+static_assert(offsetof(voe_render_light, colour) == 16,
+	      "the light's colour moved; draw.slang has it at 16");
+static_assert(offsetof(struct voe_render_frame_block, light) == 144,
+	      "the sun moved inside the per-frame block; draw.slang has it at 144");
 static_assert(offsetof(voe_render_shading_values, emissive) == 32,
 	      "the shading record's emissive colour moved; draw.slang has it at 32");
 static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
@@ -199,7 +213,7 @@ static bool build_slots(voe_render_device *device)
 		struct voe_render_frame *frame = &device->frames[i];
 		VkDescriptorBufferInfo camera = {
 			.offset = 0,
-			.range = sizeof(voe_render_view),
+			.range = sizeof(struct voe_render_frame_block),
 		};
 		VkDescriptorBufferInfo objects = {
 			.offset = 0,
@@ -227,7 +241,7 @@ static bool build_slots(voe_render_device *device)
 
 		if (!build_mapped(device, &frame->uniforms,
 				  &frame->uniforms_mapped,
-				  sizeof(voe_render_view),
+				  sizeof(struct voe_render_frame_block),
 				  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT))
 			return false;
 		if (!build_mapped(device, &frame->objects, &frame->objects_mapped,

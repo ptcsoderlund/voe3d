@@ -1,9 +1,9 @@
 // voe_dev — the one program a person runs to see what the engine can currently
-// do. Today it opens a window holding a world: two cubes placed by hand, a model
-// read out of a `.glb`, and a camera that either orbits them or is flown. There
-// is one of these and it always shows the current state, so what is here now is
-// expected to be deleted rather than kept behind a flag when the next thing
-// lands.
+// do. Today it opens a window holding a world: two cubes placed by hand, two
+// models read out of `.glb` files, one sun going round them, and a camera that
+// either orbits them or is flown. There is one of these and it always shows the
+// current state, so what is here now is expected to be deleted rather than kept
+// behind a flag when the next thing lands.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING. What is here is which key
 // means which direction, where a placeholder cube stands, and the loop that runs
@@ -11,7 +11,7 @@
 // in a folder, with a test — the moment it is worth testing it is in the wrong
 // place.
 //
-// THREE THINGS LIVE HERE THAT WILL NOT LIVE HERE LONG, and each of them is a
+// FOUR THINGS LIVE HERE THAT WILL NOT LIVE HERE LONG, and each of them is a
 // call site's business only until the folder that owns it exists:
 //
 //   - THE CLOCK. Every frame claims a nominal frame's worth of seconds, because
@@ -25,6 +25,10 @@
 //   - THE SPIN. The turning cube is a transform intent submitted every frame.
 //     Same reasoning: how a transform is written is `scene`'s, what turns and
 //     how fast is a scene's own, and there is no scene file yet.
+//   - THE SUN'S PATH. The light circles the scene on the same clock, as a light
+//     intent every frame, for one reason: a still light is a light nobody can
+//     tell from a wrong one. A scene will say where its sun is the day there is
+//     a scene file.
 //
 // NOT ONE #ifdef. If this file ever needs to know which operating system it is
 // on, the API in platform/window.h, platform/input.h, render/device.h or 3d's
@@ -33,13 +37,13 @@
 //
 // ---- WHAT IT SHOULD LOOK LIKE ----
 //
-// A flat blue-green background with four things in it, from left to right:
+// A flat blue-green background with four lit things in it, from left to right:
 //
 //   - A lettered cube with a smaller one attached to its top-right corner. That
 //     is `dev/src/model.glb`, this repository's own test model, and the small
 //     cube is the big one's child in the file.
 //   - A cube standing still at the origin, which is where the camera looks.
-//   - A cube turning on a tilted axis, just to its right.
+//   - A squashed cube turning on a tilted axis, just to its right.
 //   - A figure standing on nothing: `dev/src/textured_primitives_human.glb`,
 //     three primitives out of Blender sharing one material — a body, a bar of
 //     arms and a spherical head, about two metres tall, standing with its feet
@@ -50,11 +54,22 @@
 // albedo map, which is the thing to look at for whether a real exporter's
 // texture coordinates arrive intact.
 //
-// NOTHING IS LIT AND THAT IS NOT A BUG YET. Every surface is its base colour
-// times its albedo map, so the figure looks flat and its ORM map — occlusion,
-// roughness and metalness, which the import reads and stores — changes nothing
-// on screen. Card 019 is the card that adds a light and starts reading those
-// channels.
+// IT IS LIT BY ONE SUN AND THE SUN GOES ROUND. One directional light, circling
+// the scene once every SUN_SECONDS, so the bright side of everything moves and
+// the far side of everything is black — there is no ambient light and no bounce,
+// so an unlit face really is nothing. The figure's ORM map is read now:
+// occlusion, roughness and metalness out of one picture, which is why it does
+// not look like plastic in the way the cubes do.
+//
+// THE TURNING CUBE IS SQUASHED, AND THAT IS THE NORMAL MATRIX ON SCREEN. Its
+// scale is not the same on all three axes (CUBE_SCALE_*), which is the one case
+// where transforming a normal by the world matrix is visibly wrong: the shading
+// would slide across the faces as it turned instead of staying stuck to them.
+// 3d/tests/normal_matrix.c is the automated half; this is the half a person can
+// see.
+//
+// NOTHING IS TONE MAPPED, SO THE BRIGHT SIDE CAN CLIP. A highlight that goes
+// flat white is expected and is on the later list, not a mistake in the shading.
 //
 // It prints a line whenever something changes — the window's size, who is
 // drawing its frame, whether the camera is being flown, whether the pointer is
@@ -108,6 +123,18 @@
 //   - The figure's texture smeared or in the wrong place while the cubes' "F"s
 //     are right — a real exporter's texture coordinates, which nothing in this
 //     repository generated. That is what having a file nobody here wrote is for.
+//   - EVERYTHING BLACK — the sun is pointing away from everything, its intensity
+//     is nought, or the light never reached the shader. The background is
+//     cleared and not lit, so a black scene on a coloured background is a
+//     lighting failure and a black window is not.
+//   - Everything pale and washed out, or muddy and too dark — a colour space.
+//     One of the two sRGB halves (the texture format and the target format) is
+//     doing its job without the other; see render/src/texture.c.
+//   - The shading sliding across the squashed cube as it turns rather than
+//     staying on its faces — the normal matrix, and the one thing that cube is
+//     there to show.
+//   - The bright side of the still cube not moving as the sun goes round — the
+//     light intent is not landing, or the light system is not being run.
 //
 // ---- FLYING: W A S D, Q E, SPACE, CTRL, SHIFT, AND THE MOUSE ----
 //
@@ -178,6 +205,7 @@
 #include <platform/window.h>
 #include <render/device.h>
 #include <scene/camera_system.h>
+#include <scene/light_system.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
@@ -246,6 +274,36 @@
 #define SPIN_AXIS_Y 1.0f
 #define SPIN_AXIS_Z 0.0f
 
+// The turning cube's scale, and the three numbers are different on purpose: a
+// non-uniform scale is the only case where a normal matrix and a world matrix
+// disagree, so this is what makes that difference something a person can look
+// at. See the header.
+#define CUBE_SCALE_X 1.4f
+#define CUBE_SCALE_Y 0.6f
+#define CUBE_SCALE_Z 1.0f
+
+// The sun: how long a lap takes, how high it sits, and how strong it is.
+//
+// IT MOVES BECAUSE A STILL LIGHT PROVES NOTHING. A light that never moves is
+// indistinguishable from a light pointing the wrong way, from a normal matrix
+// that is the world matrix, and from shading that is stuck to the screen rather
+// than to the surface. One lap every twenty seconds is slow enough to watch a
+// face brighten and fast enough not to have to wait.
+//
+// THE HEIGHT IS THE VERTICAL PART OF THE DIRECTION IT TRAVELS, so a negative
+// number is a sun above the scene shining downwards — see
+// scene/light_component.h on which way a direction points. Not so steep that
+// the sides of things go dark and not so shallow that the tops do.
+//
+// THE INTENSITY IS ABOVE ONE BECAUSE THE DIFFUSE TERM DIVIDES BY PI. A surface
+// facing a white light of one comes back at about a third of its albedo, which
+// is a scene that looks underexposed; π is what makes "one" mean "as bright as
+// the texture". There is no exposure control and no tone mapping yet, so this is
+// a number that looks right rather than a number that means something.
+#define SUN_SECONDS 20.0f
+#define SUN_HEIGHT (-0.8f)
+#define SUN_INTENSITY 3.14159265f
+
 // Where each model is put, once, after it is imported. A file places its
 // contents wherever its author left them — a model should not have an opinion
 // about what else is in the scene — so this is the call site moving each one out
@@ -284,12 +342,14 @@ static const uint8_t LETTERED_GLB[] = {
 // square. What it is really testing is that the reader survives a file nobody
 // here wrote.
 //
-// ITS ALBEDO MAP IS WHAT SHOWS TODAY. The ORM map — occlusion, roughness and
-// metalness in the red, green and blue channels of one picture — is read,
-// uploaded and stored in the material component, and nothing multiplies by it
-// yet: there is no light to be rough or metallic in front of. Card 019 is the
-// card that lights anything, and it is the one that starts reading those
-// channels.
+// BOTH ITS MAPS SHOW NOW. The albedo map is the texture coordinates' half and
+// the ORM map — occlusion, roughness and metalness in the red, green and blue
+// channels of one picture — is the shading's: card 019 lit the engine and reads
+// all three of those channels. Its own export wires that picture into glTF's
+// metallic-roughness slot and its normal slot rather than its occlusion slot, so
+// the occlusion channel of it is not read as occlusion; that is the file's
+// arrangement and assets/include/assets/model.h says why it is taken at its
+// word.
 static const uint8_t HUMAN_GLB[] = {
 #embed "textured_primitives_human.glb"
 };
@@ -365,16 +425,43 @@ static voe_scene_camera_placement orbit(voe_ecs_entity eye, float seconds)
 	return placement;
 }
 
+// Where the sun is pointing at this many seconds in, as an intent.
+//
+// IT CIRCLES ON THE HORIZONTAL PLANE AND LEANS DOWNWARDS. The x and z components
+// go round with the clock and the y component is fixed, so the light comes from
+// a different side of the scene every few seconds and always from above. The
+// direction is not normalized here: the light system does that, which is the
+// point of it doing it there — see scene/light_system.h.
+//
+// THE LAP IS NOT THE CAMERA'S LAP. SUN_SECONDS and ORBIT_SECONDS are different
+// numbers on purpose: if the sun went round with the camera, every surface would
+// keep the same brightness and the whole thing would look like shading stuck to
+// the screen — which is one of the failures this program exists to show.
+static voe_scene_light_intent sunlight(voe_ecs_entity sun, float seconds)
+{
+	float angle = seconds * TURN / SUN_SECONDS;
+	voe_scene_light_intent intent = {
+		.entity = sun,
+		.light = {
+			.direction = { sinf(angle), SUN_HEIGHT, cosf(angle) },
+			.colour = { 1.0f, 1.0f, 1.0f },
+			.intensity = SUN_INTENSITY,
+		},
+	};
+
+	return intent;
+}
+
 // One cube, one entity: geometry it shares with its neighbour, a material it
 // shares with its neighbour, and a transform of its own.
 static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
 		     voe_3d_material material, voe_math_float3 position,
-		     voe_ecs_entity *out)
+		     voe_math_float3 scale, voe_ecs_entity *out)
 {
 	voe_scene_transform transform = {
 		.position = position,
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { 1.0f, 1.0f, 1.0f },
+		.scale = scale,
 	};
 
 	if (!voe_ecs_entity_create(world, out))
@@ -418,7 +505,11 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 	if (!voe_assets_png_decode(TEXTURE_PNG, sizeof(TEXTURE_PNG), arena,
 				   &picture, error))
 		return false;
-	if (!voe_render_texture_create(gpu, picture.width, picture.height,
+	// A colour, so it goes up in the sRGB format and the hardware decodes it
+	// before the shading multiplies by it. An ORM map would be the other kind
+	// — see voe_render_texture_kind.
+	if (!voe_render_texture_create(gpu, VOE_RENDER_TEXTURE_COLOUR,
+				       picture.width, picture.height,
 				       picture.pixels, &texture, error)) {
 		voe_base_arena_rewind(arena, mark);
 		return false;
@@ -430,11 +521,16 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 		return false;
 
 	// One record and one texture id, two entities: sharing a material is
-	// two components holding the same numbers.
+	// two components holding the same numbers. The second one is squashed,
+	// which is what makes the normal matrix visible — see the header.
 	return add_cube(world, geometry, material,
-			(voe_math_float3){ 0.0f, 0.0f, 0.0f }, &still) &&
+			(voe_math_float3){ 0.0f, 0.0f, 0.0f },
+			(voe_math_float3){ 1.0f, 1.0f, 1.0f }, &still) &&
 	       add_cube(world, geometry, material,
-			(voe_math_float3){ CUBES_APART, 0.0f, 0.0f }, turning);
+			(voe_math_float3){ CUBES_APART, 0.0f, 0.0f },
+			(voe_math_float3){ CUBE_SCALE_X, CUBE_SCALE_Y,
+					   CUBE_SCALE_Z },
+			turning);
 }
 
 // One model, then one transform intent per entity to move the whole thing aside.
@@ -485,7 +581,10 @@ static bool add_a_model(voe_ecs_world *world, voe_render_device *gpu,
 		}
 	}
 
-	printf("model      %-9s %u entities, %u meshes, %u materials, %u pictures\n",
+	// Textures and not pictures: a picture wanted as both a colour and a data
+	// map is uploaded twice, so the two numbers are not always the same. See
+	// 3d/import.h.
+	printf("model      %-9s %u entities, %u meshes, %u materials, %u textures\n",
 	       name, imported.entity_count, imported.geometry_count,
 	       imported.material_count, imported.texture_count);
 
@@ -505,6 +604,7 @@ int main(void)
 	voe_base_error error = VOE_BASE_OK;
 	voe_platform_size size;
 	voe_ecs_entity eye = { 0 };
+	voe_ecs_entity sun = { 0 };
 	voe_ecs_entity turning = { 0 };
 	voe_math_float3 spin_axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
 	voe_render_capacities capacities = {
@@ -564,12 +664,22 @@ int main(void)
 	// components is; nothing here does.
 	voe_scene_transform_register(world, MAX_ENTITIES);
 	voe_scene_camera_register(world, 4);
+	voe_scene_light_register(world, 4);
 	voe_3d_mesh_register(world, MAX_ENTITIES);
 	voe_3d_material_register(world, MAX_ENTITIES);
 
 	if (!voe_ecs_entity_create(world, &eye) ||
 	    !voe_scene_camera_add(world, eye, camera)) {
 		fprintf(stderr, "could not make a camera\n");
+		goto stop;
+	}
+
+	// The sun, at wherever its lap starts. The draw system needs exactly one
+	// light in the world, so this is not optional wiring — a world without it
+	// asserts rather than drawing something black.
+	if (!voe_ecs_entity_create(world, &sun) ||
+	    !voe_scene_light_add(world, sun, sunlight(sun, 0.0f).light)) {
+		fprintf(stderr, "could not make a sun\n");
 		goto stop;
 	}
 
@@ -673,6 +783,10 @@ int main(void)
 				(void)voe_scene_camera_place(
 					world, orbit(eye, seconds));
 
+			// The sun, as an intent like everything else.
+			(void)voe_scene_light_submit(world,
+						     sunlight(sun, seconds));
+
 			// The turning cube, as an intent like everything else.
 			spinning = voe_scene_transform_get(world, turning);
 			if (spinning != NULL) {
@@ -694,6 +808,7 @@ int main(void)
 		// one system from another.
 		voe_scene_camera_system_run(world);
 		voe_scene_transform_system_run(world);
+		voe_scene_light_system_run(world);
 
 		if (!voe_3d_draw_system_run(world, gpu, now_size)) {
 			fprintf(stderr, "the GPU stopped answering\n");

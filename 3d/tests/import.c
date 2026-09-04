@@ -37,6 +37,7 @@
 #include <math/float4x4.h>
 #include <render/device.h>
 #include <scene/camera_system.h>
+#include <scene/light_system.h>
 #include <scene/transform_system.h>
 
 #include <testing/test.h>
@@ -78,6 +79,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 
 	voe_scene_transform_register(world, 16);
 	voe_scene_camera_register(world, 2);
+	voe_scene_light_register(world, 2);
 	voe_3d_mesh_register(world, 16);
 	voe_3d_material_register(world, 16);
 	return world;
@@ -99,6 +101,22 @@ static void add_a_camera(voe_ecs_world *world)
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
 	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, camera));
+}
+
+// One sun, because the draw system needs exactly one. Straight down and white:
+// this file checks that a frame is recorded and submitted, not what it looks
+// like — render/tests/offscreen.c is what reads pixels.
+static void add_the_sun(voe_ecs_world *world)
+{
+	voe_ecs_entity sun = { 0 };
+	voe_scene_light light = {
+		.direction = { 0.0f, -1.0f, 0.0f },
+		.colour = { 1.0f, 1.0f, 1.0f },
+		.intensity = 1.0f,
+	};
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(world, sun, light));
 }
 
 int main(void)
@@ -227,6 +245,7 @@ int main(void)
 	// says the tables became draws and the driver accepted them. What the
 	// picture looks like is render/tests/offscreen.c's question.
 	add_a_camera(world);
+	add_the_sun(world);
 	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, size));
 
 	// Twice, so that the second frame slot is used as well — which is where

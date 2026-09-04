@@ -44,7 +44,7 @@
 #define SIDE 16
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
 
-// The channel order of VK_FORMAT_B8G8R8A8_UNORM, which is the format a headless
+// The channel order of VK_FORMAT_B8G8R8A8_SRGB, which is the format a headless
 // device takes and which this test checks it really got before reading a byte.
 #define BLUE 0
 #define GREEN 1
@@ -57,25 +57,31 @@
 //   row-major     m[0][3] m[1][3] m[2][3] are floats 3, 7, 11
 //   column-major  the same expressions are floats 12, 13, 14
 //
-// Both sets are inside 0..1 so they survive an unorm colour, and the two are a
-// hundred byte values apart so no rounding mode can turn one into the other.
+// Both sets are inside 0..1 so they survive a colour, and the two are far enough
+// apart in bytes that no rounding mode can turn one into the other.
 #define PROBE_ELEMENT(row, column) ((float)((row) * 4 + (column)) / 16.0f)
 
-// What the three channels must read, as bytes, if the flag was in force. 255 *
-// 3/16, 7/16 and 11/16.
-#define EXPECTED_RED 48
-#define EXPECTED_GREEN 112
-#define EXPECTED_BLUE 175
+// What the three channels must read, as bytes, if the flag was in force.
+//
+// THEY ARE NOT 255 TIMES THE ELEMENT ANY MORE, AND CARD 019 IS WHY. The target
+// is an sRGB format now, so the hardware applies the sRGB curve to whatever the
+// shader wrote as it stores it: 3/16 is written as 0.1875 and stored as 120
+// rather than 48. The numbers below are that encoding of 3/16, 7/16 and 11/16,
+// and the claim this file makes is untouched — which layout was in force is
+// still the only thing these three bytes can be read as.
+#define EXPECTED_RED 120
+#define EXPECTED_GREEN 177
+#define EXPECTED_BLUE 216
 
 // What they would read without it — never asserted as a pass, only used to say
-// so in the failure message, because "48 but got 191" is a diagnosis and "48 but
-// got something else" is a puzzle.
-#define COLUMN_MAJOR_RED 191
+// so in the failure message, because "120 but got 225" is a diagnosis and "120
+// but got something else" is a puzzle. The encoding of 12/16.
+#define COLUMN_MAJOR_RED 225
 
-// A byte or two of slack. The float-to-unorm conversion is round-to-nearest but
-// the exact tie-breaking is the implementation's, and the two layouts differ by
-// far more than this.
-#define TOLERANCE 3
+// A few bytes of slack. The conversion to an sRGB byte is specified but its last
+// bit is the implementation's, and the two layouts differ here by twenty-four
+// bytes at the closest of the three channels.
+#define TOLERANCE 4
 
 // The probe draws three vertices out of its own shader and uploads nothing, so
 // every capacity here is the smallest a device will accept. A device is not
@@ -238,7 +244,7 @@ int main(void)
 	// Everything below reads bytes in this order. A headless device asks no
 	// surface and takes this format outright, so this is a claim about
 	// device.c and not about the machine.
-	VOE_TEST_CHECK_INT(device->format.format, VK_FORMAT_B8G8R8A8_UNORM);
+	VOE_TEST_CHECK_INT(device->format.format, VK_FORMAT_B8G8R8A8_SRGB);
 	VOE_TEST_CHECK_INT(device->resolution.width, SIDE);
 
 	frame = &device->frames[0];

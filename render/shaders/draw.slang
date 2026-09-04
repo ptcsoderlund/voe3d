@@ -1,8 +1,9 @@
 // The one pipeline: a vertex out of the shared pool, placed by three matrices —
 // two of them the camera's, shared by every draw in a frame, and one of them the
-// object's, read out of a buffer by the object's own number — and shaded by a
-// record read the same way. It replaced cube.slang, which had the cube's two
-// entry points in it and a per-object matrix in a push constant.
+// object's, read out of a buffer by the object's own number — lit by one
+// directional light and shaded by a record read the same way. It replaced
+// cube.slang, which had the cube's two entry points in it and a per-object
+// matrix in a push constant.
 //
 // THE ONLY PUSH CONSTANT IS THE OBJECT'S NUMBER, AND EVERYTHING ELSE IS A BUFFER
 // READ. That is what a draw is told that the draw beside it is not; the matrix
@@ -43,22 +44,92 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// THE SHADING RECORD IS READ IN FULL AND ONLY THE BASE COLOUR IS USED. Card 018
-// parses and uploads every channel glTF gives — metalness, roughness, occlusion,
-// emission and their textures — and card 019 is the one that lights anything
-// with them. The struct is here in full so that the layout is settled by the
-// card that fills it rather than by the card that reads it.
+// ---- THE LIGHTING, AND EVERY DECISION IN IT ----
+//
+// ONE DIRECTIONAL LIGHT, NO SHADOWS, NO AMBIENT, NO IMAGE-BASED ANYTHING. The
+// sun arrives with the camera, once a frame, and every surface is lit from the
+// same direction with the same strength. Nothing tests whether something is in
+// the way and nothing lights the side facing away, so a surface pointing away
+// from the sun is black — which is what a scene with one light and no bounce
+// looks like, and not a bug to patch with a fudge factor here.
+//
+// METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
+// base colour, the metalness, the roughness and the occlusion come out of the
+// shading record and the three maps; a second shading model would mean
+// converting every file this engine can read, so there is one.
+//
+// THE ARITHMETIC IS THE glTF SPECIFICATION'S BRDF, WRITTEN OUT. A GGX
+// distribution, Smith's height-correlated visibility with the specular
+// denominator folded into it, and Schlick's Fresnel; the diffuse half is
+// Lambert, scaled by what the Fresnel term did not reflect. The one place to
+// look when a highlight is wrong is `roughness * roughness`: alpha is roughness
+// squared and using roughness directly is the classic mistake — it makes every
+// surface too shiny and no maths goes wrong to say so.
+//
+// A SURFACE WITH NO NORMAL IS DRAWN UNLIT, AND THIS IS THE CARD THAT DECIDED IT.
+// A file without normals leaves them at nothing (3d/src/import.c), and
+// normalizing a zero vector is a NaN that spreads to the whole fragment. So a
+// normal of nothing is answered by drawing the surface as its base colour with
+// no light on it: visibly flatter than everything around it, finite, and
+// obviously not lit — where a black object would read as a light pointing the
+// wrong way. glTF says a client should compute flat face normals for such a
+// file; doing that means splitting shared vertices at import and it is a card of
+// its own.
+//
+// OCCLUSION MULTIPLIES THE LIGHT, WHICH IS NOT WHERE glTF PUTS IT. In the
+// specification an occlusion map attenuates *indirect* light, and this engine
+// has none — so a map read that way would multiply nothing and the channel would
+// be uploaded and thrown away. It is applied to the direct result instead, which
+// is the only reading that makes an ORM map mean something today. The card that
+// brings ambient or image-based light is the card that moves it, and then this
+// paragraph is what says what it is moving.
+//
+// NORMAL MAPS AND EMISSION ARE READ FROM NO PICTURE HERE. Both ids are in the
+// shading record, both are uploaded, and neither is sampled: a normal map needs
+// tangents, which the importer does not produce, and emission without tone
+// mapping is a colour that clips. Rule 10 — each arrives with the card that
+// needs it.
+//
+// EVERYTHING IN HERE IS LINEAR LIGHT. A colour texture is an sRGB format, so
+// the hardware has already decoded it by the time it reaches this file; the
+// numbers written out are linear and the target's own sRGB format encodes them
+// once as it stores them. There is no gamma arithmetic in this shader and there
+// must not be — that is the double-encode that makes everything pale.
+//
+// NOTHING IS TONE MAPPED, SO A BRIGHT ENOUGH LIGHT CLIPS TO WHITE. Expected, and
+// on the later list; see render/include/render/device.h.
 
 // The camera. One per frame, and the same one for every draw in it.
 struct voe_render_view {
 	float4x4 view;
 	float4x4 projection;
+	// Where the eye is, in world space: half of the direction a surface is
+	// being looked from, which is what a specular highlight needs.
+	float3 eye;
+	float reserved;
 };
 
-// Set 0, binding 0. descriptors.c builds the layout that matches it and frame.c
+// The sun. `direction` is where the light travels — a sun overhead is
+// (0, -1, 0) — and it arrives unit length, because whoever owns the light is
+// where a direction of nothing is a bug worth hearing about.
+struct voe_render_light {
+	float3 direction;
+	float intensity;
+	float3 colour;
+	float reserved;
+};
+
+// Set 0, binding 0. Matches struct voe_render_frame_block in
+// render/src/device_internal.h field for field: descriptors.c builds the layout
+// that matches it, asserts on both structs' sizes and offsets, and frame.c
 // writes one of these per frame slot.
+struct voe_render_frame_block {
+	voe_render_view camera;
+	voe_render_light light;
+};
+
 [[vk::binding(0, 0)]]
-ConstantBuffer<voe_render_view> voe_render_camera;
+ConstantBuffer<voe_render_frame_block> voe_render_frame;
 
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.
@@ -73,18 +144,25 @@ ConstantBuffer<voe_render_view> voe_render_camera;
 Sampler2D voe_render_textures[64];
 
 // One drawn object. Matches voe_render_object in render/device.h field for
-// field, padding included: the matrix fills the first sixty-four bytes and the
-// four uints after it fill to eighty, so every layout rule a structured buffer
-// might be given puts every member in the same place.
+// field, padding included: the two matrices fill the first hundred and
+// twenty-eight bytes and the four uints after them fill to a hundred and
+// forty-four, so every layout rule a structured buffer might be given puts every
+// member in the same place.
+//
+// THE NORMAL MATRIX IS A SECOND MATRIX AND NOT A LUXURY. Under a non-uniform
+// scale the world matrix tilts a normal off the surface it belongs to, and what
+// that looks like is lighting sliding across a solid object rather than a wrong
+// matrix. The CPU hands over the inverse transpose; see voe_3d_normal_matrix.
 //
 // THE PADDING IS THREE SCALARS AND NOT A uint3, AND THAT IS NOT A STYLE CHOICE.
 // A three-component vector has a sixteen-byte alignment in every buffer layout
-// rule there is, so a uint3 after a single uint would start at eighty rather
-// than sixty-eight and the record would be ninety-six bytes on this side and
-// eighty on the other. Three uints have a four-byte alignment each and land
-// where C puts them. The same applies to the shading record below.
+// rule there is, so a uint3 after a single uint would start at a hundred and
+// forty-four rather than a hundred and thirty-two and the record would be a
+// different size on this side. Three uints have a four-byte alignment each and
+// land where C puts them. The same applies to the shading record below.
 struct voe_render_object {
 	float4x4 world;
+	float4x4 normal;
 	uint shading;
 	uint reserved0;
 	uint reserved1;
@@ -92,7 +170,7 @@ struct voe_render_object {
 };
 
 // Set 0, binding 2: this frame's records, one per draw. Read by both stages —
-// the vertex stage wants the matrix and the fragment stage wants the shading
+// the vertex stage wants the matrices and the fragment stage wants the shading
 // index.
 [[vk::binding(2, 0)]]
 StructuredBuffer<voe_render_object> voe_render_objects;
@@ -138,8 +216,14 @@ struct voe_render_draw_vertex_in {
 	[[vk::location(2)]] float2 uv : TEXCOORD;
 };
 
+// What crosses between the stages: the clip-space position the rasteriser wants,
+// and the three things the lighting needs in world space. `world` is there
+// because a specular highlight needs the direction from the surface to the eye,
+// and reconstructing a world position from a depth buffer is a later card's
+// trick for a later card's reason.
 struct voe_render_draw_vertex_out {
 	float4 position : SV_Position;
+	float3 world : POSITION;
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD;
 };
@@ -154,14 +238,63 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	float4 eye;
 
 	world = mul(object.world, float4(vertex.position, 1.0));
-	eye = mul(voe_render_camera.view, world);
-	out.position = mul(voe_render_camera.projection, eye);
+	eye = mul(voe_render_frame.camera.view, world);
+	out.position = mul(voe_render_frame.camera.projection, eye);
 
-	// Carried through so that the vertex layout the CPU describes is the
-	// layout this stage reads. Card 019 is what lights anything with it.
-	out.normal = vertex.normal;
+	// A direction and not a point, so w is zero and the normal matrix's
+	// last column — whatever the inverse transpose left there — is ignored.
+	// Not normalized here: it is interpolated across the triangle and the
+	// fragment stage has to normalize what arrives anyway.
+	out.world = world.xyz;
+	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
 	return out;
+}
+
+static const float VOE_PI = 3.14159265358979;
+
+// What a non-metal reflects head-on: four per cent, which is glass, plastic,
+// stone, skin and very nearly everything else that is not a metal. A metal's
+// answer is its own base colour instead, which is what metalness interpolates
+// towards.
+static const float VOE_DIELECTRIC_REFLECTANCE = 0.04;
+
+// Nothing here divides by a number that came out of a file without this under
+// it. A grazing angle sends the visibility term's denominator to zero and one
+// NaN fragment is a black or white speck that moves with the camera.
+static const float VOE_LEAST = 1e-7;
+
+// Schlick's approximation: how much more a surface reflects at a grazing angle
+// than head-on. The fifth power is the approximation and not a tunable.
+float3 voe_render_fresnel(float3 f0, float cosine)
+{
+	float factor = pow(saturate(1.0 - cosine), 5.0);
+
+	return f0 + (1.0 - f0) * factor;
+}
+
+// Trowbridge-Reitz, which everyone calls GGX: how much of the surface's
+// microscopic facets point at the half vector. `alpha` is roughness squared —
+// see the note at the top of this file.
+float voe_render_distribution(float n_dot_h, float alpha)
+{
+	float a2 = alpha * alpha;
+	float d = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
+
+	return a2 / max(VOE_PI * d * d, VOE_LEAST);
+}
+
+// Smith's height-correlated visibility, which is the shadowing-masking term with
+// the specular denominator 4·(n·l)·(n·v) folded into it. Folded because the two
+// cancel: written separately they are a division by something that goes to zero
+// at exactly the angles where the other factor does.
+float voe_render_visibility(float n_dot_l, float n_dot_v, float alpha)
+{
+	float a2 = alpha * alpha;
+	float lambda_l = n_dot_l * sqrt(n_dot_v * n_dot_v * (1.0 - a2) + a2);
+	float lambda_v = n_dot_v * sqrt(n_dot_l * n_dot_l * (1.0 - a2) + a2);
+
+	return 0.5 / max(lambda_l + lambda_v, VOE_LEAST);
 }
 
 [shader("fragment")]
@@ -169,15 +302,74 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
 	uint index = voe_render_objects[voe_render_draw_current.object].shading;
 	voe_render_shading shading = voe_render_shadings[index];
+	voe_render_light sun = voe_render_frame.light;
 
+	// EVERY SAMPLE HAPPENS BEFORE ANY BRANCH, AND THAT IS DELIBERATE. A
+	// Sample needs the derivatives the rasteriser computes across a quad of
+	// fragments, which are only defined where the whole quad took the same
+	// path. Reading all three here costs one fetch of a one-pixel white
+	// texture where a material has no map, and is correct without a rule
+	// about where a branch may go.
+	//
 	// NonUniformResourceIndex is not used and is not needed: the texture
 	// index comes from a record picked by a push constant, so it is the same
 	// value for every fragment in the draw. It would be needed the day the
 	// index came from a vertex attribute or from the instance index.
 	//
-	// A MATERIAL WITH NO TEXTURE SAMPLES WHITE, WHICH IS WHY THERE IS NO
-	// BRANCH HERE. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one white
-	// pixel, so multiplying by it leaves the factor alone.
-	return shading.base_colour *
-	       voe_render_textures[shading.base_colour_texture].Sample(vertex.uv);
+	// A MATERIAL WITH NO TEXTURE SAMPLES WHITE, WHICH IS WHY NOTHING TESTS
+	// FOR ONE. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one white
+	// pixel, so multiplying by it leaves every factor alone.
+	float4 base = shading.base_colour *
+		      voe_render_textures[shading.base_colour_texture].Sample(vertex.uv);
+	// glTF packs occlusion in red, roughness in green and metalness in blue,
+	// and the metallic-roughness map is the green and blue of that. A file
+	// that puts its occlusion in the same picture points its occlusion
+	// texture at it as well, and then this samples the same slot twice.
+	float4 orm =
+		voe_render_textures[shading.metallic_roughness_texture].Sample(vertex.uv);
+	float occlusion =
+		voe_render_textures[shading.occlusion_texture].Sample(vertex.uv).r;
+
+	float roughness = saturate(shading.roughness * orm.g);
+	float metallic = saturate(shading.metallic * orm.b);
+	float alpha = roughness * roughness;
+
+	// A normal of nothing: unlit rather than NaN. See the header.
+	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
+		return base;
+
+	float3 n = normalize(vertex.normal);
+	float3 v = normalize(voe_render_frame.camera.eye - vertex.world);
+	// Towards the light, which is the opposite of the way the light travels.
+	float3 l = -sun.direction;
+	float3 h = normalize(l + v);
+
+	float n_dot_l = saturate(dot(n, l));
+	float n_dot_v = saturate(dot(n, v));
+	float n_dot_h = saturate(dot(n, h));
+	float v_dot_h = saturate(dot(v, h));
+
+	// A metal has no diffuse response and reflects its own colour; a
+	// non-metal reflects four per cent of white and keeps its colour in the
+	// diffuse half. Metalness is the interpolation between the two and is
+	// not a blend of two shading models.
+	float3 f0 = lerp(float3(VOE_DIELECTRIC_REFLECTANCE), base.rgb,
+			 metallic);
+	float3 diffuse_colour = base.rgb * (1.0 - metallic);
+
+	float3 fresnel = voe_render_fresnel(f0, v_dot_h);
+	float3 specular = fresnel * voe_render_distribution(n_dot_h, alpha) *
+			  voe_render_visibility(n_dot_l, n_dot_v, alpha);
+	// What the Fresnel term did not reflect is what the diffuse half is left
+	// to work with, which is the whole of what keeps this from adding energy
+	// the light did not have.
+	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
+
+	float3 radiance = sun.colour * sun.intensity * n_dot_l;
+	float3 lit = (diffuse + specular) * radiance * occlusion;
+
+	// The alpha is carried through untouched. Nothing blends yet — the
+	// pipeline is opaque — so this is the file's value arriving intact
+	// rather than a coverage this shader acts on.
+	return float4(lit, base.a);
 }

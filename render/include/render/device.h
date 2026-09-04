@@ -20,7 +20,7 @@
 //     while (!voe_platform_window_should_close(window)) {
 //             bool drawing;
 //             voe_platform_window_poll(window);
-//             if (!voe_render_frame_begin(gpu, size, view, &drawing))
+//             if (!voe_render_frame_begin(gpu, size, view, sun, &drawing))
 //                     break;
 //             if (drawing) {
 //                     voe_render_frame_draw(gpu, cube, (voe_render_object){
@@ -53,10 +53,10 @@
 // drawn from one buffer later, with one indirect call instead of one call each.
 //
 // PER-OBJECT DATA GOES INTO ONE BUFFER PER FRAME SLOT, ONE RECORD PER DRAW. The
-// world matrix and which shading record to use are written by _draw as it
-// records, and the shader reads its record by object number. Card 014's push
-// constant for the model matrix is gone; the only push constant left is the
-// object number itself.
+// world matrix, the matrix its normals want and which shading record to use are
+// written by _draw as it records, and the shader reads its record by object
+// number. Card 014's push constant for the model matrix is gone; the only push
+// constant left is the object number itself.
 //
 // IT DRAWS TO AN IMAGE OF ITS OWN AND COPIES THAT TO THE WINDOW. The frame is
 // cleared and drawn into an offscreen colour target and putting that on screen
@@ -75,11 +75,37 @@
 // simply differs from the one the targets were built at, and the next frame
 // rebuilds them.
 //
-// THE CAMERA IS TWO MATRICES AND NOTHING ELSE. Where the camera is, how fast it
-// moves and what a mouse does to it are `scene`'s; how a field of view becomes a
-// projection is `3d`'s, because the reversed depth and the clip-space
+// THE CAMERA IS TWO MATRICES AND WHERE THE EYE IS. Where the camera is, how fast
+// it moves and what a mouse does to it are `scene`'s; how a field of view
+// becomes a projection is `3d`'s, because the reversed depth and the clip-space
 // conventions are this folder's business and `3d` is the folder allowed to know
-// both. What arrives here is the answer.
+// both. What arrives here is the answer. The eye is beside the matrices because
+// a specular highlight is a function of where the surface is being looked from,
+// and digging it back out of the inverse of the view matrix in a shader would be
+// arithmetic to recover a number the caller already had.
+//
+// ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A FRAME. It is the
+// sun: a direction, a colour and a strength, the same for every draw in the
+// frame. There is no light list and no second light — many lights is a later
+// card and it is the card that decides how they are gathered — and there is no
+// shadow: nothing here tests whether anything is in the way.
+//
+// EVERY COLOUR THAT CROSSES THIS BOUNDARY IS LINEAR, AND sRGB LIVES AT THE TWO
+// ENDS. A picture full of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and
+// the hardware decodes it on every read; the frame is drawn in linear light and
+// encoded once, by the target's own format, on the way to the window. So a
+// factor, a light's colour and a clear colour are all linear numbers, and the
+// only two places an sRGB curve is applied are inside the GPU where nobody has
+// to write it down. A picture that holds numbers rather than colour —
+// metalness, roughness, occlusion, a normal map — is uploaded as
+// VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
+//
+// NOTHING IS TONE MAPPED, SO BRIGHT VALUES CLIP. A light strong enough to push a
+// surface past one is clamped by the target's format and the highlight goes
+// flat white. That is expected and it is not a bug to work around at a call
+// site by keeping intensities low; the card that maps a high-dynamic-range
+// target down to a screen is the card that fixes it, and card 013's offscreen
+// target is what makes it possible.
 #pragma once
 
 #include <base/arena.h>
@@ -117,9 +143,11 @@ typedef struct {
 // on the way in.
 typedef struct {
 	voe_math_float3 position;
-	// Not read by this card's shader; the lighting card is what consumes it.
-	// It is in the layout now because geometry that arrives without one
-	// would have to be uploaded again when it does.
+	// The surface's normal in the model's own space, unit length. The
+	// fragment stage lights with it, and what turns it into world space is
+	// the normal matrix in voe_render_object below — never the world matrix.
+	// A vertex whose normal is nothing is drawn unlit rather than black; see
+	// shaders/draw.slang, which is where that decision is written down.
 	voe_math_float3 normal;
 	voe_math_float2 uv;
 } voe_render_vertex;
@@ -129,6 +157,27 @@ typedef struct {
 	uint32_t index;
 	uint32_t generation;
 } voe_render_geometry;
+
+// What a picture holds, which is what decides the format it is uploaded in and
+// the only thing about a texture this API needs told.
+//
+// COLOUR MEANS sRGB-ENCODED AND DATA MEANS NUMBERS, AND THE CHOICE IS NOT
+// COSMETIC. A base colour or emissive map is a picture somebody looked at while
+// making it, so its bytes are sRGB-encoded and the hardware has to decode them
+// before anything multiplies by them — that is what COLOUR asks for. A
+// metalness, roughness, occlusion or normal map is numbers that were never a
+// colour, and decoding one bends every value towards zero: a roughness of 0.5
+// arrives as 0.21 and the whole surface goes shiny. Getting either one wrong is
+// a picture that is slightly wrong everywhere and nothing that fails.
+//
+// A CALLER THAT WANTS ONE PICTURE BOTH WAYS UPLOADS IT TWICE. There is one
+// format per texture slot, so a file whose single picture is referenced as both
+// a base colour and an ORM map costs two slots; deciding that is the importer's,
+// because it is the thing that knows what each reference is for.
+typedef enum {
+	VOE_RENDER_TEXTURE_COLOUR,
+	VOE_RENDER_TEXTURE_DATA,
+} voe_render_texture_kind;
 
 // A texture on the GPU. `index` is the subscript the fragment stage uses;
 // `generation` never reaches the GPU and is what makes a stale id safe, because
@@ -165,8 +214,18 @@ typedef struct {
 	voe_math_float3 emissive;
 	float reserved_b;
 	// Texture ids, index halves only — VOE_RENDER_NO_TEXTURE where the
-	// material references none. This card writes them and draws with the
-	// base colour one; the lighting card is what reads the rest.
+	// material references none. The base colour, the metallic-roughness and
+	// the occlusion ones are sampled; the normal and the emissive ones are
+	// stored and not read, because nothing has asked for normal mapping or
+	// for emission yet (rule 10) and both are a card of their own.
+	//
+	// A COLOUR TEXTURE AND A DATA TEXTURE ARE NOT INTERCHANGEABLE HERE. The
+	// base colour and the emissive ones are uploaded as
+	// VOE_RENDER_TEXTURE_COLOUR and the other three as
+	// VOE_RENDER_TEXTURE_DATA, because the first pair holds sRGB-encoded
+	// colour and the rest hold numbers. Putting an id from the wrong kind in
+	// one of these slots is a picture that is subtly too dark or too flat
+	// and nothing that fails.
 	uint32_t base_colour_texture;
 	uint32_t metallic_roughness_texture;
 	uint32_t normal_texture;
@@ -182,18 +241,58 @@ typedef struct {
 
 // The camera, for one frame: where it is and what it can see, already worked out
 // by whoever owns those questions.
+//
+// Padded like the two records below and asserted on in render/src/descriptors.c,
+// because it shares a buffer with the light and the shader reads both out of one
+// block.
 typedef struct {
 	voe_math_float4x4 view;
 	voe_math_float4x4 projection;
+	// Where the eye is, in world space. The fragment stage wants it for the
+	// direction a surface is being looked from.
+	voe_math_float3 eye;
+	float reserved;
 } voe_render_view;
 
-// One drawn object's record. `shading` is the index half of a voe_render_shading
-// id; the shader reads the record it names.
+// The sun, for one frame.
+//
+// `direction` IS WHERE THE LIGHT GOES AND NOT WHERE THE SUN IS. A sun overhead
+// travels downwards: (0, -1, 0). It must be unit length — the shader does not
+// normalize it, because whoever owns the light is where a direction of nothing
+// is a bug worth hearing about, and here it would be twelve floats of arithmetic
+// per fragment to fix a caller's mistake.
+//
+// `colour` IS LINEAR AND `intensity` HAS NO UNIT. A colour of (1, 1, 1) tints
+// nothing; the intensity is a multiplier that is whatever looks right, because
+// there is no exposure and no tone mapping in this engine yet. A light of no
+// intensity leaves every surface black, which is what a frame given a zeroed one
+// looks like.
+typedef struct {
+	voe_math_float3 direction;
+	float intensity;
+	voe_math_float3 colour;
+	float reserved;
+} voe_render_light;
+
+// One drawn object's record: the two matrices it is drawn with and the shading
+// record it wears. `shading` is the index half of a voe_render_shading id; the
+// shader reads the record it names.
+//
+// THE NORMAL MATRIX IS NOT THE WORLD MATRIX AND THE DIFFERENCE IS VISIBLE. A
+// normal is not carried by a transform the way a point is: under a non-uniform
+// scale, the world matrix tilts a normal off the surface it belongs to, and the
+// result looks like broken lighting rather than a broken matrix — the surface
+// stays where it is and the shading slides across it. What a normal wants is the
+// inverse transpose of the world matrix, which is the same thing for a rotation
+// and a uniform scale and something else entirely otherwise. This folder does
+// not compute it: whoever built the world matrix is what hands one over, and
+// that is voe_3d_normal_matrix.
 //
 // Padded for the same reason voe_render_shading_values is, and asserted on in
 // render/src/descriptors.c.
 typedef struct {
 	voe_math_float4x4 world;
+	voe_math_float4x4 normal;
 	uint32_t shading;
 	uint32_t reserved[3];
 } voe_render_object;
@@ -261,6 +360,9 @@ void voe_render_device_destroy(voe_render_device *device);
 // ---------------------------------------------------------------- textures
 
 // Upload width * height RGBA8 pixels and hand back the id that names them.
+// `kind` says whether the bytes are colour or numbers — see
+// voe_render_texture_kind, which is the one thing here that is easy to get wrong
+// and impossible to see.
 //
 // The pixels are copied and the caller's buffer is its own again the moment this
 // returns — which is what lets the arena a decoder used be rewound immediately.
@@ -272,6 +374,7 @@ void voe_render_device_destroy(voe_render_device *device);
 // IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION. The descriptor
 // sets it rewrites may not be touched while a frame is reading them.
 [[nodiscard]] bool voe_render_texture_create(voe_render_device *device,
+					     voe_render_texture_kind kind,
 					     uint32_t width, uint32_t height,
 					     const uint8_t *rgba,
 					     voe_render_texture *out,
@@ -303,7 +406,7 @@ bool voe_render_texture_destroy(voe_render_device *device,
 
 // Starts the frame: rebuilds what a resize invalidated, waits for the slot this
 // frame will use, takes a swapchain image, and begins recording with `view` as
-// the camera for everything drawn until _end.
+// the camera and `light` as the sun for everything drawn until _end.
 //
 // `drawing` COMES BACK FALSE WHEN THERE IS NOTHING TO DRAW INTO — a window with
 // no area, or a swapchain that has just gone stale. That is not an error: no
@@ -315,7 +418,9 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // asking. Everything a frame can hit that a retry fixes is handled here.
 [[nodiscard]] bool voe_render_frame_begin(voe_render_device *device,
 					  voe_platform_size size,
-					  voe_render_view view, bool *drawing);
+					  voe_render_view view,
+					  voe_render_light light,
+					  bool *drawing);
 
 // Draws one range with one object record, in the order the calls are made. The
 // record is written into this slot's object buffer and the object's number is

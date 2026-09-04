@@ -26,16 +26,32 @@
 #include <stdio.h>
 #include <string.h>
 
-// RGBA8 in the order assets hands it over, and UNORM rather than SRGB.
+// RGBA8 in the order assets hands it over, in one of two formats.
 //
-// UNORM IS A DECISION AND IT IS THE ONE THAT WILL BE REVISITED. An SRGB format
-// makes the hardware un-gamma every texel on read, which is what a lighting
-// model wants; there is no lighting model yet, so a texture drawn straight to
-// the screen through an SRGB view would come out visibly pale against the same
-// picture in any image viewer. Card 019 brings the light, and it is the card
-// that makes this SRGB and gives the swapchain the matching treatment — both
-// together or neither, because doing one is worse than doing nothing.
-#define TEXTURE_FORMAT VK_FORMAT_R8G8B8A8_UNORM
+// TWO FORMATS, BECAUSE A PICTURE OF A COLOUR AND A PICTURE OF NUMBERS ARE NOT
+// THE SAME THING. A base colour map was authored by somebody looking at it, so
+// its bytes carry the sRGB curve and the hardware has to take it off before
+// anything multiplies by them: that is SRGB, and it is the format that makes
+// linear lighting correct rather than approximately correct. A metalness,
+// roughness, occlusion or normal map is numbers that were never a colour, and
+// decoding one bends every value towards zero — a roughness byte of 128 would
+// arrive as 0.21 instead of 0.5 and every surface in the scene would go shiny.
+// The caller says which it has (voe_render_texture_kind) and this is the whole
+// of what that choice does.
+//
+// IT WAS ONE FORMAT, UNORM, UNTIL THERE WAS A LIGHT. With nothing lit, a colour
+// texture read through an SRGB view came out visibly pale against the same
+// picture in an image viewer, because nothing put the curve back on the way to
+// the screen. Card 019's other half is the sRGB swapchain and target in
+// device.c: the two had to change together and they did.
+#define TEXTURE_COLOUR_FORMAT VK_FORMAT_R8G8B8A8_SRGB
+#define TEXTURE_DATA_FORMAT VK_FORMAT_R8G8B8A8_UNORM
+
+static VkFormat format_for(voe_render_texture_kind kind)
+{
+	return kind == VOE_RENDER_TEXTURE_COLOUR ? TEXTURE_COLOUR_FORMAT
+						 : TEXTURE_DATA_FORMAT;
+}
 
 // How many mip levels an image of this size has, counting the full-size one.
 // Halving until a side reaches one, which is what the blit chain below does.
@@ -55,13 +71,15 @@ static uint32_t mip_levels_for(uint32_t width, uint32_t height)
 // Whether this card will filter this format linearly, which is what a mipmap
 // blit needs. Asked rather than assumed: R8G8B8A8_UNORM is required by Vulkan to
 // be sampled, but linear *blit* filtering is a separate feature bit and a card
-// is allowed to say no.
-static bool can_generate_mipmaps(voe_render_device *device)
+// is allowed to say no. Asked per format, because the two texture kinds are two
+// formats and a card is allowed to answer differently for each.
+static bool can_generate_mipmaps(voe_render_device *device, VkFormat format)
 {
 	VkFormatProperties properties;
 
-	voe_render_vk.get_physical_device_format_properties(
-		device->physical, TEXTURE_FORMAT, &properties);
+	voe_render_vk.get_physical_device_format_properties(device->physical,
+							    format,
+							    &properties);
 
 	return (properties.optimalTilingFeatures &
 		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
@@ -153,13 +171,13 @@ static void generate_mipmaps(VkCommandBuffer commands, VkImage image,
 // function with a parameter for every way they differ.
 static bool build_texture_image(voe_render_device *device,
 				struct voe_render_texture_slot *slot,
-				uint32_t width, uint32_t height,
-				uint32_t levels)
+				VkFormat format, uint32_t width,
+				uint32_t height, uint32_t levels)
 {
 	VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
-		.format = TEXTURE_FORMAT,
+		.format = format,
 		.extent = { width, height, 1 },
 		.mipLevels = levels,
 		.arrayLayers = 1,
@@ -180,7 +198,7 @@ static bool build_texture_image(voe_render_device *device,
 	VkImageViewCreateInfo view = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = TEXTURE_FORMAT,
+		.format = format,
 		.subresourceRange = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.levelCount = levels,
@@ -189,6 +207,11 @@ static bool build_texture_image(voe_render_device *device,
 	};
 	uint32_t type;
 	VkResult result;
+
+	// Kept because it is the one thing about a slot that cannot be read back
+	// off the image, and because it is what a reader of this file wants to
+	// know first about a texture that came out wrong.
+	slot->format = format;
 
 	result = voe_render_vk.create_image(device->device, &info, NULL,
 					    &slot->image);
@@ -370,12 +393,14 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 	voe_render_vk.update_descriptor_sets(device->device, 1, &write, 0, NULL);
 }
 
-bool voe_render_texture_create(voe_render_device *device, uint32_t width,
+bool voe_render_texture_create(voe_render_device *device,
+			       voe_render_texture_kind kind, uint32_t width,
 			       uint32_t height, const uint8_t *rgba,
 			       voe_render_texture *out, voe_base_error *error)
 {
 	struct voe_render_buffer staging = { 0 };
 	struct voe_render_texture_slot *slot = NULL;
+	VkFormat format = format_for(kind);
 	uint32_t index = 0;
 	uint32_t levels;
 	VkDeviceSize size;
@@ -403,11 +428,12 @@ bool voe_render_texture_create(voe_render_device *device, uint32_t width,
 		return false;
 	}
 
-	levels = can_generate_mipmaps(device) ? mip_levels_for(width, height)
-					      : 1;
+	levels = can_generate_mipmaps(device, format) ?
+			 mip_levels_for(width, height) :
+			 1;
 	size = (VkDeviceSize)width * height * 4;
 
-	if (!build_texture_image(device, slot, width, height, levels))
+	if (!build_texture_image(device, slot, format, width, height, levels))
 		goto refused;
 
 	if (!voe_render_buffer_build(device, &staging, size,
@@ -520,6 +546,14 @@ bool voe_render_texture_startup(voe_render_device *device)
 	// than to whatever was in memory — and so that a cube drawn before
 	// anything has loaded shows its vertex colours unchanged, the fragment
 	// stage multiplying by one.
+	//
+	// IT STANDS IN FOR A MISSING TEXTURE OF EITHER KIND, AND WHITE IS THE
+	// ONE COLOUR WHERE THAT WORKS. White is 1 under both formats — the sRGB
+	// curve fixes both ends — so a material with no base colour map and a
+	// material with no roughness map both multiply their factor by exactly
+	// one. Any other default would have to be two textures. It is built in
+	// the data format because that is the one that does no decoding, which
+	// is the easier of the two to reason about when reading this.
 	static const uint8_t WHITE[4] = { 0xff, 0xff, 0xff, 0xff };
 	VkSamplerCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -562,7 +596,8 @@ bool voe_render_texture_startup(voe_render_device *device)
 		void *mapped = NULL;
 		bool ok;
 
-		if (!build_texture_image(device, slot, 1, 1, 1))
+		if (!build_texture_image(device, slot, TEXTURE_DATA_FORMAT, 1, 1,
+					 1))
 			return false;
 		if (!voe_render_buffer_build(
 			    device, &staging, sizeof(WHITE),
