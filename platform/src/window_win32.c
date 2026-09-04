@@ -93,7 +93,7 @@ static voe_platform_window *window_of(HWND hwnd)
 								   GWLP_USERDATA);
 }
 
-// A virtual key to one of the nine keys this engine reads, or
+// A virtual key to one of the eleven keys this engine reads, or
 // VOE_PLATFORM_KEY_COUNT for everything else. The letters are their own ASCII
 // capitals, which is what Windows defines VK_A..VK_Z to be and why there are no
 // constants for them to name.
@@ -113,6 +113,10 @@ static voe_platform_key key_of(WPARAM virtual_key)
 		return VOE_PLATFORM_KEY_S;
 	case 'D':
 		return VOE_PLATFORM_KEY_D;
+	case 'Q':
+		return VOE_PLATFORM_KEY_Q;
+	case 'E':
+		return VOE_PLATFORM_KEY_E;
 	case VK_SPACE:
 		return VOE_PLATFORM_KEY_SPACE;
 	case VK_CONTROL:
@@ -154,6 +158,8 @@ static void focus_gained(voe_platform_window *window)
 		[VOE_PLATFORM_KEY_A] = 'A',
 		[VOE_PLATFORM_KEY_S] = 'S',
 		[VOE_PLATFORM_KEY_D] = 'D',
+		[VOE_PLATFORM_KEY_Q] = 'Q',
+		[VOE_PLATFORM_KEY_E] = 'E',
 		[VOE_PLATFORM_KEY_SPACE] = VK_SPACE,
 		[VOE_PLATFORM_KEY_CONTROL] = VK_CONTROL,
 		[VOE_PLATFORM_KEY_SHIFT] = VK_SHIFT,

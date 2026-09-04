@@ -293,12 +293,13 @@ static const struct zxdg_toplevel_decoration_v1_listener decoration_listener = {
 
 // --------------------------------------------------------------------- input
 
-// An evdev scancode to one of the nine keys this engine reads, or
+// An evdev scancode to one of the eleven keys this engine reads, or
 // VOE_PLATFORM_KEY_COUNT for the hundred-odd it does not.
 //
 // A SWITCH AND NOT A TABLE INDEXED BY SCANCODE, BECAUSE THE SCANCODES ARE SPARSE
-// AND THE ENGINE'S SET IS TINY. Nine cases against an array with two hundred and
-// fifty entries in it, of which nine are used; the switch is also the form the
+// AND THE ENGINE'S SET IS TINY. Eleven cases against an array with two hundred
+// and fifty entries in it, of which eleven are used; the switch is also the form
+// the
 // Windows side takes, which makes the two tables readable side by side. Both
 // ends of Shift and Control land on one key each, which is
 // include/platform/input.h's decision and not this file's.
@@ -313,6 +314,10 @@ static voe_platform_key key_of(uint32_t scancode)
 		return VOE_PLATFORM_KEY_S;
 	case KEY_D:
 		return VOE_PLATFORM_KEY_D;
+	case KEY_Q:
+		return VOE_PLATFORM_KEY_Q;
+	case KEY_E:
+		return VOE_PLATFORM_KEY_E;
 	case KEY_SPACE:
 		return VOE_PLATFORM_KEY_SPACE;
 	case KEY_LEFTCTRL:

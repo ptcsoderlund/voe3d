@@ -61,12 +61,13 @@
 //     render/tests/matrix.c checks both on the CPU, so this should have failed
 //     before it got here.
 //
-// ---- FLYING: W A S D, SPACE, CTRL, SHIFT, AND THE MOUSE ----
+// ---- FLYING: W A S D, Q E, SPACE, CTRL, SHIFT, AND THE MOUSE ----
 //
 // Tab, then: W and S forwards and back along where the camera is looking, A and
-// D left and right, Space and Ctrl straight up and down whatever the camera is
-// looking at, Shift to go four times as fast, and the mouse to look around. Tab
-// again or Escape to give it back.
+// D left and right, E or Space up and Q or Ctrl down — straight up and down
+// whatever the camera is looking at — Shift to go four times as fast, and the
+// mouse to look around. Tab again or Escape to give it back. E and Q are there
+// so that the whole of flying is reachable from the left hand alone.
 //
 // WHAT IS WRONG IF IT FEELS WRONG, AND EACH OF THESE IS A DIFFERENT MISTAKE:
 //
@@ -173,9 +174,16 @@ static voe_render_camera_input camera_input(voe_platform_window *window,
 		look.right += 1.0f;
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_A))
 		look.right -= 1.0f;
-	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_SPACE))
+	// Space and E are the same instruction, and so are Ctrl and Q, which is
+	// why each pair is one test and not two. Two tests adding a step each
+	// would make Space and E held together a rise of two: normalizing later
+	// fixes the speed but not the direction, so a diagonal held with both
+	// would lean upwards more than the same diagonal held with one.
+	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_SPACE) ||
+	    voe_platform_input_key_down(window, VOE_PLATFORM_KEY_E))
 		look.up += 1.0f;
-	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_CONTROL))
+	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_CONTROL) ||
+	    voe_platform_input_key_down(window, VOE_PLATFORM_KEY_Q))
 		look.up -= 1.0f;
 
 	look.fast = voe_platform_input_key_down(window, VOE_PLATFORM_KEY_SHIFT);
