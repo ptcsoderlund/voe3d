@@ -34,8 +34,8 @@
 #include <platform/window.h>
 #include <render/device.h>
 
-// The most images a swapchain here may have. FIFO presentation hands back three
-// or four on every driver measured; the number exists so that the per-image
+// The most images a swapchain here may have. Three or four on every driver
+// measured, in both present modes; the number exists so that the per-image
 // arrays are members and a resize allocates and frees nothing. A driver that
 // wants more than this is refused with a message rather than quietly clamped —
 // clamping would leave images we never made a view for and an acquire that
@@ -291,6 +291,23 @@ struct voe_render_frame {
 	// device->descriptor_pool and freed with it; a set is not destroyed on
 	// its own anywhere in here.
 	VkDescriptorSet descriptor;
+
+	// Two timestamps: one written as this slot's command buffer starts and
+	// one as it finishes, which is how long the card spent on that frame.
+	// Per slot for exactly the reason everything else here is — the pool is
+	// written by the card while the frame is running, and reading it is only
+	// safe once this slot's fence says the card has finished.
+	//
+	// VK_NULL_HANDLE ON A CARD THAT CANNOT WRITE TIMESTAMPS. Nothing then
+	// resets it, nothing writes into it and nothing reads it; see
+	// device->timestamps.
+	VkQueryPool timestamps;
+
+	// Whether this slot's pool holds a pair worth reading. False until the
+	// slot has been submitted once, because a pool that has never been
+	// written to has nothing in it and asking would report VK_NOT_READY on
+	// every frame of the first lap round the slots.
+	bool timed;
 };
 
 struct voe_render_device {
@@ -426,6 +443,48 @@ struct voe_render_device {
 	// because the images the present is still reading are not ours to
 	// destroy until the queue is idle.
 	bool rebuild;
+
+	// ---- how a frame reaches the display. See voe_render_present.
+
+	// Whether this surface offers MAILBOX. Asked once at startup, beside the
+	// format and for the same reason: it is a property of a surface and a
+	// physical device, and neither of those changes when the window is
+	// resized. False on a headless device, which has no surface to ask.
+	bool mailbox_offered;
+
+	// What was asked for, and what the swapchain that exists was actually
+	// built with. They differ between a _set and the rebuild that acts on
+	// it, and they differ for ever on a surface with no mailbox — which is
+	// why a caller is told the second one and not the first.
+	voe_render_present present_wanted;
+	voe_render_present present_in_force;
+
+	// ---- what the card's own clock said. See voe_render_frame_gpu_time.
+
+	// Whether timestamps can be written at all: true when the card reports a
+	// period and the queue family this device took reports valid bits.
+	// Everything else in this group is meaningless when it is false, and no
+	// query pool is created.
+	bool timestamps;
+
+	// Nanoseconds per tick, from VkPhysicalDeviceLimits, and how many of a
+	// timestamp's bits actually carry a value.
+	//
+	// THE VALID BITS ARE NOT ALWAYS 64 AND THAT IS NOT A CURIOSITY. A queue
+	// is allowed to report as few as 36, and the bits above that hold
+	// rubbish rather than zeroes — so a raw subtraction of two readings can
+	// come out enormous or negative. frame.c masks both readings down to
+	// these bits and treats an end below a start as one wrap of that
+	// counter, which is the only reading of it that is right.
+	float timestamp_period;
+	uint32_t timestamp_valid_bits;
+
+	// The newest measurement there is, in seconds, and whether there has
+	// been one. Written at the top of a frame, out of the pool belonging to
+	// the slot that frame is about to reuse — so it describes the frame
+	// VOE_RENDER_FRAMES_IN_FLIGHT back and not the last one.
+	double gpu_seconds;
+	bool gpu_measured;
 };
 
 // swapchain.c. Both are safe to call on a device whose swapchain was never
@@ -476,6 +535,12 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // once because the surface does not change when the window resizes.
 [[nodiscard]] bool voe_render_device_choose_format(voe_render_device *device,
 						   voe_base_arena *arena);
+
+// How many timestamps one frame writes: one as its command buffer starts and one
+// as it finishes. Named because 2 appears in the create, in the reset, in the
+// read and in the size of the buffer read into, and four literal 2s meaning the
+// same thing is three chances for them to stop meaning it.
+#define VOE_RENDER_TIMESTAMPS_PER_FRAME 2
 
 // buffer.c. A buffer of size with usage, in memory that has properties, and the
 // one allocation under it. build/teardown rather than new/destroy because the

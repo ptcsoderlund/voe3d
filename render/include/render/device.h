@@ -444,3 +444,82 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // went stale is handled here and returns true, with the rebuild happening at the
 // top of the next frame.
 [[nodiscard]] bool voe_render_frame_end(voe_render_device *device);
+
+// ------------------------------------------------------------------ timing
+
+// How long the graphics card spent on a frame, in seconds, from the card's own
+// clock. False when there is no number to hand back, which is two situations and
+// a caller need not tell them apart: the card or its queue cannot write
+// timestamps, or no frame has finished yet. `seconds` is untouched then.
+//
+// IT IS NOT THE FRAME YOU JUST ENDED AND IT CANNOT BE. A timestamp is read out
+// of a query pool, and a query pool may not be read until the card has finished
+// writing it — which is what the fence at the top of a frame waits for. So the
+// newest measurement that exists is the one from the last frame to run on the
+// slot this frame is about to reuse, which is VOE_RENDER_FRAMES_IN_FLIGHT frames
+// back. Asking the card sooner would mean waiting for it, and a program that
+// waits for the GPU in order to time the GPU has changed the thing it is timing.
+// Average enough of them and the lag does not matter; read one and expect it to
+// describe the frame on screen and it will mislead.
+//
+// IT IS THE CARD'S WORK AND NOT THE WAIT FOR THE DISPLAY. The two timestamps are
+// written at the top and the bottom of one frame's command buffer, so what is
+// between them is submitted work executing. Presenting, and everything the
+// presentation engine does with the result afterwards, is outside them.
+[[nodiscard]] bool voe_render_frame_gpu_time(const voe_render_device *device,
+					     double *seconds);
+
+// ----------------------------------------------------------------- present
+
+// How a finished frame reaches the display.
+//
+// A DEVICE OPENS ON MAILBOX, AND THAT IS THIS ENGINE'S DEFAULT BECAUSE IT IS THE
+// UNCAPPED ONE. The rule is performance by default: nothing here waits for
+// anything it does not have to, and what costs time — post-processing, real-time
+// global illumination, whatever comes next — is added deliberately by whoever
+// wants it rather than being paid for by everyone who does not. Card 020
+// measured both and the principal decided this one.
+//
+// SO FIFO IS THE ONE A CALLER ASKS FOR, and there are real reasons to: a laptop
+// on a battery, a scene the display is the only limit on, or anything that would
+// rather not draw fifteen frames for every one a person sees.
+typedef enum {
+	// Wait for the display. Every frame drawn is a frame shown, in order,
+	// and the queue blocks once it is full — so the program runs at the
+	// refresh rate and cannot run faster. No tearing. Every driver supports
+	// it and none may refuse it, which is why it is what everything else
+	// falls back to, and why it is 0: a zeroed voe_render_present is the
+	// mode that always works, whatever a caller forgot to fill in.
+	VOE_RENDER_PRESENT_FIFO = 0,
+
+	// Do not wait. A frame finished while another is waiting to be shown
+	// replaces it rather than queueing behind it, so what reaches the
+	// display is always the newest frame there is and the older one is
+	// thrown away. No tearing either — the swap still happens at the
+	// refresh — and the gain is latency, at the cost of drawing frames
+	// nobody ever sees, which is a real cost in power and heat.
+	//
+	// IT IS OPTIONAL AND A DRIVER MAY NOT OFFER IT, WHICH IS WHY THE DEFAULT
+	// BEING THIS ONE IS SAFE. Asking for it on a surface that does not have
+	// it is not a failure: the device falls back to FIFO and _get says so.
+	// Ask, then ask what you got — never assume a device is presenting the
+	// way it was opened.
+	VOE_RENDER_PRESENT_MAILBOX,
+} voe_render_present;
+
+// Ask for a mode. It takes effect on the next frame — the swapchain has to be
+// built again for it, and that happens where every other rebuild does, at the
+// top of a frame — so _get will still report the old one until then, and will
+// report FIFO for ever if this surface has no mailbox.
+//
+// A device already wants MAILBOX when it opens, so this is for asking for FIFO
+// and for going back again; it is not something a caller has to call to get the
+// engine's default.
+void voe_render_present_set(voe_render_device *device, voe_render_present mode);
+
+// What the swapchain that exists was actually built with, which is the answer to
+// what is happening and not to what was asked for — a device opened wanting
+// MAILBOX on a surface that has none reports FIFO here, and that is the honest
+// answer rather than a failure. A headless device presents nothing and reports
+// FIFO.
+voe_render_present voe_render_present_get(const voe_render_device *device);

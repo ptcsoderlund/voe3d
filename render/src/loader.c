@@ -219,6 +219,14 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(cmd_end_rendering, vkCmdEndRendering);
 	DEVICE_FUNCTION(queue_submit2, vkQueueSubmit2);
 
+	// The timestamps. Core, so they resolve on a headless device too, and
+	// the offscreen test drives the same recording path a window does.
+	DEVICE_FUNCTION(create_query_pool, vkCreateQueryPool);
+	DEVICE_FUNCTION(destroy_query_pool, vkDestroyQueryPool);
+	DEVICE_FUNCTION(cmd_reset_query_pool, vkCmdResetQueryPool);
+	DEVICE_FUNCTION(cmd_write_timestamp2, vkCmdWriteTimestamp2);
+	DEVICE_FUNCTION(get_query_pool_results, vkGetQueryPoolResults);
+
 	// The pipeline and the draw. The shader module is made and thrown away
 	// inside device.c, which is why its two live next to the pipeline's
 	// rather than anywhere else.

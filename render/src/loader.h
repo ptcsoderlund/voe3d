@@ -148,6 +148,20 @@ typedef struct {
 	PFN_vkGetFenceStatus get_fence_status;
 	PFN_vkQueueSubmit2 queue_submit2;
 
+	// Timestamp queries: the graphics card's own clock, written into a pool
+	// at the top and the bottom of a frame's command buffer and read back
+	// once that frame's fence says the card has finished with it. This is
+	// the only way there is to measure GPU time — the CPU can see when it
+	// submitted work and when a fence came back, and neither of those is how
+	// long the card spent. cmd_write_timestamp2 is core in 1.3, which is the
+	// version the physical device had to claim; the other four are core 1.0.
+	// See frame.c.
+	PFN_vkCreateQueryPool create_query_pool;
+	PFN_vkDestroyQueryPool destroy_query_pool;
+	PFN_vkCmdResetQueryPool cmd_reset_query_pool;
+	PFN_vkCmdWriteTimestamp2 cmd_write_timestamp2;
+	PFN_vkGetQueryPoolResults get_query_pool_results;
+
 	// Buffers, and the memory under them. The vertex and index buffers live
 	// in device-local memory and are filled through a host-visible staging
 	// buffer, which is what map_memory and cmd_copy_buffer are for; the

@@ -39,9 +39,11 @@
 // and the fix is remappable bindings at the call site, not a keymap in here.
 //
 // THE LIST IS SHORT BECAUSE OF RULE 10 AND NOT BECAUSE IT WAS HARD. Every key
-// below has a caller today. There is no letter A-Z, no F-keys and no arrows,
-// because nothing reads them; adding one is a line in the enum and a line in each
-// backend's table, and it happens when something wants it.
+// below has a caller today. There is no rest of the alphabet, no F-keys and no
+// arrows, because nothing reads them; adding one is a line in the enum and a line
+// in each backend's table, and it happens when something wants it. P is the most
+// recent to arrive that way and is not a movement key: dev/src/main.c toggles the
+// present mode with it.
 //
 // MOUSE BUTTONS ARE NOT HERE, AND THAT IS THIS CARD REPORTING RATHER THAN
 // FORGETTING. Relative motion is the mouse's whole contribution to a camera and
@@ -71,6 +73,7 @@ typedef enum {
 	VOE_PLATFORM_KEY_SHIFT,
 	VOE_PLATFORM_KEY_TAB,
 	VOE_PLATFORM_KEY_ESCAPE,
+	VOE_PLATFORM_KEY_P,
 	VOE_PLATFORM_KEY_COUNT
 } voe_platform_key;
 

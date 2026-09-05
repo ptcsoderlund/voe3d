@@ -9,9 +9,12 @@ test — it is looked at, not asserted on.
 - `src/main.c` — opens a window and a device, builds a world, reads both models
   into it, and runs the systems and the draw every frame until it closes. Its
   header is the list of things to look at in both camera modes, what each of them
-  fails like — the lighting's own failures included — and the four things that
-  live here only until the folder that owns them exists. A call site and nothing
-  else; the key bindings are the only decision in it.
+  fails like — the lighting's own failures included — and the three things that
+  live here only until the folder that owns them exists. Card 020 gave it a real
+  clock and a block of timings every couple of seconds; its header says what each
+  of the four numbers brackets and what to do to make each of them move. A call
+  site and nothing else; the key bindings are the only decision in it, P among
+  them.
 - `src/cubes.h` — the two placeholder cubes' geometry. Its header says why data
   may live at a call site and why there are twenty-four vertices.
 - `src/cubes.c` — those vertices and indices.

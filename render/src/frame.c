@@ -88,6 +88,14 @@
 // _end submits and returns. That is what lets a test drive the same recording
 // path the window does and then read the target itself.
 //
+// THE CARD'S OWN CLOCK IS READ HERE AND IT IS READ ONE LAP LATE. Two timestamps
+// are written into this slot's query pool, at the top and the bottom of the
+// command buffer, and they are read at the top of the next frame that lands on
+// this slot — which is the first moment the fence says the card has finished
+// writing them. Reading them any sooner means waiting for the GPU, and a program
+// that waits for the GPU in order to time the GPU is timing something else. See
+// read_gpu_time below and voe_render_frame_gpu_time.
+//
 // A SWAPCHAIN GOES STALE AND THAT IS ORDINARY. Out-of-date means the surface
 // changed under us and the swapchain has to be built again; suboptimal means it
 // still works but no longer matches. Both are answered by rebuilding, neither is
@@ -172,6 +180,64 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 
 	voe_render_vk.cmd_set_viewport(frame_at(device, device->slot)->commands,
 				       0, 1, &viewport);
+}
+
+// The pair of timestamps this slot wrote the last time round, turned into
+// seconds. Called after the fence wait and before anything overwrites the pool,
+// which is the one window in which the numbers are both finished and still
+// there.
+//
+// THE READINGS ARE MASKED BEFORE THEY ARE SUBTRACTED. A queue is allowed to
+// report as few as 36 valid bits, and the bits above those hold rubbish rather
+// than zeroes — so subtracting two raw readings on such a queue gives a number
+// with no relationship to time at all. Masking both down to the bits that carry
+// a value is what makes the subtraction mean something.
+//
+// AN END BELOW A START IS ONE WRAP AND NOT A FAILURE. A counter of 36 bits at a
+// nanosecond a tick comes round about once a minute, so a frame that straddles
+// the wrap is a thing that really happens rather than a thing to guard against
+// on paper. Adding one whole counter back is the only reading of it that is
+// right; the alternative is a negative duration, which voe_base_samples asserts
+// on and rightly.
+static void read_gpu_time(voe_render_device *device,
+			  const struct voe_render_frame *frame)
+{
+	uint64_t stamps[VOE_RENDER_TIMESTAMPS_PER_FRAME];
+	uint64_t mask = UINT64_MAX;
+	uint64_t ticks;
+
+	if (!device->timestamps || !frame->timed)
+		return;
+
+	// No WAIT bit: the fence has already said the card is finished with this
+	// slot, so the results are there. VK_NOT_READY would mean they are not,
+	// and the honest answer to that is to keep the previous measurement
+	// rather than to invent one.
+	if (voe_render_vk.get_query_pool_results(device->device,
+						 frame->timestamps, 0,
+						 VOE_RENDER_TIMESTAMPS_PER_FRAME,
+						 sizeof(stamps), stamps,
+						 sizeof(stamps[0]),
+						 VK_QUERY_RESULT_64_BIT) !=
+	    VK_SUCCESS)
+		return;
+
+	if (device->timestamp_valid_bits < 64)
+		mask = ((uint64_t)1 << device->timestamp_valid_bits) - 1;
+
+	stamps[0] &= mask;
+	stamps[1] &= mask;
+
+	if (stamps[1] >= stamps[0])
+		ticks = stamps[1] - stamps[0];
+	else
+		ticks = (mask - stamps[0]) + stamps[1] + 1;
+
+	// The period is nanoseconds per tick, and the engine's unit is the
+	// second.
+	device->gpu_seconds = (double)ticks *
+			      (double)device->timestamp_period / 1e9;
+	device->gpu_measured = true;
 }
 
 // The barriers, the clears and everything a draw needs bound. Recorded once per
@@ -506,6 +572,11 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 			      VK_SUCCESS,
 			      "beginning a frame on a slot whose last submit has not finished");
 
+	// Before the reset and the recording below, because both of those are
+	// what will overwrite what is being read. The fence above is what makes
+	// it safe to read at all.
+	read_gpu_time(device, frame);
+
 	if (!device->headless) {
 		result = voe_render_vk.acquire_next_image(device->device,
 							  device->swapchain,
@@ -540,6 +611,23 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	memcpy(frame->uniforms_mapped, &block, sizeof(block));
 
 	voe_render_vk.begin_command_buffer(frame->commands, &begin);
+
+	// The reset has to be outside a rendering and it has to come before the
+	// writes, because a query pool is created and left in an undefined state
+	// rather than an empty one and a query written twice without a reset
+	// between is undefined. Here is the only place both are true.
+	if (device->timestamps) {
+		voe_render_vk.cmd_reset_query_pool(frame->commands,
+						   frame->timestamps, 0,
+						   VOE_RENDER_TIMESTAMPS_PER_FRAME);
+		// TOP_OF_PIPE, which for a timestamp means as soon as this
+		// command is reached in submission order — the earliest point in
+		// this frame's work that the card can name.
+		voe_render_vk.cmd_write_timestamp2(frame->commands,
+						   VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+						   frame->timestamps, 0);
+	}
+
 	open_rendering(device, frame);
 
 	device->recording = true;
@@ -629,6 +717,16 @@ bool voe_render_frame_end(voe_render_device *device)
 	close_rendering(frame);
 	if (image != NULL)
 		blit_to_screen(device, frame, image);
+
+	// ALL_COMMANDS, which for a timestamp means once everything submitted
+	// before it has finished — so what lies between this and the one in
+	// _begin is the whole of this frame's work on the card, the blit
+	// included. After the blit and not before it, for that reason.
+	if (device->timestamps)
+		voe_render_vk.cmd_write_timestamp2(frame->commands,
+						   VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+						   frame->timestamps, 1);
+
 	voe_render_vk.end_command_buffer(frame->commands);
 
 	// Closed before the submit, so that a submit that fails does not leave a
@@ -637,6 +735,11 @@ bool voe_render_frame_end(voe_render_device *device)
 
 	if (!submit(device, frame, image))
 		return false;
+
+	// The pool holds a pair worth reading from here on, and not before: a
+	// frame whose submit failed recorded the writes and never ran them, so a
+	// read would report VK_NOT_READY for the rest of the program's life.
+	frame->timed = device->timestamps;
 
 	// The slot is spent the moment the submit lands, and not before: a frame
 	// that turned back in _begin never put this slot in flight and has to

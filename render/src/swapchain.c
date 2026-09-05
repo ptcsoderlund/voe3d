@@ -18,6 +18,14 @@
 // where it reports the "you choose" value — which is what Wayland does, always —
 // the window's size is used, clamped to what the surface will take.
 //
+// THE PRESENT MODE IS NOT FIXED HERE ANY MORE, AND THE DEFAULT IS NO LONGER
+// FIFO. It was FIFO and nothing else until card 020, on the grounds that every
+// driver has to support that one; what changed is that the engine can now
+// measure the difference, and the principal decided on the uncapped mode. A
+// device opens wanting MAILBOX, this file honours it where the surface offers
+// one, and FIFO is the fallback rather than the starting point. See
+// present_mode_for below and voe_render_present.
+//
 // A ZERO EXTENT BUILDS NOTHING AND IS NOT A FAILURE. A minimised window has no
 // images to present and no driver will make a swapchain for one. This leaves
 // the swapchain absent and says so by leaving the handle null; frame.c skips a
@@ -29,10 +37,27 @@
 
 #include <stdio.h>
 
-// Every driver supports it and no driver may refuse it, so there is nothing to
-// choose and no fallback to write. Presentation that does something other than
-// wait for the display is a question for a card about frame pacing.
-#define PRESENT_MODE VK_PRESENT_MODE_FIFO_KHR
+// Which Vulkan mode a voe_render_present is, and the fallback that makes the
+// public enum honest. FIFO is required of every driver, so it is always
+// available and is what everything falls back to; MAILBOX is optional and
+// device->mailbox_offered is the answer asked for once at startup.
+//
+// IT WRITES present_in_force, WHICH IS WHY IT TAKES THE DEVICE AND NOT THE MODE.
+// A caller asks for a mode and gets whatever this surface will actually do, and
+// the difference between those two has to be recorded somewhere a caller can
+// read it — voe_render_present_get is that read, and this is the one place its
+// answer is decided.
+static VkPresentModeKHR present_mode_for(voe_render_device *device)
+{
+	if (device->present_wanted == VOE_RENDER_PRESENT_MAILBOX &&
+	    device->mailbox_offered) {
+		device->present_in_force = VOE_RENDER_PRESENT_MAILBOX;
+		return VK_PRESENT_MODE_MAILBOX_KHR;
+	}
+
+	device->present_in_force = VOE_RENDER_PRESENT_FIFO;
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
 
 static uint32_t clamp_u32(uint32_t value, uint32_t low, uint32_t high)
 {
@@ -206,7 +231,6 @@ bool voe_render_swapchain_build(voe_render_device *device,
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
 			      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.presentMode = PRESENT_MODE,
 		.clipped = VK_TRUE,
 	};
 	VkResult result;
@@ -223,6 +247,11 @@ bool voe_render_swapchain_build(voe_render_device *device,
 	if (device->headless) {
 		device->rebuild = false;
 		device->built = size;
+		// Nothing is presented, so nothing is in force; FIFO is what
+		// voe_render_present_get promises to report here, and saying it
+		// out loud is cheaper than a reader working out that a zeroed
+		// field happens to be the right answer.
+		device->present_in_force = VOE_RENDER_PRESENT_FIFO;
 		return true;
 	}
 
@@ -255,6 +284,7 @@ bool voe_render_swapchain_build(voe_render_device *device,
 		return true;
 
 	info.surface = device->surface;
+	info.presentMode = present_mode_for(device);
 	info.minImageCount = image_count_for(&capabilities);
 	info.imageFormat = device->format.format;
 	info.imageColorSpace = device->format.colorSpace;

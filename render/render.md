@@ -19,7 +19,10 @@ way out, and no file here holds a gamma constant.
   shader uses, why geometry lives in two shared pools, what the padded records
   are padded for, why a colour texture and a data texture are not
   interchangeable, and why an object carries a normal matrix as well as a world
-  one.
+  one. It also carries the two things card 020 added: how long the card spent on
+  a frame, which is its own clock and runs two frames behind, and which of the
+  two present modes a caller wants — mailbox is optional and falling back to
+  fifo is not a failure.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -60,11 +63,15 @@ way out, and no file here holds a gamma constant.
   picture of a colour and one for a picture of numbers.
 - `src/swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
+  It is also where a requested present mode becomes the one in force, and where
+  the fallback to fifo happens.
 - `src/frame.c` — one frame in three calls: wait and open a recording, draw an
   object into it, end it and present. Holds the engine's only Y flip and the
   clear colour; its header says why there are three calls and not one, why the
   camera and the sun share one buffer, and why a headless device runs all but
-  three lines of it.
+  three lines of it. The two timestamps that measure the card are written and
+  read here, and its header says why they can only be read one lap late and why
+  a reading has to be masked before it is subtracted.
 - `src/probe.c` — the pipeline that reads a matrix and reports what it saw, built
   only when a test asks. Its header says why it is not built at startup.
 - `tests/loader.c` — that a machine with a driver and no SDK reaches Vulkan.

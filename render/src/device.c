@@ -525,6 +525,122 @@ bool voe_render_device_choose_format(voe_render_device *device,
 	return true;
 }
 
+// ---------------------------------------------------------- timing and pacing
+
+// What the card's clock is worth, asked once. Two numbers and they are separate
+// questions: the period is the card's, out of its limits, and the valid bits are
+// the queue family's — a card can write timestamps and the family this device
+// took can still be one that does not.
+//
+// A CARD THAT CANNOT TIME IS NOT A FAILURE AND IS NOT WORTH A MESSAGE AT
+// STARTUP. Every desktop card measured writes timestamps; the ones that do not
+// are compute-only queues and virtualised drivers, and the answer there is a
+// frame loop that reports CPU time and says the GPU number is missing. So this
+// returns nothing: it sets three fields and the caller carries on either way.
+static void learn_timing(voe_render_device *device, voe_base_arena *arena)
+{
+	VkPhysicalDeviceProperties properties;
+	VkQueueFamilyProperties *families;
+	uint32_t count = 0;
+
+	voe_render_vk.get_physical_device_properties(device->physical,
+						     &properties);
+
+	// Zero means the card cannot do it at all, and the specification says so
+	// in exactly those words.
+	if (properties.limits.timestampPeriod == 0.0f)
+		return;
+
+	voe_render_vk.get_queue_family_properties(device->physical, &count, NULL);
+	if (count == 0 || device->queue_family >= count)
+		return;
+
+	families = voe_base_arena_push(arena, (size_t)count * sizeof(*families));
+	voe_render_vk.get_queue_family_properties(device->physical, &count,
+						  families);
+
+	if (families[device->queue_family].timestampValidBits == 0)
+		return;
+
+	device->timestamp_period = properties.limits.timestampPeriod;
+	device->timestamp_valid_bits =
+		families[device->queue_family].timestampValidBits;
+	device->timestamps = true;
+}
+
+// Whether this surface offers MAILBOX, asked once for the same reason the format
+// is: it is a property of a physical device and a surface, and a resize changes
+// neither. A headless device has no surface and presents nothing.
+//
+// FALSE IS AN ORDINARY ANSWER AND NOT A FAILURE. MAILBOX is optional in the
+// specification; only FIFO is required of everyone. So a query that will not
+// answer is read as "no mailbox here" and the device stays on the mode every
+// driver has to support.
+static void learn_present_modes(voe_render_device *device, voe_base_arena *arena)
+{
+	VkPresentModeKHR *modes;
+	uint32_t count = 0;
+
+	if (device->headless)
+		return;
+
+	if (voe_render_vk.get_surface_present_modes(device->physical,
+						    device->surface, &count,
+						    NULL) != VK_SUCCESS ||
+	    count == 0)
+		return;
+
+	modes = voe_base_arena_push(arena, (size_t)count * sizeof(*modes));
+	if (voe_render_vk.get_surface_present_modes(device->physical,
+						    device->surface, &count,
+						    modes) != VK_SUCCESS)
+		return;
+
+	for (uint32_t i = 0; i < count; i++) {
+		if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+			device->mailbox_offered = true;
+			return;
+		}
+	}
+}
+
+void voe_render_present_set(voe_render_device *device, voe_render_present mode)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking no device to present differently");
+	VOE_BASE_ASSERT(mode == VOE_RENDER_PRESENT_FIFO ||
+				mode == VOE_RENDER_PRESENT_MAILBOX,
+			"asking for a present mode that is not one of the two");
+
+	device->present_wanted = mode;
+
+	// The swapchain is what carries the mode, so changing it is building
+	// another one — and that happens at the top of a frame, where every
+	// other rebuild happens, because the images the presentation engine is
+	// still reading are not ours to destroy from here.
+	if (device->present_wanted != device->present_in_force)
+		device->rebuild = true;
+}
+
+voe_render_present voe_render_present_get(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking no device how it presents");
+
+	return device->present_in_force;
+}
+
+bool voe_render_frame_gpu_time(const voe_render_device *device, double *seconds)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking no device what the card's clock said");
+	VOE_BASE_ASSERT(seconds != NULL,
+			"asking for a GPU time with nowhere to put it");
+
+	if (!device->gpu_measured)
+		return false;
+
+	*seconds = device->gpu_seconds;
+	return true;
+}
+
 // ------------------------------------------------------------------- pipeline
 
 // The compiled shader, in the binary. slangc writes draw.spv into the build tree
@@ -827,6 +943,14 @@ static bool create_frame_objects(voe_render_device *device)
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 	};
+	// A query pool is created with its queries in an undefined state, not an
+	// empty one, which is why every frame resets its own before writing —
+	// see frame.c.
+	VkQueryPoolCreateInfo queries = {
+		.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+		.queryType = VK_QUERY_TYPE_TIMESTAMP,
+		.queryCount = VOE_RENDER_TIMESTAMPS_PER_FRAME,
+	};
 
 	if (voe_render_vk.create_command_pool(device->device, &pool, NULL,
 					      &device->pool) != VK_SUCCESS) {
@@ -861,6 +985,25 @@ static bool create_frame_objects(voe_render_device *device)
 		    VK_SUCCESS) {
 			fprintf(stderr, "render: vkCreateFence failed\n");
 			return false;
+		}
+
+		// The two timestamps this slot's frame writes. Only on a card
+		// that can write them: everything that touches one of these
+		// reads device->timestamps first, so a null handle here is a
+		// state and not something to guard against later.
+		//
+		// A REFUSED QUERY POOL TURNS TIMING OFF RATHER THAN STOPPING
+		// STARTUP. A device that draws and cannot say how long it took
+		// is worth having; refusing to open one over a measurement would
+		// be the tail wagging the dog.
+		if (device->timestamps &&
+		    voe_render_vk.create_query_pool(device->device, &queries,
+						    NULL,
+						    &device->frames[i].timestamps) !=
+			    VK_SUCCESS) {
+			fprintf(stderr,
+				"render: vkCreateQueryPool failed, so there will be no GPU timings\n");
+			device->timestamps = false;
 		}
 	}
 
@@ -897,6 +1040,10 @@ static void close_down(voe_render_device *device)
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+			if (device->frames[i].timestamps != VK_NULL_HANDLE)
+				voe_render_vk.destroy_query_pool(device->device,
+								 device->frames[i].timestamps,
+								 NULL);
 			if (device->frames[i].submitted != VK_NULL_HANDLE)
 				voe_render_vk.destroy_fence(device->device,
 							    device->frames[i].submitted,
@@ -958,6 +1105,13 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	device->headless = headless;
 	device->capacities = capacities;
 
+	// Performance by default: a device wants the uncapped mode from the
+	// moment it exists, and a caller that would rather wait for the display
+	// asks for FIFO. It is what is *wanted* and not what is in force —
+	// learn_present_modes below decides whether this surface has one, and
+	// the swapchain falls back where it does not. See voe_render_present.
+	device->present_wanted = VOE_RENDER_PRESENT_MAILBOX;
+
 	// No Vulkan on the machine at all. The one failure a person can fix by
 	// installing something, and the reason this function returns a pointer
 	// that can be NULL rather than asserting.
@@ -984,6 +1138,15 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_device_choose_format(device, arena))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+
+	// Both ask the physical device and the surface questions whose answers
+	// do not change while this device is open, so they are asked here rather
+	// than on the frame or the resize that wants them. Neither can fail: a
+	// card that cannot time and a surface with no mailbox are answers.
+	// learn_timing is before create_frame_objects because that is what
+	// decides whether there are query pools to make.
+	learn_timing(device, arena);
+	learn_present_modes(device, arena);
 	// THE REST OF STARTUP IS IN THIS ORDER AND THE ORDER IS FORCED, NOT
 	// PREFERRED. The frame objects come first because the command pool is one
 	// of them and every staging upload below records into a command buffer

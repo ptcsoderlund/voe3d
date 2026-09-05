@@ -2,7 +2,7 @@
 
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
-Today that is a window and its keyboard and mouse; files and time will live here
+Today that is a window, its keyboard and mouse, and a clock; files will live here
 too and do not yet.
 
 - `include/platform/window.h` — the window API. Its header carries the two rules
@@ -11,6 +11,9 @@ too and do not yet.
 - `include/platform/input.h` — the keyboard and the mouse. Its header says why
   this is polled state and not a queue of events, why a key is a place rather
   than a letter, and that a pointer lock is a request with an answer.
+- `include/platform/clock.h` — how long something took. Its header says why it is
+  monotonic and not the time of day, why it is seconds as a double, and that
+  waiting is a different question this folder cannot answer yet.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it. Its header says why this is here and not in the folder that
   wants one.
@@ -24,6 +27,10 @@ too and do not yet.
   it.
 - `protocol/pointer-constraints-unstable-v1.xml` — how a client asks for the
   pointer to stop going anywhere. Optional, and the compositor may say no.
+- `src/clock_wayland.c` — CLOCK_MONOTONIC. Linux only despite the name, the same
+  as the file below; its header says why the adjusted clock and not the raw one.
+- `src/clock_win32.c` — the performance counter, and the frequency asked for once.
+  Its header says why not the millisecond tick counts.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
@@ -40,3 +47,5 @@ too and do not yet.
   input device. Its header says why `WM_CHAR` and `WM_MOUSEMOVE` are both absent.
 - `tests/input.c` — that a poll drains the mouse and keeps held keys, and that
   losing focus releases every key. Needs no window and no display.
+- `tests/clock.c` — that the clock moves and never goes backwards. Its header
+  says why nothing in it measures a duration against a duration.
