@@ -2,7 +2,12 @@
 
 status: todo
 claimed-by: -
-blocked-by: 021a
+blocked-by: tech-lead decisions — see "Do not claim this yet" below
+
+**2026-09-06: `blocked-by` no longer says `021a`.** That card is complete, so the
+header read as claimable and a coder reasonably tried. What actually blocks this
+card is not another card, it is **four decisions that are the tech lead's**, three
+of which name *this card* as their trigger in the decision register.
 
 > **STILL PROVISIONAL, but less so.** Written far ahead at the principal's
 > request. Blending, the sort and the unlit material below it are decided now, so
@@ -16,6 +21,25 @@ waits on text and can be pulled forward ahead of it.
 **Amended by the tech lead 2026-09-06** for ADR-0074, the layer decision — an
 exception to *the human writes the card* given for that decision and not
 standing. `blocked-by` is unchanged: sprites still need only the blended pass.
+
+## Do not claim this yet — four decisions come first
+
+Named here so they are not rediscovered by a coder halfway in. Each is a register
+row that names this card as its trigger, or a behaviour choice visible to every
+user of sprites and therefore not an implementation detail:
+
+1. **When the per-object CPU sort stops being free** (D-070). Card 021a sorts a
+   handful of blended objects per frame, where it costs nothing. This is the first
+   card where the count is naturally large, and ADR-0025 requires a per-frame cost
+   to be argued in advance rather than measured in surprise.
+2. **Fringing on a soft-edged sprite sheet** (D-094). Filtering happens in the
+   sampler, before the shader, so ADR-0069's premultiplied *output* does not fix
+   it. The glyph sheet dodged it by being white everywhere; a sprite sheet cannot.
+3. **Which billboarding — spherical or cylindrical** (below). The card previously
+   handed this to the coder. It is visible in every scene that puts a sprite on
+   the ground and it should not be settled by whoever implements it first.
+4. **Whether this card promotes batching and instancing off the *later* list**,
+   and if so, how blended geometry relates to the single indirect draw (D-071).
 
 ## Goal
 
