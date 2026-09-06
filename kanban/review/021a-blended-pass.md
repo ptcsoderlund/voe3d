@@ -1,7 +1,7 @@
 # 021a — alpha modes and the blended pass
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-code (kanban-coder)
 blocked-by: 019
 
 Split out of the old card 021 and placed ahead of it (ADR-0068). Everything here
@@ -144,3 +144,122 @@ of cloth is the card that opens it (D-089).
 - A blended object behind an opaque one is hidden by it.
 - The sort's unit test passes on a machine with no graphics card.
 - `cmake -P check.cmake` exits zero. Windows is the principal's.
+
+## What was done
+
+### `assets`
+- `voe_assets_alpha_mode` — `OPAQUE` / `CUTOUT` / `BLENDED`, opaque = 0 — and
+  `alpha_mode` and `alpha_cutoff` on `voe_assets_material`.
+- `model_gltf.c` reads `alphaMode` and `alphaCutoff`. Absent is opaque with a
+  cutoff of a half; an `alphaMode` that is not a string is `MALFORMED`; a fourth
+  mode is `UNSUPPORTED` with the word printed, in the same shape as the unknown
+  required extension already there.
+- The `doubleSided`-and-alpha paragraph in `model.h` is rewritten: it is about
+  `doubleSided` alone now, and a short paragraph beside it says the alpha gap was
+  closed by this card rather than leaving the old reasoning to rot.
+
+### `render`
+- `voe_render_alpha_mode`, and `reserved_a[2]` became `uint32_t alpha_mode;`
+  `float alpha_cutoff;`. **Same offsets, same size, and `descriptors.c` is
+  untouched** — its `sizeof(voe_render_shading_values) == 80` and its offset
+  asserts still hold, which is what says nothing moved.
+- A second pipeline: depth test `GREATER` as before, **depth write off**, blend
+  on, premultiplied (`ONE`, `ONE_MINUS_SRC_ALPHA`, colour and alpha both).
+  `create_pipeline` gained one `blended` parameter and both pipelines are built
+  from the one description, so the vertex input, raster state and layout cannot
+  drift apart. The layout is made by whichever call gets there first.
+- `voe_render_frame_draw_blended` beside `voe_render_frame_draw`. Both are one
+  `draw_with()` differing in the pipeline; `device->bound` makes a run of either
+  kind cost one bind, and it is a condition rather than an assumption about the
+  caller's order.
+- The premultiplied contract is written into `device.h`'s header and into
+  `draw.slang`'s.
+
+### `render/shaders/draw.slang`
+- Three paths and one multiply. The alpha is resolved immediately after the three
+  `Sample`s and before any branch — so the `discard` is where the derivative rule
+  at the top of that file already requires it — and both returns go through
+  `voe_render_premultiplied()`. The local is `coverage`, because `alpha` in that
+  file has meant roughness squared since card 019.
+
+### `3d`
+- `voe_3d_material` carries `render`'s enum and the cutoff; `import.c` maps
+  `assets`' three words to `render`'s in one `switch` with no fallback, because
+  the reader refuses a mode it does not know.
+- **`3d/depth_sort` is its own module with its own test**, in `normal_matrix`'s
+  shape: `voe_3d_depth_sort(view_z, count, order)`, ascending view-space z —
+  furthest first — stable insertion sort.
+- `voe_3d_draw_system_run` takes a `voe_base_arena *`, walks the mesh table once
+  setting blended entities aside with their depth, draws the rest in table order,
+  then sorts and draws the blended ones. The arena is marked immediately before
+  the first push and rewound on the way out, so it comes back exactly as handed
+  over.
+
+### `dev`
+- `src/quad.h` / `src/quad.c`: one square, **eight vertices and two faces** so it
+  survives back-face culling from either side. That is a double-sided *mesh* and
+  not a double-sided material — `doubleSided` stays uncarried, as *Refused* says.
+- Two blended quads at z = ±1.6, one warm and one cool, half see-through,
+  overlapping partly. The camera orbits, so which one is nearer swaps twice a lap
+  and the sort's sign is visible rather than asserted.
+
+### The three stale comments
+All three are gone: `render/src/device.c`'s "Written, not blended. Everything
+this engine draws is opaque", `draw.slang`'s "The alpha is carried through
+untouched. Nothing blends yet", and `3d/include/3d/draw_system.h`'s "TABLE ORDER
+IS SAFE BECAUSE EVERYTHING HERE IS OPAQUE". A grep for the phrasing finds nothing
+left.
+
+## Verified — Linux (Wayland, NVIDIA RTX 4070 Laptop, Vulkan 1.4.341)
+
+`cmake -P check.cmake` **exits zero**: 10 standalone folder configures, the root
+build, the four guards, the include check, **28 tests passed** (the new
+`voe_test_3d_depth_sort` among them), and the analyser over 79 files with no
+finding.
+
+Looked at, in `dev`, screenshots taken through the orbit:
+
+- **A blended quad in front of a cube, with the cube visible through it.** Yes,
+  and the blend tracks the alpha: at 0.5 the tint is half the quad's colour and
+  half what is behind.
+- **Two blended quads at different depths, correct from every angle.** With the
+  camera on the +z side the warm quad is the one on top of the overlap; half a
+  lap later, on the −z side, the cool one is. The overlap goes mauve in one
+  direction and the same mauve the other way round, which is the sort doing its
+  job as the near one swaps.
+- **A blended object behind an opaque one is hidden by it.** The cubes occlude
+  both quads completely where they cover them, and are themselves tinted where
+  they are behind one. The depth test is on and only the write is off.
+- **An opaque material carrying `a = 0.5` is neither see-through nor darker.**
+  Checked by temporarily setting the placeholder cubes' base colour alpha to 0.5,
+  rebuilding and looking: the cubes stayed fully solid, hid the quads behind them
+  and kept their brightness. Reverted afterwards; that change is not in the diff.
+- **The sort's unit test passes with no graphics card.** `3d/tests/depth_sort.c`
+  — five cases, and its header says why a reversed sort is still a correct sort
+  and so needs cases that name which object comes first.
+
+**Not exercised: cutout.** The shader path, the cutoff and the mode all exist and
+`cutout` goes through the depth-writing pipeline by construction, but nothing in
+`dev` or in a test draws one — the card's `dev` scope asked for blended quads and
+said to keep it small. Worth a look on the principal's pass; see the suggestion
+below.
+
+**Windows untested.** One machine, one operating system on it.
+
+### Markers
+
+None. No `DEVIATION:` and no `BLOCKED:`.
+
+### Suggestions, not in the diff
+
+- **An `assets` test for `alphaMode`.** The reader has a new refusal path — a
+  fourth mode is `UNSUPPORTED` — and nothing exercises it. It wants a `.glb` in
+  `tests/model_data.inc` with an `alphaMode` in it and a second with a bad one,
+  which is hand-built bytes and a card's worth of work rather than a line.
+- **A cutout material somewhere a person can see it**, for the "hard edge, and
+  something behind it is hidden" claim. It needs a picture with an alpha channel
+  in `dev`, which is a file this card was not asked to add.
+- **The sort's scratch is sized by the whole mesh table**, not by how many turn
+  out to be blended, because the count is not known until the walk is done. It is
+  an arena and it is rewound the same frame; if a scene ever makes that matter it
+  is a card with a number attached.

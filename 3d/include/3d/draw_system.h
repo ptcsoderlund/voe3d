@@ -1,21 +1,37 @@
 // The system that turns the tables into draws. One frame, one call: it finds the
-// camera and the sun, works out the matrices, and issues one draw per mesh in
-// table order.
+// camera and the sun, works out the matrices, and issues one draw per mesh —
+// solid ones in table order, see-through ones afterwards and furthest away
+// first.
 //
-//     if (!voe_3d_draw_system_run(world, gpu, voe_platform_window_size(window)))
+//     if (!voe_3d_draw_system_run(world, gpu, scratch,
+//                                 voe_platform_window_size(window)))
 //             break;                          // the GPU stopped answering
 //
-// ONE DRAW PER MESH, FROM THE CPU, IN TABLE ORDER. No sorting, no instancing, no
-// indirect command buffer, no culling, and no extract step into a second layout.
-// Each of those is a change to this one loop and each is a later card; what this
-// card guarantees is that the data is already in the shape they need — geometry
-// in shared pools, one record per object in one buffer, textures by id.
+// ONE DRAW PER MESH, FROM THE CPU. No instancing, no indirect command buffer, no
+// culling, and no extract step into a second layout. Each of those is a change
+// to this one loop and each is a later card; what this card guarantees is that
+// the data is already in the shape they need — geometry in shared pools, one
+// record per object in one buffer, textures by id.
 //
-// TABLE ORDER IS SAFE BECAUSE EVERYTHING HERE IS OPAQUE. The depth buffer
-// resolves visibility per pixel, so the order opaque draws are issued in does
-// not change the image. Only blended geometry is order-dependent, and nothing on
-// this card is blended — adding transparency is its own decision and it starts
-// with sorting.
+// TWO PASSES, AND WHICH ONE AN ENTITY IS IN IS ITS MATERIAL'S ALPHA MODE. Opaque
+// and cutout go first, in table order, which is safe because the depth buffer
+// resolves them per pixel. Blended goes second, sorted furthest away first,
+// because blending is not commutative and the blended pipeline does not write
+// depth — so the order these are issued in *is* the picture. See
+// 3d/depth_sort.h for the sort and the sign it turns on, and
+// render/include/render/device.h for why the depth write is off.
+//
+// THE SORT IS PER OBJECT AND NOT PER TRIANGLE. One key per entity: the
+// view-space depth of its origin. Two see-through things that interpenetrate,
+// and a long thin one seen end-on, come out wrong, and that is the trade taken
+// rather than an oversight — per-fragment sorting and order-independent
+// transparency are both refused by name.
+//
+// IT WANTS AN ARENA BECAUSE THE SORT NEEDS SOMEWHERE TO WORK. Working memory is
+// an arena passed in and there is no default one (rule 11), so the caller hands
+// over scratch; this rewinds every frame to exactly what it was handed, keeps
+// nothing, and a caller may pass the same arena it uses for anything else. What
+// it takes is bounded by the number of meshes in the world.
 //
 // GROUPING IS THE ENGINE'S AND NEVER THE USER'S. There is no component, flag or
 // authoring concept for putting objects into batches by hand: the engine knows
@@ -53,12 +69,17 @@
 // anything.
 #pragma once
 
+#include <base/arena.h>
 #include <ecs/world.h>
 #include <render/device.h>
 
 // False means the device cannot draw any more and the program should stop
 // asking — the same meaning `render`'s frame calls give it. A window with no
 // area draws nothing and returns true.
+//
+// `arena` is scratch for this frame's blended sort and nothing survives the
+// call: it is rewound to the mark this took on the way in, on every path out.
 [[nodiscard]] bool voe_3d_draw_system_run(voe_ecs_world *world,
 					  voe_render_device *device,
+					  voe_base_arena *arena,
 					  voe_platform_size size);

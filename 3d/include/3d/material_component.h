@@ -16,6 +16,17 @@
 // at this level except that swapping two of these ids swaps two colour spaces
 // with them. See voe_render_texture_kind.
 //
+// THE ALPHA MODE IS `render`'s ENUM AND NOT A SECOND ONE. This component already
+// holds `render`'s texture and shading ids, so it holds `render`'s spelling of
+// the three words as well; `assets` has its own because that folder may not name
+// `render`, and 3d/src/import.c is the one place the two are mapped. A zeroed
+// material is opaque, which is what a material nobody said anything about should
+// be.
+//
+// AND THE MODE DECIDES WHICH PASS THE DRAW SYSTEM PUTS THE ENTITY IN. Opaque and
+// cutout go through the ordinary draw in table order; blended goes through the
+// blended one, furthest first. See 3d/draw_system.h.
+//
 // A MISSING TEXTURE IS AN ID AND NOT A NULL. VOE_RENDER_NO_TEXTURE names the
 // one-pixel white default, so a shader may test it and gets white either way —
 // which means a material with no picture on it is exactly its factors.
@@ -48,6 +59,12 @@ typedef struct {
 	float metallic;
 	float roughness;
 	voe_math_float3 emissive;
+
+	// What the base colour's fourth channel means, and the cutoff a cutout
+	// material is tested against. The cutoff is carried whatever the mode is
+	// — it is what the file said — and only cutout reads it.
+	voe_render_alpha_mode alpha_mode;
+	float alpha_cutoff;
 
 	voe_render_texture base_colour_texture;
 	voe_render_texture metallic_roughness_texture;

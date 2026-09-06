@@ -1,9 +1,14 @@
-// The one pipeline: a vertex out of the shared pool, placed by three matrices —
+// The engine's two pipelines: a vertex out of the shared pool, placed by three matrices —
 // two of them the camera's, shared by every draw in a frame, and one of them the
 // object's, read out of a buffer by the object's own number — lit by one
 // directional light and shaded by a record read the same way. It replaced
 // cube.slang, which had the cube's two entry points in it and a per-object
 // matrix in a push constant.
+//
+// ONE FILE, TWO PIPELINES. The solid one and the blended one are built from this
+// same module (device.c); which of them a draw goes through is decided on the
+// CPU by which draw call was made, and what this file does with alpha is decided
+// by the shading record's own mode. The two have to agree and nothing checks it.
 //
 // THE ONLY PUSH CONSTANT IS THE OBJECT'S NUMBER, AND EVERYTHING ELSE IS A BUFFER
 // READ. That is what a draw is told that the draw beside it is not; the matrix
@@ -89,6 +94,35 @@
 // tangents, which the importer does not produce, and emission without tone
 // mapping is a colour that clips. Rule 10 — each arrives with the card that
 // needs it.
+//
+// ---- ALPHA, AND THE ONE MULTIPLY AT THE END ----
+//
+// THE ALPHA MODE DECIDES ALPHA AND THE LAST ACT IS ALWAYS colour.rgb *= colour.a.
+// Three paths and one multiply:
+//
+//   opaque   — alpha forced to 1 and the file's value ignored entirely, which is
+//              what the glTF specification says an OPAQUE material's alpha
+//              means. THIS LINE IS WHAT MAKES THE UNCONDITIONAL MULTIPLY SAFE.
+//              Without it, an opaque material carrying a = 0.5 would write half
+//              its colour into a pass that does not blend and the surface would
+//              simply go dark — which reads as a lighting regression and is the
+//              single most likely bug in this whole arrangement.
+//   cutout   — discard below the cutoff, then alpha forced to 1. What survives
+//              is fully solid and writes depth like anything else.
+//   blended  — alpha exactly as computed, and the pass it is drawn in blends.
+//
+// THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
+// OUTPUTS PREMULTIPLIED COLOUR. That is the engine's contract, it is stated in
+// render/include/render/device.h as well, and nothing enforces it: the blend
+// state is source-ONE, destination-ONE_MINUS_SRC_ALPHA, so a fragment that had
+// not already multiplied would come out too bright and one that multiplied twice
+// too dark. The next author of a shader that writes into this target is the
+// whole of the mechanism.
+//
+// THE BASE COLOUR'S ALPHA IS ALREADY LINEAR AND NEEDS NO DECODING. A Vulkan sRGB
+// format decodes the three colour channels and passes the fourth through
+// untouched, so the alpha of an sRGB base-colour texture is correct as sampled.
+// Do not "fix" it.
 //
 // EVERYTHING IN HERE IS LINEAR LIGHT. A colour texture is an sRGB format, so
 // the hardware has already decoded it by the time it reaches this file; the
@@ -181,7 +215,12 @@ struct voe_render_shading {
 	float4 base_colour;
 	float metallic;
 	float roughness;
-	float2 reserved_a;
+	// The alpha mode and the cutoff cutout reads, in the eight bytes that
+	// used to be reserved_a. A uint and a float and not a float2, for the
+	// alignment reason above: a two-component vector would be realigned and
+	// two scalars land where C puts them.
+	uint alpha_mode;
+	float alpha_cutoff;
 	float3 emissive;
 	float reserved_b;
 	uint base_colour_texture;
@@ -198,6 +237,13 @@ struct voe_render_shading {
 // nothing rewrites one after it is made.
 [[vk::binding(3, 0)]]
 StructuredBuffer<voe_render_shading> voe_render_shadings;
+
+// voe_render_alpha_mode in render/include/render/device.h, and these three
+// numbers are that enum's three values. Opaque is 0 so a zeroed record is an
+// opaque one.
+static const uint VOE_RENDER_ALPHA_OPAQUE = 0;
+static const uint VOE_RENDER_ALPHA_CUTOUT = 1;
+static const uint VOE_RENDER_ALPHA_BLENDED = 2;
 
 // Which object this draw is. Four bytes, and the whole of the push constant.
 struct voe_render_draw_push {
@@ -297,6 +343,17 @@ float voe_render_visibility(float n_dot_l, float n_dot_v, float alpha)
 	return 0.5 / max(lambda_l + lambda_v, VOE_LEAST);
 }
 
+// THE LAST ACT OF EVERY PATH OUT OF THE FRAGMENT STAGE, AND THE ENGINE'S
+// CONTRACT IN ONE LINE: the colour target holds premultiplied colour, so a
+// fragment leaves here with its rgb already multiplied by its own alpha. The
+// blend state is source-ONE, destination-ONE_MINUS_SRC_ALPHA to match. It is
+// unconditional — the opaque path forces the alpha to one first, which is what
+// makes multiplying by it a no-op there rather than a surface going dark.
+float4 voe_render_premultiplied(float3 colour, float coverage)
+{
+	return float4(colour * coverage, coverage);
+}
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -334,9 +391,27 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	float metallic = saturate(shading.metallic * orm.b);
 	float alpha = roughness * roughness;
 
+	// THE ALPHA MODE, RESOLVED HERE AND NOT AT THE RETURN, because there are
+	// two returns and because the discard belongs after every Sample above
+	// and before everything else. `coverage` and not `alpha`: alpha is
+	// roughness squared in this file and has been since card 019.
+	//
+	// OPAQUE FORCING IT TO ONE IS THE LINE THAT MATTERS. See the header: it
+	// is what makes the multiply at the bottom safe for a material whose
+	// base colour happens to carry an alpha of a half.
+	float coverage = base.a;
+
+	if (shading.alpha_mode == VOE_RENDER_ALPHA_CUTOUT) {
+		if (coverage < shading.alpha_cutoff)
+			discard;
+		coverage = 1.0;
+	} else if (shading.alpha_mode != VOE_RENDER_ALPHA_BLENDED) {
+		coverage = 1.0;
+	}
+
 	// A normal of nothing: unlit rather than NaN. See the header.
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
-		return base;
+		return voe_render_premultiplied(base.rgb, coverage);
 
 	float3 n = normalize(vertex.normal);
 	float3 v = normalize(voe_render_frame.camera.eye - vertex.world);
@@ -368,8 +443,5 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	float3 radiance = sun.colour * sun.intensity * n_dot_l;
 	float3 lit = (diffuse + specular) * radiance * occlusion;
 
-	// The alpha is carried through untouched. Nothing blends yet — the
-	// pipeline is opaque — so this is the file's value arriving intact
-	// rather than a coverage this shader acts on.
-	return float4(lit, base.a);
+	return voe_render_premultiplied(lit, coverage);
 }

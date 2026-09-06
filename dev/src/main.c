@@ -1,7 +1,8 @@
 // voe_dev — the one program a person runs to see what the engine can currently
 // do. Today it opens a window holding a world: two cubes placed by hand, two
-// models read out of `.glb` files, one sun going round them, and a camera that
-// either orbits them or is flown. There is one of these and it always shows the
+// models read out of `.glb` files, two see-through quads standing either side of
+// them, one sun going round it all, and a camera that either orbits them or is
+// flown. There is one of these and it always shows the
 // current state, so what is here now is expected to be deleted rather than kept
 // behind a flag when the next thing lands.
 //
@@ -58,6 +59,29 @@
 //     three primitives out of Blender sharing one material — a body, a bar of
 //     arms and a spherical head, about two metres tall, standing with its feet
 //     at y = 0 rather than centred like the cubes.
+//
+// And two see-through squares, one warm and one cool, standing a metre and a
+// half either side of the cubes.
+//
+// ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
+//
+// THE CUBES ARE VISIBLE THROUGH THEM AND TINTED BY THEM. That is the whole claim
+// of the blended pass: half of what a quad covers is the quad's colour and half
+// is whatever was behind it. A quad that hides what is behind it is a blend that
+// is not happening; a quad that has gone dark is the opaque path forcing alpha
+// to one where it should not, or a colour premultiplied twice.
+//
+// AND WHICH OF THE TWO IS ON TOP CHANGES AS THE CAMERA GOES ROUND, WHICH IS THE
+// SORT. They stand at +z and −z either side of the cubes, so the camera is
+// behind one of them for half its lap and behind the other for the other half,
+// and the nearer one's colour has to be the one on top of the overlap every
+// time. If it is right from one side and wrong from the other, the sort's sign
+// is backwards — that is the failure 3d/tests/depth_sort.c exists to catch
+// before it gets here, and this is what it looks like when it does.
+//
+// THEY ARE THE ONLY THING IN THE SCENE DRAWN IN THE SECOND PASS. Everything else
+// is opaque and goes through the ordinary draw in table order; see
+// 3d/draw_system.h.
 //
 // Every cube wears the same "F", so every face reads as a letter and the letter
 // says which way up and which way round the face is. The figure wears its own
@@ -116,6 +140,12 @@
 //
 //   - Nothing on screen, or a cube inside out — the depth test or the winding.
 //     render/tests/offscreen.c is the automated form of that one.
+//   - A quad hiding what is behind it rather than tinting it — the blend state,
+//     or the material's mode arriving as opaque.
+//   - The overlap of the two quads showing the far one's colour on top, from
+//     some camera angles and not others — the sort's sign.
+//   - An opaque surface gone dark — the alpha mode, and it looks like a lighting
+//     regression rather than an alpha one. See render/shaders/draw.slang.
 //   - Everything drifting or growing — the projection or the aspect ratio.
 //   - The picture upside down — the one Y flip went the wrong way or happened
 //     twice. Every "F" is upright when it is right.
@@ -227,6 +257,7 @@
 // refresh. Either way a minimised one presents nothing and _poll returns
 // immediately, because platform has no way to wait yet.
 #include "cubes.h"
+#include "quad.h"
 
 #include <3d/draw_system.h>
 #include <3d/import.h>
@@ -329,6 +360,24 @@
 #define CUBE_SCALE_X 1.4f
 #define CUBE_SCALE_Y 0.6f
 #define CUBE_SCALE_Z 1.0f
+
+// The two see-through quads: how far either side of the cubes they stand, how
+// big they are, how see-through, and what colour each one is.
+//
+// THEY ARE ON OPPOSITE SIDES OF THE SCENE BECAUSE THAT IS WHAT MAKES THE SORT
+// SOMETHING A PERSON CAN SEE. The camera orbits, so which of the two is nearer
+// swaps twice a lap; a sort with its sign the wrong way round is right for half
+// the lap and wrong for the other half, and two quads at one depth would not
+// show it. The offset in x and y is so that they overlap partly rather than
+// exactly — the overlap is where the near one's colour has to be the one on top.
+#define QUAD_Z 1.6f
+#define QUAD_X 0.8f
+#define QUAD_Y 0.4f
+#define QUAD_SIZE 2.2f
+
+// Half see-through, which is where a mistake in the blend is most visible: fully
+// transparent hides a wrong colour and nearly opaque hides a wrong order.
+#define QUAD_ALPHA 0.5f
 
 // The sun: how long a lap takes, how high it sits, and how strong it is.
 //
@@ -579,6 +628,75 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 			(voe_math_float3){ CUBE_SCALE_X, CUBE_SCALE_Y,
 					   CUBE_SCALE_Z },
 			turning);
+}
+
+// One see-through quad, one entity: geometry it shares with the other one, a
+// material of its own because the colour differs, and a transform of its own.
+static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
+		     voe_render_geometry geometry, voe_math_float4 colour,
+		     float z, voe_base_error *error)
+{
+	voe_ecs_entity entity = { 0 };
+	// BLENDED, AND THE COLOUR IS NOT PREMULTIPLIED HERE. A material's base
+	// colour is an ordinary colour with an alpha beside it; the shader
+	// multiplies at the very end, which is where the engine's premultiplied
+	// contract is applied. See render/shaders/draw.slang.
+	//
+	// FULLY ROUGH AND NOT METALLIC, so what is seen through it is the blend
+	// and not a highlight. A metal has no diffuse response, which would make
+	// most of the quad nearly black and the blend impossible to judge.
+	voe_3d_material material = {
+		.base_colour = colour,
+		.metallic = 0.0f,
+		.roughness = 1.0f,
+		.alpha_mode = VOE_RENDER_ALPHA_BLENDED,
+		.alpha_cutoff = 0.5f,
+	};
+	voe_scene_transform transform = {
+		.position = { QUAD_X, QUAD_Y, z },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { QUAD_SIZE, QUAD_SIZE, 1.0f },
+	};
+
+	if (!voe_3d_material_upload(gpu, &material, error))
+		return false;
+	if (!voe_ecs_entity_create(world, &entity))
+		return false;
+	if (!voe_scene_transform_add(world, entity, transform))
+		return false;
+	if (!voe_3d_mesh_add(world, entity,
+			     (voe_3d_mesh){ .geometry = geometry }))
+		return false;
+	return voe_3d_material_add(world, entity, material);
+}
+
+// The two see-through quads: one square of geometry into the pools, and two
+// entities standing either side of the cubes.
+//
+// TWO MATERIALS AND NOT ONE, unlike the cubes. They have to be different colours
+// or there is no way to tell from the picture which one ended up on top, and a
+// material is where a colour lives.
+static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
+			  voe_base_error *error)
+{
+	voe_render_geometry geometry = { 0 };
+	voe_math_float4 warm = { 0.9f, 0.25f, 0.15f, QUAD_ALPHA };
+	voe_math_float4 cool = { 0.15f, 0.35f, 0.9f, QUAD_ALPHA };
+
+	if (!voe_render_geometry_create(gpu, voe_dev_quad_vertices,
+					VOE_DEV_QUAD_VERTEX_COUNT,
+					voe_dev_quad_indices,
+					VOE_DEV_QUAD_INDEX_COUNT, &geometry,
+					error))
+		return false;
+
+	// The warm one nearer +Z and the cool one nearer −Z, so that whichever
+	// the camera is behind is the one whose colour is on top of the other.
+	// They are added in this order deliberately: the table order is warm
+	// then cool for the whole run, so a frame that looks right from one side
+	// and wrong from the other is the sort and nothing else.
+	return add_quad(world, gpu, geometry, warm, QUAD_Z, error) &&
+	       add_quad(world, gpu, geometry, cool, -QUAD_Z, error);
 }
 
 // One model, then one transform intent per entity to move the whole thing aside.
@@ -842,6 +960,12 @@ int main(void)
 		goto stop;
 	}
 
+	if (!add_the_quads(world, gpu, &error)) {
+		fprintf(stderr, "could not build the two see-through quads: %s\n",
+			voe_base_error_string(error));
+		goto stop;
+	}
+
 	// A model is the one thing here that is allowed to fail without stopping
 	// the program: the cubes are what says the renderer works, and a person
 	// looking at a window is better served by seeing them and a message than
@@ -1012,7 +1136,7 @@ int main(void)
 		after_update = voe_platform_clock_now();
 		voe_base_samples_add(&timing.update, after_update - top);
 
-		if (!voe_3d_draw_system_run(world, gpu, now_size)) {
+		if (!voe_3d_draw_system_run(world, gpu, arena, now_size)) {
 			fprintf(stderr, "the GPU stopped answering\n");
 			break;
 		}

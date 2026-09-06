@@ -344,16 +344,22 @@ struct voe_render_device {
 	// format.
 	VkSurfaceFormatKHR format;
 
-	// The one pipeline, and the layout it needs in order to exist.
+	// The two pipelines, and the layout both of them need in order to exist.
 	// Startup's, not the swapchain's: the viewport and the scissor are
-	// dynamic state, so a resize changes neither of these and there is
-	// nothing here to rebuild.
+	// dynamic state, so a resize changes none of these and there is nothing
+	// here to rebuild.
 	//
 	// The layout names descriptor_layout below and the one push constant a
-	// draw uses, and the probe's pipeline shares it — which is why the
-	// layout is the device's and not the pipeline's private business.
+	// draw uses, and the probe's pipeline shares it too — which is why the
+	// layout is the device's and not any one pipeline's private business.
+	//
+	// THE TWO DIFFER IN DEPTH WRITES AND IN BLENDING AND IN NOTHING ELSE.
+	// `pipeline` writes depth and does not blend; `pipeline_blended` tests
+	// depth, writes none, and blends premultiplied. device.c builds both from
+	// one description so the rest cannot drift.
 	VkPipelineLayout layout;
 	VkPipeline pipeline;
+	VkPipeline pipeline_blended;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -405,6 +411,12 @@ struct voe_render_device {
 	bool recording;
 	uint32_t object_count;
 	uint32_t image_index;
+
+	// Which of the two pipelines the open recording last bound, so that a
+	// run of draws of one kind costs one bind and not one per draw. Set when
+	// the rendering opens and every time a draw needs the other one;
+	// meaningless while `recording` is false.
+	VkPipeline bound;
 
 	// The size every slot's target is, and the resolution the engine draws
 	// at. It is the window's size today and it is not the swapchain's: what

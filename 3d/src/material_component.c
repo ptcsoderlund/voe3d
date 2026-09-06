@@ -32,6 +32,10 @@ bool voe_3d_material_upload(voe_render_device *device,
 		.base_colour = material->base_colour,
 		.metallic = material->metallic,
 		.roughness = material->roughness,
+		// The enum crosses as the uint the record holds it in, which is
+		// the one field here that changes type rather than only shape.
+		.alpha_mode = (uint32_t)material->alpha_mode,
+		.alpha_cutoff = material->alpha_cutoff,
 		.emissive = material->emissive,
 		.base_colour_texture = material->base_colour_texture.index,
 		.metallic_roughness_texture =

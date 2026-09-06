@@ -507,6 +507,49 @@ static bool read_texture_reference(struct gltf *gltf, uint32_t object,
 	return true;
 }
 
+// glTF's `alphaMode`, which is a string and not a number, into the engine's
+// enum. Absent is OPAQUE, which is what the specification says a material that
+// omits it means.
+//
+// AN UNKNOWN MODE IS REFUSED AND NOT DEFAULTED. A file naming a fourth mode is a
+// file this reader does not understand, and drawing it opaque would be a
+// silently wrong picture rather than an answer — so the name is printed and the
+// read stops, the same way an unknown required extension does.
+static bool read_alpha_mode(struct gltf *gltf, uint32_t material,
+			    voe_assets_alpha_mode *out)
+{
+	uint32_t token = voe_assets_json_member(gltf->json, material,
+						"alphaMode");
+	const voe_assets_json_token *text;
+
+	*out = VOE_ASSETS_ALPHA_OPAQUE;
+	if (token == VOE_ASSETS_JSON_NONE)
+		return true;
+	if (voe_assets_json_kind_of(gltf->json, token) != VOE_ASSETS_JSON_STRING)
+		return malformed(gltf, "an alphaMode that is not a string");
+
+	if (voe_assets_json_is(gltf->json, token, "OPAQUE"))
+		return true;
+	if (voe_assets_json_is(gltf->json, token, "MASK")) {
+		*out = VOE_ASSETS_ALPHA_CUTOUT;
+		return true;
+	}
+	if (voe_assets_json_is(gltf->json, token, "BLEND")) {
+		*out = VOE_ASSETS_ALPHA_BLENDED;
+		return true;
+	}
+
+	// The name is in the message because glTF's modes are words and the
+	// whole of the answer is which word this file used.
+	text = &gltf->json->tokens[token];
+	fprintf(stderr,
+		"assets: glTF: alphaMode %.*s; this reader knows OPAQUE, MASK and BLEND only\n",
+		(int)(text->end - text->start),
+		gltf->json->text + text->start);
+	gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
+	return false;
+}
+
 static bool read_materials(struct gltf *gltf, voe_assets_model *model)
 {
 	voe_assets_material *materials;
@@ -528,7 +571,8 @@ static bool read_materials(struct gltf *gltf, voe_assets_model *model)
 		uint32_t pbr;
 		// glTF's defaults, and they are the ones a material that says
 		// nothing is defined to have: white, fully metallic, fully
-		// rough, no emission.
+		// rough, no emission, opaque, and a cutoff of a half that only
+		// a cutout material ever reads.
 		float base[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		float emissive[3] = { 0.0f, 0.0f, 0.0f };
 		bool found;
@@ -540,6 +584,8 @@ static bool read_materials(struct gltf *gltf, voe_assets_model *model)
 			.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 			.metallic = 1.0f,
 			.roughness = 1.0f,
+			.alpha_mode = VOE_ASSETS_ALPHA_OPAQUE,
+			.alpha_cutoff = 0.5f,
 			.base_colour_image = VOE_ASSETS_MODEL_NONE,
 			.metallic_roughness_image = VOE_ASSETS_MODEL_NONE,
 			.normal_image = VOE_ASSETS_MODEL_NONE,
@@ -572,7 +618,10 @@ static bool read_materials(struct gltf *gltf, voe_assets_model *model)
 			};
 		}
 
-		if (!floats_member(gltf, material, "emissiveFactor", 3,
+		if (!read_alpha_mode(gltf, material, &materials[i].alpha_mode) ||
+		    !float_member(gltf, material, "alphaCutoff", 0.5f,
+				  &materials[i].alpha_cutoff) ||
+		    !floats_member(gltf, material, "emissiveFactor", 3,
 				   emissive, &found) ||
 		    !read_texture_reference(gltf, material, "normalTexture",
 					    &materials[i].normal_image) ||

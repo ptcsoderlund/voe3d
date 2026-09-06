@@ -14,8 +14,15 @@
 // THE PIPELINE NAMES THINGS THE OTHER STARTUP FILES OWN. Its layout names the
 // descriptor set layout descriptors.c builds, and its vertex input describes
 // voe_render_vertex — which is why voe_render_descriptors_build runs before
-// create_pipeline in open_device below and not after it, and why that order is
+// create_pipelines in open_device below and not after it, and why that order is
 // commented there rather than left to be rediscovered.
+//
+// THERE ARE TWO OF THEM AND THEY DIFFER IN THREE LINES. The solid one writes
+// depth and does not blend; the blended one tests depth the same way, writes
+// none, and blends premultiplied. Everything else — the shader module, the
+// vertex input, the raster state, the layout — is one description built once and
+// handed to both, which is what keeps the two from drifting apart: see
+// create_pipeline's `blended` parameter, which is the whole of the difference.
 //
 // DEPTH IS SET UP HERE AND IT RUNS BACKWARDS. GREATER, not LESS, because the
 // near plane is at 1.0 and the far plane at 0.0. The clear that goes with it is
@@ -662,7 +669,10 @@ static alignas(uint32_t) const unsigned char draw_spv[] = {
 #define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
 #define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
 
-static bool create_pipeline(voe_render_device *device)
+// Both pipelines, from one description. `blended` is the only thing that differs
+// between the two and the three lines it touches are marked below.
+static bool create_pipeline(voe_render_device *device, bool blended,
+			    VkPipeline *out)
 {
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -774,20 +784,47 @@ static bool create_pipeline(voe_render_device *device)
 	// full range and are ignored while the test is off; they are stated so
 	// that a reader does not have to wonder whether a zero here means the
 	// near plane.
+	//
+	// THE BLENDED PIPELINE TESTS DEPTH AND DOES NOT WRITE IT, AND NEITHER
+	// HALF OF THAT IS OPTIONAL. The test stays on so that a see-through
+	// thing behind a solid one is still hidden by it. The write goes off so
+	// that two see-through things do not hide each other — which is what
+	// makes the caller's furthest-first order load-bearing rather than
+	// cosmetic. Leave the write on and the sort appears to work while doing
+	// nothing at all.
 	VkPipelineDepthStencilStateCreateInfo depth = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		.depthTestEnable = VK_TRUE,
-		.depthWriteEnable = VK_TRUE,
+		.depthWriteEnable = blended ? VK_FALSE : VK_TRUE,
 		.depthCompareOp = VK_COMPARE_OP_GREATER,
 		.depthBoundsTestEnable = VK_FALSE,
 		.stencilTestEnable = VK_FALSE,
 		.minDepthBounds = 0.0f,
 		.maxDepthBounds = 1.0f,
 	};
-	// Written, not blended. Everything this engine draws is opaque and there
-	// is nothing underneath it but the clear; transparency is its own
-	// decision and it starts with sorting.
+	// THE BLEND IS PREMULTIPLIED AND THAT IS THE ENGINE'S CONTRACT, NOT A
+	// TASTE. Source factor ONE, destination factor ONE_MINUS_SRC_ALPHA, for
+	// colour and for alpha both, because a fragment leaves the shader with
+	// its colour already multiplied by its own alpha — draw.slang's last act.
+	// The textbook non-premultiplied pair (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)
+	// would multiply by alpha a second time and everything see-through would
+	// come out too dark.
+	//
+	// THE ALPHA CHANNEL IS BLENDED THE SAME WAY AND NOT LEFT ALONE. The
+	// target's alpha is what a later compositing step would read; keeping it
+	// consistent costs nothing and an inconsistent one is invisible until
+	// something reads it.
+	//
+	// The solid pipeline writes rather than blends: everything it draws is
+	// fully solid and there is nothing underneath it but the clear.
 	VkPipelineColorBlendAttachmentState attachment = {
+		.blendEnable = blended ? VK_TRUE : VK_FALSE,
+		.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+		.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+		.colorBlendOp = VK_BLEND_OP_ADD,
+		.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+		.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+		.alphaBlendOp = VK_BLEND_OP_ADD,
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
 				  VK_COLOR_COMPONENT_G_BIT |
 				  VK_COLOR_COMPONENT_B_BIT |
@@ -888,7 +925,13 @@ static bool create_pipeline(voe_render_device *device)
 		.pName = DRAW_FRAGMENT_ENTRY,
 	};
 
-	if (voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
+	// ONE LAYOUT FOR BOTH PIPELINES, MADE BY WHICHEVER GETS HERE FIRST. The
+	// two describe the same set and the same push constant, and the probe
+	// shares it as well — see device_internal.h. A second one would be a
+	// second handle for the same description and a leak the day only one of
+	// them was destroyed.
+	if (device->layout == VK_NULL_HANDLE &&
+	    voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
 						 &device->layout) != VK_SUCCESS) {
 		fprintf(stderr, "render: vkCreatePipelineLayout failed\n");
 		voe_render_vk.destroy_shader_module(device->device, module, NULL);
@@ -898,7 +941,7 @@ static bool create_pipeline(voe_render_device *device)
 
 	result = voe_render_vk.create_graphics_pipelines(device->device,
 							 VK_NULL_HANDLE, 1, &info,
-							 NULL, &device->pipeline);
+							 NULL, out);
 
 	// The module is the compiler's input and the pipeline has finished
 	// reading it, so it goes away here whether or not the pipeline was made.
@@ -907,12 +950,20 @@ static bool create_pipeline(voe_render_device *device)
 
 	if (result != VK_SUCCESS) {
 		fprintf(stderr,
-			"render: vkCreateGraphicsPipelines failed (VkResult %d)\n",
-			(int)result);
-		device->pipeline = VK_NULL_HANDLE;
+			"render: vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)\n",
+			blended ? "blended" : "solid", (int)result);
+		*out = VK_NULL_HANDLE;
 		return false;
 	}
 	return true;
+}
+
+// The solid one first, because it is the one that makes the layout and the one
+// every draw that is not see-through goes through.
+static bool create_pipelines(voe_render_device *device)
+{
+	return create_pipeline(device, false, &device->pipeline) &&
+	       create_pipeline(device, true, &device->pipeline_blended);
 }
 
 // ------------------------------------------------------------- the frame's own
@@ -1023,6 +1074,10 @@ static void close_down(voe_render_device *device)
 		voe_render_swapchain_teardown(device);
 		voe_render_target_teardown(device);
 
+		if (device->pipeline_blended != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_blended,
+						       NULL);
 		if (device->pipeline != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline, NULL);
@@ -1153,8 +1208,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// out of it. The descriptors come next, because the sets are what the
 	// shading buffer's and the textures' descriptors are written into — so
 	// both of those have to exist after the sets do, and the two writes after
-	// that. The pipeline comes last because its layout names the descriptor
-	// set layout: build it first and it names a handle that is still null.
+	// that. The pipelines come last because their layout names the descriptor
+	// set layout: build them first and it names a handle that is still null.
 	if (!create_frame_objects(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
@@ -1172,7 +1227,7 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		voe_render_texture_write_descriptors(device,
 						     device->frames[i].descriptor);
 	}
-	if (!create_pipeline(device))
+	if (!create_pipelines(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// Targets before the swapchain, because the targets are the resolution
 	// and the swapchain is only where a frame is copied at the end. A device

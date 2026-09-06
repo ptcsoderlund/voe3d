@@ -11,9 +11,17 @@
 //
 // WHAT IS OPEN BETWEEN THEM LIVES IN THE DEVICE. device->recording says a
 // recording is open, device->object_count says how many objects have gone into
-// it, and device->image_index says which swapchain image _end has to blit into.
-// There is exactly one frame open at a time, so a token handed to the caller
-// would be a second place for that to live and a second thing to get wrong.
+// it, device->bound says which of the two pipelines it last bound, and
+// device->image_index says which swapchain image _end has to blit into. There is
+// exactly one frame open at a time, so a token handed to the caller would be a
+// second place for that to live and a second thing to get wrong.
+//
+// THERE ARE TWO DRAW CALLS AND THEY DIFFER IN ONE ARGUMENT. _draw goes through
+// the solid pipeline, _draw_blended through the one that tests depth without
+// writing it and blends premultiplied; both are draw_with() below. This file
+// does not sort and does not know how to: the order the blended draws arrive in
+// is the order they are recorded in, and getting that order right is
+// voe_3d_draw_system_run's.
 //
 // THE CLOCK IS GONE FROM THIS FILE AND SO IS THE CAMERA. Both were here while
 // render owned the scene: a frame counted a nominal frame's worth of seconds and
@@ -331,9 +339,13 @@ static void open_rendering(voe_render_device *device,
 	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
 	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
 	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
+	// The solid pipeline, because a frame's opaque and cutout draws come
+	// first; a blended draw binds the other one and `bound` is what keeps a
+	// run of either kind to a single bind.
 	voe_render_vk.cmd_bind_pipeline(frame->commands,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					device->pipeline);
+	device->bound = device->pipeline;
 	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,
 					       VK_PIPELINE_BIND_POINT_GRAPHICS,
 					       device->layout, 0, 1,
@@ -636,9 +648,16 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	return true;
 }
 
-bool voe_render_frame_draw(voe_render_device *device,
-			   voe_render_geometry geometry,
-			   voe_render_object object)
+// The whole of both draw calls; `pipeline` is the only thing that differs
+// between them.
+//
+// THE BIND IS CONDITIONAL AND THAT IS THE ONLY REASON `bound` EXISTS. A frame is
+// a run of solid draws and then a run of blended ones, so this costs one bind at
+// the boundary rather than one per draw — and it is still correct if a caller
+// ever interleaves them, which is what makes it a condition and not an
+// assumption about the caller's order.
+static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
+		      voe_render_object object, VkPipeline pipeline)
 {
 	const struct voe_render_geometry_slot *slot;
 	struct voe_render_frame *frame;
@@ -663,6 +682,13 @@ bool voe_render_frame_draw(voe_render_device *device,
 	}
 
 	frame = frame_at(device, device->slot);
+
+	if (device->bound != pipeline) {
+		voe_render_vk.cmd_bind_pipeline(frame->commands,
+						VK_PIPELINE_BIND_POINT_GRAPHICS,
+						pipeline);
+		device->bound = pipeline;
+	}
 
 	// The record, into this slot's own object buffer at this object's
 	// number. Written rather than staged because the buffer is host-visible
@@ -692,6 +718,22 @@ bool voe_render_frame_draw(voe_render_device *device,
 
 	device->object_count++;
 	return true;
+}
+
+bool voe_render_frame_draw(voe_render_device *device,
+			   voe_render_geometry geometry,
+			   voe_render_object object)
+{
+	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
+	return draw_with(device, geometry, object, device->pipeline);
+}
+
+bool voe_render_frame_draw_blended(voe_render_device *device,
+				   voe_render_geometry geometry,
+				   voe_render_object object)
+{
+	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
+	return draw_with(device, geometry, object, device->pipeline_blended);
 }
 
 bool voe_render_frame_end(voe_render_device *device)

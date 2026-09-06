@@ -64,10 +64,27 @@
 // the window is not, and an editor viewport all need in order to be possible at
 // all.
 //
-// IT IS SOLID, WHICH MEANS THERE IS A DEPTH BUFFER BEHIND THESE CALLS, ONE PER
-// FRAME SLOT. This engine's depth runs backwards — near at 1.0, far at 0.0 — and
-// nothing outside this folder has to know that. Opaque draws may therefore be
-// issued in any order without changing the image.
+// THERE IS A DEPTH BUFFER BEHIND THESE CALLS, ONE PER FRAME SLOT. This engine's
+// depth runs backwards — near at 1.0, far at 0.0 — and nothing outside this
+// folder has to know that. Opaque and cutout draws may therefore be issued in
+// any order without changing the image.
+//
+// BLENDED DRAWS ARE THE EXCEPTION AND THEY ARE A SECOND CALL. voe_render_frame_draw
+// writes depth; voe_render_frame_draw_blended tests it and does not write it,
+// and blends what it draws over what is already there. Depth writes being off is
+// what makes the order the caller issues them in load-bearing: this folder does
+// not sort anything and cannot, because it does not know where anything is. The
+// caller draws every opaque and cutout object first and then its blended ones
+// furthest first — see voe_3d_draw_system_run, which is the one caller.
+//
+// THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
+// OUTPUTS PREMULTIPLIED COLOUR. A fragment's rgb is already multiplied by its
+// own alpha by the time it leaves a shader, and the blend is therefore
+// source-one, destination-one-minus-source-alpha for colour and alpha both.
+// Nothing enforces this — there is no validation layer for it and no test that
+// can see it — so the next shader author reading this sentence is the whole
+// mechanism. shaders/draw.slang says the same thing at the site that does the
+// multiply.
 //
 // SIZE IS PASSED IN, EVERY FRAME, AND IT IS THE WINDOW'S ANSWER. This folder
 // never asks a window how big it is: `platform` owns that truth and the caller
@@ -194,6 +211,34 @@ typedef struct {
 // factors as they are. A zeroed voe_render_texture is this, deliberately.
 #define VOE_RENDER_NO_TEXTURE 0
 
+// What a shading record's alpha means. The engine's three words, the same three
+// `assets` reads out of a glTF's `alphaMode` and the same three a text or UI
+// material will use.
+//
+// IT DECIDES WHAT THE SHADER DOES WITH ALPHA AND NOT WHICH PIPELINE IS USED.
+// Which pipeline a draw goes through is which of the two draw calls the caller
+// makes; this is what the fragment stage does once it is there. The two have to
+// agree — a BLENDED record drawn through voe_render_frame_draw is a
+// see-through-looking colour written into a pass that does not blend — and
+// keeping them in step is the caller's, because the caller is what sorted them.
+//
+// OPAQUE IS 0 SO THAT A ZEROED RECORD IS AN OPAQUE ONE.
+typedef enum {
+	// Alpha is ignored entirely and the surface is fully solid, which is
+	// what the glTF specification says an opaque material's alpha means.
+	// That is not a detail: a record carrying an alpha of a half would
+	// otherwise have half its colour written into a pass that does not
+	// blend, and the surface would simply go dark.
+	VOE_RENDER_ALPHA_OPAQUE = 0,
+	// A hard edge: below the cutoff nothing is drawn, above it the surface
+	// is fully solid. Cutout draws through voe_render_frame_draw and writes
+	// depth like any other solid thing.
+	VOE_RENDER_ALPHA_CUTOUT,
+	// See-through, and the only mode that belongs in
+	// voe_render_frame_draw_blended.
+	VOE_RENDER_ALPHA_BLENDED,
+} voe_render_alpha_mode;
+
 // One record of how a surface is shaded, and the id that names it.
 //
 // THE LAYOUT IS PADDED AND THAT IS NOT COSMETIC. The same struct is declared in
@@ -210,7 +255,13 @@ typedef struct {
 	voe_math_float4 base_colour;
 	float metallic;
 	float roughness;
-	float reserved_a[2];
+	// A voe_render_alpha_mode, and the cutoff the cutout one reads. They are
+	// here rather than at the end because this is the eight bytes that used
+	// to be reserved_a: same offsets, same size, and the asserts in
+	// render/src/descriptors.c are unchanged. A uint and a float and not a
+	// two-element vector, for the alignment reason the paragraph above gives.
+	uint32_t alpha_mode;
+	float alpha_cutoff;
 	voe_math_float3 emissive;
 	float reserved_b;
 	// Texture ids, index halves only — VOE_RENDER_NO_TEXTURE where the
@@ -436,6 +487,25 @@ bool voe_render_texture_destroy(voe_render_device *device,
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
+
+// The same draw through the blended pipeline: the depth test still runs, so
+// something behind an opaque object is still hidden, but nothing is written to
+// the depth buffer and what is drawn is blended over what is already there.
+//
+// DEPTH WRITES BEING OFF IS WHAT MAKES THE CALLER'S ORDER MATTER, AND IT IS NOT
+// A DETAIL. With them on, two blended objects would hide each other and the
+// caller's sort would appear to work while doing nothing. Draw every blended
+// object after every opaque one, furthest away first.
+//
+// THE RECORD IT NAMES SHOULD BE A VOE_RENDER_ALPHA_BLENDED ONE. Nothing checks
+// it: a cutout record through here draws a hard edge that writes no depth, and
+// an opaque one draws solid. Both are the caller's mistake and neither fails.
+//
+// False for the same two reasons voe_render_frame_draw is, and with the same
+// asserts.
+[[nodiscard]] bool voe_render_frame_draw_blended(voe_render_device *device,
+						 voe_render_geometry geometry,
+						 voe_render_object object);
 
 // Ends the recording, submits it, and — where there is a window — copies the
 // target into the acquired swapchain image and presents it.

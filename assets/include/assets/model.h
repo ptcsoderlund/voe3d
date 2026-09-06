@@ -32,22 +32,25 @@
 // it was: a required extension, a primitive that is not a triangle list, a
 // sparse accessor, a buffer or an image that names an external file, a texture
 // coordinate set other than the first, a component type an attribute may not
-// have, or more JSON than the reader will hold.
+// have, an alpha mode that is not one of glTF's three, or more JSON than the
+// reader will hold.
 //
 // ANIMATION AND SKINNING ARE IGNORED RATHER THAN REFUSED. A file with them in it
 // loads, and what it draws is the bind pose. Refusing would turn most models
 // people have into an error message; pretending to animate them would be worse.
 // The card that reads them is a later card, and the principal's decision.
 //
-// SO ARE A MATERIAL'S `doubleSided` AND ITS ALPHA MODE, AND THOSE TWO ARE WORTH
-// KNOWING ABOUT. Blender writes `doubleSided: true` unless someone ticks its
-// backface-culling box, and this engine culls back faces whatever a material
-// says — which is invisible on closed geometry and takes half the faces off a
-// flat one, a leaf or a sheet of cloth. Alpha is the same shape of gap: nothing
-// in this engine blends yet. Both are properties this reader could carry and
-// nothing downstream could yet act on, so they are not carried: a field that is
-// read and ignored reads as a feature. The cards that cull differently or blend
-// are the cards that add them.
+// SO IS A MATERIAL'S `doubleSided`, AND IT IS WORTH KNOWING ABOUT. Blender
+// writes `doubleSided: true` unless someone ticks its backface-culling box, and
+// this engine culls back faces whatever a material says — which is invisible on
+// closed geometry and takes half the faces off a flat one, a leaf or a sheet of
+// cloth. It is a property this reader could carry and nothing downstream could
+// yet act on, so it is not carried: a field that is read and ignored reads as a
+// feature. The card that culls differently is the card that adds it.
+//
+// THE ALPHA MODE WAS THE SAME GAP AND IS NOT ONE ANY MORE. It used to be left
+// out for the reason above; card 021a gave the engine a blended pass, so the
+// mode and its cutoff are carried now and voe_assets_material has both.
 #pragma once
 
 #include <assets/image.h>
@@ -64,6 +67,26 @@
 // What every "which one" field below holds when the answer is "none". A material
 // with no texture, a primitive with no material, a node that draws nothing.
 #define VOE_ASSETS_MODEL_NONE UINT32_MAX
+
+// What a material's alpha means, which is glTF's `alphaMode` under the engine's
+// own spelling. The three words are the whole vocabulary and text and UI
+// materials use the same three; glTF calls them OPAQUE, MASK and BLEND and the
+// mapping is one to one.
+//
+// OPAQUE IS 0 SO THAT A ZEROED MATERIAL IS AN OPAQUE ONE, which is also what a
+// glTF file that says nothing means.
+typedef enum {
+	// The alpha channel is ignored entirely — not "one", *ignored*, which is
+	// what the glTF specification says. A base colour carrying an alpha of
+	// a half is a fully solid surface of that colour.
+	VOE_ASSETS_ALPHA_OPAQUE = 0,
+	// A hard edge: a fragment whose alpha is below the cutoff is not drawn
+	// and the rest are fully solid. Leaves, grates, chain-link.
+	VOE_ASSETS_ALPHA_CUTOUT,
+	// See-through: the alpha is a coverage and what is behind shows through
+	// in proportion to it.
+	VOE_ASSETS_ALPHA_BLENDED,
+} voe_assets_alpha_mode;
 
 // One drawable piece: a glTF primitive. A glTF mesh may hold several of them,
 // each with its own material, and each one is a draw.
@@ -118,11 +141,23 @@ typedef struct {
 // THAT DECISION. glTF's emission is a full RGB texture and not a strength in a
 // fourth channel, so it is a field of its own here. Packing it into an alpha
 // channel is a decision nobody has taken and it is not taken by parsing.
+//
+// THE ALPHA THE MODE TALKS ABOUT IS THE BASE COLOUR'S FOURTH CHANNEL — the
+// factor's, times the texture's. A base-colour texture is uploaded as an sRGB
+// format and a Vulkan sRGB format decodes the three colour channels and passes
+// alpha through untouched, so that alpha is already linear and wants no decoding
+// anywhere.
 typedef struct {
 	voe_math_float4 base_colour;
 	float metallic;
 	float roughness;
 	voe_math_float3 emissive;
+
+	// glTF's `alphaMode`, defaulting to opaque for a file that omits it, and
+	// its `alphaCutoff`, defaulting to a half. The cutoff is carried whatever
+	// the mode is, because that is what the file said; only cutout reads it.
+	voe_assets_alpha_mode alpha_mode;
+	float alpha_cutoff;
 
 	uint32_t base_colour_image;
 	uint32_t metallic_roughness_image;

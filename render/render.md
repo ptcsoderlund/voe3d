@@ -1,8 +1,8 @@
 # render
 
 The GPU, and the only folder that names Vulkan. A device opened onto a window, a
-swapchain, two geometry pools, textures, shading records, a pipeline and a frame
-— nothing above them. Not scenes, not entities, not files, and no abstraction
+swapchain, two geometry pools, textures, shading records, two pipelines and a
+frame — nothing above them. Not scenes, not entities, not files, and no abstraction
 over Vulkan: there is one graphics API and there will not be a second. The only
 folder with shaders, and the only one slangc is run over.
 
@@ -22,7 +22,10 @@ way out, and no file here holds a gamma constant.
   one. It also carries the two things card 020 added: how long the card spent on
   a frame, which is its own clock and runs two frames behind, and which of the
   two present modes a caller wants — mailbox is optional and falling back to
-  fifo is not a failure.
+  fifo is not a failure. Card 021a added the blended draw beside the solid one:
+  its header says what the three alpha modes mean, why the depth write goes off
+  and the order therefore matters, and that the colour target holds premultiplied
+  colour.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -36,7 +39,7 @@ way out, and no file here holds a gamma constant.
 - `src/device_internal.h` — the struct the files below share, where the split
   between them runs, and the constants the whole folder reads.
 - `src/device.c` — starting up: the instance, the surface, the graphics card, the
-  logical device, the pipeline and its depth state. Everything that happens once,
+  logical device, and the two pipelines with their depth and blend state. Everything that happens once,
   including the `#embed` that puts the compiled shader in the binary. Its header
   says why the three startup calls are in the order they are, and why the format
   it asks the surface for is an sRGB one now that a frame is drawn in linear
@@ -66,10 +69,10 @@ way out, and no file here holds a gamma constant.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
 - `src/frame.c` — one frame in three calls: wait and open a recording, draw an
-  object into it, end it and present. Holds the engine's only Y flip and the
-  clear colour; its header says why there are three calls and not one, why the
-  camera and the sun share one buffer, and why a headless device runs all but
-  three lines of it. The two timestamps that measure the card are written and
+  object into it solid or blended, end it and present. Holds the engine's only Y
+  flip and the clear colour; its header says why there are three calls and not
+  one, why the camera and the sun share one buffer, why the two draw calls differ
+  in one argument, and why a headless device runs all but three lines of it. The two timestamps that measure the card are written and
   read here, and its header says why they can only be read one lap late and why
   a reading has to be masked before it is subtracted.
 - `src/probe.c` — the pipeline that reads a matrix and reports what it saw, built

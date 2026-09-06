@@ -246,15 +246,15 @@ int main(void)
 	// picture looks like is render/tests/offscreen.c's question.
 	add_a_camera(world);
 	add_the_sun(world);
-	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, size));
+	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, arena, size));
 
 	// Twice, so that the second frame slot is used as well — which is where
 	// a per-slot buffer that was written into the wrong slot shows up.
-	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, size));
+	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, arena, size));
 
 	// A window with no area draws nothing and says so rather than dividing
 	// by zero on the way to an aspect ratio.
-	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device,
+	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, arena,
 					      (voe_platform_size){ 0, 0 }));
 
 	voe_render_device_destroy(device);

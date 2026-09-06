@@ -181,6 +181,25 @@ static voe_render_texture texture_at(const struct import *import,
 	return ids[index];
 }
 
+// `assets`' three words into `render`'s three words. Two enums and not one
+// because `assets` may not name `render` — see 3d/material_component.h — and
+// this is the one place in the engine where the mapping is written down. It is
+// one to one and it is total, so the default below is unreachable rather than a
+// fallback: the reader refuses a mode it does not know (assets/model.h) and
+// never hands one over.
+static voe_render_alpha_mode alpha_mode_of(voe_assets_alpha_mode mode)
+{
+	switch (mode) {
+	case VOE_ASSETS_ALPHA_CUTOUT:
+		return VOE_RENDER_ALPHA_CUTOUT;
+	case VOE_ASSETS_ALPHA_BLENDED:
+		return VOE_RENDER_ALPHA_BLENDED;
+	case VOE_ASSETS_ALPHA_OPAQUE:
+		break;
+	}
+	return VOE_RENDER_ALPHA_OPAQUE;
+}
+
 static bool upload_materials(struct import *import, voe_base_error *error)
 {
 	const voe_assets_model *model = import->model;
@@ -200,6 +219,8 @@ static bool upload_materials(struct import *import, voe_base_error *error)
 			.metallic = from->metallic,
 			.roughness = from->roughness,
 			.emissive = from->emissive,
+			.alpha_mode = alpha_mode_of(from->alpha_mode),
+			.alpha_cutoff = from->alpha_cutoff,
 			.base_colour_texture =
 				texture_at(import, import->colours,
 					   from->base_colour_image),
@@ -226,7 +247,8 @@ static bool upload_materials(struct import *import, voe_base_error *error)
 	return true;
 }
 
-// glTF's default material: white, fully metallic, fully rough, no pictures. It
+// glTF's default material: white, fully metallic, fully rough, opaque, no
+// pictures. It
 // is what an unmaterialled primitive is *defined* to be, so this is the file's
 // answer and not a substitute for it — and it gets a shading record of its own
 // like any other material.
@@ -237,6 +259,8 @@ static bool default_material(struct import *import, voe_3d_material *out,
 		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 		.metallic = 1.0f,
 		.roughness = 1.0f,
+		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
+		.alpha_cutoff = 0.5f,
 		.base_colour_texture = { .index = VOE_RENDER_NO_TEXTURE },
 		.metallic_roughness_texture = { .index = VOE_RENDER_NO_TEXTURE },
 		.normal_texture = { .index = VOE_RENDER_NO_TEXTURE },
