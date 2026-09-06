@@ -1,6 +1,6 @@
 # 013 — the frame goes into an offscreen image
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: 012
 

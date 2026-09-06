@@ -1,6 +1,6 @@
 # 018 — model loading: glTF binary
 
-status: review
+status: complete
 claimed-by: claude-code (kanban-coder)
 blocked-by: 017
 

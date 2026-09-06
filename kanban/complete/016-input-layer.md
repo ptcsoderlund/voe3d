@@ -1,6 +1,6 @@
 # 016 — an input layer
 
-status: review
+status: complete
 claimed-by: claude-code (kanban-coder)
 blocked-by: 015
 

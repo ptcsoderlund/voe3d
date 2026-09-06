@@ -1,6 +1,6 @@
 # 011 — tests for `math`
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 

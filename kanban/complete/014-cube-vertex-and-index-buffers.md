@@ -1,6 +1,6 @@
 # 014 — vertex and index buffers, and a cube
 
-status: review
+status: complete
 claimed-by: -
 blocked-by: 013
 

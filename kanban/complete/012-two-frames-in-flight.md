@@ -1,6 +1,6 @@
 # 012 — two frames in flight
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 

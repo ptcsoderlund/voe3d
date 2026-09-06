@@ -1,6 +1,6 @@
 # 019 — one directional light, with material shading
 
-status: review
+status: complete
 claimed-by: claude-code (kanban-coder)
 blocked-by: 018
 

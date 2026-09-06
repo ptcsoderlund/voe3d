@@ -1,6 +1,6 @@
 # 010 — the analyser step the rulebook already promises
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 

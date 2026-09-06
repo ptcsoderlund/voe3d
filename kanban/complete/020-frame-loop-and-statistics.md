@@ -1,6 +1,6 @@
 # 020 — frame loop, honest timing, statistics to the console
 
-status: review
+status: complete
 claimed-by: claude-code (kanban-coder)
 blocked-by: -
 
