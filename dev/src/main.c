@@ -1,7 +1,8 @@
 // voe_dev — the one program a person runs to see what the engine can currently
 // do. Today it opens a window holding a world: two cubes placed by hand, two
 // models read out of `.glb` files, two see-through quads standing either side of
-// them, one sun going round it all, and a camera that either orbits them or is
+// them, a lettered sign above them, a line of writing locked to the camera, one
+// sun going round it all, and a camera that either orbits them or is
 // flown. There is one of these and it always shows the
 // current state, so what is here now is expected to be deleted rather than kept
 // behind a flag when the next thing lands.
@@ -63,6 +64,10 @@
 // And two see-through squares, one warm and one cool, standing a metre and a
 // half either side of the cubes.
 //
+// Above all of it, three lines of writing on nothing — a sign in the world,
+// lettered on both faces — and across the bottom of the view, one line of it
+// that stays where it is however the camera moves.
+//
 // ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
 //
 // THE CUBES ARE VISIBLE THROUGH THEM AND TINTED BY THEM. That is the whole claim
@@ -79,9 +84,40 @@
 // is backwards — that is the failure 3d/tests/depth_sort.c exists to catch
 // before it gets here, and this is what it looks like when it does.
 //
-// THEY ARE THE ONLY THING IN THE SCENE DRAWN IN THE SECOND PASS. Everything else
-// is opaque and goes through the ordinary draw in table order; see
-// 3d/draw_system.h.
+// ---- THE TWO STRINGS, AND WHAT EACH OF THEM IS FOR ----
+//
+// THE SIGN STANDS IN THE WORLD AND THE LINE IS LOCKED TO THE CAMERA, which are
+// the two placements text has. The sign is three lines of Oxanium above the
+// cubes and it is part of the scene: it turns with the orbit, it is read at an
+// angle for most of a lap, and something in front of it hides it. The line sits
+// a metre in front of the eye and stays where it is on screen however the camera
+// moves — and it is still an object in the world, placed by a transform intent
+// every frame. There is no screen-space path in this engine and there is not
+// going to be one, so a heads-up display is a quad in front of the camera.
+//
+// THE TEXT DOES NOT CHANGE AS THE SUN GOES ROUND, AND THAT IS THE UNLIT FLAG.
+// The cubes brighten and darken through the lap; the writing keeps exactly the
+// colour its material asks for, because an unlit material skips the whole
+// shading model. Writing that dims when the sun crosses it is the flag missing,
+// and it is the failure this is here to make obvious.
+//
+// AND IT IS BLENDED, SO A GLYPH IS A SHAPE AND NOT A BOX. Each letter is a quad
+// carrying its coverage in the atlas's alpha; a square of background round every
+// letter is the alpha mode wrong, and text noticeably paler than the tint it
+// asks for is a colour multiplied by its coverage twice.
+//
+// THE ACCENTED CHARACTERS ARE THE READER'S TEST. `Å`, `Ö`, `é`, `ü`, `å` and `Ç`
+// are composite glyphs — references to other glyphs with an offset — and a
+// reader that handles only simple outlines draws them as blanks while an English
+// string looks perfect. If they are missing, that is the bug.
+//
+// THE COUNTERS ARE HOLES. The middles of `O`, `D`, `e`, `a`, `o`, `ö` and `å`
+// are the background and not the letter. Filled in solid is the fill rule: see
+// text/tests/raster.c, which is where that should have been caught.
+//
+// THEY ARE THE ONLY THINGS IN THE SCENE DRAWN IN THE SECOND PASS ALONGSIDE THE
+// QUADS. Everything else is opaque and goes through the ordinary draw in table
+// order; see 3d/draw_system.h.
 //
 // Every cube wears the same "F", so every face reads as a letter and the letter
 // says which way up and which way round the face is. The figure wears its own
@@ -113,8 +149,9 @@
 // TAB FLIES IT AND TAB HANDS IT BACK, AND BOTH STATES ARE WORTH LOOKING AT.
 // There are two things to check here and they need different cameras: whether
 // the rendering is right, which wants a camera nobody is touching, and whether
-// the input is right, which wants a hand on it. Tab switches, Escape always
-// hands back, and the orbit is what the program starts in.
+// the input is right, which wants a hand on it. Tab switches, Escape hands the
+// camera back and closes the window when the camera is already back, and the
+// orbit is what the program starts in.
 //
 // ---- ORBITING: THREE MOTIONS, AND ALL THREE HAVE TO BE THERE ----
 //
@@ -146,6 +183,24 @@
 //     some camera angles and not others — the sort's sign.
 //   - An opaque surface gone dark — the alpha mode, and it looks like a lighting
 //     regression rather than an alpha one. See render/shaders/draw.slang.
+//   - Writing that brightens and dims as the sun goes round — the material's
+//     `unlit` flag never reached the shading record.
+//   - A square of background round every letter — the text material's alpha mode
+//     arriving as opaque, which is the same failure as the quad above wearing a
+//     different shape.
+//   - Writing noticeably paler than the tint it asks for — a colour multiplied
+//     by its coverage twice, which is the atlas having been premultiplied when
+//     the shader is what does that. See text/src/font.c.
+//   - Accented characters missing while an English string is perfect — composite
+//     glyphs, and text/tests/truetype.c is the automated form.
+//   - The middles of `O`, `e` and `a` filled in solid — the fill rule.
+//     text/tests/raster.c is the automated form of that one.
+//   - The sign missing for half the lap — one of its two faces did not get
+//     built. A text block is one face, and the pair of entities is what makes it
+//     a sign rather than a decal.
+//   - A box where a character should be — the character is outside the range the
+//     atlas covers, and that box is the font's own missing-glyph glyph. Correct,
+//     and a reason to change the string rather than the folder.
 //   - Everything drifting or growing — the projection or the aspect ratio.
 //   - The picture upside down — the one Y flip went the wrong way or happened
 //     twice. Every "F" is upright when it is right.
@@ -181,8 +236,9 @@
 // Tab, then: W and S forwards and back along where the camera is looking, A and
 // D left and right, E or Space up and Q or Ctrl down — straight up and down
 // whatever the camera is looking at — Shift to go four times as fast, and the
-// mouse to look around. Tab again or Escape to give it back. E and Q are there
-// so that the whole of flying is reachable from the left hand alone.
+// mouse to look around. Tab again or Escape to give it back, and Escape once
+// more to close the window. E and Q are there so that the whole of flying is
+// reachable from the left hand alone.
 //
 // P is the one key that is not about the camera: it switches the present mode,
 // in either camera state, and is nowhere near the movement keys for that reason.
@@ -275,7 +331,9 @@
 #include <render/device.h>
 #include <scene/camera_system.h>
 #include <scene/light_system.h>
+#include <scene/camera_component.h>
 #include <scene/transform_system.h>
+#include <text/font.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -378,6 +436,51 @@
 // Half see-through, which is where a mistake in the blend is most visible: fully
 // transparent hides a wrong colour and nearly opaque hides a wrong order.
 #define QUAD_ALPHA 0.5f
+
+// The two strings, and the two placements the card asks to see: one standing in
+// the world and one locked to the camera.
+//
+// THE SIGN IS TWO ENTITIES SHARING ONE MESH, BACK TO BACK. A text block is four
+// vertices and six indices per glyph — one face — and the engine culls back
+// faces, so a single sign vanishes for half of the camera's lap. Two entities
+// with the same geometry, one of them turned half a turn about Y, is a sign
+// lettered on both sides; it costs one more transform and one more draw and
+// nothing else. That is a double-sided *arrangement* and not a double-sided
+// material, the same distinction dev/src/quad.h already makes about the quads.
+//
+// IT HAS AN ACCENTED CHARACTER IN IT ON PURPOSE. Most accented characters are
+// composite glyphs — references to other glyphs with an offset — and a reader
+// that handles only simple outlines draws them as blanks while looking perfectly
+// correct on an English string. If the `å` is missing, that is the bug and
+// text/tests/truetype.c is where it should have been caught.
+#define SIGN_TEXT "VOE3D\nunlit · blended · Oxanium\nÅNGSTRÖM · éüåÇ"
+#define SIGN_EM 0.30f
+#define SIGN_HEIGHT 3.4f
+
+// The heads-up line: how far in front of the eye it sits, how big it is, and how
+// far below the middle of the view. It is placed by a transform intent every
+// frame, from where the camera actually is, which is the whole of what "locked
+// to the camera" means here — there is no screen-space path and there is not
+// going to be one.
+//
+// NEITHER STRING HOLDS A CHARACTER OUTSIDE LATIN-1, AND THAT IS DELIBERATE. The
+// atlas covers the space to U+00FF; anything else is drawn as the font's
+// missing-glyph box, which is right and looks exactly like a bug. An em dash
+// stood here until it did.
+#define HUD_TEXT "locked to the camera · Tab to fly"
+#define HUD_EM 0.055f
+#define HUD_DISTANCE 1.0f
+#define HUD_DROP 0.36f
+
+// What the two are tinted. The base colour factor of an unlit material is
+// exactly what comes out, because nothing multiplies it by a light — so these
+// are the colours on screen and not a starting point for one.
+#define SIGN_TINT_R 1.0f
+#define SIGN_TINT_G 0.86f
+#define SIGN_TINT_B 0.45f
+#define HUD_TINT_R 0.75f
+#define HUD_TINT_G 0.92f
+#define HUD_TINT_B 1.0f
 
 // The sun: how long a lap takes, how high it sits, and how strong it is.
 //
@@ -699,6 +802,159 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 	       add_quad(world, gpu, geometry, cool, -QUAD_Z, error);
 }
 
+// One text block, one entity: the mesh the font built, an unlit blended material
+// wearing the atlas, and the transform it is placed with.
+//
+// THE FOUR THINGS A TEXT MATERIAL HAS TO SAY, and each of them is visible if it
+// is missing. The atlas as the base colour texture, or there is nothing to see.
+// The tint as the base colour factor, which for an unlit material is exactly the
+// colour on screen. `unlit`, or the letters darken and brighten as the sun goes
+// round — text lit by a sun is the failure this flag exists to prevent. And
+// BLENDED, or every glyph arrives in a square of its own background.
+//
+// AND THE TINT IS NOT PREMULTIPLIED HERE. It is an ordinary colour with an alpha
+// beside it; the shader multiplies at the very end. See dev's other blended
+// thing, add_quad, which says the same in the same words.
+static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
+		     const voe_text_font *font, voe_text_block block,
+		     voe_math_float4 tint, voe_scene_transform transform,
+		     voe_ecs_entity *out, voe_base_error *error)
+{
+	voe_ecs_entity entity = { 0 };
+	voe_3d_material material = {
+		.base_colour = tint,
+		.metallic = 0.0f,
+		.roughness = 1.0f,
+		.alpha_mode = VOE_RENDER_ALPHA_BLENDED,
+		.alpha_cutoff = 0.5f,
+		.unlit = true,
+		.base_colour_texture = voe_text_font_atlas(font),
+	};
+
+	if (!voe_3d_material_upload(gpu, &material, error))
+		return false;
+	if (!voe_ecs_entity_create(world, &entity))
+		return false;
+	if (!voe_scene_transform_add(world, entity, transform))
+		return false;
+	if (!voe_3d_mesh_add(world, entity,
+			     (voe_3d_mesh){ .geometry = block.geometry }))
+		return false;
+	if (!voe_3d_material_add(world, entity, material))
+		return false;
+
+	*out = entity;
+	return true;
+}
+
+// The font, and the three text entities it is drawn into: the sign's two faces
+// and the line locked to the camera.
+//
+// THE FONT IS MADE HERE AND NOT AT STARTUP, which is the difference between a
+// program that draws text and one that does not. Nothing in `render` builds an
+// atlas; this call is what builds it, once, and a program that never makes one
+// never pays for it.
+//
+// THE SIGN IS CENTRED ON ITS OWN WIDTH. A block's origin is the left end of its
+// first baseline, so a sign that was not shifted would hang off to one side of
+// whatever it is standing on.
+static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
+			 voe_base_arena *arena, voe_text_font **font,
+			 voe_ecs_entity *hud, voe_math_float2 *hud_size,
+			 voe_base_error *error)
+{
+	voe_text_block sign;
+	voe_text_block line;
+	voe_math_float4 sign_tint = { SIGN_TINT_R, SIGN_TINT_G, SIGN_TINT_B,
+				      1.0f };
+	voe_math_float4 hud_tint = { HUD_TINT_R, HUD_TINT_G, HUD_TINT_B, 1.0f };
+	voe_scene_transform front;
+	voe_scene_transform back;
+	voe_ecs_entity unused = { 0 };
+
+	*font = voe_text_font_new(gpu, arena, error);
+	if (*font == NULL)
+		return false;
+
+	if (!voe_text_block_create(*font, gpu, arena, SIGN_TEXT, SIGN_EM, &sign,
+				   error))
+		return false;
+	if (!voe_text_block_create(*font, gpu, arena, HUD_TEXT, HUD_EM, &line,
+				   error))
+		return false;
+
+	front = (voe_scene_transform){
+		.position = { -sign.size.x * 0.5f, SIGN_HEIGHT, 0.0f },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	// The same mesh, turned half a turn about Y and shifted the other way,
+	// so that its left end lands where the front face's right end is and the
+	// two sit exactly back to back.
+	back = (voe_scene_transform){
+		.position = { sign.size.x * 0.5f, SIGN_HEIGHT, 0.0f },
+		.rotation = voe_math_quat_from_axis_angle(
+			(voe_math_float3){ 0.0f, 1.0f, 0.0f }, TURN * 0.5f),
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+
+	if (!add_text(world, gpu, *font, sign, sign_tint, front, &unused, error))
+		return false;
+	if (!add_text(world, gpu, *font, sign, sign_tint, back, &unused, error))
+		return false;
+
+	// The heads-up line starts wherever; the loop places it every frame from
+	// where the camera actually is, and its width is what centres it there.
+	*hud_size = line.size;
+	return add_text(world, gpu, *font, line, hud_tint, front, hud, error);
+}
+
+// Where the heads-up line goes this frame: in front of the eye, square to it,
+// centred across it and a little below the middle.
+//
+// IT IS AN ORDINARY TRANSFORM IN THE WORLD AND THAT IS THE POINT. There is no
+// screen-space path in this engine and a "just for debug" one is exactly what
+// that rule exists to prevent, so a heads-up display is a quad standing in front
+// of the camera and moved with it — which is also why it goes behind anything
+// that gets between it and the eye, and why flying into a cube puts the cube in
+// front of the writing.
+//
+// THE ROTATION IS THE CAMERA'S TWO ANGLES, COMPOSED IN THAT ORDER. Yaw about Y
+// and then pitch about X, which is the same composition voe_scene_camera_view
+// builds its basis from; _mul reads right to left, so the pitch is the one
+// applied first. Swap them and the line rolls as the camera looks up.
+static voe_scene_transform_intent facing_the_camera(const voe_ecs_world *world,
+						    voe_ecs_entity eye,
+						    voe_ecs_entity text,
+						    voe_math_float2 size)
+{
+	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
+	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
+	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
+	voe_math_float3 forward = voe_scene_camera_forward(*camera);
+	voe_math_float3 right =
+		voe_math_float3_normalize(voe_math_float3_cross(forward, UP));
+	voe_math_float3 up = voe_math_float3_cross(right, forward);
+	voe_math_float3 at = voe_math_float3_add(
+		camera->eye, voe_math_float3_scale(forward, HUD_DISTANCE));
+
+	at = voe_math_float3_add(
+		at, voe_math_float3_scale(right, -size.x * 0.5f));
+	at = voe_math_float3_add(at, voe_math_float3_scale(up, -HUD_DROP));
+
+	return (voe_scene_transform_intent){
+		.entity = text,
+		.transform = {
+			.position = at,
+			.rotation = voe_math_quat_mul(
+				voe_math_quat_from_axis_angle(UP, camera->yaw),
+				voe_math_quat_from_axis_angle(SIDE,
+							      camera->pitch)),
+			.scale = { 1.0f, 1.0f, 1.0f },
+		},
+	};
+}
+
 // One model, then one transform intent per entity to move the whole thing aside.
 //
 // EVERY ENTITY HAS TO BE MOVED AND NOT JUST THE FIRST, WHICH IS THE FLATTENING
@@ -856,6 +1112,9 @@ int main(void)
 	voe_ecs_entity eye = { 0 };
 	voe_ecs_entity sun = { 0 };
 	voe_ecs_entity turning = { 0 };
+	voe_ecs_entity hud = { 0 };
+	voe_text_font *font = NULL;
+	voe_math_float2 hud_size = { 0.0f, 0.0f };
 	voe_math_float3 spin_axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
 	voe_render_capacities capacities = {
 		.vertices = MAX_VERTICES,
@@ -882,6 +1141,10 @@ int main(void)
 	// state. Two bools at a call site is what include/platform/input.h says
 	// this costs instead of an event queue, and this is that call site.
 	bool tab_was_down = false;
+	// And last frame's Escape, for the same reason and one more: Escape does
+	// two different things depending on which camera is in force, so held
+	// down it would do both, one frame after the other.
+	bool escape_was_down = false;
 	// Last frame's P, for the same reason, and the mode it asks for. It
 	// starts true because a device opens wanting mailbox — this is what the
 	// engine already asked for and not a second opinion, so the first press
@@ -966,6 +1229,15 @@ int main(void)
 		goto stop;
 	}
 
+	// The font and the three text entities. Not optional the way a model is:
+	// there is one font, it is in the binary, and a failure here is a bug in
+	// the reader rather than a file somebody could not open.
+	if (!add_the_text(world, gpu, arena, &font, &hud, &hud_size, &error)) {
+		fprintf(stderr, "could not build the text: %s\n",
+			voe_base_error_string(error));
+		goto stop;
+	}
+
 	// A model is the one thing here that is allowed to fail without stopping
 	// the program: the cubes are what says the renderer works, and a person
 	// looking at a window is better served by seeing them and a message than
@@ -984,7 +1256,7 @@ int main(void)
 	decorated = voe_platform_window_decorated(window);
 	printf("opened     %dx%d\n", size.width, size.height);
 	printf("decorated  %s\n", decorated ? "yes" : "no");
-	printf("camera     orbit — Tab to fly, Escape to hand it back\n");
+	printf("camera     orbit — Tab to fly, Escape to hand back or close\n");
 	present = voe_render_present_get(gpu);
 	printf("present    %s\n",
 	       present == VOE_RENDER_PRESENT_MAILBOX ? "mailbox" : "fifo");
@@ -1002,6 +1274,7 @@ int main(void)
 		bool now_decorated;
 		bool now_locked;
 		bool tab_down;
+		bool escape_down;
 		bool p_down;
 		const voe_scene_transform *spinning;
 		double elapsed;
@@ -1038,17 +1311,37 @@ int main(void)
 			fflush(stdout);
 		}
 
-		// Tab toggles on the press and not while held, which is the one
-		// place this file has to turn state back into an edge. Escape
-		// only ever hands control back.
+		// Tab toggles on the press and not while held, which is what
+		// turning state back into an edge means. Escape and P below do
+		// the same and for the same reason: `platform` hands out which
+		// keys are down, and all three of these are actions rather than
+		// things held.
 		tab_down = voe_platform_input_key_down(window,
 						       VOE_PLATFORM_KEY_TAB);
 		if (tab_down && !tab_was_down)
 			flying = !flying;
 		tab_was_down = tab_down;
 
-		if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_ESCAPE))
-			flying = false;
+		// ESCAPE HANDS THE CAMERA BACK, AND ESCAPE WITH THE CAMERA
+		// ALREADY BACK CLOSES THE WINDOW. Two presses and not one,
+		// because the first thing anybody wants out of a locked pointer
+		// is the pointer: a key that released the pointer and quit in
+		// the same press would quit every time somebody wanted their
+		// mouse back.
+		//
+		// AND IT HAS TO BE AN EDGE, WHICH IT DID NOT WHEN IT ONLY EVER
+		// HANDED BACK. Held down, one frame would hand the camera back
+		// and the very next would close the window, so a single long
+		// press would look like the program exiting for no reason.
+		escape_down = voe_platform_input_key_down(
+			window, VOE_PLATFORM_KEY_ESCAPE);
+		if (escape_down && !escape_was_down) {
+			if (flying)
+				flying = false;
+			else
+				break;
+		}
+		escape_was_down = escape_down;
 
 		// P asks for the other present mode, on the press and not while
 		// held, exactly as Tab does. What the device does about it is
@@ -1125,6 +1418,29 @@ int main(void)
 		// what was submitted since it last ran; nothing here calls into
 		// one system from another.
 		voe_scene_camera_system_run(world);
+
+		// THE HEADS-UP LINE IS PLACED HERE, BETWEEN TWO SYSTEMS, AND
+		// THAT POSITION IS THE WHOLE OF WHETHER IT WORKS. It is derived
+		// from where the camera is, so it has to be worked out after the
+		// camera system has moved it and submitted before the transform
+		// system drains — which is exactly this gap, and it costs
+		// nothing: both systems still run once.
+		//
+		// PLACING IT UP WITH THE OTHER INTENTS PUTS IT ONE FRAME BEHIND,
+		// AND ONE FRAME IS PLENTY. It reads as jitter rather than as
+		// lag, and the reason is worth writing down because the frame
+		// rate makes it look impossible: a mouse delivers motion in
+		// lumps, so at a thousand frames a second most frames turn the
+		// camera by nothing and the occasional one turns it by the whole
+		// of a lump. A line placed from the previous frame's camera is
+		// therefore not a fraction of a millimetre out — it is a whole
+		// mouse movement out, for one frame — and mailbox shows whatever
+		// frame happens to be newest when the display asks, so some of
+		// those frames are the ones a person sees. Drawing faster makes
+		// it worse rather than better.
+		(void)voe_scene_transform_submit(
+			world, facing_the_camera(world, eye, hud, hud_size));
+
 		voe_scene_transform_system_run(world);
 		voe_scene_light_system_run(world);
 
@@ -1162,6 +1478,7 @@ int main(void)
 	}
 
 stop:
+	voe_text_font_destroy(font);
 	voe_render_device_destroy(gpu);
 	voe_base_arena_destroy(arena);
 	voe_platform_window_destroy(window);

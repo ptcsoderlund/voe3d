@@ -89,6 +89,14 @@
 // brings ambient or image-based light is the card that moves it, and then this
 // paragraph is what says what it is moving.
 //
+// AN UNLIT MATERIAL SKIPS ALL OF THE ABOVE, AND THAT IS A FLAG ON THE RECORD.
+// Its base colour, times its base colour texture, is the answer; no sun, no
+// BRDF, no occlusion. Text is what asked for it — a letter is a shape somebody
+// chose the colour of, and a sun crossing it is a bug rather than an effect —
+// and a user interface will want the same thing. It is not the same as a surface
+// with no normal, which takes the same exit for the opposite reason: that one is
+// a file that did not say, this one is a material that did.
+//
 // NORMAL MAPS AND EMISSION ARE READ FROM NO PICTURE HERE. Both ids are in the
 // shading record, both are uploaded, and neither is sampled: a normal map needs
 // tangents, which the importer does not produce, and emission without tone
@@ -222,7 +230,9 @@ struct voe_render_shading {
 	uint alpha_mode;
 	float alpha_cutoff;
 	float3 emissive;
-	float reserved_b;
+	// Non-zero: skip the lighting entirely and write the base colour. In the
+	// four bytes that used to be reserved_b, for the alignment reason above.
+	uint unlit;
 	uint base_colour_texture;
 	uint metallic_roughness_texture;
 	uint normal_texture;
@@ -408,6 +418,14 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	} else if (shading.alpha_mode != VOE_RENDER_ALPHA_BLENDED) {
 		coverage = 1.0;
 	}
+
+	// An unlit material, which is text and will be the user interface: the
+	// base colour is the answer and no light of any direction changes it.
+	// It shares its exit with the one below, and the two mean different
+	// things — this one was asked for and that one is a file with no
+	// normals in it.
+	if (shading.unlit != 0)
+		return voe_render_premultiplied(base.rgb, coverage);
 
 	// A normal of nothing: unlit rather than NaN. See the header.
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)

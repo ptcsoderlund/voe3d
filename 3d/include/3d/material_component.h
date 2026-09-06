@@ -2,6 +2,11 @@
 // texture the material references, and the id of the record `render` holds for
 // it. Read by anyone, const.
 //
+// UNLESS IT IS UNLIT, IN WHICH CASE NONE OF THAT HAPPENS. `unlit` skips the
+// whole shading model and writes the base colour as it is. It is a property of
+// the surface and not of a pass, so it changes nothing about which draw the
+// entity goes through — see render/include/render/device.h.
+//
 // BASE COLOUR, METALNESS, ROUGHNESS AND OCCLUSION ARE ALL SHADED WITH; EMISSION
 // AND THE NORMAL MAP ARE STORED AND NOT READ. Card 019 lit the engine and reads
 // the first four, factors and pictures both. The other two are still what card
@@ -65,6 +70,14 @@ typedef struct {
 	// — it is what the file said — and only cutout reads it.
 	voe_render_alpha_mode alpha_mode;
 	float alpha_cutoff;
+
+	// Not lit: the base colour, times its texture, and no sun. Text is what
+	// asked for it and a user interface will want the same thing. It is
+	// independent of the alpha mode — an unlit surface may be opaque,
+	// cutout or blended — and it is not set by the importer, because
+	// nothing in `assets` reads glTF's unlit extension yet; a material that
+	// wants it is one a call site built.
+	bool unlit;
 
 	voe_render_texture base_colour_texture;
 	voe_render_texture metallic_roughness_texture;

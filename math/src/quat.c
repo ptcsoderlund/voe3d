@@ -18,3 +18,16 @@ voe_math_quat voe_math_quat_from_axis_angle(voe_math_float3 axis, float angle)
 	return (voe_math_quat){ unit.x * sine, unit.y * sine, unit.z * sine,
 				cosf(half) };
 }
+
+voe_math_quat voe_math_quat_mul(voe_math_quat a, voe_math_quat b)
+{
+	// The Hamilton product, written out. The three cross-product terms in
+	// each of x, y and z are what make it non-commutative, which is the
+	// whole reason the order in the header matters.
+	return (voe_math_quat){
+		a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+		a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+		a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+		a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+	};
+}

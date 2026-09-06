@@ -93,6 +93,13 @@ function(voe_allowed_deps folder out_var)
         set(deps platform math base)
     elseif(folder STREQUAL "render")
         set(deps platform math base)
+    elseif(folder STREQUAL "text")
+        # text sits beside 3d rather than under it: it turns a string into a
+        # mesh and a texture and knows nothing about entities or files, so it
+        # names render and no more. What wears that mesh is a 3d material, and
+        # putting the two together is the caller's — which is what keeps this a
+        # leaf and keeps 3d from growing a reason to name a font.
+        set(deps render math base)
     elseif(folder STREQUAL "3d")
         set(deps render scene ecs assets math base)
     elseif(folder STREQUAL "app")
@@ -102,7 +109,7 @@ function(voe_allowed_deps folder out_var)
         # person runs to see the current state, so whatever exists is fair game.
         # It is a leaf and it stays one — dev appears in no other row, and
         # putting it in one would be the mistake this map exists to catch.
-        set(deps base math ecs scene platform assets render 3d app)
+        set(deps base math ecs scene platform assets render 3d text app)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

@@ -13,6 +13,10 @@ blocked-by: 021a
 (ADR-0068). Sprites need the blended pass, not glyphs — so this card no longer
 waits on text and can be pulled forward ahead of it.
 
+**Amended by the tech lead 2026-09-06** for ADR-0074, the layer decision — an
+exception to *the human writes the card* given for that decision and not
+standing. `blocked-by` is unchanged: sprites still need only the blended pass.
+
 ## Goal
 
 2D sprites, as billboarded quads in 3D space.
@@ -22,7 +26,8 @@ waits on text and can be pulled forward ahead of it.
 **Billboarding, not a flat drawing path** (ADR-0049 — the principal's own words:
 *"2D games have to do billboarding sprites as textures"*). A sprite is a quad in
 the world facing the camera. There is no orthographic screen-space renderer and
-there will not be one.
+there will not be one — **reaffirmed on 2026-09-06 against the tech lead, who
+proposed one and was overruled** (ADR-0074).
 
 **And now, three more things are fixed that were open when this card was
 written:**
@@ -36,6 +41,15 @@ written:**
 - **The shader outputs premultiplied colour** (ADR-0069). A sprite's texture is
   stored as decoded and is **not** premultiplied — see the fringe question below,
   which is this card's to answer.
+- **There is a layer, and a sprite may be in it** (ADR-0074, built by card 024).
+  An object says whether it belongs to the world or above it; above it means the
+  world is drawn, depth is cleared, and the overlay is drawn into the same
+  picture, **through the same camera and still in metres**. A sprite used as a
+  health bar or a crosshair goes there and stops being covered by walls; a sprite
+  that is a character in the world does not. **Both are ordinary and neither is
+  the default** — if this card finds itself treating one as the normal case, that
+  is a finding. Nothing about billboarding, blending or the sort changes inside
+  the layer.
 
 ## Rough scope
 
@@ -72,3 +86,12 @@ Named now so they are not discovered:
 Whether a 2D game built on this wants a fixed pixel-to-world scale and where that
 lives; whether sprite animation is a component or a texture-coordinate trick.
 Neither is answerable yet.
+
+**The pixel-to-world question got sharper on 2026-09-06 and is worth restating.**
+ADR-0074 refused an orthographic layer measured in pixels, so there is nowhere in
+this engine that a sprite is *natively* a number of pixels — an overlay sprite has
+a position and a size in metres like everything else. A 2D game that wants one
+texel to be one pixel therefore needs that relationship worked out from the
+camera and the target size, by something, somewhere. **This card does not have to
+answer it**, but it is the first card in a position to notice what the right shape
+would be, and noticing is worth more than guessing.

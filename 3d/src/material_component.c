@@ -37,6 +37,7 @@ bool voe_3d_material_upload(voe_render_device *device,
 		.alpha_mode = (uint32_t)material->alpha_mode,
 		.alpha_cutoff = material->alpha_cutoff,
 		.emissive = material->emissive,
+		.unlit = material->unlit ? 1u : 0u,
 		.base_colour_texture = material->base_colour_texture.index,
 		.metallic_roughness_texture =
 			material->metallic_roughness_texture.index,

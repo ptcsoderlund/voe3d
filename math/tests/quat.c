@@ -167,10 +167,9 @@ static void check_axis_need_not_be_unit(void)
 }
 
 // TWICE BY HALF IS ONCE BY THE WHOLE, WHICH IS THE CLAIM THAT MAKES THIS TYPE
-// WORTH HAVING. Nothing composes quaternions yet — there is no _mul on purpose —
-// so composition is checked where it does happen, on the matrices, through
-// voe_math_float4x4_mul. If a later card adds _mul, this is the check it has to
-// agree with.
+// WORTH HAVING. Checked on the matrices, through voe_math_float4x4_mul, because
+// that is where composition happened before there was a _mul; check_mul below
+// makes the same claim about _mul itself and the two have to agree.
 static void check_composition(void)
 {
 	voe_math_float4x4 half = voe_math_float4x4_from_quat(
@@ -186,6 +185,39 @@ static void check_composition(void)
 	}
 }
 
+// _mul COMPOSES, AND IT READS RIGHT TO LEFT LIKE THE MATRICES DO. Two claims in
+// one function, and they need different rotations to tell apart: that half a
+// turn twice is a whole turn, which any convention passes, and that turning
+// about Y and then about X is not the same as the other way round — and that
+// which of the two _mul(y, x) means is the one where x happens first, so that
+// it agrees with voe_math_float4x4_mul of the same pair in the same order.
+static void check_mul(void)
+{
+	voe_math_quat half = voe_math_quat_from_axis_angle(Y,
+							   QUARTER_TURN * 0.5f);
+	voe_math_quat whole = voe_math_quat_from_axis_angle(Y, QUARTER_TURN);
+	voe_math_quat turn_y = voe_math_quat_from_axis_angle(Y, QUARTER_TURN);
+	voe_math_quat turn_x = voe_math_quat_from_axis_angle(X, QUARTER_TURN);
+	voe_math_float4x4 composed =
+		voe_math_float4x4_from_quat(voe_math_quat_mul(turn_y, turn_x));
+	voe_math_float4x4 multiplied = voe_math_float4x4_mul(
+		voe_math_float4x4_from_quat(turn_y),
+		voe_math_float4x4_from_quat(turn_x));
+	voe_math_float4x4 twice =
+		voe_math_float4x4_from_quat(voe_math_quat_mul(half, half));
+	voe_math_float4x4 once = voe_math_float4x4_from_quat(whole);
+
+	for (int row = 0; row < 4; row++) {
+		for (int column = 0; column < 4; column++) {
+			VOE_TEST_CHECK_FLOAT(twice.m[row][column],
+					     once.m[row][column], TOLERANCE);
+			VOE_TEST_CHECK_FLOAT(composed.m[row][column],
+					     multiplied.m[row][column],
+					     TOLERANCE);
+		}
+	}
+}
+
 int main(void)
 {
 	check_zero_is_identity();
@@ -194,5 +226,6 @@ int main(void)
 	check_is_a_rotation();
 	check_axis_need_not_be_unit();
 	check_composition();
+	check_mul();
 	return voe_test_result();
 }

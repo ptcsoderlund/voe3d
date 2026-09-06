@@ -9,6 +9,7 @@ add_subdirectory(scene)
 add_subdirectory(assets)
 add_subdirectory(render)
 add_subdirectory(3d)
+add_subdirectory(text)
 add_subdirectory(dev)
 
 # The root is a project with a CMakeLists.txt too, so it gets its database beside

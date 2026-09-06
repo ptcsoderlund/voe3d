@@ -263,7 +263,18 @@ typedef struct {
 	uint32_t alpha_mode;
 	float alpha_cutoff;
 	voe_math_float3 emissive;
-	float reserved_b;
+	// Not lit: the fragment stage skips the whole BRDF and writes the base
+	// colour as it is. Zero is lit, so a zeroed record is an ordinary
+	// surface. It is here rather than at the end because this is the four
+	// bytes that used to be reserved_b — same offsets, same size, and the
+	// asserts in render/src/descriptors.c are unchanged.
+	//
+	// IT IS A PROPERTY OF THE SURFACE AND NOT OF THE PASS. Text and a user
+	// interface are the things that want it: a letter is a shape somebody
+	// chose the colour of, and a sun moving across it is wrong rather than
+	// pretty. Nothing about which pipeline the draw goes through changes,
+	// so an unlit surface may be opaque, cutout or blended like any other.
+	uint32_t unlit;
 	// Texture ids, index halves only — VOE_RENDER_NO_TEXTURE where the
 	// material references none. The base colour, the metallic-roughness and
 	// the occlusion ones are sampled; the normal and the emissive ones are

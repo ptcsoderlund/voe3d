@@ -41,3 +41,12 @@ typedef struct {
 // axis need not be unit — it is normalized here — but it must not be zero, and
 // a zero one asserts. angle is in radians, as every angle in this engine is.
 voe_math_quat voe_math_quat_from_axis_angle(voe_math_float3 axis, float angle);
+
+// Two rotations, composed. IT READS RIGHT TO LEFT, THE SAME WAY THE MATRICES DO:
+// _mul(a, b) turns by b and then by a, and it is the rotation
+// voe_math_float4x4_from_quat turns into voe_math_float4x4_mul of the two
+// matrices in that same order. tests/quat.c is what says so.
+//
+// Neither argument has to be unit and the result is as unit as they were, which
+// is what lets a chain of these be built without normalizing between them.
+voe_math_quat voe_math_quat_mul(voe_math_quat a, voe_math_quat b);

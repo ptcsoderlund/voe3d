@@ -25,7 +25,9 @@ way out, and no file here holds a gamma constant.
   fifo is not a failure. Card 021a added the blended draw beside the solid one:
   its header says what the three alpha modes mean, why the depth write goes off
   and the order therefore matters, and that the colour target holds premultiplied
-  colour.
+  colour. Card 021b added `unlit` to a shading record, in the four bytes that
+  used to be reserved: its header says why not being lit is a property of a
+  surface rather than of a pass.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -92,13 +94,14 @@ way out, and no file here holds a gamma constant.
   own sun, and drives the same public calls `3d` does. Its header says why the
   sun is turned round for the mirrored case. Headless, so it runs under `ctest`
   with no window anywhere.
-- `shaders/draw.slang` — the one pipeline's two entry points, the only place a
+- `shaders/draw.slang` — the two pipelines' two entry points, the only place a
   matrix is applied to a position, the three numbers a draw finds everything by,
   and the whole of this engine's lighting. Its header says why the only push
   constant left is an object's number, and it is where every decision in the
   shading is written down: one sun and no shadows, glTF's metalness-roughness
-  BRDF, what a surface with no normal looks like, and why occlusion is applied
-  where glTF does not put it.
+  BRDF, what a surface with no normal looks like, why occlusion is applied where
+  glTF does not put it, and which two different things take the same unlit exit
+  out of the fragment stage.
 - `shaders/matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.
 - `vulkan/` — the Khronos headers, vendored. See `vulkan/vulkan.md`.

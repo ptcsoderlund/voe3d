@@ -2,10 +2,11 @@
 
 The one program a person runs to see what the engine can currently do. Today
 that is a window holding a world: two models read out of `.glb` files, two cubes
-placed by hand, two see-through quads either side of them, one sun going round it
-all, and a camera that either orbits them or is flown with the keyboard and the
-mouse. Not a menu of past states and not a test — it is looked at, not asserted
-on.
+placed by hand, two see-through quads either side of them, a lettered sign
+standing above them, a line of writing locked to the camera, one sun going round
+it all, and a camera that either orbits them or is flown with the keyboard and
+the mouse. Not a menu of past states and not a test — it is looked at, not
+asserted on.
 
 - `src/main.c` — opens a window and a device, builds a world, reads both models
   into it, and runs the systems and the draw every frame until it closes. Its
@@ -15,8 +16,14 @@ on.
   020 gave it a real clock and a block of timings every couple of seconds, and
   card 021a put two see-through quads either side of the cubes; its header says
   what each of the four numbers brackets, what the overlap between the quads is
-  showing, and which failure a wrong sort looks like. A call site and nothing
-  else; the key bindings are the only decision in it, P among them.
+  showing, and which failure a wrong sort looks like. Card 021b added the two
+  strings; its header says why the sign is two entities sharing one mesh, what
+  the four things a text material has to say are, why the line locked to the
+  camera is an ordinary transform in the world rather than anything
+  screen-space, why it is placed between two systems rather than with the other
+  intents, and why neither string holds a character outside Latin-1. A call
+  site and nothing else; the key bindings are the only decision in it, P among
+  them.
 - `src/cubes.h` — the two placeholder cubes' geometry. Its header says why data
   may live at a call site and why there are twenty-four vertices.
 - `src/cubes.c` — those vertices and indices.
