@@ -2,11 +2,11 @@
 
 The one program a person runs to see what the engine can currently do. Today
 that is a window holding a world: two models read out of `.glb` files, two cubes
-placed by hand, two see-through quads either side of them, a lettered sign
-standing above them, a line of writing locked to the camera, one sun going round
-it all, and a camera that either orbits them or is flown with the keyboard and
-the mouse. Not a menu of past states and not a test — it is looked at, not
-asserted on.
+placed by hand, two see-through quads either side of them, a dozen sprites off a
+sheet built in code, a lettered sign standing above them, a line of writing
+locked to the camera, one sun going round it all, and a camera that either
+orbits them or is flown with the keyboard and the mouse. Not a menu of past
+states and not a test — it is looked at, not asserted on.
 
 - `src/main.c` — opens a window and a device, builds a world, reads both models
   into it, and runs the systems and the draw every frame until it closes. Its
@@ -24,7 +24,16 @@ asserted on.
   the line sits on a dark panel and what that panel does and does not prove, why it is placed between two systems rather than with the other
   intents, and why neither string holds a character outside Latin-1. A call
   site and nothing else; the key bindings are the only decision in it, P among
-  them.
+  them. Card 022 added the sprites, which are a call and a per-frame call and
+  nothing else here — see `src/sprites.h`.
+- `src/sprites.h` — the sprite exhibit: the sheet, the twelve entities and the
+  two rotations that turn towards the camera. Its header says why the
+  billboarding is here and not in the engine.
+- `src/sprites.c` — the sheet's pixels, where each sprite stands and the two
+  rotations. Its header says why the disc's edge is soft and its surroundings
+  empty, what a halo round one would mean, and what each group of sprites is
+  there to show — the two layers, the two alpha modes, the sort, and the one
+  extra term that is the whole difference between cylindrical and spherical.
 - `src/cubes.h` — the two placeholder cubes' geometry. Its header says why data
   may live at a call site and why there are twenty-four vertices.
 - `src/cubes.c` — those vertices and indices.

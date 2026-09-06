@@ -20,7 +20,8 @@ way out, and no file here holds a gamma constant.
   are padded for, why a colour texture and a data texture are not
   interchangeable, why a texture's kind and its sampling mode are two
   independent questions, why the sampling modes' names now say more than they
-  mean, and why an object carries a normal matrix as well as a world one. It also carries the two things card 020 added: how long the card spent on
+  mean, why exactly one of them filters and what a texture is claiming by asking
+  for it, and why an object carries a normal matrix as well as a world one. It also carries the two things card 020 added: how long the card spent on
   a frame, which is its own clock and runs two frames behind, and which of the
   two present modes a caller wants — mailbox is optional and falling back to
   fifo is not a failure. Card 021a added the blended draw beside the solid one:
@@ -30,7 +31,9 @@ way out, and no file here holds a gamma constant.
   used to be reserved: its header says why not being lit is a property of a
   surface rather than of a pass. Card 024 added the depth clear a caller makes
   mid-frame: its header says why it takes no clear value and what the colour
-  attachment does while it happens.
+  attachment does while it happens. Card 022 added the rectangle of the base
+  colour texture a record reads: its header says why that is what puts a sheet of
+  frames behind one geometry, and why the whole texture is not a zeroed rect.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three

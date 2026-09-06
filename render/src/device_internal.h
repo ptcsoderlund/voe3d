@@ -63,9 +63,14 @@
 
 // How many voe_render_sampling values there are, which is how many samplers the
 // device makes. Here and not in the public enum: a caller has no use for a count
-// and rule 10 says a value nothing needs is not written. The enum is closed at
-// two, so this number and that enum change together or not at all.
-#define VOE_RENDER_SAMPLING_COUNT 2
+// and rule 10 says a value nothing needs is not written.
+//
+// IT IS HAND-WRITTEN AND NOTHING DERIVES IT FROM THE ENUM, so this number and
+// that enum change together or not at all. It sizes samplers[] below and the
+// infos[] initialiser in texture.c, and both creation and destruction run to
+// it: left behind, a designated initialiser for the new value writes past the
+// end of an array.
+#define VOE_RENDER_SAMPLING_COUNT 3
 
 // How many frames the CPU may have submitted and unfinished at once, and the
 // length of every per-slot array in this engine.

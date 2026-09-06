@@ -1,6 +1,6 @@
 # 025 — text sharp at any size
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 

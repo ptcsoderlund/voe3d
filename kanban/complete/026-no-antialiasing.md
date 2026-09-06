@@ -1,6 +1,6 @@
 # 026 — no antialiasing anywhere
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 

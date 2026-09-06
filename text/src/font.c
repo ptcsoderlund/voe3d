@@ -45,14 +45,24 @@
 // There is no coverage anywhere in this file and no picture of a letter at any
 // size, which is what makes one sheet serve every size.
 //
-// IT GOES UP AS VOE_RENDER_TEXTURE_DATA AND ASKS FOR VOE_RENDER_SAMPLING_SHARP.
+// IT GOES UP AS VOE_RENDER_TEXTURE_DATA AND ASKS FOR VOE_RENDER_SAMPLING_FIELD.
 // DATA, because distances are numbers: uploaded as colour, the sRGB decode would
 // bend every one of them towards zero and put every edge in the font slightly in
 // the wrong place — uniformly and everywhere, which reads as the spread being
-// wrong rather than as a format mistake. SHARP, because a sheet is not tiled and
-// a coordinate a hair outside a glyph's box must not wrap to the far side of the
-// atlas. Neither says anything about filtering: this engine samples every
-// texture NEAREST with no mipmaps, sheets included.
+// wrong rather than as a format mistake.
+//
+// FIELD IS THE ONE FILTERED SAMPLER IN THE ENGINE AND THIS SHEET IS THE ONLY
+// THING THAT ASKS FOR IT. It addresses CLAMP_TO_EDGE, because a sheet is not
+// tiled and a coordinate a hair outside a glyph's box must not wrap to the far
+// side of the atlas; that part it shares with SHARP, which is what this sheet
+// used to ask for. What it adds is a linear filter, and the reason it is not
+// the antialiasing card 026 swept out is that a distance is not a colour:
+// interpolating between two colours blurs a picture, interpolating between two
+// distances says where the outline runs between the two texel centres. Point
+// sampled, the field is a plateau per texel and its crossing can only land on a
+// texel boundary — which is one side of an O coming out a texel thicker than
+// the other, at every size. Nothing about the edge is softer for it: the reader
+// thresholds the median and a threshold keeps only the sign.
 //
 // NOTHING IS PREMULTIPLIED HERE AND NOTHING MAY BE. The shader's last act is
 // `colour.rgb *= colour.a` (render/shaders/draw.slang), and it does that once,
@@ -378,12 +388,12 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 			       &font->glyphs[c], error);
 	}
 
-	// DATA and SHARP, and neither is optional: see the header. A sheet
+	// DATA and FIELD, and neither is optional: see the header. A sheet
 	// uploaded as colour has the sRGB decode run over its distances, and a
-	// sheet addressed REPEAT can fetch a glyph from the far side of itself.
+	// sheet sampled unfiltered is a grid of plateaus rather than a field.
 	if (ok)
 		ok = voe_render_texture_create(device, VOE_RENDER_TEXTURE_DATA,
-					       VOE_RENDER_SAMPLING_SHARP,
+					       VOE_RENDER_SAMPLING_FIELD,
 					       ATLAS_PIXELS, ATLAS_PIXELS,
 					       pixels, &font->atlas, error);
 

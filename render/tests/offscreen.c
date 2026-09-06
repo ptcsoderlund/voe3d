@@ -579,6 +579,14 @@ int main(void)
 		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 		.metallic = 0.0f,
 		.roughness = 1.0f,
+		// The whole picture, and this line is not optional: a record
+		// built by naming the fields it cares about leaves the rect
+		// zeroed, and a scale of nothing reads one texel across the
+		// whole cube. This file would then see a single colour and
+		// nothing about the picture's orientation would be checkable.
+		// Records made above `render` get this from
+		// voe_3d_material_upload; a record made by hand says it itself.
+		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
 	};
 	// vkMapMemory hands back its pointer through a void **, which is
 	// Vulkan's signature and not one this engine gets to choose.

@@ -379,6 +379,7 @@
 // immediately, because platform has no way to wait yet.
 #include "cubes.h"
 #include "quad.h"
+#include "sprites.h"
 
 #include <3d/draw_system.h>
 #include <3d/import.h>
@@ -1431,6 +1432,7 @@ int main(void)
 	voe_ecs_entity hud = { 0 };
 	voe_ecs_entity panel = { 0 };
 	voe_render_geometry quad = { 0 };
+	voe_dev_sprites sprites = { 0 };
 	voe_text_font *font = NULL;
 	voe_math_float2 hud_size = { 0.0f, 0.0f };
 	voe_math_float3 spin_axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
@@ -1543,6 +1545,12 @@ int main(void)
 
 	if (!add_the_quads(world, gpu, &quad, &error)) {
 		fprintf(stderr, "could not build the two see-through quads: %s\n",
+			voe_base_error_string(error));
+		goto stop;
+	}
+
+	if (!voe_dev_sprites_add(world, gpu, arena, &sprites, &error)) {
+		fprintf(stderr, "could not build the sprites: %s\n",
 			voe_base_error_string(error));
 		goto stop;
 	}
@@ -1763,6 +1771,11 @@ int main(void)
 		// exactly the same way and for exactly the same reason.
 		(void)voe_scene_transform_submit(
 			world, behind_the_line(world, eye, panel, hud_size));
+		// And the two sprites that turn towards the camera, in this
+		// same gap and for this same reason. The engine does not
+		// billboard, so this is a call site turning them itself — see
+		// src/sprites.c.
+		voe_dev_sprites_face(world, eye, &sprites);
 
 		voe_scene_transform_system_run(world);
 		voe_scene_light_system_run(world);

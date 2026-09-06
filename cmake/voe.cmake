@@ -102,6 +102,14 @@ function(voe_allowed_deps folder out_var)
         set(deps render math base)
     elseif(folder STREQUAL "3d")
         set(deps render scene ecs assets math base)
+    elseif(folder STREQUAL "sprite")
+        # sprite sits above 3d rather than beside text, which is the one place
+        # this map departs from the tree in CLAUDE.md as it was first drawn.
+        # text turns a string into a mesh and a texture and leaves wearing them
+        # to the caller; sprite's whole job is the material a sheet's frames
+        # wear, so it hands back voe_3d_material and names 3d to do it. Card 022
+        # decided that.
+        set(deps 3d render math base)
     elseif(folder STREQUAL "app")
         set(deps base math ecs scene platform assets render 3d)
     elseif(folder STREQUAL "dev")
@@ -109,7 +117,7 @@ function(voe_allowed_deps folder out_var)
         # person runs to see the current state, so whatever exists is fair game.
         # It is a leaf and it stays one — dev appears in no other row, and
         # putting it in one would be the mistake this map exists to catch.
-        set(deps base math ecs scene platform assets render 3d text app)
+        set(deps base math ecs scene platform assets render 3d text sprite app)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

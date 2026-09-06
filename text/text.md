@@ -33,9 +33,10 @@ material and an entity are `3d`'s, and this folder names only `render`.
 - `src/utf8.c` — the decoder.
 - `src/font.c` — the sheet built once, the glyph table and the layout. Its header
   is where the three scales and the three Y axes that meet in this folder are each
-  pinned down, why the sheet is a distance field uploaded as data and sampled
-  sharp, why its resolution is no longer a function of the screen, and why nothing
-  in it is premultiplied.
+  pinned down, why the sheet is a distance field uploaded as data, why it is the
+  one texture in the engine that asks for a filtered sampler and why that is not
+  antialiasing, why its resolution is no longer a function of the screen, and why
+  nothing in it is premultiplied.
 - `tests/truetype.c` — the reader against the font that is actually shipped,
   composite glyphs first. Its header says why a real file and not a built one,
   and why the accented characters are the test that matters. Needs no graphics

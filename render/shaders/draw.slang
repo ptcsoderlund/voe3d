@@ -270,6 +270,10 @@ struct voe_render_shading {
 	uint base_colour_distance_field;
 	uint reserved_c1;
 	uint reserved_c2;
+	// Which rectangle of the base colour texture to read: xy is the offset,
+	// zw the scale. It lands on a sixteen-byte boundary where C put it, so
+	// it is a float4 on both sides and needs no padding in front of it.
+	float4 base_colour_uv_rect;
 };
 
 // Set 0, binding 3: every shading record, shared by every frame slot because
@@ -423,8 +427,17 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// A MATERIAL WITH NO TEXTURE SAMPLES WHITE, WHICH IS WHY NOTHING TESTS
 	// FOR ONE. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one white
 	// pixel, so multiplying by it leaves every factor alone.
+	//
+	// AND THE BASE COLOUR IS THE ONE MAP READ THROUGH A RECT. `uv * zw + xy`
+	// puts a whole sheet of frames behind one geometry — see
+	// voe_render_shading_values in render/device.h. The other four maps are
+	// read at the vertex's own coordinates: a sheet of frames is what a
+	// picture on a surface is not, and a material whose roughness came out
+	// of a grid of cells is a card nothing has asked for.
+	float2 base_uv = vertex.uv * shading.base_colour_uv_rect.zw +
+			 shading.base_colour_uv_rect.xy;
 	float4 sheet =
-		voe_render_textures[shading.base_colour_texture].Sample(vertex.uv);
+		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
 	// glTF packs occlusion in red, roughness in green and metalness in blue,
 	// and the metallic-roughness map is the green and blue of that. A file
 	// that puts its occlusion in the same picture points its occlusion

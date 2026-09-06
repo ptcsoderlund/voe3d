@@ -489,12 +489,23 @@ bool voe_render_texture_startup(voe_render_device *device)
 	// One per voe_render_sampling, in that enum's order, so a slot's mode is
 	// the subscript.
 	//
-	// EVERYTHING ABOUT FILTERING IS THE SAME IN BOTH AND THE ONLY DIFFERENCE
-	// LEFT IS ADDRESSING. NEAREST magnification, NEAREST minification, one
-	// level: this engine has no antialiasing, and a linear filter and a
-	// mipmap chain are both antialiasing. What is left to choose is what
-	// happens outside 0..1, and the two modes are that choice — which is
-	// less than their names promise. See voe_render_sampling.
+	// NO PICTURE IS FILTERED AND ONE FIELD IS, AND BOTH HALVES OF THAT ARE
+	// DELIBERATE. A linear filter over a picture is a blur and a mipmap
+	// chain is a blur chosen in advance; both are antialiasing and card 026
+	// removed them, so SMOOTH and SHARP are NEAREST over one level and the
+	// only thing left to choose between them is what happens outside 0..1.
+	//
+	// A SIGNED DISTANCE FIELD IS NOT A PICTURE AND THE SAME SENTENCE IS
+	// FALSE OF IT. Its texels are distances, not colours: interpolating
+	// between two of them says where the outline crosses between the two
+	// texel centres, which is information the field was written to carry
+	// and point sampling throws away — a plateau per texel, and an edge
+	// that can only land on a texel boundary. FIELD is that one case. It
+	// moves the edge onto the outline; it does not soften it, because what
+	// reads the field cuts it hard afterwards.
+	//
+	// NO CHAIN IN ANY OF THE THREE. maxLod is 0 everywhere and none is
+	// generated or uploaded; nothing here is an opening for one.
 	VkSamplerCreateInfo infos[VOE_RENDER_SAMPLING_COUNT] = {
 		// REPEAT, because a texture on a cube face runs 0..1 exactly and
 		// what happens outside it is a question nothing asks.
@@ -530,16 +541,35 @@ bool voe_render_texture_startup(voe_render_device *device)
 			.maxLod = 0.0f,
 			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 		},
+		// The only filtered sampler in the engine, and CLAMP_TO_EDGE
+		// for the same reason SHARP has it: the sheet it serves is an
+		// atlas. LINEAR here reconstructs where the outline falls
+		// between texel centres — see the block above for why that is
+		// not the blur card 026 removed.
+		[VOE_RENDER_SAMPLING_FIELD] = {
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_LINEAR,
+			.minFilter = VK_FILTER_LINEAR,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.anisotropyEnable = VK_FALSE,
+			.maxAnisotropy = 1.0f,
+			.minLod = 0.0f,
+			.maxLod = 0.0f,
+			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+		},
 	};
 	VkResult result;
 	struct voe_render_texture_slot *slot = &device->textures[0];
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "starting textures on no device");
 
-	// Anisotropy is off in both, and now it is off for a second reason as
-	// well as the first: it is a device feature nothing has asked for at
-	// device creation, and it is itself antialiasing, so it is not coming
-	// back.
+	// Anisotropy is off in all three, and for two reasons: it is a device
+	// feature nothing has asked for at device creation, and it is itself
+	// antialiasing, so it is not coming back — not even alongside the one
+	// linear filter above, which is a different thing entirely.
 	for (uint32_t i = 0; i < VOE_RENDER_SAMPLING_COUNT; i++) {
 		result = voe_render_vk.create_sampler(device->device, &infos[i],
 						      NULL,

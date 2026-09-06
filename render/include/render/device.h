@@ -196,36 +196,57 @@ typedef enum {
 	VOE_RENDER_TEXTURE_DATA,
 } voe_render_texture_kind;
 
-// How a picture is filtered, which is the second thing about a texture this API
+// How a texture is read, which is the second thing about a texture this API
 // needs told and is entirely independent of the first.
 //
 // A KIND IS NOT A MODE AND NEITHER IMPLIES THE OTHER. A data texture is not
-// automatically sharp — a metallic-roughness or occlusion map is numbers and is
-// still SMOOTH, because it is on a surface being flown around like any other.
-// The two questions are "what do these bytes mean" and "how is this picture
-// read", and only the second one is here.
+// automatically FIELD — a metallic-roughness or occlusion map is numbers and is
+// still SMOOTH, because it is a picture on a surface like any other. The two
+// questions are "what do these bytes mean" and "how is this texture read", and
+// only the second one is here.
 //
-// SMOOTH IS FOR A PICTURE ON A SURFACE IN THE WORLD AND SHARP IS FOR A SHEET
-// SOMETHING INDEXES INTO. A texture wrapped on a cube that is flown around is
-// minified, and without a mipmap chain a minified texture shimmers as the camera
-// moves — that is what SMOOTH is for and it is the right answer for nearly
-// everything. An atlas is the case where the chain is wrong: every read lands a
-// fraction into it, so the picture is permanently fetched from a pre-blurred
-// level, and there is no size at which it rests on level zero. SHARP is that
-// case, and a texture asking for it has to carry its own answer to aliasing,
-// because the chain that was hiding it is gone.
+// NO PICTURE IN THIS ENGINE IS FILTERED, AND THAT IS NOT WHAT THESE NAMES
+// SUGGEST. SMOOTH and SHARP are both NEAREST over one level, with no mipmap
+// chain anywhere (card 026). What is genuinely left to choose between them is
+// what happens outside 0..1 — REPEAT for a picture on a surface, CLAMP_TO_EDGE
+// for a sheet something indexes into. The two names are older than that and
+// promise more than they deliver; read the values below, not the words.
+//
+// FIELD IS THE ONE FILTERED MODE AND IT IS NOT A PICTURE. Interpolating between
+// two colours is a blur, and a blur is the antialiasing card 026 removed.
+// Interpolating between two distances is reconstruction of where the edge is,
+// which is the whole of what makes a signed distance field a field rather than
+// a grid of plateaus. That distinction is the rule: a texture asking for FIELD
+// is asserting its texels are numbers on a continuum, and nothing whose texels
+// are colours may ask for it.
 //
 // SMOOTH IS 0, SO A CALLER THAT MEANT NOTHING IN PARTICULAR GETS WHAT EVERY
 // TEXTURE IN THIS ENGINE HAD BEFORE THERE WAS A CHOICE.
 typedef enum {
-	// Linear magnification and minification over a generated mipmap chain,
-	// REPEAT, no lod clamp. The one filter this engine had until card 025.
+	// NEAREST magnification and minification of one level, REPEAT. A
+	// picture on a surface in the world, which is nearly everything.
 	VOE_RENDER_SAMPLING_SMOOTH = 0,
-	// Linear magnification and minification of one level. No chain is
-	// generated, uploaded or sampled, and the address mode is CLAMP_TO_EDGE
-	// rather than REPEAT — an atlas is not tiled, and REPEAT would let a
-	// glyph at one edge of the sheet bleed into one at the far side.
+	// NEAREST magnification and minification of one level, CLAMP_TO_EDGE.
+	// A sheet something indexes into: it is not tiled, and REPEAT lets a
+	// coordinate a hair outside one glyph's box wrap to the far side of the
+	// atlas and fetch a different glyph entirely.
 	VOE_RENDER_SAMPLING_SHARP,
+	// LINEAR magnification and minification of one level, CLAMP_TO_EDGE.
+	// For texture data that is numbers rather than a picture: a signed
+	// distance field, and nothing else so far.
+	//
+	// POINT-SAMPLED, A FIELD IS A PLATEAU ACROSS EACH TEXEL AND ITS 0.5
+	// CROSSING CAN ONLY FALL ON A TEXEL BOUNDARY. A stem two and a half
+	// texels wide then comes out two or three depending on its phase
+	// against the grid — one side of an O thicker than the other, at every
+	// size including one that fills the screen. Filtered, the crossing
+	// falls where the distances say it falls.
+	//
+	// IT SOFTENS NOTHING. What reads a field thresholds it, and a threshold
+	// keeps only the sign, so there is no sampler setting here that can
+	// produce a partially covered pixel. This mode moves the edge; it does
+	// not blur it.
+	VOE_RENDER_SAMPLING_FIELD,
 } voe_render_sampling;
 
 // A texture on the GPU. `index` is the subscript the fragment stage uses;
@@ -350,6 +371,28 @@ typedef struct {
 	// it.
 	uint32_t base_colour_distance_field;
 	uint32_t reserved_c[2];
+	// Which rectangle of the base colour texture this record reads: `xy` is
+	// the offset added and `zw` the scale multiplied, so the fragment stage
+	// samples `uv * zw + xy`. One multiply-add, applied to the base colour
+	// texture and to nothing else — the other four maps are read at the
+	// vertex's own coordinates.
+	//
+	// IT IS WHAT MAKES A SHEET OF FRAMES ONE GEOMETRY AND ONE TEXTURE. The
+	// quad's own coordinates are 0..1 and every frame in a sprite sheet
+	// picks its own corner of the picture out with this; a geometry cannot
+	// change after it is created (see voe_render_geometry_create), so UVs
+	// baked per frame would be a sprite that can never change frame.
+	// Changing frame is pointing an object at a different record, which
+	// costs nothing — the record index is submitted every frame already.
+	//
+	// THE WHOLE TEXTURE IS (0, 0, 1, 1) AND NOT A ZEROED RECT, which is the
+	// one field in here a zeroed record gets wrong: a scale of nothing reads
+	// one texel across the whole surface. Nothing in this folder repairs
+	// that, because repairing it would cost a branch or a rule at every
+	// site that builds a record; whoever builds one says what it reads. For
+	// everything above `render` that is voe_3d_material_upload, where a
+	// material that says nothing gets the whole texture.
+	voe_math_float4 base_colour_uv_rect;
 } voe_render_shading_values;
 
 typedef struct {

@@ -23,6 +23,12 @@
 // slot holding a distance field, which is numbers and goes up raw —
 // `base_colour_distance_field` below is what says so.
 //
+// AND THE BASE COLOUR SLOT IS THE ONE MAP READ THROUGH A RECTANGLE. A material
+// says which part of its base colour texture it reads, which is what lets a
+// sheet of frames sit behind one geometry and one texture — see
+// `base_colour_uv_offset` below. Nothing says it about the other four maps: a
+// picture on a surface is read at the mesh's own coordinates.
+//
 // THE ALPHA MODE IS `render`'s ENUM AND NOT A SECOND ONE. This component already
 // holds `render`'s texture and shading ids, so it holds `render`'s spelling of
 // the three words as well; `assets` has its own because that folder may not name
@@ -53,6 +59,7 @@
 #include <base/error.h>
 #include <ecs/component.h>
 #include <ecs/world.h>
+#include <math/float2.h>
 #include <math/float3.h>
 #include <math/float4.h>
 #include <render/device.h>
@@ -95,6 +102,25 @@ typedef struct {
 	// agree.
 	bool base_colour_distance_field;
 
+	// Which rectangle of the base colour texture this material reads. The
+	// mesh's own coordinates are multiplied by the scale and the offset is
+	// added, so a quad whose UVs run 0..1 and a material saying
+	// offset (0.25, 0) scale (0.25, 0.5) reads the second cell of a
+	// four-by-two grid. It applies to the base colour and to nothing else.
+	//
+	// A SHEET OF FRAMES IS ONE GEOMETRY, ONE TEXTURE AND ONE MATERIAL PER
+	// FRAME. Geometry cannot change once it is created, so a mesh carrying
+	// its frame in its UVs is a sprite that can never change frame; a
+	// material can be swapped for the price of pointing an entity at a
+	// different record. See sprite/sheet.h, which is what builds them.
+	//
+	// A SCALE OF NOTHING MEANS THE WHOLE TEXTURE, which is what makes every
+	// material written before this field existed still read its whole
+	// picture. voe_3d_material_upload is where that is applied, and it
+	// writes the answer back here — see its comment.
+	voe_math_float2 base_colour_uv_offset;
+	voe_math_float2 base_colour_uv_scale;
+
 	voe_render_texture metallic_roughness_texture;
 	voe_render_texture normal_texture;
 	voe_render_texture occlusion_texture;
@@ -115,6 +141,13 @@ void voe_3d_material_register(voe_ecs_world *world, uint32_t capacity);
 //
 // CALLED ONCE PER MATERIAL AND NOT ONCE PER ENTITY. Two entities wearing one
 // material want one record: upload it, then add the same component to both.
+//
+// IT IS ALSO WHERE A UV SCALE OF NOTHING BECOMES THE WHOLE TEXTURE, and it
+// writes that back into `material` rather than only into the record. A component
+// that read (0, 0) while its record read (1, 1) would be two answers to one
+// question, and the component is the one a person looks at. So a material built
+// by naming the fields it cares about — which is every material in this engine —
+// comes out of here saying it reads its whole picture, because it does.
 //
 // False when `render` has no room for another record, which is the one way this
 // fails. A startup operation, because creating a record is.

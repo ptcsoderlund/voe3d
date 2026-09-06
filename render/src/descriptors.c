@@ -45,7 +45,7 @@
 // that is wrong in a way nobody can see.
 static_assert(sizeof(voe_render_object) == 144,
 	      "voe_render_object no longer matches the shader's per-object record");
-static_assert(sizeof(voe_render_shading_values) == 80,
+static_assert(sizeof(voe_render_shading_values) == 96,
 	      "voe_render_shading_values no longer matches the shader's shading record");
 static_assert(sizeof(voe_render_view) == 144,
 	      "voe_render_view no longer matches the shader's camera block");
@@ -71,6 +71,8 @@ static_assert(offsetof(voe_render_shading_values, emissive) == 32,
 	      "the shading record's emissive colour moved; draw.slang has it at 32");
 static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
 	      "the shading record's texture ids moved; draw.slang has them at 48");
+static_assert(offsetof(voe_render_shading_values, base_colour_uv_rect) == 80,
+	      "the shading record's UV rect moved; draw.slang has it at 80");
 
 static bool build_layout(voe_render_device *device)
 {

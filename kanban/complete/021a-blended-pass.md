@@ -1,6 +1,6 @@
 # 021a — alpha modes and the blended pass
 
-status: review
+status: complete
 claimed-by: claude-code (kanban-coder)
 blocked-by: 019
 

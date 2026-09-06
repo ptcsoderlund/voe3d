@@ -1,6 +1,6 @@
 # 024 — the overlay layer
 
-status: review
+status: complete
 claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: 021b
 
