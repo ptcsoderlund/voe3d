@@ -164,7 +164,8 @@ static void a_texture_id_names_one_texture(voe_render_device *device)
 	voe_base_error error = VOE_BASE_OK;
 
 	VOE_TEST_CHECK(voe_render_texture_create(device,
-						 VOE_RENDER_TEXTURE_COLOUR, 1,
+						 VOE_RENDER_TEXTURE_COLOUR,
+						 VOE_RENDER_SAMPLING_SMOOTH, 1,
 						 1, ONE_PIXEL, &texture,
 						 &error));
 
@@ -193,12 +194,14 @@ static void a_texture_id_names_one_texture(voe_render_device *device)
 
 	// The slot comes back, and the id that names it now is not the id that
 	// named it before — which is the whole of what a generation is for.
-	// The other kind, because a slot holds a format now and the one being
-	// reused was made with the other one: what a generation promises is that
-	// the old id names nothing, whatever the new one holds.
+	// The other kind and the other sampling mode, because a slot holds both
+	// now and the one being reused was made with the opposite of each: what
+	// a generation promises is that the old id names nothing, whatever the
+	// new one holds.
 	VOE_TEST_CHECK(voe_render_texture_create(device,
-						 VOE_RENDER_TEXTURE_DATA, 1, 1,
-						 ONE_PIXEL, &again, &error));
+						 VOE_RENDER_TEXTURE_DATA,
+						 VOE_RENDER_SAMPLING_SHARP, 1,
+						 1, ONE_PIXEL, &again, &error));
 	VOE_TEST_CHECK_INT(again.index, texture.index);
 	VOE_TEST_CHECK(again.generation != texture.generation);
 }

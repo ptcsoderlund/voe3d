@@ -61,6 +61,12 @@
 // extension to ask for.
 #define VOE_RENDER_MAX_TEXTURES 64
 
+// How many voe_render_sampling values there are, which is how many samplers the
+// device makes. Here and not in the public enum: a caller has no use for a count
+// and rule 10 says a value nothing needs is not written. The enum is closed at
+// two, so this number and that enum change together or not at all.
+#define VOE_RENDER_SAMPLING_COUNT 2
+
 // How many frames the CPU may have submitted and unfinished at once, and the
 // length of every per-slot array in this engine.
 //
@@ -188,6 +194,11 @@ struct voe_render_texture_slot {
 	// the mipmap chain has to ask the card whether it can filter this format
 	// linearly, and the two textures kinds are two different formats.
 	VkFormat format;
+	// Which of the device's samplers this slot is read through. Kept because
+	// the descriptor write happens again every time the table changes and
+	// has to name the same sampler each time; a slot remembers its mode and
+	// the descriptor path stays one loop.
+	voe_render_sampling sampling;
 	uint32_t generation;
 	bool live;
 };
@@ -366,9 +377,11 @@ struct voe_render_device {
 	// full of.
 	voe_render_capacities capacities;
 
-	// The textures and the one sampler they are all read through. One
-	// sampler because nothing yet wants two filtering rules; the card that
-	// wants point sampling is the card that makes this an array as well.
+	// The textures and the samplers they are read through: one per
+	// voe_render_sampling, made once at startup and indexed by a slot's own
+	// mode. Two, because a picture on a surface in the world and a sheet
+	// something indexes into want opposite answers about mipmaps — see
+	// voe_render_sampling in render/include/render/device.h.
 	//
 	// SLOT 0 IS THE ONE-PIXEL WHITE DEFAULT AND IS NEVER HANDED OUT. Every
 	// element of the descriptor array has to be a valid descriptor whether
@@ -376,7 +389,7 @@ struct voe_render_device {
 	// which is also what makes VOE_RENDER_NO_TEXTURE sample to white
 	// instead of to something undefined.
 	struct voe_render_texture_slot textures[VOE_RENDER_MAX_TEXTURES];
-	VkSampler sampler;
+	VkSampler samplers[VOE_RENDER_SAMPLING_COUNT];
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -618,12 +631,12 @@ voe_render_geometry_at(const voe_render_device *device,
 [[nodiscard]] bool voe_render_shading_startup(voe_render_device *device);
 void voe_render_shading_shutdown(voe_render_device *device);
 
-// texture.c. The sampler and the one-pixel white texture every unclaimed slot
+// texture.c. The samplers and the one-pixel white texture every unclaimed slot
 // points at, made once at startup. False with a message on failure.
 [[nodiscard]] bool voe_render_texture_startup(voe_render_device *device);
 
-// texture.c. Every texture, the sampler, and nothing else. Safe on a device that
-// never got as far as making them.
+// texture.c. Every texture, every sampler, and nothing else. Safe on a device
+// that never got as far as making them.
 void voe_render_texture_shutdown(voe_render_device *device);
 
 // texture.c. Point one frame slot's descriptor set at every texture in the

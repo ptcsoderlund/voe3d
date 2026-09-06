@@ -39,6 +39,8 @@ bool voe_3d_material_upload(voe_render_device *device,
 		.emissive = material->emissive,
 		.unlit = material->unlit ? 1u : 0u,
 		.base_colour_texture = material->base_colour_texture.index,
+		.base_colour_distance_field =
+			material->base_colour_distance_field ? 1u : 0u,
 		.metallic_roughness_texture =
 			material->metallic_roughness_texture.index,
 		.normal_texture = material->normal_texture.index,

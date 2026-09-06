@@ -16,6 +16,23 @@
 // THE OUTLINES ARE BUILT HERE AND NOT READ OUT OF THE FONT. A rasteriser test
 // wants a shape whose answer is known by looking at it, and a real glyph's is
 // not — every claim would then be a number copied out of this code's own output.
+//
+// ---- AND THE FIELD, WHOSE CLAIM IS A CORNER AND NOT A LETTER ----
+//
+// THE COLOURING FAILS QUIETLY, WHICH IS WHY IT IS TESTED ON A RIGHT ANGLE. A
+// mis-assigned corner is a small notch in one letter; it survives every test
+// that is a whole word, and it survives a test that only asks whether the field
+// is positive inside and negative outside, because it is. So the claim below is
+// made about one corner of one square, where the right answer can be worked out
+// on paper.
+//
+// EVERY CLAIM IS ABOUT THE MEDIAN, BECAUSE THE MEDIAN IS WHAT THE SHADER READS.
+// The three channels are allowed to disagree — that is the mechanism, not a
+// fault — and a channel on its own means nothing. What has to be true is what
+// render/shaders/draw.slang computes from them, so that is what is measured, and
+// the one claim made about the three separately is that at a corner they are not
+// all the same. If they were, the sheet would be an ordinary distance field
+// wearing three channels and every corner in the font would be an arc.
 #include "../src/raster.h"
 #include "../src/truetype.h"
 
@@ -26,10 +43,12 @@
 #include <string.h>
 
 #define ARENA (64 * 1024)
-#define SIZE 10
+#define SIZE 12
 
 // One pixel per font unit, so a coordinate below is a pixel and the picture can
-// be reasoned about by looking at the numbers.
+// be reasoned about by looking at the numbers. SIZE is twelve rather than the
+// ten the fill alone needed, because the field's claims are about texels several
+// away from an edge and a shape has to have room round it for that.
 #define SCALE 1.0f
 
 // Everything is drawn into a SIZE by SIZE bitmap with font-unit (0, 0) at its
@@ -195,6 +214,161 @@ static void check_a_straight_curve(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(at(coverage, 8, 5), 0);
 }
 
+// The field of the same square the fill tests use, so that one shape is reasoned
+// about once. Bitmap coordinates throughout: the helpers below index rows down
+// the image rather than up from the baseline, because a distance is about where
+// a texel is and not about where the baseline was.
+static void field(voe_text_truetype_outline *outline, uint8_t *into,
+		  voe_base_arena *arena)
+{
+	voe_text_raster_field(outline, SCALE, ORIGIN, into, SIZE, SIZE, arena);
+}
+
+// One channel of one texel, back as the signed distance in texels it stands for.
+// The inverse of what raster.c encodes, so a claim below can be written as a
+// distance rather than as a byte.
+static float channel_at(const uint8_t *into, int x, int y, int channel)
+{
+	uint8_t byte = into[((y * SIZE) + x) * VOE_TEXT_FIELD_CHANNELS +
+			    channel];
+
+	return ((float)byte / 255.0f * 2.0f - 1.0f) * VOE_TEXT_FIELD_SPREAD;
+}
+
+// What the shader reads: the middle of the three.
+static float median_at(const uint8_t *into, int x, int y)
+{
+	float a = channel_at(into, x, y, 0);
+	float b = channel_at(into, x, y, 1);
+	float c = channel_at(into, x, y, 2);
+	float low = a < b ? a : b;
+	float high = a < b ? b : a;
+
+	return high < c ? high : (low > c ? low : c);
+}
+
+// A square whose bitmap corners are (3, 3) and (9, 9), wound the way TrueType
+// winds an outer contour. Every claim below is about this one shape.
+static void field_square(voe_text_truetype_point *into)
+{
+	square(into, 3.0f, 9.0f, false);
+}
+
+// Positive inside, negative outside, and the halfway mark on the outline. This
+// is the claim everything else rests on, and it is the one that fails if the
+// sign convention is the wrong way round — which would draw every glyph as its
+// own background.
+static void check_the_field_has_a_side(voe_base_arena *arena)
+{
+	voe_text_truetype_point points[4];
+	uint16_t ends[1] = { 3 };
+	voe_text_truetype_outline outline = { points, ends, 4, 1 };
+	uint8_t into[SIZE * SIZE * VOE_TEXT_FIELD_CHANNELS];
+
+	field_square(points);
+	field(&outline, into, arena);
+
+	// Texel (6, 6) is centred at (6.5, 6.5) and the nearest edges are the
+	// two at 9, so it is two and a half texels inside.
+	VOE_TEST_CHECK(median_at(into, 6, 6) > 2.4f);
+	VOE_TEST_CHECK(median_at(into, 6, 6) < 2.6f);
+	// And (0, 0) is centred at (0.5, 0.5), two and a half texels outside
+	// both of the edges at 3.
+	VOE_TEST_CHECK(median_at(into, 0, 0) < -2.4f);
+	VOE_TEST_CHECK(median_at(into, 0, 0) > -2.6f);
+}
+
+// A texel beside the middle of an edge is that edge's perpendicular distance
+// away, and nothing else. No corner is near enough to matter, so this is the
+// case the three channels have nothing to disagree about — and it is what pins
+// the scale of the encoding down, because a spread read as half or twice what it
+// is would still be positive inside and negative outside.
+static void check_a_straight_edge_is_its_own_distance(voe_base_arena *arena)
+{
+	voe_text_truetype_point points[4];
+	uint16_t ends[1] = { 3 };
+	voe_text_truetype_outline outline = { points, ends, 4, 1 };
+	uint8_t into[SIZE * SIZE * VOE_TEXT_FIELD_CHANNELS];
+
+	field_square(points);
+	field(&outline, into, arena);
+
+	// Texel (6, 1) has its centre at (6.5, 1.5) and the top edge is at
+	// y = 3, so it is a texel and a half outside.
+	VOE_TEST_CHECK(median_at(into, 6, 1) < -1.3f);
+	VOE_TEST_CHECK(median_at(into, 6, 1) > -1.7f);
+	// And (6, 4) is centred at (6.5, 4.5), a texel and a half inside.
+	VOE_TEST_CHECK(median_at(into, 6, 4) > 1.3f);
+	VOE_TEST_CHECK(median_at(into, 6, 4) < 1.7f);
+}
+
+// THE CLAIM THIS WHOLE FILE'S SECOND HALF EXISTS FOR. Diagonally outside a right
+// angle, an ordinary distance field says how far the CORNER POINT is — texel
+// (1, 1) is centred at (1.5, 1.5) and the corner is at (3, 3), so that is 2.12
+// texels — and reading it back through a linear filter turns the right angle
+// into an arc of that radius. The median says how far the nearer EDGE's line is
+// instead, which is 1.5, and where two of those lines cross is exactly the
+// corner.
+//
+// So the test is that the median is nearer than the corner point is. It is not a
+// tolerance on a number this code produced: 1.5 and 2.12 are the two answers the
+// two designs give, and no rounding gets from one to the other.
+static void check_a_corner_is_not_rounded_off(voe_base_arena *arena)
+{
+	voe_text_truetype_point points[4];
+	uint16_t ends[1] = { 3 };
+	voe_text_truetype_outline outline = { points, ends, 4, 1 };
+	uint8_t into[SIZE * SIZE * VOE_TEXT_FIELD_CHANNELS];
+	float a;
+	float b;
+	float c;
+
+	field_square(points);
+	field(&outline, into, arena);
+
+	VOE_TEST_CHECK(median_at(into, 1, 1) > -1.7f);
+	VOE_TEST_CHECK(median_at(into, 1, 1) < -1.3f);
+
+	// And the three do not agree, which is the mechanism itself: a sheet
+	// whose channels were equal everywhere would be one distance field in
+	// three copies and the check above could only pass by accident.
+	//
+	// MEASURED OFF THE DIAGONAL, BECAUSE ON IT THEY LEGITIMATELY AGREE.
+	// Texel (1, 1) is the same distance from both edges' lines, so all
+	// three channels answer the same number and there is nothing to see.
+	// Texel (1, 2) is centred at (1.5, 2.5) — half a texel above the top
+	// edge's line and a texel and a half left of the left edge's — so the
+	// channels carrying one edge and the channels carrying the other have
+	// to differ, and the median of them is the further of the two.
+	a = channel_at(into, 1, 2, 0);
+	b = channel_at(into, 1, 2, 1);
+	c = channel_at(into, 1, 2, 2);
+	VOE_TEST_CHECK(a != b || b != c);
+	VOE_TEST_CHECK(median_at(into, 1, 2) > -1.7f);
+	VOE_TEST_CHECK(median_at(into, 1, 2) < -1.3f);
+}
+
+// A counter is a hole in the field as well as in the fill. Two squares wound
+// opposite ways: the middle is outside the shape, so the field there is
+// negative. The sign of a field comes from which way round a contour runs, and
+// this is the case where getting that backwards is visible — a letter with its
+// counters filled in.
+static void check_a_counter_is_outside(voe_base_arena *arena)
+{
+	voe_text_truetype_point points[8];
+	uint16_t ends[2] = { 3, 7 };
+	voe_text_truetype_outline outline = { points, ends, 8, 2 };
+	uint8_t into[SIZE * SIZE * VOE_TEXT_FIELD_CHANNELS];
+
+	// Bitmap (1, 1) to (11, 11) with a hole from (5, 5) to (7, 7).
+	square(points, 1.0f, 11.0f, false);
+	square(points + 4, 5.0f, 7.0f, true);
+	field(&outline, into, arena);
+
+	VOE_TEST_CHECK(median_at(into, 2, 6) > 0.0f);
+	VOE_TEST_CHECK(median_at(into, 6, 6) < 0.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
@@ -205,6 +379,10 @@ int main(void)
 	check_neither_direction_is_special(arena);
 	check_a_partly_covered_pixel(arena);
 	check_a_straight_curve(arena);
+	check_the_field_has_a_side(arena);
+	check_a_straight_edge_is_its_own_distance(arena);
+	check_a_corner_is_not_rounded_off(arena);
+	check_a_counter_is_outside(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

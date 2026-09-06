@@ -114,9 +114,34 @@
 // and it is the failure this is here to make obvious.
 //
 // AND IT IS BLENDED, SO A GLYPH IS A SHAPE AND NOT A BOX. Each letter is a quad
-// carrying its coverage in the atlas's alpha; a square of background round every
-// letter is the alpha mode wrong, and text noticeably paler than the tint it
-// asks for is a colour multiplied by its coverage twice.
+// whose alpha the shader works out from the sheet's distance field; a square of
+// background round every letter is the alpha mode wrong, and text noticeably
+// paler than the tint it asks for is a colour multiplied by its coverage twice.
+//
+// AND IT IS SHARP AT EVERY SIZE, WHICH IS WHAT THE SIGN IS FOR. Fly up to the
+// sign until one letter fills the screen: its edges stay clean and its corners
+// stay square. Fly away and it fades rather than crawling. Soft edges close up
+// mean the material forgot base_colour_distance_field or the sheet was uploaded
+// smooth; rounded corners mean the three channels came out of the sheet the
+// same, which is the colouring in text/src/raster.c having gone wrong.
+//
+// THE HEADS-UP LINE SITS ON A DARK PANEL, AND THAT IS ABOUT CONTRAST AND NOT
+// ABOUT SHARPNESS. Pale blue over teal is a small enough difference in luminance
+// that a one-pixel edge still reads as soft, which sends anyone looking at it
+// hunting for a blur that is not there. The panel takes that question off the
+// table: the edge is the same width over it, and what still looks soft on it is
+// soft. See HUD_PANEL_R.
+//
+// AND THERE IS NO ANTIALIASING ANYWHERE IN THE PICTURE, WHICH IS THE ENGINE'S
+// RULE AND NOT A GAP. Letters have hard edges, textures show their texels close
+// up and shimmer at a distance, and polygon silhouettes are stair-stepped. Every
+// one of those is intended. What to look for instead is that the edges are in
+// the RIGHT PLACE: a letter walked up to has straight sides and square corners
+// rather than blocks, which is the distance field doing its job under a hard
+// cut. Blocks would mean the sheet had become a picture of coverage again.
+//
+// TEXT A LONG WAY OFF BREAKS INTO SPECKS AND THEY MOVE. Expected, and the direct
+// cost of the rule above; the sign at the top of the scene is where to see it.
 //
 // THE ACCENTED CHARACTERS ARE THE READER'S TEST. `Å`, `Ö`, `é`, `ü`, `å` and `Ç`
 // are composite glyphs — references to other glyphs with an offset — and a
@@ -223,6 +248,14 @@
 //   - Writing noticeably paler than the tint it asks for — a colour multiplied
 //     by its coverage twice, which is the atlas having been premultiplied when
 //     the shader is what does that. See text/src/font.c.
+//   - Letters soft or blurry as the camera closes on the sign — the material's
+//     base_colour_distance_field not set, or the sheet uploaded as colour or
+//     sampled smooth. All three look the same and text/src/font.c is where the
+//     three are decided together.
+//   - Corners on `V`, `A` and the flat terminals coming out rounded — the sheet
+//     is a distance field but its three channels agree, so the median has
+//     nothing to reconstruct. That is the edge colouring, and
+//     text/tests/raster.c is the automated form of it.
 //   - Accented characters missing while an English string is perfect — composite
 //     glyphs, and text/tests/truetype.c is the automated form.
 //   - The middles of `O`, `e` and `a` filled in solid — the fill rule.
@@ -527,6 +560,41 @@
 #define SIGN_TINT_R 1.0f
 #define SIGN_TINT_G 0.86f
 #define SIGN_TINT_B 0.45f
+// The dark panel behind the heads-up line, and what it is for.
+//
+// IT IS A READING AID AND IT IS NOT PART OF THE ENGINE'S ANSWER TO ANYTHING. The
+// line is pale blue over whatever the scene happens to put behind it, and over
+// the teal background the two are close enough in luminance that a perfectly
+// sharp edge still reads as soft — which is a question about contrast and not
+// about the glyphs. A dark, opaque panel behind it settles that by making the
+// contrast the largest it can be: what still looks soft on this is soft, and
+// what does not was never soft.
+//
+// OPAQUE AND IN THE OVERLAY, WHICH IS WHY IT DOES NOT NEED SORTING. The overlay
+// draws its solid group first and writes depth, then its blended group tests
+// against it — so a panel pushed a little further from the eye than the line is
+// behind it by depth and not by luck. It is the same arrangement the solid
+// overlay quad already proves; see add_the_quads.
+//
+// THERE IS NO KEY TO TURN IT OFF, AND THAT IS `platform`'s DOING RATHER THAN A
+// CHOICE. Every key voe_platform_key names is already bound — P is the present
+// mode and Tab is the camera — so a toggle would mean adding one, which is
+// another folder. It costs the strip of scene directly behind the line, which is
+// background in every frame this program draws.
+#define HUD_PANEL_R 0.04f
+#define HUD_PANEL_G 0.05f
+#define HUD_PANEL_B 0.06f
+
+// How far past the line's own box the panel reaches, in ems of the line. Enough
+// to read as a plate the writing sits on rather than as a box cropping it.
+#define HUD_PANEL_MARGIN 0.5f
+
+// How much further from the eye the panel is than the line. Small, because the
+// two have to stay square to each other, and any positive number at all is
+// enough for the depth test — this is not a sorting nudge, it is the whole
+// distance between two planes that are parallel.
+#define HUD_PANEL_BEHIND 0.01f
+
 #define HUD_TINT_R 0.75f
 #define HUD_TINT_G 0.92f
 #define HUD_TINT_B 1.0f
@@ -764,6 +832,7 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 	// before the shading multiplies by it. An ORM map would be the other kind
 	// — see voe_render_texture_kind.
 	if (!voe_render_texture_create(gpu, VOE_RENDER_TEXTURE_COLOUR,
+				       VOE_RENDER_SAMPLING_SMOOTH,
 				       picture.width, picture.height,
 				       picture.pixels, &texture, error)) {
 		voe_base_arena_rewind(arena, mark);
@@ -834,7 +903,7 @@ static voe_scene_transform quad_at(voe_math_float3 position, float size)
 static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
 		     voe_render_geometry geometry, voe_3d_material material,
 		     voe_scene_transform transform, voe_3d_layer layer,
-		     voe_base_error *error)
+		     voe_ecs_entity *out, voe_base_error *error)
 {
 	voe_ecs_entity entity = { 0 };
 
@@ -848,7 +917,14 @@ static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
 			     (voe_3d_mesh){ .geometry = geometry,
 					    .layer = layer }))
 		return false;
-	return voe_3d_material_add(world, entity, material);
+	if (!voe_3d_material_add(world, entity, material))
+		return false;
+
+	// Every quad but the panel is placed once and never moved again, so the
+	// entity is of no use to them. `out` may be NULL for those.
+	if (out != NULL)
+		*out = entity;
+	return true;
 }
 
 // The five quads: one square of geometry into the pools, two entities standing
@@ -890,7 +966,7 @@ static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
 // for. An overlay that quietly stopped lighting things would look like a
 // reasonable convenience and it is the one this arrangement is here to catch.
 static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
-			  voe_base_error *error)
+			  voe_render_geometry *quad, voe_base_error *error)
 {
 	voe_render_geometry geometry = { 0 };
 	voe_math_float4 warm = { 0.9f, 0.25f, 0.15f, QUAD_ALPHA };
@@ -907,17 +983,22 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 					error))
 		return false;
 
+	// The one square every quad in this program wears, the heads-up panel
+	// included. One upload and one id; what differs between them is a
+	// material and a transform.
+	*quad = geometry;
+
 	if (!add_quad(world, gpu, geometry,
 		      quad_material(warm, VOE_RENDER_ALPHA_BLENDED, false),
 		      quad_at((voe_math_float3){ QUAD_X, QUAD_Y, QUAD_Z },
 			      QUAD_SIZE),
-		      VOE_3D_LAYER_WORLD, error))
+		      VOE_3D_LAYER_WORLD, NULL, error))
 		return false;
 	if (!add_quad(world, gpu, geometry,
 		      quad_material(cool, VOE_RENDER_ALPHA_BLENDED, false),
 		      quad_at((voe_math_float3){ QUAD_X, QUAD_Y, -QUAD_Z },
 			      QUAD_SIZE),
-		      VOE_3D_LAYER_WORLD, error))
+		      VOE_3D_LAYER_WORLD, NULL, error))
 		return false;
 
 	// The solid one first, so that the two see-through ones are not merely
@@ -926,14 +1007,14 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 	if (!add_quad(world, gpu, geometry,
 		      quad_material(over_solid, VOE_RENDER_ALPHA_OPAQUE, false),
 		      quad_at(middle, OVERLAY_QUAD_SIZE), VOE_3D_LAYER_OVERLAY,
-		      error))
+		      NULL, error))
 		return false;
 	if (!add_quad(world, gpu, geometry,
 		      quad_material(over_lit, VOE_RENDER_ALPHA_BLENDED, false),
 		      quad_at((voe_math_float3){ middle.x, middle.y,
 						 OVERLAY_QUAD_Z },
 			      OVERLAY_QUAD_SIZE),
-		      VOE_3D_LAYER_OVERLAY, error))
+		      VOE_3D_LAYER_OVERLAY, NULL, error))
 		return false;
 	return add_quad(world, gpu, geometry,
 			quad_material(over_unlit, VOE_RENDER_ALPHA_BLENDED,
@@ -941,18 +1022,20 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 			quad_at((voe_math_float3){ middle.x, middle.y,
 						   -OVERLAY_QUAD_Z },
 				OVERLAY_QUAD_SIZE),
-			VOE_3D_LAYER_OVERLAY, error);
+			VOE_3D_LAYER_OVERLAY, NULL, error);
 }
 
 // One text block, one entity: the mesh the font built, an unlit blended material
 // wearing the atlas, and the transform it is placed with.
 //
-// THE FOUR THINGS A TEXT MATERIAL HAS TO SAY, and each of them is visible if it
+// THE FIVE THINGS A TEXT MATERIAL HAS TO SAY, and each of them is visible if it
 // is missing. The atlas as the base colour texture, or there is nothing to see.
 // The tint as the base colour factor, which for an unlit material is exactly the
 // colour on screen. `unlit`, or the letters darken and brighten as the sun goes
-// round — text lit by a sun is the failure this flag exists to prevent. And
-// BLENDED, or every glyph arrives in a square of its own background.
+// round — text lit by a sun is the failure this flag exists to prevent. BLENDED,
+// or every glyph arrives in a square of its own background. And
+// `base_colour_distance_field`, or the sheet is read as a picture and every
+// glyph is a solid rectangle.
 //
 // AND THE TINT IS NOT PREMULTIPLIED HERE. It is an ordinary colour with an alpha
 // beside it; the shader multiplies at the very end. See dev's other blended
@@ -978,6 +1061,11 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 		.alpha_cutoff = 0.5f,
 		.unlit = true,
 		.base_colour_texture = voe_text_font_atlas(font),
+		// The atlas is a distance field and not a picture. Without this
+		// the shader multiplies the tint by three distances and reads
+		// the sheet's alpha, which is opaque everywhere: solid coloured
+		// rectangles where the writing should be.
+		.base_colour_distance_field = true,
 	};
 
 	if (!voe_3d_material_upload(gpu, &material, error))
@@ -1009,8 +1097,9 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 // first baseline, so a sign that was not shifted would hang off to one side of
 // whatever it is standing on.
 static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
-			 voe_base_arena *arena, voe_text_font **font,
-			 voe_ecs_entity *hud, voe_math_float2 *hud_size,
+			 voe_base_arena *arena, voe_render_geometry quad,
+			 voe_text_font **font, voe_ecs_entity *hud,
+			 voe_ecs_entity *panel, voe_math_float2 *hud_size,
 			 voe_base_error *error)
 {
 	voe_text_block sign;
@@ -1065,6 +1154,18 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 	// something, and until card 024 that is exactly when it disappeared. It
 	// is still an ordinary object in the world with a position in metres —
 	// what changed is when it is drawn, not where it is.
+	// The panel first, so that the solid thing exists before the blended
+	// thing that sits on it. Order of creation decides nothing here — the
+	// draw system sorts by layer and alpha mode — but reading it in this
+	// order is how the picture is built.
+	if (!add_quad(world, gpu, quad, quad_material((voe_math_float4){
+					     HUD_PANEL_R, HUD_PANEL_G,
+					     HUD_PANEL_B, 1.0f },
+				     VOE_RENDER_ALPHA_OPAQUE, true),
+		      quad_at((voe_math_float3){ 0.0f, 0.0f, 0.0f }, 1.0f),
+		      VOE_3D_LAYER_OVERLAY, panel, error))
+		return false;
+
 	*hud_size = line.size;
 	return add_text(world, gpu, *font, line, hud_tint, front,
 			VOE_3D_LAYER_OVERLAY, hud, error);
@@ -1118,6 +1219,54 @@ static voe_scene_transform_intent facing_the_camera(const voe_ecs_world *world,
 				voe_math_quat_from_axis_angle(SIDE,
 							      camera->pitch)),
 			.scale = { 1.0f, 1.0f, 1.0f },
+		},
+	};
+}
+
+// Where the panel behind the heads-up line goes this frame: the same plane as the
+// line, a shade further from the eye, centred on the line's own box and a margin
+// larger than it.
+//
+// IT SHARES THE LINE'S ROTATION AND NOT ITS POSITION. The line's origin is the
+// left end of its first baseline, so a panel placed there would hang off to one
+// side and sit too low; it is moved right by half the width and up by a quarter
+// of the height, which puts it around the band the glyphs actually occupy rather
+// than around the line box. A quarter and not a half because a line box is
+// mostly above its baseline.
+//
+// THE SCALE IS NOT UNIFORM, WHICH IS WHY THIS DOES NOT USE quad_at. A line of
+// writing is wide and short and the quad it sits on has to be the same shape.
+static voe_scene_transform_intent behind_the_line(const voe_ecs_world *world,
+						  voe_ecs_entity eye,
+						  voe_ecs_entity quad,
+						  voe_math_float2 size)
+{
+	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
+	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
+	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
+	voe_math_float3 forward = voe_scene_camera_forward(*camera);
+	voe_math_float3 right =
+		voe_math_float3_normalize(voe_math_float3_cross(forward, UP));
+	voe_math_float3 up = voe_math_float3_cross(right, forward);
+	float margin = size.y * HUD_PANEL_MARGIN;
+	voe_math_float3 at = voe_math_float3_add(
+		camera->eye,
+		voe_math_float3_scale(forward,
+				      HUD_DISTANCE + HUD_PANEL_BEHIND));
+
+	at = voe_math_float3_add(at, voe_math_float3_scale(up, -HUD_DROP));
+	at = voe_math_float3_add(at, voe_math_float3_scale(up, size.y * 0.25f));
+
+	return (voe_scene_transform_intent){
+		.entity = quad,
+		.transform = {
+			.position = at,
+			.rotation = voe_math_quat_mul(
+				voe_math_quat_from_axis_angle(UP, camera->yaw),
+				voe_math_quat_from_axis_angle(SIDE,
+							      camera->pitch)),
+			.scale = { size.x + margin * 2.0f,
+				   size.y + margin * 2.0f, 1.0f },
 		},
 	};
 }
@@ -1280,6 +1429,8 @@ int main(void)
 	voe_ecs_entity sun = { 0 };
 	voe_ecs_entity turning = { 0 };
 	voe_ecs_entity hud = { 0 };
+	voe_ecs_entity panel = { 0 };
+	voe_render_geometry quad = { 0 };
 	voe_text_font *font = NULL;
 	voe_math_float2 hud_size = { 0.0f, 0.0f };
 	voe_math_float3 spin_axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
@@ -1390,7 +1541,7 @@ int main(void)
 		goto stop;
 	}
 
-	if (!add_the_quads(world, gpu, &error)) {
+	if (!add_the_quads(world, gpu, &quad, &error)) {
 		fprintf(stderr, "could not build the two see-through quads: %s\n",
 			voe_base_error_string(error));
 		goto stop;
@@ -1399,7 +1550,8 @@ int main(void)
 	// The font and the three text entities. Not optional the way a model is:
 	// there is one font, it is in the binary, and a failure here is a bug in
 	// the reader rather than a file somebody could not open.
-	if (!add_the_text(world, gpu, arena, &font, &hud, &hud_size, &error)) {
+	if (!add_the_text(world, gpu, arena, quad, &font, &hud, &panel,
+			  &hud_size, &error)) {
 		fprintf(stderr, "could not build the text: %s\n",
 			voe_base_error_string(error));
 		goto stop;
@@ -1607,6 +1759,10 @@ int main(void)
 		// it worse rather than better.
 		(void)voe_scene_transform_submit(
 			world, facing_the_camera(world, eye, hud, hud_size));
+		// The panel travels with the line, one frame behind it in
+		// exactly the same way and for exactly the same reason.
+		(void)voe_scene_transform_submit(
+			world, behind_the_line(world, eye, panel, hud_size));
 
 		voe_scene_transform_system_run(world);
 		voe_scene_light_system_run(world);

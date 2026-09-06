@@ -18,9 +18,10 @@ asserted on.
   what each of the four numbers brackets, what the overlap between the quads is
   showing, and which failure a wrong sort looks like. Card 021b added the two
   strings; its header says why the sign is two entities sharing one mesh, what
-  the four things a text material has to say are, why the line locked to the
+  the five things a text material has to say are, why the line locked to the
   camera is an ordinary transform in the world rather than anything
-  screen-space, why it is placed between two systems rather than with the other
+  screen-space, what a letter walked up to should and should not look like, why
+  the line sits on a dark panel and what that panel does and does not prove, why it is placed between two systems rather than with the other
   intents, and why neither string holds a character outside Latin-1. A call
   site and nothing else; the key bindings are the only decision in it, P among
   them.

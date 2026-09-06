@@ -10,15 +10,26 @@
 // moves is a barrier and forgetting one is a validation error rather than a
 // wrong picture, which is the good kind of mistake.
 //
-// MIPMAPS ARE GENERATED, AND THE CARD ASKED FOR THAT TO BE DECIDED EITHER WAY.
-// They are generated, by blitting each level into the next one half its size —
-// which is what a card that can filter linearly will do well and a card that
-// cannot must not be asked to do at all, so the format is queried first and a
-// card that says no gets a single level rather than a broken chain. The reason
-// to have them is that this cube is flown around: a texture minified without
-// mipmaps shimmers, and the shimmer is the sort of thing that gets blamed on the
-// camera. One level is still correct, merely worse, which is what makes the
-// fallback honest rather than a silent downgrade.
+// THERE ARE NO MIPMAPS AND NO LINEAR FILTERING, AND THAT IS THE ENGINE'S RULE
+// RATHER THAN THIS FILE'S OPINION. Every texture is one level, sampled NEAREST,
+// magnified and minified. Both of the things removed here were antialiasing —
+// a mipmap chain exists to stop a minified texture shimmering, and a linear
+// filter exists to stop a magnified one showing its texels — and this engine has
+// decided it does not want antialiasing anywhere. A texture therefore shows its
+// texels close up and shimmers at a distance, and both are the intended picture.
+//
+// WHAT THAT COSTS, WRITTEN DOWN SO NOBODY REDISCOVERS IT AS A BUG. A texture
+// minified past about one texel per pixel aliases, and the aliasing moves as the
+// camera moves. That is the thing mipmaps were for and it will look like a fault
+// in the sampler to anybody who does not know. It is not: see
+// voe_render_sampling.
+//
+// TWO SAMPLERS, ONE PER MODE, MADE ONCE AT STARTUP. A slot remembers which mode
+// it was created with and the descriptor write reads that back, so the
+// descriptor path is still one loop over the whole table and there is still no
+// per-draw sampler anywhere. With filtering gone the two differ only in how they
+// address outside 0..1 — see voe_render_sampling, whose names now say less than
+// they did.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -51,38 +62,6 @@ static VkFormat format_for(voe_render_texture_kind kind)
 {
 	return kind == VOE_RENDER_TEXTURE_COLOUR ? TEXTURE_COLOUR_FORMAT
 						 : TEXTURE_DATA_FORMAT;
-}
-
-// How many mip levels an image of this size has, counting the full-size one.
-// Halving until a side reaches one, which is what the blit chain below does.
-static uint32_t mip_levels_for(uint32_t width, uint32_t height)
-{
-	uint32_t side = width > height ? width : height;
-	uint32_t levels = 1;
-
-	while (side > 1) {
-		side /= 2;
-		levels++;
-	}
-
-	return levels;
-}
-
-// Whether this card will filter this format linearly, which is what a mipmap
-// blit needs. Asked rather than assumed: R8G8B8A8_UNORM is required by Vulkan to
-// be sampled, but linear *blit* filtering is a separate feature bit and a card
-// is allowed to say no. Asked per format, because the two texture kinds are two
-// formats and a card is allowed to answer differently for each.
-static bool can_generate_mipmaps(voe_render_device *device, VkFormat format)
-{
-	VkFormatProperties properties;
-
-	voe_render_vk.get_physical_device_format_properties(device->physical,
-							    format,
-							    &properties);
-
-	return (properties.optimalTilingFeatures &
-		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
 }
 
 // One image-layout transition on one mip level range.
@@ -126,45 +105,6 @@ static void transition(VkCommandBuffer commands, VkImage image,
 	voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
 }
 
-// Blit level n-1 down into level n, for every level after the first. Each source
-// level is moved to TRANSFER_SRC just before it is read, which is also what
-// leaves every level but the last in the right layout for the final transition.
-static void generate_mipmaps(VkCommandBuffer commands, VkImage image,
-			     uint32_t width, uint32_t height, uint32_t levels)
-{
-	int32_t w = (int32_t)width;
-	int32_t h = (int32_t)height;
-
-	for (uint32_t level = 1; level < levels; level++) {
-		int32_t next_w = w > 1 ? w / 2 : 1;
-		int32_t next_h = h > 1 ? h / 2 : 1;
-		VkImageBlit blit = {
-			.srcSubresource = {
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel = level - 1,
-				.layerCount = 1,
-			},
-			.srcOffsets = { { 0, 0, 0 }, { w, h, 1 } },
-			.dstSubresource = {
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel = level,
-				.layerCount = 1,
-			},
-			.dstOffsets = { { 0, 0, 0 }, { next_w, next_h, 1 } },
-		};
-
-		transition(commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, level - 1, 1);
-		voe_render_vk.cmd_blit_image(
-			commands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-			VK_FILTER_LINEAR);
-
-		w = next_w;
-		h = next_h;
-	}
-}
-
 // The image, its memory and its view. Close kin to build_image in target.c and
 // deliberately not shared with it: that one is a render target, always one level,
 // always device-local-and-nothing-else, and merging the two would make a
@@ -172,21 +112,22 @@ static void generate_mipmaps(VkCommandBuffer commands, VkImage image,
 static bool build_texture_image(voe_render_device *device,
 				struct voe_render_texture_slot *slot,
 				VkFormat format, uint32_t width,
-				uint32_t height, uint32_t levels)
+				uint32_t height)
 {
 	VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
 		.format = format,
 		.extent = { width, height, 1 },
-		.mipLevels = levels,
+		// One level, always. There are no mipmaps in this engine — see
+		// the header.
+		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		// TRANSFER_SRC as well as DST, because generating mipmaps reads
-		// this image back out of itself.
+		// TRANSFER_DST and no TRANSFER_SRC: the only thing that ever
+		// read a texture back out of itself was the mipmap blit chain.
 		.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-			 VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
 			 VK_IMAGE_USAGE_SAMPLED_BIT,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -201,7 +142,7 @@ static bool build_texture_image(voe_render_device *device,
 		.format = format,
 		.subresourceRange = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.levelCount = levels,
+			.levelCount = 1,
 			.layerCount = 1,
 		},
 	};
@@ -275,7 +216,7 @@ static bool build_texture_image(voe_render_device *device,
 static bool copy_into_image(voe_render_device *device,
 			    struct voe_render_texture_slot *slot,
 			    const struct voe_render_buffer *staging,
-			    uint32_t width, uint32_t height, uint32_t levels)
+			    uint32_t width, uint32_t height)
 {
 	VkCommandBufferAllocateInfo allocate = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -316,29 +257,17 @@ static bool copy_into_image(voe_render_device *device,
 
 	voe_render_vk.begin_command_buffer(commands, &begin);
 
-	// Every level to TRANSFER_DST: level 0 receives the copy and the rest
-	// receive their blits.
+	// One level in, one level out. This was a chain of transitions around a
+	// blit chain until the engine stopped having mipmaps.
 	transition(commands, slot->image, VK_IMAGE_LAYOUT_UNDEFINED,
-		   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, levels);
+		   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, 1);
 
 	voe_render_vk.cmd_copy_buffer_to_image(
 		commands, staging->buffer, slot->image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	generate_mipmaps(commands, slot->image, width, height, levels);
-
-	// The chain leaves every level but the last in TRANSFER_SRC and the last
-	// in TRANSFER_DST, so they are moved to the sampled layout in two
-	// transitions rather than one. With a single level the first of these
-	// covers nothing and the second does all the work, which is why the
-	// count is computed rather than written as levels - 1.
-	if (levels > 1)
-		transition(commands, slot->image,
-			   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0,
-			   levels - 1);
 	transition(commands, slot->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, levels - 1, 1);
+		   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 1);
 
 	voe_render_vk.end_command_buffer(commands);
 
@@ -382,8 +311,11 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 			device->textures[i].live ? &device->textures[i]
 						 : &device->textures[0];
 
+		// The slot's own mode, which for an unclaimed slot is slot 0's
+		// — the substitution above picked the slot and the sampler
+		// comes from whichever slot that turned out to be.
 		images[i] = (VkDescriptorImageInfo){
-			.sampler = device->sampler,
+			.sampler = device->samplers[slot->sampling],
 			.imageView = slot->view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
@@ -394,7 +326,8 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 }
 
 bool voe_render_texture_create(voe_render_device *device,
-			       voe_render_texture_kind kind, uint32_t width,
+			       voe_render_texture_kind kind,
+			       voe_render_sampling sampling, uint32_t width,
 			       uint32_t height, const uint8_t *rgba,
 			       voe_render_texture *out, voe_base_error *error)
 {
@@ -402,7 +335,6 @@ bool voe_render_texture_create(voe_render_device *device,
 	struct voe_render_texture_slot *slot = NULL;
 	VkFormat format = format_for(kind);
 	uint32_t index = 0;
-	uint32_t levels;
 	VkDeviceSize size;
 	bool uploaded;
 
@@ -428,12 +360,9 @@ bool voe_render_texture_create(voe_render_device *device,
 		return false;
 	}
 
-	levels = can_generate_mipmaps(device, format) ?
-			 mip_levels_for(width, height) :
-			 1;
 	size = (VkDeviceSize)width * height * 4;
 
-	if (!build_texture_image(device, slot, format, width, height, levels))
+	if (!build_texture_image(device, slot, format, width, height))
 		goto refused;
 
 	if (!voe_render_buffer_build(device, &staging, size,
@@ -459,14 +388,16 @@ bool voe_render_texture_create(voe_render_device *device,
 		voe_render_vk.unmap_memory(device->device, staging.memory);
 	}
 
-	uploaded = copy_into_image(device, slot, &staging, width, height,
-				   levels);
+	uploaded = copy_into_image(device, slot, &staging, width, height);
 	voe_render_buffer_teardown(device, &staging);
 	if (!uploaded)
 		goto refused;
 
 	// Claimed only once the upload has actually happened, so a failure part
-	// way through leaves the slot free rather than live and empty.
+	// way through leaves the slot free rather than live and empty. The mode
+	// is kept because the descriptor write below runs again every time the
+	// table changes and has to name the same sampler each time.
+	slot->sampling = sampling;
 	slot->generation++;
 	slot->live = true;
 
@@ -555,37 +486,71 @@ bool voe_render_texture_startup(voe_render_device *device)
 	// the data format because that is the one that does no decoding, which
 	// is the easier of the two to reason about when reading this.
 	static const uint8_t WHITE[4] = { 0xff, 0xff, 0xff, 0xff };
-	VkSamplerCreateInfo info = {
-		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.magFilter = VK_FILTER_LINEAR,
-		.minFilter = VK_FILTER_LINEAR,
-		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-		// REPEAT because a texture on a cube face runs 0..1 exactly and
-		// what happens outside that is a question nothing asks yet.
-		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		// Anisotropy is off: it is a device feature that has to be asked
-		// for at device creation and nothing has asked. The card that
-		// wants it enables the feature and sets these two together.
-		.anisotropyEnable = VK_FALSE,
-		.maxAnisotropy = 1.0f,
-		.minLod = 0.0f,
-		.maxLod = VK_LOD_CLAMP_NONE,
-		.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+	// One per voe_render_sampling, in that enum's order, so a slot's mode is
+	// the subscript.
+	//
+	// EVERYTHING ABOUT FILTERING IS THE SAME IN BOTH AND THE ONLY DIFFERENCE
+	// LEFT IS ADDRESSING. NEAREST magnification, NEAREST minification, one
+	// level: this engine has no antialiasing, and a linear filter and a
+	// mipmap chain are both antialiasing. What is left to choose is what
+	// happens outside 0..1, and the two modes are that choice — which is
+	// less than their names promise. See voe_render_sampling.
+	VkSamplerCreateInfo infos[VOE_RENDER_SAMPLING_COUNT] = {
+		// REPEAT, because a texture on a cube face runs 0..1 exactly and
+		// what happens outside it is a question nothing asks.
+		[VOE_RENDER_SAMPLING_SMOOTH] = {
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_NEAREST,
+			.minFilter = VK_FILTER_NEAREST,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.anisotropyEnable = VK_FALSE,
+			.maxAnisotropy = 1.0f,
+			.minLod = 0.0f,
+			.maxLod = 0.0f,
+			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+		},
+		// CLAMP_TO_EDGE, and it still earns its place with the filtering
+		// gone: a sheet is not tiled, and REPEAT lets a coordinate a
+		// hair outside the border wrap to the far side of the atlas and
+		// fetch a different glyph entirely.
+		[VOE_RENDER_SAMPLING_SHARP] = {
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_NEAREST,
+			.minFilter = VK_FILTER_NEAREST,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.anisotropyEnable = VK_FALSE,
+			.maxAnisotropy = 1.0f,
+			.minLod = 0.0f,
+			.maxLod = 0.0f,
+			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+		},
 	};
 	VkResult result;
 	struct voe_render_texture_slot *slot = &device->textures[0];
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "starting textures on no device");
 
-	result = voe_render_vk.create_sampler(device->device, &info, NULL,
-					      &device->sampler);
-	if (result != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateSampler failed (VkResult %d)\n",
-			(int)result);
-		device->sampler = VK_NULL_HANDLE;
-		return false;
+	// Anisotropy is off in both, and now it is off for a second reason as
+	// well as the first: it is a device feature nothing has asked for at
+	// device creation, and it is itself antialiasing, so it is not coming
+	// back.
+	for (uint32_t i = 0; i < VOE_RENDER_SAMPLING_COUNT; i++) {
+		result = voe_render_vk.create_sampler(device->device, &infos[i],
+						      NULL,
+						      &device->samplers[i]);
+		if (result != VK_SUCCESS) {
+			fprintf(stderr,
+				"render: vkCreateSampler failed for sampling mode %u (VkResult %d)\n",
+				i, (int)result);
+			device->samplers[i] = VK_NULL_HANDLE;
+			return false;
+		}
 	}
 
 	// Slot 0 is the default and is built here rather than through
@@ -596,8 +561,7 @@ bool voe_render_texture_startup(voe_render_device *device)
 		void *mapped = NULL;
 		bool ok;
 
-		if (!build_texture_image(device, slot, TEXTURE_DATA_FORMAT, 1, 1,
-					 1))
+		if (!build_texture_image(device, slot, TEXTURE_DATA_FORMAT, 1, 1))
 			return false;
 		if (!voe_render_buffer_build(
 			    device, &staging, sizeof(WHITE),
@@ -619,12 +583,16 @@ bool voe_render_texture_startup(voe_render_device *device)
 		memcpy(mapped, WHITE, sizeof(WHITE));
 		voe_render_vk.unmap_memory(device->device, staging.memory);
 
-		ok = copy_into_image(device, slot, &staging, 1, 1, 1);
+		ok = copy_into_image(device, slot, &staging, 1, 1);
 		voe_render_buffer_teardown(device, &staging);
 		if (!ok)
 			return false;
 	}
 
+	// SMOOTH, explicitly: every unclaimed slot points at this one, so this is
+	// the sampler the whole descriptor array falls back to and it should be
+	// the ordinary one rather than whatever zero happens to mean.
+	slot->sampling = VOE_RENDER_SAMPLING_SMOOTH;
 	slot->generation = 1;
 	slot->live = true;
 	return true;
@@ -647,6 +615,9 @@ void voe_render_texture_shutdown(voe_render_device *device)
 		slot->live = false;
 	}
 
-	voe_render_vk.destroy_sampler(device->device, device->sampler, NULL);
-	device->sampler = VK_NULL_HANDLE;
+	for (uint32_t i = 0; i < VOE_RENDER_SAMPLING_COUNT; i++) {
+		voe_render_vk.destroy_sampler(device->device,
+					      device->samplers[i], NULL);
+		device->samplers[i] = VK_NULL_HANDLE;
+	}
 }

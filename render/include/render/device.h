@@ -196,6 +196,38 @@ typedef enum {
 	VOE_RENDER_TEXTURE_DATA,
 } voe_render_texture_kind;
 
+// How a picture is filtered, which is the second thing about a texture this API
+// needs told and is entirely independent of the first.
+//
+// A KIND IS NOT A MODE AND NEITHER IMPLIES THE OTHER. A data texture is not
+// automatically sharp — a metallic-roughness or occlusion map is numbers and is
+// still SMOOTH, because it is on a surface being flown around like any other.
+// The two questions are "what do these bytes mean" and "how is this picture
+// read", and only the second one is here.
+//
+// SMOOTH IS FOR A PICTURE ON A SURFACE IN THE WORLD AND SHARP IS FOR A SHEET
+// SOMETHING INDEXES INTO. A texture wrapped on a cube that is flown around is
+// minified, and without a mipmap chain a minified texture shimmers as the camera
+// moves — that is what SMOOTH is for and it is the right answer for nearly
+// everything. An atlas is the case where the chain is wrong: every read lands a
+// fraction into it, so the picture is permanently fetched from a pre-blurred
+// level, and there is no size at which it rests on level zero. SHARP is that
+// case, and a texture asking for it has to carry its own answer to aliasing,
+// because the chain that was hiding it is gone.
+//
+// SMOOTH IS 0, SO A CALLER THAT MEANT NOTHING IN PARTICULAR GETS WHAT EVERY
+// TEXTURE IN THIS ENGINE HAD BEFORE THERE WAS A CHOICE.
+typedef enum {
+	// Linear magnification and minification over a generated mipmap chain,
+	// REPEAT, no lod clamp. The one filter this engine had until card 025.
+	VOE_RENDER_SAMPLING_SMOOTH = 0,
+	// Linear magnification and minification of one level. No chain is
+	// generated, uploaded or sampled, and the address mode is CLAMP_TO_EDGE
+	// rather than REPEAT — an atlas is not tiled, and REPEAT would let a
+	// glyph at one edge of the sheet bleed into one at the far side.
+	VOE_RENDER_SAMPLING_SHARP,
+} voe_render_sampling;
+
 // A texture on the GPU. `index` is the subscript the fragment stage uses;
 // `generation` never reaches the GPU and is what makes a stale id safe, because
 // slots are reused and an id kept across a destroy would otherwise name
@@ -288,12 +320,36 @@ typedef struct {
 	// colour and the rest hold numbers. Putting an id from the wrong kind in
 	// one of these slots is a picture that is subtly too dark or too flat
 	// and nothing that fails.
+	//
+	// THE BASE COLOUR SLOT HAS EXACTLY ONE EXCEPTION AND THE FLAG BELOW
+	// GOVERNS IT. A distance-field sheet is numbers and is uploaded as
+	// VOE_RENDER_TEXTURE_DATA even though it sits in the base colour slot;
+	// that is not the mistake this paragraph warns about, it is a different
+	// thing being sampled. Anything else in this slot is still COLOUR.
 	uint32_t base_colour_texture;
 	uint32_t metallic_roughness_texture;
 	uint32_t normal_texture;
 	uint32_t occlusion_texture;
 	uint32_t emissive_texture;
-	uint32_t reserved_c[3];
+	// Non-zero: the base colour texture is not a picture at all. It holds
+	// three signed distances per texel, and the fragment stage takes their
+	// median, recovers how wide the edge is on screen from its own
+	// derivative, and computes alpha from that; the colour is the base
+	// colour factor, untouched by the sheet. Zero is an ordinary picture, so
+	// a zeroed record is one.
+	//
+	// IT IS HERE RATHER THAN AT THE END BECAUSE THIS IS THE FIRST OF THE
+	// THREE WORDS THAT USED TO BE reserved_c — same offsets, same size, and
+	// the asserts in render/src/descriptors.c are unchanged. Cards 021a and
+	// 021b did the same with reserved_a and reserved_b.
+	//
+	// WHAT IT DOES NOT SAY IS HOW THE SHEET IS FILTERED. That is
+	// voe_render_sampling, chosen when the texture was created; a sheet that
+	// asked for SMOOTH would be read out of a mipmap chain and the field
+	// would be averaged into mush. The two go together and nothing checks
+	// it.
+	uint32_t base_colour_distance_field;
+	uint32_t reserved_c[2];
 } voe_render_shading_values;
 
 typedef struct {
@@ -424,7 +480,10 @@ void voe_render_device_destroy(voe_render_device *device);
 // Upload width * height RGBA8 pixels and hand back the id that names them.
 // `kind` says whether the bytes are colour or numbers — see
 // voe_render_texture_kind, which is the one thing here that is easy to get wrong
-// and impossible to see.
+// and impossible to see. `sampling` says how the picture is addressed
+// outside 0..1 — see voe_render_sampling. Every texture is one level sampled
+// NEAREST whichever is passed; there are no mipmaps in this engine and no linear
+// filtering anywhere.
 //
 // The pixels are copied and the caller's buffer is its own again the moment this
 // returns — which is what lets the arena a decoder used be rewound immediately.
@@ -437,6 +496,7 @@ void voe_render_device_destroy(voe_render_device *device);
 // sets it rewrites may not be touched while a frame is reading them.
 [[nodiscard]] bool voe_render_texture_create(voe_render_device *device,
 					     voe_render_texture_kind kind,
+					     voe_render_sampling sampling,
 					     uint32_t width, uint32_t height,
 					     const uint8_t *rgba,
 					     voe_render_texture *out,

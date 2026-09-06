@@ -103,6 +103,25 @@
 // mapping is a colour that clips. Rule 10 — each arrives with the card that
 // needs it.
 //
+// A DISTANCE-FIELD BASE COLOUR IS THE THIRD UNIFORM BRANCH IN THIS FILE, AND IT
+// IS SPENT KNOWINGLY. `unlit` was the second and the alpha mode was the first;
+// there is a standing watch to reconsider the whole arrangement at the fourth,
+// so the next person to want one reports it rather than adding it.
+//
+// WHAT THE BRANCH DOES: the sheet's three channels are three signed distances to
+// the outline, each measured to a different subset of its edges. Their MEDIAN is
+// the distance the shape actually has — which is the whole trick, because at a
+// corner two of the three agree and the third is the one that would have rounded
+// it off. Alpha is then computed rather than sampled: a step at the halfway mark,
+// which is the outline. The colour is the base colour factor, untouched — the
+// sheet's rgb is numbers and multiplying by it would be arithmetic on distances.
+//
+// THE STEP IS HARD BECAUSE THIS ENGINE HAS NO ANTIALIASING ANYWHERE. It was a
+// smoothstep across one screen pixel, taken from the median's own derivative,
+// until that rule was settled. What the field buys is not a soft edge — it is an
+// edge in the right place at any size, which is what keeps a hard cut looking
+// like a letter rather than like blocks.
+//
 // ---- ALPHA, AND THE ONE MULTIPLY AT THE END ----
 //
 // THE ALPHA MODE DECIDES ALPHA AND THE LAST ACT IS ALWAYS colour.rgb *= colour.a.
@@ -131,6 +150,13 @@
 // format decodes the three colour channels and passes the fourth through
 // untouched, so the alpha of an sRGB base-colour texture is correct as sampled.
 // Do not "fix" it.
+//
+// AND A DISTANCE-FIELD SHEET IS NOT AN sRGB FORMAT AT ALL. It is uploaded as
+// VOE_RENDER_TEXTURE_DATA, so nothing decodes anything on the way in and the
+// distances arrive as they were written. Uploaded as colour they would each be
+// bent towards zero and every edge in the font would land slightly in the wrong
+// place — uniformly, everywhere, which reads as the spread being wrong rather
+// than as a format mistake.
 //
 // EVERYTHING IN HERE IS LINEAR LIGHT. A colour texture is an sRGB format, so
 // the hardware has already decoded it by the time it reaches this file; the
@@ -238,7 +264,10 @@ struct voe_render_shading {
 	uint normal_texture;
 	uint occlusion_texture;
 	uint emissive_texture;
-	uint reserved_c0;
+	// Non-zero: the base colour texture holds three signed distances per
+	// texel rather than a picture. In the first of the three words that used
+	// to be reserved_c, for the alignment reason above.
+	uint base_colour_distance_field;
 	uint reserved_c1;
 	uint reserved_c2;
 };
@@ -364,6 +393,14 @@ float4 voe_render_premultiplied(float3 colour, float coverage)
 	return float4(colour * coverage, coverage);
 }
 
+// The middle of three, which is what turns three one-sided distance fields back
+// into one shape with its corners intact. Written out rather than sorted: three
+// min/max are cheaper than any sort and there is no branch in them.
+float voe_render_median(float3 field)
+{
+	return max(min(field.r, field.g), min(max(field.r, field.g), field.b));
+}
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -386,8 +423,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// A MATERIAL WITH NO TEXTURE SAMPLES WHITE, WHICH IS WHY NOTHING TESTS
 	// FOR ONE. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one white
 	// pixel, so multiplying by it leaves every factor alone.
-	float4 base = shading.base_colour *
-		      voe_render_textures[shading.base_colour_texture].Sample(vertex.uv);
+	float4 sheet =
+		voe_render_textures[shading.base_colour_texture].Sample(vertex.uv);
 	// glTF packs occlusion in red, roughness in green and metalness in blue,
 	// and the metallic-roughness map is the green and blue of that. A file
 	// that puts its occlusion in the same picture points its occlusion
@@ -396,6 +433,42 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 		voe_render_textures[shading.metallic_roughness_texture].Sample(vertex.uv);
 	float occlusion =
 		voe_render_textures[shading.occlusion_texture].Sample(vertex.uv).r;
+
+	// The distance-field reading of that same sample, worked out here whether
+	// or not this material wants it. Unconditional because of fwidth: see the
+	// header. A material that is an ordinary picture pays three min/max and
+	// one derivative for it.
+	//
+	// A HARD CUT AT THE OUTLINE, BECAUSE THIS ENGINE HAS NO ANTIALIASING.
+	// The median is the signed distance and half is the outline, so a step
+	// is the whole of the decision: a fragment is inside the letter or it is
+	// not. There is no derivative here and no smoothstep, and that is the
+	// engine's rule rather than a limit of the sheet.
+	//
+	// THE DISTANCE FIELD IS STILL WHAT MAKES THIS WORK, AND THAT IS THE
+	// thing to understand before changing it. A hard cut through a field
+	// puts the edge exactly where the outline is at any size, so a letter
+	// walked up to has clean straight edges and square corners. A hard cut
+	// through a stored picture of coverage would put the edge on the nearest
+	// texel and a magnified letter would come out in blocks. The sheet is
+	// not what antialiased the text; it is what makes not antialiasing it
+	// look like a letter.
+	//
+	// WHAT IT COSTS IS THE FAR END OF THE SCENE. Text small enough that one
+	// pixel spans several texels breaks into disconnected specks, and they
+	// move as the camera moves. That is accepted here and it is not a bug to
+	// fix at this line.
+	float field = voe_render_median(sheet.rgb);
+	float field_alpha = step(0.5, field);
+
+	// THE THIRD UNIFORM BRANCH IN THIS FILE. See the header before adding a
+	// fourth. The sheet's rgb is distances and never multiplies the colour;
+	// its alpha channel is not read at all. The factor's own alpha still
+	// applies, so a tint may fade text the way it fades anything else.
+	float4 base = shading.base_colour_distance_field != 0 ?
+			      float4(shading.base_colour.rgb,
+				     shading.base_colour.a * field_alpha) :
+			      shading.base_colour * sheet;
 
 	float roughness = saturate(shading.roughness * orm.g);
 	float metallic = saturate(shading.metallic * orm.b);

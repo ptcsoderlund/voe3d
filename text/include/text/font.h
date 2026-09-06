@@ -14,11 +14,13 @@
 //
 // THE MATERIAL IS THE CALLER'S TO BUILD, AND IT IS UNLIT AND BLENDED. This
 // folder makes a mesh and a texture; what wears them is a `3d` material, and
-// this folder may not name `3d`. The four things it must say are the atlas as
+// this folder may not name `3d`. The five things it must say are the atlas as
 // the base colour texture, the tint as the base colour factor,
-// VOE_RENDER_ALPHA_BLENDED as the alpha mode, and `unlit` set. Text is not lit
-// by the sun: a letter that goes dark as a light moves round is a material that
-// forgot the flag.
+// VOE_RENDER_ALPHA_BLENDED as the alpha mode, `unlit` set, and the base colour
+// texture declared a distance field. Text is not lit by the sun: a letter that
+// goes dark as a light moves round is a material that forgot the fourth. And a
+// material that forgot the fifth draws every glyph as a solid rectangle, because
+// the sheet is numbers and reading it as a picture is reading nonsense.
 //
 // A TEXT BLOCK IS BUILT ONCE AND DOES NOT CHANGE. voe_render_geometry_create
 // waits for the graphics card to go idle and appends to a pool with no destroy,
@@ -54,10 +56,16 @@
 // advance at a time, and a newline starts a line. That is the whole layout
 // engine.
 //
-// NO HINTING, NO SIGNED DISTANCE FIELDS, NO SUBPIXEL ANYTHING. Glyphs are
-// rasterised once into one atlas with ordinary coverage anti-aliasing, at
-// whatever size this folder picked, and scaled from there. Subpixel rendering is
-// wrong the moment a quad turns, which here it does.
+// NO HINTING AND NO SUBPIXEL ANYTHING. Subpixel rendering is wrong the moment a
+// quad turns, which here it does, and hinting is a bytecode interpreter for a
+// problem a distance field does not have.
+//
+// AND NO ANALYTIC CURVES. The sheet is sampled at a fixed resolution, so a
+// feature thinner than a texel or two — a hairline stem in text drawn very small
+// — is one it cannot hold, and such text thins or breaks rather than blurring.
+// Evaluating the outline itself in the fragment stage would be exact at every
+// size and is written down as the right next move if this is ever not enough; it
+// is a much larger piece of work and nothing has asked for it.
 //
 // ONE WEIGHT, ONE FONT, NO FALLBACK. There is no bold, no italic and no second
 // face, and a character Oxanium does not carry is drawn as the font's own
@@ -106,14 +114,23 @@ typedef struct {
 
 void voe_text_font_destroy(voe_text_font *font);
 
-// The atlas, which is what a text material's base colour texture is.
+// The sheet, which is what a text material's base colour texture is.
 //
-// IT IS WHITE EVERYWHERE AND CARRIES THE GLYPHS IN ITS ALPHA, INCLUDING IN THE
-// GAPS BETWEEN THEM. That is not a detail: a transparent pixel that is white
-// rather than black cannot tint the edge of a glyph beside it when the sampler
-// filters across the two. It is not premultiplied either — the shader multiplies
-// colour by alpha once, at output, and an atlas that had already done it would
-// be multiplied by its own coverage twice and the text would read as too faint.
+// IT IS NOT A PICTURE OF THE LETTERS. Each texel holds three signed distances to
+// the nearest outline, in its first three channels; the fourth is opaque and is
+// not read. A material has to say so — see above — because what the shader does
+// with it is take the median of the three and compute its own alpha, and nothing
+// checks that a caller meant to hand over a distance field.
+//
+// WHICH IS ALSO WHY IT IS SHARP AT ANY SIZE. A picture of a letter is only sharp
+// at the size it was drawn at, and there is no such size here: text is in metres
+// through a perspective camera, so it is magnified and minified constantly. A
+// description of the shape has no size at all, and the shader recovers how wide
+// the edge should be from how fast the field moves across one screen pixel.
+//
+// NOTHING HERE IS PREMULTIPLIED. The shader multiplies colour by alpha once, at
+// output, on an alpha this sheet did not supply; there is nothing in it to
+// premultiply and a caller must not add one.
 voe_render_texture voe_text_font_atlas(const voe_text_font *font);
 
 // Lays the string out and uploads it as one mesh. `em` is how many metres one em

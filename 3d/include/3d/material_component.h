@@ -19,7 +19,9 @@
 // emissive ones name pictures uploaded as sRGB and the other three name pictures
 // uploaded raw; that is the importer's doing and there is nothing to say about it
 // at this level except that swapping two of these ids swaps two colour spaces
-// with them. See voe_render_texture_kind.
+// with them. See voe_render_texture_kind. The one exception is a base colour
+// slot holding a distance field, which is numbers and goes up raw —
+// `base_colour_distance_field` below is what says so.
 //
 // THE ALPHA MODE IS `render`'s ENUM AND NOT A SECOND ONE. This component already
 // holds `render`'s texture and shading ids, so it holds `render`'s spelling of
@@ -80,6 +82,19 @@ typedef struct {
 	bool unlit;
 
 	voe_render_texture base_colour_texture;
+	// The base colour texture is not a picture: it holds three signed
+	// distances per texel, and the fragment stage computes alpha from their
+	// median rather than sampling it. The base colour factor is then exactly
+	// the colour on screen. Text is what asked for it and a user interface
+	// will want the same thing; the importer never sets it, because no glTF
+	// carries a distance field.
+	//
+	// A SHEET THAT SAYS THIS ALSO HAS TO HAVE BEEN CREATED SHARP. See
+	// voe_render_sampling — a sheet addressed REPEAT can fetch across its
+	// own border into a different glyph, and nothing checks that the two
+	// agree.
+	bool base_colour_distance_field;
+
 	voe_render_texture metallic_roughness_texture;
 	voe_render_texture normal_texture;
 	voe_render_texture occlusion_texture;

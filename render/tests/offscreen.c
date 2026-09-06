@@ -642,7 +642,8 @@ int main(void)
 						  CUBE_INDICES, 36, &cube,
 						  &error));
 	VOE_TEST_CHECK(voe_render_texture_create(device,
-						 VOE_RENDER_TEXTURE_COLOUR, 4,
+						 VOE_RENDER_TEXTURE_COLOUR,
+						 VOE_RENDER_SAMPLING_SMOOTH, 4,
 						 4, &QUADRANT_TEXTURE[0][0][0],
 						 &texture, &error));
 

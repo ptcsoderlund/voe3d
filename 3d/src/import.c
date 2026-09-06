@@ -146,6 +146,7 @@ static bool upload_images(struct import *import, voe_base_error *error)
 		if (as_colour[i] &&
 		    !voe_render_texture_create(import->device,
 					       VOE_RENDER_TEXTURE_COLOUR,
+					       VOE_RENDER_SAMPLING_SMOOTH,
 					       model->images[i].width,
 					       model->images[i].height,
 					       model->images[i].pixels,
@@ -154,6 +155,7 @@ static bool upload_images(struct import *import, voe_base_error *error)
 		if (as_data[i] &&
 		    !voe_render_texture_create(import->device,
 					       VOE_RENDER_TEXTURE_DATA,
+					       VOE_RENDER_SAMPLING_SMOOTH,
 					       model->images[i].width,
 					       model->images[i].height,
 					       model->images[i].pixels,

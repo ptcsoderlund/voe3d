@@ -1,6 +1,14 @@
-// An outline, filled into a coverage bitmap. Internal to this folder, and the
-// half of glyph rendering that has nothing to do with file formats: it is handed
-// points and hands back how much of each pixel the shape covers.
+// An outline, turned into pixels. Internal to this folder, and the half of glyph
+// rendering that has nothing to do with file formats: it is handed points and
+// hands back either how much of each pixel the shape covers, or how far each
+// texel is from the shape's edge.
+//
+// TWO ANSWERS FROM ONE FLATTENER, AND THE SECOND IS WHAT THE ATLAS IS MADE OF.
+// voe_text_raster_fill is coverage — a stored picture of the shape at one size.
+// voe_text_raster_field is three signed distances per texel, which is a
+// description of the shape at no size at all and is what lets text be sharp when
+// it is magnified. Both walk the same flattened line segments and both get their
+// sign from the same thing: which way round a contour runs.
 //
 // NON-ZERO WINDING, WHICH IS WHAT TRUETYPE MEANS, AND CONTOUR DIRECTION IS
 // LOAD-BEARING. Each crossing of a scanline counts +1 or −1 depending on which
@@ -13,8 +21,33 @@
 // solid. It is visible in the first word rendered.
 //
 // COVERAGE IS ONE BYTE PER PIXEL AND IT IS NOT A COLOUR. 0 is outside the shape
-// and 255 is entirely inside it; what the caller does with that is the caller's,
-// and text/src/font.c writes it into the alpha channel of a white pixel.
+// and 255 is entirely inside it; what the caller does with that is the caller's.
+//
+// ---- AND THE FIELD, WHICH IS THE HARDER HALF ----
+//
+// THREE DISTANCES AND NOT ONE, BECAUSE ONE ROUNDS OFF EVERY CORNER. A single
+// signed distance field is smooth, and the linear filter that reads it between
+// texels turns a right angle into an arc — Oxanium's flat-cut terminals and
+// squared joins are exactly what that ruins. So each edge of the outline is
+// assigned two of the three channels, chosen so that the two edges meeting at a
+// corner do not share all of theirs, and each channel measures distance only to
+// the edges it was given. A reader takes the MEDIAN of the three: away from a
+// corner all three agree and the median is simply the distance, and at a corner
+// two of them agree on the correct side while the third is the one that would
+// have rounded it, so the median reconstructs the corner exactly.
+//
+// THE SIGN COMES FROM WHICH WAY ROUND THE CONTOUR RUNS, WHICH IS THE SAME FACT
+// THE NON-ZERO WINDING RULE IS BUILT ON. Positive is inside. It is per edge and
+// not per texel — a texel's three channels may legitimately disagree about their
+// signs near a corner, and that disagreement is the whole mechanism. Where the
+// median's sign nonetheless disagrees with the fill rule by more than half a
+// texel, the field is wrong rather than clever and the texel is replaced by the
+// plain signed distance; that is the one place the two halves of this file meet.
+//
+// THE SPREAD IS HOW FAR OUT THE FIELD IS ENCODED AND IT COSTS PADDING. Distances
+// are stored as a byte per channel over the range plus or minus
+// VOE_TEXT_FIELD_SPREAD texels, so a caller has to leave at least that much
+// blank around each glyph or two glyphs' fields run into one another.
 //
 // THE ANTI-ALIASING IS SUB-SCANLINES IN Y AND EXACT SPANS IN X. Each row of
 // pixels is sampled at VOE_TEXT_RASTER_SAMPLES evenly spaced heights; along each
@@ -52,6 +85,39 @@
 // flattening is not what limits the quality.
 #define VOE_TEXT_RASTER_TOLERANCE 0.1f
 
+// How far out from the outline the field is encoded, in texels. A byte per
+// channel spans plus or minus this, so 0 is that far outside, 255 is that far
+// inside and 128 is the outline itself.
+//
+// FOUR, AND IT IS A TRADE BETWEEN TWO THINGS AND NOT A QUALITY SETTING. It has
+// to be wide enough that a reader minifying the text still finds a gradient to
+// smooth across — one screen pixel spanning k texels sees the encoded range move
+// by k/(2·spread), so at a spread of four the field still has meaning down to
+// about eight texels to the pixel, which is text a long way off. It has to be
+// narrow enough that a byte resolves it: four texels either side over 256 steps
+// is a thirty-second of a texel, far finer than anything the edge is placed to.
+// And every texel of it is padding around every glyph in the sheet, which is
+// what stops it being made larger for free.
+#define VOE_TEXT_FIELD_SPREAD 4.0f
+
+// How sharp a turn between two edges of the outline has to be before they are
+// made to differ in their channels, in degrees.
+//
+// THREE, WHICH IS SMALL BECAUSE IT IS MEASURED AT THE OUTLINE'S OWN JOINS AND
+// NOT BETWEEN FLATTENED PIECES. A curve broken into straight pieces turns by
+// tens of degrees at every piece, so a threshold applied there would call every
+// curve a string of corners and the colouring would be noise. It is applied
+// between one `glyf` edge and the next instead — a line or a whole quadratic —
+// where a smooth join turns by very nearly nothing and a real corner turns by
+// tens of degrees. Three degrees separates those two populations with room to
+// spare, and it is msdfgen's own default for the same reason.
+#define VOE_TEXT_FIELD_CORNER_DEGREES 3.0f
+
+// How many channels the field has. Three, and it is not a number to change: the
+// median of three is what reconstructs a corner, and the reader is a texture
+// sample's rgb.
+#define VOE_TEXT_FIELD_CHANNELS 3
+
 // Fills `coverage`, which is `width` by `height` bytes with row 0 at the top of
 // the image and is expected to arrive zeroed.
 //
@@ -67,3 +133,16 @@ void voe_text_raster_fill(const voe_text_truetype_outline *outline, float scale,
 			  voe_math_float2 origin, uint8_t *coverage,
 			  uint16_t width, uint16_t height,
 			  voe_base_arena *arena);
+
+// Fills `field`, which is `width` by `height` by VOE_TEXT_FIELD_CHANNELS bytes
+// with row 0 at the top of the image. Unlike the fill above it writes every
+// texel, so it does not need to arrive zeroed.
+//
+// `scale`, `origin`, the clipping and `arena` all mean what they mean above. The
+// caller is responsible for leaving VOE_TEXT_FIELD_SPREAD texels of margin round
+// the outline: the field is written outside the shape as well as inside it, and
+// a box drawn tight to the outline cuts it off.
+void voe_text_raster_field(const voe_text_truetype_outline *outline, float scale,
+			   voe_math_float2 origin, uint8_t *field,
+			   uint16_t width, uint16_t height,
+			   voe_base_arena *arena);

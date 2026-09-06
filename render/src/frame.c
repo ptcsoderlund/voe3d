@@ -456,14 +456,18 @@ static void blit_to_screen(voe_render_device *device,
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
-	// LINEAR, which does nothing at all while the two extents match and is
-	// the right answer the moment they do not. NEAREST would be a decision
-	// to look worse later for no gain now.
+	// NEAREST, which does nothing at all while the two extents match and is
+	// the engine's rule the moment they do not. A linear blit is a smoothing
+	// filter over the whole finished frame — the largest piece of
+	// antialiasing there could be here — and this engine does not want
+	// antialiasing anywhere. A render resolution below the window's will
+	// therefore show square pixels rather than a blur, which is the intended
+	// picture and not a fault in the blit.
 	voe_render_vk.cmd_blit_image(frame->commands, frame->target.colour.image,
 				     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				     image->image,
 				     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-				     &region, VK_FILTER_LINEAR);
+				     &region, VK_FILTER_NEAREST);
 
 	barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;

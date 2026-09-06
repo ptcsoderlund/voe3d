@@ -18,8 +18,9 @@ way out, and no file here holds a gamma constant.
   nothing here knows what a scene is, why an id's index half is the number the
   shader uses, why geometry lives in two shared pools, what the padded records
   are padded for, why a colour texture and a data texture are not
-  interchangeable, and why an object carries a normal matrix as well as a world
-  one. It also carries the two things card 020 added: how long the card spent on
+  interchangeable, why a texture's kind and its sampling mode are two
+  independent questions, why the sampling modes' names now say more than they
+  mean, and why an object carries a normal matrix as well as a world one. It also carries the two things card 020 added: how long the card spent on
   a frame, which is its own clock and runs two frames behind, and which of the
   two present modes a caller wants — mailbox is optional and falling back to
   fifo is not a failure. Card 021a added the blended draw beside the solid one:
@@ -64,10 +65,11 @@ way out, and no file here holds a gamma constant.
 - `src/target.c` — the colour and depth images a frame is drawn into, one pair per
   frame slot, thrown away and built again on every resize.
 - `src/texture.c` — pixels to a sampled image: the staging copy, the layout
-  transitions round it, the mipmap chain, and the slot table the ids name. Its
-  header says why mipmaps are generated rather than skipped, what happens on a
-  card that cannot filter linearly, and why there are two formats — one for a
-  picture of a colour and one for a picture of numbers.
+  transitions round it, the two samplers, and the slot table the ids name. Its
+  header says why there are no mipmaps and no linear filtering anywhere and what
+  that costs, why the two sampling modes now differ only in addressing, and why
+  there are two formats — one for a picture of a colour and one for a picture of
+  numbers.
 - `src/swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where

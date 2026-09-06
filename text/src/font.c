@@ -10,10 +10,11 @@
 // and forty-eight in a lot of older faces — so nothing outside this file is ever
 // shown one.
 //
-// PIXELS are what the atlas is measured in. ATLAS_EM is how many of them one em
-// becomes when a glyph is rasterised, and it is the resolution the text has for
-// the rest of its life: there is one atlas, built once, and drawing bigger than
-// this magnifies it. `ATLAS_SCALE` is the one multiplication between the two.
+// TEXELS are what the atlas is measured in. ATLAS_EM is how many of them one em
+// becomes when a glyph is measured into the sheet. It is not the resolution the
+// text has for the rest of its life any more — the sheet holds a description of
+// the shape rather than a picture of it — but it is how finely that shape was
+// sampled, and a feature thinner than a texel or two is one it cannot hold.
 //
 // METRES are what the world is measured in. `em` is a parameter of
 // voe_text_block_create, because how big a metre of text is belongs to the
@@ -34,19 +35,30 @@
 // The engine's other Y flip — Vulkan's clip space, in render/src/frame.c — is
 // not one of these and does not interact with them.
 //
-// ---- THE ATLAS IS WHITE WITH THE GLYPHS IN ITS ALPHA ----
+// ---- THE ATLAS IS A DISTANCE FIELD AND NOT A PICTURE OF ANYTHING ----
 //
-// Every pixel is (255, 255, 255) and the coverage goes in the fourth channel,
-// the gaps between glyphs included. A gap that was black would tint the edge of
-// a glyph next to it as soon as the sampler filtered across the two, and that is
-// a grey fringe nobody can find afterwards. It is uploaded as
-// VOE_RENDER_TEXTURE_COLOUR: white survives the sRGB decode as white, and alpha
-// is never decoded, so the coverage arrives exactly as it was written.
+// Each texel holds three signed distances to the nearest outline, in its red,
+// green and blue; the fourth channel is not read and is opaque everywhere. What
+// draws it takes the median of the three and works out its own alpha from how
+// fast that median moves across one screen pixel — see raster.h for why there
+// are three and render/shaders/draw.slang for what the reader does with them.
+// There is no coverage anywhere in this file and no picture of a letter at any
+// size, which is what makes one sheet serve every size.
 //
-// IT IS NOT PREMULTIPLIED AND MUST NOT BE. The shader's last act is
-// `colour.rgb *= colour.a` (render/shaders/draw.slang); an atlas that had
-// already multiplied would be multiplied by its own coverage twice, and the
-// result is text that looks thin and washed out rather than obviously wrong.
+// IT GOES UP AS VOE_RENDER_TEXTURE_DATA AND ASKS FOR VOE_RENDER_SAMPLING_SHARP.
+// DATA, because distances are numbers: uploaded as colour, the sRGB decode would
+// bend every one of them towards zero and put every edge in the font slightly in
+// the wrong place — uniformly and everywhere, which reads as the spread being
+// wrong rather than as a format mistake. SHARP, because a sheet is not tiled and
+// a coordinate a hair outside a glyph's box must not wrap to the far side of the
+// atlas. Neither says anything about filtering: this engine samples every
+// texture NEAREST with no mipmaps, sheets included.
+//
+// NOTHING IS PREMULTIPLIED HERE AND NOTHING MAY BE. The shader's last act is
+// `colour.rgb *= colour.a` (render/shaders/draw.slang), and it does that once,
+// to an alpha this sheet did not supply. There is nothing in the sheet to
+// multiply by and adding one is the classic way to make text thin and washed out
+// rather than obviously broken.
 #include "raster.h"
 #include "truetype.h"
 #include "utf8.h"
@@ -89,37 +101,44 @@ static const uint8_t OXANIUM_TTF[] = {
 // character Oxanium does not carry visible rather than absent.
 #define NOTDEF_SLOT CHARACTER_COUNT
 
-// How big the atlas is and how big a glyph is drawn into it. Forty pixels to the
-// em packs the range above into about four hundred rows of five hundred and
-// twelve, which leaves room for the range to grow and costs one megabyte on the
-// graphics card once.
+// How big the sheet is and at what resolution a glyph's shape is measured into
+// it.
 //
-// FORTY AND NOT MORE, AND BIGGER IS NOT SHARPER — THAT IS THE WHOLE OF THIS
-// NUMBER AND IT IS THE OPPOSITE OF WHAT IT LOOKS LIKE. An atlas coarser than the
-// screen is magnified, which goes soft in the obvious way. An atlas FINER than
-// the screen is minified, and a minified texture is read out of the mipmap
-// chain: a glyph stored at eighty pixels and drawn at thirty is fetched from
-// between the half-size and the quarter-size copy and blended between them, and
-// that blend is blurrier than either of them. So the sharpest atlas is the one
-// whose texels are about the size of the pixels the text lands on, and asking
-// for headroom by storing it larger makes the ordinary case worse. Eighty was
-// tried first and is visibly soft at the sizes dev draws.
+// THIRTY-TWO, AND IT IS NOT A FUNCTION OF THE SCREEN ANY MORE — WHICH IS THE
+// WHOLE OF WHAT CHANGED HERE. This number used to have to guess how many pixels
+// a letter would land on, because the sheet held a picture of a letter and a
+// picture is only sharp at the size it was drawn at. It holds a description of
+// the letter's shape now, so the question it answers is a different one: how
+// finely does the SHAPE have to be sampled for its outline to be recoverable
+// from it. The answer is set by the thinnest thing in the font — a stem in
+// Oxanium Regular is about eight hundredths of an em, so at thirty-two texels to
+// the em it is two and a half texels across, and a feature narrower than about
+// one and a half texels is one the field has nowhere to put. Everything above
+// that is sharp at any size, so there is nothing bought by going higher and a
+// megabyte to be paid for it.
 //
-// WHICH MEANS THERE IS ONE RIGHT ANSWER PER SCREEN SIZE, AND THIS IS A FIXED
-// NUMBER. Text a long way off still minifies and text walked up to still
-// magnifies; forty is chosen for text that fills a few tens of pixels to the em,
-// which is what a line of writing in a scene does. A card that wants text sharp
-// at every size is the card that brings signed distance fields, and this
-// paragraph is what it replaces.
+// THE OLD ARGUMENT FOR FORTY IS GONE, NOT MERELY OUTVOTED, AND IT IS WORTH
+// SAYING WHY. It ran: a sheet stored finer than the screen is minified, a
+// minified texture is read out of the mipmap chain, and a blend between two
+// pre-shrunk copies is blurrier than either — so storing more resolution made
+// the ordinary case worse. Every step of that was true and it was a description
+// of the SAMPLER, not of text. There is no mipmap chain in this engine at all
+// any more, so there is nothing left to be read out of. Do not re-derive it.
+//
+// FIVE HUNDRED AND TWELVE SQUARE, WHICH THE RANGE ABOVE FITS IN WITH ROOM. One
+// megabyte on the graphics card, once, for a program that draws any text at all.
 #define ATLAS_PIXELS 512u
-#define ATLAS_EM 40.0f
+#define ATLAS_EM 32.0f
 
-// Empty pixels between one glyph and the next in the atlas. Two, because the
-// sampler filters between neighbouring pixels and the mipmap chain filters
-// between more of them than that; what stops the bleed being visible is the
-// white above rather than this, and this is what stops one glyph's coverage
-// reaching another's edge at the first mip level.
-#define ATLAS_PAD 2u
+// Blank texels left round every glyph, and between one glyph and the next.
+//
+// IT IS THE SPREAD, AND IT REPLACES A PADDING THAT WAS ABOUT FILTERING. The
+// field is written out to VOE_TEXT_FIELD_SPREAD texels either side of the
+// outline, so a box drawn tighter than that would cut it off and two glyphs
+// closer than that would have their fields run into each other — which is one
+// letter's edge reappearing faintly beside another's. It is a floor and not a
+// taste: raster.h owns the number and this follows it.
+#define ATLAS_MARGIN ((uint32_t)VOE_TEXT_FIELD_SPREAD)
 
 // The widest and tallest one glyph may rasterise to. Oxanium's largest is
 // thirty-seven by forty-one at the size above, and no face puts a character more
@@ -129,9 +148,10 @@ static const uint8_t OXANIUM_TTF[] = {
 #define GLYPH_PIXELS 128u
 
 // Where one character sits, all of it in ems so that a caller's metre is applied
-// once. The box is relative to the pen, with +y up, and is the box the atlas
-// actually holds — which is a pixel wider on every side than the outline, so a
-// filtered edge has something to fade into.
+// once. The box is relative to the pen, with +y up, and is the box the sheet
+// actually holds — which is ATLAS_MARGIN texels wider on every side than the
+// outline, because the field carries on past the outline and the quad has to be
+// big enough to show where it says the edge is.
 struct glyph {
 	float x0;
 	float y0;
@@ -196,9 +216,10 @@ static bool outline_bounds(const voe_text_truetype_outline *outline,
 	return true;
 }
 
-// One glyph: rasterised into `bitmap`, copied into the atlas, and measured into
-// `out`. `bitmap` is scratch of GLYPH_PIXELS squared and arrives holding
-// whatever the last glyph left in it.
+// One glyph: measured into `bitmap` as a field, copied into the atlas, and its
+// box written into `out`. `bitmap` is scratch of GLYPH_PIXELS squared times
+// VOE_TEXT_FIELD_CHANNELS and arrives holding whatever the last glyph left in
+// it; voe_text_raster_field writes every texel of the part it is given.
 static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 		      voe_base_arena *arena, uint8_t *bitmap, uint8_t *atlas,
 		      struct shelf *shelf, struct glyph *out,
@@ -229,56 +250,68 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 		return true;
 	}
 
-	// One pixel of margin on every side, so the outermost coverage a
-	// filtered sample can reach is a pixel of nothing rather than the edge
-	// of the box.
-	width = (uint32_t)ceilf((high.x - low.x) * scale) + 2u;
-	height = (uint32_t)ceilf((high.y - low.y) * scale) + 2u;
+	// ATLAS_MARGIN texels on every side, because the field is written that
+	// far outside the outline and a box drawn tight to the outline would cut
+	// it off. This is the spread, not a filtering allowance.
+	width = (uint32_t)ceilf((high.x - low.x) * scale) + 2u * ATLAS_MARGIN;
+	height = (uint32_t)ceilf((high.y - low.y) * scale) + 2u * ATLAS_MARGIN;
 	if (width > GLYPH_PIXELS || height > GLYPH_PIXELS)
 		ok = fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 
-	if (ok && shelf->x + width + ATLAS_PAD > ATLAS_PIXELS) {
+	if (ok && shelf->x + width + ATLAS_MARGIN > ATLAS_PIXELS) {
 		shelf->x = 0;
-		shelf->y += shelf->height + ATLAS_PAD;
+		shelf->y += shelf->height + ATLAS_MARGIN;
 		shelf->height = 0;
 	}
 	if (ok && shelf->y + height > ATLAS_PIXELS)
 		ok = fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 
 	if (ok) {
+		float margin = (float)ATLAS_MARGIN;
+
 		// Where font-unit (0, 0) — the left end of the baseline — lands
-		// in the glyph's own bitmap. x is one pixel in from the left
-		// edge of the outline; y is one pixel below the top of it, and
+		// in the glyph's own bitmap. x is the margin in from the left
+		// edge of the outline; y is the margin below the top of it, and
 		// it is a plus because the bitmap counts downwards while the
 		// font counts upwards.
-		origin.x = 1.0f - low.x * scale;
-		origin.y = 1.0f + high.y * scale;
+		origin.x = margin - low.x * scale;
+		origin.y = margin + high.y * scale;
 
-		memset(bitmap, 0, (size_t)width * height);
-		voe_text_raster_fill(&outline, scale, origin, bitmap,
-				     (uint16_t)width, (uint16_t)height, arena);
+		voe_text_raster_field(&outline, scale, origin, bitmap,
+				      (uint16_t)width, (uint16_t)height, arena);
 
+		// The three distances go into the sheet's first three channels
+		// and the fourth is left opaque. Nothing reads the fourth — see
+		// the header — and leaving it at zero would be a sheet that
+		// looked like a picture of nothing to anybody debugging it.
 		for (uint32_t r = 0; r < height; r++) {
 			uint8_t *row = atlas + ((size_t)(shelf->y + r) *
 							ATLAS_PIXELS +
 						shelf->x) *
 					               4u;
 
-			for (uint32_t c = 0; c < width; c++)
-				row[c * 4u + 3u] = bitmap[r * width + c];
+			for (uint32_t c = 0; c < width; c++) {
+				const uint8_t *from =
+					bitmap + ((size_t)r * width + c) *
+							 VOE_TEXT_FIELD_CHANNELS;
+
+				row[c * 4u + 0u] = from[0];
+				row[c * 4u + 1u] = from[1];
+				row[c * 4u + 2u] = from[2];
+			}
 		}
 
 		out->drawn = true;
-		out->x0 = (low.x * scale - 1.0f) / ATLAS_EM;
+		out->x0 = (low.x * scale - margin) / ATLAS_EM;
 		out->x1 = out->x0 + (float)width / ATLAS_EM;
-		out->y1 = (high.y * scale + 1.0f) / ATLAS_EM;
+		out->y1 = (high.y * scale + margin) / ATLAS_EM;
 		out->y0 = out->y1 - (float)height / ATLAS_EM;
 		out->u0 = (float)shelf->x / (float)ATLAS_PIXELS;
 		out->v0 = (float)shelf->y / (float)ATLAS_PIXELS;
 		out->u1 = (float)(shelf->x + width) / (float)ATLAS_PIXELS;
 		out->v1 = (float)(shelf->y + height) / (float)ATLAS_PIXELS;
 
-		shelf->x += width + ATLAS_PAD;
+		shelf->x += width + ATLAS_MARGIN;
 		if (height > shelf->height)
 			shelf->height = height;
 	}
@@ -316,14 +349,21 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 	// next to each other (base/arena.h) and this is indexed as one array.
 	pixels = voe_base_arena_push(arena,
 				     (size_t)ATLAS_PIXELS * ATLAS_PIXELS * 4u);
-	bitmap = voe_base_arena_push(arena, (size_t)GLYPH_PIXELS * GLYPH_PIXELS);
+	bitmap = voe_base_arena_push(arena, (size_t)GLYPH_PIXELS *
+						    GLYPH_PIXELS *
+						    VOE_TEXT_FIELD_CHANNELS);
 
-	// White everywhere, transparent everywhere, before a single glyph is
-	// drawn — see the header on why the gaps are white and not black.
+	// Every texel as far outside the shape as the field goes, and opaque,
+	// before a single glyph is measured. The gaps between glyphs are then
+	// distances that say "nothing here" rather than distances that say the
+	// outline is exactly on top of them, which is what a zeroed fourth
+	// channel and a zeroed field would have meant in two different
+	// directions.
 	for (size_t i = 0; i < (size_t)ATLAS_PIXELS * ATLAS_PIXELS; i++) {
-		pixels[i * 4u + 0u] = 255;
-		pixels[i * 4u + 1u] = 255;
-		pixels[i * 4u + 2u] = 255;
+		pixels[i * 4u + 0u] = 0;
+		pixels[i * 4u + 1u] = 0;
+		pixels[i * 4u + 2u] = 0;
+		pixels[i * 4u + 3u] = 255;
 	}
 
 	// The missing-glyph box first, so that it is in the atlas whatever
@@ -338,9 +378,12 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 			       &font->glyphs[c], error);
 	}
 
+	// DATA and SHARP, and neither is optional: see the header. A sheet
+	// uploaded as colour has the sRGB decode run over its distances, and a
+	// sheet addressed REPEAT can fetch a glyph from the far side of itself.
 	if (ok)
-		ok = voe_render_texture_create(device,
-					       VOE_RENDER_TEXTURE_COLOUR,
+		ok = voe_render_texture_create(device, VOE_RENDER_TEXTURE_DATA,
+					       VOE_RENDER_SAMPLING_SHARP,
 					       ATLAS_PIXELS, ATLAS_PIXELS,
 					       pixels, &font->atlas, error);
 
