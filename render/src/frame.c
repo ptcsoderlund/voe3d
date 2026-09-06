@@ -1,8 +1,15 @@
 // One frame, in three calls: begin waits for the slot and opens a recording,
 // draw records one object into it, end submits it and puts it on the window.
-// The clears are not draws — they are the load operations dynamic rendering
-// performs as it begins — so the only things recorded inside the rendering are
-// the draws.
+// The frame's own clears are not draws — they are the load operations dynamic
+// rendering performs as it begins — so what is recorded inside the rendering is
+// the draws and the one clear below that is not a load operation.
+//
+// THAT ONE IS voe_render_frame_clear_depth, AND IT IS THE FOURTH CALL. Card 024
+// added it: a caller that wants a group of objects to be in front of everything
+// it has already drawn clears depth between the two, mid-frame, inside the same
+// rendering block. It is the only command in this file recorded between draws
+// that is not itself a draw, and its own comment says why it is not a second
+// rendering block.
 //
 // THREE CALLS AND NOT ONE, BECAUSE THE CALLER IS WHAT KNOWS WHAT TO DRAW. Until
 // card 018 this was a single function and the scene was two cubes inside this
@@ -59,11 +66,14 @@
 // engine's far plane; the comparison is GREATER, set on the pipeline in device.c;
 // and the near plane is at 1.0, which comes out of the projection matrix in `3d`.
 // Three files, one convention, and clearing to 1 instead — the habit from every
-// tutorial — leaves a depth test that rejects everything.
+// tutorial — leaves a depth test that rejects everything. Both clears in this
+// file read that one constant, and the number never leaves this folder: no
+// caller supplies it and none is told it.
 //
 // THE DEPTH IMAGE IS NEVER STORED AND NEVER COPIED. Its storeOp is DONT_CARE
 // because nothing reads it after the rendering ends: it exists to sort fragments
-// within one frame and is rebuilt from the clear on the next.
+// within one frame and is rebuilt from the clear on the next — and, since card
+// 024, possibly more than once within that frame.
 //
 // TWO INDICES RUN THROUGH THIS FILE AND THEY ARE NOT INTERCHANGEABLE. A frame
 // slot counts how far ahead the CPU is allowed to run and is bounded by
@@ -734,6 +744,52 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 {
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
 	return draw_with(device, geometry, object, device->pipeline_blended);
+}
+
+// The overlay's depth clear: one command into the rendering block that is
+// already open, and the whole of what card 024 needed from this folder.
+//
+// vkCmdClearAttachments AND NOT A SECOND RENDERING BLOCK. Ending the rendering
+// and beginning it again would work and would cost a second set of load and
+// store operations, a second transition of both images, and a colour attachment
+// that has to be reloaded rather than kept — for a clear that this one command
+// performs inside the block the frame already has open. The shape ADR-0051 chose
+// is one rendering block per frame and this does not change it.
+//
+// IT IS ORDERED AGAINST THE DRAWS AROUND IT AND THAT IS WHY THIS WORKS AT ALL. A
+// clear inside a rendering block executes in command order like a draw, so
+// everything recorded before this sees the depth buffer it wrote and everything
+// recorded after it sees an empty one. It is not a load operation and does not
+// happen at the top of the frame.
+//
+// NO PIPELINE STATE REACHES IT. It clears the attachment directly rather than
+// through a pipeline, so the blended pipeline's depth write being off does not
+// hold it back — which is what lets it be called after a run of blended draws.
+//
+// THE DEPTH ASPECT ONLY, AND THE SAME VALUE THE LOAD OP USES. Naming the colour
+// attachment here would throw away the world's picture, which is the one way
+// this call can be badly wrong, and VOE_RENDER_DEPTH_CLEAR is read from the same
+// constant open_rendering reads so the two cannot drift apart.
+void voe_render_frame_clear_depth(voe_render_device *device)
+{
+	VkClearAttachment attachment = {
+		.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+		.clearValue = { .depthStencil = { .depth = VOE_RENDER_DEPTH_CLEAR } },
+	};
+	// The whole target, which is the rect the scissor is already set to.
+	// Framebuffer coordinates, so the viewport's Y flip takes no part in it.
+	// Its extent is filled in below rather than here, because reading it is
+	// already a dereference and the assert has not run yet.
+	VkClearRect rect = { .baseArrayLayer = 0, .layerCount = 1 };
+
+	VOE_BASE_ASSERT(device != NULL, "clearing depth on no device");
+	VOE_BASE_ASSERT(device->recording,
+			"clearing depth with no frame open — voe_render_frame_begin said there was nothing to draw into, or _end has already run");
+
+	rect.rect.extent = device->resolution;
+
+	voe_render_vk.cmd_clear_attachments(frame_at(device, device->slot)->commands,
+					    1, &attachment, 1, &rect);
 }
 
 bool voe_render_frame_end(voe_render_device *device)

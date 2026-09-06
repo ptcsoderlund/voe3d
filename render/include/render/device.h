@@ -518,6 +518,31 @@ bool voe_render_texture_destroy(voe_render_device *device,
 						 voe_render_geometry geometry,
 						 voe_render_object object);
 
+// Clears the depth buffer where the frame stands, without touching what has
+// already been drawn into the colour one. Everything drawn after this call
+// therefore sees an empty depth buffer and is in front of everything drawn
+// before it, while still testing and occluding normally among itself.
+//
+// THIS IS THE WHOLE OF WHAT A LAYER IS, AND IT IS ONE CALL RATHER THAN A SECOND
+// PASS. The caller draws a group, clears depth, and draws the next group; the
+// frame still opens exactly one rendering block and there is nothing here to
+// tear down or resume. See voe_3d_draw_system_run, which is the one caller, and
+// which calls this once between the world and the overlay.
+//
+// IT TAKES NO CLEAR VALUE AND WILL NOT BE GIVEN ONE. Depth runs backwards in
+// this engine — far is 0, near is 1.0, the test is GREATER — and that number
+// lives in this folder and nowhere else. A caller-supplied value is a way to get
+// the convention wrong that this signature simply does not offer; the value used
+// is the same one the frame's own load op clears to.
+//
+// THE COLOUR ATTACHMENT IS NOT TOUCHED. Only the depth aspect is cleared, over
+// the whole render area, so the picture built so far survives and the next group
+// is drawn on top of it.
+//
+// Calling this without a _begin that set `drawing`, or after _end, is the
+// caller's bug and asserts — the same mistake voe_render_frame_draw asserts on.
+void voe_render_frame_clear_depth(voe_render_device *device);
+
 // Ends the recording, submits it, and — where there is a window — copies the
 // target into the acquired swapchain image and presents it.
 //

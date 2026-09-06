@@ -126,6 +126,10 @@ typedef struct {
 	PFN_vkCmdPipelineBarrier2 cmd_pipeline_barrier2;
 	PFN_vkCmdBeginRendering cmd_begin_rendering;
 	PFN_vkCmdEndRendering cmd_end_rendering;
+	// The overlay's depth clear, recorded into the block the two above open.
+	// It is here rather than beside the draws because what it clears is an
+	// attachment of that block and it is meaningless outside one.
+	PFN_vkCmdClearAttachments cmd_clear_attachments;
 	PFN_vkCreateShaderModule create_shader_module;
 	PFN_vkDestroyShaderModule destroy_shader_module;
 	PFN_vkCreatePipelineLayout create_pipeline_layout;

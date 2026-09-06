@@ -27,7 +27,9 @@ way out, and no file here holds a gamma constant.
   and the order therefore matters, and that the colour target holds premultiplied
   colour. Card 021b added `unlit` to a shading record, in the four bytes that
   used to be reserved: its header says why not being lit is a property of a
-  surface rather than of a pass.
+  surface rather than of a pass. Card 024 added the depth clear a caller makes
+  mid-frame: its header says why it takes no clear value and what the colour
+  attachment does while it happens.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -74,7 +76,9 @@ way out, and no file here holds a gamma constant.
   object into it solid or blended, end it and present. Holds the engine's only Y
   flip and the clear colour; its header says why there are three calls and not
   one, why the camera and the sun share one buffer, why the two draw calls differ
-  in one argument, and why a headless device runs all but three lines of it. The two timestamps that measure the card are written and
+  in one argument, and why a headless device runs all but three lines of it. The
+  mid-frame depth clear is the one command here recorded between draws that is
+  not a draw, and its comment says why it is not a second rendering block. The two timestamps that measure the card are written and
   read here, and its header says why they can only be read one lap late and why
   a reading has to be masked before it is subtracted.
 - `src/probe.c` — the pipeline that reads a matrix and reports what it saw, built

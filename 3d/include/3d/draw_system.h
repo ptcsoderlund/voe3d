@@ -21,17 +21,42 @@
 // 3d/depth_sort.h for the sort and the sign it turns on, and
 // render/include/render/device.h for why the depth write is off.
 //
+// AND TWO LAYERS, WHICH RUN ACROSS THE TWO PASSES RATHER THAN INSIDE THEM. A
+// drawable says whether it is in the world or above it (3d/mesh_component.h);
+// the whole world is drawn, its two passes in that order, then depth is cleared,
+// then the overlay is drawn — its own two passes, in the same order, by the same
+// rules. So there are four groups and one depth clear between the second and the
+// third, and nothing about blending, the sort or shading differs between the
+// halves. An overlay object keeps a real position in metres and is seen through
+// the same camera: this layer is "always on top" and is not screen space, and no
+// orthographic projection exists anywhere in this engine.
+//
+// THE OVERLAY STILL OCCLUDES ITSELF, WHICH IS WHY THIS IS A CLEAR AND NOT THE
+// DEPTH TEST TURNED OFF. Two overlapping panels above the world have to hide
+// each other the way two panels in the world do; a layer that stopped testing
+// depth would draw them in table order and look correct until there were two of
+// them. A depth range split was the other alternative and it spends the precision
+// the reversed-depth convention exists to buy.
+//
+// THE LAYER SAYS WHEN, NEVER HOW. It does not imply unlit, does not imply
+// blended and does not change a material — whether a surface is lit is `unlit`
+// on its material, and an overlay object with a lit material is lit. Text is
+// both unlit and in the overlay, and those are two decisions that happen to
+// agree.
+//
 // THE SORT IS PER OBJECT AND NOT PER TRIANGLE. One key per entity: the
 // view-space depth of its origin. Two see-through things that interpenetrate,
 // and a long thin one seen end-on, come out wrong, and that is the trade taken
 // rather than an oversight — per-fragment sorting and order-independent
 // transparency are both refused by name.
 //
-// IT WANTS AN ARENA BECAUSE THE SORT NEEDS SOMEWHERE TO WORK. Working memory is
+// IT WANTS AN ARENA BECAUSE THE SORTS NEED SOMEWHERE TO WORK. Working memory is
 // an arena passed in and there is no default one (rule 11), so the caller hands
 // over scratch; this rewinds every frame to exactly what it was handed, keeps
 // nothing, and a caller may pass the same arena it uses for anything else. What
-// it takes is bounded by the number of meshes in the world.
+// it takes is bounded by the number of meshes in the world — three groups' worth
+// of it, because which group an entity is in is not known until the walk has
+// finished and each of them therefore has room for all of them.
 //
 // GROUPING IS THE ENGINE'S AND NEVER THE USER'S. There is no component, flag or
 // authoring concept for putting objects into batches by hand: the engine knows
@@ -77,8 +102,9 @@
 // asking — the same meaning `render`'s frame calls give it. A window with no
 // area draws nothing and returns true.
 //
-// `arena` is scratch for this frame's blended sort and nothing survives the
-// call: it is rewound to the mark this took on the way in, on every path out.
+// `arena` is scratch for this frame's sorts and the groups they order, and
+// nothing survives the call: it is rewound to the mark this took on the way in,
+// on every path out.
 [[nodiscard]] bool voe_3d_draw_system_run(voe_ecs_world *world,
 					  voe_render_device *device,
 					  voe_base_arena *arena,

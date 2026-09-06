@@ -482,9 +482,17 @@ static bool place_node(struct import *import, const struct frame *frame,
 			return no_room(error, "another entity");
 		if (!voe_scene_transform_add(import->world, entity, transform))
 			return no_room(error, "another transform");
+		// A file's contents are in the world. A layer is a thing a
+		// program decides about something it has loaded, not a property
+		// a `.glb` can carry — nothing in glTF says "above everything"
+		// — so the importer names WORLD rather than leaving it to a
+		// zeroed struct, and a caller that wants otherwise moves it
+		// afterwards the way it moves anything else.
 		if (!voe_3d_mesh_add(import->world, entity,
-				     (voe_3d_mesh){ .geometry =
-							    import->geometries[index] }))
+				     (voe_3d_mesh){
+					     .geometry = import->geometries[index],
+					     .layer = VOE_3D_LAYER_WORLD,
+				     }))
 			return no_room(error, "another mesh component");
 		if (!voe_3d_material_add(import->world, entity, material))
 			return no_room(error, "another material component");

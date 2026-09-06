@@ -64,9 +64,14 @@
 // And two see-through squares, one warm and one cool, standing a metre and a
 // half either side of the cubes.
 //
+// Then three smaller squares — one solid purple, one see-through green, one
+// see-through orange — standing inside the turning cube and never hidden by it,
+// however far round the orbit goes. Those are the overlay.
+//
 // Above all of it, three lines of writing on nothing — a sign in the world,
 // lettered on both faces — and across the bottom of the view, one line of it
-// that stays where it is however the camera moves.
+// that stays where it is however the camera moves and that nothing gets in front
+// of.
 //
 // ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
 //
@@ -94,6 +99,13 @@
 // moves — and it is still an object in the world, placed by a transform intent
 // every frame. There is no screen-space path in this engine and there is not
 // going to be one, so a heads-up display is a quad in front of the camera.
+//
+// AND THE LINE IS IN THE OVERLAY, SO NOTHING COVERS IT. Fly into a cube and the
+// writing stays readable on top of it, which it did not before card 024: at one
+// metre in front of the eye it went inside anything you walked into. The sign
+// stays in the world and is still hidden by whatever gets between it and the
+// camera, and having both is the point — the layer is a property of a drawable
+// and not a switch the program is in.
 //
 // THE TEXT DOES NOT CHANGE AS THE SUN GOES ROUND, AND THAT IS THE UNLIT FLAG.
 // The cubes brighten and darken through the lap; the writing keeps exactly the
@@ -185,6 +197,26 @@
 //     regression rather than an alpha one. See render/shaders/draw.slang.
 //   - Writing that brightens and dims as the sun goes round — the material's
 //     `unlit` flag never reached the shading record.
+//   - THE HEADS-UP LINE DISAPPEARING WHEN YOU FLY INTO SOMETHING — the layer.
+//     Either the line is not in the overlay or the depth clear between the two
+//     is not happening, and both look identical from here.
+//   - Everything on top of everything, or the sign no longer hidden by what is
+//     in front of it — the opposite failure, and the worse one: the layer has
+//     become a switch the whole frame is in rather than a property of one
+//     drawable. The sign and the cubes are what to check, not the line.
+//   - The world's picture gone and only the overlay left — the depth clear
+//     cleared colour as well. Only the depth aspect may be named; see
+//     render/src/frame.c.
+//   - The three quads inside the turning cube showing the far one's colour on
+//     top of the near one's — the sort, inside the overlay, which is the same
+//     sort and the same sign as the world's pair. It swaps twice a lap, so a
+//     backwards sign is right for half of it.
+//   - The solid overlay quad not hiding the see-through one behind it — the
+//     overlay's solid group is not writing depth, or the depth clear is
+//     happening after it rather than before.
+//   - The two lit overlay quads not changing as the sun goes round, or the
+//     unlit one changing — the layer has picked up a meaning about lighting
+//     that it must not have. It decides order and nothing else.
 //   - A square of background round every letter — the text material's alpha mode
 //     arriving as opaque, which is the same failure as the quad above wearing a
 //     different shape.
@@ -437,6 +469,23 @@
 // transparent hides a wrong colour and nearly opaque hides a wrong order.
 #define QUAD_ALPHA 0.5f
 
+// The three quads in the overlay: how big they are and how far either side of
+// the middle one the other two stand. They are put at the turning cube, so these
+// are the numbers that decide whether they are inside it.
+//
+// SMALL ENOUGH TO FIT INSIDE THE TURNING CUBE ACROSS. That cube is CUBE_SCALE_X
+// by CUBE_SCALE_Y by CUBE_SCALE_Z and it spins, so a quad noticeably narrower
+// than the smallest of those is enclosed by it from every angle — which is what
+// makes "nothing in the world covers it" something a person can watch rather
+// than take on trust. They stick out above and below, and that is fine: the
+// claim is about the part that is inside.
+//
+// AND FAR ENOUGH APART TO OVERLAP RATHER THAN COINCIDE. Two quads at one depth
+// would show nothing about the order they were drawn in. This is the same reason
+// QUAD_Z is not nought, at a smaller scale.
+#define OVERLAY_QUAD_SIZE 0.5f
+#define OVERLAY_QUAD_Z 0.22f
+
 // The two strings, and the two placements the card asks to see: one standing in
 // the world and one locked to the camera.
 //
@@ -653,7 +702,12 @@ static voe_scene_light_intent sunlight(voe_ecs_entity sun, float seconds)
 }
 
 // One cube, one entity: geometry it shares with its neighbour, a material it
-// shares with its neighbour, and a transform of its own.
+// shares with its neighbour, a transform of its own, and the world layer.
+//
+// IT NAMES ITS LAYER RATHER THAN LETTING A ZEROED STRUCT PICK ONE. World is
+// nought, so this line changes nothing and is here because every drawable in
+// this file says which layer it is in — see the header on the two placements and
+// why neither is the normal case.
 static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
 		     voe_3d_material material, voe_math_float3 position,
 		     voe_math_float3 scale, voe_ecs_entity *out)
@@ -669,7 +723,8 @@ static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
 	if (!voe_scene_transform_add(world, *out, transform))
 		return false;
 	if (!voe_3d_mesh_add(world, *out,
-			     (voe_3d_mesh){ .geometry = geometry }))
+			     (voe_3d_mesh){ .geometry = geometry,
+					    .layer = VOE_3D_LAYER_WORLD }))
 		return false;
 	return voe_3d_material_add(world, *out, material);
 }
@@ -733,33 +788,55 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 			turning);
 }
 
-// One see-through quad, one entity: geometry it shares with the other one, a
-// material of its own because the colour differs, and a transform of its own.
-static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
-		     voe_render_geometry geometry, voe_math_float4 colour,
-		     float z, voe_base_error *error)
+// The material a quad wears. The three things that differ between the five of
+// them are all here; everything else is the same for all of them.
+//
+// THE COLOUR IS NOT PREMULTIPLIED HERE. A material's base colour is an ordinary
+// colour with an alpha beside it; the shader multiplies at the very end, which
+// is where the engine's premultiplied contract is applied. See
+// render/shaders/draw.slang.
+//
+// FULLY ROUGH AND NOT METALLIC, so what is seen through a see-through one is the
+// blend and not a highlight. A metal has no diffuse response, which would make
+// most of the quad nearly black and the blend impossible to judge.
+static voe_3d_material quad_material(voe_math_float4 colour,
+				     voe_render_alpha_mode alpha_mode,
+				     bool unlit)
 {
-	voe_ecs_entity entity = { 0 };
-	// BLENDED, AND THE COLOUR IS NOT PREMULTIPLIED HERE. A material's base
-	// colour is an ordinary colour with an alpha beside it; the shader
-	// multiplies at the very end, which is where the engine's premultiplied
-	// contract is applied. See render/shaders/draw.slang.
-	//
-	// FULLY ROUGH AND NOT METALLIC, so what is seen through it is the blend
-	// and not a highlight. A metal has no diffuse response, which would make
-	// most of the quad nearly black and the blend impossible to judge.
 	voe_3d_material material = {
 		.base_colour = colour,
 		.metallic = 0.0f,
 		.roughness = 1.0f,
-		.alpha_mode = VOE_RENDER_ALPHA_BLENDED,
+		.alpha_mode = alpha_mode,
 		.alpha_cutoff = 0.5f,
+		.unlit = unlit,
 	};
+
+	return material;
+}
+
+// Where one quad stands and how big it is. They are all square and all upright,
+// so a position and one number is the whole of a quad's transform.
+static voe_scene_transform quad_at(voe_math_float3 position, float size)
+{
 	voe_scene_transform transform = {
-		.position = { QUAD_X, QUAD_Y, z },
+		.position = position,
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { QUAD_SIZE, QUAD_SIZE, 1.0f },
+		.scale = { size, size, 1.0f },
 	};
+
+	return transform;
+}
+
+// One quad, one entity: geometry it shares with every other quad, a material of
+// its own because the colour differs, a transform of its own, and the layer it
+// is drawn in.
+static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
+		     voe_render_geometry geometry, voe_3d_material material,
+		     voe_scene_transform transform, voe_3d_layer layer,
+		     voe_base_error *error)
+{
+	voe_ecs_entity entity = { 0 };
 
 	if (!voe_3d_material_upload(gpu, &material, error))
 		return false;
@@ -768,23 +845,60 @@ static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
 	if (!voe_scene_transform_add(world, entity, transform))
 		return false;
 	if (!voe_3d_mesh_add(world, entity,
-			     (voe_3d_mesh){ .geometry = geometry }))
+			     (voe_3d_mesh){ .geometry = geometry,
+					    .layer = layer }))
 		return false;
 	return voe_3d_material_add(world, entity, material);
 }
 
-// The two see-through quads: one square of geometry into the pools, and two
-// entities standing either side of the cubes.
+// The five quads: one square of geometry into the pools, two entities standing
+// either side of the cubes in the world, and three more standing inside the
+// turning cube in the overlay.
 //
-// TWO MATERIALS AND NOT ONE, unlike the cubes. They have to be different colours
-// or there is no way to tell from the picture which one ended up on top, and a
-// material is where a colour lives.
+// A MATERIAL EACH AND NOT ONE BETWEEN THEM, unlike the cubes. They have to be
+// different colours or there is no way to tell from the picture which one ended
+// up on top, and a material is where a colour lives.
+//
+// ---- THE TWO IN THE WORLD ----
+//
+// The warm one nearer +Z and the cool one nearer −Z, so that whichever the
+// camera is behind is the one whose colour is on top of the other. They are
+// added in this order deliberately: the table order is warm then cool for the
+// whole run, so a frame that looks right from one side and wrong from the other
+// is the sort and nothing else.
+//
+// ---- THE THREE IN THE OVERLAY, AND WHAT EACH ONE IS FOR ----
+//
+// THEY STAND INSIDE THE TURNING CUBE, WHICH IS THE POINT. The squashed cube is
+// solid and it is right there around them, so every one of these would be hidden
+// for most of a lap if the layer were not working. They keep real positions in
+// metres and are seen through the same camera as everything else — this is
+// "always on top", not screen space, and there is no orthographic projection
+// anywhere in this engine.
+//
+// AND THEY STILL OCCLUDE EACH OTHER, WHICH IS THE HALF THAT A LAYER MADE OF A
+// DISABLED DEPTH TEST WOULD GET WRONG. The two see-through ones stand at +Z and
+// −Z of the solid one exactly as the world's pair straddles the cubes, so which
+// of them is nearer swaps twice a lap and the nearer one's colour has to be the
+// one on top of the overlap — the same diagnostic, one layer up. The solid one
+// between them writes depth like any other solid thing, so it hides whichever of
+// the two is behind it and is tinted by whichever is in front.
+//
+// ONE OF THEM IS LIT AND ONE IS NOT, AND THAT IS A SEPARATE AXIS ON PURPOSE. The
+// layer decides order and never lighting. The lit pair brighten and darken as
+// the sun goes round; the unlit one keeps exactly the colour its material asks
+// for. An overlay that quietly stopped lighting things would look like a
+// reasonable convenience and it is the one this arrangement is here to catch.
 static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 			  voe_base_error *error)
 {
 	voe_render_geometry geometry = { 0 };
 	voe_math_float4 warm = { 0.9f, 0.25f, 0.15f, QUAD_ALPHA };
 	voe_math_float4 cool = { 0.15f, 0.35f, 0.9f, QUAD_ALPHA };
+	voe_math_float4 over_lit = { 0.25f, 0.9f, 0.4f, QUAD_ALPHA };
+	voe_math_float4 over_unlit = { 0.95f, 0.55f, 0.1f, QUAD_ALPHA };
+	voe_math_float4 over_solid = { 0.55f, 0.2f, 0.75f, 1.0f };
+	voe_math_float3 middle = { CUBES_APART, 0.0f, 0.0f };
 
 	if (!voe_render_geometry_create(gpu, voe_dev_quad_vertices,
 					VOE_DEV_QUAD_VERTEX_COUNT,
@@ -793,13 +907,41 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 					error))
 		return false;
 
-	// The warm one nearer +Z and the cool one nearer −Z, so that whichever
-	// the camera is behind is the one whose colour is on top of the other.
-	// They are added in this order deliberately: the table order is warm
-	// then cool for the whole run, so a frame that looks right from one side
-	// and wrong from the other is the sort and nothing else.
-	return add_quad(world, gpu, geometry, warm, QUAD_Z, error) &&
-	       add_quad(world, gpu, geometry, cool, -QUAD_Z, error);
+	if (!add_quad(world, gpu, geometry,
+		      quad_material(warm, VOE_RENDER_ALPHA_BLENDED, false),
+		      quad_at((voe_math_float3){ QUAD_X, QUAD_Y, QUAD_Z },
+			      QUAD_SIZE),
+		      VOE_3D_LAYER_WORLD, error))
+		return false;
+	if (!add_quad(world, gpu, geometry,
+		      quad_material(cool, VOE_RENDER_ALPHA_BLENDED, false),
+		      quad_at((voe_math_float3){ QUAD_X, QUAD_Y, -QUAD_Z },
+			      QUAD_SIZE),
+		      VOE_3D_LAYER_WORLD, error))
+		return false;
+
+	// The solid one first, so that the two see-through ones are not merely
+	// being drawn in an order that happens to look right: it writes depth
+	// before either of them is issued, and both of them test against it.
+	if (!add_quad(world, gpu, geometry,
+		      quad_material(over_solid, VOE_RENDER_ALPHA_OPAQUE, false),
+		      quad_at(middle, OVERLAY_QUAD_SIZE), VOE_3D_LAYER_OVERLAY,
+		      error))
+		return false;
+	if (!add_quad(world, gpu, geometry,
+		      quad_material(over_lit, VOE_RENDER_ALPHA_BLENDED, false),
+		      quad_at((voe_math_float3){ middle.x, middle.y,
+						 OVERLAY_QUAD_Z },
+			      OVERLAY_QUAD_SIZE),
+		      VOE_3D_LAYER_OVERLAY, error))
+		return false;
+	return add_quad(world, gpu, geometry,
+			quad_material(over_unlit, VOE_RENDER_ALPHA_BLENDED,
+				      true),
+			quad_at((voe_math_float3){ middle.x, middle.y,
+						   -OVERLAY_QUAD_Z },
+				OVERLAY_QUAD_SIZE),
+			VOE_3D_LAYER_OVERLAY, error);
 }
 
 // One text block, one entity: the mesh the font built, an unlit blended material
@@ -815,10 +957,17 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 // AND THE TINT IS NOT PREMULTIPLIED HERE. It is an ordinary colour with an alpha
 // beside it; the shader multiplies at the very end. See dev's other blended
 // thing, add_quad, which says the same in the same words.
+//
+// THE LAYER IS THE CALLER'S AND IT IS NOT A FIFTH THING THE MATERIAL SAYS. Both
+// of this program's strings wear the same material and they are in different
+// layers: the sign is part of the scene and the heads-up line is above it. Unlit
+// and overlay travel together here by coincidence and not by rule — see the
+// header.
 static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 		     const voe_text_font *font, voe_text_block block,
 		     voe_math_float4 tint, voe_scene_transform transform,
-		     voe_ecs_entity *out, voe_base_error *error)
+		     voe_3d_layer layer, voe_ecs_entity *out,
+		     voe_base_error *error)
 {
 	voe_ecs_entity entity = { 0 };
 	voe_3d_material material = {
@@ -838,7 +987,8 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 	if (!voe_scene_transform_add(world, entity, transform))
 		return false;
 	if (!voe_3d_mesh_add(world, entity,
-			     (voe_3d_mesh){ .geometry = block.geometry }))
+			     (voe_3d_mesh){ .geometry = block.geometry,
+					    .layer = layer }))
 		return false;
 	if (!voe_3d_material_add(world, entity, material))
 		return false;
@@ -898,15 +1048,26 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 		.scale = { 1.0f, 1.0f, 1.0f },
 	};
 
-	if (!add_text(world, gpu, *font, sign, sign_tint, front, &unused, error))
+	// The sign is in the world, so that walking something in front of it
+	// still hides it. That is half of what the two placements are for.
+	if (!add_text(world, gpu, *font, sign, sign_tint, front,
+		      VOE_3D_LAYER_WORLD, &unused, error))
 		return false;
-	if (!add_text(world, gpu, *font, sign, sign_tint, back, &unused, error))
+	if (!add_text(world, gpu, *font, sign, sign_tint, back,
+		      VOE_3D_LAYER_WORLD, &unused, error))
 		return false;
 
 	// The heads-up line starts wherever; the loop places it every frame from
 	// where the camera actually is, and its width is what centres it there.
+	//
+	// AND IT IS IN THE OVERLAY, WHICH IS THE OTHER HALF. A line of writing
+	// that tells you what the keys do is no use at the moment you fly into
+	// something, and until card 024 that is exactly when it disappeared. It
+	// is still an ordinary object in the world with a position in metres —
+	// what changed is when it is drawn, not where it is.
 	*hud_size = line.size;
-	return add_text(world, gpu, *font, line, hud_tint, front, hud, error);
+	return add_text(world, gpu, *font, line, hud_tint, front,
+			VOE_3D_LAYER_OVERLAY, hud, error);
 }
 
 // Where the heads-up line goes this frame: in front of the eye, square to it,
@@ -915,9 +1076,15 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 // IT IS AN ORDINARY TRANSFORM IN THE WORLD AND THAT IS THE POINT. There is no
 // screen-space path in this engine and a "just for debug" one is exactly what
 // that rule exists to prevent, so a heads-up display is a quad standing in front
-// of the camera and moved with it — which is also why it goes behind anything
-// that gets between it and the eye, and why flying into a cube puts the cube in
-// front of the writing.
+// of the camera and moved with it.
+//
+// WHAT STOPS A CUBE GETTING IN FRONT OF IT IS THE LAYER AND NOT THIS FUNCTION.
+// Standing a metre from the eye used to mean flying into anything put that thing
+// in front of the writing; the line is in the overlay now, so it is drawn after
+// the world's depth is thrown away. This function still only decides where the
+// line is, and it would put it in exactly the same place if it were in the world
+// — those are two separate answers to two separate questions and neither one
+// implies the other.
 //
 // THE ROTATION IS THE CAMERA'S TWO ANGLES, COMPOSED IN THAT ORDER. Yaw about Y
 // and then pitch about X, which is the same composition voe_scene_camera_view
