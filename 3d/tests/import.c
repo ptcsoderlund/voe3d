@@ -246,16 +246,36 @@ int main(void)
 	// picture looks like is render/tests/offscreen.c's question.
 	add_a_camera(world);
 	add_the_sun(world);
-	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, arena, size));
 
 	// Twice, so that the second frame slot is used as well — which is where
-	// a per-slot buffer that was written into the wrong slot shows up.
-	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, arena, size));
+	// a per-slot buffer that was written into the wrong slot shows up. The
+	// loop's shape, as 3d/draw_system.h has it: the frame's inputs, begin,
+	// the walk, end.
+	for (int lap = 0; lap < 2; lap++) {
+		voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+		bool drawing = false;
 
-	// A window with no area draws nothing and says so rather than dividing
-	// by zero on the way to an aspect ratio.
-	VOE_TEST_CHECK(voe_3d_draw_system_run(world, device, arena,
-					      (voe_platform_size){ 0, 0 }));
+		VOE_TEST_CHECK(voe_render_frame_begin(device, size, frame.view,
+						      frame.light, &drawing));
+		VOE_TEST_CHECK(drawing);
+		if (!drawing)
+			break;
+		voe_3d_draw_system_run(world, device, arena, frame);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+	}
+
+	// A window with no area: the frame's inputs are still computed without
+	// dividing by zero on the way to an aspect ratio, and _begin says there
+	// is nothing to draw into — so the loop runs nothing and ends nothing.
+	{
+		voe_platform_size none = { 0, 0 };
+		voe_3d_frame frame = voe_3d_draw_system_frame(world, none);
+		bool drawing = true;
+
+		VOE_TEST_CHECK(voe_render_frame_begin(device, none, frame.view,
+						      frame.light, &drawing));
+		VOE_TEST_CHECK(!drawing);
+	}
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);

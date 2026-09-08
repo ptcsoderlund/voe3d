@@ -1,8 +1,8 @@
 # render
 
 The GPU, and the only folder that names Vulkan. A device opened onto a window, a
-swapchain, two geometry pools, textures, shading records, two pipelines and a
-frame — nothing above them. Not scenes, not entities, not files, and no abstraction
+swapchain, two geometry pools and a transient pair per frame slot, textures,
+shading records, two pipelines and a frame — nothing above them. Not scenes, not entities, not files, and no abstraction
 over Vulkan: there is one graphics API and there will not be a second. The only
 folder with shaders, and the only one slangc is run over.
 
@@ -34,6 +34,10 @@ way out, and no file here holds a gamma constant.
   attachment does while it happens. Card 022 added the rectangle of the base
   colour texture a record reads: its header says why that is what puts a sheet of
   frames behind one geometry, and why the whole texture is not a zeroed rect.
+  Card 028 added the transient create beside the static one: its header says
+  which of the two is a startup operation and which lives inside a frame, why
+  one id type serves both, and why the caller builds the arrays rather than
+  writing into the pool.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -59,9 +63,13 @@ way out, and no file here holds a gamma constant.
 - `src/buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
-- `src/geometry.c` — the two pools and the ranges into them. Its header says why
-  a mesh is a range and not a buffer, why the indices are stored as the caller
-  numbered them, and why nothing is ever freed.
+- `src/geometry.c` — the two static pools, the transient pair in every frame
+  slot, and the ranges into all of them. Its header says why a mesh is a range
+  and not a buffer, why the indices are stored as the caller numbered them, why
+  nothing static is ever freed, how the slot table splits into two bands, why
+  the top-of-frame reset is the existing staleness check firing on a schedule,
+  where the generation can wrap and why that is noted rather than handled, and
+  why a barrier appearing in the transient path would be the bug.
 - `src/shading.c` — the record buffer the fragment stage reads by index, and the
   slots that name its rows. Its header says why one buffer serves every frame
   slot and why creating a record waits for the GPU.
@@ -83,7 +91,10 @@ way out, and no file here holds a gamma constant.
   one, why the camera and the sun share one buffer, why the two draw calls differ
   in one argument, and why a headless device runs all but three lines of it. The
   mid-frame depth clear is the one command here recorded between draws that is
-  not a draw, and its comment says why it is not a second rendering block. The two timestamps that measure the card are written and
+  not a draw, and its comment says why it is not a second rendering block. Since
+  card 028 a draw may come out of either pool pair, and its header says why the
+  pair is rebound only when a range's pool differs from the one last bound, and
+  why the transient reset runs after the fence and nowhere else. The two timestamps that measure the card are written and
   read here, and its header says why they can only be read one lap late and why
   a reading has to be masked before it is subtracted.
 - `src/probe.c` — the pipeline that reads a matrix and reports what it saw, built
@@ -92,6 +103,12 @@ way out, and no file here holds a gamma constant.
 - `tests/pools.c` — two meshes and two ranges, a texture id that stops naming
   anything when it is destroyed, and a full pool as a returned failure. Its
   header says why those two cases are the ones worth a test.
+- `tests/transient.c` — geometry that lives one frame: an id refused by the
+  frame after, the same slot drawing different contents, a static and a
+  transient range drawn in one frame with the rebind between them, and an
+  overrun that is refused without corrupting the frame or the next. Its header
+  says why it reads the picture back rather than trusting the bookkeeping.
+  Headless.
 - `tests/matrix.c` — that slangc really was given `-matrix-layout-row-major`,
   checked by making a shader report a known matrix back. Its header says which
   two claims card 018 moved out of it and where they went, and why the three

@@ -1,20 +1,51 @@
 # 028 — geometry that changes
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-fable-5-1 (kanban-coder)
 blocked-by: - (ADR-0085 accepted 2026-09-07; this card is claimable)
 
 Written by the tech lead under the standing grant. **Not a spin-off**: it is the
 card that follows 027, so it takes the next number rather than a letter.
 
-The decisions behind this card are **ADR-0084** and **ADR-0085**. Everything you
-need from both is restated here and you should not have to go and read them.
+The decisions behind this card are **ADR-0084**, **ADR-0085** and, since
+2026-09-08, **ADR-0098**. Everything you need from all three is restated here and
+you should not have to go and read them.
 
 ## This card is claimable
 
 **ADR-0085 was accepted on 2026-09-07** and the `3d` section below is in scope.
 It is the small decision that lets a new geometry id reach the mesh table;
 without it the last third of this card would have had no mechanism.
+
+## Amended 2026-09-08: who opens the frame
+
+**The first coder on this card found a contradiction and stopped, correctly.**
+The transient create below requires an open frame, but the only code that opened
+one was `voe_3d_draw_system_run`, which called `voe_render_frame_begin`, walked
+the tables and called `voe_render_frame_end` inside one call. So the dev program
+had no moment at which to build its readout. That is resolved by decision
+(ADR-0098), not by loosening the create:
+
+- **The program's loop opens and closes the frame.** `voe_render_frame_begin` and
+  `voe_render_frame_end` are called from the loop in `dev/src/main.c`, exactly as
+  the example at the top of `render/include/render/device.h` has always shown.
+- **The draw system draws into the frame that is open**, and asserts if none is —
+  the same rule `voe_render_frame_draw` already applies. It no longer begins or
+  ends anything and it loses its `size` parameter; the size goes to `_begin`.
+- **Inside the frame the order is fixed**: begin; build what changes this frame
+  (this card's readout, later the GUI); the draw system walks the world; end,
+  which presents. Building what changes is the only world write after the
+  systems have run, and it is the direct `voe_3d_mesh_set_geometry` call this
+  card adds.
+- **A begin that comes back with `drawing == false` is the loop's case**: no
+  transient build, no draw system, no `_end`. The header documents it; the loop
+  follows it.
+- **Do not** let `_create_transient` wait on a fence so it can run between
+  frames. That was the other way out and it is rejected in the ADR for the reason
+  this card already gives under *likely to go wrong*: a wait inside the create
+  means the pools are not per-slot.
+
+The `3d` and `dev` scopes below have been extended with the concrete edits.
 
 ## Goal
 
@@ -179,6 +210,26 @@ One function, under ADR-0085:
   between systems, so it is written directly; the day two systems both want to
   write a mesh row, that is an ADR and not a patch.
 
+And the draw system, under ADR-0098:
+
+- **`voe_3d_draw_system_run` no longer calls `voe_render_frame_begin` or
+  `voe_render_frame_end`** (`3d/src/draw_system.c:248`, `:330`). It computes the
+  view and the sun as it does now, hands them — see the next point — and draws.
+- **The `size` parameter is removed.** `_begin` takes the size and it is the
+  loop's to pass. The view and the sun stay where they are computed today; if
+  `_begin` needs them before the draw system runs, expose what the draw system
+  computes as one call the loop makes just before `_begin` — do not compute a
+  camera twice and do not move the camera into `dev`.
+- **Calling the draw system with no frame open is the caller's bug and
+  asserts**, with `VOE_BASE_DEBUG_ASSERT`, the same way `render` treats a draw
+  without a `_begin`.
+- **The header's first sentence, *One frame, one call*, is now false. Rewrite it,
+  do not extend it**: the draw system draws the world into the frame the loop has
+  opened, and the loop is where the frame's phases are ordered
+  (`3d/include/3d/draw_system.h:1`). Its paragraph about a window with no area
+  drawing nothing and returning true moves to describing `_begin`'s `drawing`
+  flag as the loop's concern.
+
 ## Scope — `dev`: the statistics on the screen
 
 **This is the proof, and it is what the principal will look at.**
@@ -196,6 +247,17 @@ One function, under ADR-0085:
 - **Keep it small.** Frames per second and the four millisecond numbers is enough.
   This is a demonstration of a mechanism, not a profiler UI, and a layout engine
   is not in scope.
+- **The loop's shape, under ADR-0098** (`dev/src/main.c:1791`): after the
+  `update` sample, call `voe_render_frame_begin`; if `drawing`, build the readout
+  through `voe_text_block_create_transient`, put its id on the readout's entity
+  with `voe_3d_mesh_set_geometry`, call `voe_3d_draw_system_run`, call
+  `voe_render_frame_end`; if not `drawing`, do none of those. Break out of the
+  loop on a false from `_begin`, the draw system or `_end`, as the loop does
+  today on a false from the draw system.
+- **The `draw` timing sample keeps its name and now spans `_begin` to `_end`
+  inclusive of the transient build.** Rewrite the comment at `dev/src/main.c:1351`
+  and the `say_what_is_measured()` line for `draw` so they describe what is inside
+  the loop's draw phase rather than what is inside the draw system.
 
 ## Where this card is likely to go wrong
 
@@ -218,6 +280,11 @@ One function, under ADR-0085:
   first input to.
 - **Quietly adding a cache** because rebuilding the string every frame feels
   wasteful. See above. It is a tenth of a millisecond and the decision is written.
+- **Building the readout before `_begin`**, because it reads naturally to prepare
+  the text and then draw. The create asserts, and that assert is right: the slot
+  is not known yet. The order is begin, build, draw, end.
+- **Leaving `_begin`/`_end` inside the draw system and adding a callback** so the
+  one-call shape survives. Rejected by ADR-0098; the loop owns the frame.
 
 ## Verify
 
@@ -229,6 +296,9 @@ One function, under ADR-0085:
   `render/tests/pools.c` is the neighbour to follow.
 - **A test that the static path still works alongside it in the same frame**, both
   pools drawn from, which is the rebind path exercised.
+- **The existing `3d` and `dev` builds still pass with the draw system drawing
+  into a frame the caller opened** — the headless device is how `3d`'s tests, if
+  any open a frame, get one.
 - **A test that overrunning a transient pool is refused and does not corrupt the
   frame** — the frame after it must draw correctly.
 - **Screenshot the dev program with the statistics on screen**, and let it run long
@@ -256,3 +326,84 @@ One function, under ADR-0085:
   others in `render.md` and `text.md`.
 - Whether keeping the console report alongside the screen one felt right or
   redundant.
+- Whether handling `drawing == false` in the loop was awkward, and whether the
+  view and sun had to be computed anywhere other than where they are today. Both
+  are inputs to a later decision about what the `app` folder exposes.
+
+## Notes (coder, 2026-09-08, Linux/WSL, claude-fable-5-1)
+
+**Implemented in full, including the 2026-09-08 amendment, and verified:
+`cmake -P check.cmake` exited zero on the human's Windows machine (clang 22,
+cmake 4.3.3, slangc) — every folder standalone, root build, all guards, includes,
+34 tests passed, analyser clean over 92 files. Written on Linux/WSL, where the
+toolchain is absent (see the last paragraph), so Linux is the platform not
+checked; whatever it turns up becomes a new card.**
+
+- `render`: three `transient_` capacities (all-nought allowed, meaning no
+  transient room; a create then refuses with a message). Host-visible mapped
+  vertex and index pool per frame slot, built in `geometry.c` beside the static
+  pools. Slot table is two bands; `voe_render_geometry_at` only had its bound
+  widened. `voe_render_geometry_frame_reset` runs in `_begin` right after the
+  fence wait: live transient slots go not-live and bump generation; the slot's
+  pools go back to empty. `voe_render_geometry_create_transient` asserts on no
+  open frame, refuses on a full pool or no slot with `REFUSED` and a stderr line
+  naming the numbers, and copies straight into the mapped pool. The draw tracks
+  `device->bound_transient` like `bound` and rebinds the vertex+index pair only
+  when a range's pool differs. The transient band starts at generation 1 so
+  generation 0 stays unissued while the reset, not the create, moves it on.
+  One addition the card did not name: `voe_render_frame_is_open`, so the draw
+  system can make the assert the amendment asks for without seeing render's
+  internals.
+- `text`: `voe_text_block_create_transient`; both creates are one `build_block`
+  with a bool deciding the last call. Header paragraph rewritten; the console
+  sentence removed.
+- `3d`: `voe_3d_mesh_set_geometry`; mesh header reasoning rewritten to "one
+  writer per row, nothing to coordinate"; layer not writable. Under ADR-0098:
+  `voe_3d_draw_system_frame(world, size)` computes the camera and the sun once
+  into a `voe_3d_frame`; the loop passes it to `_begin` and back to
+  `voe_3d_draw_system_run(world, device, arena, frame)`, which no longer begins
+  or ends anything, has no `size`, and debug-asserts on no open frame. A size
+  with no area gets aspect 1 in `_frame`, since `_begin` is about to say
+  `drawing == false`. **Deviation from the card's letter:** `_run` returns
+  `void`, not `bool`. Nothing left in it can fail in a way the loop should stop
+  for — a refused draw stops its group and says so, as before — and a `bool`
+  that is always true would be surface nothing uses (rule 10). The loop breaks
+  on a false from `_begin` or `_end`, which are the two calls that can fail.
+  Header rewritten; `3d/tests/import.c` drives begin/run/end itself.
+- `dev`: the loop owns the frame: `_frame`, `_begin`, build the readout,
+  `_run`, `_end`; `drawing == false` skips the middle three. The readout is a
+  fourth text entity, unlit blended distance-field material, overlay layer,
+  snapped into the top-left corner of the view — the corner computed from the
+  camera's field of view and the window's aspect ratio, so it stays there on a
+  resize — and left-aligned, so its changing width does not move it. Smaller
+  than the heads-up line (`READOUT_EM 0.040`). Five lines: fps and the four millisecond
+  numbers as the current period's running averages. Console block kept. A
+  failed readout build is reported and stops the program after the frame has
+  been ended. Prints once what the readout consumed. Capacities chosen:
+  `MAX_TRANSIENT_GLYPHS 128` (512 vertices, 768 indices), 2 ranges; the
+  readout is about 50 glyphs (the program prints the exact count). The `draw`
+  sample now spans `_begin` to `_end` and its two comments say so. The three
+  camera-locked placements share one `basis_of()` instead of three copies.
+- Test: `render/tests/transient.c` — stale id refused next frame and the same
+  slot draws different pixels; static + transient in one frame with two rebinds;
+  overrun refused, the range that fitted still draws, the next frame is fine;
+  device with no transient room refuses.
+
+**Report items that need the program run** (rebind count per frame, transient
+cost against `update`/`draw`, screenshots, the memory-flat soak) are the
+reviewer's to take on the Windows machine; the coder's machine cannot run it. Expected rebinds: two per frame — the readout is one
+transient range inside the overlay's blended group, so the pair is rebound once
+into it and once out unless it sorts last.
+
+**Verification on the coder's machine was not possible.** WSL, `/mnt/dev` is a
+9p mount of a Windows folder. `ninja`, `slangc` and `wayland-scanner` are not
+installed, and `chmod` is refused on the mount, which makes CMake's
+`configure_file` fail even before the missing tools. What was run there instead:
+`clang -std=c23 -fsyntax-only -Wall -Wextra -Wpedantic -Werror` and
+`clang --analyze` on every translation unit touched — `geometry.c`, `frame.c`,
+`descriptors.c`, `tests/transient.c`, `mesh_component.c`, `draw_system.c`,
+`tests/import.c`, `font.c`, `dev/src/main.c` — all clean. The full
+`check.cmake` run above is the human's, on Windows.
+
+Files touched were normalised to LF (the index is LF; the working tree on this
+mount was CRLF), so `git diff --ignore-cr-at-eol` shows exactly the change.

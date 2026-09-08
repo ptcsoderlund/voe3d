@@ -52,6 +52,14 @@
 // arrives with the card that does. That layout is also what lets many objects be
 // drawn from one buffer later, with one indirect call instead of one call each.
 //
+// AND THERE ARE TWO LIFETIMES OF GEOMETRY, WHICH THE ID DOES NOT TELL APART.
+// voe_render_geometry_create is the startup one above: uploaded once, kept for
+// ever. voe_render_geometry_create_transient is the other: built inside a frame,
+// drawn in that frame, gone at the end of it. Both hand back a voe_render_geometry
+// and both go through the same two draw calls, so what holds one never has to
+// know which kind it holds — a transient id used a frame late is simply refused,
+// by the same generation check that refuses any other stale id.
+//
 // PER-OBJECT DATA GOES INTO ONE BUFFER PER FRAME SLOT, ONE RECORD PER DRAW. The
 // world matrix, the matrix its normals want and which shading record to use are
 // written by _draw as it records, and the shader reads its record by object
@@ -143,12 +151,25 @@ typedef struct voe_render_device voe_render_device;
 //
 // vertices and indices are counts, not bytes. objects is per frame slot and
 // bounds how many draws one frame may contain.
+//
+// THE THREE transient_ NUMBERS ARE THE SECOND KIND OF GEOMETRY — see
+// voe_render_geometry_create_transient — and they are the one group that may be
+// nought. A program that builds no geometry inside a frame asks for none and
+// pays for none; the first transient create on such a device is refused with a
+// message rather than asserting. They are per frame slot, like objects: the
+// pool is emptied at the top of every frame, so the numbers bound what one
+// frame may build and not what a program may build over its life. Slots are
+// shared, so transient_geometries is how many transient ranges one frame may
+// name.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
 	uint32_t geometries;
 	uint32_t objects;
 	uint32_t shadings;
+	uint32_t transient_vertices;
+	uint32_t transient_indices;
+	uint32_t transient_geometries;
 } voe_render_capacities;
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
@@ -379,9 +400,11 @@ typedef struct {
 	//
 	// IT IS WHAT MAKES A SHEET OF FRAMES ONE GEOMETRY AND ONE TEXTURE. The
 	// quad's own coordinates are 0..1 and every frame in a sprite sheet
-	// picks its own corner of the picture out with this; a geometry cannot
-	// change after it is created (see voe_render_geometry_create), so UVs
-	// baked per frame would be a sprite that can never change frame.
+	// picks its own corner of the picture out with this; a static geometry
+	// cannot change after it is created (see voe_render_geometry_create),
+	// so UVs baked per frame would be a sprite that can never change frame
+	// — and rebuilding a quad every frame through the transient path to
+	// move four texture coordinates would be the wrong tool for it.
 	// Changing frame is pointing an object at a different record, which
 	// costs nothing — the record index is submitted every frame already.
 	//
@@ -508,8 +531,9 @@ void voe_render_device_destroy(voe_render_device *device);
 //
 // IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION. The upload is
 // staged through a buffer that has to be destroyed once the copy is done.
-// Streaming geometry in while drawing is a different mechanism and a different
-// card.
+// Geometry built while drawing is the other call, below, and a different
+// mechanism: it never waits and never stages, because what it writes lives one
+// frame.
 [[nodiscard]] bool voe_render_geometry_create(voe_render_device *device,
 					      const voe_render_vertex *vertices,
 					      uint32_t vertex_count,
@@ -517,6 +541,36 @@ void voe_render_device_destroy(voe_render_device *device);
 					      uint32_t index_count,
 					      voe_render_geometry *out,
 					      voe_base_error *error);
+
+// The same shape, for geometry that lives one frame: copies the vertices and the
+// indices into this frame's own pool and hands back an id that names them until
+// voe_render_frame_end. The next frame's begin makes every id this handed out
+// stale, and a draw with one is then refused like any other stale id. Nothing is
+// freed and nothing needs to be — the pool is emptied and written again.
+//
+// IT REQUIRES AN OPEN FRAME AND ASSERTS WITHOUT ONE, WHICH IS THE MIRROR IMAGE
+// OF THE CALL ABOVE. voe_render_geometry_create is a startup operation: it waits
+// for the card to go idle and may not be called while a frame is being drawn.
+// This one is a frame operation: it writes into the pool belonging to the slot
+// voe_render_frame_begin picked, and that slot is not known — and its memory is
+// not known to be free of the card — until _begin has run. Call it between
+// _begin and _end, on a frame whose `drawing` came back true, and nowhere else.
+//
+// THE CALLER BUILDS THE ARRAYS AND THIS COPIES THEM. Handing back a pointer into
+// the pool to write through would save the copy and cost every caller the rule
+// that write-combined memory must never be read back; the copy here is out of
+// memory the caller has just written and is cache-hot.
+//
+// FAILS, RETURNED AND NOT FATAL, WHEN EITHER TRANSIENT POOL IS FULL OR NO
+// TRANSIENT SLOT IS LEFT FOR THIS FRAME — with VOE_BASE_ERROR_REFUSED and a
+// line on stderr naming the numbers, because the answer is always that a
+// transient capacity was chosen too small and never that something broke. The
+// frame is otherwise untouched and every draw in it still goes through. A count
+// of zero is the caller's bug and asserts, as it is above.
+[[nodiscard]] bool voe_render_geometry_create_transient(
+	voe_render_device *device, const voe_render_vertex *vertices,
+	uint32_t vertex_count, const uint32_t *indices, uint32_t index_count,
+	voe_render_geometry *out, voe_base_error *error);
 
 // ---------------------------------------------------------------- textures
 
@@ -645,6 +699,13 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // Calling this without a _begin that set `drawing`, or after _end, is the
 // caller's bug and asserts — the same mistake voe_render_frame_draw asserts on.
 void voe_render_frame_clear_depth(voe_render_device *device);
+
+// Whether a frame is open for drawing: true from a _begin whose `drawing` came
+// back true until its _end. It exists so that a caller which issues draws on
+// behalf of another — the draw system in `3d` — can assert the same thing every
+// draw here asserts, before it has walked anything. Not a way to ask whether to
+// begin a frame: the loop that owns the frame already knows.
+[[nodiscard]] bool voe_render_frame_is_open(const voe_render_device *device);
 
 // Ends the recording, submits it, and — where there is a window — copies the
 // target into the acquired swapchain image and presents it.

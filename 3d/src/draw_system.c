@@ -1,5 +1,5 @@
 // The draw system: the camera, the sun, the matrices each object is drawn with,
-// and one draw per mesh.
+// and one draw per mesh into the frame the loop has opened.
 //
 // IT WALKS THE MESH TABLE AND LOOKS THE OTHER TWO COMPONENTS UP BY ENTITY. That
 // is what a flat-table ECS with no archetypes costs and it is the trade this
@@ -12,11 +12,17 @@
 // more than one is a mistake rather than a choice, and why a world with no sun
 // asserts here rather than drawing something black.
 //
-// A DRAW THAT IS REFUSED STOPS THE LOOP BUT NOT THE FRAME. Running out of room
-// for objects means the device was made for fewer than this scene has; the
-// frame is still ended and still presented, so a person sees most of the scene
-// and a line on stderr rather than a black window. The alternative — abandoning
-// the recording — would leave the slot's fence unsignalled.
+// A DRAW THAT IS REFUSED STOPS ITS GROUP BUT NOT THE FRAME. Running out of room
+// for objects means the device was made for fewer than this scene has; the loop
+// still ends and presents the frame, so a person sees most of the scene and a
+// line on stderr rather than a black window — which is also why this returns
+// nothing: there is no answer here the loop should act on. The alternative —
+// abandoning the recording — would leave the slot's fence unsignalled.
+//
+// THE CAMERA IS WORKED OUT IN voe_3d_draw_system_frame AND NOWHERE ELSE. The
+// loop needs it before _begin and this system needs its view for the sort, so
+// the one function computes it and the loop carries the answer to both. Nothing
+// in _run reads the camera table.
 //
 // THE LATER GROUPS ARE BUILT ON THE WAY THROUGH THE FIRST ONE AND NOT BY MORE
 // WALKS. An entity that cannot be drawn where it is found has its record and its
@@ -204,15 +210,46 @@ static bool draw_group(voe_render_device *device, const struct group *group)
 	return true;
 }
 
-bool voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
-			    voe_base_arena *arena, voe_platform_size size)
+voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
+				      voe_platform_size size)
 {
-	voe_render_view view;
+	voe_3d_frame frame;
 	voe_scene_camera camera;
+	// A window with no area has no aspect ratio. One is as good as any
+	// other then: _begin is about to say there is nothing to draw into and
+	// nothing reads the matrix, so this only keeps the division below away
+	// from a zero.
+	float aspect = 1.0f;
+
+	VOE_BASE_ASSERT(world != NULL, "framing no world");
+	VOE_BASE_ASSERT(voe_scene_camera_count(world) == 1,
+			"a world to draw needs exactly one camera — see 3d/draw_system.h");
+	VOE_BASE_ASSERT(voe_scene_light_count(world) == 1,
+			"a world to draw needs exactly one light — see 3d/draw_system.h");
+
+	if (size.width > 0 && size.height > 0)
+		aspect = (float)size.width / (float)size.height;
+
+	camera = voe_scene_camera_rows(world)[0];
+	frame.view.view = voe_scene_camera_view(camera);
+	frame.view.projection = voe_3d_projection(camera, aspect);
+	// Where the eye is, for the half of the shading that depends on which
+	// direction a surface is being looked from. It is the camera's own
+	// number and not something recovered from the view matrix.
+	frame.view.eye = camera.eye;
+	frame.view.reserved = 0.0f;
+	frame.light = the_sun(world);
+
+	return frame;
+}
+
+void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
+			    voe_base_arena *arena, voe_3d_frame frame)
+{
+	voe_render_view view = frame.view;
 	const voe_3d_mesh *meshes;
 	const voe_ecs_entity *owners;
 	uint32_t count;
-	bool drawing = false;
 	// The three groups this frame holds back, and the scratch they are built
 	// in. The world's solid objects are the fourth and are drawn as they are
 	// found, so they need none.
@@ -224,32 +261,11 @@ bool voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	VOE_BASE_ASSERT(world != NULL, "drawing no world");
 	VOE_BASE_ASSERT(device != NULL, "drawing to no device");
 	VOE_BASE_ASSERT(arena != NULL, "drawing with no arena to sort in");
-	VOE_BASE_ASSERT(voe_scene_camera_count(world) == 1,
-			"a world to draw needs exactly one camera — see 3d/draw_system.h");
-	VOE_BASE_ASSERT(voe_scene_light_count(world) == 1,
-			"a world to draw needs exactly one light — see 3d/draw_system.h");
-
-	// A window with no area has no aspect ratio to compute, and render is
-	// going to say there is nothing to draw into anyway. Returning here
-	// keeps the division below out of reach of a zero.
-	if (size.width <= 0 || size.height <= 0)
-		return true;
-
-	camera = voe_scene_camera_rows(world)[0];
-	view.view = voe_scene_camera_view(camera);
-	view.projection = voe_3d_projection(camera,
-					    (float)size.width /
-						    (float)size.height);
-	// Where the eye is, for the half of the shading that depends on which
-	// direction a surface is being looked from. It is the camera's own
-	// number and not something recovered from the view matrix.
-	view.eye = camera.eye;
-
-	if (!voe_render_frame_begin(device, size, view, the_sun(world),
-				    &drawing))
-		return false;
-	if (!drawing)
-		return true;
+	// The loop opens the frame and this draws into it; the same rule every
+	// draw in render applies, asserted here once rather than found by the
+	// first draw — or not found at all, in a world with nothing in it.
+	VOE_BASE_DEBUG_ASSERT(voe_render_frame_is_open(device),
+			      "drawing the world with no frame open — the loop calls voe_render_frame_begin first; see 3d/draw_system.h");
 
 	meshes = voe_3d_mesh_rows(world);
 	owners = voe_3d_mesh_entities(world);
@@ -304,7 +320,8 @@ bool voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	}
 
 	// A refused draw in any group stops that group and not the frame, so
-	// every return value here is deliberately dropped: _end still runs.
+	// every return value here is deliberately dropped: the loop still ends
+	// and presents the frame.
 	(void)draw_group(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,
@@ -325,7 +342,6 @@ bool voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	}
 
 	// Everything above is this frame's, and the caller's arena is handed
-	// back exactly as it arrived.
+	// back exactly as it arrived. Ending the frame is the loop's.
 	voe_base_arena_rewind(arena, mark);
-	return voe_render_frame_end(device);
 }

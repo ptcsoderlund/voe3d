@@ -27,6 +27,22 @@
 // is ambiguous is worse than no number. P switches between the two present
 // modes, which is the measurement the frame-pacing decision is waiting on.
 //
+// AND SINCE CARD 028 IT DRAWS THEM TOO. The same numbers stand in the top-left
+// of the view as the period's running averages, rebuilt every frame as a text
+// block through voe_text_block_create_transient and never cached: a readout that
+// remembered its string until it changed would, the day its invalidation missed,
+// show yesterday's numbers and look exactly like a frozen program. The console
+// block stays, because a period's worst is a different, still-useful thing.
+//
+// THE LOOP OWNS THE FRAME (ADR-0098). voe_render_frame_begin and _end are called
+// from the loop below and the phases between them run in a fixed order: begin;
+// build what changes this frame, which is the readout; the draw system walks the
+// world; end, which presents. Building comes after begin because geometry that
+// lives one frame can only be built once the frame's slot is known, and before
+// the walk because the walk is what draws it. A begin that says there is nothing
+// to draw into — a window with no area, a swapchain that has just gone stale —
+// skips all three; that case is the loop's and not the draw system's.
+//
 // THREE THINGS LIVE HERE THAT WILL NOT LIVE HERE LONG, and each of them is a
 // call site's business only until the folder that owns it exists:
 //
@@ -72,6 +88,10 @@
 // lettered on both faces — and across the bottom of the view, one line of it
 // that stays where it is however the camera moves and that nothing gets in front
 // of.
+//
+// And in the top-left of the view, five lines of numbers that change as you
+// watch: the frame rate and the four timings, the same ones the console prints,
+// laid out again every frame.
 //
 // ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
 //
@@ -222,6 +242,14 @@
 //     regression rather than an alpha one. See render/shaders/draw.slang.
 //   - Writing that brightens and dims as the sun goes round — the material's
 //     `unlit` flag never reached the shading record.
+//   - THE READOUT'S NUMBERS FROZEN WHILE THE CONSOLE BLOCKS KEEP COMING — the
+//     transient path. Either the block is not being rebuilt each frame, or a
+//     stale id is being drawn and refused on stderr every frame. There is no
+//     cache anywhere that could make them merely slow to update, so frozen is
+//     always a bug and never a saving.
+//   - The readout's left edge jumping sideways as a number gains a digit — it
+//     is being centred on its width. It is meant to be left-aligned, which is
+//     why its placement asks nothing about its size.
 //   - THE HEADS-UP LINE DISAPPEARING WHEN YOU FLY INTO SOMETHING — the layer.
 //     Either the line is not in the overlay or the depth clear between the two
 //     is not happening, and both look identical from here.
@@ -358,6 +386,12 @@
 //     Then make something happen: drag the window bigger and `gpu` should go up
 //     with the pixel count, minimise it and the rate should go through the roof.
 //     A number that never moves is a number that is not being measured.
+//   - READ THE SAME NUMBERS OFF THE SCREEN. The readout shows the period's
+//     running averages, so it settles over the first few hundred milliseconds
+//     after each console block and should then agree with the block that
+//     follows, to within the averaging. Watch a few periods go by: it resets
+//     with every block, and the frame rate moves the moment the window is
+//     resized or minimised and restored.
 //   - PRESS P AND COMPARE. It asks for fifo, and the `present` word on every
 //     block says which is actually in force — a machine that has no mailbox was
 //     already saying fifo and will go on saying it, and that is an answer.
@@ -387,6 +421,7 @@
 #include <3d/mesh_component.h>
 #include <assets/image.h>
 #include <base/arena.h>
+#include <base/assert.h>
 #include <base/error.h>
 #include <base/samples.h>
 #include <ecs/world.h>
@@ -428,6 +463,16 @@
 #define MAX_MESHES 64
 #define MAX_DRAWN_OBJECTS 256
 #define MAX_SHADINGS 64
+
+// What the GPU makes room for per frame: geometry that lives one frame, which
+// today is the readout and nothing else. Sized in glyphs because that is what
+// fills it — four vertices and six indices each — and the readout is about fifty
+// of them, so this is a little over double with nothing "to be safe" in it. The
+// program prints what the readout actually took beside this number, once, so the
+// next thing that needs transient room has a measurement to start from. Two
+// ranges: the readout is one, and the other is for the next thing.
+#define MAX_TRANSIENT_GLYPHS 128
+#define MAX_TRANSIENT_GEOMETRIES 2
 
 // The longest step the scene is ever advanced by, in seconds, however long the
 // frame actually took.
@@ -536,7 +581,7 @@
 // that handles only simple outlines draws them as blanks while looking perfectly
 // correct on an English string. If the `å` is missing, that is the bug and
 // text/tests/truetype.c is where it should have been caught.
-#define SIGN_TEXT "VOE3D\nunlit · blended · Oxanium\nÅNGSTRÖM · éüåÇ"
+#define SIGN_TEXT "VOE3D\nunlit · blended · Oxanium\nÅNGSTRÖMÄ · éüåäöÇ"
 #define SIGN_EM 0.30f
 #define SIGN_HEIGHT 3.4f
 
@@ -599,6 +644,18 @@
 #define HUD_TINT_R 0.75f
 #define HUD_TINT_G 0.92f
 #define HUD_TINT_B 1.0f
+
+// The readout: the same distance in front of the eye as the heads-up line,
+// smaller than it, and snapped into the top-left corner of the view. Where the
+// corner is in metres at that distance follows from the camera's field of view
+// and the window's aspect ratio — see top_left_of_the_view — so it stays in the
+// corner when the window is resized. The margin keeps it off the edge, in ems of
+// its own size, and the first baseline sits one em below the top so the tallest
+// glyph clears it. The string it holds is formatted into a buffer this long,
+// which is well over five short lines.
+#define READOUT_EM 0.040f
+#define READOUT_MARGIN_EMS 0.5f
+#define READOUT_CHARS 128
 
 // The sun: how long a lap takes, how high it sits, and how strong it is.
 //
@@ -1086,8 +1143,9 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 	return true;
 }
 
-// The font, and the three text entities it is drawn into: the sign's two faces
-// and the line locked to the camera.
+// The font, and the four text entities it is drawn into: the sign's two faces,
+// the line locked to the camera, and the readout, which gets its geometry every
+// frame rather than here.
 //
 // THE FONT IS MADE HERE AND NOT AT STARTUP, which is the difference between a
 // program that draws text and one that does not. Nothing in `render` builds an
@@ -1100,8 +1158,8 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 			 voe_base_arena *arena, voe_render_geometry quad,
 			 voe_text_font **font, voe_ecs_entity *hud,
-			 voe_ecs_entity *panel, voe_math_float2 *hud_size,
-			 voe_base_error *error)
+			 voe_ecs_entity *panel, voe_ecs_entity *readout,
+			 voe_math_float2 *hud_size, voe_base_error *error)
 {
 	voe_text_block sign;
 	voe_text_block line;
@@ -1168,8 +1226,75 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 		return false;
 
 	*hud_size = line.size;
-	return add_text(world, gpu, *font, line, hud_tint, front,
-			VOE_3D_LAYER_OVERLAY, hud, error);
+	if (!add_text(world, gpu, *font, line, hud_tint, front,
+		      VOE_3D_LAYER_OVERLAY, hud, error))
+		return false;
+
+	// The readout: an entity wearing the text material and, for now, no
+	// geometry. The block it draws is built inside every frame and put on
+	// it with voe_3d_mesh_set_geometry, so a zeroed id — which names
+	// nothing — is exactly right until the first frame opens, and nothing
+	// draws it before then. Same material, same layer and, until the loop
+	// places it, the same transform as the line.
+	return add_text(world, gpu, *font, (voe_text_block){ 0 }, hud_tint,
+			front, VOE_3D_LAYER_OVERLAY, readout, error);
+}
+
+// The camera's frame, for placing things that travel with it: where the eye is,
+// which way it looks, which way is right and up across the view, and the
+// rotation that stands a quad square to it. The three things locked to the
+// camera below are all placed from one of these.
+//
+// THE ROTATION IS THE CAMERA'S TWO ANGLES, COMPOSED IN THAT ORDER. Yaw about Y
+// and then pitch about X, which is the same composition voe_scene_camera_view
+// builds its basis from; _mul reads right to left, so the pitch is the one
+// applied first. Swap them and the line rolls as the camera looks up.
+struct view_basis {
+	voe_math_float3 eye;
+	voe_math_float3 forward;
+	voe_math_float3 right;
+	voe_math_float3 up;
+	voe_math_quat rotation;
+	// How far the view reaches above its centre, per metre of distance in
+	// front of the eye: the tangent of half the vertical field of view.
+	// Times the aspect ratio for how far it reaches to the side. It is what
+	// lets something be put in a corner of the view rather than near one.
+	float half_height;
+};
+
+static struct view_basis basis_of(const voe_ecs_world *world,
+				  voe_ecs_entity eye)
+{
+	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
+	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
+	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
+	struct view_basis basis;
+
+	basis.eye = camera->eye;
+	basis.forward = voe_scene_camera_forward(*camera);
+	basis.right = voe_math_float3_normalize(
+		voe_math_float3_cross(basis.forward, UP));
+	basis.up = voe_math_float3_cross(basis.right, basis.forward);
+	basis.rotation = voe_math_quat_mul(
+		voe_math_quat_from_axis_angle(UP, camera->yaw),
+		voe_math_quat_from_axis_angle(SIDE, camera->pitch));
+	basis.half_height = tanf(camera->fov_y * 0.5f);
+	return basis;
+}
+
+// A transform standing square to the camera at `at`, with the scale given.
+static voe_scene_transform_intent square_to_the_camera(
+	const struct view_basis *basis, voe_ecs_entity entity,
+	voe_math_float3 at, voe_math_float3 scale)
+{
+	return (voe_scene_transform_intent){
+		.entity = entity,
+		.transform = {
+			.position = at,
+			.rotation = basis->rotation,
+			.scale = scale,
+		},
+	};
 }
 
 // Where the heads-up line goes this frame: in front of the eye, square to it,
@@ -1187,41 +1312,67 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 // line is, and it would put it in exactly the same place if it were in the world
 // — those are two separate answers to two separate questions and neither one
 // implies the other.
-//
-// THE ROTATION IS THE CAMERA'S TWO ANGLES, COMPOSED IN THAT ORDER. Yaw about Y
-// and then pitch about X, which is the same composition voe_scene_camera_view
-// builds its basis from; _mul reads right to left, so the pitch is the one
-// applied first. Swap them and the line rolls as the camera looks up.
 static voe_scene_transform_intent facing_the_camera(const voe_ecs_world *world,
 						    voe_ecs_entity eye,
 						    voe_ecs_entity text,
 						    voe_math_float2 size)
 {
-	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
-	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
-	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
-	voe_math_float3 forward = voe_scene_camera_forward(*camera);
-	voe_math_float3 right =
-		voe_math_float3_normalize(voe_math_float3_cross(forward, UP));
-	voe_math_float3 up = voe_math_float3_cross(right, forward);
+	struct view_basis basis = basis_of(world, eye);
 	voe_math_float3 at = voe_math_float3_add(
-		camera->eye, voe_math_float3_scale(forward, HUD_DISTANCE));
+		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
 
 	at = voe_math_float3_add(
-		at, voe_math_float3_scale(right, -size.x * 0.5f));
-	at = voe_math_float3_add(at, voe_math_float3_scale(up, -HUD_DROP));
+		at, voe_math_float3_scale(basis.right, -size.x * 0.5f));
+	at = voe_math_float3_add(at, voe_math_float3_scale(basis.up, -HUD_DROP));
 
-	return (voe_scene_transform_intent){
-		.entity = text,
-		.transform = {
-			.position = at,
-			.rotation = voe_math_quat_mul(
-				voe_math_quat_from_axis_angle(UP, camera->yaw),
-				voe_math_quat_from_axis_angle(SIDE,
-							      camera->pitch)),
-			.scale = { 1.0f, 1.0f, 1.0f },
-		},
-	};
+	return square_to_the_camera(&basis, text, at,
+				    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
+}
+
+// Where the readout goes this frame: square to the camera like the line, in the
+// top-left corner of the view, a margin in from both edges.
+//
+// THE CORNER IS WORKED OUT FROM THE FIELD OF VIEW AND THE ASPECT RATIO. At a
+// metre in front of the eye the view reaches tan(fov/2) metres up and that times
+// the aspect ratio to the side, so the corner is a point on the same plane the
+// line stands on and the readout is pinned to the edge of the window, whatever
+// size the window is. This is still an ordinary transform in the world: a
+// resize moves the corner and the next frame's intent follows it.
+//
+// IT IS LEFT-ALIGNED AND NOT CENTRED, BECAUSE ITS WIDTH CHANGES. A block's
+// origin is the left end of its first baseline, so holding that point still
+// holds the left edge still while the digits change; centring on the width, as
+// the line does, would shift the whole readout sideways every time a number
+// gained a digit.
+//
+// AND THAT IS WHAT LETS IT BE PLACED HERE AT ALL. The block is built inside the
+// frame, after the transform system has run, so a placement that wanted its size
+// would be a frame late. This one asks only where the camera is and how big the
+// window is.
+static voe_scene_transform_intent top_left_of_the_view(
+	const voe_ecs_world *world, voe_ecs_entity eye, voe_ecs_entity readout,
+	voe_platform_size size)
+{
+	struct view_basis basis = basis_of(world, eye);
+	// A window with no area has no corner; one is as good as any other
+	// then, because nothing is about to be drawn.
+	float aspect = size.width > 0 && size.height > 0 ?
+			       (float)size.width / (float)size.height :
+			       1.0f;
+	float half_height = basis.half_height * HUD_DISTANCE;
+	float half_width = half_height * aspect;
+	float margin = READOUT_EM * READOUT_MARGIN_EMS;
+	voe_math_float3 at = voe_math_float3_add(
+		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
+
+	at = voe_math_float3_add(
+		at, voe_math_float3_scale(basis.right, -(half_width - margin)));
+	at = voe_math_float3_add(
+		at, voe_math_float3_scale(basis.up, half_height - margin -
+							    READOUT_EM));
+
+	return square_to_the_camera(&basis, readout, at,
+				    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
 }
 
 // Where the panel behind the heads-up line goes this frame: the same plane as the
@@ -1242,34 +1393,20 @@ static voe_scene_transform_intent behind_the_line(const voe_ecs_world *world,
 						  voe_ecs_entity quad,
 						  voe_math_float2 size)
 {
-	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
-	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
-	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
-	voe_math_float3 forward = voe_scene_camera_forward(*camera);
-	voe_math_float3 right =
-		voe_math_float3_normalize(voe_math_float3_cross(forward, UP));
-	voe_math_float3 up = voe_math_float3_cross(right, forward);
+	struct view_basis basis = basis_of(world, eye);
 	float margin = size.y * HUD_PANEL_MARGIN;
 	voe_math_float3 at = voe_math_float3_add(
-		camera->eye,
-		voe_math_float3_scale(forward,
-				      HUD_DISTANCE + HUD_PANEL_BEHIND));
+		basis.eye, voe_math_float3_scale(basis.forward,
+						 HUD_DISTANCE + HUD_PANEL_BEHIND));
 
-	at = voe_math_float3_add(at, voe_math_float3_scale(up, -HUD_DROP));
-	at = voe_math_float3_add(at, voe_math_float3_scale(up, size.y * 0.25f));
+	at = voe_math_float3_add(at, voe_math_float3_scale(basis.up, -HUD_DROP));
+	at = voe_math_float3_add(at,
+				 voe_math_float3_scale(basis.up, size.y * 0.25f));
 
-	return (voe_scene_transform_intent){
-		.entity = quad,
-		.transform = {
-			.position = at,
-			.rotation = voe_math_quat_mul(
-				voe_math_quat_from_axis_angle(UP, camera->yaw),
-				voe_math_quat_from_axis_angle(SIDE,
-							      camera->pitch)),
-			.scale = { size.x + margin * 2.0f,
-				   size.y + margin * 2.0f, 1.0f },
-		},
-	};
+	return square_to_the_camera(&basis, quad, at,
+				    (voe_math_float3){ size.x + margin * 2.0f,
+						       size.y + margin * 2.0f,
+						       1.0f });
 }
 
 // One model, then one transform intent per entity to move the whole thing aside.
@@ -1348,8 +1485,9 @@ struct timing {
 	// The poll, the input, and the three systems. This program's own work
 	// before it asks the GPU for anything.
 	voe_base_samples update;
-	// Inside voe_3d_draw_system_run: waiting for the frame slot, taking a
-	// swapchain image, recording every draw, submitting and presenting.
+	// The loop's draw phase, _begin to _end inclusive: waiting for the frame
+	// slot, taking a swapchain image, laying out and uploading the readout,
+	// recording every draw, submitting and presenting.
 	voe_base_samples draw;
 	// The graphics card's own clock, over that frame's commands only.
 	voe_base_samples gpu;
@@ -1370,14 +1508,81 @@ static void say_what_is_measured(void)
 	       REPORT_SECONDS);
 	printf("           frame   one top of the loop to the next. The rate is its reciprocal\n");
 	printf("           update  the poll, the input and the three systems\n");
-	printf("           draw    inside the draw system: the wait for the frame slot,\n");
-	printf("                   the acquire, the recording, the submit and the present.\n");
-	printf("                   On fifo the wait for the display is in here and is most of it\n");
+	printf("           draw    the loop's draw phase, begin to end: the wait for the frame\n");
+	printf("                   slot, the acquire, the readout's layout and upload, the\n");
+	printf("                   recording, the submit and the present. On fifo the wait\n");
+	printf("                   for the display is in here and is most of it\n");
 	printf("           gpu     the graphics card's own clock, over that frame's commands\n");
 	printf("                   only — the wait for the display is not in it. It runs two\n");
 	printf("                   frames behind, and is absent on a card that cannot time\n");
 	printf("           P switches between fifo and mailbox. Numbers from both are what\n");
 	printf("           the frame-pacing decision wants; the mode is on every block below\n");
+	printf("           The same five numbers stand top-left of the view as the period's\n");
+	printf("           running averages, laid out again every frame\n");
+}
+
+// The readout's text this frame, out of what the period has measured so far,
+// laid out through the transient path and put on the readout entity. Called
+// between _begin and the draw system, which is the only place it can be called.
+//
+// THE NUMBERS ARE THE RUNNING AVERAGES OF THE CURRENT PERIOD. The console block
+// prints a period's average and worst once the period is over; this prints the
+// average so far, every frame, so it settles over the first few hundred
+// milliseconds of a period and starts again with the next block. The rate is the
+// reciprocal of the frame average rather than a count over elapsed time, because
+// the frame sample always holds at least this frame. For the one frame after
+// each console block the other three read nought — the period has no sample of
+// them yet — and printing last period's number instead would be the cache this
+// card forbids in a smaller coat.
+//
+// THERE IS NO CACHE AND NO "HAS IT CHANGED". The string is formatted and laid
+// out every frame whether or not a digit moved. It is a few dozen glyphs and
+// well under a tenth of a millisecond, and it is the design that was decided; a
+// readout that stops changing is therefore a bug in the transient path and never
+// a cache being clever.
+//
+// `glyphs` comes back as how many characters were laid out, so that what the
+// readout actually consumed can be printed once beside what was asked for.
+static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
+			      const voe_text_font *font, voe_base_arena *arena,
+			      voe_ecs_entity readout,
+			      const struct timing *timing, uint32_t *glyphs,
+			      voe_base_error *error)
+{
+	char gpu_line[READOUT_CHARS];
+	char text[READOUT_CHARS];
+	voe_text_block block;
+	double frame = voe_base_samples_average(&timing->frame);
+	uint32_t drawn = 0;
+
+	if (timing->gpu.count > 0)
+		snprintf(gpu_line, sizeof gpu_line, "gpu    %6.2f ms",
+			 voe_base_samples_average(&timing->gpu) * 1000.0);
+	else
+		snprintf(gpu_line, sizeof gpu_line, "gpu    no measurement");
+
+	snprintf(text, sizeof text,
+		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s",
+		 frame > 0.0 ? 1.0 / frame : 0.0, frame * 1000.0,
+		 voe_base_samples_average(&timing->update) * 1000.0,
+		 voe_base_samples_average(&timing->draw) * 1000.0, gpu_line);
+
+	// Spaces and newlines lay out nothing; every other character in this
+	// string is a glyph the font carries.
+	for (const char *at = text; *at != '\0'; at++)
+		if (*at != ' ' && *at != '\n')
+			drawn++;
+	*glyphs = drawn;
+
+	if (!voe_text_block_create_transient(font, gpu, arena, text, READOUT_EM,
+					     &block, error))
+		return false;
+
+	// The entity is this program's and is never destroyed, so a mesh that
+	// is not there is a bug here and not a thing to handle.
+	VOE_BASE_ASSERT(voe_3d_mesh_set_geometry(world, readout, block.geometry),
+			"the readout entity has lost its mesh");
+	return true;
 }
 
 // One block, and then the period starts again. `seconds` is how long the period
@@ -1431,6 +1636,11 @@ int main(void)
 	voe_ecs_entity turning = { 0 };
 	voe_ecs_entity hud = { 0 };
 	voe_ecs_entity panel = { 0 };
+	voe_ecs_entity readout = { 0 };
+	// How many glyphs the readout laid out, printed once against the room
+	// made for it — see MAX_TRANSIENT_GLYPHS.
+	uint32_t readout_glyphs = 0;
+	bool readout_reported = false;
 	voe_render_geometry quad = { 0 };
 	voe_dev_sprites sprites = { 0 };
 	voe_text_font *font = NULL;
@@ -1442,6 +1652,9 @@ int main(void)
 		.geometries = MAX_MESHES,
 		.objects = MAX_DRAWN_OBJECTS,
 		.shadings = MAX_SHADINGS,
+		.transient_vertices = 4 * MAX_TRANSIENT_GLYPHS,
+		.transient_indices = 6 * MAX_TRANSIENT_GLYPHS,
+		.transient_geometries = MAX_TRANSIENT_GEOMETRIES,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -1559,7 +1772,7 @@ int main(void)
 	// there is one font, it is in the binary, and a failure here is a bug in
 	// the reader rather than a file somebody could not open.
 	if (!add_the_text(world, gpu, arena, quad, &font, &hud, &panel,
-			  &hud_size, &error)) {
+			  &readout, &hud_size, &error)) {
 		fprintf(stderr, "could not build the text: %s\n",
 			voe_base_error_string(error));
 		goto stop;
@@ -1606,6 +1819,9 @@ int main(void)
 		const voe_scene_transform *spinning;
 		double elapsed;
 		double gpu_seconds;
+		voe_3d_frame frame;
+		bool drawing = false;
+		bool readout_ok = true;
 
 		// The frame's interval, measured before anything in it happens,
 		// so that everything below is inside it.
@@ -1771,6 +1987,11 @@ int main(void)
 		// exactly the same way and for exactly the same reason.
 		(void)voe_scene_transform_submit(
 			world, behind_the_line(world, eye, panel, hud_size));
+		// And the readout, placed from the camera alone — its geometry
+		// does not exist yet and its placement does not need it.
+		(void)voe_scene_transform_submit(
+			world,
+			top_left_of_the_view(world, eye, readout, now_size));
 		// And the two sprites that turn towards the camera, in this
 		// same gap and for this same reason. The engine does not
 		// billboard, so this is a call site turning them itself — see
@@ -1788,9 +2009,53 @@ int main(void)
 		after_update = voe_platform_clock_now();
 		voe_base_samples_add(&timing.update, after_update - top);
 
-		if (!voe_3d_draw_system_run(world, gpu, arena, now_size)) {
+		// THE FRAME, IN THE ORDER THE HEADER GIVES: the camera and the sun
+		// out of the tables, begin, build what changes this frame, the
+		// walk, end. A begin that says there is nothing to draw into skips
+		// the three in the middle and the loop comes round again — it
+		// does not wait, which is what the spin on a minimised window is.
+		frame = voe_3d_draw_system_frame(world, now_size);
+		if (!voe_render_frame_begin(gpu, now_size, frame.view,
+					    frame.light, &drawing)) {
 			fprintf(stderr, "the GPU stopped answering\n");
 			break;
+		}
+		if (drawing) {
+			// Built inside the frame and before the walk, because
+			// that is the only place a one-frame mesh can be built
+			// and still be drawn. Its failure is looked at after the
+			// frame has been ended, so the slot's fence is never left
+			// waiting on a frame that was abandoned half recorded.
+			readout_ok = build_the_readout(world, gpu, font, arena,
+						       readout, &timing,
+						       &readout_glyphs, &error);
+
+			voe_3d_draw_system_run(world, gpu, arena, frame);
+
+			if (!voe_render_frame_end(gpu)) {
+				fprintf(stderr, "the GPU stopped answering\n");
+				break;
+			}
+			// A readout that could not be built means the transient
+			// room above is too small for it, which is this file's
+			// mistake and worth stopping over rather than a refusal
+			// line on stderr every frame for as long as it runs.
+			if (!readout_ok) {
+				fprintf(stderr,
+					"could not build the readout: %s\n",
+					voe_base_error_string(error));
+				break;
+			}
+			if (!readout_reported) {
+				printf("readout    %u glyphs — %u of %u transient vertices, %u of %u indices, 1 of %u ranges\n",
+				       readout_glyphs, readout_glyphs * 4u,
+				       4u * MAX_TRANSIENT_GLYPHS,
+				       readout_glyphs * 6u,
+				       6u * MAX_TRANSIENT_GLYPHS,
+				       (unsigned)MAX_TRANSIENT_GEOMETRIES);
+				fflush(stdout);
+				readout_reported = true;
+			}
 		}
 
 		after_draw = voe_platform_clock_now();

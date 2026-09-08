@@ -25,7 +25,10 @@ states and not a test — it is looked at, not asserted on.
   intents, and why neither string holds a character outside Latin-1. A call
   site and nothing else; the key bindings are the only decision in it, P among
   them. Card 022 added the sprites, which are a call and a per-frame call and
-  nothing else here — see `src/sprites.h`.
+  nothing else here — see `src/sprites.h`. Card 028 put the timing numbers on
+  the screen and made the loop own the frame: its header says in what order a
+  frame's phases run and why, why the readout is rebuilt every frame and never
+  cached, and what a readout that stops changing means.
 - `src/sprites.h` — the sprite exhibit: the sheet, the twelve entities and the
   two rotations that turn towards the camera. Its header says why the
   billboarding is here and not in the engine.

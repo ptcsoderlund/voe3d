@@ -432,10 +432,13 @@ static const struct glyph *glyph_of(const voe_text_font *font,
 	return &font->glyphs[codepoint - FIRST_CHARACTER];
 }
 
-bool voe_text_block_create(const voe_text_font *font,
-			   voe_render_device *device, voe_base_arena *arena,
-			   const char *utf8, float em, voe_text_block *out,
-			   voe_base_error *error)
+// The whole of both creates. `transient` is the only thing that differs between
+// them and it decides one call at the bottom — the layout above it is one piece
+// of code and not two, so the two kinds of block cannot drift apart.
+static bool build_block(const voe_text_font *font, voe_render_device *device,
+			voe_base_arena *arena, const char *utf8, float em,
+			bool transient, voe_text_block *out,
+			voe_base_error *error)
 {
 	struct voe_base_arena_mark mark;
 	voe_render_vertex *vertices;
@@ -537,7 +540,12 @@ bool voe_text_block_create(const voe_text_font *font,
 	if (ok && glyphs == 0)
 		ok = fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 
-	if (ok)
+	if (ok && transient)
+		ok = voe_render_geometry_create_transient(device, vertices,
+							  glyphs * 4u, indices,
+							  glyphs * 6u,
+							  &out->geometry, error);
+	else if (ok)
 		ok = voe_render_geometry_create(device, vertices, glyphs * 4u,
 						indices, glyphs * 6u,
 						&out->geometry, error);
@@ -551,4 +559,21 @@ bool voe_text_block_create(const voe_text_font *font,
 
 	voe_base_arena_rewind(arena, mark);
 	return ok;
+}
+
+bool voe_text_block_create(const voe_text_font *font,
+			   voe_render_device *device, voe_base_arena *arena,
+			   const char *utf8, float em, voe_text_block *out,
+			   voe_base_error *error)
+{
+	return build_block(font, device, arena, utf8, em, false, out, error);
+}
+
+bool voe_text_block_create_transient(const voe_text_font *font,
+				     voe_render_device *device,
+				     voe_base_arena *arena, const char *utf8,
+				     float em, voe_text_block *out,
+				     voe_base_error *error)
+{
+	return build_block(font, device, arena, utf8, em, true, out, error);
 }

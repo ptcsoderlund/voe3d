@@ -1,5 +1,5 @@
-// The mesh component: its key, its creation call, and the reads the draw system
-// does.
+// The mesh component: its key, its creation call, the one write after creation,
+// and the reads the draw system does.
 #include <3d/mesh_component.h>
 #include <base/assert.h>
 
@@ -21,6 +21,27 @@ bool voe_3d_mesh_add(voe_ecs_world *world, voe_ecs_entity entity,
 	return voe_ecs_component_add(
 		world, voe_ecs_component_type(world, &voe_3d_mesh_key), entity,
 		&mesh);
+}
+
+bool voe_3d_mesh_set_geometry(voe_ecs_world *world, voe_ecs_entity entity,
+			      voe_render_geometry geometry)
+{
+	voe_ecs_type type;
+	const voe_3d_mesh *current;
+	voe_3d_mesh changed;
+
+	VOE_BASE_DEBUG_ASSERT(world != NULL, "changing a mesh in no world");
+
+	type = voe_ecs_component_type(world, &voe_3d_mesh_key);
+	current = voe_ecs_component_get(world, type, entity);
+	if (current == NULL)
+		return false;
+
+	// Read, change one field, write the row back: the layer travels through
+	// untouched, which is the whole of why this is not a _set taking a row.
+	changed = *current;
+	changed.geometry = geometry;
+	return voe_ecs_component_set(world, type, entity, &changed);
 }
 
 const voe_3d_mesh *voe_3d_mesh_get(const voe_ecs_world *world,

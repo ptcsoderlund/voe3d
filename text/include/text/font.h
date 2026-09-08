@@ -22,13 +22,19 @@
 // material that forgot the fifth draws every glyph as a solid rectangle, because
 // the sheet is numbers and reading it as a picture is reading nonsense.
 //
-// A TEXT BLOCK IS BUILT ONCE AND DOES NOT CHANGE. voe_render_geometry_create
-// waits for the graphics card to go idle and appends to a pool with no destroy,
-// so building a block is a startup operation in the same sense uploading a model
-// is. A block rebuilt every frame would stall the card and fill the pool until
-// there was none left. Text that changes after it is built is a mechanism this
-// engine does not have yet, and it is why the frame statistics are still printed
-// on the console.
+// A TEXT BLOCK HAS TWO LIFETIMES AND TWO CALLS, AND THE LAYOUT IS THE SAME
+// UNDERNEATH BOTH. voe_text_block_create is a startup operation: it goes through
+// voe_render_geometry_create, which waits for the graphics card to go idle and
+// appends to a pool with no destroy, so a label that never changes costs exactly
+// one upload and is then drawn for the life of the program for nothing. That is
+// its cache, and it is the only cache text has. voe_text_block_create_transient
+// lives inside a frame: it goes through voe_render_geometry_create_transient, so
+// the block is valid until that frame ends and is then gone, and text that
+// changes — a readout, a label being edited — is laid out again every frame from
+// the current string. Nothing here remembers a string, hashes one or asks
+// whether it changed: a cache that misses an invalidation draws yesterday's text,
+// which looks exactly like a program that has frozen. Rebuilding a few thousand
+// glyphs a frame is a tenth of a millisecond and is the cost this design chose.
 //
 // EVERYTHING IS IN THE WORLD, IN THREE DIMENSIONS. A block is quads at z = 0
 // facing +Z, in metres, and where it goes is a transform like anything else's:
@@ -154,6 +160,23 @@ voe_render_texture voe_text_font_atlas(const voe_text_font *font);
 					 const char *utf8, float em,
 					 voe_text_block *out,
 					 voe_base_error *error);
+
+// The same layout into a block that lives one frame: identical in every argument
+// and every answer except that the mesh goes through
+// voe_render_geometry_create_transient, so it is drawn this frame and named by
+// an id that is stale from the next frame's begin. Call it between the frame's
+// begin and its end and nowhere else — the render call asserts otherwise — and
+// call it again next frame with whatever the string is then.
+//
+// Fails for the three reasons above and for one more: `render` has no transient
+// room left in this frame, which is REFUSED and means a transient capacity was
+// chosen too small for what the frame builds.
+[[nodiscard]] bool voe_text_block_create_transient(const voe_text_font *font,
+						   voe_render_device *device,
+						   voe_base_arena *arena,
+						   const char *utf8, float em,
+						   voe_text_block *out,
+						   voe_base_error *error);
 
 // The most glyphs one block may hold. It bounds the scratch one block costs —
 // four vertices and six indices each — and it is a limit on a single string and

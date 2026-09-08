@@ -109,8 +109,8 @@ typedef struct {
 	// four-by-two grid. It applies to the base colour and to nothing else.
 	//
 	// A SHEET OF FRAMES IS ONE GEOMETRY, ONE TEXTURE AND ONE MATERIAL PER
-	// FRAME. Geometry cannot change once it is created, so a mesh carrying
-	// its frame in its UVs is a sprite that can never change frame; a
+	// FRAME. A static geometry cannot change once it is created, so a mesh
+	// carrying its frame in its UVs is a sprite that can never change frame; a
 	// material can be swapped for the price of pointing an entity at a
 	// different record. See sprite/sheet.h, which is what builds them.
 	//

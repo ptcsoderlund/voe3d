@@ -145,6 +145,25 @@ struct voe_render_pool {
 	uint32_t used;
 };
 
+// A transient pool: the same bookkeeping over a host-visible buffer that stays
+// mapped, one per frame slot, filled from the top every frame. See
+// voe_render_geometry_create_transient for what it is for.
+//
+// `used` GOES BACK TO NOUGHT AT THE TOP OF EVERY FRAME, and that is the whole
+// difference from the pool above. The fence voe_render_frame_begin waits on says
+// the card has finished reading what this slot held two frames ago, so emptying
+// and rewriting it needs no barrier and no wait of its own — the same reason the
+// object buffer beside it in voe_render_frame is safe to overwrite. A barrier
+// appearing here would mean the pools had stopped being per slot, and that would
+// be the bug.
+struct voe_render_transient_pool {
+	struct voe_render_pool pool;
+	// Where pool.buffer's memory is mapped, for the lifetime of the buffer.
+	// Written through and never read back: host-visible memory may be
+	// write-combined, and a read out of it crawls.
+	void *mapped;
+};
+
 // What a voe_render_geometry id names: where in the two pools a mesh's vertices
 // and indices sit, and how many indices to draw.
 //
@@ -156,12 +175,19 @@ struct voe_render_pool {
 // index_count IS THE DRAW'S COUNT AND NOT A SIZE IN BYTES. Two numbers that
 // differ by a factor of four, and reading one for the other draws either a
 // quarter of the mesh or four times off the end of it.
+//
+// `transient` SAYS WHICH POOL THE RANGE IS IN, because a caller's id does not.
+// The static pair is device-local and shared by every frame; the transient pair
+// is host-visible and this frame slot's own. The draw reads the flag to know
+// which buffers have to be bound before the range means anything, and it is the
+// only place in the engine that distinguishes the two kinds.
 struct voe_render_geometry_slot {
 	uint32_t first_vertex;
 	uint32_t first_index;
 	uint32_t index_count;
 	uint32_t generation;
 	bool live;
+	bool transient;
 };
 
 // What a voe_render_shading id names. The record itself lives in the GPU buffer
@@ -302,6 +328,19 @@ struct voe_render_frame {
 	struct voe_render_buffer objects;
 	void *objects_mapped;
 
+	// This slot's transient geometry: the vertex pool and the index pool
+	// that voe_render_geometry_create_transient writes and the frame then
+	// draws from. Per slot for exactly the reason the object buffer is —
+	// the card may still be reading last lap's — and emptied at the top of
+	// the frame by voe_render_geometry_frame_reset, once the same fence has
+	// said the card is done with them.
+	//
+	// UNBUILT WHEN THE DEVICE ASKED FOR NO TRANSIENT ROOM: a zeroed struct
+	// with a NULL mapped pointer and a capacity of nought. geometry.c looks
+	// at the capacity before it touches either.
+	struct voe_render_transient_pool transient_vertices;
+	struct voe_render_transient_pool transient_indices;
+
 	// Points at this slot's uniform buffer, this slot's object buffer, the
 	// texture array and the shared shading buffer. Allocated from
 	// device->descriptor_pool and freed with it; a set is not destroyed on
@@ -403,9 +442,12 @@ struct voe_render_device {
 	// both filled through a staging buffer that is gone before the frame
 	// that uses them. Startup's, and untouched by a resize.
 	//
-	// geometries is capacities.geometries long and is calloc'd with the
-	// device rather than being a member, because how many ranges a program
-	// may name is the caller's number and not this header's.
+	// geometries is capacities.geometries + capacities.transient_geometries
+	// long and is calloc'd with the device rather than being a member,
+	// because how many ranges a program may name is the caller's number and
+	// not this header's. The static ranges are the first band and the
+	// transient ones the band above it; the two never share a slot, and
+	// voe_render_geometry_at checks against the total and nothing else.
 	struct voe_render_pool vertices;
 	struct voe_render_pool indices;
 	struct voe_render_geometry_slot *geometries;
@@ -435,6 +477,13 @@ struct voe_render_device {
 	// the rendering opens and every time a draw needs the other one;
 	// meaningless while `recording` is false.
 	VkPipeline bound;
+
+	// Which geometry pools the open recording last bound: false for the
+	// static pair, true for this slot's transient pair. The same shape as
+	// `bound` and for the same reason — a run of draws out of one pool costs
+	// one bind, and a caller that interleaves the two is still drawn right.
+	// Meaningless while `recording` is false.
+	bool bound_transient;
 
 	// The size every slot's target is, and the resolution the engine draws
 	// at. It is the window's size today and it is not the swapchain's: what
@@ -548,6 +597,11 @@ VkViewport voe_render_frame_viewport(VkExtent2D extent);
 // fence without indexing an array they would have to bound-check themselves.
 const struct voe_render_frame *voe_render_frame_current(const voe_render_device *device);
 
+// frame.c. The slot the open recording belongs to, writable, for the one thing
+// another file writes into a frame slot: geometry.c's transient pools. Asserts
+// if no recording is open, which is the same assert every draw makes.
+struct voe_render_frame *voe_render_frame_open(voe_render_device *device);
+
 // frame.c. Which viewport the open recording was begun with, so that a test can
 // hand in its mirror image. The mirror is what gets a back face in front of the
 // rasteriser without a second shader and without touching the pipeline whose
@@ -621,9 +675,19 @@ void voe_render_descriptors_teardown(voe_render_device *device);
 void voe_render_descriptors_write_shadings(voe_render_device *device,
 					   VkDescriptorSet set);
 
-// geometry.c. The two pools and the table of ranges into them. Startup's.
+// geometry.c. The two static pools, the transient pair in every frame slot, and
+// the table of ranges into all of them. Startup's; the frames have to exist
+// before this runs, because the transient pools live in them.
 [[nodiscard]] bool voe_render_geometry_startup(voe_render_device *device);
 void voe_render_geometry_shutdown(voe_render_device *device);
+
+// geometry.c. The top of a frame for the transient half: every live transient
+// slot stops being live and moves its generation on, and `frame`'s two transient
+// pools go back to empty. Called by voe_render_frame_begin once the slot's fence
+// has been waited on and nowhere else — that fence is what makes emptying the
+// pools safe.
+void voe_render_geometry_frame_reset(voe_render_device *device,
+				     struct voe_render_frame *frame);
 
 // geometry.c. What an id names, or NULL when it names nothing — a slot that was
 // never claimed, or one whose generation has moved on. The one place a geometry

@@ -14,11 +14,24 @@
 // different layers, and moving something does not move it between them. See
 // voe_3d_layer below and 3d/draw_system.h for what the draw does with it.
 //
-// THERE IS NO MESH SYSTEM AND NO MESH INTENT YET, WHICH IS RULE 10 AND NOT AN
-// OMISSION. Nothing in the engine changes which geometry an entity draws after
-// it is built: an importer writes one and the draw system reads it. The card that
-// swaps a mesh at run time — a level of detail, a destroyed variant — is the card
-// that gives this module a system.
+// THERE IS NO MESH SYSTEM AND NO MESH INTENT, AND THE REASON IS WHO WRITES THE
+// TABLE. A system and its intent queue exist to let several parties ask for a
+// change to data one of them owns, and to have the owner apply those asks in one
+// place and one order. This table has nothing to coordinate: every row has
+// exactly one writer — whoever made the entity keeps pointing it at geometry, and
+// nothing else in the engine writes a mesh — so it is written directly, at
+// creation by voe_3d_mesh_add and afterwards by voe_3d_mesh_set_geometry. That
+// is the actual boundary, and it is not "creation is special". The day two
+// systems both want to write a mesh row — a level-of-detail system and a
+// destruction system, say — that is the day this module gets a system and an
+// intent, and it is an ADR and not a patch.
+//
+// GEOMETRY IS THE ONLY FIELD THAT CHANGES AFTER CREATION. The layer is not
+// writable and a row is not replaceable wholesale, because the layer is what the
+// draw system's depth clear is ordered by, and a layer that could move at run
+// time is a way to break that ordering from any call site. Geometry that
+// changes — a readout built every frame through
+// voe_render_geometry_create_transient — is the case this exists for.
 #pragma once
 
 #include <ecs/component.h>
@@ -66,10 +79,19 @@ extern const struct voe_ecs_key voe_3d_mesh_key;
 void voe_3d_mesh_register(voe_ecs_world *world, uint32_t capacity);
 
 // Gives the entity its geometry and its layer. False when the table is full or
-// the entity is not alive. It is a direct call and not an intent because it is creation — see
-// the header on why there is no system here at all.
+// the entity is not alive. A direct call and not an intent because this table
+// has one writer per row and nothing to coordinate — see the header.
 [[nodiscard]] bool voe_3d_mesh_add(voe_ecs_world *world, voe_ecs_entity entity,
 				   voe_3d_mesh mesh);
+
+// Points the entity's mesh at different geometry and leaves its layer alone.
+// False when the entity is not alive or has no mesh. The one field that changes
+// after creation, and the whole of what a geometry built this frame needs in
+// order to be drawn: make the range, set it here, and the draw system finds it
+// when it walks the table.
+[[nodiscard]] bool voe_3d_mesh_set_geometry(voe_ecs_world *world,
+					    voe_ecs_entity entity,
+					    voe_render_geometry geometry);
 
 // NULL when the entity has no mesh or is not alive.
 const voe_3d_mesh *voe_3d_mesh_get(const voe_ecs_world *world,

@@ -18,10 +18,27 @@
 //
 // WHAT IS OPEN BETWEEN THEM LIVES IN THE DEVICE. device->recording says a
 // recording is open, device->object_count says how many objects have gone into
-// it, device->bound says which of the two pipelines it last bound, and
-// device->image_index says which swapchain image _end has to blit into. There is
-// exactly one frame open at a time, so a token handed to the caller would be a
-// second place for that to live and a second thing to get wrong.
+// it, device->bound says which of the two pipelines it last bound,
+// device->bound_transient says which of the two geometry pool pairs it last
+// bound, and device->image_index says which swapchain image _end has to blit
+// into. There is exactly one frame open at a time, so a token handed to the
+// caller would be a second place for that to live and a second thing to get
+// wrong.
+//
+// TWO PAIRS OF GEOMETRY POOLS CAN BE DRAWN FROM AND ONLY ONE PAIR IS BOUND AT A
+// TIME. The static pair is bound as the rendering opens, because that is what a
+// frame's first draws come out of; a range in this slot's transient pair (card
+// 028) needs the other pair bound, and draw_with rebinds when — and only when —
+// the pool a range is in differs from the pair last bound. It is tracked exactly
+// as the pipeline is: a run of draws out of one pair costs one bind, and neither
+// pair is ever bound per draw. Forgetting the rebind draws one object wearing
+// another's shape out of the wrong buffer, which is the failure to look for.
+//
+// THE TRANSIENT RESET HAPPENS HERE, AFTER THE FENCE, AND THAT ORDER IS THE WHOLE
+// OF ITS SAFETY. voe_render_geometry_frame_reset empties this slot's transient
+// pools and makes every transient id from last frame stale; it runs once the
+// slot's fence says the card has finished with the slot, because the memory it
+// empties is what the card was reading. See geometry.c for what the reset does.
 //
 // THERE ARE TWO DRAW CALLS AND THEY DIFFER IN ONE ARGUMENT. _draw goes through
 // the solid pipeline, _draw_blended through the one that tests depth without
@@ -167,6 +184,37 @@ voe_render_frame_current(const voe_render_device *device)
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "asking no device for its frame slot");
 
 	return frame_at((voe_render_device *)device, device->slot);
+}
+
+struct voe_render_frame *voe_render_frame_open(voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking no device for its open frame");
+	VOE_BASE_ASSERT(device->recording,
+			"asking for the open frame when none is open");
+
+	return frame_at(device, device->slot);
+}
+
+// The vertex buffer and the index buffer a draw reads: the device's static pair
+// or this slot's transient pair. One function for both so that the rendering's
+// opening bind and draw_with's rebind cannot bind them differently, and so that
+// `bound_transient` is set in the one place the binding happens.
+static void bind_pools(voe_render_device *device,
+		       const struct voe_render_frame *frame, bool transient)
+{
+	VkDeviceSize vertex_offset = 0;
+	VkBuffer vertices = transient ?
+				    frame->transient_vertices.pool.buffer.buffer :
+				    device->vertices.buffer.buffer;
+	VkBuffer indices = transient ?
+				   frame->transient_indices.pool.buffer.buffer :
+				   device->indices.buffer.buffer;
+
+	voe_render_vk.cmd_bind_vertex_buffers(frame->commands, 0, 1, &vertices,
+					      &vertex_offset);
+	voe_render_vk.cmd_bind_index_buffer(frame->commands, indices, 0,
+					    VK_INDEX_TYPE_UINT32);
+	device->bound_transient = transient;
 }
 
 VkViewport voe_render_frame_viewport(VkExtent2D extent)
@@ -340,7 +388,6 @@ static void open_rendering(voe_render_device *device,
 	// in framebuffer coordinates, which have no sign to get wrong.
 	VkRect2D scissor = { .extent = device->resolution };
 	VkViewport viewport = voe_render_frame_viewport(device->resolution);
-	VkDeviceSize vertex_offset = 0;
 
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 
@@ -361,14 +408,12 @@ static void open_rendering(voe_render_device *device,
 					       device->layout, 0, 1,
 					       &frame->descriptor, 0, NULL);
 
-	// The two pools, bound once for the whole frame. Every mesh is a range
-	// inside them, which is the property that makes one bind enough.
-	voe_render_vk.cmd_bind_vertex_buffers(frame->commands, 0, 1,
-					      &device->vertices.buffer.buffer,
-					      &vertex_offset);
-	voe_render_vk.cmd_bind_index_buffer(frame->commands,
-					    device->indices.buffer.buffer, 0,
-					    VK_INDEX_TYPE_UINT32);
+	// The static pools, bound once here because a frame's first draws come
+	// out of them. Every static mesh is a range inside them, which is what
+	// makes one bind serve all of those; a transient range makes draw_with
+	// bind the other pair, and `bound_transient` is what keeps that to one
+	// bind per run rather than one per draw.
+	bind_pools(device, frame, false);
 }
 
 // Ends the rendering and leaves the colour image ready to be copied out of, by
@@ -603,6 +648,12 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	// it safe to read at all.
 	read_gpu_time(device, frame);
 
+	// Last frame's transient geometry goes stale and this slot's transient
+	// pools go back to empty. After the fence above and nowhere else: the
+	// pools are what the card was reading two frames ago, and the fence is
+	// what says it has stopped.
+	voe_render_geometry_frame_reset(device, frame);
+
 	if (!device->headless) {
 		result = voe_render_vk.acquire_next_image(device->device,
 							  device->swapchain,
@@ -704,6 +755,11 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		device->bound = pipeline;
 	}
 
+	// Which pool pair the range is in, and a rebind only when that changes
+	// — tracked exactly as the pipeline is above, and for the same reason.
+	if (device->bound_transient != slot->transient)
+		bind_pools(device, frame, slot->transient);
+
 	// The record, into this slot's own object buffer at this object's
 	// number. Written rather than staged because the buffer is host-visible
 	// and this slot's; the fence at the top of the frame is what makes that
@@ -794,6 +850,12 @@ void voe_render_frame_clear_depth(voe_render_device *device)
 
 	voe_render_vk.cmd_clear_attachments(frame_at(device, device->slot)->commands,
 					    1, &attachment, 1, &rect);
+}
+
+bool voe_render_frame_is_open(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking no device whether a frame is open");
+	return device->recording;
 }
 
 bool voe_render_frame_end(voe_render_device *device)
