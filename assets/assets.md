@@ -18,6 +18,11 @@ pixels in an arena; what happens to them next is `render`'s.
   whatever the file held, and — the one worth reading before touching a texture
   coordinate — why nothing in this engine turns an image the right way up,
   because PNG, Vulkan and glTF already agree that row zero is the top.
+- `include/assets/sectioned.h` — the engine's own authored text format:
+  `[Section]` headers and `key=value` lines, handed back as text and never
+  interpreted. Its header says why it is layer one of three and stops there,
+  why comments are `//` and not `#`, and every question the format left open
+  with the answer it took.
 - `src/inflate.h` — DEFLATE inside a zlib wrapper, internal to this folder. Its
   header says why the caller states the output size instead of the decompressor
   discovering it, which is the whole of how a small hostile file is stopped from
@@ -28,6 +33,9 @@ pixels in an arena; what happens to them next is `render`'s.
 - `src/png.c` — signature, chunks, CRC, filters, palette. Its header says why
   this file is flat and has no recursion in it, and the rule every length read
   out of the file is checked by.
+- `src/sectioned.c` — two passes over one line lexer. Its header says why the
+  caller states no capacity here where the JSON reader demands one, and why
+  there is nothing for rule 14 to worry about.
 - `src/json.h` — a JSON reader, internal to this folder. Its header says why it
   has an explicit stack and a depth limit rather than recursion, why the caller
   states how many values it will hold, and why string spans are raw.
@@ -52,6 +60,8 @@ pixels in an arena; what happens to them next is `render`'s.
   plus a corrupt CRC and the two variants that are refused rather than broken.
 - `tests/json.c` — a document read back as its values, and every shape of broken
   input a tolerant reader would let past.
+- `tests/sectioned.c` — the principal's sketch read back as its text, one test
+  per decision the format left open, and every shape of broken line.
 - `tests/model.c` — a hand-built `.glb` in and its arrays out, the two textures
   over one picture that the deduplication depends on, and one byte of a working
   file changed at a time. Its header says why the files are built rather than
