@@ -1,7 +1,7 @@
-// The element exhibit: forty coloured rectangles and two lines of writing,
-// submitted every frame and drawn by ONE draw command, so that a person can
-// look at what the element path does and read the number that says it did it in
-// one draw.
+// The two panels' content: the element exhibit — forty coloured rectangles and
+// two lines of writing — and a small badge beside it. Each is submitted every
+// frame and drawn by ONE draw command, so that a person can look at what the
+// element path does and read the number that says it did it in one draw.
 //
 // THE WRITING IS THE POINT OF THE SECOND HALF. A letter here is not text drawn
 // by a text system: it is a voe_render_element of kind GLYPH, the same eighty
@@ -10,22 +10,31 @@
 // with letters in the picture is the whole claim.
 //
 // IT IS A CALL SITE AND NOT A SECOND ENGINE. Everything here is
-// voe_render_frame_submit_element and voe_render_frame_draw_elements in the
-// order a program would call them; the only thing this file decides is where
-// the rectangles are and what colour each one is.
+// voe_render_frame_submit_element in the order a program would call it; the
+// only thing this file decides is where the rectangles are and what colour each
+// one is.
 //
-// WHERE IT IS DRAWN IN THE FRAME IS PROVISIONAL. It is submitted and drawn after
-// the draw system has walked the world and before the frame ends, so it lands
-// over everything as a full-screen overlay. That is a place from which it can be
-// seen and nothing more: card 032 makes an element surface an entity the draw
-// system draws in layer order, and this call moves there when it does.
+// NOTHING HERE DRAWS, AND THAT IS THE CHANGE CARD 032 MADE. Both calls submit
+// records and hand the range back through voe_render_frame_elements_submitted;
+// the draw is the draw system's, one per panel, in the layer and sort order
+// everything else drawn goes through. main.c writes each range onto its panel
+// component between voe_render_frame_begin and the walk, which is the phase the
+// loop reserves for building what changes this frame.
 //
-// THE SURFACE IS A PANEL OF A FIXED SIZE IN MILLIMETRES AND NOT THE WINDOW IN
-// PIXELS. A GUI unit is 1 mm (ADR-0089), so the exhibit is laid out in
-// millimetres on a panel that is stretched to fill the window. Its aspect is the
-// window's default aspect, so at that size nothing is stretched; drag the window
-// narrow and the rectangles stretch with it, which is what a panel filling a
-// window does and not a bug.
+// BOTH SURFACES ARE THINGS IN THE WORLD, MEASURED IN REAL MILLIMETRES. A GUI
+// unit is 1 mm (ADR-0089) and a panel is an object: the exhibit is 240 by 135 mm,
+// which is 0.24 by 0.135 metres, and the entity's own transform is what scales it
+// up to something readable from the orbit. A resize does nothing to either of
+// them — the window changes the camera's aspect and nothing else, and neither
+// panel answers to ui_scale. The surface that does is src/surface.h, which is a
+// different kind of surface and says so.
+//
+// THE EXHIBIT STANDS IN THE WORLD AND THE BADGE IS IN THE OVERLAY, which is the
+// pair worth having. Something in the scene passes in front of the exhibit as
+// the camera goes round, because a panel is occluded by what is in front of it;
+// nothing ever covers the badge, because the overlay is drawn after the world's
+// depth has been cleared. Both keep real positions in metres and neither is
+// screen space.
 //
 // EVERY COLOUR IN HERE IS LINEAR, because every colour that crosses render's
 // boundary is (see render/include/render/device.h). They are written as linear
@@ -33,7 +42,6 @@
 // are wider apart on screen than the numbers look.
 #pragma once
 
-#include <math/float2.h>
 #include <render/device.h>
 #include <text/font.h>
 
@@ -56,27 +64,39 @@
 #define VOE_DEV_ELEMENTS \
 	(VOE_DEV_ELEMENTS_RECTANGLES + VOE_DEV_ELEMENTS_GLYPHS)
 
-// The panel the exhibit is laid out on, in millimetres. 16:9, which is the
-// window's default aspect.
+// And what the badge submits, counted the same way and for the same reason.
+#define VOE_DEV_BADGE_ELEMENTS 5
+
+// The panel the exhibit is laid out on, in millimetres, and 16:9 because the
+// layout inside it was authored that way. It is 0.24 by 0.135 metres in the
+// world; what makes it something a person can read from seven metres away is the
+// scale on its entity's transform, in main.c.
 #define VOE_DEV_ELEMENTS_PANEL_WIDE 240.0f
 #define VOE_DEV_ELEMENTS_PANEL_HIGH 135.0f
 
-// Submits the exhibit's rectangles and letters into the open frame and draws
-// them. Called between the draw system's walk and voe_render_frame_end, which is
-// the provisional place the header explains.
+// The badge's panel, in millimetres. Small, because its whole job is to be a
+// second range of the one buffer with a second matrix — two panels is what says
+// a range is a range rather than "the whole frame" spelled differently.
+#define VOE_DEV_BADGE_WIDE 80.0f
+#define VOE_DEV_BADGE_HIGH 50.0f
+
+// Submits the exhibit's rectangles and letters into the open frame. It does not
+// draw: the caller reads voe_render_frame_elements_submitted either side of this
+// and writes the difference onto the exhibit's panel component.
 //
 // `font` is what the letters are measured from — their boxes, their sheet
 // rectangles and their advances — and its atlas is the sheet every glyph record
 // names. It is the same font the world's text is drawn with, because there is
 // one and because a second sheet would prove nothing this one does not.
 //
-// False when a submit or the draw was refused, which for this program means the
-// element capacity is smaller than VOE_DEV_ELEMENTS — this file's mistake and
-// worth stopping over. The refusal has already said which numbers it was on
+// False when a submit was refused, which for this program means the element
+// capacity is smaller than everything the frame submits — this file's mistake
+// and worth stopping over. The refusal has already said which numbers it was on
 // stderr.
 [[nodiscard]] bool voe_dev_elements_submit(voe_render_device *gpu,
 					   const voe_text_font *font);
 
-// The transform the exhibit is drawn with: the panel above, filling the whole
-// target. Separate from the submit so that main.c can say what it drew with.
-voe_math_float4x4 voe_dev_elements_transform(void);
+// Submits the badge's few rectangles, on the same terms. No font and no letters:
+// what the badge is for is being a second range, and a second exhibit would say
+// nothing the first one has not.
+[[nodiscard]] bool voe_dev_elements_badge_submit(voe_render_device *gpu);

@@ -52,7 +52,15 @@ way out, and no file here holds a gamma constant.
   frame held. Card 031 spent the words that path reserved: `voe_render_element`'s
   header now says what a glyph element reads and from where, what shape the sheet
   rectangle is in and who converts to it, and what a glyph that named no sheet
-  draws.
+  draws. Card 032 made an element draw take a range of the one buffer, so that
+  one frame can hold several surfaces: its header says how a caller learns its
+  own range and why that count must not be mistaken for the draw count, why a
+  range past what was submitted is returned rather than asserted, which of the
+  two new matrices owns the element path's Y negation and why the other is built
+  on it rather than beside it, and — on the call that turns pixels per millimetre
+  into a surface's millimetre size — why that number is a parameter and why an
+  authored millimetre means one thing on a surface filling the window and another
+  on one standing in the world.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -87,11 +95,14 @@ way out, and no file here holds a gamma constant.
   where the generation can wrap and why that is noted rather than handled, and
   why a barrier appearing in the transient path would be the bug.
 - `src/element.c` — the element path on the C side: the third pipeline, the
-  submit that writes one record, the one instanced draw, and the matrix that
-  turns an element surface's millimetres into clip space. Its header says why the
+  submit that writes one record, the instanced draw over a range of them, and the
+  two matrices that say what element space is — one onto the surface's own plane
+  in metres and one from there onto the whole target. Its header says why the
   record buffers are not in here, why the pipeline shares the other two's layout
-  and what that costs the push constant range, and why it is not a third variant
-  of them. The Y negation lives in this file and nowhere else.
+  and what that costs the push constant range, why it is not a third variant of
+  them, and why the second matrix is built on the first. The Y negation lives in
+  this file and nowhere else — in one function of it. The draw's own comment says
+  how a range reaches the shader and which two semantics it takes to add up.
 - `src/shading.c` — the record buffer the fragment stage reads by index, and the
   slots that name its rows. Its header says why one buffer serves every frame
   slot and why creating a record waits for the GPU.
@@ -136,11 +147,15 @@ way out, and no file here holds a gamma constant.
   clips, that submission order is paint order both ways round and across the two
   kinds, that the blend multiplied by alpha exactly once, that overrunning the
   element capacity is refused without spoiling the frame or the next, that a mesh
-  drawn after an element draw is still drawn right, and that a solid and a glyph
-  in one frame are one draw. Its header says why the arrangement is deliberately
+  drawn after two element draws is still drawn right, that a solid and a glyph in
+  one frame are one draw, that two ranges of the one buffer land where their own
+  two matrices say, and that a range past what was submitted is refused with the
+  frame left intact. Its header says why the arrangement is deliberately
   asymmetrical, why the draw count is counted rather than assumed, which of the
   claims has no picture of its own, why the sheet is hand-made rather than a
-  font, and what a glyph that named no sheet draws. Headless.
+  font, what a glyph that named no sheet draws, and why the range test moves only
+  the matrix. Four of its claims need no graphics card: the two matrices'
+  directions, the surface size, and the record's size. Headless.
 - `tests/matrix.c` — that slangc really was given `-matrix-layout-row-major`,
   checked by making a shader report a known matrix back. Its header says which
   two claims card 018 moved out of it and where they went, and why the three
@@ -165,7 +180,9 @@ way out, and no file here holds a gamma constant.
   the fragment stage, and the sheet a glyph reads its coverage out of. Its header
   says why it is a second shader rather than a fourth branch in `draw.slang`, why
   nothing is read from a vertex buffer, why four vertices and a strip rather than
-  six, that order is paint order and what relies on it, why its push constant
+  six, why the record's number takes two semantics added together and what
+  reading only one of them looks like, that order is paint order and what relies
+  on it, why its push constant
   aliases `draw.slang`'s, why the threshold is a threshold and not a smoothstep,
   why the sheet is sampled at an explicit level, why its texture index is
   non-uniform where `draw.slang`'s is not, and that it holds a second copy of the

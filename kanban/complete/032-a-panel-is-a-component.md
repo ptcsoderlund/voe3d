@@ -1,7 +1,7 @@
 # 032 — a panel is a component
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 
 Written by the tech lead under the standing grant. **Not a spin-off**: it follows
@@ -44,6 +44,59 @@ matrix that puts that range somewhere.** That is the amendment this card is
 written on; the substance of ADR-0093 — panel as entity, `3d` never naming `ui`,
 picking split outside the leaf, panels in the existing pass and layer order — is
 untouched and is what this card builds.
+
+## Amended 2026-09-09: two surfaces, and which scope is about which
+
+**The card's coder found that the exhibit scope and the screen-filling scope
+contradict each other, and he was right.** The exhibit scope was written when the
+demo had exactly one element surface; the screen-filling scope was appended hours
+later and inherited that surface's header without noticing the exhibit was moving
+out from under it. Read the two together and the demo both does and does not fill
+the window.
+
+**The answer is that the demo ends up with three element draws, on two different
+kinds of surface, and only one of them is what the screen-filling scope is about.**
+
+| # | Surface | Reaches the frame by | What a resize does to it |
+|---|---|---|---|
+| 1 | **World panel** — the exhibit's 40 rectangles and 40 glyphs | entity + panel component, `VOE_3D_LAYER_WORLD`, sorted with blended meshes | nothing. It is a thing in metres and the window only changes the camera's aspect |
+| 2 | **Overlay panel** — a few rectangles | entity + panel component, `VOE_3D_LAYER_OVERLAY` | nothing, for the same reason (ADR-0074: overlay is still in perspective, still in metres) |
+| 3 | **Screen-filling surface** — new, small, no glyphs | `voe_render_frame_draw_elements` called directly with `voe_render_element_transform`, outside the draw system | **everything. This is the only surface the screen-filling scope describes.** |
+
+**Two kinds of surface is not new and this card does not decide it** — it is what
+ADR-0093 and ADR-0104 already say standing side by side. A world panel is an object
+at a position in metres, where an authored millimetre is a real millimetre
+(ADR-0089). A screen-filling surface has no position, is mapped straight onto the
+target by `voe_render_element_transform`, and is where an authored millimetre means
+*a proportion of the surface's authored height* (ADR-0104 point 5). **Both meanings
+of the unit are live in this one card, on three surfaces, and the headers you write
+are where a reader finds out which is which.** That was already asked for; this
+table is what it is asking about.
+
+**Surface 3 is not "drawing the GUI last", which ADR-0093 rejects.** That rejection
+is about *world and overlay content* — a panel bolted to a wall must be able to go
+behind the wall. A screen-filling surface is not in the world, has nothing to sort
+against, and cannot be occluded by definition. Keeping it outside the draw system is
+correct, and it is why the card tells you to keep
+`voe_render_element_transform(size)` exactly as it is.
+
+### What this changes in the text below
+
+- **The exhibit still moves to the world panel**, as `dev/src/elements.h` already
+  promises and as the exhibit scope says. Unchanged.
+- **Surface 3 needs a little content of its own**, because the content that used to
+  demonstrate the resize behaviour is leaving with the exhibit. **A handful of
+  rectangles, no glyphs, no font, no second exhibit.** The property that matters, and
+  the only one: **laid out at fixed millimetre positions measured from the surface's
+  top-left, reaching far enough right that a narrow window cuts the far ones off.**
+  Ticks along two edges plus a marked square is enough. How you spell it is yours.
+- **`ui_scale` lives beside surface 3** and calibrates only it. It has nothing to say
+  about a panel standing in the world, and the header should say so where a reader
+  will otherwise assume one knob moves everything.
+- **The corrected sentence about "fewer millimetres of width" and content "cut off"
+  belongs to surface 3's header, not to `dev/src/elements.h`.** In `elements.h` the
+  stretching paragraph is **deleted, not rewritten** — the exhibit is not on a
+  stretched surface any more, so there is nothing there to correct.
 
 ## Goal
 
@@ -134,7 +187,8 @@ this card carried this morning.
   rectangle onto the whole target* is an honest primitive and a world panel needs
   the same maths. What changes is that nobody computes `size` by assuming the
   window's aspect any more.
-- **What the demo passes: the window's height divided by the surface's authored
+- **What the demo passes — for surface 3, and only for it: the window's height
+  divided by the surface's authored
   millimetre height, times `ui_scale`.** That is ADR-0104's whole formula and there is
   nothing else to it — no display is read, on any platform, and `platform` grows no
   surface for one. `ui_scale` is a plain number the program owns, default 1.0, and
@@ -152,18 +206,26 @@ this card carried this morning.
   wants a different arrangement on a different shape of window writes that `if`
   itself. Nothing in `render`, `3d` or `ui` learns what kind of device it is on.
 
-### The exhibit's own header is now wrong
+### The stretching sentence, and where its replacement goes
+
+**Corrected by the 2026-09-09 amendment above — read that table first, because this
+paragraph originally addressed the wrong file.**
 
 `dev/src/elements.h` says: *"drag the window narrow and the rectangles stretch with
-it, which is what a panel filling a window does and not a bug."* **Under ADR-0103
-it is a bug**, and what replaces it is not *the same content scaled* but **the same
-content at a fixed size with more or less room around it**. Fix the behaviour and fix the sentence, and say in the new one what
-a narrow window now does instead: the same rectangles at the same shape, with fewer
-millimetres of width to put them in. The exhibit is laid out at fixed millimetre
+it, which is what a panel filling a window does and not a bug."* **That sentence is
+deleted rather than rewritten**, because the exhibit it describes is moving onto a
+world panel where a resize does nothing at all. Say there instead what the exhibit
+now is: a surface of a fixed size in metres, standing in the world, whose
+millimetres are real millimetres.
+
+**What replaces it belongs to surface 3's header**, and it is not *the same content
+scaled* but **the same content at a fixed size with more or less room around it**.
+Say what a narrow window does: the same rectangles at the same shape, with fewer
+millimetres of width to put them in. Surface 3 is laid out at fixed millimetre
 positions, so **some of it will fall outside a narrow window and be cut off** —
 that is correct under this decision, it is what wrapping and scrolling will
 eventually answer (D-155, card 035), and the header should say so rather than
-leaving the next reader to think the exhibit is broken.
+leaving the next reader to think it is broken.
 
 ## Scope — `3d`: the panel component
 
@@ -237,8 +299,16 @@ there when it does."* Do that.
 - **And a second, smaller panel in the overlay**, which nothing hides. Two panels
   is what proves the range: one buffer, two draws, two matrices. A few rectangles
   is enough; it does not need to be a second exhibit.
-- `main.c`'s printed draw count becomes the meshes plus one per panel, and the
-  comment that reads the number says so.
+- **And surface 3, which stays where it is**: still submitted and drawn by a direct
+  `voe_render_frame_draw_elements` after the draw system has walked, still using
+  `voe_render_element_transform` — with its size now coming from the new call and a
+  little content of its own, per the amendment at the top of this card. It is the
+  one surface in the demo that fills the window, and the only one `ui_scale` moves.
+- `main.c`'s printed draw count becomes the meshes, **plus one per panel, plus one
+  for surface 3** — meshes plus three — and the comment that reads the number says
+  which is which. **Two of those three go through the sort and one deliberately does
+  not**, which is the sentence that stops the next reader thinking surface 3 was
+  forgotten.
 - **Do not build a widget, and do not build a `ui` dependency.** The exhibit writes
   records by hand and that is the point of the checkpoint.
 
@@ -297,10 +367,16 @@ State in your report that you checked each of these:
   stale being skipped.
 - **A screenshot** with the world panel half-hidden by a cube and the overlay panel
   over everything, and the printed draw count beside it.
-- **Two screenshots of the same overlay panel in two window shapes** — one near the
-  authored aspect, one distinctly narrower — showing that **nothing is deformed and
-  nothing changes size**, and that what changes is how much room there is. That is
-  ADR-0103's whole claim and it cannot be asserted in a test; it is looked at.
+- **Two screenshots of surface 3 in two window shapes** — one near the authored
+  aspect, one distinctly narrower — showing that **nothing is deformed and
+  nothing changes size**, and that what changes is how much room there is, with the
+  far content cut off in the narrow one. That is ADR-0104's whole claim and it cannot
+  be asserted in a test; it is looked at. **Corrected by the 2026-09-09 amendment:
+  this bullet named the overlay panel, which is the wrong object** — an overlay panel
+  is in metres and in perspective, so it would have shown nothing either way.
+- **The world panel in those same two shapes, unchanged**, which is the other half of
+  the claim: the surface that is a thing in the world does not answer to `ui_scale`
+  or to the window at all.
 - Tests that need no graphics card: the millimetre size comes out as the pixel size
   divided by the scale on both axes; halving the scale doubles both millimetre
   dimensions; a scale of nought is the caller's bug and is refused rather than
@@ -323,3 +399,147 @@ State in your report that you checked each of these:
   screen-filling surface.
 - What you deliberately did not build: no widgets, no `ui` edge, no picking, no
   frame stamp.
+
+## Notes — claude-opus-5 (kanban-coder), 2026-09-09
+
+### The card's own defect, and what came of it
+
+The exhibit scope and the screen-filling scope contradicted each other and the
+card was amended before any code was written. Everything below is against the
+amended card: three element draws, on two kinds of surface.
+
+### `render`
+
+- `voe_render_frame_draw_elements` takes `first` and `count`. A range past what
+  was submitted returns false and names the numbers, written as a subtraction so
+  the comparison cannot wrap. A count of nought records nothing and is not a
+  refusal.
+- `voe_render_frame_elements_submitted` is the count a caller reads either side
+  of its own submissions. Named so it cannot be read as
+  `voe_render_frame_draw_count`; its header says why the two are never the same
+  number.
+- **The range reaches the shader as `firstInstance`, and that needed a shader
+  change nobody had predicted.** Slang gives `SV_InstanceID` HLSL's meaning — the
+  instance's number *within the draw*, counting from nought whatever
+  `firstInstance` was — so the first version drew the first `count` records of
+  the buffer for every range but the first. It looked perfect with one surface in
+  the frame. `shaders/elements.slang` now reads `SV_StartInstanceLocation`
+  alongside it and adds the two. `two_ranges_two_matrices_two_draws` is written
+  to catch exactly that: the same two rectangles in both ranges, only the matrix
+  moved.
+- `voe_render_element_surface_matrix(size)` is new and is the piece `render`
+  owns: element millimetres, y down from the top-left, onto the surface's own
+  plane in metres, y up, **centred on the surface's origin**. Centred rather than
+  cornered because the card says the size is what the millimetre-to-metre step
+  needs, and a step that only scales would not need it.
+- **`voe_render_element_transform` is now a composition of it**, as the card
+  recommended: an orthographic step over the surface's own metres, times the
+  surface matrix. Both scales in that step are positive. **There is exactly one
+  negation on the element path and it is `m.m[1][1]` in
+  `voe_render_element_surface_matrix`** — greppable, and checked.
+- `voe_render_element_surface_size(target, pixels_per_millimetre)` divides both
+  axes by the one number.
+
+### `3d`
+
+- `voe_3d_panel`: `first`, `count`, `size` (millimetres), `layer`. No matrix —
+  the `voe_scene_transform` row under the same entity is where placement lives.
+  The header's first paragraph is *"THE RANGE IS ONE FRAME'S AND IS WRONG THE
+  MOMENT THAT FRAME HAS ENDED."*
+- `voe_3d_panel_set_range` is the only write after creation; size and layer
+  travel through it untouched, the same shape `voe_3d_mesh_set_geometry` has.
+- **The draw system walks two tables.** Meshes first — nothing hangs on that
+  order and the header says so — then panels, every one of which is held back.
+  `struct deferred` became a tagged union: a `bool panel` and two arms, a mesh's
+  geometry and record or a panel's composed matrix and range. `hold` now takes
+  the world matrix separately, because the two arms keep their matrices in
+  different places. `draw_group` issues whichever arm it finds, from the one
+  sorted list. `voe_3d_depth_sort` was not touched.
+- **A stale range is skipped**: `range_is_this_frame_s` compares against
+  `voe_render_frame_elements_submitted`. **What it does not catch**: a stale range
+  that happens to fall inside what some other surface submitted this frame draws
+  somebody else's rectangles. No frame stamp was added — it is a field, a write
+  and a comparison every frame for a case nothing has hit, and the source says so
+  where the next reader will look.
+- Groups are sized `meshes + panels`. `struct group` gained a `capacity` and
+  `hold` asserts against it — see *the analyser* below.
+- **A world that is drawn must now register the panel table even with no panels
+  in it.** `3d/tests/import.c` grew that line and `draw_system.h` states the rule
+  beside the camera-and-light one.
+
+### `dev`
+
+Three element surfaces and 3 draw commands, exactly as the amended card's table
+says:
+
+| Surface | How it reaches the frame | Content |
+|---|---|---|
+| exhibit | entity + panel, `WORLD` | the 40 rectangles and 40 letters, unchanged |
+| badge | entity + panel, `OVERLAY` | 5 rectangles, violet, deliberately asymmetric |
+| `src/surface.c` | direct `voe_render_frame_draw_elements` | 9: a plate, a square and six ticks |
+
+- `src/elements.c` no longer draws. `voe_dev_elements_transform` is gone.
+- `VOE_DEV_UI_SCALE` lives in `src/surface.h`, default `1.0f`, and a person
+  changes it by editing that line. `surface.c` computes
+  `target.height / VOE_DEV_SURFACE_HIGH * VOE_DEV_UI_SCALE` and hands it to
+  `voe_render_element_surface_size`.
+- **The header sentence about what a millimetre is**, in `src/surface.h`: *"On a
+  panel, an authored millimetre is a real millimetre: 240 mm is 0.24 m and a
+  ruler would agree. On this surface it is a PROPORTION OF THE SURFACE'S AUTHORED
+  HEIGHT — nothing physical, and nothing to do with any display."*
+- The stretching paragraph in `src/elements.h` is **deleted**, not rewritten, and
+  the "fewer millimetres of width / cut off" sentences are in `src/surface.h`.
+- The exhibit stands at (0, 1.2, −2.2) with a transform scale of 14, so 240 mm ×
+  135 mm is 3.36 m × 1.89 m in the world; the badge is at the turning cube with a
+  scale of 16. Those scales are the entity's transform doing what a transform
+  does — the authored millimetres were not touched.
+
+### What was checked, and on what
+
+`cmake -P check.cmake` exits zero on **Linux** (Fedora 44, clang 22.1.8, CMake
+4.3.0, Ninja 1.13.2, slangc 2026.13.1, NVIDIA RTX 4070 Laptop, Vulkan 1.4.341) —
+all steps, 38 tests, analyser clean. **Windows was not checked and has no machine
+here**; nothing in this card is platform-specific — no `#ifdef` was added and no
+platform surface was touched — so what the other machine turns up becomes a new
+card.
+
+The analyser was not clean at first and the warning was real: with the groups
+sized `count + panel_count`, it could no longer prove that a group a mesh is held
+in has any room. `struct group` now carries its `capacity` and `hold` asserts
+`deferred != NULL && count < capacity`. That is the card's *"keep its arithmetic
+honest"* made checkable rather than argued.
+
+Looked at, not asserted:
+
+- The exhibit standing in the world with the figure and a sprite in front of it,
+  the violet badge over everything, and the plate and six ticks in the corner.
+- The same scene in a 430 × 540 window: **the ticks are the same size and the
+  same spacing and the last two have fallen off the right edge**; the white square
+  is still square; the world panel and the badge are unchanged, because a resize
+  changes only the camera's aspect. That is ADR-0104's claim and it is the picture
+  the amendment asked for.
+
+### Draw counts
+
+**30 before, 32 after** — 29 meshes throughout; one element draw became three.
+The "before" was measured by building `HEAD` in a scratch worktree and running
+it, not inferred.
+
+### What was deliberately not built
+
+No widgets. No `ui` edge — there is no `ui` anywhere in this diff, and `3d`'s
+`DEPENDS` line is unchanged, as are `render`'s and `dev`'s. No picking. No frame
+stamp on the panel component. The element record is untouched — still eighty
+bytes, still the same fields, and `tests/elements.c` still asserts it. The mesh
+path, the four groups, the depth clear and the order they are issued in are
+unchanged.
+
+### One Verify bullet could not be performed as written
+
+*"a scale of nought is the caller's bug and is refused rather than producing an
+infinity"* — the two halves of that sentence ask for different things. Rule 13
+says a caller's bug is an assert, `voe_render_element_transform` already asserts
+on the same shape of mistake, and an assert cannot be asserted on from a test
+that has to keep running. So it is `VOE_BASE_ASSERT(pixels_per_millimetre >
+0.0f, ...)`, negatives included, and the test covers the other three items in
+that bullet. Flagging it rather than quietly picking one reading.

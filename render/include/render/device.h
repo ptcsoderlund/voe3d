@@ -909,9 +909,34 @@ voe_render_frame_draw_count(const voe_render_device *device);
 [[nodiscard]] bool voe_render_frame_submit_element(voe_render_device *device,
 						   voe_render_element element);
 
-// Draws every element submitted to this frame, in one instanced draw, with
-// `transform` turning the elements' millimetres into clip space. Records nothing
-// when no element has been submitted.
+// How many elements have been submitted to the open frame so far — or, once
+// _end has run, how many the frame that was just submitted held. Every _begin
+// puts it back to nought, exactly as it empties the buffer it counts.
+//
+// IT IS HOW A CALLER LEARNS ITS OWN RANGE, AND IT IS THE WHOLE PROTOCOL. Read
+// it, submit one surface's records, read it again: the first number is `first`
+// and the difference is `count`, which is what the draw below takes. There is
+// no id, no handle and nothing allocated — a range is two numbers about one
+// buffer that belongs to one frame and is empty again in the next.
+//
+// IT IS NOT voe_render_frame_draw_count AND THE TWO ARE NEVER THE SAME NUMBER.
+// This counts records submitted; that one counts draw commands recorded. Forty
+// rectangles in one draw is forty here and one there, and that gap is the whole
+// claim of this path — reading the wrong one of the two turns the claim into
+// something trivially true.
+[[nodiscard]] uint32_t
+voe_render_frame_elements_submitted(const voe_render_device *device);
+
+// Draws `count` of this frame's elements, starting at `first`, in one instanced
+// draw, with `transform` turning the elements' millimetres into clip space. A
+// count of nought records nothing.
+//
+// A RANGE AND NOT THE WHOLE BUFFER, BECAUSE ONE BUFFER HOLDS EVERY SURFACE THE
+// FRAME DRAWS. Two panels in two places are two ranges of the one buffer, two
+// matrices and two draw commands; the ranges come from
+// voe_render_frame_elements_submitted, read either side of the submissions
+// belonging to one surface. Nothing about a range survives the frame it was
+// taken in.
 //
 // `transform` IS THE ONE PLACE THE SURFACE'S GEOMETRY LIVES, AND IT IS A
 // PARAMETER BECAUSE THIS FOLDER CANNOT KNOW IT. What size the surface is, where
@@ -923,37 +948,122 @@ voe_render_frame_draw_count(const voe_render_device *device);
 // voe_render_frame_draw_blended does — so an element behind an opaque object is
 // hidden by it, and two elements never hide each other.
 //
-// False when the pipeline this needs was never built, which is a device that
-// could not be opened rather than something a caller does. Calling this without
-// a _begin that set `drawing`, or after _end, is the caller's bug and asserts.
+// False in two situations. The pipeline this needs was never built, which is a
+// device that could not be opened rather than anything a caller did. Or the
+// range runs past what has been submitted to this frame — which is returned and
+// not asserted, because ordinary staleness reaches it: a caller holding a range
+// from a frame that has already gone is a surface nobody rebuilt this frame, and
+// costing it one draw is better than stopping the program. The line on stderr
+// names the numbers.
+//
+// Calling this without a _begin that set `drawing`, or after _end, is the
+// caller's bug and asserts.
 [[nodiscard]] bool
 voe_render_frame_draw_elements(voe_render_device *device,
-			       voe_math_float4x4 transform);
+			       voe_math_float4x4 transform, uint32_t first,
+			       uint32_t count);
+
+// Element space onto the surface's own plane: millimetres in, metres out, the
+// surface centred on its own origin and Y the right way up.
+//
+// IT IS THE PIECE OF A PANEL'S MATRIX THAT BELONGS TO THIS FOLDER, AND ONLY
+// THAT PIECE. Where a surface stands, which way it faces and what camera looks
+// at it are questions about a scene, which this folder has never heard of; what
+// element space is and which way its Y runs is this folder's alone. So a caller
+// drawing a surface standing in the world composes projection × view × model ×
+// this and hands the product to the draw above — see 3d/panel_component.h,
+// which is the first caller that does.
+//
+// IT OWNS THE ELEMENT PATH'S Y NEGATION AND THERE IS NO OTHER. Element space
+// runs y downwards from the surface's top-left corner, because that is what
+// every interface in the world means by a coordinate, and the engine's world
+// runs +Y up. The two meet here, once. voe_render_element_transform below is
+// built on top of this rather than beside it, precisely so that the sign is
+// written down in one function; there is still exactly one Y flip in this
+// engine, in the viewport, and neither of these is a second one.
+//
+// ONE MILLIMETRE IS ONE MILLIMETRE (ADR-0089), so a 240 mm surface is 0.24 m
+// across before the caller's own model matrix says anything. That factor is the
+// only number in here, and a panel that came out the size of a wall or too small
+// to find is it inverted.
+//
+// THE SURFACE IS CENTRED ON ITS ORIGIN, AND THAT IS WHY THIS TAKES A SIZE. The
+// millimetre-to-metre step on its own is a scale and would need nothing; putting
+// the middle of the surface at the entity's position is what makes a panel
+// behave like every other flat thing placed by a transform, and it is why the
+// size is a field on the panel component rather than something read off the
+// elements — forty rectangles do not say how big the paper is.
+//
+// A size with a zero in it is the caller's bug and asserts, for the reason the
+// transform below gives.
+[[nodiscard]] voe_math_float4x4
+voe_render_element_surface_matrix(voe_math_float2 size);
 
 // The transform an element surface of `size` millimetres wants in order to fill
 // the whole render target: millimetres in, clip space out.
 //
-// IT IS THE ONLY PLACE THIS ENGINE CONVERTS ELEMENT SPACE TO CLIP SPACE, and
-// everything drawn through the call above depends on it being right. Three
-// decisions are in it and each of them is a thing to get wrong silently:
+// IT IS THE SURFACE MATRIX ABOVE WITH THE TARGET MAPPED ONTO IT, AND NOT A
+// SECOND ANSWER. Element space becomes the surface's own metres up there, and
+// this composes onto that the one further step of covering the target with the
+// whole surface. Both scales in that step are positive: everything about the Y
+// direction has already happened, in one function, and a minus sign appearing
+// here as well would be the classic double flip that looks correct until
+// something is culled.
 //
-//   - THE ORIGIN IS THE TOP-LEFT AND Y RUNS DOWN, which is what an interface
-//     means by a coordinate. The engine's one Y flip — the negative viewport
-//     height in render/src/frame.c — puts +Y clip space at the *top* of the
-//     screen, so mapping y = 0 to the top means a negative scale here. That
-//     negation is this function and there is no other; see voe_render_element.
+// Two decisions of its own remain, and each is a thing to get wrong silently:
+//
 //   - z IS THE NEAR PLANE, WHICH IS 1.0. Depth runs backwards in this engine and
 //     the test is GREATER, so an element passes in front of anything already
 //     drawn. It writes no depth, so this decides nothing about the elements
 //     among themselves.
-//   - IT IS THE WHOLE TARGET AND NOT PART OF IT. A surface smaller than the
-//     window, or one standing in the world, is a different matrix and card 032's
-//     to build; this one is what a full-screen overlay wants.
+//   - IT IS THE WHOLE TARGET AND NOT PART OF IT. A surface standing in the world
+//     is the composition described above; this one is what a surface filling the
+//     window wants, and such a surface has no position, cannot be occluded and
+//     never reaches the draw system.
+//
+// A MILLIMETRE ON THIS SURFACE IS NOT A MILLIMETRE ANYWHERE ELSE, AND THIS IS
+// WHERE A READER FINDS THAT OUT. `size` is stretched over the whole target, so
+// an authored millimetre here is a proportion of the surface's authored height
+// and nothing physical; it becomes a size a ruler would agree with only through
+// the window and whatever calibration the caller applied — see
+// voe_render_element_surface_size, which is where that calibration is a
+// parameter. On the surface matrix above, standing in the world, a millimetre is
+// a real millimetre and the window has nothing to say about it.
 //
 // A size with a zero in it is the caller's bug and asserts: the reciprocal of
 // nothing is what would reach the shader.
 [[nodiscard]] voe_math_float4x4
 voe_render_element_transform(voe_math_float2 size);
+
+// How many millimetres across a screen-filling surface is: the target's pixel
+// size divided by `pixels_per_millimetre`, on both axes. The answer is what the
+// surface is laid out in and what the transform above is given.
+//
+// ONE SCALE ON BOTH AXES IS THE WHOLE OF WHY IT EXISTS. A surface whose
+// millimetre size is authored once and then stretched onto whatever shape the
+// window happens to be deforms everything on it — a square becomes an oblong and
+// a letter becomes a wider or narrower letter at every size, which is the sharp
+// text of cards 025 and 027 undone by a matrix. Divide both axes by one number
+// and the surface keeps its shape: what a window's shape changes is how many
+// millimetres there are, never what a millimetre looks like. Content laid out at
+// fixed millimetre positions therefore falls off the edge of a narrow window
+// rather than squeezing, which is correct and is what wrapping answers later.
+//
+// AND THE NUMBER IS A PARAMETER BECAUSE THIS FOLDER CANNOT KNOW IT. How many
+// pixels a millimetre is worth is a fact about a display and about what the
+// person in front of it chose, and there is no way to ask either from here. Both
+// modes anybody wants are one multiplication at the call site: a caller that
+// means physical millimetres passes the display's pixels per millimetre, and a
+// caller that means a proportion of the window passes the target's height
+// divided by the millimetres it wants that height to hold. Nothing in here has
+// a policy, a breakpoint or an opinion about what kind of device it is on.
+//
+// A scale of nought or less is the caller's bug and asserts: dividing by it is
+// an infinity that would reach a matrix and then a shader, where it is a blank
+// window rather than anything that says what happened.
+[[nodiscard]] voe_math_float2
+voe_render_element_surface_size(voe_platform_size target,
+				float pixels_per_millimetre);
 
 // ------------------------------------------------------------------ timing
 

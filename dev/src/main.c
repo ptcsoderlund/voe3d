@@ -93,6 +93,22 @@
 // watch: the frame rate and the four timings, the same ones the console prints,
 // laid out again every frame.
 //
+// And three surfaces of elements, which are two different kinds of thing:
+//
+//   - THE EXHIBIT, a panel standing in the world behind the cubes: forty
+//     coloured rectangles and two lines of writing, all of it one draw command.
+//     It is an object in metres, so the cubes and the figure pass in front of it
+//     as the camera goes round, and it is seen from behind — writing and all —
+//     for half of every lap.
+//   - THE BADGE, a small violet panel in the overlay, sitting in the turning
+//     cube. Nothing ever covers it, which is what the overlay layer means; it
+//     still keeps a real position in metres and is still seen in perspective.
+//   - THE PLATE AND THE ROW OF TICKS in the top-left corner, which is not a
+//     panel at all: it is mapped straight onto the window and has no position.
+//     Drag the window narrow and it is the only thing that changes — the same
+//     rectangles at the same size, with the far ticks off the right edge. See
+//     src/surface.h for why that is the decision working.
+//
 // ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
 //
 // THE CUBES ARE VISIBLE THROUGH THEM AND TINTED BY THEM. That is the whole claim
@@ -266,11 +282,21 @@
 //     still obvious and one that did it twice makes the row vanish too early;
 //     and the thirty-two squares below that are thirty-two different colours,
 //     which is the thing one draw of one shading record could not be.
-//   - The panel upside down — the element surface's Y. It runs down from the
-//     panel's top-left corner, and the negation that makes that true is in
-//     voe_render_element_transform. Nothing here negates anything.
-//   - The panel stretched when the window is dragged narrow — expected. It is a
-//     fixed-size panel filling the window; see src/elements.h.
+//   - The exhibit upside down, or the badge's orange corner mark at the bottom
+//     — the element surface's Y. It runs down from the surface's top-left
+//     corner, and the negation that makes that true is in
+//     voe_render_element_surface_matrix. Nothing here negates anything.
+//   - THE EXHIBIT VISIBLE THROUGH A CUBE THAT IS IN FRONT OF IT — the panel has
+//     stopped being sorted with the see-through meshes and is being drawn after
+//     everything, which is the one thing card 032 exists to prevent. The badge
+//     is the opposite case and is meant to be visible through everything: it is
+//     in the overlay, on the far side of the depth clear.
+//   - The exhibit or the badge stretched, or changing size, when the window is
+//     dragged narrow — a bug. Both are objects in metres and the window only
+//     changes the camera's aspect. The surface that does answer to the window is
+//     the plate and ticks in the top-left corner, and what it does is hold fewer
+//     millimetres rather than narrower ones: the ticks keep their size and
+//     spacing and the far ones fall off the right edge. See src/surface.h.
 //   - The world's picture gone and only the overlay left — the depth clear
 //     cleared colour as well. Only the depth aspect may be named; see
 //     render/src/frame.c.
@@ -442,6 +468,7 @@
 // immediately, because platform has no way to wait yet.
 #include "cubes.h"
 #include "elements.h"
+#include "surface.h"
 #include "quad.h"
 #include "sprites.h"
 
@@ -449,6 +476,7 @@
 #include <3d/import.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/panel_component.h>
 #include <assets/image.h>
 #include <base/arena.h>
 #include <base/assert.h>
@@ -594,6 +622,35 @@
 // QUAD_Z is not nought, at a smaller scale.
 #define OVERLAY_QUAD_SIZE 0.5f
 #define OVERLAY_QUAD_Z 0.22f
+
+// The two element panels: how big each one is in the world, and where it stands.
+//
+// A MILLIMETRE IS A MILLIMETRE AND THE SCALE IS WHAT MAKES THEM BIG ENOUGH TO
+// LOOK AT. The exhibit is authored 240 by 135 mm, which is 0.24 by 0.135 metres
+// — a postcard, and unreadable from seven metres out. The scale below is the
+// entity's own transform doing what a transform does; it is not a second
+// millimetre convention, and dividing the authored numbers by it would give the
+// same picture with the layout's units made meaningless. See
+// 3d/panel_component.h.
+//
+// THE EXHIBIT STANDS BEHIND THE CUBES SO THAT THEY PASS IN FRONT OF IT. That is
+// the picture the whole card is for: a panel in the world layer is occluded by
+// what is between it and the camera, which nothing drawn after the world could
+// ever be. Half a lap it is partly hidden and half a lap it is not.
+#define EXHIBIT_SCALE 14.0f
+#define EXHIBIT_X 0.0f
+#define EXHIBIT_Y 1.2f
+#define EXHIBIT_Z (-2.2f)
+
+// The badge sits in the turning cube, exactly where the three overlay quads do
+// and for the same reason: something is in front of it for most of the lap and
+// it is never hidden, which is what the overlay layer means. It is small
+// because its job is to be a second range of the one element buffer rather than
+// a second exhibit.
+#define BADGE_SCALE 16.0f
+#define BADGE_X 0.8f
+#define BADGE_Y 0.35f
+#define BADGE_Z 0.0f
 
 // The two strings, and the two placements the card asks to see: one standing in
 // the world and one locked to the camera.
@@ -983,6 +1040,39 @@ static voe_scene_transform quad_at(voe_math_float3 position, float size)
 	};
 
 	return transform;
+}
+
+// One panel, one entity: a transform saying where the surface stands and how big
+// it is, and a panel component saying how big the surface is in its own
+// millimetres and which layer it is drawn in.
+//
+// NO MATERIAL AND NO MESH, WHICH IS THE SHAPE WORTH NOTICING. An element carries
+// its own colour, so there is no shading record to point at and no geometry to
+// name — the two rows here are the whole of a drawable surface. The range is
+// left at nought and is written every frame by the loop; until the first frame
+// writes one, a count of nought draws nothing and is not an error.
+static bool add_panel(voe_ecs_world *world, voe_math_float3 position,
+		      float scale, voe_math_float2 millimetres,
+		      voe_3d_layer layer, voe_ecs_entity *out)
+{
+	voe_ecs_entity entity = { 0 };
+	voe_scene_transform transform = {
+		.position = position,
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { scale, scale, scale },
+	};
+
+	if (!voe_ecs_entity_create(world, &entity))
+		return false;
+	if (!voe_scene_transform_add(world, entity, transform))
+		return false;
+	if (!voe_3d_panel_add(world, entity,
+			      (voe_3d_panel){ .size = millimetres,
+					      .layer = layer }))
+		return false;
+
+	*out = entity;
+	return true;
 }
 
 // One quad, one entity: geometry it shares with every other quad, a material of
@@ -1741,6 +1831,11 @@ int main(void)
 	voe_ecs_entity hud = { 0 };
 	voe_ecs_entity panel = { 0 };
 	voe_ecs_entity readout = { 0 };
+	// The two element surfaces that are entities: the exhibit standing in
+	// the world and the badge in the overlay. Their ranges are rewritten
+	// every frame — see the loop.
+	voe_ecs_entity exhibit_panel = { 0 };
+	voe_ecs_entity badge_panel = { 0 };
 	// How many glyphs the readout laid out, printed once against the room
 	// made for it — see MAX_TRANSIENT_GLYPHS.
 	uint32_t readout_glyphs = 0;
@@ -1753,6 +1848,12 @@ int main(void)
 	bool elements_ok = true;
 	uint32_t draws_before_elements = 0;
 	uint32_t draws_after_elements = 0;
+	// Where each panel's own records start in this frame's element buffer.
+	// One buffer, three ranges: the exhibit, the badge and the
+	// screen-filling surface, which takes its own.
+	uint32_t elements_first = 0;
+	uint32_t elements_count = 0;
+	uint32_t badge_first = 0;
 	voe_render_geometry quad = { 0 };
 	voe_dev_sprites sprites = { 0 };
 	voe_text_font *font = NULL;
@@ -1767,7 +1868,12 @@ int main(void)
 		.transient_vertices = 4 * MAX_TRANSIENT_GLYPHS,
 		.transient_indices = 6 * MAX_TRANSIENT_GLYPHS,
 		.transient_geometries = MAX_TRANSIENT_GEOMETRIES,
-		.elements = VOE_DEV_ELEMENTS,
+		// Everything every surface in the frame submits, into the one
+		// buffer: the exhibit, the badge and the screen-filling
+		// surface. Three ranges of it, and no "to be safe" headroom —
+		// each of the three asserts against its own number.
+		.elements = VOE_DEV_ELEMENTS + VOE_DEV_BADGE_ELEMENTS +
+			    VOE_DEV_SURFACE_ELEMENTS,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -1850,6 +1956,10 @@ int main(void)
 	voe_scene_light_register(world, 4);
 	voe_3d_mesh_register(world, MAX_ENTITIES);
 	voe_3d_material_register(world, MAX_ENTITIES);
+	// The second kind of drawable. Two of them in this program, and the
+	// table is registered like any other component — which is the whole of
+	// what a panel costs a call site.
+	voe_3d_panel_register(world, MAX_ENTITIES);
 
 	if (!voe_ecs_entity_create(world, &eye) ||
 	    !voe_scene_camera_add(world, eye, camera)) {
@@ -1891,6 +2001,23 @@ int main(void)
 			  &readout, &hud_size, &error)) {
 		fprintf(stderr, "could not build the text: %s\n",
 			voe_base_error_string(error));
+		goto stop;
+	}
+
+	// The two panels. Nothing is on them yet: what a panel holds is a range
+	// of the frame that is open, and no frame is open until the loop starts.
+	if (!add_panel(world,
+		       (voe_math_float3){ EXHIBIT_X, EXHIBIT_Y, EXHIBIT_Z },
+		       EXHIBIT_SCALE,
+		       (voe_math_float2){ VOE_DEV_ELEMENTS_PANEL_WIDE,
+					  VOE_DEV_ELEMENTS_PANEL_HIGH },
+		       VOE_3D_LAYER_WORLD, &exhibit_panel) ||
+	    !add_panel(world, (voe_math_float3){ BADGE_X, BADGE_Y, BADGE_Z },
+		       BADGE_SCALE,
+		       (voe_math_float2){ VOE_DEV_BADGE_WIDE,
+					  VOE_DEV_BADGE_HIGH },
+		       VOE_3D_LAYER_OVERLAY, &badge_panel)) {
+		fprintf(stderr, "could not build the two element panels\n");
 		goto stop;
 	}
 
@@ -2158,37 +2285,69 @@ int main(void)
 						       readout, window, &timing,
 						       &readout_glyphs, &error);
 
-			voe_3d_draw_system_run(world, gpu, arena, frame);
-
-			// The element exhibit, after the walk so that it
-			// lands over everything and before the end so that
-			// it is in this frame at all. Where it belongs is
-			// card 032's — see src/elements.h, which says this
-			// place is provisional. Its failure is looked at
-			// after the frame has been ended, for the reason
-			// the readout's is.
+			// THE TWO PANELS' CONTENT, BEFORE THE WALK, WHICH IS
+			// THE PHASE THIS EXISTS FOR. A panel holds a range of
+			// the frame that is open and the buffer is empty at
+			// the top of every frame, so a range not written here
+			// is a panel that is not drawn. Read the count, submit
+			// one surface, read it again, and the difference is
+			// that surface's range — there is no id and nothing
+			// allocated.
 			//
-			// THE COUNT IS TAKEN EITHER SIDE OF IT AND THE
+			// NOTHING IS DRAWN HERE. The draw system issues one
+			// draw per panel a moment later, in layer and sort
+			// order, which is what lets a cube stand in front of
+			// the exhibit.
+			elements_first = voe_render_frame_elements_submitted(gpu);
+			elements_ok = voe_dev_elements_submit(gpu, font);
+			elements_count =
+				voe_render_frame_elements_submitted(gpu) -
+				elements_first;
+			(void)voe_3d_panel_set_range(world, exhibit_panel,
+						     elements_first,
+						     elements_count);
+
+			badge_first = voe_render_frame_elements_submitted(gpu);
+			elements_ok = voe_dev_elements_badge_submit(gpu) &&
+				      elements_ok;
+			(void)voe_3d_panel_set_range(
+				world, badge_panel, badge_first,
+				voe_render_frame_elements_submitted(gpu) -
+					badge_first);
+
+			// THE COUNT IS TAKEN EITHER SIDE OF THE WALK AND THE
 			// DIFFERENCE IS PRINTED. What the element path claims
 			// is that forty rectangles of forty colours AND forty
-			// letters cost one draw command between them, and the
+			// letters cost ONE draw command between them, and the
 			// only way to say that rather than believe it is to
-			// read the frame's count before the exhibit and after
-			// it and subtract.
+			// count. The walk's own count is the meshes plus one
+			// per panel; the surface below adds the third.
 			draws_before_elements = voe_render_frame_draw_count(gpu);
-			elements_ok = voe_dev_elements_submit(gpu, font);
+
+			voe_3d_draw_system_run(world, gpu, arena, frame);
+
+			// The screen-filling surface, after the walk because it
+			// is not in the world and has nothing to sort against,
+			// and before the end so that it is in this frame at
+			// all. It is the one surface here that is not a panel
+			// and the only one a resize changes — see src/surface.h.
+			// Its failure is looked at after the frame has been
+			// ended, for the reason the readout's is.
+			elements_ok = voe_dev_surface_draw(gpu, now_size) &&
+				      elements_ok;
+
 			draws_after_elements = voe_render_frame_draw_count(gpu);
 
 			if (!voe_render_frame_end(gpu)) {
 				fprintf(stderr, "the GPU stopped answering\n");
 				break;
 			}
-			// The element capacity is smaller than the exhibit
-			// needs, which is this file's mistake in the same way
-			// the readout's transient room would be.
+			// The element capacity is smaller than the three
+			// surfaces need, which is this file's mistake in the
+			// same way the readout's transient room would be.
 			if (!elements_ok) {
 				fprintf(stderr,
-					"could not submit the element exhibit — see the refusal above\n");
+					"could not submit or draw an element surface — see the refusal above\n");
 				break;
 			}
 			// A readout that could not be built means the transient
@@ -2208,13 +2367,26 @@ int main(void)
 				       readout_glyphs * 6u,
 				       6u * MAX_TRANSIENT_GLYPHS,
 				       (unsigned)MAX_TRANSIENT_GEOMETRIES);
-				printf("elements   %u rectangles of %u colours and %u letters in %u draw command; the whole frame took %u\n",
+				// THREE ELEMENT SURFACES AND THREE DRAW
+				// COMMANDS, AND THE NUMBER PRINTED IS THE
+				// WHOLE WALK RATHER THAN THE SURFACES ALONE.
+				// The first number is every draw the frame
+				// took — meshes, two panels and the
+				// screen-filling surface — because the panels
+				// are drawn inside the walk, sorted among the
+				// see-through meshes, and there is no moment
+				// between them to read a count at. That is the
+				// point rather than a limitation: a panel
+				// drawn in a pass of its own would be easier
+				// to count and would be the bug.
+				printf("elements   %u rectangles of %u colours and %u letters on the world panel, %u on the badge, %u on the screen-filling surface: 3 draw commands, and the whole frame took %u\n",
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_GLYPHS,
+				       (unsigned)VOE_DEV_BADGE_ELEMENTS,
+				       (unsigned)VOE_DEV_SURFACE_ELEMENTS,
 				       draws_after_elements -
-					       draws_before_elements,
-				       draws_after_elements);
+					       draws_before_elements);
 				fflush(stdout);
 				readout_reported = true;
 			}

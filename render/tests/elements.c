@@ -74,6 +74,18 @@
 // Forgetting the multiply in the shader leaves it at 255 and doing it twice
 // leaves it near 137, so one number separates all three.
 //
+// A DRAW TAKES A RANGE, AND THE WAY TO GET THAT WRONG IS TO IGNORE IT. One
+// buffer holds every surface a frame draws, so two surfaces are two ranges and
+// two matrices out of the one buffer. The test that proves it puts the same two
+// rectangles in both ranges and moves only the matrix: an implementation that
+// drew from the start of the buffer every time would put the first range's
+// colours where the second range's belong, and would otherwise look perfect.
+//
+// AND A RANGE THAT RUNS PAST WHAT WAS SUBMITTED IS REFUSED RATHER THAN
+// ASSERTED, because a component holding last frame's range is how it is reached
+// and that must cost one surface rather than the program. The frame carries on
+// and the elements that were submitted still draw.
+//
 // ONE MILLIMETRE IS ONE PIXEL HERE, on purpose: the surface is handed the
 // target's size in millimetres, so every count below is exact rather than a
 // threshold and a rectangle's edges land on pixel boundaries.
@@ -88,6 +100,7 @@
 #include <base/arena.h>
 #include <base/error.h>
 #include <math/float2.h>
+#include <math/float3.h>
 #include <math/float4x4.h>
 #include <platform/window.h>
 
@@ -280,6 +293,21 @@ static voe_math_float4x4 whole_target(void)
 	return voe_render_element_transform((voe_math_float2){ SIDE, SIDE });
 }
 
+// Everything submitted to this frame, over the whole target — which is what
+// every test here means except the two about ranges.
+//
+// IT IS A HELPER AND NOT A RANGE SPELLED OUT AT EACH CALL, on purpose. A dozen
+// calls each carrying `0, voe_render_frame_elements_submitted(device)` would say
+// the same thing a dozen times and would bury the two tests where the range is
+// the claim. What a test means by this call is "all of it", so that is what it
+// says, and a range appears in this file only where it is being tested.
+[[nodiscard]] static bool draw_everything(voe_render_device *device)
+{
+	return voe_render_frame_draw_elements(
+		device, whole_target(), 0,
+		voe_render_frame_elements_submitted(device));
+}
+
 // Copies the slot's finished target into `buffer`, by a command buffer of this
 // file's own, after waiting for the device to go idle — the shape
 // tests/transient.c uses, for the reasons its header gives.
@@ -443,7 +471,7 @@ static void four_colours_in_one_draw(struct scene *scene)
 		device, solid(0, HALF, HALF, HALF, BLUE)));
 	// The bottom-right quadrant is deliberately not submitted.
 
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 
 	// THE CLAIM THIS CARD EXISTS TO PROVE, MEASURED. Three rectangles of
 	// three different colours, and the frame holds one draw command.
@@ -495,7 +523,7 @@ static void the_clip_rectangle_clips(struct scene *scene)
 	if (!open_frame(device))
 		return;
 	VOE_TEST_CHECK(voe_render_frame_submit_element(device, element));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
@@ -524,7 +552,7 @@ static void order_is_paint_order(struct scene *scene)
 		device, solid(0, 0, SIDE, SIDE, RED)));
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, GREEN)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
@@ -537,7 +565,7 @@ static void order_is_paint_order(struct scene *scene)
 		device, solid(0, 0, SIDE, SIDE, GREEN)));
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, RED)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
@@ -566,7 +594,7 @@ static void the_blend_is_premultiplied(struct scene *scene)
 		device, solid(0, 0, SIDE, SIDE, RED)));
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, half_green)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 
@@ -603,7 +631,7 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 	// The four that fitted are still there and still draw, and the refusal
 	// left the count where it was rather than one past it.
 	VOE_TEST_CHECK_INT(device->element_count, MAX_ELEMENTS);
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
@@ -617,7 +645,7 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 		return;
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, GREEN)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
@@ -635,6 +663,12 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 // the descriptor set would have been disturbed and this mesh would read
 // nothing; if the element pipeline had bound buffers of its own the mesh would
 // come out of the wrong one. Either way the top-right quadrant is what says so.
+//
+// AND THERE ARE TWO ELEMENT DRAWS AND NOT ONE, because a frame now holds one per
+// surface. Each pushes its own sixty-four bytes immediately before its own draw,
+// so the mesh that follows has had the push constant overwritten twice — and a
+// pipeline that pushed once for several draws, or a mesh that read a stale push,
+// is exactly what two of them turns from a possibility into a case.
 static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -649,18 +683,25 @@ static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_draw(device, scene->quad,
 					     shifted(0.0f, scene->red)));
 	// The elements, into the bottom-right quadrant of element space, which
-	// is the bottom-right of the picture because element y runs down.
+	// is the bottom-right of the picture because element y runs down. Two
+	// records and two draws, one range each, so the quadrant is covered
+	// twice by the same green — what is being counted here is the draws, not
+	// which of them won.
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(HALF, HALF, HALF, HALF, GREEN)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(HALF, HALF, HALF, HALF, GREEN)));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target(), 0,
+						      1));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target(), 1,
+						      1));
 	// And the mesh again, into the top-right quadrant. This is the draw the
 	// test exists for.
 	VOE_TEST_CHECK(voe_render_frame_draw(device, scene->quad,
 					     shifted(1.0f, scene->blue)));
 
-	// Two mesh draws and one element draw: three commands, and the element
-	// draw is the one that held more than one thing.
-	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 3);
+	// Two mesh draws and two element draws: four commands.
+	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 4);
 
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
@@ -697,7 +738,7 @@ static void a_solid_and_a_glyph_are_one_draw(struct scene *scene)
 		device, glyph(HALF, HALF, HALF, HALF, GREEN,
 			      scene->sheet.index, SHEET_INSIDE)));
 
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	// ONE. Two kinds, one buffer, one draw.
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
@@ -739,7 +780,7 @@ static void a_glyph_reads_the_sheet(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
 			      SHEET_WHOLE)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
@@ -773,7 +814,7 @@ static void a_glyph_is_clipped_like_a_solid(struct scene *scene)
 	if (!open_frame(device))
 		return;
 	VOE_TEST_CHECK(voe_render_frame_submit_element(device, element));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
@@ -803,7 +844,7 @@ static void a_glyph_with_no_sheet_draws_a_solid_rectangle(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, glyph(0, 0, SIDE, SIDE, RED, VOE_RENDER_NO_TEXTURE,
 			      SHEET_WHOLE)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
@@ -827,7 +868,7 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 			      SHEET_INSIDE)));
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, RED)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
@@ -841,7 +882,7 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
 			      SHEET_INSIDE)));
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
@@ -856,7 +897,7 @@ static void an_empty_frame_draws_nothing(struct scene *scene)
 
 	if (!open_frame(device))
 		return;
-	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 0);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
@@ -879,13 +920,231 @@ static void no_element_room_is_a_refusal(voe_base_arena *arena)
 	if (open_frame(device)) {
 		VOE_TEST_CHECK(!voe_render_frame_submit_element(
 			device, solid(0, 0, SIDE, SIDE, RED)));
-		VOE_TEST_CHECK(voe_render_frame_draw_elements(
-			device, whole_target()));
+		VOE_TEST_CHECK(draw_everything(device));
 		VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 0);
 		VOE_TEST_CHECK(voe_render_frame_end(device));
 	}
 
 	voe_render_device_destroy(device);
+}
+
+// TWO RANGES OF THE ONE BUFFER, TWO MATRICES, TWO DRAWS — the claim card 032
+// added, and the one a wrong implementation gets wrong in the most plausible
+// way: by ignoring `first` and drawing from the start of the buffer every time.
+//
+// THE TWO RANGES HOLD THE SAME TWO RECTANGLES ON PURPOSE. Both ranges put a
+// rectangle in the top-left and the top-right of *their own* element space, so
+// the only thing that can move them apart in the picture is the matrix. The
+// second matrix is the first one shifted half the surface down in millimetres,
+// so the second range lands in the bottom half — and a draw that ignored `first`
+// would put the first range's red and blue down there instead of the second
+// range's green, which every count below catches.
+static void two_ranges_two_matrices_two_draws(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	const unsigned char *image;
+	// The whole target, with element space slid down by half the surface
+	// first. Composition reads right to left, so the translation happens to
+	// the millimetres before the surface is mapped onto the target.
+	voe_math_float4x4 lower = voe_math_float4x4_mul(
+		whole_target(),
+		voe_math_float4x4_from_translation(
+			(voe_math_float3){ 0.0f, HALF, 0.0f }));
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+
+	// The first surface: red at its top-left, blue at its top-right.
+	VOE_TEST_CHECK_INT(voe_render_frame_elements_submitted(device), 0);
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(0, 0, HALF, HALF, RED)));
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(HALF, 0, HALF, HALF, BLUE)));
+	// The second surface: the same two places, both green.
+	VOE_TEST_CHECK_INT(voe_render_frame_elements_submitted(device), 2);
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(0, 0, HALF, HALF, GREEN)));
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(HALF, 0, HALF, HALF, GREEN)));
+	VOE_TEST_CHECK_INT(voe_render_frame_elements_submitted(device), 4);
+
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target(), 0,
+						      2));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, lower, 2, 2));
+
+	// Two ranges, two draw commands, and four rectangles between them.
+	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 2);
+
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	image = scene->pixels;
+
+	// The first range where its own matrix put it.
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
+	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_BLUE),
+			   QUADRANT);
+	// And the second range where its own matrix put it, which is the half a
+	// draw ignoring `first` would have filled with red and blue.
+	VOE_TEST_CHECK_INT(count_in(image, 0, HALF, HALF, SIDE, IS_GREEN),
+			   QUADRANT);
+	VOE_TEST_CHECK_INT(count_in(image, HALF, HALF, SIDE, SIDE, IS_GREEN),
+			   QUADRANT);
+}
+
+// A range past what was submitted is refused, and the frame is otherwise an
+// ordinary frame: the elements that were submitted still draw, through a range
+// that fits, and the count of draw commands never counted the refusal.
+//
+// IT IS A RETURNED FALSE AND NOT AN ASSERT BECAUSE ORDINARY STALENESS REACHES
+// IT. A panel component holds last frame's range until something rewrites it,
+// and the buffer is empty at the top of every frame, so a program that skipped
+// a surface's rebuild for one frame arrives here — that costs one surface and
+// must not cost the program.
+static void a_range_past_what_was_submitted_is_refused(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	const unsigned char *image;
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(0, 0, HALF, HALF, RED)));
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(HALF, 0, HALF, HALF, BLUE)));
+
+	// One past the end, counted from the start.
+	VOE_TEST_CHECK(!voe_render_frame_draw_elements(device, whole_target(), 0,
+						       3));
+	// Inside the buffer but running off the end of it, which is the shape a
+	// stale range actually has.
+	VOE_TEST_CHECK(!voe_render_frame_draw_elements(device, whole_target(), 1,
+						       2));
+	// A first past the end with nothing asked for, which is the shape a
+	// stale range has when the frame it was taken in held more elements
+	// than this one does. It is still a refusal and not a quiet nothing.
+	VOE_TEST_CHECK(!voe_render_frame_draw_elements(device, whole_target(), 3,
+						       0));
+	// Three refusals and no draw command among them.
+	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 0);
+
+	// And the frame is intact: what was submitted still draws.
+	VOE_TEST_CHECK(draw_everything(device));
+	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
+
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	image = scene->pixels;
+
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
+	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_BLUE),
+			   QUADRANT);
+	VOE_TEST_CHECK_INT(count_in(image, 0, HALF, SIDE, SIDE, NEITHER),
+			   QUADRANT * 2);
+}
+
+// The surface matrix, on its own and without a graphics card: millimetres in,
+// metres out, the surface centred on its own origin and its top edge at +y.
+//
+// IT IS THE HALF OF THE ELEMENT PATH A PANEL IN THE WORLD USES, AND THE HALF
+// THAT OWNS THE SIGN. A panel whose content is upside down is this row
+// positive; a panel that looks right because something else negated Y as well
+// is the expensive version of the same bug, and the only defence against it is
+// that this is the one function with a minus sign in it.
+static void the_surface_matrix_is_millimetres_into_metres(void)
+{
+	// A 240 by 135 mm surface, which is 0.24 by 0.135 metres.
+	voe_math_float2 size = { 240.0f, 135.0f };
+	voe_math_float4x4 m = voe_render_element_surface_matrix(size);
+	voe_math_float4 top_left = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 0.0f, 0.0f, 0.0f, 1.0f });
+	voe_math_float4 bottom_right = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 240.0f, 135.0f, 0.0f, 1.0f });
+	voe_math_float4 middle = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 120.0f, 67.5f, 0.0f, 1.0f });
+
+	// Element (0,0) is the surface's top-left: left of the origin and ABOVE
+	// it, because element y runs down and the world's runs up.
+	VOE_TEST_CHECK_FLOAT(top_left.x, -0.12f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(top_left.y, 0.0675f, 1e-6f);
+	// The far corner is right of the origin and below it.
+	VOE_TEST_CHECK_FLOAT(bottom_right.x, 0.12f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(bottom_right.y, -0.0675f, 1e-6f);
+	// The middle of the surface is the origin, which is what "centred on its
+	// own origin" means and what makes the size a field on the component.
+	VOE_TEST_CHECK_FLOAT(middle.x, 0.0f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(middle.y, 0.0f, 1e-6f);
+	// Flat, and not projected by anything in here.
+	VOE_TEST_CHECK_FLOAT(top_left.z, 0.0f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(top_left.w, 1.0f, 1e-6f);
+}
+
+// How many millimetres a target holds, without a graphics card: the pixel size
+// divided by the scale, on both axes by the one number.
+//
+// THE CLAIM IS THAT NOTHING IS DEFORMED, AND DIVIDING BOTH AXES BY ONE NUMBER IS
+// THE WHOLE OF IT. Two independent scales are what made a window of an unexpected
+// shape stretch everything on it; this asserts that there is one, by checking a
+// target whose aspect is nothing like the surface's authored one.
+static void the_surface_size_divides_both_axes_by_one_scale(void)
+{
+	voe_platform_size wide = { 1920, 1080 };
+	// A tall, narrow window — nothing like the 16:9 the surface was authored
+	// at, which is the case that used to deform.
+	voe_platform_size narrow = { 600, 1080 };
+	voe_math_float2 mm = voe_render_element_surface_size(wide, 8.0f);
+	voe_math_float2 half_scale = voe_render_element_surface_size(wide, 4.0f);
+	voe_math_float2 tall = voe_render_element_surface_size(narrow, 8.0f);
+
+	VOE_TEST_CHECK_FLOAT(mm.x, 240.0f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(mm.y, 135.0f, 1e-3f);
+	// Halving the scale doubles both dimensions: fewer pixels to a
+	// millimetre means more millimetres in the same window.
+	VOE_TEST_CHECK_FLOAT(half_scale.x, 480.0f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(half_scale.y, 270.0f, 1e-3f);
+	// And a window a third as wide holds a third of the millimetres across
+	// and exactly as many down. That second half is the claim: the height
+	// did not change, so nothing on the surface changed size or shape — what
+	// changed is how much room there is beside it.
+	VOE_TEST_CHECK_FLOAT(tall.x, 75.0f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(tall.y, 135.0f, 1e-3f);
+}
+
+// The calibration, asserted rather than eyeballed: the formula a program that
+// wants a surface a fixed number of millimetres tall computes, and what
+// ui_scale does to it.
+//
+// IT IS THE CALLER'S ARITHMETIC AND NOT THIS FOLDER'S, which is exactly why it
+// is worth a test here. `render` takes pixels per millimetre and holds no
+// policy; the one multiplication that turns "a proportion of the window" into
+// that number lives at the call site, and if it is wrong nothing in this folder
+// can tell. So the sum is written out once, where it can be checked.
+static void ui_scale_at_two_halves_the_millimetres(void)
+{
+	voe_platform_size target = { 1920, 1080 };
+	// What a surface authored 135 mm tall asks for: enough pixels per
+	// millimetre that the window's height is exactly those 135 millimetres.
+	float authored_high = 135.0f;
+	float plain = (float)target.height / authored_high * 1.0f;
+	float doubled = (float)target.height / authored_high * 2.0f;
+	voe_math_float2 at_one = voe_render_element_surface_size(target, plain);
+	voe_math_float2 at_two = voe_render_element_surface_size(target,
+								doubled);
+
+	// At a scale of one the surface is exactly as tall as it was authored,
+	// whatever the window's shape, and as wide as the window's shape makes
+	// it.
+	VOE_TEST_CHECK_FLOAT(at_one.y, 135.0f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(at_one.x, 240.0f, 1e-3f);
+	// At two, the surface holds half the millimetres — which is everything
+	// on it drawn twice the size, with half as much room to put it in. That
+	// is the whole of what the knob does.
+	VOE_TEST_CHECK_FLOAT(at_two.y, 67.5f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(at_two.x, 120.0f, 1e-3f);
 }
 
 // The transform, on its own and without a graphics card: the three corners of
@@ -945,6 +1204,9 @@ int main(void)
 	struct scene scene = { 0 };
 
 	the_transform_puts_the_origin_at_the_top_left();
+	the_surface_matrix_is_millimetres_into_metres();
+	the_surface_size_divides_both_axes_by_one_scale();
+	ui_scale_at_two_halves_the_millimetres();
 	the_record_is_still_eighty_bytes();
 
 	scene.device = voe_render_device_new_headless(arena, size, CAPACITIES,
@@ -1027,6 +1289,8 @@ int main(void)
 		the_blend_is_premultiplied(&scene);
 		overrunning_is_refused_and_the_next_frame_is_fine(&scene);
 		a_mesh_after_an_element_draw_is_still_right(&scene);
+		two_ranges_two_matrices_two_draws(&scene);
+		a_range_past_what_was_submitted_is_refused(&scene);
 		a_solid_and_a_glyph_are_one_draw(&scene);
 		a_glyph_reads_the_sheet(&scene);
 		a_glyph_is_clipped_like_a_solid(&scene);

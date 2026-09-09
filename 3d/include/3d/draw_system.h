@@ -1,7 +1,23 @@
 // The system that turns the tables into draws. It draws the world into the frame
 // the loop has opened: it finds the camera and the sun, works out the matrices,
-// and issues one draw per mesh — solid ones in table order, see-through ones
+// and issues one draw per drawable — solid ones in table order, see-through ones
 // afterwards and furthest away first.
+//
+// TWO KINDS OF DRAWABLE, AND THEY ARE SORTED TOGETHER. A mesh is a range in
+// render's geometry pools (3d/mesh_component.h); a panel is a range of this
+// frame's element buffer and the size of the surface it is on
+// (3d/panel_component.h). A panel is blended, tests depth and writes none, which
+// is exactly the blended mesh pipeline's state — so a panel goes into the
+// blended group of its layer and is sorted among the see-through meshes, and
+// there is no panel pass. A pass of its own would hardcode "the interface draws
+// last", and a panel bolted to a wall would then be visible through the wall.
+//
+// A PANEL WHOSE RANGE IS NOT THIS FRAME'S IS SKIPPED. The element buffer is
+// empty at the top of every frame, so a panel the program did not rebuild points
+// at records that are not there; not drawing it makes "forgotten" look like
+// "missing" rather than like "wrong". What that does not catch is a stale range
+// that happens to fall inside what some other surface submitted — see
+// range_is_this_frame_s in the source, which says why no frame stamp was added.
 //
 //     voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
 //     if (!voe_render_frame_begin(gpu, size, frame.view, frame.light, &drawing))
@@ -41,7 +57,9 @@
 // culling, and no extract step into a second layout. Each of those is a change
 // to this one loop and each is a later card; what this card guarantees is that
 // the data is already in the shape they need — geometry in shared pools, one
-// record per object in one buffer, textures by id.
+// record per object in one buffer, textures by id. A panel is the exception that
+// proves it: one draw per panel however many rectangles are on it, because the
+// element path was built for exactly that.
 //
 // TWO PASSES, AND WHICH ONE AN ENTITY IS IN IS ITS MATERIAL'S ALPHA MODE. Opaque
 // and cutout go first, in table order, which is safe because the depth buffer
@@ -52,7 +70,8 @@
 // render/include/render/device.h for why the depth write is off.
 //
 // AND TWO LAYERS, WHICH RUN ACROSS THE TWO PASSES RATHER THAN INSIDE THEM. A
-// drawable says whether it is in the world or above it (3d/mesh_component.h);
+// drawable of either kind says whether it is in the world or above it
+// (3d/mesh_component.h, 3d/panel_component.h);
 // the whole world is drawn, its two passes in that order, then depth is cleared,
 // then the overlay is drawn — its own two passes, in the same order, by the same
 // rules. So there are four groups and one depth clear between the second and the
@@ -84,9 +103,9 @@
 // an arena passed in and there is no default one (rule 11), so the caller hands
 // over scratch; this rewinds every frame to exactly what it was handed, keeps
 // nothing, and a caller may pass the same arena it uses for anything else. What
-// it takes is bounded by the number of meshes in the world — three groups' worth
-// of it, because which group an entity is in is not known until the walk has
-// finished and each of them therefore has room for all of them.
+// it takes is bounded by the number of drawables in the world — three groups'
+// worth of it, because which group a drawable is in is not known until the walks
+// have finished and each of them therefore has room for all of them.
 //
 // GROUPING IS THE ENGINE'S AND NEVER THE USER'S. There is no component, flag or
 // authoring concept for putting objects into batches by hand: the engine knows
@@ -97,12 +116,22 @@
 // mesh with no transform has nowhere to be and a mesh with no material has no
 // record to shade with, so both are skipped rather than guessed at — a guessed
 // material would draw with somebody else's record, which looks like a bug in the
-// importer.
+// importer. A PANEL NEEDS TWO OF THE THREE: a panel and a transform. It has no
+// material and cannot have one — an element carries its own colour, which is the
+// whole reason an interface is one draw command.
 //
 // IT NEEDS EXACTLY ONE CAMERA, AND MORE THAN ONE IS A BUG RATHER THAN A CHOICE.
 // A second camera means a second target and a second frame, which is the card
 // that introduces a viewport; until then a world with two of them has a mistake
 // in it and this says so.
+//
+// EVERY TABLE IT WALKS HAS TO BE REGISTERED, INCLUDING ONES THE WORLD HAS NO
+// ROWS IN. This walks meshes and panels, so a world that never builds a panel
+// still calls voe_3d_panel_register — asking for an unregistered component type
+// asserts in `ecs` rather than reading as an empty table, and an empty table is
+// what a world with no panels wants. Registering what a system reads is part of
+// building a world that can be drawn, which is the same rule the camera and the
+// light tables already state below.
 //
 // AND EXACTLY ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE SUN. This engine
 // lights a frame with one directional light (render/device.h), so a second one
@@ -145,9 +174,10 @@ typedef struct {
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size);
 
-// Draws every entity that has a mesh, a transform and a material into the frame
-// that is open, with `frame` the answer voe_3d_draw_system_frame gave for it.
-// Calling it with no frame open is the caller's bug and asserts.
+// Draws every entity that has a mesh, a transform and a material — and every
+// entity that has a panel, a transform and a range this frame submitted — into
+// the frame that is open, with `frame` the answer voe_3d_draw_system_frame gave
+// for it. Calling it with no frame open is the caller's bug and asserts.
 //
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
 // RETURNS NOTHING. A draw the device refuses — more objects than it was made
