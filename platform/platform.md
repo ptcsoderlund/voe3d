@@ -8,9 +8,11 @@ too and do not yet.
 - `include/platform/window.h` — the window API. Its header carries the two rules
   callers need: opening a window can fail and returns NULL, and `_poll` folds
   events into state rather than handing them out.
-- `include/platform/input.h` — the keyboard and the mouse. Its header says why
-  this is polled state and not a queue of events, why a key is a place rather
-  than a letter, and that a pointer lock is a request with an answer.
+- `include/platform/input.h` — the keyboard and the mouse: keys, motion, the
+  pointer's position and buttons, and the lock. Its header says why this is
+  polled state and not a queue of events, why a key is a place rather than a
+  letter, why motion and position are two questions and which is for what, when
+  a position is not live, and that a pointer lock is a request with an answer.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   waiting is a different question this folder cannot answer yet.
@@ -34,18 +36,22 @@ too and do not yet.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
-- `src/input.h` — the input state both backends fill and neither reads, and the
-  two functions each of them defines over its own window. Its header says why
-  the public functions are written once.
+- `src/input.h` — the input state both backends fill and neither reads, the two
+  functions each of them defines over its own window, and the three clears both
+  of them call. Its header says why the public functions are written once.
 - `src/input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
 - `src/window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
   There is no X11 backend, and nothing in it draws — its header says why the
   window is invisible until something else does, why input is in the same file,
   and why there is no `xkbcommon`.
-- `src/window_win32.c` — the Windows window, its keyboard, and the mouse as a raw
-  input device. Its header says why `WM_CHAR` and `WM_MOUSEMOVE` are both absent.
-- `tests/input.c` — that a poll drains the mouse and keeps held keys, and that
-  losing focus releases every key. Needs no window and no display.
+- `src/window_win32.c` — the Windows window, its keyboard, the mouse as a raw
+  input device for look and as ordinary messages for position and buttons. Its
+  header says why `WM_CHAR` is absent, why a held button takes the capture, and
+  why `WM_MOUSELEAVE` has to be asked for.
+- `tests/input.c` — that a poll drains the mouse's motion and keeps held keys
+  and the pointer, that losing focus releases every key and nothing else, and
+  that losing the pointer releases every button and keeps its last position.
+  Needs no window and no display.
 - `tests/clock.c` — that the clock moves and never goes backwards. Its header
   says why nothing in it measures a duration against a duration.

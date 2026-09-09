@@ -45,6 +45,40 @@
 // own relative counts and keeps reporting them when the cursor is against a
 // screen edge, which is the whole reason it is registered for.
 //
+// THE POINTER'S POSITION IS WM_MOUSEMOVE, AND IT IS THE OTHER QUESTION. The
+// message carries client coordinates: whole pixels, origin at the client area's
+// top-left, +x right and +y down, the same space WM_SIZE measures the client
+// area in — so a pointer and voe_platform_size agree without arithmetic. The two
+// halves of lparam are signed, and are read as signed, because a captured
+// pointer goes negative. This process declares no DPI awareness, so on a scaled
+// display Windows virtualises both numbers by the same factor and they still
+// agree with each other and with the swapchain. The button messages carry the
+// same coordinates and are recorded the same way, so a press with no movement
+// before it still knows where it landed.
+//
+// A BUTTON HELD TAKES THE CAPTURE, SO THAT THE RELEASE ARRIVES WHEREVER THE
+// POINTER IS BY THEN. Without SetCapture, a press inside the window and a release
+// outside it is a release Windows delivers to whoever is under the cursor, and
+// the button here would read down for ever. Capture sends every mouse message to
+// this window until it is given back, positions outside the client area
+// included, which is what a drag past the edge wants and what Wayland does on
+// its own. It is released when the last button goes up; WM_CAPTURECHANGED is the
+// one place that reacts to losing it, whether by that release or by Windows
+// taking it away, so a capture stolen mid-drag lifts the buttons the same way a
+// lost focus lifts the keys.
+//
+// WM_MOUSELEAVE IS ASKED FOR, BECAUSE WINDOWS DOES NOT SEND IT UNASKED.
+// TrackMouseEvent arms one notification and then forgets, so it is re-armed on
+// the first movement inside after each one arrives. A leave with a button held
+// is ignored — the drag is still on and the capture is what decides — and the
+// release recomputes whether the pointer is still over the client area from
+// where it was when the last button came up.
+//
+// THERE IS NO CS_DBLCLKS ON THE CLASS, AND THAT IS ON PURPOSE. With it Windows
+// turns the second press of a double-click into a WM_xBUTTONDBLCLK and the
+// down message never arrives; without it every press is a plain down, which is
+// what a level-state API wants. What a double-click means is a caller's.
+//
 // THE LOCK IS A CLIP AND A HIDE, AND THERE IS NOTHING TO NEGOTIATE. Unlike
 // Wayland, nothing here can refuse: ClipCursor confines the cursor to the client
 // rectangle and ShowCursor hides it, so the flag src/input.h keeps is set from
@@ -83,6 +117,10 @@ struct voe_platform_window {
 	// asked for in between.
 	bool lock_wanted;
 	bool focused;
+
+	// A WM_MOUSELEAVE has been asked for and has not yet arrived. It is a
+	// one-shot, so this says whether to ask again on the next movement.
+	bool tracking_leave;
 
 	struct voe_platform_input input;
 };
@@ -266,6 +304,78 @@ static void raw_input(voe_platform_window *window, HRAWINPUT handle)
 	window->input.motion_y += (float)raw.data.mouse.lLastY;
 }
 
+// Whether the last recorded position is inside the client area. Asked when a
+// capture ends, because a release outside the window is the one moment the
+// pointer can be not over the window without a WM_MOUSELEAVE saying so.
+static bool pointer_inside(const voe_platform_window *window)
+{
+	return window->input.pointer_x >= 0.0f &&
+	       window->input.pointer_y >= 0.0f &&
+	       window->input.pointer_x < (float)window->width &&
+	       window->input.pointer_y < (float)window->height;
+}
+
+// Where the mouse messages say the pointer is. Read as two signed shorts and
+// not through LOWORD alone, which is unsigned and would turn a captured pointer
+// one pixel left of the window into a position sixty-five thousand pixels to the
+// right.
+static void pointer_at(voe_platform_window *window, LPARAM lparam)
+{
+	window->input.pointer_x = (float)(short)LOWORD(lparam);
+	window->input.pointer_y = (float)(short)HIWORD(lparam);
+	window->input.pointer_over = true;
+
+	// Arm the leave notification once per visit, and only while inside:
+	// asked for with the cursor already outside, it fires at once and says
+	// nothing new.
+	if (!window->tracking_leave && pointer_inside(window)) {
+		TRACKMOUSEEVENT track = {
+			.cbSize = sizeof(track),
+			.dwFlags = TME_LEAVE,
+			.hwndTrack = window->hwnd,
+		};
+
+		if (TrackMouseEvent(&track))
+			window->tracking_leave = true;
+	}
+}
+
+static bool any_button_down(const voe_platform_window *window)
+{
+	for (int button = 0; button < VOE_PLATFORM_BUTTON_COUNT; button++)
+		if (window->input.buttons[button])
+			return true;
+	return false;
+}
+
+// A button message: the position it carries, the button's new state, and the
+// capture that goes with a held button. ReleaseCapture sends WM_CAPTURECHANGED
+// synchronously, so the recomputation of whether the pointer is still over the
+// window happens there and in one place.
+static void button_set(voe_platform_window *window, voe_platform_button button,
+		       bool down, LPARAM lparam)
+{
+	pointer_at(window, lparam);
+	window->input.buttons[button] = down;
+
+	if (down)
+		SetCapture(window->hwnd);
+	else if (!any_button_down(window) && GetCapture() == window->hwnd)
+		ReleaseCapture();
+}
+
+// The capture is gone — given back above, or taken by Windows when another
+// window was activated mid-drag. Either way no more releases will arrive, so
+// every button goes up, and whether the pointer is still over the window is
+// decided from where it last was rather than waited for.
+static void capture_lost(voe_platform_window *window)
+{
+	bool inside = pointer_inside(window);
+
+	voe_platform_input_pointer_lost(&window->input);
+	window->input.pointer_over = inside;
+}
+
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 				    LPARAM lparam)
 {
@@ -306,6 +416,37 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 		// Handed on as well: the documentation asks for it, and the
 		// system does cleanup for the message there.
 		return DefWindowProcW(hwnd, message, wparam, lparam);
+	case WM_MOUSEMOVE:
+		pointer_at(window, lparam);
+		return 0;
+	case WM_MOUSELEAVE:
+		window->tracking_leave = false;
+		// With a button held the capture has the pointer and the drag
+		// is still on; the release decides. See the header.
+		if (!any_button_down(window))
+			voe_platform_input_pointer_lost(&window->input);
+		return 0;
+	case WM_LBUTTONDOWN:
+		button_set(window, VOE_PLATFORM_BUTTON_LEFT, true, lparam);
+		return 0;
+	case WM_LBUTTONUP:
+		button_set(window, VOE_PLATFORM_BUTTON_LEFT, false, lparam);
+		return 0;
+	case WM_RBUTTONDOWN:
+		button_set(window, VOE_PLATFORM_BUTTON_RIGHT, true, lparam);
+		return 0;
+	case WM_RBUTTONUP:
+		button_set(window, VOE_PLATFORM_BUTTON_RIGHT, false, lparam);
+		return 0;
+	case WM_MBUTTONDOWN:
+		button_set(window, VOE_PLATFORM_BUTTON_MIDDLE, true, lparam);
+		return 0;
+	case WM_MBUTTONUP:
+		button_set(window, VOE_PLATFORM_BUTTON_MIDDLE, false, lparam);
+		return 0;
+	case WM_CAPTURECHANGED:
+		capture_lost(window);
+		return 0;
 	case WM_SETFOCUS:
 		window->focused = true;
 		focus_gained(window);

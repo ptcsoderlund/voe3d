@@ -45,11 +45,35 @@
 // recent to arrive that way and is not a movement key: dev/src/main.c toggles the
 // present mode with it.
 //
-// MOUSE BUTTONS ARE NOT HERE, AND THAT IS THIS CARD REPORTING RATHER THAN
-// FORGETTING. Relative motion is the mouse's whole contribution to a camera and
-// it is below; nothing in the engine clicks on anything yet, so a button would be
-// surface with no caller. The card that puts something on screen to click is the
-// card that adds them.
+// THE MOUSE IS TWO DIFFERENT QUESTIONS AND BOTH ARE ANSWERED BELOW. A camera
+// asks how far the mouse moved, which is voe_platform_input_motion and keeps
+// arriving while the pointer is locked; a GUI asks where the pointer is and
+// which buttons are down, which is voe_platform_input_pointer and
+// voe_platform_input_button_down. They are not two views of one number: a locked
+// pointer moves the camera without ever changing position, and a pointer walked
+// across the window changes position by exactly what the motion says only when
+// nothing is accelerated or clipped. Reach for motion to turn something and for
+// the pointer to point at something, and never derive one from the other.
+//
+// BUTTONS ARE LEVEL, NOT EDGE, THE SAME AS KEYS. voe_platform_input_button_down
+// says whether a button is held now, and a caller that wants "went down this
+// frame" or "was released over the thing it was pressed on" compares against what
+// it read last frame — two bools at the call site, exactly as the Tab toggle in
+// dev/src/main.c already does for a key. It is the caller's because the caller
+// is the one that knows what a click is: a GUI's click is a release over the
+// same widget the press landed on, which this folder cannot know about, and a
+// second, edge-shaped API beside the level one would be the second API the
+// paragraph above says this folder must not grow.
+//
+// SCROLL IS NOT HERE, AND THAT IS THIS CARD REPORTING RATHER THAN FORGETTING. A
+// wheel is one line per backend to receive and a real decision to report:
+// Windows hands over hundred-and-twenties per notch, Wayland at the version this
+// folder binds hands over a length in surface units per notch with no count of
+// notches, and the two point opposite ways. Choosing the unit both are turned
+// into is the scroll area's to make with its own needs in hand, and nothing
+// reads a wheel today — rule 10. The card that scrolls something is the card
+// that adds it, and the place is beside voe_platform_input_motion, drained by
+// the poll the same way.
 #pragma once
 
 typedef struct voe_platform_window voe_platform_window;
@@ -82,7 +106,8 @@ typedef enum {
 bool voe_platform_input_key_down(voe_platform_window *window,
 				 voe_platform_key key);
 
-// How far the mouse moved, not where it is.
+// How far the mouse moved, not where it is — for that, see
+// voe_platform_input_pointer below.
 //
 // THE UNIT IS THE WINDOW SYSTEM'S AND THE TWO PLATFORMS DO NOT AGREE ON IT.
 // Wayland reports surface-local units with the compositor's pointer acceleration
@@ -105,6 +130,71 @@ typedef struct {
 // reading it for a frame throws that frame's motion away, which is what a caller
 // that is not looking around wants.
 voe_platform_motion voe_platform_input_motion(voe_platform_window *window);
+
+// Where the pointer is, not how far it moved — for that, see
+// voe_platform_input_motion above.
+//
+// x AND y ARE THE WINDOW'S OWN PIXELS, ORIGIN TOP-LEFT, +x RIGHT AND +y DOWN,
+// the same space and the same unit voe_platform_size measures the client area
+// in. A pointer at the bottom-right corner reads one less than the size in both
+// axes. Windows reports whole pixels; Wayland reports fractions of one, and the
+// fraction is kept rather than rounded here, because rounding is a decision the
+// caller can make and cannot undo.
+//
+// over IS WHETHER THERE IS A POINTER TO POINT WITH, AND WHEN IT IS FALSE x AND y
+// ARE WHERE IT WAS LAST SEEN. A GUI has to tell "the pointer is at the edge" from
+// "the pointer is gone", because the first is a hover and the second ends one —
+// so the last position is kept, and over says which of the two this is. Three
+// things make it false, and each is a state in which a live-looking number would
+// be a lie:
+//
+//   - THE POINTER LEFT THE WINDOW. Nothing is hovered. It comes back true on the
+//     next movement inside.
+//   - THE POINTER IS LOCKED. Mouse look has it, the window system has frozen or
+//     hidden it, and the number underneath stopped meaning anything the moment
+//     the lock took. The camera is reading motion; there is nothing here for a
+//     GUI to click on. True again the moment the lock is released: the
+//     position underneath is where the window system left the cursor — frozen
+//     on Wayland, clipped but tracked on Windows — and it is right again as
+//     soon as there is nothing hiding it.
+//   - THERE IS NO POINTER. A seat with no mouse on it, or one not yet reported.
+//
+// Losing keyboard focus is not one of them: focus is the keyboard's, and a
+// pointer resting over an unfocused window is still over it and still reports
+// where. Both window systems agree on that and so does this.
+//
+// WHILE A BUTTON IS HELD THE POINTER STAYS OVER THE WINDOW EVEN WHEN IT IS NOT,
+// AND x AND y GO OUTSIDE THE CLIENT AREA — NEGATIVE, OR PAST THE SIZE. That is a
+// drag, and it is what both window systems do on their own: Wayland keeps the
+// pointer on the surface that took the press until the release, and this
+// folder asks Windows for the same with a capture. A slider dragged past the
+// window's edge keeps following the mouse, and a caller clamps if it wants to.
+typedef struct {
+	float x;
+	float y;
+	bool over;
+} voe_platform_pointer;
+
+voe_platform_pointer voe_platform_input_pointer(voe_platform_window *window);
+
+// The three buttons something in the engine reads. Not more — rule 10, and the
+// key enum's own precedent: a fourth arrives when a card wants one, as a line
+// here and a line in each backend. VOE_PLATFORM_BUTTON_COUNT is the count and
+// never a button; asking for it asserts.
+typedef enum {
+	VOE_PLATFORM_BUTTON_LEFT,
+	VOE_PLATFORM_BUTTON_RIGHT,
+	VOE_PLATFORM_BUTTON_MIDDLE,
+	VOE_PLATFORM_BUTTON_COUNT
+} voe_platform_button;
+
+// True while the button is held. It goes up, without a release ever arriving,
+// when the pointer leaves the window with the button still down — a compositor
+// that broke a drag, a capture Windows took away — because the release is then
+// delivered to whoever has the pointer now, and up is the safe answer for the
+// same reason every key goes up when focus is lost.
+bool voe_platform_input_button_down(voe_platform_window *window,
+				    voe_platform_button button);
 
 // Ask for the pointer to stop going anywhere, so that a mouse can be moved
 // without end. This is what mouse look needs and it is not the same thing as

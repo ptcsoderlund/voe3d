@@ -28,7 +28,10 @@ states and not a test — it is looked at, not asserted on.
   nothing else here — see `src/sprites.h`. Card 028 put the timing numbers on
   the screen and made the loop own the frame: its header says in what order a
   frame's phases run and why, why the readout is rebuilt every frame and never
-  cached, and what a readout that stops changing means.
+  cached, and what a readout that stops changing means. Card 029 added a
+  `mouse` line to it — the pointer's position and the three buttons, live — and
+  its header says what to look for at each corner, off the window, and while
+  flying.
 - `src/sprites.h` — the sprite exhibit: the sheet, the twelve entities and the
   two rotations that turn towards the camera. Its header says why the
   billboarding is here and not in the engine.

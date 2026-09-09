@@ -81,6 +81,21 @@
 // offers neither leaves a window whose keyboard works and whose mouse look does
 // not, and that is not an error anywhere in here.
 //
+// THE POINTER'S POSITION AND BUTTONS NEED NOTHING EXTRA, BECAUSE THEY ARE WHAT A
+// VERSION 1 wl_pointer SENDS. enter and motion carry surface-local coordinates as
+// wl_fixed_t — 24.8 fixed point, so fractions of a unit are real and are kept —
+// with the origin at the surface's top-left, +x right and +y down. A surface unit
+// is a pixel of ours: this file never calls wl_surface_set_buffer_scale, so the
+// buffer is one pixel per surface unit and the size the configure hands over is
+// in the same unit, which is what makes the position and voe_platform_size
+// measure the same space without any arithmetic here. A compositor scaling the
+// window up on a high-density display does that on its side and reports the
+// pointer in our units regardless. button carries an evdev code, BTN_LEFT and
+// its neighbours from the same header the scancodes come from. While the pointer
+// is locked, the compositor sends no motion at all — the position underneath
+// simply stops — which is one of the reasons include/platform/input.h says a
+// locked pointer is not over the window.
+//
 // NOTHING HERE TOUCHES THE CURSOR IMAGE, AND THAT IS A LIMIT RATHER THAN AN
 // OVERSIGHT. A locked pointer is frozen by the compositor and stays visible,
 // because hiding it means calling wl_pointer_set_cursor with a surface, and a
@@ -440,62 +455,108 @@ static const struct wl_keyboard_listener keyboard_listener = {
 	.repeat_info = NULL,
 };
 
-// The five events a version 1 wl_pointer sends, and four of them do nothing.
+// The five events a version 1 wl_pointer sends. Four of them are the pointer's
+// position and buttons and are recorded straight into src/input.h; axis is the
+// wheel, nothing reads it, and include/platform/input.h says which card does.
 //
-// motion IS NOT WHERE MOUSE LOOK COMES FROM AND IT IS NOT A GAP THAT IT IS
-// EMPTY. This is the pointer's position inside the surface, which stops at the
-// edge of the window; a camera needs how far the mouse moved, which comes from
-// relative_pointer_motion below. Something that wants to know where the cursor
-// is — a cursor to draw, a thing to click — is what fills this in, and rule 10
-// says that is the card that has one.
+// motion IS NOT WHERE MOUSE LOOK COMES FROM, AND THAT IS NOT A GAP. It is the
+// pointer's position inside the surface, which stops at the edge of the window;
+// a camera needs how far the mouse moved, which comes from
+// relative_pointer_motion below. The two are the two different questions the
+// public header describes, and they are filled from two different objects here.
 //
-// enter, leave, button and axis are the same story: nothing reads them, so
-// nothing is recorded. They are written out rather than left NULL because
-// libwayland calls straight through a listener slot and version 1 sends all
-// five.
+// enter AND motion BOTH SET pointer_over, AND leave IS WHAT CLEARS IT. A pointer
+// that entered is over the surface until the compositor says otherwise, and a
+// motion is proof of the same; the compositor keeps sending motion to a surface
+// that took a button press until the release, with coordinates outside the
+// surface if that is where the pointer went, so a drag past the edge keeps its
+// position and stays over — the public header promises exactly that.
+//
+// THE POSITION ON enter IS RECORDED TOO, AND NOT JUST ON motion. Otherwise a
+// pointer that entered and stopped dead would read as over the window at
+// wherever it was last seen before it left, which could be the other side.
+static void pointer_at(voe_platform_window *window, wl_fixed_t x, wl_fixed_t y)
+{
+	window->input.pointer_x = (float)wl_fixed_to_double(x);
+	window->input.pointer_y = (float)wl_fixed_to_double(y);
+	window->input.pointer_over = true;
+}
+
 static void pointer_enter(void *data, struct wl_pointer *pointer,
 			  uint32_t serial, struct wl_surface *surface,
 			  wl_fixed_t x, wl_fixed_t y)
 {
-	(void)data;
+	voe_platform_window *window = data;
+
 	(void)pointer;
 	(void)serial;
 	(void)surface;
-	(void)x;
-	(void)y;
+
+	pointer_at(window, x, y);
 }
 
+// The pointer has gone to another surface, and any button still down when it
+// went will be released there — see voe_platform_input_pointer_lost.
 static void pointer_leave(void *data, struct wl_pointer *pointer,
 			  uint32_t serial, struct wl_surface *surface)
 {
-	(void)data;
+	voe_platform_window *window = data;
+
 	(void)pointer;
 	(void)serial;
 	(void)surface;
+
+	voe_platform_input_pointer_lost(&window->input);
 }
 
 static void pointer_motion(void *data, struct wl_pointer *pointer,
 			   uint32_t time, wl_fixed_t x, wl_fixed_t y)
 {
-	(void)data;
+	voe_platform_window *window = data;
+
 	(void)pointer;
 	(void)time;
-	(void)x;
-	(void)y;
+
+	pointer_at(window, x, y);
+}
+
+// An evdev button code to one of the three buttons this engine reads, or
+// VOE_PLATFORM_BUTTON_COUNT for everything else — the same shape as key_of and
+// the same header the codes come from.
+static voe_platform_button button_of(uint32_t code)
+{
+	switch (code) {
+	case BTN_LEFT:
+		return VOE_PLATFORM_BUTTON_LEFT;
+	case BTN_RIGHT:
+		return VOE_PLATFORM_BUTTON_RIGHT;
+	case BTN_MIDDLE:
+		return VOE_PLATFORM_BUTTON_MIDDLE;
+	default:
+		return VOE_PLATFORM_BUTTON_COUNT;
+	}
 }
 
 static void pointer_button(void *data, struct wl_pointer *pointer,
-			   uint32_t serial, uint32_t time, uint32_t button,
+			   uint32_t serial, uint32_t time, uint32_t code,
 			   uint32_t state)
 {
-	(void)data;
+	voe_platform_window *window = data;
+	voe_platform_button button = button_of(code);
+
 	(void)pointer;
 	(void)serial;
 	(void)time;
-	(void)button;
-	(void)state;
+
+	if (button != VOE_PLATFORM_BUTTON_COUNT)
+		window->input.buttons[button] =
+			state == WL_POINTER_BUTTON_STATE_PRESSED;
 }
 
+// The wheel. Received and dropped: nothing reads a scroll yet, and the unit the
+// two platforms are turned into is the scroll area's decision — see the public
+// header. Written out rather than left NULL because libwayland calls straight
+// through a listener slot and version 1 sends it.
 static void pointer_axis(void *data, struct wl_pointer *pointer, uint32_t time,
 			 uint32_t axis, wl_fixed_t value)
 {
@@ -678,6 +739,10 @@ static void pointer_left(voe_platform_window *window)
 {
 	// The lock names the pointer, so it goes first.
 	lock_stop(window);
+
+	// A button cannot still be down on a mouse that has been unplugged, and
+	// a pointer that is not there is not over anything.
+	voe_platform_input_pointer_lost(&window->input);
 
 	if (window->relative_pointer != NULL) {
 		zwp_relative_pointer_v1_destroy(window->relative_pointer);

@@ -10,11 +10,12 @@
 // and input.c holds every function in the public header — one copy, on both
 // platforms, with no #ifdef in it.
 //
-// Two copies of eight tiny accessors is the alternative and it is worse than it
-// sounds: the interesting behaviour here is not reading a bool, it is clearing
-// the whole struct when focus goes away and zeroing the accumulator on every
-// poll. Those are the two places an input layer leaks state, and they are worth
-// having in one place where a reader can see both.
+// Two copies of a dozen tiny accessors is the alternative and it is worse than
+// it sounds: the interesting behaviour here is not reading a bool, it is
+// clearing the keys when focus goes away, clearing the buttons when the pointer
+// goes away, and zeroing the accumulator on every poll. Those are the three
+// places an input layer leaks state, and they are worth having in one place
+// where a reader can see all of them.
 #pragma once
 
 #include <platform/input.h>
@@ -28,10 +29,24 @@
 // the top of every poll. A poll that arrives with three motion events therefore
 // leaves their total, which is what a frame wants, and a poll with none leaves
 // zero rather than the frame before last's number.
+//
+// THE POINTER POSITION IS PLAIN STATE AND IS OVERWRITTEN, NEVER DRAINED. Where
+// the pointer is does not stop being true because a frame went by, so a poll
+// leaves it alone; each backend writes it from its own position event, already
+// in the window's pixels, and pointer_over says whether the number is live — see
+// include/platform/input.h for the three things that make it stale. The lock is
+// folded in by input.c when a caller asks, not here: pointer_over is what the
+// window system said about the surface, and the two are kept apart so that
+// releasing the lock leaves pointer_over as it was.
 struct voe_platform_input {
 	bool keys[VOE_PLATFORM_KEY_COUNT];
 	float motion_x;
 	float motion_y;
+
+	float pointer_x;
+	float pointer_y;
+	bool pointer_over;
+	bool buttons[VOE_PLATFORM_BUTTON_COUNT];
 
 	// What the window system says, not what was asked for. Windows sets it
 	// when it clips the cursor because nothing there can refuse; Wayland
@@ -67,3 +82,20 @@ void voe_platform_input_begin_poll(struct voe_platform_input *input);
 // was genuinely still held when focus came back reads as up until it is pressed
 // again: there is no event that would say otherwise, and up is the safe answer.
 void voe_platform_input_focus_lost(struct voe_platform_input *input);
+
+// Called by a backend when the pointer leaves the window — Wayland's
+// wl_pointer.leave, Windows' WM_MOUSELEAVE or a capture taken away — and when
+// the pointer itself goes, a mouse unplugged from the seat.
+//
+// THE BUTTONS GO UP FOR THE SAME REASON THE KEYS DO ON FOCUS LOST. A button held
+// when the pointer leaves has its release delivered to whoever has the pointer
+// now, which is not us, and a button that never comes up is a drag that never
+// ends. Ordinarily neither window system lets this happen — both keep the
+// pointer on the surface that took the press until the release — so this is the
+// path for a compositor or a capture that broke the rule, and up is the safe
+// answer.
+//
+// THE POSITION IS KEPT AND ONLY pointer_over IS CLEARED. The last place the
+// pointer was seen is what a GUI uses to tell an edge from an absence, and the
+// public header promises it.
+void voe_platform_input_pointer_lost(struct voe_platform_input *input);

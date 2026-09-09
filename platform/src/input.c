@@ -39,6 +39,39 @@ voe_platform_motion voe_platform_input_motion(voe_platform_window *window)
 	return (voe_platform_motion){ input->motion_x, input->motion_y };
 }
 
+voe_platform_pointer voe_platform_input_pointer(voe_platform_window *window)
+{
+	struct voe_platform_input *input;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL,
+			      "asking a NULL window where the pointer is");
+
+	// The lock is folded in here and not in the backends, so that both
+	// platforms give the same answer for the same reason: a locked pointer
+	// is one the camera has, and there is nothing at its position to point
+	// at. pointer_over itself is left as the window system reported it, so
+	// releasing the lock needs no event to bring the position back.
+	input = voe_platform_window_input(window);
+	return (voe_platform_pointer){
+		.x = input->pointer_x,
+		.y = input->pointer_y,
+		.over = input->pointer_over && !input->pointer_locked,
+	};
+}
+
+bool voe_platform_input_button_down(voe_platform_window *window,
+				    voe_platform_button button)
+{
+	struct voe_platform_input *input;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window for a button");
+	VOE_BASE_DEBUG_ASSERT(button < VOE_PLATFORM_BUTTON_COUNT,
+			      "VOE_PLATFORM_BUTTON_COUNT is a count, not a button");
+
+	input = voe_platform_window_input(window);
+	return input->buttons[button];
+}
+
 void voe_platform_input_lock_pointer(voe_platform_window *window, bool lock)
 {
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "locking a NULL window's pointer");
@@ -65,6 +98,9 @@ void voe_platform_input_begin_poll(struct voe_platform_input *input)
 {
 	VOE_BASE_DEBUG_ASSERT(input != NULL, "beginning a poll on nothing");
 
+	// The position, the buttons and whether the pointer is over the window
+	// are deliberately not touched: they are facts about now, not a sum
+	// over the frame, and stay true until the window system says otherwise.
 	input->motion_x = 0.0f;
 	input->motion_y = 0.0f;
 }
@@ -84,4 +120,17 @@ void voe_platform_input_focus_lost(struct voe_platform_input *input)
 	// exactly like a bug in the camera.
 	input->motion_x = 0.0f;
 	input->motion_y = 0.0f;
+}
+
+void voe_platform_input_pointer_lost(struct voe_platform_input *input)
+{
+	VOE_BASE_DEBUG_ASSERT(input != NULL, "losing the pointer on nothing");
+
+	// The buttons, and the fact that the pointer was over the window. The
+	// position stays: it is where the pointer was last seen, and the public
+	// header promises that number to a GUI that wants to tell an edge from
+	// an absence. The keys are the keyboard's and are not touched — a
+	// pointer walking out of the window does not lift a finger off W.
+	memset(input->buttons, 0, sizeof(input->buttons));
+	input->pointer_over = false;
 }

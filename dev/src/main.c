@@ -391,7 +391,22 @@
 //     after each console block and should then agree with the block that
 //     follows, to within the averaging. Watch a few periods go by: it resets
 //     with every block, and the frame rate moves the moment the window is
-//     resized or minimised and restored.
+//     resized or minimised and restored. The `gpu` line must not flash `no
+//     measurement` at the reset — it holds the last period's average for the
+//     one frame the new period has no sample yet. If it does flash, the
+//     three-case fallback in build_the_readout has been collapsed to two.
+//   - WATCH THE `mouse` LINE OF THE READOUT (card 029). It is the pointer's
+//     position in the window's own pixels and the three buttons, live. Move
+//     the pointer to each corner: top-left should read close to 0 0 and
+//     bottom-right one less than the `size` line in both numbers, with neither
+//     overshooting nor inverting — a swapped or mirrored axis is a backend
+//     mistake. Press the buttons: the dots become L, M and R. Hold one and drag
+//     out of the window: the numbers go negative or past the size and keep
+//     following, which is the drag both window systems promise. Move the
+//     pointer off the window with nothing held and the line says `away`.
+//     Press Tab to fly and it says `locked`: the camera has the pointer and
+//     there is nothing at its position to point at, as include/platform/input.h
+//     says. Tab back and move, and the numbers are live again.
 //   - PRESS P AND COMPARE. It asks for fifo, and the `present` word on every
 //     block says which is actually in force — a machine that has no mailbox was
 //     already saying fifo and will go on saying it, and that is an answer.
@@ -466,8 +481,8 @@
 
 // What the GPU makes room for per frame: geometry that lives one frame, which
 // today is the readout and nothing else. Sized in glyphs because that is what
-// fills it — four vertices and six indices each — and the readout is about fifty
-// of them, so this is a little over double with nothing "to be safe" in it. The
+// fills it — four vertices and six indices each — and the readout is about
+// seventy of them, so this is under double with nothing "to be safe" in it. The
 // program prints what the readout actually took beside this number, once, so the
 // next thing that needs transient room has a measurement to start from. Two
 // ranges: the readout is one, and the other is for the next thing.
@@ -655,7 +670,7 @@
 // which is well over five short lines.
 #define READOUT_EM 0.040f
 #define READOUT_MARGIN_EMS 0.5f
-#define READOUT_CHARS 128
+#define READOUT_CHARS 192
 
 // The sun: how long a lap takes, how high it sits, and how strong it is.
 //
@@ -1491,6 +1506,14 @@ struct timing {
 	voe_base_samples draw;
 	// The graphics card's own clock, over that frame's commands only.
 	voe_base_samples gpu;
+	// Whether the card has ever answered, and what the last full period's
+	// average was. Both exist for the readout and not for the console: the
+	// period is reset at the end of a loop iteration and the next frame's
+	// readout is built before that frame's timestamp is asked for, so for
+	// one frame per period the sample set is empty — and empty must not
+	// read as "this card cannot time" when it timed a moment ago.
+	bool gpu_timed;
+	double gpu_last;
 	// When this period began, on the same clock every sample is taken with.
 	// Kept rather than a deadline, because the rate printed has to be over
 	// the time the period really covered and a frame always straddles the
@@ -1545,27 +1568,71 @@ static void say_what_is_measured(void)
 // readout actually consumed can be printed once beside what was asked for.
 static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 			      const voe_text_font *font, voe_base_arena *arena,
-			      voe_ecs_entity readout,
+			      voe_ecs_entity readout, voe_platform_window *window,
 			      const struct timing *timing, uint32_t *glyphs,
 			      voe_base_error *error)
 {
 	char gpu_line[READOUT_CHARS];
+	char mouse_line[READOUT_CHARS];
 	char text[READOUT_CHARS];
 	voe_text_block block;
 	double frame = voe_base_samples_average(&timing->frame);
 	uint32_t drawn = 0;
+	voe_platform_pointer pointer = voe_platform_input_pointer(window);
+	// The buttons as three letters in the order they sit on a mouse, a dot
+	// for one that is up. Read every frame like everything else here: this
+	// is a call site showing what platform hands out, not a GUI.
+	char left = voe_platform_input_button_down(window,
+						   VOE_PLATFORM_BUTTON_LEFT) ?
+			    'L' :
+			    '.';
+	char middle = voe_platform_input_button_down(
+			      window, VOE_PLATFORM_BUTTON_MIDDLE) ?
+			      'M' :
+			      '.';
+	char right = voe_platform_input_button_down(
+			     window, VOE_PLATFORM_BUTTON_RIGHT) ?
+			     'R' :
+			     '.';
 
+	// THREE CASES AND NOT TWO, BECAUSE THE PERIOD IS RESET WITH THE READOUT
+	// STILL RUNNING. A period with samples shows its running average. A
+	// period with none yet — the one frame after each console block, since
+	// the timestamp is asked for after the draw and this is built before it
+	// — shows the last full period's average, so the line holds still
+	// rather than flashing the fallback below for a single frame that
+	// mailbox sometimes presents. Only a card that has never answered gets
+	// the fallback, which is then the truth.
 	if (timing->gpu.count > 0)
 		snprintf(gpu_line, sizeof gpu_line, "gpu    %6.2f ms",
 			 voe_base_samples_average(&timing->gpu) * 1000.0);
+	else if (timing->gpu_timed)
+		snprintf(gpu_line, sizeof gpu_line, "gpu    %6.2f ms",
+			 timing->gpu_last * 1000.0);
 	else
 		snprintf(gpu_line, sizeof gpu_line, "gpu    no measurement");
 
+	// Three states and three words, because a number that looked live
+	// while the pointer was locked or gone is exactly what the platform
+	// header refuses to hand out. The position is printed whole: Wayland
+	// reports fractions and they are not interesting to a person.
+	if (pointer.over)
+		snprintf(mouse_line, sizeof mouse_line,
+			 "mouse  %5.0f %5.0f %c%c%c", pointer.x, pointer.y,
+			 left, middle, right);
+	else if (voe_platform_input_pointer_locked(window))
+		snprintf(mouse_line, sizeof mouse_line, "mouse  locked      %c%c%c",
+			 left, middle, right);
+	else
+		snprintf(mouse_line, sizeof mouse_line, "mouse  away        %c%c%c",
+			 left, middle, right);
+
 	snprintf(text, sizeof text,
-		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s",
+		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s\n%s",
 		 frame > 0.0 ? 1.0 / frame : 0.0, frame * 1000.0,
 		 voe_base_samples_average(&timing->update) * 1000.0,
-		 voe_base_samples_average(&timing->draw) * 1000.0, gpu_line);
+		 voe_base_samples_average(&timing->draw) * 1000.0, gpu_line,
+		 mouse_line);
 
 	// Spaces and newlines lay out nothing; every other character in this
 	// string is a glyph the font carries.
@@ -1615,6 +1682,10 @@ static void report(struct timing *timing, double seconds,
 	else
 		printf("           gpu        no measurement — this card or its queue cannot write timestamps\n");
 	fflush(stdout);
+
+	// What the readout shows until this new period has a sample of its own.
+	if (timing->gpu.count > 0)
+		timing->gpu_last = voe_base_samples_average(&timing->gpu);
 
 	voe_base_samples_reset(&timing->frame);
 	voe_base_samples_reset(&timing->update);
@@ -2027,7 +2098,7 @@ int main(void)
 			// frame has been ended, so the slot's fence is never left
 			// waiting on a frame that was abandoned half recorded.
 			readout_ok = build_the_readout(world, gpu, font, arena,
-						       readout, &timing,
+						       readout, window, &timing,
 						       &readout_glyphs, &error);
 
 			voe_3d_draw_system_run(world, gpu, arena, frame);
@@ -2065,8 +2136,10 @@ int main(void)
 		// there is one. Asked after the draw because that is what moved
 		// it on; a card that cannot time never answers and the gpu line
 		// says so rather than reading nought.
-		if (voe_render_frame_gpu_time(gpu, &gpu_seconds))
+		if (voe_render_frame_gpu_time(gpu, &gpu_seconds)) {
 			voe_base_samples_add(&timing.gpu, gpu_seconds);
+			timing.gpu_timed = true;
+		}
 
 		// The mode is asked for every period rather than remembered,
 		// because a rebuild is what puts a requested mode in force and
