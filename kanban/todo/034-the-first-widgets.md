@@ -115,6 +115,14 @@ faith** — the 038 and 033 precedent:
 - **Panel** — a container with a background: a rectangle emitted behind its children,
   semitransparent if a caller says so (straight linear RGBA, premultiplied once by
   the shader — do not premultiply in `ui`).
+  - **A fully transparent panel emits nothing at all.** An alpha of nought costs an
+    element record, an instance and a blend to draw nothing, and *a transparent panel
+    with padding* is a real use — the principal's own example is a full-screen one
+    used as a television safe area, where older sets cut the edges off. Skip the
+    emission and say so in the header.
+  - **And note in the header that such a caller may not need a panel at all**: a
+    plain `voe_ui_column_begin` with padding emits nothing already and is the same
+    thing with fewer words. The panel widget is for when you want the background.
 - **Label** — a string, its natural size measured as above, emitted as glyph elements
   through 031's kind. Its rectangle comes from layout like anything else's.
 - **Button** — a rectangle, a label centred in it, and **three visual states**:
