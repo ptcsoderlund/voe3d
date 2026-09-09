@@ -257,6 +257,20 @@
 //     in front of it — the opposite failure, and the worse one: the layer has
 //     become a switch the whole frame is in rather than a property of one
 //     drawable. The sign and the cubes are what to check, not the line.
+//   - THE PANEL OF RECTANGLES IN THE BOTTOM-RIGHT (card 030). Forty of them, in
+//     one draw command, and the console says so once. Three things in it are
+//     worth a look: the orange bar at its top is forty millimetres of rectangle
+//     clipped to twenty, so half of it is missing on purpose; the row of six
+//     bars below it is one colour at six alphas and has to read as a smooth
+//     ramp, because a shader that forgot to premultiply leaves the faintest one
+//     still obvious and one that did it twice makes the row vanish too early;
+//     and the thirty-two squares below that are thirty-two different colours,
+//     which is the thing one draw of one shading record could not be.
+//   - The panel upside down — the element surface's Y. It runs down from the
+//     panel's top-left corner, and the negation that makes that true is in
+//     voe_render_element_transform. Nothing here negates anything.
+//   - The panel stretched when the window is dragged narrow — expected. It is a
+//     fixed-size panel filling the window; see src/elements.h.
 //   - The world's picture gone and only the overlay left — the depth clear
 //     cleared colour as well. Only the depth aspect may be named; see
 //     render/src/frame.c.
@@ -427,6 +441,7 @@
 // refresh. Either way a minimised one presents nothing and _poll returns
 // immediately, because platform has no way to wait yet.
 #include "cubes.h"
+#include "elements.h"
 #include "quad.h"
 #include "sprites.h"
 
@@ -1712,6 +1727,14 @@ int main(void)
 	// made for it — see MAX_TRANSIENT_GLYPHS.
 	uint32_t readout_glyphs = 0;
 	bool readout_reported = false;
+	// The element exhibit's three: whether its submits were accepted, and
+	// the frame's draw count either side of its draw — the difference is
+	// how many draw commands forty rectangles of forty colours cost, which
+	// is the whole claim of the element path and is subtracted rather than
+	// assumed.
+	bool elements_ok = true;
+	uint32_t draws_before_elements = 0;
+	uint32_t draws_after_elements = 0;
 	voe_render_geometry quad = { 0 };
 	voe_dev_sprites sprites = { 0 };
 	voe_text_font *font = NULL;
@@ -1726,6 +1749,7 @@ int main(void)
 		.transient_vertices = 4 * MAX_TRANSIENT_GLYPHS,
 		.transient_indices = 6 * MAX_TRANSIENT_GLYPHS,
 		.transient_geometries = MAX_TRANSIENT_GEOMETRIES,
+		.elements = VOE_DEV_ELEMENTS,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -2103,8 +2127,34 @@ int main(void)
 
 			voe_3d_draw_system_run(world, gpu, arena, frame);
 
+			// The element exhibit, after the walk so that it
+			// lands over everything and before the end so that
+			// it is in this frame at all. Where it belongs is
+			// card 032's — see src/elements.h, which says this
+			// place is provisional. Its failure is looked at
+			// after the frame has been ended, for the reason
+			// the readout's is.
+			//
+			// THE COUNT IS TAKEN EITHER SIDE OF IT AND THE
+			// DIFFERENCE IS PRINTED. What the element path claims
+			// is that forty rectangles of forty colours cost one
+			// draw command, and the only way to say that rather
+			// than believe it is to read the frame's count before
+			// the exhibit and after it and subtract.
+			draws_before_elements = voe_render_frame_draw_count(gpu);
+			elements_ok = voe_dev_elements_submit(gpu);
+			draws_after_elements = voe_render_frame_draw_count(gpu);
+
 			if (!voe_render_frame_end(gpu)) {
 				fprintf(stderr, "the GPU stopped answering\n");
+				break;
+			}
+			// The element capacity is smaller than the exhibit
+			// needs, which is this file's mistake in the same way
+			// the readout's transient room would be.
+			if (!elements_ok) {
+				fprintf(stderr,
+					"could not submit the element exhibit — see the refusal above\n");
 				break;
 			}
 			// A readout that could not be built means the transient
@@ -2124,6 +2174,12 @@ int main(void)
 				       readout_glyphs * 6u,
 				       6u * MAX_TRANSIENT_GLYPHS,
 				       (unsigned)MAX_TRANSIENT_GEOMETRIES);
+				printf("elements   %u rectangles of %u colours in %u draw command; the whole frame took %u\n",
+				       (unsigned)VOE_DEV_ELEMENTS,
+				       (unsigned)VOE_DEV_ELEMENTS,
+				       draws_after_elements -
+					       draws_before_elements,
+				       draws_after_elements);
 				fflush(stdout);
 				readout_reported = true;
 			}

@@ -2,9 +2,13 @@
 
 The GPU, and the only folder that names Vulkan. A device opened onto a window, a
 swapchain, two geometry pools and a transient pair per frame slot, textures,
-shading records, two pipelines and a frame — nothing above them. Not scenes, not entities, not files, and no abstraction
+shading records, three pipelines and a frame — nothing above them. Not scenes, not entities, not files, and no abstraction
 over Vulkan: there is one graphics API and there will not be a second. The only
 folder with shaders, and the only one slangc is run over.
+
+Two of the three pipelines draw meshes out of the pools, one per thing drawn. The
+third draws element records — many rectangles from many small records, in one
+instanced draw, with no vertex buffer bound at all.
 
 A frame is drawn into offscreen images the engine owns — colour and depth, one
 pair per frame slot — and the colour one is copied onto the window afterwards.
@@ -37,7 +41,12 @@ way out, and no file here holds a gamma constant.
   Card 028 added the transient create beside the static one: its header says
   which of the two is a startup operation and which lives inside a frame, why
   one id type serves both, and why the caller builds the arrays rather than
-  writing into the pool.
+  writing into the pool. Card 030 added the element path beside all of it: its
+  header says why a rectangle is a record rather than four vertices, what makes
+  a whole interface one draw call, which space an element's millimetres are in
+  and which way its Y runs, why the clip rectangle is there with no caller yet
+  and what a zeroed one does, and how a caller reads how many draw commands a
+  frame held.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -51,15 +60,16 @@ way out, and no file here holds a gamma constant.
 - `src/device_internal.h` — the struct the files below share, where the split
   between them runs, and the constants the whole folder reads.
 - `src/device.c` — starting up: the instance, the surface, the graphics card, the
-  logical device, and the two pipelines with their depth and blend state. Everything that happens once,
+  logical device, and the two mesh pipelines with their depth and blend state. Everything that happens once,
   including the `#embed` that puts the compiled shader in the binary. Its header
   says why the three startup calls are in the order they are, and why the format
   it asks the surface for is an sRGB one now that a frame is drawn in linear
   light. Also the headless device the tests run on.
 - `src/descriptors.c` — everything the shader reads and the one layout that
-  describes it: four bindings, and one set, one camera buffer and one object
-  buffer per frame slot. Its header says which of the four changes how often and
-  why writing them per frame is safe.
+  describes it: five bindings, and one set, one camera buffer, one object buffer
+  and one element buffer per frame slot. Its header says which of the five
+  changes how often, why writing them per frame is safe, and why the binding
+  `draw.slang` does not read is in the same layout anyway.
 - `src/buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -70,6 +80,12 @@ way out, and no file here holds a gamma constant.
   the top-of-frame reset is the existing staleness check firing on a schedule,
   where the generation can wrap and why that is noted rather than handled, and
   why a barrier appearing in the transient path would be the bug.
+- `src/element.c` — the element path on the C side: the third pipeline, the
+  submit that writes one record, the one instanced draw, and the matrix that
+  turns an element surface's millimetres into clip space. Its header says why the
+  record buffers are not in here, why the pipeline shares the other two's layout
+  and what that costs the push constant range, and why it is not a third variant
+  of them. The Y negation lives in this file and nowhere else.
 - `src/shading.c` — the record buffer the fragment stage reads by index, and the
   slots that name its rows. Its header says why one buffer serves every frame
   slot and why creating a record waits for the GPU.
@@ -109,6 +125,14 @@ way out, and no file here holds a gamma constant.
   overrun that is refused without corrupting the frame or the next. Its header
   says why it reads the picture back rather than trusting the bookkeeping.
   Headless.
+- `tests/elements.c` — rectangles from records: four colours in one draw command
+  read back out of the picture, that the clip rectangle really clips, that
+  submission order is paint order both ways round, that the blend multiplied by
+  alpha exactly once, that overrunning the element capacity is refused without
+  spoiling the frame or the next, and that a mesh drawn after an element draw is
+  still drawn right. Its header says why the arrangement is deliberately
+  asymmetrical, why the draw count is counted rather than assumed, and which of
+  the claims has no picture of its own. Headless.
 - `tests/matrix.c` — that slangc really was given `-matrix-layout-row-major`,
   checked by making a shader report a known matrix back. Its header says which
   two claims card 018 moved out of it and where they went, and why the three
@@ -128,6 +152,12 @@ way out, and no file here holds a gamma constant.
   BRDF, what a surface with no normal looks like, why occlusion is applied where
   glTF does not put it, and which two different things take the same unlit exit
   out of the fragment stage.
+- `shaders/elements.slang` — the element pipeline's two entry points: four
+  corners built out of a vertex index, one instance per rectangle, and a clip
+  test in the fragment stage. Its header says why it is a second shader rather
+  than a fourth branch in `draw.slang`, why nothing is read from a vertex buffer,
+  why four vertices and a strip rather than six, that order is paint order and
+  what relies on it, and why its push constant aliases `draw.slang`'s.
 - `shaders/matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.
 - `vulkan/` — the Khronos headers, vendored. See `vulkan/vulkan.md`.

@@ -24,6 +24,13 @@
 // handed to both, which is what keeps the two from drifting apart: see
 // create_pipeline's `blended` parameter, which is the whole of the difference.
 //
+// A THIRD PIPELINE IS NOT BUILT HERE AND IT IS NOT A VARIANT OF THESE TWO.
+// element.c builds it: no vertex input at all, a triangle strip, nothing culled
+// and its own shader, which is four differences and nothing left of the shared
+// description. What it does share is the layout below, which is why
+// voe_render_element_startup runs after create_pipelines in open_device and why
+// this file's push constant range is a matrix wide rather than a word.
+//
 // DEPTH IS SET UP HERE AND IT RUNS BACKWARDS. GREATER, not LESS, because the
 // near plane is at 1.0 and the far plane at 0.0. The clear that goes with it is
 // in frame.c and the projection matrix that produces those planes is 3d's;
@@ -874,11 +881,28 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	// wants its world matrix and the fragment stage wants the shading index
 	// in it. A range that named one stage would make the other's read
 	// invalid.
+	//
+	// IT IS A MATRIX WIDE THOUGH A MESH DRAW STILL PUSHES FOUR BYTES, AND
+	// THAT IS THE ELEMENT PIPELINE'S DOING. shaders/elements.slang pushes a
+	// sixty-four-byte surface transform through this same range, because
+	// that pipeline shares this layout — and it shares it so that the
+	// descriptor set frame.c binds once at the top of a frame stays bound
+	// across an element draw. Two layouts differing only in their push
+	// constant ranges are incompatible, and binding a pipeline with an
+	// incompatible layout disturbs the set for everything drawn afterwards.
+	//
+	// THE TWO BLOCKS ALIAS AND NEITHER EVER READS THE OTHER'S BYTES. Both
+	// start at offset nought, and each pipeline pushes its own immediately
+	// before its own draw — voe_render_frame_draw pushes the object number
+	// for every mesh it draws, and voe_render_element's draw pushes the
+	// transform for its one draw. There is no ordering in which a shader
+	// reads bytes the other left. Widening it further is free until 128,
+	// which is the smallest range Vulkan guarantees.
 	VkPushConstantRange push = {
 		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
 			      VK_SHADER_STAGE_FRAGMENT_BIT,
 		.offset = 0,
-		.size = sizeof(uint32_t),
+		.size = sizeof(voe_math_float4x4),
 	};
 	VkPipelineLayoutCreateInfo layout = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1074,6 +1098,9 @@ static void close_down(voe_render_device *device)
 		voe_render_swapchain_teardown(device);
 		voe_render_target_teardown(device);
 
+		// Before the layout below, which it shares.
+		voe_render_element_shutdown(device);
+
 		if (device->pipeline_blended != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_blended,
@@ -1228,6 +1255,11 @@ static voe_render_device *open_device(voe_base_arena *arena,
 						     device->frames[i].descriptor);
 	}
 	if (!create_pipelines(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	// After them, and not beside them: the element pipeline shares the
+	// layout the two above make, so it cannot be built until one of them
+	// has.
+	if (!voe_render_element_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// Targets before the swapchain, because the targets are the resolution
 	// and the swapchain is only where a frame is copied at the end. A device

@@ -1,10 +1,10 @@
 // Everything the shader reads, and the one layout that describes it: the
 // descriptor set layout, the pool, and per frame slot one set, one mapped
-// uniform buffer for the camera and the sun and one mapped buffer of per-object
-// records.
+// uniform buffer for the camera and the sun, one mapped buffer of per-object
+// records and one mapped buffer of element records.
 // This was the front half of cube.c until card 018 took the cube out of render.
 //
-// FOUR BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// FIVE BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
 //   0  the camera and the sun, one uniform buffer per frame slot, written once
 //      a frame
@@ -14,22 +14,34 @@
 //      the frame records its draws
 //   3  the shading records, one storage buffer shared by every slot, written
 //      once per record at startup
+//   4  the element records, one storage buffer per frame slot, written as the
+//      frame submits them
 //
-// The one thing a draw is told that the draw beside it is not is its object
-// number, and that is the only push constant left.
+// BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
+// IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
+// descriptor set bound once at the top of a frame serves both — a second layout
+// would be a second set, a second pool entry and a rebind between every mesh
+// draw and every element draw. Vulkan does not require a shader to declare
+// every binding its layout has.
+//
+// The one thing a mesh draw is told that the draw beside it is not is its object
+// number, and that is still the only push constant a mesh draw uses; the element
+// pipeline pushes its surface transform through the same range. See the range in
+// device.c.
 //
 // THE POOL IS SIZED EXACTLY AND NEVER GROWS. VOE_RENDER_FRAMES_IN_FLIGHT sets
 // are allocated once at startup and freed by destroying the pool; no set is
 // destroyed on its own anywhere in this folder.
 //
-// EVERY PER-SLOT BUFFER STAYS MAPPED FOR ITS WHOLE LIFE. Both are host-visible
-// and coherent and both are written every frame, so mapping and unmapping around
-// each write would be two driver calls to say what one pointer already says.
+// EVERY PER-SLOT BUFFER STAYS MAPPED FOR ITS WHOLE LIFE. All three are
+// host-visible and coherent and all three are written every frame, so mapping
+// and unmapping around each write would be two driver calls to say what one
+// pointer already says.
 //
 // WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The camera,
-// the sun and the object records a frame writes are in this slot's own buffers,
-// which the GPU may have been reading until that fence was signalled — and the
-// fence is waited on before anything here is touched.
+// the sun, the object records and the element records a frame writes are in this
+// slot's own buffers, which the GPU may have been reading until that fence was
+// signalled — and the fence is waited on before anything here is touched.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -38,11 +50,11 @@
 
 #include <stdio.h>
 
-// The two records the shader reads by index have to have the same layout on both
-// sides of the bus, and every member of both starts on a sixteen-byte boundary
-// so that the two shader layout rules cannot disagree about them. These are what
-// turns "somebody removed the padding" into a build error rather than a picture
-// that is wrong in a way nobody can see.
+// Every record a shader reads by index has to have the same layout on both
+// sides of the bus, and every member of every one of them starts on a
+// sixteen-byte boundary so that the two shader layout rules cannot disagree
+// about them. These are what turns "somebody removed the padding" into a build
+// error rather than a picture that is wrong in a way nobody can see.
 static_assert(sizeof(voe_render_object) == 144,
 	      "voe_render_object no longer matches the shader's per-object record");
 static_assert(sizeof(voe_render_shading_values) == 96,
@@ -74,9 +86,24 @@ static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
 static_assert(offsetof(voe_render_shading_values, base_colour_uv_rect) == 80,
 	      "the shading record's UV rect moved; draw.slang has it at 80");
 
+// And the element record, which elements.slang declares rather than draw.slang.
+// Eighty and not sixty-four because the three reserved words after `kind` and
+// the float4 after them are what card 031's glyph rectangle and texture index
+// consume in place — see voe_render_element.
+static_assert(sizeof(voe_render_element) == 80,
+	      "voe_render_element no longer matches the record elements.slang reads");
+static_assert(offsetof(voe_render_element, clip) == 16,
+	      "the element record's clip rect moved; elements.slang has it at 16");
+static_assert(offsetof(voe_render_element, colour) == 32,
+	      "the element record's colour moved; elements.slang has it at 32");
+static_assert(offsetof(voe_render_element, kind) == 48,
+	      "the element record's kind moved; elements.slang has it at 48");
+static_assert(offsetof(voe_render_element, reserved_b) == 64,
+	      "the element record's spare float4 moved; elements.slang has it at 64");
+
 static bool build_layout(voe_render_device *device)
 {
-	VkDescriptorSetLayoutBinding bindings[4] = {
+	VkDescriptorSetLayoutBinding bindings[5] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -107,10 +134,21 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
+		{
+			// The vertex stage reads an element's bounds out of it
+			// and the fragment stage reads its colour and its clip
+			// rectangle, so both stages are named — the same shape
+			// binding 2 has.
+			.binding = 4,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+				      VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 4,
+		.bindingCount = 5,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -124,9 +162,10 @@ static bool build_layout(voe_render_device *device)
 					   VOE_RENDER_MAX_TEXTURES,
 		},
 		{
-			// Two per set: the objects and the shadings.
+			// Three per set: the objects, the shadings and the
+			// elements.
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT * 2,
+			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT * 3,
 		},
 	};
 	VkDescriptorPoolCreateInfo pool = {
@@ -222,7 +261,21 @@ static bool build_slots(voe_render_device *device)
 			.range = (VkDeviceSize)device->capacities.objects *
 				 sizeof(voe_render_object),
 		};
-		VkWriteDescriptorSet writes[2] = {
+		// At least one, on a device that asked for no elements: a
+		// descriptor the layout declares has to be a valid one whether
+		// the pipeline reading it is ever used or not, and eighty bytes
+		// is cheaper than a conditional descriptor and a rule about
+		// when this set may be bound. What refuses a submit is the
+		// capacity, not the size of this buffer — see
+		// voe_render_frame_submit_element.
+		VkDescriptorBufferInfo elements = {
+			.offset = 0,
+			.range = (VkDeviceSize)(device->capacities.elements > 0 ?
+							device->capacities.elements :
+							1) *
+				 sizeof(voe_render_element),
+		};
+		VkWriteDescriptorSet writes[3] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstBinding = 0,
@@ -239,6 +292,14 @@ static bool build_slots(voe_render_device *device)
 					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.pBufferInfo = &objects,
 			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 4,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &elements,
+			},
 		};
 
 		if (!build_mapped(device, &frame->uniforms,
@@ -250,13 +311,19 @@ static bool build_slots(voe_render_device *device)
 				  objects.range,
 				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT))
 			return false;
+		if (!build_mapped(device, &frame->elements,
+				  &frame->elements_mapped, elements.range,
+				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT))
+			return false;
 
 		frame->descriptor = sets[i];
 		camera.buffer = frame->uniforms.buffer;
 		objects.buffer = frame->objects.buffer;
+		elements.buffer = frame->elements.buffer;
 		writes[0].dstSet = frame->descriptor;
 		writes[1].dstSet = frame->descriptor;
-		voe_render_vk.update_descriptor_sets(device->device, 2, writes,
+		writes[2].dstSet = frame->descriptor;
+		voe_render_vk.update_descriptor_sets(device->device, 3, writes,
 						     0, NULL);
 	}
 
@@ -306,6 +373,13 @@ void voe_render_descriptors_teardown(voe_render_device *device)
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		struct voe_render_frame *frame = &device->frames[i];
+
+		if (frame->elements_mapped != NULL) {
+			voe_render_vk.unmap_memory(device->device,
+						   frame->elements.memory);
+			frame->elements_mapped = NULL;
+		}
+		voe_render_buffer_teardown(device, &frame->elements);
 
 		if (frame->objects_mapped != NULL) {
 			voe_render_vk.unmap_memory(device->device,

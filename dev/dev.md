@@ -4,8 +4,9 @@ The one program a person runs to see what the engine can currently do. Today
 that is a window holding a world: two models read out of `.glb` files, two cubes
 placed by hand, two see-through quads either side of them, a dozen sprites off a
 sheet built in code, a lettered sign standing above them, a line of writing
-locked to the camera, one sun going round it all, and a camera that either
-orbits them or is flown with the keyboard and the mouse. Not a menu of past
+locked to the camera, a panel of forty coloured rectangles over the whole of it,
+one sun going round it all, and a camera that either orbits them or is flown
+with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
 
 - `src/main.c` — opens a window and a device, builds a world, reads both models
@@ -31,7 +32,19 @@ states and not a test — it is looked at, not asserted on.
   cached, and what a readout that stops changing means. Card 029 added a
   `mouse` line to it — the pointer's position and the three buttons, live — and
   its header says what to look for at each corner, off the window, and while
-  flying.
+  flying. Card 030 added the element exhibit, which is two calls and a printed
+  measurement here and nothing else — see `src/elements.h`; its header says
+  where in the frame the exhibit is drawn and why that place is provisional.
+- `src/elements.h` — the element exhibit: forty rectangles submitted and drawn
+  every frame through the element path, and the panel in millimetres they are
+  laid out on. Its header says why the place it is drawn in the frame is
+  provisional, and why the surface is a panel of a fixed size rather than the
+  window in pixels.
+- `src/elements.c` — those forty rectangles, in the order they are painted: the
+  backing panel, the bar that is twice as wide as its clip rectangle, the six
+  bars at six alphas and the thirty-two squares of thirty-two colours. Its
+  header says what each group is there to show and what a wrong premultiply
+  would look like.
 - `src/sprites.h` — the sprite exhibit: the sheet, the twelve entities and the
   two rotations that turn towards the camera. Its header says why the
   billboarding is here and not in the engine.

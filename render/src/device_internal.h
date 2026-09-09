@@ -1,8 +1,9 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, swapchain.c builds the images the window is made of, and frame.c
-// draws. Nothing outside render/src sees this.
+// drawn into, swapchain.c builds the images the window is made of, element.c
+// draws rectangles that are not meshes, and frame.c draws. Nothing outside
+// render/src sees this.
 //
 // The split is by lifetime, not by subject. What is made once at startup and
 // lives until shutdown is device.c's; what is thrown away and rebuilt every time
@@ -328,6 +329,19 @@ struct voe_render_frame {
 	struct voe_render_buffer objects;
 	void *objects_mapped;
 
+	// One record per submitted element, this slot's own, written by
+	// voe_render_frame_submit_element. Per slot and safe to overwrite for
+	// exactly the reasons the object buffer above is.
+	//
+	// IT IS BUILT EVEN WHEN THE DEVICE ASKED FOR NO ELEMENTS, with room for
+	// one, and that is deliberate. Vulkan wants every descriptor a set's
+	// layout declares to be a valid one; a slot with no buffer would leave
+	// binding 4 unwritten, and the alternative to eighty wasted bytes is a
+	// conditional descriptor and a rule about when the set may be used. The
+	// capacity is what refuses a submit, not whether the buffer exists.
+	struct voe_render_buffer elements;
+	void *elements_mapped;
+
 	// This slot's transient geometry: the vertex pool and the index pool
 	// that voe_render_geometry_create_transient writes and the frame then
 	// draws from. Per slot for exactly the reason the object buffer is —
@@ -412,9 +426,17 @@ struct voe_render_device {
 	// `pipeline` writes depth and does not blend; `pipeline_blended` tests
 	// depth, writes none, and blends premultiplied. device.c builds both from
 	// one description so the rest cannot drift.
+	//
+	// THE THIRD ONE IS NOT A VARIANT OF THE OTHER TWO. `pipeline_elements`
+	// draws element records rather than meshes: no vertex input state at
+	// all, a triangle strip, nothing culled, and its own shader. It shares
+	// `layout` — and therefore the descriptor set bound at the top of the
+	// frame — which is the whole reason the push constant range below is big
+	// enough for both. element.c builds it.
 	VkPipelineLayout layout;
 	VkPipeline pipeline;
 	VkPipeline pipeline_blended;
+	VkPipeline pipeline_elements;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -471,6 +493,19 @@ struct voe_render_device {
 	bool recording;
 	uint32_t object_count;
 	uint32_t image_index;
+
+	// How many elements have been submitted to the open frame, which is both
+	// where the next record goes and the instance count the one element draw
+	// uses. Reset by _begin beside object_count and meaningless while
+	// `recording` is false.
+	uint32_t element_count;
+
+	// How many draw commands the open recording holds, and after _end how
+	// many the frame just submitted held. Reset by _begin. It is what
+	// voe_render_frame_draw_count hands back, and it exists so that "a whole
+	// interface in one draw" is a number somebody read rather than a claim
+	// somebody made.
+	uint32_t draw_commands;
 
 	// Which of the two pipelines the open recording last bound, so that a
 	// run of draws of one kind costs one bind and not one per draw. Set when
@@ -699,6 +734,12 @@ voe_render_geometry_at(const voe_render_device *device,
 // shading.c. The record buffer and the slots that name its rows. Startup's.
 [[nodiscard]] bool voe_render_shading_startup(voe_render_device *device);
 void voe_render_shading_shutdown(voe_render_device *device);
+
+// element.c. The element pipeline and nothing else — the per-slot record buffers
+// are descriptors.c's, because they are things the shader reads. Startup's, and
+// it has to run after create_pipelines because it shares device->layout.
+[[nodiscard]] bool voe_render_element_startup(voe_render_device *device);
+void voe_render_element_shutdown(voe_render_device *device);
 
 // texture.c. The samplers and the one-pixel white texture every unclaimed slot
 // points at, made once at startup. False with a message on failure.

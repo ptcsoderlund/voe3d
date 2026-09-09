@@ -94,6 +94,16 @@
 // mechanism. shaders/draw.slang says the same thing at the site that does the
 // multiply.
 //
+// AND THERE IS A THIRD PIPELINE THAT DRAWS NO MESHES AT ALL. Everything above
+// is one draw per thing drawn, out of the geometry pools. voe_render_element is
+// the other shape: the caller writes one small record per rectangle, the vertex
+// shader builds the four corners from its own vertex index, and every rectangle
+// in the frame is drawn by ONE instanced draw — no vertex buffer, no index
+// buffer and no shading record on that path. It is what makes a whole user
+// interface one draw call, and it is not a user interface type: debug lines and
+// sprites want the same "many small things, one draw" shape. See
+// voe_render_frame_submit_element.
+//
 // SIZE IS PASSED IN, EVERY FRAME, AND IT IS THE WINDOW'S ANSWER. This folder
 // never asks a window how big it is: `platform` owns that truth and the caller
 // already has it. A window that has changed size is not an event here — the size
@@ -161,6 +171,11 @@ typedef struct voe_render_device voe_render_device;
 // frame may build and not what a program may build over its life. Slots are
 // shared, so transient_geometries is how many transient ranges one frame may
 // name.
+//
+// elements IS THE SECOND NUMBER THAT MAY BE NOUGHT, and it is per frame slot for
+// the same reason objects is — see voe_render_element. A program that draws no
+// elements asks for none and pays for none; the first submit on such a device is
+// refused with a message rather than asserting.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -170,6 +185,7 @@ typedef struct {
 	uint32_t transient_vertices;
 	uint32_t transient_indices;
 	uint32_t transient_geometries;
+	uint32_t elements;
 } voe_render_capacities;
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
@@ -481,6 +497,96 @@ typedef struct {
 	uint32_t reserved[3];
 } voe_render_object;
 
+// What one element is. Solid is all this engine draws today; a glyph is card
+// 031's and the field exists so that adding one moves no other field and
+// changes no size.
+//
+// SOLID IS 0, SO A ZEROED RECORD IS A SOLID ONE.
+typedef enum {
+	// A rectangle filled with the record's colour, and nothing sampled.
+	VOE_RENDER_ELEMENT_SOLID = 0,
+} voe_render_element_kind;
+
+// One element: a rectangle, a colour and the rectangle it is clipped to. Many of
+// these are drawn by one instanced draw, and the vertex shader builds the four
+// corners itself — there is no vertex buffer and no index buffer on this path.
+//
+// IT IS NOT A GUI TYPE AND IS DELIBERATELY NOT NAMED LIKE ONE. A user interface
+// is the first caller and not the only plausible one: debug lines and sprites
+// want the same "many small things, one draw" shape, and nothing in here knows
+// what a panel or a button is.
+//
+// THE CPU WRITES ONE OF THESE INSTEAD OF FOUR VERTICES AND SIX INDICES, AND THAT
+// IS THE WHOLE POINT. Four voe_render_vertex plus six indices is a hundred and
+// fifty-two bytes and a triangulation; this is eighty bytes and a struct
+// assignment. And because the colour is in the record rather than in a shading
+// record, every element in the draw may differ without breaking it — which is
+// what makes a whole interface one draw call, and is impossible on the mesh path
+// where one draw means one shading record.
+//
+// EVERYTHING IN HERE IS IN THE SURFACE'S OWN TWO-DIMENSIONAL SPACE, IN
+// MILLIMETRES (ADR-0089: a GUI unit is 1 mm). Not pixels and not world metres.
+// What turns that space into clip space is the transform handed to
+// voe_render_frame_draw_elements, and voe_render_element_transform is the one
+// place the conversion is written down.
+//
+// Y RUNS DOWN. The origin is the surface's top-left corner and y increases
+// towards the bottom, which is what every interface in the world means by a
+// coordinate. That is NOT what the engine's one Y flip gives on its own — the
+// negative viewport height in render/src/frame.c makes +Y clip space point *up*
+// the screen — so the sign lives in voe_render_element_transform and in nothing
+// else. There is still exactly one Y flip in this engine and this is not a
+// second one.
+//
+// THE LAYOUT IS PADDED AND THAT IS NOT COSMETIC, for exactly the reason
+// voe_render_shading_values is: the same struct is declared in
+// shaders/elements.slang and the two only agree for certain when every member
+// lands on the boundary a buffer layout rule would have put it on. The padding
+// is written as separate scalars where it follows a single word, because a uint3
+// would be realigned and three uints are not.
+typedef struct {
+	// Where the rectangle is: `xy` its top-left corner and `zw` its width
+	// and height, in millimetres. A width or height of nothing draws
+	// nothing, which is not checked because it is not wrong.
+	voe_math_float4 bounds;
+	// What the element is clipped to, in the same space and the same
+	// xy-wh shape: a fragment outside it is discarded.
+	//
+	// IT IS HERE WITH NO CALLER YET, ON PURPOSE. A scroll area is what
+	// wants it, and a clip rectangle arriving later would change this
+	// record's size and every draw that had been built against it. Because
+	// it is per element rather than per draw, a clipped region costs no
+	// draw-call break — which is the whole reason it is a field and not a
+	// scissor.
+	//
+	// A ZEROED RECT CLIPS EVERYTHING AWAY, and that is the one field in
+	// here a zeroed record gets wrong — the same trade
+	// voe_render_shading_values.base_colour_uv_rect makes. Nothing in this
+	// folder repairs it, because repairing it would cost a branch at every
+	// fragment to fix a caller that did not say; whoever builds a record
+	// says what it is clipped to. An element that is not meant to be
+	// clipped is given its own bounds, or the whole surface.
+	voe_math_float4 clip;
+	// Linear RGBA, straight and NOT premultiplied: the shader multiplies rgb
+	// by a once, at output, because the colour target holds premultiplied
+	// colour (ADR-0069). A caller that premultiplies as well gets an element
+	// that is too faint, which reads as a wrong colour rather than as a bug.
+	//
+	// A PALETTE INDEX INSTEAD OF A COLOUR IS AN OPEN QUESTION AND THIS CARD
+	// DOES NOT ANSWER IT. The reserved words below are where one would go.
+	voe_math_float4 colour;
+	// A voe_render_element_kind.
+	uint32_t kind;
+	// Room to grow, and the reason this record is eighty bytes rather than
+	// sixty-four. A glyph kind needs the rectangle of a sheet it reads —
+	// four floats — and the index of the texture it reads them from, and
+	// card 031 adding those may not move anything above or change this size.
+	// The same thing voe_render_shading_values did with reserved_a, _b and
+	// _c, which three later cards consumed in place.
+	uint32_t reserved_a[3];
+	voe_math_float4 reserved_b;
+} voe_render_element;
+
 // native and size come from voe_platform_window_native() and
 // voe_platform_window_size(). arena is scratch for the enumerations startup does
 // — how many graphics cards, which queue families, which surface formats — and
@@ -714,6 +820,85 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // went stale is handled here and returns true, with the rebuild happening at the
 // top of the next frame.
 [[nodiscard]] bool voe_render_frame_end(voe_render_device *device);
+
+// How many draw commands the open recording holds — or, once _end has run, how
+// many the frame that was just submitted held. Reset by every _begin.
+//
+// IT EXISTS TO BE READ RATHER THAN TRUSTED. "Many small things in one draw" is a
+// claim about the number of draw commands and nothing else, so a program that
+// makes it says this number rather than saying it drew one instanced draw.
+// Every mesh drawn is one command; every element draw is one command whatever
+// it holds.
+[[nodiscard]] uint32_t
+voe_render_frame_draw_count(const voe_render_device *device);
+
+// ---------------------------------------------------------------- elements
+
+// Puts one element into this frame's own buffer, to be drawn by the call below.
+// The record is copied and the caller's is its own again the moment this
+// returns.
+//
+// ORDER IS PAINT ORDER. Elements blend in the order they were submitted, so a
+// caller that wants one on top of another submits it second. That is a
+// guarantee this path makes and the mesh path does not — see
+// voe_render_frame_draw_blended, where the caller has to sort by distance
+// because depth decides.
+//
+// False when this frame already holds as many elements as the device was made
+// for, with a line on stderr naming the numbers — which is also the answer on a
+// device opened with `elements` at nought. The frame is otherwise untouched:
+// every element that fitted is still drawn, and the next frame starts empty.
+//
+// Calling this without a _begin that set `drawing`, or after _end, is the
+// caller's bug and asserts.
+[[nodiscard]] bool voe_render_frame_submit_element(voe_render_device *device,
+						   voe_render_element element);
+
+// Draws every element submitted to this frame, in one instanced draw, with
+// `transform` turning the elements' millimetres into clip space. Records nothing
+// when no element has been submitted.
+//
+// `transform` IS THE ONE PLACE THE SURFACE'S GEOMETRY LIVES, AND IT IS A
+// PARAMETER BECAUSE THIS FOLDER CANNOT KNOW IT. What size the surface is, where
+// it is and whether it is flat against the screen or standing in the world is a
+// question about a panel, and a panel is not a thing `render` has ever heard of.
+// voe_render_element_transform below builds the one this engine wants today.
+//
+// IT IS BLENDED, TESTS DEPTH AND WRITES NONE, exactly as
+// voe_render_frame_draw_blended does — so an element behind an opaque object is
+// hidden by it, and two elements never hide each other.
+//
+// False when the pipeline this needs was never built, which is a device that
+// could not be opened rather than something a caller does. Calling this without
+// a _begin that set `drawing`, or after _end, is the caller's bug and asserts.
+[[nodiscard]] bool
+voe_render_frame_draw_elements(voe_render_device *device,
+			       voe_math_float4x4 transform);
+
+// The transform an element surface of `size` millimetres wants in order to fill
+// the whole render target: millimetres in, clip space out.
+//
+// IT IS THE ONLY PLACE THIS ENGINE CONVERTS ELEMENT SPACE TO CLIP SPACE, and
+// everything drawn through the call above depends on it being right. Three
+// decisions are in it and each of them is a thing to get wrong silently:
+//
+//   - THE ORIGIN IS THE TOP-LEFT AND Y RUNS DOWN, which is what an interface
+//     means by a coordinate. The engine's one Y flip — the negative viewport
+//     height in render/src/frame.c — puts +Y clip space at the *top* of the
+//     screen, so mapping y = 0 to the top means a negative scale here. That
+//     negation is this function and there is no other; see voe_render_element.
+//   - z IS THE NEAR PLANE, WHICH IS 1.0. Depth runs backwards in this engine and
+//     the test is GREATER, so an element passes in front of anything already
+//     drawn. It writes no depth, so this decides nothing about the elements
+//     among themselves.
+//   - IT IS THE WHOLE TARGET AND NOT PART OF IT. A surface smaller than the
+//     window, or one standing in the world, is a different matrix and card 032's
+//     to build; this one is what a full-screen overlay wants.
+//
+// A size with a zero in it is the caller's bug and asserts: the reciprocal of
+// nothing is what would reach the shader.
+[[nodiscard]] voe_math_float4x4
+voe_render_element_transform(voe_math_float2 size);
 
 // ------------------------------------------------------------------ timing
 

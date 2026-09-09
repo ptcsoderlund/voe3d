@@ -18,12 +18,21 @@
 //
 // WHAT IS OPEN BETWEEN THEM LIVES IN THE DEVICE. device->recording says a
 // recording is open, device->object_count says how many objects have gone into
-// it, device->bound says which of the two pipelines it last bound,
-// device->bound_transient says which of the two geometry pool pairs it last
-// bound, and device->image_index says which swapchain image _end has to blit
-// into. There is exactly one frame open at a time, so a token handed to the
-// caller would be a second place for that to live and a second thing to get
-// wrong.
+// it, device->element_count says how many elements have been submitted to it,
+// device->draw_commands says how many draw commands it holds, device->bound says
+// which pipeline it last bound, device->bound_transient says which of the two
+// geometry pool pairs it last bound, and device->image_index says which swapchain
+// image _end has to blit into. There is exactly one frame open at a time, so a
+// token handed to the caller would be a second place for that to live and a
+// second thing to get wrong.
+//
+// TWO OF THOSE ARE RESET HERE AND WRITTEN ELSEWHERE. element.c is what submits
+// an element and what draws them, because that path has no mesh, no pool and no
+// object record in it; _begin puts both counters back to nought because _begin
+// is what the fence has made this slot's buffers safe at. A third pipeline
+// therefore exists that this file never binds — see device->bound, which is
+// compared and not switched on, so an element draw leaving its own pipeline
+// bound simply makes the next mesh draw rebind.
 //
 // TWO PAIRS OF GEOMETRY POOLS CAN BE DRAWN FROM AND ONLY ONE PAIR IS BOUND AT A
 // TIME. The static pair is bound as the rendering opens, because that is what a
@@ -103,8 +112,8 @@
 // ONE, AND THAT GAP IS THE WHOLE OF THE OVERLAP. Waiting on this slot's fence
 // leaves every frame submitted since it still running on the GPU. What that
 // fence makes safe is this slot's own command buffer, its own acquire semaphore,
-// its own target, its own uniform buffer and its own object buffer, and nothing
-// else.
+// its own target, its own uniform buffer, its own object buffer and its own
+// element buffer, and nothing else.
 //
 // THE TWO SEMAPHORE KINDS HAVE DIFFERENT LIFETIMES. The acquire semaphore is per
 // slot, guarded by the fence beside it. The rendering-finished semaphore is per
@@ -709,6 +718,11 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 
 	device->recording = true;
 	device->object_count = 0;
+	// Both start again with the frame: the elements because this slot's
+	// record buffer is written from the top, and the draw count because it
+	// is a measurement of one frame and not a running total.
+	device->element_count = 0;
+	device->draw_commands = 0;
 	*drawing = true;
 	return true;
 }
@@ -787,6 +801,10 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 				       (int32_t)slot->first_vertex, 0);
 
 	device->object_count++;
+	// One mesh, one draw command, which is the thing the element path exists
+	// not to do. Counted here and in the element draw and nowhere else — see
+	// voe_render_frame_draw_count.
+	device->draw_commands++;
 	return true;
 }
 
@@ -856,6 +874,15 @@ bool voe_render_frame_is_open(const voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "asking no device whether a frame is open");
 	return device->recording;
+}
+
+uint32_t voe_render_frame_draw_count(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking no device how many draws it made");
+
+	// No assert on `recording`: the number is worth reading after _end, and
+	// that is where a caller reporting what a frame cost will read it.
+	return device->draw_commands;
 }
 
 bool voe_render_frame_end(voe_render_device *device)

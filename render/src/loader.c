@@ -255,8 +255,9 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(unmap_memory, vkUnmapMemory);
 	DEVICE_FUNCTION(cmd_copy_buffer, vkCmdCopyBuffer);
 
-	// The cube's draw. cmd_draw above is still here because
-	// matrix_probe.slang has no vertex buffer and counts its three vertices.
+	// The cube's draw. cmd_draw above is still here because two shaders bind
+	// no vertex buffer at all and count their own vertices instead:
+	// matrix_probe.slang's three, and elements.slang's four per element.
 	DEVICE_FUNCTION(cmd_bind_vertex_buffers, vkCmdBindVertexBuffers);
 	DEVICE_FUNCTION(cmd_bind_index_buffer, vkCmdBindIndexBuffer);
 	DEVICE_FUNCTION(cmd_draw_indexed, vkCmdDrawIndexed);
