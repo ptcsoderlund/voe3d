@@ -1,5 +1,6 @@
-// The element path: many rectangles from many small records, one draw command.
-// Seven claims, each of them one a wrong implementation would get wrong quietly.
+// The element path: many rectangles from many small records, and a letter among
+// them, all in one draw command. Twelve claims, each of them one a wrong
+// implementation would get wrong quietly.
 //
 // IT READS THE PICTURE BACK, because nothing about this path can be checked any
 // other way. A submit that wrote at the wrong offset, a vertex shader that built
@@ -39,6 +40,34 @@
 // and all three have to land — and the failure it guards against shows up on
 // the mesh drawn last, which no amount of looking at the elements would find.
 //
+// A LETTER AND A FILL ARE ONE DRAW COMMAND, WHICH IS WHAT THE GLYPH KIND EXISTS
+// TO SAY. A solid and a glyph in one frame, and the frame holds one draw. That
+// is the headline claim and it is the assert, not the picture, that proves it —
+// two kinds drawn correctly in two draws would look identical.
+//
+// THE SHEET IS A HAND-MADE FIELD AND NOT A FONT, because this folder does not
+// depend on `text` and must not learn to. Four texels square, its bottom-right
+// quarter the inside of the shape and the rest the outside, uploaded as DATA
+// with FIELD sampling exactly as an atlas is. That is enough to say everything
+// a letter would: where the interior is, where the paper is, and — because the
+// pattern is in a corner rather than a stripe — which way round both axes of
+// the sheet rectangle go. A sheet read mirrored in u or flipped in v puts the
+// drawn quarter somewhere else and every count below fails.
+//
+// THE COUNTS SKIP THE BAND WHERE THE FIELD CROSSES. FIELD sampling is linear by
+// design (see voe_render_sampling), so between the outside texels and the
+// inside ones there is a strip where the interpolated value is passing through
+// a half and which side of the threshold a pixel lands on is arithmetic on a
+// texel centre rather than a claim worth making. The regions counted are well
+// inside and well outside it, which is where the answer is exact.
+//
+// AND A GLYPH THAT NAMED NO SHEET DRAWS A SOLID RECTANGLE, ASSERTED SO IT
+// CANNOT CHANGE QUIETLY. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one
+// white pixel, so such a record medians to white, thresholds to one and comes
+// out as a plausible-looking rectangle rather than as anything that fails. It
+// is the worst failure on this path to find by looking, so it is the one with a
+// test naming it.
+//
 // AND THE BLEND IS PREMULTIPLIED, WHICH IS THE FAILURE THAT LOOKS LIKE A COLOUR
 // SOMEBODY CHOSE. A half-alpha green over an opaque red is half of each: the
 // green channel comes out around 188, which is the sRGB encoding of a half.
@@ -64,6 +93,7 @@
 
 #include <testing/test.h>
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -133,6 +163,53 @@ static voe_render_element solid(float x, float y, float w, float h,
 		.clip = { x, y, w, h },
 		.colour = colour,
 		.kind = VOE_RENDER_ELEMENT_SOLID,
+	};
+}
+
+// The sheet: four texels square, all three channels the same number so that the
+// median is that number, and the bottom-right two-by-two the inside of the
+// shape. The alpha channel is opaque and is not read, exactly as a real atlas's
+// is not.
+#define FIELD_SIDE 4
+#define FIELD_BYTES (FIELD_SIDE * FIELD_SIDE * 4)
+
+static void field_texels(unsigned char rgba[FIELD_BYTES])
+{
+	for (int y = 0; y < FIELD_SIDE; y++) {
+		for (int x = 0; x < FIELD_SIDE; x++) {
+			unsigned char inside = (x >= FIELD_SIDE / 2 &&
+						y >= FIELD_SIDE / 2) ? 255 : 0;
+			unsigned char *at = rgba + (y * FIELD_SIDE + x) * 4;
+
+			at[0] = inside;
+			at[1] = inside;
+			at[2] = inside;
+			at[3] = 255;
+		}
+	}
+}
+
+// The whole sheet, so that the element shows the corner pattern and says which
+// way round both axes go.
+static const voe_math_float4 SHEET_WHOLE = { 0.0f, 0.0f, 1.0f, 1.0f };
+// A piece of the sheet that is entirely inside the shape — well past the texel
+// centres at 0.625 in both axes — so that the element comes out as a full
+// rectangle. That is what the clip test and the paint-order tests want: a glyph
+// whose coverage is not itself the thing under test.
+static const voe_math_float4 SHEET_INSIDE = { 0.7f, 0.7f, 0.25f, 0.25f };
+
+// One glyph element, clipped to itself for the reason solid() is.
+static voe_render_element glyph(float x, float y, float w, float h,
+				voe_math_float4 colour, uint32_t sheet_texture,
+				voe_math_float4 sheet)
+{
+	return (voe_render_element){
+		.bounds = { x, y, w, h },
+		.clip = { x, y, w, h },
+		.colour = colour,
+		.kind = VOE_RENDER_ELEMENT_GLYPH,
+		.sheet_texture = sheet_texture,
+		.sheet = sheet,
 	};
 }
 
@@ -322,6 +399,8 @@ struct scene {
 	voe_render_geometry quad;
 	voe_render_shading red;
 	voe_render_shading blue;
+	// The hand-made field the glyph tests read.
+	voe_render_texture sheet;
 	struct voe_render_buffer readback;
 	// vkMapMemory hands its pointer back through a void **, which is
 	// Vulkan's signature and not one this engine gets to choose.
@@ -596,6 +675,179 @@ static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 			   QUADRANT);
 }
 
+// THE CARD'S HEADLINE CLAIM: a rectangle and a letter are the same draw command.
+// A solid in the top-left quadrant and a glyph in the bottom-right, and the
+// frame holds exactly one draw. The picture is checked as well, because a draw
+// count of one over a frame that drew nothing would also be one.
+static void a_solid_and_a_glyph_are_one_draw(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	const unsigned char *image;
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(0, 0, HALF, HALF, RED)));
+	// A piece of the sheet that is all interior, so this glyph is a full
+	// quadrant of the record's colour and the count is exact.
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(HALF, HALF, HALF, HALF, GREEN,
+			      scene->sheet.index, SHEET_INSIDE)));
+
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	// ONE. Two kinds, one buffer, one draw.
+	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+
+	read_back(device, frame, scene->readback.buffer);
+	image = scene->pixels;
+
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
+	VOE_TEST_CHECK_INT(count_in(image, HALF, HALF, SIDE, SIDE, IS_GREEN),
+			   QUADRANT);
+	// And neither kind wrote anywhere but its own quadrant.
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, SIDE, SIDE, IS_RED), QUADRANT);
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, SIDE, SIDE, IS_GREEN),
+			   QUADRANT);
+}
+
+// The interior of the shape is the record's colour and the paper outside it is
+// not. One glyph over the whole surface reading the whole sheet, so the picture
+// is the sheet's own corner pattern: the bottom-right quarter drawn and the
+// other three not.
+//
+// IT IS ALSO THE ONE TEST THAT SAYS WHICH WAY ROUND THE SHEET RECTANGLE GOES.
+// Read mirrored in u the drawn quarter is on the left; read flipped in v it is
+// at the top. Both fail here and neither would fail on a stripe.
+static void a_glyph_reads_the_sheet(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	const unsigned char *image;
+	// Well inside the sheet's inner quarter and well outside it, skipping
+	// the band where the linear field crosses the threshold. See the header.
+	const int low = 6;
+	const int high = 10;
+	const int corner = low * low;
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
+			      SHEET_WHOLE)));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	image = scene->pixels;
+
+	// The interior: the record's colour, and every pixel of it.
+	VOE_TEST_CHECK_INT(count_in(image, high, high, SIDE, SIDE, IS_GREEN),
+			   corner);
+	// The paper: three corners of it, none of them written at all. A
+	// threshold that let the outside through would fill these.
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, low, low, NEITHER), corner);
+	VOE_TEST_CHECK_INT(count_in(image, high, 0, SIDE, low, NEITHER),
+			   corner);
+	VOE_TEST_CHECK_INT(count_in(image, 0, high, low, SIDE, NEITHER),
+			   corner);
+}
+
+// A glyph is clipped exactly as a solid is, and the same way round: an element
+// over the whole surface, drawing everywhere the sheet is concerned, clipped to
+// its top half. This is what a scroll area will be made of.
+static void a_glyph_is_clipped_like_a_solid(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	const unsigned char *image;
+	voe_render_element element = glyph(0, 0, SIDE, SIDE, GREEN,
+					   scene->sheet.index, SHEET_INSIDE);
+
+	element.clip = (voe_math_float4){ 0.0f, 0.0f, SIDE, HALF };
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+	VOE_TEST_CHECK(voe_render_frame_submit_element(device, element));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	image = scene->pixels;
+
+	VOE_TEST_CHECK_INT(count_in(image, 0, 0, SIDE, HALF, IS_GREEN),
+			   SIDE * HALF);
+	VOE_TEST_CHECK_INT(count_in(image, 0, HALF, SIDE, SIDE, NEITHER),
+			   SIDE * HALF);
+}
+
+// A glyph naming no sheet. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one
+// white pixel: the median of white is white, the threshold passes it, and the
+// element comes out as a solid rectangle of its own colour.
+//
+// THIS TEST IS HERE BECAUSE THAT FAILURE LOOKS LIKE SUCCESS. A record that
+// forgot its texture index draws a plausible rectangle rather than anything
+// wrong, so what the empty id does is written down in voe_render_element and
+// asserted here, and changing it means changing this line on purpose.
+static void a_glyph_with_no_sheet_draws_a_solid_rectangle(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(0, 0, SIDE, SIDE, RED, VOE_RENDER_NO_TEXTURE,
+			      SHEET_WHOLE)));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
+			   SIDE * SIDE);
+}
+
+// Paint order holds across the two kinds and not only within one: a solid over
+// a glyph and a glyph over a solid, and in both the second one submitted is
+// what is seen. One order alone would pass on an implementation that sorted by
+// kind, which is exactly the thing an interface must not have done to it.
+static void paint_order_holds_across_kinds(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
+			      SHEET_INSIDE)));
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(0, 0, SIDE, SIDE, RED)));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
+			   SIDE * SIDE);
+
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device))
+		return;
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, solid(0, 0, SIDE, SIDE, RED)));
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
+			      SHEET_INSIDE)));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(device, whole_target()));
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	read_back(device, frame, scene->readback.buffer);
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
+			   SIDE * SIDE);
+}
+
 // Nothing submitted records no draw command, which is not a refusal: an
 // interface with nothing in it this frame is not a caller that has gone wrong.
 static void an_empty_frame_draws_nothing(struct scene *scene)
@@ -668,6 +920,23 @@ static void the_transform_puts_the_origin_at_the_top_left(void)
 	VOE_TEST_CHECK_FLOAT(far_corner.w, 1.0f, 1e-5f);
 }
 
+// Eighty bytes, said out loud here and not only in render/src/descriptors.c.
+// The static asserts over there are the safety net and they fire at build time;
+// this is the claim stated where a person reading the tests can see it, because
+// the size is the promise the glyph kind was written to keep — every draw ever
+// built against this record changes with it.
+//
+// It runs whether or not there is a graphics card, because it is arithmetic.
+static void the_record_is_still_eighty_bytes(void)
+{
+	VOE_TEST_CHECK_INT((int)sizeof(voe_render_element), 80);
+	// And the two words the glyph kind took are where the shader has them,
+	// with two still spare after the first of them.
+	VOE_TEST_CHECK_INT((int)offsetof(voe_render_element, kind), 48);
+	VOE_TEST_CHECK_INT((int)offsetof(voe_render_element, sheet_texture), 52);
+	VOE_TEST_CHECK_INT((int)offsetof(voe_render_element, sheet), 64);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -676,6 +945,7 @@ int main(void)
 	struct scene scene = { 0 };
 
 	the_transform_puts_the_origin_at_the_top_left();
+	the_record_is_still_eighty_bytes();
 
 	scene.device = voe_render_device_new_headless(arena, size, CAPACITIES,
 						      &error);
@@ -735,6 +1005,21 @@ int main(void)
 							 &scene.blue, &error));
 	}
 
+	// The sheet, uploaded exactly as text/src/font.c uploads its atlas:
+	// DATA because the texels are numbers rather than colour, and FIELD
+	// because a field is reconstructed by filtering and not read as a grid.
+	// Neither is optional and getting either wrong changes where the edge
+	// lands.
+	{
+		unsigned char texels[FIELD_BYTES];
+
+		field_texels(texels);
+		VOE_TEST_CHECK(voe_render_texture_create(
+			scene.device, VOE_RENDER_TEXTURE_DATA,
+			VOE_RENDER_SAMPLING_FIELD, FIELD_SIDE, FIELD_SIDE,
+			texels, &scene.sheet, &error));
+	}
+
 	if (scene.pixels != NULL) {
 		four_colours_in_one_draw(&scene);
 		the_clip_rectangle_clips(&scene);
@@ -742,6 +1027,11 @@ int main(void)
 		the_blend_is_premultiplied(&scene);
 		overrunning_is_refused_and_the_next_frame_is_fine(&scene);
 		a_mesh_after_an_element_draw_is_still_right(&scene);
+		a_solid_and_a_glyph_are_one_draw(&scene);
+		a_glyph_reads_the_sheet(&scene);
+		a_glyph_is_clipped_like_a_solid(&scene);
+		a_glyph_with_no_sheet_draws_a_solid_rectangle(&scene);
+		paint_order_holds_across_kinds(&scene);
 		an_empty_frame_draws_nothing(&scene);
 	} else {
 		VOE_TEST_CHECK(scene.pixels != NULL);

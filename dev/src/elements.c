@@ -1,5 +1,6 @@
-// The forty rectangles, in the order they are painted. Four groups, and each of
-// them is there to show one thing the element path claims:
+// The forty rectangles and the forty letters, in the order they are painted.
+// Six groups, and each of them is there to show one thing the element path
+// claims:
 //
 //   1  ONE BACKING PANEL, dark and see-through, which everything else stands on.
 //      It is what makes the see-through row above it readable, and it is the
@@ -15,11 +16,31 @@
 //      That is the group that matters: thirty-two different colours cannot be
 //      thirty-two draws of one shading record, and the draw count main.c prints
 //      is what says they were not.
+//   5  ONE LINE OF WRITING, LARGE. What to look for is the edge of a letter:
+//      it is a hard cut through a distance field, so a stem has straight sides
+//      and a corner is a corner, at whatever size the window happens to be.
+//      Nothing here is antialiased and it is not meant to look as though it is.
+//   6  ONE LINE OF WRITING, SMALL — small enough to show what the sheet cannot
+//      hold. The atlas samples the shape at a fixed resolution, so a stem
+//      thinner than a texel or two is one it has no room to describe: such text
+//      THINS and eventually breaks up rather than going blurry, which is the
+//      thing text/include/text/font.h's "no analytic curves" paragraph is about
+//      and is worth being able to see rather than only read.
+//
+// A LETTER IS A RECTANGLE THAT READS A SHEET, AND THAT IS ALL IT IS. Groups five
+// and six go into the same buffer as groups one to four, in the same submission
+// order, and out through the same draw command. Nothing here is a text system:
+// this file asks the font where each character sits, multiplies by its own
+// millimetres-per-em and turns the direction round once, and submits a record.
+// Laying a string out properly — wrapping, alignment, a caret — is `ui`'s and it
+// is not started here.
 //
 // THE COUNT IS ASSERTED AGAINST VOE_DEV_ELEMENTS AND NOT TRUSTED. Adding a
-// rectangle here without changing that number is a refusal on the last submit,
-// which would be a rectangle quietly missing from the picture; the assert at the
-// bottom turns it into a stop instead.
+// rectangle here, or a letter to one of the strings, without changing the
+// numbers in elements.h is a refusal on the last submit — which would be a
+// rectangle or a letter quietly missing from the picture. The asserts at the
+// bottom turn that into a stop instead, and there are two of them so that the
+// message says which half drifted.
 //
 // NOTHING IN HERE IS ANIMATED. The exhibit is the same every frame, which is
 // what makes it a thing to look at rather than a thing to watch — and it is
@@ -32,16 +53,39 @@
 #include <math/float4.h>
 #include <math/float4x4.h>
 
+#include <text/font.h>
+
 // The layout, in millimetres on the panel elements.h describes. Every number
 // here is measured from the panel's top-left corner, because element space puts
 // its origin there and runs y downwards.
+//
+// THE PANEL STARTS HIGHER THAN THE RECTANGLES DO, and the space above them is
+// where the writing goes. Every rectangle below is at the millimetre it has
+// always been at; only the backing grew upwards to stand the two lines on.
 #define PANEL_X 100.0f
-#define PANEL_Y 55.0f
+#define PANEL_Y 30.0f
 #define PANEL_WIDE 134.0f
-#define PANEL_HIGH 74.0f
+#define PANEL_HIGH 99.0f
 
-// Inside the panel, six millimetres in from its left edge and from its top.
+// Inside the panel, six millimetres in from its left edge. Everything written
+// below starts here.
 #define INSET 6.0f
+
+// The two lines of writing, by their BASELINES — which is what a font measures
+// from and so what a caller placing characters has to think in. A letter's box
+// reaches above it by however much the font says, and a descender reaches below.
+//
+// THE EM SIZES ARE THE POINT OF THE PAIR AND NOT A TASTE. Nine millimetres is
+// large enough that a stem is many pixels across and the hard edge of the field
+// is plainly a hard edge; two and a half is small enough that a stem is about
+// one, which is where the sheet runs out of room to describe the shape and the
+// letters thin. Both are drawn from the one atlas, at the one resolution, by the
+// one shader — the difference is entirely what a distance field can and cannot
+// do, which is what makes the two lines worth having beside each other.
+#define TITLE_BASELINE 43.0f
+#define TITLE_EM 9.0f
+#define LABEL_BASELINE 52.0f
+#define LABEL_EM 2.5f
 
 // The clipped bar: forty wide, and clipped to the left twenty of that.
 #define BAR_Y 61.0f
@@ -77,6 +121,79 @@ static voe_render_element at(float x, float y, float w, float h,
 	};
 }
 
+// One line of writing, as one element per character, left to right from `x` and
+// standing on `baseline`. Returns how many elements it submitted, or leaves
+// `*ok` false if `render` refused one.
+//
+// THIS IS THE CONVERSION THE WHOLE TEXT HALF EXISTS FOR, AND IT IS FOUR LINES.
+// `text` says where a character sits in EMS with +Y UP, because that is what a
+// font knows and it does not know what a screen is. An element surface is
+// MILLIMETRES with Y DOWN from its top-left corner. So the caller multiplies by
+// its own millimetres-per-em — which is what makes a size measured from the font
+// in hand rather than a number somebody typed — and subtracts from the baseline
+// instead of adding to it. That subtraction is the only place the direction
+// turns round, and it is not a second Y flip: the engine's one flip is in the
+// viewport and voe_render_element_transform owns the element path's sign.
+//
+// THE BOX IS TAKEN WHOLE AND NOT TRIMMED. It is wider than the letter looks on
+// every side, because the sheet carries the field on past the outline and the
+// rectangle has to be big enough for the shader to see where the field says the
+// edge is. Shrinking it to the letter gives clipped stems, which reads as a bad
+// font rather than as a wrong rectangle.
+//
+// A SPACE IS NOT SUBMITTED. It advances the pen and draws nothing, so a record
+// for it would spend a letter's worth of the frame's capacity on an empty
+// rectangle.
+//
+// THE STRING IS ASCII AND A BYTE IS A CHARACTER HERE. Decoding UTF-8 is a thing
+// `text` does inside its own layout and does not offer; a caller that needs it
+// is `ui`, and this exhibit is not it.
+static uint32_t write_line(voe_render_device *gpu, const voe_text_font *font,
+			   const char *ascii, float x, float baseline, float em,
+			   voe_math_float4 colour, bool *ok)
+{
+	uint32_t submitted = 0;
+	float pen = x;
+
+	for (const char *c = ascii; *c != '\0'; c++) {
+		voe_text_glyph g = voe_text_font_glyph(font,
+						       (unsigned char)*c);
+		voe_render_element element;
+
+		if (g.drawn) {
+			element = (voe_render_element){
+				.bounds = { pen + g.low.x * em,
+					    baseline - g.high.y * em,
+					    (g.high.x - g.low.x) * em,
+					    (g.high.y - g.low.y) * em },
+				// The panel, so a line running off the end of
+				// it is cut rather than drawn over the scene.
+				// That is what a panel does and it is the same
+				// field the clipped bar above uses.
+				.clip = { PANEL_X, PANEL_Y, PANEL_WIDE,
+					  PANEL_HIGH },
+				.colour = colour,
+				.kind = VOE_RENDER_ELEMENT_GLYPH,
+				.sheet_texture =
+					voe_text_font_atlas(font).index,
+				// Straight across: voe_text_glyph already
+				// hands the sheet rectangle over in the shape
+				// the record wants, corner and size, with its
+				// corner paired to the box's top-left.
+				.sheet = g.sheet,
+			};
+
+			if (!voe_render_frame_submit_element(gpu, element)) {
+				*ok = false;
+				return submitted;
+			}
+			submitted++;
+		}
+		pen += g.advance * em;
+	}
+	return submitted;
+}
+
 // A hue round the circle, as a linear colour. Six straight-line segments, which
 // is the ordinary hue-to-rgb with the saturation and the value both at one — it
 // is here so that thirty-two squares are thirty-two visibly different colours
@@ -104,7 +221,7 @@ static voe_math_float4 hue(float turn, float alpha)
 	}
 }
 
-bool voe_dev_elements_submit(voe_render_device *gpu)
+bool voe_dev_elements_submit(voe_render_device *gpu, const voe_text_font *font)
 {
 	// Dark and three-quarters opaque, so the scene shows faintly through it
 	// and the row above reads against it.
@@ -112,10 +229,20 @@ bool voe_dev_elements_submit(voe_render_device *gpu)
 	// A warm colour for the clipped bar, so that the half that is drawn and
 	// the half that is not are obvious against the backing.
 	voe_math_float4 bar_colour = { 1.0f, 0.55f, 0.05f, 1.0f };
+	// Nearly white, so the large line is read against the backing rather
+	// than against a hue.
+	voe_math_float4 title_colour = { 0.90f, 0.92f, 0.95f, 1.0f };
+	// Dimmer, because the small line is a caption and because a lower
+	// contrast is where a thinning stem is easiest to see.
+	voe_math_float4 label_colour = { 0.55f, 0.62f, 0.70f, 1.0f };
 	voe_render_element bar;
 	uint32_t submitted = 0;
+	uint32_t glyphs = 0;
+	bool wrote = true;
 
 	VOE_BASE_ASSERT(gpu != NULL, "submitting the element exhibit to no device");
+	VOE_BASE_ASSERT(font != NULL,
+			"the element exhibit writes, so it needs a font");
 
 	// 1. The backing panel. First, because everything else is painted over
 	//    it and order is paint order on this path.
@@ -167,11 +294,30 @@ bool voe_dev_elements_submit(voe_render_device *gpu)
 		}
 	}
 
-	// The number in elements.h is what the device was asked for, so a
-	// rectangle added here without changing it would be refused above and
-	// quietly missing from the picture. This is what makes that a stop.
+	VOE_BASE_ASSERT(submitted == VOE_DEV_ELEMENTS_RECTANGLES,
+			"the element exhibit submits a different number of rectangles from the one VOE_DEV_ELEMENTS_RECTANGLES names");
+
+	// 5 and 6. The writing, over the rectangles because it is submitted
+	//    after them. Two lines, one large and one small, and the small one
+	//    is there to be looked at closely — see the header.
+	glyphs += write_line(gpu, font, "Glyphs are elements",
+			     PANEL_X + INSET, TITLE_BASELINE, TITLE_EM,
+			     title_colour, &wrote);
+	glyphs += write_line(gpu, font, "one draw for the whole panel",
+			     PANEL_X + INSET, LABEL_BASELINE, LABEL_EM,
+			     label_colour, &wrote);
+	if (!wrote)
+		return false;
+	submitted += glyphs;
+
+	// The numbers in elements.h are what the device was asked for, so a
+	// rectangle added here — or a letter, which is what changing a string
+	// does — without changing them would be refused above and quietly
+	// missing from the picture. This is what makes that a stop.
+	VOE_BASE_ASSERT(glyphs == VOE_DEV_ELEMENTS_GLYPHS,
+			"the element exhibit writes a different number of letters from the one VOE_DEV_ELEMENTS_GLYPHS names");
 	VOE_BASE_ASSERT(submitted == VOE_DEV_ELEMENTS,
-			"the element exhibit submits a different number of rectangles from the one VOE_DEV_ELEMENTS names");
+			"the element exhibit submits a different number of elements from the one VOE_DEV_ELEMENTS names");
 
 	return voe_render_frame_draw_elements(gpu,
 					      voe_dev_elements_transform());

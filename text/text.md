@@ -1,16 +1,23 @@
 # text
 
 A string into one mesh and one texture: the font read, the glyphs measured into
-one distance-field sheet, the characters laid out. Not what wears that mesh — a
-material and an entity are `3d`'s, and this folder names only `render`.
+one distance-field sheet, the characters laid out. Or, for a caller placing
+characters itself, where one character sits and how far the pen then moves. Not
+what wears that mesh — a material and an entity are `3d`'s, and this folder names
+only `render`. Not layout onto a surface either: that is `ui`'s.
 
-- `include/text/font.h` — the whole public surface: make the font, then make a
-  block from a string, once at startup or again every frame. Its header says why
-  one block is one draw, what the five things a text material has to say are,
-  why the sheet is a distance field and not a picture, which of the two creates
-  is a startup operation and which lives inside a frame and why neither caches
-  a string, why the licence notice travels with the file, and what this folder
-  refuses by name — kerning included, and why.
+- `include/text/font.h` — the whole public surface: make the font, then either
+  make a block from a string — once at startup or again every frame — or ask
+  where one character sits and place it yourself. Its header says why one block
+  is one draw, what the five things a text material has to say are, why the sheet
+  is a distance field and not a picture, which of the two creates is a startup
+  operation and which lives inside a frame and why neither caches a string, why
+  the licence notice travels with the file, and what this folder refuses by name
+  — kerning included, and why. On the metrics it says why there are two text
+  paths and why a third would be wrong, that everything is in ems with +y up and
+  who turns that round, why the box is a low-and-high pair while the sheet
+  rectangle is a corner and a size, and where the two Y directions are
+  reconciled.
 - `fonts/` — Oxanium Regular and the licence it travels under. Neither file is
   renamed and neither is modified.
 - `src/truetype.h` — the file format, read. Its header says which seven tables
@@ -32,8 +39,8 @@ material and an entity are `3d`'s, and this folder names only `render`.
 - `src/utf8.h` — one character at a time. Its header says why it never stands
   still and which three encodings it refuses.
 - `src/utf8.c` — the decoder.
-- `src/font.c` — the sheet built once, the glyph table and the one layout both
-  creates share. Its header
+- `src/font.c` — the sheet built once, the glyph table both creates and the
+  public metrics read, and the one layout both creates share. Its header
   is where the three scales and the three Y axes that meet in this folder are each
   pinned down, why the sheet is a distance field uploaded as data, why it is the
   one texture in the engine that asks for a filtered sampler and why that is not

@@ -1,11 +1,25 @@
-// Text on screen. The whole of what this folder offers: make the font, then turn
-// a string into one mesh you can draw.
+// Text on screen. Two things this folder offers, and they are two paths on
+// purpose: turn a string into one mesh you can draw in the world, or ask where
+// one character sits and place it yourself.
 //
 //     voe_text_font *font = voe_text_font_new(gpu, scratch, &error);
 //     voe_text_block block;
 //
 //     voe_text_block_create(font, gpu, scratch, "Hello", 0.25f, &block, &error);
 //     // block.geometry is a mesh; voe_text_font_atlas(font) is its picture.
+//
+//     voe_text_glyph g = voe_text_font_glyph(font, 'H');
+//     // g says where the box is, what of the sheet to read, and how far to
+//     // step. Where the pen goes next is the caller's.
+//
+// TWO TEXT PATHS NOW EXIST AND THAT IS CORRECT. A THIRD WOULD NOT BE. The mesh
+// path is text standing in the world — a sign, a label on a thing, a readout in
+// front of the camera — and it is one mesh, one material, one draw. The metrics
+// path is text on a two-dimensional surface, where a caller emits one
+// voe_render_element per character and the whole panel goes out as one draw
+// command; `ui` is what does that and it is where a string is laid out. This
+// folder has no third answer in it and adding one is how a folder ends up with
+// three ways to draw the same letter that disagree at the edges.
 //
 // ONE TEXT BLOCK IS ONE OBJECT: ONE MESH, ONE MATERIAL, ONE DRAW. Not one per
 // glyph. That is the load-bearing rule of this folder — it is what keeps a
@@ -81,6 +95,7 @@
 #include <base/arena.h>
 #include <base/error.h>
 #include <math/float2.h>
+#include <math/float4.h>
 #include <render/device.h>
 
 // The embedded font, read, rasterised into one atlas and uploaded. Long-lived:
@@ -138,6 +153,73 @@ void voe_text_font_destroy(voe_text_font *font);
 // output, on an alpha this sheet did not supply; there is nothing in it to
 // premultiply and a caller must not add one.
 voe_render_texture voe_text_font_atlas(const voe_text_font *font);
+
+// Where one character sits, for a caller placing characters itself. Everything
+// here is a fact about the font and none of it is a fact about a screen: this
+// folder does not know what an element, a millimetre or a panel is.
+//
+// EVERYTHING IS IN EMS, WITH +Y UP, AND THE HEADER SAYS SO HERE BECAUSE IT IS
+// THE ONE THING A CALLER WILL GET WRONG. An em is the font's own unit and one
+// of them is however many millimetres or metres the caller decides it is — that
+// multiplication happens once, at the caller, which is what makes a size
+// measured from the font in hand rather than a number somebody typed. And +y is
+// UP, because that is what a font means by up: `high.y` is the top of the box
+// and `low.y` is the bottom, and `low.y` is BELOW the baseline — negative — for
+// anything with a descender. A GUI surface runs y DOWN from its top-left
+// corner, so a caller emitting onto one turns the direction round, once, where
+// it emits. This folder never does.
+//
+// THE BOX IS THE BOX THE SHEET HOLDS AND NOT THE OUTLINE'S. It is wider than
+// the letter on every side, because the field carries on past the outline and
+// the quad has to be big enough to show the shader where the field says the
+// edge is. A caller that shrinks it to what the letter looks like gets clipped
+// stems, which reads as a bad font rather than as a wrong rectangle.
+typedef struct {
+	// The box's low corner relative to the pen: its left edge and its
+	// bottom. In ems, +y up, so this is negative below the baseline.
+	voe_math_float2 low;
+	// The high corner: its right edge and its top.
+	//
+	// A LOW-AND-HIGH PAIR AND NOT A CORNER PLUS A SIZE, because a corner
+	// plus a size has to name WHICH corner, and naming one would be this
+	// folder deciding which way y runs. It does not get to.
+	voe_math_float2 high;
+	// What of the sheet this character is: `xy` the top-left corner and `zw`
+	// the width and height, in texture coordinates. Straight into a
+	// voe_render_element's `sheet`, which is the same shape for the same
+	// reason.
+	//
+	// THE ONE PLACE THE TWO Y DIRECTIONS ARE RECONCILED IS HERE, AND IT IS
+	// DONE ALREADY. A texture's (0,0) is its top-left and v runs down, while
+	// the box above runs up — so `sheet.xy` is the sheet's corner for
+	// `(low.x, high.y)`, the box's TOP-left. Pair the two rectangles corner
+	// for corner and a letter comes out the right way up; pair them by name
+	// and every letter is upside down in its own box, which looks like a
+	// broken font and is not one.
+	voe_math_float4 sheet;
+	// How far the pen moves along the line, in ems. A character that draws
+	// nothing still advances.
+	float advance;
+	// Whether there is anything to draw at all. FALSE FOR A SPACE, and for
+	// every character the font maps to an empty outline. A caller that
+	// ignores this spends a record on a rectangle of nothing — which on the
+	// element path is a letter's worth of a frame's capacity for every space
+	// in the string.
+	bool drawn;
+} voe_text_glyph;
+
+// The metrics for one character. Never fails: a character the atlas does not
+// cover is the font's own missing-glyph box, which is what makes it visible
+// rather than absent, and there is nothing here the world can refuse.
+//
+// It is a copy and not a pointer into the font, so a caller may keep it.
+voe_text_glyph voe_text_font_glyph(const voe_text_font *font,
+				   uint32_t codepoint);
+
+// The distance from one baseline to the next, in ems, as the font holds it. A
+// caller placing lines itself needs it and the font is what knows it; the mesh
+// path uses the same number.
+float voe_text_font_line_height(const voe_text_font *font);
 
 // Lays the string out and uploads it as one mesh. `em` is how many metres one em
 // is, which is the one place a font's units become the world's; a capital letter

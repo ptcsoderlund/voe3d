@@ -1521,14 +1521,21 @@ struct timing {
 	voe_base_samples draw;
 	// The graphics card's own clock, over that frame's commands only.
 	voe_base_samples gpu;
-	// Whether the card has ever answered, and what the last full period's
-	// average was. Both exist for the readout and not for the console: the
-	// period is reset at the end of a loop iteration and the next frame's
-	// readout is built before that frame's timestamp is asked for, so for
-	// one frame per period the sample set is empty — and empty must not
-	// read as "this card cannot time" when it timed a moment ago.
+	// The last full period's averages of the two numbers measured AFTER the
+	// readout is built, and — for the card — whether it has ever answered.
+	//
+	// THEY EXIST BECAUSE THE PERIOD IS RESET WITH THE READOUT STILL
+	// RUNNING, AND THEY ARE FOR THE READOUT AND NOT THE CONSOLE. `draw` and
+	// `gpu` are sampled below build_the_readout in the loop, so for the one
+	// frame after every console block their sample sets are empty while the
+	// readout is being built — and voe_base_samples_average of nothing is
+	// nought. Showing that nought is a draw phase that appears to have taken
+	// no time at all, once every period, which is a number a person would
+	// believe. `frame` and `update` need none of this: they are sampled
+	// ABOVE build_the_readout, so they always hold at least this frame.
 	bool gpu_timed;
 	double gpu_last;
+	double draw_last;
 	// When this period began, on the same clock every sample is taken with.
 	// Kept rather than a deadline, because the rate printed has to be over
 	// the time the period really covered and a frame always straddles the
@@ -1592,6 +1599,15 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 	char text[READOUT_CHARS];
 	voe_text_block block;
 	double frame = voe_base_samples_average(&timing->frame);
+	// The same two cases gpu has below, and for the same reason: the period
+	// was reset with this readout still running, so for one frame per period
+	// there is no sample of the draw phase yet and last period's average is
+	// what holds the line still. Before the first console block there is no
+	// last one either, and nought is then the truth rather than a stale
+	// number.
+	double draw = timing->draw.count > 0 ?
+			      voe_base_samples_average(&timing->draw) :
+			      timing->draw_last;
 	uint32_t drawn = 0;
 	voe_platform_pointer pointer = voe_platform_input_pointer(window);
 	// The buttons as three letters in the order they sit on a mouse, a dot
@@ -1646,8 +1662,7 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s\n%s",
 		 frame > 0.0 ? 1.0 / frame : 0.0, frame * 1000.0,
 		 voe_base_samples_average(&timing->update) * 1000.0,
-		 voe_base_samples_average(&timing->draw) * 1000.0, gpu_line,
-		 mouse_line);
+		 draw * 1000.0, gpu_line, mouse_line);
 
 	// Spaces and newlines lay out nothing; every other character in this
 	// string is a glyph the font carries.
@@ -1699,6 +1714,9 @@ static void report(struct timing *timing, double seconds,
 	fflush(stdout);
 
 	// What the readout shows until this new period has a sample of its own.
+	// Only the two measured after it is built need it; see struct timing.
+	if (timing->draw.count > 0)
+		timing->draw_last = voe_base_samples_average(&timing->draw);
 	if (timing->gpu.count > 0)
 		timing->gpu_last = voe_base_samples_average(&timing->gpu);
 
@@ -1793,6 +1811,9 @@ int main(void)
 	struct timing timing = { 0 };
 	double previous;
 	double top;
+	// Whether the loop has yet to go round once, which is the one iteration
+	// with no interval behind it. See where `previous` is first read.
+	bool first_frame = true;
 	double after_update;
 	double after_draw;
 	double step;
@@ -1901,6 +1922,14 @@ int main(void)
 	// The first reading, before the loop, so that the first frame's interval
 	// is measured from here rather than from a zero that would report the
 	// whole of startup as one very slow frame.
+	//
+	// IT IS NOT ITSELF AN INTERVAL, WHICH IS WHY THE LOOP SKIPS THE FIRST
+	// SAMPLE. An interval needs two ends and the first time round the loop
+	// has only one: the gap between this line and the top of the first
+	// iteration is a few microseconds of nothing, and recording it as a
+	// frame makes the readout's first line say the program is running at
+	// four million frames a second, because the rate is the reciprocal of
+	// that number. There is no frame to report until there have been two.
 	previous = voe_platform_clock_now();
 	timing.started = previous;
 
@@ -1919,11 +1948,15 @@ int main(void)
 		bool readout_ok = true;
 
 		// The frame's interval, measured before anything in it happens,
-		// so that everything below is inside it.
+		// so that everything below is inside it. Not recorded the first
+		// time round, when there is no previous frame for it to be the
+		// interval from — see where `previous` is first read.
 		top = voe_platform_clock_now();
 		elapsed = top - previous;
 		previous = top;
-		voe_base_samples_add(&timing.frame, elapsed);
+		if (!first_frame)
+			voe_base_samples_add(&timing.frame, elapsed);
+		first_frame = false;
 
 		// What the scene is advanced by: the same number, clamped. The
 		// sample above got the unclamped one, because what is reported
@@ -2137,12 +2170,13 @@ int main(void)
 			//
 			// THE COUNT IS TAKEN EITHER SIDE OF IT AND THE
 			// DIFFERENCE IS PRINTED. What the element path claims
-			// is that forty rectangles of forty colours cost one
-			// draw command, and the only way to say that rather
-			// than believe it is to read the frame's count before
-			// the exhibit and after it and subtract.
+			// is that forty rectangles of forty colours AND forty
+			// letters cost one draw command between them, and the
+			// only way to say that rather than believe it is to
+			// read the frame's count before the exhibit and after
+			// it and subtract.
 			draws_before_elements = voe_render_frame_draw_count(gpu);
-			elements_ok = voe_dev_elements_submit(gpu);
+			elements_ok = voe_dev_elements_submit(gpu, font);
 			draws_after_elements = voe_render_frame_draw_count(gpu);
 
 			if (!voe_render_frame_end(gpu)) {
@@ -2174,9 +2208,10 @@ int main(void)
 				       readout_glyphs * 6u,
 				       6u * MAX_TRANSIENT_GLYPHS,
 				       (unsigned)MAX_TRANSIENT_GEOMETRIES);
-				printf("elements   %u rectangles of %u colours in %u draw command; the whole frame took %u\n",
-				       (unsigned)VOE_DEV_ELEMENTS,
-				       (unsigned)VOE_DEV_ELEMENTS,
+				printf("elements   %u rectangles of %u colours and %u letters in %u draw command; the whole frame took %u\n",
+				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
+				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
+				       (unsigned)VOE_DEV_ELEMENTS_GLYPHS,
 				       draws_after_elements -
 					       draws_before_elements,
 				       draws_after_elements);

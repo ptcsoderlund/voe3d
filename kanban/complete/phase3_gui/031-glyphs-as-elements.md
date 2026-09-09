@@ -1,7 +1,7 @@
 # 031 — glyphs as elements
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 
 Written by the tech lead under the standing grant. **Not a spin-off**: it follows
@@ -232,3 +232,196 @@ State in your report that you checked each of these:
   default capacity for a real interface.
 - What you deliberately did not build, so the next person knows the glyph kind is
   finished and the GUI is not: no string layout, no measure, no widgets.
+
+## Notes (coder, 2026-09-09, Linux/WSL, claude-opus-5)
+
+**Implemented in full. `cmake -P check.cmake` exits zero — all steps, 37 test
+programs, analyser clean over 99 files.** Not in place, for the reason cards 029
+and 030 already record about this machine: no `ninja`, `slangc`,
+`wayland-scanner` or `pkg-config`, no sudo, and a 9p mount CMake refuses to build
+inside. A private toolchain was assembled in scratch (Ninja 1.12.1, Slang
+2025.10.3, and Ubuntu `.deb`s for wayland and pkgconf extracted without
+installing), the tree was mirrored onto ext4, and the unmodified script was run
+on the mirror. The graphics card is llvmpipe, so every picture below was really
+drawn and really read back.
+
+**The Khronos validation layer was fetched the same way and put in force over all
+six `render` tests and over `dev`, with `VK_LAYER_VALIDATE_SYNC=1`.** The message
+set was captured before and after this card's changes and compared: **no new
+validation message of any kind.** See *One thing found and not repaired* below
+for the two that were already there.
+
+### The card's headline claim, measured
+
+    elements   40 rectangles of 40 colours and 40 letters in 1 draw command; the whole frame took 30
+
+That is `dev`'s own line, with the count read either side of the exhibit and
+subtracted rather than asserted. The headless test asserts the same thing
+directly — a solid and a glyph in one frame, `draw_count == 1`.
+
+### The report the card asks for
+
+- **The record's final layout.** Still **80 bytes**, and nothing above the spare
+  words moved. `bounds` (float4, 0), `clip` (float4, 16), `colour` (float4, 32),
+  `kind` (uint, 48), **`sheet_texture`** (uint, 52 — was `reserved_a[0]`),
+  **`reserved_a[2]`** (56, still spare and still named so), **`sheet`** (float4,
+  64 — was `reserved_b`). `descriptors.c` now asserts on 52 and 64 by their real
+  names, and `render/tests/elements.c` says 80 out loud as well. **Both comments
+  pointing at this card are gone**: `voe_render_element`'s "card 031 adding those
+  may not move anything" and `elements.slang`'s "where card 031's glyph rectangle
+  goes".
+- **The sheet rectangle is `xy`-plus-`wh`**, as the card asked — but the
+  conversion turned out to belong in `text` rather than at every caller, so
+  `voe_text_glyph.sheet` already hands it over in that shape and
+  `dev/src/elements.c` assigns it straight across. The min/max pair stays private
+  to `text/src/font.c`, and both headers say so.
+- **What `text` made public.** `voe_text_glyph` — `low` and `high` (the box
+  relative to the pen, in ems, +y up), `sheet` (the atlas rectangle, corner and
+  size), `advance`, `drawn` — plus `voe_text_font_glyph()` and
+  `voe_text_font_line_height()`.
+  **The shape was argued rather than copied, and the two halves went different
+  ways on purpose.** The box is a low-and-high pair because a corner plus a size
+  has to name *which* corner, and naming one would be `text` deciding which way y
+  runs — which is exactly what it must not do. The sheet rectangle is a corner
+  plus a size because a texture's direction is already settled in this engine
+  ((0,0) is its top-left), so there is no decision to duck, and because it makes
+  the v-flip a fact stated once in the folder that knows the font instead of a
+  trap every caller rediscovers. `sheet.xy` pairs with the box's `(low.x,
+  high.y)`, and the header says that loudly, because it is the one thing a caller
+  will get wrong.
+  **Refused:** the atlas resolution, the em the sheet was measured at, the
+  margin, the glyph table, the notdef slot, and anything resembling layout or
+  measurement. `voe_text_block_create` is untouched; the header now says in as
+  many words that two text paths exist, that this is correct, and that a third
+  would not be.
+- **The median is written twice, not shared, and both copies name each other.**
+  The build takes a shared include only with new machinery, and it needs two
+  pieces of it, not one: `voe_render_shaders()` globs `shaders/*.slang` and
+  compiles each as a module of its own, so an include-only file would be handed
+  to `slangc` on its own; and its `DEPENDS` names only the shader itself, so
+  editing a shared file would leave both dependents silently stale — which is a
+  wrong picture, not a build error. Both are edits to `cmake/voe.cmake` and
+  neither is this card's. So `elements.slang` holds
+  `voe_render_element_median()`, `draw.slang` keeps `voe_render_median()`, and
+  each header names the other and says they must stay identical.
+- **The exhibit's count went from 40 to 80** — forty rectangles and forty
+  letters, which is seventeen and twenty-three drawn characters of two lines.
+  `VOE_DEV_ELEMENTS` is now two named numbers added together and the exact
+  `==` assert is kept on both halves, so changing a string without changing the
+  number is still a stop rather than a letter quietly missing. **Nothing was
+  quietly raised to make room.**
+  **What it says about a real interface:** two short lines of writing cost as
+  much as the whole rest of the exhibit. An interface is counted in characters,
+  not in widgets. `voe_render_capacities`' comment **did need a sentence** and has
+  one: a label is one element per drawn character, a screen of a few dozen labels
+  wants thousands rather than hundreds, and at eighty bytes each a thousand is
+  eighty kilobytes a frame slot — a number to be generous with.
+- **What was deliberately not built.** No string layout, no measure, no wrapping,
+  no alignment, no widgets, no panel component, and no UTF-8 decoding on the
+  public surface. `dev` walks a pen over an ASCII string itself, in twenty lines,
+  and says in its header that this is not the real thing. **The glyph kind is
+  finished; the GUI is not.** Card 034 owns the one function that turns a string
+  into elements and card 032 owns the panel — the exhibit is deliberately left as
+  the full-screen overlay it was.
+
+### Two judgement calls worth knowing about
+
+- **The sheet coordinate is built in the vertex stage, not recovered in the
+  fragment stage.** The card says "compute it; do not add a vertex attribute" —
+  no vertex attribute was added and none could be, since no vertex buffer is
+  bound. It is a vertex *output*: `sheet.xy + corner * sheet.zw`, which is
+  algebraically the identical affine map to sending `at` back through `bounds`
+  (w is 1 across an element, so the interpolation is exactly linear), and it
+  saves a divide per fragment and four flat floats of interpolant. The card
+  describes the fragment stage as already having `bounds`; it did not, and adding
+  it would have been the more expensive of the two ways to get the same number.
+- **The sheet is sampled with an explicit level and the branch on `kind` is kept.**
+  `draw.slang`'s rule — every sample before any branch — exists because an
+  implicit-level `Sample` needs quad derivatives. There are no mipmaps in this
+  engine at all, so `SampleLevel(uv, 0)` asks for the only level there is, needs
+  no derivatives, and makes the branch free of that rule entirely. A solid then
+  samples nothing rather than fetching a white texel it would discard, and a
+  solid record carrying a junk index never reaches a descriptor.
+
+### One thing this card had to add that it did not name
+
+**`shaderSampledImageArrayNonUniformIndexing`, in `render/src/device.c`.** The
+element pipeline's texture index comes out of the record the *instance index*
+chose, so it differs between fragments of one draw — which is precisely what
+`shaderSampledImageArrayDynamicIndexing` does **not** cover. `draw.slang`'s own
+comment predicted this ("it would be needed the day the index came from ... the
+instance index") and that day is this card. So the subscript is wrapped in
+`NonUniformResourceIndex` and the device asks for the matching feature, queried
+and not assumed, with a message for the card that lacks it — the same shape the
+dynamic one already had. Without both, a panel drawn from two sheets is undefined
+behaviour that happens to work. Confirmed in the SPIR-V: `ShaderNonUniform`
+capability and `NonUniform` decorations on the access chain and the load.
+
+### One thing found and not repaired
+
+**`spirv-val` rejects the `voe_render_textures` declaration, and it did so before
+this card.** The validation layer reports *"Invalid explicit layout decorations
+on type ... the UniformConstant storage class has a explicit layout from the
+ArrayStride decoration"* for `Sampler2D voe_render_textures[64]` —
+`ArrayStride 8` on a `UniformConstant` array, which this `slangc` emits and the
+spec forbids. **Proven pre-existing:** a pristine tree built from `HEAD` reports
+it too. Declaring the same array in `elements.slang` — which the card requires,
+and which is copied verbatim from `draw.slang` — adds a third instance of it.
+`-fvk-use-scalar-layout` and `-fvk-use-gl-layout` make no difference, so it is
+not spellable around from inside this card; fixing it properly means changing how
+that array is declared in `draw.slang` too, which this card is explicitly told
+not to improve. Drivers accept the module (llvmpipe does, and every test and the
+exhibit pass), but a stricter one need not. **Reported, not repaired — it wants a
+card.**
+
+### What was checked against the card's "what must not change"
+
+Each of these was checked against the diff, not from memory:
+
+- **No new module edge.** No `CMakeLists.txt` changed at all, so no `DEPENDS`
+  line moved. `render` names nothing new; `text` names nothing new; `dev` already
+  depended on `text`.
+- **The record's size and every offset above the reserved words.** 80, and
+  `clip`/`colour`/`kind` at 16/32/48, asserted in two places now.
+- **The mesh text path, and the atlas's kind and sampling mode.** `text/src/font.c`
+  is purely additive — the diff removes no code line — and neither
+  `VOE_RENDER_TEXTURE_DATA` nor `VOE_RENDER_SAMPLING_FIELD` appears in it.
+- **`draw.slang`'s text arithmetic.** Only comment lines changed in that file;
+  the code diff is empty. The two comments added are the reciprocal median note
+  the card asked for and one correcting the now-stale non-uniform sentence.
+- **Exactly one Y flip.** No negation was added anywhere in `render` or `text` —
+  the only subtraction in the added code is `u1 - u0`, a width. The one direction
+  change is `baseline - g.high.y * em` in `dev/src/elements.c`, at the caller,
+  where the card says it belongs.
+- **No `ui`.** That folder is not in the diff.
+
+### The screenshot
+
+Rendered headless at 960x540 through `voe_dev_elements_submit` — the same call
+`dev`'s loop makes — because this workstation's compositor offers no screenshot
+protocol (`grim` refuses: no `wlr-screencopy`). The capture program lives in
+scratch, not in this repository.
+
+What it shows, and what to look at:
+
+- The large line, magnified four times: **hard edges, straight stems, square
+  corners, no grey pixels anywhere.** That is a threshold through a distance
+  field and it is what "nothing is antialiased" looks like when it is right. A
+  smoothstep would show a soft fringe and a double premultiply would leave the
+  letters grey rather than near-white.
+- The small line at two and a half millimetres to the em, magnified eight times:
+  **stems thinning and strokes dropping out** — `t`, `h` and `l` lose parts of
+  themselves. That is the sheet running out of resolution to describe the shape,
+  it is what `text`'s "no analytic curves" paragraph describes, and the card
+  asked for a label small enough to show it. **It is the limitation being
+  demonstrated, not a bug.**
+- The clipped bar is still exactly half drawn, the six alphas still ramp, and the
+  thirty-two squares are still thirty-two colours — the letters cost the
+  rectangles nothing.
+
+### Not checked here
+
+**Windows.** Nothing in this card is platform code — no `_win32` or `_wayland`
+file is touched — and the one Vulkan feature it adds is queried before it is
+asked for, so a card that lacks it starts and says so. Per the one-platform rule
+(2026-09-04), whatever Windows turns up is a new card.

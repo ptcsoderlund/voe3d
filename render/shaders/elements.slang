@@ -59,16 +59,53 @@
 // EVERYTHING HERE IS LINEAR LIGHT. The colour in a record is linear and the
 // target's own sRGB format encodes it once on the way out. There is no gamma
 // arithmetic in this file and there must not be.
+//
+// A LETTER IS A RECTANGLE WHOSE COVERAGE CAME OUT OF A SHEET, AND THAT IS THE
+// WHOLE OF THE GLYPH KIND. A GLYPH record carries the part of a distance-field
+// sheet it reads and the texture it reads it from; this file samples that,
+// takes the median of three channels, thresholds it, and multiplies the
+// record's alpha by the answer. There is no material, no lighting and no
+// shading record on this path — which is exactly what lets a letter and a fill
+// sit in one buffer and go out as one draw command.
+//
+// A THRESHOLD, NOT A SMOOTHSTEP, AND NOT BY OVERSIGHT. Card 026 took the
+// antialiasing out of this engine. The sheet asks for a filtered sampler
+// (VOE_RENDER_SAMPLING_FIELD) so that the field's 0.5 crossing lands where the
+// distances say it lands rather than on the nearest texel boundary; that moves
+// the edge, it does not blur it, and there is no sampler setting on that path
+// that can produce a partly covered pixel. Softening the edge here would put
+// back the thing that was deliberately removed.
+//
+// THE SHEET IS SAMPLED AT AN EXPLICIT LEVEL AND THAT IS WHY THE BRANCH BELOW IS
+// FREE. draw.slang's fragment stage samples everything before it branches,
+// because an implicit-level Sample needs the derivatives the rasteriser
+// computes across a quad of fragments. There are no mipmaps anywhere in this
+// engine, so level nought is the only level there is; asking for it by name
+// needs no derivatives at all, so a branch on the record's kind costs nothing
+// and needs no rule about where it may go. A solid then samples nothing rather
+// than fetching a white pixel it would throw away.
+//
+// AND THE TEXTURE INDEX HERE IS GENUINELY NON-UNIFORM, WHICH draw.slang'S IS
+// NOT. Over there the index comes from a record a push constant picked, so it
+// is one value for the whole draw. Here it comes out of the record the instance
+// index picked, and one draw holds every element the frame submitted — two
+// letters of two different sheets in one draw is the ordinary case, not a
+// corner one. So the subscript is wrapped in NonUniformResourceIndex and
+// render/src/device.c asks the card for shaderSampledImageArrayNonUniformIndexing
+// to match. Without both, this is undefined behaviour that happens to work on
+// most drivers.
 
 // One element. Matches voe_render_element in render/include/render/device.h
 // field for field, padding included: render/src/descriptors.c asserts on the
 // size and on every offset a layout rule could have moved, so a member that
 // moves is a build error rather than an interface drawn in the wrong place.
 //
-// THE PADDING AFTER `kind` IS THREE SCALARS AND NOT A uint3, for the reason
+// THE THREE WORDS AFTER `kind` ARE SCALARS AND NOT A uint3, for the reason
 // draw.slang's records give: a three-component vector has a sixteen-byte
 // alignment in every buffer layout rule there is and three uints have a
-// four-byte one, so only the scalars land where C put them.
+// four-byte one, so only the scalars land where C put them. That was true when
+// all three were spare and it is what let the glyph kind take the first of them
+// in place.
 struct voe_render_element {
 	// xy is the top-left corner, zw the width and height, in millimetres.
 	float4 bounds;
@@ -77,13 +114,50 @@ struct voe_render_element {
 	// Linear RGBA, straight. Multiplied by its own alpha at the return.
 	float4 colour;
 	uint kind;
+	// The sheet a glyph reads, as a texture id's index half. A solid never
+	// reads it.
+	uint sheet_texture;
 	uint reserved_a0;
 	uint reserved_a1;
-	uint reserved_a2;
-	// Where card 031's glyph rectangle goes. Sixteen bytes on a sixteen-byte
-	// boundary, so consuming it moves nothing.
-	float4 reserved_b;
+	// What part of that sheet the glyph reads: xy the top-left corner and zw
+	// the width and height, in texture coordinates. The same xy-plus-wh
+	// shape as bounds and clip. A solid never reads it.
+	float4 sheet;
 };
+
+// Set 0, binding 1: every texture at once, the same array draw.slang declares
+// and the same one the descriptor set frame.c binds at the top of the frame
+// already holds. Declaring it here adds no descriptor, no binding and no set —
+// the two shaders share one pipeline layout, which is the reason they can.
+//
+// THE LENGTH IS WRITTEN DOWN IN FOUR PLACES NOW — device_internal.h, the layout
+// in descriptors.c, draw.slang and here — and all four have to agree, because a
+// descriptor array's length is fixed in each of them and there is no way to say
+// "as many as the C side thinks" from a shader.
+[[vk::binding(1, 0)]]
+Sampler2D voe_render_textures[64];
+
+// VOE_RENDER_ELEMENT_GLYPH, which is the C enum's second value. The kinds are
+// written out on both sides rather than shared, the same way this whole record
+// is; descriptors.c is what catches the two drifting apart in layout and this
+// number is small enough to read against voe_render_element_kind by eye.
+static const uint VOE_RENDER_ELEMENT_GLYPH = 1;
+
+// The middle of three, which is what turns three one-sided distance fields back
+// into one shape with its corners intact.
+//
+// IT IS THE SECOND COPY AND draw.slang's voe_render_median IS THE FIRST. The
+// two are the same three min/max and they must stay the same: a sheet read one
+// way in the world and another way on a panel is the same letter with two
+// different shapes. It is copied rather than included because the build compiles
+// every .slang in shaders/ as a module of its own and tracks no #include
+// dependency, so a shared file would be compiled on its own as well as leave
+// both dependents stale when it changed — which is machinery in cmake/voe.cmake
+// that this does not need. Change one, change the other.
+float voe_render_element_median(float3 field)
+{
+	return max(min(field.r, field.g), min(max(field.r, field.g), field.b));
+}
 
 // Set 0, binding 4: this frame's elements, one record per submitted element,
 // read by both stages — the vertex stage wants the bounds and the fragment
@@ -116,6 +190,23 @@ struct voe_render_element_vertex_out {
 	// arithmetic to arrive back where it started. It is also what keeps the
 	// comparison below exact.
 	nointerpolation float4 clip : TEXCOORD;
+	// Where in the sheet this corner reads. Interpolated, and it is the one
+	// thing here that is meant to be: the rasteriser walking a coordinate
+	// across a rectangle is exactly the map from `at` inside `bounds` to a
+	// point inside the record's `sheet`, done for free by the hardware that
+	// is already interpolating `at`. It is built from the corner rather than
+	// recovered in the fragment stage for the same reason `at` is passed
+	// rather than recovered: the vertex stage has the numbers in its hand.
+	//
+	// NO VERTEX ATTRIBUTE IS INVOLVED AND NONE COULD BE. There is no vertex
+	// buffer on this path; this is a vertex OUTPUT, computed from the corner
+	// and the record.
+	float2 sheet_at : TEXCOORD1;
+	// Flat, both of them, for the reason `clip` is: they are one value for
+	// the whole element. Interpolating a texture index would be meaningless
+	// and interpolating the kind would make a rectangle half solid.
+	nointerpolation uint kind : TEXCOORD2;
+	nointerpolation uint sheet_texture : TEXCOORD3;
 };
 
 [shader("vertex")]
@@ -130,6 +221,10 @@ voe_render_element_vertex(uint vertex : SV_VertexID, uint element : SV_InstanceI
 	float2 corner = float2(vertex & 1u, vertex >> 1u);
 
 	out.at = record.bounds.xy + corner * record.bounds.zw;
+	// The same corner, walked across the record's sheet rectangle instead of
+	// its bounds. A solid's sheet rectangle is nothing and this is nought;
+	// the fragment stage never reads it.
+	out.sheet_at = record.sheet.xy + corner * record.sheet.zw;
 	// z is nought and w is one: the transform decides the depth, because the
 	// depth convention is the C side's and stating a number here would be a
 	// second place for it to live.
@@ -137,6 +232,8 @@ voe_render_element_vertex(uint vertex : SV_VertexID, uint element : SV_InstanceI
 			   float4(out.at, 0.0, 1.0));
 	out.colour = record.colour;
 	out.clip = record.clip;
+	out.kind = record.kind;
+	out.sheet_texture = record.sheet_texture;
 	return out;
 }
 
@@ -154,8 +251,30 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 	if (any(vertex.at < low) || any(vertex.at > high))
 		discard;
 
-	// Premultiplied, once, and the last thing this file does. See the
-	// header: the target holds premultiplied colour and the blend state is
-	// written to match.
-	return float4(vertex.colour.rgb * vertex.colour.a, vertex.colour.a);
+	// A solid covers itself completely; a glyph covers as much of itself as
+	// the sheet says it does. The record's own alpha is what both are
+	// multiplied into, so a half-transparent letter fades like anything
+	// else.
+	float alpha = vertex.colour.a;
+
+	if (vertex.kind == VOE_RENDER_ELEMENT_GLYPH) {
+		// Level nought by name, and the subscript non-uniform: see the
+		// header for both. The sheet's rgb are three signed distances
+		// and its alpha is not read at all.
+		float3 field = voe_render_textures[
+			NonUniformResourceIndex(vertex.sheet_texture)]
+			.SampleLevel(vertex.sheet_at, 0.0).rgb;
+
+		// A hard cut at the half, which is draw.slang's answer and is
+		// not re-derived here. Inside the outline or outside it, and
+		// nothing in between.
+		alpha *= step(0.5, voe_render_element_median(field));
+	}
+
+	// Premultiplied, once, and the last thing this file does — on whatever
+	// alpha the two lines above arrived at. See the header: the target holds
+	// premultiplied colour and the blend state is written to match. Both
+	// kinds leave through here, which is what keeps the multiply in one
+	// place.
+	return float4(vertex.colour.rgb * alpha, alpha);
 }

@@ -11,8 +11,9 @@ can be worked beside either.
 
 The decisions behind this card are **ADR-0093** (a panel reaches the frame the way
 everything else drawn does, and `3d` never names `ui`), **ADR-0092** (the GUI is
-one draw from an element buffer), **ADR-0100** (a screen-filling surface takes its
-scale from the target's height), **ADR-0086** (layers are the developer's to
+one draw from an element buffer), **ADR-0104** (the GUI scales with the window and
+`ui_scale` is the only calibration — the current word on this, after ADR-0100 and
+ADR-0103), **ADR-0086** (layers are the developer's to
 create and order),
 **ADR-0085** (a component may hold an id that is rewritten every frame) and
 **ADR-0098** (the loop owns the frame, and *build what changes this frame* is a
@@ -99,10 +100,13 @@ before building widgets on top.
 **Added to this card on 2026-09-09**, after the principal looked at the exhibit in
 a resized window: *"I noticed how current gui stuff stretches when window size
 changes … I also want all gui elements to stretch by height and not width. So we
-keep ratio on them."* That is **ADR-0100**, and it lands here because it is the
-same function this card was already changing. It is a small addition to a card that
-is otherwise about panels; it is not a second card because two cards editing one
-matrix is how a sign gets lost.
+keep ratio on them."* **The source of that scale then changed twice in
+one afternoon and landed back where it started** — read ADR-0104, ignore ADR-0100 and
+ADR-0103, and note that **none of it changes what you build**: `render` takes
+pixels-per-millimetre as a parameter and holds no policy, so the churn was entirely
+about what the *caller* computes. It lands in this card because it is the same
+function the card was already changing, and two cards editing one matrix is how a
+sign gets lost.
 
 **What is wrong today.** `voe_render_element_transform(size)` maps the authored
 millimetre rectangle onto the whole target with `2/size.x` across and `-2/size.y`
@@ -110,27 +114,40 @@ down — **two independent scales.** A window whose aspect differs from the auth
 rectangle's deforms everything in it, glyphs included, which makes the sharp-text
 work of cards 025 and 027 wrong at every size.
 
-**What it becomes.** One scale, taken from the height: **pixels per millimetre is
-the target's height divided by the surface's authored height**, and both axes use
-it. The surface is always the authored number of millimetres tall; **how many
-millimetres wide it is is computed from the target's aspect, every frame.**
+**What it becomes.** **One uniform scale, and `render` is told what it is rather
+than deciding it.** Add a call that takes **pixels per millimetre** and the target's
+pixel size, and returns **the surface's millimetre size** — both axes derived by
+dividing. That is the whole of it, and it is deliberately smaller than the version
+this card carried this morning.
 
-- **The caller needs that width**, because it is what the layout root is laid out
-  into — so whatever you add must hand it back, not just bury it in a matrix.
-  **Recommendation:** a small call that takes the authored height and the target
-  size and returns the surface's millimetre size, which the caller then passes both
-  to layout and to the transform. Then the aspect rule has one home and the matrix
-  keeps its own. `voe_render_frame_begin` already takes a `voe_platform_size`, so
-  the target's size is a type this folder already names.
+- **Why a parameter and not a policy**: where the number comes from is a fact about
+  a display and about what a user chose, and `render` cannot know either. Same
+  reasoning that keeps `ui` from reading input (ADR-0093). **Both modes anybody
+  wants are then one multiplication at the call site**: a physical caller passes the
+  display's pixels-per-millimetre, a proportional caller passes `target height ÷ the
+  millimetres it wants to be tall`.
+- **The caller needs the millimetre size back**, because it is what the layout root
+  is laid out into and what the transform needs — so hand it back, do not bury it in
+  a matrix. `voe_render_frame_begin` already takes a `voe_platform_size`, so the
+  target's size is a type this folder names.
 - **Keep `voe_render_element_transform(size)` as it is** — *map this millimetre
   rectangle onto the whole target* is an honest primitive and a world panel needs
   the same maths. What changes is that nobody computes `size` by assuming the
   window's aspect any more.
-- **Say the duality out loud in the header**, because it is the thing a reader will
-  get wrong: a millimetre on a panel standing in the world is a physical
-  millimetre and perspective decides its pixels (ADR-0089); a millimetre on a
-  screen-filling surface is a proportion of the window's height. Same authoring
-  numbers, two different meanings, and only the first is physical.
+- **What the demo passes: the window's height divided by the surface's authored
+  millimetre height, times `ui_scale`.** That is ADR-0104's whole formula and there is
+  nothing else to it — no display is read, on any platform, and `platform` grows no
+  surface for one. `ui_scale` is a plain number the program owns, default 1.0, and
+  raising it makes everything bigger while showing less. Put it somewhere a person
+  can change it and say in the header that it is the only calibration the engine
+  has.
+- **What the header says about millimetres, and get this right because the unit has
+  had three meanings in one day**: on a screen-filling surface, an authored
+  millimetre is **a proportion of the surface's authored height** — nothing physical,
+  and nothing tied to a display. It becomes a physical size only through the window's
+  size and whatever `ui_scale` the person at the screen chose. On a panel standing in
+  the world it is still a real millimetre in metres, unchanged since ADR-0089. Two
+  meanings, one name, and the header is where a reader will look for which is which.
 - **No breakpoints, no form-factor logic, nothing per-platform.** A program that
   wants a different arrangement on a different shape of window writes that `if`
   itself. Nothing in `render`, `3d` or `ui` learns what kind of device it is on.
@@ -138,8 +155,9 @@ millimetres wide it is is computed from the target's aspect, every frame.**
 ### The exhibit's own header is now wrong
 
 `dev/src/elements.h` says: *"drag the window narrow and the rectangles stretch with
-it, which is what a panel filling a window does and not a bug."* **Under ADR-0100
-it is a bug.** Fix the behaviour and fix the sentence, and say in the new one what
+it, which is what a panel filling a window does and not a bug."* **Under ADR-0103
+it is a bug**, and what replaces it is not *the same content scaled* but **the same
+content at a fixed size with more or less room around it**. Fix the behaviour and fix the sentence, and say in the new one what
 a narrow window now does instead: the same rectangles at the same shape, with fewer
 millimetres of width to put them in. The exhibit is laid out at fixed millimetre
 positions, so **some of it will fall outside a narrow window and be cut off** —
@@ -280,11 +298,15 @@ State in your report that you checked each of these:
 - **A screenshot** with the world panel half-hidden by a cube and the overlay panel
   over everything, and the printed draw count beside it.
 - **Two screenshots of the same overlay panel in two window shapes** — one near the
-  authored aspect, one distinctly narrower — showing that nothing is deformed and
-  that what changes is how much width there is. That is ADR-0100's whole claim and
-  it cannot be asserted in a test; it is looked at.
-- A test that the surface's millimetre width comes out proportional to the target's
-  aspect, which *can* be asserted and needs no graphics card.
+  authored aspect, one distinctly narrower — showing that **nothing is deformed and
+  nothing changes size**, and that what changes is how much room there is. That is
+  ADR-0103's whole claim and it cannot be asserted in a test; it is looked at.
+- Tests that need no graphics card: the millimetre size comes out as the pixel size
+  divided by the scale on both axes; halving the scale doubles both millimetre
+  dimensions; a scale of nought is the caller's bug and is refused rather than
+  producing an infinity that reaches a matrix; and **`ui_scale` at 2.0 halves the
+  millimetres the surface holds**, which is the calibration knob asserted rather than
+  eyeballed.
 - Windows is the principal's.
 
 ## Report when this lands
@@ -296,7 +318,8 @@ State in your report that you checked each of these:
 - How the sort came to walk two tables, and what `struct deferred` looks like now.
 - What a stale range does, and what that does not catch.
 - The draw counts, before and after.
-- What the height-derived surface call looks like, and the header sentence you wrote
-  about a millimetre meaning one thing in the world and another on a screen.
+- What the surface call looks like, where `ui_scale` lives in `dev` and how a person
+  changes it, and the header sentence you wrote about what a millimetre is on a
+  screen-filling surface.
 - What you deliberately did not build: no widgets, no `ui` edge, no picking, no
   frame stamp.

@@ -176,6 +176,14 @@ typedef struct voe_render_device voe_render_device;
 // the same reason objects is — see voe_render_element. A program that draws no
 // elements asks for none and pays for none; the first submit on such a device is
 // refused with a message rather than asserting.
+//
+// AND IT IS SPENT ON LETTERS AS WELL AS ON FILLS, WHICH IS WHAT MAKES IT LARGER
+// THAN IT LOOKS. A glyph is an element, so a forty-character label is forty of
+// them and a space is none. An interface is therefore counted in characters
+// rather than in widgets: a screen with a few dozen labels on it wants
+// thousands, not hundreds, and the exhibit in dev/ spends half its eighty on two
+// short lines of writing. Eighty bytes each, so a thousand is eighty kilobytes a
+// frame slot — the number to be generous with, not careful about.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -497,19 +505,38 @@ typedef struct {
 	uint32_t reserved[3];
 } voe_render_object;
 
-// What one element is. Solid is all this engine draws today; a glyph is card
-// 031's and the field exists so that adding one moves no other field and
-// changes no size.
+// What one element is. Two kinds, and the field exists so that adding the second
+// moved no other field and changed no size — which is what it was reserved for
+// and what card 031 spent it on.
 //
 // SOLID IS 0, SO A ZEROED RECORD IS A SOLID ONE.
 typedef enum {
 	// A rectangle filled with the record's colour, and nothing sampled.
 	VOE_RENDER_ELEMENT_SOLID = 0,
+	// A rectangle whose coverage comes out of a distance-field sheet: the
+	// record's `sheet` says which part of `sheet_texture` to read and the
+	// fragment stage takes the median of three channels and thresholds it.
+	// The record's colour is the whole of what the letter is coloured; there
+	// is no material, no lighting and no shading record on this path, and
+	// that is exactly what lets a letter and a fill be one draw command.
+	//
+	// IT IS NOT A "TEXT" KIND AND IS NOT NAMED ONE. What it does is read
+	// coverage out of a sheet, which is what a glyph wants and what an icon
+	// sheet would want as well.
+	VOE_RENDER_ELEMENT_GLYPH,
 } voe_render_element_kind;
 
 // One element: a rectangle, a colour and the rectangle it is clipped to. Many of
 // these are drawn by one instanced draw, and the vertex shader builds the four
 // corners itself — there is no vertex buffer and no index buffer on this path.
+//
+// A LETTER AND A FILL ARE THE SAME DRAW COMMAND, WHICH IS THE WHOLE CLAIM. A
+// GLYPH record is the same eighty bytes as a SOLID one and goes into the same
+// buffer in the same submission order, so a label of forty characters and the
+// panel behind it are forty-one records and one draw. What differs is where the
+// fragment stage gets its coverage: a solid has one everywhere and a glyph
+// reads it out of a distance-field sheet. Nothing in here lays a string out —
+// where each character sits is the caller's, out of voe_text's metrics.
 //
 // IT IS NOT A GUI TYPE AND IS DELIBERATELY NOT NAMED LIKE ONE. A user interface
 // is the first caller and not the only plausible one: debug lines and sprites
@@ -572,19 +599,47 @@ typedef struct {
 	// colour (ADR-0069). A caller that premultiplies as well gets an element
 	// that is too faint, which reads as a wrong colour rather than as a bug.
 	//
-	// A PALETTE INDEX INSTEAD OF A COLOUR IS AN OPEN QUESTION AND THIS CARD
-	// DOES NOT ANSWER IT. The reserved words below are where one would go.
+	// A PALETTE INDEX INSTEAD OF A COLOUR IS STILL AN OPEN QUESTION AND
+	// NOTHING HAS ANSWERED IT. The two words still reserved below are where
+	// one would go.
+	//
+	// A GLYPH'S COLOUR IS THIS AND NOTHING ELSE, multiplied by the coverage
+	// the sheet produced. There is no tint from a material and no light on
+	// it, because a letter is a shape somebody chose the colour of.
 	voe_math_float4 colour;
 	// A voe_render_element_kind.
 	uint32_t kind;
-	// Room to grow, and the reason this record is eighty bytes rather than
-	// sixty-four. A glyph kind needs the rectangle of a sheet it reads —
-	// four floats — and the index of the texture it reads them from, and
-	// card 031 adding those may not move anything above or change this size.
-	// The same thing voe_render_shading_values did with reserved_a, _b and
-	// _c, which three later cards consumed in place.
-	uint32_t reserved_a[3];
-	voe_math_float4 reserved_b;
+	// The sheet a GLYPH reads its coverage out of: a texture id's index half
+	// only, the same shape voe_render_shading_values' texture slots use.
+	// A SOLID never reads it and does not have to set it.
+	//
+	// VOE_RENDER_NO_TEXTURE IS SLOT 0 AND SLOT 0 IS ONE WHITE PIXEL, so a
+	// glyph that forgot to name its sheet samples opaque white, medians to
+	// white, thresholds to one and DRAWS A SOLID RECTANGLE. That is the
+	// engine's standing convention for the empty texture id and nothing here
+	// tests for it; it is written down because a plausible-looking rectangle
+	// is a worse failure to find than a blank one, and
+	// render/tests/elements.c asserts on it so it cannot change quietly.
+	uint32_t sheet_texture;
+	// Room to grow, and part of the reason this record is eighty bytes rather
+	// than sixty-four. The same thing voe_render_shading_values did with
+	// reserved_a, _b and _c, which three later cards consumed in place; card
+	// 031 took one word of these three and the float4 below.
+	uint32_t reserved_a[2];
+	// What part of `sheet_texture` a GLYPH reads, in texture coordinates:
+	// `xy` its top-left corner and `zw` its width and height. The record's
+	// own xy-plus-wh shape, the same as `bounds` and `clip`, because one
+	// struct wants one convention.
+	//
+	// A FONT HOLDS THIS AS A MIN/MAX PAIR AND THE CALLER CONVERTS. voe_text's
+	// per-character metrics are a low corner and a high corner, and turning
+	// that into a corner and a size is the caller's one line — see
+	// voe_text_glyph, which already hands the sheet rectangle over in this
+	// shape for exactly that reason.
+	//
+	// It is one rectangle for the whole element, like `clip`, and the shader
+	// treats it as one. A SOLID never reads it.
+	voe_math_float4 sheet;
 } voe_render_element;
 
 // native and size come from voe_platform_window_native() and

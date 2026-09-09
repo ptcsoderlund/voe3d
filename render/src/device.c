@@ -420,6 +420,20 @@ static bool create_device(voe_render_device *device)
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE,
 	};
+	// The second half of the same question, and it is a different feature
+	// from the one below rather than a stronger spelling of it. See the
+	// paragraph under it.
+	VkPhysicalDeviceVulkan12Features features12 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = &features13,
+	};
+	// What the same query has to be handed in order to answer about a 1.2
+	// feature: get_physical_device_features2 fills only what is chained onto
+	// it, so asking about shaderSampledImageArrayNonUniformIndexing means
+	// chaining a 1.2 block onto the query as well as onto the create.
+	VkPhysicalDeviceVulkan12Features available12 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+	};
 	// WHAT THE FRAGMENT STAGE NEEDS IN ORDER TO PICK A TEXTURE AT RUN TIME.
 	// It samples one element of an array of sixty-four, and which element is
 	// a number that came out of a buffer — the same number the CPU handed
@@ -436,10 +450,11 @@ static bool create_device(voe_render_device *device)
 	// sitting above it in the log.
 	VkPhysicalDeviceFeatures2 available = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+		.pNext = &available12,
 	};
 	VkPhysicalDeviceFeatures2 features = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-		.pNext = &features13,
+		.pNext = &features12,
 	};
 	// The one extension, and a headless device does not enable it: there is
 	// no surface for a swapchain to be made from and nothing to present to.
@@ -460,6 +475,30 @@ static bool create_device(voe_render_device *device)
 	else
 		fprintf(stderr,
 			"render: this graphics card cannot index a texture array with a value from a buffer; textures will be wrong\n");
+
+	// AND WHAT THE ELEMENT PIPELINE NEEDS ON TOP OF IT, WHICH IS A SECOND
+	// FEATURE AND NOT A STRONGER ONE. The dynamic feature above permits an
+	// index that is the same value everywhere in the draw, which is what a
+	// mesh draw's is: one shading record, picked by a push constant. An
+	// element draw is one draw for every element the frame submitted, and
+	// each one names its own sheet out of its own record — so the index
+	// differs between fragments of one draw, which is precisely what
+	// "non-uniform" means and precisely what the feature above does not
+	// cover. Enabling this is what makes shaders/elements.slang's
+	// NonUniformResourceIndex mean anything; without the pair, a panel with
+	// two sheets in it is undefined behaviour that happens to look right on
+	// most drivers.
+	//
+	// QUERIED AND NOT ASSUMED, for the same reason the one above is: asking
+	// for a feature a card does not have fails vkCreateDevice outright, and
+	// a card that cannot do this can still run everything else in the
+	// engine. The message is for that card, so the wrong text has an
+	// explanation sitting above it in the log.
+	if (available12.shaderSampledImageArrayNonUniformIndexing)
+		features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	else
+		fprintf(stderr,
+			"render: this graphics card cannot index a texture array differently per element; text drawn as elements will be wrong where a frame uses more than one sheet\n");
 
 	result = voe_render_vk.create_device(device->physical, &info, NULL,
 					     &device->device);

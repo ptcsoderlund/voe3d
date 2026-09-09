@@ -162,6 +162,13 @@ static const uint8_t OXANIUM_TTF[] = {
 // actually holds — which is ATLAS_MARGIN texels wider on every side than the
 // outline, because the field carries on past the outline and the quad has to be
 // big enough to show where it says the edge is.
+//
+// voe_text_glyph IS THIS, PUBLIC, AND IT IS A COPY AND NOT THIS STRUCT EXPOSED.
+// The two differ in one thing on purpose: the atlas rectangle is a min/max pair
+// in here, because that is what the packer produced, and a corner plus a size
+// out there, because that is what a voe_render_element wants and because the
+// conversion is better done once here than at every caller. The box stays a
+// min/max pair in both — see voe_text_glyph for why.
 struct glyph {
 	float x0;
 	float y0;
@@ -430,6 +437,35 @@ static const struct glyph *glyph_of(const voe_text_font *font,
 	if (codepoint < FIRST_CHARACTER || codepoint > LAST_CHARACTER)
 		return &font->glyphs[NOTDEF_SLOT];
 	return &font->glyphs[codepoint - FIRST_CHARACTER];
+}
+
+voe_text_glyph voe_text_font_glyph(const voe_text_font *font,
+				   uint32_t codepoint)
+{
+	const struct glyph *g;
+
+	VOE_BASE_ASSERT(font != NULL, "no font to ask about a character");
+
+	g = glyph_of(font, codepoint);
+	// The two rectangles paired corner for corner and not name for name.
+	// `sheet.xy` is (u0, v0), which the layout above pairs with (x0, y1) —
+	// the box's TOP-left, because a texture's v runs down while the box's y
+	// runs up. See voe_text_glyph: this line is the whole of where the two
+	// directions meet in this folder.
+	return (voe_text_glyph){
+		.low = { g->x0, g->y0 },
+		.high = { g->x1, g->y1 },
+		.sheet = { g->u0, g->v0, g->u1 - g->u0, g->v1 - g->v0 },
+		.advance = g->advance,
+		.drawn = g->drawn,
+	};
+}
+
+float voe_text_font_line_height(const voe_text_font *font)
+{
+	VOE_BASE_ASSERT(font != NULL, "no font to take a line height from");
+
+	return font->line_height;
 }
 
 // The whole of both creates. `transient` is the only thing that differs between

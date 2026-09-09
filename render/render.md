@@ -8,7 +8,10 @@ folder with shaders, and the only one slangc is run over.
 
 Two of the three pipelines draw meshes out of the pools, one per thing drawn. The
 third draws element records — many rectangles from many small records, in one
-instanced draw, with no vertex buffer bound at all.
+instanced draw, with no vertex buffer bound at all. A rectangle and a letter are
+the same record and the same draw command on that path: an element that reads its
+coverage out of a distance-field sheet is a glyph, and nothing about it is a text
+system.
 
 A frame is drawn into offscreen images the engine owns — colour and depth, one
 pair per frame slot — and the colour one is copied onto the window afterwards.
@@ -46,7 +49,10 @@ way out, and no file here holds a gamma constant.
   a whole interface one draw call, which space an element's millimetres are in
   and which way its Y runs, why the clip rectangle is there with no caller yet
   and what a zeroed one does, and how a caller reads how many draw commands a
-  frame held.
+  frame held. Card 031 spent the words that path reserved: `voe_render_element`'s
+  header now says what a glyph element reads and from where, what shape the sheet
+  rectangle is in and who converts to it, and what a glyph that named no sheet
+  draws.
 - `src/loader.h` — the function-pointer table, and the one place in this engine
   where function pointers are expected. Read its header before adding to it.
 - `src/loader.c` — opening the loader by name and filling the table in three
@@ -125,14 +131,16 @@ way out, and no file here holds a gamma constant.
   overrun that is refused without corrupting the frame or the next. Its header
   says why it reads the picture back rather than trusting the bookkeeping.
   Headless.
-- `tests/elements.c` — rectangles from records: four colours in one draw command
-  read back out of the picture, that the clip rectangle really clips, that
-  submission order is paint order both ways round, that the blend multiplied by
-  alpha exactly once, that overrunning the element capacity is refused without
-  spoiling the frame or the next, and that a mesh drawn after an element draw is
-  still drawn right. Its header says why the arrangement is deliberately
-  asymmetrical, why the draw count is counted rather than assumed, and which of
-  the claims has no picture of its own. Headless.
+- `tests/elements.c` — rectangles and letters from records: four colours in one
+  draw command read back out of the picture, that the clip rectangle really
+  clips, that submission order is paint order both ways round and across the two
+  kinds, that the blend multiplied by alpha exactly once, that overrunning the
+  element capacity is refused without spoiling the frame or the next, that a mesh
+  drawn after an element draw is still drawn right, and that a solid and a glyph
+  in one frame are one draw. Its header says why the arrangement is deliberately
+  asymmetrical, why the draw count is counted rather than assumed, which of the
+  claims has no picture of its own, why the sheet is hand-made rather than a
+  font, and what a glyph that named no sheet draws. Headless.
 - `tests/matrix.c` — that slangc really was given `-matrix-layout-row-major`,
   checked by making a shader report a known matrix back. Its header says which
   two claims card 018 moved out of it and where they went, and why the three
@@ -153,11 +161,15 @@ way out, and no file here holds a gamma constant.
   glTF does not put it, and which two different things take the same unlit exit
   out of the fragment stage.
 - `shaders/elements.slang` — the element pipeline's two entry points: four
-  corners built out of a vertex index, one instance per rectangle, and a clip
-  test in the fragment stage. Its header says why it is a second shader rather
-  than a fourth branch in `draw.slang`, why nothing is read from a vertex buffer,
-  why four vertices and a strip rather than six, that order is paint order and
-  what relies on it, and why its push constant aliases `draw.slang`'s.
+  corners built out of a vertex index, one instance per rectangle, a clip test in
+  the fragment stage, and the sheet a glyph reads its coverage out of. Its header
+  says why it is a second shader rather than a fourth branch in `draw.slang`, why
+  nothing is read from a vertex buffer, why four vertices and a strip rather than
+  six, that order is paint order and what relies on it, why its push constant
+  aliases `draw.slang`'s, why the threshold is a threshold and not a smoothstep,
+  why the sheet is sampled at an explicit level, why its texture index is
+  non-uniform where `draw.slang`'s is not, and that it holds a second copy of the
+  median.
 - `shaders/matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.
 - `vulkan/` — the Khronos headers, vendored. See `vulkan/vulkan.md`.

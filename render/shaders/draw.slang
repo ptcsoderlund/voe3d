@@ -400,6 +400,14 @@ float4 voe_render_premultiplied(float3 colour, float coverage)
 // The middle of three, which is what turns three one-sided distance fields back
 // into one shape with its corners intact. Written out rather than sorted: three
 // min/max are cheaper than any sort and there is no branch in them.
+//
+// THERE IS A SECOND COPY, IN elements.slang, CALLED voe_render_element_median.
+// The two are the same three min/max and must stay the same, or one sheet comes
+// out as two different letters depending on which path drew it. It is copied and
+// not shared because the build compiles every .slang in shaders/ as a module of
+// its own and tracks no #include dependency, so a shared file would be compiled
+// on its own as well and would leave both dependents stale when it changed.
+// Change one, change the other.
 float voe_render_median(float3 field)
 {
 	return max(min(field.r, field.g), min(max(field.r, field.g), field.b));
@@ -421,8 +429,10 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	//
 	// NonUniformResourceIndex is not used and is not needed: the texture
 	// index comes from a record picked by a push constant, so it is the same
-	// value for every fragment in the draw. It would be needed the day the
-	// index came from a vertex attribute or from the instance index.
+	// value for every fragment in the draw. That day has come for the other
+	// shader and not for this one — elements.slang picks its sheet out of the
+	// record the instance index chose, so it wraps its subscript and the
+	// device asks for the feature to match. Nothing here changes.
 	//
 	// A MATERIAL WITH NO TEXTURE SAMPLES WHITE, WHICH IS WHY NOTHING TESTS
 	// FOR ONE. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one white

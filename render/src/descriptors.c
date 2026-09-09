@@ -87,9 +87,10 @@ static_assert(offsetof(voe_render_shading_values, base_colour_uv_rect) == 80,
 	      "the shading record's UV rect moved; draw.slang has it at 80");
 
 // And the element record, which elements.slang declares rather than draw.slang.
-// Eighty and not sixty-four because the three reserved words after `kind` and
-// the float4 after them are what card 031's glyph rectangle and texture index
-// consume in place — see voe_render_element.
+// Eighty and not sixty-four because of the spare words after `kind`, one of
+// which and the float4 after them are what the glyph kind's texture index and
+// sheet rectangle now occupy — in place, moving nothing and changing no size,
+// which is what they were reserved for. Two words are still spare.
 static_assert(sizeof(voe_render_element) == 80,
 	      "voe_render_element no longer matches the record elements.slang reads");
 static_assert(offsetof(voe_render_element, clip) == 16,
@@ -98,8 +99,10 @@ static_assert(offsetof(voe_render_element, colour) == 32,
 	      "the element record's colour moved; elements.slang has it at 32");
 static_assert(offsetof(voe_render_element, kind) == 48,
 	      "the element record's kind moved; elements.slang has it at 48");
-static_assert(offsetof(voe_render_element, reserved_b) == 64,
-	      "the element record's spare float4 moved; elements.slang has it at 64");
+static_assert(offsetof(voe_render_element, sheet_texture) == 52,
+	      "the element record's sheet texture moved; elements.slang has it at 52");
+static_assert(offsetof(voe_render_element, sheet) == 64,
+	      "the element record's sheet rect moved; elements.slang has it at 64");
 
 static bool build_layout(voe_render_device *device)
 {
