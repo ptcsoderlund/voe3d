@@ -1,4 +1,4 @@
-# 041 — anchored children, and the size that says something overflowed
+# 041 — anchored children, padding on four sides, and the size that says something overflowed
 
 status: todo
 claimed-by: -
@@ -16,15 +16,21 @@ interface he wants. **ADR-0095** still fixes everything else about the model and
 
 ## Goal
 
-Three things, all inside `ui`, all small:
+Four things, all inside `ui`, all small — and **they are one card on purpose.** Every
+one of them lands in `layout.c`'s two passes and its one test file; splitting them
+would put two coders in one file at the same time, which is worse than a card with
+four numbered parts. If any part turns out bigger than it reads here, stop and report
+rather than pushing on.
+
 
 1. **A child can leave the flow and pin itself to its parent's edges**, recursively,
    mixed freely with rows and columns.
 2. **A caller can read a node's measured size**, so that *this did not fit* is a
    comparison anybody can make. That is the prerequisite for a scroll area, and it
    is one accessor.
-3. **One more distribution, `EVENLY`**, which is two lines and a test and is here
-   because it is the same file.
+3. **One more distribution, `EVENLY`**, which is two lines and a test.
+4. **Padding on four sides**, and **no margin, ever** — ADR-0095's second amendment of
+   the day, and the one that changes an existing field.
 
 **No widgets, no emission, no drawing, no scrollbar.** The scroll area is card 035
 and it needs three things this card does not build. What this card does is make
@@ -121,6 +127,40 @@ for by the principal 2026-09-09 — *"space between, space around"* — and deci
   asserting **four** equal gaps rather than two; then one child, and overflow, both
   landing on `START`.
 
+## Scope — padding on four sides, and no margin
+
+**Decided in ADR-0095's amendment, 2026-09-09**, from the principal's own proposal:
+*"What if we skip margin and do padding only?"* Read that amendment; the reasoning
+matters more than the field.
+
+- **`voe_ui_container.pad` becomes four numbers, named by absolute side**: left, top,
+  right, bottom. Millimetres, as now.
+- **They are named absolutely and not by flow, and the header must say why**, because
+  a reader will ask for `along_start`/`along_end`. Flow-relative padding flips meaning
+  when a row becomes a column, which is the exact defect ADR-0095 removed by putting
+  direction in the call; `pad_top` is always the top, in a row and a column alike, and
+  it matches ADR-0099's surface with its origin at the top-left and Y running down.
+- **There is no margin and there will not be one.** A child carries no outer spacing
+  of its own, on any axis. **Write that in the header as a refusal with its reason**,
+  not as a silence: with both, two sources of space meet between every pair of
+  children and the system has to say whether they add or collapse — CSS collapses and
+  it is the most-complained-about rule in layout. With padding only there is exactly
+  one source of space between two children (`gap`) and one inside an edge (the
+  padding), and nothing interacts.
+- **Say the workaround in the same breath**: a single child needing space of its own is
+  wrapped in a container with padding, which *is* that child's margin, and an unusual
+  gap between one pair is a fixed-size box as a spacer. Somebody will want margin;
+  the header is where they should find out why they do not have it and what to do
+  instead.
+- **Both passes change.** Measure adds left+right along a row and top+bottom across
+  it — and the other way in a column — instead of twice one number; arrange insets the
+  content box by each side separately. **The classic bug is counting padding twice**,
+  once in each pass, and it is already in the hazards below; four numbers give it four
+  ways to happen.
+- **Anchors are measured against the content box** (ADR-0102), so an anchored child in
+  a container with asymmetric padding sits inside the *padded* rectangle. Test that
+  with a lopsided pad, because it is where the two halves of this card meet.
+
 ## Scope — the measured size
 
 `voe_ui_node_rect` hands back where a node *came to sit*. The number that says
@@ -203,6 +243,11 @@ State in your report that you checked each of these:
     paint-order claim and 034 will rely on it;
   - the measured size against the arranged size for a container whose children
     overflow it, which is the comparison a scroll area will make;
+  - **asymmetric padding on all four sides**: a row and a column, each with four
+    different pad values, asserting both the children's rectangles and the
+    container's own natural size — the natural size is where double-counting shows;
+  - **an anchored child inside a lopsidedly padded parent**, landing inside the padded
+    box and not the outer one;
   - a grow child's measured size being its content's want rather than its share.
 - Windows is the principal's, and there is no platform code here.
 
@@ -217,6 +262,8 @@ State in your report that you checked each of these:
 - The accessor's name and its exact contract.
 - That `EVENLY`'s degenerate cases match `SPREAD`'s, and the header sentence that
   now covers both.
+- How you spelled the four pad values, and the header sentence refusing margin —
+  quote it, because it is the sentence that has to hold the line for a year.
 - Confirmation that the siblings-lay-out-as-though-absent claim is asserted, and
   what the arrange-order test looks like — 034 is written against both.
 - What you deliberately did not build: no scrollbar, no widget, no emission, no
