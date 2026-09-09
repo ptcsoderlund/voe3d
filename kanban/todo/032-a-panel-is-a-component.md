@@ -152,6 +152,38 @@ this card carried this morning.
   wants a different arrangement on a different shape of window writes that `if`
   itself. Nothing in `render`, `3d` or `ui` learns what kind of device it is on.
 
+### And it snaps to the bottom-right, the way the readout already snaps to the top-left
+
+**Asked for by the principal 2026-09-09**, after watching both things in a resized
+window: the debug readout keeps its shape and stays in its corner, the exhibit
+stretches. *"It should scale with height and snap to lower right (if snapping is a
+thing)."*
+
+**The pattern to copy is in the same program.** `top_left_of_the_view` in
+`dev/src/main.c` places the readout by working out where the corner of the view *is*
+at a fixed distance — `half_height` from the field of view, `half_width` from
+`half_height * aspect`, then in from the edge by a margin. Its comment says the
+consequence: *"so it stays in the corner when the window is resized."*
+
+**Do the same thing in millimetres for the exhibit.** Once the surface's millimetre
+size comes from the scale rather than from an assumed aspect, the exhibit's own
+rectangles are placed **from the far edges inwards** — right edge minus its width
+minus a margin, bottom edge minus its height minus a margin — instead of from the
+constants `PANEL_X` and `PANEL_Y` it uses today.
+
+- **This needs no anchoring feature and must not wait for one.** Card 041 adds
+  anchored children to `ui`'s layout, which is what a real interface will use; the
+  exhibit writes element records by hand, so for it snapping is a subtraction. Keep
+  it that way — a `dev` program reaching into a layout feature it does not otherwise
+  use would be the wrong shape of demonstration.
+- **Say in the comment which corner it is glued to and why**, in the voice
+  `elements.h` already uses about being a call site rather than a second engine.
+- **The two behaviours together are the whole point**: it keeps its shape *and* it
+  stays where it is put. Either one alone is half the fix, and the readout beside it
+  is the reference — after this card, both things in the window should behave the
+  same way when it is dragged about, which is the check to make before writing the
+  report.
+
 ### The exhibit's own header is now wrong
 
 `dev/src/elements.h` says: *"drag the window narrow and the rectangles stretch with
@@ -299,7 +331,10 @@ State in your report that you checked each of these:
   over everything, and the printed draw count beside it.
 - **Two screenshots of the same overlay panel in two window shapes** — one near the
   authored aspect, one distinctly narrower — showing that **nothing is deformed and
-  nothing changes size**, and that what changes is how much room there is. That is
+  nothing changes size**, and that what changes is how much room there is. **Have the
+  debug readout in both shots**: it already keeps its shape and holds its corner, so
+  the two together are the before-and-after in one picture, and if the exhibit does
+  not behave like the readout the card is not done. That is
   ADR-0103's whole claim and it cannot be asserted in a test; it is looked at.
 - Tests that need no graphics card: the millimetre size comes out as the pixel size
   divided by the scale on both axes; halving the scale doubles both millimetre
