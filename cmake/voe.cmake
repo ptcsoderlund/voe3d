@@ -100,6 +100,18 @@ function(voe_allowed_deps folder out_var)
         # putting the two together is the caller's — which is what keeps this a
         # leaf and keeps 3d from growing a reason to name a font.
         set(deps render math base)
+    elseif(folder STREQUAL "ui")
+        # ui is a leaf for the same reason text is, and by the same trade: it
+        # turns widget calls into elements and leaves PLACING them in the world
+        # to the caller, so where the interface hangs is one matrix and it is
+        # not this folder's. That is why platform, scene, ecs and 3d are not in
+        # this row and may not be added to it — a folder that could ask a window
+        # how big it is, or put itself in a scene, would be an interface that
+        # decides where it goes, and then nothing else could decide. It names
+        # render for the element record it fills in and text for measuring a
+        # string, which is the one thing a label cannot work out for itself.
+        # Card 033 decided that.
+        set(deps render text math base)
     elseif(folder STREQUAL "3d")
         set(deps render scene ecs assets math base)
     elseif(folder STREQUAL "sprite")
