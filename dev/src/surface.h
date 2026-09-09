@@ -26,10 +26,9 @@
 // wide the surface is: drag the window narrow and there are fewer millimetres
 // across to put things in. Nothing shrinks to fit.
 //
-// SO THE FAR CONTENT IS CUT OFF IN A NARROW WINDOW, AND THAT IS CORRECT. This is
-// laid out at fixed millimetre positions from the top-left, and the marks along
-// the top edge deliberately reach further right than a narrow window has room
-// for. Wrapping and scrolling are what answer that later (card 035); until then,
+// SO THE FAR CONTENT IS CUT OFF IN A NARROW WINDOW, AND THAT IS CORRECT. The
+// marks along the top edge are at fixed millimetre positions from the top-left
+// and deliberately reach further right than a narrow window has room for. Wrapping and scrolling are what answer that later (card 035); until then,
 // content falling off the right edge is the decision working rather than the
 // exhibit being broken.
 #pragma once

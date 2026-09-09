@@ -1,6 +1,21 @@
-// The screen-filling surface's content: a plate in the top-left corner, a marked
+// The screen-filling surface's content: a plate against the right edge, a marked
 // square inside it, and a row of ticks running away to the right along the top
 // edge.
+//
+// THE PLATE IS ON THE RIGHT BECAUSE THE READOUT OWNS THE TOP-LEFT. Card 032 put
+// it in that corner and card 040 found what that meant: the readout's numbers
+// were behind it and unreadable. The readout is a mesh in the world and has been
+// in that corner since long before either card, so the plate is the newcomer and
+// the plate is what moved.
+//
+// AND ITS x IS ANCHORED RATHER THAN AUTHORED, WHICH IS THE ONE THING HERE THAT
+// IS NOT AT A FIXED MILLIMETRE. A plate authored at the right edge of a 240 mm
+// surface would be at 188 mm and would fall off a narrow window entirely — and a
+// plate nobody can see says nothing about whether anything changed size. So it
+// is placed a fixed distance from wherever the surface's right edge turned out
+// to be, exactly as the bar along the bottom is placed from its bottom edge. The
+// TICKS are the fixed-position demonstration and they are untouched; this is the
+// piece that has to stay on screen for that demonstration to be looked at.
 //
 // THE TICKS ARE THE POINT AND THEY ARE MEANT TO RUN OFF THE EDGE. Each one sits
 // at a fixed millimetre position further right than the last, and the last of
@@ -28,18 +43,18 @@
 #include <math/float2.h>
 #include <math/float4.h>
 
-// The plate, in millimetres from the surface's top-left corner. Small, and in
-// the corner, because the corner is where a fixed millimetre position is easiest
-// to check against the window's edge.
-#define PLATE_X 6.0f
-#define PLATE_Y 6.0f
+// The plate: how big it is, how far in from the surface's right edge it sits,
+// and how far down. The y is a plain authored millimetre and is well below the
+// readout, which ends around forty; the x is worked out from the surface's own
+// width — see the header.
+#define PLATE_INSET 6.0f
+#define PLATE_Y 60.0f
 #define PLATE_WIDE 46.0f
 #define PLATE_HIGH 30.0f
 
-// The square inside it: square in millimetres, so square on screen. See the
-// header.
-#define SQUARE_X 12.0f
-#define SQUARE_Y 12.0f
+// The square inside it, from the plate's own top-left corner: square in
+// millimetres, so square on screen. See the header.
+#define SQUARE_INSET 6.0f
 #define SQUARE_SIDE 18.0f
 
 // The ticks along the top edge. The spacing is fixed, and the last one is at
@@ -78,6 +93,8 @@ bool voe_dev_surface_draw(voe_render_device *gpu, voe_platform_size target)
 	// is given — see voe_render_element_surface_size for why it is handed
 	// back rather than buried in the matrix.
 	voe_math_float2 millimetres;
+	// Where the plate ends up, once the surface's width is known.
+	float plate_x;
 	uint32_t first;
 	uint32_t submitted = 0;
 
@@ -98,14 +115,22 @@ bool voe_dev_surface_draw(voe_render_device *gpu, voe_platform_size target)
 	// same buffer this frame.
 	first = voe_render_frame_elements_submitted(gpu);
 
+	// Against the right edge, and never off the left one: a window narrower
+	// than the plate is wide would otherwise push it out of sight
+	// altogether, and the card that moved it here asks for it to stay at
+	// least partly visible at any width worth looking at.
+	plate_x = millimetres.x - PLATE_WIDE - PLATE_INSET;
+	if (plate_x < PLATE_INSET)
+		plate_x = PLATE_INSET;
+
 	if (!voe_render_frame_submit_element(
-		    gpu, at(PLATE_X, PLATE_Y, PLATE_WIDE, PLATE_HIGH, plate)))
+		    gpu, at(plate_x, PLATE_Y, PLATE_WIDE, PLATE_HIGH, plate)))
 		return false;
 	submitted++;
 
 	if (!voe_render_frame_submit_element(
-		    gpu, at(SQUARE_X, SQUARE_Y, SQUARE_SIDE, SQUARE_SIDE,
-			    square)))
+		    gpu, at(plate_x + SQUARE_INSET, PLATE_Y + SQUARE_INSET,
+			    SQUARE_SIDE, SQUARE_SIDE, square)))
 		return false;
 	submitted++;
 

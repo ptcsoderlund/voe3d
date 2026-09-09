@@ -89,9 +89,29 @@
 // that stays where it is however the camera moves and that nothing gets in front
 // of.
 //
-// And in the top-left of the view, five lines of numbers that change as you
-// watch: the frame rate and the four timings, the same ones the console prints,
-// laid out again every frame.
+// And in the top-left of the view, lines of numbers that change as you watch:
+// the frame rate, the four timings — the same ones the console prints — the
+// pointer, and what the last frame cost in draw commands and element records.
+// Laid out again every frame.
+//
+// THE DRAWS LINE IS A PERIOD METRIC LIKE THE FOUR ABOVE IT, average and worst
+// over the same window, and the element records beside it are the last
+// completed frame's. It is built before anything is drawn, so the one frame
+// after each console block has no sample yet and shows the previous period's;
+// a program that has completed no frame at all says "no frame yet" rather than
+// showing a nought that reads as a claim.
+//
+// AND THE PAIR ON IT IS ADR-0092'S CLAIM RATHER THAN A NUMBER STANDING FOR IT.
+// Ninety-odd element records against thirty-odd draw commands is what "many
+// small things in one draw" means; watch the records climb while the commands
+// hold still. The count includes the draw that put this readout on screen,
+// which is why counting the things you can see gives one fewer.
+//
+// THE WORST COLUMN IS THE POINT OF MAKING IT A METRIC. In this demo the scene
+// is identical every frame, so the average and the worst are both 32 and the
+// column looks like decoration. The day anything varies what is drawn — culling,
+// streaming, an interface that grows — the worst frame in the period is the
+// number that matters and the average is the one that hides it.
 //
 // And three surfaces of elements, which are two different kinds of thing:
 //
@@ -739,7 +759,7 @@
 // corner when the window is resized. The margin keeps it off the edge, in ems of
 // its own size, and the first baseline sits one em below the top so the tallest
 // glyph clears it. The string it holds is formatted into a buffer this long,
-// which is well over five short lines.
+// which is well over the seven short lines it now holds.
 #define READOUT_EM 0.040f
 #define READOUT_MARGIN_EMS 0.5f
 #define READOUT_CHARS 192
@@ -1626,6 +1646,52 @@ struct timing {
 	bool gpu_timed;
 	double gpu_last;
 	double draw_last;
+	// Draw commands per completed frame, averaged and worsted over the
+	// period exactly as the four durations above are.
+	//
+	// IT IS A METRIC AND NOT A SNAPSHOT, WHICH IS THE PRINCIPAL'S CALL AND
+	// REVERSES WHAT CARD 040 FIRST SAID. That card argued a draw count is
+	// exact and that averaging it turns a true number into a smeared one.
+	// That is right about this demo, where the scene is identical every
+	// frame and the average is 32.0 for ever — and it is wrong about the
+	// direction of travel. The moment anything varies what is drawn, culling
+	// or streaming or an interface that grows, the number a person needs is
+	// the WORST frame in the period rather than the typical one, which is
+	// the same reason `frame` and `gpu` carry a worst beside their average.
+	// A metric that only becomes interesting later is still the right shape
+	// now; a snapshot that has to be replaced later is not.
+	//
+	// IT IS A voe_base_samples EVEN THOUGH A COUNT IS NOT A DURATION. That
+	// type's real constraint is that `worst` is the LARGEST value, so a
+	// quantity where small is bad does not belong in it. More draw commands
+	// is worse, so this belongs. See base/include/base/samples.h, whose
+	// header still says everything measured with one is a duration — true of
+	// every other caller and no longer of this one.
+	voe_base_samples draws;
+	// What the readout shows for the one frame per period that has no sample
+	// yet, and whether any frame has completed at all. The same three cases
+	// `draw` and `gpu` have above and for the same reason: the period is
+	// reset with the readout still running.
+	bool draws_measured;
+	double draws_last;
+	double draws_last_worst;
+	// And how many element records the last completed frame submitted, which
+	// is the other half of ADR-0092's claim and the reason the pair is worth
+	// showing.
+	//
+	// THIS ONE IS NOT AVERAGED AND THAT IS NOT AN OVERSIGHT. The claim is
+	// "this many records cost that few commands", and a record count averaged
+	// over a period no longer lines up with the commands beside it — one
+	// would describe the period and the other a frame in it. The exact count
+	// from the same completed frame keeps the pair a pair.
+	//
+	// THE GAP BETWEEN THE TWO IS THE CLAIM, AND NEITHER NUMBER SAYS IT
+	// ALONE. Ninety-odd records and thirty-odd commands is "many small
+	// things in one draw" stated rather than asserted; the commands alone
+	// could be thirty-two of anything, and the records alone say nothing
+	// about what they cost. See voe_render_frame_elements_submitted, whose
+	// own header is where that gap is spelled out.
+	uint32_t drawn_elements;
 	// When this period began, on the same clock every sample is taken with.
 	// Kept rather than a deadline, because the rate printed has to be over
 	// the time the period really covered and a frame always straddles the
@@ -1685,6 +1751,7 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 			      voe_base_error *error)
 {
 	char gpu_line[READOUT_CHARS];
+	char draws_line[READOUT_CHARS];
 	char mouse_line[READOUT_CHARS];
 	char text[READOUT_CHARS];
 	voe_text_block block;
@@ -1733,6 +1800,37 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 	else
 		snprintf(gpu_line, sizeof gpu_line, "gpu    no measurement");
 
+	// THREE CASES, THE SAME THREE THE GPU LINE HAS AND FOR THE SAME REASON.
+	// A period with samples shows its running average and worst. The one
+	// frame after each console block has neither yet — the count is added
+	// after the draw and this is built before it — and shows the last full
+	// period's, so the line holds still rather than flashing. Only a program
+	// that has not completed a frame at all gets the third case, which is
+	// then the truth.
+	//
+	// AND THE COUNT INCLUDES THE DRAW THAT PUT THIS READOUT ON SCREEN. The
+	// readout is a mesh like any other and is drawn like any other, so a
+	// person counting the things they can see will find one fewer than this
+	// says. That is correct and it is not adjusted for: subtracting it would
+	// make this a number about something other than what the frame did.
+	//
+	// THE RECORDS BESIDE IT ARE ONE FRAME'S AND THE COMMANDS ARE A PERIOD'S,
+	// which is a mixture on one line and is deliberate — see struct timing.
+	// The pair only means something if both halves describe the same drawing.
+	if (timing->draws.count > 0)
+		snprintf(draws_line, sizeof draws_line,
+			 "draws  %5.1f avg %4.0f worst  %u elements",
+			 voe_base_samples_average(&timing->draws),
+			 timing->draws.worst,
+			 (unsigned)timing->drawn_elements);
+	else if (timing->draws_measured)
+		snprintf(draws_line, sizeof draws_line,
+			 "draws  %5.1f avg %4.0f worst  %u elements",
+			 timing->draws_last, timing->draws_last_worst,
+			 (unsigned)timing->drawn_elements);
+	else
+		snprintf(draws_line, sizeof draws_line, "draws  no frame yet");
+
 	// Three states and three words, because a number that looked live
 	// while the pointer was locked or gone is exactly what the platform
 	// header refuses to hand out. The position is printed whole: Wayland
@@ -1749,10 +1847,10 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 			 left, middle, right);
 
 	snprintf(text, sizeof text,
-		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s\n%s",
+		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s\n%s\n%s",
 		 frame > 0.0 ? 1.0 / frame : 0.0, frame * 1000.0,
 		 voe_base_samples_average(&timing->update) * 1000.0,
-		 draw * 1000.0, gpu_line, mouse_line);
+		 draw * 1000.0, gpu_line, draws_line, mouse_line);
 
 	// Spaces and newlines lay out nothing; every other character in this
 	// string is a glyph the font carries.
@@ -1801,6 +1899,13 @@ static void report(struct timing *timing, double seconds,
 		       timing->gpu.worst * 1000.0);
 	else
 		printf("           gpu        no measurement — this card or its queue cannot write timestamps\n");
+	// The one line here that is not milliseconds, in the same two columns as
+	// the four that are. What varies it is the scene rather than the
+	// machine, so in this demo the average and the worst are the same number
+	// — and the day they differ is the day something started drawing more in
+	// some frames than others, which is exactly what a worst column is for.
+	printf("           draws  %7.1f    avg  %7.0f    worst\n",
+	       voe_base_samples_average(&timing->draws), timing->draws.worst);
 	fflush(stdout);
 
 	// What the readout shows until this new period has a sample of its own.
@@ -1809,11 +1914,17 @@ static void report(struct timing *timing, double seconds,
 		timing->draw_last = voe_base_samples_average(&timing->draw);
 	if (timing->gpu.count > 0)
 		timing->gpu_last = voe_base_samples_average(&timing->gpu);
+	// Both halves of this one, because the readout shows both.
+	if (timing->draws.count > 0) {
+		timing->draws_last = voe_base_samples_average(&timing->draws);
+		timing->draws_last_worst = timing->draws.worst;
+	}
 
 	voe_base_samples_reset(&timing->frame);
 	voe_base_samples_reset(&timing->update);
 	voe_base_samples_reset(&timing->draw);
 	voe_base_samples_reset(&timing->gpu);
+	voe_base_samples_reset(&timing->draws);
 }
 
 int main(void)
@@ -1840,14 +1951,20 @@ int main(void)
 	// made for it — see MAX_TRANSIENT_GLYPHS.
 	uint32_t readout_glyphs = 0;
 	bool readout_reported = false;
-	// The element exhibit's three: whether its submits were accepted, and
-	// the frame's draw count either side of its draw — the difference is
-	// how many draw commands forty rectangles of forty colours cost, which
-	// is the whole claim of the element path and is subtracted rather than
-	// assumed.
+	// Whether every surface's submits and draws were accepted, and the
+	// frame's draw count either side of the draw system's walk — the
+	// difference is what the walk cost, which is every mesh plus one per
+	// panel.
+	//
+	// THE FIRST IS NOUGHT TODAY AND IS STILL READ. Nothing is drawn between
+	// _begin and the walk — the readout is built there, but building a mesh
+	// is not drawing it — so the count is nought at that point every frame.
+	// The pair is kept rather than collapsed to one read because it stays
+	// correct the day something IS drawn before the walk, and a subtraction
+	// that is trivially right costs nothing to leave standing.
 	bool elements_ok = true;
-	uint32_t draws_before_elements = 0;
-	uint32_t draws_after_elements = 0;
+	uint32_t draws_before_walk = 0;
+	uint32_t draws_after_walk = 0;
 	// Where each panel's own records start in this frame's element buffer.
 	// One buffer, three ranges: the exhibit, the badge and the
 	// screen-filling surface, which takes its own.
@@ -2315,16 +2432,18 @@ int main(void)
 				voe_render_frame_elements_submitted(gpu) -
 					badge_first);
 
-			// THE COUNT IS TAKEN EITHER SIDE OF THE WALK AND THE
-			// DIFFERENCE IS PRINTED. What the element path claims
-			// is that forty rectangles of forty colours AND forty
-			// letters cost ONE draw command between them, and the
-			// only way to say that rather than believe it is to
-			// count. The walk's own count is the meshes plus one
-			// per panel; the surface below adds the third.
-			draws_before_elements = voe_render_frame_draw_count(gpu);
+			// EITHER SIDE OF THE WALK, WHICH IS WHAT THESE TWO
+			// BRACKET AND ALL THEY BRACKET. The difference is every
+			// mesh drawn plus one per panel — the panels' own draws
+			// are issued inside the walk, sorted among the
+			// see-through meshes, so there is no moment between
+			// them to read a count at and that is card 032 working
+			// rather than something missing here.
+			draws_before_walk = voe_render_frame_draw_count(gpu);
 
 			voe_3d_draw_system_run(world, gpu, arena, frame);
+
+			draws_after_walk = voe_render_frame_draw_count(gpu);
 
 			// The screen-filling surface, after the walk because it
 			// is not in the world and has nothing to sort against,
@@ -2336,12 +2455,33 @@ int main(void)
 			elements_ok = voe_dev_surface_draw(gpu, now_size) &&
 				      elements_ok;
 
-			draws_after_elements = voe_render_frame_draw_count(gpu);
-
 			if (!voe_render_frame_end(gpu)) {
 				fprintf(stderr, "the GPU stopped answering\n");
 				break;
 			}
+
+			// THE FRAME IS COMPLETE, SO THIS IS THE ONE MOMENT
+			// EITHER NUMBER IS THE WHOLE FRAME'S. Both are read
+			// here, after _end, so that what the readout shows and
+			// what the console block prints are the same two reads
+			// — two numbers about one frame that disagreed would be
+			// worse than either alone.
+			//
+			// THE PAIR IS THE CLAIM AND NEITHER HALF IS. Records
+			// submitted against commands recorded is what "many
+			// small things in one draw" means; see
+			// voe_render_frame_elements_submitted, which says why
+			// reading the wrong one of the two makes the claim
+			// trivially true. Both survive until the next _begin,
+			// which is what lets them be read after the frame has
+			// been submitted.
+			voe_base_samples_add(
+				&timing.draws,
+				(double)voe_render_frame_draw_count(gpu));
+			timing.drawn_elements =
+				voe_render_frame_elements_submitted(gpu);
+			timing.draws_measured = true;
+
 			// The element capacity is smaller than the three
 			// surfaces need, which is this file's mistake in the
 			// same way the readout's transient room would be.
@@ -2367,26 +2507,39 @@ int main(void)
 				       readout_glyphs * 6u,
 				       6u * MAX_TRANSIENT_GLYPHS,
 				       (unsigned)MAX_TRANSIENT_GEOMETRIES);
-				// THREE ELEMENT SURFACES AND THREE DRAW
-				// COMMANDS, AND THE NUMBER PRINTED IS THE
-				// WHOLE WALK RATHER THAN THE SURFACES ALONE.
-				// The first number is every draw the frame
-				// took — meshes, two panels and the
-				// screen-filling surface — because the panels
-				// are drawn inside the walk, sorted among the
-				// see-through meshes, and there is no moment
-				// between them to read a count at. That is the
-				// point rather than a limitation: a panel
-				// drawn in a pass of its own would be easier
-				// to count and would be the bug.
-				printf("elements   %u rectangles of %u colours and %u letters on the world panel, %u on the badge, %u on the screen-filling surface: 3 draw commands, and the whole frame took %u\n",
+				// THREE ELEMENT SURFACES, AND THE TWO NUMBERS
+				// AT THE END ARE THE SAME PAIR THE READOUT
+				// SHOWS. They are read from the same two calls
+				// after the same _end, so the console and the
+				// screen cannot disagree — and the whole frame
+				// is what is printed rather than the surfaces
+				// alone, because the panels are drawn inside
+				// the walk, sorted among the see-through
+				// meshes, and there is no moment between them
+				// to read a count at. That is card 032 working
+				// rather than a limitation: a panel drawn in a
+				// pass of its own would be easier to count and
+				// would be the bug.
+				//
+				// The walk's own cost is printed beside it,
+				// which is every mesh plus one per panel.
+				printf("elements   %u rectangles of %u colours and %u letters on the world panel, %u on the badge, %u on the screen-filling surface\n",
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_GLYPHS,
 				       (unsigned)VOE_DEV_BADGE_ELEMENTS,
-				       (unsigned)VOE_DEV_SURFACE_ELEMENTS,
-				       draws_after_elements -
-					       draws_before_elements);
+				       (unsigned)VOE_DEV_SURFACE_ELEMENTS);
+				// This frame's exact numbers, read straight from
+				// the device rather than out of the period
+				// metric beside it: both survive until the next
+				// _begin, and one frame's commands against one
+				// frame's records is the pair ADR-0092's claim
+				// is made of. The averaged version of the same
+				// number is in every timing block below.
+				printf("draws      %u commands for %u element records; the walk was %u of them\n",
+				       voe_render_frame_draw_count(gpu),
+				       timing.drawn_elements,
+				       draws_after_walk - draws_before_walk);
 				fflush(stdout);
 				readout_reported = true;
 			}

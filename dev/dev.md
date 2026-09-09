@@ -34,7 +34,12 @@ states and not a test — it is looked at, not asserted on.
   cached, and what a readout that stops changing means. Card 029 added a
   `mouse` line to it — the pointer's position and the three buttons, live — and
   its header says what to look for at each corner, off the window, and while
-  flying. Card 030 added the element exhibit, which is two calls and a printed
+  flying. Card 040 added a `draws` line — draw commands per frame, averaged and
+  worsted over the same period as the timings, with the last frame's element
+  record count beside it, which is ADR-0092's claim as two numbers rather than
+  one. Its header says why the worst column is the point of making it a metric,
+  what the first frame shows instead, and why the count includes the readout's
+  own draw. Card 030 added the element exhibit, which is two calls and a printed
   measurement here and nothing else — see `src/elements.h`; card 031 put writing
   on it. Card 032 made the exhibit an entity with a panel component standing in
   the world, added a badge in the overlay beside it, and left a third surface
@@ -62,7 +67,9 @@ states and not a test — it is looked at, not asserted on.
   right edge is correct.
 - `src/surface.c` — those rectangles and the one multiplication that turns the
   window's height into pixels per millimetre. Its header says why the ticks are
-  meant to run off the edge and why the square is square.
+  meant to run off the edge, why the square is square, why the plate sits against
+  the right edge rather than in the readout's corner, and why its x is the one
+  thing here anchored rather than authored.
 - `src/sprites.h` — the sprite exhibit: the sheet, the twelve entities and the
   two rotations that turn towards the camera. Its header says why the
   billboarding is here and not in the engine.
