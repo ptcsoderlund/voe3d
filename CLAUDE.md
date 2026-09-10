@@ -243,6 +243,15 @@ Cards arrive in `todo/` already decided. Implement what the card says; a card
 that is unclear is asked about, not guessed at. `cmake -P check.cmake` exits
 zero before the card moves to `review/`.
 
+**A card states, it does not argue; a folder's map is its `.md` and its headers
+(2026-09-10).** A card is what to build, what done looks like, what must not
+change, how to verify, and the name of the decision it comes from — under 150
+lines. A `<folder>.md` says what the folder is for and how it couples, and the
+`.h` files are the surface; together they are what a coder reads to learn a
+folder, and a `.c` is opened to edit it. A `<folder>.md` is under 120 lines. Over
+either ceiling is reported, not trimmed on the way past: a card that wants
+splitting is the tech lead's, a folder that wants splitting is a decision.
+
 **One card, one folder — and a card owns the call sites of a change it mandates
 (2026-09-10).** The card names a module and you edit the files in it. **When the
 card changes that module's public surface, you also update the call sites that
