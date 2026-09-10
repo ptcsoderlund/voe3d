@@ -36,10 +36,16 @@
 
 #include <stdio.h>
 
-// Where the panel sits: in from the left edge, and far enough down the page to
+// Where the panel sits: in from three edges, and far enough down the page to
 // clear the readout, which owns the top-left corner and ends around forty.
+//
+// INTERFACE_TOP IS THE WHOLE DISTANCE FROM THE TOP EDGE AND NOT AN EXTRA ON TOP
+// OF THE INSET. It was a 54 mm spacer sitting inside a 6 mm inset, so content
+// began 60 mm down; now that it is the root's top padding it says 60 outright,
+// because two numbers that have to be added at the call site is how a
+// rearrangement quietly moves the interface.
 #define INTERFACE_INSET 6.0f
-#define INTERFACE_TOP 54.0f
+#define INTERFACE_TOP 60.0f
 
 // A dark plate, mostly see-through, so that what is behind the interface shows
 // through it — which is the whole reason a panel has an alpha and is worth
@@ -122,15 +128,14 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						 millimetres.y },
 				      .across = { VOE_UI_SIZE_FIXED,
 						  millimetres.x } },
-			    .pad = INTERFACE_INSET });
-	// The spacer card 041 removes. See the header.
-	voe_ui_box(ui, (voe_math_float2){ 0.0f, INTERFACE_TOP },
-		   (voe_ui_sizing){ 0 });
+			    .pad = { INTERFACE_INSET, INTERFACE_TOP,
+				     INTERFACE_INSET, INTERFACE_INSET } });
 
 	voe_ui_panel_begin(ui, "hud", 0, plate,
 			   (voe_ui_container){ .across = VOE_UI_ACROSS_START,
 					       .gap = 3.0f,
-					       .pad = 4.0f });
+					       .pad = { 4.0f, 4.0f, 4.0f,
+							4.0f } });
 	voe_ui_label(ui, "Interface");
 
 	voe_ui_row_begin(ui, (voe_ui_container){ .gap = 3.0f });

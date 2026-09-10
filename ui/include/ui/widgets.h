@@ -8,7 +8,8 @@
 //             .at = { mouse_mm_x, mouse_mm_y }, .over = true, .down = held });
 //
 //     voe_ui_panel_begin(ui, "settings", 0, (voe_math_float4){ 0, 0, 0, 0.7f },
-//                        (voe_ui_container){ .gap = 2.0f, .pad = 4.0f });
+//                        (voe_ui_container){ .gap = 2.0f,
+//                                            .pad = { 4, 4, 4, 4 } });
 //     voe_ui_label(ui, "Settings");
 //     voe_ui_node apply = voe_ui_button_begin(ui, "apply", 0);
 //     voe_ui_label(ui, "Apply");

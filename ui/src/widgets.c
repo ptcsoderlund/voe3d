@@ -28,9 +28,10 @@
 // voe_ui_paint_order rather than working it out again. Today that is the node
 // array's own order, which is call order, which puts a parent before every one
 // of its children — a panel's background behind what is in it, a button's behind
-// its label, siblings in the order they were called. Card 041 will arrange
-// anchored children after their in-flow siblings, and when it does, this file
-// changes not at all.
+// its label, siblings in the order they were called. Card 041 made anchored
+// children come after their in-flow siblings, so that order is no longer the
+// array's; taking it from the accessor is why not one line of this file had to
+// move for it.
 //
 // ---- THE HIT TEST IS AFTER ARRANGE, AND THAT IS THE WHOLE OF WHY ----
 //
@@ -123,7 +124,10 @@ static const voe_math_float4 LABEL_INK = { 0.85f, 0.87f, 0.90f, 1.0f };
 // Inside every edge of a button, in millimetres. Its size is otherwise entirely
 // its label's, so this is the whole of what makes a button bigger than the word
 // in it.
-#define BUTTON_PAD 2.5f
+// The same on all four sides, which is what a button wants and what the four
+// numbers make explicit rather than assume.
+#define BUTTON_PAD                                                             \
+	((voe_ui_pad){ 2.5f, 2.5f, 2.5f, 2.5f })
 
 #define FNV_BASIS 0xcbf29ce484222325u
 #define FNV_PRIME 0x00000100000001b3u

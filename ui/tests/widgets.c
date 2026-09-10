@@ -77,6 +77,13 @@ struct frame {
 
 static const voe_math_float4 PANEL = { 0.05f, 0.05f, 0.06f, 0.8f };
 
+// The same padding on all four sides, which is what every case in this file
+// wants and what one number used to say.
+static voe_ui_pad pad_all(float mm)
+{
+	return (voe_ui_pad){ mm, mm, mm, mm };
+}
+
 // One frame of the interface above, with the pointer wherever the caller says.
 // `buttons` is how many of the two are built, so that "the widget that was
 // pressed is not called this frame" is one argument rather than a second tree.
@@ -92,7 +99,8 @@ static struct frame build(voe_ui_context *ui, voe_base_arena *arena,
 						 .down = down });
 
 	voe_ui_panel_begin(ui, "panel", 0, PANEL,
-			   (voe_ui_container){ .gap = 3.0f, .pad = 4.0f });
+			   (voe_ui_container){ .gap = 3.0f,
+					       .pad = pad_all(4.0f) });
 	if (buttons > 0) {
 		f.a = voe_ui_button_begin(ui, "a", 0);
 		voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
@@ -423,7 +431,7 @@ static void a_transparent_panel_emits_nothing(voe_ui_context *ui,
 	voe_ui_frame_begin(ui, arena);
 	voe_ui_panel_begin(ui, "invisible", 0,
 			   (voe_math_float4){ 0.5f, 0.5f, 0.5f, 0.0f },
-			   (voe_ui_container){ .pad = 6.0f });
+			   (voe_ui_container){ .pad = pad_all(6.0f) });
 	voe_ui_box(ui, (voe_math_float2){ 10.0f, 10.0f }, (voe_ui_sizing){ 0 });
 	voe_ui_end(ui);
 	VOE_TEST_CHECK(voe_ui_frame_end(ui));
@@ -470,7 +478,7 @@ static float labelled_column_height(voe_ui_context *ui, voe_base_arena *arena,
 	voe_ui_frame_begin(ui, arena);
 	column = voe_ui_column_begin(ui, (voe_ui_container){
 						.gap = SCALE_GAP,
-						.pad = SCALE_PAD });
+						.pad = pad_all(SCALE_PAD) });
 	voe_ui_label(ui, "Measure me");
 	voe_ui_label(ui, "Measure me");
 	voe_ui_end(ui);
@@ -508,7 +516,7 @@ static void a_label_emits_its_letters_after_the_panel(voe_ui_context *ui,
 {
 	voe_ui_frame_begin(ui, arena);
 	voe_ui_panel_begin(ui, "panel", 0, PANEL,
-			   (voe_ui_container){ .pad = 2.0f });
+			   (voe_ui_container){ .pad = pad_all(2.0f) });
 	voe_ui_label(ui, "A B");
 	voe_ui_end(ui);
 	VOE_TEST_CHECK(voe_ui_frame_end(ui));

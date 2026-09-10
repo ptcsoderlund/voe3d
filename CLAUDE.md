@@ -243,6 +243,25 @@ Cards arrive in `todo/` already decided. Implement what the card says; a card
 that is unclear is asked about, not guessed at. `cmake -P check.cmake` exits
 zero before the card moves to `review/`.
 
+**One card, one folder — and a card owns the call sites of a change it mandates
+(2026-09-10).** The card names a module and you edit the files in it. **When the
+card changes that module's public surface, you also update the call sites that
+change breaks, in any folder *downstream* of the one the card names.** That is not
+a scope escape: it is the change the card ordered, and the alternative is a
+repository that does not compile between two cards and therefore cannot run the
+one gate it has. ADR-0113.
+
+- **Downstream is the whole of the licence and it is checkable.** The allowed edges
+  are data in `cmake/voe.cmake` and a wrong one fails configuration. **No new edge,
+  no reversed arrow, no reaching into a sibling's source directory** — those stay
+  `BLOCKED: <folder>, <why>`, exactly as rules 1 and 2 say.
+- **It covers what the change broke and nothing else.** The test is mechanical:
+  *would the tree build without this edit?* If it would, the edit is not covered —
+  a bug you noticed in the same file is reported, not repaired on the way past.
+- **A card that changes a public field should already list its call sites.** This
+  rule lets you carry on when one was missed; it is not permission for a card to
+  leave them unnamed. Say in your report which ones you touched.
+
 **One platform is enough to finish a card (2026-09-04).** There is one machine
 and one operating system on it at a time, so a card is not held in `review/`
 waiting for the other platform. `check.cmake` green on the platform in front of

@@ -63,7 +63,6 @@ struct voe_ui_node_record {
 	uint32_t first_child;
 	uint32_t last_child;
 	uint32_t next_sibling;
-	uint32_t children;
 
 	bool leaf;
 	// A container's direction. Unused on a leaf.
@@ -75,7 +74,10 @@ struct voe_ui_node_record {
 	voe_ui_along along;
 	voe_ui_across across;
 	float gap;
-	float pad;
+	voe_ui_pad pad;
+	// Out of the parent's run when `anchored`, and then `size` is read as X
+	// and Y rather than as along and across. Never set on the root.
+	voe_ui_anchor anchor;
 
 	// What measure came to: this node's own content, in the panel's axes.
 	voe_math_float2 content_natural;
@@ -83,6 +85,12 @@ struct voe_ui_node_record {
 	voe_math_float2 natural;
 	// What arrange came to.
 	voe_ui_rect rect;
+
+	// This node and everything under it, counted by the paint-order pass,
+	// which is the width of the slot its subtree occupies in that order.
+	uint32_t subtree;
+	// Where it lands in paint order. The inverse of ui->order.
+	uint32_t paint;
 };
 
 enum voe_ui_frame_state {
@@ -100,6 +108,9 @@ struct voe_ui_context {
 	struct voe_ui_node_record *nodes;
 	// The containers begun and not yet ended, innermost last.
 	uint32_t *open;
+	// Node indices in paint order — see voe_ui_paint_order below. One entry
+	// per node, and it is a permutation of the array rather than a subset.
+	uint32_t *order;
 
 	uint32_t count;
 	uint32_t depth;
@@ -155,13 +166,13 @@ struct voe_ui_context {
 // The order layout arranged the tree in, which under ADR-0092 is the order the
 // interface is painted in. `position` runs from nought to the node count.
 //
-// IT IS AN ACCESSOR AND NOT A CONVENIENCE. Today the answer is `position`
-// itself: the node array is in call order, arrange sweeps it forwards, and a
-// parent therefore lands before every one of its children. Card 041 puts
-// anchored children after their in-flow siblings, and when it does, THIS is the
-// function it changes — emission asks layout for the order and never re-derives
-// it, so the day the order stops being the array's, nothing in widgets.c has to
-// notice.
+// IT IS AN ACCESSOR AND NOT A CONVENIENCE, AND SINCE CARD 041 IT EARNS THAT. It
+// was `position` itself while every child was in the flow; now that a child may
+// leave it, the order is a walk of the tree in which a parent still comes before
+// all of its children but a parent's ANCHORED children come after its in-flow
+// ones — so a floating panel is submitted last and paints over what it floats
+// above. Emission asks layout for this order and never re-derives it, which is
+// why widgets.c did not have to change when the order stopped being the array's.
 uint32_t voe_ui_paint_order(const voe_ui_context *ui, uint32_t position);
 
 // The two frame boundaries, called from layout.c's voe_ui_frame_begin and
