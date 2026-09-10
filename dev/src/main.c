@@ -1,6 +1,6 @@
 // voe_dev — the one program a person runs to see what the engine can currently
-// do. Today it opens a window holding a world: two cubes placed by hand, two
-// models read out of `.glb` files, two see-through quads standing either side of
+// do. Today it opens a window holding a world: two cubes placed by hand, a
+// model read out of a `.glb` file, two see-through quads standing either side of
 // them, a lettered sign above them, a line of writing locked to the camera, one
 // sun going round it all, and a camera that either orbits them or is
 // flown. There is one of these and it always shows the
@@ -65,11 +65,8 @@
 //
 // ---- WHAT IT SHOULD LOOK LIKE ----
 //
-// A flat blue-green background with four lit things in it, from left to right:
+// A flat blue-green background with three lit things in it, from left to right:
 //
-//   - A lettered cube with a smaller one attached to its top-right corner. That
-//     is `dev/src/model.glb`, this repository's own test model, and the small
-//     cube is the big one's child in the file.
 //   - A cube standing still at the origin, which is where the camera looks.
 //   - A squashed cube turning on a tilted axis, just to its right.
 //   - A figure standing on nothing: `dev/src/textured_primitives_human.glb`,
@@ -212,10 +209,11 @@
 // QUADS. Everything else is opaque and goes through the ordinary draw in table
 // order; see 3d/draw_system.h.
 //
-// Every cube wears the same "F", so every face reads as a letter and the letter
-// says which way up and which way round the face is. The figure wears its own
-// albedo map, which is the thing to look at for whether a real exporter's
-// texture coordinates arrive intact.
+// The two placeholder cubes wear WRITING — the still one the app icon, the
+// turning one the wordmark — so every face says which way up and which way
+// round it is, and a mirrored or upside-down face is unreadable rather than
+// merely wrong. The figure wears its own albedo map, which is the thing to look
+// at for whether a real exporter's texture coordinates arrive intact.
 //
 // IT IS LIT BY ONE SUN AND THE SUN GOES ROUND. One directional light, circling
 // the scene once every SUN_SECONDS, so the bright side of everything moves and
@@ -260,11 +258,8 @@
 //     it, from wherever it is.
 //   - The other cube spins, three times as fast as the camera orbits, about a
 //     tilted axis so that it cannot be mistaken for a second orbit.
-//   - The two models do neither: each sits where its file and one transform
-//     intent put it. The lettered model's small cube stays attached to the big
-//     one's corner, and that is the flattening — the small cube is the big one's
-//     child in the file, and its place in the world is the composition of the
-//     two transforms.
+//   - The model does neither: it sits where its file and one transform intent
+//     put it.
 //
 // WHAT IS WRONG IF IT LOOKS WRONG. Each failure has its own shape:
 //
@@ -356,21 +351,27 @@
 //     and a reason to change the string rather than the folder.
 //   - Everything drifting or growing — the projection or the aspect ratio.
 //   - The picture upside down — the one Y flip went the wrong way or happened
-//     twice. Every "F" is upright when it is right.
-//   - AN "F" THAT READS BACKWARDS — a mirror, and this is the failure worth
+//     twice. Every word on every cube is upright when it is right, and the app
+//     icon's yellow "3D" badge is in its BOTTOM-RIGHT corner.
+//   - WRITING THAT READS BACKWARDS — a mirror, and this is the failure worth
 //     staring at. A model can come out mirrored from a transposed rotation or a
 //     coordinate conversion nobody should have added, and a mirrored cube looks
-//     completely normal until you read the letter on it. 3d/tests/import.c is
-//     the automated form.
+//     completely normal until you try to read it. 3d/tests/import.c is the
+//     automated form.
 //   - The still cube not still, or not centred — the model matrix or the
 //     look-at. scene/tests/transform.c and scene/tests/camera.c check both on
 //     the CPU, so this should have failed before it got here.
 //   - A model missing while the cubes are there — that import failed and said so
 //     on stderr, or the world ran out of room for it. Each model is tried on its
 //     own, so one of them can be missing without the other.
-//   - The figure's texture smeared or in the wrong place while the cubes' "F"s
-//     are right — a real exporter's texture coordinates, which nothing in this
+//   - The figure's texture smeared or in the wrong place while the cubes read
+//     properly — a real exporter's texture coordinates, which nothing in this
 //     repository generated. That is what having a file nobody here wrote is for.
+//   - THE WORDMARK SQUEEZED ON THE TURNING CUBE'S NARROW FACES IS CORRECT, and
+//     so is it reading almost undistorted on the two wide ones: the picture is
+//     4800 by 2000 and those faces are CUBE_SCALE_X by CUBE_SCALE_Y, which is
+//     nearly the same shape. A wordmark that looked the same on all six faces of
+//     a cube that is not a cube would be the bug.
 //   - EVERYTHING BLACK — the sun is pointing away from everything, its intensity
 //     is nought, or the light never reached the shader. The background is
 //     cleared and not lit, so a black scene on a coloured background is a
@@ -455,6 +456,7 @@
 //     measurement` at the reset — it holds the last period's average for the
 //     one frame the new period has no sample yet. If it does flash, the
 //     three-case fallback in build_the_readout has been collapsed to two.
+//
 //   - WATCH THE `mouse` LINE OF THE READOUT (card 029). It is the pointer's
 //     position in the window's own pixels and the three buttons, live. Move
 //     the pointer to each corner: top-left should read close to 0 0 and
@@ -488,8 +490,10 @@
 // immediately, because platform has no way to wait yet.
 #include "cubes.h"
 #include "elements.h"
+#include "interface.h"
 #include "surface.h"
 #include "quad.h"
+#include "shrink.h"
 #include "sprites.h"
 
 #include <3d/draw_system.h>
@@ -516,6 +520,216 @@
 
 #include <math.h>
 #include <stdio.h>
+
+/* ===================== PROBE for bug 002 — TEMPORARY =====================
+ * NOT repository code, not a fix, and to be removed with the finding. It draws
+ * four variants on four successive frames, reads the colour target back after
+ * each, and PRINTS what landed — because the machine the fault lives on has no
+ * agent on it, and a number in a console travels where a pair of eyes cannot.
+ *
+ * The four variants take apart what is left of the difference between an
+ * element draw that works on that machine and one that does not.
+ */
+#include "../../render/src/device_internal.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#define PROBE_FIRST_FRAME 120u
+#define PROBE_VARIANTS 4u
+/* Room in the element buffer for the one record variants 2 and 3 submit. */
+#define PROBE_SPARE 4u
+
+static const char *const probe_names[PROBE_VARIANTS] = {
+	"baseline, nothing extra drawn",
+	"the exhibit's own records through the screen-filling transform",
+	"one fresh full-surface record through the screen-filling transform",
+	"the same fresh record through a hand-built centre-half matrix",
+};
+
+static voe_math_float2 probe_millimetres(voe_platform_size target)
+{
+	float per_millimetre = (float)target.height /
+			       (VOE_DEV_SURFACE_HIGH * VOE_DEV_UI_SCALE);
+
+	return voe_render_element_surface_size(target, per_millimetre);
+}
+
+/* Element millimetres onto the middle half of the target, built here so that
+ * variant 3 shares nothing with variants 1 and 2 except the pipeline itself. */
+static voe_math_float4x4 probe_centre_half(voe_math_float2 mm)
+{
+	voe_math_float4x4 m = { 0 };
+
+	m.m[0][0] = 1.0f / mm.x;
+	m.m[0][3] = -0.5f;
+	m.m[1][1] = -1.0f / mm.y;
+	m.m[1][3] = 0.5f;
+	m.m[2][3] = 0.5f;
+	m.m[3][3] = 1.0f;
+	return m;
+}
+
+static void probe_draw(voe_render_device *gpu, voe_platform_size target,
+		       unsigned variant)
+{
+	voe_math_float2 mm = probe_millimetres(target);
+	voe_math_float4x4 m = voe_render_element_transform(mm);
+	voe_render_element record = {
+		.bounds = { 0.0f, 0.0f, mm.x, mm.y },
+		.clip = { 0.0f, 0.0f, mm.x, mm.y },
+		.colour = { 1.0f, 0.0f, 1.0f, 1.0f },
+		.kind = VOE_RENDER_ELEMENT_SOLID,
+	};
+	uint32_t first;
+
+	if (variant == 1) {
+		if (!voe_render_frame_draw_elements(gpu, m, 0,
+						    VOE_DEV_ELEMENTS))
+			printf("probe      variant 1 draw refused\n");
+		return;
+	}
+	if (variant != 2 && variant != 3)
+		return;
+
+	first = voe_render_frame_elements_submitted(gpu);
+	if (!voe_render_frame_submit_element(gpu, record)) {
+		printf("probe      variant %u submit refused\n", variant);
+		return;
+	}
+	if (variant == 3)
+		m = probe_centre_half(mm);
+	if (!voe_render_frame_draw_elements(gpu, m, first, 1))
+		printf("probe      variant %u draw refused\n", variant);
+}
+
+/* The colour target, on the host, after the frame that drew it. */
+static void probe_report(voe_render_device *gpu,
+			 const struct voe_render_frame *frame,
+			 voe_platform_size target, unsigned variant)
+{
+	PFN_vkCmdCopyImageToBuffer copy_image_to_buffer =
+		(PFN_vkCmdCopyImageToBuffer)voe_render_vk.get_device_proc_addr(
+			gpu->device, "vkCmdCopyImageToBuffer");
+	size_t bytes = (size_t)target.width * (size_t)target.height * 4u;
+	struct voe_render_buffer readback = { 0 };
+	void *mapped = NULL;
+	const unsigned char *pixels;
+	VkCommandBufferAllocateInfo allocate = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = gpu->pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+	VkCommandBuffer commands = VK_NULL_HANDLE;
+	VkCommandBufferBeginInfo begin = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	};
+	VkBufferImageCopy region = {
+		.imageSubresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				      .layerCount = 1 },
+		.imageExtent = { (uint32_t)target.width,
+				 (uint32_t)target.height, 1 },
+	};
+	VkCommandBufferSubmitInfo one = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO };
+	VkSubmitInfo2 submit = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+				 .commandBufferInfoCount = 1,
+				 .pCommandBufferInfos = &one };
+	voe_math_float2 mm = probe_millimetres(target);
+	voe_math_float4x4 m = voe_render_element_transform(mm);
+	float per_millimetre = (float)target.height /
+			       (VOE_DEV_SURFACE_HIGH * VOE_DEV_UI_SCALE);
+	unsigned char background[3];
+	unsigned long different = 0;
+	unsigned long magenta = 0;
+	size_t i;
+
+	if (copy_image_to_buffer == NULL) {
+		printf("probe      no vkCmdCopyImageToBuffer\n");
+		return;
+	}
+	voe_render_vk.device_wait_idle(gpu->device);
+	if (!voe_render_buffer_build(gpu, &readback, bytes,
+				     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+		printf("probe      no readback buffer\n");
+		return;
+	}
+	voe_render_vk.map_memory(gpu->device, readback.memory, 0,
+				 VK_WHOLE_SIZE, 0, &mapped);
+	voe_render_vk.allocate_command_buffers(gpu->device, &allocate,
+					       &commands);
+	voe_render_vk.begin_command_buffer(commands, &begin);
+	copy_image_to_buffer(commands, frame->target.colour.image,
+			     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			     readback.buffer, 1, &region);
+	voe_render_vk.end_command_buffer(commands);
+	one.commandBuffer = commands;
+	voe_render_vk.queue_submit2(gpu->queue, 1, &submit, VK_NULL_HANDLE);
+	voe_render_vk.device_wait_idle(gpu->device);
+
+	/* Bytes are BGRA. The top-left corner is background in every frame this
+	 * program has ever drawn, so it is the reference rather than a constant
+	 * written down twice. */
+	pixels = (const unsigned char *)mapped;
+	background[0] = pixels[(size_t)(2 * target.width + 2) * 4 + 0];
+	background[1] = pixels[(size_t)(2 * target.width + 2) * 4 + 1];
+	background[2] = pixels[(size_t)(2 * target.width + 2) * 4 + 2];
+
+	for (i = 0; i < bytes; i += 4) {
+		int b = pixels[i + 0];
+		int g = pixels[i + 1];
+		int r = pixels[i + 2];
+
+		if (abs(b - background[0]) > 8 || abs(g - background[1]) > 8 ||
+		    abs(r - background[2]) > 8)
+			different++;
+		if (r > 200 && b > 200 && g < 80)
+			magenta++;
+	}
+
+	if (variant == 0) {
+		int tick_x = (int)(8.5f * per_millimetre);
+		int tick_y = (int)(46.0f * per_millimetre);
+		int plate_x = (int)((mm.x - 29.0f) * per_millimetre);
+		int plate_y = (int)(75.0f * per_millimetre);
+		int bar_y = (int)((mm.y - 1.5f) * per_millimetre);
+		int bar_x = target.width / 2;
+		const unsigned char *tick =
+			pixels + ((size_t)tick_y * target.width + tick_x) * 4;
+		const unsigned char *plate =
+			pixels + ((size_t)plate_y * target.width + plate_x) * 4;
+		const unsigned char *bar =
+			pixels + ((size_t)bar_y * target.width + bar_x) * 4;
+
+		printf("probe      target %dx%d, surface %.1f x %.1f mm, %.3f px/mm\n",
+		       target.width, target.height, (double)mm.x, (double)mm.y,
+		       (double)per_millimetre);
+		printf("probe      transform rows: [%.4f %.4f %.4f %.4f] [%.4f %.4f %.4f %.4f] [%.4f %.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]\n",
+		       (double)m.m[0][0], (double)m.m[0][1], (double)m.m[0][2],
+		       (double)m.m[0][3], (double)m.m[1][0], (double)m.m[1][1],
+		       (double)m.m[1][2], (double)m.m[1][3], (double)m.m[2][0],
+		       (double)m.m[2][1], (double)m.m[2][2], (double)m.m[2][3],
+		       (double)m.m[3][0], (double)m.m[3][1], (double)m.m[3][2],
+		       (double)m.m[3][3]);
+		printf("probe      background rgb %u %u %u; tick %u %u %u; plate %u %u %u; bar %u %u %u\n",
+		       background[2], background[1], background[0], tick[2],
+		       tick[1], tick[0], plate[2], plate[1], plate[0], bar[2],
+		       bar[1], bar[0]);
+	}
+	printf("probe  %u   not background %lu, magenta %lu — %s\n", variant,
+	       different, magenta, probe_names[variant]);
+	if (variant == PROBE_VARIANTS - 1)
+		printf("probe      done — copy every `probe` line above\n");
+	fflush(stdout);
+
+	voe_render_vk.unmap_memory(gpu->device, readback.memory);
+	voe_render_buffer_teardown(gpu, &readback);
+}
+/* =================== end PROBE for bug 002 =================== */
 
 // Scratch for the questions starting the GPU asks the driver — how many cards,
 // which queue families, which surface formats. It is handed over, used and
@@ -585,9 +799,12 @@
 // The orbit: how far out, how high, and how long a lap takes. Three motions that
 // can each be told apart — see the header.
 //
-// THE RADIUS IS WHATEVER FITS WHAT IS IN THE SCENE, and the scene is about nine
-// metres across now that there are two models in it. It has grown twice for that
-// reason and it will again; it decides nothing.
+// THE RADIUS IS WHATEVER FITS WHAT IS IN THE SCENE, and the scene is about six
+// metres across. It has grown twice for that reason and shrank once, when the
+// lettered test model came out and took the left-hand end of the scene with it;
+// the radius was left where it was, so there is more empty space on the left
+// than on the right now. It decides nothing and is a number to change when
+// somebody minds.
 #define ORBIT_RADIUS 7.0f
 #define ORBIT_HEIGHT 1.8f
 #define ORBIT_SECONDS 12.0f
@@ -786,38 +1003,44 @@
 #define SUN_HEIGHT (-0.8f)
 #define SUN_INTENSITY 3.14159265f
 
-// Where each model is put, once, after it is imported. A file places its
+// Where the model is put, once, after it is imported. A file places its
 // contents wherever its author left them — a model should not have an opinion
-// about what else is in the scene — so this is the call site moving each one out
-// of the cubes' way, and it moves them the way anything moves anything: by
+// about what else is in the scene — so this is the call site moving it out of
+// the cubes' way, and it moves it the way anything moves anything: by
 // submitting a transform intent.
-#define LETTERED_X (-3.5f)
 #define HUMAN_X 3.5f
 
-// The picture on the placeholder cubes, embedded at build time.
+// The two pictures on the placeholder cubes, embedded at build time. One each,
+// which is a change from the "F" both of them used to share.
 //
-// IT IS AN "F" BECAUSE AN "F" HAS NO SYMMETRY LEFT TO HIDE BEHIND. A checker
-// board looks right upside down, a mirrored one looks right too, and both are
-// mistakes this engine can make. An F read the wrong way round is obvious across
-// the room. The four corner blocks say which corner is which: red is top-left,
-// green top-right, blue bottom-left, yellow bottom-right.
-static const uint8_t TEXTURE_PNG[] = {
-#embed "texture.png"
+// THEY ARE WRITING, WHICH IS WHAT THE "F" WAS FOR AND IS WHY SWAPPING THEM COSTS
+// NOTHING. A checker board looks right upside down and looks right mirrored, and
+// both are mistakes this engine can make; a word does not. VOE3D read backwards
+// is obvious across the room, and the icon's yellow "3D" badge sits in ONE
+// corner, so which corner is which is still a thing the picture says rather than
+// a thing to take on trust. What went with the old texture is only the four
+// coloured corner blocks, and the writing says the same thing.
+//
+// THE WIDE ONE GOES ON THE WIDE CUBE AND THE SQUARE ONE ON THE CUBE THAT IS NOT
+// SQUASHED, which is worth doing rather than pretty. The logo is 4800 by 2000
+// and the turning cube's front face is CUBE_SCALE_X by CUBE_SCALE_Y, which is
+// nearly the same ratio — so the wordmark reads almost undistorted on the two
+// faces that matter, and is visibly squeezed on the four that are a different
+// shape. That is the texture coordinates doing exactly what they should, and a
+// picture that came out square on a face that is not would be the bug.
+static const uint8_t LOGO_PNG[] = {
+#embed "logo.png"
 };
 
-// Two models, embedded the same way as the picture and for the same reason:
+static const uint8_t APP_ICON_PNG[] = {
+#embed "app icon light.png"
+};
+
+// The model, embedded the same way as the pictures and for the same reason:
 // `platform` has no file API yet, so nothing here opens a file. The card that
-// gives it one is the card that makes these paths.
+// gives it one is the card that makes this path.
 //
-// THE FIRST ONE IS THE ENGINE'S OWN TEST MODEL: one lettered cube with a second,
-// half-sized one as its child, so that the import has a tree to flatten rather
-// than a list to copy — and so that a person can see whether the child ended up
-// where the composition of the two transforms says it should.
-static const uint8_t LETTERED_GLB[] = {
-#embed "model.glb"
-};
-
-// THE SECOND ONE CAME OUT OF BLENDER, WHICH IS THE POINT OF IT. Everything else
+// IT CAME OUT OF BLENDER, WHICH IS THE POINT OF IT. Everything else
 // here was built by this repository and agrees with this repository by
 // construction; this is a file a real exporter wrote, with three primitives
 // sharing one material, an albedo map and an ORM map, both a thousand pixels
@@ -962,22 +1185,64 @@ static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
 	return voe_3d_material_add(world, *out, material);
 }
 
-// The two placeholder cubes: their geometry into the pools, the "F" into a
-// texture slot, one shading record for both of them, and two entities.
+// One embedded picture into a texture slot, and the shading record that wears
+// it. Both cubes want the same material but for the picture, so the material is
+// built here once and the caller says which bytes.
+//
+// THE PICTURE ARRIVES THE WAY THE SHADERS DO: `#embed`ded at build time, which
+// is what keeps "nothing is read from disk at run time" true. The decoded pixels
+// are scratch — `render` has taken its own copy by the time the upload returns —
+// so the arena goes back on every path out, the failing ones included.
+static bool textured_material(voe_render_device *gpu, voe_base_arena *arena,
+			      const uint8_t *png, size_t size,
+			      voe_3d_material *out, voe_base_error *error)
+{
+	voe_render_texture texture = { 0 };
+	voe_assets_image picture;
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	bool ok;
+
+	*out = (voe_3d_material){
+		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+		.metallic = 0.0f,
+		.roughness = 0.8f,
+	};
+
+	ok = voe_assets_png_decode(png, size, arena, &picture, error);
+	// AND THEN HALVED UNTIL IT IS A SENSIBLE SIZE, WHICH IS dev's OWN DOING
+	// AND NOT THE ENGINE'S. The two pictures here are far bigger than any
+	// face they land on, and this engine samples one level with no mip
+	// chain, so the level the file happened to ship is the level that gets
+	// sampled. src/shrink.h is the whole argument, including why this is
+	// not mipmapping and what it does not fix.
+	if (ok)
+		voe_dev_image_shrink(&picture, VOE_DEV_SHRINK_LONG_SIDE);
+	// A colour, so it goes up in the sRGB format and the hardware decodes it
+	// before the shading multiplies by it. An ORM map would be the other kind
+	// — see voe_render_texture_kind.
+	if (ok)
+		ok = voe_render_texture_create(gpu, VOE_RENDER_TEXTURE_COLOUR,
+					       VOE_RENDER_SAMPLING_SMOOTH,
+					       picture.width, picture.height,
+					       picture.pixels, &texture, error);
+	voe_base_arena_rewind(arena, mark);
+	if (!ok)
+		return false;
+
+	out->base_colour_texture = texture;
+	return voe_3d_material_upload(gpu, out, error);
+}
+
+// The two placeholder cubes: their geometry into the pools, a picture each into
+// a texture slot, a shading record each, and two entities.
 static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 			  voe_base_arena *arena, voe_ecs_entity *turning,
 			  voe_base_error *error)
 {
 	voe_render_geometry geometry = { 0 };
-	voe_render_texture texture = { 0 };
-	voe_3d_material material = {
-		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
-		.metallic = 0.0f,
-		.roughness = 0.8f,
-	};
-	voe_assets_image picture;
+	voe_3d_material icon;
+	voe_3d_material logo;
 	voe_ecs_entity still = { 0 };
-	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 
 	if (!voe_render_geometry_create(gpu, voe_dev_cube_vertices,
 					VOE_DEV_CUBE_VERTEX_COUNT,
@@ -986,36 +1251,23 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 					error))
 		return false;
 
-	// The picture arrives the way the shaders do: `#embed`ded at build time,
-	// which is also what keeps "nothing is read from disk at run time" true.
-	// The decoded pixels are scratch — `render` has taken its own copy by
-	// the time the upload returns — so the arena goes back afterwards.
-	if (!voe_assets_png_decode(TEXTURE_PNG, sizeof(TEXTURE_PNG), arena,
-				   &picture, error))
+	if (!textured_material(gpu, arena, APP_ICON_PNG, sizeof APP_ICON_PNG,
+			       &icon, error))
 		return false;
-	// A colour, so it goes up in the sRGB format and the hardware decodes it
-	// before the shading multiplies by it. An ORM map would be the other kind
-	// — see voe_render_texture_kind.
-	if (!voe_render_texture_create(gpu, VOE_RENDER_TEXTURE_COLOUR,
-				       VOE_RENDER_SAMPLING_SMOOTH,
-				       picture.width, picture.height,
-				       picture.pixels, &texture, error)) {
-		voe_base_arena_rewind(arena, mark);
-		return false;
-	}
-	voe_base_arena_rewind(arena, mark);
-
-	material.base_colour_texture = texture;
-	if (!voe_3d_material_upload(gpu, &material, error))
+	if (!textured_material(gpu, arena, LOGO_PNG, sizeof LOGO_PNG, &logo,
+			       error))
 		return false;
 
-	// One record and one texture id, two entities: sharing a material is
-	// two components holding the same numbers. The second one is squashed,
-	// which is what makes the normal matrix visible — see the header.
-	return add_cube(world, geometry, material,
+	// ONE GEOMETRY, TWO SHADING RECORDS, TWO ENTITIES, AND THE PAIR IS WORTH
+	// MORE THAN THE ONE RECORD IT REPLACED. Both cubes are the same
+	// twenty-four vertices; what differs is a texture id in a shading
+	// record, so this is also the smallest demonstration in the program
+	// that one mesh can be worn two ways. The second one is squashed, which
+	// is what makes the normal matrix visible — see the header.
+	return add_cube(world, geometry, icon,
 			(voe_math_float3){ 0.0f, 0.0f, 0.0f },
 			(voe_math_float3){ 1.0f, 1.0f, 1.0f }, &still) &&
-	       add_cube(world, geometry, material,
+	       add_cube(world, geometry, logo,
 			(voe_math_float3){ CUBES_APART, 0.0f, 0.0f },
 			(voe_math_float3){ CUBE_SCALE_X, CUBE_SCALE_Y,
 					   CUBE_SCALE_Z },
@@ -1974,6 +2226,8 @@ int main(void)
 	voe_render_geometry quad = { 0 };
 	voe_dev_sprites sprites = { 0 };
 	voe_text_font *font = NULL;
+	voe_ui_context *interface = NULL;
+	uint32_t interface_elements = 0;
 	voe_math_float2 hud_size = { 0.0f, 0.0f };
 	voe_math_float3 spin_axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
 	voe_render_capacities capacities = {
@@ -1987,10 +2241,13 @@ int main(void)
 		.transient_geometries = MAX_TRANSIENT_GEOMETRIES,
 		// Everything every surface in the frame submits, into the one
 		// buffer: the exhibit, the badge and the screen-filling
-		// surface. Three ranges of it, and no "to be safe" headroom —
-		// each of the three asserts against its own number.
+		// surface. Four ranges of it now — the interface is the
+		// fourth, and its number is the only one of the four that is a
+		// ceiling rather than a count, because `ui` emits one record
+		// per letter of whatever the labels happen to say.
 		.elements = VOE_DEV_ELEMENTS + VOE_DEV_BADGE_ELEMENTS +
-			    VOE_DEV_SURFACE_ELEMENTS,
+			    VOE_DEV_SURFACE_ELEMENTS +
+			    VOE_DEV_INTERFACE_ELEMENTS + PROBE_SPARE,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -2121,6 +2378,11 @@ int main(void)
 		goto stop;
 	}
 
+	// The interface, which needs the font and so cannot be made before it.
+	// It is the context and nothing else — what is on the interface is
+	// built afresh every frame inside the loop.
+	interface = voe_dev_interface_new(arena, font);
+
 	// The two panels. Nothing is on them yet: what a panel holds is a range
 	// of the frame that is open, and no frame is open until the loop starts.
 	if (!add_panel(world,
@@ -2138,15 +2400,10 @@ int main(void)
 		goto stop;
 	}
 
-	// A model is the one thing here that is allowed to fail without stopping
-	// the program: the cubes are what says the renderer works, and a person
-	// looking at a window is better served by seeing them and a message than
-	// by seeing nothing. Each one is tried on its own, so a file that cannot
-	// be read does not take the other one with it.
-	if (!add_a_model(world, gpu, arena, "lettered", LETTERED_GLB,
-			 sizeof(LETTERED_GLB), LETTERED_X, &error))
-		fprintf(stderr, "could not read the lettered model: %s\n",
-			voe_base_error_string(error));
+	// The model is the one thing here that is allowed to fail without
+	// stopping the program: the cubes are what says the renderer works, and
+	// a person looking at a window is better served by seeing them and a
+	// message than by seeing nothing.
 	if (!add_a_model(world, gpu, arena, "human", HUMAN_GLB,
 			 sizeof(HUMAN_GLB), HUMAN_X, &error))
 		fprintf(stderr, "could not read the human model: %s\n",
@@ -2179,6 +2436,7 @@ int main(void)
 
 	while (!voe_platform_window_should_close(window)) {
 		voe_platform_size now_size;
+		const struct voe_render_frame *probe_frame; /* PROBE */
 		bool now_decorated;
 		bool now_locked;
 		bool tab_down;
@@ -2387,6 +2645,7 @@ int main(void)
 		// the three in the middle and the loop comes round again — it
 		// does not wait, which is what the spin on a minimised window is.
 		frame = voe_3d_draw_system_frame(world, now_size);
+		probe_frame = voe_render_frame_current(gpu); /* PROBE */
 		if (!voe_render_frame_begin(gpu, now_size, frame.view,
 					    frame.light, &drawing)) {
 			fprintf(stderr, "the GPU stopped answering\n");
@@ -2455,9 +2714,47 @@ int main(void)
 			elements_ok = voe_dev_surface_draw(gpu, now_size) &&
 				      elements_ok;
 
+			// And the interface, on the same terms and for the
+			// same reasons: it is not in the world either. It goes
+			// after the surface so that it is painted over it,
+			// which is what submission order means on this path.
+			elements_ok = voe_dev_interface_draw(
+					      gpu, interface, arena, now_size,
+					      voe_platform_input_pointer(window),
+					      voe_platform_input_button_down(
+						      window,
+						      VOE_PLATFORM_BUTTON_LEFT),
+					      &interface_elements) &&
+				      elements_ok;
+
+			/* PROBE (bug 002) */
+			{
+				static unsigned probe_frames;
+				unsigned variant = probe_frames -
+						   PROBE_FIRST_FRAME;
+
+				if (probe_frames >= PROBE_FIRST_FRAME &&
+				    variant < PROBE_VARIANTS)
+					probe_draw(gpu, now_size, variant);
+				probe_frames++;
+			}
+
 			if (!voe_render_frame_end(gpu)) {
 				fprintf(stderr, "the GPU stopped answering\n");
 				break;
+			}
+
+			/* PROBE (bug 002) */
+			{
+				static unsigned probe_reports;
+				unsigned variant = probe_reports -
+						   PROBE_FIRST_FRAME;
+
+				if (probe_reports >= PROBE_FIRST_FRAME &&
+				    variant < PROBE_VARIANTS)
+					probe_report(gpu, probe_frame, now_size,
+						     variant);
+				probe_reports++;
 			}
 
 			// THE FRAME IS COMPLETE, SO THIS IS THE ONE MOMENT
@@ -2523,6 +2820,8 @@ int main(void)
 				//
 				// The walk's own cost is printed beside it,
 				// which is every mesh plus one per panel.
+				printf("interface  %u element records for a panel, a heading and two buttons, in ONE draw command\n",
+				       interface_elements);
 				printf("elements   %u rectangles of %u colours and %u letters on the world panel, %u on the badge, %u on the screen-filling surface\n",
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,

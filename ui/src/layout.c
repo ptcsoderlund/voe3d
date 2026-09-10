@@ -51,7 +51,15 @@
 // PADDING IS SUBTRACTED IN ONE PLACE, IN ARRANGE, AND ADDED IN ONE PLACE, IN
 // MEASURE. Counting it twice is the classic off-by-pad and the only guard
 // against it is that there is one line each way.
-#include <ui/layout.h>
+//
+// THE TREE AND THE CONTEXT ARE DECLARED IN src/context.h AND NOT HERE, because
+// widgets.c is the other half of the same frame and reads the same rectangles.
+// This file still owns every one of the layout fields and writes all of them;
+// what it does not own it does not touch. The two calls it makes into widgets.c
+// are at the bottom of context.h, and both are at frame boundaries: a widget
+// pass that ran anywhere but after arrange would be testing a click against
+// rectangles that do not exist yet.
+#include "context.h"
 
 #include <base/assert.h>
 
@@ -72,57 +80,6 @@ static void axis_set(voe_math_float2 *v, bool y, float value)
 	else
 		v->x = value;
 }
-
-struct node {
-	uint32_t first_child;
-	uint32_t last_child;
-	uint32_t next_sibling;
-	uint32_t children;
-
-	bool leaf;
-	// A container's direction. Unused on a leaf.
-	bool row;
-
-	// What the caller declared.
-	voe_ui_sizing size;
-	voe_math_float2 content;
-	voe_ui_along along;
-	voe_ui_across across;
-	float gap;
-	float pad;
-
-	// What measure came to: this node's own content, in the panel's axes.
-	voe_math_float2 content_natural;
-	// What its parent made of that, in the panel's axes.
-	voe_math_float2 natural;
-	// What arrange came to.
-	voe_ui_rect rect;
-};
-
-enum frame_state {
-	NOT_IN_FRAME = 0,
-	BUILDING,
-	LAID_OUT,
-};
-
-struct voe_ui_context {
-	voe_ui_capacities capacities;
-
-	// This frame's, all of it out of the arena frame_begin was handed.
-	struct node *nodes;
-	// The containers begun and not yet ended, innermost last.
-	uint32_t *open;
-
-	uint32_t count;
-	uint32_t depth;
-	// Begins refused for want of a node, still to be ended. They are counted
-	// rather than pushed, so that a refused frame stays balanced and the
-	// caller never has to check a handle before ending it.
-	uint32_t refused;
-
-	bool overrun;
-	enum frame_state state;
-};
 
 // `grow_refused` is the message for a grow that is not allowed on this axis, and
 // NULL where one is. Across the flow, and at the root, there is nothing to grow
@@ -159,7 +116,7 @@ static void check_sizing(voe_ui_sizing sizing, const char *grow_refused_along)
 // and once per frame.
 static uint32_t node_push(voe_ui_context *ui)
 {
-	struct node *n;
+	struct voe_ui_node_record *n;
 	uint32_t index;
 
 	if (ui->count == ui->capacities.nodes) {
@@ -180,7 +137,8 @@ static uint32_t node_push(voe_ui_context *ui)
 	n->children = 0;
 
 	if (ui->depth > 0) {
-		struct node *parent = &ui->nodes[ui->open[ui->depth - 1]];
+		struct voe_ui_node_record *parent =
+			&ui->nodes[ui->open[ui->depth - 1]];
 
 		if (parent->last_child == VOE_UI_NODE_NONE)
 			parent->first_child = index;
@@ -208,7 +166,7 @@ static float declared(voe_ui_size size, float natural)
 	return natural;
 }
 
-static void measure_natural(struct node *n, bool y_along)
+static void measure_natural(struct voe_ui_node_record *n, bool y_along)
 {
 	axis_set(&n->natural, y_along,
 		 declared(n->size.along, axis(n->content_natural, y_along)));
@@ -219,9 +177,9 @@ static void measure_natural(struct node *n, bool y_along)
 // Summed along the flow with the gaps, the largest across, and the padding on
 // both edges of each. Its children are already measured: they sit at higher
 // indices and the sweep runs backwards.
-static void measure_container(struct node *nodes, uint32_t index)
+static void measure_container(struct voe_ui_node_record *nodes, uint32_t index)
 {
-	struct node *c = &nodes[index];
+	struct voe_ui_node_record *c = &nodes[index];
 	bool y = !c->row;
 	float along = 0.0f;
 	float across = 0.0f;
@@ -229,7 +187,7 @@ static void measure_container(struct node *nodes, uint32_t index)
 
 	for (child = c->first_child; child != VOE_UI_NODE_NONE;
 	     child = nodes[child].next_sibling) {
-		struct node *n = &nodes[child];
+		struct voe_ui_node_record *n = &nodes[child];
 
 		measure_natural(n, y);
 		along += axis(n->natural, y);
@@ -244,7 +202,7 @@ static void measure_container(struct node *nodes, uint32_t index)
 	axis_set(&c->content_natural, !y, across + 2.0f * c->pad);
 }
 
-static void measure(struct node *nodes, uint32_t count)
+static void measure(struct voe_ui_node_record *nodes, uint32_t count)
 {
 	uint32_t i = count;
 
@@ -256,7 +214,7 @@ static void measure(struct node *nodes, uint32_t count)
 	}
 }
 
-static float along_size(const struct node *n, bool y, float share)
+static float along_size(const struct voe_ui_node_record *n, bool y, float share)
 {
 	if (n->size.along.kind == VOE_UI_SIZE_GROW)
 		return n->size.along.value * share;
@@ -264,9 +222,9 @@ static float along_size(const struct node *n, bool y, float share)
 }
 
 // The container's rectangle is already known; this hands every child of it one.
-static void arrange_children(struct node *nodes, uint32_t index)
+static void arrange_children(struct voe_ui_node_record *nodes, uint32_t index)
 {
-	struct node *c = &nodes[index];
+	struct voe_ui_node_record *c = &nodes[index];
 	bool y = !c->row;
 	float inner_along = axis(c->rect.size, y) - 2.0f * c->pad;
 	float inner_across = axis(c->rect.size, !y) - 2.0f * c->pad;
@@ -288,7 +246,7 @@ static void arrange_children(struct node *nodes, uint32_t index)
 
 	for (child = c->first_child; child != VOE_UI_NODE_NONE;
 	     child = nodes[child].next_sibling) {
-		struct node *n = &nodes[child];
+		struct voe_ui_node_record *n = &nodes[child];
 
 		if (n->size.along.kind == VOE_UI_SIZE_GROW)
 			weight += n->size.along.value;
@@ -309,7 +267,7 @@ static void arrange_children(struct node *nodes, uint32_t index)
 	used = taken + gaps;
 	for (child = c->first_child; child != VOE_UI_NODE_NONE;
 	     child = nodes[child].next_sibling) {
-		struct node *n = &nodes[child];
+		struct voe_ui_node_record *n = &nodes[child];
 
 		if (n->size.along.kind == VOE_UI_SIZE_GROW)
 			used += along_size(n, y, share);
@@ -338,7 +296,7 @@ static void arrange_children(struct node *nodes, uint32_t index)
 
 	for (child = c->first_child; child != VOE_UI_NODE_NONE;
 	     child = nodes[child].next_sibling) {
-		struct node *n = &nodes[child];
+		struct voe_ui_node_record *n = &nodes[child];
 		float size_along = along_size(n, y, share);
 		float size_across;
 		float offset_across = 0.0f;
@@ -375,7 +333,7 @@ static void arrange_children(struct node *nodes, uint32_t index)
 	}
 }
 
-static void arrange(struct node *nodes, uint32_t count)
+static void arrange(struct voe_ui_node_record *nodes, uint32_t count)
 {
 	uint32_t i;
 
@@ -396,6 +354,8 @@ voe_ui_context *voe_ui_context_new(voe_base_arena *arena,
 
 	ui = voe_base_arena_push(arena, sizeof(*ui));
 	ui->capacities = capacities;
+	// The one field that is not nought to begin with. See widgets.h.
+	ui->text_scale = 1.0f;
 
 	return ui;
 }
@@ -404,7 +364,7 @@ void voe_ui_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 {
 	VOE_BASE_ASSERT(ui != NULL, "beginning a frame on no context");
 	VOE_BASE_ASSERT(arena != NULL, "beginning a frame without an arena");
-	VOE_BASE_ASSERT(ui->state != BUILDING,
+	VOE_BASE_ASSERT(ui->state != VOE_UI_BUILDING,
 			"beginning a frame inside another one");
 
 	// One push per array, never a push per node: two pushes are not
@@ -420,17 +380,19 @@ void voe_ui_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 	ui->depth = 0;
 	ui->refused = 0;
 	ui->overrun = false;
-	ui->state = BUILDING;
+	ui->state = VOE_UI_BUILDING;
+
+	voe_ui_widgets_frame_begin(ui, arena);
 }
 
 static voe_ui_node container_begin(voe_ui_context *ui,
 				   voe_ui_container container, bool row)
 {
-	struct node *n;
+	struct voe_ui_node_record *n;
 	uint32_t index;
 
 	VOE_BASE_ASSERT(ui != NULL, "beginning a container on no context");
-	VOE_BASE_ASSERT(ui->state == BUILDING,
+	VOE_BASE_ASSERT(ui->state == VOE_UI_BUILDING,
 			"beginning a container outside a frame");
 	VOE_BASE_ASSERT(ui->depth > 0 || ui->refused > 0 || ui->count == 0,
 			"one root per frame; a second container at the top of "
@@ -477,7 +439,7 @@ voe_ui_node voe_ui_column_begin(voe_ui_context *ui, voe_ui_container container)
 void voe_ui_end(voe_ui_context *ui)
 {
 	VOE_BASE_ASSERT(ui != NULL, "ending a container on no context");
-	VOE_BASE_ASSERT(ui->state == BUILDING,
+	VOE_BASE_ASSERT(ui->state == VOE_UI_BUILDING,
 			"ending a container outside a frame");
 	VOE_BASE_ASSERT(ui->depth > 0 || ui->refused > 0,
 			"ending a container that was never begun");
@@ -494,11 +456,12 @@ void voe_ui_end(voe_ui_context *ui)
 voe_ui_node voe_ui_box(voe_ui_context *ui, voe_math_float2 content,
 		       voe_ui_sizing sizing)
 {
-	struct node *n;
+	struct voe_ui_node_record *n;
 	uint32_t index;
 
 	VOE_BASE_ASSERT(ui != NULL, "adding a box to no context");
-	VOE_BASE_ASSERT(ui->state == BUILDING, "adding a box outside a frame");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_BUILDING,
+			"adding a box outside a frame");
 	VOE_BASE_ASSERT(ui->depth > 0 || ui->refused > 0,
 			"a box cannot be the root; the root is a row or a "
 			"column and a box goes inside one");
@@ -525,40 +488,57 @@ voe_ui_node voe_ui_box(voe_ui_context *ui, voe_math_float2 content,
 
 bool voe_ui_frame_end(voe_ui_context *ui)
 {
-	struct node *root;
+	struct voe_ui_node_record *root;
+	bool ok;
 
 	VOE_BASE_ASSERT(ui != NULL, "ending a frame on no context");
-	VOE_BASE_ASSERT(ui->state == BUILDING, "ending a frame that was not begun");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_BUILDING,
+			"ending a frame that was not begun");
 	VOE_BASE_ASSERT(ui->depth == 0 && ui->refused == 0,
 			"a container was begun and not ended");
 
-	ui->state = LAID_OUT;
+	ui->state = VOE_UI_LAID_OUT;
 
-	if (ui->overrun)
-		return false;
 	// A frame that declared nothing is not a failure: a program with no
-	// interface on screen this frame builds no tree.
-	if (ui->count == 0)
-		return true;
+	// interface on screen this frame builds no tree. It still goes through
+	// the widget pass, because letting go of a held button is something a
+	// frame with nothing in it has to do.
+	ok = !ui->overrun && !ui->collision;
+	if (ok && ui->count > 0) {
+		measure(ui->nodes, ui->count);
 
-	measure(ui->nodes, ui->count);
+		// The root is measured against its own flow, because it has no
+		// parent whose flow to be measured against, and it sits at the
+		// origin.
+		root = &ui->nodes[0];
+		measure_natural(root, !root->row);
+		root->rect.min = (voe_math_float2){ 0.0f, 0.0f };
+		root->rect.size = root->natural;
 
-	// The root is measured against its own flow, because it has no parent
-	// whose flow to be measured against, and it sits at the origin.
-	root = &ui->nodes[0];
-	measure_natural(root, !root->row);
-	root->rect.min = (voe_math_float2){ 0.0f, 0.0f };
-	root->rect.size = root->natural;
+		arrange(ui->nodes, ui->count);
+	}
 
-	arrange(ui->nodes, ui->count);
+	voe_ui_widgets_frame_end(ui, ok);
 
-	return true;
+	// Emission is the last thing that can want more than it was given, and
+	// it happens inside this call, so it is answered by this call.
+	return ok && !ui->element_overrun;
+}
+
+uint32_t voe_ui_paint_order(const voe_ui_context *ui, uint32_t position)
+{
+	VOE_BASE_ASSERT(position < ui->count,
+			"asking layout for a position past the tree");
+
+	// Identity, today, and the accessor's header in context.h says why it is
+	// an accessor anyway.
+	return position;
 }
 
 voe_ui_rect voe_ui_node_rect(const voe_ui_context *ui, voe_ui_node node)
 {
 	VOE_BASE_ASSERT(ui != NULL, "reading a rectangle from no context");
-	VOE_BASE_ASSERT(ui->state == LAID_OUT,
+	VOE_BASE_ASSERT(ui->state == VOE_UI_LAID_OUT,
 			"reading a rectangle before the frame has ended");
 	VOE_BASE_ASSERT(node != VOE_UI_NODE_NONE,
 			"reading a rectangle through a node the frame had no "

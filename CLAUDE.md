@@ -236,6 +236,9 @@ Standalone configuration is a property `check.cmake` proves, not a workflow.
 shaped by `kanban/CARD-TEMPLATE.md`. Set `claimed-by:` before starting — there
 is no in-progress bucket, so that field is the only claim signal.
 
+**`kanban/bugs/` is beside that flow and is not part of it.** It is an unordered
+inbox of reports; nothing is ever claimed from it. See *Bugs* below.
+
 Cards arrive in `todo/` already decided. Implement what the card says; a card
 that is unclear is asked about, not guessed at. `cmake -P check.cmake` exits
 zero before the card moves to `review/`.
@@ -244,10 +247,73 @@ zero before the card moves to `review/`.
 and one operating system on it at a time, so a card is not held in `review/`
 waiting for the other platform. `check.cmake` green on the platform in front of
 you, and the card moves to `complete/`; the other platform is checked whenever
-that machine is next booted, and what it turns up becomes a new card rather than
-reopening the old one. A card's notes say which platform it was verified on and
-what could not be checked there, because that note is what the bug report is
-written against later.
+that machine is next booted, and **what it turns up becomes a bug report rather
+than reopening the old card** (ADR-0108 — a card would be undecided work on the
+board; earlier wording here said *a new card* and was corrected 2026-09-10). A
+card's notes say which platform it was verified on and what could not be checked
+there, because that note is what the bug report is written against later.
+
+## Bugs
+
+**`kanban/bugs/`, one report per file, `NNN-slug.md`, screenshots beside it under
+the same number.** ADR-0108 and ADR-0109; `bugs/001-element-surface-blank-on-windows.md`
+is the worked example of a finished report.
+
+**It is an unordered inbox and anyone may report into it** — you, the principal, an
+end user. Numbers are arrival order and mean nothing else. **The order things get
+fixed lives in `todo/` alone.** A long inbox is healthy.
+
+**Reporting costs almost nothing.** What happened in the reporter's own words, who
+saw it and when, whatever they already have. A one-paragraph complaint with a
+screenshot is a valid report; no headings and no counts are required at intake.
+
+**Investigating is where the shape comes from.** Pick a `new` report up, reproduce
+it or fail to, and grow that same file — same number — into: what happens, what
+should happen, **evidence the code actually ran** (counts, so a fault is not
+mistaken for a stale build), where it isolates to, the suspect **labelled a
+hypothesis**, the one-line experiment that would settle it, why it was not caught
+before, every platform tried **including the ones where it does not reproduce**, and
+notes on anything that looks like the fault and is not. Severity is a sentence that
+also says what is **un**affected. **Keep the reporter's words verbatim** — never
+paraphrase a complaint away.
+
+`status:` is `new` → `investigated` → `card NNN` → `closed`, plus `not a bug` with
+the reason. `could not reproduce` is a real resting place, written as a finding with
+what you tried.
+
+**The inbox holds only reports awaiting a decision (ADR-0110).** A report moves to
+`bugs/archive/` the moment it becomes work — cards exist naming it — or is finished
+without work. The move **reverses** if that card is abandoned. Moving it is the tech
+lead's act or the principal's, not yours.
+
+**The whole loop:** anyone reports → `bugs/` → the tech lead decides → cards in
+`todo/` naming the report, and the report is archived in the same act → then it is
+the ordinary flow, `todo/` → `review/` → `complete/`. **You only ever meet a bug from
+one of two ends: you file a report, or you implement a card that names one.**
+
+**Three rules bind harder than the shape:**
+
+1. **Never work out of `bugs/`.** A decided fix is a card in `todo/` naming the
+   report. If a fault has an obvious one-line fix, that is still a card.
+2. **A report does not fix the bug.** Investigate as deep as you like and **stop at
+   the edit** when the fix would change a settled decision, cross a folder your card
+   did not name, or is not obviously the only candidate. Report 001 found its suspect
+   line, left it alone, and said why — copy that. **An edit that survives the session
+   is a fix and needs a card**; a probe you revert before reporting is investigation.
+3. **Reporting is not limited to a bare complaint, and investigating needs no card
+   when you have already tripped over the fault.** Report 001 matched counts across
+   two platforms, measured nine pixels and named a one-line experiment. That is
+   wanted. What needs a card is digging into a fault **somebody else** reported —
+   an *investigation card*, whose deliverable is the finding and not a fix, and which
+   may honourably conclude *not a bug* or *cannot reproduce*.
+
+**Say which cards a report does *not* impeach.** A fault found while working a card
+otherwise reads as that card's failure.
+
+**And know what green means here: Linux checking runs on a software rasteriser.**
+`check.cmake` exiting zero cannot see how a real driver treats a clip boundary or a
+precision edge. **An unreproducible report from somebody's real driver is worth more
+than a reproducible one from ours** and is never closed for being inconvenient.
 
 ## Status
 

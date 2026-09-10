@@ -221,6 +221,47 @@ voe_text_glyph voe_text_font_glyph(const voe_text_font *font,
 // path uses the same number.
 float voe_text_font_line_height(const voe_text_font *font);
 
+// How much room a whole string takes, for a caller that has to know before it
+// places anything. The convenience over voe_text_font_glyph and nothing more:
+// this walks the string with the same decoder and the same advances a caller
+// would, and hands back what they add up to.
+//
+// IN EMS, LIKE EVERY OTHER NUMBER THIS FOLDER PRODUCES, so a caller multiplies
+// by its own millimetres-per-em or metres-per-em once and that multiplication is
+// the only place a size becomes a size. Which is what makes a label measured
+// from the font in hand rather than a number somebody typed: change the font and
+// every label changes with it, because there is no table of advances anywhere
+// above this call.
+//
+// `size` IS THE SAME BOX voe_text_block.size REPORTS, deliberately — the widest
+// line's advance, and one line height for every line. The two paths measure the
+// same string the same way or a caller comparing them finds them disagreeing.
+typedef struct {
+	// The widest line's advance, and the height from the top of the first
+	// line to the bottom of the last. A string with nothing in it is nought
+	// wide and one line high, because an empty label still occupies a line.
+	voe_math_float2 size;
+	// How far BELOW the top of that box the first line's baseline sits,
+	// which is the font's own ascender.
+	//
+	// IT IS HERE BECAUSE THE BOX IS NOT WHERE A CALLER PUTS THE PEN. Every
+	// other number in this folder is relative to a baseline, and a surface
+	// laying text out has a rectangle instead — so somebody has to say how
+	// the two line up, and the font is what knows. Add it to the top edge of
+	// the rectangle, going DOWN if the surface runs y down, and that is the
+	// baseline the glyph boxes are measured from.
+	//
+	// The rest of the line height — the descender and the line gap — is
+	// below it, so a descender falls inside the box rather than under it.
+	float baseline;
+} voe_text_measure;
+
+// Never fails: every character is either in the atlas or is the missing-glyph
+// box, and there is nothing here the world can refuse. A newline starts a line,
+// exactly as the mesh path's layout does.
+voe_text_measure voe_text_font_measure(const voe_text_font *font,
+				       const char *utf8);
+
 // Lays the string out and uploads it as one mesh. `em` is how many metres one em
 // is, which is the one place a font's units become the world's; a capital letter
 // comes out around seven tenths of it.

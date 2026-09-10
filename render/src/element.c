@@ -457,7 +457,8 @@ voe_math_float4x4 voe_render_element_surface_matrix(voe_math_float2 size)
 voe_math_float4x4 voe_render_element_transform(voe_math_float2 size)
 {
 	// The surface's own metres onto the whole target: half its width in
-	// metres to one, half its height to one, and the near plane for z.
+	// metres to one, half its height to one, and just inside the near plane
+	// for z.
 	voe_math_float4x4 onto_the_target = { 0 };
 
 	// A reciprocal of nothing is what would reach the shader, and the
@@ -475,11 +476,46 @@ voe_math_float4x4 voe_render_element_transform(voe_math_float2 size)
 	onto_the_target.m[0][0] = 2.0f / (size.x * METRES_PER_MILLIMETRE);
 	onto_the_target.m[1][1] = 2.0f / (size.y * METRES_PER_MILLIMETRE);
 
-	// Z: THE NEAR PLANE, WHICH IS 1.0 BECAUSE DEPTH RUNS BACKWARDS HERE. The
-	// test is GREATER, so an element is in front of anything already drawn.
-	// It is a constant and not a function of the input, because a surface
-	// filling the target has no depth of its own to keep.
-	onto_the_target.m[2][3] = 1.0f;
+	// Z: JUST INSIDE THE NEAR PLANE, AND DELIBERATELY NOT ON IT. Depth runs
+	// backwards here, so 1.0 is the near plane and a smaller number is
+	// further from the eye; the test is GREATER, so this still passes in
+	// front of everything the camera can see. It is a constant and not a
+	// function of the input, because a surface filling the target has no
+	// depth of its own to keep.
+	//
+	// IT IS NOT 1.0, AND PUTTING IT BACK IS BUG 001 AGAIN. At exactly 1.0
+	// every vertex of this surface leaves here with z bit-exactly equal to
+	// w, standing on the near clip boundary. Vulkan's view volume is
+	// 0 <= z <= w *inclusive*, so a conformant implementation keeps it — but
+	// it is the one position in a whole continuum of valid ones where two
+	// implementations may legitimately disagree, and one of them threw the
+	// whole surface away: nothing mapped onto the window reached the screen,
+	// while the same records drew perfectly through the same pipeline on
+	// another driver. Standing on the boundary buys nothing; ADR-0111 moved
+	// it off, and tests/elements.c asserts z < w strictly so that this
+	// cannot be tidied back.
+	//
+	// AND IT IS 0.9999 RATHER THAN A ROUNDER RETREAT, BECAUSE WHAT STANDING
+	// BACK COSTS IS BEING OCCLUDABLE. This depth is fixed, so how much room
+	// it leaves in front of itself is the caller's camera's business:
+	// reverse-Z with a finite far plane gives d = (n/(f - n)) * (f/z - 1),
+	// which inverts to z = f / (1 + d * (f - n) / n) — the world distance at
+	// which geometry starts drawing over the overlay. At the dev camera's
+	// n = 0.1 m, f = 100 m:
+	//
+	//     0.9999 -> 0.100010 m, a shell 0.01 mm deep
+	//     0.999  -> 0.1001 m,   a shell 0.1 mm deep
+	//     0.9    -> 0.1111 m,   a shell 11 mm deep
+	//
+	// That distance is where the shell of world in front of the overlay
+	// begins, and it is the whole cost of the retreat. A shell a hundredth
+	// of a millimetre deep, right at the front of the view volume, is not
+	// somewhere an object ends up by accident; eleven millimetres is a gap
+	// an ordinary object walks into, and an interface disappearing behind
+	// the scenery is the same complaint as bug 001 with a different cause.
+	// So: off the boundary by as little as still says something in a float,
+	// and no further.
+	onto_the_target.m[2][3] = 0.9999f;
 
 	// W: one, so the division the rasteriser does changes nothing. A surface
 	// filling the target is not projected — it is a flat sheet, and a

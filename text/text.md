@@ -17,7 +17,11 @@ only `render`. Not layout onto a surface either: that is `ui`'s.
   paths and why a third would be wrong, that everything is in ems with +y up and
   who turns that round, why the box is a low-and-high pair while the sheet
   rectangle is a corner and a size, and where the two Y directions are
-  reconciled.
+  reconciled, and what a whole string's measurement is for and why it carries a
+  baseline beside a size.
+- `include/text/utf8.h` — one character at a time. Its header says why a caller
+  placing characters itself has to walk a string with this and not with a byte
+  loop, why it never stands still, and which three encodings it refuses.
 - `fonts/` — Oxanium Regular and the licence it travels under. Neither file is
   renamed and neither is modified.
 - `src/truetype.h` — the file format, read. Its header says which seven tables
@@ -36,8 +40,6 @@ only `render`. Not layout onto a surface either: that is `ui`'s.
 - `src/raster.c` — the flattening, the scanline crossings and the spans, then the
   edge colouring and the distance loop. Its header says why the outline is walked
   twice and what the two halves share.
-- `src/utf8.h` — one character at a time. Its header says why it never stands
-  still and which three encodings it refuses.
 - `src/utf8.c` — the decoder.
 - `src/font.c` — the sheet built once, the glyph table both creates and the
   public metrics read, and the one layout both creates share. Its header

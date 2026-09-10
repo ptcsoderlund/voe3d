@@ -1,5 +1,5 @@
 // The decoder. See utf8.h for what it refuses and why it always advances.
-#include "utf8.h"
+#include <text/utf8.h>
 
 #include <base/assert.h>
 

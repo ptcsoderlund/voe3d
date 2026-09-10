@@ -1,17 +1,18 @@
 # dev
 
 The one program a person runs to see what the engine can currently do. Today
-that is a window holding a world: two models read out of `.glb` files, two cubes
+that is a window holding a world: a model read out of a `.glb` file, two cubes
 placed by hand, two see-through quads either side of them, a dozen sprites off a
 sheet built in code, a lettered sign standing above them, a line of writing
 locked to the camera, a panel of forty coloured rectangles and two lines of
 writing standing among them, a small badge above them that nothing covers, a
-plate and a row of ticks mapped onto the window itself,
+plate and a row of ticks mapped onto the window itself, an interface with a
+heading and two buttons on it that answer the mouse,
 one sun going round it all, and a camera that either orbits them or is flown
 with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
 
-- `src/main.c` — opens a window and a device, builds a world, reads both models
+- `src/main.c` — opens a window and a device, builds a world, reads the model
   into it, and runs the systems and the draw every frame until it closes. Its
   header is the list of things to look at in both camera modes, what each of them
   fails like — the lighting's and the blending's own failures included — and the
@@ -59,6 +60,15 @@ states and not a test — it is looked at, not asserted on.
   wrong premultiply would look like, where the one conversion from a font's ems
   and +y up to the surface's millimetres and y down is written, and why the badge
   is deliberately asymmetric.
+- `src/interface.h` — the first real interface: a semitransparent panel with a
+  heading and two buttons on it, laid out by `ui` and answering the mouse. Its
+  header says why the draw count is the claim and why the interface is its own
+  surface, why it is mapped onto the window rather than standing in the world,
+  and why its panel is pushed down the page with a spacer until card 041.
+- `src/interface.c` — the panel's contents and the one division that turns the
+  mouse's pixels into the surface's millimetres. Its header says why one button
+  counts and the other does nothing, and why the count lives here rather than
+  in `ui`.
 - `src/surface.h` — the screen-filling surface: a plate, a square and a row of
   ticks mapped straight onto the window, and `VOE_DEV_UI_SCALE`, which is the
   only calibration this engine has and is changed here. Its header says how it
@@ -85,15 +95,21 @@ states and not a test — it is looked at, not asserted on.
   faces in the same place, and why that is a double-sided mesh rather than a
   double-sided material.
 - `src/quad.c` — those vertices and indices.
-- `src/texture.png` — the picture on the placeholder cubes, `#embed`ded at build
-  time the way the shaders are, because `platform` has no file API to read one
-  with. An "F" with four differently coloured corners: it is the shape that reads
-  wrong under a flip and under a mirror, which is what makes "the right way up"
-  something a person can check at a glance.
-- `src/model.glb` — this repository's own test model, `#embed`ded for the same
-  reason. One lettered cube with a second, half-sized one as its child, so that
-  the import has a tree to flatten and a person can see whether the child landed
-  where the composition of the two transforms says.
+- `src/shrink.h` — a decoded picture halved until neither side is longer than
+  1920, `dev`'s own and not a rule about textures. Its header says why this is
+  not mipmapping and cannot be, what it buys in numbers, and what it does not
+  fix.
+- `src/shrink.c` — the halving. Its header says why the average is taken in
+  linear light and what the number is if it is not, why alpha is left out of
+  that, and why writing over the picture being read is safe.
+- `src/logo.png` — the picture on the turning cube: the VOE3D wordmark,
+  `#embed`ded at build time the way the shaders are, because `platform` has no
+  file API to read one with. It is wide, and so is that cube's front face, which
+  is why it goes on this one and not the other.
+- `src/app icon light.png` — the picture on the still cube, square like the cube
+  and embedded the same way. Writing reads wrong under a flip and under a
+  mirror, and the yellow badge is in one corner only, which is what makes "the
+  right way up" something a person can check at a glance.
 - `src/textured_primitives_human.glb` — a model a real exporter wrote: three
   primitives sharing one material, an albedo map and an ORM map. What it is for
   is the half of the reader that cannot be checked against a file this repository

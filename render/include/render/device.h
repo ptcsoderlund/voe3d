@@ -1012,14 +1012,20 @@ voe_render_element_surface_matrix(voe_math_float2 size);
 //
 // Two decisions of its own remain, and each is a thing to get wrong silently:
 //
-//   - z IS THE NEAR PLANE, WHICH IS 1.0. Depth runs backwards in this engine and
-//     the test is GREATER, so an element passes in front of anything already
-//     drawn. It writes no depth, so this decides nothing about the elements
-//     among themselves.
+//   - z IS JUST INSIDE THE NEAR PLANE AND NOT ON IT. Depth runs backwards in
+//     this engine, so the near plane is 1.0 and this is 0.9999; the test is
+//     GREATER, so an element still passes in front of anything already drawn.
+//     It writes no depth, so this decides nothing about the elements among
+//     themselves. The retreat from the boundary is bug 001 and ADR-0111 — a
+//     surface at exactly z == w stands on the clip boundary, which is where two
+//     conformant drivers may legitimately disagree and one of them discarded the
+//     lot. What it costs is stated at the constant in src/element.c: with the
+//     dev camera's planes, only geometry inside the hundredth-of-a-millimetre
+//     shell immediately beyond the near plane can now draw over the surface.
 //   - IT IS THE WHOLE TARGET AND NOT PART OF IT. A surface standing in the world
 //     is the composition described above; this one is what a surface filling the
-//     window wants, and such a surface has no position, cannot be occluded and
-//     never reaches the draw system.
+//     window wants, and such a surface has no position and never reaches the
+//     draw system.
 //
 // A MILLIMETRE ON THIS SURFACE IS NOT A MILLIMETRE ANYWHERE ELSE, AND THIS IS
 // WHERE A READER FINDS THAT OUT. `size` is stretched over the whole target, so

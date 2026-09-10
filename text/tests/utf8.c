@@ -7,7 +7,7 @@
 // and the string a text block is built from is whatever a caller wrote in a
 // source file. Every case below therefore checks the length as well as the
 // character.
-#include "../src/utf8.h"
+#include <text/utf8.h>
 
 #include <testing/test.h>
 

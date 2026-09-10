@@ -1,5 +1,5 @@
 // The element path: many rectangles from many small records, and a letter among
-// them, all in one draw command. Twelve claims, each of them one a wrong
+// them, all in one draw command. Thirteen claims, each of them one a wrong
 // implementation would get wrong quietly.
 //
 // IT READS THE PICTURE BACK, because nothing about this path can be checked any
@@ -85,6 +85,13 @@
 // ASSERTED, because a component holding last frame's range is how it is reached
 // and that must cost one surface rather than the program. The frame carries on
 // and the elements that were submitted still draw.
+//
+// AND THE SCREEN-FILLING SURFACE STOPS SHORT OF THE NEAR CLIP BOUNDARY, WHICH IS
+// THE ONE CLAIM NO PICTURE FROM THIS MACHINE COULD MAKE. Standing exactly on the
+// boundary is valid by the specification and drew perfectly on the software
+// rasteriser this repository checks on, and a real driver threw the whole
+// surface away — so the assert is arithmetic on the matrix, z strictly less than
+// w, and there is nothing to render. See bug 001 and ADR-0111.
 //
 // ONE MILLIMETRE IS ONE PIXEL HERE, on purpose: the surface is handed the
 // target's size in millimetres, so every count below is exact rather than a
@@ -406,6 +413,57 @@ static int colour_of(const unsigned char *pixel)
 	return NEITHER;
 }
 
+/* ---- TEMPORARY diagnostic for bug 002 — to be removed ----
+ * The picture as a map: one character per pixel, so that a failure on a machine
+ * nobody can attach a debugger to says WHERE the colours landed and not only
+ * how many of them there were. `.` is the clear, `?` is a colour none of the
+ * three predicates claims, and its rgb is printed underneath.
+ */
+static void dump_picture(const unsigned char *image, const char *name)
+{
+	int odd_x = -1;
+	int odd_y = -1;
+
+	printf("map %s\n", name);
+	for (int y = 0; y < SIDE; y++) {
+		char row[SIDE + 1];
+
+		for (int x = 0; x < SIDE; x++) {
+			const unsigned char *pixel = image + (y * SIDE + x) * 4;
+
+			switch (colour_of(pixel)) {
+			case IS_RED: row[x] = 'R'; break;
+			case IS_GREEN: row[x] = 'G'; break;
+			case IS_BLUE: row[x] = 'B'; break;
+			default:
+				/* The clear is one exact colour; anything else
+				 * that is not red, green or blue is worth
+				 * seeing rather than counting as background. */
+				if (pixel[0] > 80 && pixel[0] < 110 &&
+				    pixel[1] > 60 && pixel[1] < 100 &&
+				    pixel[2] < 40) {
+					row[x] = '.';
+				} else {
+					row[x] = '?';
+					odd_x = x;
+					odd_y = y;
+				}
+				break;
+			}
+		}
+		row[SIDE] = '\0';
+		printf("map   %s\n", row);
+	}
+	if (odd_x >= 0) {
+		const unsigned char *pixel =
+			image + (odd_y * SIDE + odd_x) * 4;
+
+		printf("map   a `?` at %d,%d is rgb %u %u %u\n", odd_x, odd_y,
+		       pixel[2], pixel[1], pixel[0]);
+	}
+	fflush(stdout);
+}
+
 // How many pixels of `colour` inside the rectangle [x0, x1) x [y0, y1), in
 // framebuffer coordinates — y0 is the top row, because that is how the bytes
 // come back.
@@ -486,6 +544,7 @@ static void four_colours_in_one_draw(struct scene *scene)
 	image = scene->pixels;
 
 	// Each quadrant is exactly its own colour and nothing else is.
+	dump_picture(image, "four_colours_in_one_draw (the control: R G / B .)");
 	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
 	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_GREEN),
 			   QUADRANT);
@@ -707,6 +766,7 @@ static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
+	dump_picture(image, "a_mesh_after_an_element_draw_is_still_right (want R B / . G)");
 	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
 	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_BLUE),
 			   QUADRANT);
@@ -981,6 +1041,7 @@ static void two_ranges_two_matrices_two_draws(struct scene *scene)
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
+	dump_picture(image, "two_ranges_two_matrices_two_draws (want R B / G G)");
 	// The first range where its own matrix put it.
 	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
 	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_BLUE),
@@ -1172,11 +1233,96 @@ static void the_transform_puts_the_origin_at_the_top_left(void)
 	// The far corner is the right edge and the bottom.
 	VOE_TEST_CHECK_FLOAT(far_corner.x, 1.0f, 1e-5f);
 	VOE_TEST_CHECK_FLOAT(far_corner.y, -1.0f, 1e-5f);
-	// The near plane, because depth runs backwards here, and w is one
-	// because an element surface is not projected.
-	VOE_TEST_CHECK_FLOAT(origin.z, 1.0f, 1e-5f);
+	// Just inside the near plane, because depth runs backwards here and the
+	// surface deliberately does not stand on the boundary — see
+	// the_surface_stops_short_of_the_near_clip_boundary below, which is the
+	// claim; this is the constant that satisfies it. w is one because an
+	// element surface is not projected.
+	VOE_TEST_CHECK_FLOAT(origin.z, 0.9999f, 1e-6f);
 	VOE_TEST_CHECK_FLOAT(origin.w, 1.0f, 1e-5f);
 	VOE_TEST_CHECK_FLOAT(far_corner.w, 1.0f, 1e-5f);
+}
+
+// One corner of the surface, in clip space. Named, because five of these is
+// otherwise five copies of one line number, and printed with both numbers
+// because which side of the boundary it came out on is the whole finding.
+//
+// THE EXPLANATION IS PRINTED ONCE. One constant decides every corner, so a real
+// failure is all of them at once and nine lines said five times would bury the
+// numbers that differ.
+static void strictly_inside_the_near_plane(const char *corner,
+					   voe_math_float4 clip)
+{
+	static bool explained;
+
+	if (!(clip.z < clip.w)) {
+		fprintf(stderr,
+			"      the %s corner of a screen-filling element surface came out at z %.9g, w %.9g\n",
+			corner, (double)clip.z, (double)clip.w);
+		if (!explained) {
+			explained = true;
+			fprintf(stderr,
+				"      z must be STRICTLY less than w. At z == w every vertex of the surface\n"
+				"      stands exactly on Vulkan's near clip boundary. The view volume is\n"
+				"      0 <= z <= w inclusive, so a conformant driver keeps it — but a real\n"
+				"      driver discarded the whole surface there and nothing mapped onto the\n"
+				"      window reached the screen, while the same records drew perfectly\n"
+				"      through the same pipeline on another driver. The z constant in\n"
+				"      voe_render_element_transform belongs just inside the plane and not on\n"
+				"      it; the comment at that constant says why 0.9999 and why not something\n"
+				"      further back.\n");
+		}
+	}
+	VOE_TEST_CHECK(clip.z < clip.w);
+}
+
+// The surface's corners are INSIDE the near clip boundary and not on it, which
+// is the one claim on this path that a picture from this machine cannot make.
+//
+// IT IS ARITHMETIC AND THAT IS THE POINT. No graphics card, no headless device
+// and no window: a matrix multiply and a comparison. The fault this pins was
+// invisible to every test and every picture here, because the software
+// rasteriser this repository checks on draws boundary geometry perfectly and a
+// real driver did not — so nothing that renders can be the test, and the value
+// has to be asserted where it is decided.
+//
+// STRICTLY LESS, NOT LESS-OR-EQUAL. Writing <= here would pass against the
+// constant that caused bug 001 and would pin nothing at all.
+static void the_surface_stops_short_of_the_near_clip_boundary(void)
+{
+	// A 240 by 135 mm surface, the shape a window's worth of millimetres
+	// comes out at, and all four of its corners: they run through the same
+	// row of the same matrix, so any of them landing on the boundary is the
+	// fault, and asserting one of them would be asserting less than the
+	// function does.
+	voe_math_float2 size = { 240.0f, 135.0f };
+	voe_math_float4x4 m = voe_render_element_transform(size);
+	voe_math_float4 top_left = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 0.0f, 0.0f, 0.0f, 1.0f });
+	voe_math_float4 top_right = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 240.0f, 0.0f, 0.0f, 1.0f });
+	voe_math_float4 bottom_left = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 0.0f, 135.0f, 0.0f, 1.0f });
+	voe_math_float4 bottom_right = voe_math_float4x4_mul_float4(
+		m, (voe_math_float4){ 240.0f, 135.0f, 0.0f, 1.0f });
+
+	strictly_inside_the_near_plane("top-left", top_left);
+	strictly_inside_the_near_plane("top-right", top_right);
+	strictly_inside_the_near_plane("bottom-left", bottom_left);
+	strictly_inside_the_near_plane("bottom-right", bottom_right);
+
+	// And still inside the volume at the other end: retreating from the near
+	// boundary onto the far one would be the same bug facing the other way.
+	VOE_TEST_CHECK(top_left.z > 0.0f);
+
+	// Every surface goes through this row whatever its size, so a second
+	// size with nothing in common with the first says the constant is a
+	// constant and not something that happens to work at one shape.
+	m = voe_render_element_transform((voe_math_float2){ 37.0f, 1000.0f });
+	strictly_inside_the_near_plane(
+		"far", voe_math_float4x4_mul_float4(
+			       m, (voe_math_float4){ 37.0f, 1000.0f, 0.0f,
+						     1.0f }));
 }
 
 // Eighty bytes, said out loud here and not only in render/src/descriptors.c.
@@ -1204,6 +1350,7 @@ int main(void)
 	struct scene scene = { 0 };
 
 	the_transform_puts_the_origin_at_the_top_left();
+	the_surface_stops_short_of_the_near_clip_boundary();
 	the_surface_matrix_is_millimetres_into_metres();
 	the_surface_size_divides_both_axes_by_one_scale();
 	ui_scale_at_two_halves_the_millimetres();

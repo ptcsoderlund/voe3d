@@ -19,12 +19,18 @@
 //
 //     voe_ui_rect where = voe_ui_node_rect(ui, title);
 //
-// IT LAYS OUT AND IT DOES NOTHING ELSE. It does not draw, does not read input
-// and does not know what a widget is: there is no button here, no state, no
-// identity, no hit-testing and nothing emitted to a graphics card. A rectangle
-// is the output and the caller decides what to do with it. Where this surface
-// sits in the world is one matrix and it is not this folder's — nothing here
-// knows about pixels, metres, cameras or layers.
+// THIS HEADER LAYS OUT AND IT DOES NOTHING ELSE. It does not draw, does not read
+// input and does not know what a widget is: there is no button here, no state,
+// no identity, no hit-testing and nothing emitted to a graphics card. A
+// rectangle is the output and the caller decides what to do with it. Where this
+// surface sits in the world is one matrix and it is not this folder's — nothing
+// here knows about pixels, metres, cameras or layers.
+//
+// A BUTTON IS ui/widgets.h AND IT IS BUILT ON EXACTLY WHAT IS ON THIS PAGE. It
+// takes the same context and the same frame, its widgets ARE rows and columns
+// and boxes, and a widget's rectangle is one of these. So the two headers are
+// not two systems: this is the arrangement and that is what the arrangement is
+// of. Every rule below binds a widget the same way it binds a box.
 //
 // NOTHING IS LAID OUT UNTIL voe_ui_frame_end, AND THAT IS THE LOAD-BEARING
 // DECISION. An immediate-mode call cannot know how big a row is until the row's
@@ -109,6 +115,12 @@ typedef struct voe_ui_context voe_ui_context;
 // on per panel.
 typedef struct {
 	uint32_t nodes;
+	// And how many element records one frame may emit — see widgets.h,
+	// which is what emits them. A panel or a button is one, a label is one
+	// per character that draws and none for a space, so a screenful of
+	// interface with writing on it is hundreds. A caller that only wants
+	// rectangles asks for none and pays for none.
+	uint32_t elements;
 } voe_ui_capacities;
 
 // A rectangle in the panel's space: millimetres, X right, Y down, origin at the
@@ -246,12 +258,20 @@ void voe_ui_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 // came to: fixed is a panel of a known size whose children grow into it, natural
 // is a panel that fits its children.
 //
-// FALSE WHEN THE FRAME WANTED MORE NODES THAN THE CONTEXT WAS CREATED WITH, and
-// that is the one way this fails. It is a refusal and not a fatal error: the
-// call that could not fit said so on stderr, naming both numbers, every
-// rectangle in the refused frame is nought, and the next frame lays out
+// FALSE WHEN THE FRAME WANTED MORE THAN THE CONTEXT WAS CREATED WITH, and there
+// are three ways to want that: more nodes, more element records, or the same
+// widget key twice (see widgets.h). All three are refusals and not fatal errors:
+// whichever call could not be honoured said so on stderr, naming what it was,
+// every rectangle in a refused frame is nought, and the next frame lays out
 // normally. Every container begun must have been ended; an unbalanced frame is
 // the caller's bug and asserts.
+//
+// THE WIDGET PASS IS INSIDE THIS CALL, after the arrangement and before this
+// returns: the pointer is tested against the rectangles arrange has just worked
+// out, and the element records are built from them. That is the only order in
+// which a click is tested against the arrangement the person was looking at,
+// which is why it is not a separate call a caller could make at the wrong
+// moment.
 [[nodiscard]] bool voe_ui_frame_end(voe_ui_context *ui);
 
 // Opens a container. Everything called until the matching voe_ui_end is a child

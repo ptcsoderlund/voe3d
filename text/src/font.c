@@ -71,9 +71,9 @@
 // rather than obviously broken.
 #include "raster.h"
 #include "truetype.h"
-#include "utf8.h"
 
 #include <text/font.h>
+#include <text/utf8.h>
 
 #include <base/assert.h>
 #include <math/float2.h>
@@ -186,6 +186,11 @@ struct voe_text_font {
 	voe_render_texture atlas;
 	// From hhea: the distance from one baseline to the next, in ems.
 	float line_height;
+	// From hhea as well: how far above the baseline the font says its
+	// letters reach, in ems. Nothing in the mesh path needs it — a block's
+	// origin IS a baseline — and voe_text_font_measure does, because a
+	// surface hands text a rectangle instead of a pen.
+	float ascender;
 	struct glyph glyphs[CHARACTER_COUNT + 1];
 };
 
@@ -360,6 +365,7 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 	font->line_height = (float)(ttf.ascender - ttf.descender +
 				    ttf.line_gap) /
 			    (float)ttf.units_per_em;
+	font->ascender = (float)ttf.ascender / (float)ttf.units_per_em;
 
 	mark = voe_base_arena_mark(arena);
 	// One push and not one per row: two pushes are not guaranteed to be
@@ -466,6 +472,48 @@ float voe_text_font_line_height(const voe_text_font *font)
 	VOE_BASE_ASSERT(font != NULL, "no font to take a line height from");
 
 	return font->line_height;
+}
+
+// The same walk build_block does, with the vertices left out. It is written
+// twice rather than shared because the two want different halves of it — one
+// emits quads and keeps a pen, this one only ever adds up advances — and a
+// shared walk with a flag in it would be longer than both. What must not drift
+// is the ANSWER, so the two agree line for line: a newline starts a line, a
+// character that draws nothing still advances, and the height is one line
+// height per line.
+voe_text_measure voe_text_font_measure(const voe_text_font *font,
+				       const char *utf8)
+{
+	float pen = 0.0f;
+	float widest = 0.0f;
+	uint32_t lines = 1;
+
+	VOE_BASE_ASSERT(font != NULL, "no font to measure a string with");
+	VOE_BASE_ASSERT(utf8 != NULL, "no string to measure");
+
+	for (const char *at = utf8; *at != '\0';) {
+		uint32_t codepoint;
+
+		at += voe_text_utf8_next(at, &codepoint);
+
+		if (codepoint == '\n') {
+			if (pen > widest)
+				widest = pen;
+			pen = 0.0f;
+			lines++;
+			continue;
+		}
+
+		pen += glyph_of(font, codepoint)->advance;
+	}
+
+	if (pen > widest)
+		widest = pen;
+
+	return (voe_text_measure){
+		.size = { widest, (float)lines * font->line_height },
+		.baseline = font->ascender,
+	};
 }
 
 // The whole of both creates. `transient` is the only thing that differs between

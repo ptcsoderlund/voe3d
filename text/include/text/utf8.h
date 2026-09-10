@@ -1,6 +1,14 @@
-// UTF-8, decoded one character at a time. Internal to this folder, and about as
-// small as a decoder gets: laying a string out means walking it, and a string in
-// this engine is UTF-8 because a C source file is.
+// UTF-8, decoded one character at a time, and about as small as a decoder gets:
+// laying a string out means walking it, and a string in this engine is UTF-8
+// because a C source file is.
+//
+// IT IS PUBLIC BECAUSE A CALLER PLACING CHARACTERS ITSELF HAS TO WALK A STRING
+// THE WAY THIS FOLDER DOES. voe_text_font_measure decodes the whole string and
+// voe_text_font_glyph takes a codepoint, so a caller that stepped over bytes
+// between the two would measure one width and draw another the moment a
+// character took more than one byte — a label laid out for two letters and drawn
+// as four. One decoder on both sides of that is what keeps them agreeing, and
+// `ui` is the caller it was made public for.
 //
 // IT NEVER STOPS AND IT NEVER STANDS STILL. A byte that is not part of a
 // well-formed sequence is one character — U+FFFD, the replacement character —

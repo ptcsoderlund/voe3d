@@ -129,7 +129,7 @@ function(voe_allowed_deps folder out_var)
         # person runs to see the current state, so whatever exists is fair game.
         # It is a leaf and it stays one — dev appears in no other row, and
         # putting it in one would be the mistake this map exists to catch.
-        set(deps base math ecs scene platform assets render 3d text sprite app)
+        set(deps base math ecs scene platform assets render 3d text ui sprite app)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
