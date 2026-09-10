@@ -1,7 +1,7 @@
 # 039 — the check script proves what it ran
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
 
 Written by the tech lead under the standing grant. **Not a spin-off**: it comes out
@@ -133,3 +133,126 @@ State in your report that you checked each of these:
   would have bought if you had been allowed to invent one — that is the input to
   deciding whether it is worth having.
 - The two `CLAUDE.md` corrections, and anything else you found and left alone.
+
+## Notes — claude-opus-5 (kanban-coder), 2026-09-09
+
+### Where the assert went
+
+**A new step `1b folders in the root build`, between the folder-list glob and step
+2.** It needs the glob and nothing else, reads one file and compares two lists, so
+it costs milliseconds and lands before the thirteen configures of step 2 — a
+folder that is not in the build is named in a second rather than after a whole
+build has succeeded around it.
+
+**It is `1b` and not `2` on purpose: nothing was renumbered.** `CLAUDE.md`'s rule
+8 names step 6 and step 7 by number, and renumbering would have made that rule
+wrong — which is this card's own class of defect. The script already uses `4a`,
+`4b`, `4c` and `6b`, so a letter was the existing way to insert one.
+
+The failure text, quoted from a real run with `add_subdirectory(ui)` commented
+out:
+
+```
+FAIL  folders in the root build
+      ui/ holds a CMakeLists.txt but the root CMakeLists.txt never adds it.
+      Its tests are not being built and not being run, and every step below this one would have said ok without them.
+      Add `add_subdirectory(ui)` to the root CMakeLists.txt.
+```
+
+And the other direction, with `add_subdirectory(physics)` added:
+
+```
+FAIL  folders in the root build
+      the root CMakeLists.txt adds physics, and there is no physics/ holding a CMakeLists.txt.
+      Either the folder was removed and its line was not, or the name is misspelt.
+```
+
+### What the parse does with a line it cannot understand
+
+It refuses, loudly, in four ways — and each was proved by breaking the root file
+and watching it fail, not by reading the code:
+
+| The root file holds | What happens |
+|---|---|
+| `# add_subdirectory(ui)` | **Not listed.** A commented-out line is skipped, which is exactly the case the card is about — proved above. |
+| `add_subdirectory(${extra})` | *"`add_subdirectory(${extra})` is not a plain folder name, so this step cannot say which folder it adds."* |
+| `#[[ … ]]` anywhere | *"the root CMakeLists.txt holds a bracket comment, and this step cannot tell what one hides."* |
+| `if()`, `foreach()`, `while()`, `macro()`, `function()` | *"a folder inside it is not unconditionally in the build."* |
+
+The last two are the ones that matter: a bracket comment can hide an
+`add_subdirectory` on a line that does not itself begin with `#`, and a folder
+inside an `if()` is not unconditionally in the build. Either would let the parse
+report a folder as listed when it is not — a false green, which is the bug this
+card exists to remove. **Both fail rather than guess**, and the message says the
+fix is to make the root file simple again rather than to make the check cleverer.
+
+### Per-folder counts, and the naming convention I did not have to invent
+
+**None was needed: it already exists.** `cmake/voe.cmake` registers every test as
+`add_test(NAME ${folder}/${test_name} …)` so that `ctest -R math` runs one
+folder's. The step reads those names back out of ctest's own progress lines from
+the run it just did — no second `ctest -N`, nothing invented, and no exemption
+list.
+
+What a reader now sees:
+
+```
+ok    folders in the root build (12: 3d assets base dev ecs math platform render scene sprite text ui)
+ok    tests (38 passed — 3d 6, assets 6, base 2, dev 0, ecs 3, math 5, platform 2, render 6, scene 3, sprite 1, text 3, ui 1)
+```
+
+`dev 0` is the visible nought the card asked for and is not a failure. **The
+breakdown is required to add up to the total ctest reported** — otherwise the
+step fails saying so, because a breakdown that quietly covers fewer tests than
+ran would be this card's own bug wearing a different hat. It can only diverge if
+`voe.cmake` stops naming tests that way or ctest's progress lines change shape.
+
+### The two `CLAUDE.md` corrections
+
+- **Rows added for `text` and `sprite`.** I drafted both from memory first and
+  they were wrong; `cmake/voe.cmake`'s `voe_allowed_deps` is the authority and
+  they were corrected against it before anything was run — `text` is
+  `render, math, base` (not `assets`) and `sprite` is `3d, render, math, base`
+  (not `scene`, not `ecs`).
+- **The tree comment.** *"text · sprite · ui  each on render, low level"* became
+  two lines: `text · ui` on render, and `sprite` **on `3d`, not beside `text`,
+  because it hands back a material** — which is what card 022 decided and what
+  the map already says. **The map was not touched.**
+
+### Found and left alone
+
+- **`CLAUDE.md`'s folder table still has no row for `dev`,** though the map has a
+  deliberate, commented one for it. That is the third thing and the card says to
+  report it rather than fix it, so it is reported.
+- **`testing/` is a directory with no `CMakeLists.txt`,** so the discovery rule
+  correctly does not call it a folder and the new step's `12` does not count it.
+  It is an INTERFACE target defined inside `voe.cmake` and needs no row in the
+  map — not a defect, written down because a reader seeing `12` may wonder where
+  it went.
+- **`app` has a row in both the map and the table and no folder yet.** Planned,
+  not stale.
+
+### What must not change — checked
+
+- **No module code, no headers, no tests inside a folder.** The diff is
+  `check.cmake` and `CLAUDE.md`, and nothing else.
+- **The root `CMakeLists.txt` keeps its explicit list**, unchanged. It was edited
+  four times to prove the guards and restored from a copy each time; `diff`
+  against that copy is clean.
+- **No step removed or reordered.** One inserted, as `1b`, and every existing
+  number is where it was.
+- **A skip is still a pass.** The new step has no tool to be absent and cannot
+  skip; nothing about step 4a changed.
+
+### Verified on
+
+`cmake -P check.cmake` exits zero on **Linux** (Fedora 44, clang 22.1.8, CMake
+4.3.0, Ninja 1.13.2) — all steps, 38 tests, analyser clean.
+
+**Windows: one thing is line-ending-shaped and it was tested rather than
+assumed.** The parse reads the root file and splits on `\n`, so a CRLF checkout
+leaves a `\r` on each line. `string(STRIP)` removes it, the captured folder name
+comes back as `[ui]` with no `\r`, and a commented-out line is still recognised as
+a comment — checked with a three-line CMake script rather than reasoned about.
+Nothing else in the step touches a path: it reads one file by `${root}` the way
+every other step already does, and the test-name parse excludes `\r` explicitly.

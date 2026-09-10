@@ -27,6 +27,7 @@
 // engine requires are both the build box rather than this engine being wrong;
 // anything else is a driver that refused something, and that is a failure.
 #include <3d/draw_system.h>
+#include <3d/panel_component.h>
 #include <3d/import.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -82,6 +83,10 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	voe_scene_light_register(world, 2);
 	voe_3d_mesh_register(world, 16);
 	voe_3d_material_register(world, 16);
+	// Nothing here builds a panel, and the table is still registered: the
+	// draw system walks it every frame, so registering it is part of
+	// building a world that can be drawn at all — see 3d/draw_system.h.
+	voe_3d_panel_register(world, 16);
 	return world;
 }
 

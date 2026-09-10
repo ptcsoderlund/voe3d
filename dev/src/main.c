@@ -89,9 +89,45 @@
 // that stays where it is however the camera moves and that nothing gets in front
 // of.
 //
-// And in the top-left of the view, five lines of numbers that change as you
-// watch: the frame rate and the four timings, the same ones the console prints,
-// laid out again every frame.
+// And in the top-left of the view, lines of numbers that change as you watch:
+// the frame rate, the four timings — the same ones the console prints — the
+// pointer, and what the last frame cost in draw commands and element records.
+// Laid out again every frame.
+//
+// THE DRAWS LINE IS A PERIOD METRIC LIKE THE FOUR ABOVE IT, average and worst
+// over the same window, and the element records beside it are the last
+// completed frame's. It is built before anything is drawn, so the one frame
+// after each console block has no sample yet and shows the previous period's;
+// a program that has completed no frame at all says "no frame yet" rather than
+// showing a nought that reads as a claim.
+//
+// AND THE PAIR ON IT IS ADR-0092'S CLAIM RATHER THAN A NUMBER STANDING FOR IT.
+// Ninety-odd element records against thirty-odd draw commands is what "many
+// small things in one draw" means; watch the records climb while the commands
+// hold still. The count includes the draw that put this readout on screen,
+// which is why counting the things you can see gives one fewer.
+//
+// THE WORST COLUMN IS THE POINT OF MAKING IT A METRIC. In this demo the scene
+// is identical every frame, so the average and the worst are both 32 and the
+// column looks like decoration. The day anything varies what is drawn — culling,
+// streaming, an interface that grows — the worst frame in the period is the
+// number that matters and the average is the one that hides it.
+//
+// And three surfaces of elements, which are two different kinds of thing:
+//
+//   - THE EXHIBIT, a panel standing in the world behind the cubes: forty
+//     coloured rectangles and two lines of writing, all of it one draw command.
+//     It is an object in metres, so the cubes and the figure pass in front of it
+//     as the camera goes round, and it is seen from behind — writing and all —
+//     for half of every lap.
+//   - THE BADGE, a small violet panel in the overlay, sitting in the turning
+//     cube. Nothing ever covers it, which is what the overlay layer means; it
+//     still keeps a real position in metres and is still seen in perspective.
+//   - THE PLATE AND THE ROW OF TICKS in the top-left corner, which is not a
+//     panel at all: it is mapped straight onto the window and has no position.
+//     Drag the window narrow and it is the only thing that changes — the same
+//     rectangles at the same size, with the far ticks off the right edge. See
+//     src/surface.h for why that is the decision working.
 //
 // ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
 //
@@ -266,11 +302,21 @@
 //     still obvious and one that did it twice makes the row vanish too early;
 //     and the thirty-two squares below that are thirty-two different colours,
 //     which is the thing one draw of one shading record could not be.
-//   - The panel upside down — the element surface's Y. It runs down from the
-//     panel's top-left corner, and the negation that makes that true is in
-//     voe_render_element_transform. Nothing here negates anything.
-//   - The panel stretched when the window is dragged narrow — expected. It is a
-//     fixed-size panel filling the window; see src/elements.h.
+//   - The exhibit upside down, or the badge's orange corner mark at the bottom
+//     — the element surface's Y. It runs down from the surface's top-left
+//     corner, and the negation that makes that true is in
+//     voe_render_element_surface_matrix. Nothing here negates anything.
+//   - THE EXHIBIT VISIBLE THROUGH A CUBE THAT IS IN FRONT OF IT — the panel has
+//     stopped being sorted with the see-through meshes and is being drawn after
+//     everything, which is the one thing card 032 exists to prevent. The badge
+//     is the opposite case and is meant to be visible through everything: it is
+//     in the overlay, on the far side of the depth clear.
+//   - The exhibit or the badge stretched, or changing size, when the window is
+//     dragged narrow — a bug. Both are objects in metres and the window only
+//     changes the camera's aspect. The surface that does answer to the window is
+//     the plate and ticks in the top-left corner, and what it does is hold fewer
+//     millimetres rather than narrower ones: the ticks keep their size and
+//     spacing and the far ones fall off the right edge. See src/surface.h.
 //   - The world's picture gone and only the overlay left — the depth clear
 //     cleared colour as well. Only the depth aspect may be named; see
 //     render/src/frame.c.
@@ -442,6 +488,7 @@
 // immediately, because platform has no way to wait yet.
 #include "cubes.h"
 #include "elements.h"
+#include "surface.h"
 #include "quad.h"
 #include "sprites.h"
 
@@ -449,6 +496,7 @@
 #include <3d/import.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/panel_component.h>
 #include <assets/image.h>
 #include <base/arena.h>
 #include <base/assert.h>
@@ -595,6 +643,35 @@
 #define OVERLAY_QUAD_SIZE 0.5f
 #define OVERLAY_QUAD_Z 0.22f
 
+// The two element panels: how big each one is in the world, and where it stands.
+//
+// A MILLIMETRE IS A MILLIMETRE AND THE SCALE IS WHAT MAKES THEM BIG ENOUGH TO
+// LOOK AT. The exhibit is authored 240 by 135 mm, which is 0.24 by 0.135 metres
+// — a postcard, and unreadable from seven metres out. The scale below is the
+// entity's own transform doing what a transform does; it is not a second
+// millimetre convention, and dividing the authored numbers by it would give the
+// same picture with the layout's units made meaningless. See
+// 3d/panel_component.h.
+//
+// THE EXHIBIT STANDS BEHIND THE CUBES SO THAT THEY PASS IN FRONT OF IT. That is
+// the picture the whole card is for: a panel in the world layer is occluded by
+// what is between it and the camera, which nothing drawn after the world could
+// ever be. Half a lap it is partly hidden and half a lap it is not.
+#define EXHIBIT_SCALE 14.0f
+#define EXHIBIT_X 0.0f
+#define EXHIBIT_Y 1.2f
+#define EXHIBIT_Z (-2.2f)
+
+// The badge sits in the turning cube, exactly where the three overlay quads do
+// and for the same reason: something is in front of it for most of the lap and
+// it is never hidden, which is what the overlay layer means. It is small
+// because its job is to be a second range of the one element buffer rather than
+// a second exhibit.
+#define BADGE_SCALE 16.0f
+#define BADGE_X 0.8f
+#define BADGE_Y 0.35f
+#define BADGE_Z 0.0f
+
 // The two strings, and the two placements the card asks to see: one standing in
 // the world and one locked to the camera.
 //
@@ -682,7 +759,7 @@
 // corner when the window is resized. The margin keeps it off the edge, in ems of
 // its own size, and the first baseline sits one em below the top so the tallest
 // glyph clears it. The string it holds is formatted into a buffer this long,
-// which is well over five short lines.
+// which is well over the seven short lines it now holds.
 #define READOUT_EM 0.040f
 #define READOUT_MARGIN_EMS 0.5f
 #define READOUT_CHARS 192
@@ -983,6 +1060,39 @@ static voe_scene_transform quad_at(voe_math_float3 position, float size)
 	};
 
 	return transform;
+}
+
+// One panel, one entity: a transform saying where the surface stands and how big
+// it is, and a panel component saying how big the surface is in its own
+// millimetres and which layer it is drawn in.
+//
+// NO MATERIAL AND NO MESH, WHICH IS THE SHAPE WORTH NOTICING. An element carries
+// its own colour, so there is no shading record to point at and no geometry to
+// name — the two rows here are the whole of a drawable surface. The range is
+// left at nought and is written every frame by the loop; until the first frame
+// writes one, a count of nought draws nothing and is not an error.
+static bool add_panel(voe_ecs_world *world, voe_math_float3 position,
+		      float scale, voe_math_float2 millimetres,
+		      voe_3d_layer layer, voe_ecs_entity *out)
+{
+	voe_ecs_entity entity = { 0 };
+	voe_scene_transform transform = {
+		.position = position,
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { scale, scale, scale },
+	};
+
+	if (!voe_ecs_entity_create(world, &entity))
+		return false;
+	if (!voe_scene_transform_add(world, entity, transform))
+		return false;
+	if (!voe_3d_panel_add(world, entity,
+			      (voe_3d_panel){ .size = millimetres,
+					      .layer = layer }))
+		return false;
+
+	*out = entity;
+	return true;
 }
 
 // One quad, one entity: geometry it shares with every other quad, a material of
@@ -1536,6 +1646,52 @@ struct timing {
 	bool gpu_timed;
 	double gpu_last;
 	double draw_last;
+	// Draw commands per completed frame, averaged and worsted over the
+	// period exactly as the four durations above are.
+	//
+	// IT IS A METRIC AND NOT A SNAPSHOT, WHICH IS THE PRINCIPAL'S CALL AND
+	// REVERSES WHAT CARD 040 FIRST SAID. That card argued a draw count is
+	// exact and that averaging it turns a true number into a smeared one.
+	// That is right about this demo, where the scene is identical every
+	// frame and the average is 32.0 for ever — and it is wrong about the
+	// direction of travel. The moment anything varies what is drawn, culling
+	// or streaming or an interface that grows, the number a person needs is
+	// the WORST frame in the period rather than the typical one, which is
+	// the same reason `frame` and `gpu` carry a worst beside their average.
+	// A metric that only becomes interesting later is still the right shape
+	// now; a snapshot that has to be replaced later is not.
+	//
+	// IT IS A voe_base_samples EVEN THOUGH A COUNT IS NOT A DURATION. That
+	// type's real constraint is that `worst` is the LARGEST value, so a
+	// quantity where small is bad does not belong in it. More draw commands
+	// is worse, so this belongs. See base/include/base/samples.h, whose
+	// header still says everything measured with one is a duration — true of
+	// every other caller and no longer of this one.
+	voe_base_samples draws;
+	// What the readout shows for the one frame per period that has no sample
+	// yet, and whether any frame has completed at all. The same three cases
+	// `draw` and `gpu` have above and for the same reason: the period is
+	// reset with the readout still running.
+	bool draws_measured;
+	double draws_last;
+	double draws_last_worst;
+	// And how many element records the last completed frame submitted, which
+	// is the other half of ADR-0092's claim and the reason the pair is worth
+	// showing.
+	//
+	// THIS ONE IS NOT AVERAGED AND THAT IS NOT AN OVERSIGHT. The claim is
+	// "this many records cost that few commands", and a record count averaged
+	// over a period no longer lines up with the commands beside it — one
+	// would describe the period and the other a frame in it. The exact count
+	// from the same completed frame keeps the pair a pair.
+	//
+	// THE GAP BETWEEN THE TWO IS THE CLAIM, AND NEITHER NUMBER SAYS IT
+	// ALONE. Ninety-odd records and thirty-odd commands is "many small
+	// things in one draw" stated rather than asserted; the commands alone
+	// could be thirty-two of anything, and the records alone say nothing
+	// about what they cost. See voe_render_frame_elements_submitted, whose
+	// own header is where that gap is spelled out.
+	uint32_t drawn_elements;
 	// When this period began, on the same clock every sample is taken with.
 	// Kept rather than a deadline, because the rate printed has to be over
 	// the time the period really covered and a frame always straddles the
@@ -1595,6 +1751,7 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 			      voe_base_error *error)
 {
 	char gpu_line[READOUT_CHARS];
+	char draws_line[READOUT_CHARS];
 	char mouse_line[READOUT_CHARS];
 	char text[READOUT_CHARS];
 	voe_text_block block;
@@ -1643,6 +1800,37 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 	else
 		snprintf(gpu_line, sizeof gpu_line, "gpu    no measurement");
 
+	// THREE CASES, THE SAME THREE THE GPU LINE HAS AND FOR THE SAME REASON.
+	// A period with samples shows its running average and worst. The one
+	// frame after each console block has neither yet — the count is added
+	// after the draw and this is built before it — and shows the last full
+	// period's, so the line holds still rather than flashing. Only a program
+	// that has not completed a frame at all gets the third case, which is
+	// then the truth.
+	//
+	// AND THE COUNT INCLUDES THE DRAW THAT PUT THIS READOUT ON SCREEN. The
+	// readout is a mesh like any other and is drawn like any other, so a
+	// person counting the things they can see will find one fewer than this
+	// says. That is correct and it is not adjusted for: subtracting it would
+	// make this a number about something other than what the frame did.
+	//
+	// THE RECORDS BESIDE IT ARE ONE FRAME'S AND THE COMMANDS ARE A PERIOD'S,
+	// which is a mixture on one line and is deliberate — see struct timing.
+	// The pair only means something if both halves describe the same drawing.
+	if (timing->draws.count > 0)
+		snprintf(draws_line, sizeof draws_line,
+			 "draws  %5.1f avg %4.0f worst  %u elements",
+			 voe_base_samples_average(&timing->draws),
+			 timing->draws.worst,
+			 (unsigned)timing->drawn_elements);
+	else if (timing->draws_measured)
+		snprintf(draws_line, sizeof draws_line,
+			 "draws  %5.1f avg %4.0f worst  %u elements",
+			 timing->draws_last, timing->draws_last_worst,
+			 (unsigned)timing->drawn_elements);
+	else
+		snprintf(draws_line, sizeof draws_line, "draws  no frame yet");
+
 	// Three states and three words, because a number that looked live
 	// while the pointer was locked or gone is exactly what the platform
 	// header refuses to hand out. The position is printed whole: Wayland
@@ -1659,10 +1847,10 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 			 left, middle, right);
 
 	snprintf(text, sizeof text,
-		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s\n%s",
+		 "%5.0f fps\nframe  %6.2f ms\nupdate %6.2f ms\ndraw   %6.2f ms\n%s\n%s\n%s",
 		 frame > 0.0 ? 1.0 / frame : 0.0, frame * 1000.0,
 		 voe_base_samples_average(&timing->update) * 1000.0,
-		 draw * 1000.0, gpu_line, mouse_line);
+		 draw * 1000.0, gpu_line, draws_line, mouse_line);
 
 	// Spaces and newlines lay out nothing; every other character in this
 	// string is a glyph the font carries.
@@ -1711,6 +1899,13 @@ static void report(struct timing *timing, double seconds,
 		       timing->gpu.worst * 1000.0);
 	else
 		printf("           gpu        no measurement — this card or its queue cannot write timestamps\n");
+	// The one line here that is not milliseconds, in the same two columns as
+	// the four that are. What varies it is the scene rather than the
+	// machine, so in this demo the average and the worst are the same number
+	// — and the day they differ is the day something started drawing more in
+	// some frames than others, which is exactly what a worst column is for.
+	printf("           draws  %7.1f    avg  %7.0f    worst\n",
+	       voe_base_samples_average(&timing->draws), timing->draws.worst);
 	fflush(stdout);
 
 	// What the readout shows until this new period has a sample of its own.
@@ -1719,11 +1914,17 @@ static void report(struct timing *timing, double seconds,
 		timing->draw_last = voe_base_samples_average(&timing->draw);
 	if (timing->gpu.count > 0)
 		timing->gpu_last = voe_base_samples_average(&timing->gpu);
+	// Both halves of this one, because the readout shows both.
+	if (timing->draws.count > 0) {
+		timing->draws_last = voe_base_samples_average(&timing->draws);
+		timing->draws_last_worst = timing->draws.worst;
+	}
 
 	voe_base_samples_reset(&timing->frame);
 	voe_base_samples_reset(&timing->update);
 	voe_base_samples_reset(&timing->draw);
 	voe_base_samples_reset(&timing->gpu);
+	voe_base_samples_reset(&timing->draws);
 }
 
 int main(void)
@@ -1741,18 +1942,35 @@ int main(void)
 	voe_ecs_entity hud = { 0 };
 	voe_ecs_entity panel = { 0 };
 	voe_ecs_entity readout = { 0 };
+	// The two element surfaces that are entities: the exhibit standing in
+	// the world and the badge in the overlay. Their ranges are rewritten
+	// every frame — see the loop.
+	voe_ecs_entity exhibit_panel = { 0 };
+	voe_ecs_entity badge_panel = { 0 };
 	// How many glyphs the readout laid out, printed once against the room
 	// made for it — see MAX_TRANSIENT_GLYPHS.
 	uint32_t readout_glyphs = 0;
 	bool readout_reported = false;
-	// The element exhibit's three: whether its submits were accepted, and
-	// the frame's draw count either side of its draw — the difference is
-	// how many draw commands forty rectangles of forty colours cost, which
-	// is the whole claim of the element path and is subtracted rather than
-	// assumed.
+	// Whether every surface's submits and draws were accepted, and the
+	// frame's draw count either side of the draw system's walk — the
+	// difference is what the walk cost, which is every mesh plus one per
+	// panel.
+	//
+	// THE FIRST IS NOUGHT TODAY AND IS STILL READ. Nothing is drawn between
+	// _begin and the walk — the readout is built there, but building a mesh
+	// is not drawing it — so the count is nought at that point every frame.
+	// The pair is kept rather than collapsed to one read because it stays
+	// correct the day something IS drawn before the walk, and a subtraction
+	// that is trivially right costs nothing to leave standing.
 	bool elements_ok = true;
-	uint32_t draws_before_elements = 0;
-	uint32_t draws_after_elements = 0;
+	uint32_t draws_before_walk = 0;
+	uint32_t draws_after_walk = 0;
+	// Where each panel's own records start in this frame's element buffer.
+	// One buffer, three ranges: the exhibit, the badge and the
+	// screen-filling surface, which takes its own.
+	uint32_t elements_first = 0;
+	uint32_t elements_count = 0;
+	uint32_t badge_first = 0;
 	voe_render_geometry quad = { 0 };
 	voe_dev_sprites sprites = { 0 };
 	voe_text_font *font = NULL;
@@ -1767,7 +1985,12 @@ int main(void)
 		.transient_vertices = 4 * MAX_TRANSIENT_GLYPHS,
 		.transient_indices = 6 * MAX_TRANSIENT_GLYPHS,
 		.transient_geometries = MAX_TRANSIENT_GEOMETRIES,
-		.elements = VOE_DEV_ELEMENTS,
+		// Everything every surface in the frame submits, into the one
+		// buffer: the exhibit, the badge and the screen-filling
+		// surface. Three ranges of it, and no "to be safe" headroom —
+		// each of the three asserts against its own number.
+		.elements = VOE_DEV_ELEMENTS + VOE_DEV_BADGE_ELEMENTS +
+			    VOE_DEV_SURFACE_ELEMENTS,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -1850,6 +2073,10 @@ int main(void)
 	voe_scene_light_register(world, 4);
 	voe_3d_mesh_register(world, MAX_ENTITIES);
 	voe_3d_material_register(world, MAX_ENTITIES);
+	// The second kind of drawable. Two of them in this program, and the
+	// table is registered like any other component — which is the whole of
+	// what a panel costs a call site.
+	voe_3d_panel_register(world, MAX_ENTITIES);
 
 	if (!voe_ecs_entity_create(world, &eye) ||
 	    !voe_scene_camera_add(world, eye, camera)) {
@@ -1891,6 +2118,23 @@ int main(void)
 			  &readout, &hud_size, &error)) {
 		fprintf(stderr, "could not build the text: %s\n",
 			voe_base_error_string(error));
+		goto stop;
+	}
+
+	// The two panels. Nothing is on them yet: what a panel holds is a range
+	// of the frame that is open, and no frame is open until the loop starts.
+	if (!add_panel(world,
+		       (voe_math_float3){ EXHIBIT_X, EXHIBIT_Y, EXHIBIT_Z },
+		       EXHIBIT_SCALE,
+		       (voe_math_float2){ VOE_DEV_ELEMENTS_PANEL_WIDE,
+					  VOE_DEV_ELEMENTS_PANEL_HIGH },
+		       VOE_3D_LAYER_WORLD, &exhibit_panel) ||
+	    !add_panel(world, (voe_math_float3){ BADGE_X, BADGE_Y, BADGE_Z },
+		       BADGE_SCALE,
+		       (voe_math_float2){ VOE_DEV_BADGE_WIDE,
+					  VOE_DEV_BADGE_HIGH },
+		       VOE_3D_LAYER_OVERLAY, &badge_panel)) {
+		fprintf(stderr, "could not build the two element panels\n");
 		goto stop;
 	}
 
@@ -2158,37 +2402,92 @@ int main(void)
 						       readout, window, &timing,
 						       &readout_glyphs, &error);
 
+			// THE TWO PANELS' CONTENT, BEFORE THE WALK, WHICH IS
+			// THE PHASE THIS EXISTS FOR. A panel holds a range of
+			// the frame that is open and the buffer is empty at
+			// the top of every frame, so a range not written here
+			// is a panel that is not drawn. Read the count, submit
+			// one surface, read it again, and the difference is
+			// that surface's range — there is no id and nothing
+			// allocated.
+			//
+			// NOTHING IS DRAWN HERE. The draw system issues one
+			// draw per panel a moment later, in layer and sort
+			// order, which is what lets a cube stand in front of
+			// the exhibit.
+			elements_first = voe_render_frame_elements_submitted(gpu);
+			elements_ok = voe_dev_elements_submit(gpu, font);
+			elements_count =
+				voe_render_frame_elements_submitted(gpu) -
+				elements_first;
+			(void)voe_3d_panel_set_range(world, exhibit_panel,
+						     elements_first,
+						     elements_count);
+
+			badge_first = voe_render_frame_elements_submitted(gpu);
+			elements_ok = voe_dev_elements_badge_submit(gpu) &&
+				      elements_ok;
+			(void)voe_3d_panel_set_range(
+				world, badge_panel, badge_first,
+				voe_render_frame_elements_submitted(gpu) -
+					badge_first);
+
+			// EITHER SIDE OF THE WALK, WHICH IS WHAT THESE TWO
+			// BRACKET AND ALL THEY BRACKET. The difference is every
+			// mesh drawn plus one per panel — the panels' own draws
+			// are issued inside the walk, sorted among the
+			// see-through meshes, so there is no moment between
+			// them to read a count at and that is card 032 working
+			// rather than something missing here.
+			draws_before_walk = voe_render_frame_draw_count(gpu);
+
 			voe_3d_draw_system_run(world, gpu, arena, frame);
 
-			// The element exhibit, after the walk so that it
-			// lands over everything and before the end so that
-			// it is in this frame at all. Where it belongs is
-			// card 032's — see src/elements.h, which says this
-			// place is provisional. Its failure is looked at
-			// after the frame has been ended, for the reason
-			// the readout's is.
-			//
-			// THE COUNT IS TAKEN EITHER SIDE OF IT AND THE
-			// DIFFERENCE IS PRINTED. What the element path claims
-			// is that forty rectangles of forty colours AND forty
-			// letters cost one draw command between them, and the
-			// only way to say that rather than believe it is to
-			// read the frame's count before the exhibit and after
-			// it and subtract.
-			draws_before_elements = voe_render_frame_draw_count(gpu);
-			elements_ok = voe_dev_elements_submit(gpu, font);
-			draws_after_elements = voe_render_frame_draw_count(gpu);
+			draws_after_walk = voe_render_frame_draw_count(gpu);
+
+			// The screen-filling surface, after the walk because it
+			// is not in the world and has nothing to sort against,
+			// and before the end so that it is in this frame at
+			// all. It is the one surface here that is not a panel
+			// and the only one a resize changes — see src/surface.h.
+			// Its failure is looked at after the frame has been
+			// ended, for the reason the readout's is.
+			elements_ok = voe_dev_surface_draw(gpu, now_size) &&
+				      elements_ok;
 
 			if (!voe_render_frame_end(gpu)) {
 				fprintf(stderr, "the GPU stopped answering\n");
 				break;
 			}
-			// The element capacity is smaller than the exhibit
-			// needs, which is this file's mistake in the same way
-			// the readout's transient room would be.
+
+			// THE FRAME IS COMPLETE, SO THIS IS THE ONE MOMENT
+			// EITHER NUMBER IS THE WHOLE FRAME'S. Both are read
+			// here, after _end, so that what the readout shows and
+			// what the console block prints are the same two reads
+			// — two numbers about one frame that disagreed would be
+			// worse than either alone.
+			//
+			// THE PAIR IS THE CLAIM AND NEITHER HALF IS. Records
+			// submitted against commands recorded is what "many
+			// small things in one draw" means; see
+			// voe_render_frame_elements_submitted, which says why
+			// reading the wrong one of the two makes the claim
+			// trivially true. Both survive until the next _begin,
+			// which is what lets them be read after the frame has
+			// been submitted.
+			voe_base_samples_add(
+				&timing.draws,
+				(double)voe_render_frame_draw_count(gpu));
+			timing.drawn_elements =
+				voe_render_frame_elements_submitted(gpu);
+			timing.draws_measured = true;
+
+			// The element capacity is smaller than the three
+			// surfaces need, which is this file's mistake in the
+			// same way the readout's transient room would be.
 			if (!elements_ok) {
 				fprintf(stderr,
-					"could not submit the element exhibit — see the refusal above\n");
+					"could not submit or draw an element surface — see the refusal above\n");
 				break;
 			}
 			// A readout that could not be built means the transient
@@ -2208,13 +2507,39 @@ int main(void)
 				       readout_glyphs * 6u,
 				       6u * MAX_TRANSIENT_GLYPHS,
 				       (unsigned)MAX_TRANSIENT_GEOMETRIES);
-				printf("elements   %u rectangles of %u colours and %u letters in %u draw command; the whole frame took %u\n",
+				// THREE ELEMENT SURFACES, AND THE TWO NUMBERS
+				// AT THE END ARE THE SAME PAIR THE READOUT
+				// SHOWS. They are read from the same two calls
+				// after the same _end, so the console and the
+				// screen cannot disagree — and the whole frame
+				// is what is printed rather than the surfaces
+				// alone, because the panels are drawn inside
+				// the walk, sorted among the see-through
+				// meshes, and there is no moment between them
+				// to read a count at. That is card 032 working
+				// rather than a limitation: a panel drawn in a
+				// pass of its own would be easier to count and
+				// would be the bug.
+				//
+				// The walk's own cost is printed beside it,
+				// which is every mesh plus one per panel.
+				printf("elements   %u rectangles of %u colours and %u letters on the world panel, %u on the badge, %u on the screen-filling surface\n",
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
 				       (unsigned)VOE_DEV_ELEMENTS_GLYPHS,
-				       draws_after_elements -
-					       draws_before_elements,
-				       draws_after_elements);
+				       (unsigned)VOE_DEV_BADGE_ELEMENTS,
+				       (unsigned)VOE_DEV_SURFACE_ELEMENTS);
+				// This frame's exact numbers, read straight from
+				// the device rather than out of the period
+				// metric beside it: both survive until the next
+				// _begin, and one frame's commands against one
+				// frame's records is the pair ADR-0092's claim
+				// is made of. The averaged version of the same
+				// number is in every timing block below.
+				printf("draws      %u commands for %u element records; the walk was %u of them\n",
+				       voe_render_frame_draw_count(gpu),
+				       timing.drawn_elements,
+				       draws_after_walk - draws_before_walk);
 				fflush(stdout);
 				readout_reported = true;
 			}

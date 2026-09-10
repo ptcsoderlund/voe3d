@@ -23,10 +23,20 @@
 // culls nothing, so the strip's winding is not a fact anybody has to keep right
 // — a screen-space rectangle has no back face to hide.
 //
-// ONE INSTANCE PER ELEMENT, AND THE INSTANCE INDEX IS THE RECORD'S NUMBER. No
-// push constant carries it and none could: there is one draw for the whole
-// frame's worth of elements. This is the shape draw.slang's own header says an
-// indirect mesh draw would take.
+// ONE INSTANCE PER ELEMENT, AND THE RECORD'S NUMBER IS WHERE THE DRAW STARTED
+// PLUS THE INSTANCE. One buffer holds every surface a frame draws, so a draw
+// takes a range of it and vkCmdDraw's firstInstance is how the range arrives —
+// no push constant carries it and none could, because the sixty-four bytes are
+// the transform and the layout is shared with draw.slang.
+//
+// AND THE TWO SEMANTICS BELOW ARE BOTH NEEDED, WHICH IS THE TRAP. Slang gives
+// SV_InstanceID HLSL's meaning: the instance's number within this draw, counting
+// from nought no matter what firstInstance was. SV_StartInstanceLocation is that
+// skipped count, and the sum is the record's number. Reading SV_InstanceID alone
+// draws the first `count` records of the buffer for every range but the first —
+// which looks perfect on a frame with one surface in it and is wrong on the
+// second one. See render/tests/elements.c, which puts the same rectangles in two
+// ranges and moves only the matrix, precisely so that this cannot come back.
 //
 // ORDER IS PAINT ORDER AND THIS PATH RELIES ON IT. Vulkan rasterises the
 // primitives of one draw in submission order, and instances in instance-index
@@ -88,7 +98,7 @@
 // AND THE TEXTURE INDEX HERE IS GENUINELY NON-UNIFORM, WHICH draw.slang'S IS
 // NOT. Over there the index comes from a record a push constant picked, so it
 // is one value for the whole draw. Here it comes out of the record the instance
-// index picked, and one draw holds every element the frame submitted — two
+// index picked, and one draw holds a whole surface's worth of elements — two
 // letters of two different sheets in one draw is the ordinary case, not a
 // corner one. So the subscript is wrapped in NonUniformResourceIndex and
 // render/src/device.c asks the card for shaderSampledImageArrayNonUniformIndexing
@@ -211,9 +221,12 @@ struct voe_render_element_vertex_out {
 
 [shader("vertex")]
 voe_render_element_vertex_out
-voe_render_element_vertex(uint vertex : SV_VertexID, uint element : SV_InstanceID)
+voe_render_element_vertex(uint vertex : SV_VertexID,
+			  uint instance : SV_InstanceID,
+			  uint first : SV_StartInstanceLocation)
 {
 	voe_render_element_vertex_out out;
+	uint element = first + instance;
 	voe_render_element record = voe_render_elements[element];
 	// Which corner this vertex is, out of the two low bits of its index:
 	// 0 -> (0,0), 1 -> (1,0), 2 -> (0,1), 3 -> (1,1). The strip's two

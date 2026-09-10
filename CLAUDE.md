@@ -150,7 +150,8 @@ app                     the frame loop, wiring
 │   ├── assets          glTF, images, fonts → CPU data
 │   └── scene           transform, camera, light
 │       └── ecs         entities, components, intent queues
-├── text · sprite · ui  each on render, low level
+├── text · ui           on render, low level
+├── sprite              on 3d, not beside text: it hands back a material
 └── base · math         memory, containers, strings, assert · vectors, matrices
 ```
 
@@ -162,8 +163,10 @@ app                     the frame loop, wiring
 | `scene` | `ecs`, `math`, `base` |
 | `assets` | `platform`, `math`, `base` |
 | `render` | `platform`, `math`, `base` |
+| `text` | `render`, `math`, `base` |
 | `ui` | `render`, `text`, `math`, `base` |
 | `3d` | `render`, `scene`, `ecs`, `assets`, `math`, `base` |
+| `sprite` | `3d`, `render`, `math`, `base` |
 | `app` | all |
 
 `render` is the GPU layer only — device, memory, resources by id, pipelines,

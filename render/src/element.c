@@ -1,6 +1,14 @@
 // Many small rectangles, one draw. The whole element path on the C side: the
-// pipeline, the submit that writes one record, the draw that draws every record
-// the frame holds, and the one matrix that turns millimetres into clip space.
+// pipeline, the submit that writes one record, the draw that draws a range of
+// them, and the two matrices that say what element space is — one onto the
+// surface's own plane in metres, and one from there onto the whole target.
+//
+// THE SECOND MATRIX IS BUILT ON THE FIRST AND THE Y SIGN IS IN THE FIRST ALONE.
+// A surface standing in the world and a surface filling the window differ in
+// what happens after element space stops, not in what element space is, so
+// there is one function that says y runs down and everything else composes onto
+// it. Writing the negation twice is the failure this arrangement exists to make
+// impossible; see voe_render_element_surface_matrix.
 //
 // THE CALLER WRITES A RECORD AND THE CARD BUILDS THE CORNERS. There is no vertex
 // buffer and no index buffer on this path and none is bound — the vertex shader
@@ -50,6 +58,8 @@
 
 #include <base/assert.h>
 
+#include <math/float4x4.h>
+
 #include <stdio.h>
 #include <string.h>
 
@@ -71,6 +81,13 @@ static alignas(uint32_t) const unsigned char elements_spv[] = {
 // it is the count the draw passes and the count the shader's index arithmetic
 // assumes, and those are one fact.
 #define ELEMENT_VERTICES 4
+
+// Metres in a millimetre, which is the whole of ADR-0089 as arithmetic: a GUI
+// unit is one millimetre and a millimetre is a thousandth of a metre. It is
+// named because it appears in two matrices below and the two have to agree; a
+// panel that came out the size of a wall or too small to find is this number
+// inverted.
+#define METRES_PER_MILLIMETRE 0.001f
 
 bool voe_render_element_startup(voe_render_device *device)
 {
@@ -290,8 +307,20 @@ bool voe_render_frame_submit_element(voe_render_device *device,
 	return true;
 }
 
+uint32_t voe_render_frame_elements_submitted(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL,
+			"asking no device how many elements it holds");
+
+	// No assert on `recording`, for the reason voe_render_frame_draw_count
+	// gives: the number is worth reading after _end as well as during a
+	// frame, and a caller reporting what a frame cost reads it there.
+	return device->element_count;
+}
+
 bool voe_render_frame_draw_elements(voe_render_device *device,
-				    voe_math_float4x4 transform)
+				    voe_math_float4x4 transform, uint32_t first,
+				    uint32_t count)
 {
 	struct voe_render_frame *frame;
 
@@ -305,18 +334,37 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 		return false;
 	}
 
-	// Nothing submitted is not a refusal and records no command: a caller
-	// that draws an interface with nothing in it this frame is not a caller
-	// that has gone wrong, and an instanced draw of nought instances would
-	// still be a draw command in the count.
-	if (device->element_count == 0)
+	// Written as two comparisons with a subtraction rather than as
+	// `first + count > element_count`, which is the same question with an
+	// addition in it that can wrap — and a wrapped sum is a range that
+	// passes the test and then reads whatever is after the buffer.
+	//
+	// RETURNED AND NOT ASSERTED, because ordinary staleness arrives here. A
+	// caller holding a range from a frame that has gone is a surface nobody
+	// rebuilt this frame, and that costs one draw rather than the program.
+	if (first > device->element_count ||
+	    count > device->element_count - first) {
+		fprintf(stderr,
+			"render: a draw asked for %u elements from %u, and this frame holds %u\n",
+			count, first, device->element_count);
+		return false;
+	}
+
+	// Nothing to draw is not a refusal and records no command: a caller that
+	// draws an interface with nothing in it this frame is not a caller that
+	// has gone wrong, and an instanced draw of nought instances would still
+	// be a draw command in the count.
+	if (count == 0)
 		return true;
 
 	frame = voe_render_frame_open(device);
 
-	// Unconditional, unlike the mesh draws' bind: there is one element draw
-	// in a frame, so a condition would be a comparison that is never false
-	// twice. Setting `bound` to this pipeline is what makes the next mesh
+	// Unconditional, unlike the mesh draws' bind. A frame holds one element
+	// draw per surface and a handful of surfaces at most, so tracking this
+	// one would save a bind that is already rare — and the mesh draws in
+	// between rebind their own anyway, which is what would make the
+	// condition false nearly every time it was asked. Setting `bound` to
+	// this pipeline is what makes the next mesh
 	// draw rebind its own — it compares against device->pipeline and
 	// device->pipeline_blended, and this is neither.
 	//
@@ -339,54 +387,128 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 						 VK_SHADER_STAGE_FRAGMENT_BIT,
 					 0, sizeof(transform), &transform);
 
-	// THE ONE DRAW, AND THE WHOLE CLAIM OF THIS PATH. Four vertices, one
-	// instance per element, no index buffer and no vertex buffer. The
-	// shader's instance index is the record's number.
-	voe_render_vk.cmd_draw(frame->commands, ELEMENT_VERTICES,
-			       device->element_count, 0, 0);
+	// ONE DRAW FOR THE WHOLE RANGE, AND THE WHOLE CLAIM OF THIS PATH. Four
+	// vertices, one instance per element, no index buffer and no vertex
+	// buffer.
+	//
+	// `first` IS THE FIRST INSTANCE, AND THAT IS WHAT MAKES A RANGE COST
+	// NOTHING: no second binding, no buffer offset and no push constant —
+	// which matters, because this pipeline's sixty-four bytes are the
+	// transform and the layout is shared with the mesh pipelines, so there
+	// is no room for one.
+	//
+	// THE SHADER ADDS IT BACK AND HAS TO. Slang gives SV_InstanceID HLSL's
+	// meaning — the instance's number *within this draw*, counting from
+	// nought however many instances were skipped — so a shader reading it
+	// alone would draw the first `count` records of the buffer whatever
+	// `first` said, in every range but the first. elements.slang therefore
+	// reads SV_StartInstanceLocation beside it and adds the two. That was
+	// established by putting the same two rectangles in two ranges and
+	// moving only the matrix; see two_ranges_two_matrices_two_draws in
+	// tests/elements.c, which is the test that catches it coming back.
+	voe_render_vk.cmd_draw(frame->commands, ELEMENT_VERTICES, count, 0,
+			       first);
 	device->draw_commands++;
 	return true;
 }
 
-voe_math_float4x4 voe_render_element_transform(voe_math_float2 size)
+voe_math_float4x4 voe_render_element_surface_matrix(voe_math_float2 size)
 {
 	voe_math_float4x4 m = { 0 };
 
-	// A reciprocal of nothing is what would reach the shader, and a surface
-	// with no width is a caller that has not worked out how big it is.
+	// A surface with no width is a caller that has not worked out how big it
+	// is, and the centring below would put its middle nowhere.
 	VOE_BASE_ASSERT(size.x != 0.0f && size.y != 0.0f,
-			"asking for the transform of an element surface with no area");
+			"asking for the plane of an element surface with no area");
 
 	// Row-major, m[row][column], vectors are columns: this is applied as
 	// M · (x, y, 0, 1) and the shader's mul() means the same thing.
 	//
-	// X: nought maps to -1 and `size.x` to +1, which is left to right.
-	m.m[0][0] = 2.0f / size.x;
-	m.m[0][3] = -1.0f;
+	// X: millimetres to metres, and the surface's middle to the origin. Its
+	// left edge lands at minus half its width in metres and its right edge
+	// at plus half.
+	m.m[0][0] = METRES_PER_MILLIMETRE;
+	m.m[0][3] = -0.5f * size.x * METRES_PER_MILLIMETRE;
 
-	// Y: NEGATIVE, AND THIS IS THE ONLY NEGATION IN THE ELEMENT PATH. Y
-	// runs down in element space — nought is the top — and the engine's one
-	// Y flip, the negative viewport height in frame.c, puts +1 in clip space
-	// at the *top* of the screen. So nought has to map to +1 and `size.y` to
-	// -1, which is a scale of -2/size.y and an offset of +1. There is no
-	// second flip anywhere: this row is where element space's convention and
-	// the engine's meet, and it was worked out from the viewport rather than
-	// arrived at by negating something until the picture looked right.
-	m.m[1][1] = -2.0f / size.y;
-	m.m[1][3] = 1.0f;
+	// Y: NEGATIVE, AND THIS IS THE ONLY NEGATION IN THE ELEMENT PATH. Y runs
+	// down in element space — nought is the top edge — and the world it is
+	// being placed into runs +Y up. So the top edge has to land at plus half
+	// the height and the bottom edge at minus half, which is this scale and
+	// this offset. There is no second flip anywhere: this row is where
+	// element space's convention and the engine's meet, and everything else
+	// on this path composes onto it rather than deciding again.
+	m.m[1][1] = -METRES_PER_MILLIMETRE;
+	m.m[1][3] = 0.5f * size.y * METRES_PER_MILLIMETRE;
 
-	// Z: THE NEAR PLANE, WHICH IS 1.0 BECAUSE DEPTH RUNS BACKWARDS HERE. The
-	// test is GREATER, so an element is in front of anything already drawn.
-	// It is a constant and not a function of the input, because the input has
-	// no third dimension; the shader hands in a z of nought and the last
-	// column is what puts the 1 there.
-	m.m[2][3] = 1.0f;
+	// Z: the same scale, though nothing drawn here has a third dimension —
+	// the shader hands in a z of nought. It is the millimetre factor rather
+	// than a nought because a matrix with a nought on its diagonal is one
+	// that cannot be inverted, and a caller composing this into a chain has
+	// every right to expect a scale rather than a projection onto a plane.
+	m.m[2][2] = METRES_PER_MILLIMETRE;
 
-	// W: one, so the division the rasteriser does changes nothing. An
-	// element surface is not projected — it is a flat sheet, and a
-	// perspective divide by anything else would scale it by a number no
-	// caller asked about.
+	// W: one. A surface is a flat sheet and is not projected by anything in
+	// here; what projects it, if anything does, is the caller's camera.
 	m.m[3][3] = 1.0f;
 
 	return m;
+}
+
+voe_math_float4x4 voe_render_element_transform(voe_math_float2 size)
+{
+	// The surface's own metres onto the whole target: half its width in
+	// metres to one, half its height to one, and the near plane for z.
+	voe_math_float4x4 onto_the_target = { 0 };
+
+	// A reciprocal of nothing is what would reach the shader, and the
+	// surface matrix below asserts on the same thing for its own reason.
+	VOE_BASE_ASSERT(size.x != 0.0f && size.y != 0.0f,
+			"asking for the transform of an element surface with no area");
+
+	// BOTH SCALES ARE POSITIVE AND THAT IS THE POINT. By the time a point
+	// reaches this matrix it has already been through
+	// voe_render_element_surface_matrix, which is where Y turned round; the
+	// engine's one Y flip in the viewport puts +1 in clip space at the top of
+	// the screen, and the surface's top edge is already at +y in metres. A
+	// minus sign here as well is the double flip that looks correct until
+	// something is culled.
+	onto_the_target.m[0][0] = 2.0f / (size.x * METRES_PER_MILLIMETRE);
+	onto_the_target.m[1][1] = 2.0f / (size.y * METRES_PER_MILLIMETRE);
+
+	// Z: THE NEAR PLANE, WHICH IS 1.0 BECAUSE DEPTH RUNS BACKWARDS HERE. The
+	// test is GREATER, so an element is in front of anything already drawn.
+	// It is a constant and not a function of the input, because a surface
+	// filling the target has no depth of its own to keep.
+	onto_the_target.m[2][3] = 1.0f;
+
+	// W: one, so the division the rasteriser does changes nothing. A surface
+	// filling the target is not projected — it is a flat sheet, and a
+	// perspective divide by anything else would scale it by a number no
+	// caller asked about.
+	onto_the_target.m[3][3] = 1.0f;
+
+	return voe_math_float4x4_mul(onto_the_target,
+				     voe_render_element_surface_matrix(size));
+}
+
+voe_math_float2 voe_render_element_surface_size(voe_platform_size target,
+						float pixels_per_millimetre)
+{
+	voe_math_float2 size;
+
+	// Dividing by it is what happens next, and an infinity reaching a matrix
+	// reaches a shader as a blank window rather than as anything that says
+	// what went wrong. Negative is refused with it: a surface cannot be a
+	// negative number of millimetres across, and the caller that computed one
+	// has a sign error worth stopping for.
+	VOE_BASE_ASSERT(pixels_per_millimetre > 0.0f,
+			"asking how many millimetres a target holds at nought or fewer pixels per millimetre");
+
+	// Both axes by the one number, which is the whole of what this call is
+	// for: a wider window holds more millimetres, it does not hold wider
+	// millimetres.
+	size.x = (float)target.width / pixels_per_millimetre;
+	size.y = (float)target.height / pixels_per_millimetre;
+
+	return size;
 }

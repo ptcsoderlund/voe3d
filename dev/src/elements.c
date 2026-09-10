@@ -1,6 +1,6 @@
-// The forty rectangles and the forty letters, in the order they are painted.
-// Six groups, and each of them is there to show one thing the element path
-// claims:
+// The forty rectangles and the forty letters of the exhibit, in the order they
+// are painted, and the badge's five afterwards. Six groups in the exhibit, and
+// each of them is there to show one thing the element path claims:
 //
 //   1  ONE BACKING PANEL, dark and see-through, which everything else stands on.
 //      It is what makes the see-through row above it readable, and it is the
@@ -46,12 +46,18 @@
 // what makes it a thing to look at rather than a thing to watch — and it is
 // rebuilt and resubmitted every frame anyway, because the element buffer belongs
 // to a frame slot and holds nothing between frames.
+//
+// AND NOTHING IN HERE DRAWS. Each function submits records and stops; the range
+// it filled is what main.c reads off voe_render_frame_elements_submitted and
+// writes onto the panel component, and the draw system issues one draw per panel
+// in layer and sort order. What that buys is the picture the checkpoint is for:
+// a cube in front of the exhibit hides it, which a surface drawn after the world
+// could not do.
 #include "elements.h"
 
 #include <base/assert.h>
 
 #include <math/float4.h>
-#include <math/float4x4.h>
 
 #include <text/font.h>
 
@@ -107,6 +113,14 @@
 #define GRID_HIGH 8.0f
 #define GRID_GAP 2.0f
 
+// The badge's layout, in millimetres on the small panel elements.h describes.
+// Everything is measured from its top-left corner, the same as the exhibit's.
+#define BADGE_INSET 5.0f
+#define BADGE_MARK 14.0f
+#define BADGE_TICKS 3
+#define BADGE_TICK_WIDE 26.0f
+#define BADGE_TICK_HIGH 4.0f
+
 // One rectangle, clipped to itself, which is what an element that is not meant
 // to be clipped says: a zeroed clip rectangle clips everything away. See
 // voe_render_element.
@@ -133,7 +147,7 @@ static voe_render_element at(float x, float y, float w, float h,
 // in hand rather than a number somebody typed — and subtracts from the baseline
 // instead of adding to it. That subtraction is the only place the direction
 // turns round, and it is not a second Y flip: the engine's one flip is in the
-// viewport and voe_render_element_transform owns the element path's sign.
+// viewport and voe_render_element_surface_matrix owns the element path's sign.
 //
 // THE BOX IS TAKEN WHOLE AND NOT TRIMMED. It is wider than the letter looks on
 // every side, because the sheet carries the field on past the outline and the
@@ -319,14 +333,58 @@ bool voe_dev_elements_submit(voe_render_device *gpu, const voe_text_font *font)
 	VOE_BASE_ASSERT(submitted == VOE_DEV_ELEMENTS,
 			"the element exhibit submits a different number of elements from the one VOE_DEV_ELEMENTS names");
 
-	return voe_render_frame_draw_elements(gpu,
-					      voe_dev_elements_transform());
+	return true;
 }
 
-voe_math_float4x4 voe_dev_elements_transform(void)
+// The badge: a dark plate with a bright corner mark and three ticks down its
+// left edge.
+//
+// IT IS ASYMMETRIC ON PURPOSE, exactly as render/tests/elements.c's arrangement
+// is. The badge is in the overlay, where nothing else is behind it to say which
+// way up it is, so a surface matrix with its Y sign the wrong way round would
+// draw a badge that looked perfectly reasonable. The mark is in ONE corner and
+// the ticks are on ONE edge, so upside down is visible.
+bool voe_dev_elements_badge_submit(voe_render_device *gpu)
 {
-	voe_math_float2 panel = { VOE_DEV_ELEMENTS_PANEL_WIDE,
-				  VOE_DEV_ELEMENTS_PANEL_HIGH };
+	// A deep violet, mostly opaque: a colour nothing else in the scene is,
+	// so that "the overlay panel is the one nothing covers" is a thing a
+	// person can pick out rather than a dark shape among dark shapes.
+	voe_math_float4 plate = { 0.10f, 0.04f, 0.32f, 0.90f };
+	// Warm, and only in the top-left corner.
+	voe_math_float4 mark = { 1.0f, 0.45f, 0.10f, 1.0f };
+	voe_math_float4 tick = { 0.35f, 0.75f, 1.0f, 1.0f };
+	uint32_t submitted = 0;
 
-	return voe_render_element_transform(panel);
+	VOE_BASE_ASSERT(gpu != NULL, "submitting the badge to no device");
+
+	if (!voe_render_frame_submit_element(
+		    gpu, at(0.0f, 0.0f, VOE_DEV_BADGE_WIDE, VOE_DEV_BADGE_HIGH,
+			    plate)))
+		return false;
+	submitted++;
+
+	// The corner mark, at the badge's own origin, which is its TOP-LEFT.
+	if (!voe_render_frame_submit_element(
+		    gpu, at(BADGE_INSET, BADGE_INSET, BADGE_MARK, BADGE_MARK,
+			    mark)))
+		return false;
+	submitted++;
+
+	// Three ticks down the left edge, below the mark, each one further down
+	// than the last — so which end of the badge is the top is a thing the
+	// picture says rather than a thing to take on trust.
+	for (int i = 0; i < BADGE_TICKS; i++) {
+		float y = BADGE_INSET + BADGE_MARK + BADGE_INSET +
+			  (float)i * (BADGE_TICK_HIGH + BADGE_INSET);
+
+		if (!voe_render_frame_submit_element(
+			    gpu, at(BADGE_INSET, y, BADGE_TICK_WIDE,
+				    BADGE_TICK_HIGH, tick)))
+			return false;
+		submitted++;
+	}
+
+	VOE_BASE_ASSERT(submitted == VOE_DEV_BADGE_ELEMENTS,
+			"the badge submits a different number of elements from the one VOE_DEV_BADGE_ELEMENTS names");
+	return true;
 }

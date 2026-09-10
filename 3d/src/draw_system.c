@@ -1,11 +1,18 @@
 // The draw system: the camera, the sun, the matrices each object is drawn with,
-// and one draw per mesh into the frame the loop has opened.
+// and one draw per drawable into the frame the loop has opened.
 //
-// IT WALKS THE MESH TABLE AND LOOKS THE OTHER TWO COMPONENTS UP BY ENTITY. That
-// is what a flat-table ECS with no archetypes costs and it is the trade this
-// engine took: the walk over the meshes is linear and the two lookups are one
-// load each (ecs/component.h). If that ever measures slow it is a later card
-// with a number attached, and nothing above this line changes.
+// IT WALKS TWO TABLES AND LOOKS THE OTHER COMPONENTS UP BY ENTITY. That is what
+// a flat-table ECS with no archetypes costs and it is the trade this engine
+// took: each walk is linear and each lookup is one load (ecs/component.h). If
+// that ever measures slow it is a later card with a number attached, and nothing
+// above this line changes.
+//
+// THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
+// NOTHING. Every panel is held back and sorted, and the only draws issued during
+// a walk are the world's solid meshes — which nothing later can get in front of,
+// because the depth buffer resolves them per pixel and the clear has not
+// happened yet. So the panels could be walked first and the picture would be
+// identical.
 //
 // THE CAMERA AND THE SUN ARE READ THE SAME WAY AND BOTH ARE REQUIRED. Row zero
 // of each table, because there is exactly one of each — see the header for why
@@ -47,11 +54,13 @@
 // enough to look like nothing was wrong. It costs one branch in a walk that is
 // already happening.
 //
-// EACH GROUP'S SCRATCH IS SIZED BY THE WHOLE MESH TABLE AND NOT BY WHAT LANDS IN
-// IT. Which group an entity is in is not known until the walk has finished, so
-// the bound for each of them is every mesh there is; it is an arena, it is
-// rewound at the end of the frame, and counting first would be a second walk to
-// save memory that is given back a millisecond later.
+// EACH GROUP'S SCRATCH IS SIZED BY THE WHOLE OF BOTH TABLES AND NOT BY WHAT
+// LANDS IN IT. Which group a drawable is in is not known until both walks have
+// finished, so the bound for each of them is every mesh and every panel there
+// is; it is an arena, it is rewound at the end of the frame, and counting first
+// would be a second walk to save memory that is given back a millisecond later.
+// The overlay's solid group is the one exception and is sized by the meshes
+// alone: a panel is blended and cannot land in it.
 //
 // THE DEPTH CLEAR IS render'S CALL AND `3d` LEARNS NOTHING FROM MAKING IT. It
 // takes no value: the number depth is cleared to lives in `render` beside the
@@ -62,6 +71,7 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/normal_matrix.h>
+#include <3d/panel_component.h>
 #include <3d/projection.h>
 #include <base/assert.h>
 #include <scene/camera_component.h>
@@ -85,9 +95,36 @@ static voe_render_light the_sun(const voe_ecs_world *world)
 
 // One entity, held back until its group's turn: everything that group needs in
 // order to issue the draw without looking anything up again.
+//
+// IT IS ONE OF TWO THINGS AND `panel` SAYS WHICH. A mesh draw is a range in
+// render's geometry pools plus the record it is shaded with; a panel draw is a
+// range of this frame's element buffer plus the one matrix that puts those
+// elements where the panel is. They go into the same groups, through the same
+// sort, in one order — see draw_group, and see the header for why a separate
+// pass for panels would be a bug rather than a simplification.
+//
+// A UNION AND NOT BOTH SETS OF FIELDS, because an entry is a hundred and forty
+// bytes of matrices either way and every group is sized for every drawable in
+// the world. What the two arms have in common is nothing: no field means the
+// same thing in both, so there is nothing to hoist out of them.
 struct deferred {
-	voe_render_geometry geometry;
-	voe_render_object object;
+	bool panel;
+	union {
+		struct {
+			voe_render_geometry geometry;
+			voe_render_object object;
+		} mesh;
+		struct {
+			// Element millimetres all the way to clip space:
+			// projection × view × the transform's matrix × the
+			// surface's own plane. Composed once, here, because
+			// render takes the finished product and cannot compose
+			// it — it has never heard of a camera.
+			voe_math_float4x4 transform;
+			uint32_t first;
+			uint32_t count;
+		} elements;
+	};
 };
 
 // One group of draws that could not be issued as the mesh table was walked,
@@ -102,6 +139,10 @@ struct group {
 	float *depths;
 	uint32_t *order;
 	uint32_t count;
+	// What it was sized for, kept so that hold can say so. It is not read
+	// anywhere else: the arrays are filled once and walked once, and `count`
+	// is what says how far.
+	uint32_t capacity;
 };
 
 // The view-space depth of an object's origin, which is the key the blended pass
@@ -159,6 +200,7 @@ static struct group group_new(voe_base_arena *arena, uint32_t capacity,
 	if (capacity == 0)
 		return group;
 
+	group.capacity = capacity;
 	group.deferred = voe_base_arena_push(
 		arena, (size_t)capacity * sizeof(*group.deferred));
 	if (sorted) {
@@ -173,13 +215,28 @@ static struct group group_new(voe_base_arena *arena, uint32_t capacity,
 // Sets one entity aside in its group. The view matrix rather than a depth,
 // because only a sorted group has anywhere to put a key — so the work of
 // computing one is not done at all for a group drawn in the order it was filled.
+//
+// `world` IS PASSED RATHER THAN READ OFF THE ENTRY, because the two kinds of
+// entry keep their matrices in different places and neither of them keeps a
+// world matrix as such — a panel's is already composed into a chain by the time
+// it gets here. The key is the same key either way: the view-space depth of the
+// object's origin.
 static void hold(struct group *group, struct deferred entry,
-		 voe_math_float4x4 view)
+		 voe_math_float4x4 world, voe_math_float4x4 view)
 {
+	// A group is sized for every drawable in the world, so a drawable that
+	// exists always has room. It is asserted rather than assumed because the
+	// size is now arithmetic over two tables: a group sized for nothing has
+	// no arrays at all, and one sized for too few would write past an arena
+	// push and corrupt whatever came after it. Either is a bug in the three
+	// lines below the walk and not something a caller can cause.
+	VOE_BASE_ASSERT(group->deferred != NULL &&
+				group->count < group->capacity,
+			"holding a drawable in a group that was not sized for it — see group_new");
+
 	group->deferred[group->count] = entry;
 	if (group->depths != NULL)
-		group->depths[group->count] =
-			view_depth(view, entry.object.world);
+		group->depths[group->count] = view_depth(view, world);
 	group->count++;
 }
 
@@ -187,6 +244,14 @@ static void hold(struct group *group, struct deferred entry,
 // in the order it was filled through the solid one. Returns false only when a
 // draw was refused, which stops this group and not the frame — the same rule the
 // draws issued during the walk follow.
+//
+// A PANEL IS ISSUED FROM THE SAME LOOP AND IN THE SAME ORDER, WHICH IS THE
+// WHOLE OF WHAT THIS CARD CHANGED. Two loops, one over the meshes and one over
+// the panels, would be two sorted lists laid end to end — which is not a sort,
+// and which comes out right from most angles and wrong from the rest. The
+// element draw's pipeline state is the blended pipeline's, so a panel and a
+// see-through quad are the same kind of thing to sort and there is no reason to
+// tell them apart here.
 static bool draw_group(voe_render_device *device, const struct group *group)
 {
 	bool sorted = group->order != NULL;
@@ -197,12 +262,24 @@ static bool draw_group(voe_render_device *device, const struct group *group)
 	for (uint32_t i = 0; i < group->count; i++) {
 		const struct deferred *drawn =
 			&group->deferred[sorted ? group->order[i] : i];
-		bool drawn_ok =
-			sorted ? voe_render_frame_draw_blended(device,
-							       drawn->geometry,
-							       drawn->object)
-			       : voe_render_frame_draw(device, drawn->geometry,
-						       drawn->object);
+		bool drawn_ok;
+
+		// A panel ignores `sorted`: there is one element draw and it is
+		// blended whichever group it landed in. A panel never reaches an
+		// unsorted group anyway — see the walk — and the day one does,
+		// drawing it correctly is better than drawing it as a mesh.
+		if (drawn->panel)
+			drawn_ok = voe_render_frame_draw_elements(
+				device, drawn->elements.transform,
+				drawn->elements.first, drawn->elements.count);
+		else if (sorted)
+			drawn_ok = voe_render_frame_draw_blended(
+				device, drawn->mesh.geometry,
+				drawn->mesh.object);
+		else
+			drawn_ok = voe_render_frame_draw(device,
+							 drawn->mesh.geometry,
+							 drawn->mesh.object);
 
 		if (!drawn_ok)
 			return false;
@@ -243,6 +320,51 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	return frame;
 }
 
+// One panel's whole matrix: element millimetres to clip space, through where the
+// panel stands and the camera looking at it.
+//
+// IT IS COMPOSED HERE BECAUSE ONLY THIS FOLDER HAS ALL FOUR PIECES. `render`
+// owns what element space is — millimetres, y down from the top-left, centred on
+// the surface's origin — and hands that over as one matrix; it has never heard
+// of a camera and cannot compose the rest. `scene` owns where the entity is.
+// Putting the four together is what `3d` is for.
+//
+// THE Y SIGN IS IN THE RIGHTMOST FACTOR AND IN NOTHING ELSE HERE. There is no
+// minus in front of a y anywhere in this file, and there must not be: the
+// engine has one Y flip, in render's viewport, and the element path has one
+// negation, in voe_render_element_surface_matrix. A second one here would cancel
+// the first and the picture would look right until something was culled.
+static voe_math_float4x4 panel_transform(voe_math_float4x4 clip,
+					 voe_math_float4x4 model,
+					 voe_math_float2 size)
+{
+	return voe_math_float4x4_mul(
+		voe_math_float4x4_mul(clip, model),
+		voe_render_element_surface_matrix(size));
+}
+
+// Whether a panel's range still describes elements that exist in the frame that
+// is open. `submitted` is what this frame has actually been given.
+//
+// A RANGE IS ONE FRAME'S AND THIS IS WHAT THAT COSTS. The element buffer is
+// empty at the top of every frame, so a panel the program did not rebuild is
+// pointing at records that are not there — and the honest answer is to not draw
+// it, so that "forgotten" looks like "missing" instead of like "wrong".
+//
+// IT DOES NOT CATCH A STALE RANGE THAT HAPPENS TO FIT, AND NOTHING SHORT OF A
+// FRAME STAMP WOULD. A panel holding last frame's numbers, in a frame where some
+// other surface has already submitted at least that many records, draws somebody
+// else's rectangles and passes every test in here. That is recorded rather than
+// fixed: a stamp is a field, a write and a comparison every frame for a case no
+// program has hit yet, and the first one that hits it can argue for it.
+//
+// Written as a subtraction rather than as `first + count`, which is the same
+// question with an addition in it that can wrap.
+static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
+{
+	return panel.first <= submitted && panel.count <= submitted - panel.first;
+}
+
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame)
 {
@@ -250,6 +372,14 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	const voe_3d_mesh *meshes;
 	const voe_ecs_entity *owners;
 	uint32_t count;
+	const voe_3d_panel *panels;
+	const voe_ecs_entity *panel_owners;
+	uint32_t panel_count;
+	// Projection × view, which every panel's own matrix is built onto and
+	// which is the same for all of them. The mesh path does not want it: a
+	// mesh hands its world matrix to render and the shader multiplies.
+	voe_math_float4x4 clip;
+	uint32_t submitted;
 	// The three groups this frame holds back, and the scratch they are built
 	// in. The world's solid objects are the fourth and are drawn as they are
 	// found, so they need none.
@@ -271,14 +401,24 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	owners = voe_3d_mesh_entities(world);
 	count = voe_3d_mesh_count(world);
 
+	panels = voe_3d_panel_rows(world);
+	panel_owners = voe_3d_panel_entities(world);
+	panel_count = voe_3d_panel_count(world);
+
+	clip = voe_math_float4x4_mul(view.projection, view.view);
+	submitted = voe_render_frame_elements_submitted(device);
+
 	// The mark is taken here, immediately before the first push, so that
 	// every path out above it has nothing to give back and the rewind at the
 	// bottom is the only one.
 	mark = voe_base_arena_mark(arena);
 
-	world_blended = group_new(arena, count, true);
+	// Every drawable there is, meshes and panels together, because which
+	// group a thing lands in is not known until both walks have finished —
+	// the same bound the header explains, over one more table.
+	world_blended = group_new(arena, count + panel_count, true);
 	overlay_solid = group_new(arena, count, false);
-	overlay_blended = group_new(arena, count, true);
+	overlay_blended = group_new(arena, count + panel_count, true);
 
 	for (uint32_t row = 0; row < count; row++) {
 		const voe_scene_transform *transform =
@@ -292,8 +432,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			continue;
 
 		entry = (struct deferred){
-			.geometry = meshes[row].geometry,
-			.object = object_of(transform, material),
+			.panel = false,
+			.mesh = { .geometry = meshes[row].geometry,
+				  .object = object_of(transform, material) },
 		};
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.
@@ -304,19 +445,62 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// pass it is in on that side.
 		if (meshes[row].layer == VOE_3D_LAYER_OVERLAY) {
 			hold(blended ? &overlay_blended : &overlay_solid, entry,
-			     view.view);
+			     entry.mesh.object.world, view.view);
 			continue;
 		}
 		// Set aside rather than drawn: it has to go after everything
 		// solid in the world, and after every see-through thing further
 		// away than it is.
 		if (blended) {
-			hold(&world_blended, entry, view.view);
+			hold(&world_blended, entry, entry.mesh.object.world,
+			     view.view);
 			continue;
 		}
 
-		if (!voe_render_frame_draw(device, entry.geometry, entry.object))
+		if (!voe_render_frame_draw(device, entry.mesh.geometry,
+					   entry.mesh.object))
 			break;
+	}
+
+	// THE SECOND TABLE, AND EVERY ROW IN IT IS HELD BACK. A panel is drawn
+	// by the element pipeline, which is blended, tests depth and writes
+	// none — precisely the blended mesh pipeline's state — so a panel
+	// belongs in the blended group of its layer and is sorted among the
+	// see-through meshes there. There is no panel pass and there must not
+	// be: a pass of its own is what makes a see-through quad standing in
+	// front of a panel come out behind it, from some angles only.
+	for (uint32_t row = 0; row < panel_count; row++) {
+		const voe_scene_transform *transform =
+			voe_scene_transform_get(world, panel_owners[row]);
+		voe_math_float4x4 model;
+		struct deferred entry;
+
+		// A panel with nowhere to be, exactly as a mesh with no
+		// transform is skipped rather than guessed at.
+		if (transform == NULL)
+			continue;
+		// And a panel nobody rebuilt this frame, which is not drawn
+		// rather than drawn wrong — see range_is_this_frame_s.
+		if (!range_is_this_frame_s(panels[row], submitted))
+			continue;
+
+		model = voe_scene_transform_matrix(*transform);
+		entry = (struct deferred){
+			.panel = true,
+			.elements = { .transform = panel_transform(
+					      clip, model, panels[row].size),
+				      .first = panels[row].first,
+				      .count = panels[row].count },
+		};
+
+		// The same key meshes use: the view-space depth of the origin,
+		// out of the model matrix rather than out of the composed one,
+		// because the composed one is already in clip space and its
+		// last column is not a position any more.
+		hold(panels[row].layer == VOE_3D_LAYER_OVERLAY ?
+			     &overlay_blended :
+			     &world_blended,
+		     entry, model, view.view);
 	}
 
 	// A refused draw in any group stops that group and not the frame, so
