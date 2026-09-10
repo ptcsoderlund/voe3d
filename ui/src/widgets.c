@@ -485,11 +485,39 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 	float em = em_millimetres(ui);
 	float line = voe_text_font_line_height(ui->font) * em;
 	float pen = rect.min.x;
+	// The slack under the last line: the descender and the line gap, which
+	// is everything of the line box the letters of an ordinary word do not
+	// reach into. It is `line` and not `rect.size.y` because a label of
+	// three lines has three line heights in its box and only the last one's
+	// slack is under the text.
+	float slack = line - w->baseline;
 	// The font measures up from a baseline and this surface measures down
 	// from a corner, so the baseline is BELOW the top edge by the ascender
 	// the measurement handed back. Adding it is the whole of the conversion
 	// and it is not a flip — see this file's header.
-	float baseline = rect.min.y + w->baseline;
+	//
+	// AND HALF THE SLACK IS ADDED WITH IT, WHICH IS WHY A WORD SITS IN THE
+	// MIDDLE OF A BUTTON RATHER THAN HIGH IN IT. A label's box is a whole
+	// line — ascender, descender and line gap — and `click: 0` inks only the
+	// part above the baseline, so a container centring that box centres the
+	// space and not the writing: every button came out with more room under
+	// its word than over it. Halving the slack puts as much of it above the
+	// letters as below.
+	//
+	// IT MOVES THE TEXT AND NOT THE BOX. The rectangle layout measured is
+	// untouched, so nothing about sizes, hit rectangles or where the next
+	// widget goes changes — this is the last step before the letters become
+	// records, and it is the only place in this folder that adjusts one.
+	//
+	// IT IS METRIC CENTRING AND NOT OPTICAL CENTRING. A capital is shorter
+	// than the ascender, so a word of capitals still sits a little high; the
+	// ink's own extent is a question for `text` and this folder cannot ask
+	// it. The descender is the large half of the error and this is the half
+	// that can be fixed from here.
+	//
+	// AND IT IS A DEFAULT AND NOT A POLICY. When styling arrives it decides
+	// where a label sits in its box and this line goes with it.
+	float baseline = rect.min.y + w->baseline + slack * 0.5f;
 
 	for (const char *at = w->text; *at != '\0';) {
 		uint32_t codepoint;
