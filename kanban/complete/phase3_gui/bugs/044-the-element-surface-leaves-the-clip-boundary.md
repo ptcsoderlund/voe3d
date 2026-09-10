@@ -369,3 +369,124 @@ the picture above. **Windows is unchecked and is the principal's half** — the
 fault does not reproduce here and there is no machine to see it on. What to look
 for is the list in *The screenshot* above: all of it or none of it, they fail and
 succeed together.
+
+## What Windows turned up — claude-opus-5 (kanban-coder), 2026-09-10
+
+**The change did not fix the blank window, and the cause is now known.** It is
+not the near plane, not the depth test and not this card. Kept here rather than
+in a bug report, at the principal's direction: this is review material and it
+goes away when the fault is fixed.
+
+### The near plane is innocent, four values over
+
+The principal tried `0.1`, `0.9`, `0.9999` and `1.0`. All four leave the window
+blank. `0.1` is nowhere near a clip boundary, and every missing rectangle sits
+over background where depth is the clear value 0.0 and the compare is GREATER, so
+depth cannot explain it either.
+
+### `cmake -P check.cmake` fails on his machine, and that is what cracked it
+
+NVIDIA RTX 4070, Vulkan 1.4.341, clang 22: 38 tests pass and **`render/elements`
+fails**, headless, in 0.4 seconds — no window, no swapchain, no compositor. Two
+tests fail and both failures are draws whose range does not start at nought.
+Pictures, one character per pixel, from a temporary dump since removed:
+
+```
+four_colours_in_one_draw  (one draw, first = 0)     CORRECT
+a_mesh_after_an_element_draw_is_still_right         top R B / bottom ALL RED   (want . G)
+two_ranges_two_matrices_two_draws                   top R B / bottom CLEAR     (want G G)
+```
+
+The red in the second is in no record of that frame — it is stale content at an
+index the frame never wrote. The blank in the third is a zeroed record, whose
+zeroed clip rectangle discards every fragment.
+
+### Measured: the shader reads `2 * first + instance`
+
+A temporary test submitted four full-surface records — red, green, blue, yellow —
+and drew exactly one of them by range, so the colour names the record read:
+
+```
+asked for record 1 -> rgb 0 0 255    blue, which is record 2
+asked for record 2 -> rgb 10 82 97   the clear: record 4, which is not there
+```
+
+Here the same probe returns green and blue. Both diagnostics are out of the tree
+again and `check.cmake` is green on Linux.
+
+### The cause is the compiler, not the driver
+
+The Windows build tree is on the same filesystem, so the SPIR-V *that* `slangc`
+produced was compared with the SPIR-V produced here, from the same source:
+
+| | instructions | `OpISub` | `OpIAdd` |
+|---|---|---|---|
+| the Windows build | 282 | **0** | 1 |
+| the Linux build | 290 | **3** | 1 |
+
+Vulkan has no per-draw instance number: `InstanceIndex` already counts from
+`firstInstance`, and `BaseInstance` *is* `firstInstance`. A compiler meaning
+HLSL's `SV_InstanceID` must therefore emit `InstanceIndex - BaseInstance`.
+
+- here: `(InstanceIndex - BaseInstance) + BaseInstance` = `InstanceIndex`, right.
+- there: `InstanceIndex + BaseInstance` = `first + i + first`, **wrong**.
+
+**The element shader is correct only on some `slangc` versions and nothing says
+which.** `CLAUDE.md` requires `slangc` and names no version. The failure is
+silent — no compiler error, no validation message, no check step.
+
+### What it explains and what it clears
+
+- **Bug 001's blank window.** The exhibit starts at record 0 and draws; the badge
+  (80), the screen-filling surface (85) and the interface (94) read from 160, 170
+  and 188 in a 122-record buffer — zeroed, discarded. **The badge is missing
+  too**, which 001 believed was drawing.
+- **This card.** Standing exactly on the clip boundary was a real hazard and
+  ADR-0111 does not rest on this fault; the constant and its test should stay.
+  They simply were not this bug.
+- **Cards 030, 032, 034 and 040.** Nothing any of them wrote is wrong. 034's
+  interface is invisible there for the same reason every other range is.
+
+### What a fix has to decide — not made here
+
+**With `firstInstance` always nought the two mappings agree**, so every candidate
+has the same shape: pass the range's start some other way and draw with
+`firstInstance = 0`.
+
+- **Widen the shared push-constant range** from 64 bytes to 80 and push `first`
+  beside the matrix. One layout still, both pipelines still compatible, well
+  inside the 128-byte guaranteed minimum — but it moves card 030's "one layout",
+  which is written down in three places.
+- **A dynamic storage-buffer offset** per element draw: costs a descriptor rebind
+  per surface, which is what sharing the layout was arranged to avoid, and needs
+  the 80-byte record to satisfy `minStorageBufferOffsetAlignment`.
+- **A minimum `slangc` version** in `check.cmake` step 1: cheap, but it pins the
+  build to compiler behaviour instead of removing the dependency.
+
+**Whichever is chosen, the guard belongs in `render/tests/elements.c`**: four
+records of four colours, one drawn by range, asserting the colour that comes
+back. Four lines for a fault no amount of reading the C would reveal, and it
+fails loudly on any toolchain that maps the semantic the other way.
+
+### Confirmed end to end, 2026-09-10
+
+**The principal changed nothing but the shader compiler and the interface
+appeared.** The `PATH` change alone did nothing, because `cmake/voe.cmake:331`
+does `find_program(VOE_SLANGC slangc)` and **`find_program` caches its answer** —
+both his build trees held
+`VOE_SLANGC = C:/VulkanSDK/1.4.304.1/Bin/slangc.exe`, and both compiled shaders
+were 5308 bytes with `OpISub x0`. After deleting the cache and rebuilding against
+the newer `slangc`, the buttons are on screen.
+
+So the diagnosis is proved by the strongest test there is: same engine source,
+same driver, same machine, two compilers, two behaviours.
+
+**And the compiler that miscompiles it is the Vulkan SDK's own bundled `slangc`
+(SDK 1.4.304.1)** — which `CLAUDE.md` names as the easiest way to get one. A
+version floor alone would therefore tell a programmer that the recommended
+install is unsupported. **That is the argument for fixing it in the engine**:
+draw with `firstInstance = 0` and carry the range's start in the push constant,
+which makes both mappings agree because `InstanceIndex - 0` and `InstanceIndex`
+are then the same number. `render/src/device.c` already says widening that range
+is free up to 128 bytes. **Not done here** — it is the tech lead's decision and
+its own card.

@@ -521,215 +521,6 @@
 #include <math.h>
 #include <stdio.h>
 
-/* ===================== PROBE for bug 002 — TEMPORARY =====================
- * NOT repository code, not a fix, and to be removed with the finding. It draws
- * four variants on four successive frames, reads the colour target back after
- * each, and PRINTS what landed — because the machine the fault lives on has no
- * agent on it, and a number in a console travels where a pair of eyes cannot.
- *
- * The four variants take apart what is left of the difference between an
- * element draw that works on that machine and one that does not.
- */
-#include "../../render/src/device_internal.h"
-
-#include <stdlib.h>
-#include <string.h>
-
-#define PROBE_FIRST_FRAME 120u
-#define PROBE_VARIANTS 4u
-/* Room in the element buffer for the one record variants 2 and 3 submit. */
-#define PROBE_SPARE 4u
-
-static const char *const probe_names[PROBE_VARIANTS] = {
-	"baseline, nothing extra drawn",
-	"the exhibit's own records through the screen-filling transform",
-	"one fresh full-surface record through the screen-filling transform",
-	"the same fresh record through a hand-built centre-half matrix",
-};
-
-static voe_math_float2 probe_millimetres(voe_platform_size target)
-{
-	float per_millimetre = (float)target.height /
-			       (VOE_DEV_SURFACE_HIGH * VOE_DEV_UI_SCALE);
-
-	return voe_render_element_surface_size(target, per_millimetre);
-}
-
-/* Element millimetres onto the middle half of the target, built here so that
- * variant 3 shares nothing with variants 1 and 2 except the pipeline itself. */
-static voe_math_float4x4 probe_centre_half(voe_math_float2 mm)
-{
-	voe_math_float4x4 m = { 0 };
-
-	m.m[0][0] = 1.0f / mm.x;
-	m.m[0][3] = -0.5f;
-	m.m[1][1] = -1.0f / mm.y;
-	m.m[1][3] = 0.5f;
-	m.m[2][3] = 0.5f;
-	m.m[3][3] = 1.0f;
-	return m;
-}
-
-static void probe_draw(voe_render_device *gpu, voe_platform_size target,
-		       unsigned variant)
-{
-	voe_math_float2 mm = probe_millimetres(target);
-	voe_math_float4x4 m = voe_render_element_transform(mm);
-	voe_render_element record = {
-		.bounds = { 0.0f, 0.0f, mm.x, mm.y },
-		.clip = { 0.0f, 0.0f, mm.x, mm.y },
-		.colour = { 1.0f, 0.0f, 1.0f, 1.0f },
-		.kind = VOE_RENDER_ELEMENT_SOLID,
-	};
-	uint32_t first;
-
-	if (variant == 1) {
-		if (!voe_render_frame_draw_elements(gpu, m, 0,
-						    VOE_DEV_ELEMENTS))
-			printf("probe      variant 1 draw refused\n");
-		return;
-	}
-	if (variant != 2 && variant != 3)
-		return;
-
-	first = voe_render_frame_elements_submitted(gpu);
-	if (!voe_render_frame_submit_element(gpu, record)) {
-		printf("probe      variant %u submit refused\n", variant);
-		return;
-	}
-	if (variant == 3)
-		m = probe_centre_half(mm);
-	if (!voe_render_frame_draw_elements(gpu, m, first, 1))
-		printf("probe      variant %u draw refused\n", variant);
-}
-
-/* The colour target, on the host, after the frame that drew it. */
-static void probe_report(voe_render_device *gpu,
-			 const struct voe_render_frame *frame,
-			 voe_platform_size target, unsigned variant)
-{
-	PFN_vkCmdCopyImageToBuffer copy_image_to_buffer =
-		(PFN_vkCmdCopyImageToBuffer)voe_render_vk.get_device_proc_addr(
-			gpu->device, "vkCmdCopyImageToBuffer");
-	size_t bytes = (size_t)target.width * (size_t)target.height * 4u;
-	struct voe_render_buffer readback = { 0 };
-	void *mapped = NULL;
-	const unsigned char *pixels;
-	VkCommandBufferAllocateInfo allocate = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = gpu->pool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
-	};
-	VkCommandBuffer commands = VK_NULL_HANDLE;
-	VkCommandBufferBeginInfo begin = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	};
-	VkBufferImageCopy region = {
-		.imageSubresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				      .layerCount = 1 },
-		.imageExtent = { (uint32_t)target.width,
-				 (uint32_t)target.height, 1 },
-	};
-	VkCommandBufferSubmitInfo one = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO };
-	VkSubmitInfo2 submit = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-				 .commandBufferInfoCount = 1,
-				 .pCommandBufferInfos = &one };
-	voe_math_float2 mm = probe_millimetres(target);
-	voe_math_float4x4 m = voe_render_element_transform(mm);
-	float per_millimetre = (float)target.height /
-			       (VOE_DEV_SURFACE_HIGH * VOE_DEV_UI_SCALE);
-	unsigned char background[3];
-	unsigned long different = 0;
-	unsigned long magenta = 0;
-	size_t i;
-
-	if (copy_image_to_buffer == NULL) {
-		printf("probe      no vkCmdCopyImageToBuffer\n");
-		return;
-	}
-	voe_render_vk.device_wait_idle(gpu->device);
-	if (!voe_render_buffer_build(gpu, &readback, bytes,
-				     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-		printf("probe      no readback buffer\n");
-		return;
-	}
-	voe_render_vk.map_memory(gpu->device, readback.memory, 0,
-				 VK_WHOLE_SIZE, 0, &mapped);
-	voe_render_vk.allocate_command_buffers(gpu->device, &allocate,
-					       &commands);
-	voe_render_vk.begin_command_buffer(commands, &begin);
-	copy_image_to_buffer(commands, frame->target.colour.image,
-			     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			     readback.buffer, 1, &region);
-	voe_render_vk.end_command_buffer(commands);
-	one.commandBuffer = commands;
-	voe_render_vk.queue_submit2(gpu->queue, 1, &submit, VK_NULL_HANDLE);
-	voe_render_vk.device_wait_idle(gpu->device);
-
-	/* Bytes are BGRA. The top-left corner is background in every frame this
-	 * program has ever drawn, so it is the reference rather than a constant
-	 * written down twice. */
-	pixels = (const unsigned char *)mapped;
-	background[0] = pixels[(size_t)(2 * target.width + 2) * 4 + 0];
-	background[1] = pixels[(size_t)(2 * target.width + 2) * 4 + 1];
-	background[2] = pixels[(size_t)(2 * target.width + 2) * 4 + 2];
-
-	for (i = 0; i < bytes; i += 4) {
-		int b = pixels[i + 0];
-		int g = pixels[i + 1];
-		int r = pixels[i + 2];
-
-		if (abs(b - background[0]) > 8 || abs(g - background[1]) > 8 ||
-		    abs(r - background[2]) > 8)
-			different++;
-		if (r > 200 && b > 200 && g < 80)
-			magenta++;
-	}
-
-	if (variant == 0) {
-		int tick_x = (int)(8.5f * per_millimetre);
-		int tick_y = (int)(46.0f * per_millimetre);
-		int plate_x = (int)((mm.x - 29.0f) * per_millimetre);
-		int plate_y = (int)(75.0f * per_millimetre);
-		int bar_y = (int)((mm.y - 1.5f) * per_millimetre);
-		int bar_x = target.width / 2;
-		const unsigned char *tick =
-			pixels + ((size_t)tick_y * target.width + tick_x) * 4;
-		const unsigned char *plate =
-			pixels + ((size_t)plate_y * target.width + plate_x) * 4;
-		const unsigned char *bar =
-			pixels + ((size_t)bar_y * target.width + bar_x) * 4;
-
-		printf("probe      target %dx%d, surface %.1f x %.1f mm, %.3f px/mm\n",
-		       target.width, target.height, (double)mm.x, (double)mm.y,
-		       (double)per_millimetre);
-		printf("probe      transform rows: [%.4f %.4f %.4f %.4f] [%.4f %.4f %.4f %.4f] [%.4f %.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]\n",
-		       (double)m.m[0][0], (double)m.m[0][1], (double)m.m[0][2],
-		       (double)m.m[0][3], (double)m.m[1][0], (double)m.m[1][1],
-		       (double)m.m[1][2], (double)m.m[1][3], (double)m.m[2][0],
-		       (double)m.m[2][1], (double)m.m[2][2], (double)m.m[2][3],
-		       (double)m.m[3][0], (double)m.m[3][1], (double)m.m[3][2],
-		       (double)m.m[3][3]);
-		printf("probe      background rgb %u %u %u; tick %u %u %u; plate %u %u %u; bar %u %u %u\n",
-		       background[2], background[1], background[0], tick[2],
-		       tick[1], tick[0], plate[2], plate[1], plate[0], bar[2],
-		       bar[1], bar[0]);
-	}
-	printf("probe  %u   not background %lu, magenta %lu — %s\n", variant,
-	       different, magenta, probe_names[variant]);
-	if (variant == PROBE_VARIANTS - 1)
-		printf("probe      done — copy every `probe` line above\n");
-	fflush(stdout);
-
-	voe_render_vk.unmap_memory(gpu->device, readback.memory);
-	voe_render_buffer_teardown(gpu, &readback);
-}
-/* =================== end PROBE for bug 002 =================== */
 
 // Scratch for the questions starting the GPU asks the driver — how many cards,
 // which queue families, which surface formats. It is handed over, used and
@@ -2247,7 +2038,7 @@ int main(void)
 		// per letter of whatever the labels happen to say.
 		.elements = VOE_DEV_ELEMENTS + VOE_DEV_BADGE_ELEMENTS +
 			    VOE_DEV_SURFACE_ELEMENTS +
-			    VOE_DEV_INTERFACE_ELEMENTS + PROBE_SPARE,
+			    VOE_DEV_INTERFACE_ELEMENTS,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -2436,7 +2227,6 @@ int main(void)
 
 	while (!voe_platform_window_should_close(window)) {
 		voe_platform_size now_size;
-		const struct voe_render_frame *probe_frame; /* PROBE */
 		bool now_decorated;
 		bool now_locked;
 		bool tab_down;
@@ -2645,7 +2435,6 @@ int main(void)
 		// the three in the middle and the loop comes round again — it
 		// does not wait, which is what the spin on a minimised window is.
 		frame = voe_3d_draw_system_frame(world, now_size);
-		probe_frame = voe_render_frame_current(gpu); /* PROBE */
 		if (!voe_render_frame_begin(gpu, now_size, frame.view,
 					    frame.light, &drawing)) {
 			fprintf(stderr, "the GPU stopped answering\n");
@@ -2727,34 +2516,9 @@ int main(void)
 					      &interface_elements) &&
 				      elements_ok;
 
-			/* PROBE (bug 002) */
-			{
-				static unsigned probe_frames;
-				unsigned variant = probe_frames -
-						   PROBE_FIRST_FRAME;
-
-				if (probe_frames >= PROBE_FIRST_FRAME &&
-				    variant < PROBE_VARIANTS)
-					probe_draw(gpu, now_size, variant);
-				probe_frames++;
-			}
-
 			if (!voe_render_frame_end(gpu)) {
 				fprintf(stderr, "the GPU stopped answering\n");
 				break;
-			}
-
-			/* PROBE (bug 002) */
-			{
-				static unsigned probe_reports;
-				unsigned variant = probe_reports -
-						   PROBE_FIRST_FRAME;
-
-				if (probe_reports >= PROBE_FIRST_FRAME &&
-				    variant < PROBE_VARIANTS)
-					probe_report(gpu, probe_frame, now_size,
-						     variant);
-				probe_reports++;
 			}
 
 			// THE FRAME IS COMPLETE, SO THIS IS THE ONE MOMENT

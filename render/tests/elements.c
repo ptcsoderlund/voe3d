@@ -413,57 +413,6 @@ static int colour_of(const unsigned char *pixel)
 	return NEITHER;
 }
 
-/* ---- TEMPORARY diagnostic for bug 002 — to be removed ----
- * The picture as a map: one character per pixel, so that a failure on a machine
- * nobody can attach a debugger to says WHERE the colours landed and not only
- * how many of them there were. `.` is the clear, `?` is a colour none of the
- * three predicates claims, and its rgb is printed underneath.
- */
-static void dump_picture(const unsigned char *image, const char *name)
-{
-	int odd_x = -1;
-	int odd_y = -1;
-
-	printf("map %s\n", name);
-	for (int y = 0; y < SIDE; y++) {
-		char row[SIDE + 1];
-
-		for (int x = 0; x < SIDE; x++) {
-			const unsigned char *pixel = image + (y * SIDE + x) * 4;
-
-			switch (colour_of(pixel)) {
-			case IS_RED: row[x] = 'R'; break;
-			case IS_GREEN: row[x] = 'G'; break;
-			case IS_BLUE: row[x] = 'B'; break;
-			default:
-				/* The clear is one exact colour; anything else
-				 * that is not red, green or blue is worth
-				 * seeing rather than counting as background. */
-				if (pixel[0] > 80 && pixel[0] < 110 &&
-				    pixel[1] > 60 && pixel[1] < 100 &&
-				    pixel[2] < 40) {
-					row[x] = '.';
-				} else {
-					row[x] = '?';
-					odd_x = x;
-					odd_y = y;
-				}
-				break;
-			}
-		}
-		row[SIDE] = '\0';
-		printf("map   %s\n", row);
-	}
-	if (odd_x >= 0) {
-		const unsigned char *pixel =
-			image + (odd_y * SIDE + odd_x) * 4;
-
-		printf("map   a `?` at %d,%d is rgb %u %u %u\n", odd_x, odd_y,
-		       pixel[2], pixel[1], pixel[0]);
-	}
-	fflush(stdout);
-}
-
 // How many pixels of `colour` inside the rectangle [x0, x1) x [y0, y1), in
 // framebuffer coordinates — y0 is the top row, because that is how the bytes
 // come back.
@@ -544,7 +493,6 @@ static void four_colours_in_one_draw(struct scene *scene)
 	image = scene->pixels;
 
 	// Each quadrant is exactly its own colour and nothing else is.
-	dump_picture(image, "four_colours_in_one_draw (the control: R G / B .)");
 	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
 	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_GREEN),
 			   QUADRANT);
@@ -766,7 +714,6 @@ static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
-	dump_picture(image, "a_mesh_after_an_element_draw_is_still_right (want R B / . G)");
 	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
 	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_BLUE),
 			   QUADRANT);
@@ -1041,7 +988,6 @@ static void two_ranges_two_matrices_two_draws(struct scene *scene)
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
-	dump_picture(image, "two_ranges_two_matrices_two_draws (want R B / G G)");
 	// The first range where its own matrix put it.
 	VOE_TEST_CHECK_INT(count_in(image, 0, 0, HALF, HALF, IS_RED), QUADRANT);
 	VOE_TEST_CHECK_INT(count_in(image, HALF, 0, SIDE, HALF, IS_BLUE),
@@ -1453,6 +1399,7 @@ int main(void)
 		voe_render_vk.unmap_memory(scene.device->device,
 					   scene.readback.memory);
 	voe_render_buffer_teardown(scene.device, &scene.readback);
+
 	voe_render_device_destroy(scene.device);
 
 	no_element_room_is_a_refusal(arena);
