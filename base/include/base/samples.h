@@ -26,9 +26,11 @@
 // decays rather than one that starts again, that is a different type and not a
 // flag on this one.
 //
-// `worst` IS THE LARGEST VALUE AND THAT PRESUMES A DIRECTION. Everything
-// measured with one of these is a duration, and a longer duration is a worse
-// one; naming it `max` would be more general and would say less. A quantity
+// `worst` IS THE LARGEST VALUE AND THAT PRESUMES A DIRECTION. Most things
+// measured with one of these are durations, and a longer duration is a worse
+// one, but it is the direction that matters and not the unit: `dev`'s readout
+// measures a frame's draw command count with one, and more draw commands is
+// worse. Naming it `max` would be more general and would say less. A quantity
 // where small is bad does not belong in this type.
 //
 // AN EMPTY RUN AVERAGES ZERO RATHER THAN REFUSING. A reporting period during
