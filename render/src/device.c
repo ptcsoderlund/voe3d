@@ -1226,13 +1226,6 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	device->headless = headless;
 	device->capacities = capacities;
 
-	// Performance by default: a device wants the uncapped mode from the
-	// moment it exists, and a caller that would rather wait for the display
-	// asks for FIFO. It is what is *wanted* and not what is in force —
-	// learn_present_modes below decides whether this surface has one, and
-	// the swapchain falls back where it does not. See voe_render_present.
-	device->present_wanted = VOE_RENDER_PRESENT_MAILBOX;
-
 	// No Vulkan on the machine at all. The one failure a person can fix by
 	// installing something, and the reason this function returns a pointer
 	// that can be NULL rather than asserting.

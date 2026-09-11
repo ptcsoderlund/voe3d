@@ -35,8 +35,8 @@ states and not a test — it is looked at, not asserted on.
   up to should and should not look like, why the line sits on a dark panel and
   what that panel does and does not prove, why it is placed between two systems
   rather than with the other intents, and why neither string holds a character
-  outside Latin-1. A call site and nothing else; the key bindings are the only
-  decision in it, P among them. The sprites are a call and a per-frame call here
+  outside Latin-1. A call site and nothing else; the key bindings and asking for
+  mailbox at startup are the only decisions in it, P among them. The sprites are a call and a per-frame call here
   and nothing else — see `src/sprites.h` — and the element exhibit is two calls
   and a printed measurement, with writing on it — see `src/elements.h`. That
   exhibit is an entity with a panel component standing in the world, a badge sits

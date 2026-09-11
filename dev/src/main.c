@@ -481,10 +481,10 @@
 //   - Close it. It should print `closed` and exit zero.
 //
 // IT WILL SPIN A CORE WHILE IT IS OPEN, AND ON MAILBOX IT WILL SPIN THE GRAPHICS
-// CARD TOO. That is the engine's default and it is deliberate — performance by
-// default, and nothing waits for anything it does not have to — so this program
-// runs as fast as the card and the program between them allow, drawing many
-// frames for every one anybody sees. P is how to stop it doing that: fifo waits
+// CARD TOO. Mailbox is what this program asks for as soon as its device is open —
+// the engine itself opens on fifo — so it runs as fast as the card and the
+// program between them allow, drawing many frames for every one anybody sees. P
+// is how to stop it doing that: fifo waits
 // for the display, so a visible window then costs one frame's worth of work per
 // refresh. Either way a minimised one presents nothing and _poll returns
 // immediately, because platform has no way to wait yet.
@@ -2063,9 +2063,9 @@ int main(void)
 	// down it would do both, one frame after the other.
 	bool escape_was_down = false;
 	// Last frame's P, for the same reason, and the mode it asks for. It
-	// starts true because a device opens wanting mailbox — this is what the
-	// engine already asked for and not a second opinion, so the first press
-	// of P asks for fifo rather than for what is already happening.
+	// starts true because this program asks for mailbox as soon as the device
+	// is open, with this variable, so the first press of P asks for fifo
+	// rather than for what is already happening.
 	//
 	// What is actually in force is the device's answer and is asked for
 	// rather than remembered: a surface with no mailbox leaves this true and
@@ -2107,6 +2107,12 @@ int main(void)
 		voe_platform_window_destroy(window);
 		return 1;
 	}
+
+	// Mailbox, asked for rather than inherited: a device opens on fifo. It is
+	// the call P makes and the variable P flips, so what was asked for at
+	// startup and what the first press takes back cannot disagree.
+	voe_render_present_set(gpu, mailbox_wanted ? VOE_RENDER_PRESENT_MAILBOX :
+						     VOE_RENDER_PRESENT_FIFO);
 
 	// The world and everything read into it live here, and it is destroyed
 	// at the end: the world is the arena's, which is what rule 11 asks for.
@@ -2205,6 +2211,10 @@ int main(void)
 	printf("opened     %dx%d\n", size.width, size.height);
 	printf("decorated  %s\n", decorated ? "yes" : "no");
 	printf("camera     orbit — Tab to fly, Escape to hand back or close\n");
+	// Fifo here, whatever was asked for above: the swapchain the device
+	// opened with is already built on fifo, and the request is acted on at
+	// the top of the first frame. Every block from then on says what is in
+	// force.
 	present = voe_render_present_get(gpu);
 	printf("present    %s\n",
 	       present == VOE_RENDER_PRESENT_MAILBOX ? "mailbox" : "fifo");

@@ -1,8 +1,8 @@
 # 049 — The engine opens on fifo, and `dev` asks for uncapped at startup
 
-claimed-by: -
+claimed-by: claude-opus-5 (kanban-coder, session af55c55a)
 blocked-by: -
-status: todo
+status: review
 decision: *The engine opens on FIFO, and a program asks for uncapped* (ADR-0131, restoring ADR-0067 to force) — `render` opens on fifo; a program that wants mailbox asks for it at startup; `dev` is such a program.
 
 ## Goal
@@ -54,3 +54,34 @@ The engine's default is the one the record has said it was since ADR-0067, `dev`
 it wants instead of inheriting it, and the only comment claiming otherwise is gone.
 
 ## Notes
+
+**Verified on Linux only** — Fedora 44, clang 22.1.8, NVIDIA RTX 4070 Laptop GPU, Vulkan
+1.4.341, Wayland. Windows not checked.
+
+- `cmake -P check.cmake`: exit 0, every step `ok` — all 12 folders standalone, 40 tests
+  passed, the analyser clean over 107 files, no warnings.
+- `grep -rn 'PRESENT_MAILBOX' render/src`: three hits, all in the request path —
+  `swapchain.c` `present_mode_for` (the test and the fallback's other arm) and
+  `device.c` `voe_render_present_set`'s assert. Nothing at device creation.
+- **Headless opens on fifo.** A probe printed `present_wanted` and `_get` from
+  `voe_render_device_new_headless` under `voe_test_render_pools`: `wanted=fifo in_force=fifo`,
+  both devices. Reverted before `check.cmake` ran.
+- **`voe_dev`, 7 s each, before and after** (unchanged binary kept for the comparison). Every
+  timing block says `mailbox` in both: 1770 and 1908 frames/s before, 1914 and 2371 after,
+  which is run-to-run spread.
+- **One readout line differs, accepted by the principal 2026-09-11.** The startup `present`
+  line said `mailbox` and now says `fifo`. `voe_render_device_new` builds the swapchain before
+  it returns, so it is built on fifo, and `dev`'s request is acted on at the top of the first
+  frame. Holding the line identical needs a request before the swapchain exists, a `render`
+  change the card rules out. A comment at that print in `dev/src/main.c` says why it reads
+  fifo. That first-frame rebuild is the only other behavioural difference; the after-run's first
+  block had a 33 ms worst frame against 11 ms before. That is one sample, not established as
+  the rebuild.
+- **`P` not pressed** — a script cannot press a key. Its code, the call and the variable are
+  unchanged. It needs a person to confirm it still halves the rate and back.
+- `render/render.md` states no default and is unchanged. `dev/dev.md`: one line — asking for
+  mailbox at startup is now a decision in `dev` beside the key bindings.
+- `device.h`: besides the sentence the card names, the `MAILBOX` enumerator's comment and
+  `_get`'s comment also said a device opens on mailbox, and are corrected. `_set` gains one
+  sentence: a request made straight after opening takes effect on the first frame.
+- Two folders, `render` and `dev`, both named by the card. No `DEVIATION:` or `BLOCKED:` markers.

@@ -18,14 +18,6 @@
 // where it reports the "you choose" value — which is what Wayland does, always —
 // the window's size is used, clamped to what the surface will take.
 //
-// THE PRESENT MODE IS NOT FIXED HERE ANY MORE, AND THE DEFAULT IS NO LONGER
-// FIFO. It was FIFO and nothing else until card 020, on the grounds that every
-// driver has to support that one; what changed is that the engine can now
-// measure the difference, and the principal decided on the uncapped mode. A
-// device opens wanting MAILBOX, this file honours it where the surface offers
-// one, and FIFO is the fallback rather than the starting point. See
-// present_mode_for below and voe_render_present.
-//
 // A ZERO EXTENT BUILDS NOTHING AND IS NOT A FAILURE. A minimised window has no
 // images to present and no driver will make a swapchain for one. This leaves
 // the swapchain absent and says so by leaving the handle null; frame.c skips a

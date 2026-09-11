@@ -1099,16 +1099,10 @@ voe_render_element_surface_size(voe_platform_size target,
 
 // How a finished frame reaches the display.
 //
-// A DEVICE OPENS ON MAILBOX, AND THAT IS THIS ENGINE'S DEFAULT BECAUSE IT IS THE
-// UNCAPPED ONE. The rule is performance by default: nothing here waits for
-// anything it does not have to, and what costs time — post-processing, real-time
-// global illumination, whatever comes next — is added deliberately by whoever
-// wants it rather than being paid for by everyone who does not. Card 020
-// measured both and the principal decided this one.
-//
-// SO FIFO IS THE ONE A CALLER ASKS FOR, and there are real reasons to: a laptop
-// on a battery, a scene the display is the only limit on, or anything that would
-// rather not draw fifteen frames for every one a person sees.
+// A DEVICE OPENS ON FIFO, AND MAILBOX IS A REQUEST. A caller that asks for
+// nothing waits for the display and draws no frame that nobody sees. A caller
+// that wants the uncapped mode asks for it with voe_render_present_set, at
+// startup or whenever it likes, and then asks _get what it got.
 typedef enum {
 	// Wait for the display. Every frame drawn is a frame shown, in order,
 	// and the queue blocks once it is full — so the program runs at the
@@ -1125,27 +1119,29 @@ typedef enum {
 	// refresh — and the gain is latency, at the cost of drawing frames
 	// nobody ever sees, which is a real cost in power and heat.
 	//
-	// IT IS OPTIONAL AND A DRIVER MAY NOT OFFER IT, WHICH IS WHY THE DEFAULT
-	// BEING THIS ONE IS SAFE. Asking for it on a surface that does not have
-	// it is not a failure: the device falls back to FIFO and _get says so.
-	// Ask, then ask what you got — never assume a device is presenting the
-	// way it was opened.
+	// IT IS OPTIONAL AND A DRIVER MAY NOT OFFER IT, WHICH IS WHY IT IS A
+	// REQUEST AND NOT A PROMISE. Asking for it on a surface that does not
+	// have it is not a failure: the device falls back to FIFO and _get says
+	// so. Ask, then ask what you got — never assume a device is presenting
+	// the way it was asked to.
 	VOE_RENDER_PRESENT_MAILBOX,
 } voe_render_present;
 
 // Ask for a mode. It takes effect on the next frame — the swapchain has to be
 // built again for it, and that happens where every other rebuild does, at the
 // top of a frame — so _get will still report the old one until then, and will
-// report FIFO for ever if this surface has no mailbox.
+// report FIFO for ever if this surface has no mailbox. That includes a request
+// made straight after opening: the swapchain a device opens with is already
+// built, on FIFO, and the first frame is where the request is acted on.
 //
-// A device already wants MAILBOX when it opens, so this is for asking for FIFO
-// and for going back again; it is not something a caller has to call to get the
-// engine's default.
+// A device wants FIFO when it opens, so this is for asking for MAILBOX and for
+// going back again; it is not something a caller has to call to get the engine's
+// default.
 void voe_render_present_set(voe_render_device *device, voe_render_present mode);
 
 // What the swapchain that exists was actually built with, which is the answer to
-// what is happening and not to what was asked for — a device opened wanting
-// MAILBOX on a surface that has none reports FIFO here, and that is the honest
+// what is happening and not to what was asked for — a device asked for MAILBOX
+// on a surface that has none reports FIFO here, and that is the honest
 // answer rather than a failure. A headless device presents nothing and reports
 // FIFO.
 voe_render_present voe_render_present_get(const voe_render_device *device);
