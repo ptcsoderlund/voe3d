@@ -1,8 +1,8 @@
 # 050 — The world lists its component types, and a registration carries a description
 
-claimed-by: -
+claimed-by: claude-opus-5 (session 015U4t8aynAxkavRbfYdkdKX)
 blocked-by: 048
-status: todo
+status: review
 decision: *The world lists its component types, and a description travels with a registration* (ADR-0132) — the world can say how many types are registered, the type at an index, and the key behind a type; `voe_ecs_component_register` takes the struct description the declaring folder wrote and hands it back for a type; NULL means undescribed and is allowed. `ecs` stores the pointer and never reads it. Why a struct and its description are written once together is ADR-0122; where the description type lives is ADR-0127.
 
 ## Goal
@@ -82,3 +82,46 @@ without naming a single component type — and for the transform, reaches its fi
 that answer. That test is the inspector, minus the drawing.
 
 ## Notes
+
+**Verified on Linux only** (Fedora 44, clang 22, CMake 4.3.0, slangc 2026.13.1). Windows is
+unchecked; nothing in the change is platform-specific.
+
+- `cmake -P check.cmake` exits 0, every step `ok`: 12 folders standalone, 40 tests (ecs 3,
+  scene 3 — the new cases are inside those binaries), analyser clean over 107 files. Run on
+  the final source, after the probe below was reverted.
+- Descriptions off (`--preset debug`) and on (scratch tree,
+  `CMAKE_C_FLAGS=-DVOE_BASE_DESCRIPTIONS=1`): both build with no warning, `ctest` 40/40 both.
+- Evidence the table is really registered: only the on-build's `transform_system.c.o` has
+  `voe_scene_transform_description.rows`; the off-build has no description symbol at all.
+- Evidence the new checks run and can fail, from a probe reverted before this note: with
+  `voe_ecs_component_description` forced to NULL, `ecs/component` failed in both builds at
+  the pointer check, and `scene/transform` failed **only in the on-build**, at
+  `found != NULL` — the off-build's NULL branch passed, as the card's Verify line asks.
+- `grep -rn 'math/\|scene/\|3d/' ecs/include ecs/src` is empty. `tools/hot.sh`: all hot
+  files under their ceilings.
+
+**Where the card left a choice** — no rule contradicted, so no `DEVIATION:` markers:
+
+- **The transform's leg of the test is in `scene/tests/transform.c`**, which Scope §4 does
+  not name. *Done looks like* asks a test to reach the transform's field list, and `ecs`
+  may not include `scene`, so that file is the only place it can live. It is one function
+  plus a helper split out of the existing description check. This is the card's explicit
+  instruction overriding one-card-one-folder, said here as `guidelines.md` asks.
+- That test learns whether the build asked for descriptions **before** the file's own
+  `#undef`/`#define`, since `scene/src` follows the build and the test does not. It assumes
+  the switch is set for a whole build — `describe.h` names the command line as the way.
+- `transform_system.c` picks description or NULL with the same `#if` `describe.h` uses,
+  in one static helper.
+- The world's description is scene/src's own static copy (048's note), so the scene test
+  compares it field by field against `offsetof`, never by address.
+- The `ecs` test's described type uses a hand-written record with no fields: `ecs` never
+  follows the pointer, so identity is all there is to prove there.
+- `component.h` now includes `base/describe.h` for the record's type — an anonymous
+  typedef, which cannot be forward-declared. `ecs` already depended on `base`.
+
+**Call sites touched** (all named by the card): `scene/src/transform_system.c` (real
+pointer), `scene/src/camera_system.c`, `scene/src/light_system.c`, `3d/src/mesh_component.c`,
+`3d/src/material_component.c`, `3d/src/panel_component.c` (NULL). No other caller exists.
+
+**`.md` files:** `ecs/ecs.md` lines for `component.h`, `src/component.c` and
+`tests/component.c`; `scene/scene.md` line for `tests/transform.c`.

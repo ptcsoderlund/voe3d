@@ -65,7 +65,8 @@ void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity)
 	VOE_BASE_ASSERT(world != NULL, "registering cameras in no world");
 
 	(void)voe_ecs_component_register(world, &voe_scene_camera_key,
-					 sizeof(voe_scene_camera), capacity);
+					 sizeof(voe_scene_camera), capacity,
+					 NULL);
 	(void)voe_ecs_intent_register(world, &placement_key,
 				      sizeof(voe_scene_camera_placement),
 				      capacity);

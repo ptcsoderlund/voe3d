@@ -10,7 +10,7 @@ void voe_3d_panel_register(voe_ecs_world *world, uint32_t capacity)
 	VOE_BASE_ASSERT(world != NULL, "registering panels in no world");
 
 	(void)voe_ecs_component_register(world, &voe_3d_panel_key,
-					 sizeof(voe_3d_panel), capacity);
+					 sizeof(voe_3d_panel), capacity, NULL);
 }
 
 bool voe_3d_panel_add(voe_ecs_world *world, voe_ecs_entity entity,

@@ -34,8 +34,9 @@ space is.
 - `src/light_component.c` — the key and the reads, and nothing that writes.
 - `src/light_system.c` — registration, creation, the drain, and the one place a
   light's direction becomes unit length.
-- `tests/transform.c` — that the matrix is translate·rotate·scale and that an
-  intent lands only when the system runs.
+- `tests/transform.c` — that the matrix is translate·rotate·scale, that an
+  intent lands only when the system runs, and that the field list a world hands
+  back for a transform is the one the compiler laid out.
 - `tests/camera.c` — the view matrix, and every way of flying one that draws a
   plausible picture while being wrong. Its header says where these came from.
 - `tests/light.c` — that a direction arrives unit length whichever of the two

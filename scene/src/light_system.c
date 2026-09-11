@@ -33,7 +33,8 @@ void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 	VOE_BASE_ASSERT(world != NULL, "registering lights in no world");
 
 	(void)voe_ecs_component_register(world, &voe_scene_light_key,
-					 sizeof(voe_scene_light), capacity);
+					 sizeof(voe_scene_light), capacity,
+					 NULL);
 	(void)voe_ecs_intent_register(world, &light_intent_key,
 				      sizeof(voe_scene_light_intent),
 				      capacity);

@@ -15,6 +15,15 @@
 // without descriptions, and a check that followed the build would never run on
 // the one run that gates a card. Nothing else in this file changes with it: the
 // struct is the same either way.
+//
+// WHAT THE BUILD SAID IS KEPT FIRST, because the transform scene/src registers
+// follows the build and not this file. The switch is set for a whole build, so
+// with it off the world holds NULL for the transform, and that is checked too.
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+#define BUILD_DESCRIBES true
+#else
+#define BUILD_DESCRIBES false
+#endif
 #undef VOE_BASE_DESCRIPTIONS
 #define VOE_BASE_DESCRIPTIONS 1
 
@@ -216,10 +225,8 @@ static void check_field(const voe_base_field_description *actual,
 // Three fields, in the order they are declared, each kinded as declared and each
 // at the offset the compiler gave it. A field list and a table that drifted apart
 // would fail here rather than hand a reader the wrong bytes.
-static void the_description_is_the_struct_the_compiler_laid_out(void)
+static void check_description(const voe_base_struct_description *description)
 {
-	const voe_base_struct_description *description =
-		voe_scene_transform_description();
 	const voe_base_field_description *fields = description->fields;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_transform") == 0);
@@ -235,12 +242,57 @@ static void the_description_is_the_struct_the_compiler_laid_out(void)
 		    offsetof(voe_scene_transform, scale));
 }
 
+static void the_description_is_the_struct_the_compiler_laid_out(void)
+{
+	check_description(voe_scene_transform_description());
+}
+
+// The inspector, minus the drawing: take an entity, ask the world what it is made
+// of without naming a type, and reach the field list from the answer. The table
+// the world holds is scene/src's own copy and not this file's (base/describe.h),
+// so it is checked against the compiler field by field and never by address.
+static void the_world_hands_back_the_transforms_field_list(
+	voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity thing = { 0 };
+	const voe_base_struct_description *found = NULL;
+	uint32_t had = 0;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, thing, known()));
+
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_get(world, type, thing) == NULL)
+			continue;
+
+		had++;
+		found = voe_ecs_component_description(world, type);
+		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
+			       &voe_scene_transform_key);
+	}
+
+	VOE_TEST_CHECK_INT(had, 1);
+
+	if (!BUILD_DESCRIBES) {
+		VOE_TEST_CHECK(found == NULL);
+		return;
+	}
+
+	VOE_TEST_CHECK(found != NULL);
+	if (found != NULL)
+		check_description(found);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	the_matrix_is_translate_rotate_scale();
 	the_description_is_the_struct_the_compiler_laid_out();
+	the_world_hands_back_the_transforms_field_list(arena);
 	a_transform_round_trips_through_the_table(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);

@@ -9,9 +9,16 @@
 // AN INTENT FOR AN ENTITY WITH NO TRANSFORM IS DROPPED. voe_ecs_component_set
 // returns false for a destroyed entity and for one that never had a transform,
 // and both are ordinary rather than wrong — see the header.
+//
+// THE TRANSFORM REGISTERS ITS DESCRIPTION WHEN THE BUILD HAS ONE, AND NULL WHEN IT
+// DOES NOT. The accessor only exists when descriptions are compiled in
+// (base/describe.h), so the #if below is the condition that header tests. The
+// table it returns is this file's own static copy and lives as long as the program.
 #include <base/assert.h>
 #include <ecs/intent.h>
 #include <scene/transform_system.h>
+
+#include <stddef.h>
 
 // One intent per transform per frame is the sizing this assumes, so the queue is
 // as long as the table.
@@ -19,12 +26,22 @@ static const struct voe_ecs_key transform_intent_key = {
 	"voe_scene_transform_intent"
 };
 
+static const voe_base_struct_description *transform_description(void)
+{
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+	return voe_scene_transform_description();
+#else
+	return NULL;
+#endif
+}
+
 void voe_scene_transform_register(voe_ecs_world *world, uint32_t capacity)
 {
 	VOE_BASE_ASSERT(world != NULL, "registering transforms in no world");
 
 	(void)voe_ecs_component_register(world, &voe_scene_transform_key,
-					 sizeof(voe_scene_transform), capacity);
+					 sizeof(voe_scene_transform), capacity,
+					 transform_description());
 	(void)voe_ecs_intent_register(world, &transform_intent_key,
 				      sizeof(voe_scene_transform_intent),
 				      capacity);

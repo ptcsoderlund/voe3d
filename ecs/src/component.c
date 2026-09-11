@@ -70,9 +70,9 @@ static bool drop(struct voe_ecs_table *table, voe_ecs_entity entity)
 	return true;
 }
 
-voe_ecs_type voe_ecs_component_register(voe_ecs_world *world,
-					const struct voe_ecs_key *key,
-					size_t size, uint32_t capacity)
+voe_ecs_type voe_ecs_component_register(
+	voe_ecs_world *world, const struct voe_ecs_key *key, size_t size,
+	uint32_t capacity, const voe_base_struct_description *description)
 {
 	struct voe_ecs_table *table;
 	voe_ecs_type type;
@@ -94,6 +94,7 @@ voe_ecs_type voe_ecs_component_register(voe_ecs_world *world,
 	type.value = world->table_count++;
 	table = &world->tables[type.value];
 	table->key = key;
+	table->description = description;
 	table->size = size;
 	table->capacity = capacity;
 	table->count = 0;
@@ -128,6 +129,39 @@ voe_ecs_type voe_ecs_component_type(const voe_ecs_world *world,
 			"asking for a component type nothing registered — the module's _register was never called");
 	type.value = 0;
 	return type;
+}
+
+uint32_t voe_ecs_component_type_count(const voe_ecs_world *world)
+{
+	VOE_BASE_DEBUG_ASSERT(world != NULL, "counting component types in no world");
+
+	return world->table_count;
+}
+
+voe_ecs_type voe_ecs_component_type_at(const voe_ecs_world *world,
+				       uint32_t index)
+{
+	voe_ecs_type type;
+
+	VOE_BASE_DEBUG_ASSERT(world != NULL, "listing component types in no world");
+	VOE_BASE_ASSERT(index < world->table_count,
+			"a component type index at or past the number registered");
+
+	// A type is its table's index, so the index-th registration is the type.
+	type.value = index;
+	return type;
+}
+
+const struct voe_ecs_key *voe_ecs_component_key(const voe_ecs_world *world,
+						voe_ecs_type type)
+{
+	return table_at(world, type)->key;
+}
+
+const voe_base_struct_description *
+voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type)
+{
+	return table_at(world, type)->description;
 }
 
 bool voe_ecs_component_add(voe_ecs_world *world, voe_ecs_type type,

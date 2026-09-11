@@ -46,7 +46,8 @@ void voe_3d_material_register(voe_ecs_world *world, uint32_t capacity)
 	VOE_BASE_ASSERT(world != NULL, "registering materials in no world");
 
 	(void)voe_ecs_component_register(world, &voe_3d_material_key,
-					 sizeof(voe_3d_material), capacity);
+					 sizeof(voe_3d_material), capacity,
+					 NULL);
 }
 
 bool voe_3d_material_upload(voe_render_device *device,

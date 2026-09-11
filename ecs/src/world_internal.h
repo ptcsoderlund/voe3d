@@ -27,9 +27,11 @@
 
 // One component type. rows is capacity * size bytes; owners says which entity
 // each row belongs to; row_of is one index per entity slot in the world, so the
-// two directions are both a single load.
+// two directions are both a single load. description is whatever the
+// registration carried, NULL included, and nothing in this folder reads it.
 struct voe_ecs_table {
 	const struct voe_ecs_key *key;
+	const voe_base_struct_description *description;
 	size_t size;
 	uint32_t capacity;
 	uint32_t count;
