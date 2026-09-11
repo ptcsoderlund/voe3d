@@ -13,39 +13,36 @@ with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
 
 - `src/main.c` — opens a window and a device, builds a world, reads the model
-  into it, and runs the systems and the draw every frame until it closes. Its
-  header is the list of things to look at in both camera modes, what each of them
-  fails like — the lighting's and the blending's own failures included — and the
-  three things that live here only until the folder that owns them exists. Card
-  020 gave it a real clock and a block of timings every couple of seconds, and
-  card 021a put two see-through quads either side of the cubes; its header says
-  what each of the four numbers brackets, what the overlap between the quads is
-  showing, and which failure a wrong sort looks like. Card 021b added the two
-  strings; its header says why the sign is two entities sharing one mesh, what
-  the five things a text material has to say are, why the line locked to the
-  camera is an ordinary transform in the world rather than anything
-  screen-space, what a letter walked up to should and should not look like, why
-  the line sits on a dark panel and what that panel does and does not prove, why it is placed between two systems rather than with the other
-  intents, and why neither string holds a character outside Latin-1. A call
-  site and nothing else; the key bindings are the only decision in it, P among
-  them. Card 022 added the sprites, which are a call and a per-frame call and
-  nothing else here — see `src/sprites.h`. Card 028 put the timing numbers on
-  the screen and made the loop own the frame: its header says in what order a
-  frame's phases run and why, why the readout is rebuilt every frame and never
-  cached, and what a readout that stops changing means. Card 029 added a
-  `mouse` line to it — the pointer's position and the three buttons, live — and
-  its header says what to look for at each corner, off the window, and while
-  flying. Card 040 added a `draws` line — draw commands per frame, averaged and
-  worsted over the same period as the timings, with the last frame's element
-  record count beside it, which is ADR-0092's claim as two numbers rather than
-  one. Its header says why the worst column is the point of making it a metric,
-  what the first frame shows instead, and why the count includes the readout's
-  own draw. Card 030 added the element exhibit, which is two calls and a printed
-  measurement here and nothing else — see `src/elements.h`; card 031 put writing
-  on it. Card 032 made the exhibit an entity with a panel component standing in
-  the world, added a badge in the overlay beside it, and left a third surface
-  mapped onto the window: its header now lists the three and says which one a
-  resize moves, and which failure "the exhibit visible through a cube" is.
+  into it, and runs the systems and the draw every frame until it closes. It owns
+  the frame and a real clock, and puts a block of timings on the screen every
+  couple of seconds. Its header is the list of things to look at in both camera
+  modes, what each of them fails like — the lighting's and the blending's own
+  failures included — and the three things that live here only until the folder
+  that owns them exists. On the readout: what each of the four numbers brackets,
+  in what order a frame's phases run and why, why it is rebuilt every frame and
+  never cached, what a readout that stops changing means, what to look for on the
+  `mouse` line — the pointer's position and the three buttons, live — at each
+  corner, off the window and while flying, and, on the `draws` line, which is
+  draw commands per frame averaged and worsted over the same period as the
+  timings with the last frame's element record count beside it, ADR-0092's claim
+  as two numbers rather than one: why the worst column is the point of making it
+  a metric, what the first frame shows instead, and why the count includes the
+  readout's own draw. On the two see-through quads either side of the cubes: what
+  their overlap is showing and which failure a wrong sort looks like. On the two
+  strings: why the sign is two entities sharing one mesh, what the five things a
+  text material has to say are, why the line locked to the camera is an ordinary
+  transform in the world rather than anything screen-space, what a letter walked
+  up to should and should not look like, why the line sits on a dark panel and
+  what that panel does and does not prove, why it is placed between two systems
+  rather than with the other intents, and why neither string holds a character
+  outside Latin-1. A call site and nothing else; the key bindings are the only
+  decision in it, P among them. The sprites are a call and a per-frame call here
+  and nothing else — see `src/sprites.h` — and the element exhibit is two calls
+  and a printed measurement, with writing on it — see `src/elements.h`. That
+  exhibit is an entity with a panel component standing in the world, a badge sits
+  in the overlay beside it and a third surface is mapped onto the window: the
+  header lists the three and says which one a resize moves, and which failure
+  "the exhibit visible through a cube" is.
 - `src/elements.h` — the two panels' content: the exhibit's forty rectangles and
   forty letters, and the badge's five, submitted every frame and each drawn by
   one command. Its header says why nothing in there draws, that both surfaces are
@@ -64,7 +61,8 @@ states and not a test — it is looked at, not asserted on.
   heading and two buttons on it, laid out by `ui` and answering the mouse. Its
   header says why the draw count is the claim and why the interface is its own
   surface, why it is mapped onto the window rather than standing in the world,
-  and why its panel is pushed down the page with a spacer until card 041.
+  and why its panel is pushed down the page to clear the readout rather than
+  anchored where it wants to be.
 - `src/interface.c` — the panel's contents and the one division that turns the
   mouse's pixels into the surface's millimetres. Its header says why one button
   counts and the other does nothing, and why the count lives here rather than
