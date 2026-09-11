@@ -1,7 +1,7 @@
 # 045 — the check names the shader compiler's version
 
-status: todo
-claimed-by: -
+status: review
+claimed-by: claude-opus-5-kanban-coder
 blocked-by: -
 folder: root — `check.cmake` only. **No engine code changes in this card.**
 decided-by: **ADR-0112**
@@ -140,3 +140,78 @@ been tested.
 **Already done** — he supplied `2024.17-1-g839bc9aa` on 2026-09-10, which is what set
 the floor. What remains is his ordinary review, plus the one thing this card will tell
 him: step 1 refusing to pass on Windows until his `slangc` is current.
+
+## Notes — coder, 2026-09-11, Linux (WSL2, lavapipe, scratch toolchain)
+
+**Step 1's line, which is the deliverable:**
+
+```
+ok    tools (clang 21, cmake 4.2.3, slangc 2026.17, wayland-scanner 1.24.0)
+```
+
+It was `ok    tools (clang 21, cmake 4.2.3, slangc, wayland-scanner)` before. Every
+tool it names now carries a version.
+
+**What `slangc -v` actually prints here, since the card said look rather than
+guess:** the bare string `2026.17` and nothing else, **on stderr**, exit 0 — no
+banner, no `slangc` in the text, no git tail. `wayland-scanner --version` prints
+`wayland-scanner 1.24.0` on stdout. The parse is one version-shaped token with an
+optional `-N-g<sha>` tail kept for printing and left out of the comparison, so it
+reads all three known forms: `2026.17`, `2026.13.1-1-g84792eb15`, `2024.17-1-g839bc9aa`.
+
+**This machine is 2026.17, not the 2026.13.1 the card's table records.** Card 009's
+number was measured on the native Linux workstation; this session runs on the WSL
+machine's scratch toolchain, which carries a newer Slang. It is above the floor
+either way, so nothing about the floor changes — but the table's Linux row is one
+machine's number and not this repository's.
+
+**Proved the check can fail — seven paths, each seen with its own message:**
+
+| Probe | Step 1 said |
+|---|---|
+| `VOE_SLANGC` at a script printing no version | `could not parse a version out of: I am not a shader compiler` |
+| `VOE_SLANGC` at a file that does not exist | `slangc could not be run: no such file or directory` |
+| slangc exits 3 with a valid version in its text | `slangc -v exited 3: 2026.17` |
+| slangc reports `2024.17-1-g839bc9aa` — the Windows machine's | `slangc 2024.17-1-g839bc9aa is below 2026.13.1. …` |
+| slangc reports `2026.9` | `slangc 2026.9 is below 2026.13.1. …` |
+| `wayland-scanner` exits 2 | `wayland-scanner --version exited 2: broken` |
+| `wayland-scanner` prints no version | passes: `wayland-scanner (said: a scanner of some kind)` |
+
+`2026.9` is the trap the card named: **greater than `2026.13.1` as a string, less as
+a version.** It fails, so the compare is a version compare. Every probe was an
+override or a `PATH` shadow pointing at a script in the scratch directory; no file
+in the tree was edited to produce any of them, and nothing was left behind.
+
+**The path-printing branch, both ways:**
+
+```
+slangc 2026.13.1-1-g84792eb15 at /…/scratchpad/fake/slangc-overridden     (override)
+slangc 2026.13.1-1-g84792eb15                                            (same file, via PATH)
+```
+
+**Verified:** `cmake -P check.cmake` exits zero, 47 s — 13 standalone configures,
+root build, four guards, includes, 39 tests, analyser over 106 files, both negative
+controls. Diffed against the run before this card: **step 1's line is the only line
+that changed.** Linux only; the Windows half of this card is the principal's, and on
+his machine step 1 is expected to fail until his `slangc` is current.
+
+Nothing outside `check.cmake` was touched — no `.slang`, no `cmake/voe.cmake`,
+nothing under `render/`.
+
+### One gap, reported and not closed
+
+**`check.cmake`'s own builds do not receive a `VOE_SLANGC` override, so step 1 can
+now prove a compiler that steps 2 and 3 do not use.** The sub-configures all go
+through `${common}` at line 30, which is `-G Ninja -DCMAKE_C_COMPILER=clang` and
+nothing else, into fresh caches under `build/check`. So `cmake -DVOE_SLANGC=… -P
+check.cmake` checks the override in step 1 and then builds every shader with
+whatever `slangc` is on `PATH` — the card's own objection, pointed the other way.
+
+The fix is one token on line 30 (`-DVOE_SLANGC=${VOE_SLANGC}`), which would also
+mean step 1 must resolve before `common` is set. **Not done:** line 30 is not step
+1, and the card says step 1 and nowhere else. It is a decision about what
+`check.cmake` verifies, so it wants the tech lead.
+
+Until then the honest reading of the new line is: **the version step 1 prints is the
+build's `slangc` on a default invocation, which is every invocation anybody makes
+today.**
