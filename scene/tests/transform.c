@@ -10,7 +10,16 @@
 //
 // A QUARTER TURN ABOUT +Y TAKES +Z TOWARDS +X (math/tests/quat.c), so it takes
 // +X to -Z. That is where the -2 below comes from.
+//
+// THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID. check.cmake builds
+// without descriptions, and a check that followed the build would never run on
+// the one run that gates a card. Nothing else in this file changes with it: the
+// struct is the same either way.
+#undef VOE_BASE_DESCRIPTIONS
+#define VOE_BASE_DESCRIPTIONS 1
+
 #include <base/arena.h>
+#include <base/describe.h>
 #include <ecs/world.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
@@ -19,6 +28,10 @@
 #include <scene/transform_system.h>
 
 #include <testing/test.h>
+
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #define QUARTER_TURN 1.5707963f
 
@@ -187,11 +200,47 @@ static void an_intent_for_a_destroyed_entity_is_dropped(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(voe_scene_transform_count(world), 1);
 }
 
+static void check_field(const voe_base_field_description *actual,
+			const char *name, voe_base_field_kind kind,
+			size_t offset)
+{
+	VOE_TEST_CHECK(strcmp(actual->name, name) == 0);
+	if (strcmp(actual->name, name) != 0)
+		fprintf(stderr, "      actual:   \"%s\"\n      expected: \"%s\"\n",
+			actual->name, name);
+	VOE_TEST_CHECK_INT(actual->kind, kind);
+	VOE_TEST_CHECK_INT((long long)actual->offset, (long long)offset);
+	VOE_TEST_CHECK_INT(actual->count, 1);
+}
+
+// Three fields, in the order they are declared, each kinded as declared and each
+// at the offset the compiler gave it. A field list and a table that drifted apart
+// would fail here rather than hand a reader the wrong bytes.
+static void the_description_is_the_struct_the_compiler_laid_out(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_transform_description();
+	const voe_base_field_description *fields = description->fields;
+
+	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_transform") == 0);
+	VOE_TEST_CHECK_INT(description->field_count, 3);
+	if (description->field_count != 3)
+		return;
+
+	check_field(&fields[0], "position", VOE_BASE_FIELD_FLOAT3,
+		    offsetof(voe_scene_transform, position));
+	check_field(&fields[1], "rotation", VOE_BASE_FIELD_QUAT,
+		    offsetof(voe_scene_transform, rotation));
+	check_field(&fields[2], "scale", VOE_BASE_FIELD_FLOAT3,
+		    offsetof(voe_scene_transform, scale));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	the_matrix_is_translate_rotate_scale();
+	the_description_is_the_struct_the_compiler_laid_out();
 	a_transform_round_trips_through_the_table(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);

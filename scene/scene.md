@@ -5,9 +5,10 @@ person would author, and the systems that own them. Nothing here names a GPU
 resource, a file or a graphics API — a projection matrix is `3d`'s, because clip
 space is.
 
-- `include/scene/transform_component.h` — position, rotation, scale, and the
-  matrix they become. Its header says why there is no parent, why the matrix is
-  not stored, and in which order the three are composed.
+- `include/scene/transform_component.h` — position, rotation, scale, written as a
+  described field list, and the matrix they become. Its header says why there is
+  no parent, why the matrix is not stored, and in which order the three are
+  composed.
 - `include/scene/transform_system.h` — the intent that moves one, and the direct
   call that creates one. Its header says why the intent carries the whole
   transform and why creation is not one.

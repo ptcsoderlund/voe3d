@@ -21,7 +21,13 @@
 // the object rather than of the world it sits in. Vectors are columns and
 // composition reads right to left (CLAUDE.md), so the innermost operation is the
 // rightmost factor.
+//
+// THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a build
+// that asks for descriptions also has voe_scene_transform_description(), and one
+// that does not has the same struct and nothing more.
 #pragma once
+
+#include <base/describe.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -35,11 +41,12 @@
 // A scale of one, a rotation of nothing and a position of nowhere is a zeroed
 // struct with the scale filled in — there is no identity constant, because
 // every caller so far has all three numbers to say.
-typedef struct {
-	voe_math_float3 position;
-	voe_math_quat rotation;
-	voe_math_float3 scale;
-} voe_scene_transform;
+#define VOE_SCENE_TRANSFORM_FIELDS(F)        \
+	F(voe_math_float3, position, FLOAT3) \
+	F(voe_math_quat, rotation, QUAT)     \
+	F(voe_math_float3, scale, FLOAT3)
+
+VOE_BASE_DESCRIBE_STRUCT(voe_scene_transform, VOE_SCENE_TRANSFORM_FIELDS)
 
 // The key this component is registered against. Its address is its identity.
 extern const struct voe_ecs_key voe_scene_transform_key;
