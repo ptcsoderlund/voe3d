@@ -161,12 +161,20 @@
 // IT IS A LINEAR COLOUR AND NOT THE BYTES THAT REACH THE SCREEN. The target is
 // an sRGB format, so the hardware encodes whatever is written into it — a clear
 // of 0.5 arrives on screen as a byte of about 188 and not 128. These three
-// numbers are the linear form of the same slate blue this was before card 019,
-// which is why they are not the round numbers they used to be: a clear colour
-// written as if it were sRGB comes out of an sRGB target visibly washed out.
-#define CLEAR_RED 0.00304f
-#define CLEAR_GREEN 0.08438f
-#define CLEAR_BLUE 0.11954f
+// numbers are the linear form of #17171A, the ink the engine's logo is drawn
+// in, which is why they are not the round numbers a colour picker would give: a
+// clear colour written as if it were sRGB comes out of an sRGB target visibly
+// washed out. Convert, do not paste. It was a slate blue before this, and the
+// same conversion applied then.
+//
+// THE LOGO'S OTHER COLOUR IS NOT A CANDIDATE. The mark is ink on yellow, and the
+// yellow is #FFC000 — full red, two thirds green. A clear of it would sit inside
+// the range the tests above measure against, where the background is assumed to
+// be something no geometry wears, and render/tests/offscreen.c counts pixels per
+// channel against exactly that assumption.
+#define CLEAR_RED 0.00857f
+#define CLEAR_GREEN 0.00857f
+#define CLEAR_BLUE 0.01033f
 
 // The only place a frame slot indexes anything, and the only place an image
 // index does. Both asserts are the same mistake read from either end: a slot is

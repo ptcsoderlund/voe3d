@@ -1,8 +1,8 @@
 # 051 — `app` exists: the parts every program's frame loop repeats
 
-claimed-by: -
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
-status: todo
+status: review
 decision: *`app` is parts a program calls in its own loop* (ADR-0135) — startup, frame open, draw open and close; `app` holds no loop, calls nothing back, and does not own system order, the world, arenas, the readout, key bindings or the present mode.
 
 ## Goal
@@ -107,3 +107,30 @@ A folder with three parts and a clock tested with no window, from which a progra
 loop is a dozen lines of its own.
 
 ## Notes
+
+Verified on **Linux** (Fedora, clang 22, Wayland, software rasteriser). Windows
+not checked — no Windows machine this session; nothing here is platform-specific
+beyond what `platform` and `render` already abstract.
+
+- `cmake -P check.cmake` — green, all 24 steps, including `standalone app` and
+  the analyser over 110 files with no finding.
+- `ctest --test-dir build/check/root -R app` — `app/clock` passed, 1/1. (Plain
+  `ctest -R app` finds nothing: the tree check.cmake builds is `build/check/root`,
+  not `build/`.)
+- `grep -rn 'ecs/\|scene/\|3d/' app/include app/src` — no match.
+- `bash tools/hot.sh` at the planning root — every file `OK`, no `OVER`.
+  `app/app.md` is 23 of its 120 lines.
+
+No `DEVIATION:` and no `BLOCKED:` markers.
+
+Two things not spelled out in Scope, both noted rather than assumed:
+
+- `voe_app_new` asserts `settings.longest_step > 0.0` as well as the clock doing
+  so. Same bug, same rule 13, found before a window opens instead of at the first
+  tick. The comment at that line says so.
+- `app/src/clock.c` includes `<stddef.h>` for `NULL`; `base/assert.h` does not
+  bring it and `clock.c` includes no other header that would.
+
+Suggestion for whoever writes it, not done here: nothing yet proves `_frame_open`
+polls before it reads the size, because testing it needs a window. Card 052 puts
+`dev` on this and is where that would first show.

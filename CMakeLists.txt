@@ -12,6 +12,7 @@ add_subdirectory(3d)
 add_subdirectory(text)
 add_subdirectory(sprite)
 add_subdirectory(ui)
+add_subdirectory(app)
 add_subdirectory(dev)
 
 # The root is a project with a CMakeLists.txt too, so it gets its database beside
