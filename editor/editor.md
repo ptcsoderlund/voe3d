@@ -2,8 +2,9 @@
 
 The program a person opens to author a scene. Today it opens a window and draws
 two named regions side by side — `Scene` on the left, a quarter of the width, and
-`Inspector` beside it — with a heading on each and nothing else. Nothing is
-draggable, nothing is selected and there is no scene yet.
+`Inspector` beside it. The left one lists the authored entities of a scene built
+in code and a click on one selects it; the right one says which. Nothing is
+draggable and there is no viewport.
 
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
@@ -49,8 +50,11 @@ anything.
   the interface is handed a pointer already in millimetres, because the day a
   panel is a quad standing in the world that conversion is a ray against the quad
   and only a call site can know which of the two it wants. The view and the light
-  handed to `voe_app_draw_open` are zeroed — the editor draws no world yet.
-- `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`.
+  handed to `voe_app_draw_open` are zeroed — the editor draws no world yet. It
+  registers the two components, builds the scene, and runs both owning systems
+  every frame whether anything submitted or not.
+- `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`,
+  which is where the two panels' contents are.
   A panel is a value in an enumeration: not a string, not registered anywhere,
   and there is no table to add a row to. **No function pointer lives in this
   folder** — the panel draw is one function with a `switch`, the way `app` keeps
@@ -61,7 +65,13 @@ anything.
 - `src/interface.h`, `src/interface.c` — the screen-filling surface. Pixels per
   millimetre from the window's height over a 135 mm surface, the records `ui`
   emitted submitted into the open frame, and one draw command per root. It
-  decides nothing about what is on a panel.
+  decides nothing about what is on a panel, and its header says why the one
+  question it does ask — what was clicked — has to be asked from in there.
+- `src/scene.h`, `src/scene.c` — the four entities the editor opens on, built in
+  code until there is a loader, and the selection. Its header says why three of
+  the four are authored and the fourth deliberately is not, why the selection is
+  the editor's and not the dock tree's, and why the rows the Scene panel drew
+  have to outlive the call that drew them.
 
 ## Roots
 
@@ -80,5 +90,7 @@ array buys today is that the walk takes a root rather than reading a global.
 
 No splitter drag, no tab bar, no dragging a panel between regions, no closing
 one, no scrolling, no clipping and no saved layout (ADR-0142 point 6). No
-viewport, no camera, no light and no 3D. No pixel snapping anywhere — the
+viewport, no camera, no light and no 3D. No inspector beyond the name of what is
+selected — the real one is card 059 — and no create, no delete, no save and no
+load. No pixel snapping anywhere — the
 interface is world geometry and is not snapped to a pixel grid (ADR-0141 point 3).

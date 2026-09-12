@@ -5,6 +5,13 @@
 // NOTHING IN HERE DECIDES WHAT IS ON A PANEL. It opens the frame, hands over the
 // pointer it was given, asks the dock to walk, and moves records into the
 // device; what a panel says is dock.c's `voe_editor_panel_draw`.
+//
+// IT DOES ASK ONE QUESTION ABOUT WHAT WAS CLICKED, AND THAT IS NOT THE SAME
+// THING. A `ui` widget answers what the pointer did to it only after
+// voe_ui_frame_end and only while the arena its nodes came out of still holds
+// them — a window this function opens and closes. So the one line that reads
+// the frame's clicks is here, between the two, and what a click MEANS is
+// scene.c's.
 #include "interface.h"
 
 #include <base/assert.h>
@@ -48,7 +55,8 @@ void voe_editor_interface_surface(voe_platform_size target,
 
 bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
-			       const voe_editor_dock_root *roots, uint32_t count)
+			       const voe_editor_dock_root *roots,
+			       uint32_t count, voe_editor_scene *scene)
 {
 	struct voe_base_arena_mark mark;
 	bool ok = true;
@@ -57,6 +65,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(ui != NULL, "drawing no interface");
 	VOE_BASE_ASSERT(arena != NULL, "drawing the interface without an arena");
 	VOE_BASE_ASSERT(roots != NULL, "drawing an interface with no roots");
+	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
 
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
@@ -69,12 +78,17 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 		voe_ui_frame_begin(ui, arena);
 		voe_ui_pointer_set(ui, root->pointer);
-		voe_editor_dock_walk(root, ui);
+		voe_editor_dock_walk(root, ui, scene);
 
 		if (!voe_ui_frame_end(ui)) {
 			voe_base_arena_rewind(arena, mark);
 			return false;
 		}
+
+		// Before the rewind below, which is the whole of the window a
+		// widget will answer in. A refused frame above is not asked at
+		// all: nothing was laid out, so nothing was clicked.
+		voe_editor_scene_clicks_read(scene, ui);
 
 		// The range this root fills, read either side of its own
 		// submissions: there is no id and nothing allocated, and

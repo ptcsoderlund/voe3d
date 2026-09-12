@@ -25,6 +25,8 @@
 // set of panels something a reader has to assemble from call sites.
 #pragma once
 
+#include "scene.h"
+
 #include <math/float2.h>
 #include <ui/layout.h>
 #include <ui/widgets.h>
@@ -125,11 +127,20 @@ voe_editor_dock_tree voe_editor_dock_default(void);
 // It is the whole of one `ui` frame and it opens the frame's root container, so
 // it is called between voe_ui_frame_begin and voe_ui_frame_end and once per
 // root — see interface.h on why a root is a frame.
-void voe_editor_dock_walk(const voe_editor_dock_root *root,
-			  voe_ui_context *ui);
+//
+// `scene` is what the panels read and write: the list is its identity table and
+// the selection is its own (scene.h). IT PASSES STRAIGHT THROUGH AND THE TREE
+// NEVER LOOKS AT IT — no node holds one, no split reads one, and a tree built
+// for one scene lays out identically for another. The parameter is here because
+// voe_editor_panel_draw is called from inside the walk and a panel's contents
+// are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
+// folder reaching for a global.
+void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
+			  voe_editor_scene *scene);
 
 // What is on one panel. One function, one `switch`, no table and no function
 // pointer; a panel's contents are ordinary `ui` calls and the tree above owns
 // only the geometry (ADR-0142 point 2). Called from inside the leaf's panel, so
 // everything it emits is a child of that panel.
-void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel);
+void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
+			   voe_editor_scene *scene);

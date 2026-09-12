@@ -1,8 +1,8 @@
 // voe_editor — the program a person opens to author a scene. Today it opens a
-// window and draws two named regions side by side, `Scene` and `Inspector`,
-// whose rectangles came out of a tree of data rather than out of the order of
-// the calls in this file. Nothing is draggable, nothing is selected and there is
-// no scene yet; card 058b brings the scene and the list.
+// window, draws two named regions side by side, `Scene` and `Inspector`, whose
+// rectangles came out of a tree of data rather than out of the order of the
+// calls in this file, lists the authored entities of a scene built in code and
+// follows a click on one. Nothing is draggable and there is no viewport.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -26,6 +26,7 @@
 // that is a later card.
 #include "dock.h"
 #include "interface.h"
+#include "scene.h"
 
 #include <app/app.h>
 
@@ -38,6 +39,9 @@
 #include <platform/window.h>
 
 #include <render/device.h>
+
+#include <scene/identity_system.h>
+#include <scene/transform_system.h>
 
 #include <text/font.h>
 
@@ -61,11 +65,20 @@
 #define EDITOR_WIDE 1280
 #define EDITOR_HIGH 720
 
-// What the world may hold. Small: nothing is in it this card, and card 058b is
-// what puts a scene there.
+// What the world may hold. Two component types are registered below, each with
+// its own intent queue, and the entities are a number to author into rather
+// than a measurement of anything.
 #define MAX_ENTITIES 1024
 #define MAX_COMPONENT_TYPES 8
 #define MAX_INTENT_TYPES 8
+
+// How many transforms and identities the world has room for. The identities are
+// VOE_EDITOR_SCENE_ROWS because that is how many the Scene panel can list, and
+// a world that could hold an identity the list could not show would be a
+// disagreement between two numbers in one program (scene.h). Transforms are
+// wider: an entity the engine makes for itself has one and no identity.
+#define MAX_TRANSFORMS 256
+#define MAX_IDENTITIES VOE_EDITOR_SCENE_ROWS
 
 // THE SURFACES THIS PROGRAM HAS ARE ALL INTERFACE, which is what makes every
 // other capacity a one. The editor submits no vertices, no indices and no
@@ -106,6 +119,10 @@ int main(void)
 	// The roots the loop walks. One of them, and it is the window; see
 	// dock.h on what a second one would cost.
 	voe_editor_dock_root roots[1] = { 0 };
+	// BESIDE THE ROOTS AND NOT IN ONE. What is selected is the editor's and
+	// the dock tree does not know it exists (scene.h): where a panel sits
+	// and what has been clicked in it are two unrelated facts.
+	voe_editor_scene scene = { 0 };
 	int status = 0;
 
 	arena = voe_base_arena_new(EDITOR_ARENA);
@@ -131,19 +148,18 @@ int main(void)
 	window = voe_app_window(app);
 	gpu = voe_app_device(app);
 
-	// The world the editor authors into. Nothing is registered in it and
-	// nothing is in it this card — card 058b is what builds the scene and
-	// lists it — but it is made here because it is the arena's and has to
-	// outlive every frame.
+	// The world the editor authors into. Made here because it is the arena's
+	// and has to outlive every frame, and registered into immediately: a
+	// component's table, its description and its intent queue all come from
+	// the one _register call, and nothing may add a component before it.
 	world = voe_ecs_world_new(arena, (voe_ecs_limits){
 						.entities = MAX_ENTITIES,
 						.component_types =
 							MAX_COMPONENT_TYPES,
 						.intent_types = MAX_INTENT_TYPES });
-	// Nothing reads it yet and -Werror says so. The cast is the honest
-	// spelling of "made on purpose, used by the next card" and it goes when
-	// card 058b registers the first component in it.
-	(void)world;
+	voe_scene_transform_register(world, MAX_TRANSFORMS);
+	voe_scene_identity_register(world, MAX_IDENTITIES);
+	voe_editor_scene_build(&scene, world);
 
 	font = voe_text_font_new(gpu, arena, &error);
 	if (font == NULL) {
@@ -165,6 +181,18 @@ int main(void)
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn;
+
+		// EVERY OWNING SYSTEM RUNS EVERY FRAME, WHETHER ANYTHING
+		// SUBMITTED OR NOT (ADR-0134 point 7). An intent that reaches a
+		// queue on a frame its system does not drain is an edit that
+		// lands whenever the loop next happens to run it, which is a
+		// class of bug that does not exist if the run is
+		// unconditional. Nothing here submits one yet — card 059's
+		// inspector is what does — and the two calls are still here,
+		// because the frame the first submit arrives on must not also
+		// be the frame somebody remembers to add these.
+		voe_scene_transform_system_run(world);
+		voe_scene_identity_system_run(world);
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
@@ -205,7 +233,8 @@ int main(void)
 
 		drawn = voe_editor_interface_draw(gpu, ui, arena, roots,
 						  (uint32_t)(sizeof roots /
-							     sizeof roots[0]));
+							     sizeof roots[0]),
+						  &scene);
 
 		// The frame is closed either way: a refused interface is this
 		// program's numbers being wrong, and abandoning a half-recorded

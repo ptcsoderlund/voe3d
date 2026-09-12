@@ -72,8 +72,14 @@ void voe_editor_interface_surface(voe_platform_size target,
 // numbers above — or when a submit or a draw was refused. All of those are this
 // program's numbers being wrong, and whichever it was has already said so on
 // stderr.
+//
+// `scene` is handed through to the panels and is also where THIS FRAME'S CLICKS
+// LAND. The read has to happen in here and cannot be the caller's: a widget
+// answers only between voe_ui_frame_end and the rewind of the arena its nodes
+// were pushed out of (ui/widgets.h), and both of those are this function's.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
 					     const voe_editor_dock_root *roots,
-					     uint32_t count);
+					     uint32_t count,
+					     voe_editor_scene *scene);

@@ -24,6 +24,8 @@
 
 #include <math/float4.h>
 
+#include <scene/identity_component.h>
+
 // The plate every panel is drawn on: dark, linear, and the same for all of them.
 // The two regions are told apart by the seam between them and by where their
 // headings start, not by being different colours — a colour per panel would be
@@ -39,6 +41,20 @@
 
 // The space between the two children of a split. See the header note above.
 #define SEAM 1.0f
+
+// What goes in front of the selected row's name. IT IS A SECOND LABEL IN THE
+// BUTTON AND NOT A COMPOSED STRING, which is the shape ui/widgets.h asks for —
+// a button is a row and a second thing in one goes across. The alternative is a
+// buffer holding the name with the marker glued on, and that buffer would have
+// to outlive the call that filled it: a label's text is read at
+// voe_ui_frame_end, long after this function has returned. A literal and a
+// pointer into the identity table are both still there then.
+#define SELECTED_MARK "> "
+
+// What the inspector says in front of the name, and what it says with nothing
+// selected. Card 059 replaces both with the real inspector.
+#define SELECTED_LEAD "Selected: "
+#define SELECTED_NOTHING "Nothing selected"
 
 // A child's size, in the axes its PARENT flows in. `ui` reads `size.along` and
 // `size.across` against the container the child is in, so which of x and y is
@@ -76,7 +92,8 @@ static const char *panel_key(voe_editor_panel panel)
 
 static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      uint32_t index, voe_editor_dock_axis parent,
-		      voe_math_float2 size, uint32_t depth)
+		      voe_math_float2 size, uint32_t depth,
+		      voe_editor_scene *scene)
 {
 	const voe_editor_dock_node *node;
 	voe_math_float2 head = size;
@@ -103,7 +120,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 				.gap = PANEL_GAP,
 				.pad = { PANEL_PAD, PANEL_PAD, PANEL_PAD,
 					 PANEL_PAD } });
-		voe_editor_panel_draw(ui, node->panel);
+		voe_editor_panel_draw(ui, node->panel, scene);
 		voe_ui_end(ui);
 		return;
 	}
@@ -138,8 +155,8 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 						.gap = SEAM });
 	}
 
-	walk_node(ui, tree, node->first, node->axis, head, depth + 1);
-	walk_node(ui, tree, node->second, node->axis, tail, depth + 1);
+	walk_node(ui, tree, node->first, node->axis, head, depth + 1, scene);
+	walk_node(ui, tree, node->second, node->axis, tail, depth + 1, scene);
 	voe_ui_end(ui);
 }
 
@@ -168,13 +185,19 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 	return tree;
 }
 
-void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui)
+void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
+			  voe_editor_scene *scene)
 {
 	VOE_BASE_ASSERT(root != NULL, "walking no dock root");
 	VOE_BASE_ASSERT(ui != NULL, "walking a dock root into no interface");
 	VOE_BASE_ASSERT(root->tree.count > 0, "walking an empty dock tree");
 	VOE_BASE_ASSERT(root->size.x > 0.0f && root->size.y > 0.0f,
 			"walking a dock root onto a surface with no area");
+	VOE_BASE_ASSERT(scene != NULL, "walking a dock root with no scene");
+
+	// Last frame's rows named last frame's nodes and the arena they were in
+	// has gone. The panel records this frame's as it draws them.
+	voe_editor_scene_rows_clear(scene);
 
 	voe_ui_row_begin(ui, (voe_ui_container){
 				     .size = { .along = { VOE_UI_SIZE_FIXED,
@@ -183,20 +206,83 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui)
 							   root->size.y } },
 				     .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, root->tree.root, VOE_EDITOR_DOCK_ROW,
-		  root->size, 0);
+		  root->size, 0, scene);
 	voe_ui_end(ui);
 }
 
-void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel)
+// THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE. It walks
+// voe_scene_identity_rows and _entities rather than a list the editor keeps, so
+// an entity the engine made for itself — no identity, hence not authored
+// (ADR-0125) — cannot appear in it, and neither can an authored one go missing.
+// There is nothing here to keep in step with the world.
+//
+// EVERY ROW IS KEYED BY ONE NAME AND THE ROW INDEX, which is what `index` on a
+// widget is for (ui/widgets.h): one name for every button in the loop would make
+// the whole list one button sharing one highlight. The row's label points into
+// the table, which outlives the frame — a name is 64 bytes in the component and
+// never a pointer.
+static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
+{
+	const voe_scene_identity *rows;
+	const voe_ecs_entity *entities;
+	uint32_t count;
+
+	voe_ui_label(ui, "Scene");
+
+	count = voe_scene_identity_count(scene->world);
+	rows = voe_scene_identity_rows(scene->world);
+	entities = voe_scene_identity_entities(scene->world);
+
+	for (uint32_t i = 0; i < count; i++) {
+		voe_ui_node row = voe_ui_button_begin(ui, "entity", i);
+
+		if (voe_editor_scene_is_selected(scene, entities[i]))
+			voe_ui_label(ui, SELECTED_MARK);
+		voe_ui_label(ui, rows[i].name);
+		voe_ui_end(ui);
+
+		// The click is answered after voe_ui_frame_end and this
+		// function has to have returned by then, so the node is handed
+		// to the scene to be asked later. See scene.h.
+		voe_editor_scene_row_add(scene, row, entities[i]);
+	}
+}
+
+// THE LEAD AND THE NAME ARE TWO LABELS IN A ROW, for the same reason the
+// selected row's marker is: neither may be glued into a buffer this function
+// owns, because the text is read once the frame has ended. The panel itself is a
+// column, so the row is what puts them side by side.
+static void inspector_panel(voe_ui_context *ui, const voe_editor_scene *scene)
+{
+	const voe_scene_identity *identity;
+
+	identity = voe_scene_identity_get(scene->world,
+					  voe_editor_scene_selected(scene));
+	if (identity == NULL) {
+		voe_ui_label(ui, SELECTED_NOTHING);
+		return;
+	}
+
+	voe_ui_row_begin(ui, (voe_ui_container){ 0 });
+	voe_ui_label(ui, SELECTED_LEAD);
+	voe_ui_label(ui, identity->name);
+	voe_ui_end(ui);
+}
+
+void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
+			   voe_editor_scene *scene)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing a panel into no interface");
+	VOE_BASE_ASSERT(scene != NULL, "drawing a panel with no scene");
+	VOE_BASE_ASSERT(scene->world != NULL,
+			"drawing a panel onto a scene with no world");
 
 	switch (panel) {
 	case VOE_EDITOR_PANEL_SCENE:
-		voe_ui_label(ui, "Scene");
+		scene_panel(ui, scene);
 		return;
 	case VOE_EDITOR_PANEL_INSPECTOR:
-		voe_ui_label(ui, "Nothing selected");
+		inspector_panel(ui, scene);
 		return;
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
