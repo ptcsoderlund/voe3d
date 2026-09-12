@@ -107,3 +107,9 @@ void voe_ecs_intent_clear(voe_ecs_world *world, voe_ecs_intent type)
 {
 	queue_at(world, type)->count = 0;
 }
+
+size_t voe_ecs_intent_value_size(const voe_ecs_world *world,
+				 voe_ecs_intent type)
+{
+	return queue_at(world, type)->size;
+}

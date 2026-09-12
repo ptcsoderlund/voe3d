@@ -103,6 +103,11 @@ voe_ecs_type voe_ecs_component_register(
 		world->arena, (size_t)capacity * sizeof(*table->owners));
 	table->row_of = voe_base_arena_push(
 		world->arena, (size_t)world->entity_capacity * sizeof(*table->row_of));
+	// No replace intent until the folder names one, which it cannot do here:
+	// the intent it would name has not been registered yet.
+	table->replace = (voe_ecs_intent){ 0 };
+	table->replace_row_offset = 0;
+	table->replace_set = false;
 
 	for (uint32_t i = 0; i < world->entity_capacity; i++)
 		table->row_of[i] = VOE_ECS_NO_ROW;
@@ -162,6 +167,51 @@ const voe_base_struct_description *
 voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type)
 {
 	return table_at(world, type)->description;
+}
+
+// THE THREE CHECKS ARE COMPARISONS OF SIZES THIS FOLDER ALREADY HOLDS, and that
+// is the whole of what can be checked here: the value is bytes to ecs, so an
+// offset that lands on the wrong field of the right size is a mistake only the
+// declaring folder can see. What these catch is the mistake anyone can make once
+// — offsetof of the entity instead of the row, or a row pointed past the end of
+// an intent that turned out to be a different one.
+void voe_ecs_component_replace_set(voe_ecs_world *world, voe_ecs_type type,
+				   voe_ecs_intent intent, size_t row_offset)
+{
+	struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_ASSERT(!table->replace_set,
+			"giving a component type a second replace intent");
+	VOE_BASE_ASSERT(row_offset >= sizeof(voe_ecs_entity),
+			"a replace intent's row would sit over the entity at offset zero");
+	VOE_BASE_ASSERT(row_offset + table->size <=
+				voe_ecs_intent_value_size(world, intent),
+			"a replace intent's value has no room for a whole row at that offset");
+
+	table->replace = intent;
+	table->replace_row_offset = row_offset;
+	table->replace_set = true;
+}
+
+voe_ecs_replace voe_ecs_component_replace(const voe_ecs_world *world,
+					  voe_ecs_type type)
+{
+	const struct voe_ecs_table *table = table_at(world, type);
+	voe_ecs_replace replace = { 0 };
+
+	// A type nobody named an intent for is shown and not edited, so every
+	// number a caller would size a buffer with stays zero.
+	if (!table->replace_set)
+		return replace;
+
+	replace.set = true;
+	replace.intent = table->replace;
+	replace.row_offset = table->replace_row_offset;
+	replace.row_size = table->size;
+	// Read now rather than kept beside the offset: it is the queue's own
+	// number and copying it here would be a second place for it to be wrong.
+	replace.value_size = voe_ecs_intent_value_size(world, table->replace);
+	return replace;
 }
 
 bool voe_ecs_component_add(voe_ecs_world *world, voe_ecs_type type,

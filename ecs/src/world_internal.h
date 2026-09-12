@@ -29,6 +29,11 @@
 // each row belongs to; row_of is one index per entity slot in the world, so the
 // two directions are both a single load. description is whatever the
 // registration carried, NULL included, and nothing in this folder reads it.
+//
+// replace is the same kind of thing one step further: the intent a whole row is
+// written through and where the row sits in that intent's value. Stored, handed
+// back, never read — draining the queue is the owning system's. replace_set is
+// what tells a type that was never given one from a type given intent zero.
 struct voe_ecs_table {
 	const struct voe_ecs_key *key;
 	const voe_base_struct_description *description;
@@ -38,6 +43,9 @@ struct voe_ecs_table {
 	unsigned char *rows;
 	voe_ecs_entity *owners;
 	uint32_t *row_of;
+	voe_ecs_intent replace;
+	size_t replace_row_offset;
+	bool replace_set;
 };
 
 // One intent type. values is capacity * size bytes and count is how much of it
@@ -94,3 +102,11 @@ bool voe_ecs_world_is_alive(const voe_ecs_world *world, voe_ecs_entity entity);
 // Takes the entity's row out of every table it has one in. world.c calls it on a
 // destroy; it lives in component.c because the tables are component.c's.
 void voe_ecs_component_forget(voe_ecs_world *world, voe_ecs_entity entity);
+
+// How many bytes one value of that intent type is. component.c needs it for a
+// replace intent — to check a row fits at the offset it was given, and to say
+// how big a buffer a caller has to zero — and it lives here rather than in
+// component.c so that the bounds check on an intent id stays in intent.c beside
+// every other one.
+size_t voe_ecs_intent_value_size(const voe_ecs_world *world,
+				 voe_ecs_intent type);

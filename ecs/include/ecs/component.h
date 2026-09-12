@@ -62,9 +62,41 @@
 // pointer back — it does not know what a field is, and a NULL there means only
 // that nobody described that component. The pointer must outlive the world, which
 // a description's static table always does.
+//
+// AND SO IS THE INTENT THAT REPLACES A ROW, FOR THE SAME REASON. A folder may
+// name the intent a whole row of its component is written through, and the world
+// hands that back beside the description — it never reads a queued value and
+// never applies one. That is still the owning system's, exactly as rule 4 says:
+//
+//     typedef struct {
+//             voe_ecs_entity entity;              // at offset zero, always
+//             voe_scene_transform transform;      // the whole row
+//     } voe_scene_transform_intent;
+//
+//     voe_ecs_component_replace_set(world, type, intent_type,
+//                                   offsetof(voe_scene_transform_intent,
+//                                            transform));
+//
+// THE ENTITY IS AT OFFSET ZERO AND THE ROW IS WHEREVER THE DECLARING FOLDER SAYS.
+// Offset zero is fixed so a caller that knows nothing about the component can
+// still read out which entity an intent names; the row's offset is not, because a
+// folder writes the struct it wants and hands back offsetof rather than shaping
+// the struct to suit this file.
+//
+// A TYPE WITHOUT ONE IS SHOWN AND NOT EDITED. _replace reports `set` false, and a
+// tool walking the types is expected to display such a component and offer no way
+// to change it — which is the honest answer, because there is no intent to submit
+// and calling voe_ecs_component_set from outside the owning module would be the
+// rule this folder exists to hold.
+//
+// IT IS ITS OWN CALL AND NOT A PARAMETER TO _register. A folder registers its
+// component before it registers the intent that writes it, so the intent type
+// does not exist yet at the moment of registration; and a component that is never
+// edited says nothing rather than passing a zero nobody can tell from a real one.
 #pragma once
 
 #include <base/describe.h>
+#include <ecs/intent.h>
 #include <ecs/world.h>
 
 #include <stddef.h>
@@ -99,6 +131,29 @@ const struct voe_ecs_key *voe_ecs_component_key(const voe_ecs_world *world,
 // The description the type was registered with, or NULL when it had none.
 const voe_base_struct_description *
 voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type);
+
+// Names the intent a whole row of this type is replaced through, and says where
+// in that intent's value the row sits — `offsetof` of the row's field, given by
+// the folder that declared both. Once per type: a second call is the caller's bug
+// and asserts, as does a `row_offset` that would put the row over the entity at
+// offset zero or past the end of the intent's value.
+void voe_ecs_component_replace_set(voe_ecs_world *world, voe_ecs_type type,
+				   voe_ecs_intent intent, size_t row_offset);
+
+// What _replace hands back. `row_size` is the component's row and `value_size`
+// the whole intent, both as they were registered, so a caller can zero a buffer
+// of one and copy a row into the middle of it without naming either type. When
+// `set` is false the type has no replace intent and every other field is zero.
+typedef struct {
+	bool set;
+	voe_ecs_intent intent;
+	size_t row_offset;
+	size_t row_size;
+	size_t value_size;
+} voe_ecs_replace;
+
+voe_ecs_replace voe_ecs_component_replace(const voe_ecs_world *world,
+					  voe_ecs_type type);
 
 // The type registered against that key. Asserts if nothing was — a module asking
 // for its own type before it registered it is a bug in the order the program

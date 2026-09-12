@@ -12,18 +12,33 @@
 // THE WALK OVER EVERY TYPE IS THE INSPECTOR'S LOOP, WRITTEN HERE ONCE. It names no
 // type: it takes an entity, asks each registered type for a row, and counts what
 // answers — which is how a caller that knows nothing about a component finds it.
+//
+// AND SO IS THE EDIT AT THE BOTTOM OF THIS FILE. A replace intent is three
+// numbers — where the row sits in the value, how big the row is, how big the
+// value is — and the point of storing them is that a caller can read a row, put
+// it back changed, and never name the component's type while doing it. That round
+// trip is written out here once, by hand, because there is no system in ecs to
+// drain the queue and because getting it wrong in the editor would look like a
+// component that does not save rather than like an offset that is four bytes out.
 #include <base/arena.h>
 #include <base/describe.h>
 #include <ecs/component.h>
+#include <ecs/intent.h>
 #include <ecs/world.h>
 
 #include <testing/test.h>
 
 #include <stddef.h>
+#include <string.h>
 
 #define ENTITIES 16
 #define ROWS 4
 #define TYPES 3
+
+// Which byte of a row the edit below changes, and to what. A byte by index and
+// not a field by name, because that is all a caller walking a description has.
+#define CHANGED_BYTE 1
+#define CHANGED_TO 0xABu
 
 // Any struct will do; ecs never looks inside one.
 struct marker {
@@ -33,6 +48,20 @@ struct marker {
 static const struct voe_ecs_key marker_key = { "test_marker" };
 static const struct voe_ecs_key second_key = { "test_second" };
 static const struct voe_ecs_key third_key = { "test_third" };
+
+// The shape ADR-0134 asks for: the entity first and at offset zero, the whole row
+// after it. ecs never looks inside one — this file is the only thing here that
+// knows the two fields are there.
+struct marker_intent {
+	voe_ecs_entity entity;
+	struct marker row;
+};
+
+// Two, because a replace intent that came back as intent zero would look right
+// against a world holding only one. The filler is registered first, so the one
+// the tests name is not the zeroth.
+static const struct voe_ecs_key filler_intent_key = { "test_filler_intent" };
+static const struct voe_ecs_key marker_intent_key = { "test_marker_intent" };
 
 // Any record will do either, for the same reason: the world hands the pointer back
 // and never follows it, so a record with no fields proves as much as a real one.
@@ -47,7 +76,7 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
 		.component_types = TYPES,
-		.intent_types = 1,
+		.intent_types = 2,
 	};
 
 	return voe_ecs_world_new(arena, limits);
@@ -292,6 +321,143 @@ static void a_stale_entity_is_made_of_nothing(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(types_of(world, stale, has), 0);
 }
 
+// The two registrations every replace test makes: the component, then the intent
+// that replaces a row of it, with a filler intent in front so the one under test
+// is not intent zero.
+static voe_ecs_intent register_marker_and_its_intent(voe_ecs_world *world,
+						     voe_ecs_type *type)
+{
+	*type = voe_ecs_component_register(world, &marker_key,
+					   sizeof(struct marker), ROWS,
+					   &marker_description);
+	(void)voe_ecs_intent_register(world, &filler_intent_key,
+				      sizeof(struct marker), ROWS);
+	return voe_ecs_intent_register(world, &marker_intent_key,
+				       sizeof(struct marker_intent), ROWS);
+}
+
+static void a_type_hands_back_the_intent_it_was_given(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type type;
+	voe_ecs_intent intent = register_marker_and_its_intent(world, &type);
+	voe_ecs_replace replace;
+
+	voe_ecs_component_replace_set(world, type, intent,
+				      offsetof(struct marker_intent, row));
+
+	replace = voe_ecs_component_replace(world, type);
+	VOE_TEST_CHECK(replace.set);
+	VOE_TEST_CHECK_INT(replace.intent.value, intent.value);
+	VOE_TEST_CHECK_INT(replace.row_offset,
+			   offsetof(struct marker_intent, row));
+	VOE_TEST_CHECK_INT(replace.row_size, sizeof(struct marker));
+	VOE_TEST_CHECK_INT(replace.value_size, sizeof(struct marker_intent));
+
+	// The sizes are what a caller sizes a buffer with, so the row has to fit
+	// inside the value at the offset — the same comparison _replace_set made.
+	VOE_TEST_CHECK(replace.row_offset + replace.row_size <=
+		       replace.value_size);
+	VOE_TEST_CHECK(replace.row_offset >= sizeof(voe_ecs_entity));
+}
+
+// A component nothing edits is shown and not edited, and that is four zeroes and
+// a false rather than anything a caller has to remember not to use.
+static void a_type_without_one_says_so_and_nothing_else(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+	voe_ecs_replace replace;
+
+	register_three(world, types);
+
+	for (uint32_t i = 0; i < TYPES; i++) {
+		replace = voe_ecs_component_replace(world, types[i]);
+		VOE_TEST_CHECK(!replace.set);
+		VOE_TEST_CHECK_INT(replace.intent.value, 0);
+		VOE_TEST_CHECK_INT(replace.row_offset, 0);
+		VOE_TEST_CHECK_INT(replace.row_size, 0);
+		VOE_TEST_CHECK_INT(replace.value_size, 0);
+	}
+}
+
+// THE ROUND TRIP THE EDITOR WILL MAKE, ONCE AND BY HAND. Everything between the
+// two _get calls is written as a tool would write it: the type's own name appears
+// only where the world is set up, and from _replace onwards the row is bytes at
+// an offset. The drain at the end is the owning system's work in any real folder
+// and is done here because ecs has no systems in it.
+static void a_row_is_edited_through_its_replace_intent(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type type;
+	voe_ecs_intent intent = register_marker_and_its_intent(world, &type);
+	voe_ecs_entity thing = { 0 };
+	// The row the entity starts with, spelled as bytes and handed to _add as
+	// bytes. What this checks at the end is which bytes moved, so the bytes
+	// are what it states up front — and ecs copies the registered size
+	// without looking inside, which is the same reason it can.
+	static const unsigned char start[sizeof(struct marker)] = { 0x01, 0x02,
+								    0x03, 0x04 };
+	unsigned char value[sizeof(struct marker_intent)] = { 0 };
+	const unsigned char *queued;
+	const unsigned char *now;
+	voe_ecs_replace replace;
+	const void *read;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_ecs_component_add(world, type, thing, start));
+	voe_ecs_component_replace_set(world, type, intent,
+				      offsetof(struct marker_intent, row));
+
+	replace = voe_ecs_component_replace(world, type);
+	VOE_TEST_CHECK(replace.set);
+	VOE_TEST_CHECK_INT(replace.value_size, sizeof value);
+	if (!replace.set)
+		return;
+
+	// Read the row, copy it into a zeroed value at the offset the type gave,
+	// and put the entity at offset zero where it always is.
+	read = voe_ecs_component_get(world, type, thing);
+	VOE_TEST_CHECK(read != NULL);
+	if (read == NULL)
+		return;
+	memcpy(value, &thing, sizeof thing);
+	memcpy(value + replace.row_offset, read, replace.row_size);
+
+	// One byte of the copy, and nothing else in it.
+	value[replace.row_offset + CHANGED_BYTE] = CHANGED_TO;
+	VOE_TEST_CHECK(voe_ecs_intent_submit(world, intent, value));
+	VOE_TEST_CHECK_INT(voe_ecs_intent_count(world, intent), 1);
+
+	// The drain: the entity out of the front of each queued value, the row out
+	// of the offset behind it, all of it, then empty.
+	queued = voe_ecs_intent_queue(world, intent);
+	for (uint32_t i = 0; i < voe_ecs_intent_count(world, intent); i++) {
+		const unsigned char *one =
+			queued + (size_t)i * replace.value_size;
+		voe_ecs_entity named;
+
+		memcpy(&named, one, sizeof named);
+		VOE_TEST_CHECK(voe_ecs_component_set(world, type, named,
+						     one + replace.row_offset));
+	}
+	voe_ecs_intent_clear(world, intent);
+
+	// That byte and no other. Byte by byte rather than field by field, because
+	// "no other" is the half of the claim a field comparison would not make.
+	read = voe_ecs_component_get(world, type, thing);
+	VOE_TEST_CHECK(read != NULL);
+	if (read == NULL)
+		return;
+	now = read;
+	VOE_TEST_CHECK_INT(now[CHANGED_BYTE], CHANGED_TO);
+	for (size_t i = 0; i < sizeof(struct marker); i++) {
+		if (i == CHANGED_BYTE)
+			continue;
+		VOE_TEST_CHECK_INT(now[i], start[i]);
+	}
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -303,6 +469,9 @@ int main(void)
 	an_entity_is_found_to_have_exactly_what_it_was_given(arena);
 	a_description_comes_back_as_it_was_registered(arena);
 	a_stale_entity_is_made_of_nothing(arena);
+	a_type_hands_back_the_intent_it_was_given(arena);
+	a_type_without_one_says_so_and_nothing_else(arena);
+	a_row_is_edited_through_its_replace_intent(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
