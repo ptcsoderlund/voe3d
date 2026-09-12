@@ -20,6 +20,8 @@
 // otherwise be the one shape the walk could not express.
 #include "dock.h"
 
+#include "inspector.h"
+
 #include <base/assert.h>
 
 #include <math/float4.h>
@@ -50,11 +52,6 @@
 // voe_ui_frame_end, long after this function has returned. A literal and a
 // pointer into the identity table are both still there then.
 #define SELECTED_MARK "> "
-
-// What the inspector says in front of the name, and what it says with nothing
-// selected. Card 059 replaces both with the real inspector.
-#define SELECTED_LEAD "Selected: "
-#define SELECTED_NOTHING "Nothing selected"
 
 // A child's size, in the axes its PARENT flows in. `ui` reads `size.along` and
 // `size.across` against the container the child is in, so which of x and y is
@@ -248,25 +245,14 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 	}
 }
 
-// THE LEAD AND THE NAME ARE TWO LABELS IN A ROW, for the same reason the
-// selected row's marker is: neither may be glued into a buffer this function
-// owns, because the text is read once the frame has ended. The panel itself is a
-// column, so the row is what puts them side by side.
-static void inspector_panel(voe_ui_context *ui, const voe_editor_scene *scene)
+// WHAT IS ON THE INSPECTOR IS ONE CALL AND NOT A SECOND SCENE PANEL. It is
+// handed the world and the selection and nothing else, because what it lists is
+// the world's own component types and not anything this folder knows the name of
+// — see inspector.h.
+static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 {
-	const voe_scene_identity *identity;
-
-	identity = voe_scene_identity_get(scene->world,
-					  voe_editor_scene_selected(scene));
-	if (identity == NULL) {
-		voe_ui_label(ui, SELECTED_NOTHING);
-		return;
-	}
-
-	voe_ui_row_begin(ui, (voe_ui_container){ 0 });
-	voe_ui_label(ui, SELECTED_LEAD);
-	voe_ui_label(ui, identity->name);
-	voe_ui_end(ui);
+	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
+				  voe_editor_scene_selected(scene));
 }
 
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,

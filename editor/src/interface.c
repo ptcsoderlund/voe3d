@@ -14,6 +14,8 @@
 // scene.c's.
 #include "interface.h"
 
+#include "inspector.h"
+
 #include <base/assert.h>
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
@@ -78,6 +80,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 		voe_ui_frame_begin(ui, arena);
 		voe_ui_pointer_set(ui, root->pointer);
+		// The inspector formats every label it draws into this arena
+		// and hands back its controls through nodes out of this frame,
+		// so it is opened here beside the frame and not inside the walk.
+		voe_editor_inspector_frame_begin(&scene->inspector, arena);
 		voe_editor_dock_walk(root, ui, scene);
 
 		if (!voe_ui_frame_end(ui)) {
@@ -88,6 +94,14 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// Before the rewind below, which is the whole of the window a
 		// widget will answer in. A refused frame above is not asked at
 		// all: nothing was laid out, so nothing was clicked.
+		//
+		// The edits go first, and which order they are in is a fact and
+		// not a taste: a click read here can move the selection, and the
+		// controls above were drawn for whatever was selected when the
+		// frame was built. The inspector keeps that entity itself, so
+		// the order is belt as well as braces.
+		voe_editor_inspector_edits_read(&scene->inspector, ui,
+						scene->world);
 		voe_editor_scene_clicks_read(scene, ui);
 
 		// The range this root fills, read either side of its own

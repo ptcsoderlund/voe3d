@@ -35,7 +35,15 @@
 // the panel that made those nodes returned long before the frame ended. So the
 // Scene panel records each button and the entity it names, and the clicks are
 // read out afterwards, inside the same frame, by voe_editor_scene_clicks_read.
+//
+// AND SO DOES WHAT THE INSPECTOR DREW, WHICH IS THE SAME SENTENCE AND IS WHY IT
+// IS IN HERE TOO. The two panels are handed this struct and nothing else
+// (dock.h), so this is where a panel keeps what it has to be asked about after
+// the frame; the inspector's own is one field below and inspector.h owns every
+// line of what is in it.
 #pragma once
+
+#include "inspector.h"
 
 #include <ecs/world.h>
 #include <ui/layout.h>
@@ -65,6 +73,10 @@ typedef struct {
 	voe_ecs_entity selected;
 	voe_editor_scene_row listed[VOE_EDITOR_SCENE_ROWS];
 	uint32_t listed_count;
+	// What the Inspector panel drew this frame, and the arena its labels
+	// were formatted into. Opened and read by interface.c, filled in by
+	// inspector.c, and untouched by anything in scene.c.
+	voe_editor_inspector inspector;
 } voe_editor_scene;
 
 // Builds the four entities into `world` and points `scene` at it. The world must

@@ -3,8 +3,8 @@
 The program a person opens to author a scene. Today it opens a window and draws
 two named regions side by side — `Scene` on the left, a quarter of the width, and
 `Inspector` beside it. The left one lists the authored entities of a scene built
-in code and a click on one selects it; the right one says which. Nothing is
-draggable and there is no viewport.
+in code and a click on one selects it; the right one lists what the selected
+entity is made of and lets a number in it be dragged. There is no viewport.
 
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
@@ -33,12 +33,11 @@ to touch.
     cmake --build --preset editor --target voe_editor
     ./build/editor/editor/voe_editor
 
-The `editor` preset is `debug` plus `-DVOE_BASE_DESCRIPTIONS=1`, which is what
-puts `base`'s field descriptions in the binary — the inspector expands a
-component by walking them, so with them off it will have nothing to show. `debug`
-and `release` keep them off, and the program says at startup which kind of build
-it is. It builds and runs under the `debug` preset too; it just cannot expand
-anything.
+`debug` does the same thing and is the one to review in. Both presets define
+`VOE_BASE_DESCRIPTIONS=1`, which is what puts `base`'s field descriptions in the
+binary — the inspector expands a component by walking them, so with them off it
+has nothing to show but the component names. `release` keeps them off, and the
+program says at startup which kind of build it is.
 
 ## The files
 
@@ -67,11 +66,17 @@ anything.
   emitted submitted into the open frame, and one draw command per root. It
   decides nothing about what is on a panel, and its header says why the one
   question it does ask — what was clicked — has to be asked from in there.
+- `src/inspector.h`, `src/inspector.c` — what the selected entity is made of, and
+  the controls that change it. It walks the world's component types and expands
+  whatever came with a field description, so it names no component; an edit is a
+  replace intent and never a write. Its header says why the controls and every
+  label's text have to outlive the call that drew them.
 - `src/scene.h`, `src/scene.c` — the four entities the editor opens on, built in
   code until there is a loader, and the selection. Its header says why three of
   the four are authored and the fourth deliberately is not, why the selection is
   the editor's and not the dock tree's, and why the rows the Scene panel drew
-  have to outlive the call that drew them.
+  have to outlive the call that drew them. It also carries what the Inspector
+  drew this frame, for the same reason and in inspector.h's own struct.
 
 ## Roots
 
