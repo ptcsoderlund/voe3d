@@ -1,8 +1,8 @@
 # 060 — A field can be marked read-only in its description
 
-claimed-by: -
+claimed-by: kanban-coder (Claude Opus 5)
 blocked-by: -
-status: todo
+status: review
 decision: *A field can be marked read-only, and an authored id is never replaced* (ADR-0139) points 1 and 2 — the declaring field list marks a field read-only, `base`'s field record carries the mark, the struct is unchanged, and a tool shows a marked field without editing it.
 
 ## Goal
@@ -70,3 +70,41 @@ A field list where one line reads `F_READ_ONLY`, a description that says so, and
 byte-for-byte what it was.
 
 ## Notes
+
+Verified on Linux (Fedora, clang 22, software rasteriser), 2026-09-12.
+
+- `cmake -P check.cmake` exits 0 — 41 tests, analyser over 113 files, all folders
+  standalone.
+- `ctest` passes 41/41 in both `--preset debug` (descriptions off) and
+  `--preset editor`, which is the descriptions-on preset that already existed
+  (`CMAKE_C_FLAGS=-DVOE_BASE_DESCRIPTIONS=1`) — so no scratch tree was needed.
+- `voe_scene_transform` layout measured by compiling a throwaway program against
+  `scene/include/scene/transform_component.h` twice, once with
+  `-DVOE_BASE_DESCRIPTIONS=1` and once without. Both print
+  `sizeof=40 align=4 position=0 rotation=12 scale=28` — card 048's numbers.
+- `grep -rn '_FIELDS(F)' base scene` returns nothing.
+- From the planning root, `bash tools/hot.sh` reports every hot file `OK`, no
+  `OVER`.
+- The read-only check is live, not vacuous: a copy of `base/tests/describe.c`
+  with `owner`'s expectation flipped to `false` fails with
+  `actual: 1 expected: 0`. The copy was compiled in the scratch directory and
+  the repository file was never edited to prove it.
+
+How it is built: `VOE_BASE_DESCRIBE_STRUCT` hands the field list the *same* macro
+for both parameters when declaring members and when checking sizes, so the two
+routes cannot diverge; only the table passes two different macros, and both are
+one line onto a shared `VOE_BASE_DESCRIBE_ROW_IMPL_` that differs in the
+`.read_only` argument alone.
+
+`bool read_only` was added at the end of `voe_base_field_description`, which
+leaves the existing positional initialisers in tests valid; they were updated to
+say `false`/`true` explicitly anyway.
+
+`base/base.md`'s `describe.h` line now says the header explains what the
+read-only mark does and does not mean.
+
+No `DEVIATION:` and no `BLOCKED:` markers.
+
+Suggestion, not done here (outside the card): `scene/tests/transform.c`'s
+`check_field` does not look at `read_only`. Card 055 gives `scene` its first
+read-only field and is the natural place for that assertion.

@@ -41,9 +41,9 @@
 // A scale of one, a rotation of nothing and a position of nowhere is a zeroed
 // struct with the scale filled in — there is no identity constant, because
 // every caller so far has all three numbers to say.
-#define VOE_SCENE_TRANSFORM_FIELDS(F)        \
-	F(voe_math_float3, position, FLOAT3) \
-	F(voe_math_quat, rotation, QUAT)     \
+#define VOE_SCENE_TRANSFORM_FIELDS(F, F_READ_ONLY) \
+	F(voe_math_float3, position, FLOAT3)       \
+	F(voe_math_quat, rotation, QUAT)           \
 	F(voe_math_float3, scale, FLOAT3)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_transform, VOE_SCENE_TRANSFORM_FIELDS)

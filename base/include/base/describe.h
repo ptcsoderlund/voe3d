@@ -1,9 +1,9 @@
 // A struct written once, as a list of its fields, and — when a build asks for it
 // — a table beside it saying what each field is and where it lives.
 //
-//     #define VOE_SCENE_TRANSFORM_FIELDS(F)          \
-//             F(voe_math_float3, position, FLOAT3)   \
-//             F(voe_math_quat, rotation, QUAT)       \
+//     #define VOE_SCENE_TRANSFORM_FIELDS(F, F_READ_ONLY) \
+//             F(voe_math_float3, position, FLOAT3)       \
+//             F(voe_math_quat, rotation, QUAT)           \
 //             F(voe_math_float3, scale, FLOAT3)
 //
 //     VOE_BASE_DESCRIBE_STRUCT(voe_scene_transform, VOE_SCENE_TRANSFORM_FIELDS)
@@ -16,6 +16,19 @@
 // NO SEMICOLON AFTER THE MACRO. It expands to whole declarations that end in their
 // own, the way a function definition does, and one more at file scope is an error
 // under -Wpedantic.
+//
+// A FIELD LIST TAKES TWO PARAMETERS AND EVERY FIELD GOES THROUGH ONE OF THEM.
+// F and F_READ_ONLY are invoked with the same three arguments, and the member
+// they declare and the checks it must pass are the same either way: the struct is
+// byte-for-byte what it would be if every field were listed through F. What
+// differs is the field's row, which says read_only for a field listed through
+// F_READ_ONLY.
+//
+// READ-ONLY IS A NOTE TO A TOOL AND NOTHING MORE. It says that an editor shows
+// the field and does not offer to change it — an authored id being the case it
+// was written for. It is not const, it does not bind the code, and the program
+// runs the same with it and without it; the mark is the declaring folder's to
+// write, on the line beside the field.
 //
 // THE DECLARING FOLDER SUPPLIES THE C TYPE AND BASE SUPPLIES THE KIND. A kind is a
 // word in the list below and a size in bytes; base never maps it onto a type,
@@ -76,6 +89,9 @@ typedef struct {
 	size_t size;
 	// 1 for a single value, N for a fixed-size array of N.
 	uint32_t count;
+	// True for a field listed through F_READ_ONLY: a tool shows it and does
+	// not edit it. Nothing in the struct or the program depends on it.
+	bool read_only;
 } voe_base_field_description;
 
 typedef struct {
@@ -135,12 +151,13 @@ static_assert(sizeof(bool) == VOE_BASE_FIELD_SIZE_BOOL, "bool is not 1 byte");
 static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 	      "a plain enum is not 4 bytes");
 
-#define VOE_BASE_DESCRIBE_STRUCT(struct_name, field_list)                         \
+#define VOE_BASE_DESCRIBE_STRUCT(struct_name, field_list)                     \
 	typedef struct {                                                      \
-		field_list(VOE_BASE_DESCRIBE_MEMBER_)                             \
+		field_list(VOE_BASE_DESCRIBE_MEMBER_,                         \
+			   VOE_BASE_DESCRIBE_MEMBER_)                         \
 	} struct_name;                                                        \
-	VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                         \
-	field_list(VOE_BASE_DESCRIBE_CHECK_)
+	VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                     \
+	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
 
 // Everything from here down is the expansion, and not for use on its own.
 
@@ -157,7 +174,7 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 // voe_base_describe_self_ is the struct being described, named inside the
 // accessor so that a row can take offsetof without F having to carry the struct's
 // name to every field.
-#define VOE_BASE_DESCRIBE_ROW_(type, field, KIND)                             \
+#define VOE_BASE_DESCRIBE_ROW_IMPL_(type, field, KIND, read_only_)            \
 	{                                                                     \
 		.name = #field,                                               \
 		.kind = VOE_BASE_FIELD_##KIND,                                \
@@ -165,15 +182,23 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 		.size = sizeof(typeof(type)),                                 \
 		.count = (uint32_t)(sizeof(typeof(type)) /                    \
 				    VOE_BASE_FIELD_SIZE_##KIND),              \
+		.read_only = read_only_,                                      \
 	},
 
-#define VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                         \
+#define VOE_BASE_DESCRIBE_ROW_(type, field, KIND)                             \
+	VOE_BASE_DESCRIBE_ROW_IMPL_(type, field, KIND, false)
+
+#define VOE_BASE_DESCRIBE_ROW_READ_ONLY_(type, field, KIND)                   \
+	VOE_BASE_DESCRIBE_ROW_IMPL_(type, field, KIND, true)
+
+#define VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                     \
 	static inline const voe_base_struct_description *                     \
 		struct_name##_description(void)                               \
 	{                                                                     \
 		typedef struct_name voe_base_describe_self_;                  \
 		static const voe_base_field_description rows[] = {            \
-			field_list(VOE_BASE_DESCRIBE_ROW_)                        \
+			field_list(VOE_BASE_DESCRIBE_ROW_,                    \
+				   VOE_BASE_DESCRIBE_ROW_READ_ONLY_)          \
 		};                                                            \
 		static const voe_base_struct_description description = {      \
 			.name = #struct_name,                                 \

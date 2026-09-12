@@ -14,6 +14,11 @@
 // What this file checks is that the kind which went in is the kind which comes
 // out.
 //
+// A READ-ONLY FIELD IS A ROW THAT SAYS SO AND A MEMBER THAT DOES NOT DIFFER.
+// `owner` is listed through F_READ_ONLY, so the claim under test is two-sided:
+// its row reads read_only and no other row does, and the struct is the same
+// bytes as the one written by hand below, which has no mark on any member.
+//
 // THE SWITCH IS TURNED ON HERE, WHATEVER THE BUILD SAID. A build that has not
 // asked for descriptions has no table, and check.cmake builds that way, so a test
 // that followed the build would test nothing on the one run that gates a card.
@@ -40,13 +45,35 @@ typedef struct {
 	uint32_t generation;
 } entity;
 
-#define THING_FIELDS(F)             \
-	F(uint8_t, flags, UINT8)    \
-	F(vector, where, FLOAT3)    \
-	F(char[13], label, CHAR)    \
-	F(entity, owner, ENTITY)
+#define THING_FIELDS(F, F_READ_ONLY)          \
+	F(uint8_t, flags, UINT8)              \
+	F(vector, where, FLOAT3)              \
+	F(char[13], label, CHAR)              \
+	F_READ_ONLY(entity, owner, ENTITY)
 
 VOE_BASE_DESCRIBE_STRUCT(thing, THING_FIELDS)
+
+// The same four members written out, so that "the macro changes nothing about
+// the struct" is checked against a struct and not against remembered numbers.
+typedef struct {
+	uint8_t flags;
+	vector where;
+	char label[13];
+	entity owner;
+} thing_by_hand;
+
+static_assert(sizeof(thing) == sizeof(thing_by_hand),
+	      "a described struct is not the size of the same members by hand");
+static_assert(alignof(thing) == alignof(thing_by_hand),
+	      "a described struct is not the alignment of the same members by hand");
+static_assert(offsetof(thing, flags) == offsetof(thing_by_hand, flags),
+	      "flags moved");
+static_assert(offsetof(thing, where) == offsetof(thing_by_hand, where),
+	      "where moved");
+static_assert(offsetof(thing, label) == offsetof(thing_by_hand, label),
+	      "label moved");
+static_assert(offsetof(thing, owner) == offsetof(thing_by_hand, owner),
+	      "owner moved — the read-only mark reached the member");
 
 static void check_name(const char *actual, const char *expected)
 {
@@ -64,16 +91,21 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK_INT((long long)actual->offset, (long long)expected.offset);
 	VOE_TEST_CHECK_INT((long long)actual->size, (long long)expected.size);
 	VOE_TEST_CHECK_INT(actual->count, expected.count);
+	VOE_TEST_CHECK_INT(actual->read_only, expected.read_only);
 }
 
 int main(void)
 {
 	const voe_base_struct_description *description = thing_description();
 	voe_base_field_description expected[] = {
-		{ "flags", VOE_BASE_FIELD_UINT8, offsetof(thing, flags), 1, 1 },
-		{ "where", VOE_BASE_FIELD_FLOAT3, offsetof(thing, where), 12, 1 },
-		{ "label", VOE_BASE_FIELD_CHAR, offsetof(thing, label), 13, 13 },
-		{ "owner", VOE_BASE_FIELD_ENTITY, offsetof(thing, owner), 8, 1 },
+		{ "flags", VOE_BASE_FIELD_UINT8, offsetof(thing, flags), 1, 1,
+		  false },
+		{ "where", VOE_BASE_FIELD_FLOAT3, offsetof(thing, where), 12, 1,
+		  false },
+		{ "label", VOE_BASE_FIELD_CHAR, offsetof(thing, label), 13, 13,
+		  false },
+		{ "owner", VOE_BASE_FIELD_ENTITY, offsetof(thing, owner), 8, 1,
+		  true },
 	};
 	uint32_t count = sizeof(expected) / sizeof(expected[0]);
 	thing value = { 0 };
