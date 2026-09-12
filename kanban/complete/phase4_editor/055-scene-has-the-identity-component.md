@@ -1,8 +1,8 @@
 # 055 — `scene` has the identity component: an id and a name on authored entities
 
-claimed-by: -
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: 053, 060
-status: todo
+status: review
 decision: *Identity is one component, it ships, and its presence means authored* (ADR-0125) for its shape and meaning; *The identity component lives in `scene`* (ADR-0137) for its folder, spelling and what it does not own; *An edit is a replace intent* (ADR-0134) and *A drain corrects a bad value or keeps the last valid one, and says so* (ADR-0138) for how it is written; *A field can be marked read-only, and an authored id is never replaced* (ADR-0139) for its `id`.
 
 ## Goal
@@ -89,3 +89,38 @@ An entity with a name a log line can print, a rename that goes through the door 
 will use, and an id nothing but its creation can set.
 
 ## Notes
+
+**Verified on Linux**, clang 22, 2026-09-12. `cmake -P check.cmake` exits zero — standalone
+`scene` included, 42 tests, analyser over 116 files. `ctest -R scene` passes with descriptions
+off (`--preset debug`) and on (scratch tree, `CMAKE_C_FLAGS=-DVOE_BASE_DESCRIPTIONS=1`); the
+whole 42 pass in that tree too. `tools/hot.sh` at the root: no `OVER`, `scene.md` 59/120.
+**Windows unchecked** — nothing here is platform-aware, but that is the note a later bug
+report gets written against.
+
+**One question asked and answered, not guessed.** The card's two example warning lines name
+the entity two different ways — `entity 4v1` and `entity Cube_2` — and state no rule. The
+principal chose: *the name the intent itself carries when that name is terminated, otherwise
+`<index>v<generation>`*. That is the only single rule that yields both examples, and it is
+written in `identity_system.c` beside `label_of`. The test prints all three line shapes once
+in a passing run, so the format is read rather than assumed:
+
+```
+warning: voe_scene_identity: entity 0v1: name was not terminated, cut to 63 bytes
+warning: voe_scene_identity: 1 intents settled in that run
+warning: voe_scene_identity: entity Cube_2_renamed: id cannot be replaced, kept 2
+```
+
+**Reading taken, narrowly:** "settles" in the reporting sentences means *corrects*, not
+*applies* — the card calls both rules corrections and reports them as `warning:`, and the
+other reading would log every ordinary rename. Written as "corrected" in the code.
+
+**For the tech lead, reported and not acted on:** card 062 lists the folders whose
+`fprintf(stderr, ...)` sites move onto `VOE_BASE_WARNING` — `render`, `assets`, `ui`, `3d`,
+`app` and `dev`. **`scene` is not on that list, and this card puts two stderr sites in
+`scene/src/identity_system.c`.** They are both in `voe_scene_identity_system_run`. Card 062
+was written before these existed; left alone here because it is another card's folder and
+another card's job.
+
+**Suggestion, not done:** nothing tests the report itself — the lines are printed and looked
+at, not captured. Capturing stderr would need `freopen` in a test that also reports failures
+there, which is worth its own decision rather than a quiet addition here.

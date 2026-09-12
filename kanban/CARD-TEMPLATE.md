@@ -2,7 +2,6 @@
 
 claimed-by: -
 blocked-by: -
-status: todo
 decision: <ADR title in words, and its number> — one line on what it concluded
 
 ## Goal

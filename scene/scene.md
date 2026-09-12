@@ -18,6 +18,14 @@ space is.
 - `include/scene/camera_system.h` — the two camera intents, absolute and
   relative. Its header says why there are two, in which order they apply, and
   which of the numbers a caller passes are the mouse's own.
+- `include/scene/identity_component.h` — a 64-bit id and a 64-byte name on the
+  entities a person authored, the id marked read-only. Its header says why the
+  component's presence is the whole of what "authored" means, why the id is
+  unique within a file and not within a world, and what its drain corrects.
+- `include/scene/identity_system.h` — the intent that renames one, and the
+  direct call that creates one. Its header says why creation is not an intent,
+  which of the two checks is an assert and which a correction, and why the
+  report's state is per process.
 - `include/scene/light_component.h` — the sun: which way its light travels, its
   colour and its strength. Its header says why a direction is where the light
   goes rather than where the sun is, and why a reader never has to normalize it.
@@ -26,6 +34,9 @@ space is.
   world that is drawn needs this table even when it holds no sun.
 - `src/transform_component.c` — the key, the matrix, and the reads.
 - `src/transform_system.c` — registration, creation, and the drain.
+- `src/identity_component.c` — the key and the reads, and nothing that writes.
+- `src/identity_system.c` — registration, creation, the drain that settles what
+  it applies, and the one line a run of corrections writes to stderr.
 - `src/camera_component.c` — the key, where a camera looks, and the look-at the
   view matrix is. Its header says why the third row is negated.
 - `src/camera_system.c` — registration, and the drain that is the only thing in
@@ -37,6 +48,10 @@ space is.
 - `tests/transform.c` — that the matrix is translate·rotate·scale, that an
   intent lands only when the system runs, and that the field list a world hands
   back for a transform is the one the compiler laid out.
+- `tests/identity.c` — that a rename lands only when the system runs, that an
+  unterminated name arrives cut and a replaced id arrives put back, and that the
+  field list a world hands back marks the id read-only. Its header says why half
+  of it submits raw rather than through the typed call.
 - `tests/camera.c` — the view matrix, and every way of flying one that draws a
   plausible picture while being wrong. Its header says where these came from.
 - `tests/light.c` — that a direction arrives unit length whichever of the two
