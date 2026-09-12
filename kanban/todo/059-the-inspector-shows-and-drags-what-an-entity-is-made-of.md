@@ -1,7 +1,7 @@
 # 059 — The inspector shows what the selected entity is made of, and drags its values
 
 claimed-by: -
-blocked-by: 056, 057, 058b, 060
+blocked-by: 056, 058b, 060
 status: todo
 decision: *The world lists its component types, and a description travels with a registration* (ADR-0132) — walk the types, ask each for the entity, expand what is described; *An edit is a replace intent* (ADR-0134) point 4 — read, copy, change the bytes, submit, never `voe_ecs_component_set`; *The inspector edits by dragging first* (ADR-0136) point 4 — which kind gets which control; *A field can be marked read-only* (ADR-0139) point 2 — a read-only field is a label.
 
