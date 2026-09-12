@@ -14,6 +14,7 @@ add_subdirectory(sprite)
 add_subdirectory(ui)
 add_subdirectory(app)
 add_subdirectory(dev)
+add_subdirectory(editor)
 
 # The root is a project with a CMakeLists.txt too, so it gets its database beside
 # it on the same terms every folder does. This is the only call that is not made

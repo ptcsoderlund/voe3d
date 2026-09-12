@@ -130,6 +130,15 @@ function(voe_allowed_deps folder out_var)
         # It is a leaf and it stays one — dev appears in no other row, and
         # putting it in one would be the mistake this map exists to catch.
         set(deps base math ecs scene platform assets render 3d text ui sprite app)
+    elseif(folder STREQUAL "editor")
+        # editor is a leaf exactly as dev is, and for the same reason: it is a
+        # program a person runs, so it names whatever it needs and nothing names
+        # it. It appears in no other row and putting it in one would be the
+        # mistake this map exists to catch (ADR-0121). It is a shorter row than
+        # dev's on purpose — the editor draws an interface over a scene and reads
+        # no files and no sprite sheets, so assets, 3d and sprite are absent and
+        # a card that wants one of them is a decision, not an edit here.
+        set(deps base math ecs scene platform render text ui app)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

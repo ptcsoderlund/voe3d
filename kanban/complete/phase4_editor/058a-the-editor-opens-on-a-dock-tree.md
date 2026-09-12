@@ -1,8 +1,8 @@
 # 058a — The editor opens: a window, and a panel layout that comes from data
 
-claimed-by: -
+claimed-by: kanban-coder (claude-opus-5)
 blocked-by: -
-status: todo
+status: review
 decision: *The editor is a module in this repository* (ADR-0121) — a leaf program no folder depends on; *`app` is parts* (ADR-0135) for its loop; *The editor's interface is world geometry and its camera is replaceable* (ADR-0141) points 3 and 4 — no snapping, and the interface is handed its pointer in panel millimetres; *The editor's panel layout is a tree of data* (ADR-0142) points 1 to 6 — what the tree is, what it is not, and what is deliberately absent.
 
 ## Goal
@@ -109,3 +109,42 @@ A window split into two named regions, where changing one number in one function
 instead — and a tree nobody can drag yet, on purpose.
 
 ## Notes
+
+**Verified on Linux** (Wayland, clang 22, RTX 4070 Laptop, Vulkan 1.4.341).
+Windows unchecked; nothing here is platform-specific beyond what `app`,
+`platform` and `render` already carry, so what that machine turns up is a report.
+
+- `cmake -P check.cmake` green, every step — `standalone editor` and `analyser
+  (113 files)` included; the folder list reads 14 and names `editor`.
+- `cmake --preset editor` and a build of `voe_editor` succeed. Under it the
+  startup line says descriptions are compiled in; under `debug` it says they are
+  off and that the `editor` preset turns them on.
+- Run: two regions side by side, the left a quarter of the width, headed `Scene`
+  and `Nothing selected`, a millimetre of seam between them.
+- **The COLUMN experiment was tried and reverted.** `voe_editor_dock_default` set
+  to `VOE_EDITOR_DOCK_COLUMN` at `0.5`: the two regions came out stacked, nothing
+  else in the folder touched. Both values are back at `ROW` and `0.25`.
+- Neither grep finds anything: no engine folder names `editor/` in a `.c`, `.h`,
+  `.md` or `CMakeLists.txt` (only in the generated, gitignored
+  `compile_commands.json`), and `editor/src` holds no function pointer.
+- `bash tools/hot.sh`: all hot files under their ceilings, `editor.md` 84 of 120.
+
+No `BLOCKED:` and no `DEVIATION:`. `dev` untouched; no engine folder gained
+anything.
+
+**Four calls the card left open.** (1) A millimetre of **seam** between a split's
+children, taken off the length before the fraction divides it — without it two
+identically-plated panels read as one rectangle and the Verify step above cannot
+be seen; it is where a splitter goes, and nothing draws or hit-tests it. (2) The
+walk **wraps the tree's root in a row**, one node: `ui`'s frame root must be a row
+or a column, so a tree that is a single panel could not otherwise be expressed.
+(3) **A root is a `ui` frame** — one root container per frame, and a root has its
+own size and element transform. (4) `voe_editor_interface_surface` returns the
+surface size *and* the pixels per millimetre in one call, because both come out of
+one division and `main.c` needs each for a different half of ADR-0141 point 4.
+
+`main.c` holds a commented `(void)world;`: the card asks for `voe_ecs_world_new`
+and nothing reads the world yet, which `-Wunused-but-set-variable` refuses. It
+goes when 058b registers the first component.
+
+**Suggestion, not in the diff:** the interface reports no element count the way `dev`'s does — worth adding when the editor grows a readout.
