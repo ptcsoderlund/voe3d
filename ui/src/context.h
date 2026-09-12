@@ -33,6 +33,7 @@ enum voe_ui_widget {
 	VOE_UI_WIDGET_PANEL,
 	VOE_UI_WIDGET_LABEL,
 	VOE_UI_WIDGET_BUTTON,
+	VOE_UI_WIDGET_NUMBER,
 };
 
 // What widgets.c keeps about one node, in an array indexed by the node's own
@@ -45,17 +46,24 @@ struct voe_ui_widget_record {
 	// pointer and is read at frame_end, so it must still be there then —
 	// which a string literal and a buffer the caller owns both are.
 	const char *text;
-	// A panel's background. A button's is not here: which of the three it
-	// is depends on the hit test, so emission picks it and nothing stores
-	// it.
+	// A panel's background. A button's and a number box's are not here:
+	// which of the three it is depends on the hit test, so emission picks it
+	// and nothing stores it.
 	voe_math_float4 colour;
+	// A number box's value as the caller handed it in this frame, and what
+	// one millimetre of horizontal drag is worth. Both are the caller's and
+	// neither is remembered between frames — the value lives where the
+	// caller keeps it, and this folder only ever adds a drag to the copy it
+	// was given. Meaningless on everything else.
+	double value;
+	double per_millimetre;
 	// A label's first baseline, in millimetres below its own top edge, as
 	// the measurement handed it back. Kept so that emission does not walk
 	// the string a second time to ask the same question.
 	float baseline;
 	enum voe_ui_widget kind;
-	// Whether `key` was worked out for this node. Panels and buttons are
-	// keyed; labels are not, having nothing to remember.
+	// Whether `key` was worked out for this node. Panels, buttons and number
+	// boxes are keyed; labels are not, having nothing to remember.
 	bool keyed;
 };
 
@@ -145,6 +153,36 @@ struct voe_ui_context {
 	bool hovered_set;
 	bool held_set;
 	bool fired_set;
+
+	// A DRAG IN PROGRESS, WHICH IS INTERACTION STATE BESIDE `held` AND NOT A
+	// SECOND TABLE. Only one widget can be held, so only one can be being
+	// dragged, and everything this needs to remember is about that one:
+	// there is nothing to key and nothing to look up.
+	//
+	// The first three survive between frames, as `held` does, because a
+	// drag is one gesture across many of them. The last two are this
+	// frame's answer and are worked out afresh in resolve.
+	//
+	// Where the press happened, which the dead zone is measured from —
+	// against the PRESS and never against last frame, so that a hand that
+	// is already moving does not cross it one slow frame at a time.
+	float number_press_x;
+	// Last frame's pointer x, which is what the change is measured from
+	// once the dead zone is behind us.
+	float number_last_x;
+	// Whether the dead zone has been left. Once it has, it does not come
+	// back: dragging back towards the press goes on changing the value
+	// rather than re-entering a zone that has served its purpose.
+	bool number_crossed;
+	// Whether the held widget is a number box. Settled when it is armed, so
+	// that the drag does not have to find the node behind `held` again.
+	bool held_number;
+	// This frame's movement in millimetres, past the dead zone, and whether
+	// there was any. In millimetres and NOT in the value's own unit, because
+	// `per_millimetre` belongs to the node and this is worked out before any
+	// node is in hand; voe_ui_number_action does that multiplication.
+	float number_delta;
+	bool number_moved;
 
 	// This frame's, out of the frame's arena. `widgets` is one per node.
 	struct voe_ui_widget_record *widgets;

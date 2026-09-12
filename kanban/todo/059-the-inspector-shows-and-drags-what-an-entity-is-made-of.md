@@ -1,20 +1,22 @@
 # 059 — The inspector shows what the selected entity is made of, and drags its values
 
 claimed-by: -
-blocked-by: 053, 056, 057, 058, 060
+blocked-by: 056, 057, 058b, 060
 status: todo
 decision: *The world lists its component types, and a description travels with a registration* (ADR-0132) — walk the types, ask each for the entity, expand what is described; *An edit is a replace intent* (ADR-0134) point 4 — read, copy, change the bytes, submit, never `voe_ecs_component_set`; *The inspector edits by dragging first* (ADR-0136) point 4 — which kind gets which control; *A field can be marked read-only* (ADR-0139) point 2 — a read-only field is a label.
 
 ## Goal
 
-With an entity selected, the right side of `voe_editor` lists every component it has by key
-name, and for each described one a row per field, the editable ones dragged through the
-component's replace intent.
+With an entity selected, the `Inspector` panel lists every component it has by key name, and
+for each described one a row per field, the editable ones dragged through the component's
+replace intent.
 
 ## Scope
 
-**1. `editor/src/inspector.h`, `editor/src/inspector.c`**, called from the interface under
-the `Selected:` heading.
+**1. `editor/src/inspector.h`, `editor/src/inspector.c`**, called from
+`voe_editor_panel_draw` for `VOE_EDITOR_PANEL_INSPECTOR`, replacing the `Selected:` line card
+058b put there. **The dock tree and its walk are not edited** (ADR-0142 point 2 — a panel's
+contents are ordinary C).
 
 - **The walk**: for every index below `voe_ecs_component_type_count`, the type at it, and
   `voe_ecs_component_get` for the selected entity; skip a NULL. **No component type is named

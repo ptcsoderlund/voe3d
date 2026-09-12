@@ -1,6 +1,6 @@
 // The widgets: what a node means, what the pointer is doing to it, and what
 // element records come out of it. See include/ui/widgets.h for the promises;
-// this file is where the four decisions behind them are written down.
+// this file is where the decisions behind them are written down.
 //
 // ---- EMISSION IS A COPY AND THERE IS NOT ONE SUBTRACTION IN IT ----
 //
@@ -72,6 +72,28 @@
 //     say anything is hovered; carrying yesterday's answer through would be
 //     state nobody wrote.
 //
+// ---- AND WHAT A DRAG ADDS TO THEM, WHICH IS FOUR FIELDS AND NO TABLE ----
+//
+// A number box is armed and let go by every one of the rules above, unchanged —
+// it is a button as far as the press is concerned. What it adds is that the
+// frames BETWEEN the press and the release mean something, and that is the whole
+// of the difference.
+//
+// ONE GESTURE AT A TIME IS WHY THERE IS NO SECOND TABLE. Only one widget can be
+// held, so only one can be being dragged; the press position, last frame's
+// position and whether the dead zone has been crossed are about that one widget
+// and there is nothing to key them by. They sit beside `held` in the context and
+// are written when it is armed.
+//
+// THE CHANGE IS WORKED OUT IN MILLIMETRES HERE AND TURNED INTO THE CALLER'S UNIT
+// IN voe_ui_number_action, because `per_millimetre` belongs to the node and this
+// pass has a key rather than a node in its hand. It is also the honest split:
+// what happened is a distance, and what it is worth is the caller's business.
+//
+// A NUMBER BOX NEVER FIRES, and that is enforced where the release is handled
+// rather than left to the reader. The click is reserved for the typing that is
+// not built yet — see widgets.h.
+//
 // ---- IDENTITY, AND WHY IT IS A HASHED PATH ----
 //
 // A key is the enclosing keyed widget's key mixed with the name and the index at
@@ -126,6 +148,10 @@ static const voe_math_float4 LABEL_INK = { 0.85f, 0.87f, 0.90f, 1.0f };
 // in it.
 // The same on all four sides, which is what a button wants and what the four
 // numbers make explicit rather than assume.
+//
+// A NUMBER BOX USES IT TOO, and shares the three colours above, because it is
+// meant to look like a button — a thing you put the pointer on and press. One
+// constant and not a copy, so that card 036 replaces it once.
 #define BUTTON_PAD                                                             \
 	((voe_ui_pad){ 2.5f, 2.5f, 2.5f, 2.5f })
 
@@ -351,6 +377,37 @@ voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
 	return node;
 }
 
+voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
+				uint32_t index, double value,
+				double per_millimetre)
+{
+	voe_ui_node node;
+	uint64_t key;
+
+	VOE_BASE_ASSERT(ui != NULL, "opening a number box on no context");
+	VOE_BASE_ASSERT(name != NULL,
+			"a number box with no name has no identity");
+
+	key = claim(ui, name, index);
+
+	// Built exactly as a button is, down to the padding and the centring:
+	// what is in it is composed rather than passed, so a caller with no
+	// font can still build one and drag it. See widgets.h.
+	node = voe_ui_row_begin(ui, (voe_ui_container){
+					   .along = VOE_UI_ALONG_CENTER,
+					   .across = VOE_UI_ACROSS_CENTER,
+					   .pad = BUTTON_PAD });
+	if (node != VOE_UI_NODE_NONE) {
+		ui->widgets[node].kind = VOE_UI_WIDGET_NUMBER;
+		ui->widgets[node].key = key;
+		ui->widgets[node].keyed = true;
+		ui->widgets[node].value = value;
+		ui->widgets[node].per_millimetre = per_millimetre;
+	}
+
+	return node;
+}
+
 // ------------------------------------------------------------- the frame
 
 void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
@@ -389,12 +446,65 @@ void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 	ui->pointer = (voe_ui_pointer){ 0 };
 }
 
+// Which widgets answer the pointer at all. A panel and a label do not: a panel
+// is a background and a label is a measurement, and neither has ever been asked
+// what the mouse is doing to it.
+static bool takes_the_pointer(enum voe_ui_widget kind)
+{
+	return kind == VOE_UI_WIDGET_BUTTON || kind == VOE_UI_WIDGET_NUMBER;
+}
+
+// This frame's movement of the held number box, in millimetres.
+//
+// THE DEAD ZONE IS MEASURED FROM THE PRESS AND THE DRAG FROM LAST FRAME, and
+// those being two different origins is the whole of this function. Measuring the
+// dead zone from last frame would let a slow hand cross it a tenth of a
+// millimetre at a time without ever having moved; measuring the drag from the
+// press would make every frame's change the whole distance travelled, so the
+// value would race away as the square of the gesture.
+//
+// AND THE FIRST CHANGE IS WHAT LIES BEYOND THE DEAD ZONE, not the whole distance
+// from the press. Otherwise the value jumps by a millimetre's worth the instant
+// the drag begins, which is a visible step exactly where the person expects the
+// gesture to start from nothing.
+static void drag(voe_ui_context *ui)
+{
+	float x = ui->pointer.at.x;
+	float change = 0.0f;
+
+	if (ui->number_crossed) {
+		change = x - ui->number_last_x;
+	} else {
+		float from_press = x - ui->number_press_x;
+
+		// Either way out of it, and the sign is kept: dragging left
+		// takes the value down by as much as dragging right takes it
+		// up.
+		if (from_press >= VOE_UI_NUMBER_DEAD_ZONE) {
+			change = from_press - VOE_UI_NUMBER_DEAD_ZONE;
+			ui->number_crossed = true;
+		} else if (from_press <= -VOE_UI_NUMBER_DEAD_ZONE) {
+			change = from_press + VOE_UI_NUMBER_DEAD_ZONE;
+			ui->number_crossed = true;
+		}
+	}
+
+	ui->number_last_x = x;
+	ui->number_delta = change;
+	// A frame the pointer did not move changed nothing, and says so rather
+	// than reporting a change of nought as a change.
+	ui->number_moved = change != 0.0f;
+}
+
 static void resolve(voe_ui_context *ui, bool laid_out)
 {
 	uint64_t hovered = 0;
 	bool hovered_set = false;
+	bool hovered_number = false;
 
 	ui->fired_set = false;
+	ui->number_delta = 0.0f;
+	ui->number_moved = false;
 
 	if (laid_out && ui->pointer.over) {
 		// Every hit, not the first: the last one in paint order is the
@@ -402,11 +512,13 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 		for (uint32_t at = 0; at < ui->count; at++) {
 			uint32_t node = voe_ui_paint_order(ui, at);
 
-			if (ui->widgets[node].kind != VOE_UI_WIDGET_BUTTON)
+			if (!takes_the_pointer(ui->widgets[node].kind))
 				continue;
 			if (inside(ui->nodes[node].rect, ui->pointer.at)) {
 				hovered = ui->widgets[node].key;
 				hovered_set = true;
+				hovered_number = ui->widgets[node].kind ==
+						 VOE_UI_WIDGET_NUMBER;
 			}
 		}
 	}
@@ -414,6 +526,7 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 	if (!laid_out) {
 		ui->hovered_set = false;
 		ui->held_set = false;
+		ui->held_number = false;
 		ui->was_down = ui->pointer.down;
 		return;
 	}
@@ -421,21 +534,45 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 	// A held widget the frame did not build is no longer held, and this is
 	// asked before the press and the release so that a release cannot fire
 	// something that is no longer there.
-	if (ui->held_set && !key_taken(ui, ui->held))
+	if (ui->held_set && !key_taken(ui, ui->held)) {
 		ui->held_set = false;
+		ui->held_number = false;
+	}
 
 	if (ui->pointer.down && !ui->was_down) {
 		// The edge, and only the edge: dragging onto a button with the
 		// mouse already down arms nothing.
 		ui->held = hovered;
 		ui->held_set = hovered_set;
+		ui->held_number = hovered_set && hovered_number;
+		// Where this gesture began. Written whatever was armed, so
+		// that a press on a button leaves nothing behind for the next
+		// number box to inherit.
+		ui->number_press_x = ui->pointer.at.x;
+		ui->number_last_x = ui->pointer.at.x;
+		ui->number_crossed = false;
 	} else if (!ui->pointer.down && ui->was_down) {
-		if (ui->held_set && hovered_set && hovered == ui->held) {
+		// A NUMBER BOX NEVER FIRES, which is why `held_number` is asked
+		// here. The release that would have fired a button is the click
+		// reserved for typing into one, and a caller that could see it
+		// would bind something to it that has to be taken away again
+		// when the caret arrives. See widgets.h.
+		if (ui->held_set && !ui->held_number && hovered_set &&
+		    hovered == ui->held) {
 			ui->fired = ui->held;
 			ui->fired_set = true;
 		}
 		ui->held_set = false;
+		ui->held_number = false;
 	}
+
+	// After the press, so that the frame which arms a number box has a
+	// change of nought rather than one measured from wherever the pointer
+	// was last. `over` is not asked: a drag carries on past the surface's
+	// edge, where the caller goes on reporting a pointer that is no longer
+	// over anything. See voe_ui_pointer.
+	if (ui->held_set && ui->held_number && ui->pointer.down)
+		drag(ui);
 
 	ui->hovered = hovered;
 	ui->hovered_set = hovered_set;
@@ -568,7 +705,9 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 	}
 }
 
-static voe_math_float4 button_colour(const voe_ui_context *ui, uint32_t node)
+// The three states, for a button and for a number box alike. They look the same
+// on purpose — see BUTTON_PAD.
+static voe_math_float4 state_colour(const voe_ui_context *ui, uint32_t node)
 {
 	uint64_t key = ui->widgets[node].key;
 
@@ -600,8 +739,9 @@ static void emit(voe_ui_context *ui)
 					  ui->widgets[node].colour);
 			break;
 		case VOE_UI_WIDGET_BUTTON:
+		case VOE_UI_WIDGET_NUMBER:
 			push_rect(ui, ui->nodes[node].rect,
-				  button_colour(ui, node));
+				  state_colour(ui, node));
 			break;
 		case VOE_UI_WIDGET_LABEL:
 			push_label(ui, node);
@@ -647,6 +787,56 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui, voe_ui_node button)
 		.held = ui->held_set && ui->held == key,
 		.fired = ui->fired_set && ui->fired == key,
 	};
+}
+
+voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
+					  voe_ui_node number)
+{
+	const struct voe_ui_widget_record *w;
+	voe_ui_number_result result;
+
+	VOE_BASE_ASSERT(ui != NULL, "reading a number box on no context");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_LAID_OUT,
+			"reading a number box before the frame has ended; "
+			"nothing has a rectangle until then and so nothing has "
+			"been hit tested");
+	VOE_BASE_ASSERT(number != VOE_UI_NODE_NONE,
+			"reading a number box the frame had no room for");
+	VOE_BASE_ASSERT(number < ui->count,
+			"reading a number box this frame never made");
+	VOE_BASE_ASSERT(ui->widgets[number].kind == VOE_UI_WIDGET_NUMBER,
+			"reading a number box action from a node that is not a "
+			"number box");
+
+	w = &ui->widgets[number];
+	result = (voe_ui_number_result){
+		.hovered = ui->hovered_set && ui->hovered == w->key,
+		.held = ui->held_set && ui->held == w->key,
+		.changed = false,
+		// The value handed in, unchanged, which is the answer on every
+		// frame but the ones a drag moved it.
+		.value = w->value,
+	};
+
+	if (result.held && ui->number_moved) {
+		// THE UNIT CONVERSION HAPPENS HERE AND NOWHERE ELSE, because
+		// `per_millimetre` is this node's and resolve had no node in
+		// hand. Fine is a plain multiplier on the same product: which
+		// order the three are multiplied in cannot matter, and this one
+		// reads as "the drag, in the caller's unit, slowed".
+		double change = (double)ui->number_delta * w->per_millimetre;
+
+		if (ui->pointer.fine)
+			change *= VOE_UI_NUMBER_FINE;
+
+		// A per_millimetre of nought is a number box that does not
+		// move, and it says nothing changed rather than reporting a
+		// change of nought.
+		result.changed = change != 0.0;
+		result.value = w->value + change;
+	}
+
+	return result;
 }
 
 uint32_t voe_ui_element_count(const voe_ui_context *ui)

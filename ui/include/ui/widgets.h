@@ -1,5 +1,5 @@
-// Widgets: a panel, a label and a button, laid out by layout.h and handed back
-// as element records for somebody else to draw.
+// Widgets: a panel, a label, a button and a number box you drag, laid out by
+// layout.h and handed back as element records for somebody else to draw.
 //
 //     voe_ui_font_set(ui, font);                   // once, at startup
 //
@@ -97,8 +97,11 @@
 // ---- WHAT IS NOT HERE ----
 //
 // No theme: the colours below are constants and card 036 replaces them. No text
-// input, no caret and no selection. No scroll area and no clip narrower than a
-// widget's own rectangle — card 035. No checkbox and no slider.
+// input, no caret and no selection — a number box is dragged and not typed into,
+// and the click that would begin typing is reserved rather than free. No scroll
+// area and no clip narrower than a widget's own rectangle — card 035. No
+// checkbox and no slider: a number box has no track, no ends and no range, which
+// is what makes it the one that fits a field of unknown extent.
 #pragma once
 
 #include <ui/layout.h>
@@ -133,13 +136,30 @@ typedef struct {
 	voe_math_float2 at;
 	// Whether there is a pointer at all. False ends a hover — a pointer
 	// that has left the window, or one the caller has locked for looking
-	// around, is not pointing at anything. `at` is then ignored.
+	// around, is not pointing at anything, so nothing is hovered and
+	// nothing can be armed.
+	//
+	// A GESTURE ALREADY UNDER WAY IS NOT ENDED BY IT, and `at` still counts
+	// for that gesture. A press survives, and a number box being dragged
+	// goes on reading the pointer — which is what lets a drag carry on past
+	// the surface's edge, where `platform` keeps reporting the pointer
+	// because a button is down. `over` governs hovering and arming; `down`
+	// governs the gesture.
 	bool over;
 	// Whether the primary button is held NOW. Level and not an edge: this
 	// folder works out the press and the release from one frame to the
 	// next, because it is the only thing that knows which widget was under
 	// the pointer when the button went down.
 	bool down;
+	// Whether the caller's fine modifier is held, which slows a drag to
+	// VOE_UI_NUMBER_FINE of its usual rate. WHICH KEY THAT IS IS NOT THIS
+	// FOLDER'S TO KNOW: it arrives as a value, exactly as the pointer does
+	// and for the same reason (ADR-0093), so a fine drag is testable with no
+	// window system and the choice of key stays where the keyboard is.
+	//
+	// Nought is NOT fine, which is what lets every designated initialiser
+	// that predates this field go on meaning what it meant.
+	bool fine;
 } voe_ui_pointer;
 
 // Hands this frame's pointer over. Between voe_ui_frame_begin and
@@ -231,6 +251,83 @@ typedef struct {
 
 voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 				   voe_ui_node button);
+
+// ---------------------------------------------------------- the number box
+
+// How far the pointer moves before a drag begins, in millimetres, and what the
+// fine modifier multiplies the change by once it has.
+//
+// THE DEAD ZONE IS WHAT KEEPS A CLICK A CLICK. Without it every press nudges the
+// value by whatever the hand did between two frames, so a number could not be
+// clicked at all without changing it — and clicking one is reserved for typing
+// into it. The drag starts from the far edge of the dead zone and not from the
+// press, so the value does not jump by a millimetre the moment it begins.
+#define VOE_UI_NUMBER_DEAD_ZONE 1.0f
+#define VOE_UI_NUMBER_FINE 0.1
+
+// A rectangle whose value changes when you drag across it, with whatever is
+// called between here and voe_ui_end centred in it. It looks like a button and
+// is built like one.
+//
+//     voe_ui_node x = voe_ui_number_begin(ui, "x", 0, position.x, 0.5);
+//     voe_ui_label(ui, "0.50");
+//     voe_ui_end(ui);
+//
+//     voe_ui_number_result r = voe_ui_number_action(ui, x);
+//     if (r.changed)
+//             position.x = (float)r.value;
+//
+// THIS FOLDER KNOWS NO FIELD KINDS AND IT IS NOT GOING TO. The caller hands in
+// the value and what one millimetre of horizontal drag is worth, and takes the
+// new value back; a whole number is the caller rounding what comes back, and a
+// limit is the caller clamping it. A number box that knew about integers,
+// ranges or units would be this folder holding opinions about data it cannot
+// see — which is the editor's business and, for a component's fields, `base`'s
+// description.
+//
+// THE LABEL IS COMPOSED IN, AS WITH A BUTTON. The widget does not format the
+// number: how many decimal places a value deserves is not something `ui` can
+// know, and a caller that wants a name beside the figure puts both in.
+//
+// WHAT COMES BACK IS A VALUE AND NOT A DISTANCE, and that is a contract rather
+// than a convenience. The caller writes back what it is given and never
+// accumulates a delta of its own — which is what makes typing into one, when it
+// arrives, the same call answering the same way: a typed entry has no distance
+// to report and every caller is already written to take a value.
+//
+// A PRESS AND A RELEASE WITHOUT MOVEMENT DOES NOTHING, AND NOTHING MAY BE BOUND
+// TO IT. It is not an event this widget has declined to expose — it is reserved,
+// for the typing that card 057 does not build. A caller that gave a click a
+// meaning of its own would have to take it away again when a caret appears here.
+// So a number box NEVER FIRES: there is no `fired` below and
+// voe_ui_button_action refuses one.
+//
+// Closed by voe_ui_end, like any other container.
+voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
+				uint32_t index, double value,
+				double per_millimetre);
+
+// What the pointer did to one number box. Read after voe_ui_frame_end, through
+// the node the number call handed back; reading it before, or through a node
+// that is not a number box, is the caller's bug and asserts.
+typedef struct {
+	// The pointer is over it and nothing in front of it took the pointer
+	// first. False while the pointer is elsewhere, even mid-drag.
+	bool hovered;
+	// It is the number box the pointer went down on and has not yet let go
+	// of. True for the whole drag, wherever the pointer has got to.
+	bool held;
+	// This frame's drag moved the value. False on the frames inside the
+	// dead zone, and false on a frame the pointer did not move.
+	bool changed;
+	// The value handed in, plus this frame's drag. Equal to what was handed
+	// in whenever `changed` is false, so a caller may write it back every
+	// frame or only when it changed and get the same answer.
+	double value;
+} voe_ui_number_result;
+
+voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
+					  voe_ui_node number);
 
 // This frame's element records, in paint order, built by voe_ui_frame_end.
 // Readable until the next voe_ui_frame_begin or until the caller rewinds the

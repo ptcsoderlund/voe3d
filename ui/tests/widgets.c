@@ -375,6 +375,341 @@ static void the_same_name_under_two_panels_is_two_widgets(voe_ui_context *ui,
 	VOE_TEST_CHECK(!voe_ui_button_action(ui, first).hovered);
 }
 
+// ---------------------------------------------------------- the number box
+
+// One number box in a panel with no padding, so it is 25 x 15 at the origin and
+// every x below is a millimetre the reader can place on it. The pointer's y
+// never moves: a number box is dragged sideways and a vertical component of the
+// gesture is not meant to reach the value at all.
+#define NUMBER_WIDE 25.0f
+#define NUMBER_HIGH 15.0f
+#define ON_NUMBER_Y 7.0f
+
+// Two units of value per millimetre of drag, so that a distance and a value
+// cannot be confused for one another by coming out the same number — which they
+// would at one.
+#define PER_MM 2.0
+// What the caller hands in every frame. The widget never keeps it, so every
+// result below is this plus THIS frame's drag and never a running total.
+#define START 100.0
+
+struct number_frame {
+	voe_ui_node n;
+	bool ok;
+};
+
+static struct number_frame build_number(voe_ui_context *ui,
+					voe_base_arena *arena, float x,
+					bool over, bool down, bool fine,
+					uint32_t boxes)
+{
+	struct number_frame f = { VOE_UI_NODE_NONE, false };
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = { x, ON_NUMBER_Y },
+						 .over = over,
+						 .down = down,
+						 .fine = fine });
+
+	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	if (boxes > 0) {
+		f.n = voe_ui_number_begin(ui, "n", 0, START, PER_MM);
+		voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+			   (voe_ui_sizing){ 0 });
+		voe_ui_end(ui);
+	}
+	voe_ui_end(ui);
+
+	f.ok = voe_ui_frame_end(ui);
+	return f;
+}
+
+// The premise of every drag case below, checked once rather than assumed.
+static void the_number_box_is_where_the_tests_think_it_is(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 0.0f, false, false,
+					     false, 1);
+	voe_ui_rect r;
+
+	VOE_TEST_CHECK(f.ok);
+	r = voe_ui_node_rect(ui, f.n);
+
+	VOE_TEST_CHECK_FLOAT(r.min.x, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(r.min.y, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(r.size.x, NUMBER_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(r.size.y, NUMBER_HIGH, 0.001f);
+}
+
+// THE CASE THE WHOLE WIDGET EXISTS FOR, AND THE TWO ORIGINS ARE THE POINT OF IT.
+// Pressed at 0 and dragged to 10: the first change is what lies BEYOND the dead
+// zone, so nine millimetres and not ten. Dragged on to 12: two more, measured
+// from last frame and not from the press — measuring that one from the press
+// would give twelve and the value would race away as the square of the gesture.
+static void dragging_sideways_moves_the_value(voe_ui_context *ui,
+					      voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 0.0f, true, false,
+					     false, 1);
+	voe_ui_number_result r;
+
+	// Nothing is held before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	// The frame that arms it has moved nothing yet.
+	f = build_number(ui, arena, 0.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.held);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	f = build_number(ui, arena, 10.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)(START + 9.0 * PER_MM),
+			     0.001f);
+
+	f = build_number(ui, arena, 12.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.changed);
+	// TWO more and not twelve: the value handed in plus THIS frame's drag.
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)(START + 2.0 * PER_MM),
+			     0.001f);
+
+	// A frame that does not move reports no change, rather than repeating
+	// the last one.
+	f = build_number(ui, arena, 12.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	f = build_number(ui, arena, 12.0f, true, false, false, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+}
+
+// Half a millimetre is not a drag, and this is what keeps a click a click. Two
+// frames inside the zone, so that a slow hand crossing it in small steps is
+// covered as well as one that never leaves it.
+static void movement_inside_the_dead_zone_changes_nothing(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 10.0f, true, false,
+					     false, 1);
+	voe_ui_number_result r;
+
+	// Nothing is held before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 10.0f, true, true, false, 1);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 10.4f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	f = build_number(ui, arena, 10.8f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	f = build_number(ui, arena, 10.8f, true, false, false, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+}
+
+// The fine modifier slows the value and NOT the dead zone: the same nine
+// millimetres of travel, a tenth of the change. A fine drag that also had a
+// tenth of the dead zone would begin sooner than an ordinary one, which is the
+// opposite of what a person asking for precision wants.
+static void a_fine_drag_moves_a_tenth_as_far(voe_ui_context *ui,
+					     voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 0.0f, true, false,
+					     true, 1);
+	voe_ui_number_result r;
+
+	// Nothing is held before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 0.0f, true, true, true, 1);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 10.0f, true, true, true, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value,
+			     (float)(START + 9.0 * PER_MM * VOE_UI_NUMBER_FINE),
+			     0.001f);
+
+	f = build_number(ui, arena, 10.0f, true, false, true, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+}
+
+// A CLICK DOES NOTHING, AND IT IS RESERVED RATHER THAN MERELY UNUSED. Press and
+// release without moving: no frame reports a change and no frame reports a
+// different value. There is nothing to bind to here because typing is going to
+// want it.
+static void a_press_and_release_without_movement_does_nothing(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 10.0f, true, false,
+					     false, 1);
+	voe_ui_number_result r = voe_ui_number_action(ui, f.n);
+
+	VOE_TEST_CHECK(!r.changed);
+
+	f = build_number(ui, arena, 10.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.held);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	f = build_number(ui, arena, 10.0f, true, false, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.held);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	// And the frame after the release, which is where a fired flag that
+	// stayed set would show up if this widget had one.
+	f = build_number(ui, arena, 10.0f, true, false, false, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).changed);
+}
+
+// A DRAG DOES NOT STOP AT THE EDGE OF WHAT IT STARTED ON. The pointer is far to
+// the right of the number box and well off the panel; `platform` goes on
+// reporting it because a button is down, and the value goes on moving. A widget
+// that only answered while the pointer was inside it would make a long drag stop
+// dead, which reads as the interface having lost the mouse.
+static void a_drag_past_the_edge_keeps_working(voe_ui_context *ui,
+					       voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 10.0f, true, false,
+					     false, 1);
+	voe_ui_number_result r;
+
+	// Nothing is held before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 10.0f, true, true, false, 1);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 100.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+
+	// Not hovered — the pointer is nowhere near it — and still held and
+	// still moving, which is the whole claim.
+	VOE_TEST_CHECK(!r.hovered);
+	VOE_TEST_CHECK(r.held);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)(START + 89.0 * PER_MM),
+			     0.001f);
+
+	f = build_number(ui, arena, 100.0f, true, false, false, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+}
+
+// The same rule a button follows: a gesture that began somewhere else is not a
+// press on whatever it is dragged over.
+static void arriving_with_the_button_already_down_arms_no_number(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 100.0f, true, false,
+					     false, 1);
+	voe_ui_number_result r;
+
+	// Nothing is held before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	// Down over nothing.
+	f = build_number(ui, arena, 100.0f, true, true, false, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	// Dragged onto it and across it, still down. Nothing is armed, so
+	// nothing changes however far it travels.
+	f = build_number(ui, arena, 10.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.hovered);
+	VOE_TEST_CHECK(!r.held);
+	VOE_TEST_CHECK(!r.changed);
+
+	f = build_number(ui, arena, 20.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+
+	f = build_number(ui, arena, 20.0f, true, false, false, 1);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+}
+
+// Dragged, then not built — a panel closed mid-gesture. The drag must end with
+// it rather than wait to be finished by whatever next takes that key.
+static void a_number_box_that_stops_being_called_is_let_go(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct number_frame f = build_number(ui, arena, 0.0f, true, false,
+					     false, 1);
+	voe_ui_number_result r;
+
+	// Nothing is held before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 0.0f, true, true, false, 1);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.n).held);
+
+	f = build_number(ui, arena, 10.0f, true, true, false, 1);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.n).changed);
+
+	// Gone, with the pointer still down.
+	f = build_number(ui, arena, 12.0f, true, true, false, 0);
+	VOE_TEST_CHECK_INT((int)f.n, (int)VOE_UI_NODE_NONE);
+
+	// Back, still down and still moving. It must not be held and the
+	// movement must not reach the value: the gesture ended when the widget
+	// did.
+	f = build_number(ui, arena, 20.0f, true, true, false, 1);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.held);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+}
+
+// A number box and a button are not two kinds of thing as far as identity is
+// concerned: one key each, and two calls that make the same one is the same
+// refusal a pair of buttons gets.
+static void a_number_and_a_button_sharing_a_key_refuse_the_frame(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	fprintf(stderr, "-- the next voe_ui line is this test's own --\n");
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_button_begin(ui, "same", 0);
+	voe_ui_end(ui);
+	voe_ui_number_begin(ui, "same", 0, START, PER_MM);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(!voe_ui_frame_end(ui));
+
+	// And the next frame is fine, which is what a refusal has to mean.
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_button_begin(ui, "same", 0);
+	voe_ui_end(ui);
+	voe_ui_number_begin(ui, "same", 1, START, PER_MM);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+}
+
 // A known tree, a known list. Three records: the panel's background, then each
 // button's, in the order they were called. The boxes inside the buttons draw
 // nothing, and nothing is emitted for them.
@@ -616,6 +951,15 @@ int main(void)
 	a_button_that_stops_being_called_is_let_go(ui, arena);
 	a_duplicate_key_refuses_the_frame(ui, arena);
 	the_same_name_under_two_panels_is_two_widgets(ui, arena);
+	the_number_box_is_where_the_tests_think_it_is(ui, arena);
+	dragging_sideways_moves_the_value(ui, arena);
+	movement_inside_the_dead_zone_changes_nothing(ui, arena);
+	a_fine_drag_moves_a_tenth_as_far(ui, arena);
+	a_press_and_release_without_movement_does_nothing(ui, arena);
+	a_drag_past_the_edge_keeps_working(ui, arena);
+	arriving_with_the_button_already_down_arms_no_number(ui, arena);
+	a_number_box_that_stops_being_called_is_let_go(ui, arena);
+	a_number_and_a_button_sharing_a_key_refuse_the_frame(ui, arena);
 	a_known_tree_emits_a_known_list(ui, arena);
 	a_transparent_panel_emits_nothing(ui, arena);
 	too_many_elements_refuses_the_frame(arena);

@@ -6,8 +6,8 @@ placed by hand, two see-through quads either side of them, a dozen sprites off a
 sheet built in code, a lettered sign standing above them, a line of writing
 locked to the camera, a panel of forty coloured rectangles and two lines of
 writing standing among them, a small badge above them that nothing covers, a
-plate and a row of ticks mapped onto the window itself, an interface with a
-heading and two buttons on it that answer the mouse,
+plate and a row of ticks mapped onto the window itself, an interface with a heading,
+two buttons that answer the mouse and three number boxes you drag sideways,
 one sun going round it all, and a camera that either orbits them or is flown
 with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
@@ -61,15 +61,16 @@ states and not a test — it is looked at, not asserted on.
   and +y up to the surface's millimetres and y down is written, and why the badge
   is deliberately asymmetric.
 - `src/interface.h` — the first real interface: a semitransparent panel with a
-  heading and two buttons on it, laid out by `ui` and answering the mouse. Its
-  header says why the draw count is the claim and why the interface is its own
-  surface, why it is mapped onto the window rather than standing in the world,
+  heading, two buttons and three number boxes on it, laid out by `ui` and
+  answering the mouse. Its header says why the draw count is the claim and holds
+  whatever the number boxes add to it, why the interface is its own surface, why it is mapped onto the window rather than standing in the world,
   and why its panel is pushed down the page to clear the readout rather than
   anchored where it wants to be.
 - `src/interface.c` — the panel's contents and the one division that turns the
   mouse's pixels into the surface's millimetres. Its header says why one button
-  counts and the other does nothing, and why the count lives here rather than
-  in `ui`.
+  counts and the other does nothing, why the count and the three dragged values
+  live here rather than in `ui`, why each number box changes the panel it stands
+  on, and why the clamping and the rounding are this file's.
 - `src/surface.h` — the screen-filling surface: a plate, a square and a row of
   ticks mapped straight onto the window, and `VOE_DEV_UI_SCALE`, which is the
   only calibration this engine has and is changed here. Its header says how it

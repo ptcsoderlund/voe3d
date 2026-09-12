@@ -1,10 +1,11 @@
 # ui
 
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
-them, and the first widgets on top: a panel, a label and a button that answers
-the mouse. Not drawing — what comes out is element records and the caller
-submits them — and not input either: the pointer is a value it is handed. Where
-the surface sits in the world is one matrix and it is the caller's.
+them, and the first widgets on top: a panel, a label, a button that answers the
+mouse and a number box you drag sideways to change a value. Not drawing — what
+comes out is element records and the caller submits them — and not input either:
+the pointer is a value it is handed. Where the surface sits in the world is one
+matrix and it is the caller's.
 
 - `include/ui/layout.h` — the context, the frame, and rows and columns and
   boxes between its begin and its end, with a rectangle and a measured size read
@@ -24,16 +25,21 @@ the surface sits in the world is one matrix and it is the caller's.
   content box and paints over its in-flow siblings, the trap that a
   fit-to-children parent holding only anchored children has no natural size at
   all, and what the measured size is for.
-- `include/ui/widgets.h` — the panel, the label and the button, the pointer
-  they are given, and this frame's element records read back. Its header says
-  why the answer to a click arrives after the frame has ended rather than at the
-  call, what a widget's key is made of and why it is a hashed path and not a
-  line number, what two widgets sharing one does, why a button is composed
-  rather than handed a string, why a fully transparent panel emits nothing, and
-  how the text scale composes with the surface's own.
+- `include/ui/widgets.h` — the panel, the label, the button and the number box,
+  the pointer they are given, and this frame's element records read back. Its
+  header says why the answer to a click arrives after the frame has ended rather
+  than at the call, what a widget's key is made of and why it is a hashed path
+  and not a line number, what two widgets sharing one does, why a button is
+  composed rather than handed a string, why a fully transparent panel emits
+  nothing, and how the text scale composes with the surface's own. On the number
+  box it says why this folder knows no field kinds and takes a value and a rate
+  instead, why what comes back is a value and not a distance and what that buys
+  the typing that is not built yet, and why a press and release without movement
+  is reserved rather than free.
 - `src/context.h` — the tree and the context, shared by the folder's two
   source files. Its header says why there is one context and not two, which half
-  owns which field, and why the widget pass runs where it does.
+  owns which field, why the widget pass runs where it does, and why a drag needs
+  four fields beside `held` and no keyed table.
 - `src/layout.c` — the tree, and the three sweeps over it. Its header says why
   the array being in call order makes every pass a flat loop with neither
   recursion nor a stack, why a node's natural size is written by its parent
@@ -50,15 +56,16 @@ the surface sits in the world is one matrix and it is the caller's.
   arithmetic in it and where the one sign that does appear comes from, why paint
   order is taken from layout rather than re-derived, why the hit test is after
   arrange, what the two ids do in every awkward case including the stuck one,
-  and why the key is FNV-1a over a path.
+  why the key is FNV-1a over a path, and why a drag measures its dead zone from
+  the press and its change from last frame.
 - `tests/layout.c` — rectangles worked out by hand, one case per decision. Its
   header says which eight answers it is pinning down rather than merely
   exercising, which two cases are about the machinery instead of the arithmetic,
   and why exactly one case reaches into `src/` — paint order is an order and no
   rectangle can show it. Needs no graphics card and no window system.
 - `tests/widgets.c` — a press and a release in every order a hand can produce, a
-  duplicate key, and a known tree emitted as a known list. Its header says why
-  the click cases are the ones that matter, why the collision case is the most
-  valuable in the file, and why the one case that measures a string takes a
-  headless device while every other needs no graphics card. Needs no window
-  system.
+  sideways drag in every order one can, a duplicate key, and a known tree emitted
+  as a known list. Its header says why the click cases are the ones that matter,
+  why the collision case is the most valuable in the file, and why the one case
+  that measures a string takes a headless device while every other needs no
+  graphics card. Needs no window system.

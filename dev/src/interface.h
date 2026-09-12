@@ -1,13 +1,14 @@
-// The first real interface: a semitransparent panel with a heading and two
-// buttons on it, laid out by `ui`, hit tested against the mouse, and drawn in
-// ONE draw command however many letters are on it.
+// The first real interface: a semitransparent panel with a heading, two buttons
+// and three number boxes on it, laid out by `ui`, hit tested against the mouse,
+// and drawn in ONE draw command however many letters are on it.
 //
 // THE DRAW COUNT IS THE CLAIM AND IT IS WHY THIS IS A SEPARATE SURFACE. A panel,
-// two buttons and three lines of writing is twenty-six element records and one
-// command; the readout on screen says how many commands the whole frame took,
-// and adding this interface to the program moved that number by one. Not by one
-// per widget and not by one per letter, which is what an interface built out of
-// meshes would have cost.
+// two buttons, three number boxes and six lines of writing is around fifty
+// element records and one command; the readout on screen says how many commands
+// the whole frame took, and adding this interface to the program moved that
+// number by one. Not by one per widget and not by one per letter, which is what
+// an interface built out of meshes would have cost — and dragging a number box
+// changes how many records there are without ever changing how many commands.
 //
 // IT IS ON THE SCREEN-FILLING SURFACE AND NOT ON A PANEL IN THE WORLD, because
 // this is the kind of interface a person points at: it is mapped onto the window
@@ -42,8 +43,8 @@
 // What the interface may need in one frame. Both are checked by `ui` and a
 // frame that wants more is refused with a line saying which number it was, so
 // these are numbers to be honest about rather than careful with.
-#define VOE_DEV_INTERFACE_NODES 32
-#define VOE_DEV_INTERFACE_ELEMENTS 64
+#define VOE_DEV_INTERFACE_NODES 48
+#define VOE_DEV_INTERFACE_ELEMENTS 128
 
 // Makes the context the interface is built in, once. It lives in `arena` and is
 // freed with it; the font must outlive it.
@@ -59,6 +60,10 @@ voe_ui_context *voe_dev_interface_new(voe_base_arena *arena,
 // pixels; the one division that turns those into the surface's millimetres is in
 // here, because it is the same division that decides how big the surface is.
 //
+// `fine` is the fine-drag modifier, worked out by the caller for the same reason
+// `down` is: `ui` is handed values and never asks a window anything, so which key
+// means "slower" is this program's choice and not that folder's.
+//
 // `elements` comes back with how many records the interface emitted, for the
 // console line that says what one draw command was worth.
 //
@@ -71,4 +76,5 @@ voe_ui_context *voe_dev_interface_new(voe_base_arena *arena,
 					  voe_base_arena *arena,
 					  voe_platform_size target,
 					  voe_platform_pointer pointer,
-					  bool down, uint32_t *elements);
+					  bool down, bool fine,
+					  uint32_t *elements);

@@ -2552,6 +2552,9 @@ int main(void)
 					      voe_platform_input_button_down(
 						      window,
 						      VOE_PLATFORM_BUTTON_LEFT),
+					      voe_platform_input_key_down(
+						      window,
+						      VOE_PLATFORM_KEY_SHIFT),
 					      &interface_elements) &&
 				      elements_ok;
 
@@ -2621,7 +2624,7 @@ int main(void)
 				//
 				// The walk's own cost is printed beside it,
 				// which is every mesh plus one per panel.
-				printf("interface  %u element records for a panel, a heading and two buttons, in ONE draw command\n",
+				printf("interface  %u element records for a panel, a heading, two buttons and three number boxes, in ONE draw command\n",
 				       interface_elements);
 				printf("elements   %u rectangles of %u colours and %u letters on the world panel, %u on the badge, %u on the screen-filling surface\n",
 				       (unsigned)VOE_DEV_ELEMENTS_RECTANGLES,
