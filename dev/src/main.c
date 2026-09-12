@@ -14,11 +14,13 @@
 // place.
 //
 // THE CLOCK IS REAL NOW AND CARD 020 IS WHAT MADE IT ONE. Every frame is stepped
-// by however long the last one actually took, read from voe_platform_clock_now,
-// and not by a nominal sixtieth of a second — so the orbit takes the number of
-// seconds it says it does on a display of any refresh rate. The one thing this
-// file does to that number is clamp what the scene is stepped by; see
-// MAX_FRAME_SECONDS for why, and note that nothing clamps what is reported.
+// by however long the last one actually took, and not by a nominal sixtieth of a
+// second — so the orbit takes the number of seconds it says it does on a display
+// of any refresh rate. Since card 052 the reading and the subtraction are
+// voe_app_frame_open's: it hands back both numbers, the interval that happened
+// and that interval clamped, and this file reports the first and steps the scene
+// by the second. MAX_FRAME_SECONDS is the ceiling it is handed, and nothing
+// clamps what is reported.
 //
 // AND IT PRINTS WHAT IT MEASURED. Four numbers every couple of seconds, each an
 // average and a worst over exactly that period: the frame, this program's own
@@ -34,14 +36,23 @@
 // show yesterday's numbers and look exactly like a frozen program. The console
 // block stays, because a period's worst is a different, still-useful thing.
 //
-// THE LOOP OWNS THE FRAME (ADR-0098). voe_render_frame_begin and _end are called
-// from the loop below and the phases between them run in a fixed order: begin;
-// build what changes this frame, which is the readout; the draw system walks the
-// world; end, which presents. Building comes after begin because geometry that
-// lives one frame can only be built once the frame's slot is known, and before
-// the walk because the walk is what draws it. A begin that says there is nothing
-// to draw into — a window with no area, a swapchain that has just gone stale —
-// skips all three; that case is the loop's and not the draw system's.
+// THE LOOP OWNS THE FRAME (ADR-0098), AND SINCE CARD 052 ITS PARTS COME FROM
+// `app` (ADR-0135). voe_app_frame_open opens the frame, voe_app_draw_open and
+// voe_app_draw_close bracket the draw, and the phases between them run in a
+// fixed order: open; build what changes this frame, which is the readout; the
+// draw system walks the world; close, which presents. Building comes after the
+// open because geometry that lives one frame can only be built once the frame's
+// slot is known, and before the walk because the walk is what draws it. An open
+// that says there is nothing to draw into — a window with no area, a swapchain
+// that has just gone stale — skips all three; that case is the loop's and not
+// the draw system's.
+//
+// WHAT `app` DOES NOT DO IS THE POINT OF IT. There is no loop, no callback and
+// no function pointer in that folder: the `while` below is this file's, and so
+// is the order the systems run in, what is submitted in the gap between two of
+// them, which key means what, the present mode and the readout. What was
+// factored out is the handful of lines every program would write the same way
+// and one of them would write subtly wrong.
 //
 // THREE THINGS LIVE HERE THAT WILL NOT LIVE HERE LONG, and each of them is a
 // call site's business only until the folder that owns it exists:
@@ -501,6 +512,7 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
+#include <app/app.h>
 #include <assets/image.h>
 #include <base/arena.h>
 #include <base/assert.h>
@@ -1972,6 +1984,11 @@ static void report(struct timing *timing, double seconds,
 
 int main(void)
 {
+	// The window and the device, opened together by `app` and reached
+	// through it. Both are taken into locals once, below, because this file
+	// names them on nearly every line and voe_app_window(app) on each of
+	// them would say nothing the name does not.
+	voe_app *app;
 	voe_platform_window *window;
 	voe_base_arena *scratch;
 	voe_base_arena *arena;
@@ -2077,46 +2094,53 @@ int main(void)
 	// of every second that passed. See MAX_FRAME_SECONDS and the skip below.
 	float seconds = 0.0f;
 	// The real clock, and what it is read into. `top` is this frame's
-	// reading, `previous` the last one, and the difference between them is
-	// the frame.
+	// reading, taken off the tick `app` hands back rather than read again
+	// here, so the interval the readout reports and the step the scene takes
+	// are the same subtraction — see voe_app_frame_open.
 	struct timing timing = { 0 };
-	double previous;
 	double top;
-	// Whether the loop has yet to go round once, which is the one iteration
-	// with no interval behind it. See where `previous` is first read.
-	bool first_frame = true;
 	double after_update;
 	double after_draw;
 	double step;
 
-	window = voe_platform_window_new(960, 540,
-					 "voe3d — a model, two cubes, one camera");
-	if (window == NULL) {
-		fprintf(stderr, "could not open a window\n");
-		return 1;
-	}
+	// The world and everything read into it live here, and it is destroyed
+	// at the end: the world is the arena's, which is what rule 11 asks for.
+	// It is made before the window now, because the app struct lives in it
+	// too and has to outlive every call made through it.
+	arena = voe_base_arena_new(WORLD_ARENA);
 
+	// The window and the device, in one call and in that order. Nothing is
+	// kept out of `scratch`, so it goes as soon as this returns.
+	//
+	// NOTHING IS PRINTED HERE ON A FAILURE AND THAT IS NOT AN OVERSIGHT.
+	// `app` says which of the two refused and `render` says why, both on
+	// stderr, before this returns NULL; a third line from this file would
+	// only repeat them.
 	scratch = voe_base_arena_new(STARTUP_SCRATCH);
-	gpu = voe_render_device_new(scratch, voe_platform_window_native(window),
-				    voe_platform_window_size(window),
-				    capacities, &error);
+	app = voe_app_new(arena, scratch,
+			  (voe_app_settings){
+				  .width = 960,
+				  .height = 540,
+				  .title = "voe3d — a model, two cubes, one camera",
+				  .capacities = capacities,
+				  .longest_step = MAX_FRAME_SECONDS },
+			  &error);
 	voe_base_arena_destroy(scratch);
-	if (gpu == NULL) {
-		fprintf(stderr, "could not start the GPU: %s\n",
-			voe_base_error_string(error));
-		voe_platform_window_destroy(window);
+	if (app == NULL) {
+		voe_base_arena_destroy(arena);
 		return 1;
 	}
 
-	// Mailbox, asked for rather than inherited: a device opens on fifo. It is
-	// the call P makes and the variable P flips, so what was asked for at
+	window = voe_app_window(app);
+	gpu = voe_app_device(app);
+
+	// Mailbox, asked for rather than inherited: a device opens on fifo, and
+	// `app` asks for no mode at all, so this is the program's own request. It
+	// is the call P makes and the variable P flips, so what was asked for at
 	// startup and what the first press takes back cannot disagree.
 	voe_render_present_set(gpu, mailbox_wanted ? VOE_RENDER_PRESENT_MAILBOX :
 						     VOE_RENDER_PRESENT_FIFO);
 
-	// The world and everything read into it live here, and it is destroyed
-	// at the end: the world is the arena's, which is what rule 11 asks for.
-	arena = voe_base_arena_new(WORLD_ARENA);
 	world = voe_ecs_world_new(arena, limits);
 
 	// Registration, once, and this is the whole of what a call site has to
@@ -2221,21 +2245,18 @@ int main(void)
 	say_what_is_measured();
 	fflush(stdout);
 
-	// The first reading, before the loop, so that the first frame's interval
-	// is measured from here rather than from a zero that would report the
-	// whole of startup as one very slow frame.
-	//
-	// IT IS NOT ITSELF AN INTERVAL, WHICH IS WHY THE LOOP SKIPS THE FIRST
-	// SAMPLE. An interval needs two ends and the first time round the loop
-	// has only one: the gap between this line and the top of the first
-	// iteration is a few microseconds of nothing, and recording it as a
-	// frame makes the readout's first line say the program is running at
-	// four million frames a second, because the rate is the reciprocal of
-	// that number. There is no frame to report until there have been two.
-	previous = voe_platform_clock_now();
-	timing.started = previous;
+	// When the first reporting period started. The frame's own interval is
+	// the clock inside `app` and this file no longer keeps a previous
+	// reading of its own.
+	timing.started = voe_platform_clock_now();
 
-	while (!voe_platform_window_should_close(window)) {
+	// THE LOOP IS THIS FILE'S AND THE PARTS IN IT ARE `app`'S (ADR-0135).
+	// Everything between the calls below — the key edges, the order the
+	// systems run in, what is submitted in the gap between two of them — is
+	// this program deciding, which is why `app` hands back a frame instead
+	// of running one.
+	while (true) {
+		voe_app_frame opened;
 		voe_platform_size now_size;
 		bool now_decorated;
 		bool now_locked;
@@ -2243,33 +2264,39 @@ int main(void)
 		bool escape_down;
 		bool p_down;
 		const voe_scene_transform *spinning;
-		double elapsed;
 		double gpu_seconds;
 		voe_3d_frame frame;
 		bool drawing = false;
 		bool readout_ok = true;
 
-		// The frame's interval, measured before anything in it happens,
-		// so that everything below is inside it. Not recorded the first
-		// time round, when there is no previous frame for it to be the
-		// interval from — see where `previous` is first read.
-		top = voe_platform_clock_now();
-		elapsed = top - previous;
-		previous = top;
-		if (!first_frame)
-			voe_base_samples_add(&timing.frame, elapsed);
-		first_frame = false;
+		// The clock, the poll and what the window says afterwards, in
+		// that order and once. The window closing is the only reason
+		// this loop ends that is not a key or a failure.
+		opened = voe_app_frame_open(app);
+		if (opened.closing)
+			break;
 
-		// What the scene is advanced by: the same number, clamped. The
-		// sample above got the unclamped one, because what is reported
-		// is what happened — see MAX_FRAME_SECONDS.
-		step = elapsed > MAX_FRAME_SECONDS ? MAX_FRAME_SECONDS : elapsed;
+		// The reading that opened the frame, kept because the update
+		// and the draw are measured from it. Everything below is inside
+		// the interval it ends.
+		top = opened.tick.now;
 
-		voe_platform_window_poll(window);
+		// WHAT IS REPORTED AND WHAT THE SCENE TAKES ARE THE TWO NUMBERS
+		// ON THE TICK, AND THEY ARE NOT THE SAME ONE. `elapsed` is what
+		// really happened and is what the readout says; `step` is that
+		// with MAX_FRAME_SECONDS on it and is all the orbit, the spin
+		// and the sun are advanced by. The first tick has no interval
+		// behind it and says so, and recording it would make the
+		// readout's first line claim four million frames a second.
+		if (!opened.tick.first)
+			voe_base_samples_add(&timing.frame, opened.tick.elapsed);
+		step = opened.tick.step;
 
-		// Poll, then report what changed. Everything is asked every
-		// frame because platform hands out state, not events.
-		now_size = voe_platform_window_size(window);
+		// The frame opened with a poll in it, so what follows is this
+		// program reading state that is already this frame's. Everything
+		// is asked every frame because platform hands out state, not
+		// events.
+		now_size = opened.size;
 		if (now_size.width != size.width ||
 		    now_size.height != size.height) {
 			size = now_size;
@@ -2351,8 +2378,11 @@ int main(void)
 
 		// The clock, and then everything that moves on it. A minimised
 		// window draws nothing, and the clock stops with it: nothing
-		// below advances a scene nobody is looking at.
-		if (now_size.width > 0 && now_size.height > 0) {
+		// below advances a scene nobody is looking at. The loop still
+		// goes round rather than skipping to the top, because the draw
+		// below is what finds out when there is something to draw into
+		// again.
+		if (!opened.minimised) {
 			seconds += (float)step;
 
 			// One of the two, never both, and the camera system
@@ -2440,16 +2470,15 @@ int main(void)
 		voe_base_samples_add(&timing.update, after_update - top);
 
 		// THE FRAME, IN THE ORDER THE HEADER GIVES: the camera and the sun
-		// out of the tables, begin, build what changes this frame, the
-		// walk, end. A begin that says there is nothing to draw into skips
-		// the three in the middle and the loop comes round again — it
-		// does not wait, which is what the spin on a minimised window is.
+		// out of the tables, the draw opened, build what changes this
+		// frame, the walk, the draw closed. An open that says there is
+		// nothing to draw into skips the three in the middle and the
+		// loop comes round again — it does not wait, which is what the
+		// spin on a minimised window is.
 		frame = voe_3d_draw_system_frame(world, now_size);
-		if (!voe_render_frame_begin(gpu, now_size, frame.view,
-					    frame.light, &drawing)) {
-			fprintf(stderr, "the GPU stopped answering\n");
+		if (!voe_app_draw_open(app, now_size, frame.view, frame.light,
+				       &drawing))
 			break;
-		}
 		if (drawing) {
 			// Built inside the frame and before the walk, because
 			// that is the only place a one-frame mesh can be built
@@ -2526,10 +2555,8 @@ int main(void)
 					      &interface_elements) &&
 				      elements_ok;
 
-			if (!voe_render_frame_end(gpu)) {
-				fprintf(stderr, "the GPU stopped answering\n");
+			if (!voe_app_draw_close(app))
 				break;
-			}
 
 			// THE FRAME IS COMPLETE, SO THIS IS THE ONE MOMENT
 			// EITHER NUMBER IS THE WHOLE FRAME'S. Both are read
@@ -2641,10 +2668,12 @@ int main(void)
 	}
 
 stop:
+	// The font holds GPU resources, so it goes before the device `app`
+	// closes; the arena goes last of the three because the app struct is in
+	// it.
 	voe_text_font_destroy(font);
-	voe_render_device_destroy(gpu);
+	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
-	voe_platform_window_destroy(window);
 	printf("closed\n");
 	return 0;
 }

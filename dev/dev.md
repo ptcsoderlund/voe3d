@@ -13,9 +13,12 @@ with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
 
 - `src/main.c` — opens a window and a device, builds a world, reads the model
-  into it, and runs the systems and the draw every frame until it closes. It owns
-  the frame and a real clock, and puts a block of timings on the screen every
-  couple of seconds. Its header is the list of things to look at in both camera
+  into it, and runs the systems and the draw every frame until it closes. The
+  window and the device come from `voe_app_new`, the clock and the poll from
+  `voe_app_frame_open`, and the draw is opened and closed by `voe_app_draw_open`
+  and `voe_app_draw_close` — the `while` itself, the order the systems run in and
+  everything submitted between two of them stay here. It owns the frame and puts
+  a block of timings on the screen every couple of seconds. Its header is the list of things to look at in both camera
   modes, what each of them fails like — the lighting's and the blending's own
   failures included — and the three things that live here only until the folder
   that owns them exists. On the readout: what each of the four numbers brackets,
