@@ -7,11 +7,14 @@ space is.
 
 - `include/scene/transform_component.h` — position, rotation, scale, written as a
   described field list, and the matrix they become. Its header says why there is
-  no parent, why the matrix is not stored, and in which order the three are
-  composed.
-- `include/scene/transform_system.h` — the intent that moves one, and the direct
-  call that creates one. Its header says why the intent carries the whole
-  transform and why creation is not one.
+  no parent, why the matrix is not stored, in which order the three are composed,
+  and what the drain settles before it writes one — the two bounds a rotation is
+  held to are named here.
+- `include/scene/transform_system.h` — the intent that moves one, registered as
+  the component's replace, and the direct call that creates one. Its header says
+  why the intent carries the whole transform, why creation is not one, why
+  neither call checks a rotation and the drain checks every one, and why the
+  report's state is per process.
 - `include/scene/camera_component.h` — eye, yaw, pitch, field of view and the two
   planes, and the view matrix. Its header says why the projection is not built
   here and why orientation is two angles.
@@ -33,7 +36,8 @@ space is.
   that creates one. Its header says where the normalization happens and why a
   world that is drawn needs this table even when it holds no sun.
 - `src/transform_component.c` — the key, the matrix, and the reads.
-- `src/transform_system.c` — registration, creation, and the drain.
+- `src/transform_system.c` — registration, creation, the drain that settles what
+  it applies, and the one line a run of settlings writes to stderr.
 - `src/identity_component.c` — the key and the reads, and nothing that writes.
 - `src/identity_system.c` — registration, creation, the drain that settles what
   it applies, and the one line a run of corrections writes to stderr.
@@ -46,8 +50,10 @@ space is.
 - `src/light_system.c` — registration, creation, the drain, and the one place a
   light's direction becomes unit length.
 - `tests/transform.c` — that the matrix is translate·rotate·scale, that an
-  intent lands only when the system runs, and that the field list a world hands
-  back for a transform is the one the compiler laid out.
+  intent lands only when the system runs, that a rotation arrives unit length and
+  one with no length leaves the row alone, and that the field list a world hands
+  back for a transform is the one the compiler laid out. Its header says why half
+  of it submits raw rather than through the typed call.
 - `tests/identity.c` — that a rename lands only when the system runs, that an
   unterminated name arrives cut and a replaced id arrives put back, and that the
   field list a world hands back marks the id read-only. Its header says why half
