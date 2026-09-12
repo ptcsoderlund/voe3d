@@ -17,15 +17,18 @@
 // node's rotation as — so an importer copies them and does not shuffle them.
 //
 // IT IS UNIT LENGTH AND EVERYTHING THAT TAKES ONE ASSUMES SO. _from_axis_angle
-// builds one by construction, and voe_math_float4x4_from_quat asserts it before
-// using the short formula that only holds for a unit quaternion.
+// builds one by construction, _normalize makes one out of anything that is not,
+// and voe_math_float4x4_from_quat asserts it before using the short formula that
+// only holds for a unit quaternion.
 //
-// THERE IS ONE WAY TO BUILD ONE AND THAT IS ON PURPOSE. No _identity, no _mul,
-// no _normalize, no _slerp: nothing composes or interpolates a rotation yet, and
-// rule 10 says a function is written when something calls it. The day a node
-// hierarchy or an animation needs them, that is the card they arrive on. A
-// rotation of nothing is _from_axis_angle with an angle of zero, which is the
-// identity and is tested as such.
+// EVERY FUNCTION HERE ARRIVED WHEN SOMETHING CALLED IT, AND THAT IS ON PURPOSE.
+// Rule 10: a function is written when something calls it, not for symmetry. _mul
+// came with composition; _length and _normalize came with a caller that is
+// handed a rotation from outside and has to make sure it is still one before it
+// keeps it. Still no _identity and no _slerp: nothing interpolates a rotation
+// yet, and the day an animation does is the card they arrive on. A rotation of
+// nothing is _from_axis_angle with an angle of zero, which is the identity and
+// is tested as such.
 //
 // ROTATION IS RIGHT-HANDED, WHICH IS THIS ENGINE'S HANDEDNESS. A positive angle
 // about +Y takes +Z towards +X. tests/quat.c is what says so, rather than this
@@ -50,3 +53,12 @@ voe_math_quat voe_math_quat_from_axis_angle(voe_math_float3 axis, float angle);
 // Neither argument has to be unit and the result is as unit as they were, which
 // is what lets a chain of these be built without normalizing between them.
 voe_math_quat voe_math_quat_mul(voe_math_quat a, voe_math_quat b);
+
+// The square root of the sum of the four components squared, exactly as
+// voe_math_float4_length is over its four.
+float voe_math_quat_length(voe_math_quat q);
+
+// q divided by its length. It asserts rather than return a quiet NaN, for the
+// reason float4.h gives about its own: a zero length is a bug at the call site,
+// not a value to propagate.
+voe_math_quat voe_math_quat_normalize(voe_math_quat q);

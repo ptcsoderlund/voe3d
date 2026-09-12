@@ -1,6 +1,7 @@
 // The quat operations. See include/math/quat.h for the type and the rules.
 #include <math/quat.h>
 
+#include <assert.h>
 #include <math.h>
 
 voe_math_quat voe_math_quat_from_axis_angle(voe_math_float3 axis, float angle)
@@ -30,4 +31,20 @@ voe_math_quat voe_math_quat_mul(voe_math_quat a, voe_math_quat b)
 		a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
 		a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
 	};
+}
+
+float voe_math_quat_length(voe_math_quat q)
+{
+	// Written out rather than through a dot product, because this type has
+	// no _dot: nothing has wanted one.
+	return sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+}
+
+voe_math_quat voe_math_quat_normalize(voe_math_quat q)
+{
+	float len = voe_math_quat_length(q);
+
+	// The same assert voe_math_float4_normalize makes, for the same reason.
+	assert(len > 0.0f);
+	return (voe_math_quat){ q.x / len, q.y / len, q.z / len, q.w / len };
 }

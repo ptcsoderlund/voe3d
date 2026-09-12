@@ -16,12 +16,14 @@
 // The 90-degree cases below are what pin it: a doubled angle sends +Z to -Z
 // rather than to +X.
 //
-// IT IS TESTED THROUGH THE MATRIX BECAUSE THE MATRIX IS THE WHOLE SURFACE.
-// voe_math_quat_from_axis_angle and voe_math_float4x4_from_quat are the only two
-// functions there are, and one of them consumes the other's output; a test that
-// read the components directly would be asserting the half-angle formula back at
-// itself. Transforming a known vector is the same statement in the form the
-// engine actually uses.
+// WHICH WAY AND HOW FAR ARE TESTED THROUGH THE MATRIX, BECAUSE THAT IS THE FORM
+// THE ENGINE USES. voe_math_quat_from_axis_angle's output is consumed by
+// voe_math_float4x4_from_quat, and a test that read the components back would be
+// asserting the half-angle formula at itself; transforming a known vector is the
+// same statement in the form something actually renders. The exception is
+// check_normalize, whose claim is about the four components themselves — that
+// they came back the same four, scaled — and there is nothing a matrix would add
+// to it.
 #include <math/float3.h>
 #include <math/float4x4.h>
 #include <math/quat.h>
@@ -218,6 +220,47 @@ static void check_mul(void)
 	}
 }
 
+// _normalize MAKES A UNIT QUATERNION AND KEEPS THE ROTATION, WHICH IS THE WHOLE
+// POINT OF IT. Its caller is handed a rotation from outside and has to make one
+// of it; a _normalize that scaled correctly but turned somewhere else would pass
+// a length check and be useless. So the length is checked, and then that 2q
+// comes back as q rather than as some other unit quaternion — the two claims
+// are separate and the second is the one that matters.
+//
+// A LENGTH OF EXACTLY 2 IS BUILT BY DOUBLING A UNIT ONE, because there is no
+// _scale on this type and nothing wants one. Doubling every component doubles
+// the length, and the rotation a quaternion means is unchanged by it, which is
+// what makes it the right thing to hand _normalize here.
+static void check_normalize(void)
+{
+	voe_math_quat unit = voe_math_quat_from_axis_angle(Y, QUARTER_TURN);
+	voe_math_quat doubled = { unit.x * 2.0f, unit.y * 2.0f, unit.z * 2.0f,
+				  unit.w * 2.0f };
+	voe_math_quat normalized = voe_math_quat_normalize(doubled);
+	voe_math_quat unchanged = voe_math_quat_normalize(unit);
+
+	// _from_axis_angle builds a unit one by construction, which is what the
+	// header promises and what everything taking a quaternion assumes.
+	VOE_TEST_CHECK_FLOAT(voe_math_quat_length(unit), 1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_math_quat_length(doubled), 2.0f, TOLERANCE);
+
+	VOE_TEST_CHECK_FLOAT(voe_math_quat_length(normalized), 1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_math_quat_length(unchanged), 1.0f, TOLERANCE);
+
+	// Already unit, so nothing moves.
+	VOE_TEST_CHECK_FLOAT(unchanged.x, unit.x, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(unchanged.y, unit.y, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(unchanged.z, unit.z, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(unchanged.w, unit.w, TOLERANCE);
+
+	// And the rotation survived the division: 2q normalises back to q, not
+	// merely to something a unit long.
+	VOE_TEST_CHECK_FLOAT(normalized.x, unit.x, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(normalized.y, unit.y, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(normalized.z, unit.z, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(normalized.w, unit.w, TOLERANCE);
+}
+
 int main(void)
 {
 	check_zero_is_identity();
@@ -227,5 +270,6 @@ int main(void)
 	check_axis_need_not_be_unit();
 	check_composition();
 	check_mul();
+	check_normalize();
 	return voe_test_result();
 }
