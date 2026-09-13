@@ -38,15 +38,17 @@
 // that keeps a comment out of a string, and it is also why the sketch's
 // whole-line comments are the only kind.
 //
-// QUOTES ARE STRIPPED AND NOTHING INSIDE THEM IS ESCAPED. A value that starts
-// with `"` runs to the next `"` and only blanks may follow it on the line; what
-// is between the quotes comes back byte for byte, so `"C:\Assets"` is
-// `C:\Assets`. There is no `\"` and no `\\`, because the one backslash an
-// authored file is likely to hold is a Windows path, and an escape rule would
-// refuse that line to make room for a quote inside a string, which nothing
-// wants yet — so a quoted value cannot contain `"`, and the card that needs one
-// adds the escape (rule 10). Whether a value was quoted is not recorded: the
-// card asked for the text minus quoting, and a flag nothing reads is surface.
+// QUOTES ARE STRIPPED AND A QUOTED VALUE HAS TWO ESCAPES, `\"` AND `\\`
+// (ADR-0149). A value that starts with `"` runs to the next `"` that is not
+// escaped, and only blanks may follow it on the line. Inside it `\"` comes back
+// as `"` and does not close the value, `\\` comes back as `\`, and a backslash
+// followed by anything else — the end of the line included — refuses the line,
+// so `name="say \"hi\""` is `say "hi"` and `path="C:\Assets"` is malformed. An
+// authored path is written with `/` on every platform, so a Windows path never
+// needs a backslash. Outside quotes a backslash is a byte like any other:
+// `url=http://a\b` is `http://a\b`. Whether a value was quoted is not recorded,
+// quoted or not: the consumer gets the text, and a flag nothing reads is
+// surface.
 //
 // THE DECISIONS THE FORMAT LEFT OPEN, EACH PINNED BY A TEST:
 //
@@ -81,7 +83,7 @@
 // malformed line is any line that is not blank, a comment, a section header or
 // a key: a line with no `=`, a `=` with nothing before it, a `[` with no `]`,
 // text after a `]` or after a closing quote, a quote never closed on its line,
-// a NUL byte anywhere.
+// a backslash in a quoted value that is not `\"` or `\\`, a NUL byte anywhere.
 //
 // THE BYTES ARE THE CALLER'S AND ARE NOT KEPT. Every name and value is copied
 // into `arena` as a NUL-terminated C string, so a layer-two reader can hand one

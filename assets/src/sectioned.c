@@ -5,19 +5,26 @@
 // caller state how many values it will hold, because a nested document can
 // hold far more values than it has bytes of structure. This format cannot: a
 // line is at most one section or one key, and every name and value is a
-// substring of the text, so the output is bounded by the input and there is
-// nothing for a hostile file to amplify. So the first pass lexes every line,
-// refuses anything malformed and counts; three arrays are pushed at exactly
-// those sizes; the second pass lexes the same lines again and stores. Both
-// passes go through read_line(), so they cannot disagree about what a line is.
-// The only failure the second pass can find is a duplicate, because a duplicate
-// needs the earlier names stored to compare against.
+// substring of the text or, unescaped, shorter than one, so the output is
+// bounded by the input and there is nothing for a hostile file to amplify. So
+// the first pass lexes every line, refuses anything malformed and counts; three
+// arrays are pushed at exactly those sizes; the second pass lexes the same
+// lines again and stores. Both passes go through read_line(), so they cannot
+// disagree about what a line is. The only failure the second pass can find is a
+// duplicate, because a duplicate needs the earlier names stored to compare
+// against.
 //
 // EVERY NAME AND VALUE IS COPIED INTO ONE TEXT POOL, PUSHED ONCE. Two pushes
 // are not guaranteed to be adjacent (base/arena.h), and one push per string
 // would round each to sixteen bytes. The spans copied are disjoint substrings
-// of the text, so the pool is the text's size plus one NUL per string, and it
-// cannot run out; the assert in intern() is there to say so.
+// of the text and unescaping only ever drops a byte, so the pool is the text's
+// size plus one NUL per string, and it cannot run out; the assert in intern()
+// is there to say so.
+//
+// A QUOTED VALUE IS CHECKED FOR ESCAPES WHEN IT IS LEXED AND UNESCAPED WHEN IT
+// IS STORED. read_key() refuses a backslash that is not `\"` or `\\` on both
+// passes, so the counting pass has already refused every bad one and intern()
+// can copy a quoted value knowing each backslash is followed by one of the two.
 //
 // EVERY READ IS BOUNDED BY `size` AND NEVER BY A TERMINATOR. The text is a span
 // the caller handed over — an embedded file, a buffer from wherever — and a
@@ -58,6 +65,9 @@ struct line {
 	struct span name;
 	// The key's value, quotes already stripped. Unused for a section.
 	struct span value;
+	// The value was quoted, so its span may hold `\"` and `\\`, and nothing
+	// else after a backslash.
+	bool quoted;
 };
 
 struct parser {
@@ -175,8 +185,10 @@ static bool read_section(struct parser *parser, size_t start, size_t end,
 
 // `key=value` — a `=` somewhere in [start, end). The key is what is before it,
 // trimmed; the value is what is after it, trimmed, and if that starts with `"`
-// it is what is between that quote and the next one, with only blanks allowed
-// after the closing quote. Nothing inside the quotes is looked at.
+// it is what is between that quote and the next unescaped one, with only blanks
+// allowed after the closing quote. Inside the quotes a backslash is `\"` or `\\`
+// and nothing else — ADR-0149 — and anything else after one, the end of the
+// line included, refuses the line.
 static bool read_key(struct parser *parser, size_t start, size_t end,
 		     struct line *line)
 {
@@ -195,10 +207,20 @@ static bool read_key(struct parser *parser, size_t start, size_t end,
 		return malformed(parser, "a key name with a blank in it");
 
 	value = trimmed(parser, equals + 1, end);
-	if (value.length > 0 && parser->text[value.start] == '"') {
+	line->quoted = value.length > 0 && parser->text[value.start] == '"';
+	if (line->quoted) {
 		size_t open = value.start;
-		size_t close = find(parser, open + 1, end, '"');
+		size_t close = open + 1;
 
+		for (; close < end && parser->text[close] != '"'; close++) {
+			if (parser->text[close] != '\\')
+				continue;
+			if (close + 1 == end || (parser->text[close + 1] != '"' &&
+						 parser->text[close + 1] != '\\'))
+				return malformed(parser,
+						 "a backslash in a quoted value that is not \\\" or \\\\");
+			close++;
+		}
 		if (close == end)
 			return malformed(parser,
 					 "a quoted value with no closing quote on its line");
@@ -249,17 +271,25 @@ static bool read_line(struct parser *parser, struct line *line)
 	return read_key(parser, first, content_end, line);
 }
 
-// A span copied out of the text as a NUL-terminated string in the pool.
-static const char *intern(struct parser *parser, struct span span)
+// A span copied out of the text as a NUL-terminated string in the pool, with
+// `\"` and `\\` taken back to one byte when it was quoted. read_key() has
+// already refused any other backslash in a quoted span.
+static const char *intern(struct parser *parser, struct span span,
+			  bool quoted)
 {
 	char *at = parser->pool + parser->pool_used;
+	size_t length = 0;
 
 	VOE_BASE_ASSERT(parser->pool_used + span.length + 1 <=
 				parser->pool_size,
 			"the text pool was sized from the same lines it now holds");
-	memcpy(at, parser->text + span.start, span.length);
-	at[span.length] = '\0';
-	parser->pool_used += span.length + 1;
+	for (size_t i = 0; i < span.length; i++) {
+		if (quoted && parser->text[span.start + i] == '\\')
+			i++;
+		at[length++] = parser->text[span.start + i];
+	}
+	at[length] = '\0';
+	parser->pool_used += length + 1;
 	return at;
 }
 
@@ -286,14 +316,15 @@ static bool add_section(struct parser *parser, struct span name)
 
 	parser->sections[parser->section_count++] =
 		(voe_assets_sectioned_section){
-			.name = intern(parser, name),
+			.name = intern(parser, name, false),
 			.first_key = parser->key_count,
 			.key_count = 0,
 		};
 	return true;
 }
 
-static bool add_key(struct parser *parser, struct span name, struct span value)
+static bool add_key(struct parser *parser, struct span name, struct span value,
+		    bool quoted)
 {
 	voe_assets_sectioned_section *section;
 
@@ -314,8 +345,8 @@ static bool add_key(struct parser *parser, struct span name, struct span value)
 					 "a key this section already has");
 
 	parser->keys[parser->key_count++] = (voe_assets_sectioned_key){
-		.name = intern(parser, name),
-		.value = intern(parser, value),
+		.name = intern(parser, name, false),
+		.value = intern(parser, value, quoted),
 	};
 	section->key_count++;
 	return true;
@@ -342,7 +373,8 @@ static bool read_lines(struct parser *parser)
 				return false;
 			break;
 		case LINE_KEY:
-			if (!add_key(parser, line.name, line.value))
+			if (!add_key(parser, line.name, line.value,
+				     line.quoted))
 				return false;
 			break;
 		}

@@ -1,6 +1,6 @@
 # 068 — the sectioned parser reads two escapes
 
-claimed-by: -
+claimed-by: kanban-coder (claude-opus-5, session 1ad66825)
 blocked-by: -
 decision: *A scene file is entity sections by number, component sections beneath, and one spelling per value* (ADR-0149) — its value table's text row and "Where this lands in code": the parser's only change is `\"` and `\\`.
 
@@ -64,3 +64,35 @@ A quoted value can hold a quote and a backslash, and a Windows-style path in quo
 with the line number rather than read as something else.
 
 ## Notes
+
+**Done 2026-09-13, verified on Linux (Fedora 44, clang, lavapipe for the GPU tests).** Not
+checked on Windows; nothing here is platform-specific but a `\r\n` file with a quoted escape
+was not run there.
+
+- `assets/src/sectioned.c`: `read_key()` scans a quoted value byte by byte, stepping over `\"`
+  and `\\` and refusing any other backslash (end of line included) as a malformed line on both
+  passes. `struct line` carries `quoted`, and `intern()` unescapes a quoted value into the pool;
+  unescaping only drops bytes, so the pool sizing and its assert are unchanged. File header says so.
+- `assets/include/assets/sectioned.h`: the quoting paragraph now states the two escapes, the
+  refusal, `/` for authored paths, backslash as a byte outside quotes, quoted-ness not recorded,
+  and names ADR-0149. The backslash case is in the malformed-line list.
+- `assets/tests/sectioned.c`: `quotes_are_stripped_and_nothing_is_escaped` replaced by
+  `a_quoted_value_has_two_escapes`, holding the six cases the card lists plus the two existing
+  unquoted/quoted-equivalence checks it carried. File header's list of pinned decisions updated.
+  Every other test unedited.
+- `assets/assets.md`: its `sectioned.h` entry does not mention escaping, so it is unchanged.
+
+**One reading to flag.** "Refused, and the report names the line": the test checks the refusal;
+no test in the tree captures stderr and `base/report.h` has no hook to, so the line number was
+checked by running the test binary, which prints
+`error: assets: sectioned: line 3: a backslash in a quoted value that is not \" or \\` for the
+`C:\Assets` case (placed on line 3 on purpose). A test that asserts the number needs a way to
+capture a report, which is not this card's folder.
+
+**Ran:**
+- `cmake -P check.cmake` → exit 0 (45 tests, analyser 124 files, all standalone configures ok).
+- `ctest -R assets --output-on-failure` → 6/6 passed.
+- `grep -rn '\\' --include=*.theme --include=*.txt --include=*.scene . --exclude-dir=build
+  --exclude-dir=cmake-build-debug` → no matches; there are no `.theme` files in the tree at all,
+  and `voe_assets_sectioned_parse` has no caller outside `assets/tests/sectioned.c`.
+- `bash tools/hot.sh` at the planning root → all hot files under their ceilings.

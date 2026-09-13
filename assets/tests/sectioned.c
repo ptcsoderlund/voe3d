@@ -4,9 +4,9 @@
 //
 // THE PINNED DECISIONS ARE THE POINT OF THIS FILE. Two-part names and no
 // deeper, blanks tolerated around the punctuation and refused inside a name,
-// no escapes, duplicates refused, no key before a section, no trailing comment
-// — each is one test, so that the day one of them changes it changes here on
-// purpose and not in the reader by accident.
+// two escapes inside quotes and none outside them, duplicates refused, no key
+// before a section, no trailing comment — each is one test, so that the day one
+// of them changes it changes here on purpose and not in the reader by accident.
 //
 // EVERYTHING THAT COMES BACK IS COMPARED AS TEXT. The moment a test here calls
 // strtod it has started writing layer two, and the reader is being tested for
@@ -204,16 +204,25 @@ static void blanks_are_tolerated_around_and_refused_inside(
 	VOE_TEST_CHECK(strcmp(doc.sections[0].name, "Player") == 0);
 }
 
-// No escapes: a backslash is a byte like any other, and a quote ends the value.
-static void quotes_are_stripped_and_nothing_is_escaped(voe_base_arena *arena)
+// Two escapes inside quotes, `\"` and `\\`, and any other backslash there
+// refuses the line (ADR-0149). Outside quotes a backslash is a byte.
+static void a_quoted_value_has_two_escapes(voe_base_arena *arena)
 {
-	reads_as(arena, "[P]\npath=\"C:\\Assets\\x\"\n", "P", "path",
-		 "C:\\Assets\\x");
-	reads_as(arena, "[P]\nslash=\"a\\\\b\"\n", "P", "slash", "a\\\\b");
-	// The quote after the backslash closes the value, and the rest of the
-	// line is not blank.
-	refused(arena, "[P]\nsaid=\"say \\\"hi\\\"\"\n");
-	// A quote inside an unquoted value is text.
+	reads_as(arena, "[P]\nname = \"say \\\"hi\\\"\"\n", "P", "name",
+		 "say \"hi\"");
+	reads_as(arena, "[P]\npath = \"a\\\\b\"\n", "P", "path", "a\\b");
+	// An escaped backslash right before the closing quote does not escape
+	// the quote.
+	reads_as(arena, "[P]\nx = \"ends in \\\\\"\n", "P", "x", "ends in \\");
+	// A Windows path in quotes is refused, not read as something else. The
+	// refusal is on line 3, which the report names; ctest shows it.
+	refused(arena, "[P]\n// a path\npath = \"C:\\Assets\"\n");
+	// A backslash at the end of the line escapes nothing.
+	refused(arena, "[P]\nx = \"a\\\n");
+	// The escaped quote does not close the value, so nothing does.
+	refused(arena, "[P]\nx = \"open \\\"\n");
+	// Unquoted, a backslash is a byte and a quote is text.
+	reads_as(arena, "[P]\nurl = http://a\\b\n", "P", "url", "http://a\\b");
 	reads_as(arena, "[P]\nodd=x\"y\n", "P", "odd", "x\"y");
 	// Quoted and unquoted say the same thing.
 	reads_as(arena, "[P]\na=\"1.25\"\n", "P", "a", "1.25");
@@ -373,7 +382,7 @@ int main(void)
 	the_sketch_comes_back_as_its_text(arena);
 	a_name_has_at_most_two_parts(arena);
 	blanks_are_tolerated_around_and_refused_inside(arena);
-	quotes_are_stripped_and_nothing_is_escaped(arena);
+	a_quoted_value_has_two_escapes(arena);
 	duplicates_are_refused(arena);
 	a_key_belongs_to_a_section(arena);
 	a_comment_is_a_whole_line(arena);
