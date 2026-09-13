@@ -34,6 +34,7 @@ enum voe_ui_widget {
 	VOE_UI_WIDGET_LABEL,
 	VOE_UI_WIDGET_BUTTON,
 	VOE_UI_WIDGET_NUMBER,
+	VOE_UI_WIDGET_IMAGE,
 };
 
 // What widgets.c keeps about one node, in an array indexed by the node's own
@@ -57,13 +58,18 @@ struct voe_ui_widget_record {
 	// was given. Meaningless on everything else.
 	double value;
 	double per_millimetre;
+	// An image's part of its texture, in the element record's own xy-wh
+	// shape, and the texture id's index half. Copied into the record as they
+	// stand. Meaningless on everything else.
+	voe_math_float4 sheet;
+	uint32_t texture;
 	// A label's first baseline, in millimetres below its own top edge, as
 	// the measurement handed it back. Kept so that emission does not walk
 	// the string a second time to ask the same question.
 	float baseline;
 	enum voe_ui_widget kind;
 	// Whether `key` was worked out for this node. Panels, buttons and number
-	// boxes are keyed; labels are not, having nothing to remember.
+	// boxes are keyed; labels and images are not, having nothing to remember.
 	bool keyed;
 };
 

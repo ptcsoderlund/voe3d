@@ -138,6 +138,12 @@ static const voe_math_float4 BUTTON_HOVERED = { 0.28f, 0.30f, 0.34f, 1.0f };
 static const voe_math_float4 BUTTON_HELD = { 0.02f, 0.20f, 0.48f, 1.0f };
 static const voe_math_float4 LABEL_INK = { 0.85f, 0.87f, 0.90f, 1.0f };
 
+// NOT A THEME COLOUR AND CARD 036 LEAVES IT ALONE. An image record's colour
+// multiplies the picture, and opaque white is the one value that shows the
+// picture as it is. There is no tint argument, so there is nothing else it could
+// be.
+static const voe_math_float4 IMAGE_AS_IT_IS = { 1.0f, 1.0f, 1.0f, 1.0f };
+
 // How many millimetres one em is, before the text scale. Card 036 owns this one
 // as well: a text size is a thing a theme says, and until there is a theme it is
 // a number here with the font's own measurements multiplied by it.
@@ -408,6 +414,27 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 	return node;
 }
 
+voe_ui_node voe_ui_image(voe_ui_context *ui, voe_render_texture texture,
+			 voe_math_float4 sheet, voe_math_float2 content,
+			 voe_ui_sizing sizing)
+{
+	voe_ui_node node;
+
+	VOE_BASE_ASSERT(ui != NULL, "adding an image to no context");
+
+	// A box and nothing more as far as layout is concerned: every rule
+	// about its size, and the assert for one outside a container, is
+	// voe_ui_box's. No key is claimed, having nothing to remember.
+	node = voe_ui_box(ui, content, sizing);
+	if (node != VOE_UI_NODE_NONE) {
+		ui->widgets[node].kind = VOE_UI_WIDGET_IMAGE;
+		ui->widgets[node].sheet = sheet;
+		ui->widgets[node].texture = texture.index;
+	}
+
+	return node;
+}
+
 // ------------------------------------------------------------- the frame
 
 void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
@@ -446,9 +473,9 @@ void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 	ui->pointer = (voe_ui_pointer){ 0 };
 }
 
-// Which widgets answer the pointer at all. A panel and a label do not: a panel
-// is a background and a label is a measurement, and neither has ever been asked
-// what the mouse is doing to it.
+// Which widgets answer the pointer at all. A panel, a label and an image do not:
+// a panel is a background, a label is a measurement and an image is a picture,
+// and none of them has ever been asked what the mouse is doing to it.
 static bool takes_the_pointer(enum voe_ui_widget kind)
 {
 	return kind == VOE_UI_WIDGET_BUTTON || kind == VOE_UI_WIDGET_NUMBER;
@@ -616,6 +643,26 @@ static void push_rect(voe_ui_context *ui, voe_ui_rect rect,
 			 });
 }
 
+// A picture over the node's rectangle, clipped to itself for the reason
+// push_rect's record is. The sheet and the texture index go across as the caller
+// handed them in.
+static void push_image(voe_ui_context *ui, uint32_t node)
+{
+	const struct voe_ui_widget_record *w = &ui->widgets[node];
+	voe_ui_rect rect = ui->nodes[node].rect;
+	voe_math_float4 bounds = { rect.min.x, rect.min.y, rect.size.x,
+				   rect.size.y };
+
+	push_element(ui, (voe_render_element){
+				 .bounds = bounds,
+				 .clip = bounds,
+				 .colour = IMAGE_AS_IT_IS,
+				 .kind = VOE_RENDER_ELEMENT_IMAGE,
+				 .sheet_texture = w->texture,
+				 .sheet = w->sheet,
+			 });
+}
+
 // One record per character that draws, in reading order. A space advances the
 // pen and costs nothing, which on this path is a whole element of the frame's
 // capacity saved for every one of them.
@@ -745,6 +792,9 @@ static void emit(voe_ui_context *ui)
 			break;
 		case VOE_UI_WIDGET_LABEL:
 			push_label(ui, node);
+			break;
+		case VOE_UI_WIDGET_IMAGE:
+			push_image(ui, node);
 			break;
 		case VOE_UI_WIDGET_NONE:
 			// A plain row, column or box draws nothing. Layout is

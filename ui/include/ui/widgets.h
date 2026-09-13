@@ -1,5 +1,5 @@
-// Widgets: a panel, a label, a button and a number box you drag, laid out by
-// layout.h and handed back as element records for somebody else to draw.
+// Widgets: a panel, a label, a button, a number box you drag and an image, laid
+// out by layout.h and handed back as element records for somebody else to draw.
 //
 //     voe_ui_font_set(ui, font);                   // once, at startup
 //
@@ -328,6 +328,52 @@ typedef struct {
 
 voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 					  voe_ui_node number);
+
+// --------------------------------------------------------------- the image
+
+// A picture as a node: part of a texture stretched over the node's rectangle. It
+// is for a view drawn into a target of one's own, an icon, a thumbnail —
+// anything that is already a colour texture on the device (ADR-0148).
+//
+//     // `picture` is the texture voe_render_target_create handed back
+//     voe_ui_node view = voe_ui_image(ui, picture,
+//                                     (voe_math_float4){ 0, 0, 1, 1 },
+//                                     (voe_math_float2){ 0, 0 },
+//                                     (voe_ui_sizing){
+//                                             .along = { VOE_UI_SIZE_GROW, 1 },
+//                                             .across = { VOE_UI_SIZE_FIXED, 60 } });
+//
+// IT IS SIZED EXACTLY AS A BOX IS, because it is one: `content` and `sizing` are
+// voe_ui_box's, unchanged. This folder does not know how big a picture is — it
+// holds an id and not the pixels — so there is no natural size to measure; the
+// caller writes one into `content`, or sizes the node FIXED or GROW. NO SCALING
+// MODE, NO ASPECT FITTING AND NO TINT: a picture fills its rectangle whatever
+// shape that is, and keeping the aspect is the caller choosing the rectangle.
+//
+// `sheet` is which part of the texture is shown, in texture coordinates, `xy` its
+// top-left corner and `zw` its size — the element record's own shape. The whole
+// picture is { 0, 0, 1, 1 }.
+//
+// IT IS ONE ELEMENT RECORD, against the frame's budget like a panel's background:
+// kind IMAGE, clipped to its own rectangle, coloured opaque white so the picture
+// shows as it is. It paints where a leaf paints — after its parent, in call order
+// among its siblings.
+//
+// THE TEXTURE IS THE CALLER'S AND SO IS ITS LIFETIME. Only its index half goes
+// into the record, and nothing here checks that it still names a live texture:
+// it must outlive the frame the record is submitted in. No texture is loaded,
+// created or destroyed in this folder.
+//
+// IT IS A LEAF, WITH NO IDENTITY AND NO ANSWER TO THE POINTER. It takes no name,
+// having nothing to remember, and it neither hovers nor clicks. Whether the
+// pointer is over it is the caller comparing the pointer with voe_ui_node_rect,
+// as it would be for a panel.
+//
+// VOE_UI_NODE_NONE when the frame has no room for another node, and a picture
+// outside a container is the caller's bug and asserts, as a box is.
+voe_ui_node voe_ui_image(voe_ui_context *ui, voe_render_texture texture,
+			 voe_math_float4 sheet, voe_math_float2 content,
+			 voe_ui_sizing sizing);
 
 // This frame's element records, in paint order, built by voe_ui_frame_end.
 // Readable until the next voe_ui_frame_begin or until the caller rewinds the

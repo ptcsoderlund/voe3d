@@ -1,6 +1,7 @@
 // The widgets, and the two things about them that are worth pinning down: what
 // a press and a release do in every awkward order a hand can produce, and that
-// a known tree comes out as a known list of records.
+// a known tree comes out as a known list of records — two images in a row among
+// them, each one IMAGE record carrying the texture index and sheet it was given.
 //
 // EVERY CASE HERE EXCEPT THE LAST NEEDS NO GRAPHICS CARD AND NO WINDOW SYSTEM,
 // which is the property the whole design is arranged around: the pointer is a
@@ -792,6 +793,108 @@ static void too_many_elements_refuses_the_frame(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_ui_frame_end(ui));
 }
 
+// --------------------------------------------------------------- the image
+
+// Two pictures in a row of a known width, so that both rectangles are arithmetic
+// a reader can do and neither is what the test asked layout for:
+//
+//   row   100 x 30 fixed, pad 5, gap 4, at the origin, no background
+//     image 1   20 x 12 fixed                    ->  20 x 12 at (5, 5)
+//     image 2   grow along, 12 across            ->  100 - 5 - 20 - 4 - 5 = 66
+//                                                    wide, at (29, 5)
+//
+// The texture ids are made up. An image record carries an index and nothing here
+// reads a texture, which is why no device is needed.
+#define IMAGE_ROW_WIDE 100.0f
+#define IMAGE_HIGH 12.0f
+#define IMAGE_ONE_WIDE 20.0f
+#define IMAGE_TWO_X 29.0f
+#define IMAGE_TWO_WIDE 66.0f
+
+static const voe_render_texture IMAGE_ONE_TEXTURE = { .index = 7,
+						      .generation = 3 };
+static const voe_render_texture IMAGE_TWO_TEXTURE = { .index = 12,
+						      .generation = 1 };
+static const voe_math_float4 IMAGE_ONE_SHEET = { 0.0f, 0.0f, 1.0f, 1.0f };
+static const voe_math_float4 IMAGE_TWO_SHEET = { 0.25f, 0.5f, 0.5f, 0.25f };
+
+static void check_image_record(voe_render_element e, float x, float wide,
+			       voe_render_texture texture,
+			       voe_math_float4 sheet)
+{
+	VOE_TEST_CHECK_INT((int)e.kind, (int)VOE_RENDER_ELEMENT_IMAGE);
+
+	// The node's laid-out rectangle, copied, and clipped to itself.
+	VOE_TEST_CHECK_FLOAT(e.bounds.x, x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.bounds.y, 5.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.bounds.z, wide, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.bounds.w, IMAGE_HIGH, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.x, e.bounds.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.y, e.bounds.y, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.z, e.bounds.z, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.w, e.bounds.w, 0.001f);
+
+	// THE INDEX HALF AND NOT THE GENERATION. The two ids above differ in
+	// both, so a record carrying the wrong half fails here.
+	VOE_TEST_CHECK_INT((int)e.sheet_texture, (int)texture.index);
+	VOE_TEST_CHECK_FLOAT(e.sheet.x, sheet.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.sheet.y, sheet.y, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.sheet.z, sheet.z, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.sheet.w, sheet.w, 0.001f);
+
+	// Opaque white, which shows the picture as it is.
+	VOE_TEST_CHECK_FLOAT(e.colour.x, 1.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.colour.y, 1.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.colour.z, 1.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.colour.w, 1.0f, 0.001f);
+}
+
+static void two_images_are_two_records_in_call_order(voe_ui_context *ui,
+						     voe_base_arena *arena)
+{
+	voe_ui_node one;
+	voe_ui_node two;
+	voe_ui_rect rect_one;
+	voe_ui_rect rect_two;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_row_begin(ui, (voe_ui_container){
+				     .size = { { VOE_UI_SIZE_FIXED,
+						 IMAGE_ROW_WIDE },
+					       { VOE_UI_SIZE_FIXED, 30.0f } },
+				     .gap = 4.0f,
+				     .pad = pad_all(5.0f) });
+	one = voe_ui_image(ui, IMAGE_ONE_TEXTURE, IMAGE_ONE_SHEET,
+			   (voe_math_float2){ 0 },
+			   (voe_ui_sizing){
+				   { VOE_UI_SIZE_FIXED, IMAGE_ONE_WIDE },
+				   { VOE_UI_SIZE_FIXED, IMAGE_HIGH } });
+	two = voe_ui_image(ui, IMAGE_TWO_TEXTURE, IMAGE_TWO_SHEET,
+			   (voe_math_float2){ 0 },
+			   (voe_ui_sizing){ { VOE_UI_SIZE_GROW, 1.0f },
+					    { VOE_UI_SIZE_FIXED, IMAGE_HIGH } });
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	// The premise: layout put the two nodes where the numbers above say.
+	rect_one = voe_ui_node_rect(ui, one);
+	rect_two = voe_ui_node_rect(ui, two);
+	VOE_TEST_CHECK_FLOAT(rect_one.min.x, 5.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(rect_one.size.x, IMAGE_ONE_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(rect_two.min.x, IMAGE_TWO_X, 0.001f);
+	VOE_TEST_CHECK_FLOAT(rect_two.size.x, IMAGE_TWO_WIDE, 0.001f);
+
+	// ONE RECORD PER IMAGE AND NOTHING FOR THE ROW, the first call's first.
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 2);
+	if (voe_ui_element_count(ui) != 2)
+		return;
+
+	check_image_record(voe_ui_element(ui, 0), 5.0f, IMAGE_ONE_WIDE,
+			   IMAGE_ONE_TEXTURE, IMAGE_ONE_SHEET);
+	check_image_record(voe_ui_element(ui, 1), IMAGE_TWO_X, IMAGE_TWO_WIDE,
+			   IMAGE_TWO_TEXTURE, IMAGE_TWO_SHEET);
+}
+
 // ---------------------------------------------------------- the text scale
 
 // The one case that needs a font, and so a device. See this file's header.
@@ -963,6 +1066,7 @@ int main(void)
 	a_number_and_a_button_sharing_a_key_refuse_the_frame(ui, arena);
 	a_known_tree_emits_a_known_list(ui, arena);
 	a_transparent_panel_emits_nothing(ui, arena);
+	two_images_are_two_records_in_call_order(ui, arena);
 	too_many_elements_refuses_the_frame(arena);
 
 	(void)the_text_scale(arena);

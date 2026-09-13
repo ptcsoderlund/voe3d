@@ -1,7 +1,8 @@
 # 066 — `ui` has an image
 
-claimed-by: -
+claimed-by: claude-opus-5 (session 01TYrewyPCZyspC4KzToTd3K)
 blocked-by: 065
+status: review
 decision: *A frame is a sequence of passes, and a target of one's own is a texture* (ADR-0148) point 7 — a picture on a flat panel is an IMAGE element; this card lets `ui` emit one.
 
 ## Goal
@@ -56,3 +57,28 @@ texture index passed; a second image in the same frame is a second record after 
 call.
 
 ## Notes
+
+**Implemented, and verified on Linux only** (Fedora 44, clang 22). Windows not checked.
+
+- **Signature follows `voe_ui_box`, not the sketch, as Scope 1 allows.**
+  `voe_ui_image(ui, texture, sheet, content, sizing)`. `ui` sizes a leaf with
+  `voe_math_float2 content` plus `voe_ui_sizing` (along/across), not a width and a
+  height, so the image takes the box's two arguments. It is a box with a picture.
+- **No name.** A label takes none because it has no identity, and an image has
+  nothing to remember either, so it claims no key.
+- **Pointer query: `ui` has none for a node that is not a button or number box.**
+  A panel can't be asked either. The header tells a caller to compare the pointer
+  with `voe_ui_node_rect`. Nothing added.
+- Internal: `VOE_UI_WIDGET_IMAGE` plus `sheet` and `texture` fields on the widget
+  record (`src/context.h`), and `push_image` in the emission switch (`src/widgets.c`).
+  The header, the test file header and `ui.md` are updated.
+- Test `two_images_are_two_records_in_call_order`: a fixed 100 mm row holding a
+  fixed image and a grow image, with rectangles worked out by hand. Each image is
+  one IMAGE record, clipped to its own bounds and opaque white, with the sheet and
+  texture index it was given. The two test ids differ in both halves, so carrying
+  the generation instead of the index fails.
+- Ran: `cmake -P check.cmake`, all steps ok (45 tests, analyser 122 files).
+  `ctest -R ui`: 2/2 passed. Probe: `sheet_texture` changed to `index + 1` made
+  both record checks fail. The probe was reverted and the test passes again.
+  `tools/hot.sh`: card 58/150, `ui.md` 74/120, no OVER.
+- No DEVIATION or BLOCKED markers.
