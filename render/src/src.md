@@ -30,9 +30,9 @@ which is the one place in this engine where function pointers are expected.
   it asks the surface for is an sRGB one now that a frame is drawn in linear
   light. Also the headless device the tests run on.
 - `descriptors.c` — everything the shader reads and the one layout that
-  describes it: five bindings, and one set, one camera buffer, one object buffer
-  and one element buffer per frame slot. Its header says which of the five
-  changes how often, why writing them per frame is safe, and why the binding
+  describes it: five bindings, and one set, one camera buffer holding a block
+  per pass, one object buffer and one element buffer per frame slot. Its header
+  says which of the five changes how often, why the camera binding is dynamic, why writing them per frame is safe, and why the binding
   `draw.slang` does not read is in the same layout anyway.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
@@ -68,10 +68,13 @@ which is the one place in this engine where function pointers are expected.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame.c` — one frame in three calls: wait and open a recording, draw an
-  object into it solid or blended, end it and present. Holds the engine's only Y
-  flip and the clear colour; its header says why there are three calls and not
-  one, why the camera and the sun share one buffer, why the two draw calls differ
+- `frame.c` — one frame and the passes in it: wait and open a recording, open
+  a pass onto the window with its camera, draw an object into it solid or
+  blended, close the pass, end the frame and present. Holds the engine's only Y
+  flip and the clear colour; its header says why there are separate calls and
+  not one, which pass clears the window and which load it and why no barrier
+  sits between two passes, why depth is now stored, why a frame with no pass
+  still clears, how each pass's camera and sun land in their own block, why the two draw calls differ
   in one argument, and why a headless device runs all but three lines of it. The
   mid-frame depth clear is the one command here recorded between draws that is
   not a draw, and its comment says why it is not a second rendering block. A draw

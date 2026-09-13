@@ -894,6 +894,7 @@ static int the_text_scale(voe_base_arena *arena)
 		.geometries = 1,
 		.objects = 1,
 		.shadings = 1,
+		.passes = 1,
 	};
 	voe_render_device *device;
 	voe_text_font *font;

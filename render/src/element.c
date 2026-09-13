@@ -38,8 +38,8 @@
 // RANGE IS SIXTY-FOUR BYTES. Two pipeline layouts differing in their push
 // constant ranges are not compatible, and binding a pipeline with an
 // incompatible layout disturbs the descriptor set bindings — which would mean
-// rebinding the set after every element draw, in a file that binds it once at
-// the top of the frame. One layout is one fewer invariant to hold. See the range
+// rebinding the set after every element draw, in a file that binds it once as
+// a pass opens. One layout is one fewer invariant to hold. See the range
 // in device.c and the note in shaders/elements.slang.
 //
 // IT DIFFERS FROM THE OTHER TWO PIPELINES IN FOUR THINGS AND NOT IN ONE. No
@@ -325,8 +325,10 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 	struct voe_render_frame *frame;
 
 	VOE_BASE_ASSERT(device != NULL, "drawing elements on no device");
-	VOE_BASE_ASSERT(device->recording,
-			"drawing elements with no frame open — voe_render_frame_begin said there was nothing to draw into, or _end has already run");
+	// A pass, and not necessarily one with a camera: the transform is the
+	// whole of what places an element.
+	VOE_BASE_ASSERT(device->pass_open,
+			"drawing elements with no pass open — every draw is inside a voe_render_pass_begin and its _pass_end");
 
 	if (device->pipeline_elements == VK_NULL_HANDLE) {
 		VOE_BASE_ERROR("render",

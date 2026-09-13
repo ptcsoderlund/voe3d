@@ -1,4 +1,4 @@
-// The system that turns the tables into draws. It draws the world into the frame
+// The system that turns the tables into draws. It draws the world into the pass
 // the loop has opened: it finds the camera and the sun, works out the matrices,
 // and issues one draw per drawable — solid ones in table order, see-through ones
 // afterwards and furthest away first.
@@ -20,11 +20,15 @@
 // range_is_this_frame_s in the source, which says why no frame stamp was added.
 //
 //     voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
-//     if (!voe_render_frame_begin(gpu, size, frame.view, frame.light, &drawing))
+//     if (!voe_render_frame_begin(gpu, size, &drawing))
 //             break;                          // the GPU stopped answering
 //     if (drawing) {
+//             voe_render_pass_camera camera = { frame.view, frame.light };
 //             ...                             // build what changes this frame
-//             voe_3d_draw_system_run(world, gpu, scratch, frame);
+//             if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
+//                     voe_3d_draw_system_run(world, gpu, scratch, frame);
+//                     voe_render_pass_end(gpu);
+//             }
 //             if (!voe_render_frame_end(gpu))
 //                     break;
 //     }
@@ -33,15 +37,15 @@
 // end are the program's calls, made from its loop exactly as render's own header
 // shows, and the phases inside a frame are ordered there: begin; build what
 // changes this frame — a readout, a user interface — which is the only world
-// write after the systems have run; this system walks the world; end, which
-// presents. That order exists because geometry built for one frame
+// write after the systems have run; a pass opened with the frame's camera; this
+// system walks the world; the pass closed; end, which presents. That order exists because geometry built for one frame
 // (voe_render_geometry_create_transient) can only be built once a frame is open
 // and has to be in the mesh table before this walk; a draw system that opened
 // and closed the frame itself left no moment for that, which is what this used
 // to do.
 //
-// THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE _begin, AND HANDED BACK.
-// _begin needs the view and the light and this system needs the view again for
+// THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE THE PASS, AND HANDED BACK.
+// The pass needs the view and the light and this system needs the view again for
 // its sort, so voe_3d_draw_system_frame works both out from the tables and the
 // loop passes the result to each. Neither the camera nor the projection moves
 // out of this folder for that: what the loop holds is an answer, not a way of
@@ -50,8 +54,8 @@
 // A BEGIN THAT SAYS THERE IS NOTHING TO DRAW INTO IS THE LOOP'S CASE. A window
 // with no area, or a swapchain that has just gone stale, comes back from _begin
 // with `drawing` false; the loop then builds nothing, runs nothing here and does
-// not call _end. Calling this with no frame open is the caller's bug and asserts,
-// the same rule render applies to a draw without a _begin.
+// not call _end. Calling this with no pass open is the caller's bug and asserts,
+// the same rule render applies to a draw outside a pass.
 //
 // ONE DRAW PER MESH, FROM THE CPU. No instancing, no indirect command buffer, no
 // culling, and no extract step into a second layout. Each of those is a change
@@ -159,7 +163,7 @@
 
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
-// voe_render_frame_begin by the loop and back to voe_3d_draw_system_run for its
+// voe_render_pass_begin by the loop and back to voe_3d_draw_system_run for its
 // sort, so the camera is worked out exactly once per frame.
 typedef struct {
 	voe_render_view view;
@@ -176,8 +180,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 
 // Draws every entity that has a mesh, a transform and a material — and every
 // entity that has a panel, a transform and a range this frame submitted — into
-// the frame that is open, with `frame` the answer voe_3d_draw_system_frame gave
-// for it. Calling it with no frame open is the caller's bug and asserts.
+// the pass that is open, with `frame` the answer voe_3d_draw_system_frame gave
+// for it — the same camera the pass was opened with. Calling it with no pass
+// open is the caller's bug and asserts.
 //
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
 // RETURNS NOTHING. A draw the device refuses — more objects than it was made

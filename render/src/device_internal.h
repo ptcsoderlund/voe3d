@@ -101,15 +101,21 @@
 // 0.0f that means "nothing here yet", and one of those is load-bearing.
 #define VOE_RENDER_DEPTH_CLEAR 0.0f
 
-// Everything one frame is drawn with that is not a per-object record: the camera
-// and the sun, in one block, in one uniform buffer per frame slot.
+// Everything one pass is drawn with that is not a per-object record: the camera
+// and the sun, in one block. There is one block per pass per frame slot, all of
+// them in the slot's one uniform buffer, `pass_stride` bytes apart.
 //
 // IT IS ONE BLOCK AND NOT TWO BINDINGS BECAUSE THEY HAVE THE SAME LIFETIME.
-// Both are written once by voe_render_frame_begin and read by both stages for
-// every draw in the frame, so splitting them would be a second buffer, a second
+// Both are written once by voe_render_pass_begin and read by both stages for
+// every draw in the pass, so splitting them would be a second buffer, a second
 // descriptor and a second pool entry to say what one memcpy says. It is internal
-// because the two halves are what a caller hands over separately; only this
-// folder cares that they end up adjacent.
+// only in name: voe_render_pass_camera is the same two members in the same
+// order, and a pass's block is a copy of it.
+//
+// ONE BUFFER AND A DYNAMIC OFFSET, NOT A SET PER PASS. Binding 0 is a dynamic
+// uniform buffer, so opening a pass binds the slot's one set with the offset of
+// that pass's block. A set per pass would be `passes` copies of the texture
+// array's sixty-four descriptors, every one rewritten whenever a texture is made.
 //
 // draw.slang declares the same two structs in the same order at binding 0.
 // descriptors.c asserts on the sizes and the offsets, so a member that moves is
@@ -315,10 +321,12 @@ struct voe_render_frame {
 	VkFence submitted;
 	struct voe_render_target target;
 
+	// capacities.passes blocks, device->pass_stride bytes apart — the
+	// stride is the block rounded up to the card's uniform offset alignment.
 	struct voe_render_buffer uniforms;
 	// Where uniforms.memory is mapped, for the lifetime of the buffer.
-	// Written through as a struct voe_render_frame_block and never read
-	// back.
+	// Written through as struct voe_render_frame_block, one per pass, and
+	// never read back.
 	void *uniforms_mapped;
 
 	// One record per drawn object, this slot's own, written by
@@ -355,7 +363,8 @@ struct voe_render_frame {
 	struct voe_render_transient_pool transient_vertices;
 	struct voe_render_transient_pool transient_indices;
 
-	// Points at this slot's uniform buffer, this slot's object buffer, the
+	// Points at this slot's uniform buffer — a dynamic binding, so every bind
+	// of it names a pass's offset — this slot's object buffer, the
 	// texture array and the shared shading buffer. Allocated from
 	// device->descriptor_pool and freed with it; a set is not destroyed on
 	// its own anywhere in here.
@@ -500,6 +509,25 @@ struct voe_render_device {
 	// `recording` is false.
 	uint32_t element_count;
 
+	// The pass: whether one is open, whether it was opened with a camera,
+	// and how many this frame has opened, which is also which block of the
+	// slot's uniform buffer the next one writes. All three reset by _begin.
+	//
+	// `window_cleared` IS THE CLEAR RULE. False until the first pass onto the
+	// window in a frame, which clears it; every pass after loads. A frame
+	// that ends with it still false records one empty clearing rendering, so
+	// what is presented is the clear colour and not last lap's picture.
+	bool pass_open;
+	bool pass_camera;
+	uint32_t pass_count;
+	bool window_cleared;
+
+	// How far apart the per-pass blocks are in a slot's uniform buffer: the
+	// block's size rounded up to minUniformBufferOffsetAlignment, because a
+	// dynamic offset that is not a multiple of it is invalid. Chosen by
+	// descriptors.c when it sizes the buffers.
+	VkDeviceSize pass_stride;
+
 	// How many draw commands the open recording holds, and after _end how
 	// many the frame just submitted held. Reset by _begin. It is what
 	// voe_render_frame_draw_count hands back, and it exists so that "a whole
@@ -637,7 +665,7 @@ const struct voe_render_frame *voe_render_frame_current(const voe_render_device 
 // if no recording is open, which is the same assert every draw makes.
 struct voe_render_frame *voe_render_frame_open(voe_render_device *device);
 
-// frame.c. Which viewport the open recording was begun with, so that a test can
+// frame.c. Which viewport the open pass was begun with, so that a test can
 // hand in its mirror image. The mirror is what gets a back face in front of the
 // rasteriser without a second shader and without touching the pipeline whose
 // front-face constant is the thing under test: the same geometry drawn through a
@@ -646,7 +674,7 @@ struct voe_render_frame *voe_render_frame_open(voe_render_device *device);
 //
 // SETTING IT IS A COMMAND AND NOT A STATE CHANGE. The viewport is dynamic state,
 // so this records a vkCmdSetViewport into the open recording and everything
-// drawn after it uses the new one. Asserts if no recording is open.
+// drawn after it in the pass uses the new one. Asserts if no pass is open.
 void voe_render_frame_set_viewport(voe_render_device *device,
 				  VkViewport viewport);
 

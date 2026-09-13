@@ -20,10 +20,10 @@ the sRGB curve is a texture format on the way in and the target's format on the
 way out, and no file here holds a gamma constant.
 
 - `include/render/device.h` — the whole public surface: open a device, upload
-  geometry, textures and shading records and get ids back, then begin a frame
-  with a camera and a sun, draw objects into it solid or blended, submit
-  elements and draw ranges of them, clear the depth part-way through, and end
-  it. Geometry comes in two lifetimes, a caller says at startup which present
+  geometry, textures and shading records and get ids back, then begin a frame,
+  open passes onto the window each with a camera and a sun or with none, draw
+  objects into a pass solid or blended, submit elements and draw ranges of them,
+  clear the depth part-way through, and end it. Geometry comes in two lifetimes, a caller says at startup which present
   mode it wants, and when a frame is over it can ask how long the card spent on
   it and how many draw commands it held. Its header says why nothing here knows
   what a scene is, why an id's index half is the number the shader uses, why
@@ -32,7 +32,10 @@ way out, and no file here holds a gamma constant.
   texture's kind and its sampling mode are two independent questions, why the
   sampling modes' names now say more than they mean, why exactly one of them
   filters and what a texture is claiming by asking for it, and why an object
-  carries a normal matrix as well as a world one. On a frame: what the three
+  carries a normal matrix as well as a world one. On a frame: why the camera
+  belongs to the pass and may be missing, which pass clears the window and which
+  load it, that passes do not nest, and why element submission is frame-wide
+  while element drawing is per pass; what the three
   alpha modes mean, why the depth write goes off for a blended draw and the
   order therefore matters, that the colour target holds premultiplied colour,
   why the mid-frame depth clear takes no clear value and what the colour
@@ -61,7 +64,7 @@ way out, and no file here holds a gamma constant.
 - `src/` — the implementation behind that header: the loader and the two window
   backends, startup, the pools, the three pipelines and the frame. See
   `src/src.md`.
-- `tests/` — six programs, most of them headless, that check what reached the
+- `tests/` — seven programs, most of them headless, that check what reached the
   picture rather than what the bookkeeping said. See `tests/tests.md`.
 - `shaders/` — the three Slang shaders, compiled and embedded at build time. See
   `shaders/shaders.md`.

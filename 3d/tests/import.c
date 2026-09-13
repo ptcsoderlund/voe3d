@@ -60,6 +60,7 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = 8,
 	.objects = 8,
 	.shadings = 8,
+	.passes = 1,
 };
 
 static void check_vector(voe_math_float3 actual, voe_math_float3 expected)
@@ -255,17 +256,21 @@ int main(void)
 	// Twice, so that the second frame slot is used as well — which is where
 	// a per-slot buffer that was written into the wrong slot shows up. The
 	// loop's shape, as 3d/draw_system.h has it: the frame's inputs, begin,
-	// the walk, end.
+	// a pass with the frame's camera, the walk, end.
 	for (int lap = 0; lap < 2; lap++) {
 		voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+		voe_render_pass_camera camera = { .view = frame.view,
+						  .light = frame.light };
 		bool drawing = false;
 
-		VOE_TEST_CHECK(voe_render_frame_begin(device, size, frame.view,
-						      frame.light, &drawing));
+		VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 		VOE_TEST_CHECK(drawing);
 		if (!drawing)
 			break;
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			device, VOE_RENDER_TARGET_WINDOW, &camera));
 		voe_3d_draw_system_run(world, device, arena, frame);
+		voe_render_pass_end(device);
 		VOE_TEST_CHECK(voe_render_frame_end(device));
 	}
 
@@ -274,11 +279,12 @@ int main(void)
 	// is nothing to draw into — so the loop runs nothing and ends nothing.
 	{
 		voe_platform_size none = { 0, 0 };
-		voe_3d_frame frame = voe_3d_draw_system_frame(world, none);
 		bool drawing = true;
 
-		VOE_TEST_CHECK(voe_render_frame_begin(device, none, frame.view,
-						      frame.light, &drawing));
+		// Computed and not used, which is the claim: no pass opens on
+		// a frame with nothing to draw into, so nothing reads it.
+		(void)voe_3d_draw_system_frame(world, none);
+		VOE_TEST_CHECK(voe_render_frame_begin(device, none, &drawing));
 		VOE_TEST_CHECK(!drawing);
 	}
 

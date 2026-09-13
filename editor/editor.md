@@ -46,8 +46,8 @@ here, in either preset: nothing built from this root ships, so they cost nothing
   into the surface's millimetres is here and nowhere else** (ADR-0141 point 4):
   the interface is handed a pointer already in millimetres, because the day a
   panel is a quad standing in the world that conversion is a ray against the quad
-  and only a call site can know which of the two it wants. The view and the light
-  handed to `voe_app_draw_open` are zeroed — the editor draws no world yet. It
+  and only a call site can know which of the two it wants. Its one pass onto the
+  window is opened with no camera — the editor draws no world yet. It
   registers the two components, builds the scene, and runs both owning systems
   every frame whether anything submitted or not.
 - `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`,

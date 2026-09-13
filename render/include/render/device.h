@@ -6,7 +6,7 @@
 //     voe_base_error error;
 //     voe_render_capacities room = {
 //             .vertices = 1 << 16, .indices = 1 << 17,
-//             .geometries = 64, .objects = 256, .shadings = 64,
+//             .geometries = 64, .objects = 256, .shadings = 64, .passes = 4,
 //     };
 //     voe_render_device *gpu = voe_render_device_new(scratch,
 //                                                    voe_platform_window_native(window),
@@ -20,11 +20,15 @@
 //     while (!voe_platform_window_should_close(window)) {
 //             bool drawing;
 //             voe_platform_window_poll(window);
-//             if (!voe_render_frame_begin(gpu, size, view, sun, &drawing))
+//             if (!voe_render_frame_begin(gpu, size, &drawing))
 //                     break;
 //             if (drawing) {
-//                     voe_render_frame_draw(gpu, cube, (voe_render_object){
-//                             .world = matrix, .shading = shading.index });
+//                     voe_render_pass_camera camera = { .view = view, .light = sun };
+//                     if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
+//                             voe_render_frame_draw(gpu, cube, (voe_render_object){
+//                                     .world = matrix, .shading = shading.index });
+//                             voe_render_pass_end(gpu);
+//                     }
 //                     if (!voe_render_frame_end(gpu))
 //                             break;
 //             }
@@ -119,11 +123,40 @@
 // and digging it back out of the inverse of the view matrix in a shader would be
 // arithmetic to recover a number the caller already had.
 //
-// ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A FRAME. It is the
+// ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
 // sun: a direction, a colour and a strength, the same for every draw in the
-// frame. There is no light list and no second light — many lights is a later
+// pass. There is no light list and no second light — many lights is a later
 // card and it is the card that decides how they are gathered — and there is no
 // shadow: nothing here tests whether anything is in the way.
+//
+// A FRAME IS A SEQUENCE OF PASSES, AND THE CAMERA BELONGS TO THE PASS (ADR-0148).
+// voe_render_frame_begin opens the frame — the slot, the swapchain image, the
+// recording — and draws nothing; every draw happens inside a pass, opened onto a
+// target with voe_render_pass_begin and closed with _pass_end. The camera moved
+// off the frame because one frame may want to look at the world more than once —
+// two views of one scene, a picture drawn for somewhere other than the window —
+// and a camera fixed for the whole frame makes every one of those impossible. The
+// only target that exists is the window's, VOE_RENDER_TARGET_WINDOW.
+//
+// THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
+// draws only elements — an interface filling the window — has no eye and no sun,
+// and inventing a zeroed pair for it would be a camera that means nothing held in
+// a buffer the shader reads. The mesh draws and the depth clear assert on a pass
+// with no camera; the element draw does not need one.
+//
+// THE WINDOW'S TARGET IS CLEARED BY THE FIRST PASS ONTO IT IN A FRAME AND LOADED
+// BY EVERY LATER ONE, colour and depth both. So a second pass draws over the
+// first and is hidden by whatever the first drew nearer — which is what makes two
+// passes onto one target a sequence and not two separate pictures. A frame that
+// opens no pass onto the window still presents the clear colour.
+//
+// PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
+// and so does a _frame_end.
+//
+// ELEMENT SUBMISSION IS FRAME-WIDE AND ELEMENT DRAWING IS PER PASS. The records
+// go into one buffer that belongs to the frame, not to any pass, so a range read
+// with voe_render_frame_elements_submitted may be drawn in whichever pass wants
+// it — submitted before the first pass opens, or inside another one.
 //
 // EVERY COLOUR THAT CROSSES THIS BOUNDARY IS LINEAR, AND sRGB LIVES AT THE TWO
 // ENDS. A picture full of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and
@@ -177,6 +210,10 @@ typedef struct voe_render_device voe_render_device;
 // elements asks for none and pays for none; the first submit on such a device is
 // refused with a message rather than asserting.
 //
+// passes IS PER FRAME SLOT AND AT LEAST ONE. It bounds how many passes one frame
+// may open, and each costs one camera-and-sun block in the slot's uniform buffer.
+// Nought asserts: a device that can open no pass can draw nothing at all.
+//
 // AND IT IS SPENT ON LETTERS AS WELL AS ON FILLS, WHICH IS WHAT MAKES IT LARGER
 // THAN IT LOOKS. A glyph is an element, so a forty-character label is forty of
 // them and a space is none. An interface is therefore counted in characters
@@ -194,6 +231,7 @@ typedef struct {
 	uint32_t transient_indices;
 	uint32_t transient_geometries;
 	uint32_t elements;
+	uint32_t passes;
 } voe_render_capacities;
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
@@ -447,7 +485,7 @@ typedef struct {
 	uint32_t generation;
 } voe_render_shading;
 
-// The camera, for one frame: where it is and what it can see, already worked out
+// The camera, for one pass: where it is and what it can see, already worked out
 // by whoever owns those questions.
 //
 // Padded like the two records below and asserted on in render/src/descriptors.c,
@@ -462,7 +500,7 @@ typedef struct {
 	float reserved;
 } voe_render_view;
 
-// The sun, for one frame.
+// The sun, for one pass.
 //
 // `direction` IS WHERE THE LIGHT GOES AND NOT WHERE THE SUN IS. A sun overhead
 // travels downwards: (0, -1, 0). It must be unit length — the shader does not
@@ -785,22 +823,62 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // ------------------------------------------------------------------ frames
 
 // Starts the frame: rebuilds what a resize invalidated, waits for the slot this
-// frame will use, takes a swapchain image, and begins recording with `view` as
-// the camera and `light` as the sun for everything drawn until _end.
+// frame will use, takes a swapchain image, and begins recording. It draws nothing
+// and binds no camera — every draw is inside a pass, below.
 //
 // `drawing` COMES BACK FALSE WHEN THERE IS NOTHING TO DRAW INTO — a window with
 // no area, or a swapchain that has just gone stale. That is not an error: no
-// draws may be issued, _end must not be called, and the next frame will find it
-// has come back. It also does not wait, so a loop that does nothing else will
-// spin.
+// passes may be opened, no draws issued, _end must not be called, and the next
+// frame will find it has come back. It also does not wait, so a loop that does
+// nothing else will spin.
 //
 // False means this device cannot draw any more and the program should stop
 // asking. Everything a frame can hit that a retry fixes is handled here.
 [[nodiscard]] bool voe_render_frame_begin(voe_render_device *device,
-					  voe_platform_size size,
-					  voe_render_view view,
-					  voe_render_light light,
-					  bool *drawing);
+					  voe_platform_size size, bool *drawing);
+
+// What a pass draws into. The shape of the other ids; the zeroed one is the
+// window's, and it is the only target there is.
+typedef struct {
+	uint32_t index;
+	uint32_t generation;
+} voe_render_target;
+
+#define VOE_RENDER_TARGET_WINDOW ((voe_render_target){ 0 })
+
+// The camera and the sun one pass draws with. Handed over together because they
+// land in one block the shader reads, and a pass that has one has both.
+typedef struct {
+	voe_render_view view;
+	voe_render_light light;
+} voe_render_pass_camera;
+
+// Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
+// that draws only elements; see the top of this file. The target's colour and
+// depth are cleared if this is the first pass onto it this frame and loaded
+// otherwise. The camera is copied and the caller's is its own again the moment
+// this returns.
+//
+// FALSE WHEN THIS FRAME HAS ALREADY OPENED `passes` PASSES, with a line naming
+// the numbers — a capacity chosen too small, on the same terms as every other
+// one. No pass is open then and the frame is otherwise untouched; the next frame
+// starts counting again.
+//
+// Calling this outside a frame whose `drawing` came back true, with a pass
+// already open, or with a target that is not the window's, is the caller's bug
+// and asserts.
+[[nodiscard]] bool voe_render_pass_begin(voe_render_device *device,
+					 voe_render_target target,
+					 const voe_render_pass_camera *camera);
+
+// Closes the open pass. Without one open it asserts.
+void voe_render_pass_end(voe_render_device *device);
+
+// Whether a pass is open: true from a _pass_begin that returned true until its
+// _pass_end. It exists so that a caller which issues draws on behalf of another —
+// the draw system in `3d` — can assert the same thing every draw here asserts,
+// before it has walked anything.
+[[nodiscard]] bool voe_render_pass_is_open(const voe_render_device *device);
 
 // Draws one range with one object record, in the order the calls are made. The
 // record is written into this slot's object buffer and the object's number is
@@ -811,7 +889,7 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // for, or when the geometry id names nothing. Neither is retryable inside this
 // frame.
 //
-// Calling this without a _begin that set `drawing`, or after _end, is the
+// Calling this with no pass open, or in a pass opened with no camera, is the
 // caller's bug and asserts.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
@@ -843,8 +921,8 @@ bool voe_render_texture_destroy(voe_render_device *device,
 //
 // THIS IS THE WHOLE OF WHAT A LAYER IS, AND IT IS ONE CALL RATHER THAN A SECOND
 // PASS. The caller draws a group, clears depth, and draws the next group; the
-// frame still opens exactly one rendering block and there is nothing here to
-// tear down or resume. See voe_3d_draw_system_run, which is the one caller, and
+// pass still has exactly one rendering block and there is nothing here to tear
+// down or resume. See voe_3d_draw_system_run, which is the one caller, and
 // which calls this once between the world and the overlay.
 //
 // IT TAKES NO CLEAR VALUE AND WILL NOT BE GIVEN ONE. Depth runs backwards in
@@ -857,19 +935,18 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // the whole render area, so the picture built so far survives and the next group
 // is drawn on top of it.
 //
-// Calling this without a _begin that set `drawing`, or after _end, is the
-// caller's bug and asserts — the same mistake voe_render_frame_draw asserts on.
+// Calling this with no pass open, or in a pass opened with no camera, is the
+// caller's bug and asserts — the same mistakes voe_render_frame_draw asserts on.
 void voe_render_frame_clear_depth(voe_render_device *device);
 
 // Whether a frame is open for drawing: true from a _begin whose `drawing` came
-// back true until its _end. It exists so that a caller which issues draws on
-// behalf of another — the draw system in `3d` — can assert the same thing every
-// draw here asserts, before it has walked anything. Not a way to ask whether to
-// begin a frame: the loop that owns the frame already knows.
+// back true until its _end. Not a way to ask whether to begin a frame: the loop
+// that owns the frame already knows.
 [[nodiscard]] bool voe_render_frame_is_open(const voe_render_device *device);
 
 // Ends the recording, submits it, and — where there is a window — copies the
-// target into the acquired swapchain image and presents it.
+// target into the acquired swapchain image and presents it. A pass still open is
+// the caller's bug and asserts.
 //
 // False means the driver refused something no retry will fix. A swapchain that
 // went stale is handled here and returns true, with the rebuild happening at the
@@ -956,8 +1033,9 @@ voe_render_frame_elements_submitted(const voe_render_device *device);
 // costing it one draw is better than stopping the program. The line on stderr
 // names the numbers.
 //
-// Calling this without a _begin that set `drawing`, or after _end, is the
-// caller's bug and asserts.
+// It needs a pass open and does not need that pass to have a camera: the
+// transform is the whole of what places the elements. Calling it with no pass
+// open is the caller's bug and asserts.
 [[nodiscard]] bool
 voe_render_frame_draw_elements(voe_render_device *device,
 			       voe_math_float4x4 transform, uint32_t first,

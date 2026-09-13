@@ -93,6 +93,7 @@ static const voe_render_capacities PROBE_CAPACITIES = {
 	.geometries = 1,
 	.objects = 1,
 	.shadings = 1,
+	.passes = 1,
 };
 
 // --------------------------------------------------------- the half that draws

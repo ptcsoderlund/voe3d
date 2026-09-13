@@ -1,7 +1,8 @@
 # 064 — `render`: a frame opens passes, and the window is one target
 
-claimed-by: -
+claimed-by: claude-opus-5 (session 89643653)
 blocked-by: -
+status: review
 decision: *A frame is a sequence of passes, and a target of one's own is a texture* (ADR-0148) points 1–4, 8 (`passes` only), 9 and 10. Card 065 adds targets of one's own and the image element; this card adds neither.
 
 ## Goal
@@ -109,3 +110,30 @@ camera, in the voice each file already uses.
 and a frame can hold several passes onto the window, which a test proves.
 
 ## Notes
+
+**Verified on Linux** (NVIDIA RTX 4070 Laptop, Vulkan 1.4, validation layer present). Windows not run.
+- `cmake -P check.cmake` exit 0: 44 tests incl. new `render/passes`, analyser clean. No validation messages.
+- Mutation probes, reverted: load op forced to CLEAR, and pass offset forced to 0. `passes` fails on each.
+- `voe_dev` and `voe_editor` screenshotted against a HEAD worktree build, same scene and same interface
+  (31 draws, 146 elements). The editor's selection differed between runs of *both* builds (someone clicked).
+- `grep -rn 'voe_render_view){ *0 *}' editor dev`: nothing. `tools/hot.sh`: no `OVER`.
+
+**How it is built.** Binding 0 is now a *dynamic* uniform buffer: one set per slot, `passes` blocks
+`pass_stride` apart (block rounded up to `minUniformBufferOffsetAlignment`), bound with the pass's offset.
+A later pass loads colour and depth with no barrier. Colour moves to TRANSFER_SRC once, at `_frame_end`.
+Depth `storeOp` is now STORE. `_frame_end` records an empty clearing block if no pass cleared.
+
+**Measured cost, debug with validation only.** `voe_dev` ran ~1150 → ~900 fps. Probes pinned it on the
+dynamic binding, and with `VK_LOADER_LAYERS_DISABLE='*validation*'` both builds ran ~1400–1600 fps and
+could not be told apart. The layer checks the offset on every draw; release and SDK-less machines don't pay.
+
+**Call sites touched beyond the card's list** (ADR-0113, the tree does not build otherwise): `.passes = 1`
+in `render/tests/matrix.c`, `pools.c`, `3d/tests/material.c`, `ui/tests/widgets.c`. The probe in
+`render/src/probe.c` binds with offset 0. `3d/tests/import.c`: the zero-size case computes its frame as
+`(void)` now. `app/app.md` says nothing about a camera and was left alone.
+
+**Suggestions, not done.** `voe_render_frame_is_open` has no caller left (rule 10), so remove it or keep it?
+Public `voe_render_target` (the id) and internal `struct voe_render_target` (the image pair in
+`device_internal.h`) share a spelling. That's legal C but a trap, and card 065 probably wants the internal one renamed.
+`voe_render_frame_set_viewport` (internal, test-only) now asserts a pass is open.
+

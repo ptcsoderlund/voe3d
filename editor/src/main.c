@@ -20,10 +20,9 @@
 // conversion is a ray against the quad — a different sum, in a different file,
 // and only a call site can know which of the two it wants.
 //
-// AND THE EDITOR DRAWS NO WORLD, which is why the view and the light handed to
-// voe_app_draw_open are zeroed. `render` does not read either of them on a frame
-// whose only draw is an element draw; a camera arrives with the viewport, and
-// that is a later card.
+// AND THE EDITOR DRAWS NO WORLD, which is why its one pass onto the window is
+// opened with no camera. An element draw needs none, and a pass without one is
+// how `render` is told there is no eye to invent.
 #include "dock.h"
 #include "interface.h"
 #include "scene.h"
@@ -85,13 +84,15 @@
 // other capacity a one. The editor submits no vertices, no indices and no
 // objects — it draws elements and nothing else — and `render` requires those
 // five to be greater than nought whether anything uses them or not, so they are
-// the smallest number that is. `elements` and the three transient numbers are
+// the smallest number that is. `passes` is one because there is one pass, the
+// interface's. `elements` and the three transient numbers are
 // the two groups that may be nought; see render/include/render/device.h.
 #define EDITOR_CAPACITIES                                                      \
 	(voe_render_capacities)                                                \
 	{                                                                      \
 		.vertices = 1, .indices = 1, .geometries = 1, .objects = 1,     \
-		.shadings = 1, .elements = VOE_EDITOR_INTERFACE_ELEMENTS       \
+		.shadings = 1, .elements = VOE_EDITOR_INTERFACE_ELEMENTS,      \
+		.passes = 1                                                    \
 	}
 
 // One line at startup saying whether a field description reached the binary,
@@ -224,18 +225,25 @@ int main(void)
 				window, VOE_PLATFORM_KEY_SHIFT)
 		};
 
-		if (!voe_app_draw_open(app, opened.size, (voe_render_view){ 0 },
-				       (voe_render_light){ 0 }, &drawing)) {
+		if (!voe_app_draw_open(app, opened.size, &drawing)) {
 			status = 1;
 			break;
 		}
 		if (!drawing)
 			continue;
 
-		drawn = voe_editor_interface_draw(gpu, ui, arena, roots,
-						  (uint32_t)(sizeof roots /
-							     sizeof roots[0]),
-						  &scene);
+		// One pass onto the window, with no camera: the interface is
+		// all this program draws. The first pass of a frame on a device
+		// with room for one is not refused; if it were, the frame would
+		// still be closed below, with nothing drawn.
+		drawn = voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, NULL);
+		if (drawn) {
+			drawn = voe_editor_interface_draw(
+				gpu, ui, arena, roots,
+				(uint32_t)(sizeof roots / sizeof roots[0]),
+				&scene);
+			voe_render_pass_end(gpu);
+		}
 
 		// The frame is closed either way: a refused interface is this
 		// program's numbers being wrong, and abandoning a half-recorded

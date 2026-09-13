@@ -930,7 +930,7 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	// THAT IS THE ELEMENT PIPELINE'S DOING. shaders/elements.slang pushes a
 	// sixty-four-byte surface transform through this same range, because
 	// that pipeline shares this layout — and it shares it so that the
-	// descriptor set frame.c binds once at the top of a frame stays bound
+	// descriptor set frame.c binds as a pass opens stays bound
 	// across an element draw. Two layouts differing only in their push
 	// constant ranges are incompatible, and binding a pipeline with an
 	// incompatible layout disturbs the set for everything drawn afterwards.
@@ -1223,6 +1223,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 				capacities.objects > 0 &&
 				capacities.shadings > 0,
 			"opening a device with room for nothing — every capacity is a number the caller has to choose");
+	VOE_BASE_ASSERT(capacities.passes > 0,
+			"opening a device with room for no passes — a frame draws nothing outside one, so `passes` is at least one");
 
 	report(error, VOE_BASE_OK);
 

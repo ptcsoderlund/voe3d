@@ -39,8 +39,9 @@
 // THE LOOP OWNS THE FRAME (ADR-0098), AND SINCE CARD 052 ITS PARTS COME FROM
 // `app` (ADR-0135). voe_app_frame_open opens the frame, voe_app_draw_open and
 // voe_app_draw_close bracket the draw, and the phases between them run in a
-// fixed order: open; build what changes this frame, which is the readout; the
-// draw system walks the world; close, which presents. Building comes after the
+// fixed order: open; one pass onto the window with the world's camera; build
+// what changes this frame, which is the readout; the draw system walks the
+// world; the pass closed; close, which presents. Building comes after the
 // open because geometry that lives one frame can only be built once the frame's
 // slot is known, and before the walk because the walk is what draws it. An open
 // that says there is nothing to draw into — a window with no area, a swapchain
@@ -2057,6 +2058,9 @@ int main(void)
 		.elements = VOE_DEV_ELEMENTS + VOE_DEV_BADGE_ELEMENTS +
 			    VOE_DEV_SURFACE_ELEMENTS +
 			    VOE_DEV_INTERFACE_ELEMENTS,
+		// One pass onto the window a frame, with the world's camera,
+		// and everything this program draws is inside it.
+		.passes = 1,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -2471,16 +2475,32 @@ int main(void)
 		voe_base_samples_add(&timing.update, after_update - top);
 
 		// THE FRAME, IN THE ORDER THE HEADER GIVES: the camera and the sun
-		// out of the tables, the draw opened, build what changes this
-		// frame, the walk, the draw closed. An open that says there is
-		// nothing to draw into skips the three in the middle and the
-		// loop comes round again — it does not wait, which is what the
-		// spin on a minimised window is.
+		// out of the tables, the draw opened, a pass onto the window with
+		// that camera, build what changes this frame, the walk, the pass
+		// and the draw closed. An open that says there is nothing to draw
+		// into skips everything in the middle and the loop comes round
+		// again — it does not wait, which is what the spin on a minimised
+		// window is.
 		frame = voe_3d_draw_system_frame(world, now_size);
-		if (!voe_app_draw_open(app, now_size, frame.view, frame.light,
-				       &drawing))
+		if (!voe_app_draw_open(app, now_size, &drawing))
 			break;
 		if (drawing) {
+			voe_render_pass_camera pass_camera = {
+				.view = frame.view,
+				.light = frame.light,
+			};
+
+			// The first pass of a frame on a device made with room
+			// for one; refused only if that number were nought,
+			// which the device would have asserted on. The frame is
+			// still closed on the way out, so its slot is not left
+			// half recorded.
+			if (!voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW,
+						   &pass_camera)) {
+				(void)voe_app_draw_close(app);
+				break;
+			}
+
 			// Built inside the frame and before the walk, because
 			// that is the only place a one-frame mesh can be built
 			// and still be drawn. Its failure is looked at after the
@@ -2559,6 +2579,7 @@ int main(void)
 					      &interface_elements) &&
 				      elements_ok;
 
+			voe_render_pass_end(gpu);
 			if (!voe_app_draw_close(app))
 				break;
 

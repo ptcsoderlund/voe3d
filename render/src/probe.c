@@ -213,6 +213,7 @@ void voe_render_probe_draw(voe_render_device *device,
 		.pColorAttachments = &colour,
 	};
 	VkRect2D scissor = { .extent = device->resolution };
+	uint32_t first_pass = 0;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "drawing a probe with a NULL device");
 	VOE_BASE_DEBUG_ASSERT(pipeline != VK_NULL_HANDLE,
@@ -229,11 +230,14 @@ void voe_render_probe_draw(voe_render_device *device,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					pipeline);
 	// The same descriptor the cube reads, holding whatever the caller put
-	// there. This writes nothing to it.
+	// there. This writes nothing to it. Binding 0 is dynamic, so the bind
+	// names an offset, and it is the first pass's block: the start of the
+	// buffer, which is where the caller wrote.
 	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,
 					       VK_PIPELINE_BIND_POINT_GRAPHICS,
 					       device->layout, 0, 1,
-					       &frame->descriptor, 0, NULL);
+					       &frame->descriptor, 1,
+					       &first_pass);
 	voe_render_vk.cmd_draw(frame->commands, 3, 1, 0, 0);
 	voe_render_vk.cmd_end_rendering(frame->commands);
 

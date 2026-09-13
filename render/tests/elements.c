@@ -32,8 +32,8 @@
 //
 // A MESH DRAWN AFTER AN ELEMENT DRAW IS STILL DRAWN RIGHT, WHICH IS THE CLAIM
 // WITH NO PICTURE OF ITS OWN. The element pipeline shares the mesh pipelines'
-// layout precisely so that the descriptor set frame.c binds once at the top of
-// the frame survives an element draw; two layouts differing in their push
+// layout precisely so that the descriptor set frame.c binds once as a pass
+// opens survives an element draw; two layouts differing in their push
 // constant ranges would be incompatible and would disturb that set for
 // everything drawn afterwards. The bound vertex and index buffers have to
 // survive it too. So one test draws a mesh, then elements, then a mesh again,
@@ -136,6 +136,7 @@ static const voe_render_capacities CAPACITIES = {
 	.objects = 2,
 	.shadings = 2,
 	.elements = MAX_ELEMENTS,
+	.passes = 1,
 };
 
 // The one function this test needs that render's own code never calls, resolved
@@ -442,15 +443,29 @@ struct scene {
 	void *pixels;
 };
 
+// A frame and one pass onto the window, which is where every draw here goes.
+// With a camera, because the mesh draws in one of the tests need it.
 static bool open_frame(voe_render_device *device)
 {
 	voe_platform_size size = { SIDE, SIDE };
+	voe_render_pass_camera camera = { .view = identity_camera(),
+					  .light = no_sun() };
 	bool drawing = false;
 
-	VOE_TEST_CHECK(voe_render_frame_begin(device, size, identity_camera(),
-					      no_sun(), &drawing));
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
-	return drawing;
+	if (!drawing)
+		return false;
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	return true;
+}
+
+// The pass open_frame opened, and then the frame.
+static bool close_frame(voe_render_device *device)
+{
+	voe_render_pass_end(device);
+	return voe_render_frame_end(device);
 }
 
 // Three quadrants of three colours and the fourth left as the clear, drawn by
@@ -484,7 +499,7 @@ static void four_colours_in_one_draw(struct scene *scene)
 	// three different colours, and the frame holds one draw command.
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
 
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	// Still one after the end: the count describes the frame that was just
 	// submitted and is not cleared by ending it.
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
@@ -531,7 +546,7 @@ static void the_clip_rectangle_clips(struct scene *scene)
 		return;
 	VOE_TEST_CHECK(voe_render_frame_submit_element(device, element));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
@@ -560,7 +575,7 @@ static void order_is_paint_order(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, GREEN)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
 			   SIDE * SIDE);
@@ -573,7 +588,7 @@ static void order_is_paint_order(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, RED)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
 			   SIDE * SIDE);
@@ -602,7 +617,7 @@ static void the_blend_is_premultiplied(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, half_green)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 
 	// The middle of the picture, which every element above covers.
@@ -640,7 +655,7 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 	VOE_TEST_CHECK_INT(device->element_count, MAX_ELEMENTS);
 	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
 			   SIDE * SIDE);
@@ -653,7 +668,7 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, GREEN)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
 			   SIDE * SIDE);
@@ -710,7 +725,7 @@ static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 	// Two mesh draws and two element draws: four commands.
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 4);
 
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
@@ -748,7 +763,7 @@ static void a_solid_and_a_glyph_are_one_draw(struct scene *scene)
 	VOE_TEST_CHECK(draw_everything(device));
 	// ONE. Two kinds, one buffer, one draw.
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
@@ -788,7 +803,7 @@ static void a_glyph_reads_the_sheet(struct scene *scene)
 		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
 			      SHEET_WHOLE)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
@@ -822,7 +837,7 @@ static void a_glyph_is_clipped_like_a_solid(struct scene *scene)
 		return;
 	VOE_TEST_CHECK(voe_render_frame_submit_element(device, element));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
@@ -852,7 +867,7 @@ static void a_glyph_with_no_sheet_draws_a_solid_rectangle(struct scene *scene)
 		device, glyph(0, 0, SIDE, SIDE, RED, VOE_RENDER_NO_TEXTURE,
 			      SHEET_WHOLE)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
 			   SIDE * SIDE);
@@ -876,7 +891,7 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_frame_submit_element(
 		device, solid(0, 0, SIDE, SIDE, RED)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_RED),
 			   SIDE * SIDE);
@@ -890,7 +905,7 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 		device, glyph(0, 0, SIDE, SIDE, GREEN, scene->sheet.index,
 			      SHEET_INSIDE)));
 	VOE_TEST_CHECK(draw_everything(device));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, 0, 0, SIDE, SIDE, IS_GREEN),
 			   SIDE * SIDE);
@@ -906,7 +921,7 @@ static void an_empty_frame_draws_nothing(struct scene *scene)
 		return;
 	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 0);
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 }
 
 // A device opened with no element room refuses the submit rather than
@@ -929,7 +944,7 @@ static void no_element_room_is_a_refusal(voe_base_arena *arena)
 			device, solid(0, 0, SIDE, SIDE, RED)));
 		VOE_TEST_CHECK(draw_everything(device));
 		VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 0);
-		VOE_TEST_CHECK(voe_render_frame_end(device));
+		VOE_TEST_CHECK(close_frame(device));
 	}
 
 	voe_render_device_destroy(device);
@@ -984,7 +999,7 @@ static void two_ranges_two_matrices_two_draws(struct scene *scene)
 	// Two ranges, two draw commands, and four rectangles between them.
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 2);
 
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 
@@ -1043,7 +1058,7 @@ static void a_range_past_what_was_submitted_is_refused(struct scene *scene)
 	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
 
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	image = scene->pixels;
 

@@ -190,7 +190,7 @@ struct voe_render_light {
 // Set 0, binding 0. Matches struct voe_render_frame_block in
 // render/src/device_internal.h field for field: descriptors.c builds the layout
 // that matches it, asserts on both structs' sizes and offsets, and frame.c
-// writes one of these per frame slot.
+// writes one of these per pass, bound at that pass's dynamic offset.
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;

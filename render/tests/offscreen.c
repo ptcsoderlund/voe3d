@@ -101,6 +101,7 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = 1,
 	.objects = 1,
 	.shadings = 1,
+	.passes = 1,
 };
 
 // The camera, written out here because the scene is this file's. The eye is
@@ -363,25 +364,30 @@ static void draw_case(voe_render_device *device, voe_render_geometry cube,
 		.pCommandBufferInfos = &submit_commands,
 	};
 	bool drawing = false;
+	voe_render_pass_camera camera = {
+		.view = the_camera(device->resolution),
+		.light = the_sun(mirrored),
+	};
 
 	// The slot being recorded, taken before _end because _end spends it and
 	// moves on to the next one.
 	frame = voe_render_frame_current(device);
 
-	VOE_TEST_CHECK(voe_render_frame_begin(device, size,
-					      the_camera(device->resolution),
-					      the_sun(mirrored), &drawing));
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
 		return;
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
 
-	// The engine's own viewport was set by _begin; this replaces it with its
-	// mirror for the second case, which is how a back face gets drawn.
+	// The engine's own viewport was set by _pass_begin; this replaces it with
+	// its mirror for the second case, which is how a back face gets drawn.
 	if (mirrored)
 		voe_render_frame_set_viewport(device,
 					      mirrored_viewport(device->resolution));
 
 	VOE_TEST_CHECK(voe_render_frame_draw(device, cube, object));
+	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 
 	voe_render_vk.device_wait_idle(device->device);
@@ -675,18 +681,23 @@ int main(void)
 			.index = cube.index,
 			.generation = cube.generation + 1,
 		};
+		voe_render_pass_camera camera = {
+			.view = the_camera(device->resolution),
+			.light = the_sun(false),
+		};
 		bool drawing = false;
 
-		VOE_TEST_CHECK(voe_render_frame_begin(device, size,
-						      the_camera(device->resolution),
-						      the_sun(false), &drawing));
+		VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 		VOE_TEST_CHECK(drawing);
 		if (drawing) {
+			VOE_TEST_CHECK(voe_render_pass_begin(
+				device, VOE_RENDER_TARGET_WINDOW, &camera));
 			VOE_TEST_CHECK(!voe_render_frame_draw(
 				device, stale,
 				(voe_render_object){
 					.world = voe_math_float4x4_identity(),
 					.normal = voe_math_float4x4_identity() }));
+			voe_render_pass_end(device);
 			VOE_TEST_CHECK(voe_render_frame_end(device));
 			voe_render_vk.device_wait_idle(device->device);
 		}

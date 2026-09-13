@@ -107,14 +107,12 @@ voe_app_frame voe_app_frame_open(voe_app *app)
 	return frame;
 }
 
-bool voe_app_draw_open(voe_app *app, voe_platform_size size,
-		       voe_render_view view, voe_render_light light,
-		       bool *drawing)
+bool voe_app_draw_open(voe_app *app, voe_platform_size size, bool *drawing)
 {
 	VOE_BASE_ASSERT(app != NULL, "no app to draw with");
 	VOE_BASE_ASSERT(drawing != NULL, "the caller has to be told whether to draw");
 
-	if (!voe_render_frame_begin(app->device, size, view, light, drawing)) {
+	if (!voe_render_frame_begin(app->device, size, drawing)) {
 		VOE_BASE_ERROR("app", "the GPU stopped answering");
 		return false;
 	}

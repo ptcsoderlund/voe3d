@@ -5,7 +5,8 @@
 //     voe_app_settings settings = {
 //             .width = 960, .height = 540, .title = "voe3d",
 //             .capacities = { .vertices = 1 << 16, .indices = 1 << 17,
-//                             .geometries = 64, .objects = 256, .shadings = 64 },
+//                             .geometries = 64, .objects = 256, .shadings = 64,
+//                             .passes = 1 },
 //             .longest_step = 0.25,
 //     };
 //     voe_app *app = voe_app_new(arena, scratch, settings, &error);
@@ -21,10 +22,15 @@
 //                     continue;
 //
 //             bool drawing;
-//             if (!voe_app_draw_open(app, frame.size, view, sun, &drawing))
+//             if (!voe_app_draw_open(app, frame.size, &drawing))
 //                     break;
 //             if (drawing) {
-//                     ... draws ...
+//                     voe_render_pass_camera camera = { view, sun };
+//                     if (voe_render_pass_begin(voe_app_device(app),
+//                                               VOE_RENDER_TARGET_WINDOW, &camera)) {
+//                             ... draws ...
+//                             voe_render_pass_end(voe_app_device(app));
+//                     }
 //                     if (!voe_app_draw_close(app))
 //                             break;
 //             }
@@ -119,14 +125,14 @@ typedef struct {
 // nothing else in it spins a core.
 voe_app_frame voe_app_frame_open(voe_app *app);
 
-// Opens the recording with `view` as the camera and `light` as the sun. False
-// means the device cannot draw any more and the program should stop asking; a
-// line saying so is on stderr.
+// Opens the recording. It draws nothing and has no camera: every draw is inside a
+// pass the program opens on the device — see render/device.h. False means the
+// device cannot draw any more and the program should stop asking; a line saying
+// so is on stderr.
 //
 // `drawing` COMES BACK FALSE WHEN THERE IS NOTHING TO DRAW INTO and that is not
 // a failure — issue no draws, do not call _draw_close, and go round again.
 [[nodiscard]] bool voe_app_draw_open(voe_app *app, voe_platform_size size,
-				     voe_render_view view, voe_render_light light,
 				     bool *drawing);
 
 // Submits the frame and presents it. Called only when _draw_open set `drawing`;

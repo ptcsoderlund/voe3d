@@ -59,6 +59,7 @@ static const voe_render_capacities CAPACITIES = {
 	.objects = 2,
 	.shadings = 4,
 	.elements = 4,
+	.passes = 1,
 };
 
 // A geometry id this device never handed out. render refuses a draw naming it,
@@ -188,13 +189,19 @@ static uint32_t draws_of_a_frame(voe_ecs_world *world,
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+	voe_render_pass_camera camera = { .view = frame.view,
+					  .light = frame.light };
 	bool drawing = false;
 	uint32_t drawn;
 
-	VOE_TEST_CHECK(voe_render_frame_begin(device, size, frame.view,
-					      frame.light, &drawing));
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	if (!drawing) {
 		VOE_TEST_CHECK(drawing);
+		return 0;
+	}
+	if (!voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW, &camera)) {
+		VOE_TEST_CHECK(false);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
 		return 0;
 	}
 
@@ -204,6 +211,7 @@ static uint32_t draws_of_a_frame(voe_ecs_world *world,
 
 	voe_3d_draw_system_run(world, device, arena, frame);
 	drawn = voe_render_frame_draw_count(device);
+	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	return drawn;
 }

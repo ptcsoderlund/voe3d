@@ -1,13 +1,15 @@
 // Everything the shader reads, and the one layout that describes it: the
 // descriptor set layout, the pool, and per frame slot one set, one mapped
-// uniform buffer for the camera and the sun, one mapped buffer of per-object
-// records and one mapped buffer of element records.
+// uniform buffer holding a camera and a sun for every pass, one mapped buffer of
+// per-object records and one mapped buffer of element records.
 // This was the front half of cube.c until card 018 took the cube out of render.
 //
 // FIVE BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
-//   0  the camera and the sun, one uniform buffer per frame slot, written once
-//      a frame
+//   0  the camera and the sun, one block per pass in one uniform buffer per
+//      frame slot, written as each pass opens. A DYNAMIC uniform buffer: every
+//      bind of the set names the offset of the pass's block, which is how one
+//      set serves every pass without a set per pass
 //   1  every texture at once, one descriptor array, rewritten when a texture
 //      is created or destroyed and never during a frame
 //   2  the per-object records, one storage buffer per frame slot, written as
@@ -19,7 +21,7 @@
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
-// descriptor set bound once at the top of a frame serves both — a second layout
+// descriptor set bound as a pass opens serves both — a second layout
 // would be a second set, a second pool entry and a rebind between every mesh
 // draw and every element draw. Vulkan does not require a shader to declare
 // every binding its layout has.
@@ -38,8 +40,8 @@
 // and unmapping around each write would be two driver calls to say what one
 // pointer already says.
 //
-// WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The camera,
-// the sun, the object records and the element records a frame writes are in this
+// WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The cameras,
+// the suns, the object records and the element records a frame writes are in this
 // slot's own buffers, which the GPU may have been reading until that fence was
 // signalled — and the fence is waited on before anything here is touched.
 #include "device_internal.h"
@@ -63,7 +65,7 @@ static_assert(sizeof(voe_render_view) == 144,
 static_assert(sizeof(voe_render_light) == 32,
 	      "voe_render_light no longer matches the shader's light block");
 static_assert(sizeof(struct voe_render_frame_block) == 176,
-	      "the per-frame block no longer matches what draw.slang reads at binding 0");
+	      "the per-pass block no longer matches what draw.slang reads at binding 0");
 
 // And the offsets, because the sizes above can stay right while the order goes
 // wrong. Every member a buffer layout rule would have moved is named here: the
@@ -77,7 +79,7 @@ static_assert(offsetof(voe_render_view, eye) == 128,
 static_assert(offsetof(voe_render_light, colour) == 16,
 	      "the light's colour moved; draw.slang has it at 16");
 static_assert(offsetof(struct voe_render_frame_block, light) == 144,
-	      "the sun moved inside the per-frame block; draw.slang has it at 144");
+	      "the sun moved inside the per-pass block; draw.slang has it at 144");
 static_assert(offsetof(voe_render_shading_values, emissive) == 32,
 	      "the shading record's emissive colour moved; draw.slang has it at 32");
 static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
@@ -108,7 +110,7 @@ static bool build_layout(voe_render_device *device)
 	VkDescriptorSetLayoutBinding bindings[5] = {
 		{
 			.binding = 0,
-			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
 				      VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -155,7 +157,7 @@ static bool build_layout(voe_render_device *device)
 	};
 	VkDescriptorPoolSize sizes[3] = {
 		{
-			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT,
 		},
 		{
@@ -228,6 +230,26 @@ static bool build_mapped(voe_render_device *device,
 	return true;
 }
 
+// The per-pass block's size rounded up to the card's uniform offset alignment,
+// which Vulkan guarantees is a power of two. A dynamic offset that is not a
+// multiple of the alignment is invalid, so the blocks cannot simply sit
+// sizeof(block) apart.
+static VkDeviceSize pass_stride(const voe_render_device *device)
+{
+	VkPhysicalDeviceProperties properties;
+	VkDeviceSize align;
+
+	voe_render_vk.get_physical_device_properties(device->physical,
+						     &properties);
+	align = properties.limits.minUniformBufferOffsetAlignment;
+	if (align == 0)
+		align = 1;
+	VOE_BASE_DEBUG_ASSERT((align & (align - 1)) == 0,
+			      "a uniform offset alignment that is not a power of two");
+
+	return (sizeof(struct voe_render_frame_block) + align - 1) & ~(align - 1);
+}
+
 static bool build_slots(voe_render_device *device)
 {
 	VkDescriptorSetLayout layouts[VOE_RENDER_FRAMES_IN_FLIGHT];
@@ -242,6 +264,8 @@ static bool build_slots(voe_render_device *device)
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
 		layouts[i] = device->descriptor_layout;
 
+	device->pass_stride = pass_stride(device);
+
 	allocate.descriptorPool = device->descriptor_pool;
 	result = voe_render_vk.allocate_descriptor_sets(device->device,
 						       &allocate, sets);
@@ -254,6 +278,8 @@ static bool build_slots(voe_render_device *device)
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		struct voe_render_frame *frame = &device->frames[i];
+		// One block's range: the dynamic offset a pass binds with is
+		// what moves it along the buffer.
 		VkDescriptorBufferInfo camera = {
 			.offset = 0,
 			.range = sizeof(struct voe_render_frame_block),
@@ -283,7 +309,7 @@ static bool build_slots(voe_render_device *device)
 				.dstBinding = 0,
 				.descriptorCount = 1,
 				.descriptorType =
-					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 				.pBufferInfo = &camera,
 			},
 			{
@@ -306,7 +332,8 @@ static bool build_slots(voe_render_device *device)
 
 		if (!build_mapped(device, &frame->uniforms,
 				  &frame->uniforms_mapped,
-				  sizeof(struct voe_render_frame_block),
+				  (VkDeviceSize)device->capacities.passes *
+					  device->pass_stride,
 				  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT))
 			return false;
 		if (!build_mapped(device, &frame->objects, &frame->objects_mapped,
@@ -362,6 +389,8 @@ bool voe_render_descriptors_build(voe_render_device *device)
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "building descriptors for nothing");
 	VOE_BASE_DEBUG_ASSERT(device->capacities.objects > 0,
 			      "a device with room for no drawn objects");
+	VOE_BASE_DEBUG_ASSERT(device->capacities.passes > 0,
+			      "a device with room for no passes");
 
 	return build_layout(device) && build_slots(device);
 }

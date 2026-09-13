@@ -40,6 +40,11 @@ lets them run under `ctest` on a machine with nothing on the screen.
   checked by making a shader report a known matrix back. Its header says which
   two claims are not in it and where they live instead, and why the three bytes
   it expects are the sRGB encoding of the elements rather than the elements.
+- `passes.c` — a frame as a sequence of passes: a second pass loading the
+  colour and depth the first left and reading its own camera, a frame with no
+  pass presenting the clear colour, the pass capacity refused per frame, and a
+  pass with no camera drawing elements. Its header says which wrong
+  implementation each picture catches. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding
   and the front-face constant agree about which way round that is, and that a
   texture arrives the right way up. Holds its own cube, its own camera and its

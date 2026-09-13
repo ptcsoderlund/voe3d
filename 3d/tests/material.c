@@ -41,6 +41,7 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = 1,
 	.objects = 1,
 	.shadings = 4,
+	.passes = 1,
 };
 
 int main(void)

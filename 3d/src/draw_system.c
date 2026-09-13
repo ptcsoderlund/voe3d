@@ -27,7 +27,7 @@
 // abandoning the recording — would leave the slot's fence unsignalled.
 //
 // THE CAMERA IS WORKED OUT IN voe_3d_draw_system_frame AND NOWHERE ELSE. The
-// loop needs it before _begin and this system needs its view for the sort, so
+// loop needs it for the pass and this system needs its view for the sort, so
 // the one function computes it and the loop carries the answer to both. Nothing
 // in _run reads the camera table.
 //
@@ -391,11 +391,11 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	VOE_BASE_ASSERT(world != NULL, "drawing no world");
 	VOE_BASE_ASSERT(device != NULL, "drawing to no device");
 	VOE_BASE_ASSERT(arena != NULL, "drawing with no arena to sort in");
-	// The loop opens the frame and this draws into it; the same rule every
+	// The loop opens the pass and this draws into it; the same rule every
 	// draw in render applies, asserted here once rather than found by the
 	// first draw — or not found at all, in a world with nothing in it.
-	VOE_BASE_DEBUG_ASSERT(voe_render_frame_is_open(device),
-			      "drawing the world with no frame open — the loop calls voe_render_frame_begin first; see 3d/draw_system.h");
+	VOE_BASE_DEBUG_ASSERT(voe_render_pass_is_open(device),
+			      "drawing the world with no pass open — the loop calls voe_render_pass_begin with the frame's camera first; see 3d/draw_system.h");
 
 	meshes = voe_3d_mesh_rows(world);
 	owners = voe_3d_mesh_entities(world);

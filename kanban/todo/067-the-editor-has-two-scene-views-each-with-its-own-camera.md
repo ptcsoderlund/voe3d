@@ -13,6 +13,11 @@ other. Dragging a number in the Inspector moves the cube in both views.
 
 ## Scope
 
+**0. The editor may name `3d`** (ADR-0151 point 3). Add `3d` to the editor's row in
+`cmake/voe.cmake`, update that row's comment — it currently says `3d` is absent and why — and add
+`3d` to `editor/CMakeLists.txt`'s `DEPENDS`. If card 070 has already given the row `authoring`,
+keep it.
+
 **1. `editor/src/dock.h`, `dock.c`.**
 - `VOE_EDITOR_PANEL_SCENE_VIEW` joins the enumeration.
 - A leaf gains `uint32_t view` — which scene view it shows; read only when the panel is
@@ -68,7 +73,7 @@ loses "no viewport, no camera, no light and no 3D" and says what remains absent.
 
 ## What must not change
 
-- `render`, `ui`, `3d`, `scene`, `platform`. A gap found in any of them is a report, not an
+- `render`, `ui`, `3d`, `scene`, `platform` — beyond the one edge in point 0. A gap found in any of them is a report, not an
   edit here.
 - The Scene list's three rows, the selection, the Inspector's drag, replace intents.
 - The one pixels-to-millimetres division stays in `main.c`.

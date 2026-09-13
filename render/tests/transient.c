@@ -61,6 +61,7 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = 1,
 	.objects = 4,
 	.shadings = 2,
+	.passes = 1,
 	.transient_vertices = QUAD_VERTICES,
 	.transient_indices = QUAD_INDICES,
 	.transient_geometries = 1,
@@ -279,15 +280,28 @@ struct scene {
 	void *pixels;
 };
 
+// A frame and one pass onto the window, which is where every draw here goes.
 static bool open_frame(voe_render_device *device)
 {
 	voe_platform_size size = { SIDE, SIDE };
+	voe_render_pass_camera camera = { .view = identity_camera(),
+					  .light = no_sun() };
 	bool drawing = false;
 
-	VOE_TEST_CHECK(voe_render_frame_begin(device, size, identity_camera(),
-					      no_sun(), &drawing));
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
-	return drawing;
+	if (!drawing)
+		return false;
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	return true;
+}
+
+// The pass open_frame opened, and then the frame.
+static bool close_frame(voe_render_device *device)
+{
+	voe_render_pass_end(device);
+	return voe_render_frame_end(device);
 }
 
 // A transient quad over the right half, and the id that names it this frame.
@@ -321,7 +335,7 @@ static void an_id_lives_one_frame(struct scene *scene)
 	VOE_TEST_CHECK(first.index >= CAPACITIES.geometries);
 	VOE_TEST_CHECK(voe_render_frame_draw(device, first,
 					     wearing(scene->green)));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	expect_halves(scene->pixels, NEITHER, IS_GREEN);
 
@@ -340,7 +354,7 @@ static void an_id_lives_one_frame(struct scene *scene)
 	VOE_TEST_CHECK(second.generation != first.generation);
 	VOE_TEST_CHECK(voe_render_frame_draw(device, second,
 					     wearing(scene->red)));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	expect_halves(scene->pixels, NEITHER, IS_RED);
 }
@@ -365,7 +379,7 @@ static void both_pools_draw_in_one_frame(struct scene *scene)
 					     wearing(scene->green)));
 	VOE_TEST_CHECK(voe_render_frame_draw(device, scene->left,
 					     wearing(scene->red)));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	expect_halves(scene->pixels, IS_RED, IS_GREEN);
 }
@@ -391,7 +405,7 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 	VOE_TEST_CHECK(voe_render_geometry_at(device, right) != NULL);
 	VOE_TEST_CHECK(voe_render_frame_draw(device, right,
 					     wearing(scene->green)));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	expect_halves(scene->pixels, NEITHER, IS_GREEN);
 
@@ -404,7 +418,7 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 					     wearing(scene->red)));
 	VOE_TEST_CHECK(voe_render_frame_draw(device, right,
 					     wearing(scene->red)));
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 	expect_halves(scene->pixels, IS_RED, IS_RED);
 }
@@ -430,7 +444,7 @@ static void no_transient_room_is_a_refusal(voe_base_arena *arena)
 	if (open_frame(device)) {
 		VOE_TEST_CHECK(!build_right(device, &geometry, &error));
 		VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_REFUSED);
-		VOE_TEST_CHECK(voe_render_frame_end(device));
+		VOE_TEST_CHECK(close_frame(device));
 	}
 
 	voe_render_device_destroy(device);

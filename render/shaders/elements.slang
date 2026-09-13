@@ -52,7 +52,7 @@
 // this file flips anything.
 //
 // IT SHARES THE PIPELINE LAYOUT WITH draw.slang AND THE PUSH CONSTANT ALIASES
-// ITS. One layout means the descriptor set bound at the top of the frame stays
+// ITS. One layout means the descriptor set bound as a pass opens stays
 // bound across an element draw, which is the reason for sharing it — two layouts
 // with different push constant ranges are incompatible and would disturb the set
 // for every mesh draw after the elements. Both blocks start at offset 0 and both
@@ -136,7 +136,7 @@ struct voe_render_element {
 };
 
 // Set 0, binding 1: every texture at once, the same array draw.slang declares
-// and the same one the descriptor set frame.c binds at the top of the frame
+// and the same one the descriptor set frame.c binds as a pass opens
 // already holds. Declaring it here adds no descriptor, no binding and no set —
 // the two shaders share one pipeline layout, which is the reason they can.
 //

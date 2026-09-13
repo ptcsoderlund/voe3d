@@ -47,6 +47,7 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = POOL_GEOMETRIES,
 	.objects = 1,
 	.shadings = POOL_SHADINGS,
+	.passes = 1,
 };
 
 // A triangle: three vertices and three indices, which is the unit everything
