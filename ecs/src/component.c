@@ -24,6 +24,11 @@
 
 #include <string.h>
 
+// Empty, because only their addresses are ever compared — and two distinct
+// objects have distinct addresses however alike their contents are.
+const voe_base_struct_description voe_ecs_runtime_only = { 0 };
+const voe_base_struct_description voe_ecs_description_compiled_out = { 0 };
+
 static struct voe_ecs_table *table_at(const voe_ecs_world *world,
 				      voe_ecs_type type)
 {
@@ -79,6 +84,12 @@ voe_ecs_type voe_ecs_component_register(
 
 	VOE_BASE_ASSERT(world != NULL, "registering a component in no world");
 	VOE_BASE_ASSERT(key != NULL, "registering a component with no key");
+	// The header declares this parameter nonnull, so from -O1 up clang takes
+	// the comparison as already true and deletes it. It stands in Debug, which
+	// is what check.cmake and daily work build; in every build a literal NULL
+	// is a compile error, which is the half that catches the forgotten one.
+	VOE_BASE_ASSERT(description != NULL,
+			"registering a component with no description — pass its description, &voe_ecs_runtime_only or &voe_ecs_description_compiled_out (ecs/component.h)");
 	VOE_BASE_ASSERT(size > 0, "registering a component of no bytes");
 	VOE_BASE_ASSERT(capacity > 0, "registering a component with room for none");
 	VOE_BASE_ASSERT(world->table_count < world->table_capacity,
@@ -166,7 +177,22 @@ const struct voe_ecs_key *voe_ecs_component_key(const voe_ecs_world *world,
 const voe_base_struct_description *
 voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type)
 {
-	return table_at(world, type)->description;
+	const voe_base_struct_description *description =
+		table_at(world, type)->description;
+
+	// NULL for both markers, so a caller that expands fields — the inspector
+	// — needs to know about neither of them.
+	if (description == &voe_ecs_runtime_only ||
+	    description == &voe_ecs_description_compiled_out)
+		return NULL;
+
+	return description;
+}
+
+bool voe_ecs_component_runtime_only(const voe_ecs_world *world,
+				    voe_ecs_type type)
+{
+	return table_at(world, type)->description == &voe_ecs_runtime_only;
 }
 
 // THE THREE CHECKS ARE COMPARISONS OF SIZES THIS FOLDER ALREADY HOLDS, and that

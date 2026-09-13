@@ -16,7 +16,7 @@ space is.
   neither call checks a rotation and the drain checks every one, and why the
   report's state is per process.
 - `include/scene/camera_component.h` — eye, yaw, pitch, field of view and the two
-  planes, and the view matrix. Its header says why the projection is not built
+  planes, written as a described field list, and the view matrix. Its header says why the projection is not built
   here and why orientation is two angles.
 - `include/scene/camera_system.h` — the two camera intents, absolute and
   relative. Its header says why there are two, in which order they apply, and
@@ -30,7 +30,7 @@ space is.
   which of the two checks is an assert and which a correction, and why the
   report's state is per process.
 - `include/scene/light_component.h` — the sun: which way its light travels, its
-  colour and its strength. Its header says why a direction is where the light
+  colour and its strength, written as a described field list. Its header says why a direction is where the light
   goes rather than where the sun is, and why a reader never has to normalize it.
 - `include/scene/light_system.h` — the intent that turns it, and the direct call
   that creates one. Its header says where the normalization happens and why a
@@ -58,8 +58,10 @@ space is.
   unterminated name arrives cut and a replaced id arrives put back, and that the
   field list a world hands back marks the id read-only. Its header says why half
   of it submits raw rather than through the typed call.
-- `tests/camera.c` — the view matrix, and every way of flying one that draws a
-  plausible picture while being wrong. Its header says where these came from.
+- `tests/camera.c` — the view matrix, every way of flying one that draws a
+  plausible picture while being wrong, and that the field list a world hands back
+  is the one the compiler laid out. Its header says where these came from.
 - `tests/light.c` — that a direction arrives unit length whichever of the two
-  writes it came through, and that an intent lands only when the system runs.
+  writes it came through, that an intent lands only when the system runs, and
+  that the field list a world hands back is the one the compiler laid out.
   Its header says why the normalization is the claim worth a test.

@@ -57,7 +57,7 @@ static const voe_base_struct_description *identity_description(void)
 #if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
 	return voe_scene_identity_description();
 #else
-	return NULL;
+	return &voe_ecs_description_compiled_out;
 #endif
 }
 

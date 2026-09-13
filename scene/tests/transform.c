@@ -25,7 +25,8 @@
 //
 // WHAT THE BUILD SAID IS KEPT FIRST, because the transform scene/src registers
 // follows the build and not this file. The switch is set for a whole build, so
-// with it off the world holds NULL for the transform, and that is checked too.
+// with it off the world hands back NULL for the transform, and that is checked
+// too — along with the type still not being runtime-only.
 #if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
 #define BUILD_DESCRIBES true
 #else
@@ -480,6 +481,7 @@ static void the_world_hands_back_the_transforms_field_list(
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity thing = { 0 };
 	const voe_base_struct_description *found = NULL;
+	bool runtime_only = true;
 	uint32_t had = 0;
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
@@ -493,11 +495,17 @@ static void the_world_hands_back_the_transforms_field_list(
 
 		had++;
 		found = voe_ecs_component_description(world, type);
+		runtime_only = voe_ecs_component_runtime_only(world, type);
 		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
 			       &voe_scene_transform_key);
 	}
 
 	VOE_TEST_CHECK_INT(had, 1);
+
+	// Not runtime-only in either build: with descriptions off the type is
+	// still authored data, and a NULL here that also said runtime-only would
+	// be a scene that saves nothing and says nothing.
+	VOE_TEST_CHECK(!runtime_only);
 
 	if (!BUILD_DESCRIBES) {
 		VOE_TEST_CHECK(found == NULL);

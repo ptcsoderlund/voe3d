@@ -21,6 +21,7 @@
 // that grows without bound loses precision; a pitch cannot go round at all
 // because of the clamp above.
 #include <base/assert.h>
+#include <ecs/component.h>
 #include <ecs/intent.h>
 #include <scene/camera_system.h>
 
@@ -60,13 +61,22 @@ static voe_math_float3 camera_right(float yaw)
 	return (voe_math_float3){ cosf(yaw), 0.0f, -sinf(yaw) };
 }
 
+static const voe_base_struct_description *camera_description(void)
+{
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+	return voe_scene_camera_description();
+#else
+	return &voe_ecs_description_compiled_out;
+#endif
+}
+
 void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity)
 {
 	VOE_BASE_ASSERT(world != NULL, "registering cameras in no world");
 
 	(void)voe_ecs_component_register(world, &voe_scene_camera_key,
 					 sizeof(voe_scene_camera), capacity,
-					 NULL);
+					 camera_description());
 	(void)voe_ecs_intent_register(world, &placement_key,
 				      sizeof(voe_scene_camera_placement),
 				      capacity);

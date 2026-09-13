@@ -5,7 +5,7 @@
 //
 //     voe_ecs_type type = voe_ecs_component_register(world, &my_key,
 //                                                    sizeof(struct mine), 1024,
-//                                                    NULL);
+//                                                    &voe_ecs_runtime_only);
 //     if (!voe_ecs_component_add(world, type, entity, &value))
 //             ...                                  // the table is full
 //
@@ -57,11 +57,34 @@
 // There is no per-entity set of types to keep in step: the direct index above is
 // already the answer, one load per type.
 //
-// A DESCRIPTION IS STORED AND NEVER READ. A registration may carry the struct
-// description its folder wrote (base/describe.h), and the world hands the same
-// pointer back — it does not know what a field is, and a NULL there means only
-// that nobody described that component. The pointer must outlive the world, which
-// a description's static table always does.
+// A TYPE IS DESCRIBED OR RUNTIME-ONLY, AND A REGISTRATION SAYS WHICH. A described
+// type carries the struct description its folder wrote (base/describe.h), and its
+// fields are what a scene saves (ADR-0149, ADR-0150). A runtime-only type carries
+// &voe_ecs_runtime_only instead: state that means nothing in a file — a GPU id, a
+// frame's range of vertices — and is rebuilt rather than saved.
+//
+// NULL IS REFUSED, BY THE COMPILER WHERE IT CAN SEE IT AND BY AN ASSERT WHERE IT
+// CANNOT. A NULL that meant "undescribed" would be the easiest thing in the tree
+// to forget, and forgetting it would not fail anywhere: every save would quietly
+// leave that component out. Saying runtime-only out loud costs one word at the
+// one site that knows.
+//
+// A DESCRIBED TYPE IN A BUILD WITHOUT DESCRIPTIONS PASSES
+// &voe_ecs_description_compiled_out — never NULL and never runtime-only. It is
+// still authored data; this build merely has no table to show for it, and a
+// writer that can tell the two apart can refuse loudly instead of saving nothing.
+// Its descriptions-off branch is where the declaring folder writes it:
+//
+//     #if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+//             return voe_scene_transform_description();
+//     #else
+//             return &voe_ecs_description_compiled_out;
+//     #endif
+//
+// A DESCRIPTION IS STORED AND NEVER READ. The world hands the pointer back — it
+// does not know what a field is — and hands back NULL for either marker, which are
+// compared by address and have nothing in them. The pointer must outlive the
+// world, which a description's static table always does.
 //
 // AND SO IS THE INTENT THAT REPLACES A ROW, FOR THE SAME REASON. A folder may
 // name the intent a whole row of its component is written through, and the world
@@ -108,10 +131,21 @@ typedef struct {
 	uint32_t value;
 } voe_ecs_type;
 
+// The two markers a registration passes instead of a description. Compared by
+// address; their contents are an empty description and nothing reads them.
+//
+// runtime_only: the type is not authored data and is never saved.
+// description_compiled_out: the type is described, in a build that compiled the
+// descriptions out.
+extern const voe_base_struct_description voe_ecs_runtime_only;
+extern const voe_base_struct_description voe_ecs_description_compiled_out;
+
 // Registering twice with the same key, registering more types than the world was
 // made for, a size of zero or a capacity of zero are all the caller's bugs and
-// assert. Nothing about a registration comes out of a file. `description` may be
-// NULL, and is for an undescribed component.
+// assert. Nothing about a registration comes out of a file. `description` is the
+// type's description or one of the two markers above, and never NULL — see the
+// header on why.
+[[gnu::nonnull(5)]]
 voe_ecs_type voe_ecs_component_register(
 	voe_ecs_world *world, const struct voe_ecs_key *key, size_t size,
 	uint32_t capacity, const voe_base_struct_description *description);
@@ -128,9 +162,15 @@ voe_ecs_type voe_ecs_component_type_at(const voe_ecs_world *world,
 const struct voe_ecs_key *voe_ecs_component_key(const voe_ecs_world *world,
 						voe_ecs_type type);
 
-// The description the type was registered with, or NULL when it had none.
+// The description the type was registered with, or NULL when it was registered
+// with either marker.
 const voe_base_struct_description *
 voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type);
+
+// True for a type registered with voe_ecs_runtime_only, and only for that: a
+// described type is false whether or not this build compiled its description in.
+[[nodiscard]] bool voe_ecs_component_runtime_only(const voe_ecs_world *world,
+						  voe_ecs_type type);
 
 // Names the intent a whole row of this type is replaced through, and says where
 // in that intent's value the row sits — `offsetof` of the row's field, given by

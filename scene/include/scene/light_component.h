@@ -30,7 +30,14 @@
 // and a warm sun is a colour with more red in it than blue. sRGB encoding lives
 // at the two ends of the pipeline — a picture on the way in and the window on
 // the way out — and never in a factor.
+//
+// THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a build
+// that asks for descriptions also has voe_scene_light_description(), and one that
+// does not has the same struct and nothing more. Every field is authored and none
+// is read-only.
 #pragma once
+
+#include <base/describe.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -39,13 +46,14 @@
 
 #include <stdint.h>
 
-typedef struct {
-	// Unit length, and the direction the light travels. See the header.
-	voe_math_float3 direction;
-	// Linear, and a multiplier: (1, 1, 1) is white.
-	voe_math_float3 colour;
-	float intensity;
-} voe_scene_light;
+// direction is unit length, and the direction the light travels — see the
+// header. colour is linear, and a multiplier: (1, 1, 1) is white.
+#define VOE_SCENE_LIGHT_FIELDS(F, F_READ_ONLY) \
+	F(voe_math_float3, direction, FLOAT3)  \
+	F(voe_math_float3, colour, FLOAT3)     \
+	F(float, intensity, FLOAT32)
+
+VOE_BASE_DESCRIBE_STRUCT(voe_scene_light, VOE_SCENE_LIGHT_FIELDS)
 
 // The key this component is registered against. Its address is its identity.
 extern const struct voe_ecs_key voe_scene_light_key;

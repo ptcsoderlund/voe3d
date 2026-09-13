@@ -12,7 +12,21 @@
 // that can look past straight up — all four draw a plausible picture and all
 // four are wrong, so the checks below are about direction and amount and never
 // about an identity.
+//
+// THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
+// scene/tests/transform.c gives at length. WHAT THE BUILD SAID IS KEPT FIRST,
+// because the camera scene/src registers follows the build and not this file.
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+#define BUILD_DESCRIBES true
+#else
+#define BUILD_DESCRIBES false
+#endif
+#undef VOE_BASE_DESCRIPTIONS
+#define VOE_BASE_DESCRIPTIONS 1
+
 #include <base/arena.h>
+#include <base/describe.h>
+#include <ecs/component.h>
 #include <ecs/world.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
@@ -22,6 +36,9 @@
 #include <testing/test.h>
 
 #include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #define TOLERANCE 1e-5f
 #define CAMERAS 4
@@ -326,11 +343,99 @@ static void an_intent_for_a_destroyed_camera_is_dropped(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(voe_scene_camera_count(world), 0);
 }
 
+static void check_field(const voe_base_field_description *actual,
+			const char *name, voe_base_field_kind kind,
+			size_t offset, size_t size)
+{
+	VOE_TEST_CHECK(strcmp(actual->name, name) == 0);
+	if (strcmp(actual->name, name) != 0)
+		fprintf(stderr, "      actual:   \"%s\"\n      expected: \"%s\"\n",
+			actual->name, name);
+	VOE_TEST_CHECK_INT(actual->kind, kind);
+	VOE_TEST_CHECK_INT((long long)actual->offset, (long long)offset);
+	VOE_TEST_CHECK_INT((long long)actual->size, (long long)size);
+	VOE_TEST_CHECK_INT(actual->count, 1);
+	VOE_TEST_CHECK(!actual->read_only);
+}
+
+// Six fields, in the order they are declared, each kinded as declared and each at
+// the offset and size the compiler gave it. None is read-only.
+static void check_description(const voe_base_struct_description *description)
+{
+	const voe_base_field_description *fields = description->fields;
+
+	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_camera") == 0);
+	VOE_TEST_CHECK_INT(description->field_count, 6);
+	if (description->field_count != 6)
+		return;
+
+	check_field(&fields[0], "eye", VOE_BASE_FIELD_FLOAT3,
+		    offsetof(voe_scene_camera, eye), sizeof(voe_math_float3));
+	check_field(&fields[1], "yaw", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_camera, yaw), sizeof(float));
+	check_field(&fields[2], "pitch", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_camera, pitch), sizeof(float));
+	check_field(&fields[3], "fov_y", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_camera, fov_y), sizeof(float));
+	check_field(&fields[4], "near_plane", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_camera, near_plane), sizeof(float));
+	check_field(&fields[5], "far_plane", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_camera, far_plane), sizeof(float));
+}
+
+static void the_description_is_the_struct_the_compiler_laid_out(void)
+{
+	check_description(voe_scene_camera_description());
+}
+
+// The inspector, minus the drawing: ask the world what an entity is made of
+// without naming a type, and reach the field list from the answer. The table the
+// world holds is scene/src's own copy, so it is checked field by field and never
+// by address.
+static void the_world_hands_back_the_cameras_field_list(voe_base_arena *arena)
+{
+	voe_ecs_entity eye = { 0 };
+	voe_ecs_world *world = world_of(arena, &eye);
+	const voe_base_struct_description *found = NULL;
+	bool runtime_only = true;
+	uint32_t had = 0;
+
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_get(world, type, eye) == NULL)
+			continue;
+
+		had++;
+		found = voe_ecs_component_description(world, type);
+		runtime_only = voe_ecs_component_runtime_only(world, type);
+		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
+			       &voe_scene_camera_key);
+	}
+
+	VOE_TEST_CHECK_INT(had, 1);
+
+	// Not runtime-only in either build: with descriptions off a camera is still
+	// authored data, only without a table in this binary to show for it.
+	VOE_TEST_CHECK(!runtime_only);
+
+	if (!BUILD_DESCRIBES) {
+		VOE_TEST_CHECK(found == NULL);
+		return;
+	}
+
+	VOE_TEST_CHECK(found != NULL);
+	if (found != NULL)
+		check_description(found);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
 
 	the_numbers_survive_the_table(arena);
+	the_description_is_the_struct_the_compiler_laid_out();
+	the_world_hands_back_the_cameras_field_list(arena);
 	a_camera_at_rest_looks_down_minus_z();
 	a_placement_applies_before_a_motion(arena);
 	the_mouse_turns_it_the_way_the_hand_went(arena);

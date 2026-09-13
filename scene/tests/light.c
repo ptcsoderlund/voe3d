@@ -12,13 +12,31 @@
 // (3, 4, 0) HAS LENGTH FIVE, which is why it is the vector below: every
 // component of the answer is a fifth of what went in, and a normalization that
 // silently did nothing leaves a 3 where a 0.6 belongs.
+//
+// THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
+// scene/tests/transform.c gives at length. WHAT THE BUILD SAID IS KEPT FIRST,
+// because the light scene/src registers follows the build and not this file.
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+#define BUILD_DESCRIBES true
+#else
+#define BUILD_DESCRIBES false
+#endif
+#undef VOE_BASE_DESCRIPTIONS
+#define VOE_BASE_DESCRIPTIONS 1
+
 #include <base/arena.h>
+#include <base/describe.h>
+#include <ecs/component.h>
 #include <ecs/world.h>
 #include <math/float3.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
 
 #include <testing/test.h>
+
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 // One divide and three multiplies.
 #define TOLERANCE 1e-6f
@@ -159,11 +177,96 @@ static void an_intent_for_a_destroyed_entity_is_dropped(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(voe_scene_light_count(world), 1);
 }
 
+static void check_field(const voe_base_field_description *actual,
+			const char *name, voe_base_field_kind kind,
+			size_t offset, size_t size)
+{
+	VOE_TEST_CHECK(strcmp(actual->name, name) == 0);
+	if (strcmp(actual->name, name) != 0)
+		fprintf(stderr, "      actual:   \"%s\"\n      expected: \"%s\"\n",
+			actual->name, name);
+	VOE_TEST_CHECK_INT(actual->kind, kind);
+	VOE_TEST_CHECK_INT((long long)actual->offset, (long long)offset);
+	VOE_TEST_CHECK_INT((long long)actual->size, (long long)size);
+	VOE_TEST_CHECK_INT(actual->count, 1);
+	VOE_TEST_CHECK(!actual->read_only);
+}
+
+// Three fields, in the order they are declared, each kinded as declared and each
+// at the offset and size the compiler gave it. None is read-only.
+static void check_description(const voe_base_struct_description *description)
+{
+	const voe_base_field_description *fields = description->fields;
+
+	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_light") == 0);
+	VOE_TEST_CHECK_INT(description->field_count, 3);
+	if (description->field_count != 3)
+		return;
+
+	check_field(&fields[0], "direction", VOE_BASE_FIELD_FLOAT3,
+		    offsetof(voe_scene_light, direction), sizeof(voe_math_float3));
+	check_field(&fields[1], "colour", VOE_BASE_FIELD_FLOAT3,
+		    offsetof(voe_scene_light, colour), sizeof(voe_math_float3));
+	check_field(&fields[2], "intensity", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_light, intensity), sizeof(float));
+}
+
+static void the_description_is_the_struct_the_compiler_laid_out(void)
+{
+	check_description(voe_scene_light_description());
+}
+
+// The inspector, minus the drawing: ask the world what an entity is made of
+// without naming a type, and reach the field list from the answer. The table the
+// world holds is scene/src's own copy, so it is checked field by field and never
+// by address.
+static void the_world_hands_back_the_lights_field_list(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity sun = { 0 };
+	const voe_base_struct_description *found = NULL;
+	bool runtime_only = true;
+	uint32_t had = 0;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
+
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_get(world, type, sun) == NULL)
+			continue;
+
+		had++;
+		found = voe_ecs_component_description(world, type);
+		runtime_only = voe_ecs_component_runtime_only(world, type);
+		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
+			       &voe_scene_light_key);
+	}
+
+	VOE_TEST_CHECK_INT(had, 1);
+
+	// Not runtime-only in either build: with descriptions off a light is still
+	// authored data, only without a table in this binary to show for it.
+	VOE_TEST_CHECK(!runtime_only);
+
+	if (!BUILD_DESCRIBES) {
+		VOE_TEST_CHECK(found == NULL);
+		return;
+	}
+
+	VOE_TEST_CHECK(found != NULL);
+	if (found != NULL)
+		check_description(found);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	a_light_arrives_normalized(arena);
+	the_description_is_the_struct_the_compiler_laid_out();
+	the_world_hands_back_the_lights_field_list(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
 

@@ -1,7 +1,8 @@
 // Component tables: that a row can be added, read, overwritten and removed, that
 // an iteration sees every live row exactly once, that a full table and a stale
-// entity are both refused rather than answered, and that the world can say what an
-// entity is made of without anyone naming a type.
+// entity are both refused rather than answered, that the world can say what an
+// entity is made of without anyone naming a type, and that the two markers a
+// registration passes instead of a description answer differently.
 //
 // THE ITERATION CHECK IS THE ONE THAT WOULD CATCH A BROKEN REMOVAL. A removal
 // swaps the last row into the hole, so the way to get it wrong is to leave the
@@ -82,16 +83,19 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	return voe_ecs_world_new(arena, limits);
 }
 
-// The three types every test below that lists them registers, in this order.
+// The three types every test below that lists them registers, in this order: one
+// described, one runtime-only, and one described in a build without descriptions.
 static void register_three(voe_ecs_world *world, voe_ecs_type types[TYPES])
 {
 	types[0] = voe_ecs_component_register(world, &marker_key,
 					      sizeof(struct marker), ROWS,
 					      &marker_description);
 	types[1] = voe_ecs_component_register(world, &second_key,
-					      sizeof(struct marker), ROWS, NULL);
+					      sizeof(struct marker), ROWS,
+					      &voe_ecs_runtime_only);
 	types[2] = voe_ecs_component_register(world, &third_key,
-					      sizeof(struct marker), ROWS, NULL);
+					      sizeof(struct marker), ROWS,
+					      &voe_ecs_description_compiled_out);
 }
 
 // The walk: for each registered type, in the world's order, whether the entity
@@ -119,7 +123,8 @@ static void a_row_goes_in_and_comes_back(voe_base_arena *arena)
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_register(world, &marker_key,
 						       sizeof(struct marker),
-						       ROWS, NULL);
+						       ROWS,
+						       &voe_ecs_runtime_only);
 	voe_ecs_entity thing = { 0 };
 	struct marker value = { .tag = 7 };
 	const struct marker *read;
@@ -161,7 +166,8 @@ static void an_iteration_sees_every_live_row_once(voe_base_arena *arena)
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_register(world, &marker_key,
 						       sizeof(struct marker),
-						       ROWS, NULL);
+						       ROWS,
+						       &voe_ecs_runtime_only);
 	voe_ecs_entity held[ROWS];
 	uint32_t seen[ROWS] = { 0 };
 	const struct marker *rows;
@@ -210,7 +216,8 @@ static void a_full_table_and_a_stale_entity_are_both_refused(
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_register(world, &marker_key,
 						       sizeof(struct marker),
-						       ROWS, NULL);
+						       ROWS,
+						       &voe_ecs_runtime_only);
 	struct marker value = { .tag = 1 };
 	voe_ecs_entity held[ROWS];
 	voe_ecs_entity extra = { 0 };
@@ -293,6 +300,21 @@ static void a_description_comes_back_as_it_was_registered(
 		       &marker_description);
 	VOE_TEST_CHECK(voe_ecs_component_description(world, types[1]) == NULL);
 	VOE_TEST_CHECK(voe_ecs_component_description(world, types[2]) == NULL);
+}
+
+// The two NULLs above are not the same answer, and this is where they part: only
+// the type that said runtime-only is runtime-only. The compiled-out one is still
+// authored data, and a writer asking this is how it tells that apart from state
+// nobody saves.
+static void only_a_runtime_only_type_says_it_is_one(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+
+	register_three(world, types);
+	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, types[0]));
+	VOE_TEST_CHECK(voe_ecs_component_runtime_only(world, types[1]));
+	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, types[2]));
 }
 
 // The destroyed entity's slot is taken again by something that has all three, so
@@ -468,6 +490,7 @@ int main(void)
 	the_world_lists_its_types_in_registration_order(arena);
 	an_entity_is_found_to_have_exactly_what_it_was_given(arena);
 	a_description_comes_back_as_it_was_registered(arena);
+	only_a_runtime_only_type_says_it_is_one(arena);
 	a_stale_entity_is_made_of_nothing(arena);
 	a_type_hands_back_the_intent_it_was_given(arena);
 	a_type_without_one_says_so_and_nothing_else(arena);

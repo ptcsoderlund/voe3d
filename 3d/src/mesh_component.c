@@ -10,7 +10,8 @@ void voe_3d_mesh_register(voe_ecs_world *world, uint32_t capacity)
 	VOE_BASE_ASSERT(world != NULL, "registering meshes in no world");
 
 	(void)voe_ecs_component_register(world, &voe_3d_mesh_key,
-					 sizeof(voe_3d_mesh), capacity, NULL);
+					 sizeof(voe_3d_mesh), capacity,
+					 &voe_ecs_runtime_only);
 }
 
 bool voe_3d_mesh_add(voe_ecs_world *world, voe_ecs_entity entity,

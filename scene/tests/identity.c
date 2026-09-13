@@ -275,6 +275,7 @@ static void the_world_hands_back_the_identitys_field_list(voe_base_arena *arena)
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity thing = authored(world, 7, "Cube");
 	const voe_base_struct_description *found = NULL;
+	bool runtime_only = true;
 	uint32_t had = 0;
 
 	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
@@ -285,11 +286,17 @@ static void the_world_hands_back_the_identitys_field_list(voe_base_arena *arena)
 
 		had++;
 		found = voe_ecs_component_description(world, type);
+		runtime_only = voe_ecs_component_runtime_only(world, type);
 		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
 			       &voe_scene_identity_key);
 	}
 
 	VOE_TEST_CHECK_INT(had, 1);
+
+	// Not runtime-only in either build: with descriptions off the type is
+	// still authored data, and a NULL here that also said runtime-only would
+	// be a scene that saves nothing and says nothing.
+	VOE_TEST_CHECK(!runtime_only);
 
 	if (!BUILD_DESCRIBES) {
 		VOE_TEST_CHECK(found == NULL);

@@ -9,6 +9,7 @@
 // returns false for a destroyed entity and for one that never had a light, and
 // both are ordinary rather than wrong — see the header.
 #include <base/assert.h>
+#include <ecs/component.h>
 #include <ecs/intent.h>
 #include <math/float3.h>
 #include <scene/light_system.h>
@@ -28,13 +29,22 @@ static voe_scene_light settled(voe_scene_light light)
 	return light;
 }
 
+static const voe_base_struct_description *light_description(void)
+{
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+	return voe_scene_light_description();
+#else
+	return &voe_ecs_description_compiled_out;
+#endif
+}
+
 void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 {
 	VOE_BASE_ASSERT(world != NULL, "registering lights in no world");
 
 	(void)voe_ecs_component_register(world, &voe_scene_light_key,
 					 sizeof(voe_scene_light), capacity,
-					 NULL);
+					 light_description());
 	(void)voe_ecs_intent_register(world, &light_intent_key,
 				      sizeof(voe_scene_light_intent),
 				      capacity);

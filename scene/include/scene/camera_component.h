@@ -20,7 +20,15 @@
 // A CAMERA LOOKS ALONG ITS OWN -Z (CLAUDE.md). Zero yaw looks along -Z, a
 // positive yaw turns towards -X — a left turn, which is where a positive
 // rotation about +Y goes in this engine — and a positive pitch looks up.
+//
+// THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a build
+// that asks for descriptions also has voe_scene_camera_description(), and one
+// that does not has the same struct and nothing more. Every field is authored and
+// none is read-only; there is no replace intent, so a tool shows a camera and does
+// not edit it.
 #pragma once
+
+#include <base/describe.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -30,20 +38,20 @@
 
 #include <stdint.h>
 
-typedef struct {
-	voe_math_float3 eye;
-	// Radians.
-	float yaw;
-	float pitch;
-	// Vertical field of view, radians. The horizontal one falls out of the
-	// aspect ratio, which is the render target's and not the camera's.
-	float fov_y;
-	// Metres. Spelled out because `near` and `far` are macros in a Windows
-	// header, and a struct field that happens to collide with one is a
-	// mystery to whoever hits it.
-	float near_plane;
-	float far_plane;
-} voe_scene_camera;
+// yaw and pitch are radians. fov_y is the vertical field of view, radians; the
+// horizontal one falls out of the aspect ratio, which is the render target's and
+// not the camera's. near_plane and far_plane are metres, and spelled out because
+// `near` and `far` are macros in a Windows header, and a struct field that happens
+// to collide with one is a mystery to whoever hits it.
+#define VOE_SCENE_CAMERA_FIELDS(F, F_READ_ONLY) \
+	F(voe_math_float3, eye, FLOAT3)         \
+	F(float, yaw, FLOAT32)                  \
+	F(float, pitch, FLOAT32)                \
+	F(float, fov_y, FLOAT32)                \
+	F(float, near_plane, FLOAT32)           \
+	F(float, far_plane, FLOAT32)
+
+VOE_BASE_DESCRIBE_STRUCT(voe_scene_camera, VOE_SCENE_CAMERA_FIELDS)
 
 extern const struct voe_ecs_key voe_scene_camera_key;
 

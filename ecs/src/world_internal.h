@@ -28,7 +28,8 @@
 // One component type. rows is capacity * size bytes; owners says which entity
 // each row belongs to; row_of is one index per entity slot in the world, so the
 // two directions are both a single load. description is whatever the
-// registration carried, NULL included, and nothing in this folder reads it.
+// registration carried, either marker included, and nothing in this folder
+// reads it.
 //
 // replace is the same kind of thing one step further: the intent a whole row is
 // written through and where the row sits in that intent's value. Stored, handed

@@ -9,9 +9,12 @@ and the folder that owns a component's meaning is the folder that registers it.
   lives in an arena and has no destroy, and why capacities are fixed.
 - `include/ecs/component.h` — one table per component type, and the list of
   types a world holds with the key, the description and the replace intent behind
-  each. Its header says how the two directions between an entity and its row are
-  built, what a removal does to row order, why iterating is handed the arrays
-  rather than an accessor, and why a description is stored and never read. On the
+  each; the two markers a registration passes instead of a description,
+  runtime-only and compiled out. Its header says how the two directions between
+  an entity and its row are built, what a removal does to row order, why iterating
+  is handed the arrays rather than an accessor, why a type is described or
+  runtime-only and NULL is refused, and why a description is stored and never
+  read. On the
   replace intent — the one a whole row is written through — it says why the entity
   is at offset zero and the row's offset is the declaring folder's to give, why it
   is its own call rather than a parameter to registration, and why a type without
@@ -31,8 +34,9 @@ and the folder that owns a component's meaning is the folder that registers it.
   case where its slot is live again.
 - `tests/component.c` — a row in and out, an iteration that sees every live row
   once across a removal, a full table, an entity's makeup found by walking every
-  registered type, and the editor's round trip written out once by hand: a row
-  read, copied into a zeroed intent value at the offset the type gave, one byte
-  changed, submitted, drained, and that byte changed in the table and no other.
+  registered type, that only a runtime-only registration says it is one, and the
+  editor's round trip written out once by hand: a row read, copied into a zeroed
+  intent value at the offset the type gave, one byte changed, submitted, drained,
+  and that byte changed in the table and no other.
 - `tests/intent.c` — two submitters in one queue in submission order, and a full
   queue.
