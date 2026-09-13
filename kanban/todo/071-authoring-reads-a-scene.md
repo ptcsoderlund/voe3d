@@ -78,6 +78,9 @@ the new parameter.
 - Warnings, each still loading: a missing field is zero; an unknown key is ignored; a reference to
   an absent id is no entity.
 - File order `[3]`, `[1]`, `[2]` loads, and writes back sorted.
+- Fixed arrays of a vector kind (`[[0, 0, 0], [1, 1, 1]]`) and a wrong count in one refuse: no
+  real component can declare one, since `describe.h` repeats only `ENUM`, `CHAR` and `ENTITY` —
+  use a hand-written description, as card 070's every-kind test does. `describe.h` is not edited.
 - A world already holding an authored entity asserts — test it only if `voe::testing` can catch
   an assert; otherwise say so in Notes.
 

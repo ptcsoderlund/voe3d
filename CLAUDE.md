@@ -150,6 +150,7 @@ app                     the frame loop, wiring
 │   ├── assets          glTF, images, fonts → CPU data
 │   └── scene           transform, camera, light
 │       └── ecs         entities, components, intent queues
+├── authoring           world ↔ scene text; not linked by a game
 ├── text · ui           on render, low level
 ├── sprite              on 3d, not beside text: it hands back a material
 └── base · math         memory, containers, strings, assert · vectors, matrices
@@ -162,6 +163,7 @@ app                     the frame loop, wiring
 | `platform` | `base` |
 | `scene` | `ecs`, `math`, `base` |
 | `assets` | `platform`, `math`, `base` |
+| `authoring` | `scene`, `ecs`, `assets`, `math`, `base` |
 | `render` | `platform`, `math`, `base` |
 | `text` | `render`, `math`, `base` |
 | `ui` | `render`, `text`, `math`, `base` |

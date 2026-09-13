@@ -91,6 +91,15 @@ function(voe_allowed_deps folder out_var)
         set(deps ecs math base)
     elseif(folder STREQUAL "assets")
         set(deps platform math base)
+    elseif(folder STREQUAL "authoring")
+        # authoring is the code that turns a world into a scene file and back,
+        # and it is authoring-time code: a game's build does not link it. It
+        # reads a component's fields through its description, and a shipped game
+        # compiles the descriptions out (ADR-0145), so the one folder that needs
+        # them is kept apart from every folder a game does link. A game that turns
+        # descriptions on may link it. It names assets for the sectioned reader
+        # and nothing that draws, so render and 3d are absent (ADR-0151).
+        set(deps scene ecs assets math base)
     elseif(folder STREQUAL "render")
         set(deps platform math base)
     elseif(folder STREQUAL "text")
@@ -136,10 +145,11 @@ function(voe_allowed_deps folder out_var)
         # it. It appears in no other row and putting it in one would be the
         # mistake this map exists to catch (ADR-0121). It is a shorter row than
         # dev's on purpose. It names 3d because a scene view draws the world
-        # into a target of its own (ADR-0151 point 3). It reads no files and no
-        # sprite sheets, so assets and sprite are absent, and a card that wants
-        # one of them is a decision, not an edit here.
-        set(deps base math ecs scene platform render text ui 3d app)
+        # into a target of its own (ADR-0151 point 3), and authoring because a
+        # scene is saved and opened through it (ADR-0151). It decodes no files and
+        # no sprite sheets itself, so assets and sprite are absent, and a card that
+        # wants one of them is a decision, not an edit here.
+        set(deps base math ecs scene platform render text ui 3d authoring app)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
