@@ -68,8 +68,8 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -113,9 +113,9 @@ static bool build_transient_pool(voe_render_device *device,
 					  pool->pool.buffer.memory, 0,
 					  VK_WHOLE_SIZE, 0, &pool->mapped);
 	if (result != VK_SUCCESS || pool->mapped == NULL) {
-		fprintf(stderr,
-			"render: vkMapMemory failed on a transient geometry pool (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkMapMemory failed on a transient geometry pool (VkResult %d)",
+			       (int)result);
 		pool->mapped = NULL;
 		return false;
 	}
@@ -298,9 +298,9 @@ bool voe_render_geometry_create(voe_render_device *device,
 		}
 	}
 	if (slot == NULL) {
-		fprintf(stderr,
-			"render: all %u mesh slots are taken; the device was made with room for that many\n",
-			device->capacities.geometries);
+		VOE_BASE_ERROR("render",
+			       "all %u mesh slots are taken; the device was made with room for that many",
+			       device->capacities.geometries);
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
@@ -310,11 +310,11 @@ bool voe_render_geometry_create(voe_render_device *device,
 	// not fit leaves neither pool half filled with it.
 	if (device->vertices.used + vertex_count > device->vertices.capacity ||
 	    device->indices.used + index_count > device->indices.capacity) {
-		fprintf(stderr,
-			"render: no room for a mesh of %u vertices and %u indices — %u of %u vertices and %u of %u indices are spent\n",
-			vertex_count, index_count, device->vertices.used,
-			device->vertices.capacity, device->indices.used,
-			device->indices.capacity);
+		VOE_BASE_ERROR("render",
+			       "no room for a mesh of %u vertices and %u indices — %u of %u vertices and %u of %u indices are spent",
+			       vertex_count, index_count, device->vertices.used,
+			       device->vertices.capacity, device->indices.used,
+			       device->indices.capacity);
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
@@ -384,8 +384,8 @@ bool voe_render_geometry_create_transient(voe_render_device *device,
 			"building transient geometry with no frame open — it lives in the slot voe_render_frame_begin picks, so it is built between _begin and _end and nowhere else");
 
 	if (device->capacities.transient_geometries == 0) {
-		fprintf(stderr,
-			"render: this device was opened with no transient geometry room — the transient_ capacities are nought\n");
+		VOE_BASE_ERROR("render",
+			       "this device was opened with no transient geometry room — the transient_ capacities are nought");
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
@@ -402,9 +402,9 @@ bool voe_render_geometry_create_transient(voe_render_device *device,
 		}
 	}
 	if (slot == NULL) {
-		fprintf(stderr,
-			"render: all %u transient mesh slots are taken this frame; transient_geometries is too small for what this frame builds\n",
-			device->capacities.transient_geometries);
+		VOE_BASE_ERROR("render",
+			       "all %u transient mesh slots are taken this frame; transient_geometries is too small for what this frame builds",
+			       device->capacities.transient_geometries);
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
@@ -419,11 +419,11 @@ bool voe_render_geometry_create_transient(voe_render_device *device,
 	// every range already built in them still draws.
 	if (vertex_pool->pool.used + vertex_count > vertex_pool->pool.capacity ||
 	    index_pool->pool.used + index_count > index_pool->pool.capacity) {
-		fprintf(stderr,
-			"render: no room this frame for transient geometry of %u vertices and %u indices — %u of %u transient vertices and %u of %u transient indices are spent; the transient_ capacities are too small for what this frame builds\n",
-			vertex_count, index_count, vertex_pool->pool.used,
-			vertex_pool->pool.capacity, index_pool->pool.used,
-			index_pool->pool.capacity);
+		VOE_BASE_ERROR("render",
+			       "no room this frame for transient geometry of %u vertices and %u indices — %u of %u transient vertices and %u of %u transient indices are spent; the transient_ capacities are too small for what this frame builds",
+			       vertex_count, index_count, vertex_pool->pool.used,
+			       vertex_pool->pool.capacity, index_pool->pool.used,
+			       index_pool->pool.capacity);
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;

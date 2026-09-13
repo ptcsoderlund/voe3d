@@ -20,7 +20,7 @@
 
 #include "../vulkan/vulkan_wayland.h"
 
-#include <stdio.h>
+#include <base/report.h>
 
 const char *voe_render_backend_library(void)
 {
@@ -48,16 +48,16 @@ VkSurfaceKHR voe_render_backend_surface_new(VkInstance instance,
 		voe_render_vk.get_instance_proc_addr(instance,
 						     "vkCreateWaylandSurfaceKHR");
 	if (create == NULL) {
-		fprintf(stderr,
-			"render: the instance has no vkCreateWaylandSurfaceKHR\n");
+		VOE_BASE_ERROR("render",
+			       "the instance has no vkCreateWaylandSurfaceKHR");
 		return VK_NULL_HANDLE;
 	}
 
 	result = create(instance, &info, NULL, &surface);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateWaylandSurfaceKHR failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateWaylandSurfaceKHR failed (VkResult %d)",
+			       (int)result);
 		return VK_NULL_HANDLE;
 	}
 

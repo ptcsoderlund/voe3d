@@ -32,6 +32,7 @@
 
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/report.h>
 
 #include <ecs/world.h>
 
@@ -163,8 +164,8 @@ int main(void)
 
 	font = voe_text_font_new(gpu, arena, &error);
 	if (font == NULL) {
-		fprintf(stderr, "the editor could not build its font: %s\n",
-			voe_base_error_string(error));
+		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
+			       voe_base_error_string(error));
 		status = 1;
 		goto stop;
 	}

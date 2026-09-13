@@ -25,6 +25,7 @@
 #include "inspector.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <math/float3.h>
 #include <math/quat.h>
@@ -684,10 +685,13 @@ static void submit(voe_ecs_world *world, voe_ecs_entity entity,
 	memcpy(value + replace.row_offset, row, replace.row_size);
 	memcpy(value + replace.row_offset + control->offset, bytes, size);
 
+	// DEVIATION: card 062 "every one of these is VOE_BASE_ERROR", read as not
+	// covering this line, which already said `warning` before the card and is not
+	// in the folders the card names; keeping the word keeps the output unchanged.
 	if (!voe_ecs_intent_submit(world, replace.intent, value))
-		fprintf(stderr,
-			"warning: voe_editor: the replace queue for %s is full; that edit was dropped\n",
-			voe_ecs_component_key(world, control->type)->name);
+		VOE_BASE_WARNING("editor",
+				 "the replace queue for %s is full; that edit was dropped",
+				 voe_ecs_component_key(world, control->type)->name);
 }
 
 // The new bytes for one control, and the submit that follows them. `value` is

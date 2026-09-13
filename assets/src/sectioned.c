@@ -31,8 +31,8 @@
 #include <assets/sectioned.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // The two things a section name may not have more of: parts, and dots between
@@ -85,8 +85,8 @@ struct parser {
 
 static bool malformed(const struct parser *parser, const char *message)
 {
-	fprintf(stderr, "assets: sectioned: line %u: %s\n", parser->line,
-		message);
+	VOE_BASE_ERROR("assets", "sectioned: line %u: %s", parser->line,
+		       message);
 	return false;
 }
 
@@ -368,9 +368,9 @@ bool voe_assets_sectioned_parse(const char *text, size_t size,
 	// does not fit in one cannot have its lines counted. No authored file
 	// is within a thousandth of this.
 	if (size > UINT32_MAX) {
-		fprintf(stderr,
-			"assets: sectioned: %zu bytes is more text than this reader will hold\n",
-			size);
+		VOE_BASE_ERROR("assets",
+			       "sectioned: %zu bytes is more text than this reader will hold",
+			       size);
 		return false;
 	}
 

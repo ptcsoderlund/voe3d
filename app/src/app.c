@@ -4,9 +4,8 @@
 #include <app/app.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 #include <platform/clock.h>
-
-#include <stdio.h>
 
 struct voe_app {
 	voe_platform_window *window;
@@ -41,7 +40,7 @@ voe_app *voe_app_new(voe_base_arena *arena, voe_base_arena *scratch,
 	window = voe_platform_window_new(settings.width, settings.height,
 					 settings.title);
 	if (window == NULL) {
-		fprintf(stderr, "app: the window would not open\n");
+		VOE_BASE_ERROR("app", "the window would not open");
 		report(error, VOE_BASE_ERROR_UNAVAILABLE);
 		return NULL;
 	}
@@ -116,7 +115,7 @@ bool voe_app_draw_open(voe_app *app, voe_platform_size size,
 	VOE_BASE_ASSERT(drawing != NULL, "the caller has to be told whether to draw");
 
 	if (!voe_render_frame_begin(app->device, size, view, light, drawing)) {
-		fprintf(stderr, "app: the GPU stopped answering\n");
+		VOE_BASE_ERROR("app", "the GPU stopped answering");
 		return false;
 	}
 	return true;
@@ -127,7 +126,7 @@ bool voe_app_draw_close(voe_app *app)
 	VOE_BASE_ASSERT(app != NULL, "no app to draw with");
 
 	if (!voe_render_frame_end(app->device)) {
-		fprintf(stderr, "app: the GPU stopped answering\n");
+		VOE_BASE_ERROR("app", "the GPU stopped answering");
 		return false;
 	}
 	return true;

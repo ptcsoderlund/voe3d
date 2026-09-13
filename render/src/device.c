@@ -63,6 +63,7 @@
 #include <render/device.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <stddef.h>
 #include <stdio.h>
@@ -124,11 +125,15 @@ debug_message(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	(void)types;
 	(void)user;
 
-	fprintf(stderr, "vulkan %s: %s\n",
-		severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ? "error" :
-		severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ? "warning" :
-									     "info",
-		data->pMessage);
+	// DEVIATION: card 062 "every one of these is VOE_BASE_ERROR", read as
+	// applying to the layer's own warnings too, so the layer's severity stays a
+	// word in the message; mapping it onto the report's level is a judgement the
+	// card reserves.
+	VOE_BASE_ERROR("render", "vulkan %s: %s",
+		       severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ? "error" :
+		       severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ? "warning" :
+										    "info",
+		       data->pMessage);
 	return VK_FALSE;
 }
 
@@ -257,11 +262,11 @@ static bool create_instance(voe_render_device *device, voe_base_arena *arena)
 	if (result != VK_SUCCESS) {
 		// Named one per line rather than summarised, because which of
 		// them the driver would not have is the whole of the answer.
-		fprintf(stderr,
-			"render: vkCreateInstance failed (VkResult %d) with these extensions asked for:\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateInstance failed (VkResult %d) with these extensions asked for:",
+			       (int)result);
 		for (uint32_t i = 0; i < extension_count; i++)
-			fprintf(stderr, "render:     %s\n", extensions[i]);
+			VOE_BASE_ERROR("render", "    %s", extensions[i]);
 		return false;
 	}
 
@@ -324,14 +329,14 @@ static bool choose_physical_device(voe_render_device *device,
 	if (voe_render_vk.enumerate_physical_devices(device->instance, &count,
 						     NULL) != VK_SUCCESS ||
 	    count == 0) {
-		fprintf(stderr, "render: the Vulkan instance reports no graphics cards\n");
+		VOE_BASE_ERROR("render", "the Vulkan instance reports no graphics cards");
 		return false;
 	}
 
 	cards = voe_base_arena_push(arena, (size_t)count * sizeof(*cards));
 	if (voe_render_vk.enumerate_physical_devices(device->instance, &count,
 						     cards) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkEnumeratePhysicalDevices failed\n");
+		VOE_BASE_ERROR("render", "vkEnumeratePhysicalDevices failed");
 		return false;
 	}
 
@@ -362,10 +367,10 @@ static bool choose_physical_device(voe_render_device *device,
 	}
 
 	if (best == VK_NULL_HANDLE) {
-		fprintf(stderr,
-			"render: none of the %u graphics cards on this machine offers Vulkan 1.3 and a queue that can draw%s\n",
-			count,
-			device->headless ? "" : " and present to this window");
+		VOE_BASE_ERROR("render",
+			       "none of the %u graphics cards on this machine offers Vulkan 1.3 and a queue that can draw%s",
+			       count,
+			       device->headless ? "" : " and present to this window");
 		return false;
 	}
 
@@ -473,8 +478,8 @@ static bool create_device(voe_render_device *device)
 		features.features.shaderSampledImageArrayDynamicIndexing =
 			VK_TRUE;
 	else
-		fprintf(stderr,
-			"render: this graphics card cannot index a texture array with a value from a buffer; textures will be wrong\n");
+		VOE_BASE_ERROR("render",
+			       "this graphics card cannot index a texture array with a value from a buffer; textures will be wrong");
 
 	// AND WHAT THE ELEMENT PIPELINE NEEDS ON TOP OF IT, WHICH IS A SECOND
 	// FEATURE AND NOT A STRONGER ONE. The dynamic feature above permits an
@@ -497,14 +502,14 @@ static bool create_device(voe_render_device *device)
 	if (available12.shaderSampledImageArrayNonUniformIndexing)
 		features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	else
-		fprintf(stderr,
-			"render: this graphics card cannot index a texture array differently per element; text drawn as elements will be wrong where a frame uses more than one sheet\n");
+		VOE_BASE_ERROR("render",
+			       "this graphics card cannot index a texture array differently per element; text drawn as elements will be wrong where a frame uses more than one sheet");
 
 	result = voe_render_vk.create_device(device->physical, &info, NULL,
 					     &device->device);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateDevice failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render", "vkCreateDevice failed (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 
@@ -536,14 +541,14 @@ bool voe_render_device_choose_format(voe_render_device *device,
 	if (voe_render_vk.get_surface_formats(device->physical, device->surface,
 					      &count, NULL) != VK_SUCCESS ||
 	    count == 0) {
-		fprintf(stderr, "render: the surface offers no formats\n");
+		VOE_BASE_ERROR("render", "the surface offers no formats");
 		return false;
 	}
 
 	formats = voe_base_arena_push(arena, (size_t)count * sizeof(*formats));
 	if (voe_render_vk.get_surface_formats(device->physical, device->surface,
 					      &count, formats) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkGetPhysicalDeviceSurfaceFormatsKHR failed\n");
+		VOE_BASE_ERROR("render", "vkGetPhysicalDeviceSurfaceFormatsKHR failed");
 		return false;
 	}
 
@@ -572,9 +577,9 @@ bool voe_render_device_choose_format(voe_render_device *device,
 	// offers one.
 	if (device->format.format != PREFERRED_FORMAT &&
 	    device->format.format != VK_FORMAT_R8G8B8A8_SRGB)
-		fprintf(stderr,
-			"render: this surface offers no sRGB format (taking %d), so the frame will reach the screen too dark\n",
-			(int)device->format.format);
+		VOE_BASE_ERROR("render",
+			       "this surface offers no sRGB format (taking %d), so the frame will reach the screen too dark",
+			       (int)device->format.format);
 	return true;
 }
 
@@ -971,7 +976,7 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 
 	if (voe_render_vk.create_shader_module(device->device, &module_info, NULL,
 					       &module) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateShaderModule failed on draw.spv\n");
+		VOE_BASE_ERROR("render", "vkCreateShaderModule failed on draw.spv");
 		return false;
 	}
 
@@ -996,7 +1001,7 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	if (device->layout == VK_NULL_HANDLE &&
 	    voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
 						 &device->layout) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreatePipelineLayout failed\n");
+		VOE_BASE_ERROR("render", "vkCreatePipelineLayout failed");
 		voe_render_vk.destroy_shader_module(device->device, module, NULL);
 		return false;
 	}
@@ -1012,9 +1017,9 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	voe_render_vk.destroy_shader_module(device->device, module, NULL);
 
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)\n",
-			blended ? "blended" : "solid", (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)",
+			       blended ? "blended" : "solid", (int)result);
 		*out = VK_NULL_HANDLE;
 		return false;
 	}
@@ -1068,7 +1073,7 @@ static bool create_frame_objects(voe_render_device *device)
 
 	if (voe_render_vk.create_command_pool(device->device, &pool, NULL,
 					      &device->pool) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkCreateCommandPool failed\n");
+		VOE_BASE_ERROR("render", "vkCreateCommandPool failed");
 		return false;
 	}
 
@@ -1079,7 +1084,7 @@ static bool create_frame_objects(voe_render_device *device)
 	commands.commandPool = device->pool;
 	if (voe_render_vk.allocate_command_buffers(device->device, &commands,
 						   buffers) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkAllocateCommandBuffers failed\n");
+		VOE_BASE_ERROR("render", "vkAllocateCommandBuffers failed");
 		return false;
 	}
 
@@ -1090,14 +1095,14 @@ static bool create_frame_objects(voe_render_device *device)
 						   NULL,
 						   &device->frames[i].acquired) !=
 		    VK_SUCCESS) {
-			fprintf(stderr, "render: vkCreateSemaphore failed\n");
+			VOE_BASE_ERROR("render", "vkCreateSemaphore failed");
 			return false;
 		}
 
 		if (voe_render_vk.create_fence(device->device, &fence, NULL,
 					       &device->frames[i].submitted) !=
 		    VK_SUCCESS) {
-			fprintf(stderr, "render: vkCreateFence failed\n");
+			VOE_BASE_ERROR("render", "vkCreateFence failed");
 			return false;
 		}
 
@@ -1115,8 +1120,8 @@ static bool create_frame_objects(voe_render_device *device)
 						    NULL,
 						    &device->frames[i].timestamps) !=
 			    VK_SUCCESS) {
-			fprintf(stderr,
-				"render: vkCreateQueryPool failed, so there will be no GPU timings\n");
+			VOE_BASE_ERROR("render",
+				       "vkCreateQueryPool failed, so there will be no GPU timings");
 			device->timestamps = false;
 		}
 	}

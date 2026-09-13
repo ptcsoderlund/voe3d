@@ -39,8 +39,8 @@
 #include "model_gltf.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // "glTF", "JSON" and "BIN\0" as little-endian words, which is how they sit in
@@ -73,7 +73,7 @@ static uint32_t word_at(const uint8_t *bytes, size_t offset)
 static bool refuse(voe_base_error *error, voe_base_error code,
 		   const char *message)
 {
-	fprintf(stderr, "assets: glb: %s\n", message);
+	VOE_BASE_ERROR("assets", "glb: %s", message);
 	if (error != NULL)
 		*error = code;
 	return false;

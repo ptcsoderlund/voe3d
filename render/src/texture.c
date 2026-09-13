@@ -33,8 +33,8 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // RGBA8 in the order assets hands it over, in one of two formats.
@@ -157,9 +157,9 @@ static bool build_texture_image(voe_render_device *device,
 	result = voe_render_vk.create_image(device->device, &info, NULL,
 					    &slot->image);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateImage failed for a %ux%u texture (VkResult %d)\n",
-			width, height, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateImage failed for a %ux%u texture (VkResult %d)",
+			       width, height, (int)result);
 		slot->image = VK_NULL_HANDLE;
 		return false;
 	}
@@ -169,8 +169,8 @@ static bool build_texture_image(voe_render_device *device,
 	type = voe_render_memory_type(device, requirements.memoryTypeBits,
 				      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	if (type == UINT32_MAX) {
-		fprintf(stderr,
-			"render: this graphics card offers no device-local memory a texture can live in\n");
+		VOE_BASE_ERROR("render",
+			       "this graphics card offers no device-local memory a texture can live in");
 		return false;
 	}
 
@@ -179,9 +179,9 @@ static bool build_texture_image(voe_render_device *device,
 	result = voe_render_vk.allocate_memory(device->device, &allocate, NULL,
 					       &slot->memory);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkAllocateMemory failed for a %ux%u texture (VkResult %d)\n",
-			width, height, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkAllocateMemory failed for a %ux%u texture (VkResult %d)",
+			       width, height, (int)result);
 		slot->memory = VK_NULL_HANDLE;
 		return false;
 	}
@@ -189,9 +189,9 @@ static bool build_texture_image(voe_render_device *device,
 	result = voe_render_vk.bind_image_memory(device->device, slot->image,
 						 slot->memory, 0);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkBindImageMemory failed on a texture (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkBindImageMemory failed on a texture (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 
@@ -199,9 +199,9 @@ static bool build_texture_image(voe_render_device *device,
 	result = voe_render_vk.create_image_view(device->device, &view, NULL,
 						 &slot->view);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateImageView failed on a texture (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateImageView failed on a texture (VkResult %d)",
+			       (int)result);
 		slot->view = VK_NULL_HANDLE;
 		return false;
 	}
@@ -249,9 +249,9 @@ static bool copy_into_image(voe_render_device *device,
 	result = voe_render_vk.allocate_command_buffers(device->device,
 							&allocate, &commands);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkAllocateCommandBuffers failed for a texture upload (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkAllocateCommandBuffers failed for a texture upload (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 
@@ -275,9 +275,9 @@ static bool copy_into_image(voe_render_device *device,
 	result = voe_render_vk.queue_submit2(device->queue, 1, &submit,
 					     VK_NULL_HANDLE);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkQueueSubmit2 failed for a texture upload (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkQueueSubmit2 failed for a texture upload (VkResult %d)",
+			       (int)result);
 		voe_render_vk.free_command_buffers(device->device, device->pool,
 						   1, &commands);
 		return false;
@@ -352,9 +352,9 @@ bool voe_render_texture_create(voe_render_device *device,
 		}
 	}
 	if (slot == NULL) {
-		fprintf(stderr,
-			"render: all %d texture slots are taken\n",
-			VOE_RENDER_MAX_TEXTURES);
+		VOE_BASE_ERROR("render",
+			       "all %d texture slots are taken",
+			       VOE_RENDER_MAX_TEXTURES);
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
@@ -378,9 +378,9 @@ bool voe_render_texture_create(voe_render_device *device,
 			&mapped);
 
 		if (result != VK_SUCCESS || mapped == NULL) {
-			fprintf(stderr,
-				"render: vkMapMemory failed on a texture staging buffer (VkResult %d)\n",
-				(int)result);
+			VOE_BASE_ERROR("render",
+				       "vkMapMemory failed on a texture staging buffer (VkResult %d)",
+				       (int)result);
 			voe_render_buffer_teardown(device, &staging);
 			goto refused;
 		}
@@ -575,9 +575,9 @@ bool voe_render_texture_startup(voe_render_device *device)
 						      NULL,
 						      &device->samplers[i]);
 		if (result != VK_SUCCESS) {
-			fprintf(stderr,
-				"render: vkCreateSampler failed for sampling mode %u (VkResult %d)\n",
-				i, (int)result);
+			VOE_BASE_ERROR("render",
+				       "vkCreateSampler failed for sampling mode %u (VkResult %d)",
+				       i, (int)result);
 			device->samplers[i] = VK_NULL_HANDLE;
 			return false;
 		}
@@ -604,9 +604,9 @@ bool voe_render_texture_startup(voe_render_device *device)
 						  staging.memory, 0,
 						  VK_WHOLE_SIZE, 0, &mapped);
 		if (result != VK_SUCCESS || mapped == NULL) {
-			fprintf(stderr,
-				"render: vkMapMemory failed on the default texture (VkResult %d)\n",
-				(int)result);
+			VOE_BASE_ERROR("render",
+				       "vkMapMemory failed on the default texture (VkResult %d)",
+				       (int)result);
 			voe_render_buffer_teardown(device, &staging);
 			return false;
 		}

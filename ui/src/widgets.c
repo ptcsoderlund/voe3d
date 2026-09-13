@@ -115,12 +115,12 @@
 #include "context.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 #include <math/float2.h>
 #include <math/float4.h>
 #include <text/font.h>
 #include <text/utf8.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // CARD 036 REPLACES EVERY COLOUR IN THIS BLOCK AND THEY ARE HERE SO THAT IT HAS
@@ -237,11 +237,11 @@ static uint64_t claim(voe_ui_context *ui, const char *name, uint32_t index)
 
 	if (key_taken(ui, key)) {
 		if (!ui->collision)
-			fprintf(stderr,
-				"voe_ui: two widgets share the key for "
-				"\"%s\"/%u under the same parent; give one of "
-				"them another name or another index\n",
-				name, index);
+			VOE_BASE_ERROR("ui",
+				       "two widgets share the key for "
+				       "\"%s\"/%u under the same parent; give one of "
+				       "them another name or another index",
+				       name, index);
 		ui->collision = true;
 	} else {
 		key_take(ui, key);
@@ -583,11 +583,11 @@ static void push_element(voe_ui_context *ui, voe_render_element element)
 {
 	if (ui->element_count == ui->capacities.elements) {
 		if (!ui->element_overrun)
-			fprintf(stderr,
-				"voe_ui: element %u refused, this context was "
-				"created with room for %u\n",
-				ui->element_count + 1,
-				ui->capacities.elements);
+			VOE_BASE_ERROR("ui",
+				       "element %u refused, this context was "
+				       "created with room for %u",
+				       ui->element_count + 1,
+				       ui->capacities.elements);
 		ui->element_overrun = true;
 		return;
 	}

@@ -31,8 +31,7 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
-
-#include <stdio.h>
+#include <base/report.h>
 
 // alignas because vkCreateShaderModule takes a const uint32_t *, and #embed can
 // only fill an array of bytes. Same reasoning as the cube's shader in device.c.
@@ -131,8 +130,8 @@ VkPipeline voe_render_probe_pipeline_new(voe_render_device *device)
 
 	if (voe_render_vk.create_shader_module(device->device, &module_info,
 					       NULL, &module) != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateShaderModule failed on matrix_probe.spv\n");
+		VOE_BASE_ERROR("render",
+			       "vkCreateShaderModule failed on matrix_probe.spv");
 		return VK_NULL_HANDLE;
 	}
 
@@ -161,9 +160,9 @@ VkPipeline voe_render_probe_pipeline_new(voe_render_device *device)
 	voe_render_vk.destroy_shader_module(device->device, module, NULL);
 
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateGraphicsPipelines failed for the matrix probe (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateGraphicsPipelines failed for the matrix probe (VkResult %d)",
+			       (int)result);
 		return VK_NULL_HANDLE;
 	}
 	return pipeline;

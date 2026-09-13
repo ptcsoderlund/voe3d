@@ -57,10 +57,10 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <math/float4x4.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // The compiled element shader, in the binary, by the same route draw.spv takes:
@@ -218,8 +218,8 @@ bool voe_render_element_startup(voe_render_device *device)
 
 	if (voe_render_vk.create_shader_module(device->device, &module_info,
 					      NULL, &module) != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateShaderModule failed on elements.spv\n");
+		VOE_BASE_ERROR("render",
+			       "vkCreateShaderModule failed on elements.spv");
 		return false;
 	}
 
@@ -247,9 +247,9 @@ bool voe_render_element_startup(voe_render_device *device)
 	voe_render_vk.destroy_shader_module(device->device, module, NULL);
 
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateGraphicsPipelines failed on the element pipeline (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateGraphicsPipelines failed on the element pipeline (VkResult %d)",
+			       (int)result);
 		device->pipeline_elements = VK_NULL_HANDLE;
 		return false;
 	}
@@ -285,9 +285,9 @@ bool voe_render_frame_submit_element(voe_render_device *device,
 	// — a capacity chosen too small is a thing a caller can report and act
 	// on, the same shape the geometry pools' refusal has.
 	if (device->element_count >= device->capacities.elements) {
-		fprintf(stderr,
-			"render: this frame already holds %u of %u elements; `elements` is too small for what this frame submits\n",
-			device->element_count, device->capacities.elements);
+		VOE_BASE_ERROR("render",
+			       "this frame already holds %u of %u elements; `elements` is too small for what this frame submits",
+			       device->element_count, device->capacities.elements);
 		return false;
 	}
 
@@ -329,8 +329,8 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 			"drawing elements with no frame open — voe_render_frame_begin said there was nothing to draw into, or _end has already run");
 
 	if (device->pipeline_elements == VK_NULL_HANDLE) {
-		fprintf(stderr,
-			"render: this device has no element pipeline, so there is nothing to draw elements with\n");
+		VOE_BASE_ERROR("render",
+			       "this device has no element pipeline, so there is nothing to draw elements with");
 		return false;
 	}
 
@@ -344,9 +344,9 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 	// rebuilt this frame, and that costs one draw rather than the program.
 	if (first > device->element_count ||
 	    count > device->element_count - first) {
-		fprintf(stderr,
-			"render: a draw asked for %u elements from %u, and this frame holds %u\n",
-			count, first, device->element_count);
+		VOE_BASE_ERROR("render",
+			       "a draw asked for %u elements from %u, and this frame holds %u",
+			       count, first, device->element_count);
 		return false;
 	}
 

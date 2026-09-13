@@ -25,8 +25,8 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -54,8 +54,8 @@ bool voe_render_shading_startup(voe_render_device *device)
 				     VK_WHOLE_SIZE, 0,
 				     &device->shadings_mapped) != VK_SUCCESS ||
 	    device->shadings_mapped == NULL) {
-		fprintf(stderr,
-			"render: vkMapMemory failed on the shading buffer\n");
+		VOE_BASE_ERROR("render",
+			       "vkMapMemory failed on the shading buffer");
 		device->shadings_mapped = NULL;
 		return false;
 	}
@@ -105,9 +105,9 @@ bool voe_render_shading_create(voe_render_device *device,
 		}
 	}
 	if (slot == NULL) {
-		fprintf(stderr,
-			"render: all %u shading records are taken; the device was made with room for that many\n",
-			device->capacities.shadings);
+		VOE_BASE_ERROR("render",
+			       "all %u shading records are taken; the device was made with room for that many",
+			       device->capacities.shadings);
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;

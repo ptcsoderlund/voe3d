@@ -15,7 +15,7 @@
 //     voe_base_error error;
 //     voe_render_device *device = voe_render_device_new(native, size, &error);
 //     if (device == NULL)
-//             fprintf(stderr, "%s\n", voe_base_error_string(error));
+//             VOE_BASE_ERROR("app", "%s", voe_base_error_string(error));
 //
 // error may be NULL when the caller has decided it does not need to know which
 // way. Where there is nothing to return, the enum is the return value, and

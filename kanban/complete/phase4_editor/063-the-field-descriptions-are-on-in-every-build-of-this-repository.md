@@ -1,7 +1,8 @@
 # 063 — The field descriptions are on in every build of this repository
 
-claimed-by: -
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
+status: review
 decision: *This repository is a development tree, and field descriptions are on throughout
   it* (ADR-0145) — nothing shipped is built from this root, so the cost the switch avoids is
   not charged here. Fixes bug report 004. The half above it is *the cook emits C source*
@@ -110,4 +111,39 @@ than it did, and that step is the only place the switched-off path is built.
 
 ## Notes
 
-Coder's notes: what ran, what it said, `DEVIATION:` / `BLOCKED:` markers, suggestions.
+Verified on **Linux** (Fedora 44, clang 22, RTX 4070). Windows not checked; nothing
+here is platform-specific.
+
+Changed: `cmake/voe.cmake` (`option()` at file scope just above
+`voe_target_settings`, the definition inside it, both comments), `CMakePresets.json`,
+`check.cmake` (new step after 6b), `editor/editor.md` (build block and paragraph; 99 lines).
+
+1. `build/debug` was deleted first. Configured earlier in this session under the old
+   preset, it still cached `CMAKE_C_FLAGS`, which would have made this check meaningless.
+   After a fresh `cmake --preset debug`: `CMAKE_C_FLAGS` empty in the cache, and
+   `compile_commands.json` for `scene/src/transform_system.c` has
+   `-DVOE_BASE_DESCRIPTIONS=1 -g`. `voe_editor` builds; running it prints
+   `descriptions  compiled in`.
+   **Not checked: selecting `Cube` and seeing the nine boxes and two labels.** This session
+   cannot click in a Wayland window. That line closes bug 004 and needs a person.
+2. Fresh `--preset release`: `-DVOE_BASE_DESCRIPTIONS=1 -O3`, and
+   `./build/release/editor/voe_editor` prints `descriptions  compiled in`. Same caveat
+   about the boxes.
+3. `cmake --preset editor` →
+   `CMake Error: No such preset in …/voe3d: "editor"`.
+4. `cmake -P check.cmake` → every step `ok`, including
+   `ok    descriptions off (scene, 4 passed)` between `harness reports a failure` and
+   `analyser`. Output lines carry no step numbers, so the new step follows that idiom.
+   `6c descriptions off` is its banner comment in `check.cmake`.
+5. Replaced `return NULL;` in the `#else` of `transform_description()` with
+   `return not_a_declared_name;` and ran `cmake -P check.cmake`. Every earlier step
+   passed, then `FAIL  descriptions off`, "scene did not build with descriptions off",
+   `ninja: build stopped`, `check failed at: descriptions off`. **Reverted** (grep finds
+   0 occurrences), re-ran: green.
+
+- 6c configures `scene` standalone into `build/check/descriptions-off`, builds only
+  `voe_scene` plus one `voe_test_scene_<file>` target per `scene/tests/*.c`, globbed so a
+  new scene test is covered, and runs `ctest -R ^scene/`. Finding no tests is a failure.
+- `editor/src/main.c:105` still says `cmake --preset editor`, kept as the card says. It
+  now names a preset that does not exist; a later card could reword it.
+- `bash tools/hot.sh`: all under ceilings. No `DEVIATION:` / `BLOCKED:` markers.

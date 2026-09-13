@@ -28,6 +28,8 @@
 // step with a header we already carry, which is the worse of the two.
 #include "backend.h"
 
+#include <base/report.h>
+
 #include <stddef.h>
 
 typedef unsigned long DWORD;
@@ -39,8 +41,6 @@ typedef const wchar_t *LPCWSTR;
 typedef struct _SECURITY_ATTRIBUTES SECURITY_ATTRIBUTES;
 
 #include "../vulkan/vulkan_win32.h"
-
-#include <stdio.h>
 
 const char *voe_render_backend_library(void)
 {
@@ -68,16 +68,16 @@ VkSurfaceKHR voe_render_backend_surface_new(VkInstance instance,
 		voe_render_vk.get_instance_proc_addr(instance,
 						     "vkCreateWin32SurfaceKHR");
 	if (create == NULL) {
-		fprintf(stderr,
-			"render: the instance has no vkCreateWin32SurfaceKHR\n");
+		VOE_BASE_ERROR("render",
+			       "the instance has no vkCreateWin32SurfaceKHR");
 		return VK_NULL_HANDLE;
 	}
 
 	result = create(instance, &info, NULL, &surface);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateWin32SurfaceKHR failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateWin32SurfaceKHR failed (VkResult %d)",
+			       (int)result);
 		return VK_NULL_HANDLE;
 	}
 

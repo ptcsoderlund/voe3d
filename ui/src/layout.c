@@ -91,8 +91,7 @@
 #include "context.h"
 
 #include <base/assert.h>
-
-#include <stdio.h>
+#include <base/report.h>
 
 // The two axes are the panel's, and `y` in this file always means "this axis is
 // Y". A row flows along X, a column along Y, so a container's along axis is Y
@@ -174,10 +173,10 @@ static uint32_t node_push(voe_ui_context *ui)
 
 	if (ui->count == ui->capacities.nodes) {
 		if (!ui->overrun)
-			fprintf(stderr,
-				"voe_ui: node %u refused, this context was "
-				"created with room for %u\n",
-				ui->count + 1, ui->capacities.nodes);
+			VOE_BASE_ERROR("ui",
+				       "node %u refused, this context was "
+				       "created with room for %u",
+				       ui->count + 1, ui->capacities.nodes);
 		ui->overrun = true;
 		return VOE_UI_NODE_NONE;
 	}

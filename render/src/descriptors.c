@@ -45,10 +45,9 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <stddef.h>
-
-#include <stdio.h>
 
 // Every record a shader reads by index has to have the same layout on both
 // sides of the bus, and every member of every one of them starts on a
@@ -182,9 +181,9 @@ static bool build_layout(voe_render_device *device)
 	result = voe_render_vk.create_descriptor_set_layout(
 		device->device, &info, NULL, &device->descriptor_layout);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateDescriptorSetLayout failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateDescriptorSetLayout failed (VkResult %d)",
+			       (int)result);
 		device->descriptor_layout = VK_NULL_HANDLE;
 		return false;
 	}
@@ -193,9 +192,9 @@ static bool build_layout(voe_render_device *device)
 						      NULL,
 						      &device->descriptor_pool);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateDescriptorPool failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateDescriptorPool failed (VkResult %d)",
+			       (int)result);
 		device->descriptor_pool = VK_NULL_HANDLE;
 		return false;
 	}
@@ -220,9 +219,9 @@ static bool build_mapped(voe_render_device *device,
 	result = voe_render_vk.map_memory(device->device, buffer->memory, 0,
 					  VK_WHOLE_SIZE, 0, mapped);
 	if (result != VK_SUCCESS || *mapped == NULL) {
-		fprintf(stderr,
-			"render: vkMapMemory failed on a per-frame buffer (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkMapMemory failed on a per-frame buffer (VkResult %d)",
+			       (int)result);
 		*mapped = NULL;
 		return false;
 	}
@@ -247,9 +246,9 @@ static bool build_slots(voe_render_device *device)
 	result = voe_render_vk.allocate_descriptor_sets(device->device,
 						       &allocate, sets);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkAllocateDescriptorSets failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkAllocateDescriptorSets failed (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 

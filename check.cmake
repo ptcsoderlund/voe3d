@@ -620,6 +620,58 @@ foreach(expected
 endforeach()
 step_ok("${step}")
 
+# ---------------------------------------------------- 6c descriptions off
+
+# cmake/voe.cmake turns the field descriptions on for every target this root
+# builds, because nothing built here ships (ADR-0145). So every step above builds
+# them in, and this is the only thing in the repository that compiles the
+# `#else return NULL` branch of scene/src/transform_system.c and
+# identity_system.c, and the only thing that runs the `!BUILD_DESCRIBES` half of
+# scene/tests/transform.c and identity.c. Without it that branch rots unseen, and
+# the first to find out is a game developer whose own tree leaves them off.
+#
+# scene alone, configured standalone, and only its library and its own tests
+# built: those are the files the switch changes, and building the whole tree a
+# second time would prove nothing more about them.
+set(step "descriptions off")
+
+run_capture(code text "${CMAKE_COMMAND}"
+    -S "${root}/scene" -B "${checkdir}/descriptions-off" ${common}
+    -DCMAKE_BUILD_TYPE=Debug -DVOE_BASE_DESCRIPTIONS=OFF)
+if(NOT code MATCHES "^[0-9]+$" OR NOT code EQUAL 0)
+    step_fail("${step}" "scene did not configure with descriptions off:\n${text}")
+endif()
+
+# The test targets are named the way cmake/voe.cmake names them, from the files
+# that are there, so a scene test added later is built here with no edit.
+file(GLOB off_tests "${root}/scene/tests/*.c")
+set(off_targets voe_scene)
+foreach(test_source IN LISTS off_tests)
+    cmake_path(GET test_source STEM test_name)
+    list(APPEND off_targets voe_test_scene_${test_name})
+endforeach()
+
+run_capture(code text "${CMAKE_COMMAND}"
+    --build "${checkdir}/descriptions-off" --target ${off_targets})
+if(NOT code MATCHES "^[0-9]+$" OR NOT code EQUAL 0)
+    step_fail("${step}" "scene did not build with descriptions off:\n${text}")
+endif()
+
+run_capture(code text "${CMAKE_CTEST_COMMAND}"
+    --test-dir "${checkdir}/descriptions-off" --output-on-failure
+    -R "^scene/")
+if(NOT code MATCHES "^[0-9]+$")
+    step_fail("${step}" "ctest could not be run: ${code}")
+endif()
+if(text MATCHES "No tests were found")
+    step_fail("${step}" "ctest found no scene tests to run with descriptions off:\n${text}")
+endif()
+if(NOT code EQUAL 0)
+    step_fail("${step}" "${text}")
+endif()
+string(REGEX MATCH "out of ([0-9]+)" matched "${text}")
+step_ok("${step} (scene, ${CMAKE_MATCH_1} passed)")
+
 # ------------------------------------------------------------- 7 analyser
 
 # The step CLAUDE.md rule 8 has always promised and ADR-0042 decided: clang's

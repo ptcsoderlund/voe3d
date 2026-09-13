@@ -7,18 +7,7 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_FLAGS": "-DVOE_BASE_DESCRIPTIONS=1"
-      }
-    },
-    {
-      "name": "editor",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CMAKE_C_COMPILER": "clang",
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_FLAGS": "-DVOE_BASE_DESCRIPTIONS=1"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
@@ -33,7 +22,6 @@
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
-    { "name": "editor", "configurePreset": "editor" },
     { "name": "release", "configurePreset": "release" }
   ]
 }

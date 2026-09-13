@@ -36,11 +36,11 @@
 #include <3d/mesh_component.h>
 #include <assets/model.h>
 #include <base/assert.h>
+#include <base/report.h>
 #include <math/quat.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
-#include <stdio.h>
 
 // Everything one import needs to carry between its steps.
 struct import {
@@ -76,9 +76,9 @@ struct frame {
 
 static bool no_room(voe_base_error *error, const char *what)
 {
-	fprintf(stderr,
-		"3d: no room for %s while importing a model — the world or the device was made smaller than this file needs\n",
-		what);
+	VOE_BASE_ERROR("3d",
+		       "no room for %s while importing a model — the world or the device was made smaller than this file needs",
+		       what);
 	if (error != NULL)
 		*error = VOE_BASE_ERROR_REFUSED;
 	return false;
@@ -546,9 +546,9 @@ static bool walk(struct import *import, voe_base_error *error)
 		const voe_assets_node *node = &model->nodes[frame.node];
 
 		if (frame.depth > VOE_3D_IMPORT_MAX_DEPTH) {
-			fprintf(stderr,
-				"3d: a model whose nodes nest more than %u deep\n",
-				VOE_3D_IMPORT_MAX_DEPTH);
+			VOE_BASE_ERROR("3d",
+				       "a model whose nodes nest more than %u deep",
+				       VOE_3D_IMPORT_MAX_DEPTH);
 			if (error != NULL)
 				*error = VOE_BASE_ERROR_UNSUPPORTED;
 			return false;

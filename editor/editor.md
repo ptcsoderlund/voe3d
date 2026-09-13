@@ -29,15 +29,13 @@ to touch.
 
 ## Building and running it
 
-    cmake --preset editor
-    cmake --build --preset editor --target voe_editor
-    ./build/editor/editor/voe_editor
+    cmake --preset debug
+    cmake --build --preset debug --target voe_editor
+    ./build/debug/editor/voe_editor
 
-`debug` does the same thing and is the one to review in. Both presets define
-`VOE_BASE_DESCRIPTIONS=1`, which is what puts `base`'s field descriptions in the
-binary — the inspector expands a component by walking them, so with them off it
-has nothing to show but the component names. `release` keeps them off, and the
-program says at startup which kind of build it is.
+The field descriptions the inspector walks are compiled into everything built
+here, in either preset: nothing built from this root ships, so they cost nothing
+(ADR-0145).
 
 ## The files
 

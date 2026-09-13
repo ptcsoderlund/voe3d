@@ -1,8 +1,8 @@
 # 061 — `base` reports a recoverable problem through one call
 
-claimed-by: -
+claimed-by: claude-opus-5 (kanban-coder)
 blocked-by: -
-status: todo
+status: review
 decision: *A recoverable problem is reported through one call in `base`, and where the lines go is a later step* (ADR-0140) points 1 to 6, 8 and 9. Card 062 moves every existing site onto it; this card adds the call and moves nothing.
 
 ## Goal
@@ -95,3 +95,37 @@ One call every folder may use, with the compiler still checking its arguments, a
 that behaves exactly as it did this morning because nothing calls it yet.
 
 ## Notes
+
+Verified on **Linux** (Fedora 44, clang 22). Windows not checked — nothing here is
+platform-specific beyond `fwrite`/`fflush` on stderr.
+
+- **The composition is its own function**, as the card allowed:
+  `voe_base_report_compose` in the internal header `base/src/report_line.h`, which
+  `tests/report.c` includes as `"../src/report_line.h"` (the idiom `render/tests` and
+  `assets/tests` already use). `voe_base_report_at` composes and writes.
+- Buffer: a line is at most **1024 bytes including its newline**; a longer one is cut
+  there and its last three bytes before the newline become `...`. The constant lives in
+  `report_line.h`; `report.h` states the number in prose. A prefix that alone fills the
+  line still gets the mark — tested.
+- `[[gnu::format(printf, 5, 6)]]` accepted by clang in `-std=c23`; no fallback needed.
+- The write is `fwrite` + `fflush`, so `grep -rn 'fprintf(stderr' base/src` →
+  `base/src/assert.c:13` only.
+- `cmake -P check.cmake` → every step `ok`, tests 43 passed (base 4).
+  `ctest -R base` → 4/4 passed.
+- Scratch program calling both macros with `"something (%d)", 7`, stderr exactly
+  (stdout empty):
+
+      warning: demo: something (7)
+      error: demo: something (7)
+
+- Mismatched argument in a scratch file (never in the tree):
+
+      bad.c:4:43: warning: format specifies type 'int' but the argument has type 'char *' [-Wformat]
+          VOE_BASE_ERROR("demo", "something (%d)", "seven");
+
+- `bash tools/hot.sh` from the root: all hot files under their ceilings.
+- No `DEVIATION:` or `BLOCKED:` markers.
+
+**Suggestion, not done:** `base/include/base/assert.h` still says recoverable
+failures' reporting "is not decided yet". That sentence is now stale and should point
+at `report.h`; the card did not name the file, so it is left for a card.

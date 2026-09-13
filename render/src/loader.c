@@ -22,9 +22,9 @@
 #include "backend.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 #include <platform/library.h>
 
-#include <stdio.h>
 #include <string.h>
 
 voe_render_vk_table voe_render_vk;
@@ -64,17 +64,17 @@ bool voe_render_loader_open(void)
 
 	loader_library = voe_platform_library_new(voe_render_backend_library());
 	if (loader_library == NULL) {
-		fprintf(stderr, "render: %s is not installed on this machine\n",
-			voe_render_backend_library());
+		VOE_BASE_ERROR("render", "%s is not installed on this machine",
+			       voe_render_backend_library());
 		return false;
 	}
 
 	entry = voe_platform_library_symbol(loader_library,
 					    "vkGetInstanceProcAddr");
 	if (entry == NULL) {
-		fprintf(stderr,
-			"render: %s exports no vkGetInstanceProcAddr\n",
-			voe_render_backend_library());
+		VOE_BASE_ERROR("render",
+			       "%s exports no vkGetInstanceProcAddr",
+			       voe_render_backend_library());
 		voe_render_loader_close();
 		return false;
 	}
@@ -101,9 +101,9 @@ bool voe_render_loader_open(void)
 	    voe_render_vk.enumerate_instance_layers == NULL ||
 	    voe_render_vk.enumerate_instance_extensions == NULL ||
 	    voe_render_vk.create_instance == NULL) {
-		fprintf(stderr,
-			"render: %s is older than Vulkan 1.1 and cannot be used\n",
-			voe_render_backend_library());
+		VOE_BASE_ERROR("render",
+			       "%s is older than Vulkan 1.1 and cannot be used",
+			       voe_render_backend_library());
 		voe_render_loader_close();
 		return false;
 	}

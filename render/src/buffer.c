@@ -29,8 +29,8 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <string.h>
 
 bool voe_render_buffer_build(voe_render_device *device,
@@ -60,9 +60,9 @@ bool voe_render_buffer_build(voe_render_device *device,
 	result = voe_render_vk.create_buffer(device->device, &info, NULL,
 					     &buffer->buffer);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateBuffer failed for %llu bytes (VkResult %d)\n",
-			(unsigned long long)size, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateBuffer failed for %llu bytes (VkResult %d)",
+			       (unsigned long long)size, (int)result);
 		buffer->buffer = VK_NULL_HANDLE;
 		return false;
 	}
@@ -74,9 +74,9 @@ bool voe_render_buffer_build(voe_render_device *device,
 	type = voe_render_memory_type(device, requirements.memoryTypeBits,
 				      properties);
 	if (type == UINT32_MAX) {
-		fprintf(stderr,
-			"render: this graphics card offers no memory type a buffer with properties 0x%x can live in\n",
-			(unsigned)properties);
+		VOE_BASE_ERROR("render",
+			       "this graphics card offers no memory type a buffer with properties 0x%x can live in",
+			       (unsigned)properties);
 		return false;
 	}
 
@@ -85,9 +85,9 @@ bool voe_render_buffer_build(voe_render_device *device,
 	result = voe_render_vk.allocate_memory(device->device, &allocate, NULL,
 					       &buffer->memory);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkAllocateMemory failed for %llu bytes of buffer (VkResult %d)\n",
-			(unsigned long long)requirements.size, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkAllocateMemory failed for %llu bytes of buffer (VkResult %d)",
+			       (unsigned long long)requirements.size, (int)result);
 		buffer->memory = VK_NULL_HANDLE;
 		return false;
 	}
@@ -96,9 +96,9 @@ bool voe_render_buffer_build(voe_render_device *device,
 						  buffer->buffer,
 						  buffer->memory, 0);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkBindBufferMemory failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkBindBufferMemory failed (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 
@@ -144,9 +144,9 @@ static bool fill_staging(voe_render_device *device,
 	result = voe_render_vk.map_memory(device->device, staging->memory, 0,
 					  VK_WHOLE_SIZE, 0, &mapped);
 	if (result != VK_SUCCESS || mapped == NULL) {
-		fprintf(stderr,
-			"render: vkMapMemory failed on a staging buffer (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkMapMemory failed on a staging buffer (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 
@@ -192,9 +192,9 @@ static bool copy_and_wait(voe_render_device *device,
 	result = voe_render_vk.allocate_command_buffers(device->device,
 							&allocate, &commands);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkAllocateCommandBuffers failed for an upload (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkAllocateCommandBuffers failed for an upload (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 
@@ -207,9 +207,9 @@ static bool copy_and_wait(voe_render_device *device,
 	result = voe_render_vk.queue_submit2(device->queue, 1, &submit,
 					    VK_NULL_HANDLE);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkQueueSubmit2 failed for an upload (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkQueueSubmit2 failed for an upload (VkResult %d)",
+			       (int)result);
 		voe_render_vk.free_command_buffers(device->device, device->pool,
 						   1, &commands);
 		return false;

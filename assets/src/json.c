@@ -28,8 +28,8 @@
 #include "json.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -74,7 +74,7 @@ struct parser {
 static void fail(struct parser *parser, voe_base_error error,
 		 const char *message)
 {
-	fprintf(stderr, "assets: JSON at byte %zu: %s\n", parser->pos, message);
+	VOE_BASE_ERROR("assets", "JSON at byte %zu: %s", parser->pos, message);
 	parser->error = error;
 }
 

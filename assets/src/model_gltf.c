@@ -40,8 +40,8 @@
 #include "model_gltf.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // glTF's component types, which are OpenGL's enumerants.
@@ -83,7 +83,7 @@ struct gltf {
 static bool refuse(struct gltf *gltf, voe_base_error error,
 		   const char *message)
 {
-	fprintf(stderr, "assets: glTF: %s\n", message);
+	VOE_BASE_ERROR("assets", "glTF: %s", message);
 	gltf->error = error;
 	return false;
 }
@@ -542,10 +542,10 @@ static bool read_alpha_mode(struct gltf *gltf, uint32_t material,
 	// The name is in the message because glTF's modes are words and the
 	// whole of the answer is which word this file used.
 	text = &gltf->json->tokens[token];
-	fprintf(stderr,
-		"assets: glTF: alphaMode %.*s; this reader knows OPAQUE, MASK and BLEND only\n",
-		(int)(text->end - text->start),
-		gltf->json->text + text->start);
+	VOE_BASE_ERROR("assets",
+		       "glTF: alphaMode %.*s; this reader knows OPAQUE, MASK and BLEND only",
+		       (int)(text->end - text->start),
+		       gltf->json->text + text->start);
 	gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
 	return false;
 }
@@ -851,9 +851,9 @@ static bool read_primitive(struct gltf *gltf, uint32_t primitive,
 	if (mode != MODE_TRIANGLES) {
 		// The number is in the message because glTF's modes are
 		// numbers and a person reading this has to look it up.
-		fprintf(stderr,
-			"assets: glTF: primitive mode %u; this engine draws triangle lists (mode %u) only\n",
-			mode, MODE_TRIANGLES);
+		VOE_BASE_ERROR("assets",
+			       "glTF: primitive mode %u; this engine draws triangle lists (mode %u) only",
+			       mode, MODE_TRIANGLES);
 		gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
 		return false;
 	}
@@ -1287,10 +1287,10 @@ static bool check_extensions(struct gltf *gltf)
 					 "a required extension that is not a string");
 
 		token = &gltf->json->tokens[name];
-		fprintf(stderr,
-			"assets: glTF: this file requires the extension %.*s, which this reader does not implement\n",
-			(int)(token->end - token->start),
-			gltf->json->text + token->start);
+		VOE_BASE_ERROR("assets",
+			       "glTF: this file requires the extension %.*s, which this reader does not implement",
+			       (int)(token->end - token->start),
+			       gltf->json->text + token->start);
 	}
 
 	gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
@@ -1319,7 +1319,7 @@ bool voe_assets_model_from_gltf(const voe_assets_json *json,
 	if (json->count == 0 ||
 	    voe_assets_json_kind_of(json, 0) != VOE_ASSETS_JSON_OBJECT) {
 		gltf.error = VOE_BASE_ERROR_MALFORMED;
-		fprintf(stderr, "assets: glTF: the description is not an object\n");
+		VOE_BASE_ERROR("assets", "glTF: the description is not an object");
 		if (error != NULL)
 			*error = gltf.error;
 		return false;

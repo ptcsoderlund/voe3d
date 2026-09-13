@@ -29,6 +29,7 @@
 // (base/describe.h), so the #if below is the condition that header tests. The
 // table it returns is this file's own static copy and lives as long as the program.
 #include <base/assert.h>
+#include <base/report.h>
 #include <ecs/intent.h>
 #include <scene/identity_component.h>
 #include <scene/transform_system.h>
@@ -274,11 +275,14 @@ void voe_scene_transform_system_run(voe_ecs_world *world)
 
 				label_of(world, intents[i].entity, label,
 					 sizeof label);
-				fprintf(stderr,
-					"%s: voe_scene_transform: entity %s: %s\n",
-					what == SETTLED_KEPT ? "error" :
-							       "warning",
-					label, reason);
+				if (what == SETTLED_KEPT)
+					VOE_BASE_ERROR("scene",
+						       "voe_scene_transform: entity %s: %s",
+						       label, reason);
+				else
+					VOE_BASE_WARNING("scene",
+							 "voe_scene_transform: entity %s: %s",
+							 label, reason);
 			}
 			settled_count++;
 		}
@@ -297,10 +301,16 @@ void voe_scene_transform_system_run(voe_ecs_world *world)
 		run_count += settled_count;
 		run_kept = run_kept || kept;
 	} else if (in_run) {
-		fprintf(stderr,
-			"%s: voe_scene_transform: %" PRIu32
-			" intents settled in that run\n",
-			run_kept ? "error" : "warning", run_count);
+		if (run_kept)
+			VOE_BASE_ERROR("scene",
+				       "voe_scene_transform: %" PRIu32
+				       " intents settled in that run",
+				       run_count);
+		else
+			VOE_BASE_WARNING("scene",
+					 "voe_scene_transform: %" PRIu32
+					 " intents settled in that run",
+					 run_count);
 		in_run = false;
 		run_count = 0;
 		run_kept = false;

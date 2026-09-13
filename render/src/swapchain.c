@@ -26,8 +26,7 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
-
-#include <stdio.h>
+#include <base/report.h>
 
 // Which Vulkan mode a voe_render_present is, and the fallback that makes the
 // public enum honest. FIFO is required of every driver, so it is always
@@ -120,7 +119,7 @@ static bool collect_images(voe_render_device *device)
 
 	if (voe_render_vk.get_swapchain_images(device->device, device->swapchain,
 					       &count, NULL) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkGetSwapchainImagesKHR failed\n");
+		VOE_BASE_ERROR("render", "vkGetSwapchainImagesKHR failed");
 		return false;
 	}
 
@@ -128,15 +127,15 @@ static bool collect_images(voe_render_device *device)
 	// an acquire can still hand back, and that is a crash rather than a
 	// missing frame.
 	if (count > VOE_RENDER_MAX_IMAGES) {
-		fprintf(stderr,
-			"render: the driver made a swapchain of %u images and this engine holds %d\n",
-			count, VOE_RENDER_MAX_IMAGES);
+		VOE_BASE_ERROR("render",
+			       "the driver made a swapchain of %u images and this engine holds %d",
+			       count, VOE_RENDER_MAX_IMAGES);
 		return false;
 	}
 
 	if (voe_render_vk.get_swapchain_images(device->device, device->swapchain,
 					       &count, images) != VK_SUCCESS) {
-		fprintf(stderr, "render: vkGetSwapchainImagesKHR failed\n");
+		VOE_BASE_ERROR("render", "vkGetSwapchainImagesKHR failed");
 		return false;
 	}
 
@@ -157,14 +156,14 @@ static bool collect_images(voe_render_device *device)
 		if (voe_render_vk.create_image_view(device->device, &view, NULL,
 						    &device->images[i].view) !=
 		    VK_SUCCESS) {
-			fprintf(stderr, "render: vkCreateImageView failed\n");
+			VOE_BASE_ERROR("render", "vkCreateImageView failed");
 			return false;
 		}
 		if (voe_render_vk.create_semaphore(device->device, &semaphore,
 						   NULL,
 						   &device->images[i].drawn) !=
 		    VK_SUCCESS) {
-			fprintf(stderr, "render: vkCreateSemaphore failed\n");
+			VOE_BASE_ERROR("render", "vkCreateSemaphore failed");
 			return false;
 		}
 
@@ -254,8 +253,8 @@ bool voe_render_swapchain_build(voe_render_device *device,
 	if (voe_render_vk.get_surface_capabilities(device->physical,
 						   device->surface,
 						   &capabilities) != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed\n");
+		VOE_BASE_ERROR("render",
+			       "vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed");
 		return false;
 	}
 
@@ -266,8 +265,8 @@ bool voe_render_swapchain_build(voe_render_device *device,
 	// which is a card and not a fallback to hide here.
 	if ((capabilities.supportedUsageFlags &
 	     VK_IMAGE_USAGE_TRANSFER_DST_BIT) == 0) {
-		fprintf(stderr,
-			"render: this surface will not take a swapchain image that can be copied into, and that is how a frame reaches the screen\n");
+		VOE_BASE_ERROR("render",
+			       "this surface will not take a swapchain image that can be copied into, and that is how a frame reaches the screen");
 		return false;
 	}
 
@@ -287,9 +286,9 @@ bool voe_render_swapchain_build(voe_render_device *device,
 	result = voe_render_vk.create_swapchain(device->device, &info, NULL,
 						&device->swapchain);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateSwapchainKHR failed at %ux%u (VkResult %d)\n",
-			extent.width, extent.height, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateSwapchainKHR failed at %ux%u (VkResult %d)",
+			       extent.width, extent.height, (int)result);
 		device->swapchain = VK_NULL_HANDLE;
 		return false;
 	}

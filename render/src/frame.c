@@ -148,8 +148,8 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
-#include <stdio.h>
 #include <string.h>
 
 // The colour behind everything drawn. It is deliberately none of the colours a
@@ -582,8 +582,8 @@ static bool submit(voe_render_device *device,
 	result = voe_render_vk.queue_submit2(device->queue, 1, &info,
 					     frame->submitted);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr, "render: vkQueueSubmit2 failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render", "vkQueueSubmit2 failed (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 	return true;
@@ -683,9 +683,9 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 			return true;
 		}
 		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-			fprintf(stderr,
-				"render: vkAcquireNextImageKHR failed (VkResult %d)\n",
-				(int)result);
+			VOE_BASE_ERROR("render",
+				       "vkAcquireNextImageKHR failed (VkResult %d)",
+				       (int)result);
 			return false;
 		}
 		// Suboptimal is still a usable image, so this frame is drawn and
@@ -755,16 +755,16 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 
 	slot = voe_render_geometry_at(device, geometry);
 	if (slot == NULL) {
-		fprintf(stderr,
-			"render: a draw named mesh %u generation %u, which is not a mesh this device handed out\n",
-			geometry.index, geometry.generation);
+		VOE_BASE_ERROR("render",
+			       "a draw named mesh %u generation %u, which is not a mesh this device handed out",
+			       geometry.index, geometry.generation);
 		return false;
 	}
 
 	if (device->object_count >= device->capacities.objects) {
-		fprintf(stderr,
-			"render: this frame already holds %u objects, which is what the device was made for\n",
-			device->capacities.objects);
+		VOE_BASE_ERROR("render",
+			       "this frame already holds %u objects, which is what the device was made for",
+			       device->capacities.objects);
 		return false;
 	}
 
@@ -956,8 +956,8 @@ bool voe_render_frame_end(voe_render_device *device)
 		return true;
 	}
 	if (result != VK_SUCCESS) {
-		fprintf(stderr, "render: vkQueuePresentKHR failed (VkResult %d)\n",
-			(int)result);
+		VOE_BASE_ERROR("render", "vkQueuePresentKHR failed (VkResult %d)",
+			       (int)result);
 		return false;
 	}
 

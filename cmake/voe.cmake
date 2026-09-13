@@ -143,15 +143,29 @@ function(voe_allowed_deps folder out_var)
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
 
+# Read by voe_target_settings() below. It exists for check.cmake step 6c, which
+# configures a scratch tree with it OFF, and it is not a knob for daily use: there
+# is no supported way to configure this root without descriptions and still run
+# the editor.
+option(VOE_BASE_DESCRIPTIONS "Compile the field descriptions in" ON)
+
 # The one flag set and the one language level, in one place, applied identically
 # to a folder's library and to its test executables. A test compiled with looser
 # flags than the code it tests is a test that lies.
+#
+# The field descriptions (base/describe.h) are part of that set, on in every
+# build. Every program built from this root is a tool, a guarantee, a library or
+# a test, and none of them ships, so the price describe.h names for them is not
+# charged here; a game's own tree is where they stay off (ADR-0145). A library and
+# its tests see the same value for the same reason as the flags above.
 function(voe_target_settings target)
     set_target_properties(${target} PROPERTIES
         C_STANDARD 23
         C_STANDARD_REQUIRED ON
         C_EXTENSIONS OFF)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_definitions(${target} PRIVATE
+        VOE_BASE_DESCRIPTIONS=$<BOOL:${VOE_BASE_DESCRIPTIONS}>)
 
     # libm is the other half of the C standard library on glibc, split off for
     # historical reasons. On Windows it is in the CRT and there is nothing to

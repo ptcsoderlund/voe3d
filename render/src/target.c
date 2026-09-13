@@ -41,8 +41,7 @@
 #include "device_internal.h"
 
 #include <base/assert.h>
-
-#include <stdio.h>
+#include <base/report.h>
 
 uint32_t voe_render_memory_type(const voe_render_device *device, uint32_t mask,
 				VkMemoryPropertyFlags properties)
@@ -112,9 +111,9 @@ static bool build_image(voe_render_device *device,
 	result = voe_render_vk.create_image(device->device, &info, NULL,
 					    &out->image);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateImage failed for a %ux%u %s target (VkResult %d)\n",
-			extent.width, extent.height, what, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateImage failed for a %ux%u %s target (VkResult %d)",
+			       extent.width, extent.height, what, (int)result);
 		out->image = VK_NULL_HANDLE;
 		return false;
 	}
@@ -129,9 +128,9 @@ static bool build_image(voe_render_device *device,
 	type = voe_render_memory_type(device, requirements.memoryTypeBits,
 				      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	if (type == UINT32_MAX) {
-		fprintf(stderr,
-			"render: this graphics card offers no device-local memory a %s target can live in\n",
-			what);
+		VOE_BASE_ERROR("render",
+			       "this graphics card offers no device-local memory a %s target can live in",
+			       what);
 		return false;
 	}
 
@@ -140,10 +139,10 @@ static bool build_image(voe_render_device *device,
 	result = voe_render_vk.allocate_memory(device->device, &allocate, NULL,
 					       &out->memory);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkAllocateMemory failed for %llu bytes of %s target (VkResult %d)\n",
-			(unsigned long long)requirements.size, what,
-			(int)result);
+		VOE_BASE_ERROR("render",
+			       "vkAllocateMemory failed for %llu bytes of %s target (VkResult %d)",
+			       (unsigned long long)requirements.size, what,
+			       (int)result);
 		out->memory = VK_NULL_HANDLE;
 		return false;
 	}
@@ -151,9 +150,9 @@ static bool build_image(voe_render_device *device,
 	result = voe_render_vk.bind_image_memory(device->device, out->image,
 						 out->memory, 0);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkBindImageMemory failed on a %s target (VkResult %d)\n",
-			what, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkBindImageMemory failed on a %s target (VkResult %d)",
+			       what, (int)result);
 		return false;
 	}
 
@@ -161,9 +160,9 @@ static bool build_image(voe_render_device *device,
 	result = voe_render_vk.create_image_view(device->device, &view, NULL,
 						 &out->view);
 	if (result != VK_SUCCESS) {
-		fprintf(stderr,
-			"render: vkCreateImageView failed on a %s target (VkResult %d)\n",
-			what, (int)result);
+		VOE_BASE_ERROR("render",
+			       "vkCreateImageView failed on a %s target (VkResult %d)",
+			       what, (int)result);
 		out->view = VK_NULL_HANDLE;
 		return false;
 	}

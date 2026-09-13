@@ -517,6 +517,7 @@
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/error.h>
+#include <base/report.h>
 #include <base/samples.h>
 #include <ecs/world.h>
 #include <math/quat.h>
@@ -2158,7 +2159,7 @@ int main(void)
 
 	if (!voe_ecs_entity_create(world, &eye) ||
 	    !voe_scene_camera_add(world, eye, camera)) {
-		fprintf(stderr, "could not make a camera\n");
+		VOE_BASE_ERROR("dev", "could not make a camera");
 		goto stop;
 	}
 
@@ -2167,25 +2168,25 @@ int main(void)
 	// asserts rather than drawing something black.
 	if (!voe_ecs_entity_create(world, &sun) ||
 	    !voe_scene_light_add(world, sun, sunlight(sun, 0.0f).light)) {
-		fprintf(stderr, "could not make a sun\n");
+		VOE_BASE_ERROR("dev", "could not make a sun");
 		goto stop;
 	}
 
 	if (!add_the_cubes(world, gpu, arena, &turning, &error)) {
-		fprintf(stderr, "could not build the two cubes: %s\n",
-			voe_base_error_string(error));
+		VOE_BASE_ERROR("dev", "could not build the two cubes: %s",
+			       voe_base_error_string(error));
 		goto stop;
 	}
 
 	if (!add_the_quads(world, gpu, &quad, &error)) {
-		fprintf(stderr, "could not build the two see-through quads: %s\n",
-			voe_base_error_string(error));
+		VOE_BASE_ERROR("dev", "could not build the two see-through quads: %s",
+			       voe_base_error_string(error));
 		goto stop;
 	}
 
 	if (!voe_dev_sprites_add(world, gpu, arena, &sprites, &error)) {
-		fprintf(stderr, "could not build the sprites: %s\n",
-			voe_base_error_string(error));
+		VOE_BASE_ERROR("dev", "could not build the sprites: %s",
+			       voe_base_error_string(error));
 		goto stop;
 	}
 
@@ -2194,8 +2195,8 @@ int main(void)
 	// the reader rather than a file somebody could not open.
 	if (!add_the_text(world, gpu, arena, quad, &font, &hud, &panel,
 			  &readout, &hud_size, &error)) {
-		fprintf(stderr, "could not build the text: %s\n",
-			voe_base_error_string(error));
+		VOE_BASE_ERROR("dev", "could not build the text: %s",
+			       voe_base_error_string(error));
 		goto stop;
 	}
 
@@ -2217,7 +2218,7 @@ int main(void)
 		       (voe_math_float2){ VOE_DEV_BADGE_WIDE,
 					  VOE_DEV_BADGE_HIGH },
 		       VOE_3D_LAYER_OVERLAY, &badge_panel)) {
-		fprintf(stderr, "could not build the two element panels\n");
+		VOE_BASE_ERROR("dev", "could not build the two element panels");
 		goto stop;
 	}
 
@@ -2227,8 +2228,8 @@ int main(void)
 	// message than by seeing nothing.
 	if (!add_a_model(world, gpu, arena, "human", HUMAN_GLB,
 			 sizeof(HUMAN_GLB), HUMAN_X, &error))
-		fprintf(stderr, "could not read the human model: %s\n",
-			voe_base_error_string(error));
+		VOE_BASE_ERROR("dev", "could not read the human model: %s",
+			       voe_base_error_string(error));
 
 	size = voe_platform_window_size(window);
 	decorated = voe_platform_window_decorated(window);
@@ -2587,8 +2588,8 @@ int main(void)
 			// surfaces need, which is this file's mistake in the
 			// same way the readout's transient room would be.
 			if (!elements_ok) {
-				fprintf(stderr,
-					"could not submit or draw an element surface — see the refusal above\n");
+				VOE_BASE_ERROR("dev",
+					       "could not submit or draw an element surface — see the refusal above");
 				break;
 			}
 			// A readout that could not be built means the transient
@@ -2596,9 +2597,9 @@ int main(void)
 			// mistake and worth stopping over rather than a refusal
 			// line on stderr every frame for as long as it runs.
 			if (!readout_ok) {
-				fprintf(stderr,
-					"could not build the readout: %s\n",
-					voe_base_error_string(error));
+				VOE_BASE_ERROR("dev",
+					       "could not build the readout: %s",
+					       voe_base_error_string(error));
 				break;
 			}
 			if (!readout_reported) {

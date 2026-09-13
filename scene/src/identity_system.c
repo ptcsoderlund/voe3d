@@ -24,6 +24,7 @@
 // (base/describe.h), so the #if below is the condition that header tests. The
 // table it returns is this file's own static copy and lives as long as the program.
 #include <base/assert.h>
+#include <base/report.h>
 #include <ecs/intent.h>
 #include <scene/identity_system.h>
 
@@ -179,9 +180,9 @@ void voe_scene_identity_system_run(voe_ecs_world *world)
 				label_of(intents[i].entity,
 					 &intents[i].identity, label,
 					 sizeof label);
-				fprintf(stderr,
-					"warning: voe_scene_identity: entity %s: %s\n",
-					label, reason);
+				VOE_BASE_WARNING("scene",
+						 "voe_scene_identity: entity %s: %s",
+						 label, reason);
 			}
 			corrected++;
 		}
@@ -194,10 +195,10 @@ void voe_scene_identity_system_run(voe_ecs_world *world)
 		in_run = true;
 		run_count += corrected;
 	} else if (in_run) {
-		fprintf(stderr,
-			"warning: voe_scene_identity: %" PRIu32
-			" intents settled in that run\n",
-			run_count);
+		VOE_BASE_WARNING("scene",
+				 "voe_scene_identity: %" PRIu32
+				 " intents settled in that run",
+				 run_count);
 		in_run = false;
 		run_count = 0;
 	}
