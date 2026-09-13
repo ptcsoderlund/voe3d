@@ -58,7 +58,8 @@ void voe_editor_interface_surface(voe_platform_size target,
 bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
 			       const voe_editor_dock_root *roots,
-			       uint32_t count, voe_editor_scene *scene)
+			       uint32_t count, voe_editor_scene *scene,
+			       voe_editor_views *views)
 {
 	struct voe_base_arena_mark mark;
 	bool ok = true;
@@ -68,6 +69,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(arena != NULL, "drawing the interface without an arena");
 	VOE_BASE_ASSERT(roots != NULL, "drawing an interface with no roots");
 	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
+	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
 
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
@@ -84,7 +86,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// and hands back its controls through nodes out of this frame,
 		// so it is opened here beside the frame and not inside the walk.
 		voe_editor_inspector_frame_begin(&scene->inspector, arena);
-		voe_editor_dock_walk(root, ui, scene);
+		voe_editor_dock_walk(root, ui, scene, views);
 
 		if (!voe_ui_frame_end(ui)) {
 			voe_base_arena_rewind(arena, mark);
@@ -103,6 +105,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_edits_read(&scene->inspector, ui,
 						scene->world);
 		voe_editor_scene_clicks_read(scene, ui);
+		voe_editor_views_rects_read(views, ui);
 
 		// The range this root fills, read either side of its own
 		// submissions: there is no id and nothing allocated, and

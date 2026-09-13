@@ -8,6 +8,11 @@
 // ended.
 #include "scene.h"
 
+#include "cube.h"
+
+#include <3d/material_component.h>
+#include <3d/mesh_component.h>
+
 #include <base/assert.h>
 
 #include <math/float3.h>
@@ -23,11 +28,21 @@
 #include <string.h>
 
 // How far apart the three named things stand, and how big the marker is. Metres,
-// as every length in this engine is. They are numbers to look at a list with and
-// nothing measures anything against them — no camera has been pointed at this
-// scene yet.
+// as every length in this engine is.
+//
+// THE CUBES STAND ON A DIAGONAL, so that neither hides the other from the front
+// or from the side — the two directions the scene views start from (view.c).
+// Each is CUBE_X either side of the origin across and CUBE_Z along, which leaves
+// more than a metre clear between them seen from either.
 #define SPACING 2.0f
+#define CUBE_X 1.25f
+#define CUBE_Z 1.25f
 #define MARKER_SCALE 0.5f
+
+// The cubes' one material: an opaque, lit, light grey with nothing on it, so the
+// shading is the sun and nothing else. Linear.
+#define CUBE_GREY 0.7f
+#define CUBE_ROUGHNESS 0.6f
 
 // How far `Cube_2` is turned, so that "turned" is visible the day something
 // draws it and so that the transform the inspector shows is not three tidy
@@ -67,8 +82,8 @@ static voe_ecs_entity unnamed(voe_ecs_world *world,
 
 // An entity a person authored: a transform, and the identity whose presence is
 // what says so.
-static void authored(voe_ecs_world *world, uint64_t id, const char *name,
-		     voe_scene_transform transform)
+static voe_ecs_entity authored(voe_ecs_world *world, uint64_t id,
+			       const char *name, voe_scene_transform transform)
 {
 	voe_ecs_entity entity = unnamed(world, transform);
 	voe_scene_identity identity = { .id = id };
@@ -82,23 +97,64 @@ static void authored(voe_ecs_world *world, uint64_t id, const char *name,
 
 	VOE_BASE_ASSERT(voe_scene_identity_add(world, entity, identity),
 			"the editor's identity table is too small for its own scene");
+
+	return entity;
 }
 
-void voe_editor_scene_build(voe_editor_scene *scene, voe_ecs_world *world)
+// What makes an entity drawn: the cube's geometry in the world layer, and the
+// one material every cube shares.
+static void drawn(voe_ecs_world *world, voe_ecs_entity entity,
+		  voe_render_geometry cube, voe_3d_material material)
 {
+	VOE_BASE_ASSERT(voe_3d_mesh_add(world, entity,
+					(voe_3d_mesh){
+						.geometry = cube,
+						.layer = VOE_3D_LAYER_WORLD }),
+			"the editor's mesh table is too small for its own scene");
+	VOE_BASE_ASSERT(voe_3d_material_add(world, entity, material),
+			"the editor's material table is too small for its own scene");
+}
+
+bool voe_editor_scene_build(voe_editor_scene *scene, voe_ecs_world *world,
+			    voe_render_device *gpu, voe_base_error *error)
+{
+	voe_render_geometry cube;
+	voe_3d_material material = {
+		.base_colour = { CUBE_GREY, CUBE_GREY, CUBE_GREY, 1.0f },
+		.metallic = 0.0f,
+		.roughness = CUBE_ROUGHNESS,
+		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
+	};
+	voe_ecs_entity entity;
+
 	VOE_BASE_ASSERT(scene != NULL, "building a scene into nothing");
 	VOE_BASE_ASSERT(world != NULL, "building a scene in no world");
+	VOE_BASE_ASSERT(gpu != NULL, "building a scene with no device");
 
 	*scene = (voe_editor_scene){ .world = world };
 
-	authored(world, 1, "Cube",
-		 placed((voe_math_float3){ 0, 0, 0 }, unturned(), 1.0f));
-	authored(world, 2, "Cube_2",
-		 placed((voe_math_float3){ SPACING, 0, 0 },
-			voe_math_quat_from_axis_angle(
-				(voe_math_float3){ 0, 1, 0 }, TURN),
-			1.0f));
-	authored(world, 3, "Marker",
+	// Uploaded once and shared: one geometry and one record, however many
+	// entities wear them (3d/material_component.h).
+	if (!voe_render_geometry_create(gpu, voe_editor_cube_vertices,
+					VOE_EDITOR_CUBE_VERTEX_COUNT,
+					voe_editor_cube_indices,
+					VOE_EDITOR_CUBE_INDEX_COUNT, &cube,
+					error))
+		return false;
+	if (!voe_3d_material_upload(gpu, &material, error))
+		return false;
+
+	entity = authored(world, 1, "Cube",
+			  placed((voe_math_float3){ -CUBE_X, 0, CUBE_Z },
+				 unturned(), 1.0f));
+	drawn(world, entity, cube, material);
+	entity = authored(world, 2, "Cube_2",
+			  placed((voe_math_float3){ CUBE_X, 0, -CUBE_Z },
+				 voe_math_quat_from_axis_angle(
+					 (voe_math_float3){ 0, 1, 0 }, TURN),
+				 1.0f));
+	drawn(world, entity, cube, material);
+	(void)authored(world, 3, "Marker",
 		 placed((voe_math_float3){ 0, SPACING, 0 }, unturned(),
 			MARKER_SCALE));
 
@@ -114,6 +170,8 @@ void voe_editor_scene_build(voe_editor_scene *scene, voe_ecs_world *world)
 			"the editor's scene is not the four transforms it is written to be");
 	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 3,
 			"the editor's scene is not the three identities it is written to be");
+
+	return true;
 }
 
 voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene)

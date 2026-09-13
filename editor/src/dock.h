@@ -26,6 +26,7 @@
 #pragma once
 
 #include "scene.h"
+#include "view.h"
 
 #include <math/float2.h>
 #include <ui/layout.h>
@@ -40,6 +41,7 @@
 typedef enum {
 	VOE_EDITOR_PANEL_SCENE,
 	VOE_EDITOR_PANEL_INSPECTOR,
+	VOE_EDITOR_PANEL_SCENE_VIEW,
 	VOE_EDITOR_PANEL_COUNT
 } voe_editor_panel;
 
@@ -66,7 +68,9 @@ typedef enum {
 #define VOE_EDITOR_DOCK_DEPTH 16
 
 // One node. A SPLIT reads `axis`, `fraction`, `first` and `second`; a LEAF reads
-// `panel`. The two are one struct rather than a union because a dock tree is
+// `panel`, and `view` as well when that panel is SCENE_VIEW — which of the
+// editor's views it shows, an index into voe_editor_views and not a view itself,
+// so a tree still holds nothing but numbers. The two are one struct rather than a union because a dock tree is
 // sixteen of these and telling a reader which fields are live is what `kind` is
 // for.
 //
@@ -85,6 +89,7 @@ typedef struct {
 	uint32_t first;
 	uint32_t second;
 	voe_editor_panel panel;
+	uint32_t view;
 } voe_editor_dock_node;
 
 // A whole tree: its nodes, how many of them are live, and which one is the root.
@@ -114,11 +119,15 @@ typedef struct {
 	voe_ui_pointer pointer;
 } voe_editor_dock_root;
 
-// The tree the editor opens on: a ROW split at a quarter, `Scene` on the left
-// and `Inspector` on the right. Changing the axis and the fraction on the one
-// line in here is the whole of what it takes to stack them instead, which is
-// what having a tree at all is for.
+// The tree the editor opens on: three columns — `Scene` a fifth of the width on
+// the left, the two scene views stacked half and half in the middle three
+// fifths, `Inspector` the last fifth on the right. Which view is on top is one
+// number on one leaf, which is what having a tree at all is for.
 voe_editor_dock_tree voe_editor_dock_default(void);
+
+// Whether a leaf in `tree` shows view `view`. The loop asks before it draws a
+// view, because a view nobody shows is not drawn — see view.h.
+bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view);
 
 // Emits `root`'s tree into `ui` as this frame's whole interface: a split becomes
 // a row or a column whose two children are given fixed sizes in millimetres, and
@@ -129,18 +138,23 @@ voe_editor_dock_tree voe_editor_dock_default(void);
 // root — see interface.h on why a root is a frame.
 //
 // `scene` is what the panels read and write: the list is its identity table and
-// the selection is its own (scene.h). IT PASSES STRAIGHT THROUGH AND THE TREE
+// the selection is its own (scene.h). `views` is where a scene view's panel
+// finds its picture and records where the picture sat, and passes through on the
+// same terms as `scene`. IT PASSES STRAIGHT THROUGH AND THE TREE
 // NEVER LOOKS AT IT — no node holds one, no split reads one, and a tree built
 // for one scene lays out identically for another. The parameter is here because
 // voe_editor_panel_draw is called from inside the walk and a panel's contents
 // are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
 // folder reaching for a global.
 void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
-			  voe_editor_scene *scene);
+			  voe_editor_scene *scene, voe_editor_views *views);
 
 // What is on one panel. One function, one `switch`, no table and no function
 // pointer; a panel's contents are ordinary `ui` calls and the tree above owns
 // only the geometry (ADR-0142 point 2). Called from inside the leaf's panel, so
 // everything it emits is a child of that panel.
+//
+// `view` is the leaf's own and is read only for a SCENE_VIEW panel.
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
-			   voe_editor_scene *scene);
+			   uint32_t view, voe_editor_scene *scene,
+			   voe_editor_views *views);

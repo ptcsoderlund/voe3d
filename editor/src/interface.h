@@ -77,9 +77,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // LAND. The read has to happen in here and cannot be the caller's: a widget
 // answers only between voe_ui_frame_end and the rewind of the arena its nodes
 // were pushed out of (ui/widgets.h), and both of those are this function's.
+// `views` is handed through the same way, and where each scene view's picture
+// came to sit is read back into it in the same window, for the same reason.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
 					     const voe_editor_dock_root *roots,
 					     uint32_t count,
-					     voe_editor_scene *scene);
+					     voe_editor_scene *scene,
+					     voe_editor_views *views);

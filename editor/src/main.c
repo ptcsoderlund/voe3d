@@ -1,8 +1,9 @@
 // voe_editor — the program a person opens to author a scene. Today it opens a
-// window, draws two named regions side by side, `Scene` and `Inspector`, whose
-// rectangles came out of a tree of data rather than out of the order of the
-// calls in this file, lists the authored entities of a scene built in code and
-// follows a click on one. Nothing is draggable and there is no viewport.
+// window on three columns — `Scene`, two scene views stacked, `Inspector` —
+// whose rectangles came out of a tree of data rather than out of the order of the
+// calls in this file, lists the authored entities of a scene built in code,
+// follows a click on one, and draws the scene's cubes into each view from that
+// view's own camera. A middle-button drag in a view moves that view's camera.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -18,14 +19,27 @@
 // interface is handed a pointer already in panel millimetres and computes none
 // of its own, because the day a panel is a quad standing in the world that
 // conversion is a ray against the quad — a different sum, in a different file,
-// and only a call site can know which of the two it wants.
+// and only a call site can know which of the two it wants. The views' drag is
+// handed the same millimetres, for the same reason.
 //
-// AND THE EDITOR DRAWS NO WORLD, which is why its one pass onto the window is
-// opened with no camera. An element draw needs none, and a pass without one is
-// how `render` is told there is no eye to invent.
+// A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
+// the tree shows is drawn into its own target with its own camera first; the
+// window's pass comes last, is opened with no camera — an element draw needs
+// none, and a pass without one is how `render` is told there is no eye to invent
+// — and shows each view's picture as an image on its panel. The world is drawn
+// through voe_3d_draw_system_run, but with the view's camera and the editor's
+// sun (view.h) rather than with voe_3d_draw_system_frame, which reads a camera
+// and a light out of the world and this world has neither.
+#include "cube.h"
 #include "dock.h"
 #include "interface.h"
 #include "scene.h"
+#include "view.h"
+
+#include <3d/draw_system.h>
+#include <3d/material_component.h>
+#include <3d/mesh_component.h>
+#include <3d/panel_component.h>
 
 #include <app/app.h>
 
@@ -65,8 +79,8 @@
 #define EDITOR_WIDE 1280
 #define EDITOR_HIGH 720
 
-// What the world may hold. Two component types are registered below, each with
-// its own intent queue, and the entities are a number to author into rather
+// What the world may hold. Five component types are registered below, two of
+// them with an intent queue, and the entities are a number to author into rather
 // than a measurement of anything.
 #define MAX_ENTITIES 1024
 #define MAX_COMPONENT_TYPES 8
@@ -80,19 +94,28 @@
 #define MAX_TRANSFORMS 256
 #define MAX_IDENTITIES VOE_EDITOR_SCENE_ROWS
 
-// THE SURFACES THIS PROGRAM HAS ARE ALL INTERFACE, which is what makes every
-// other capacity a one. The editor submits no vertices, no indices and no
-// objects — it draws elements and nothing else — and `render` requires those
-// five to be greater than nought whether anything uses them or not, so they are
-// the smallest number that is. `passes` is one because there is one pass, the
-// interface's. `elements` and the three transient numbers are
-// the two groups that may be nought; see render/include/render/device.h.
+// How many entities may be drawn: a mesh and a material each. The scene has two
+// and this is the room, not the count. The panel table is walked by the draw
+// system whether anything has one or not (3d/draw_system.h), so it is registered
+// with room for one and nothing ever adds a row.
+#define MAX_DRAWN 64
+#define MAX_PANELS 1
+
+// WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL, which is what makes the
+// geometry numbers the cube's own and `shadings` a one. `objects` is per frame:
+// every drawn entity is one object in every view's pass, so it is the room for
+// drawn entities times the room for views. `passes` is a pass per view and the
+// interface's, and `targets` a target per view — both from the room for views,
+// not the two in use, so a third view is a leaf and not a capacity. The three
+// transient numbers stay nought; see render/include/render/device.h.
 #define EDITOR_CAPACITIES                                                      \
 	(voe_render_capacities)                                                \
 	{                                                                      \
-		.vertices = 1, .indices = 1, .geometries = 1, .objects = 1,     \
-		.shadings = 1, .elements = VOE_EDITOR_INTERFACE_ELEMENTS,      \
-		.passes = 1                                                    \
+		.vertices = VOE_EDITOR_CUBE_VERTEX_COUNT,                      \
+		.indices = VOE_EDITOR_CUBE_INDEX_COUNT, .geometries = 1,       \
+		.objects = MAX_DRAWN * VOE_EDITOR_VIEWS, .shadings = 1,        \
+		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
+		.passes = VOE_EDITOR_VIEWS + 1, .targets = VOE_EDITOR_VIEWS    \
 	}
 
 // One line at startup saying whether a field description reached the binary,
@@ -125,6 +148,9 @@ int main(void)
 	// the dock tree does not know it exists (scene.h): where a panel sits
 	// and what has been clicked in it are two unrelated facts.
 	voe_editor_scene scene = { 0 };
+	// Beside the scene and not in it: a view's camera is the editor's and
+	// never the world's (view.h).
+	voe_editor_views views = { 0 };
 	int status = 0;
 
 	arena = voe_base_arena_new(EDITOR_ARENA);
@@ -161,7 +187,17 @@ int main(void)
 						.intent_types = MAX_INTENT_TYPES });
 	voe_scene_transform_register(world, MAX_TRANSFORMS);
 	voe_scene_identity_register(world, MAX_IDENTITIES);
-	voe_editor_scene_build(&scene, world);
+	voe_3d_mesh_register(world, MAX_DRAWN);
+	voe_3d_material_register(world, MAX_DRAWN);
+	voe_3d_panel_register(world, MAX_PANELS);
+
+	// Both upload, so both are startup operations and both come before the
+	// first frame. `render` says why on stderr when it refuses.
+	if (!voe_editor_scene_build(&scene, world, gpu, &error) ||
+	    !voe_editor_views_create(&views, gpu, &error)) {
+		status = 1;
+		goto stop;
+	}
 
 	font = voe_text_font_new(gpu, arena, &error);
 	if (font == NULL) {
@@ -182,7 +218,7 @@ int main(void)
 		voe_platform_pointer pointer;
 		float pixels_per_millimetre;
 		bool drawing = false;
-		bool drawn;
+		bool drawn = true;
 
 		// EVERY OWNING SYSTEM RUNS EVERY FRAME, WHETHER ANYTHING
 		// SUBMITTED OR NOT (ADR-0134 point 7). An intent that reaches a
@@ -225,6 +261,25 @@ int main(void)
 				window, VOE_PLATFORM_KEY_SHIFT)
 		};
 
+		// The middle button is the views' and the left is the
+		// interface's, so the two never compete for one press.
+		voe_editor_views_drag(
+			&views, roots[0].pointer.at,
+			voe_platform_input_button_down(
+				window, VOE_PLATFORM_BUTTON_MIDDLE),
+			voe_platform_input_key_down(window,
+						    VOE_PLATFORM_KEY_SHIFT),
+			voe_platform_input_key_down(window,
+						    VOE_PLATFORM_KEY_CONTROL));
+
+		// Before the draw is opened, so a resize asked for here is
+		// applied by this frame's begin and the picture is drawn at the
+		// size it is shown at — last frame's rectangle, see view.h.
+		for (uint32_t v = 0; v < views.count; v++)
+			if (voe_editor_dock_shows_view(&roots[0].tree, v))
+				voe_editor_view_fit(&views.views[v], gpu,
+						    pixels_per_millimetre);
+
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
 			status = 1;
 			break;
@@ -232,16 +287,39 @@ int main(void)
 		if (!drawing)
 			continue;
 
-		// One pass onto the window, with no camera: the interface is
-		// all this program draws. The first pass of a frame on a device
-		// with room for one is not refused; if it were, the frame would
-		// still be closed below, with nothing drawn.
-		drawn = voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, NULL);
+		// A pass per view the tree shows, each onto its own target with
+		// its own camera. A device made with a pass per view and one
+		// more does not refuse these; if it did, the frame is still
+		// closed below and the program stops.
+		for (uint32_t v = 0; v < views.count && drawn; v++) {
+			const voe_editor_view *view = &views.views[v];
+			voe_render_pass_camera camera;
+
+			if (!voe_editor_dock_shows_view(&roots[0].tree, v))
+				continue;
+
+			camera = voe_editor_view_pass_camera(view);
+			drawn = voe_render_pass_begin(gpu, view->target,
+						      &camera);
+			if (!drawn)
+				break;
+			voe_3d_draw_system_run(
+				world, gpu, arena,
+				(voe_3d_frame){ .view = camera.view,
+						.light = camera.light });
+			voe_render_pass_end(gpu);
+		}
+
+		// Then one pass onto the window, with no camera, for the
+		// interface and the pictures on it.
+		if (drawn)
+			drawn = voe_render_pass_begin(
+				gpu, VOE_RENDER_TARGET_WINDOW, NULL);
 		if (drawn) {
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene);
+				&scene, &views);
 			voe_render_pass_end(gpu);
 		}
 

@@ -1,10 +1,11 @@
 # editor
 
-The program a person opens to author a scene. Today it opens a window and draws
-two named regions side by side — `Scene` on the left, a quarter of the width, and
-`Inspector` beside it. The left one lists the authored entities of a scene built
-in code and a click on one selects it; the right one lists what the selected
-entity is made of and lets a number in it be dragged. There is no viewport.
+The program a person opens to author a scene. Today it opens a window on three
+columns — `Scene` on the left, two scene views stacked in the middle, and
+`Inspector` on the right. The left one lists the authored entities of a scene
+built in code and a click on one selects it; each view draws the scene's cubes
+from its own camera, moved by a middle-button drag in it; the right one lists what
+the selected entity is made of and lets a number in it be dragged.
 
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
@@ -46,12 +47,12 @@ here, in either preset: nothing built from this root ships, so they cost nothing
   into the surface's millimetres is here and nowhere else** (ADR-0141 point 4):
   the interface is handed a pointer already in millimetres, because the day a
   panel is a quad standing in the world that conversion is a ray against the quad
-  and only a call site can know which of the two it wants. Its one pass onto the
-  window is opened with no camera — the editor draws no world yet. It
-  registers the two components, builds the scene, and runs both owning systems
-  every frame whether anything submitted or not.
+  and only a call site can know which of the two it wants. Each frame is a pass
+  per shown view onto that view's target, then one pass onto the window with no
+  camera for the interface. It registers the components, builds the scene, and
+  runs both owning systems every frame whether anything submitted or not.
 - `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`,
-  which is where the two panels' contents are.
+  which is where the panels' contents are.
   A panel is a value in an enumeration: not a string, not registered anywhere,
   and there is no table to add a row to. **No function pointer lives in this
   folder** — the panel draw is one function with a `switch`, the way `app` keeps
@@ -69,6 +70,12 @@ here, in either preset: nothing built from this root ships, so they cost nothing
   whatever came with a field description, so it names no component; an edit is a
   replace intent and never a write. Its header says why the controls and every
   label's text have to outlive the call that drew them.
+- `src/view.h`, `src/view.c` — a scene view: its camera, its target, the
+  middle-button drag and the editor's sun. Its header says why the camera is not
+  an entity, why the picture's size lags the layout by a frame, and why a view
+  whose leaf is not in the tree is not drawn.
+- `src/cube.h`, `src/cube.c` — the cube the scene's two cubes are drawn with,
+  copied from `dev` as placeholder data.
 - `src/scene.h`, `src/scene.c` — the four entities the editor opens on, built in
   code until there is a loader, and the selection. Its header says why three of
   the four are authored and the fourth deliberately is not, why the selection is
@@ -93,7 +100,8 @@ array buys today is that the walk takes a root rather than reading a global.
 
 No splitter drag, no tab bar, no dragging a panel between regions, no closing
 one, no scrolling, no clipping and no saved layout (ADR-0142 point 6). No
-viewport, no camera, no light and no 3D. No inspector beyond the name of what is
+picking, no gizmo, no grid, no view modes, no view header bar and no wheel in a
+scene view, and no camera or light in the world. No inspector beyond the name of what is
 selected — the real one is card 059 — and no create, no delete, no save and no
 load. No pixel snapping anywhere — the
 interface is world geometry and is not snapped to a pixel grid (ADR-0141 point 3).

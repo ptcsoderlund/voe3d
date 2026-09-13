@@ -10,12 +10,18 @@
 // THREE OF THE FOUR ARE AUTHORED AND THE FOURTH IS THE POINT. `Cube`, `Cube_2`
 // and `Marker` each have an identity and a transform; the fourth has a transform
 // and NO identity, the way a probe or a gizmo the engine built for itself does.
-// It is in the world, it is drawn by anything that walks transforms, and it must
+// It is in the world, it is in any walk over transforms, and it must
 // not appear in the Scene panel — because an identity's presence is the whole of
 // what "authored" means (ADR-0125) and the list is the identity table and
 // nothing else. A list that showed four is this card's failure and
 // voe_editor_scene_build asserts the two counts rather than leaving it to a
 // person to count names on a screen.
+//
+// ONLY THE TWO CUBES ARE DRAWN. They have a mesh and a material, both sharing one
+// cube geometry (cube.h) and one plain material; `Marker` and the fourth have
+// neither, so the scene views show two things while the world holds four. A
+// drawable is a mesh and a material on an entity, and being named has nothing to
+// do with it.
 //
 // SELECTION BELONGS TO THE EDITOR AND NOT TO THE DOCK TREE. It is held here,
 // beside the roots in main.c, and a panel reads it; voe_editor_dock_tree does
@@ -37,15 +43,18 @@
 // read out afterwards, inside the same frame, by voe_editor_scene_clicks_read.
 //
 // AND SO DOES WHAT THE INSPECTOR DREW, WHICH IS THE SAME SENTENCE AND IS WHY IT
-// IS IN HERE TOO. The two panels are handed this struct and nothing else
-// (dock.h), so this is where a panel keeps what it has to be asked about after
-// the frame; the inspector's own is one field below and inspector.h owns every
-// line of what is in it.
+// IS IN HERE TOO. The Scene and Inspector panels are handed this struct and
+// nothing else of the editor's (dock.h), so this is where they keep what they
+// have to be asked about after the frame; the inspector's own is one field below
+// and inspector.h owns every line of what is in it. A scene view's panel keeps
+// its picture in view.h's struct instead, because a view is not the scene's.
 #pragma once
 
 #include "inspector.h"
 
+#include <base/error.h>
 #include <ecs/world.h>
+#include <render/device.h>
 #include <ui/layout.h>
 
 #include <stdint.h>
@@ -79,11 +88,19 @@ typedef struct {
 	voe_editor_inspector inspector;
 } voe_editor_scene;
 
-// Builds the four entities into `world` and points `scene` at it. The world must
-// already have had voe_scene_transform_register and voe_scene_identity_register
-// called on it. A world too small to hold four entities, or four transforms, or
-// three identities, is this program's own sizing being wrong and asserts.
-void voe_editor_scene_build(voe_editor_scene *scene, voe_ecs_world *world);
+// Builds the four entities into `world` and points `scene` at it, uploading the
+// cube and its material to `gpu` on the way. The world must already have had
+// voe_scene_transform_register, voe_scene_identity_register,
+// voe_3d_mesh_register and voe_3d_material_register called on it. A world too
+// small to hold four entities, four transforms, three identities, or two meshes
+// and two materials, is this program's own sizing being wrong and asserts.
+//
+// A startup operation, because an upload is. False when `render` refused the
+// geometry or the material's record, which it has already said why on stderr.
+[[nodiscard]] bool voe_editor_scene_build(voe_editor_scene *scene,
+					  voe_ecs_world *world,
+					  voe_render_device *gpu,
+					  voe_base_error *error);
 
 // Which entity is selected, or a zeroed one when nothing is — including when
 // what was selected has since been destroyed.

@@ -1,7 +1,8 @@
 # 067 — the editor has two scene views, each with its own camera
 
-claimed-by: -
+claimed-by: claude-opus-5 (session 01TYrewyPCZyspC4KzToTd3K)
 blocked-by: 064, 065, 066
+status: review
 decision: *A scene view is a camera's picture on a panel, and there can be many* (ADR-0147) points 1, 2, 4, 5 and 6, on the passes and targets of ADR-0148.
 
 ## Goal
@@ -96,3 +97,34 @@ Two scene views of the same world from two cameras, each moved on its own, both 
 the Inspector edits a cube.
 
 ## Notes
+
+**Verified on Linux only** (Fedora 44, KDE Wayland, clang 22.1.8, RTX 4070). Windows not checked.
+- `cmake -P check.cmake` exits 0: 45 tests, analyser clean, `editor` standalone. `tools/hot.sh`: no `OVER`.
+- `voe_editor` on the GPU, driven by a throwaway virtual mouse (uinput) and KWin scripts, a screenshot
+  per step, each view's half compared pixel by pixel. Seen: both cubes in both views from different
+  angles; orbit, pan and dolly in view 0 changed view 0 and left view 1 identical to the pixel; the
+  same the other way round in view 1; a drag started in view 0 still turned view 0 while held over
+  view 1 and then over the Scene column, with view 1 unchanged; a left click in a view changed
+  nothing; `Cube` selected and its position x dragged −1.250 → −1.038 moved the cube in both views;
+  window resized to 1600×640 and 800×900 with both pictures sharp and the cubes not stretched.
+- Screenshot: `067-two-scene-views.png` beside this card (views moved, Inspector drag done).
+
+**Readings taken, none marked in code because none departs from the card:**
+- Registration is in `main.c` beside transform and identity, not in `scene.c`: `scene.h` already
+  says the world arrives registered. `voe_3d_panel_register` is added too: the draw system walks
+  panels and asserts on an unregistered table (`3d/draw_system.h`).
+- `cube.h` added beside `cube.c` for the declarations.
+- `voe_editor_scene_build` now takes the device and returns `bool`: uploads can be refused (rule 13).
+- A scene view's panel has no padding, so the picture's rectangle is the panel's.
+- Resizes are asked for before `voe_app_draw_open`, so they apply in the same frame and the aspect
+  matches the target.
+- `VOE_EDITOR_VIEWS_IN_USE 2` names the "two in use".
+
+**Found, not fixed (not this card's):**
+- At 20 % the Inspector is narrower than the transform's three number boxes, so they run off its
+  right edge (visible in the screenshot). That comes from the layout this card sets plus "no
+  clipping, no scrolling"; it is a layout decision.
+- The seam between the two views is invisible: both targets clear to the window's colour.
+- `editor.md` has headed sections, which `guidelines.md` forbids. It was like that before this card.
+- Harness note: a uinput mouse with no wheel gets its middle button taken by libinput for button
+  scrolling, so it never reaches the window. Give a virtual mouse `REL_WHEEL`. Not an engine fault.

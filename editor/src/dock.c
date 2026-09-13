@@ -18,6 +18,11 @@
 // CEREMONY. `ui`'s frame root must be a row or a column (see ui/layout.h) and a
 // leaf emits a panel, so a tree that is a single panel filling the window would
 // otherwise be the one shape the walk could not express.
+//
+// A SCENE VIEW'S PANEL HAS NO PADDING, AND ITS PICTURE IS ITS WHOLE CHILD. The
+// picture fills the panel edge to edge, so the rectangle the picture came to is
+// the panel's own and is what the view's target is sized by; padding would be a
+// frame of panel colour round a picture that already has an edge.
 #include "dock.h"
 
 #include "inspector.h"
@@ -79,6 +84,8 @@ static const char *panel_key(voe_editor_panel panel)
 		return "scene";
 	case VOE_EDITOR_PANEL_INSPECTOR:
 		return "inspector";
+	case VOE_EDITOR_PANEL_SCENE_VIEW:
+		return "scene_view";
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
 	}
@@ -90,7 +97,7 @@ static const char *panel_key(voe_editor_panel panel)
 static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      uint32_t index, voe_editor_dock_axis parent,
 		      voe_math_float2 size, uint32_t depth,
-		      voe_editor_scene *scene)
+		      voe_editor_scene *scene, voe_editor_views *views)
 {
 	const voe_editor_dock_node *node;
 	voe_math_float2 head = size;
@@ -107,17 +114,23 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	node = &tree->nodes[index];
 
 	if (node->kind == VOE_EDITOR_DOCK_LEAF) {
+		bool picture = node->panel == VOE_EDITOR_PANEL_SCENE_VIEW;
+		float pad = picture ? 0.0f : PANEL_PAD;
+
+		// Two leaves may show the same kind of panel, so a scene view is
+		// keyed by the view it shows as well as by its name.
 		voe_ui_panel_begin(
-			ui, panel_key(node->panel), 0,
+			ui, panel_key(node->panel), picture ? node->view : 0,
 			(voe_math_float4){ PANEL_RED, PANEL_GREEN, PANEL_BLUE,
 					   PANEL_ALPHA },
 			(voe_ui_container){
 				.size = sizing_in(parent, size),
-				.across = VOE_UI_ACROSS_START,
+				.across = picture ? VOE_UI_ACROSS_FILL :
+						    VOE_UI_ACROSS_START,
 				.gap = PANEL_GAP,
-				.pad = { PANEL_PAD, PANEL_PAD, PANEL_PAD,
-					 PANEL_PAD } });
-		voe_editor_panel_draw(ui, node->panel, scene);
+				.pad = { pad, pad, pad, pad } });
+		voe_editor_panel_draw(ui, node->panel, node->view, scene,
+				      views);
 		voe_ui_end(ui);
 		return;
 	}
@@ -152,8 +165,10 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 						.gap = SEAM });
 	}
 
-	walk_node(ui, tree, node->first, node->axis, head, depth + 1, scene);
-	walk_node(ui, tree, node->second, node->axis, tail, depth + 1, scene);
+	walk_node(ui, tree, node->first, node->axis, head, depth + 1, scene,
+		  views);
+	walk_node(ui, tree, node->second, node->axis, tail, depth + 1, scene,
+		  views);
 	voe_ui_end(ui);
 }
 
@@ -161,29 +176,71 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 {
 	voe_editor_dock_tree tree = { 0 };
 
-	// THE ONE LINE THE CARD'S CLAIM RESTS ON. Turn VOE_EDITOR_DOCK_ROW into
-	// VOE_EDITOR_DOCK_COLUMN and the fraction into 0.5 and the two panels
-	// are stacked instead of side by side, with nothing else in this folder
-	// touched.
+	// Three columns out of two ROW splits: the Scene list takes a fifth off
+	// the left, and what is left is split three quarters to one, so the
+	// middle gets three fifths of the whole and the Inspector the last fifth.
 	tree.nodes[0] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
 						.axis = VOE_EDITOR_DOCK_ROW,
-						.fraction = 0.25,
+						.fraction = 0.2,
 						.first = 1,
 						.second = 2 };
 	tree.nodes[1] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_LEAF,
 						.panel = VOE_EDITOR_PANEL_SCENE };
-	tree.nodes[2] = (voe_editor_dock_node){
+	tree.nodes[2] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
+						.axis = VOE_EDITOR_DOCK_ROW,
+						.fraction = 0.75,
+						.first = 3,
+						.second = 6 };
+	// THE TWO VIEWS ARE A COLUMN SPLIT AT A HALF, AND WHICH IS ON TOP IS THE
+	// `view` ON EACH LEAF. Swap the two numbers and the pictures change
+	// places, with nothing else in this folder touched — the edit a tree of
+	// data exists to make that small.
+	tree.nodes[3] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
+						.axis = VOE_EDITOR_DOCK_COLUMN,
+						.fraction = 0.5,
+						.first = 4,
+						.second = 5 };
+	tree.nodes[4] = (voe_editor_dock_node){
+		.kind = VOE_EDITOR_DOCK_LEAF,
+		.panel = VOE_EDITOR_PANEL_SCENE_VIEW,
+		.view = 0
+	};
+	tree.nodes[5] = (voe_editor_dock_node){
+		.kind = VOE_EDITOR_DOCK_LEAF,
+		.panel = VOE_EDITOR_PANEL_SCENE_VIEW,
+		.view = 1
+	};
+	tree.nodes[6] = (voe_editor_dock_node){
 		.kind = VOE_EDITOR_DOCK_LEAF,
 		.panel = VOE_EDITOR_PANEL_INSPECTOR
 	};
-	tree.count = 3;
+	tree.count = 7;
 	tree.root = 0;
 
 	return tree;
 }
 
+// Every node and not a walk from the root: a leaf the root cannot reach is not
+// laid out either, but a tree with one in it is a tree nobody built on purpose,
+// and the walk already asserts on the shapes that would make one.
+bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view)
+{
+	VOE_BASE_ASSERT(tree != NULL, "asking no tree what it shows");
+
+	for (uint32_t i = 0; i < tree->count; i++) {
+		const voe_editor_dock_node *node = &tree->nodes[i];
+
+		if (node->kind == VOE_EDITOR_DOCK_LEAF &&
+		    node->panel == VOE_EDITOR_PANEL_SCENE_VIEW &&
+		    node->view == view)
+			return true;
+	}
+
+	return false;
+}
+
 void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
-			  voe_editor_scene *scene)
+			  voe_editor_scene *scene, voe_editor_views *views)
 {
 	VOE_BASE_ASSERT(root != NULL, "walking no dock root");
 	VOE_BASE_ASSERT(ui != NULL, "walking a dock root into no interface");
@@ -191,10 +248,12 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
 	VOE_BASE_ASSERT(root->size.x > 0.0f && root->size.y > 0.0f,
 			"walking a dock root onto a surface with no area");
 	VOE_BASE_ASSERT(scene != NULL, "walking a dock root with no scene");
+	VOE_BASE_ASSERT(views != NULL, "walking a dock root with no views");
 
-	// Last frame's rows named last frame's nodes and the arena they were in
-	// has gone. The panel records this frame's as it draws them.
+	// Last frame's rows and pictures named last frame's nodes and the arena
+	// they were in has gone. The panels record this frame's as they draw.
 	voe_editor_scene_rows_clear(scene);
+	voe_editor_views_images_clear(views);
 
 	voe_ui_row_begin(ui, (voe_ui_container){
 				     .size = { .along = { VOE_UI_SIZE_FIXED,
@@ -203,7 +262,7 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
 							   root->size.y } },
 				     .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, root->tree.root, VOE_EDITOR_DOCK_ROW,
-		  root->size, 0, scene);
+		  root->size, 0, scene, views);
 	voe_ui_end(ui);
 }
 
@@ -255,13 +314,32 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 				  voe_editor_scene_selected(scene));
 }
 
+// ONE PICTURE, THE WHOLE OF THE VIEW'S TEXTURE, GROWING TO FILL THE PANEL. The
+// panel stretches it across and it grows along, so its rectangle is the panel's;
+// the node is handed to the view to be asked where it sat once the frame has
+// ended, which is the size the view's target is drawn at next frame (view.h).
+static void scene_view_panel(voe_ui_context *ui, uint32_t view,
+			     voe_editor_views *views)
+{
+	VOE_BASE_ASSERT(view < views->count,
+			"a dock leaf showing a scene view the editor does not have");
+
+	views->views[view].image = voe_ui_image(
+		ui, views->views[view].texture,
+		(voe_math_float4){ 0.0f, 0.0f, 1.0f, 1.0f },
+		(voe_math_float2){ 0.0f, 0.0f },
+		(voe_ui_sizing){ .along = { VOE_UI_SIZE_GROW, 1.0f } });
+}
+
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
-			   voe_editor_scene *scene)
+			   uint32_t view, voe_editor_scene *scene,
+			   voe_editor_views *views)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing a panel into no interface");
 	VOE_BASE_ASSERT(scene != NULL, "drawing a panel with no scene");
 	VOE_BASE_ASSERT(scene->world != NULL,
 			"drawing a panel onto a scene with no world");
+	VOE_BASE_ASSERT(views != NULL, "drawing a panel with no views");
 
 	switch (panel) {
 	case VOE_EDITOR_PANEL_SCENE:
@@ -269,6 +347,9 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 		return;
 	case VOE_EDITOR_PANEL_INSPECTOR:
 		inspector_panel(ui, scene);
+		return;
+	case VOE_EDITOR_PANEL_SCENE_VIEW:
+		scene_view_panel(ui, view, views);
 		return;
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
