@@ -40,6 +40,12 @@
 // Nothing in ecs can enforce that; the folder that owns the component is what
 // enforces it, by exposing reads publicly and keeping the writes to itself.
 //
+// The exception is creation, and it takes two forms: a folder's typed
+// creation call (voe_scene_transform_add), and authoring's scene reader, which adds
+// the rows of entities it has just created straight from their descriptions
+// (ADR-0152). Both create and neither edits. That _add is public does not widen
+// it: calling it on an entity somebody else made is still writing their data.
+//
 // A STALE ENTITY IS REFUSED RATHER THAN ANSWERED. Every function here checks the
 // generation, so an id from a destroyed entity gets NULL or false and never the
 // row of whatever now lives in that slot.

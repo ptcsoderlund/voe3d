@@ -70,7 +70,9 @@ An option that breaks this is rejected on that ground alone.
    cycles. The allowed edges are data in `cmake/voe.cmake`; a `DEPENDS` outside
    them fails configuration. A change that needs one is reported, not made.
 3. **Data is read by anyone, written by one.** Any code may read any component,
-   read-only or by copy. A component is written only by its own system.
+   read-only or by copy. A component is written only by its own system. The
+   exception is creation: a folder's typed creation call and `authoring`'s scene
+   reader add rows to entities they have just made, and neither edits one (ADR-0152).
 4. **To change another module's data, submit an intent.** An intent is a
    datatype, handed to the ECS, drained by the owning system. **Never call
    another system.** No `system -> system` dependencies.

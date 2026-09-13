@@ -22,6 +22,11 @@
 //     ascending by the byte order of its key name, as `[N.<key name>]`, and then
 //     every field in declaration order as `key = value`. A runtime-only type is
 //     not authored data and is skipped.
+//   - Beneath each too, the kept sections of that authored id — the sections
+//     authoring/scene_read.h read and did not understand — each in the place its
+//     key name sorts among the component sections, its lines exactly as they were
+//     read. A kept section whose id no entity in the world has any more is dropped,
+//     and that is a warning.
 //   - A blank line before every `[N]` but the first and nowhere else, `\n` line
 //     endings and a final newline. An empty world is the empty text.
 //
@@ -55,24 +60,29 @@
 //   - a CHAR value holding a byte below 0x20, which the format cannot carry;
 //   - two entities with the same authored id, which a file cannot tell apart;
 //   - a described type whose description this build compiled out, because
-//     skipping it would save a scene with that component silently gone.
+//     skipping it would save a scene with that component silently gone;
+//   - a kept section whose key name a type has been registered under since it was
+//     kept, because written beside that type it is a section the reader refuses.
 //
 // Every refusal is reported through base/report.h naming the entity, the
 // component and the field.
 #pragma once
 
+#include <authoring/scene_read.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 
 #include <stddef.h>
 
-// Writes the world's authored entities as scene text into `arena`. On success
+// Writes the world's authored entities, and the sections in `kept` — NULL for
+// none — as scene text into `arena`. `kept` is read and not kept. On success
 // `*out_text` is the text, NUL-terminated for convenience, and `*out_size` its
 // length without the NUL. On failure it returns false, reports why, and leaves
 // both untouched. The arena also holds this call's working memory, beside the
 // text; what is pushed — on success or failure — is the caller's to rewind, as
 // with every reader in assets.
 [[nodiscard]] bool voe_authoring_scene_write(const voe_ecs_world *world,
+					     const voe_authoring_kept *kept,
 					     voe_base_arena *arena,
 					     const char **out_text,
 					     size_t *out_size);

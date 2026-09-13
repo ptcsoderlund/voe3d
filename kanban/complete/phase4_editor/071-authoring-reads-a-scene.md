@@ -1,6 +1,6 @@
 # 071 — `authoring` reads a scene
 
-claimed-by: -
+claimed-by: claude-opus-5 (session 01TYrewyPCZyspC4KzToTd3K)
 blocked-by: 068, 070
 decision: *Loading a scene is creation, and the reader adds rows directly* (ADR-0152) every point; the text it reads is ADR-0149 sections 1–4, the value table and points 7–10.
 
@@ -106,3 +106,84 @@ A scene file becomes a world and back into the same bytes, a broken file creates
 section the program does not understand survives the trip.
 
 ## Notes
+
+**Verified on Linux** (Fedora 44, clang 22): `cmake -P check.cmake` exits 0 —
+standalone `authoring`, includes, tests (`authoring 2`, 47 in all), descriptions off,
+analyser (129 files). `ctest -R authoring`: 2 of 2 pass. `grep -rn
+'component_set\|intent_submit' authoring/src` returns nothing. `tools/hot.sh`: no
+`OVER` (`voe3d/CLAUDE.md` 371/400). Windows not checked.
+
+**The text-first round-trip file** (`[2.voe_game_health]` is the kept section of a
+type nothing registered):
+
+```
+[1]
+name = "Camera"
+[1.voe_scene_camera]
+eye = [0, 2, 5]
+yaw = 0
+pitch = -0.25
+fov_y = 1.25
+near_plane = 0.1
+far_plane = 100
+[1.voe_scene_transform]
+position = [0, 2, 5]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[2]
+name = "Cube \"big\""
+[2.test_link]
+target = 3
+[2.voe_game_health]
+points = 20
+armour = "light"
+[2.voe_scene_transform]
+position = [1, 0.5, -3]
+rotation = [0, 0.5, 0, 0.75]
+scale = [2, 2, 2]
+
+[3]
+name = "Floor"
+[3.test_link]
+target = 0
+```
+
+**Two `DEVIATION:` markers:**
+- `src/scene_read.c` header: a scratch row is pushed at the size its description
+  implies (last field's end rounded up to 8), not the registered size. ecs hands a
+  type's size back only through `_replace`, which not every type has, and ecs may
+  not be edited here. Where `_replace` knows the size, an assert checks the two agree.
+- `src/scene_write.c`, `put_kept`: a kept section is refused if a type has been
+  registered under its key name since. Writing it would give a section the reader
+  refuses: a duplicate, or a runtime-only type's section. The card does not list this.
+
+**What was done beyond the literal list, all inside `authoring`:**
+- `DEPENDS` gains `assets`, which the `voe.cmake` row already allows.
+- The writer's merge sort moved to `src/authored.{h,c}`. The reader uses it plus a
+  binary search to find `[N]` and entity references without a walk per lookup.
+- The writer's `kept` parameter sits second, after `world`.
+- Extra tests: kept sections placed, dropped and refused (`tests/scene_write.c`), a
+  world that runs out of room, empty text, `[02]`, `[1.voe_scene_identity]`,
+  integers out of range, a negative unsigned, trailing text after an array.
+
+**Readings taken without the planning root.** The card's "ADR-0149's table" was
+read as the spellings `scene_write.h` documents, accepted with blanks tolerated
+around brackets and commas. Integers are `-?digits`. Floats are
+`-?d+(.d+)?(e[+-]?d+)?` and must be finite. `[N]` must have no leading zero, so
+two sections cannot name one id. An `id =` key in `[N]` is an unknown key: a warning.
+
+**Not tested: a world that already holds an authored entity asserts.**
+`voe::testing` cannot catch an assert, so this case has no test. The test file's
+header says so too.
+
+**Findings for the tech lead:**
+- ecs has no public accessor for a type's registered row size; hence the first
+  deviation.
+- A CHAR value's quotes are stripped by the sectioned reader, which does not record
+  whether a value was quoted, so `name = Cube` loads like `name = "Cube"`. A kept
+  section keeps its lines raw, so it round-trips either way.
+- `voe_authoring_scene_write` has `const char **out_text`, from card 070, which
+  rule 6 forbids. It was left alone because this card did not ask for it.
+- Cards 077 and 078 (a field of any shape) appeared in `todo/` during this card.
+  078 will touch `element_of`/`floats_of` in `scene_read.c` as well as the writer.

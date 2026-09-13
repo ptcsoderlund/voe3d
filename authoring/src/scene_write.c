@@ -9,16 +9,25 @@
 // byte, and the second cannot refuse anything the first accepted.
 //
 // ORDER IS SORTED OUT BEFORE ANYTHING IS WRITTEN. The authored entities are
-// copied out of the identity table and merge-sorted by id, and the component
-// types are sorted by key name. Neither uses qsort, whose comparator is a function
-// pointer, and function pointers in this engine are render's loader table alone.
-// The ids are merge-sorted because a scene may hold thousands; the types are
-// insertion-sorted because a world holds a handful.
+// copied out of the identity table and merge-sorted by id (authored.h), the
+// component types are sorted by key name, and a copy of the kept sections by id
+// and then key name. None uses qsort, whose comparator is a function pointer, and
+// function pointers in this engine are render's loader table alone. The ids are
+// merge-sorted because a scene may hold thousands; the types are insertion-sorted
+// because a world holds a handful; the kept sections are insertion-sorted because
+// they arrive from a file this writer wrote, already in that order, and insertion
+// sort is one comparison per item on sorted input.
+//
+// A KEPT SECTION IS MERGED INTO ITS ENTITY'S COMPONENT SECTIONS AS THEY ARE
+// WRITTEN, two sorted runs walked side by side, so it lands where its key name
+// sorts without the described types and the kept ones ever sharing an array.
 //
 // THE IDENTITY TYPE IS FOUND BY WALKING THE TYPES, not with
 // voe_ecs_component_type, which asserts on a world that registered none — and a
 // world with no identities is an ordinary world with nothing authored in it.
 #include <authoring/scene_write.h>
+
+#include "authored.h"
 
 #include <base/assert.h>
 #include <base/describe.h>
@@ -46,11 +55,6 @@ struct text {
 	size_t size;
 };
 
-struct authored {
-	uint64_t id;
-	voe_ecs_entity entity;
-};
-
 struct described {
 	voe_ecs_type type;
 	const char *key;
@@ -65,12 +69,16 @@ struct scene {
 	voe_ecs_type identity;
 
 	// Ascending by id.
-	struct authored *authored;
+	voe_authoring_authored *authored;
 	uint32_t authored_count;
 
 	// Every described type but the identity, ascending by key name.
 	struct described *described;
 	uint32_t described_count;
+
+	// A copy of the kept sections, ascending by id and then by key name.
+	voe_authoring_kept_section *kept;
+	uint32_t kept_count;
 };
 
 // Where a value sits, for a report: which entity, which component, which field.
@@ -412,8 +420,55 @@ static bool described_or_refuse(const struct text *text, const struct site *site
 	return false;
 }
 
+static bool registered(const voe_ecs_world *world, const char *name)
+{
+	uint32_t count = voe_ecs_component_type_count(world);
+
+	for (uint32_t i = 0; i < count; i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (strcmp(voe_ecs_component_key(world, type)->name, name) == 0)
+			return true;
+	}
+	return false;
+}
+
+// DEVIATION: card 071 scope 3, a kept section whose key name some registered type
+// now has is refused, which the card does not list. It was kept because nothing
+// had registered that name; written back beside that type's own section it is the
+// same section twice, and beside a runtime-only one it is a section the reader
+// refuses — either way a file that cannot be read back as what was saved, which is
+// what this writer refuses rather than writes.
+static bool put_kept(struct text *text, const struct scene *scene,
+		     const voe_authoring_kept_section *kept)
+{
+	if (registered(scene->world, kept->key)) {
+		if (measuring(text))
+			VOE_BASE_ERROR(MODULE,
+				       "entity %" PRIu64 " has a kept section %s, "
+				       "and a type has been registered under that "
+				       "name since; writing it would give a file "
+				       "that cannot be read back; nothing was "
+				       "written",
+				       kept->id, kept->key);
+		return false;
+	}
+
+	put_string(text, "[");
+	put_unsigned(text, kept->id);
+	put_string(text, ".");
+	put_string(text, kept->key);
+	put_string(text, "]\n");
+	put(text, kept->lines, kept->size);
+	return true;
+}
+
+// `kept` is this entity's kept sections, `kept_count` of them, ascending by key
+// name.
 static bool put_entity_block(struct text *text, const struct scene *scene,
-			     const struct authored *authored)
+			     const voe_authoring_authored *authored,
+			     const voe_authoring_kept_section *kept,
+			     uint32_t kept_count)
 {
 	const voe_ecs_world *world = scene->world;
 	const voe_base_struct_description *identity_description =
@@ -443,6 +498,8 @@ static bool put_entity_block(struct text *text, const struct scene *scene,
 			return false;
 	}
 
+	uint32_t k = 0;
+
 	for (uint32_t t = 0; t < scene->described_count; t++) {
 		const struct described *described = &scene->described[t];
 
@@ -450,6 +507,11 @@ static bool put_entity_block(struct text *text, const struct scene *scene,
 					    authored->entity);
 		if (row == NULL)
 			continue;
+
+		for (; k < kept_count && strcmp(kept[k].key, described->key) < 0;
+		     k++)
+			if (!put_kept(text, scene, &kept[k]))
+				return false;
 
 		site.component = described->key;
 		site.field = NULL;
@@ -467,52 +529,49 @@ static bool put_entity_block(struct text *text, const struct scene *scene,
 				       &described->description->fields[f], row))
 				return false;
 	}
+	for (; k < kept_count; k++)
+		if (!put_kept(text, scene, &kept[k]))
+			return false;
 	return true;
+}
+
+static void drop_kept(const struct text *text,
+		      const voe_authoring_kept_section *kept)
+{
+	if (measuring(text))
+		VOE_BASE_WARNING(MODULE,
+				 "the kept section [%" PRIu64 ".%s] belongs to "
+				 "authored id %" PRIu64 ", which no entity in the "
+				 "world has now; it is dropped",
+				 kept->id, kept->key, kept->id);
 }
 
 static bool put_scene(struct text *text, const struct scene *scene)
 {
+	uint32_t k = 0;
+
 	for (uint32_t i = 0; i < scene->authored_count; i++) {
+		const voe_authoring_authored *authored = &scene->authored[i];
+		uint32_t end;
+
+		for (; k < scene->kept_count && scene->kept[k].id < authored->id;
+		     k++)
+			drop_kept(text, &scene->kept[k]);
+		end = k;
+		while (end < scene->kept_count &&
+		       scene->kept[end].id == authored->id)
+			end++;
+
 		if (i > 0)
 			put_string(text, "\n");
-		if (!put_entity_block(text, scene, &scene->authored[i]))
+		if (!put_entity_block(text, scene, authored, scene->kept + k,
+				      end - k))
 			return false;
+		k = end;
 	}
+	for (; k < scene->kept_count; k++)
+		drop_kept(text, &scene->kept[k]);
 	return true;
-}
-
-// Bottom-up and stable; `scratch` is as long as `items` and holds nothing on the
-// way in or out.
-static void sort_by_id(struct authored *items, struct authored *scratch,
-		       uint32_t count)
-{
-	struct authored *from = items;
-	struct authored *to = scratch;
-
-	for (uint64_t width = 1; width < count; width *= 2) {
-		for (uint64_t low = 0; low < count; low += 2 * width) {
-			uint64_t middle = low + width < count ? low + width : count;
-			uint64_t high = low + 2 * width < count ? low + 2 * width
-								: count;
-			uint64_t a = low;
-			uint64_t b = middle;
-
-			for (uint64_t out = low; out < high; out++) {
-				if (a < middle && (b >= high ||
-						   from[a].id <= from[b].id))
-					to[out] = from[a++];
-				else
-					to[out] = from[b++];
-			}
-		}
-		struct authored *swap = from;
-
-		from = to;
-		to = swap;
-	}
-
-	if (from != items)
-		memcpy(items, from, count * sizeof(*items));
 }
 
 static void sort_by_key(struct described *items, uint32_t count)
@@ -529,12 +588,46 @@ static void sort_by_key(struct described *items, uint32_t count)
 	}
 }
 
+static bool kept_before(const voe_authoring_kept_section *a,
+			const voe_authoring_kept_section *b)
+{
+	return a->id < b->id || (a->id == b->id && strcmp(a->key, b->key) < 0);
+}
+
+static void sort_kept(voe_authoring_kept_section *items, uint32_t count)
+{
+	for (uint32_t i = 1; i < count; i++) {
+		voe_authoring_kept_section item = items[i];
+		uint32_t j = i;
+
+		while (j > 0 && kept_before(&item, &items[j - 1])) {
+			items[j] = items[j - 1];
+			j--;
+		}
+		items[j] = item;
+	}
+}
+
+static void gather_kept(struct scene *scene, const voe_authoring_kept *kept,
+			voe_base_arena *arena)
+{
+	if (kept == NULL || kept->count == 0)
+		return;
+
+	scene->kept = voe_base_arena_push(arena,
+					  kept->count * sizeof(*scene->kept));
+	memcpy(scene->kept, kept->sections, kept->count * sizeof(*scene->kept));
+	scene->kept_count = kept->count;
+	sort_kept(scene->kept, scene->kept_count);
+}
+
 static void gather(struct scene *scene, const voe_ecs_world *world,
-		   voe_base_arena *arena)
+		   const voe_authoring_kept *kept, voe_base_arena *arena)
 {
 	uint32_t type_count = voe_ecs_component_type_count(world);
 
 	*scene = (struct scene){ .world = world };
+	gather_kept(scene, kept, arena);
 	if (type_count > 0)
 		scene->described = voe_base_arena_push(
 			arena, type_count * sizeof(*scene->described));
@@ -575,25 +668,25 @@ static void gather(struct scene *scene, const voe_ecs_world *world,
 		voe_ecs_component_rows(world, scene->identity);
 	const voe_ecs_entity *entities =
 		voe_ecs_component_entities(world, scene->identity);
-	struct authored *scratch =
+	voe_authoring_authored *scratch =
 		voe_base_arena_push(arena, count * sizeof(*scratch));
 
 	scene->authored = voe_base_arena_push(arena,
 					      count * sizeof(*scene->authored));
 	scene->authored_count = count;
 	for (uint32_t i = 0; i < count; i++)
-		scene->authored[i] = (struct authored){
+		scene->authored[i] = (voe_authoring_authored){
 			.id = rows[i].id,
 			.entity = entities[i],
 		};
-	sort_by_id(scene->authored, scratch, count);
+	voe_authoring_authored_sort(scene->authored, scratch, count);
 }
 
 static bool ids_unique_or_refuse(const struct scene *scene)
 {
 	for (uint32_t i = 1; i < scene->authored_count; i++) {
-		const struct authored *a = &scene->authored[i - 1];
-		const struct authored *b = &scene->authored[i];
+		const voe_authoring_authored *a = &scene->authored[i - 1];
+		const voe_authoring_authored *b = &scene->authored[i];
 
 		if (a->id != b->id)
 			continue;
@@ -609,6 +702,7 @@ static bool ids_unique_or_refuse(const struct scene *scene)
 }
 
 bool voe_authoring_scene_write(const voe_ecs_world *world,
+			       const voe_authoring_kept *kept,
 			       voe_base_arena *arena, const char **out_text,
 			       size_t *out_size)
 {
@@ -621,7 +715,7 @@ bool voe_authoring_scene_write(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(out_text != NULL && out_size != NULL,
 			"nowhere to put the text");
 
-	gather(&scene, world, arena);
+	gather(&scene, world, kept, arena);
 	if (!ids_unique_or_refuse(&scene))
 		return false;
 	if (!put_scene(&measured, &scene))

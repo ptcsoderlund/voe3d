@@ -12,8 +12,8 @@
 // to be proven for a FLOAT3 array. The world never reads a description, so a
 // table written by hand is as good as one the macro wrote.
 //
-// Refusals and the one warning print a line to stderr; that is the report doing
-// its job, not a failure.
+// Refusals and warnings print a line to stderr; that is the report doing its job,
+// not a failure.
 #include <authoring/scene_write.h>
 
 #include <base/arena.h>
@@ -91,7 +91,7 @@ static const char *written(const voe_ecs_world *world, voe_base_arena *arena,
 	const char *text = NULL;
 
 	*size = 0;
-	VOE_TEST_CHECK(voe_authoring_scene_write(world, arena, &text, size));
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, NULL, arena, &text, size));
 	return text != NULL ? text : "";
 }
 
@@ -102,7 +102,7 @@ static void check_refused(const voe_ecs_world *world, voe_base_arena *arena)
 	const char *text = sentinel;
 	size_t size = 12345;
 
-	VOE_TEST_CHECK(!voe_authoring_scene_write(world, arena, &text, &size));
+	VOE_TEST_CHECK(!voe_authoring_scene_write(world, NULL, arena, &text, &size));
 	VOE_TEST_CHECK(text == sentinel);
 	VOE_TEST_CHECK_INT(size, 12345);
 }
@@ -538,6 +538,66 @@ static void test_same_bytes_twice(void)
 	voe_base_arena_destroy(arena);
 }
 
+static void test_kept_sections(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity cube = authored(world, 2, "Cube");
+	size_t size;
+
+	authored(world, 5, "Lamp");
+	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
+		.position = { 0.0f, 0.0f, 0.0f },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	}));
+
+	// Out of order, one on each side of voe_scene_transform, one on an entity
+	// with no component sections, and two whose id no entity has.
+	const voe_authoring_kept_section sections[] = {
+		{ .id = 2, .key = "zz_after", .lines = "b = 2\n", .size = 6 },
+		{ .id = 9, .key = "gone", .lines = "c = 3\n", .size = 6 },
+		{ .id = 2, .key = "aa_before", .lines = "a = 1\nx = \"y\"\n",
+		  .size = 14 },
+		{ .id = 5, .key = "voe_game_glow", .lines = "", .size = 0 },
+		{ .id = 1, .key = "gone", .lines = "d = 4\n", .size = 6 },
+	};
+	const voe_authoring_kept kept = { .sections = sections, .count = 5 };
+	const char *text = NULL;
+
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &text, &size));
+	CHECK_TEXT(text != NULL ? text : "", size,
+		   "[2]\n"
+		   "name = \"Cube\"\n"
+		   "[2.aa_before]\n"
+		   "a = 1\n"
+		   "x = \"y\"\n"
+		   "[2.voe_scene_transform]\n"
+		   "position = [0, 0, 0]\n"
+		   "rotation = [0, 0, 0, 1]\n"
+		   "scale = [1, 1, 1]\n"
+		   "[2.zz_after]\n"
+		   "b = 2\n"
+		   "\n"
+		   "[5]\n"
+		   "name = \"Lamp\"\n"
+		   "[5.voe_game_glow]\n");
+
+	// A kept section under a name that has since been registered.
+	const voe_authoring_kept_section clash[] = {
+		{ .id = 2, .key = "voe_scene_transform", .lines = "", .size = 0 },
+	};
+
+	text = "untouched";
+	size = 12345;
+	VOE_TEST_CHECK(!voe_authoring_scene_write(
+		world, &(voe_authoring_kept){ .sections = clash, .count = 1 },
+		arena, &text, &size));
+	VOE_TEST_CHECK(strcmp(text, "untouched") == 0);
+
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	test_three_entities();
@@ -548,5 +608,6 @@ int main(void)
 	test_empty_world();
 	test_refusals();
 	test_same_bytes_twice();
+	test_kept_sections();
 	return voe_test_result();
 }
