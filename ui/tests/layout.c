@@ -35,6 +35,12 @@
 //     beside its children's rectangles, because double-counting shows there
 //     first.
 //
+// AND THE WRAPPING CASES SINCE CARD 072, of which two are worth knowing before
+// reading them: one line is today's layout TO THE BIT, asserted with no
+// tolerance against the same tree without `wrap`; and a wrapping column that
+// breaks MOVES its children out to the right without resizing them, a FILL child
+// included — the reading the principal chose when the card asked.
+//
 // AND TWO THAT ARE ABOUT THE MACHINERY RATHER THAN THE ARITHMETIC: a frame that
 // wants more nodes than the context has is refused and the next frame is fine,
 // and the same tree built twice on one context gives the same answer, which is
@@ -1273,6 +1279,518 @@ static void measured_against_arranged(voe_ui_context *ui,
 	voe_base_arena_rewind(frames, mark);
 }
 
+// ---------------------------------------------------------------- wrap
+
+// A wrapping row of a given width, natural across, with a gap of 2 and no
+// padding, opened and left open for the case to fill. Every case below but
+// the column and the nesting is one of these.
+static voe_ui_node wrapping_row(voe_ui_context *ui, voe_ui_sizing size,
+				voe_ui_along along, voe_ui_across across)
+{
+	return voe_ui_row_begin(ui, (voe_ui_container){ .size = size,
+							.along = along,
+							.across = across,
+							.gap = 2.0f,
+							.wrap = true });
+}
+
+// FIVE BOXES OF 20 IN A ROW OF 50 WITH A GAP OF 2: 20 + 2 + 20 is 42 and fits,
+// and another 2 + 20 would be 64, so the lines are two, two and one. Each box is
+// 6 tall, so the lines start at 0, 8 and 16 and the row is 22 tall — which is
+// three box heights and two gaps, and is also what it measures to across. Along,
+// it measures to its longest line, 42, and not to the 108 of one line.
+static void wrap_breaks(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	static const float xs[5] = { 0.0f, 22.0f, 0.0f, 22.0f, 0.0f };
+	static const float ys[5] = { 0.0f, 0.0f, 8.0f, 8.0f, 16.0f };
+	voe_ui_node boxes[5];
+	voe_ui_node root;
+
+	voe_ui_frame_begin(ui, frames);
+	root = wrapping_row(ui, sizing(fixed(50.0f), natural()),
+			    VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	for (uint32_t i = 0; i < 5; i++)
+		boxes[i] = fixed_box(ui, 20.0f, 6.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, root), 0.0f, 0.0f, 50.0f, 22.0f);
+	for (uint32_t i = 0; i < 5; i++)
+		CHECK_RECT(voe_ui_node_rect(ui, boxes[i]), xs[i], ys[i], 20.0f,
+			   6.0f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, root).x, 42.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, root).y, 22.0f, TOLERANCE);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// THE FIRST CHILD ON A LINE NEVER BREAKS. 20, 20, 70, 20 in a row of 50: the
+// 70 cannot follow the first two, starts a line, and is alone on it at its full
+// 70 — ending 20 past the row's own right edge — and the 20 after it cannot
+// follow it either. Lines at 0, 7 and 14.
+static void wrap_too_long(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node root;
+	voe_ui_node a;
+	voe_ui_node b;
+	voe_ui_node wide;
+	voe_ui_node d;
+
+	voe_ui_frame_begin(ui, frames);
+	root = wrapping_row(ui, sizing(fixed(50.0f), natural()),
+			    VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	a = fixed_box(ui, 20.0f, 5.0f);
+	b = fixed_box(ui, 20.0f, 5.0f);
+	wide = fixed_box(ui, 70.0f, 5.0f);
+	d = fixed_box(ui, 20.0f, 5.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, root), 0.0f, 0.0f, 50.0f, 19.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, a), 0.0f, 0.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, b), 22.0f, 0.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, wide), 0.0f, 7.0f, 70.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, d), 0.0f, 14.0f, 20.0f, 5.0f);
+	VOE_TEST_CHECK(voe_ui_node_rect(ui, wide).size.x >
+		       voe_ui_node_rect(ui, root).size.x);
+	// The longest line is the one that sticks out.
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, root).x, 70.0f, TOLERANCE);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// GROW AND `along` ARE PER LINE. Two boxes of 20 fill the first line of a row of
+// 50; a third 20 and a grow child make the second, where the grow child has a
+// natural length of nothing, so it fits beside the 20 and takes what THAT line
+// leaves: 50 - 20 - 2 is 28. Then CENTER on 20, 20, 20: the first line is 42
+// and centred with 4 either side, the second is 20 and centred with 15.
+static void wrap_per_line(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node a;
+	voe_ui_node b;
+	voe_ui_node c;
+	voe_ui_node spring;
+
+	voe_ui_frame_begin(ui, frames);
+	(void)wrapping_row(ui, sizing(fixed(50.0f), natural()),
+			   VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	a = fixed_box(ui, 20.0f, 5.0f);
+	b = fixed_box(ui, 20.0f, 5.0f);
+	c = fixed_box(ui, 20.0f, 5.0f);
+	spring = voe_ui_box(ui, (voe_math_float2){ 0.0f, 0.0f },
+			    sizing(grow(1.0f), fixed(5.0f)));
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, a), 0.0f, 0.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, b), 22.0f, 0.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, c), 0.0f, 7.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, spring), 22.0f, 7.0f, 28.0f, 5.0f);
+
+	voe_base_arena_rewind(frames, mark);
+
+	mark = voe_base_arena_mark(frames);
+	voe_ui_frame_begin(ui, frames);
+	(void)wrapping_row(ui, sizing(fixed(50.0f), natural()),
+			   VOE_UI_ALONG_CENTER, VOE_UI_ACROSS_START);
+	a = fixed_box(ui, 20.0f, 5.0f);
+	b = fixed_box(ui, 20.0f, 5.0f);
+	c = fixed_box(ui, 20.0f, 5.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, a), 4.0f, 0.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, b), 26.0f, 0.0f, 20.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, c), 15.0f, 7.0f, 20.0f, 5.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// Four boxes of 20 in a row of 50, so two lines of two, with heights chosen so
+// that each line has one child thicker than the other: 2 and 8, then 6 and a
+// natural 3. Built twice by wrap_across.
+static void wrap_across_frame(voe_ui_context *ui, voe_base_arena *frames,
+			      voe_ui_size height, voe_ui_across across,
+			      voe_ui_node *boxes)
+{
+	voe_ui_frame_begin(ui, frames);
+	boxes[4] = wrapping_row(ui, sizing(fixed(50.0f), height), VOE_UI_ALONG_START,
+				across);
+	boxes[0] = fixed_box(ui, 20.0f, 2.0f);
+	boxes[1] = fixed_box(ui, 20.0f, 8.0f);
+	boxes[2] = fixed_box(ui, 20.0f, 6.0f);
+	boxes[3] = voe_ui_box(ui, (voe_math_float2){ 0.0f, 3.0f },
+			      sizing(fixed(20.0f), natural()));
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+}
+
+// ACROSS THE FLOW, A LINE IS AS THICK AS ITS THICKEST CHILD: 8, then 6, so the
+// second line starts at 10 and the row is 16. Under FILL the natural 3 stretches
+// to its line's 6 and not to the row's height, and the fixed 2 keeps its 2 —
+// the fixed-beats-FILL rule, within a line. And in a row fixed at 30, the 14
+// left over across is shared equally: each line grows by 7, to 15 and 13, and
+// the second starts at 17.
+static void wrap_across(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node boxes[5];
+
+	wrap_across_frame(ui, frames, natural(), VOE_UI_ACROSS_START, boxes);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[4]), 0.0f, 0.0f, 50.0f, 16.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[0]), 0.0f, 0.0f, 20.0f, 2.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[1]), 22.0f, 0.0f, 20.0f, 8.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[2]), 0.0f, 10.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[3]), 22.0f, 10.0f, 20.0f, 3.0f);
+	voe_base_arena_rewind(frames, mark);
+
+	mark = voe_base_arena_mark(frames);
+	wrap_across_frame(ui, frames, natural(), VOE_UI_ACROSS_FILL, boxes);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[0]), 0.0f, 0.0f, 20.0f, 2.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[1]), 22.0f, 0.0f, 20.0f, 8.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[2]), 0.0f, 10.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[3]), 22.0f, 10.0f, 20.0f, 6.0f);
+	voe_base_arena_rewind(frames, mark);
+
+	mark = voe_base_arena_mark(frames);
+	wrap_across_frame(ui, frames, fixed(30.0f), VOE_UI_ACROSS_FILL, boxes);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[4]), 0.0f, 0.0f, 50.0f, 30.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[0]), 0.0f, 0.0f, 20.0f, 2.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[1]), 22.0f, 0.0f, 20.0f, 8.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[2]), 0.0f, 17.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[3]), 22.0f, 17.0f, 20.0f, 13.0f);
+	voe_base_arena_rewind(frames, mark);
+}
+
+// A tree whose children fit on one line, with lopsided padding, a gap, a grow
+// child, an anchored child, and a natural child taller than the row's inside —
+// which is where one line's thickness being the inner height rather than its
+// thickest child would show. Built once with `wrap` and once without.
+static void wrap_one_line_frame(voe_ui_context *ui, voe_base_arena *frames,
+				bool wrap, voe_ui_along along,
+				voe_ui_across across, voe_ui_rect *rects,
+				voe_math_float2 *measured)
+{
+	voe_ui_node nodes[6];
+
+	voe_ui_frame_begin(ui, frames);
+	nodes[0] = voe_ui_row_begin(ui, (voe_ui_container){
+						.size = sizing(fixed(100.0f),
+							       fixed(30.0f)),
+						.along = along,
+						.across = across,
+						.gap = 3.0f,
+						.pad = pad(3.0f, 7.0f, 11.0f, 5.0f),
+						.wrap = wrap });
+	nodes[1] = fixed_box(ui, 10.0f, 6.0f);
+	nodes[2] = content_box(ui, 12.5f, 35.0f);
+	nodes[3] = voe_ui_box(ui, (voe_math_float2){ 0.0f, 4.0f },
+			      sizing(grow(1.0f), natural()));
+	nodes[4] = anchored(ui,
+			    anchor(VOE_UI_ACROSS_END, 1.0f, VOE_UI_ACROSS_CENTER,
+				   0.0f),
+			    fixed(8.0f), fixed(8.0f));
+	nodes[5] = voe_ui_box(ui, (voe_math_float2){ 7.0f, 3.0f },
+			      sizing(natural(), natural()));
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	for (uint32_t i = 0; i < 6; i++) {
+		rects[i] = voe_ui_node_rect(ui, nodes[i]);
+		measured[i] = voe_ui_node_measured(ui, nodes[i]);
+	}
+}
+
+// ONE LINE IS TODAY, TO THE BIT AND NOT TO A TOLERANCE: every rectangle and
+// every measured size of a tree that fits is the same with `wrap` as without it,
+// for every `along` that distributes and every `across` that places.
+static void wrap_one_line_is_today(voe_ui_context *ui, voe_base_arena *frames)
+{
+	static const voe_ui_along alongs[3] = { VOE_UI_ALONG_START,
+						VOE_UI_ALONG_CENTER,
+						VOE_UI_ALONG_EVENLY };
+	static const voe_ui_across acrosses[3] = { VOE_UI_ACROSS_CENTER,
+						   VOE_UI_ACROSS_END,
+						   VOE_UI_ACROSS_FILL };
+
+	for (uint32_t k = 0; k < 3; k++) {
+		struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+		voe_ui_rect plain[6];
+		voe_ui_rect wrapped[6];
+		voe_math_float2 plain_measured[6];
+		voe_math_float2 wrapped_measured[6];
+
+		wrap_one_line_frame(ui, frames, false, alongs[k], acrosses[k],
+				    plain, plain_measured);
+		voe_base_arena_rewind(frames, mark);
+		wrap_one_line_frame(ui, frames, true, alongs[k], acrosses[k],
+				    wrapped, wrapped_measured);
+		voe_base_arena_rewind(frames, mark);
+
+		for (uint32_t i = 0; i < 6; i++) {
+			VOE_TEST_CHECK_FLOAT(wrapped[i].min.x, plain[i].min.x, 0.0);
+			VOE_TEST_CHECK_FLOAT(wrapped[i].min.y, plain[i].min.y, 0.0);
+			VOE_TEST_CHECK_FLOAT(wrapped[i].size.x, plain[i].size.x,
+					     0.0);
+			VOE_TEST_CHECK_FLOAT(wrapped[i].size.y, plain[i].size.y,
+					     0.0);
+			VOE_TEST_CHECK_FLOAT(wrapped_measured[i].x,
+					     plain_measured[i].x, 0.0);
+			VOE_TEST_CHECK_FLOAT(wrapped_measured[i].y,
+					     plain_measured[i].y, 0.0);
+		}
+	}
+}
+
+// A NATURAL LENGTH ALONG THE FLOW IS ONE LINE LONG, so a wrapping row that fits
+// its children never wraps: five 20s and four gaps of 2 are 108, in a row of
+// 108. And once more with lengths that are not exact in binary, where summing
+// the same line a second time in another order could come to a hair more than
+// the first — every box still on the one line, the row one box tall.
+static void wrap_natural_never_wraps(voe_ui_context *ui,
+				     voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node boxes[5];
+	voe_ui_node root;
+
+	voe_ui_frame_begin(ui, frames);
+	root = wrapping_row(ui, sizing(natural(), natural()),
+			    VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	for (uint32_t i = 0; i < 5; i++)
+		boxes[i] = fixed_box(ui, 20.0f, 6.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, root), 0.0f, 0.0f, 108.0f, 6.0f);
+	for (uint32_t i = 0; i < 5; i++)
+		CHECK_RECT(voe_ui_node_rect(ui, boxes[i]), 22.0f * (float)i, 0.0f,
+			   20.0f, 6.0f);
+	voe_base_arena_rewind(frames, mark);
+
+	mark = voe_base_arena_mark(frames);
+	voe_ui_frame_begin(ui, frames);
+	root = voe_ui_row_begin(ui, (voe_ui_container){
+					    .size = sizing(natural(), natural()),
+					    .gap = 0.3f,
+					    .pad = pad(0.7f, 0.0f, 0.1f, 0.0f),
+					    .wrap = true });
+	for (uint32_t i = 0; i < 5; i++)
+		boxes[i] = content_box(ui, 20.1f + 0.37f * (float)i, 6.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_rect(ui, root).size.y, 6.0f, 0.0);
+	for (uint32_t i = 0; i < 5; i++)
+		VOE_TEST_CHECK_FLOAT(voe_ui_node_rect(ui, boxes[i]).min.y, 0.0f,
+				     0.0);
+	voe_base_arena_rewind(frames, mark);
+}
+
+// X BEFORE Y, WHICH IS THE WHOLE REASON FOR THE ORDER. A column 50 wide with
+// FILL across holds a natural wrapping row — so the row's width is only known
+// once the column has stretched it — and a box beneath. The row breaks at 50
+// into three lines 22 tall, and the box sits under the third line at 22. Laid
+// out a whole node at a time, the row would have measured one line tall and the
+// box would be at 6, on top of the second line.
+static void wrap_x_before_y(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node boxes[5];
+	voe_ui_node column;
+	voe_ui_node row_node;
+	voe_ui_node beneath;
+
+	voe_ui_frame_begin(ui, frames);
+	column = voe_ui_column_begin(ui, (voe_ui_container){
+						 .size = sizing(natural(),
+								fixed(50.0f)),
+						 .across = VOE_UI_ACROSS_FILL });
+	row_node = wrapping_row(ui, sizing(natural(), natural()),
+				VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	for (uint32_t i = 0; i < 5; i++)
+		boxes[i] = fixed_box(ui, 20.0f, 6.0f);
+	voe_ui_end(ui);
+	beneath = fixed_box(ui, 5.0f, 10.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, column), 0.0f, 0.0f, 50.0f, 27.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, row_node), 0.0f, 0.0f, 50.0f, 22.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[2]), 0.0f, 8.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, boxes[4]), 0.0f, 16.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, beneath), 0.0f, 22.0f, 10.0f, 5.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// A WRAPPING COLUMN BREAKS AFTER ITS WIDTH IS SETTLED, and does not widen as it
+// wraps. Fixed at 50 tall, holding five children 20 tall and 10 wide with a gap
+// of 2: lines of two, two and one, and the column is one line wide, 10. The
+// second and third lines sit at 12 and 24 — to the right of the column's own
+// rectangle, outside it — and it measures to three widths and two gaps, 34,
+// across and its longest line, 42, along. The third child is a padded row
+// holding a box, which has to travel with it: 12 + 1 across and 0 + 1 down.
+//
+// AND A FILL CHILD KEEPS ITS WIDTH WHEN ITS COLUMN BREAKS — the reading the
+// principal chose when card 072 asked. Widths were settled while the column was
+// one line, so in a column 30 wide the FILL children are 30 wide; the break
+// moves them and never resizes them. The two lines are each a natural 6 thick
+// with 16 of the 30 left over, so each grows by 8 to 14, and the second line
+// starts at 16 — with a child 30 wide in it.
+static void wrap_column(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	static const float xs[5] = { 0.0f, 0.0f, 12.0f, 12.0f, 24.0f };
+	static const float ys[5] = { 0.0f, 22.0f, 0.0f, 22.0f, 0.0f };
+	voe_ui_node children[5];
+	voe_ui_node column;
+	voe_ui_node inside;
+
+	voe_ui_frame_begin(ui, frames);
+	column = voe_ui_column_begin(ui, (voe_ui_container){
+						 .size = sizing(fixed(50.0f),
+								natural()),
+						 .gap = 2.0f,
+						 .wrap = true });
+	children[0] = fixed_box(ui, 20.0f, 10.0f);
+	children[1] = fixed_box(ui, 20.0f, 10.0f);
+	children[2] = voe_ui_row_begin(ui, (voe_ui_container){
+						   .size = sizing(fixed(20.0f),
+								  fixed(10.0f)),
+						   .pad = pad_all(1.0f) });
+	inside = fixed_box(ui, 4.0f, 4.0f);
+	voe_ui_end(ui);
+	children[3] = fixed_box(ui, 20.0f, 10.0f);
+	children[4] = fixed_box(ui, 20.0f, 10.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, column), 0.0f, 0.0f, 10.0f, 50.0f);
+	for (uint32_t i = 0; i < 5; i++)
+		CHECK_RECT(voe_ui_node_rect(ui, children[i]), xs[i], ys[i], 10.0f,
+			   20.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, inside), 13.0f, 1.0f, 4.0f, 4.0f);
+	VOE_TEST_CHECK(voe_ui_node_rect(ui, children[2]).min.x >=
+		       voe_ui_node_rect(ui, column).size.x);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, column).x, 34.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, column).y, 42.0f,
+			     TOLERANCE);
+
+	voe_base_arena_rewind(frames, mark);
+
+	mark = voe_base_arena_mark(frames);
+	voe_ui_frame_begin(ui, frames);
+	(void)voe_ui_column_begin(ui, (voe_ui_container){
+					      .size = sizing(fixed(50.0f),
+							     fixed(30.0f)),
+					      .across = VOE_UI_ACROSS_FILL,
+					      .gap = 2.0f,
+					      .wrap = true });
+	for (uint32_t i = 0; i < 3; i++)
+		children[i] = voe_ui_box(ui, (voe_math_float2){ 6.0f, 0.0f },
+					 sizing(fixed(20.0f), natural()));
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, children[0]), 0.0f, 0.0f, 30.0f, 20.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, children[1]), 0.0f, 22.0f, 30.0f, 20.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, children[2]), 16.0f, 0.0f, 30.0f, 20.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// AN ANCHORED CHILD OF A WRAPPING ROW BREAKS NOTHING. Called third, among four
+// boxes of 20 in a row of 50: the lines are still two and two, as though it were
+// absent, and it is pinned to the far corner of the content box — whose height is
+// the two wrapped lines, 14, so its END on Y is 14 - 8.
+static void wrap_anchored(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node a;
+	voe_ui_node b;
+	voe_ui_node floating;
+	voe_ui_node c;
+	voe_ui_node d;
+
+	voe_ui_frame_begin(ui, frames);
+	(void)wrapping_row(ui, sizing(fixed(50.0f), natural()),
+			   VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	a = fixed_box(ui, 20.0f, 6.0f);
+	b = fixed_box(ui, 20.0f, 6.0f);
+	floating = anchored(ui,
+			    anchor(VOE_UI_ACROSS_END, 0.0f, VOE_UI_ACROSS_END,
+				   0.0f),
+			    fixed(8.0f), fixed(8.0f));
+	c = fixed_box(ui, 20.0f, 6.0f);
+	d = fixed_box(ui, 20.0f, 6.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, a), 0.0f, 0.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, b), 22.0f, 0.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, c), 0.0f, 8.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, d), 22.0f, 8.0f, 20.0f, 6.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, floating), 42.0f, 6.0f, 8.0f, 8.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// A WRAPPING ROW INSIDE A WRAPPING ROW. The outer is 60 wide with 1 of padding,
+// so 58 inside. The inner is 30 wide and holds three boxes of 10 by 5: 10 + 2 +
+// 10 is 22, another 12 would be 34, so it breaks into two lines and is 12 tall.
+// The outer holds the inner and two boxes of 20 by 4: 30 + 2 + 20 is 52 and fits
+// in 58, another 22 would be 74, so its lines are the inner and a box, then the
+// last box. Line thicknesses 12 and 4, so the outer is 1 + 12 + 2 + 4 + 1 tall,
+// 20, and measures to 52 + 2 along.
+static void wrap_nesting(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node outer;
+	voe_ui_node inner;
+	voe_ui_node in_a;
+	voe_ui_node in_b;
+	voe_ui_node in_c;
+	voe_ui_node beside;
+	voe_ui_node below;
+
+	voe_ui_frame_begin(ui, frames);
+	outer = voe_ui_row_begin(ui, (voe_ui_container){
+					     .size = sizing(fixed(60.0f),
+							    natural()),
+					     .gap = 2.0f,
+					     .pad = pad_all(1.0f),
+					     .wrap = true });
+	inner = wrapping_row(ui, sizing(fixed(30.0f), natural()),
+			     VOE_UI_ALONG_START, VOE_UI_ACROSS_START);
+	in_a = fixed_box(ui, 10.0f, 5.0f);
+	in_b = fixed_box(ui, 10.0f, 5.0f);
+	in_c = fixed_box(ui, 10.0f, 5.0f);
+	voe_ui_end(ui);
+	beside = fixed_box(ui, 20.0f, 4.0f);
+	below = fixed_box(ui, 20.0f, 4.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, outer), 0.0f, 0.0f, 60.0f, 20.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, inner), 1.0f, 1.0f, 30.0f, 12.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, beside), 33.0f, 1.0f, 20.0f, 4.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, below), 1.0f, 15.0f, 20.0f, 4.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, in_a), 1.0f, 1.0f, 10.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, in_b), 13.0f, 1.0f, 10.0f, 5.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, in_c), 1.0f, 8.0f, 10.0f, 5.0f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, outer).x, 54.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, outer).y, 20.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, inner).x, 22.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, inner).y, 12.0f, TOLERANCE);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -1300,6 +1818,16 @@ int main(void)
 	measured_against_arranged(ui, frames);
 	nesting(ui, frames);
 	twice_over(ui, frames);
+	wrap_breaks(ui, frames);
+	wrap_too_long(ui, frames);
+	wrap_per_line(ui, frames);
+	wrap_across(ui, frames);
+	wrap_one_line_is_today(ui, frames);
+	wrap_natural_never_wraps(ui, frames);
+	wrap_x_before_y(ui, frames);
+	wrap_column(ui, frames);
+	wrap_anchored(ui, frames);
+	wrap_nesting(ui, frames);
 	capacity(arena, frames);
 
 	voe_base_arena_destroy(frames);

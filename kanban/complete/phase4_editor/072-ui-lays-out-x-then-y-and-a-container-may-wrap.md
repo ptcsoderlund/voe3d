@@ -1,6 +1,7 @@
 # 072 — `ui` lays out X then Y, and a container may wrap
 
-claimed-by: -
+claimed-by: claude-opus-5 (session a10ca260)
+status: review
 blocked-by: -
 decision: *Overflow is opt-in: a container may wrap or clip, and a scroll area remembers its offset* (ADR-0153) points 1–4.
 
@@ -107,3 +108,37 @@ other node it is unchanged.
 gets a line of its own, and nothing that did not ask to wrap moved by a millimetre.
 
 ## Notes
+
+**Done 2026-09-13, verified on Linux (Fedora 44, clang, RTX 4070). Not checked on Windows.**
+
+- `voe_ui_frame_end` now measures and arranges X for the whole tree, then Y. Each child records
+  which `line` of its parent's run it is on (`src/context.h`), and a container that does not wrap
+  keeps every child on line nought: one run, the same arithmetic as before.
+- **A question came up, and the principal answered it when asked.** In a column that breaks into
+  several columns, does a FILL child stretch to its column's thickness (point 3), or does "nothing may
+  need a height to know a width" (point 5) win? **Point 5 wins.** A wrapping column's widths are set
+  in the X pass as one column. The break in the Y pass only *moves* each child, and everything inside
+  it, to its column. It never resizes one. So a FILL child keeps its one-column width. This is written
+  in `layout.h`, in `arrange_across` in `layout.c`, and pinned by the second half of `wrap_column`.
+  **ADR-0153 point 3 may want that sentence.**
+- One line is exactly today's layout, bit for bit. A single line's thickness is the container's inner
+  size across, not its thickest child's. That keeps FILL and CENTER unchanged when a child overflows
+  across. `wrap_one_line_is_today` checks this with zero tolerance.
+- "A natural length never wraps" is exact. A run whose arranged length is at least its measured length
+  is never broken, so adding up fractional lengths a second time cannot break it by rounding.
+- Padding is still added in one place and subtracted in one: `measured_set`, and
+  `inner_min`/`inner_size`.
+- A wrapping column moves each child's subtree, so a node under several nested wrapping columns is
+  moved once per column. That is the one pass that is not strictly linear. The file header says so.
+
+**Verified:**
+- `cmake -P check.cmake` exits 0: all standalone configures, 47 tests, analyser on 129 files.
+- `ctest -R ui`: 2/2 pass, and every existing `layout.c`/`widgets.c` case passes without edits.
+- `git diff --stat -- ui/tests`: `layout.c` only, 528 insertions, 0 deletions.
+- Probe: with breaking disabled, `wrap_breaks` fails (height 6, expected 22). Reverted, and it passes.
+- `bash tools/hot.sh`: all hot files under their ceilings (`ui.md` 79/120, this card 144/150).
+- Editor: started on the real GPU and ran 6 s with nothing on stderr. Nothing captures a frame, so
+  **whether it looks the same was not checked by eye.** That is left for review.
+
+**Files touched:** `ui/include/ui/layout.h`, `ui/src/context.h`, `ui/src/layout.c`,
+`ui/tests/layout.c`, `ui/ui.md`. Nothing outside `ui/`. No DEVIATION or BLOCKED markers.

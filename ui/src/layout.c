@@ -1,4 +1,4 @@
-// The tree, and the two sweeps over it that turn a declaration into rectangles.
+// The tree, and the sweeps over it that turn a declaration into rectangles.
 //
 // THE ARRAY IS IN CALL ORDER, WHICH IS A PRE-ORDER WALK OF THE TREE, AND THAT IS
 // WHAT MAKES BOTH PASSES FLAT LOOPS. A node is pushed when its call happens, so
@@ -6,6 +6,21 @@
 // before parents, so it sweeps the array backwards; arrange needs parents before
 // children, so it sweeps forwards. Each node is touched twice — once on its own
 // account and once as one of its parent's children — so both passes are linear.
+//
+// SINCE CARD 072 THE PAIR RUNS ONCE PER AXIS: measure and arrange X over the
+// whole tree, then measure and arrange Y. Nothing on one axis reads the other,
+// except the one thing the order exists for — a wrapping row's lines, broken
+// while arranging X, are what measuring Y stacks up. `line` on each child is how
+// the two passes speak, and a container that does not wrap leaves every child on
+// line nought, which is a single run and exactly the arithmetic there was before.
+//
+// A WRAPPING COLUMN IS THE ONE PLACE A PASS REVISITS THE OTHER AXIS. Its length
+// is Y, so it breaks in the Y pass, after its children were placed on X as one
+// line; breaking then moves each child and its whole subtree across to its line,
+// and never resizes one, because a width that waited on a height is what the
+// order rules out. A subtree is consecutive in the array, so the move is a flat
+// loop — but a node under several wrapping columns is moved once for each, which
+// is the one sweep here that is not strictly linear in the node count.
 //
 // SO THERE IS NEITHER RECURSION NOR AN EXPLICIT STACK IN ANY PASS, and the
 // question the card asked does not arise: the depth of the tree is not on the C
@@ -50,9 +65,10 @@
 // still a member of the run and still earns a gap beside it; an anchored child
 // is skipped by both passes' arithmetic entirely — no gap, no share, no
 // contribution — and is placed afterwards against its parent's CONTENT BOX,
-// which is the padded rectangle and not the outer one. So `flow`, the count of
-// the children still in the run, is what every piece of run arithmetic here is
-// written against, and the total child count is not kept at all. The consequence
+// which is the padded rectangle and not the outer one. So a line's `count`, the
+// children of that line still in the run, is what every piece of run arithmetic
+// here is written against, and the total child count is not kept at all. The
+// consequence
 // worth saying out loud is that a fit-to-children container holding only
 // anchored children measures to its padding and nothing more.
 //
@@ -67,19 +83,19 @@
 // down from the panel's top-left corner, so a container's children accumulate
 // away from its own corner on both axes and the two are the same arithmetic with
 // the components swapped — which is why `axis` and `axis_set` are the whole of
-// the direction handling and why arrange_children has one expression for a
-// child's corner rather than two. A reader who knows this engine will expect a
+// the direction handling and why each arrange has one expression for a child's
+// corner rather than two. A reader who knows this engine will expect a
 // flip here, because the world is +Y up; the surface being laid out is a flat
 // thing's own parameter space and voe_render_element's header is where the one
 // sign that reconciles the two is written down. Putting a second one here is the
 // way this file goes wrong, and it would pass a symmetrical test.
 //
-// PADDING IS SUBTRACTED IN ONE PLACE, IN ARRANGE, AND ADDED IN ONE PLACE, IN
-// MEASURE. Counting it twice is the classic off-by-pad and the only guard
-// against it is that there is one line each way. Four numbers give it four ways
-// to happen, so both directions go through pad_axis and pad_near and neither
-// names a side of the struct: a pass asks for the two sides on an axis, or for
-// the near side of one, and never for `left` as such.
+// PADDING IS SUBTRACTED IN ONE PLACE, inner_min and inner_size, AND ADDED IN
+// ONE PLACE, measured_set. Counting it twice is the classic off-by-pad and the
+// only guard against it is that there is one line each way. Four numbers give it
+// four ways to happen, so both directions go through pad_axis and pad_near and
+// neither names a side of the struct: a pass asks for the two sides on an axis,
+// or for the near side of one, and never for `left` as such.
 //
 // THE TREE AND THE CONTEXT ARE DECLARED IN src/context.h AND NOT HERE, because
 // widgets.c is the other half of the same frame and reads the same rectangles.
@@ -120,6 +136,26 @@ static float pad_axis(voe_ui_pad pad, bool y)
 static float pad_near(voe_ui_pad pad, bool y)
 {
 	return y ? pad.top : pad.left;
+}
+
+// A container's content box on one axis, inside its padding, from the rectangle
+// arrange has already given it. The one place padding is subtracted.
+static float inner_min(const struct voe_ui_node_record *c, bool y)
+{
+	return axis(c->rect.min, y) + pad_near(c->pad, y);
+}
+
+static float inner_size(const struct voe_ui_node_record *c, bool y)
+{
+	return axis(c->rect.size, y) - pad_axis(c->pad, y);
+}
+
+// What a container's children came to on one axis, with its padding. The one
+// place padding is added — by measure, and by a wrapping container revising what
+// it measured to once it has broken.
+static void measured_set(struct voe_ui_node_record *c, bool y, float children)
+{
+	axis_set(&c->content_natural, y, children + pad_axis(c->pad, y));
 }
 
 // `grow_refused` is the message for a grow that is not allowed on this axis, and
@@ -216,24 +252,103 @@ static float declared(voe_ui_size size, float natural)
 	return natural;
 }
 
-static void measure_natural(struct voe_ui_node_record *n, bool y_along)
+// One axis of it. `y_along` is the parent's flow and `y` the axis being
+// measured, so the declaration read is `along` exactly when the two agree.
+static void measure_natural(struct voe_ui_node_record *n, bool y_along, bool y)
 {
-	axis_set(&n->natural, y_along,
-		 declared(n->size.along, axis(n->content_natural, y_along)));
-	axis_set(&n->natural, !y_along,
-		 declared(n->size.across, axis(n->content_natural, !y_along)));
+	voe_ui_size size = y == y_along ? n->size.along : n->size.across;
+
+	axis_set(&n->natural, y, declared(size, axis(n->content_natural, y)));
 }
 
-// Summed along the flow with the gaps, the largest across, and the padding on
-// both edges of each. Its children are already measured: they sit at higher
-// indices and the sweep runs backwards.
-static void measure_container(struct voe_ui_node_record *nodes, uint32_t index)
+// The first child at or after `child` that is in the run, or VOE_UI_NODE_NONE.
+static uint32_t in_flow(const struct voe_ui_node_record *nodes, uint32_t child)
+{
+	while (child != VOE_UI_NODE_NONE && nodes[child].anchor.anchored)
+		child = nodes[child].next_sibling;
+	return child;
+}
+
+// One line of a container's run: its in-flow children from `first` up to and
+// not including `next`, how long their natural sizes and gaps come to along the
+// flow, and how thick the thickest of them is across it.
+struct voe_ui_line {
+	uint32_t first;
+	uint32_t next;
+	uint32_t count;
+	float length;
+	float thickness;
+};
+
+// Reads the line that begins at `first`, false when `first` is
+// VOE_UI_NODE_NONE and there is no line left. A line is the in-flow children
+// that share a `line` number, and they are consecutive because breaking only
+// ever counts upwards.
+//
+// The length is summed before its gaps are added, in that order, because that
+// is the order measure has always used and one line has to come out at today's
+// number exactly and not to within rounding.
+static bool line_read(const struct voe_ui_node_record *nodes, uint32_t first,
+		      float gap, bool y, struct voe_ui_line *line)
+{
+	uint32_t child;
+
+	if (first == VOE_UI_NODE_NONE)
+		return false;
+
+	*line = (struct voe_ui_line){ .first = first };
+	for (child = first; child != VOE_UI_NODE_NONE &&
+			    nodes[child].line == nodes[first].line;
+	     child = in_flow(nodes, nodes[child].next_sibling)) {
+		const struct voe_ui_node_record *n = &nodes[child];
+
+		line->count++;
+		line->length += axis(n->natural, y);
+		if (axis(n->natural, !y) > line->thickness)
+			line->thickness = axis(n->natural, !y);
+	}
+	if (line->count > 1)
+		line->length += gap * (float)(line->count - 1);
+	line->next = child;
+
+	return true;
+}
+
+// What a container's run comes to along its flow — its longest line — or, with
+// `across` set, across it: every line's thickness and the gaps between them.
+// Neither counts the padding. With one line these are the sum and the largest,
+// which is all they were before a run could wrap.
+static float run_extent(const struct voe_ui_node_record *nodes,
+			const struct voe_ui_node_record *c, bool across)
+{
+	bool y = !c->row;
+	struct voe_ui_line line;
+	float extent = 0.0f;
+	uint32_t lines = 0;
+	uint32_t child;
+
+	for (child = in_flow(nodes, c->first_child);
+	     line_read(nodes, child, c->gap, y, &line); child = line.next) {
+		lines++;
+		if (across)
+			extent += line.thickness;
+		else if (line.length > extent)
+			extent = line.length;
+	}
+	if (across && lines > 1)
+		extent += c->gap * (float)(lines - 1);
+
+	return extent;
+}
+
+// One axis of a container: its children's natural sizes on that axis, and its
+// own content from them and its padding. Its children are already measured on
+// this axis: they sit at higher indices and the sweep runs backwards.
+static void measure_container(struct voe_ui_node_record *nodes, uint32_t index,
+			      bool axis_y)
 {
 	struct voe_ui_node_record *c = &nodes[index];
 	bool y = !c->row;
-	float along = 0.0f;
-	float across = 0.0f;
-	uint32_t flow = 0;
 	uint32_t child;
 
 	for (child = c->first_child; child != VOE_UI_NODE_NONE;
@@ -246,34 +361,24 @@ static void measure_container(struct voe_ui_node_record *nodes, uint32_t index)
 		// So a container that fits its children and holds only anchored
 		// ones comes out at its padding and nothing else, which is the
 		// trap this folder's header says out loud rather than hides.
-		if (n->anchor.anchored) {
-			measure_natural(n, false);
-			continue;
-		}
-
-		measure_natural(n, y);
-		flow++;
-		along += axis(n->natural, y);
-		if (axis(n->natural, !y) > across)
-			across = axis(n->natural, !y);
+		// run_extent never sees one.
+		measure_natural(n, n->anchor.anchored ? false : y, axis_y);
 	}
 
-	if (flow > 1)
-		along += c->gap * (float)(flow - 1);
-
-	axis_set(&c->content_natural, y, along + pad_axis(c->pad, y));
-	axis_set(&c->content_natural, !y, across + pad_axis(c->pad, !y));
+	measured_set(c, axis_y, run_extent(nodes, c, axis_y != y));
 }
 
-static void measure(struct voe_ui_node_record *nodes, uint32_t count)
+static void measure(struct voe_ui_node_record *nodes, uint32_t count,
+		    bool axis_y)
 {
 	uint32_t i = count;
 
 	while (i-- > 0) {
 		if (nodes[i].leaf)
-			nodes[i].content_natural = nodes[i].content;
+			axis_set(&nodes[i].content_natural, axis_y,
+				 axis(nodes[i].content, axis_y));
 		else
-			measure_container(nodes, i);
+			measure_container(nodes, i, axis_y);
 	}
 }
 
@@ -330,23 +435,49 @@ static void anchor_axis(struct voe_ui_node_record *n, voe_ui_anchor_axis a,
 	axis_set(&n->rect.min, y, min);
 }
 
-// The container's rectangle is already known; this hands every child of it one.
-static void arrange_children(struct voe_ui_node_record *nodes, uint32_t index)
+// Numbers the in-flow children of a wrapping container into lines against its
+// inner length along the flow, which arrange has just come to.
+//
+// A RUN THAT FITS IS ONE LINE AND IS NOT WALKED AT ALL. The comparison is
+// against what measure made of the run, which is the number a natural length
+// was copied from, so a container at its natural length never breaks — rather
+// than breaking on a rounding when the same lengths are summed a second time
+// in another order.
+static void break_lines(struct voe_ui_node_record *nodes,
+			const struct voe_ui_node_record *c, bool y, float inner)
 {
-	struct voe_ui_node_record *c = &nodes[index];
-	bool y = !c->row;
-	float inner_along = axis(c->rect.size, y) - pad_axis(c->pad, y);
-	float inner_across = axis(c->rect.size, !y) - pad_axis(c->pad, !y);
-	// Both axes begin at the padded box's own corner and run away from it,
-	// rightwards and downwards, so an offset is added on either. There is no
-	// minus sign in this function and there is not meant to be one.
-	float start_along = axis(c->rect.min, y) + pad_near(c->pad, y);
-	float start_across = axis(c->rect.min, !y) + pad_near(c->pad, !y);
-	// The run is the in-flow children and only them, so every number below
-	// is counted against `flow` and never against how many children there
-	// are: an anchored child takes no space in the run and earns no gap.
-	uint32_t flow = 0;
-	float gaps;
+	bool fits = axis(c->rect.size, y) >= axis(c->content_natural, y);
+	uint32_t number = 0;
+	uint32_t on_line = 0;
+	float length = 0.0f;
+	uint32_t child;
+
+	for (child = in_flow(nodes, c->first_child); child != VOE_UI_NODE_NONE;
+	     child = in_flow(nodes, nodes[child].next_sibling)) {
+		struct voe_ui_node_record *n = &nodes[child];
+		float size = axis(n->natural, y);
+
+		// The first child on a line never breaks, so a child longer
+		// than the whole line has that line to itself and sticks out.
+		if (!fits && on_line > 0 && length + c->gap + size > inner) {
+			number++;
+			on_line = 0;
+		}
+
+		length = on_line > 0 ? length + c->gap + size : size;
+		on_line++;
+		n->line = number;
+	}
+}
+
+// One line laid out along the flow as a whole run always was: grow children
+// share what the line leaves, and `along` distributes what is left after them.
+static void arrange_line(struct voe_ui_node_record *nodes,
+			 const struct voe_ui_node_record *c,
+			 const struct voe_ui_line *line, bool y, float start,
+			 float inner)
+{
+	float gaps = line->count > 1 ? c->gap * (float)(line->count - 1) : 0.0f;
 	float taken = 0.0f;
 	float weight = 0.0f;
 	float leftover;
@@ -357,26 +488,20 @@ static void arrange_children(struct voe_ui_node_record *nodes, uint32_t index)
 	float extra = 0.0f;
 	uint32_t child;
 
-	for (child = c->first_child; child != VOE_UI_NODE_NONE;
-	     child = nodes[child].next_sibling) {
-		struct voe_ui_node_record *n = &nodes[child];
+	for (child = line->first; child != line->next;
+	     child = in_flow(nodes, nodes[child].next_sibling)) {
+		const struct voe_ui_node_record *n = &nodes[child];
 
-		if (n->anchor.anchored)
-			continue;
-
-		flow++;
 		if (n->size.along.kind == VOE_UI_SIZE_GROW)
 			weight += n->size.along.value;
 		else
 			taken += axis(n->natural, y);
 	}
 
-	gaps = flow > 1 ? c->gap * (float)(flow - 1) : 0.0f;
-
-	// What the grow children divide between them. A row that already
+	// What the grow children divide between them. A line that already
 	// overflows has nothing left to share, and a grow child in it gets
 	// nought rather than a negative size.
-	leftover = inner_along - taken - gaps;
+	leftover = inner - taken - gaps;
 	if (weight > 0.0f && leftover > 0.0f)
 		share = leftover / weight;
 
@@ -384,21 +509,20 @@ static void arrange_children(struct voe_ui_node_record *nodes, uint32_t index)
 	// distributes. With a grow child present that is nought, which is why
 	// grow and a distribution do not fight.
 	used = taken + gaps;
-	for (child = c->first_child; child != VOE_UI_NODE_NONE;
-	     child = nodes[child].next_sibling) {
-		struct voe_ui_node_record *n = &nodes[child];
+	for (child = line->first; child != line->next;
+	     child = in_flow(nodes, nodes[child].next_sibling)) {
+		const struct voe_ui_node_record *n = &nodes[child];
 
-		if (!n->anchor.anchored &&
-		    n->size.along.kind == VOE_UI_SIZE_GROW)
+		if (n->size.along.kind == VOE_UI_SIZE_GROW)
 			used += along_size(n, y, share);
 	}
-	free_space = inner_along - used;
+	free_space = inner - used;
 
 	switch (c->along) {
 	case VOE_UI_ALONG_START:
 		break;
 	case VOE_UI_ALONG_CENTER:
-		// Not clamped when the run overflows: a run wider than its
+		// Not clamped when the line overflows: a line wider than its
 		// container is centred on it and sticks out at both ends, which
 		// is the true rectangle and this folder reports those.
 		offset = free_space * 0.5f;
@@ -409,104 +533,226 @@ static void arrange_children(struct voe_ui_node_record *nodes, uint32_t index)
 	case VOE_UI_ALONG_SPREAD:
 	case VOE_UI_ALONG_EVENLY:
 		// The two distributions degenerate identically and share the one
-		// guard that says so: with a single child, or with a run that
+		// guard that says so: with a single child, or with a line that
 		// already overflows, there is no free space to hand out and both
 		// are START.
-		if (flow > 1 && free_space > 0.0f) {
+		if (line->count > 1 && free_space > 0.0f) {
 			if (c->along == VOE_UI_ALONG_SPREAD) {
 				// Between the children and none at the ends.
-				extra = free_space / (float)(flow - 1);
+				extra = free_space / (float)(line->count - 1);
 			} else {
 				// Every gap the same, the ends included, so one
 				// more gap than SPREAD has — and the first of
-				// them goes in front of the run.
-				extra = free_space / (float)(flow + 1);
+				// them goes in front of the line.
+				extra = free_space / (float)(line->count + 1);
 				offset = extra;
 			}
 		}
 		break;
 	}
 
-	for (child = c->first_child; child != VOE_UI_NODE_NONE;
-	     child = nodes[child].next_sibling) {
+	for (child = line->first; child != line->next;
+	     child = in_flow(nodes, nodes[child].next_sibling)) {
 		struct voe_ui_node_record *n = &nodes[child];
-		float size_along;
-		float size_across;
-		float offset_across = 0.0f;
+		float size = along_size(n, y, share);
 
-		if (n->anchor.anchored)
-			continue;
+		axis_set(&n->rect.size, y, size);
+		axis_set(&n->rect.min, y, start + offset);
 
-		size_along = along_size(n, y, share);
-
-		// A child's own fixed size across the flow beats the container's
-		// FILL: the more specific statement wins.
-		if (n->size.across.kind == VOE_UI_SIZE_FIXED)
-			size_across = n->size.across.value;
-		else if (c->across == VOE_UI_ACROSS_FILL)
-			size_across = inner_across;
-		else
-			size_across = axis(n->natural, !y);
-
-		switch (c->across) {
-		case VOE_UI_ACROSS_START:
-			break;
-		case VOE_UI_ACROSS_CENTER:
-			offset_across = (inner_across - size_across) * 0.5f;
-			break;
-		case VOE_UI_ACROSS_END:
-			offset_across = inner_across - size_across;
-			break;
-		case VOE_UI_ACROSS_FILL:
-			// Filled, or fixed and so left at the start of the axis.
-			break;
-		}
-
-		axis_set(&n->rect.size, y, size_along);
-		axis_set(&n->rect.size, !y, size_across);
-		axis_set(&n->rect.min, y, start_along + offset);
-		axis_set(&n->rect.min, !y, start_across + offset_across);
-
-		offset += size_along + c->gap + extra;
-	}
-
-	// AND THE ANCHORED CHILDREN AFTERWARDS, IN CALL ORDER AMONG THEMSELVES.
-	// After, and not before, because submission order is paint order on the
-	// element path: an anchored panel has to be handed over later than the
-	// siblings it floats above or it goes underneath them, and that is
-	// invisible until something draws. paint_order is what carries this into
-	// emission; this loop is only where the rectangles come from.
-	//
-	// Against the content box on both axes — inside the padding, which is
-	// what start_* and inner_* already are — and each axis worked out on its
-	// own, so the sixteen combinations need no cases of their own.
-	for (child = c->first_child; child != VOE_UI_NODE_NONE;
-	     child = nodes[child].next_sibling) {
-		struct voe_ui_node_record *n = &nodes[child];
-		bool row = c->row;
-
-		if (!n->anchor.anchored)
-			continue;
-
-		// start_along and inner_along are the X pair in a row and the Y
-		// pair in a column, so the anchor's own X and Y are picked out
-		// of them here rather than a second set being worked out.
-		anchor_axis(n, n->anchor.x, false,
-			    row ? start_along : start_across,
-			    row ? inner_along : inner_across);
-		anchor_axis(n, n->anchor.y, true,
-			    row ? start_across : start_along,
-			    row ? inner_across : inner_along);
+		offset += size + c->gap + extra;
 	}
 }
 
-static void arrange(struct voe_ui_node_record *nodes, uint32_t count)
+// Moves a node and everything inside it along one axis. A subtree is that many
+// consecutive entries of the pre-order array, so this is a flat loop too.
+static void shift_subtree(struct voe_ui_node_record *nodes, uint32_t node,
+			  bool y, float by)
+{
+	uint32_t end = node + nodes[node].subtree;
+	uint32_t i;
+
+	for (i = node; i < end; i++)
+		axis_set(&nodes[i].rect.min, y,
+			 axis(nodes[i].rect.min, y) + by);
+}
+
+// The container's rectangle is known on the axis across its flow; this places
+// its in-flow children on it, line by line.
+//
+// ONE LINE IS TODAY'S LAYOUT EXACTLY, SO ONE LINE IS THE INNER LENGTH. A single
+// line's thickness is the container's inner size across, whatever its children
+// came to — FILL stretched to it and CENTER centred on it even when a child
+// overflows it, as they always were. Several lines are as thick as their
+// thickest child, and share whatever the container has left over across once
+// they and their gaps are counted, each growing by the same amount.
+//
+// `settled` IS A WRAPPING COLUMN'S SECOND VISIT. Its width, and its children's,
+// were settled in the X pass while it was still one line; it breaks in the Y
+// pass, and this is then called again to MOVE each child, and everything inside
+// it, to the line it landed on — never to resize one. The reading was chosen by
+// the principal when card 072 asked: FILL stretching a child to a line only
+// known after its height would be a width that needed a height, which is the
+// one thing the axis order exists to rule out. So in a column broken into
+// several lines, a FILL child keeps its one-line width and sits at its line's
+// start.
+static void arrange_across(struct voe_ui_node_record *nodes,
+			   const struct voe_ui_node_record *c, bool settled)
+{
+	bool y = !c->row;
+	float inner = inner_size(c, !y);
+	float at = inner_min(c, !y);
+	struct voe_ui_line line;
+	float total = 0.0f;
+	float spare;
+	uint32_t lines = 0;
+	uint32_t child;
+
+	for (child = in_flow(nodes, c->first_child);
+	     line_read(nodes, child, c->gap, y, &line); child = line.next) {
+		lines++;
+		total += line.thickness;
+	}
+	if (lines > 1)
+		total += c->gap * (float)(lines - 1);
+	// Shared only when there is some. Lines that already overflow across
+	// keep their thicknesses and stick out, as everything here does.
+	spare = lines > 0 && inner > total ? (inner - total) / (float)lines
+					   : 0.0f;
+
+	for (child = in_flow(nodes, c->first_child);
+	     line_read(nodes, child, c->gap, y, &line); child = line.next) {
+		float thickness = lines > 1 ? line.thickness + spare : inner;
+		uint32_t in_line;
+
+		for (in_line = line.first; in_line != line.next;
+		     in_line = in_flow(nodes, nodes[in_line].next_sibling)) {
+			struct voe_ui_node_record *n = &nodes[in_line];
+			float size;
+			float offset = 0.0f;
+
+			// A child's own fixed size across the flow beats the
+			// container's FILL: the more specific statement wins.
+			if (settled)
+				size = axis(n->rect.size, !y);
+			else if (n->size.across.kind == VOE_UI_SIZE_FIXED)
+				size = n->size.across.value;
+			else if (c->across == VOE_UI_ACROSS_FILL)
+				size = thickness;
+			else
+				size = axis(n->natural, !y);
+
+			switch (c->across) {
+			case VOE_UI_ACROSS_START:
+				break;
+			case VOE_UI_ACROSS_CENTER:
+				offset = (thickness - size) * 0.5f;
+				break;
+			case VOE_UI_ACROSS_END:
+				offset = thickness - size;
+				break;
+			case VOE_UI_ACROSS_FILL:
+				// Filled, or fixed and so left at the start of
+				// the line.
+				break;
+			}
+
+			if (settled) {
+				shift_subtree(nodes, in_line, !y,
+					      at + offset -
+						      axis(n->rect.min, !y));
+			} else {
+				axis_set(&n->rect.size, !y, size);
+				axis_set(&n->rect.min, !y, at + offset);
+			}
+		}
+
+		at += thickness + c->gap;
+	}
+}
+
+// The container's rectangle is known on the axis along its flow; this breaks
+// its run into lines if it wraps and lays each of them out along that axis.
+static void arrange_along(struct voe_ui_node_record *nodes, uint32_t index)
+{
+	struct voe_ui_node_record *c = &nodes[index];
+	bool y = !c->row;
+	float inner = inner_size(c, y);
+	// The axis begins at the padded box's own corner and runs away from it,
+	// rightwards or downwards, so an offset is added on either. There is no
+	// minus sign in front of a position here and there is not meant to be.
+	float start = inner_min(c, y);
+	struct voe_ui_line line;
+	uint32_t child;
+
+	if (c->wrap)
+		break_lines(nodes, c, y, inner);
+
+	for (child = in_flow(nodes, c->first_child);
+	     line_read(nodes, child, c->gap, y, &line); child = line.next)
+		arrange_line(nodes, c, &line, y, start, inner);
+
+	if (!c->wrap)
+		return;
+
+	// What it measured to is now what it wrapped to: the longest line along
+	// the flow, and every line and its gaps across it. Along is the flow's
+	// own axis, which measure saw as one line.
+	measured_set(c, y, run_extent(nodes, c, false));
+
+	// A COLUMN BREAKS IN THE Y PASS, AFTER ITS X WAS SETTLED AS ONE LINE, so
+	// its across has been measured and arranged already and both are
+	// revisited here: the measure for the accessor, the arrangement to move
+	// the extra lines out to the right of its rectangle. A row's across is
+	// Y, which has not been measured yet and reads the lines when it is.
+	if (!c->row) {
+		measured_set(c, !y, run_extent(nodes, c, true));
+		arrange_across(nodes, c, true);
+	}
+}
+
+// One axis of every container, parents first. Along a container's flow the run
+// is broken and laid out; across it the lines are stacked; and the anchored
+// children are placed on that axis against the content box in both cases, after
+// their in-flow siblings.
+static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
+		    bool axis_y)
 {
 	uint32_t i;
 
 	for (i = 0; i < count; i++) {
-		if (!nodes[i].leaf)
-			arrange_children(nodes, i);
+		struct voe_ui_node_record *c = &nodes[i];
+		uint32_t child;
+
+		if (c->leaf)
+			continue;
+
+		if (axis_y == !c->row)
+			arrange_along(nodes, i);
+		else
+			arrange_across(nodes, c, false);
+
+		// AND THE ANCHORED CHILDREN AFTERWARDS, IN CALL ORDER AMONG
+		// THEMSELVES. After, and not before, because submission order is
+		// paint order on the element path: an anchored panel has to be
+		// handed over later than the siblings it floats above or it goes
+		// underneath them, and that is invisible until something draws.
+		// paint_order is what carries this into emission; this loop is
+		// only where the rectangles come from.
+		//
+		// Against the content box — inside the padding — and each axis
+		// worked out on its own pass, so the sixteen combinations need no
+		// cases of their own.
+		for (child = c->first_child; child != VOE_UI_NODE_NONE;
+		     child = nodes[child].next_sibling) {
+			struct voe_ui_node_record *n = &nodes[child];
+
+			if (!n->anchor.anchored)
+				continue;
+
+			anchor_axis(n, axis_y ? n->anchor.y : n->anchor.x,
+				    axis_y, inner_min(c, axis_y),
+				    inner_size(c, axis_y));
+		}
 	}
 }
 
@@ -659,6 +905,7 @@ static voe_ui_node container_begin(voe_ui_context *ui,
 	n->gap = container.gap;
 	n->pad = container.pad;
 	n->anchor = container.anchor;
+	n->wrap = container.wrap;
 
 	ui->open[ui->depth++] = index;
 
@@ -724,6 +971,7 @@ voe_ui_node voe_ui_box(voe_ui_context *ui, voe_math_float2 content,
 	// Anchoring is a container's, so a leaf that wants to float is wrapped
 	// in an anchored one. See voe_ui_box's header.
 	n->anchor = (voe_ui_anchor){ 0 };
+	n->wrap = false;
 
 	return index;
 }
@@ -753,18 +1001,24 @@ bool voe_ui_frame_end(voe_ui_context *ui)
 	if (ui->count > 0)
 		paint_order(ui->nodes, ui->count, ui->order);
 
-	if (ok && ui->count > 0) {
-		measure(ui->nodes, ui->count);
+	// X for the whole tree, then Y for the whole tree, and never the other
+	// way round: a wrapping row's height is its lines, and its lines are
+	// only known once its width has been arranged. Paint order is worked
+	// out above and before either, and a wrapping column leans on it.
+	for (int pass = 0; ok && ui->count > 0 && pass < 2; pass++) {
+		bool axis_y = pass == 1;
+
+		measure(ui->nodes, ui->count, axis_y);
 
 		// The root is measured against its own flow, because it has no
 		// parent whose flow to be measured against, and it sits at the
 		// origin.
 		root = &ui->nodes[0];
-		measure_natural(root, !root->row);
-		root->rect.min = (voe_math_float2){ 0.0f, 0.0f };
-		root->rect.size = root->natural;
+		measure_natural(root, !root->row, axis_y);
+		axis_set(&root->rect.min, axis_y, 0.0f);
+		axis_set(&root->rect.size, axis_y, axis(root->natural, axis_y));
 
-		arrange(ui->nodes, ui->count);
+		arrange(ui->nodes, ui->count, axis_y);
 	}
 
 	voe_ui_widgets_frame_end(ui, ok);

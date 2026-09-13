@@ -92,6 +92,15 @@ struct voe_ui_node_record {
 	// Out of the parent's run when `anchored`, and then `size` is read as X
 	// and Y rather than as along and across. Never set on the root.
 	voe_ui_anchor anchor;
+	// Whether this container's children may break onto further lines. False
+	// on a leaf.
+	bool wrap;
+
+	// Which line of its parent's run this node landed on, counted from
+	// nought. Written by the arrange along the parent's flow, and nought —
+	// the arena's zero — until then, which is one line and today's layout.
+	// Meaningless on an anchored child, which is in no line.
+	uint32_t line;
 
 	// What measure came to: this node's own content, in the panel's axes.
 	voe_math_float2 content_natural;
@@ -101,7 +110,9 @@ struct voe_ui_node_record {
 	voe_ui_rect rect;
 
 	// This node and everything under it, counted by the paint-order pass,
-	// which is the width of the slot its subtree occupies in that order.
+	// which is the width of the slot its subtree occupies in that order. The
+	// subtree is also this many consecutive entries of the array, which is
+	// how a wrapping column moves a child and everything inside it at once.
 	uint32_t subtree;
 	// Where it lands in paint order. The inverse of ui->order.
 	uint32_t paint;

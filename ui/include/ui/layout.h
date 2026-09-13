@@ -38,7 +38,13 @@
 // children have been called, which is why immediate-mode windows are famous for
 // jumping on their first frame. So the calls between frame_begin and frame_end
 // build a tree and lay out nothing; frame_end measures it bottom-up and arranges
-// it top-down, once, and every size is right on the first frame.
+// it top-down, and every size is right on the first frame.
+//
+// IT DOES THAT ONE AXIS AT A TIME: X FOR THE WHOLE TREE, THEN Y FOR THE WHOLE
+// TREE. Every width is settled before any height is worked out, which is what
+// lets a row that wraps be as tall as its lines — it knows its width by the time
+// its height is asked. The rule that falls out, and binds everything added here
+// later: NOTHING MAY NEED A HEIGHT TO KNOW A WIDTH.
 //
 // WHICH IS WHY A CALL RETURNS A HANDLE AND NOT A SIZE. The size does not exist
 // yet. A begin or a box call hands back a voe_ui_node — an index into this
@@ -90,7 +96,42 @@
 // OVERFLOW IS NOT SHRUNK. Children that do not fit keep their true sizes and
 // stick out past their container's rectangle, and the rectangles reported say
 // so. Clipping belongs to the element record that draws them, not to layout,
-// and shrinking would be a third number on every child.
+// and shrinking would be a third number on every child. A container may wrap
+// instead, and nothing that does not ask to — see `wrap` below.
+//
+// ---- A RUN THAT WRAPS ----
+//
+// A CONTAINER WITH `wrap` SET PUTS CHILDREN THAT DO NOT FIT ONTO FURTHER LINES,
+// along its flow: a row's lines stack downwards and a column's rightwards. It is
+// opt-in and nothing else changes: a container that does not ask lays out as it
+// always did, and one that asks and fits is exactly that same layout.
+//
+// A LINE BREAKS BEFORE THE CHILD THAT WOULD TAKE IT PAST THE INNER LENGTH,
+// counting each child's natural length and a gap before every child but a
+// line's first. THE FIRST CHILD ON A LINE NEVER BREAKS, so a child longer than
+// the whole line has that line to itself, at its full size, sticking out.
+//
+// EACH LINE IS A RUN OF ITS OWN ALONG THE FLOW: grow children share what THAT
+// line leaves, and `along` distributes within that line. Across the flow a line
+// is as thick as its thickest child, lines stack from the start with `gap`
+// between them, and space left over across the container is shared equally
+// between the lines, each growing by the same amount; `across` then places each
+// child within its line, FILL stretching to the line. One line is the inner size
+// across, which is today's answer.
+//
+// A NATURAL LENGTH ALONG THE FLOW IS ONE LINE LONG, so such a container never
+// wraps, and that is not an error. Wrapping needs a length from outside: fixed,
+// grow, or stretched by a parent's FILL.
+//
+// A WRAPPING ROW IS AS TALL AS ITS LINES, which is why X runs first. A WRAPPING
+// COLUMN DOES NOT WIDEN AS IT WRAPS: its width was settled as one line before its
+// height was known, so the extra lines it breaks into sit to the right of its
+// rectangle, outside it, and move its children without resizing them — a FILL
+// child keeps the one-line width it was given. Give such a column the width its
+// lines need, or put it where overflowing to the right is wanted.
+//
+// Anchored children take no part in lines, exactly as they take no part in a
+// run.
 //
 // ---- SPACE INSIDE AN EDGE, AND THE ONE THIS FOLDER REFUSES ----
 //
@@ -372,6 +413,9 @@ typedef struct {
 	float gap;
 	voe_ui_pad pad;
 	voe_ui_anchor anchor;
+	// Nought is one line, as a run always was. See A RUN THAT WRAPS at the
+	// top of this header.
+	bool wrap;
 } voe_ui_container;
 
 // A node in the tree being built: an index into it, valid until the next
@@ -496,6 +540,11 @@ voe_ui_rect voe_ui_node_rect(const voe_ui_context *ui, voe_ui_node node);
 // What the measure pass computed this node's own content to be, in millimetres
 // on each axis: for a box the content it declared, and for a container its
 // children, its gaps and its padding.
+//
+// FOR A CONTAINER THAT WRAPS IT IS THE CONTENT AFTER WRAPPING: its longest line
+// along the flow, and every line and the gaps between them across it, plus
+// padding. So a wrapping column's measured width is every column it broke into,
+// wider than its rectangle, which is the one place that shows.
 //
 // IT DELIBERATELY IGNORES THIS NODE'S OWN FIXED OR GROW DECLARATION, because
 // that declaration is what voe_ui_node_rect already reports and the entire value

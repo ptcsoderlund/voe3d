@@ -18,7 +18,10 @@ matrix and it is the caller's.
   order, that START is left and top on either axis, which of the three sizings
   may be used where, that a child's own fixed size across the flow beats the
   container's FILL, that overflow is reported rather than shrunk, and the three
-  ways a frame can be refused. It also says why padding is four numbers named by
+  ways a frame can be refused. It says that X is laid out for the whole tree
+  before Y and that nothing may need a height to know a width, and how a
+  container that asks to wrap breaks its run into lines — and why a wrapping
+  column overflows to the right instead of widening. It also says why padding is four numbers named by
   absolute side, why there is no margin and what to do instead, what an anchored
   child is and why its two axes are X and Y rather than the flow's two words,
   which way its offset moves it, that it is measured against its parent's
@@ -43,9 +46,11 @@ matrix and it is the caller's.
   source files. Its header says why there is one context and not two, which half
   owns which field, why the widget pass runs where it does, and why a drag needs
   four fields beside `held` and no keyed table.
-- `src/layout.c` — the tree, and the three sweeps over it. Its header says why
-  the array being in call order makes every pass a flat loop with neither
-  recursion nor a stack, why a node's natural size is written by its parent
+- `src/layout.c` — the tree, and the sweeps over it, one axis at a time. Its
+  header says why the array being in call order makes every pass a flat loop
+  with neither recursion nor a stack, what passes between the X pass and the Y
+  pass, where a wrapping column has to revisit X, why a node's natural size is
+  written by its parent
   rather than by itself, what a grow child contributes to a natural container and
   why that answer and not the two others, why a gap belongs to the run and not to
   a child, how an anchored child is a stronger exclusion than a grow one and why
