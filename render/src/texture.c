@@ -290,7 +290,7 @@ static bool copy_into_image(voe_render_device *device,
 }
 
 void voe_render_texture_write_descriptors(voe_render_device *device,
-					  VkDescriptorSet set)
+					  uint32_t slot)
 {
 	VkDescriptorImageInfo images[VOE_RENDER_MAX_TEXTURES];
 	VkWriteDescriptorSet write = {
@@ -302,26 +302,41 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 	};
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "writing descriptors with no device");
+	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT,
+			      "writing the descriptors of something that is not a frame slot");
 
 	// Slot 0 is the default texture and is always live, so an unclaimed slot
 	// pointing at it is pointing at something valid. See
 	// VOE_RENDER_MAX_TEXTURES in device_internal.h.
 	for (uint32_t i = 0; i < VOE_RENDER_MAX_TEXTURES; i++) {
-		const struct voe_render_texture_slot *slot =
+		const struct voe_render_texture_slot *texture =
 			device->textures[i].live ? &device->textures[i]
 						 : &device->textures[0];
+		VkImageView view = texture->view;
+		VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		// A target's picture: this frame slot's own colour image, which
+		// is the whole of how a frame in slot n comes to read slot n's
+		// picture through an id that is the same in every slot — and in
+		// GENERAL, the one layout that image is ever in. See target.c.
+		if (texture->is_target) {
+			view = device->targets[texture->target]
+				       .images[slot]
+				       .colour.view;
+			layout = VK_IMAGE_LAYOUT_GENERAL;
+		}
 
 		// The slot's own mode, which for an unclaimed slot is slot 0's
 		// — the substitution above picked the slot and the sampler
 		// comes from whichever slot that turned out to be.
 		images[i] = (VkDescriptorImageInfo){
-			.sampler = device->samplers[slot->sampling],
-			.imageView = slot->view,
-			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.sampler = device->samplers[texture->sampling],
+			.imageView = view,
+			.imageLayout = layout,
 		};
 	}
 
-	write.dstSet = set;
+	write.dstSet = device->frames[slot].descriptor;
 	voe_render_vk.update_descriptor_sets(device->device, 1, &write, 0, NULL);
 }
 
@@ -405,8 +420,7 @@ bool voe_render_texture_create(voe_render_device *device,
 	// sets no frame is reading is safe. See the header on
 	// voe_render_texture_create.
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
-		voe_render_texture_write_descriptors(device,
-						     device->frames[i].descriptor);
+		voe_render_texture_write_descriptors(device, i);
 
 	out->index = index;
 	out->generation = slot->generation;
@@ -444,6 +458,8 @@ bool voe_render_texture_destroy(voe_render_device *device,
 	slot = &device->textures[texture.index];
 	if (!slot->live || slot->generation != texture.generation)
 		return false;
+	VOE_BASE_ASSERT(!slot->is_target,
+			"destroying a target's texture — the target owns the images it reads, and nothing destroys a target");
 
 	// The image may be in a descriptor set a frame is still reading, and the
 	// rewrite below may not happen while one is. This is the same wait
@@ -466,8 +482,7 @@ bool voe_render_texture_destroy(voe_render_device *device,
 	// Back to the white default, so the array stays valid — every element
 	// has to be a real descriptor whether or not the shader samples it.
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
-		voe_render_texture_write_descriptors(device,
-						     device->frames[i].descriptor);
+		voe_render_texture_write_descriptors(device, i);
 	return true;
 }
 

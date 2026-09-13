@@ -135,8 +135,9 @@
 // target with voe_render_pass_begin and closed with _pass_end. The camera moved
 // off the frame because one frame may want to look at the world more than once —
 // two views of one scene, a picture drawn for somewhere other than the window —
-// and a camera fixed for the whole frame makes every one of those impossible. The
-// only target that exists is the window's, VOE_RENDER_TARGET_WINDOW.
+// and a camera fixed for the whole frame makes every one of those impossible. A
+// pass draws into the window's target, VOE_RENDER_TARGET_WINDOW, or into a target
+// of the caller's own made with voe_render_target_create.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,
@@ -221,6 +222,12 @@ typedef struct voe_render_device voe_render_device;
 // thousands, not hundreds, and the exhibit in dev/ spends half its eighty on two
 // short lines of writing. Eighty bytes each, so a thousand is eighty kilobytes a
 // frame slot — the number to be generous with, not careful about.
+//
+// targets IS THE THIRD NUMBER THAT MAY BE NOUGHT, and unlike the others it is
+// not per frame slot: it is how many voe_render_target_create may make over the
+// device's life, because nothing destroys one. A device made with none refuses
+// the first create with a message. Each target costs one texture slot of the
+// sixty-four as well as its images.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -232,6 +239,7 @@ typedef struct {
 	uint32_t transient_geometries;
 	uint32_t elements;
 	uint32_t passes;
+	uint32_t targets;
 } voe_render_capacities;
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
@@ -562,6 +570,23 @@ typedef enum {
 	// coverage out of a sheet, which is what a glyph wants and what an icon
 	// sheet would want as well.
 	VOE_RENDER_ELEMENT_GLYPH,
+	// A rectangle showing a picture: the record's `sheet` says which part of
+	// `sheet_texture` is stretched over the element's bounds, and what is read
+	// there is multiplied by the record's colour — a colour of opaque white
+	// shows the picture as it is. What it is for is a view drawn into a target
+	// of one's own, an icon, a thumbnail.
+	//
+	// IT IS NOT A TEXT KIND EITHER, AND IT IS NOT A GLYPH WITH THE THRESHOLD
+	// TAKEN OFF. A glyph's sheet is numbers and its colour is the record's
+	// alone; an image's sheet is a picture — a COLOUR texture, or a target's —
+	// and its colour is the picture's. Read NEAREST like every picture here.
+	//
+	// THE PICTURE'S ALPHA IS TREATED AS STRAIGHT, like the record's own colour,
+	// and the product is premultiplied once at output. A target's picture is
+	// premultiplied already, which makes no difference while it is opaque —
+	// every target is cleared to an opaque colour — and makes a see-through
+	// one too faint.
+	VOE_RENDER_ELEMENT_IMAGE,
 } voe_render_element_kind;
 
 // One element: a rectangle, a colour and the rectangle it is clipped to. Many of
@@ -647,7 +672,8 @@ typedef struct {
 	voe_math_float4 colour;
 	// A voe_render_element_kind.
 	uint32_t kind;
-	// The sheet a GLYPH reads its coverage out of: a texture id's index half
+	// The sheet a GLYPH reads its coverage out of, or the picture an IMAGE
+	// shows: a texture id's index half
 	// only, the same shape voe_render_shading_values' texture slots use.
 	// A SOLID never reads it and does not have to set it.
 	//
@@ -664,7 +690,8 @@ typedef struct {
 	// reserved_a, _b and _c, which three later cards consumed in place; card
 	// 031 took one word of these three and the float4 below.
 	uint32_t reserved_a[2];
-	// What part of `sheet_texture` a GLYPH reads, in texture coordinates:
+	// What part of `sheet_texture` a GLYPH or an IMAGE reads, in texture
+	// coordinates:
 	// `xy` its top-left corner and `zw` its width and height. The record's
 	// own xy-plus-wh shape, the same as `bounds` and `clip`, because one
 	// struct wants one convention.
@@ -805,6 +832,10 @@ void voe_render_device_destroy(voe_render_device *device);
 //
 // A STARTUP AND SHUTDOWN OPERATION, for the same reason creating one is: it
 // waits for the GPU to go idle and rewrites the descriptor sets.
+//
+// A TARGET'S TEXTURE IS NOT ONE OF THESE TO GIVE BACK, and handing its id here
+// asserts: the target owns the images the slot reads, and nothing destroys a
+// target.
 bool voe_render_texture_destroy(voe_render_device *device,
 				voe_render_texture texture);
 
@@ -838,13 +869,81 @@ bool voe_render_texture_destroy(voe_render_device *device,
 					  voe_platform_size size, bool *drawing);
 
 // What a pass draws into. The shape of the other ids; the zeroed one is the
-// window's, and it is the only target there is.
+// window's, and every other one came out of voe_render_target_create.
 typedef struct {
 	uint32_t index;
 	uint32_t generation;
 } voe_render_target;
 
 #define VOE_RENDER_TARGET_WINDOW ((voe_render_target){ 0 })
+
+// ----------------------------------------------------------------- targets
+
+// Makes a target of `width` by `height` pixels that a pass can draw into, and
+// hands back two ids: the target, for voe_render_pass_begin, and an ordinary
+// colour texture that shows its picture — on an element of kind
+// VOE_RENDER_ELEMENT_IMAGE, or in a shading record's base colour slot.
+//
+// A TARGET IS KEPT AND NOT ASKED FOR PER FRAME. What draws into one — a second
+// view of a scene, a thumbnail — is drawn every frame into the same place, and
+// what shows it holds a texture id in a record or a component that was written
+// once. A target made per frame would be an allocation and a descriptor rewrite
+// every frame, both of which wait for the card, and a texture id that changed
+// under everything holding it.
+//
+// THE TEXTURE ID NEVER CHANGES, AND WHICH IMAGE IT READS IS THIS FOLDER'S
+// BOOKKEEPING. A target is one colour-and-depth pair per frame slot, for the
+// reason the window's is: the frame before last may still be reading its own.
+// The id names one texture slot, and a frame reads its own slot's image through
+// it; nothing outside this folder can tell, across frames in flight or resizes.
+//
+// ITS PICTURE IS UNDEFINED UNTIL A PASS DRAWS INTO IT, AND AGAIN AFTER A RESIZE.
+// Showing a target nothing has drawn shows whatever the card had. Nothing is
+// cleared on creation, because the first pass onto it clears it.
+//
+// A TARGET IS CLEARED BY THE FIRST PASS ONTO IT IN A FRAME AND LOADED BY EVERY
+// LATER ONE, colour and depth both — the window's rule, and the same clear
+// colour. A frame that opens no pass onto a target leaves it holding what it
+// held, which is what the frame slot's own image held: the picture of the last
+// frame that ran on that slot — frames in flight back, as
+// voe_render_frame_gpu_time's reading is — and not the last frame's. A target
+// that is shown is drawn every frame it is shown.
+//
+// SHOWING A TARGET IN A PASS THAT DRAWS INTO IT ASSERTS, IN A DEBUG BUILD. A
+// mesh whose shading record names the open pass's target texture in any of its
+// texture slots, or an element range any of whose GLYPH or IMAGE records does,
+// is a picture reading itself while it is written, which Vulkan leaves
+// undefined. It is a debug check: a release build reads the records nowhere
+// and draws whatever the card does.
+//
+// FALSE, WITH A LINE ON stderr, WHEN `targets` ARE ALL TAKEN — including on a
+// device made with none — WHEN NO TEXTURE SLOT IS LEFT, OR WHEN THE CARD REFUSES
+// THE IMAGES. A width or height of zero is the caller's bug and asserts.
+//
+// IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION, for the reason
+// voe_render_texture_create is: the descriptor sets it rewrites may not be
+// touched while a frame is reading them. Inside an open frame it asserts.
+[[nodiscard]] bool voe_render_target_create(voe_render_device *device,
+					    uint32_t width, uint32_t height,
+					    voe_render_target *out_target,
+					    voe_render_texture *out_texture,
+					    voe_base_error *error);
+
+// Asks for `target` to be `width` by `height`. Nothing happens here: the size is
+// recorded and applied at the top of the next voe_render_frame_begin, where the
+// window's own rebuild happens — so calling this inside a frame is allowed and
+// takes effect next frame, and a size asked for twice before then is the second
+// one. The size it already has does nothing.
+//
+// A RESIZE WAITS FOR THE GPU AS THE WINDOW'S DOES, because every slot's images
+// are thrown away and made again and the descriptor sets pointed at the new
+// ones. The texture id is unchanged and the picture is undefined until a pass
+// draws into it again. A card that refuses the new images fails that
+// _frame_begin, as a window that cannot be rebuilt does.
+//
+// A width or height of zero, or an id that names no target, asserts.
+void voe_render_target_resize(voe_render_device *device, voe_render_target target,
+			      uint32_t width, uint32_t height);
 
 // The camera and the sun one pass draws with. Handed over together because they
 // land in one block the shader reads, and a pass that has one has both.
@@ -857,7 +956,8 @@ typedef struct {
 // that draws only elements; see the top of this file. The target's colour and
 // depth are cleared if this is the first pass onto it this frame and loaded
 // otherwise. The camera is copied and the caller's is its own again the moment
-// this returns.
+// this returns. The viewport and the scissor are the target's own size, the
+// window's or the one voe_render_target_create was given.
 //
 // FALSE WHEN THIS FRAME HAS ALREADY OPENED `passes` PASSES, with a line naming
 // the numbers — a capacity chosen too small, on the same terms as every other
@@ -865,7 +965,7 @@ typedef struct {
 // starts counting again.
 //
 // Calling this outside a frame whose `drawing` came back true, with a pass
-// already open, or with a target that is not the window's, is the caller's bug
+// already open, or with a target id that names no target, is the caller's bug
 // and asserts.
 [[nodiscard]] bool voe_render_pass_begin(voe_render_device *device,
 					 voe_render_target target,

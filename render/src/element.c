@@ -318,6 +318,35 @@ uint32_t voe_render_frame_elements_submitted(const voe_render_device *device)
 	return device->element_count;
 }
 
+// Whether any GLYPH or IMAGE record in the range reads texture slot `texture`.
+// A SOLID never reads its sheet_texture and need not have set it, so it names
+// nothing whatever the field holds. For the self-sampling assert below and
+// nothing else, compiled into a release build only as an operand of sizeof.
+//
+// IT READS THE RECORDS BACK OUT OF THE MAPPED BUFFER, which the rest of this file
+// only ever writes. The buffer is host-visible and coherent, so this is legal
+// and merely slow, and a debug build checking the one kind of pass where it
+// matters is where slow is the right trade.
+[[maybe_unused]] static bool range_names(voe_render_device *device,
+					 uint32_t first, uint32_t count,
+					 uint32_t texture)
+{
+	const struct voe_render_frame *frame = voe_render_frame_open(device);
+	voe_render_element element;
+
+	for (uint32_t i = first; i < first + count; i++) {
+		memcpy(&element,
+		       (const unsigned char *)frame->elements_mapped +
+			       (size_t)i * sizeof(element),
+		       sizeof(element));
+		if ((element.kind == VOE_RENDER_ELEMENT_GLYPH ||
+		     element.kind == VOE_RENDER_ELEMENT_IMAGE) &&
+		    element.sheet_texture == texture)
+			return true;
+	}
+	return false;
+}
+
 bool voe_render_frame_draw_elements(voe_render_device *device,
 				    voe_math_float4x4 transform, uint32_t first,
 				    uint32_t count)
@@ -351,6 +380,11 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 			       count, first, device->element_count);
 		return false;
 	}
+
+	VOE_BASE_DEBUG_ASSERT(device->pass_target == NULL ||
+				      !range_names(device, first, count,
+						   device->pass_target->texture),
+			      "drawing an element range that shows the target this pass draws into — a picture may not read itself while it is written");
 
 	// Nothing to draw is not a refusal and records no command: a caller that
 	// draws an interface with nothing in it this frame is not a caller that

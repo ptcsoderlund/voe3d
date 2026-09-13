@@ -1,5 +1,5 @@
 // One frame and the passes inside it: begin waits for the slot and opens a
-// recording, a pass opens a rendering block onto the window with a camera, draw
+// recording, a pass opens a rendering block onto a target with a camera, draw
 // records one object into that, the pass closes it, and end submits the
 // recording and puts it on the window. The clears are not draws — they are the
 // load operations dynamic rendering performs as a pass begins — so what is
@@ -21,6 +21,15 @@
 // between two passes moves either image out of its attachment layout. That is
 // also why depth is stored: a later pass loads it. The colour image leaves its
 // attachment layout once, at _end, on its way to the blit.
+//
+// A PASS ONTO A TARGET OF THE CALLER'S OWN FOLLOWS THE SAME CLEAR RULE. It draws
+// into this frame slot's pair of that target, at that target's size, which is
+// what device->pass_extent carries to everything that used to read the window's
+// resolution inside a pass. Its colour image is in GENERAL for its whole life, as
+// an attachment and as the picture any descriptor set shows, so the one barrier
+// is the clearing pass's out of UNDEFINED and _pass_end records none. A target no
+// pass opens this frame is not touched at all: nothing clears it at _end the way
+// the window is, so it keeps what its slot's image held.
 //
 // A FRAME WITH NO PASS ONTO THE WINDOW STILL CLEARS IT. _end records an empty
 // rendering block with the clear load operations when no pass has, so the image
@@ -342,17 +351,25 @@ static void read_gpu_time(voe_render_device *device,
 	device->gpu_measured = true;
 }
 
-// The rendering block a pass draws in, onto the window's target: the barriers
+// The rendering block a pass draws in, onto `images` at `extent` — the window's
+// pair or one frame slot's pair of a target of the caller's own: the barriers
 // and the clears when `clear` says this is the first pass onto it this frame,
 // the load operations otherwise, and the viewport and scissor either way.
 //
-// NO BARRIER WHEN LOADING, AND THAT IS NOT AN OMISSION. The first block moved
-// both images into their attachment layouts, ending a rendering block leaves
-// them there, and nothing is recorded between two passes that moves them. A
-// barrier out of UNDEFINED here would tell the driver it may throw the picture
-// away, which is exactly what a load must not do.
-static void open_rendering(voe_render_device *device,
-			   const struct voe_render_frame *frame, bool clear)
+// NO BARRIER WHEN LOADING THE WINDOW, AND THAT IS NOT AN OMISSION. The first
+// block moved both images into their attachment layouts, ending a rendering
+// block leaves them there, and nothing is recorded between two passes that moves
+// them. A barrier out of UNDEFINED here would tell the driver it may throw the
+// picture away, which is exactly what a load must not do.
+//
+// A TARGET'S COLOUR IMAGE LIVES IN GENERAL, AND `own` SAYS WHICH KIND THIS IS.
+// It is an attachment here and a sampled image in every descriptor set, and
+// GENERAL is the one layout that is valid for both, so the image never changes
+// layout after target.c settled it and loading it needs no barrier either. See
+// target.c for why one layout rather than a barrier each way.
+static void open_rendering(VkCommandBuffer commands,
+			   const struct voe_render_target *images,
+			   VkExtent2D extent, bool clear, bool own)
 {
 	// Two images into the layouts the rendering needs.
 	VkImageMemoryBarrier2 barriers[2] = {
@@ -365,7 +382,7 @@ static void open_rendering(voe_render_device *device,
 			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = frame->target.colour.image,
+			.image = images->colour.image,
 			.subresourceRange = {
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 				.levelCount = 1,
@@ -384,7 +401,7 @@ static void open_rendering(voe_render_device *device,
 			.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = frame->target.depth.image,
+			.image = images->depth.image,
 			.subresourceRange = {
 				.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
 				.levelCount = 1,
@@ -401,7 +418,7 @@ static void open_rendering(voe_render_device *device,
 					  VK_ATTACHMENT_LOAD_OP_LOAD;
 	VkRenderingAttachmentInfo colour = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.imageView = frame->target.colour.view,
+		.imageView = images->colour.view,
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.loadOp = load,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -412,7 +429,7 @@ static void open_rendering(voe_render_device *device,
 	// pass to load.
 	VkRenderingAttachmentInfo depth = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.imageView = frame->target.depth.view,
+		.imageView = images->depth.view,
 		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 		.loadOp = load,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -420,7 +437,7 @@ static void open_rendering(voe_render_device *device,
 	};
 	VkRenderingInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-		.renderArea = { .extent = device->resolution },
+		.renderArea = { .extent = extent },
 		.layerCount = 1,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colour,
@@ -428,17 +445,21 @@ static void open_rendering(voe_render_device *device,
 	};
 	// The scissor is the whole target and takes no part in the flip. It is
 	// in framebuffer coordinates, which have no sign to get wrong.
-	VkRect2D scissor = { .extent = device->resolution };
-	VkViewport viewport = voe_render_frame_viewport(device->resolution);
+	VkRect2D scissor = { .extent = extent };
+	VkViewport viewport = voe_render_frame_viewport(extent);
 
+	if (own) {
+		barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		colour.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	}
 	if (clear)
-		voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
+		voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
 
 	// Both clears are load operations, so they have already happened by the
 	// time the first command inside is recorded.
-	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
-	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
-	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
+	voe_render_vk.cmd_begin_rendering(commands, &rendering);
+	voe_render_vk.cmd_set_viewport(commands, 0, 1, &viewport);
+	voe_render_vk.cmd_set_scissor(commands, 0, 1, &scissor);
 }
 
 // Leaves the colour image ready to be copied out of, by whoever asked for the
@@ -638,6 +659,11 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 		if (!rebuild(device, size))
 			return false;
 	}
+	// Beside the window's rebuild and for the same reason: the top of a
+	// frame is where nothing is recording, and it waits for the card only
+	// when a target's size has actually changed.
+	if (!voe_render_targets_apply_resizes(device))
+		return false;
 	if (!device->headless && device->swapchain == VK_NULL_HANDLE)
 		return true;
 
@@ -727,6 +753,8 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	device->pass_camera = false;
 	device->pass_count = 0;
 	device->window_cleared = false;
+	for (uint32_t i = 0; i < device->capacities.targets; i++)
+		device->targets[i].cleared = false;
 	device->object_count = 0;
 	// Both start again with the frame: the elements because this slot's
 	// record buffer is written from the top, and the draw count because it
@@ -742,6 +770,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 {
 	struct voe_render_frame *frame;
 	struct voe_render_frame_block block = { 0 };
+	struct voe_render_target_slot *own = NULL;
 	uint32_t offset;
 
 	VOE_BASE_ASSERT(device != NULL, "opening a pass on no device");
@@ -749,10 +778,12 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			"opening a pass with no frame open — voe_render_frame_begin said there was nothing to draw into, or _end has already run");
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a pass while one is already open — passes do not nest, and every _pass_begin needs its _pass_end");
-	VOE_BASE_ASSERT(target.index == VOE_RENDER_TARGET_WINDOW.index &&
-				target.generation ==
-					VOE_RENDER_TARGET_WINDOW.generation,
-			"opening a pass onto a target that is not the window's — the window's is the only target there is");
+	if (target.index != VOE_RENDER_TARGET_WINDOW.index ||
+	    target.generation != VOE_RENDER_TARGET_WINDOW.generation) {
+		own = voe_render_target_at(device, target);
+		VOE_BASE_ASSERT(own != NULL,
+				"opening a pass onto a target id that names no target — it did not come out of voe_render_target_create on this device");
+	}
 
 	if (device->pass_count >= device->capacities.passes) {
 		VOE_BASE_ERROR("render",
@@ -777,8 +808,22 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	memcpy((unsigned char *)frame->uniforms_mapped + offset, &block,
 	       sizeof(block));
 
-	open_rendering(device, frame, !device->window_cleared);
-	device->window_cleared = true;
+	// The window's pair or this frame slot's pair of the target, each with
+	// its own clear rule and its own size. A frame in slot n draws into slot
+	// n's image, which is the image slot n's descriptor set shows.
+	if (own == NULL) {
+		open_rendering(frame->commands, &frame->target,
+			       device->resolution, !device->window_cleared,
+			       false);
+		device->window_cleared = true;
+		device->pass_extent = device->resolution;
+	} else {
+		open_rendering(frame->commands, &own->images[device->slot],
+			       own->extent, !own->cleared, true);
+		own->cleared = true;
+		device->pass_extent = own->extent;
+	}
+	device->pass_target = own;
 
 	// The solid pipeline, because a pass's opaque and cutout draws come
 	// first; a blended draw binds the other one and `bound` is what keeps a
@@ -816,12 +861,41 @@ void voe_render_pass_end(voe_render_device *device)
 	voe_render_vk.cmd_end_rendering(frame_at(device, device->slot)->commands);
 	device->pass_open = false;
 	device->pass_camera = false;
+	device->pass_target = NULL;
 }
 
 bool voe_render_pass_is_open(const voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "asking no device whether a pass is open");
 	return device->pass_open;
+}
+
+// Whether shading record `shading` names texture slot `texture` in any of its
+// five texture slots. For the self-sampling assert in draw_with and nothing else,
+// which is why it is compiled into a release build only as an operand of sizeof.
+//
+// IT READS THE RECORD BACK OUT OF THE MAPPED BUFFER. That buffer is host-visible
+// and coherent, and nothing in a debug build is a reason to keep a second copy
+// of every record on this side. An index past the buffer names no record and so
+// names no texture; the shader clamps nothing, but that is a different mistake
+// and not this assert's.
+[[maybe_unused]] static bool shading_names(const voe_render_device *device,
+					   uint32_t shading, uint32_t texture)
+{
+	voe_render_shading_values values;
+
+	if (shading >= device->capacities.shadings)
+		return false;
+
+	memcpy(&values,
+	       (const unsigned char *)device->shadings_mapped +
+		       (size_t)shading * sizeof(values),
+	       sizeof(values));
+	return values.base_colour_texture == texture ||
+	       values.metallic_roughness_texture == texture ||
+	       values.normal_texture == texture ||
+	       values.occlusion_texture == texture ||
+	       values.emissive_texture == texture;
 }
 
 // The whole of both draw calls; `pipeline` is the only thing that differs
@@ -843,6 +917,10 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 			"drawing with no pass open — every draw is inside a voe_render_pass_begin and its _pass_end");
 	VOE_BASE_ASSERT(device->pass_camera,
 			"drawing a mesh in a pass opened with no camera — only elements may be drawn in one");
+	VOE_BASE_DEBUG_ASSERT(device->pass_target == NULL ||
+				      !shading_names(device, object.shading,
+						     device->pass_target->texture),
+			      "drawing a mesh that shows the target this pass draws into — a picture may not read itself while it is written");
 
 	slot = voe_render_geometry_at(device, geometry);
 	if (slot == NULL) {
@@ -965,7 +1043,7 @@ void voe_render_frame_clear_depth(voe_render_device *device)
 	VOE_BASE_ASSERT(device->pass_camera,
 			"clearing depth in a pass opened with no camera — nothing in such a pass writes depth to clear");
 
-	rect.rect.extent = device->resolution;
+	rect.rect.extent = device->pass_extent;
 
 	voe_render_vk.cmd_clear_attachments(frame_at(device, device->slot)->commands,
 					    1, &attachment, 1, &rect);
@@ -1011,7 +1089,8 @@ bool voe_render_frame_end(voe_render_device *device)
 	// No pass cleared the window, so an empty block does: what is presented
 	// is the clear colour and not what this slot's target held last lap.
 	if (!device->window_cleared) {
-		open_rendering(device, frame, true);
+		open_rendering(frame->commands, &frame->target,
+			       device->resolution, true, false);
 		voe_render_vk.cmd_end_rendering(frame->commands);
 		device->window_cleared = true;
 	}

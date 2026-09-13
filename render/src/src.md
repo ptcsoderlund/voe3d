@@ -57,9 +57,15 @@ which is the one place in this engine where function pointers are expected.
   slots that name its rows. Its header says why one buffer serves every frame
   slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per
-  frame slot, thrown away and built again on every resize.
+  frame slot, thrown away and built again on every resize; and the targets of a
+  caller's own, the same pair at a size of their own, shown through one texture
+  slot. Its header says how a frame in slot n reads slot n's picture through that
+  one slot — each slot's descriptor set already holds the whole texture table, so
+  the write names that slot's image — why a resize waits for the card, and why a
+  target's colour image lives in GENERAL rather than moving between two layouts.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout
-  transitions round it, the two samplers, and the slot table the ids name. Its
+  transitions round it, the two samplers, and the slot table the ids name — a
+  slot of which may be a target's picture rather than an image of its own. Its
   header says why there are no mipmaps and no linear filtering anywhere and what
   that costs, why the two sampling modes now differ only in addressing, and why
   there are two formats — one for a picture of a colour and one for a picture of
@@ -69,7 +75,7 @@ which is the one place in this engine where function pointers are expected.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
 - `frame.c` — one frame and the passes in it: wait and open a recording, open
-  a pass onto the window with its camera, draw an object into it solid or
+  a pass onto the window or a target with its camera, draw an object into it solid or
   blended, close the pass, end the frame and present. Holds the engine's only Y
   flip and the clear colour; its header says why there are separate calls and
   not one, which pass clears the window and which load it and why no barrier

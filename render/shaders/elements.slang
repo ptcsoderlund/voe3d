@@ -70,6 +70,12 @@
 // target's own sRGB format encodes it once on the way out. There is no gamma
 // arithmetic in this file and there must not be.
 //
+// A PICTURE IS A RECTANGLE WHOSE COLOUR CAME OUT OF A TEXTURE, AND THAT IS THE
+// WHOLE OF THE IMAGE KIND. The same `sheet` rectangle walks the same `sheet_at`
+// across the element; what is read there is multiplied into the record's colour
+// rather than thresholded into its alpha. A view drawn into a target of one's
+// own is shown this way, and so is an icon.
+//
 // A LETTER IS A RECTANGLE WHOSE COVERAGE CAME OUT OF A SHEET, AND THAT IS THE
 // WHOLE OF THE GLYPH KIND. A GLYPH record carries the part of a distance-field
 // sheet it reads and the texture it reads it from; this file samples that,
@@ -152,6 +158,8 @@ Sampler2D voe_render_textures[64];
 // is; descriptors.c is what catches the two drifting apart in layout and this
 // number is small enough to read against voe_render_element_kind by eye.
 static const uint VOE_RENDER_ELEMENT_GLYPH = 1;
+// VOE_RENDER_ELEMENT_IMAGE, the third.
+static const uint VOE_RENDER_ELEMENT_IMAGE = 2;
 
 // The middle of three, which is what turns three one-sided distance fields back
 // into one shape with its corners intact.
@@ -265,10 +273,10 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 		discard;
 
 	// A solid covers itself completely; a glyph covers as much of itself as
-	// the sheet says it does. The record's own alpha is what both are
-	// multiplied into, so a half-transparent letter fades like anything
-	// else.
-	float alpha = vertex.colour.a;
+	// the sheet says it does; an image is the picture times the record's
+	// colour. The record's own alpha is what all three are multiplied into,
+	// so a half-transparent letter fades like anything else.
+	float4 colour = vertex.colour;
 
 	if (vertex.kind == VOE_RENDER_ELEMENT_GLYPH) {
 		// Level nought by name, and the subscript non-uniform: see the
@@ -281,13 +289,24 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 		// A hard cut at the half, which is draw.slang's answer and is
 		// not re-derived here. Inside the outline or outside it, and
 		// nothing in between.
-		alpha *= step(0.5, voe_render_element_median(field));
+		colour.a *= step(0.5, voe_render_element_median(field));
+	} else if (vertex.kind == VOE_RENDER_ELEMENT_IMAGE) {
+		// The same explicit level and the same non-uniform subscript as
+		// the glyph above, for the same reasons; the texture is a picture
+		// read NEAREST, so what arrives is one texel, already decoded out
+		// of sRGB by its format. All four channels, alpha included, and
+		// treated as straight like the record's colour — a target's
+		// picture is premultiplied, which is the same thing while it is
+		// opaque. See VOE_RENDER_ELEMENT_IMAGE.
+		colour *= voe_render_textures[
+			NonUniformResourceIndex(vertex.sheet_texture)]
+			.SampleLevel(vertex.sheet_at, 0.0);
 	}
 
 	// Premultiplied, once, and the last thing this file does — on whatever
-	// alpha the two lines above arrived at. See the header: the target holds
-	// premultiplied colour and the blend state is written to match. Both
-	// kinds leave through here, which is what keeps the multiply in one
+	// colour the branches above arrived at. See the header: the target holds
+	// premultiplied colour and the blend state is written to match. Every
+	// kind leaves through here, which is what keeps the multiply in one
 	// place.
-	return float4(vertex.colour.rgb * alpha, alpha);
+	return float4(colour.rgb * colour.a, colour.a);
 }

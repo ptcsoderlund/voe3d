@@ -1,7 +1,8 @@
 # 065 — `render`: a target of one's own, and an element that shows it
 
-claimed-by: -
+claimed-by: claude-opus-5 (coder)
 blocked-by: 064
+status: review
 decision: *A frame is a sequence of passes, and a target of one's own is a texture* (ADR-0148) points 4–8. Card 064 made the pass; this card gives a pass somewhere other than the window to draw.
 
 ## Goal
@@ -90,3 +91,42 @@ A test draws a picture into a target of its own and shows it on the window twice
 element and once on a mesh — with the right frame's picture in every frame slot.
 
 ## Notes
+
+**Verified on Linux** (NVIDIA RTX 4070 Laptop, Vulkan 1.4, validation layer present). Windows not run.
+- `cmake -P check.cmake` exit 0: 45 tests incl. new `render/targets`, analyser clean. No validation messages.
+- Frames in flight, per frame: `frame 0, slot 0: drew red, window shows red` · `frame 1, slot 1: drew green,
+  window shows green` · `frame 2, slot 0: drew blue, window shows blue` · `frame 3, slot 1: drew red, window shows red`.
+- Mutation probes, reverted: every slot's descriptor naming slot 0's image → `targets` fails (frame 1 shows red,
+  frame 3 blue). An IMAGE element naming its own target in the pass onto it → the debug assert fires.
+- `voe_dev` and `voe_editor` screenshotted against a HEAD build: dev same scene (31 draws, 146 elements; the
+  model animates), editor screenshots byte-identical. `tools/hot.sh`: no `OVER`.
+
+**How it is built.** The descriptor set is already per frame slot and holds the whole texture table, so the
+smaller thing was the write: `voe_render_texture_write_descriptors` now takes the frame slot instead of the
+set, and a texture slot flagged `is_target` names that frame slot's colour image. No shader or layout change.
+Target ids are table index + 1, so the zeroed id stays the window's. A target's texture uses SHARP (nearest,
+clamp) so an edge texel does not wrap. `device->pass_extent` replaces `resolution` for render area, viewport,
+scissor and the depth clear. Resizes apply in `_frame_begin` right after the window rebuild, idle once.
+
+**A choice the card did not fix: a target's colour image lives in GENERAL.** First built as SHADER_READ_ONLY
+at rest with a barrier each way. The validation layer then reported VUID-vkCmdDraw-imageLayout-00344 on every
+draw *into* a target. The set bound there holds the target's own element, and with a non-uniform index the
+layer checks every array element. GENERAL is valid as attachment and sampled image, and it is silent (also
+probed with a mesh drawn inside a target pass). Cost: possibly slower on drivers that prefer specialised
+layouts, and the layer no longer flags a real self-sample. The debug asserts are what catch that. Reasoning is
+in `target.c`'s header.
+
+**Readings, stated in headers rather than marked DEVIATION (nothing contradicts the card):**
+- IMAGE treats the picture's alpha as straight, as the card's "multiplies by colour, premultiplied at output"
+  reads. A target's picture is premultiplied, so a see-through target would come out too faint. Every target
+  clears opaque today.
+- The self-sampling check looks at all five shading texture slots, and at GLYPH and IMAGE records only. A
+  SOLID's `sheet_texture` is unread and may hold anything.
+- `voe_render_target_create` asserts outside an open frame, and `voe_render_texture_destroy` asserts on a
+  target's texture id. Both guard a descriptor rewrite the card's startup-only rule already implies.
+- "A target no pass opened keeps what it held" is per frame slot: it shows the picture of the last frame on
+  that slot, not the last frame's. Said in `device.h`.
+
+**Suggestions, not done.** Card 064's note about `struct voe_render_target` (internal pair) sharing a spelling
+with the public id still stands; the new table is `voe_render_target_slot` to avoid adding a third.
+

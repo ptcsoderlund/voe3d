@@ -26,7 +26,8 @@ to prove which layout was used.
   six, why the record's number takes two semantics added together and what
   reading only one of them looks like, that order is paint order and what relies
   on it, why its push constant
-  aliases `draw.slang`'s, why the threshold is a threshold and not a smoothstep,
+  aliases `draw.slang`'s, what the image kind multiplies and why its picture's alpha is straight, why
+  the threshold is a threshold and not a smoothstep,
   why the sheet is sampled at an explicit level, why its texture index is
   non-uniform where `draw.slang`'s is not, and that it holds a second copy of the
   median.

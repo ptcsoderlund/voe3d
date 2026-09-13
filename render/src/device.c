@@ -1141,6 +1141,7 @@ static void close_down(voe_render_device *device)
 		voe_render_vk.device_wait_idle(device->device);
 		voe_render_swapchain_teardown(device);
 		voe_render_target_teardown(device);
+		voe_render_targets_shutdown(device);
 
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
@@ -1290,9 +1291,9 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		voe_render_descriptors_write_shadings(device,
 						      device->frames[i].descriptor);
-		voe_render_texture_write_descriptors(device,
-						     device->frames[i].descriptor);
+		voe_render_texture_write_descriptors(device, i);
 	}
+	voe_render_targets_startup(device);
 	if (!create_pipelines(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// After them, and not beside them: the element pipeline shares the

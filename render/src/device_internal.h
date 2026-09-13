@@ -239,6 +239,13 @@ struct voe_render_texture_slot {
 	voe_render_sampling sampling;
 	uint32_t generation;
 	bool live;
+	// Whether this slot is a target's picture rather than a texture of its
+	// own, and which of device->targets it is. Such a slot holds no image,
+	// memory or view — all three stay VK_NULL_HANDLE — because the target has
+	// one image per frame slot and the descriptor write picks the frame
+	// slot's. See voe_render_texture_write_descriptors.
+	bool is_target;
+	uint32_t target;
 };
 
 struct voe_render_image {
@@ -278,6 +285,31 @@ struct voe_render_allocated_image {
 struct voe_render_target {
 	struct voe_render_allocated_image colour;
 	struct voe_render_allocated_image depth;
+};
+
+// What a voe_render_target id names: a target of the caller's own, which is the
+// window's pair above made once per frame slot at a size of its own, plus the
+// texture slot that shows it. See target.c.
+//
+// ITS COLOUR IMAGES ARE IN GENERAL AND THE WINDOW'S ARE NOT. A target's colour
+// image is an attachment and a sampled image at once, and target.c says why it is
+// given the one layout valid for both rather than moved between two. The depth
+// images stay in their attachment layout once a pass has put them there, as the
+// window's do.
+struct voe_render_target_slot {
+	struct voe_render_target images[VOE_RENDER_FRAMES_IN_FLIGHT];
+	// The size every one of `images` is built at, and the size a resize has
+	// asked for. They differ from voe_render_target_resize until the top of
+	// the next frame, which builds `wanted` and makes the two agree.
+	VkExtent2D extent;
+	VkExtent2D wanted;
+	// Which of device->textures shows this target. Never changes.
+	uint32_t texture;
+	uint32_t generation;
+	bool live;
+	// The clear rule: false until the first pass onto this target in a
+	// frame, which clears it. Reset by voe_render_frame_begin.
+	bool cleared;
 };
 
 // Everything with a one-frame lifetime, in one struct, one per frame slot. This
@@ -522,6 +554,18 @@ struct voe_render_device {
 	uint32_t pass_count;
 	bool window_cleared;
 
+	// What the open pass draws into: NULL for the window's target, or the
+	// target slot it named — and the size of whichever it is, which is the
+	// render area, the viewport, the scissor and the depth clear's rect.
+	// Meaningless while `pass_open` is false.
+	struct voe_render_target_slot *pass_target;
+	VkExtent2D pass_extent;
+
+	// The targets of the caller's own: capacities.targets of them, calloc'd
+	// with the device like `geometries` and NULL when that is nought. A slot is
+	// live from the create that claimed it until the device closes.
+	struct voe_render_target_slot *targets;
+
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
 	// dynamic offset that is not a multiple of it is invalid. Chosen by
@@ -642,6 +686,26 @@ void voe_render_swapchain_teardown(voe_render_device *device);
 [[nodiscard]] bool voe_render_target_build(voe_render_device *device,
 					   voe_platform_size size);
 void voe_render_target_teardown(voe_render_device *device);
+
+// target.c. The targets of the caller's own, as distinct from the window's pair
+// above: the table of them made at startup, and every image any of them holds
+// given back at shutdown. _startup allocates no image; _shutdown is safe on a
+// device that never got as far as _startup.
+void voe_render_targets_startup(voe_render_device *device);
+void voe_render_targets_shutdown(voe_render_device *device);
+
+// target.c. What a target id names, or NULL when it names nothing — the window's
+// id included, which is not in the table. The one place a target id is checked.
+[[nodiscard]] struct voe_render_target_slot *
+voe_render_target_at(voe_render_device *device, voe_render_target target);
+
+// target.c. Every resize voe_render_target_resize recorded, applied: the device
+// goes idle, the images of each target whose wanted size differs are made again
+// and settled into the layout they rest in, and the descriptor sets are pointed
+// at them. Does nothing, and does not wait, when no size differs. False when the
+// card refused an image, with a message. Called by voe_render_frame_begin, where
+// the window's rebuild is, and nowhere else.
+[[nodiscard]] bool voe_render_targets_apply_resizes(voe_render_device *device);
 
 // target.c, and used by render/tests/offscreen.c as well: the index of a memory
 // type this card offers that is in mask and has every one of properties.
@@ -778,10 +842,13 @@ void voe_render_element_shutdown(voe_render_device *device);
 void voe_render_texture_shutdown(voe_render_device *device);
 
 // texture.c. Point one frame slot's descriptor set at every texture in the
-// table. Called when a slot's set is built and again whenever the table changes,
-// which is why it takes the set rather than the slot index.
+// table. Called when a slot's set is built and again whenever the table changes.
+//
+// IT TAKES THE FRAME SLOT AND NOT THE SET, because a texture slot that shows a
+// target names a different image in every frame slot — that frame slot's own —
+// and the set alone does not say which frame slot it belongs to.
 void voe_render_texture_write_descriptors(voe_render_device *device,
-					  VkDescriptorSet set);
+					  uint32_t slot);
 
 // probe.c. The pipeline that reads a matrix and reports what it saw, built on
 // demand and owned by the caller — VK_NULL_HANDLE on failure, and destroyed with
