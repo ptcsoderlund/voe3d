@@ -1,6 +1,6 @@
 # 001 Scrolling editor panels
 
-Status: approved
+Status: building
 Approved: 2026-09-14
 Accepted: -
 
