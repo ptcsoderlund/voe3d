@@ -97,6 +97,22 @@
 // neither names a side of the struct: a pass asks for the two sides on an axis,
 // or for the near side of one, and never for `left` as such.
 //
+// A CLIP AND AN OFFSET ARE THE LAST THINGS ADDED, AND NEITHER IS A NEW PASS.
+// The offset is clamped inside arrange, at the one moment a container's measure
+// and its rectangle on an axis are both known and its children are not yet
+// placed — which is where its children's start is worked out, so moving them is
+// a subtraction from that start and nothing else. Their descendants follow for
+// free, being placed from their parent's rectangle later in the same sweep. The
+// one exception is the one above: a wrapping column only knows its width's
+// measure once it breaks in the Y pass, so it clamps X again there and moves
+// what it had placed, rather than show an offset clamped against one line.
+//
+// THE CLIP IS A FOURTH FLAT SWEEP, forwards and after both axes: a parent's
+// limit is known before its children's, so each child's limit is its parent's,
+// narrowed to the parent's visible rectangle on the axes the parent clips. It
+// narrows only what is seen; no rectangle moves for it, so nothing that measures
+// or arranges reads it.
+//
 // THE TREE AND THE CONTEXT ARE DECLARED IN src/context.h AND NOT HERE, because
 // widgets.c is the other half of the same frame and reads the same rectangles.
 // This file still owns every one of the layout fields and writes all of them;
@@ -108,6 +124,8 @@
 
 #include <base/assert.h>
 #include <base/report.h>
+
+#include <float.h>
 
 // The two axes are the panel's, and `y` in this file always means "this axis is
 // Y". A row flows along X, a column along Y, so a container's along axis is Y
@@ -389,6 +407,27 @@ static float along_size(const struct voe_ui_node_record *n, bool y, float share)
 	return axis(n->natural, y);
 }
 
+// The offset a container moves its children by on one axis, clamped to between
+// nought and what its content measured past its rectangle, remembered in
+// `scrolled` for the accessor and returned. Called where both numbers are final
+// and before a child is placed. On a VISIBLE axis the request is nought, which
+// begin asserts, so this is nought there too and needs no case of its own — and
+// a container that never scrolls places its children at `start - 0`, which is
+// `start` to the bit.
+static float scroll_clamp(struct voe_ui_node_record *c, bool y)
+{
+	float range = axis(c->content_natural, y) - axis(c->rect.size, y);
+	float offset = axis(c->scroll, y);
+
+	if (offset > range)
+		offset = range;
+	if (offset < 0.0f)
+		offset = 0.0f;
+
+	axis_set(&c->scrolled, y, offset);
+	return offset;
+}
+
 // One axis of one anchored child, against its parent's content box. `y` says
 // which axis it is, and it is the panel's own X or Y and never the parent's
 // flow: a child out of the flow has no flow, so `size.along` is read as X and
@@ -600,7 +639,8 @@ static void arrange_across(struct voe_ui_node_record *nodes,
 {
 	bool y = !c->row;
 	float inner = inner_size(c, !y);
-	float at = inner_min(c, !y);
+	// Minus the offset, clamped by the caller before this was called.
+	float at = inner_min(c, !y) - axis(c->scrolled, !y);
 	struct voe_ui_line line;
 	float total = 0.0f;
 	float spare;
@@ -679,35 +719,51 @@ static void arrange_along(struct voe_ui_node_record *nodes, uint32_t index)
 	float inner = inner_size(c, y);
 	// The axis begins at the padded box's own corner and runs away from it,
 	// rightwards or downwards, so an offset is added on either. There is no
-	// minus sign in front of a position here and there is not meant to be.
+	// minus sign in front of a position here and there is not meant to be;
+	// the one below is a scroll offset taken off the start, on either axis
+	// alike, and not a flip.
 	float start = inner_min(c, y);
 	struct voe_ui_line line;
+	float offset;
+	float offset_across;
 	uint32_t child;
 
-	if (c->wrap)
+	if (c->wrap) {
 		break_lines(nodes, c, y, inner);
+		// What it measured to is now what it wrapped to: the longest line
+		// along the flow, and every line and its gaps across it. Along is
+		// the flow's own axis, which measure saw as one line. Before the
+		// offset is clamped, which is against this number.
+		measured_set(c, y, run_extent(nodes, c, false));
+	}
 
+	offset = scroll_clamp(c, y);
 	for (child = in_flow(nodes, c->first_child);
 	     line_read(nodes, child, c->gap, y, &line); child = line.next)
-		arrange_line(nodes, c, &line, y, start, inner);
-
-	if (!c->wrap)
-		return;
-
-	// What it measured to is now what it wrapped to: the longest line along
-	// the flow, and every line and its gaps across it. Along is the flow's
-	// own axis, which measure saw as one line.
-	measured_set(c, y, run_extent(nodes, c, false));
+		arrange_line(nodes, c, &line, y, start - offset, inner);
 
 	// A COLUMN BREAKS IN THE Y PASS, AFTER ITS X WAS SETTLED AS ONE LINE, so
 	// its across has been measured and arranged already and both are
 	// revisited here: the measure for the accessor, the arrangement to move
 	// the extra lines out to the right of its rectangle. A row's across is
 	// Y, which has not been measured yet and reads the lines when it is.
-	if (!c->row) {
-		measured_set(c, !y, run_extent(nodes, c, true));
-		arrange_across(nodes, c, true);
-	}
+	if (!c->wrap || c->row)
+		return;
+
+	measured_set(c, !y, run_extent(nodes, c, true));
+
+	// AND ITS X OFFSET IS CLAMPED AGAIN, against the width it has only now
+	// measured to. The X pass clamped against one line, which is too little
+	// range as soon as there are two; the in-flow children are moved by the
+	// arrangement below, and the anchored ones by the difference.
+	offset_across = axis(c->scrolled, !y);
+	(void)scroll_clamp(c, !y);
+	arrange_across(nodes, c, true);
+	for (child = c->first_child; child != VOE_UI_NODE_NONE;
+	     child = nodes[child].next_sibling)
+		if (nodes[child].anchor.anchored)
+			shift_subtree(nodes, child, !y,
+				      offset_across - axis(c->scrolled, !y));
 }
 
 // One axis of every container, parents first. Along a container's flow the run
@@ -726,10 +782,12 @@ static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
 		if (c->leaf)
 			continue;
 
-		if (axis_y == !c->row)
+		if (axis_y == !c->row) {
 			arrange_along(nodes, i);
-		else
+		} else {
+			(void)scroll_clamp(c, axis_y);
 			arrange_across(nodes, c, false);
+		}
 
 		// AND THE ANCHORED CHILDREN AFTERWARDS, IN CALL ORDER AMONG
 		// THEMSELVES. After, and not before, because submission order is
@@ -741,7 +799,8 @@ static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
 		//
 		// Against the content box — inside the padding — and each axis
 		// worked out on its own pass, so the sixteen combinations need no
-		// cases of their own.
+		// cases of their own. Moved by the container's offset like every
+		// in-flow child (ADR-0153).
 		for (child = c->first_child; child != VOE_UI_NODE_NONE;
 		     child = nodes[child].next_sibling) {
 			struct voe_ui_node_record *n = &nodes[child];
@@ -750,7 +809,9 @@ static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
 				continue;
 
 			anchor_axis(n, axis_y ? n->anchor.y : n->anchor.x,
-				    axis_y, inner_min(c, axis_y),
+				    axis_y,
+				    inner_min(c, axis_y) -
+					    axis(c->scrolled, axis_y),
 				    inner_size(c, axis_y));
 		}
 	}
@@ -809,6 +870,90 @@ static void paint_order(struct voe_ui_node_record *nodes, uint32_t count,
 
 	for (i = 0; i < count; i++)
 		order[nodes[i].paint] = i;
+}
+
+// One axis of a rectangle narrowed to an interval. Only a side that reaches past
+// the interval is moved, so a rectangle already inside it keeps its own min and
+// size exactly rather than a size re-derived from a sum that may round.
+static void limit_axis(voe_ui_rect *rect, bool y, float low, float high)
+{
+	float min = axis(rect->min, y);
+	float size = axis(rect->size, y);
+
+	if (min < low) {
+		size -= low - min;
+		min = low;
+	}
+	if (min + size > high)
+		size = high - min;
+	// Nothing left is nought and not a negative size, for the reason an
+	// anchored FILL's crossed offsets are.
+	if (size < 0.0f)
+		size = 0.0f;
+
+	axis_set(&rect->min, y, min);
+	axis_set(&rect->size, y, size);
+}
+
+voe_ui_rect voe_ui_limit(const voe_ui_context *ui, uint32_t node,
+			 voe_ui_rect rect)
+{
+	const struct voe_ui_node_record *n;
+
+	VOE_BASE_ASSERT(ui != NULL, "limiting a rectangle on no context");
+	VOE_BASE_ASSERT(node < ui->count,
+			"limiting a rectangle by a node this frame never made");
+
+	n = &ui->nodes[node];
+	limit_axis(&rect, false, n->limit_min.x, n->limit_max.x);
+	limit_axis(&rect, true, n->limit_min.y, n->limit_max.y);
+
+	return rect;
+}
+
+// What a clipping container hands its children on one axis: its own visible
+// interval where it clips, and whatever it was handed where it does not.
+static void limit_hand_down(const struct voe_ui_node_record *c,
+			    struct voe_ui_node_record *n, bool y, bool clips)
+{
+	if (clips) {
+		axis_set(&n->limit_min, y, axis(c->visible.min, y));
+		axis_set(&n->limit_max, y,
+			 axis(c->visible.min, y) + axis(c->visible.size, y));
+	} else {
+		axis_set(&n->limit_min, y, axis(c->limit_min, y));
+		axis_set(&n->limit_max, y, axis(c->limit_max, y));
+	}
+}
+
+// Every node's limit and visible rectangle, parents first. A parent's visible
+// rectangle is already inside its own limit, so handing it down on a clipping
+// axis is the intersection of every clip above, and nested clips need nothing
+// more.
+static void clip(voe_ui_context *ui)
+{
+	struct voe_ui_node_record *nodes = ui->nodes;
+
+	// The root is limited by nothing, and so is visible whole.
+	nodes[0].limit_min = (voe_math_float2){ -FLT_MAX, -FLT_MAX };
+	nodes[0].limit_max = (voe_math_float2){ FLT_MAX, FLT_MAX };
+	nodes[0].visible = nodes[0].rect;
+
+	for (uint32_t i = 0; i < ui->count; i++) {
+		const struct voe_ui_node_record *c = &nodes[i];
+		uint32_t child;
+
+		for (child = c->first_child; child != VOE_UI_NODE_NONE;
+		     child = nodes[child].next_sibling) {
+			struct voe_ui_node_record *n = &nodes[child];
+
+			limit_hand_down(c, n, false,
+					c->overflow.x == VOE_UI_OVERFLOW_CLIP);
+			limit_hand_down(c, n, true,
+					c->overflow.y == VOE_UI_OVERFLOW_CLIP);
+			n->visible = voe_ui_limit(ui, child, n->rect);
+		}
+	}
 }
 
 voe_ui_context *voe_ui_context_new(voe_base_arena *arena,
@@ -888,6 +1033,13 @@ static voe_ui_node container_begin(voe_ui_context *ui,
 		     : container.anchor.anchored ? grow_unanchored
 						 : NULL,
 		     container.anchor.anchored ? grow_unanchored : grow_across);
+	VOE_BASE_ASSERT((container.overflow.x == VOE_UI_OVERFLOW_CLIP ||
+			 container.scroll.x == 0.0f) &&
+				(container.overflow.y == VOE_UI_OVERFLOW_CLIP ||
+				 container.scroll.y == 0.0f),
+			"a scroll offset on an axis that does not clip; content "
+			"moved on a VISIBLE axis would stick out where it was "
+			"scrolled to — set overflow to CLIP on that axis");
 
 	index = node_push(ui);
 	if (index == VOE_UI_NODE_NONE) {
@@ -906,6 +1058,8 @@ static voe_ui_node container_begin(voe_ui_context *ui,
 	n->pad = container.pad;
 	n->anchor = container.anchor;
 	n->wrap = container.wrap;
+	n->overflow = container.overflow;
+	n->scroll = container.scroll;
 
 	ui->open[ui->depth++] = index;
 
@@ -972,6 +1126,8 @@ voe_ui_node voe_ui_box(voe_ui_context *ui, voe_math_float2 content,
 	// in an anchored one. See voe_ui_box's header.
 	n->anchor = (voe_ui_anchor){ 0 };
 	n->wrap = false;
+	n->overflow = (voe_ui_overflow){ 0 };
+	n->scroll = (voe_math_float2){ 0.0f, 0.0f };
 
 	return index;
 }
@@ -1021,6 +1177,11 @@ bool voe_ui_frame_end(voe_ui_context *ui)
 		arrange(ui->nodes, ui->count, axis_y);
 	}
 
+	// After both axes, because a clip is a rectangle and a rectangle is not
+	// known until both are arranged.
+	if (ok && ui->count > 0)
+		clip(ui);
+
 	voe_ui_widgets_frame_end(ui, ok);
 
 	// Emission is the last thing that can want more than it was given, and
@@ -1067,4 +1228,32 @@ voe_math_float2 voe_ui_node_measured(const voe_ui_context *ui, voe_ui_node node)
 	// rectangle, so handing it back here would make the comparison the whole
 	// accessor exists for read nought every time.
 	return ui->nodes[node].content_natural;
+}
+
+voe_ui_rect voe_ui_node_visible(const voe_ui_context *ui, voe_ui_node node)
+{
+	VOE_BASE_ASSERT(ui != NULL, "reading a visible rectangle from no context");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_LAID_OUT,
+			"reading a visible rectangle before the frame has ended");
+	VOE_BASE_ASSERT(node != VOE_UI_NODE_NONE,
+			"reading a visible rectangle through a node the frame "
+			"had no room for");
+	VOE_BASE_ASSERT(node < ui->count, "reading a visible rectangle through "
+					  "a node this frame never made");
+
+	return ui->nodes[node].visible;
+}
+
+voe_math_float2 voe_ui_node_scroll(const voe_ui_context *ui, voe_ui_node node)
+{
+	VOE_BASE_ASSERT(ui != NULL, "reading a scroll offset from no context");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_LAID_OUT,
+			"reading a scroll offset before the frame has ended");
+	VOE_BASE_ASSERT(node != VOE_UI_NODE_NONE,
+			"reading a scroll offset through a node the frame had "
+			"no room for");
+	VOE_BASE_ASSERT(node < ui->count, "reading a scroll offset through a "
+					  "node this frame never made");
+
+	return ui->nodes[node].scrolled;
 }

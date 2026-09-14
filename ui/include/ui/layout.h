@@ -95,9 +95,40 @@
 //
 // OVERFLOW IS NOT SHRUNK. Children that do not fit keep their true sizes and
 // stick out past their container's rectangle, and the rectangles reported say
-// so. Clipping belongs to the element record that draws them, not to layout,
-// and shrinking would be a third number on every child. A container may wrap
-// instead, and nothing that does not ask to — see `wrap` below.
+// so. Shrinking would be a third number on every child. A container may wrap
+// instead, or clip, and nothing that does not ask to — see `wrap` and OVERFLOW
+// below.
+//
+// ---- OVERFLOW: CLIP, AND AN OFFSET ----
+//
+// OVERFLOW IS VISIBLE UNLESS A CONTAINER ASKS, PER AXIS, NAMED X AND Y. VISIBLE
+// is today: children stick out. CLIP on an axis limits every descendant to the
+// container's WHOLE rectangle on that axis — padding inside the clip, as CSS
+// clips at the padding box — and nested clips intersect. The axes are absolute
+// for the reason padding and anchors are: a clip is about the container's own
+// box and not its flow. The root may clip; it is a container like any other.
+//
+// A CLIP NARROWS WHAT IS SEEN AND NEVER WHERE ANYTHING IS. voe_ui_node_rect still
+// reports the true rectangle; voe_ui_node_visible reports what is left of it,
+// which is what widgets.h draws and hit tests. AN ANCHORED CHILD IS CLIPPED LIKE
+// ANY OTHER (ADR-0153): a dropdown that must escape its parent's clip is not
+// decided yet.
+//
+// `scroll` MOVES A CONTAINER'S CONTENT, ON CLIP AXES ONLY: every child, in flow
+// and anchored, is placed at minus the offset, and its descendants follow. A
+// non-zero offset on a VISIBLE axis is the caller's bug and asserts. LAYOUT
+// CLAMPS IT to between nought and measured less arranged on that axis, because
+// layout is the one place both are known before the children are placed — so
+// content that shrinks is never shown scrolled past its end, not even for a
+// frame — and voe_ui_node_scroll reports the offset it used. The container's own
+// measured size does not move with it.
+//
+// AND LAYOUT REMEMBERS NONE OF IT. The offset is a value handed in every frame,
+// like a size. Remembering how far a person scrolled needs an identity, and
+// identity is widgets.h's: that is a scroll area's job, keyed like any widget,
+// and never this page's. Until one exists the caller keeps the offset. An
+// anchored child that must stay put while content scrolls is anchored to a
+// parent that does not scroll.
 //
 // ---- A RUN THAT WRAPS ----
 //
@@ -194,7 +225,7 @@
 // downwards — and at FILL an inset taken off BOTH edges, so the derived size is
 // the parent's content box less twice it. A negative offset therefore moves a
 // child outward, and nothing stops one landing wholly outside its parent: this
-// folder reports true rectangles and clipping belongs to the element record, so
+// folder reports true rectangles and clips only where a container asked to, so
 // a mistyped offset draws a panel somewhere surprising rather than being
 // quietly corrected.
 //
@@ -387,6 +418,22 @@ typedef struct {
 	float bottom;
 } voe_ui_pad;
 
+// What a container does with descendants that reach past its rectangle, on one
+// axis. See OVERFLOW at the top of this header.
+typedef enum {
+	// Today: children stick out.
+	VOE_UI_OVERFLOW_VISIBLE = 0,
+	// Every descendant is limited to this container's rectangle, padding
+	// inside the clip.
+	VOE_UI_OVERFLOW_CLIP,
+} voe_ui_overflow_kind;
+
+// Per axis, absolute: `x` is the horizontal one in a row and a column alike.
+typedef struct {
+	voe_ui_overflow_kind x;
+	voe_ui_overflow_kind y;
+} voe_ui_overflow;
+
 // A container: how big it is inside its own container, and how it treats the
 // children called between its begin and its voe_ui_end.
 //
@@ -416,6 +463,12 @@ typedef struct {
 	// Nought is one line, as a run always was. See A RUN THAT WRAPS at the
 	// top of this header.
 	bool wrap;
+	// Nought is VISIBLE on both axes, as a container always was. See
+	// OVERFLOW at the top of this header.
+	voe_ui_overflow overflow;
+	// Millimetres, positive showing content further right or down, on CLIP
+	// axes only — non-zero on a VISIBLE axis asserts. Clamped by layout.
+	voe_math_float2 scroll;
 } voe_ui_container;
 
 // A node in the tree being built: an index into it, valid until the next
@@ -563,3 +616,19 @@ voe_ui_rect voe_ui_node_rect(const voe_ui_context *ui, voe_ui_node node);
 // this frame never made, all of them the caller's bug.
 voe_math_float2 voe_ui_node_measured(const voe_ui_context *ui,
 				     voe_ui_node node);
+
+// The part of a node that can be seen: its rectangle intersected with every
+// clipping ancestor's, axis by axis. Size nought on an axis when nothing is
+// left. With no clipping ancestor it is voe_ui_node_rect exactly.
+//
+// Readable in the same window as voe_ui_node_rect and refused in the same three
+// ways.
+voe_ui_rect voe_ui_node_visible(const voe_ui_context *ui, voe_ui_node node);
+
+// The offset layout used for a container, after clamping: nought on a VISIBLE
+// axis, and on a CLIP axis between nought and measured less arranged. Nought on a
+// box, which has no children to move.
+//
+// Readable in the same window as voe_ui_node_rect and refused in the same three
+// ways.
+voe_math_float2 voe_ui_node_scroll(const voe_ui_context *ui, voe_ui_node node);

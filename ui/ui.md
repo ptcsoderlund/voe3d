@@ -27,7 +27,8 @@ matrix and it is the caller's.
   which way its offset moves it, that it is measured against its parent's
   content box and paints over its in-flow siblings, the trap that a
   fit-to-children parent holding only anchored children has no natural size at
-  all, and what the measured size is for.
+  all, and what the measured size is for. Also `voe_ui_overflow`,
+  `voe_ui_container.scroll`, `voe_ui_node_visible` and `voe_ui_node_scroll`.
 - `include/ui/widgets.h` — the panel, the label, the button, the number box and
   the image, the pointer they are given, and this frame's element records read
   back. Its
@@ -55,7 +56,8 @@ matrix and it is the caller's.
   why that answer and not the two others, why a gap belongs to the run and not to
   a child, how an anchored child is a stronger exclusion than a grow one and why
   its axes are absolute, how paint order is worked out in three linear sweeps now
-  that it is no longer the array's own order, where the single subtraction of
+  that it is no longer the array's own order, where a scroll offset is clamped
+  and how the clip is a fourth flat sweep, where the single subtraction of
   padding lives and why four numbers still go through two accessors, why there is
   no flip and no minus sign in front of a Y anywhere in it, and why the structs
   are declared next door.
@@ -63,16 +65,17 @@ matrix and it is the caller's.
   records that come out. Its header says why emission is a copy with no
   arithmetic in it and where the one sign that does appear comes from, why paint
   order is taken from layout rather than re-derived, why the hit test is after
-  arrange, what the two ids do in every awkward case including the stuck one,
+  arrange and against the visible rectangle, how a record is clipped, what the two ids do in every awkward case including the stuck one,
   why the key is FNV-1a over a path, and why a drag measures its dead zone from
   the press and its change from last frame.
-- `tests/layout.c` — rectangles worked out by hand, one case per decision. Its
-  header says which eight answers it is pinning down rather than merely
+- `tests/layout.c` — rectangles worked out by hand, one case per decision,
+  clips and clamped scroll offsets among them. Its header says which eight answers it is pinning down rather than merely
   exercising, which two cases are about the machinery instead of the arithmetic,
   and why exactly one case reaches into `src/` — paint order is an order and no
   rectangle can show it. Needs no graphics card and no window system.
 - `tests/widgets.c` — a press and a release in every order a hand can produce, a
-  sideways drag in every order one can, a duplicate key, a known tree emitted as
+  sideways drag in every order one can, a clipped button and label, a drag
+  scrolled out of sight, a duplicate key, a known tree emitted as
   a known list, and two images as two IMAGE records. Its header says why the click cases are the ones that matter,
   why the collision case is the most valuable in the file, and why the one case
   that measures a string takes a headless device while every other needs no

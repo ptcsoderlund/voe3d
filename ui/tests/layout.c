@@ -41,6 +41,15 @@
 // breaks MOVES its children out to the right without resizing them, a FILL child
 // included — the reading the principal chose when the card asked.
 //
+// AND THE OVERFLOW CASES SINCE SPEC 001: a clip narrows the visible rectangle
+// and never the rectangle, nested clips intersect while a VISIBLE axis narrows
+// nothing, an anchored child is clipped like any other, and an offset is clamped
+// by layout — past the end, below nought, and with nothing to scroll — and moves
+// anchored children with the in-flow ones. The one worth knowing before reading
+// it is the wrapping column, whose X offset can only be clamped once it has
+// broken in the Y pass. The assert on an offset along a VISIBLE axis is not
+// here: an assert aborts and voe::testing cannot catch one.
+//
 // AND TWO THAT ARE ABOUT THE MACHINERY RATHER THAN THE ARITHMETIC: a frame that
 // wants more nodes than the context has is refused and the next frame is fine,
 // and the same tree built twice on one context gives the same answer, which is
@@ -1791,6 +1800,312 @@ static void wrap_nesting(voe_ui_context *ui, voe_base_arena *frames)
 	voe_base_arena_rewind(frames, mark);
 }
 
+// ------------------------------------------------------------- overflow
+
+static voe_ui_overflow clips(voe_ui_overflow_kind x, voe_ui_overflow_kind y)
+{
+	return (voe_ui_overflow){ x, y };
+}
+
+// A CLIP NARROWS WHAT IS SEEN AND NOT WHERE ANYTHING IS. A row 50 by 20 clipping
+// X holds a box 70 wide: the box's rectangle is still 70, its visible rectangle
+// is 50, and the row's own visible rectangle is the whole of it — nothing above
+// clips the row.
+static void clip_row(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node row_node;
+	voe_ui_node box;
+
+	voe_ui_frame_begin(ui, frames);
+	row_node = voe_ui_row_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(50.0f), fixed(20.0f)),
+			    .overflow = clips(VOE_UI_OVERFLOW_CLIP,
+					      VOE_UI_OVERFLOW_VISIBLE) });
+	box = fixed_box(ui, 70.0f, 10.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, box), 0.0f, 0.0f, 70.0f, 10.0f);
+	CHECK_RECT(voe_ui_node_visible(ui, box), 0.0f, 0.0f, 50.0f, 10.0f);
+	CHECK_RECT(voe_ui_node_visible(ui, row_node), 0.0f, 0.0f, 50.0f, 20.0f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, row_node).x, 70.0f,
+			     TOLERANCE);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// NESTED CLIPS INTERSECT, AND EACH AXIS IS ITS OWN. An outer row 40 by 30,
+// clipping both, padded 10 on the left and 5 on top, holds an inner row 50 by 20
+// at (10, 5) padded 2 and 3, which holds a box 45 by 35 at (12, 8). On X the
+// outer edge is the nearer, 40; on Y the inner one, 25. So the box is seen from
+// (12, 8) for 28 by 17 — each axis cut by a different container.
+//
+// And with the inner row VISIBLE on Y, only the outer limits Y, at 30: the box is
+// seen for 28 by 22, and the inner row narrowed nothing on the axis it did not
+// ask to clip.
+static void clip_nested_frame(voe_ui_context *ui, voe_base_arena *frames,
+			      voe_ui_overflow_kind inner_y, float seen_high)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node outer;
+	voe_ui_node inner;
+	voe_ui_node box;
+
+	voe_ui_frame_begin(ui, frames);
+	outer = voe_ui_row_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(40.0f), fixed(30.0f)),
+			    .pad = pad(10.0f, 5.0f, 0.0f, 0.0f),
+			    .overflow = clips(VOE_UI_OVERFLOW_CLIP,
+					      VOE_UI_OVERFLOW_CLIP) });
+	inner = voe_ui_row_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(50.0f), fixed(20.0f)),
+			    .pad = pad(2.0f, 3.0f, 0.0f, 0.0f),
+			    .overflow = clips(VOE_UI_OVERFLOW_CLIP, inner_y) });
+	box = fixed_box(ui, 45.0f, 35.0f);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_visible(ui, outer), 0.0f, 0.0f, 40.0f, 30.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, inner), 10.0f, 5.0f, 50.0f, 20.0f);
+	CHECK_RECT(voe_ui_node_visible(ui, inner), 10.0f, 5.0f, 30.0f, 20.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, box), 12.0f, 8.0f, 45.0f, 35.0f);
+	CHECK_RECT(voe_ui_node_visible(ui, box), 12.0f, 8.0f, 28.0f, seen_high);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+static void clip_nested(voe_ui_context *ui, voe_base_arena *frames)
+{
+	clip_nested_frame(ui, frames, VOE_UI_OVERFLOW_CLIP, 17.0f);
+	clip_nested_frame(ui, frames, VOE_UI_OVERFLOW_VISIBLE, 22.0f);
+}
+
+// AN ANCHORED CHILD IS CLIPPED LIKE ANY OTHER. In a row 30 by 20 clipping both,
+// one 10 by 10 anchored 40 in from the left sits wholly past the right edge and
+// has nothing visible on X; one anchored 5 outward from the right edge, at 25,
+// shows its first 5.
+static void clip_anchored(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node outside;
+	voe_ui_node half;
+
+	voe_ui_frame_begin(ui, frames);
+	(void)voe_ui_row_begin(ui, (voe_ui_container){
+					   .size = sizing(fixed(30.0f),
+							  fixed(20.0f)),
+					   .overflow = clips(
+						   VOE_UI_OVERFLOW_CLIP,
+						   VOE_UI_OVERFLOW_CLIP) });
+	outside = anchored(ui,
+			   anchor(VOE_UI_ACROSS_START, 40.0f,
+				  VOE_UI_ACROSS_START, 0.0f),
+			   fixed(10.0f), fixed(10.0f));
+	half = anchored(ui,
+			anchor(VOE_UI_ACROSS_END, -5.0f, VOE_UI_ACROSS_START,
+			       0.0f),
+			fixed(10.0f), fixed(10.0f));
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, outside), 40.0f, 0.0f, 10.0f, 10.0f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_visible(ui, outside).size.x, 0.0f,
+			     0.0);
+	CHECK_RECT(voe_ui_node_visible(ui, half), 25.0f, 0.0f, 5.0f, 10.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// A column 20 wide and 30 tall clipping Y, holding boxes 40 and 60 tall — content
+// 100, so the offset may run from nought to 70. Without `tall` it holds one box
+// 20 tall instead, content shorter than the column.
+static void scroll_frame(voe_ui_context *ui, voe_base_arena *frames,
+			 float scroll, bool tall, float first_y,
+			 float expected_scroll)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node column_node;
+	voe_ui_node first;
+	voe_ui_node second = VOE_UI_NODE_NONE;
+
+	voe_ui_frame_begin(ui, frames);
+	column_node = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(30.0f), fixed(20.0f)),
+			    .overflow = clips(VOE_UI_OVERFLOW_VISIBLE,
+					      VOE_UI_OVERFLOW_CLIP),
+			    .scroll = { 0.0f, scroll } });
+	if (tall) {
+		first = fixed_box(ui, 40.0f, 10.0f);
+		second = fixed_box(ui, 60.0f, 10.0f);
+	} else {
+		first = fixed_box(ui, 20.0f, 10.0f);
+	}
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, column_node), 0.0f, 0.0f, 20.0f, 30.0f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_scroll(ui, column_node).y,
+			     expected_scroll, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_scroll(ui, column_node).x, 0.0f, 0.0);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_rect(ui, first).min.y, first_y,
+			     TOLERANCE);
+	if (tall) {
+		// The offset moves the content and not what it measured to.
+		VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, column_node).y,
+				     100.0f, TOLERANCE);
+		VOE_TEST_CHECK_FLOAT(voe_ui_node_rect(ui, second).min.y,
+				     first_y + 40.0f, TOLERANCE);
+	}
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// THE OFFSET IS CLAMPED BY LAYOUT, AND WHAT IT USED IS WHAT IT REPORTS. 25 moves
+// the content 25 up and is seen through the column's top 15 of the first box;
+// 500 is past the end and stops at 70; below nought is nought; and content 20
+// tall in a column 30 tall has nothing to scroll, so 10 is nought.
+static void scroll_offset(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark;
+	voe_ui_node column_node;
+	voe_ui_node first;
+
+	scroll_frame(ui, frames, 25.0f, true, -25.0f, 25.0f);
+	scroll_frame(ui, frames, 500.0f, true, -70.0f, 70.0f);
+	scroll_frame(ui, frames, -4.0f, true, 0.0f, 0.0f);
+	scroll_frame(ui, frames, 10.0f, false, 0.0f, 0.0f);
+
+	// And the first box, moved up by 25, is seen from the column's top.
+	mark = voe_base_arena_mark(frames);
+	voe_ui_frame_begin(ui, frames);
+	column_node = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(30.0f), fixed(20.0f)),
+			    .overflow = clips(VOE_UI_OVERFLOW_VISIBLE,
+					      VOE_UI_OVERFLOW_CLIP),
+			    .scroll = { 0.0f, 25.0f } });
+	first = fixed_box(ui, 40.0f, 10.0f);
+	(void)fixed_box(ui, 60.0f, 10.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_visible(ui, first), 0.0f, 0.0f, 10.0f, 15.0f);
+	CHECK_RECT(voe_ui_node_visible(ui, column_node), 0.0f, 0.0f, 20.0f,
+		   30.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// ACROSS THE FLOW TOO. A column 20 wide clipping X holds a box 50 wide, so X may
+// run to 30: 10 moves it to -10, and 100 stops at -30.
+static void scroll_across(voe_ui_context *ui, voe_base_arena *frames)
+{
+	static const float asked[2] = { 10.0f, 100.0f };
+	static const float used[2] = { 10.0f, 30.0f };
+
+	for (uint32_t k = 0; k < 2; k++) {
+		struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+		voe_ui_node column_node;
+		voe_ui_node box;
+
+		voe_ui_frame_begin(ui, frames);
+		column_node = voe_ui_column_begin(
+			ui, (voe_ui_container){
+				    .size = sizing(fixed(30.0f), fixed(20.0f)),
+				    .overflow = clips(VOE_UI_OVERFLOW_CLIP,
+						      VOE_UI_OVERFLOW_VISIBLE),
+				    .scroll = { asked[k], 0.0f } });
+		box = fixed_box(ui, 10.0f, 50.0f);
+		voe_ui_end(ui);
+		VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+		VOE_TEST_CHECK_FLOAT(voe_ui_node_scroll(ui, column_node).x,
+				     used[k], TOLERANCE);
+		CHECK_RECT(voe_ui_node_rect(ui, box), -used[k], 0.0f, 50.0f,
+			   10.0f);
+
+		voe_base_arena_rewind(frames, mark);
+	}
+}
+
+// AN ANCHORED CHILD MOVES WITH THE OFFSET. The column of scroll_frame scrolled
+// by 25, with a 5 by 5 child anchored to its bottom-left corner: unscrolled it
+// would sit at 30 - 5, 25, and scrolled it sits at nought.
+static void scroll_anchored(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	voe_ui_node corner;
+
+	voe_ui_frame_begin(ui, frames);
+	(void)voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(30.0f), fixed(20.0f)),
+			    .overflow = clips(VOE_UI_OVERFLOW_VISIBLE,
+					      VOE_UI_OVERFLOW_CLIP),
+			    .scroll = { 0.0f, 25.0f } });
+	(void)fixed_box(ui, 40.0f, 10.0f);
+	(void)fixed_box(ui, 60.0f, 10.0f);
+	corner = anchored(ui,
+			  anchor(VOE_UI_ACROSS_START, 0.0f, VOE_UI_ACROSS_END,
+				 0.0f),
+			  fixed(5.0f), fixed(5.0f));
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	CHECK_RECT(voe_ui_node_rect(ui, corner), 0.0f, 0.0f, 5.0f, 5.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// A WRAPPING COLUMN'S X OFFSET IS CLAMPED AFTER IT BREAKS, NOT A FRAME LATE. 50
+// tall and 10 wide with a gap of 2, five children 20 tall and 10 wide: lines at
+// 0, 12 and 24, measured 34 wide, so X may run to 24. The X pass only knew one
+// line and no range; the Y pass clamps 100 to 24, and every child — and the 4 by
+// 4 anchored one — moves left by it.
+static void scroll_wrapping_column(voe_ui_context *ui, voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	static const float xs[5] = { -24.0f, -24.0f, -12.0f, -12.0f, 0.0f };
+	voe_ui_node children[5];
+	voe_ui_node column_node;
+	voe_ui_node corner;
+
+	voe_ui_frame_begin(ui, frames);
+	column_node = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = sizing(fixed(50.0f), fixed(10.0f)),
+			    .gap = 2.0f,
+			    .wrap = true,
+			    .overflow = clips(VOE_UI_OVERFLOW_CLIP,
+					      VOE_UI_OVERFLOW_VISIBLE),
+			    .scroll = { 100.0f, 0.0f } });
+	children[0] = fixed_box(ui, 20.0f, 10.0f);
+	children[1] = fixed_box(ui, 20.0f, 10.0f);
+	corner = anchored(ui,
+			  anchor(VOE_UI_ACROSS_START, 0.0f,
+				 VOE_UI_ACROSS_START, 0.0f),
+			  fixed(4.0f), fixed(4.0f));
+	for (uint32_t i = 2; i < 5; i++)
+		children[i] = fixed_box(ui, 20.0f, 10.0f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_scroll(ui, column_node).x, 24.0f,
+			     TOLERANCE);
+	for (uint32_t i = 0; i < 5; i++)
+		VOE_TEST_CHECK_FLOAT(voe_ui_node_rect(ui, children[i]).min.x,
+				     xs[i], TOLERANCE);
+	CHECK_RECT(voe_ui_node_rect(ui, corner), -24.0f, 0.0f, 4.0f, 4.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -1828,6 +2143,13 @@ int main(void)
 	wrap_column(ui, frames);
 	wrap_anchored(ui, frames);
 	wrap_nesting(ui, frames);
+	clip_row(ui, frames);
+	clip_nested(ui, frames);
+	clip_anchored(ui, frames);
+	scroll_offset(ui, frames);
+	scroll_across(ui, frames);
+	scroll_anchored(ui, frames);
+	scroll_wrapping_column(ui, frames);
 	capacity(arena, frames);
 
 	voe_base_arena_destroy(frames);

@@ -99,9 +99,18 @@
 // No theme: the colours below are constants and card 036 replaces them. No text
 // input, no caret and no selection — a number box is dragged and not typed into,
 // and the click that would begin typing is reserved rather than free. No scroll
-// area and no clip narrower than a widget's own rectangle — card 035. No
-// checkbox and no slider: a number box has no track, no ends and no range, which
-// is what makes it the one that fits a field of unknown extent.
+// area yet: a container clips and scrolls (layout.h, OVERFLOW), and the caller
+// keeps its offset. No checkbox and no slider: a number box has no track, no ends
+// and no range, which is what makes it the one that fits a field of unknown
+// extent.
+//
+// WHAT IS HERE INSTEAD OF A CLIP OF ITS OWN: every record is clipped to what its
+// node's clipping ancestors leave — a panel, a button or an image to its
+// voe_ui_node_visible — and a record with nothing left is not emitted and takes
+// no capacity. A widget clipped out of sight is not hit: the pointer is tested
+// against its visible rectangle, so it cannot be hovered, armed or pressed there.
+// A gesture already under way carries on when its widget is clipped or scrolled
+// away, exactly as it carries on past the surface's edge.
 #pragma once
 
 #include <ui/layout.h>
@@ -355,9 +364,9 @@ voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 // picture is { 0, 0, 1, 1 }.
 //
 // IT IS ONE ELEMENT RECORD, against the frame's budget like a panel's background:
-// kind IMAGE, clipped to its own rectangle, coloured opaque white so the picture
-// shows as it is. It paints where a leaf paints — after its parent, in call order
-// among its siblings.
+// kind IMAGE, clipped to its visible rectangle, coloured opaque white so the
+// picture shows as it is. It paints where a leaf paints — after its parent, in
+// call order among its siblings.
 //
 // THE TEXTURE IS THE CALLER'S AND SO IS ITS LIFETIME. Only its index half goes
 // into the record, and nothing here checks that it still names a live texture:

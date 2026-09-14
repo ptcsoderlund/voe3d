@@ -52,7 +52,7 @@
   - Depends on: -
   - Done when: `cmake -P check.cmake` exits 0; `cmake --build --preset debug && ctest --test-dir build/debug -R '^platform/'` passes; `git diff --quiet -- editor` exits 0
 
-- [ ] 2. `ui/` — a container may clip, and takes a scroll offset
+- [x] 2. `ui/` — a container may clip, and takes a scroll offset
   - Change: A container can clip its descendants to its own rectangle on X, on Y or on both, and
     can be handed an offset that moves its content. What is clipped away is neither drawn nor hit.
     Layout clamps the offset and remembers nothing. A zeroed container behaves as today. Decision:

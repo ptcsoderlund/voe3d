@@ -95,6 +95,10 @@ struct voe_ui_node_record {
 	// Whether this container's children may break onto further lines. False
 	// on a leaf.
 	bool wrap;
+	// Whether it clips, per axis, and the offset the caller asked for. Both
+	// nought on a leaf.
+	voe_ui_overflow overflow;
+	voe_math_float2 scroll;
 
 	// Which line of its parent's run this node landed on, counted from
 	// nought. Written by the arrange along the parent's flow, and nought —
@@ -108,6 +112,16 @@ struct voe_ui_node_record {
 	voe_math_float2 natural;
 	// What arrange came to.
 	voe_ui_rect rect;
+	// The offset arrange moved this container's children by, after clamping.
+	// Nought on a VISIBLE axis and on a leaf.
+	voe_math_float2 scrolled;
+	// What every clipping ancestor leaves this node, as the interval each
+	// axis is limited to — unbounded, ±FLT_MAX, where nothing clips — and
+	// `rect` narrowed to it. Written after both axes are arranged; nought in
+	// a refused frame, as `rect` is.
+	voe_math_float2 limit_min;
+	voe_math_float2 limit_max;
+	voe_ui_rect visible;
 
 	// This node and everything under it, counted by the paint-order pass,
 	// which is the width of the slot its subtree occupies in that order. The
@@ -229,6 +243,17 @@ struct voe_ui_context {
 // above. Emission asks layout for this order and never re-derives it, which is
 // why widgets.c did not have to change when the order stopped being the array's.
 uint32_t voe_ui_paint_order(const voe_ui_context *ui, uint32_t position);
+
+// `rect` narrowed to what the clipping ancestors of `node` leave, axis by axis,
+// size nought on an axis where nothing is left. A rectangle that is not narrowed
+// comes back bit for bit, which is what keeps a tree that clips nothing emitting
+// exactly what it did before clipping existed.
+//
+// LAYOUT'S RULE AND NOT A SECOND COPY OF IT. voe_ui_node_visible is this applied
+// to the node's own rectangle; widgets.c applies it to a record whose rectangle
+// is not the node's — a glyph — so the two cannot drift apart.
+voe_ui_rect voe_ui_limit(const voe_ui_context *ui, uint32_t node,
+			 voe_ui_rect rect);
 
 // The two frame boundaries, called from layout.c's voe_ui_frame_begin and
 // voe_ui_frame_end and from nowhere else.

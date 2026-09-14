@@ -11,7 +11,8 @@
 // names `platform`.
 //
 // THE LAST CASE IS THE EXCEPTION AND IT IS DELIBERATE (ADR-0106). The text scale
-// multiplies a MEASUREMENT, so proving it needs a real font, and a font uploads
+// multiplies a MEASUREMENT, and a label emits one record per letter, so proving
+// either needs a real font, and a font uploads
 // an atlas and so needs a device. It takes a headless one — no window, no
 // surface, no compositor — and where there is no driver at all it skips, saying
 // which check did not run rather than only why.
@@ -29,6 +30,12 @@
 // the same key share state silently: the second lights up when the first is
 // hovered and nothing says why. Here it is a refused frame and a line on stderr,
 // and this case is what keeps it one.
+//
+// A CLIP IS WHAT CAN BE SEEN AND SO WHAT CAN BE HIT, since spec 001. A button
+// half clipped emits a record clipped to its visible half and answers the pointer
+// only there; one wholly clipped emits nothing; and a number box scrolled out of
+// sight mid-drag goes on reporting its drag. A label wholly clipped is the one of
+// these that needs a font, so it is among the device cases.
 //
 // THE GEOMETRY IS WORKED OUT BY HAND AND WRITTEN AS NUMBERS. A button's
 // rectangle comes out of layout, so a test that asked layout where the button
@@ -793,6 +800,157 @@ static void too_many_elements_refuses_the_frame(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_ui_frame_end(ui));
 }
 
+// ------------------------------------------------------------------ clipping
+
+// A row 12.5 wide clipping X, holding two buttons 25 by 15: "half" at the origin,
+// of which the left 12.5 is seen, and "gone" at 25, of which nothing is. The row
+// is no panel and emits nothing, so every record here is a button's.
+#define HALF_WIDE 12.5f
+
+static struct frame build_clipped(voe_ui_context *ui, voe_base_arena *arena,
+				  voe_math_float2 at, bool down)
+{
+	struct frame f = { VOE_UI_NODE_NONE, VOE_UI_NODE_NONE, false };
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = at,
+						 .over = true,
+						 .down = down });
+
+	voe_ui_row_begin(ui, (voe_ui_container){
+				     .size = { { VOE_UI_SIZE_FIXED, HALF_WIDE },
+					       { VOE_UI_SIZE_FIXED, 20.0f } },
+				     .overflow = { VOE_UI_OVERFLOW_CLIP,
+						   VOE_UI_OVERFLOW_VISIBLE } });
+	f.a = voe_ui_button_begin(ui, "half", 0);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	f.b = voe_ui_button_begin(ui, "gone", 0);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	f.ok = voe_ui_frame_end(ui);
+	return f;
+}
+
+// ONE RECORD, FOR THE HALF THAT IS SEEN: its bounds the whole button, its clip
+// the left 12.5 of it. The wholly clipped button emits nothing and takes no
+// capacity, which the count says.
+static void a_half_clipped_button_emits_its_visible_half(voe_ui_context *ui,
+							 voe_base_arena *arena)
+{
+	struct frame f = build_clipped(ui, arena, (voe_math_float2){ 0 }, false);
+	voe_render_element e;
+
+	VOE_TEST_CHECK(f.ok);
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 1);
+	if (voe_ui_element_count(ui) != 1)
+		return;
+
+	e = voe_ui_element(ui, 0);
+	VOE_TEST_CHECK_FLOAT(e.bounds.x, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.bounds.z, BUTTON_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.x, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.y, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.z, HALF_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(e.clip.w, BUTTON_HIGH, 0.001f);
+}
+
+// THE POINTER HITS WHAT IS SEEN. Over the visible half the button is hovered; over
+// the half cut away, inside its rectangle, it is not — and neither is the button
+// wholly out of sight, pointed at where it would be.
+static void a_pointer_over_the_clipped_half_hovers_nothing(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct frame f = build_clipped(ui, arena,
+				       (voe_math_float2){ 6.0f, 7.0f }, false);
+
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.a).hovered);
+
+	f = build_clipped(ui, arena, (voe_math_float2){ 18.0f, 7.0f }, false);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.a).hovered);
+
+	f = build_clipped(ui, arena, (voe_math_float2){ 30.0f, 7.0f }, false);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.b).hovered);
+
+	// And a press on the half cut away arms nothing.
+	f = build_clipped(ui, arena, (voe_math_float2){ 18.0f, 7.0f }, true);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.a).held);
+
+	// Let go, so the next case starts with the button up.
+	(void)build_clipped(ui, arena, (voe_math_float2){ 18.0f, 7.0f }, false);
+}
+
+// A column 40 wide and 20 tall clipping Y and scrolled by `scroll`, holding the
+// number box at the top and 100 of spacer under it — so it may scroll to 95, and
+// at 50 the number box is wholly above the column's top.
+static struct number_frame build_scrolled_number(voe_ui_context *ui,
+						 voe_base_arena *arena, float x,
+						 bool down, float scroll)
+{
+	struct number_frame f = { VOE_UI_NODE_NONE, false };
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = { x, ON_NUMBER_Y },
+						 .over = true,
+						 .down = down });
+
+	voe_ui_column_begin(ui, (voe_ui_container){
+					.size = { { VOE_UI_SIZE_FIXED, 20.0f },
+						  { VOE_UI_SIZE_FIXED, 40.0f } },
+					.overflow = { VOE_UI_OVERFLOW_VISIBLE,
+						      VOE_UI_OVERFLOW_CLIP },
+					.scroll = { 0.0f, scroll } });
+	f.n = voe_ui_number_begin(ui, "n", 0, START, PER_MM);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	voe_ui_box(ui, (voe_math_float2){ 10.0f, 100.0f }, (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+
+	f.ok = voe_ui_frame_end(ui);
+	return f;
+}
+
+// A DRAG SURVIVES ITS WIDGET SCROLLING OUT OF SIGHT, as it survives the pointer
+// leaving the surface. Pressed at 5, dragged to 15 — nine past the dead zone —
+// then scrolled 50 so that nothing of the box is seen, and dragged on to 20: not
+// hovered, still held, and five more millimetres of change.
+static void a_number_box_scrolled_away_mid_drag_keeps_dragging(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct number_frame f =
+		build_scrolled_number(ui, arena, 5.0f, false, 0.0f);
+	voe_ui_number_result r;
+
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+
+	f = build_scrolled_number(ui, arena, 5.0f, true, 0.0f);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.n).held);
+
+	f = build_scrolled_number(ui, arena, 15.0f, true, 0.0f);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)(START + 9.0 * PER_MM),
+			     0.001f);
+
+	f = build_scrolled_number(ui, arena, 20.0f, true, 50.0f);
+	VOE_TEST_CHECK(f.ok);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_visible(ui, f.n).size.y, 0.0f, 0.0);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.hovered);
+	VOE_TEST_CHECK(r.held);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)(START + 5.0 * PER_MM),
+			     0.001f);
+
+	f = build_scrolled_number(ui, arena, 20.0f, false, 50.0f);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
+}
+
 // --------------------------------------------------------------- the image
 
 // Two pictures in a row of a known width, so that both rectangles are arithmetic
@@ -982,6 +1140,38 @@ static void a_label_emits_its_letters_after_the_panel(voe_ui_context *ui,
 		       voe_ui_element(ui, 0).bounds.y);
 }
 
+// A LABEL WHOLLY CLIPPED EMITS NOTHING. A panel 40 by 10 clipping both holds a
+// spacer 30 tall and then a label, which begins 20 below the panel's bottom edge.
+// Unclipped the same tree emits the panel and the label's letters; clipped it
+// emits the panel alone, and the count says so.
+static uint32_t clipped_label_elements(voe_ui_context *ui,
+				       voe_base_arena *arena,
+				       voe_ui_overflow_kind kind)
+{
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_panel_begin(ui, "clipper", 0, PANEL,
+			   (voe_ui_container){
+				   .size = { { VOE_UI_SIZE_FIXED, 10.0f },
+					     { VOE_UI_SIZE_FIXED, 40.0f } },
+				   .overflow = { kind, kind } });
+	voe_ui_box(ui, (voe_math_float2){ 10.0f, 30.0f }, (voe_ui_sizing){ 0 });
+	voe_ui_label(ui, "Hidden");
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	return voe_ui_element_count(ui);
+}
+
+static void a_wholly_clipped_label_emits_nothing(voe_ui_context *ui,
+						 voe_base_arena *arena)
+{
+	VOE_TEST_CHECK(clipped_label_elements(ui, arena,
+					      VOE_UI_OVERFLOW_VISIBLE) > 1);
+	VOE_TEST_CHECK_INT((int)clipped_label_elements(ui, arena,
+						       VOE_UI_OVERFLOW_CLIP),
+			   1);
+}
+
 // The device and the font this one case needs, and the skip that stands in for
 // them where there is no driver.
 static int the_text_scale(voe_base_arena *arena)
@@ -1011,8 +1201,9 @@ static int the_text_scale(voe_base_arena *arena)
 		    error == VOE_BASE_ERROR_UNSUPPORTED) {
 			// ADR-0106: a skip names what went unchecked, not only
 			// why it did.
-			printf("skip: no graphics driver — the text-size and "
-			       "label-emission checks did not run\n");
+			printf("skip: no graphics driver — the text-size, "
+			       "label-emission and clipped-label checks did "
+			       "not run\n");
 			return 0;
 		}
 		VOE_TEST_CHECK(device != NULL);
@@ -1032,6 +1223,7 @@ static int the_text_scale(voe_base_arena *arena)
 
 	a_bigger_text_scale_grows_the_row_and_not_the_gaps(ui, arena);
 	a_label_emits_its_letters_after_the_panel(ui, arena);
+	a_wholly_clipped_label_emits_nothing(ui, arena);
 
 	voe_text_font_destroy(font);
 	voe_render_device_destroy(device);
@@ -1067,6 +1259,9 @@ int main(void)
 	a_known_tree_emits_a_known_list(ui, arena);
 	a_transparent_panel_emits_nothing(ui, arena);
 	two_images_are_two_records_in_call_order(ui, arena);
+	a_half_clipped_button_emits_its_visible_half(ui, arena);
+	a_pointer_over_the_clipped_half_hovers_nothing(ui, arena);
+	a_number_box_scrolled_away_mid_drag_keeps_dragging(ui, arena);
 	too_many_elements_refuses_the_frame(arena);
 
 	(void)the_text_scale(arena);

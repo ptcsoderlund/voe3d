@@ -45,6 +45,22 @@
 // THE LAST WIDGET IN PAINT ORDER WINS THE POINTER, because the last one painted
 // is the one in front. The loop does not stop at the first hit for that reason.
 //
+// AND IT TESTS WHAT CAN BE SEEN, NOT WHERE THE WIDGET IS. The rectangle compared
+// is voe_ui_node_visible, so the part of a button a clipping container cut away
+// is not there for the pointer either: a widget scrolled out of sight cannot be
+// hovered, armed or pressed (ADR-0153). A gesture already under way is keyed and
+// not hit tested, so it carries on when its widget is clipped away, exactly as
+// it carries on past the surface's edge.
+//
+// ---- EVERY RECORD IS CLIPPED BY LAYOUT'S RULE, AND AN EMPTY ONE IS NOT SENT ----
+//
+// A record's clip is its own rectangle narrowed by voe_ui_limit — what the
+// clipping ancestors leave — so a panel, a button and an image are clipped to
+// their visible rectangle, and in a tree that clips nothing the clip is still the
+// record's own bounds, bit for bit. A record with nothing left on either axis is
+// not pushed at all and costs no capacity: a long list scrolled away is not
+// hundreds of records drawing nothing.
+//
 // ---- WHAT THE TWO IDS DO, INCLUDING THE AWKWARD CASES ----
 //
 // `hovered` is worked out afresh every frame and remembers nothing. `held` is
@@ -541,7 +557,7 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 
 			if (!takes_the_pointer(ui->widgets[node].kind))
 				continue;
-			if (inside(ui->nodes[node].rect, ui->pointer.at)) {
+			if (inside(ui->nodes[node].visible, ui->pointer.at)) {
 				hovered = ui->widgets[node].key;
 				hovered_set = true;
 				hovered_number = ui->widgets[node].kind ==
@@ -622,44 +638,100 @@ static void push_element(voe_ui_context *ui, voe_render_element element)
 	ui->elements[ui->element_count++] = element;
 }
 
-// A rectangle straight across, clipped to itself.
+// A record's `bounds` and its `clip`: `bounds` narrowed to what the clipping
+// ancestors of `node` leave of it. False when nothing is left on either axis, and
+// then the record is not pushed.
 //
-// ITS OWN BOUNDS IS A REAL CLIP RECTANGLE AND IT CLIPS NOTHING, which is the
-// answer this card wants: a zeroed one clips everything away (see
-// voe_render_element.clip) and would draw an empty interface, and anything
-// narrower than the widget is a scroll area, which is card 035. When that lands
-// it narrows these; until then every record says "all of me".
-static void push_rect(voe_ui_context *ui, voe_ui_rect rect,
+// A ZEROED CLIP CLIPS EVERYTHING AWAY (see voe_render_element.clip), which is why
+// a record that clips nothing carries its own bounds and not nought, and why an
+// empty one is skipped rather than sent to draw nothing.
+static bool clip_of(const voe_ui_context *ui, uint32_t node,
+		    voe_math_float4 bounds, voe_math_float4 *clip)
+{
+	voe_ui_rect rect = voe_ui_limit(
+		ui, node,
+		(voe_ui_rect){ .min = { bounds.x, bounds.y },
+			       .size = { bounds.z, bounds.w } });
+
+	*clip = (voe_math_float4){ rect.min.x, rect.min.y, rect.size.x,
+				   rect.size.y };
+	return rect.size.x > 0.0f && rect.size.y > 0.0f;
+}
+
+static voe_math_float4 bounds_of(voe_ui_rect rect)
+{
+	return (voe_math_float4){ rect.min.x, rect.min.y, rect.size.x,
+				  rect.size.y };
+}
+
+// A node's rectangle straight across, clipped to its visible rectangle.
+static void push_rect(voe_ui_context *ui, uint32_t node,
 		      voe_math_float4 colour)
 {
-	voe_math_float4 bounds = { rect.min.x, rect.min.y, rect.size.x,
-				   rect.size.y };
+	voe_math_float4 bounds = bounds_of(ui->nodes[node].rect);
+	voe_math_float4 clip;
+
+	if (!clip_of(ui, node, bounds, &clip))
+		return;
 
 	push_element(ui, (voe_render_element){
 				 .bounds = bounds,
-				 .clip = bounds,
+				 .clip = clip,
 				 .colour = colour,
 				 .kind = VOE_RENDER_ELEMENT_SOLID,
 			 });
 }
 
-// A picture over the node's rectangle, clipped to itself for the reason
-// push_rect's record is. The sheet and the texture index go across as the caller
-// handed them in.
+// A picture over the node's rectangle, clipped as push_rect's record is. The
+// sheet and the texture index go across as the caller handed them in.
 static void push_image(voe_ui_context *ui, uint32_t node)
 {
 	const struct voe_ui_widget_record *w = &ui->widgets[node];
-	voe_ui_rect rect = ui->nodes[node].rect;
-	voe_math_float4 bounds = { rect.min.x, rect.min.y, rect.size.x,
-				   rect.size.y };
+	voe_math_float4 bounds = bounds_of(ui->nodes[node].rect);
+	voe_math_float4 clip;
+
+	if (!clip_of(ui, node, bounds, &clip))
+		return;
 
 	push_element(ui, (voe_render_element){
 				 .bounds = bounds,
-				 .clip = bounds,
+				 .clip = clip,
 				 .colour = IMAGE_AS_IT_IS,
 				 .kind = VOE_RENDER_ELEMENT_IMAGE,
 				 .sheet_texture = w->texture,
 				 .sheet = w->sheet,
+			 });
+}
+
+// One letter of a label.
+//
+// DEVIATION: task 2 of spec 001 says a record's clip is its rectangle intersected
+// with the node's visible rectangle. A glyph's box reaches past its label's own
+// rectangle — the field's margin, the half slack added above the baseline — so
+// that reading would trim letters in a tree that clips nothing, and a zeroed
+// container must behave as today. The narrowest reading that keeps both: a glyph
+// is narrowed by what the label's clipping ancestors leave, which is the visible
+// rectangle's own rule, and not by the label's rectangle.
+static void push_glyph(voe_ui_context *ui, uint32_t node,
+		       voe_math_float4 bounds, voe_math_float4 sheet)
+{
+	voe_math_float4 clip;
+
+	if (!clip_of(ui, node, bounds, &clip))
+		return;
+
+	push_element(ui, (voe_render_element){
+				 .bounds = bounds,
+				 .clip = clip,
+				 .colour = LABEL_INK,
+				 .kind = VOE_RENDER_ELEMENT_GLYPH,
+				 .sheet_texture =
+					 voe_text_font_atlas(ui->font).index,
+				 // Straight across: voe_text_glyph already
+				 // hands the sheet rectangle over in the
+				 // record's own shape, its corner paired to
+				 // the box's top-left.
+				 .sheet = sheet,
 			 });
 }
 
@@ -730,22 +802,7 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 				(g.high.y - g.low.y) * em
 			};
 
-			push_element(
-				ui,
-				(voe_render_element){
-					.bounds = bounds,
-					.clip = bounds,
-					.colour = LABEL_INK,
-					.kind = VOE_RENDER_ELEMENT_GLYPH,
-					.sheet_texture =
-						voe_text_font_atlas(ui->font)
-							.index,
-					// Straight across: voe_text_glyph
-					// already hands the sheet rectangle
-					// over in the record's own shape, its
-					// corner paired to the box's top-left.
-					.sheet = g.sheet,
-				});
+			push_glyph(ui, node, bounds, g.sheet);
 		}
 
 		pen += g.advance * em;
@@ -782,13 +839,11 @@ static void emit(voe_ui_context *ui)
 			// blend to draw nothing, and a transparent panel with
 			// padding in it is a real thing to want. See widgets.h.
 			if (ui->widgets[node].colour.w > 0.0f)
-				push_rect(ui, ui->nodes[node].rect,
-					  ui->widgets[node].colour);
+				push_rect(ui, node, ui->widgets[node].colour);
 			break;
 		case VOE_UI_WIDGET_BUTTON:
 		case VOE_UI_WIDGET_NUMBER:
-			push_rect(ui, ui->nodes[node].rect,
-				  state_colour(ui, node));
+			push_rect(ui, node, state_colour(ui, node));
 			break;
 		case VOE_UI_WIDGET_LABEL:
 			push_label(ui, node);
