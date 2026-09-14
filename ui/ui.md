@@ -2,7 +2,8 @@
 
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
-mouse, a number box you drag sideways to change a value and an image. Not drawing — what
+mouse, a number box you drag sideways to change a value, an image and a scroll area
+that remembers its offset. Not drawing — what
 comes out is element records and the caller submits them — and not input either:
 the pointer is a value it is handed. Where the surface sits in the world is one
 matrix and it is the caller's.
@@ -28,10 +29,12 @@ matrix and it is the caller's.
   content box and paints over its in-flow siblings, the trap that a
   fit-to-children parent holding only anchored children has no natural size at
   all, and what the measured size is for. Also `voe_ui_overflow`,
-  `voe_ui_container.scroll`, `voe_ui_node_visible` and `voe_ui_node_scroll`.
-- `include/ui/widgets.h` — the panel, the label, the button, the number box and
-  the image, the pointer they are given, and this frame's element records read
-  back. Its
+  `voe_ui_container.scroll`, `voe_ui_node_visible`, `voe_ui_node_scroll` and
+  `voe_ui_capacities.scrolls`.
+- `include/ui/widgets.h` — the panel, the label, the button, the number box,
+  the image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`),
+  the pointer they are given with its `scroll`, and this frame's element records
+  read back. Its
   header says why the answer to a click arrives after the frame has ended rather
   than at the call, what a widget's key is made of and why it is a hashed path
   and not a line number, what two widgets sharing one does, why a button is
@@ -42,11 +45,15 @@ matrix and it is the caller's.
   the typing that is not built yet, and why a press and release without movement
   is reserved rather than free. On the image it says what it is for, why it is
   sized as a box is, that it is one element, and that the texture's lifetime is
-  the caller's.
+  the caller's. On the scroll area it says why the offset is remembered there
+  and not in layout, that an area not called forgets, how a scroll passes
+  outward, why it arrives in millimetres and lands next frame, and that the bar
+  lies over the content.
 - `src/context.h` — the tree and the context, shared by the folder's two
   source files. Its header says why there is one context and not two, which half
   owns which field, why the widget pass runs where it does, and why a drag needs
-  four fields beside `held` and no keyed table.
+  four fields beside `held` and no keyed table, and why a held thumb needs no
+  key of its own.
 - `src/layout.c` — the tree, and the sweeps over it, one axis at a time. Its
   header says why the array being in call order makes every pass a flat loop
   with neither recursion nor a stack, what passes between the X pass and the Y
@@ -66,8 +73,9 @@ matrix and it is the caller's.
   arithmetic in it and where the one sign that does appear comes from, why paint
   order is taken from layout rather than re-derived, why the hit test is after
   arrange and against the visible rectangle, how a record is clipped, what the two ids do in every awkward case including the stuck one,
-  why the key is FNV-1a over a path, and why a drag measures its dead zone from
-  the press and its change from last frame.
+  why the key is FNV-1a over a path, why a drag measures its dead zone from
+  the press and its change from last frame, and how the scroll table is
+  rewritten each frame and where a scrollbar sits in paint order.
 - `tests/layout.c` — rectangles worked out by hand, one case per decision,
   clips and clamped scroll offsets among them. Its header says which eight answers it is pinning down rather than merely
   exercising, which two cases are about the machinery instead of the arithmetic,
@@ -75,7 +83,8 @@ matrix and it is the caller's.
   rectangle can show it. Needs no graphics card and no window system.
 - `tests/widgets.c` — a press and a release in every order a hand can produce, a
   sideways drag in every order one can, a clipped button and label, a drag
-  scrolled out of sight, a duplicate key, a known tree emitted as
+  scrolled out of sight, a scroll area's remembering, passing on, bar, drag,
+  page and refusal, a duplicate key, a known tree emitted as
   a known list, and two images as two IMAGE records. Its header says why the click cases are the ones that matter,
   why the collision case is the most valuable in the file, and why the one case
   that measures a string takes a headless device while every other needs no

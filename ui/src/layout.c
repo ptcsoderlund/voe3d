@@ -116,10 +116,10 @@
 // THE TREE AND THE CONTEXT ARE DECLARED IN src/context.h AND NOT HERE, because
 // widgets.c is the other half of the same frame and reads the same rectangles.
 // This file still owns every one of the layout fields and writes all of them;
-// what it does not own it does not touch. The two calls it makes into widgets.c
-// are at the bottom of context.h, and both are at frame boundaries: a widget
-// pass that ran anywhere but after arrange would be testing a click against
-// rectangles that do not exist yet.
+// what it does not own it does not touch. The three calls it makes into widgets.c
+// are at the bottom of context.h: one when the context is made, and two at frame
+// boundaries, because a widget pass that ran anywhere but after arrange would be
+// testing a click against rectangles that do not exist yet.
 #include "context.h"
 
 #include <base/assert.h>
@@ -969,6 +969,7 @@ voe_ui_context *voe_ui_context_new(voe_base_arena *arena,
 	ui->capacities = capacities;
 	// The one field that is not nought to begin with. See widgets.h.
 	ui->text_scale = 1.0f;
+	voe_ui_widgets_init(ui, arena);
 
 	return ui;
 }
@@ -1149,7 +1150,7 @@ bool voe_ui_frame_end(voe_ui_context *ui)
 	// interface on screen this frame builds no tree. It still goes through
 	// the widget pass, because letting go of a held button is something a
 	// frame with nothing in it has to do.
-	ok = !ui->overrun && !ui->collision;
+	ok = !ui->overrun && !ui->collision && !ui->scroll_overrun;
 	// Paint order is the tree's shape and not the arrangement's, so it is
 	// worked out even for a refused frame — which keeps the accessor's
 	// answer a real position in every frame that built any tree at all,

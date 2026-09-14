@@ -145,6 +145,7 @@
   - Done when: `cmake -P check.cmake` exits 0; `cmake --build --preset debug && ctest --test-dir build/debug -R '^ui/'` passes
 
 - [ ] 3. `ui/` — a scroll area
+  - In progress: stopped mid-task on 2026-09-14 and committed unfinished and unreviewed as `001 task 3 (wip)`. The next coder continues from that work, not from scratch; `cmake -P check.cmake` may not pass until it does.
   - Change: A widget that clips its content, remembers how far it is scrolled, draws a scrollbar
     over the content, and is scrolled by the pointer's wheel, by a thumb drag and by a press on the
     track. The wheel arrives as a length in millimetres, the form a stick or a hand will use too.

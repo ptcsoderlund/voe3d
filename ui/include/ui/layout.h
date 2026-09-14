@@ -125,10 +125,10 @@
 //
 // AND LAYOUT REMEMBERS NONE OF IT. The offset is a value handed in every frame,
 // like a size. Remembering how far a person scrolled needs an identity, and
-// identity is widgets.h's: that is a scroll area's job, keyed like any widget,
-// and never this page's. Until one exists the caller keeps the offset. An
-// anchored child that must stay put while content scrolls is anchored to a
-// parent that does not scroll.
+// identity is widgets.h's: that is voe_ui_scroll_begin's job, keyed like any
+// widget, and never this page's. A plain container is handed its offset by its
+// caller. An anchored child that must stay put while content scrolls is anchored
+// to a parent that does not scroll.
 //
 // ---- A RUN THAT WRAPS ----
 //
@@ -304,6 +304,11 @@ typedef struct {
 	// interface with writing on it is hundreds. A caller that only wants
 	// rectangles asks for none and pays for none.
 	uint32_t elements;
+	// And how many scroll areas one frame may hold — see
+	// voe_ui_scroll_begin. It is also the length of the table their offsets
+	// are remembered in, which lives as long as the context. Nought is
+	// allowed and means none.
+	uint32_t scrolls;
 } voe_ui_capacities;
 
 // A rectangle in the panel's space: millimetres, X right, Y down, origin at the
@@ -523,8 +528,9 @@ void voe_ui_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 // is a panel that fits its children.
 //
 // FALSE WHEN THE FRAME WANTED MORE THAN THE CONTEXT WAS CREATED WITH, and there
-// are three ways to want that: more nodes, more element records, or the same
-// widget key twice (see widgets.h). All three are refusals and not fatal errors:
+// are four ways to want that: more nodes, more element records, more scroll
+// areas, or the same widget key twice (see widgets.h). All four are refusals and
+// not fatal errors:
 // whichever call could not be honoured said so on stderr, naming what it was,
 // every rectangle in a refused frame is nought, and the next frame lays out
 // normally. Every container begun must have been ended; an unbalanced frame is
