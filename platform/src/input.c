@@ -39,6 +39,17 @@ voe_platform_motion voe_platform_input_motion(voe_platform_window *window)
 	return (voe_platform_motion){ input->motion_x, input->motion_y };
 }
 
+voe_platform_wheel voe_platform_input_wheel(voe_platform_window *window)
+{
+	struct voe_platform_input *input;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window for the wheel");
+
+	// Not zeroed here either, for the same reason motion is not.
+	input = voe_platform_window_input(window);
+	return (voe_platform_wheel){ input->wheel_x, input->wheel_y };
+}
+
 voe_platform_pointer voe_platform_input_pointer(voe_platform_window *window)
 {
 	struct voe_platform_input *input;
@@ -103,6 +114,8 @@ void voe_platform_input_begin_poll(struct voe_platform_input *input)
 	// over the frame, and stay true until the window system says otherwise.
 	input->motion_x = 0.0f;
 	input->motion_y = 0.0f;
+	input->wheel_x = 0.0f;
+	input->wheel_y = 0.0f;
 }
 
 void voe_platform_input_focus_lost(struct voe_platform_input *input)

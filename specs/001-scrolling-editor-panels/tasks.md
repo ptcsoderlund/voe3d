@@ -1,6 +1,6 @@
 # 001 Scrolling editor panels — tasks
 
-- [ ] 1. `platform/` — platform reports the wheel
+- [x] 1. `platform/` — platform reports the wheel
   - Change: A program can ask how far the wheel turned since the last poll, on both axes, in
     notches, with the same sign on both platforms. Nothing reads it yet; task 4 of this feature
     does. Decision: ADR-0153 point 10.

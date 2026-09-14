@@ -65,15 +65,19 @@
 // second, edge-shaped API beside the level one would be the second API the
 // paragraph above says this folder must not grow.
 //
-// SCROLL IS NOT HERE, AND THAT IS THIS CARD REPORTING RATHER THAN FORGETTING. A
-// wheel is one line per backend to receive and a real decision to report:
-// Windows hands over hundred-and-twenties per notch, Wayland at the version this
-// folder binds hands over a length in surface units per notch with no count of
-// notches, and the two point opposite ways. Choosing the unit both are turned
-// into is the scroll area's to make with its own needs in hand, and nothing
-// reads a wheel today — rule 10. The card that scrolls something is the card
-// that adds it, and the place is beside voe_platform_input_motion, drained by
-// the poll the same way.
+// THE WHEEL IS COUNTED IN NOTCHES, AND WHAT A NOTCH MOVES IS THE PROGRAM'S
+// (ADR-0153 point 10). voe_platform_input_wheel is how far the wheel turned, on
+// both axes, as a count of detents: one click of an ordinary wheel is 1, and a
+// device that reports fractions — a touchpad, a free-spinning wheel — reads as
+// fractions. +x shows content further right and +y further down, which is the
+// wheel turned towards the person; the two window systems report opposite signs
+// and each backend turns its own into this one. It drains exactly as motion
+// does: summed until the next poll, zeroed at the top of it. How many lines,
+// pixels or millimetres a notch scrolls is decided by whoever reads it, and
+// nothing here smooths or accelerates it. Windows counts notches exactly;
+// Wayland at the version this folder binds sends a length per notch that
+// differs between compositors — src/window_wayland.c says which, and what fixes
+// it.
 #pragma once
 
 typedef struct voe_platform_window voe_platform_window;
@@ -130,6 +134,16 @@ typedef struct {
 // reading it for a frame throws that frame's motion away, which is what a caller
 // that is not looking around wants.
 voe_platform_motion voe_platform_input_motion(voe_platform_window *window);
+
+// Wheel turn accumulated since the previous voe_platform_window_poll, in
+// notches. +x shows content further right, +y further down — the wheel turned
+// towards the person. Fractional where the device reports fractions.
+typedef struct {
+	float x;
+	float y;
+} voe_platform_wheel;
+
+voe_platform_wheel voe_platform_input_wheel(voe_platform_window *window);
 
 // Where the pointer is, not how far it moved — for that, see
 // voe_platform_input_motion above.

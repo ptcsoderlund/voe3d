@@ -9,10 +9,11 @@ too and do not yet.
   callers need: opening a window can fail and returns NULL, and `_poll` folds
   events into state rather than handing them out.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the
-  pointer's position and buttons, and the lock. Its header says why this is
-  polled state and not a queue of events, why a key is a place rather than a
-  letter, why motion and position are two questions and which is for what, when
-  a position is not live, and that a pointer lock is a request with an answer.
+  wheel in notches, the pointer's position and buttons, and the lock. Its header
+  says why this is polled state and not a queue of events, why a key is a place
+  rather than a letter, why motion and position are two questions and which is
+  for what, when a position is not live, that a pointer lock is a request with
+  an answer, and what sign a notch has.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   waiting is a different question this folder cannot answer yet.
@@ -49,8 +50,8 @@ too and do not yet.
   input device for look and as ordinary messages for position and buttons. Its
   header says why `WM_CHAR` is absent, why a held button takes the capture, and
   why `WM_MOUSELEAVE` has to be asked for.
-- `tests/input.c` — that a poll drains the mouse's motion and keeps held keys
-  and the pointer, that losing focus releases every key and nothing else, and
+- `tests/input.c` — that a poll drains the mouse's motion and wheel and keeps
+  held keys and the pointer, that losing focus releases every key and nothing else, and
   that losing the pointer releases every button and keeps its last position.
   Needs no window and no display.
 - `tests/clock.c` — that the clock moves and never goes backwards. Its header

@@ -444,6 +444,18 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	case WM_MBUTTONUP:
 		button_set(window, VOE_PLATFORM_BUTTON_MIDDLE, false, lparam);
 		return 0;
+	// The wheel, in notches. Windows' positive vertical is the wheel turned
+	// away, which shows content further up, so it is negated into the public
+	// header's sign; its positive horizontal is already further right.
+	// Written, not verified on Windows (ADR-0130).
+	case WM_MOUSEWHEEL:
+		window->input.wheel_y -=
+			GET_WHEEL_DELTA_WPARAM(wparam) / (float)WHEEL_DELTA;
+		return 0;
+	case WM_MOUSEHWHEEL:
+		window->input.wheel_x +=
+			GET_WHEEL_DELTA_WPARAM(wparam) / (float)WHEEL_DELTA;
+		return 0;
 	case WM_CAPTURECHANGED:
 		capture_lost(window);
 		return 0;
