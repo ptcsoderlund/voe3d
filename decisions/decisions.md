@@ -1,0 +1,161 @@
+# decisions
+
+Project-wide technical decisions, one file each, never edited once written. `ADR-NNNN` in code and
+comments means `NNNN-*.md` here. 0001–0154 were written under the earlier tech-lead and kanban workflow,
+so they speak of cards, the principal and the planning root; a superseded record says what replaced it.
+
+- `0001-engine-module-topology.md` — Engine modules live in one repository as self-contained CMake subprojects.
+- `0002-planning-and-engine-repository-split.md` — Planning and engine are separate repositories, engine entering planning as a submodule.
+- `0003-artifact-placement-and-agent-working-root.md` — The engine repository is self-sufficient; planning root holds ideation only.
+- `0004-no-ci.md` — No CI.
+- `0005-clang-only-toolchain.md` — Clang is the only supported compiler, on both platforms, enforced by CMake.
+- `0006-prestudy-execution-order.md` — Pre-study execution order; the conventions gate gets narrowed.
+- `0007-scene-is-an-ecs.md` — The scene is an entity component system.
+- `0008-no-runtime-plugin-boundary.md` — No runtime plugin boundary; folders link statically.
+- `0009-renderer-first-scope.md` — Renderer first; editor, physics and audio are later, not never.
+- `0010-text-first-authoring-binary-at-build.md` — glTF is an import format; authoring is text, shipping is binary.
+- `0011-component-system-pairing-and-intent.md` — A component and its system are one module; mutation crosses folders only as intent.
+- `0012-folders-modules-and-naming.md` — A folder is a namespace; a module is a component plus its system.
+- `0013-intent-is-a-datatype.md` — Intent is a datatype; the read API and the write API are separate headers.
+- `0014-naming-and-allocation-conventions.md` — Naming carries the namespace; allocation is visible in the name.
+- `0015-slang-as-the-shader-language.md` — Slang is the shader language, compiled to SPIR-V.
+- `0016-gpu-first.md` — GPU-first: compute is a primary tool, not an optimisation.
+- `0017-no-system-to-system-dependencies.md` — Systems do not depend on systems; intent is submitted as data.
+- `0018-gpu-resources-referenced-by-id.md` — GPU resources are referenced from components by id; Vulkan 1.3 baseline.
+- `0019-shader-toolchain-managed-separately.md` — The shader compiler is a separate tool; compiled SPIR-V is committed.
+- `0020-gpu-work-is-justified-not-default.md` — GPU work is justified by measured gain, not taken by default.
+- `0021-tools-are-installed-dependencies-are-fetched.md` — Tools are installed by the programmer; dependencies are fetched by the build.
+- `0022-module-map.md` — The module map: eight folders, one direction.
+- `0023-write-it-ourselves.md` — Write it ourselves; dependencies are consulted, not adopted.
+- `0024-render-to-texture-and-renderer-roadmap.md` — Nothing renders to the screen directly; 3D first, then text, 2D and GUI.
+- `0025-where-effort-goes.md` — Performance is a rendering requirement; loading only has to work.
+- `0026-gnu-driver-clang-on-both-platforms.md` — The GNU-driver `clang` is used on both platforms; `clang-cl` is not supported.
+- `0027-declarative-cmake-one-function-per-folder.md` — CMake layout: one shared function, a four-line file per folder.
+- `0028-check-script-is-cmake-script-mode.md` — The local check script is a CMake script, run with `cmake -P`.
+- `0029-voe-prefix.md` — The prefix is `voe_`, everywhere: functions, types, targets, projects.
+- `0030-render-split-bevy-shape.md` — `render` is the GPU layer; `3d`, `text`, `sprite` and `ui` are renderers on top of it.
+- `0031-tests-are-plain-c-executables-run-by-ctest.md` — Tests are plain C executables, one per module, run by CTest.
+- `0032-memory-is-explicit-arenas.md` — Memory is explicit arenas, passed as parameters.
+- `0033-coordinate-and-matrix-conventions.md` — Coordinate, matrix and depth conventions.
+- `0034-implement-on-demand.md` — Implement on demand — no speculative API.
+- `0035-math-speaks-slang.md` — `math` uses Slang's type names and Slang's memory layout.
+- `0036-dev-programs.md` — Dev programs — one per file in `<folder>/dev/`. *Superseded by ADR-0038.*
+- `0037-wayland-is-the-linux-window-system.md` — Wayland is the Linux window system; no SDL.
+- `0038-one-dev-project.md` — One dev project, at `dev/`.
+- `0039-ask-for-server-side-decorations.md` — Ask the compositor for decorations; draw none ourselves yet.
+- `0040-vulkan-without-an-sdk.md` — Vulkan headers are vendored; the loader is opened at runtime; no SDK anywhere.
+- `0041-recoverable-failure-is-a-returned-value.md` — Recoverable failure is a returned value the compiler forces you to check.
+- `0042-static-analysis-is-check-step-7.md` — `clang --analyze` is `check.cmake` step 7.
+- `0043-power-of-ten-selectively-adopted.md` — *Power of Ten* is a named influence, adopted in part and rejected in part.
+- `0044-compile-commands-beside-each-cmakelists.md` — `compile_commands.json` is exported and placed beside each project's `CMakeLists.txt`.
+- `0045-how-step-7-runs-the-analyser.md` — Step 7 reads `compile_commands.json`, runs the default checkers, and suppresses with `[[clang::suppress]]`.
+- `0046-shaders-compiled-offline-and-embedded.md` — Shaders are compiled by `slangc` at build time and embedded in the binary.
+- `0047-clang-floor-is-19.md` — The Clang floor is 19.
+- `0048-line-endings-are-lf-everywhere.md` — Line endings are LF, in the repository and in the working tree, on both platforms.
+- `0049-everything-is-in-3d-space.md` — Everything is in 3D space; there is no screen-space 2D path.
+- `0050-two-frames-in-flight-is-the-pipeline-shape.md` — Two frames in flight, and every per-frame resource is indexed by frame slot.
+- `0051-the-frame-is-an-offscreen-target.md` — The frame is drawn into an offscreen target and copied to the window.
+- `0052-three-builds-engine-editor-game.md` — Three builds: the engine, the editor, and the cooked game.
+- `0053-editor-sideloads-shaders.md` — The editor compiles shaders at runtime; the shipped game still embeds them.
+- `0054-json-lives-in-assets.md` — The JSON parser lives in `assets`, over a byte range.
+- `0055-fast-rebuild-is-the-iteration-strategy.md` — Fast rebuild is the iteration strategy; five seconds is the budget.
+- `0056-a-colliding-adr-file-is-removed-not-kept.md` — A colliding ADR file is removed, not kept.
+- `0057-the-editor-is-c-scripting-is-an-optional-bridge.md` — The editor is C; scripting is an optional bridge on top of the engine.
+- `0058-scripting-is-game-logic-authored-in-the-editor-and-shipped.md` — Scripting is game logic authored in the editor and shipped in the product; C qualifies.
+- `0059-indirect-ready-layout-from-the-first-mesh.md` — The 3D renderer walks the tables and draws from an indirect-ready layout, from the first mesh.
+- `0060-render-public-surface-is-by-id-and-grown-on-demand.md` — `render`'s public surface is by-id functions, grown on demand by `3d`.
+- `0061-transparency-is-one-blended-pass-sorted-per-object.md` — Transparency in v1 is one blended pass, sorted per object.
+- `0062-oxanium-is-the-default-font-embedded-in-text.md` — Oxanium is the default font, vendored in `text` and embedded.
+- `0063-capability-is-frozen-at-device-creation-in-named-tiers.md` — GPU capability is frozen at device creation, in named tiers, and every effect ships its baseline path first.
+- `0064-graphics-settings-are-a-request-clamped-to-the-tier.md` — Graphics settings are a request clamped to the tier, and every knob declares its cost class.
+- `0065-one-loop-named-phases-one-thread.md` — One loop with named phases on one thread; a differing rate is an accumulator, never a second loop.
+- `0066-performance-by-default-cost-is-opt-in.md` — Performance by default: nothing costly runs unless asked, and the engine never hides what it costs.
+- `0067-fifo-is-the-engine-default-programs-ask-for-uncapped.md` — FIFO is the engine's default present mode; the dev program and the editor ask for uncapped.
+- `0068-a-homeless-decision-gets-a-new-card-never-a-reopened-one.md` — The blended pass gets a card of its own; a closed card is never reopened to carry it.
+- `0069-blending-is-premultiplied-and-the-shader-outputs-premultiplied.md` — Blending is premultiplied, and every shader outputs premultiplied colour.
+- `0070-text-is-a-glyph-atlas-and-a-mesh-not-an-offscreen-panel.md` — Text is a glyph atlas and one mesh per text block, not an offscreen panel.
+- `0071-unlit-is-a-material-property-not-a-second-shader.md` — Unlit is a material property, not a second shader.
+- `0072-transparency-roadmap-content-priced-now-frame-priced-later.md` — Transparency is a content-priced capability, and its roadmap is staged by what bites first.
+- `0073-authored-text-is-a-sectioned-line-format.md` — Authored data is a sectioned line format of our own; JSON is for what we import.
+- `0074-overlay-is-a-layer-above-the-world-still-in-perspective.md` — Overlay content is a layer above the world, still in perspective and still in metres.
+- `0075-sampling-is-chosen-at-texture-creation-from-a-named-set.md` — Sampling is chosen at texture creation from a named set, not one global sampler.
+- `0076-the-glyph-sheet-is-a-three-channel-distance-field.md` — The glyph sheet is a three-channel distance field, not a picture of coverage.
+- `0077-resolution-and-upscaling-belong-to-the-program.md` — Resolution and upscaling belong to the program, not the engine.
+- `0078-anti-aliasing-is-not-built-and-cut-out-edges-crawl.md` — Anti-aliasing is not built, and cut-out edges crawl.
+- `0079-a-distance-field-is-filtered-because-a-distance-is-not-a-colour.md` — A distance field is filtered, because a distance is not a colour.
+- `0080-a-sprite-is-a-plane-the-engine-does-not-billboard.md` — A sprite is a plane in the world; billboarding is the program's, not the engine's.
+- `0081-sorting-batching-and-the-indirect-draw-are-one-decision.md` — Sorting at scale, batching and the indirect draw are one decision, and the sprites card is not where it is taken.
+- `0082-a-sprite-sheet-does-not-fringe-because-nothing-is-filtered.md` — A sprite sheet does not fringe, because nothing that is a picture is filtered.
+- `0083-a-module-produces-a-switch-changes-how-drawing-happens.md` — A module produces things to draw; a switch changes how drawing happens — and the core is built to accept switches.
+- `0084-geometry-that-changes-is-a-transient-pool.md` — Geometry that changes is a transient pool, reset every frame, and the engine caches nothing.
+- `0085-a-mesh-s-geometry-is-replaceable.md` — A mesh's geometry is replaceable by a direct call, and it is the only mutable field on the table.
+- `0086-render-layers-are-the-developer-s-to-create-and-order.md` — Render layers are the developer's to create and order — direction, not a mechanism.
+- `0087-themes-are-derived-from-a-few-authored-colours-and-compose-nearest-wins.md` — Themes are derived from a few authored colours and compose nearest-wins — direction, and a spike.
+- `0088-the-gui-style-target-is-windows-10.md` — The GUI style target is Windows 10 — direction, and it keeps the GUI a module.
+- `0089-the-gui-is-authored-in-millimetres.md` — The GUI is authored in millimetres, and a GUI unit is not a pixel.
+- `0090-the-gui-is-font-agnostic.md` — The GUI is font-agnostic — it takes a font, it does not choose one.
+- `0091-the-gui-is-immediate-mode.md` — The GUI is immediate mode, with retained layout and one mesh per panel.
+- `0092-the-gui-is-one-draw-from-an-element-buffer.md` — The GUI is one draw call from an element buffer the GPU expands.
+- `0093-ui-is-a-leaf-and-a-panel-is-an-entity.md` — `ui` is a leaf on `render` and `text`, and a panel reaches the frame as an entity.
+- `0094-semantic-colours-are-authored-per-mode-and-the-default-error-is-not-red.md` — A semantic colour is authored once per mode, and the engine's default error colour is not red. *Superseded by 0097.*
+- `0095-layout-is-a-lighter-flexbox-whose-axes-do-not-swap.md` — Layout is a lighter flexbox, and its axes are named so they never swap.
+- `0096-the-theme-is-the-sectioned-format-s-first-consumer.md` — The theme is an authored file in the sectioned format, and it needs no type system.
+- `0097-the-default-theme-is-monochrome-and-one-accent.md` — The default theme is monochrome plus one accent, and there are no semantic colours yet.
+- `0098-the-frame-loop-opens-and-closes-the-frame.md` — The frame loop opens and closes the frame; the draw system draws into it.
+- `0099-the-gui-surface-is-one-space-and-it-runs-y-down.md` — The GUI surface is one space, and it runs Y down from the top-left.
+- `0100-a-screen-filling-gui-surface-takes-its-scale-from-the-height.md` — A screen-filling GUI surface takes its scale from the target's height. *Superseded by ADR-0103.*
+- `0101-a-camera-carries-its-projection-and-orthographic-is-the-second-kind.md` — A camera carries its projection, and orthographic is the second kind.
+- `0102-a-child-may-leave-the-flow-and-anchor-to-its-parents-edges.md` — A child may leave the flow and anchor to its parent's edges.
+- `0103-the-surfaces-scale-is-an-input-and-comes-from-the-display.md` — The surface's scale is an input, and its default source is the display. *Superseded by ADR-0104.*
+- `0104-the-gui-scales-with-the-window-and-ui-scale-is-the-only-calibration.md` — The GUI scales with the window, and `ui_scale` is the only calibration.
+- `0105-a-measurement-names-the-sample-it-took.md` — A measurement names the sample it took.
+- `0106-a-skipped-check-names-what-went-unchecked.md` — A skipped check names what went unchecked.
+- `0107-the-frame-belongs-to-a-window-the-device-belongs-to-the-card.md` — The frame belongs to a window, the device belongs to the graphics card.
+- `0108-a-bug-report-is-a-numbered-file-in-its-own-bucket-and-is-not-a-card.md` — A bug report is a numbered file in its own bucket, and it is not a card.
+- `0109-the-bug-bucket-is-an-unordered-inbox-and-anyone-may-report.md` — The bug bucket is an unordered inbox, and anyone may report into it.
+- `0110-the-bug-loop-end-to-end-and-the-inbox-holds-only-undecided-reports.md` — The bug loop, end to end — and the inbox holds only undecided reports.
+- `0111-geometry-is-never-placed-exactly-on-a-clip-boundary.md` — Geometry is never placed exactly on a clip boundary.
+- `0112-the-shader-compilers-version-is-part-of-the-binary.md` — The shader compiler's version is part of the binary, and the check names it.
+- `0113-a-card-owns-the-call-sites-of-a-change-it-mandates.md` — A card owns the call sites of a change it mandates; the rule lives in the repository.
+- `0114-every-always-loaded-document-has-a-ceiling-and-the-write-that-heats-one-thing-cools-another.md` — Every always-loaded document has a ceiling, and the write that heats one thing cools another.
+- `0115-a-hot-document-holds-only-what-its-reader-can-act-on-now.md` — A hot document holds only what its reader can act on now, and the arrival condition is the hinge.
+- `0116-a-third-role-the-secretary-owns-structure-and-never-meaning.md` — A third role, the secretary: she owns structure and never meaning.
+- `0117-below-the-shader-compiler-floor-the-check-warns-and-continues.md` — Below the shader compiler's floor the check warns and continues.
+- `0118-async-loading-is-opt-in-and-game-logic-never-reads-an-async-asset.md` — Async loading is opt-in per load, and game logic never reads an async asset.
+- `0119-one-loader-thread-and-the-frame-loop-stays-one-thread.md` — One loader thread, and the frame loop stays one thread.
+- `0120-a-folder-summary-is-a-present-tense-map-and-delegates-its-subfolders.md` — A folder summary is a present-tense map, and it delegates its subfolders.
+- `0121-the-editor-is-a-module-here-and-there-are-three-programs.md` — The editor is a module in this repository, and there are three programs.
+- `0122-a-component-describes-itself-and-the-struct-and-its-description-are-written-once.md` — A component describes itself, and the struct and its description are written once.
+- `0123-a-component-is-flat-and-an-entity-id-is-the-only-reference.md` — A component is flat, and an entity id is the only reference.
+- `0124-a-reference-is-an-entity-id-and-one-to-many-has-three-shapes.md` — A reference is an entity id, and one-to-many has three shapes.
+- `0125-identity-is-one-component-it-ships-and-its-presence-means-authored.md` — Identity is one component, it ships, and its presence means authored.
+- `0126-an-editor-only-component-never-ships.md` — An editor-only component never ships.
+- `0127-a-struct-describes-its-fields-and-the-description-lives-in-base.md` — A struct describes its fields, and the description lives in `base`.
+- `0128-the-cook-flattens-the-scene-and-save-files-are-the-game-developers.md` — The cook flattens the scene, and save files are the game developer's.
+- `0129-parked-questions-are-not-surfaced-file-and-forget.md` — Parked questions are not surfaced — file and forget.
+- `0130-linux-is-first-class-and-windows-support-is-loose.md` — Linux is first-class and Windows support is loose.
+- `0131-the-engine-opens-on-fifo-and-a-program-asks-for-uncapped.md` — The engine opens on FIFO, and a program asks for uncapped.
+- `0132-the-world-lists-its-component-types-and-a-description-travels-with-a-registration.md` — The world lists its component types, and a description travels with a registration.
+- `0133-a-folder-page-answers-what-the-folder-is-and-its-public-surface-and-may-delegate-the-rest.md` — A folder page answers what the folder is and what its public surface is, and may delegate the rest.
+- `0134-an-edit-is-a-replace-intent-and-the-owning-system-applies-it.md` — An edit is a replace intent, and the owning system applies it.
+- `0135-app-is-parts-a-program-calls-in-its-own-loop.md` — `app` is parts a program calls in its own loop.
+- `0136-the-inspector-edits-by-dragging-first-and-is-shaped-for-typing.md` — The inspector edits by dragging first, and is shaped for typing.
+- `0137-the-identity-component-lives-in-scene.md` — The identity component lives in `scene`.
+- `0138-a-drain-corrects-or-keeps-the-last-valid-value-and-says-so.md` — A drain corrects a bad value or keeps the last valid one, and says so.
+- `0139-a-field-can-be-marked-read-only-and-an-authored-id-is-never-replaced.md` — A field can be marked read-only, and an authored id is never replaced.
+- `0140-a-recoverable-problem-is-reported-through-one-call-in-base.md` — A recoverable problem is reported through one call in `base`, and where the lines go is a later step.
+- `0141-the-editors-interface-is-world-geometry-and-its-camera-is-replaceable.md` — The editor's interface is world geometry, not pixels, and its camera is replaceable.
+- `0142-the-editors-panel-layout-is-a-tree-of-data-and-a-root-is-a-camera-and-a-panel-set.md` — The editor's panel layout is a tree of data, and a root is a camera and a panel set.
+- `0143-a-cards-folder-is-its-status-and-the-status-field-goes.md` — A card's folder is its status, and the `status:` field goes.
+- `0144-the-cook-emits-c-source-and-the-compiler-is-the-schema-check.md` — The cook emits C source, and the compiler is the schema check.
+- `0145-this-repository-is-a-development-tree-and-descriptions-are-on-throughout-it.md` — This repository is a development tree, and field descriptions are on throughout it.
+- `0146-a-game-is-a-project-folder-marked-by-project-voe3d.md` — A game is a project folder, marked by `project.voe3d`.
+- `0147-a-scene-view-is-a-cameras-picture-on-a-panel-and-there-can-be-many.md` — A scene view is a camera's picture on a panel, and there can be many.
+- `0148-a-frame-is-a-sequence-of-passes-and-a-target-is-a-texture.md` — A frame is a sequence of passes, and a target of one's own is a texture.
+- `0149-a-scene-file-is-entity-sections-by-number-and-component-sections-beneath.md` — A scene file is entity sections by number, component sections beneath, and one spelling per value.
+- `0150-a-component-is-saved-when-it-is-described-and-runtime-only-is-said-out-loud.md` — A component is saved when it is described, and runtime-only is said out loud.
+- `0151-the-scene-reader-and-writer-live-in-authoring-which-a-game-does-not-build.md` — The scene reader and writer live in `authoring`, a folder a game does not build.
+- `0152-loading-a-scene-is-creation-and-the-reader-adds-rows-directly.md` — Loading a scene is creation, and the reader adds rows directly.
+- `0153-overflow-is-opt-in-a-container-may-wrap-or-clip-and-a-scroll-area-remembers-its-offset.md` — Overflow is opt-in: a container may wrap or clip, and a scroll area remembers its offset.
+- `0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md` — An array item is any value, and a described field declares its shape.
+- `0155-spec-driven-workflow-and-the-existing-stack.md` — Work goes spec → plan → tasks in `specs/`; `kanban/` is retired, `history/` keeps the cards, and the stack is recorded as it stands.

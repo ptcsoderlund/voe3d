@@ -1,0 +1,155 @@
+# 0144. The cook emits C source, and the compiler is the schema check
+
+- **Status:** Accepted
+- **Date:** 2026-09-12
+- **Deciders:** Human, Tech Lead
+- **Supersedes:** ADR-0128 points 1 and 2 only. Points 3, 4 and 5 stand untouched
+- **Superseded by:** —
+
+## Context
+
+**Opened by the principal on 2026-09-12**, from the other end of bug report 004:
+
+> *"editor is supposed to output C code and more for clang to build. Meaning the editor
+> project should not be baked in the finished game."*
+
+Two of the three things he said were already decided and are restated here only so the
+third stands alone. **The editor is never in a shipped game** — ADR-0052's three builds,
+and ADR-0121 making the editor a leaf no folder may depend on. **Clang builds the game** —
+ADR-0052, cooking is a compile and a link. What is new is the sentence in the middle, and
+the coder who filed bug 004 found the same gap from the code side and named it correctly:
+
+> *"That the editor emits C code for clang to build. It is in none of `editor/editor.md`,
+> no card in `complete/`, and no file header in `editor/`. … it decides the whole of the
+> paragraph above, and today it exists only in the principal's head and in this report.
+> Writing it down is worth more than the fix."*
+
+**And it contradicted a decision taken the day before.** ADR-0128 point 1 has the cook
+writing *a flattened blob laid out as the structs are*, loaded by a copy plus a reference
+fix-up, and point 2 stamps it with a schema hash so a stale one is refused loudly. That is
+bytes. The principal was describing generated C. Both honour ADR-0008 — no runtime code
+loading — and they are different machines; only one gets built.
+
+**The question: in what form does an authored scene reach a shipped game — generated C
+source compiled into it, or bytes?**
+
+Constraints already fixed. ADR-0040: a game is one binary and an end user installs
+nothing. ADR-0046: shaders are compiled offline and `#embed`ded, so the engine already
+bakes non-C artefacts into the binary at build time and reads nothing from disk at
+startup. ADR-0010 and ADR-0073: the **authored** format is text in git and is not at issue
+here — this decides the cooked output only. ADR-0052: Play is a build, so a rebuild
+already stands between an edit and a running game. ADR-0055: that rebuild has a
+five-second budget.
+
+## Options considered
+
+### Option A — the cook emits C source
+The cook writes `.c` files: static arrays of component structs, laid out by the compiler,
+with authored ids already resolved to indices. Clang compiles them into the game binary.
+No loader, no fix-up pass, no hash, no blob. Bulk data — meshes, textures — does **not**
+become C initialisers; the cook writes those as files and the generated C `#embed`s them,
+which is the path ADR-0046 already built for shaders.
+
+### Option B — the blob, in a file beside the binary
+ADR-0128 as written, shipped as a separate file. Dies on ADR-0040's one binary before it
+is weighed.
+
+### Option C — the blob, `#embed`ded into the binary
+ADR-0128's mechanism with the bytes baked in at build time like the shaders. Keeps the
+loader, the fix-up and the hash; costs no compile time on a large scene; one mechanism
+serves scene structure and bulk data alike.
+
+## Decision
+
+**Option A**, the principal's call, and the tech lead's recommendation.
+
+> *"Option A, compiling C is too fast to question."*
+
+1. **The cook emits C source and clang compiles it into the game.** The cooked form of a
+   scene is a translation unit, not a file the game opens.
+2. **The compiler is the schema check.** A struct that changed under a cooked scene is a
+   **compile error at the cook's output**, which is the strongest available form of what
+   ADR-0128's hash was reaching for. **The hash goes**; so do the loader and the reference
+   fix-up pass, none of which were written.
+3. **Bulk data is `#embed`ded, not initialised.** A mesh does not become a C array of
+   floats. The cook writes the bytes and the generated C names them, exactly as ADR-0046
+   does with SPIR-V. The line between the two is *structure versus payload*: entity and
+   component tables are C; anything measured in megabytes is a file.
+4. **Nothing here touches the authored format.** ADR-0073's text stays the thing in git,
+   hand-edited and reviewed. The cook is one-way and its output is never committed.
+5. **ADR-0128 points 3, 4 and 5 stand**: descriptions are off by default and the switch
+   belongs to whoever is building; the engine takes no responsibility for save files; and
+   that boundary remains safe because a developer can compile the descriptions in.
+
+**The deciding factor is Option C's own shape.** If the bytes are being baked into the
+binary at build time anyway, then the compiler was standing right there and a runtime hash
+was being asked to do its job.
+
+## Blast radius
+
+**Cheap, for the same reason ADR-0128 was.** The cooked format is regenerated by every
+build, is never committed, and nothing in the wild holds one; changing it again later
+costs one rebuild. Nothing is built against it today — there is no cook, no scene loader,
+and the editor has no save.
+
+What is load-bearing is point 3's line. If structure and payload are ever allowed to blur
+— a mesh emitted as initialisers because it was easier that morning — the compile time
+that this decision assumes away arrives all at once, and it arrives inside the five-second
+budget ADR-0055 set. Reversibility: **cheap for the mechanism, load-bearing for the line.**
+
+## Consequences
+
+- **The per-platform cook problem disappears.** ADR-0128 recorded it as a consequence —
+  *"a Windows build and a Linux build may need different blobs … cooking becomes
+  per-platform and that needs to be true in the build before `dev_editor` ships anything."*
+  C source is platform-neutral and the compiler lays out for whatever target it is
+  building. That obligation is gone rather than deferred, and it was never paid.
+- **Compile time now scales with entity count**, which is the cost accepted here. The
+  principal weighed it and judged compiling C too fast to question; that judgement is
+  untested against a scene with tens of thousands of authored entities, and the honest
+  statement is that we do not have that scene and will measure before we do. **ADR-0055's
+  budget is the thing that will notice first**, and it is where this gets caught.
+- **A scene cannot change without a rebuild.** Already true under ADR-0052's Play, and now
+  true by construction rather than by policy. No shipped game gains a loadable level, a
+  user-made map or a downloadable scene without reopening this.
+- **The game's build tree and the editor's build tree are different trees**, which is what
+  the principal's sentence means and what the build does not express today.
+  `voe3d/CMakeLists.txt:17` is a bare `add_subdirectory(editor)`, so `--preset release`
+  builds the editor alongside the engine. **That is the next decision and it is what bug
+  004 is waiting on** — the report's own finding was that descriptions being off is only a
+  cost when the editor is in the shipped tree, and under this ADR it never is.
+- **The cook has no home yet.** It is not a folder in ADR-0022's map, it is not `editor`
+  and it must not be an engine folder — a generator that emits C is a tool, and the eight
+  folders gain nothing for the editor's sake (ADR-0121 point 6). Recorded below.
+- **`dev_editor` is now the thing that proves this end to end** — a scene authored in the
+  editor, emitted as C, compiled, run. That is what ADR-0121 asked it to be and this ADR
+  makes it concrete.
+
+## Rejected options and why
+
+**B — the blob in a file beside the binary.** Not really available: ADR-0040 spent a
+decision on the game being one binary with nothing installed beside it, and this would
+have taken it back for a convenience nobody asked for.
+
+**C — the blob, embedded.** The closer call, and it is genuinely better than A on one
+axis: a large scene costs no compile time, and one mechanism would have served structure
+and payload alike. It was rejected because everything it does at runtime — matching a hash,
+copying a table in, patching references — the compiler does at build time for free under A,
+and it does it *better*: a hash mismatch is a good error message, a compile error is the
+line and the field. C is A with a check moved later and three pieces of machinery added to
+make the move possible.
+
+**ADR-0128's hash is not being called wrong.** Against a blob it was the right call and
+the reasoning holds — a stale blob loading silently is the worst debugging experience that
+design can produce. A is the option that makes the blob unnecessary, which is a different
+claim from the hash being a mistake.
+
+## Questions this opens
+
+- **D-251** — where the cook lives. Not an engine folder, not `editor`'s `src/`; a tool
+  beside them, and whether the editor invokes it or is it. Blocked on the first cook card.
+- **D-252** — what the generated C looks like: one translation unit or several, how an
+  authored id becomes an index, and what the game calls to get a world out of it. Blocked
+  on the first cook card.
+- **D-253** — where the structure/payload line sits precisely, and what enforces it. Point
+  3 states the principle; nothing checks it. Blocked on the first cook card.
