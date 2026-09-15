@@ -65,3 +65,8 @@ so you try it through the tests, their expected texts, and two builds you break 
 8. **The checks pass** — `cmake -P check.cmake` exits zero, as in Start it.
 
 ## Results
+
+2026-09-15 — accepted by the sponsor without trying the steps by hand: "I dont need to test
+this, coder and reviewer already did. approved". Criteria 1–8 rest on the automated evidence:
+`cmake -P check.cmake` exits zero on Linux (51 tests, analyser clean), the task and feature reviews
+passed, and the reviewer reproduced both build failures in criterion 2 by hand. Windows not checked.
