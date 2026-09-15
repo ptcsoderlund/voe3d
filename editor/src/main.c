@@ -33,6 +33,36 @@
 // through voe_3d_draw_system_run, but with the view's camera and the editor's
 // sun (view.h) rather than with voe_3d_draw_system_frame, which reads a camera
 // and a light out of the world and this world has neither.
+//
+// IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
+// opens the device with no window at all (voe_app_new_headless), builds the
+// same world, font, interface and scene, runs the same loop body, writes the
+// frame to `path` through voe_app_capture_png and returns. `--size <W>x<H>`
+// says how big that picture is and defaults to the size the window would have
+// opened at; it means nothing without `--capture`, so it is refused there
+// rather than quietly ignored. `--size` without `--capture`, a missing value
+// and any unknown argument print one usage line on stderr and return 2. With
+// no arguments the editor is exactly what it has always been. THE EDITOR
+// NAMES NEITHER `assets` NOR `platform`'s FILES FOR THIS: the three folders a
+// capture crosses are `app`'s to tie together (ADR-0157).
+//
+// THE CAPTURE RUNS THE LOOP BODY TWICE, AND ONE FRAME WOULD BE THE WRONG
+// PICTURE. A view's target is sized from the rectangle the dock walk recorded
+// last frame, so the first frame draws every view at the size it was created
+// with and stretches it (view.h). The second frame is the first one drawn at
+// the layout's own sizes, and it is the frame that gets written.
+//
+// EVERY READ OF THE WINDOW IS GUARDED, because there is none to read on a
+// capture: the pointer, the wheel, the buttons and the keys are zeroed input
+// then, and nothing else in the loop changes shape — the same passes in the
+// same order with the same draws, so the captured frame is the frame a person
+// sees.
+//
+// main's SIGNATURE IS C'S OWN, `char *argv[]`, WHICH IS THE ONE DEVIATION FROM
+// RULE 6 IN THIS FOLDER (DEVIATION: rule 6, an array of pointers is spelled as
+// the array it is, because the C runtime calls main with this signature and
+// nothing in this program chose it). Nothing else here holds a pointer to a
+// pointer, and the argument list is read in main and nowhere else.
 #include "cube.h"
 #include "dock.h"
 #include "interface.h"
@@ -64,7 +94,9 @@
 
 #include <ui/widgets.h>
 
+#include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 // The block size of the one arena everything lives in — the app struct, the
 // world, the font, the interface context and every frame's tree. It is a block
@@ -74,6 +106,16 @@
 
 // Startup's working memory, handed to `app` and kept by nothing.
 #define STARTUP_SCRATCH (1u * 1024u * 1024u)
+
+// The capture's working memory: the pixels off the card, the encoder's tables
+// and the file's bytes all come out of it and none of them outlives the write
+// (app.h). A block size, not a limit — a picture larger than it gets a block of
+// its own.
+#define CAPTURE_SCRATCH (4u * 1024u * 1024u)
+
+// How many frames a capture runs before it writes. Two, because a view's target
+// size lags the layout by a frame; see the top of this file.
+#define CAPTURE_FRAMES 2
 
 // The ceiling on a frame's step, in seconds. Nothing here integrates over time
 // yet, so it is `app`'s required policy and no more.
@@ -140,8 +182,54 @@ static void say_whether_descriptions_are_in(void)
 #endif
 }
 
-int main(void)
+// Reads one run of ASCII '0'-'9' from `text`, writes the value through `out`
+// and returns the pointer to the first character that is not a digit. NULL
+// when there is no digit at all, and NULL when the value would pass INT_MAX —
+// checked before the multiply, not after, so nothing overflows. No sign, no
+// leading blank, no `errno`, no locale: --size's promised form is `<W>x<H>`
+// and nothing relies on either.
+static const char *number(const char *text, int *out)
 {
+	int value = 0;
+	bool any = false;
+
+	while (*text >= '0' && *text <= '9') {
+		int digit = *text - '0';
+
+		if (value > (INT_MAX - digit) / 10)
+			return NULL;
+		value = value * 10 + digit;
+		any = true;
+		text++;
+	}
+	if (!any)
+		return NULL;
+	*out = value;
+	return text;
+}
+
+// One line, on stderr, and the return code that goes with it. Every way of
+// getting the command line wrong ends here: there is one form to state and
+// stating it twice in different words would be two forms to keep in step.
+static int usage(void)
+{
+	fprintf(stderr,
+		"usage: voe_editor [--capture <path> [--size <W>x<H>]]\n");
+	return 2;
+}
+
+int main(int argc, char *argv[])
+{
+	// Where one picture is written, and NULL when the editor opens a window
+	// instead. The size is the picture's, and it is the window's size until
+	// --size says otherwise.
+	const char *capture = NULL;
+	int wide = EDITOR_WIDE;
+	int high = EDITOR_HIGH;
+	bool sized = false;
+	// How many frames a capture has drawn so far.
+	unsigned frames = 0;
+	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
 	voe_app *app;
@@ -163,20 +251,61 @@ int main(void)
 	voe_editor_views views = { 0 };
 	int status = 0;
 
+	// THE COMMAND LINE IS READ BEFORE ANYTHING IS OPENED, so a mistyped
+	// argument costs nothing and says so straight away. `--size`'s value is
+	// parsed here rather than by the C library (ADR-0159: Windows' runtime
+	// deprecates `sscanf` under -Werror and rule 8 forbids silencing that
+	// tree-wide), by `number`, above, twice, with an `x` between and nothing
+	// after — refusing a trailing character is what `%n` and a length check
+	// used to do, so "1280x720nonsense" is still a mistake and not a
+	// 1280x720. `argv[a + 1]` is parsed in full before `a` moves, which the
+	// old code did not need to do inside its `&&` chain. One clause on the
+	// parser itself: it is stricter than `%d` about a leading blank or a
+	// leading '+' — neither was ever part of the promised form `<W>x<H>`
+	// and nothing relied on them.
+	for (int a = 1; a < argc; a++) {
+		if (strcmp(argv[a], "--capture") == 0 && a + 1 < argc) {
+			capture = argv[++a];
+		} else if (strcmp(argv[a], "--size") == 0 && a + 1 < argc) {
+			int w, h;
+			const char *rest = number(argv[a + 1], &w);
+
+			if (rest != NULL && *rest == 'x')
+				rest = number(rest + 1, &h);
+			else
+				rest = NULL;
+			if (rest == NULL || *rest != '\0' || w <= 0 || h <= 0)
+				return usage();
+			wide = w;
+			high = h;
+			sized = true;
+			a++;
+		} else {
+			return usage();
+		}
+	}
+	// A size with nothing to size: the window's is the window system's
+	// answer and not this program's to name (app.h), so the only picture
+	// --size could mean is one nobody asked for.
+	if (sized && capture == NULL)
+		return usage();
+
 	arena = voe_base_arena_new(EDITOR_ARENA);
 
-	// The window and the device, in one call and in that order. Nothing is
-	// kept out of `scratch`, so it goes as soon as this returns, and nothing
-	// is printed on a failure: `app` says which of the two refused and
-	// `render` says why, both on stderr, before it returns NULL.
+	settings = (voe_app_settings){ .width = wide,
+				       .height = high,
+				       .title = "voe3d editor",
+				       .capacities = EDITOR_CAPACITIES,
+				       .longest_step = MAX_FRAME_SECONDS };
+
+	// The device, with the window before it or with no window at all, in one
+	// call. Nothing is kept out of `scratch`, so it goes as soon as this
+	// returns, and nothing is printed on a failure: `app` says which piece
+	// refused and `render` says why, both on stderr, before it returns NULL.
 	scratch = voe_base_arena_new(STARTUP_SCRATCH);
-	app = voe_app_new(arena, scratch,
-			  (voe_app_settings){ .width = EDITOR_WIDE,
-					      .height = EDITOR_HIGH,
-					      .title = "voe3d editor",
-					      .capacities = EDITOR_CAPACITIES,
-					      .longest_step = MAX_FRAME_SECONDS },
-			  &error);
+	app = capture != NULL ?
+		      voe_app_new_headless(arena, scratch, settings, &error) :
+		      voe_app_new(arena, scratch, settings, &error);
 	voe_base_arena_destroy(scratch);
 	if (app == NULL) {
 		voe_base_arena_destroy(arena);
@@ -225,8 +354,15 @@ int main(void)
 
 	while (true) {
 		voe_app_frame opened;
-		voe_platform_pointer pointer;
-		voe_platform_wheel wheel;
+		// Zeroed input is what a capture reads: there is no window to
+		// ask, so nothing is over anything, no button is down and the
+		// wheel has not turned.
+		voe_platform_pointer pointer = { 0 };
+		voe_platform_wheel wheel = { 0 };
+		bool left = false;
+		bool middle = false;
+		bool shift = false;
+		bool control = false;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -261,34 +397,38 @@ int main(void)
 		// is passed through as `platform` reports it, and `fine` is
 		// this program's choice of which key means "slower" — `ui` is
 		// handed values and never asks a window anything.
-		pointer = voe_platform_input_pointer(window);
-		// Notches since the last poll, turned into a length once.
-		// Nothing else reads the wheel: a scene view takes the middle
-		// button and no wheel at all, so a wheel over one is a scroll
-		// no area under the pointer can take and is dropped.
-		wheel = voe_platform_input_wheel(window);
+		// EVERY READ OF THE WINDOW IS IN HERE, and there is no window on
+		// a capture. Notches since the last poll are turned into a
+		// length once. Nothing else reads the wheel: a scene view takes
+		// the middle button and no wheel at all, so a wheel over one is
+		// a scroll no area under the pointer can take and is dropped.
+		if (window != NULL) {
+			pointer = voe_platform_input_pointer(window);
+			wheel = voe_platform_input_wheel(window);
+			left = voe_platform_input_button_down(
+				window, VOE_PLATFORM_BUTTON_LEFT);
+			middle = voe_platform_input_button_down(
+				window, VOE_PLATFORM_BUTTON_MIDDLE);
+			shift = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_SHIFT);
+			control = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_CONTROL);
+		}
+
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
 				pointer.y / pixels_per_millimetre },
 			.over = pointer.over,
-			.down = voe_platform_input_button_down(
-				window, VOE_PLATFORM_BUTTON_LEFT),
-			.fine = voe_platform_input_key_down(
-				window, VOE_PLATFORM_KEY_SHIFT),
+			.down = left,
+			.fine = shift,
 			.scroll = { wheel.x * WHEEL_MILLIMETRES,
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
 
 		// The middle button is the views' and the left is the
 		// interface's, so the two never compete for one press.
-		voe_editor_views_drag(
-			&views, roots[0].pointer.at,
-			voe_platform_input_button_down(
-				window, VOE_PLATFORM_BUTTON_MIDDLE),
-			voe_platform_input_key_down(window,
-						    VOE_PLATFORM_KEY_SHIFT),
-			voe_platform_input_key_down(window,
-						    VOE_PLATFORM_KEY_CONTROL));
+		voe_editor_views_drag(&views, roots[0].pointer.at, middle,
+				      shift, control);
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
@@ -352,9 +492,29 @@ int main(void)
 			status = 1;
 			break;
 		}
+
+		// A CAPTURE'S LOOP IS NOT A PERSON'S AND HAS TO STOP ITSELF:
+		// there is no window to close it (app.h). Counted here, where a
+		// frame has actually been drawn and submitted, so the picture
+		// written below is the second drawn frame and not the second
+		// time round.
+		if (capture != NULL && ++frames == CAPTURE_FRAMES)
+			break;
 	}
 
 stop:
+	// Between frames and never inside one, which is where the loop above
+	// left off. Its three steps each say on stderr what refused, so there is
+	// nothing to add here beyond the status.
+	if (status == 0 && capture != NULL) {
+		scratch = voe_base_arena_new(CAPTURE_SCRATCH);
+		if (!voe_app_capture_png(app, VOE_RENDER_TARGET_WINDOW, scratch,
+					 capture, &error))
+			status = 1;
+		voe_base_arena_destroy(scratch);
+	}
+
+
 	// The device and the window, then the arena — the app struct lives in
 	// the arena and has to outlive every call made through it.
 	voe_app_destroy(app);

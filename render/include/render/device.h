@@ -945,6 +945,65 @@ typedef struct {
 void voe_render_target_resize(voe_render_device *device, voe_render_target target,
 			      uint32_t width, uint32_t height);
 
+// A target's picture in memory: `width` by `height` pixels, RGBA8, `pixels`
+// pointing at width * height * 4 bytes.
+typedef struct {
+	uint32_t width;
+	uint32_t height;
+	uint8_t *pixels;
+} voe_render_picture;
+
+// Copies what `target` holds into `arena` and describes it in `out`. This is the
+// way back from the card: a pass draws a frame into a target and nothing else
+// brings those pixels to memory.
+//
+// RGBA8, IN THAT BYTE ORDER, WHATEVER THE IMAGE IS MADE OF. The colour image is
+// an sRGB four-byte format whose channel order is the surface's business — it is
+// B8G8R8A8 on most cards — and the swap into RGBA happens here because this is
+// the only folder that knows which it got. RGBA8 is also what `assets` decodes a
+// picture to, so the two halves of saving a picture meet with nothing between
+// them.
+//
+// ROW ZERO IS THE TOP ONE, which is what PNG, Vulkan and glTF already agree on.
+//
+// STRAIGHT ALPHA, NOT PREMULTIPLIED. The colour target holds premultiplied
+// colour (see the top of this file) and PNG holds straight, so each channel is
+// divided by its alpha here, at the one place that knows which convention the
+// image is in. A pixel whose alpha is 0 comes back as transparent black rather
+// than as a division by nothing. The clear colour is opaque, so in practice
+// every pixel divides by one.
+//
+// NOTHING APPLIES A GAMMA. The bytes are already sRGB-encoded — the format
+// carries the curve — so the colours handed back are the colours drawn, and a
+// file written from them is the picture that was on the screen.
+//
+// IT WAITS FOR THE CARD TO GO IDLE, SO IT IS NOT A PER-FRAME CALL. It is
+// voe_render_target_create's kind of operation: taking a picture stalls the
+// pipeline, which is what a capture made between frames can afford and what a
+// capture made every frame cannot. Calling it inside an open frame asserts, as
+// does a target id that names no target, a NULL arena and a NULL `out`.
+//
+// IT READS THE SLOT THE FRAME THAT ENDED LAST DREW INTO, so a caller gets the
+// frame it has just drawn. Before any frame has ended, and after a resize, the
+// picture is undefined — the rule a target's picture already has — and the call
+// still succeeds.
+//
+// VOE_RENDER_TARGET_WINDOW WORKS HERE LIKE ANY OTHER TARGET. On a windowed
+// device that is the offscreen pair the frame is blitted to the window from, and
+// on a headless device it is the same pair with nothing to blit to, which is
+// what makes a saved picture and a shown one the same picture rather than two
+// paths that ought to agree. Its size is the resolution the engine draws at,
+// which is the window size its images were last built for.
+//
+// FALSE, WITH A LINE ON stderr AND VOE_BASE_ERROR_REFUSED, WHEN THE CARD REFUSES
+// THE STAGING BUFFER OR THE COPY — and when the target has no pixels at all,
+// which is what the window's is while its area is nought.
+[[nodiscard]] bool voe_render_target_read(voe_render_device *device,
+					  voe_render_target target,
+					  voe_base_arena *arena,
+					  voe_render_picture *out,
+					  voe_base_error *error);
+
 // The camera and the sun one pass draws with. Handed over together because they
 // land in one block the shader reads, and a pass that has one has both.
 typedef struct {

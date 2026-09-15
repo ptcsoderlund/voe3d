@@ -2,8 +2,7 @@
 
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
-Today that is a window, its keyboard and mouse, and a clock; files will live here
-too and do not yet.
+Today that is a window, its keyboard and mouse, a clock, and writing a file.
 
 - `include/platform/window.h` — the window API. Its header carries the two rules
   callers need: opening a window can fail and returns NULL, and `_poll` folds
@@ -17,6 +16,10 @@ too and do not yet.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   waiting is a different question this folder cannot answer yet.
+- `include/platform/file.h` — writing a whole file in one call. Its header says
+  why files are this folder's, that the path is exactly what the caller gave and
+  nothing is written anywhere else, which failure means what, and that reading a
+  file is not here yet.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it. Its header says why this is here and not in the folder that
   wants one.
@@ -34,6 +37,11 @@ too and do not yet.
   as the file below; its header says why the adjusted clock and not the raw one.
 - `src/clock_win32.c` — the performance counter, and the frequency asked for once.
   Its header says why not the millisecond tick counts.
+- `src/file_wayland.c` — open, write, close. Linux only despite the name; its
+  header says why the name says wayland, why the write loop and the checked
+  close are not optional.
+- `src/file_win32.c` — CreateFileA, WriteFile, CloseHandle. Its header says why
+  the ASCII call, and why a 64-bit count is written in steps.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
@@ -54,5 +62,9 @@ too and do not yet.
   held keys and the pointer, that losing focus releases every key and nothing else, and
   that losing the pointer releases every button and keeps its last position.
   Needs no window and no display.
+- `tests/file.c` — that the bytes written come back byte for byte, that a
+  shorter file replaces a longer one, and that a path that cannot be opened
+  fails and creates nothing. Reads back with stdio on purpose; needs no window
+  and no display.
 - `tests/clock.c` — that the clock moves and never goes backwards. Its header
   says why nothing in it measures a duration against a duration.

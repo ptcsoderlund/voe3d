@@ -8,6 +8,7 @@ locked to the camera, a panel of forty coloured rectangles and two lines of
 writing standing among them, a small badge above them that nothing covers, a
 plate and a row of ticks mapped onto the window itself, an interface with a heading,
 two buttons that answer the mouse and three number boxes you drag sideways,
+a screen off to the left showing a second camera's view of the same world,
 one sun going round it all, and a camera that either orbits them or is flown
 with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
@@ -17,7 +18,8 @@ states and not a test — it is looked at, not asserted on.
   window and the device come from `voe_app_new`, the clock and the poll from
   `voe_app_frame_open`, and the draw is opened and closed by `voe_app_draw_open`
   and `voe_app_draw_close` — the `while` itself, the order the systems run in and
-  everything submitted between two of them stay here. It owns the frame and puts
+  everything submitted between two of them stay here. Two passes a frame: the
+  monitor's target first, then the window. It owns the frame and puts
   a block of timings on the screen every couple of seconds. Its header is the list of things to look at in both camera
   modes, what each of them fails like — the lighting's and the blending's own
   failures included — and the three things that live here only until the folder
@@ -46,6 +48,14 @@ states and not a test — it is looked at, not asserted on.
   in the overlay beside it and a third surface is mapped onto the window: the
   header lists the three and says which one a resize moves, and which failure
   "the exhibit visible through a cube" is.
+- `src/monitor.h` — the second camera's picture: a target, a camera that is
+  not an entity, and the screen standing in the world that wears the target's
+  texture. Its header says why the camera may not be an entity, why the pass
+  that fills the target hides the screen and what is seen when it does not,
+  and why the screen is one-sided and unlit.
+- `src/monitor.c` — that target, that camera, the screen's one face and the
+  frame the monitor's pass is drawn with. Its header says where the four
+  vertices came from and why (0, 0) is its top-left.
 - `src/elements.h` — the two panels' content: the exhibit's forty rectangles and
   forty letters, and the badge's five, submitted every frame and each drawn by
   one command. Its header says why nothing in there draws, that both surfaces are

@@ -50,6 +50,12 @@ In the dev program, Tab switches between orbiting the scene and flying the camer
 Space, Ctrl, Shift and the mouse), P switches the present mode, and Escape hands the pointer back
 or, pressed again, closes the window.
 
+The editor can also draw one frame with no window at all and save it as a picture:
+
+    ./build/debug/editor/voe_editor --capture <path> --size <W>x<H>
+
+`--size` is optional and defaults to the window's own size; it is refused without `--capture`.
+
 ## Where to read more
 
 - `CLAUDE.md` — the engine's rules, folder map and world conventions.

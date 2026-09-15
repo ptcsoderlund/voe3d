@@ -48,8 +48,10 @@ lets them run under `ctest` on a machine with nothing on the screen.
 - `targets.c` — a target of one's own shown on the window the right way up,
   once through an image element and once on a mesh, each frame slot reading its
   own slot's picture, a resize that keeps the id and changes the picture's size,
-  a sheet rectangle picking half the picture, and the target capacity refused.
-  Its header says which wrong implementation each picture catches. Headless.
+  a sheet rectangle picking half the picture, the target capacity refused, a
+  target read back as RGBA8 the right way up with the window's picture identical
+  to it, and a target nothing has drawn into still reading. Its header says which
+  wrong implementation each picture catches. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding
   and the front-face constant agree about which way round that is, and that a
   texture arrives the right way up. Holds its own cube, its own camera and its

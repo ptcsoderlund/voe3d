@@ -14,6 +14,15 @@
 // happened yet. So the panels could be walked first and the picture would be
 // identical.
 //
+// THE FRAME'S HIDDEN ENTITY IS TESTED FIRST IN BOTH WALKS, AHEAD OF THE COMPONENT
+// LOOKUPS AND OF EVERY SORT. It is two integers compared against the row's owner,
+// which is why it goes in front of the lookups rather than in with the other
+// skips: a row that is not going to be drawn does not read the components it
+// would have been drawn with, and it reaches no group — no matrix, no depth key,
+// no sort slot. That ordering is the only cost of the field to a frame that
+// hides nothing. See the header and ADR-0158 for why there is one such entity
+// and not a list.
+//
 // THE CAMERA AND THE SUN ARE READ THE SAME WAY AND BOTH ARE REQUIRED. Row zero
 // of each table, because there is exactly one of each — see the header for why
 // more than one is a mistake rather than a choice, and why a world with no sun
@@ -91,6 +100,15 @@ static voe_render_light the_sun(const voe_ecs_world *world)
 	};
 
 	return sun;
+}
+
+// Whether two entity ids name the same entity. A zeroed id — which is what a
+// frame that hides nothing carries — never matches a live one, because
+// generation 0 is never handed out (ecs/world.h), so the hidden test needs no
+// "is anything hidden at all" branch in front of it.
+static bool is_the_same_entity(voe_ecs_entity a, voe_ecs_entity b)
+{
+	return a.index == b.index && a.generation == b.generation;
 }
 
 // One entity, held back until its group's turn: everything that group needs in
@@ -316,6 +334,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.view.eye = camera.eye;
 	frame.view.reserved = 0.0f;
 	frame.light = the_sun(world);
+	// Nothing is hidden unless the caller says so, and zero is the way of
+	// saying nothing — see the header.
+	frame.hidden = (voe_ecs_entity){ 0 };
 
 	return frame;
 }
@@ -421,13 +442,22 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	overlay_blended = group_new(arena, count + panel_count, true);
 
 	for (uint32_t row = 0; row < count; row++) {
-		const voe_scene_transform *transform =
-			voe_scene_transform_get(world, owners[row]);
-		const voe_3d_material *material =
-			voe_3d_material_get(world, owners[row]);
+		const voe_scene_transform *transform;
+		const voe_3d_material *material;
 		struct deferred entry;
 		bool blended;
 
+		// The pass's one hidden entity, tested ahead of the two lookups
+		// rather than beside the other skips: it is two integers
+		// compared, and a row that is not going to be drawn should not
+		// pay for the components it would have been drawn with. It
+		// reaches no group either — no matrix, no depth key, no sort
+		// slot.
+		if (is_the_same_entity(owners[row], frame.hidden))
+			continue;
+
+		transform = voe_scene_transform_get(world, owners[row]);
+		material = voe_3d_material_get(world, owners[row]);
 		if (transform == NULL || material == NULL)
 			continue;
 
@@ -470,11 +500,17 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// be: a pass of its own is what makes a see-through quad standing in
 	// front of a panel come out behind it, from some angles only.
 	for (uint32_t row = 0; row < panel_count; row++) {
-		const voe_scene_transform *transform =
-			voe_scene_transform_get(world, panel_owners[row]);
+		const voe_scene_transform *transform;
 		voe_math_float4x4 model;
 		struct deferred entry;
 
+		// The same hiding rule as the mesh table's, in the same place
+		// and for the same reason: a pass hides an entity, whichever
+		// table draws it, and it is tested before the lookup.
+		if (is_the_same_entity(panel_owners[row], frame.hidden))
+			continue;
+
+		transform = voe_scene_transform_get(world, panel_owners[row]);
 		// A panel with nowhere to be, exactly as a mesh with no
 		// transform is skipped rather than guessed at.
 		if (transform == NULL)

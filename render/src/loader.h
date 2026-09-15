@@ -114,6 +114,12 @@ typedef struct {
 	PFN_vkCreateSampler create_sampler;
 	PFN_vkDestroySampler destroy_sampler;
 	PFN_vkCmdCopyBufferToImage cmd_copy_buffer_to_image;
+	// The other direction, and the whole of what a target read back costs
+	// this table: a finished target's colour image copied into a
+	// host-visible buffer. Core 1.0, so it resolves on a headless device
+	// too — which is the device the picture is usually taken on. See
+	// voe_render_target_read in target.c.
+	PFN_vkCmdCopyImageToBuffer cmd_copy_image_to_buffer;
 	PFN_vkCreateCommandPool create_command_pool;
 	PFN_vkDestroyCommandPool destroy_command_pool;
 	PFN_vkAllocateCommandBuffers allocate_command_buffers;

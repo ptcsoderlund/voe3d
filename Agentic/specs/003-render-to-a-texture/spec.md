@@ -1,8 +1,8 @@
 # 003 Render to a texture, and save it
 
-Status: approved
+Status: accepted
 Approved: 2026-09-15
-Accepted: -
+Accepted: 2026-09-15
 
 A program can draw a frame into a texture rather than onto the screen, and then do either of two
 things with it: put it on something in the scene, or write it out as a PNG file. The sponsor wants

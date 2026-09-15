@@ -122,7 +122,17 @@
 // material would draw with somebody else's record, which looks like a bug in the
 // importer. A PANEL NEEDS TWO OF THE THREE: a panel and a transform. It has no
 // material and cannot have one — an element carries its own colour, which is the
-// whole reason an interface is one draw command.
+// whole reason an interface is one draw command. THE ONE EXCEPTION IS THE
+// FRAME'S `hidden`: the entity it names is not drawn however complete it is.
+//
+// A PASS MAY HIDE ONE ENTITY, AND THE CASE IS A SURFACE SHOWING THIS PASS'S OWN
+// PICTURE (ADR-0158). A quad whose base colour texture is the target being drawn
+// into would be an image read while it is written — undefined in Vulkan, and
+// what voe_render_target_create's debug check asserts on — so the pass that
+// fills the target sets `hidden` to that quad and the pass that shows it does
+// not. One entity and not a list, a mask or a layer: there is one such surface
+// per target, and a visibility system is a larger decision made when something
+// needs it (rule 10).
 //
 // IT NEEDS EXACTLY ONE CAMERA, AND MORE THAN ONE IS A BUG RATHER THAN A CHOICE.
 // A second camera means a second target and a second frame, which is the card
@@ -168,21 +178,30 @@
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
+	// The one entity this pass does not draw, zero for none — a zeroed
+	// voe_ecs_entity is never a live one, because generation 0 is never
+	// handed out (ecs/world.h), so a caller that never sets this loses
+	// nothing. It is one entity and not a list or a mask on purpose: the
+	// case is the surface showing this pass's own target and there is one of
+	// those per target (ADR-0158, and the paragraph above).
+	voe_ecs_entity hidden;
 } voe_3d_frame;
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. Asserts on a world without exactly one camera and one
-// light — see the header.
+// matrix is never read. `hidden` comes back zeroed — hiding something is the
+// caller's choice and it sets the field on the answer. Asserts on a world
+// without exactly one camera and one light — see the header.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size);
 
 // Draws every entity that has a mesh, a transform and a material — and every
 // entity that has a panel, a transform and a range this frame submitted — into
 // the pass that is open, with `frame` the answer voe_3d_draw_system_frame gave
-// for it — the same camera the pass was opened with. Calling it with no pass
-// open is the caller's bug and asserts.
+// for it — the same camera the pass was opened with. `frame.hidden`, when it
+// names a live entity, is the one thing left out, of either table and either
+// layer. Calling it with no pass open is the caller's bug and asserts.
 //
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
 // RETURNS NOTHING. A draw the device refuses — more objects than it was made

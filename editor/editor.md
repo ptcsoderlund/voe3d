@@ -8,21 +8,26 @@ from its own camera, moved by a middle-button drag in it; the right one lists wh
 the selected entity is made of and lets a number in it be dragged. Each column
 that is not a scene view clips what is on it and scrolls it with the wheel or its
 scrollbar, and the Inspector's field rows fold onto further lines when the column
-is too narrow for them.
+is too narrow for them. It can also be started to draw one frame with no window
+at all, write it to a PNG file and exit — `--capture <path>`, with `--size
+<W>x<H>` saying how big.
 
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
 editor's sake — a gap in one of them is a card in that folder, never a
 reach-around from here.
 
-- `src/main.c` — opens the window and the device through `voe_app_new`, makes the
-  arena, the world, the font, the interface context and the default tree,
-  registers the components, builds the scene, and runs the loop until the window
-  closes. Its header says why the `while` is this file's while the parts in it
-  are `app`'s (ADR-0135), why the one division that turns the mouse's pixels into
-  the surface's millimetres is here and nowhere else (ADR-0141 point 4), what
-  says how far a wheel notch moves anything, and what a frame's passes are and in
-  what order they run (ADR-0148).
+- `src/main.c` — reads the command line, opens the window and the device through
+  `voe_app_new` — or the device alone through `voe_app_new_headless` when a
+  picture was asked for — makes the arena, the world, the font, the interface
+  context and the default tree, registers the components, builds the scene, and
+  runs the loop until the window closes or the picture is written. Its header
+  says why the `while` is this file's while the parts in it are `app`'s
+  (ADR-0135), why the one division that turns the mouse's pixels into the
+  surface's millimetres is here and nowhere else (ADR-0141 point 4), what says
+  how far a wheel notch moves anything, what a frame's passes are and in what
+  order they run (ADR-0148), what each argument does and why a capture draws two
+  frames before it writes.
 - `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`,
   which is where the panels' contents are. Its header says why where a panel sits
   is a tree of data and not the order of the calls (ADR-0142), what the `fraction`

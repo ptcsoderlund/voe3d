@@ -63,6 +63,9 @@ which is the one place in this engine where function pointers are expected.
   one slot — each slot's descriptor set already holds the whole texture table, so
   the write names that slot's image — why a resize waits for the card, and why a
   target's colour image lives in GENERAL rather than moving between two layouts.
+  It holds the way back too: the public read that copies a target's finished
+  picture into an arena as RGBA8 with straight alpha, the window's and a
+  caller's own alike.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout
   transitions round it, the two samplers, and the slot table the ids name — a
   slot of which may be a target's picture rather than an image of its own. Its
