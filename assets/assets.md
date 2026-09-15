@@ -71,6 +71,7 @@ pixels in an arena; what happens to them next is `render`'s.
   streams assembled by hand because no encoder emits them: a back-reference
   reaching behind the start of the output, an overlapping run, and every prefix
   of a good stream.
+- `tests/inflate_data.inc` — those streams, as bytes.
 - `tests/deflate.c` — every case round-tripped through `src/inflate.c`, from one
   byte to 200 kB, at the longest match and the farthest distance the format has.
   Its header says why a round trip alone would pass with the matcher switched off
@@ -81,6 +82,7 @@ pixels in an arena; what happens to them next is `render`'s.
   then the writer, round-tripped through the reader with its signature and IHDR
   read by hand. Its header says why reading its own output is not the whole
   proof.
+- `tests/png_data.inc` — those files, as bytes.
 - `tests/json.c` — a document read back as its values, and every shape of broken
   input a tolerant reader would let past.
 - `tests/sectioned.c` — the principal's sketch read back as its text, one test
@@ -94,3 +96,4 @@ pixels in an arena; what happens to them next is `render`'s.
   that went in, plus the same three failures and the progressive refusal. Its
   header says where the files came from and why a quantiser of one is what keeps
   a decoder tested against its own encoder honest.
+- `tests/jpeg_data.inc` — those files, as bytes.
