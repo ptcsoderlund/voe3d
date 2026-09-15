@@ -33,9 +33,10 @@ an operating system.
 - `src/samples.c` — the three lines of arithmetic behind the header above.
 - `src/version.c` — the placeholder's one function, and the C23 assertion.
 - `tests/arena.c` — the arena's promises, checked from outside.
-- `tests/describe.c` — that a table's offsets are the compiler's own, on a struct
-  padded so that any worked out by hand would be wrong. Its header says why the
-  switch is turned on inside the test.
+- `tests/describe.c` — that a table's offsets, kind, shape and count are the
+  compiler's own, on a struct padded so that any worked out by hand would be
+  wrong, and on a second struct proving every rank from 0 to 7. Its header says
+  why the switch is turned on inside the test.
 - `tests/report.c` — each level's word, the line's exact shape, and that the cut
   falls exactly at the capacity. Its header says why the boundary is the test.
 - `tests/samples.c` — that an empty run reads as noughts, that the average and

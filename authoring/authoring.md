@@ -28,9 +28,10 @@ owns files, and text lands in an arena the caller hands over.
   the world and why it walks the text beside the sectioned reader.
 - `src/authored.h` — the sort and search by authored id both of them use, and why
   neither is the C library's.
+- `src/authored.c` — the merge sort and the binary search.
 - `tests/scene_write.c` — the exact bytes for a small scene, for a component
-  holding every kind and for kept sections, the shortest float spellings, every
-  refusal, and the same bytes twice.
+  holding every kind and for kept sections, fields of every shape from rank 0
+  to 7, the shortest float spellings, every refusal, and the same bytes twice.
 - `tests/scene_read.c` — a canonical file read and written back byte for byte, a
   world written and read back row for row, every refusal creating nothing, the
-  warnings that still load, and fixed arrays of a vector kind.
+  warnings that still load, and fields of every shape from rank 0 to 7.

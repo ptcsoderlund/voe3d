@@ -1,8 +1,8 @@
 # 002 Fields of any shape
 
-Status: approved
+Status: accepted
 Approved: 2026-09-14
-Accepted: -
+Accepted: 2026-09-15
 
 A component field can be an array of any kind — numbers, vectors, strings, entity references —
 with up to seven fixed dimensions, and a scene file saves and loads it as nested brackets. A

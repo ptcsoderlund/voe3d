@@ -54,9 +54,9 @@
 // what lets a table be walked, copied and one day read from another thread.
 #define VOE_SCENE_IDENTITY_NAME 64
 
-#define VOE_SCENE_IDENTITY_FIELDS(F, F_READ_ONLY) \
-	F_READ_ONLY(uint64_t, id, UINT64)         \
-	F(char[VOE_SCENE_IDENTITY_NAME], name, CHAR)
+#define VOE_SCENE_IDENTITY_FIELDS(F, F_READ_ONLY)         \
+	F_READ_ONLY(uint64_t, id, UINT64)                 \
+	F(char, name, CHAR, VOE_SCENE_IDENTITY_NAME)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_identity, VOE_SCENE_IDENTITY_FIELDS)
 

@@ -6,11 +6,13 @@
 // lines and the final newline are what make two saves of one scene diff clean,
 // and a check that parsed the output would forgive exactly those.
 //
-// THE EVERY-KIND COMPONENT'S DESCRIPTION IS WRITTEN BY HAND, NOT WITH
-// VOE_BASE_DESCRIBE_STRUCT, because describe.h lets only ENUM, CHAR and ENTITY
-// repeat and the writer's array nesting — `[[0, 0, 0], [1, 1, 1]]` — still has
-// to be proven for a FLOAT3 array. The world never reads a description, so a
-// table written by hand is as good as one the macro wrote.
+// EVERY TEST-ONLY COMPONENT IS DECLARED THROUGH VOE_BASE_DESCRIBE_STRUCT, NOT
+// WRITTEN BY HAND — since ADR-0154 every kind may be an array, so there is no
+// shape here the macro cannot declare, and the macro is what the writer under
+// test actually reads. `shapes` is the one built to prove nesting from rank 0
+// to 7 (ADR-0154 points 1–4, 7, 8); `every`, `floats`, `link` and `shaped`
+// were already here and are unchanged in what they hold, only in how their
+// table is written.
 //
 // Refusals and warnings print a line to stderr; that is the report doing its job,
 // not a failure.
@@ -20,6 +22,11 @@
 #include <base/describe.h>
 #include <ecs/component.h>
 #include <ecs/world.h>
+#include <math/float2.h>
+#include <math/float3.h>
+#include <math/float4.h>
+#include <math/float4x4.h>
+#include <math/quat.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
 #include <scene/transform_component.h>
@@ -157,53 +164,29 @@ static void test_three_entities(void)
 	voe_base_arena_destroy(arena);
 }
 
-typedef struct {
-	int8_t i8;
-	int16_t i16;
-	int32_t i32;
-	int64_t i64;
-	uint8_t u8;
-	uint16_t u16;
-	uint32_t u32;
-	uint64_t u64;
-	float f32;
-	double f64;
-	bool flag;
-	float f2[2];
-	float f3[3];
-	float f4[4];
-	float q[4];
-	float m[16];
-	float points[2][3];
-	char label[16];
-	voe_ecs_entity target;
-	voe_ecs_entity pair[2];
-} every;
+#define EVERY_FIELDS(F, F_READ_ONLY)          \
+	F(int8_t, i8, INT8)                    \
+	F(int16_t, i16, INT16)                 \
+	F(int32_t, i32, INT32)                 \
+	F(int64_t, i64, INT64)                 \
+	F(uint8_t, u8, UINT8)                  \
+	F(uint16_t, u16, UINT16)               \
+	F(uint32_t, u32, UINT32)               \
+	F(uint64_t, u64, UINT64)               \
+	F(float, f32, FLOAT32)                 \
+	F(double, f64, FLOAT64)                \
+	F(bool, flag, BOOL)                    \
+	F(voe_math_float2, f2, FLOAT2)         \
+	F(voe_math_float3, f3, FLOAT3)         \
+	F(voe_math_float4, f4, FLOAT4)         \
+	F(voe_math_quat, q, QUAT)              \
+	F(voe_math_float4x4, m, FLOAT4X4)      \
+	F(voe_math_float3, points, FLOAT3, 2)  \
+	F(char, label, CHAR, 16)               \
+	F(voe_ecs_entity, target, ENTITY)      \
+	F(voe_ecs_entity, pair, ENTITY, 2)
 
-#define ROW(field, KIND, elements)                                            \
-	{                                                                     \
-		.name = #field,                                               \
-		.kind = VOE_BASE_FIELD_##KIND,                                \
-		.offset = offsetof(every, field),                             \
-		.size = sizeof(((every *)0)->field),                          \
-		.count = (elements),                                          \
-	}
-
-static const voe_base_field_description every_rows[] = {
-	ROW(i8, INT8, 1),        ROW(i16, INT16, 1),    ROW(i32, INT32, 1),
-	ROW(i64, INT64, 1),      ROW(u8, UINT8, 1),     ROW(u16, UINT16, 1),
-	ROW(u32, UINT32, 1),     ROW(u64, UINT64, 1),   ROW(f32, FLOAT32, 1),
-	ROW(f64, FLOAT64, 1),    ROW(flag, BOOL, 1),    ROW(f2, FLOAT2, 1),
-	ROW(f3, FLOAT3, 1),      ROW(f4, FLOAT4, 1),    ROW(q, QUAT, 1),
-	ROW(m, FLOAT4X4, 1),     ROW(points, FLOAT3, 2), ROW(label, CHAR, 16),
-	ROW(target, ENTITY, 1),  ROW(pair, ENTITY, 2),
-};
-
-static const voe_base_struct_description every_description = {
-	.name = "every",
-	.fields = every_rows,
-	.field_count = sizeof(every_rows) / sizeof(every_rows[0]),
-};
+VOE_BASE_DESCRIBE_STRUCT(every, EVERY_FIELDS)
 
 static const struct voe_ecs_key every_key = { "test_every" };
 static const struct voe_ecs_key runtime_key = { "aaa_runtime" };
@@ -213,7 +196,7 @@ static void test_every_kind(void)
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_register(
-		world, &every_key, sizeof(every), ENTITIES, &every_description);
+		world, &every_key, sizeof(every), ENTITIES, every_description());
 	voe_ecs_type runtime = voe_ecs_component_register(
 		world, &runtime_key, sizeof(int), ENTITIES, &voe_ecs_runtime_only);
 	voe_ecs_entity one = authored(world, 1, "Every");
@@ -240,7 +223,7 @@ static void test_every_kind(void)
 		.f3 = { 1.0f, 2.0f, 3.0f },
 		.f4 = { 1.0f, 0.0f, 0.0f, 1.0f },
 		.q = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.m = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 },
+		.m = voe_math_float4x4_identity(),
 		.points = { { 0, 0, 0 }, { 1, 1, 1 } },
 		.label = "say \"hi\" \\ ok",
 		.target = one,
@@ -284,23 +267,11 @@ static void test_every_kind(void)
 	voe_base_arena_destroy(arena);
 }
 
-typedef struct {
-	float f;
-	double d;
-} floats;
+#define FLOATS_FIELDS(F, F_READ_ONLY) \
+	F(float, f, FLOAT32)          \
+	F(double, d, FLOAT64)
 
-static const voe_base_field_description floats_rows[] = {
-	{ .name = "f", .kind = VOE_BASE_FIELD_FLOAT32,
-	  .offset = offsetof(floats, f), .size = sizeof(float), .count = 1 },
-	{ .name = "d", .kind = VOE_BASE_FIELD_FLOAT64,
-	  .offset = offsetof(floats, d), .size = sizeof(double), .count = 1 },
-};
-
-static const voe_base_struct_description floats_description = {
-	.name = "floats",
-	.fields = floats_rows,
-	.field_count = 2,
-};
+VOE_BASE_DESCRIBE_STRUCT(floats, FLOATS_FIELDS)
 
 static const struct voe_ecs_key floats_key = { "test_floats" };
 
@@ -308,7 +279,7 @@ static voe_ecs_world *floats_world(voe_base_arena *arena, floats value)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_register(
-		world, &floats_key, sizeof(floats), ENTITIES, &floats_description);
+		world, &floats_key, sizeof(floats), ENTITIES, floats_description());
 	voe_ecs_entity entity = authored(world, 1, "F");
 
 	VOE_TEST_CHECK(voe_ecs_component_add(world, type, entity, &value));
@@ -373,21 +344,10 @@ static void test_ascending_ids(void)
 	voe_base_arena_destroy(arena);
 }
 
-typedef struct {
-	voe_ecs_entity target;
-} link;
+#define LINK_FIELDS(F, F_READ_ONLY) \
+	F(voe_ecs_entity, target, ENTITY)
 
-static const voe_base_field_description link_rows[] = {
-	{ .name = "target", .kind = VOE_BASE_FIELD_ENTITY,
-	  .offset = offsetof(link, target), .size = sizeof(voe_ecs_entity),
-	  .count = 1 },
-};
-
-static const voe_base_struct_description link_description = {
-	.name = "link",
-	.fields = link_rows,
-	.field_count = 1,
-};
+VOE_BASE_DESCRIBE_STRUCT(link, LINK_FIELDS)
 
 static const struct voe_ecs_key link_key = { "test_link" };
 
@@ -396,7 +356,7 @@ static void test_entity_without_identity(void)
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_register(
-		world, &link_key, sizeof(link), ENTITIES, &link_description);
+		world, &link_key, sizeof(link), ENTITIES, link_description());
 	voe_ecs_entity source = authored(world, 4, "Source");
 	link value = { .target = entity_of(world) };
 	size_t size;
@@ -407,6 +367,97 @@ static void test_entity_without_identity(void)
 
 	CHECK_TEXT(text, size,
 		   "[4]\nname = \"Source\"\n[4.test_link]\ntarget = 0\n");
+
+	voe_base_arena_destroy(arena);
+}
+
+// One test-only component proving every shape ADR-0154 names, from rank 0
+// (every other component's fields) to 7 — a 2-by-3 grid of integers, a
+// 1-dimensional array of vectors, a 2-by-2 grid of vectors nesting three
+// brackets deep, an array of strings, a 7-dimensional array so thin every
+// dimension but the last is 1, a 7-dimensional array of vectors nesting eight
+// brackets deep, and an array of entity references.
+#define SHAPES_FIELDS(F, F_READ_ONLY)                             \
+	F(int32_t, pair, INT32, 2, 3)                              \
+	F(voe_math_float3, points, FLOAT3, 2)                      \
+	F(voe_math_float3, grid, FLOAT3, 2, 2)                     \
+	F(char, tags, CHAR, 3, 8)                                  \
+	F(uint8_t, deep, UINT8, 1, 1, 1, 1, 1, 1, 2)                \
+	F(voe_math_float3, deepest, FLOAT3, 1, 1, 1, 1, 1, 1, 1)    \
+	F(voe_ecs_entity, links, ENTITY, 2)
+
+VOE_BASE_DESCRIBE_STRUCT(shapes, SHAPES_FIELDS)
+
+static const struct voe_ecs_key shapes_key = { "test_shapes" };
+
+static void test_shapes(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type type = voe_ecs_component_register(
+		world, &shapes_key, sizeof(shapes), ENTITIES, shapes_description());
+	voe_ecs_entity ref = authored(world, 3, "Ref");
+	voe_ecs_entity gone = entity_of(world);
+	voe_ecs_entity one = authored(world, 1, "Shapes");
+	size_t size;
+
+	voe_ecs_entity_destroy(world, gone);
+
+	shapes row = {
+		.pair = { { 1, 2, 3 }, { 4, 5, 6 } },
+		.points = { { 0, 0, 0 }, { 1, 2.5f, -3 } },
+		.grid = { { { 0, 0, 0 }, { 1, 0, 0 } }, { { 2, 0, 0 }, { 3, 0, 0 } } },
+		.tags = { "a", "x\"y\\z", "" },
+		.deep = { { { { { { { 0, 7 } } } } } } },
+		.deepest = { { { { { { { { 1, 2, 3 } } } } } } } },
+		.links = { ref, gone },
+	};
+
+	VOE_TEST_CHECK(voe_ecs_component_add(world, type, one, &row));
+
+	const char *text = written(world, arena, &size);
+
+	CHECK_TEXT(text, size,
+		   "[1]\n"
+		   "name = \"Shapes\"\n"
+		   "[1.test_shapes]\n"
+		   "pair = [[1, 2, 3], [4, 5, 6]]\n"
+		   "points = [[0, 0, 0], [1, 2.5, -3]]\n"
+		   "grid = [[[0, 0, 0], [1, 0, 0]], [[2, 0, 0], [3, 0, 0]]]\n"
+		   "tags = [\"a\", \"x\\\"y\\\\z\", \"\"]\n"
+		   "deep = [[[[[[[0, 7]]]]]]]\n"
+		   "deepest = [[[[[[[[1, 2, 3]]]]]]]]\n"
+		   "links = [3, 0]\n"
+		   "\n"
+		   "[3]\n"
+		   "name = \"Ref\"\n");
+
+	voe_base_arena_destroy(arena);
+}
+
+// A tags element holding a byte below 0x20 refuses, naming tags[n] — checked
+// only by the refusal (VOE_BASE_ERROR's text is not itself compared), which
+// this exercises by giving element 1 a tab.
+static void test_shapes_control_character(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type type = voe_ecs_component_register(
+		world, &shapes_key, sizeof(shapes), ENTITIES, shapes_description());
+	voe_ecs_entity one = authored(world, 1, "Shapes");
+
+	shapes row = {
+		.pair = { { 1, 2, 3 }, { 4, 5, 6 } },
+		.points = { { 0, 0, 0 }, { 1, 1, 1 } },
+		.grid = { { { 0, 0, 0 }, { 0, 0, 0 } }, { { 0, 0, 0 }, { 0, 0, 0 } } },
+		.tags = { "a", "b\tc", "" },
+		.deep = { { { { { { { 0, 0 } } } } } } },
+		.deepest = { { { { { { { { 0, 0, 0 } } } } } } } },
+		.links = { 0 },
+	};
+
+	VOE_TEST_CHECK(voe_ecs_component_add(world, type, one, &row));
+	check_refused(world, arena);
 
 	voe_base_arena_destroy(arena);
 }
@@ -437,20 +488,10 @@ typedef enum {
 	SHAPE_SPHERE,
 } shape;
 
-typedef struct {
-	shape kind;
-} shaped;
+#define SHAPED_FIELDS(F, F_READ_ONLY) \
+	F(shape, kind, ENUM)
 
-static const voe_base_field_description shaped_rows[] = {
-	{ .name = "kind", .kind = VOE_BASE_FIELD_ENUM,
-	  .offset = offsetof(shaped, kind), .size = sizeof(shape), .count = 1 },
-};
-
-static const voe_base_struct_description shaped_description = {
-	.name = "shaped",
-	.fields = shaped_rows,
-	.field_count = 1,
-};
+VOE_BASE_DESCRIBE_STRUCT(shaped, SHAPED_FIELDS)
 
 static const struct voe_ecs_key shaped_key = { "test_shaped" };
 
@@ -463,7 +504,7 @@ static void test_refusals(void)
 		voe_ecs_world *world = world_of(arena);
 		voe_ecs_type type = voe_ecs_component_register(
 			world, &shaped_key, sizeof(shaped), ENTITIES,
-			&shaped_description);
+			shaped_description());
 		voe_ecs_entity entity = authored(world, 1, "Shape");
 		shaped value = { .kind = SHAPE_SPHERE };
 
@@ -605,6 +646,8 @@ int main(void)
 	test_floats();
 	test_ascending_ids();
 	test_entity_without_identity();
+	test_shapes();
+	test_shapes_control_character();
 	test_empty_world();
 	test_refusals();
 	test_same_bytes_twice();
