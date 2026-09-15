@@ -8,29 +8,35 @@ and the caller submits them — and not input either: the pointer is a value it
 is handed. Where the surface sits in the world is one matrix and it is the
 caller's.
 
-- `include/ui/layout.h` — the context, the frame, and rows and columns and
-  boxes between its begin and its end, with a rectangle and a measured size read
-  back through a handle. Its header says why nothing is laid out until the frame
-  ends and why that is what makes the first frame right, why a call returns a
-  handle and not a size, why nothing survives a frame, that the space is
-  millimetres with Y down from the panel's top-left corner because that is the
-  space an element record is already in, why that is not a departure from the
-  world being Y-up, that a column runs from the top down so it reads in call
-  order, that START is left and top on either axis, which of the three sizings
-  may be used where, that a child's own fixed size across the flow beats the
-  container's FILL, that overflow is reported rather than shrunk, and the three
-  ways a frame can be refused. It says that X is laid out for the whole tree
-  before Y and that nothing may need a height to know a width, and how a
-  container that asks to wrap breaks its run into lines — and why a wrapping
-  column overflows to the right instead of widening. It also says why padding is four numbers named by
-  absolute side, why there is no margin and what to do instead, what an anchored
-  child is and why its two axes are X and Y rather than the flow's two words,
-  which way its offset moves it, that it is measured against its parent's
-  content box and paints over its in-flow siblings, the trap that a
-  fit-to-children parent holding only anchored children has no natural size at
-  all, and what the measured size is for. Also `voe_ui_overflow`,
-  `voe_ui_container.scroll`, `voe_ui_node_visible`, `voe_ui_node_scroll` and
-  `voe_ui_capacities.scrolls`.
+- `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
+  element records and scroll areas, the frame, and rows and columns and boxes
+  between its begin and its end, any of which may clip what reaches past it
+  and offset the content it holds (`voe_ui_overflow`,
+  `voe_ui_container.scroll`), with a rectangle, the visible part of that
+  rectangle, the offset layout settled on and a measured size read back
+  through a handle (`voe_ui_node_visible`, `voe_ui_node_scroll`). Its header
+  says why nothing is laid out until the frame ends and why that is what makes
+  the first frame right, why a call returns a handle and not a size, why
+  nothing survives a frame, that the space is millimetres with Y down from the
+  panel's top-left corner because that is the space an element record is
+  already in, why that is not a departure from the world being Y-up, that a
+  column runs from the top down so it reads in call order, that START is left
+  and top on either axis, which of the three sizings may be used where, that a
+  child's own fixed size across the flow beats the container's FILL, that
+  overflow is reported rather than shrunk unless a container asks to clip it,
+  per absolute axis and nested clips intersecting, that a clip narrows what is
+  seen and never where anything is, that a scroll offset moves a clipping
+  container's content and layout clamps it while remembering none of it, and
+  the three ways a frame can be refused. It says that X is laid out for the
+  whole tree before Y and that nothing may need a height to know a width, and
+  how a container that asks to wrap breaks its run into lines — and why a
+  wrapping column overflows to the right instead of widening. It also says why
+  padding is four numbers named by absolute side, why there is no margin and
+  what to do instead, what an anchored child is and why its two axes are X and
+  Y rather than the flow's two words, which way its offset moves it, that it
+  is measured against its parent's content box and paints over its in-flow
+  siblings, the trap that a fit-to-children parent holding only anchored
+  children has no natural size at all, and what the measured size is for.
 - `include/ui/widgets.h` — the panel, the label, the button, the number box,
   the image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`),
   the pointer they are given with its `scroll`, and this frame's element
@@ -77,10 +83,12 @@ caller's.
   the press and its change from last frame, and how the scroll table is
   rewritten each frame and where a scrollbar sits in paint order.
 - `tests/layout.c` — rectangles worked out by hand, one case per decision,
-  clips and clamped scroll offsets among them. Its header says which eight answers it is pinning down rather than merely
-  exercising, which two cases are about the machinery instead of the arithmetic,
-  and why exactly one case reaches into `src/` — paint order is an order and no
-  rectangle can show it. Needs no graphics card and no window system.
+  wraps, clips and clamped scroll offsets among them. Its header names the
+  answers it is pinning down rather than merely exercising, group by group and
+  each one a decision that could have gone the other way, which two cases are
+  about the machinery instead of the arithmetic, and why exactly one case
+  reaches into `src/` — paint order is an order and no rectangle can show it.
+  Needs no graphics card and no window system.
 - `tests/widgets.c` — a press and a release in every order a hand can produce,
   a sideways drag in every order one can, a clipped button and label, a drag
   scrolled out of sight, a scroll area's remembering, passing on, bar, drag,
