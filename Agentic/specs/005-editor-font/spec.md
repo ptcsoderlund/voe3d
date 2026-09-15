@@ -5,42 +5,45 @@ Approved: 2026-09-15
 Accepted: -
 
 The editor's own panels are drawn in Pixel Operator, a pixel-style typeface free to ship, instead
-of Oxanium. Oxanium stays one choice away in the editor's Preferences, because it is the logo
-font. The setting belongs to the editor only; a game made with the engine is not affected.
+of Oxanium. The built-in theme takes Pixel Operator as its font, and the editor's Preferences can
+override whichever theme is chosen with Oxanium — the logo font — or Pixel Operator. The override
+belongs to the editor only; a game made with the engine is not affected.
 
 ## Acceptance criteria
 
 1. **The new default.** Start the editor with no preference saved: every panel — top bar, Scene
-   list, Inspector, file browser — is in Pixel Operator.
-2. **Preferences.** A Preferences button in the top bar opens a small Preferences panel listing the
-   two fonts, the one in use marked. It can be closed again.
-3. **Switching is immediate.** Choosing Oxanium redraws every panel in Oxanium at once; choosing
-   Pixel Operator switches back. Nothing else about the scene changes, and it does not count as an
-   unsaved change.
+   list, Inspector, file browser, Preferences — is in Pixel Operator.
+2. **A font choice in Preferences.** Beside the list of themes, Preferences offers the font: the
+   theme's own, Pixel Operator or Oxanium, the one in use marked.
+3. **Switching is immediate.** Choosing Oxanium redraws every panel in Oxanium at once, whatever
+   theme is chosen; choosing the theme's own font puts it back. Nothing else about the scene
+   changes, and it does not count as an unsaved change.
 4. **The choice is remembered.** Choose Oxanium, close the editor and start it again: the panels are
    in Oxanium.
-5. **A picture shows it too.** `voe_editor --capture` draws the panels in the chosen font.
-6. **Only the editor.** The dev program still draws its text in Oxanium.
-7. `cmake -P check.cmake` exits zero on Linux.
+5. **A theme's rows keep their own font.** In Preferences each theme's preview row still shows that
+   theme's own font, so the override does not hide what a theme looks like.
+6. **A picture shows it too.** `voe_editor --capture` draws the panels in the chosen font.
+7. **Only the editor.** The dev program still draws its text in Oxanium.
+8. `cmake -P check.cmake` exits zero on Linux.
 
 ## Out of scope
 
 - Tahoma: it is Microsoft's and may not be shipped.
 - Fonts in a game, or text inside a scene.
-- Any other preference, and font sizes.
+- Any other preference, and font sizes beyond what a theme says.
 
 ## Constraints
 
 - Linux first: acceptance is on Linux.
 - Pixel Operator ships inside the editor with its licence file beside it, as Oxanium does. If its
   licence turns out not to permit that, the build stops and the sponsor is asked.
-- Built after 004, whose top bar it uses.
+- Built after 004 and 006: it uses 006's Preferences panel and themes.
 
 ## Defaults
 
 - Pixel Operator's regular weight.
-- The font preference is kept per person on the machine, beside the remembered last project. If it
-  cannot be read, the editor starts in Pixel Operator.
+- The font override is kept per person on the machine, beside the remembered last project and
+  theme. If it cannot be read, the editor uses the theme's own font.
 
 ## Open questions
 
