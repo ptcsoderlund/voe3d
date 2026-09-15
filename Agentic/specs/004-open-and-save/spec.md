@@ -71,6 +71,9 @@ survived closing it; this is what makes the editor a place work is kept.
 - A notice stays in the top bar until the next thing is done.
 - A scene view's camera is not saved with the scene.
 - `voe_editor --capture` keeps working, and draws the scene the editor would have started on.
+- Typing a folder name takes letters (å, ä, ö included), digits, `-` and `_`. Characters that need
+  AltGr, and a held key repeating, wait for a later typing feature (agreed with the sponsor
+  2026-09-15).
 
 ## Open questions
 
