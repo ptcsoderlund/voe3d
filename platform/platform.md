@@ -2,7 +2,8 @@
 
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
-Today that is a window, its keyboard and mouse, a clock, and writing a file.
+Today that is a window, its keyboard and mouse, a clock, reading and writing a
+file, and listing, making or finding a folder.
 
 - `include/platform/window.h` — the window API. Its header carries the two rules
   callers need: opening a window can fail and returns NULL, and `_poll` folds
@@ -21,6 +22,10 @@ Today that is a window, its keyboard and mouse, a clock, and writing a file.
   header says why files are this folder's, that the path is exactly what the
   caller gave, what an empty file reads as, which failure means what, and how
   a write is made atomic by a `.partial` sibling and a rename.
+- `include/platform/folder.h` — listing a folder's entries into an arena, making
+  one folder, and finding the person's home and this engine's settings folders.
+  Its header says what folder and hidden answer, which failure means what, and
+  that no path it hands back carries a trailing separator.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it. Its header says why this is here and not in the folder that
   wants one.
@@ -46,6 +51,12 @@ Today that is a window, its keyboard and mouse, a clock, and writing a file.
   MoveFileExA that makes a write atomic. Its header says why the ASCII call,
   why a 64-bit count is moved in steps, and why the `.partial` path is a stack
   buffer.
+- `src/folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME.
+  Linux only despite the name; its header says why listing is two passes and
+  the sort is by hand, and when `fstatat` decides `folder` instead of `d_type`.
+- `src/folder_win32.c` — FindFirstFileA/FindNextFileA, CreateDirectoryA, and
+  GetEnvironmentVariableA for %USERPROFILE%/%APPDATA%. Its header says why a
+  directory symlink needs no extra call here, unlike the Linux side.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
@@ -75,3 +86,8 @@ Today that is a window, its keyboard and mouse, a clock, and writing a file.
   purpose; needs no window and no display.
 - `tests/clock.c` — that the clock moves and never goes backwards. Its header
   says why nothing in it measures a duration against a duration.
+- `tests/folder.c` — that a listing is sorted by byte order with folder and
+  hidden answered correctly, that an empty folder lists zero, that a missing
+  folder fails a listing as UNAVAILABLE, that creating over an existing name is
+  REFUSED and under a missing parent UNAVAILABLE, and that the settings folder
+  honours `XDG_CONFIG_HOME` on Linux. Needs no window and no display.
