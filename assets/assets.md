@@ -1,9 +1,10 @@
 # assets
 
-Files on the way in: bytes from somewhere, engine data out. Every reader here is
-written rather than fetched (ADR-0023), and nothing in this folder opens a file —
-`platform` owns files and has no API for them yet, so a decoder takes a buffer
-and the caller says where the bytes came from.
+Files on the way in, and a PNG on the way out: bytes from somewhere, engine data
+out, and pictures back to bytes. Every reader and writer here is written rather
+than fetched (ADR-0023), and nothing in this folder opens a file — `platform`
+owns files — so a decoder takes a buffer and an encoder hands one back, and the
+caller says where the bytes came from or where they go.
 
 Nothing here knows about Vulkan, a scene or an entity. A decoded picture is
 pixels in an arena; what happens to them next is `render`'s.
@@ -13,11 +14,13 @@ pixels in an arena; what happens to them next is `render`'s.
   form only, why no coordinate is ever converted while matrix layout is, which
   failures are malformed and which are unsupported, and why animation is ignored
   rather than refused.
-- `include/assets/image.h` — pictures, decoded to RGBA8. Its header says why a
-  decoder takes bytes rather than a path, why the output is always four channels
-  whatever the file held, and — the one worth reading before touching a texture
-  coordinate — why nothing in this engine turns an image the right way up,
-  because PNG, Vulkan and glTF already agree that row zero is the top.
+- `include/assets/image.h` — pictures, both directions: PNG and JPEG decoded to
+  RGBA8, and RGBA8 encoded back as a PNG. Its header says why neither direction
+  takes a path now that `platform` has one, why the output is always four
+  channels whatever the file held, what the encoder writes and what it refuses,
+  and — the one worth reading before touching a texture coordinate — why nothing
+  in this engine turns an image the right way up, because PNG, Vulkan and glTF
+  already agree that row zero is the top.
 - `include/assets/sectioned.h` — the engine's own authored text format:
   `[Section]` headers and `key=value` lines, handed back as text and never
   interpreted. Its header says why it is layer one of three and stops there,
@@ -37,9 +40,15 @@ pixels in an arena; what happens to them next is `render`'s.
 - `src/deflate.c` — one block, fixed Huffman codes, and a greedy match finder
   over a hashed chain. Its header carries the fixed code and the length and
   distance tables, and says which three rules keep a changed matcher legal.
-- `src/png.c` — signature, chunks, CRC, filters, palette. Its header says why
-  this file is flat and has no recursion in it, and the rule every length read
-  out of the file is checked by.
+- `src/png.c` — the reader: signature, chunks, CRC, filters, palette. Its header
+  says why this file is flat and has no recursion in it, and the rule every
+  length read out of the file is checked by.
+- `src/png_crc.h` — PNG's CRC-32, shared by the reader and the writer and
+  implemented in `src/png.c`. Its header says why there is no running value to
+  chain from, and which bytes of a chunk it covers.
+- `src/png_write.c` — the writer: colour type 6, filter 0 on every row, one
+  `IDAT`. Its header says why each of those is the only shape it writes, and
+  where the size of every buffer it pushes comes from.
 - `src/sectioned.c` — two passes over one line lexer. Its header says why the
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
@@ -68,7 +77,10 @@ pixels in an arena; what happens to them next is `render`'s.
   and what the size checks do about it.
 - `tests/png.c` — real files from a real encoder, one filter per row, against the
   three failures card 017 named — truncated, wrong magic, absurd declared size —
-  plus a corrupt CRC and the two variants that are refused rather than broken.
+  plus a corrupt CRC and the two variants that are refused rather than broken;
+  then the writer, round-tripped through the reader with its signature and IHDR
+  read by hand. Its header says why reading its own output is not the whole
+  proof.
 - `tests/json.c` — a document read back as its values, and every shape of broken
   input a tolerant reader would let past.
 - `tests/sectioned.c` — the principal's sketch read back as its text, one test

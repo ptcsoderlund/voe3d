@@ -79,7 +79,7 @@ before you say done. Say which platform you verified on and what you could not c
   - Done when: `ctest --test-dir build/debug -R '^assets/deflate$'` passes and
     `cmake -P check.cmake` exits zero.
 
-- [ ] 3. `assets/` — write a PNG
+- [x] 3. `assets/` — write a PNG
   - Change: The encoder beside the decoder. Decision: `Agentic/decisions/0157-*.md` point 2 — this folder
     encodes bytes and still opens no file.
     - `include/assets/image.h`, added:

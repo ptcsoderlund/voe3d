@@ -8,6 +8,14 @@
 // separate arithmetic mistakes waiting to happen and a picture that uses one
 // filter proves one of them.
 //
+// THE WRITER IS TESTED BY THE READER ABOVE IT, AND THAT IS THE WHOLE ORACLE
+// AVAILABLE HERE. An encoder checked against its own decoder can only prove the
+// two agree, so the checks below also read the signature and the IHDR fields out
+// of the file by hand — those are the bytes every other program in the world
+// looks at first — and tests/deflate.c is where python3's zlib was made to
+// accept what the compressor emits. Between them, a file this writer produces
+// opens elsewhere.
+//
 // THE BAD ONES ARE THE POINT OF THE FILE. Card 017 named three — a truncated
 // file, a wrong magic number and an absurd declared size — and each is a
 // recoverable failure with a test here. A decoder that crashed or allocated four
@@ -218,6 +226,124 @@ static void interlaced_and_deep_are_unsupported_not_malformed(void)
 		VOE_BASE_ERROR_UNSUPPORTED);
 }
 
+// The eight bytes a PNG starts with, read here rather than trusted: this is the
+// only test that looks at the file as a file.
+static const uint8_t PNG_SIGNATURE[8] = { 0x89, 'P', 'N', 'G', 0x0d,
+					  0x0a, 0x1a, 0x0a };
+
+static uint32_t be32_at(const uint8_t *bytes)
+{
+	return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
+	       ((uint32_t)bytes[2] << 8) | (uint32_t)bytes[3];
+}
+
+// Encode a picture, decode it straight back, and compare every byte. The arena
+// is destroyed here because nothing outlives the comparison.
+static void round_trips(uint32_t width, uint32_t height, uint8_t *pixels)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_assets_image image = { width, height, pixels };
+	voe_assets_image back = { 0 };
+	voe_assets_bytes file = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_TEST_CHECK(voe_assets_png_encode(arena, image, &file, &error));
+	VOE_TEST_CHECK_INT((int)error, (int)VOE_BASE_OK);
+	VOE_TEST_CHECK(file.count > 0);
+
+	// The signature and IHDR, straight out of the bytes. A picture that
+	// round-trips through our own decoder with a wrong header still fails
+	// everywhere else.
+	VOE_TEST_CHECK(file.count > 33);
+	VOE_TEST_CHECK(memcmp(file.bytes, PNG_SIGNATURE,
+			      sizeof(PNG_SIGNATURE)) == 0);
+	VOE_TEST_CHECK_INT((int)be32_at(file.bytes + 8), 13);
+	VOE_TEST_CHECK(memcmp(file.bytes + 12, "IHDR", 4) == 0);
+	VOE_TEST_CHECK_INT((int)be32_at(file.bytes + 16), (int)width);
+	VOE_TEST_CHECK_INT((int)be32_at(file.bytes + 20), (int)height);
+	VOE_TEST_CHECK_INT(file.bytes[24], 8);  // bit depth
+	VOE_TEST_CHECK_INT(file.bytes[25], 6);  // colour type: RGBA
+	VOE_TEST_CHECK_INT(file.bytes[26], 0);  // compression
+	VOE_TEST_CHECK_INT(file.bytes[27], 0);  // filter method
+	VOE_TEST_CHECK_INT(file.bytes[28], 0);  // interlace
+
+	VOE_TEST_CHECK(voe_assets_png_decode(file.bytes, file.count, arena,
+					     &back, &error));
+	VOE_TEST_CHECK_INT((int)back.width, (int)width);
+	VOE_TEST_CHECK_INT((int)back.height, (int)height);
+
+	for (size_t i = 0; i < (size_t)width * height * 4; i++)
+		VOE_TEST_CHECK_INT(back.pixels[i], pixels[i]);
+
+	voe_base_arena_destroy(arena);
+}
+
+// Four different corners, so a picture written sideways or upside down fails.
+static void a_picture_survives_the_round_trip(void)
+{
+	uint8_t pixels[4 * 3 * 4];
+
+	for (size_t i = 0; i < sizeof(pixels); i++)
+		pixels[i] = (uint8_t)(i * 7 + 3);
+
+	// The corners, by hand, so the failure names a corner.
+	memcpy(pixels + 0, (uint8_t[]){ 255, 0, 0, 255 }, 4);
+	memcpy(pixels + 3 * 4, (uint8_t[]){ 0, 255, 0, 255 }, 4);
+	memcpy(pixels + 8 * 4, (uint8_t[]){ 0, 0, 255, 255 }, 4);
+	memcpy(pixels + 11 * 4, (uint8_t[]){ 255, 255, 0, 255 }, 4);
+
+	round_trips(4, 3, pixels);
+}
+
+static void one_pixel_is_a_picture(void)
+{
+	uint8_t pixels[4] = { 17, 34, 51, 68 };
+
+	round_trips(1, 1, pixels);
+}
+
+// AN ODD WIDTH IS WHAT CATCHES A STRIDE WORKED OUT FROM THE WRONG NUMBER. 257
+// pixels is 1028 bytes of colour and a 1029-byte filtered row, and every
+// off-by-one in either direction shifts the picture along by a pixel a row.
+static void an_odd_width_keeps_its_rows_apart(void)
+{
+	static uint8_t pixels[257 * 3 * 4];
+
+	for (size_t i = 0; i < sizeof(pixels); i++)
+		pixels[i] = (uint8_t)(i * 31 + i / 257);
+
+	round_trips(257, 3, pixels);
+}
+
+// Alpha is written as it arrives — nothing premultiplies, nothing forces opaque.
+static void alpha_comes_back_unchanged(void)
+{
+	uint8_t pixels[3 * 1 * 4] = {
+		200, 100, 50, 0,   //
+		200, 100, 50, 128, //
+		200, 100, 50, 255, //
+	};
+
+	round_trips(3, 1, pixels);
+}
+
+// The one returned failure: a picture whose bytes could not be counted. Nothing
+// is allocated and nothing is touched on the way out, which is why `pixels` can
+// be a single byte.
+static void a_picture_too_large_to_measure_is_refused(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	uint8_t one = 0;
+	voe_assets_image image = { 0xffffffffu, 0xffffffffu, &one };
+	voe_assets_bytes file = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_TEST_CHECK(!voe_assets_png_encode(arena, image, &file, &error));
+	VOE_TEST_CHECK_INT((int)error, (int)VOE_BASE_ERROR_REFUSED);
+
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	truecolour_with_every_filter();
@@ -231,5 +357,10 @@ int main(void)
 	an_absurd_declared_size_is_refused();
 	a_corrupt_chunk_is_refused();
 	interlaced_and_deep_are_unsupported_not_malformed();
+	a_picture_survives_the_round_trip();
+	one_pixel_is_a_picture();
+	an_odd_width_keeps_its_rows_apart();
+	alpha_comes_back_unchanged();
+	a_picture_too_large_to_measure_is_refused();
 	return voe_test_result();
 }

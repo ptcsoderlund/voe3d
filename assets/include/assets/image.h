@@ -1,16 +1,16 @@
-// Images: bytes in, pixels out. PNG and JPEG, both written here (ADR-0023), and
-// nothing fetched.
+// Images: bytes in, pixels out, and — for PNG — pixels in, bytes out. PNG and
+// JPEG, both written here (ADR-0023), and nothing fetched.
 //
-// A DECODER TAKES A BUFFER AND NOT A PATH, AND THAT IS THIS CARD READING ITS
-// CARD NARROWLY RATHER THAN REACHING INTO platform. Card 017 says "a texture
-// from a file", and platform — which owns files — has no file API yet;
-// platform/window.h says so in as many words. Opening one here would be assets
-// doing the operating system's job. So the format work is what assets does, the
-// bytes arrive from wherever the caller got them, and dev gets its image the way
-// render already gets its shaders: #embed at build time, which also keeps
-// "nothing is read from disk at run time" true. The card that gives platform a
-// file API is the card that makes this take a path, and it will not have to
-// change anything below to do it.
+// NOTHING HERE OPENS A FILE, IN EITHER DIRECTION, AND THAT IS A DECISION AND NOT
+// A GAP. platform owns files and now has a call that writes one, so this could
+// have taken a path; ADR-0157 says why it does not. Opening a file here would be
+// assets doing the operating system's job, it would make the encoder untestable
+// without a disk — its test decodes its own output instead — and it would
+// give this folder a second way to fail that has nothing to do with a format. So
+// the format work is what assets does, the bytes arrive from and go back to
+// wherever the caller keeps them, and dev gets its image the way render gets its
+// shaders: #embed at build time, which also keeps "nothing is read from disk at
+// run time" true.
 //
 // THE OUTPUT IS ALWAYS RGBA8 AND NEVER THE FILE'S OWN LAYOUT. A greyscale PNG, a
 // palette PNG and a JPEG all arrive here as four bytes a pixel with an opaque
@@ -23,7 +23,9 @@
 // ASKED FOR RATHER THAN AN OVERSIGHT. Row zero of a PNG is the top row, Vulkan's
 // texture coordinate (0,0) is the top-left texel, and glTF's UVs put (0,0) at
 // the top-left of the image. All three already agree, so the rows are uploaded
-// in the order they are decoded and the picture comes out the right way up.
+// in the order they are decoded and the picture comes out the right way up. It
+// binds both directions: the encoder writes the rows in the order it is handed
+// them, so a picture saved and read back is the picture that went in.
 //
 // The flip everyone reaches for is OpenGL's: its texture origin is bottom-left,
 // so every OpenGL loader turns the image over on the way in, and every tutorial
@@ -75,6 +77,49 @@ typedef struct {
 [[nodiscard]] bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 					 voe_base_arena *arena,
 					 voe_assets_image *image,
+					 voe_base_error *error);
+
+// A block of bytes in the arena that produced them: an encoded file, ready to be
+// handed to whoever writes it out. `count` is how many of them there are, and
+// the buffer is freed by rewinding or destroying that arena (rule 11).
+typedef struct {
+	uint8_t *bytes;
+	size_t count;
+} voe_assets_bytes;
+
+// Encode a picture as a PNG. False on failure, and `out` is untouched when it
+// fails.
+//
+// `image.pixels` is RGBA8, width * height * 4 bytes, row zero the top — exactly
+// the shape _decode hands back, so a picture may be decoded, edited and written
+// again with nothing in between.
+//
+// WHAT IS WRITTEN IS ONE SHAPE AND ONLY ONE, ON PURPOSE: colour type 6 (RGBA),
+// eight bits a channel, no interlace, and filter 0 on every row. There is no
+// argument to pick another, and rule 10 says why — nothing has asked. A reader
+// that wants to know what else the format allows is holding the decoder beside
+// this, which reads five colour types and all five filters.
+//
+// THE BYTES ARE THE CALLER'S ARENA'S, and so is the working memory this needs on
+// the way — the filtered rows and the compressed stream. Nothing is freed one
+// allocation at a time; the caller rewinds or destroys the arena once it has
+// done whatever it was going to do with `out`.
+//
+// THE ONE RETURNED FAILURE IS A PICTURE TOO LARGE TO MEASURE: a width and height
+// whose byte count does not fit a size_t is VOE_BASE_ERROR_REFUSED, because the
+// machine cannot hold it rather than because the picture is wrong. A width or
+// height of zero, and a NULL `pixels`, are the caller having lost track of its
+// own data and assert (rule 13). Note there is no maximum side here — the ceiling
+// VOE_ASSETS_IMAGE_MAX_SIDE puts on a decoder is a defence against a hostile
+// file, and there is no file yet on this side.
+//
+// COLOUR IS WRITTEN EXACTLY AS IT IS HANDED OVER. No gamma is applied, nothing is
+// premultiplied or un-premultiplied, and no channel is swapped. Whoever produced
+// the pixels did those; ADR-0156 says who, for the pixels that come off a render
+// target.
+[[nodiscard]] bool voe_assets_png_encode(voe_base_arena *arena,
+					 voe_assets_image image,
+					 voe_assets_bytes *out,
 					 voe_base_error *error);
 
 // Decode a baseline JPEG. False on failure, and `image` is untouched when it

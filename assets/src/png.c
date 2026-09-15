@@ -9,6 +9,10 @@
 // keep. It is named here so that the next reader knows it was considered and not
 // forgotten.
 //
+// THE CRC IS SHARED WITH THE WRITER: src/png_write.c stamps the chunks it emits
+// with voe_assets_png_crc(), declared in src/png_crc.h and implemented below,
+// where the table already was.
+//
 // THE LENGTH IN A CHUNK HEADER IS THE FIRST HOSTILE NUMBER IN THE FILE, AND
 // EVERY ONE AFTER IT IS TOO. The rule this file follows without exception: a
 // number read out of the file is compared against what is actually left before
@@ -21,6 +25,7 @@
 #include <base/assert.h>
 
 #include "inflate.h"
+#include "png_crc.h"
 
 #include <string.h>
 
@@ -37,7 +42,8 @@ static const uint8_t SIGNATURE[8] = { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a,
 #define COLOUR_RGBA 6
 
 // CRC-32 as PNG defines it, computed a byte at a time against a table built on
-// first use.
+// first use. See src/png_crc.h for why the writer calls this one rather than
+// carrying its own.
 //
 // IT IS CHECKED ON EVERY CHUNK, WHICH IS WHY inflate.c DOES NOT CHECK ITS
 // ADLER-32. One integrity check over the compressed bytes is enough, and this is
@@ -57,14 +63,14 @@ static void build_crc_table(void)
 	crc_table_built = true;
 }
 
-static uint32_t crc32_of(const uint8_t *bytes, size_t size)
+uint32_t voe_assets_png_crc(const uint8_t *bytes, size_t count)
 {
 	uint32_t c = 0xffffffffu;
 
 	if (!crc_table_built)
 		build_crc_table();
 
-	for (size_t i = 0; i < size; i++)
+	for (size_t i = 0; i < count; i++)
 		c = crc_table[(c ^ bytes[i]) & 0xff] ^ (c >> 8);
 
 	return c ^ 0xffffffffu;
@@ -272,7 +278,7 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 		if (length > size - offset - 12)
 			return fail(error, VOE_BASE_ERROR_MALFORMED);
 
-		if (crc32_of(type, (size_t)length + 4) !=
+		if (voe_assets_png_crc(type, (size_t)length + 4) !=
 		    be32(data + length))
 			return fail(error, VOE_BASE_ERROR_MALFORMED);
 
