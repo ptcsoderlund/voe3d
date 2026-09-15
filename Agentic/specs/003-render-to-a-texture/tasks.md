@@ -238,7 +238,7 @@ before you say done. Say which platform you verified on and what you could not c
   - Done when: `ctest --test-dir build/debug -R '^3d/'` passes (the new test skipping with a reason
     where there is no card — then say so) and `cmake -P check.cmake` exits zero.
 
-- [ ] 7. `editor/` — capture one frame from the command line
+- [x] 7. `editor/` — capture one frame from the command line
   - Change: Acceptance criterion 4: the editor started so that it draws with no window, writes a
     PNG and exits, naming the file and the size. It reaches all of that through `app` and names
     neither `assets` nor `platform`.
