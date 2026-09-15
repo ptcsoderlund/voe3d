@@ -5,7 +5,7 @@ Where a task also names a narrower command, run the narrow one while working and
 before you say done. Say which platform you verified on and what you could not check there.
 
 - [x] 1. `platform/` — write a whole file
-  - Change: Decision: `decisions/0157-*.md` point 1. `platform` owns files and has had no API for
+  - Change: Decision: `Agentic/decisions/0157-*.md` point 1. `platform` owns files and has had no API for
     them; this is the first, and it stays one call.
     - `include/platform/file.h`, new:
       `[[nodiscard]] bool voe_platform_file_write(const char *path, const uint8_t *bytes, size_t count, voe_base_error *error);`
@@ -80,7 +80,7 @@ before you say done. Say which platform you verified on and what you could not c
     `cmake -P check.cmake` exits zero.
 
 - [ ] 3. `assets/` — write a PNG
-  - Change: The encoder beside the decoder. Decision: `decisions/0157-*.md` point 2 — this folder
+  - Change: The encoder beside the decoder. Decision: `Agentic/decisions/0157-*.md` point 2 — this folder
     encodes bytes and still opens no file.
     - `include/assets/image.h`, added:
 
@@ -125,7 +125,7 @@ before you say done. Say which platform you verified on and what you could not c
     exits zero.
 
 - [ ] 4. `render/` — read a target back
-  - Change: Decision: `decisions/0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md`.
+  - Change: Decision: `Agentic/decisions/0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md`.
     The pixels only exist on the card; this is the way back, and it is public now because a program
     that saves a picture is the caller rule 10 was waiting for.
     - `include/render/device.h`, in the targets section:
@@ -178,7 +178,7 @@ before you say done. Say which platform you verified on and what you could not c
     where there is no card — then say so) and `cmake -P check.cmake` exits zero.
 
 - [ ] 5. `app/` — start with no window, and save a picture
-  - Change: Decision: `decisions/0157-*.md` points 4 and 5. Two calls, and they are what make a
+  - Change: Decision: `Agentic/decisions/0157-*.md` points 4 and 5. Two calls, and they are what make a
     program able to draw with no display and write what it drew.
     - `CMakeLists.txt`: `voe_module(app DEPENDS render assets platform math base)` — `assets` is an
       edge `cmake/voe.cmake` already allows; nothing else changes.
@@ -215,7 +215,7 @@ before you say done. Say which platform you verified on and what you could not c
     reason where there is no card — then say so) and `cmake -P check.cmake` exits zero.
 
 - [ ] 6. `3d/` — a pass may hide one entity
-  - Change: Decision: `decisions/0158-a-pass-may-hide-one-entity.md`. A surface showing a target
+  - Change: Decision: `Agentic/decisions/0158-a-pass-may-hide-one-entity.md`. A surface showing a target
     must not be drawn into the pass that draws that target — Vulkan leaves reading an image while
     writing it undefined, and `render`'s debug check already asserts on it.
     - `include/3d/draw_system.h`: `voe_3d_frame` gains `voe_ecs_entity hidden;` after `light`, with

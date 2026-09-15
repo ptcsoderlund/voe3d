@@ -53,5 +53,5 @@ or, pressed again, closes the window.
 ## Where to read more
 
 - `CLAUDE.md` — the engine's rules, folder map and world conventions.
-- `decisions/` — why things are the way they are, one record per decision.
+- `Agentic/decisions/` — why things are the way they are, one record per decision.
 - Each folder's `<folder>.md` — what is in it.

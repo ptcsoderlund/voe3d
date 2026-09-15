@@ -13,12 +13,12 @@ show a camera standing in the same world (ADR-0158).
 
 - Reading a target back becomes `render`'s public surface, RGBA8, straight alpha, top row first —
   rule 10's caller now exists, and the format knowledge stays where the format is. Project-wide:
-  `decisions/0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md`.
+  `Agentic/decisions/0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md`.
 - `platform` writes whole files, `assets` encodes bytes, `render` reads a target, `app` ties them
   in `voe_app_capture_png` and can open with no window. Project-wide:
-  `decisions/0157-saving-a-picture-is-one-call-in-app-over-three-folders.md`.
+  `Agentic/decisions/0157-saving-a-picture-is-one-call-in-app-over-three-folders.md`.
 - `voe_3d_frame` gains `hidden`, so the pass drawing a target does not draw the surface showing it.
-  Project-wide: `decisions/0158-a-pass-may-hide-one-entity.md`.
+  Project-wide: `Agentic/decisions/0158-a-pass-may-hide-one-entity.md`.
 - **The PNG is written with our own DEFLATE, fixed Huffman codes and a greedy match finder**
   (rule 5, ADR-0023). Not stored blocks: an editor screenshot is mostly flat colour, which is
   where matching pays, and a stored-block file is the pixel count plus five bytes per 65 535. Not

@@ -158,7 +158,7 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0152-loading-a-scene-is-creation-and-the-reader-adds-rows-directly.md` — Loading a scene is creation, and the reader adds rows directly.
 - `0153-overflow-is-opt-in-a-container-may-wrap-or-clip-and-a-scroll-area-remembers-its-offset.md` — Overflow is opt-in: a container may wrap or clip, and a scroll area remembers its offset.
 - `0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md` — An array item is any value, and a described field declares its shape.
-- `0155-spec-driven-workflow-and-the-existing-stack.md` — Work goes spec → plan → tasks in `specs/`; `kanban/` is retired, `history/` keeps the cards, and the stack is recorded as it stands.
+- `0155-spec-driven-workflow-and-the-existing-stack.md` — Work goes spec → plan → tasks in `Agentic/specs/`; `kanban/` is retired, `history/` keeps the cards, and the stack is recorded as it stands.
 - `0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md` — Reading a target back is public, and a picture is RGBA8 with straight alpha.
 - `0157-saving-a-picture-is-one-call-in-app-over-three-folders.md` — Saving a picture is one call in `app` over three folders, and a program may start with no window.
 - `0158-a-pass-may-hide-one-entity.md` — A pass may hide one entity, because a surface showing a target may not be drawn into it.
