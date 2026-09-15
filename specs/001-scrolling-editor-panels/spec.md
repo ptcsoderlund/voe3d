@@ -1,8 +1,8 @@
 # 001 Scrolling editor panels
 
-Status: acceptance
+Status: accepted
 Approved: 2026-09-14
-Accepted: -
+Accepted: 2026-09-15
 
 Nothing in the editor draws outside its column any more. When a column is too narrow, the
 inspector folds a field's number boxes onto lines under its label. When a column is too small for

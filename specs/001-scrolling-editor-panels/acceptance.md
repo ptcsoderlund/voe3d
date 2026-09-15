@@ -73,3 +73,27 @@ Checked on Linux only, as the spec says. The wheel is written for Windows but no
 it there; if it is wrong on Windows it arrives later as a report.
 
 ## Results
+
+**2026-09-15 — accepted.** The sponsor tried it and reported "Everything is good."
+
+1. Every number box inside the Inspector column — passed.
+2. Narrowing folds a vector field's boxes onto lines under its label, widening puts them
+   back — passed.
+3. Narrowing further shows a horizontal scrollbar and scrolling sideways reaches the box —
+   passed.
+4. Wheel, thumb drag and track paging all scroll the overflowing inspector; dragging a number
+   box still edits its value — passed.
+5. Selecting an entity with fewer components shows the column from the top of its content —
+   passed.
+6. The wheel over a scene view does nothing; picture and camera drag unchanged — passed.
+7. One notch towards you scrolls content up into view; a sideways tilt scrolls sideways, on
+   Linux — passed, reported separately and earlier as "Wheel works".
+8. The Scene list column scrolls the same way — passed.
+9. `cmake -P check.cmake` exits zero on Linux — passed, run by the coder, the task reviewer
+   and the feature reviewer independently.
+
+Also reported: the sponsor accepts the short horizontal scrollbar that remains at ordinary
+window sizes, which is there because the component title `voe_scene_transform` is a single
+unbreakable word about twice the column's width. "I can live with the horizontal scrollbar
+because of the long word." Not a defect and not deferred work — no card, no open question. If
+it ever becomes annoying, shortening such a title with an ellipsis is a new wish.
