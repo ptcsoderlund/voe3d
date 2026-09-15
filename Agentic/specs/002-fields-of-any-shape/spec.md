@@ -1,6 +1,6 @@
 # 002 Fields of any shape
 
-Status: approved
+Status: building
 Approved: 2026-09-14
 Accepted: -
 
