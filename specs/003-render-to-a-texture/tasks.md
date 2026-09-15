@@ -4,7 +4,7 @@ Every task finishes with `cmake -P check.cmake` exiting zero on Linux (ADR-0130,
 Where a task also names a narrower command, run the narrow one while working and the whole check
 before you say done. Say which platform you verified on and what you could not check there.
 
-- [ ] 1. `platform/` — write a whole file
+- [x] 1. `platform/` — write a whole file
   - Change: Decision: `decisions/0157-*.md` point 1. `platform` owns files and has had no API for
     them; this is the first, and it stays one call.
     - `include/platform/file.h`, new:
