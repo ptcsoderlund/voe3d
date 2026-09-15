@@ -313,7 +313,7 @@ Nothing greps for this class. The sponsor declined a `check.cmake` step for it (
 builds and runs on Windows every now and then and fixes what shows, which is ADR-0130 applied to a
 build break. So a task here fixes the sites that are known, and no more.
 
-- [ ] 9. `editor/` — parse `--size` without the C library
+- [x] 9. `editor/` — parse `--size` without the C library
   - Change: `src/main.c:237`'s `sscanf` is the reported defect and is replaced by a parser in this
     file. ADR-0159: not `sscanf_s` (Linux has none), not `_CRT_SECURE_NO_WARNINGS` (rule 8), and
     no `#ifdef` — one parser, compiled identically on both platforms.

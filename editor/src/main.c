@@ -94,6 +94,7 @@
 
 #include <ui/widgets.h>
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -181,6 +182,32 @@ static void say_whether_descriptions_are_in(void)
 #endif
 }
 
+// Reads one run of ASCII '0'-'9' from `text`, writes the value through `out`
+// and returns the pointer to the first character that is not a digit. NULL
+// when there is no digit at all, and NULL when the value would pass INT_MAX —
+// checked before the multiply, not after, so nothing overflows. No sign, no
+// leading blank, no `errno`, no locale: --size's promised form is `<W>x<H>`
+// and nothing relies on either.
+static const char *number(const char *text, int *out)
+{
+	int value = 0;
+	bool any = false;
+
+	while (*text >= '0' && *text <= '9') {
+		int digit = *text - '0';
+
+		if (value > (INT_MAX - digit) / 10)
+			return NULL;
+		value = value * 10 + digit;
+		any = true;
+		text++;
+	}
+	if (!any)
+		return NULL;
+	*out = value;
+	return text;
+}
+
 // One line, on stderr, and the return code that goes with it. Every way of
 // getting the command line wrong ends here: there is one form to state and
 // stating it twice in different words would be two forms to keep in step.
@@ -225,20 +252,34 @@ int main(int argc, char *argv[])
 	int status = 0;
 
 	// THE COMMAND LINE IS READ BEFORE ANYTHING IS OPENED, so a mistyped
-	// argument costs nothing and says so straight away. `%n` is what makes
-	// the whole of `--size`'s value have to be the size: "1280x720nonsense"
-	// is a mistake, not a 1280x720.
+	// argument costs nothing and says so straight away. `--size`'s value is
+	// parsed here rather than by the C library (ADR-0159: Windows' runtime
+	// deprecates `sscanf` under -Werror and rule 8 forbids silencing that
+	// tree-wide), by `number`, above, twice, with an `x` between and nothing
+	// after — refusing a trailing character is what `%n` and a length check
+	// used to do, so "1280x720nonsense" is still a mistake and not a
+	// 1280x720. `argv[a + 1]` is parsed in full before `a` moves, which the
+	// old code did not need to do inside its `&&` chain. One clause on the
+	// parser itself: it is stricter than `%d` about a leading blank or a
+	// leading '+' — neither was ever part of the promised form `<W>x<H>`
+	// and nothing relied on them.
 	for (int a = 1; a < argc; a++) {
-		int consumed = 0;
-
 		if (strcmp(argv[a], "--capture") == 0 && a + 1 < argc) {
 			capture = argv[++a];
-		} else if (strcmp(argv[a], "--size") == 0 && a + 1 < argc &&
-			   sscanf(argv[a + 1], "%dx%d%n", &wide, &high,
-				  &consumed) == 2 &&
-			   argv[++a][consumed] == '\0' && wide > 0 &&
-			   high > 0) {
+		} else if (strcmp(argv[a], "--size") == 0 && a + 1 < argc) {
+			int w, h;
+			const char *rest = number(argv[a + 1], &w);
+
+			if (rest != NULL && *rest == 'x')
+				rest = number(rest + 1, &h);
+			else
+				rest = NULL;
+			if (rest == NULL || *rest != '\0' || w <= 0 || h <= 0)
+				return usage();
+			wide = w;
+			high = h;
 			sized = true;
+			a++;
 		} else {
 			return usage();
 		}
