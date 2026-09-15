@@ -162,3 +162,4 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md` — Reading a target back is public, and a picture is RGBA8 with straight alpha.
 - `0157-saving-a-picture-is-one-call-in-app-over-three-folders.md` — Saving a picture is one call in `app` over three folders, and a program may start with no window.
 - `0158-a-pass-may-hide-one-entity.md` — A pass may hide one entity, because a surface showing a target may not be drawn into it.
+- `0159-the-crt-calls-windows-deprecates-are-written-ourselves.md` — The CRT calls Windows deprecates are written ourselves, and nothing is silenced tree-wide.

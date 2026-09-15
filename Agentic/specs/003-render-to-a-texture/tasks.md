@@ -298,3 +298,92 @@ before you say done. Say which platform you verified on and what you could not c
     `cmake --build --preset debug --target voe_dev`, `./build/debug/dev/voe_dev` opens and the surface
     shows the second camera's view of the world, changing as the world moves — say in your report
     what you saw, and on a machine with no compositor say that and stop there.
+
+## Windows build break, reported at acceptance 2026-09-15
+
+The feature was verified on Linux only (ADR-0130) and does not compile on Windows: Clang against
+the MSVC C runtime deprecates a set of C library calls and `-Werror` turns each into an error.
+Decision: `Agentic/decisions/0159-the-crt-calls-windows-deprecates-are-written-ourselves.md`.
+Task 9 is the reported defect. Tasks 10 and 11 are two more call sites of the same class on this
+branch: both tests read a file back with `fopen`, which the same runtime deprecates in the same
+way, so `check.cmake` on Windows would stop at the tests before it could show the sponsor that
+task 9 worked. They go in with it rather than after it.
+
+Nothing greps for this class. The sponsor declined a `check.cmake` step for it (2026-09-15): he
+builds and runs on Windows every now and then and fixes what shows, which is ADR-0130 applied to a
+build break. So a task here fixes the sites that are known, and no more.
+
+- [ ] 9. `editor/` — parse `--size` without the C library
+  - Change: `src/main.c:237`'s `sscanf` is the reported defect and is replaced by a parser in this
+    file. ADR-0159: not `sscanf_s` (Linux has none), not `_CRT_SECURE_NO_WARNINGS` (rule 8), and
+    no `#ifdef` — one parser, compiled identically on both platforms.
+    - A file-local helper above `usage()`:
+      `static const char *number(const char *text, int *out);` — reads one run of ASCII `'0'`–`'9'`
+      from `text`, writes the value through `out` and returns the pointer to the first character
+      that is not a digit. It returns `NULL` when there is no digit at all and when the value would
+      pass `INT_MAX` — checked before the multiply, not after, so nothing overflows. No sign, no
+      leading blank, no `errno`, no locale. `#include <limits.h>` for `INT_MAX`; `<stdio.h>` and
+      `<string.h>` stay for `fprintf` and `strcmp`.
+    - `--size`'s value is then exactly: `number`, the character `x`, `number`, `'\0'`, with both
+      numbers above zero. Anything else is `usage()` — one line on stderr, return 2 — as now.
+      Parse `argv[a + 1]` in full first and advance `a` only once it is accepted; the old code
+      incremented inside the `&&` chain, which the replacement does not need.
+    - Comments: the paragraph above the argument loop explains `%n` — rewrite it. It says the value
+      is parsed here rather than by the C library, why (ADR-0159, one line, no argument), and that
+      refusing a trailing character is what `%n` and the `[consumed] == '\0'` test used to do, so
+      `1280x720nonsense` is still a mistake.
+    - Say in the comment, in one clause, that the parser is stricter than `%d` about a leading
+      blank or a `+`: neither was ever part of the promised form `<W>x<H>` and nothing relied on
+      them. Everything else about `--size` is unchanged.
+    - `editor/editor.md`: `main.c`'s line already says where the command line is read. Change it
+      only if it has become wrong; nothing new is public here.
+  - Covers: 4 (its command line), 7
+  - Depends on: -
+  - Done when: `cmake -P check.cmake` exits zero, and, after
+    `cmake --build --preset debug --target voe_editor`, every refusal below prints one usage line
+    on stderr and the exit code 2:
+
+        for a in "--size 1280x720" "--capture /tmp/x.png --size 1280x720nonsense" \
+                 "--capture /tmp/x.png --size 1280x" "--capture /tmp/x.png --size x720" \
+                 "--capture /tmp/x.png --size 0x720" "--capture /tmp/x.png --size -1x720" \
+                 "--capture /tmp/x.png --size 1280" "--capture /tmp/x.png --size 99999999999x720" \
+                 "--capture" "--frobnicate"; do
+            ./build/debug/editor/voe_editor $a; echo "$? <- $a"
+        done; ls /tmp/x.png
+
+    `/tmp/x.png` does not exist afterwards, and the good line still works: with `WAYLAND_DISPLAY`
+    unset, `./build/debug/editor/voe_editor --capture /tmp/editor.png --size 1280x720; echo $?`
+    prints 0 and task 7's `python3` one-liner prints `1280 720` with a length well above a blank
+    file's.
+
+- [ ] 10. `platform/` — the test's oracle survives the Windows CRT
+  - Change: `tests/file.c`'s `read_back` opens the written file with `fopen`, which the MSVC CRT
+    deprecates exactly as it does `sscanf`; under `-Werror` this test does not compile on Windows.
+    ADR-0159: the C library stays the oracle — the file's header already says why reading back with
+    our own folder would let a matching pair of bugs pass, and `platform` has no reader (rule 10) —
+    and the one call is suppressed at the site.
+    - Bracket the `fopen` call, and nothing else in the function, with
+      `#pragma clang diagnostic push` / `#pragma clang diagnostic ignored "-Wdeprecated-declarations"`
+      / `#pragma clang diagnostic pop`. Two or three lines of comment above it: which runtime
+      deprecates it, that the replacement it names is Annex K's `fopen_s` and Linux has none, that
+      this is `tests/` and never `src/`, and ADR-0159.
+    - `fread`, `fclose` and the rest are not deprecated and do not move. Nothing else in the file
+      changes.
+    - `platform/platform.md`: no change — a test's internals are not in a table of contents.
+  - Covers: 7 (on the other platform)
+  - Depends on: -
+  - Done when: `ctest --test-dir build/debug -R '^platform/file$'` passes and `cmake -P check.cmake`
+    exits zero on Linux — which is also the proof the pragma itself is clean, since `-Wall -Wextra
+    -Wpedantic -Werror` would report an unknown one.
+
+- [ ] 11. `app/` — the same, for the capture test's reader
+  - Change: `tests/capture.c`'s `read_whole_file` opens the written PNG with `fopen`, the same
+    deprecation as task 10 and the same fix, for the same reason: the file this test checks is the
+    one `app` just wrote, so the reader must not be `app`'s.
+    - The same three pragma lines around the one `fopen` call, the same comment naming ADR-0159.
+      `fseek`, `ftell`, `rewind`, `fread`, `fclose` are untouched.
+    - `app/app.md`: no change.
+  - Covers: 7 (on the other platform)
+  - Depends on: -
+  - Done when: `ctest --test-dir build/debug -R '^app/'` passes (the capture test skipping with a
+    reason where there is no card — then say so) and `cmake -P check.cmake` exits zero on Linux.

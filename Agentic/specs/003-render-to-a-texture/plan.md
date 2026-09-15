@@ -26,6 +26,12 @@ show a camera standing in the same world (ADR-0158).
   `assets/src/inflate.c` and python3's `zlib` are both oracles for it. Feature-local.
 - **The encoder writes colour type 6 (RGBA), 8 bits, no interlace, filter 0 on every row.** One
   path, and the decoder beside it already proves the other filters are readable. Feature-local.
+- **A call the Windows C runtime deprecates is a build error there, so what it did is written
+  here** — the editor's `--size` is parsed by a dozen lines of our own rather than by `sscanf`, and
+  the two tests that read a file back keep the C library as their oracle and suppress at that one
+  call. Nothing is defined to silence the class and nothing greps for it: the sponsor builds on
+  Windows every now and then and fixes what shows. Added after his build failed at acceptance.
+  Project-wide: `Agentic/decisions/0159-the-crt-calls-windows-deprecates-are-written-ourselves.md`.
 - No new dependency edge anywhere. `app` adds `assets` to its `DEPENDS`, which
   `cmake/voe.cmake` already allows; nothing is added to `base`, `math`, `ecs` or `scene`, which is
   what makes criterion 5 true by construction.
@@ -67,3 +73,7 @@ show a camera standing in the same world (ADR-0158).
 - By hand, the sponsor: run `voe_dev` and watch the surface in the world showing the second
   camera's view change as the scene moves (criterion 1); open a captured PNG in an image viewer
   and compare it with the same frame on screen (criteria 2, 6).
+- By hand, the sponsor, on Windows: `cmake --build --preset debug --target voe_editor` builds and
+  `cmake -P check.cmake` gets past the tests, so the run reaches the capture he came to try.
+  Criterion 7 is Linux's; this answers the report of 2026-09-15 and is not a second acceptance bar.
+  Whatever else that build turns up is the next report (ADR-0130, ADR-0159).
