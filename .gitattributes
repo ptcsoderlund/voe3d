@@ -1,0 +1,14 @@
+# Line endings are LF in the repository, everywhere.
+#
+# The tree is worked on from WSL through a 9p mount of a Windows disk, which
+# hands every file back with CRLF. Without this, git stored whatever it was
+# given: 444 files read as modified when nothing had changed, `git switch`
+# refused to move between branches, and 16 files reached the index with CRLF
+# in them. text=auto normalises on the way in, so what is on disk no longer
+# matters.
+*	text=auto eol=lf
+
+# Never touched.
+*.png	binary
+*.glb	binary
+*.ttf	binary
