@@ -177,7 +177,7 @@ before you say done. Say which platform you verified on and what you could not c
   - Done when: `ctest --test-dir build/debug -R '^render/targets$'` passes (or skips with a reason
     where there is no card — then say so) and `cmake -P check.cmake` exits zero.
 
-- [ ] 5. `app/` — start with no window, and save a picture
+- [x] 5. `app/` — start with no window, and save a picture
   - Change: Decision: `Agentic/decisions/0157-*.md` points 4 and 5. Two calls, and they are what make a
     program able to draw with no display and write what it drew.
     - `CMakeLists.txt`: `voe_module(app DEPENDS render assets platform math base)` — `assets` is an
