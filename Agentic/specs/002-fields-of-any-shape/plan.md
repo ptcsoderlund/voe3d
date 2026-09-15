@@ -11,7 +11,7 @@ code removed (task 2). No real component gains an array; test components prove t
 - An array item is any value; a field is one kind and 0–7 dimensions, outermost first; `count`
   stays the total element count; `CHAR`'s innermost dimension is the string's bytes; the reader
   refuses past 8 bracket levels — decided before this spec. Project-wide:
-  `decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`.
+  `Agentic/decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`.
 - Task 1 edits the two downstream declarations its new macro spelling breaks
   (`scene/include/scene/identity_component.h`, and `base/tests/describe.c` in its own folder) — the
   call-site licence in the project `CLAUDE.md` (*a card owns the call sites of a change it

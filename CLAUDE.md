@@ -14,7 +14,7 @@ A general-purpose real-time 3D engine in C23 and Vulkan, with its editor and dev
 - C prefix: `voe_`, everywhere (rule 7).
 - Tests live beside the code, at `<folder>/tests/<module>.c` (rule 12).
 - Reading the guidelines in C: a namespace is a **folder**; a module is a **component plus its system**, possibly several files in one folder sharing the module name; a class owning its data is a component struct whose fields only its own system writes.
-- `ADR-NNNN` in code and comments means `decisions/NNNN-*.md`. "card NNN" means a file under `history/cards/`, "bug NNN" one under `history/bugs/`.
+- `ADR-NNNN` in code and comments means `Agentic/decisions/NNNN-*.md`. "card NNN" means a file under `history/cards/`, "bug NNN" one under `history/bugs/`.
 - Throwaway spikes do not live in this repository.
 
 ## Givens
@@ -157,4 +157,4 @@ Daily work: `cmake --preset debug` at the root, then build `voe_<folder>`. Stand
 ## Never touch
 
 - `history/` — finished cards and bug reports, cited from code; read-only
-- `decisions/0001`–`0154` — written in the earlier format; never edited, a change is a new record
+- `Agentic/decisions/0001`–`0154` — written in the earlier format; never edited, a change is a new record

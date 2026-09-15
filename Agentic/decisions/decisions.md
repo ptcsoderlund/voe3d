@@ -158,4 +158,4 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0152-loading-a-scene-is-creation-and-the-reader-adds-rows-directly.md` — Loading a scene is creation, and the reader adds rows directly.
 - `0153-overflow-is-opt-in-a-container-may-wrap-or-clip-and-a-scroll-area-remembers-its-offset.md` — Overflow is opt-in: a container may wrap or clip, and a scroll area remembers its offset.
 - `0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md` — An array item is any value, and a described field declares its shape.
-- `0155-spec-driven-workflow-and-the-existing-stack.md` — Work goes spec → plan → tasks in `specs/`; `kanban/` is retired, `history/` keeps the cards, and the stack is recorded as it stands.
+- `0155-spec-driven-workflow-and-the-existing-stack.md` — Work goes spec → plan → tasks in `Agentic/specs/`; `kanban/` is retired, `history/` keeps the cards, and the stack is recorded as it stands.

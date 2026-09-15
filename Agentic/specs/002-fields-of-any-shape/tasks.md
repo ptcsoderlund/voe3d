@@ -1,7 +1,7 @@
 # 002 Fields of any shape — tasks
 
 - [ ] 1. `base/` — a described field declares its shape
-  - Change: Decision: `decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`
+  - Change: Decision: `Agentic/decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`
     points 5, 6, 9 and 10 — a field is one kind and up to seven fixed dimensions, and every kind
     may be an array.
 
@@ -77,7 +77,7 @@
     `ctest --test-dir build/check/root -R 'describe|identity'` passes.
 
 - [ ] 2. `authoring/` — writes and reads a field of any shape
-  - Change: Decision: `decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`
+  - Change: Decision: `Agentic/decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`
     points 1–4, 7 and 8, and its paragraph on what a writer emits — arrays nest as the field's shape
     says, to 8 levels.
 
