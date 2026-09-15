@@ -214,7 +214,7 @@ before you say done. Say which platform you verified on and what you could not c
   - Done when: `ctest --test-dir build/debug -R '^app/'` passes (the capture test skipping with a
     reason where there is no card — then say so) and `cmake -P check.cmake` exits zero.
 
-- [ ] 6. `3d/` — a pass may hide one entity
+- [x] 6. `3d/` — a pass may hide one entity
   - Change: Decision: `Agentic/decisions/0158-a-pass-may-hide-one-entity.md`. A surface showing a target
     must not be drawn into the pass that draws that target — Vulkan leaves reading an image while
     writing it undefined, and `render`'s debug check already asserts on it.
