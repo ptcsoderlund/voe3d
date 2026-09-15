@@ -60,3 +60,18 @@
 7. **The checks pass** — `cmake -P check.cmake` exits zero, as in Start it.
 
 ## Results
+
+### 2026-09-15 — reported by the sponsor
+
+Testing did not get past the build. On Windows, `voe_editor` fails to compile:
+
+    editor/src/main.c:237: error: 'sscanf' is deprecated: This function or variable may be unsafe.
+    Consider using sscanf_s instead. [-Werror,-Wdeprecated-declarations]
+
+Clang 19 with the MSVC C runtime marks `sscanf` deprecated, and `-Werror` makes that an error.
+The `--size <W>x<H>` parsing added by task 7 is the only use of it in the tree.
+
+- Criteria 1–7: **not reached** — the sponsor could not build on Windows, so nothing was tried.
+- The spec's Linux-first constraint says Windows problems arrive later as reports; this is that
+  report, and it is a build break rather than a behaviour question, so it is fixed before
+  acceptance resumes.
