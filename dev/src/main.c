@@ -1,7 +1,8 @@
 // voe_dev — the one program a person runs to see what the engine can currently
 // do. Today it opens a window holding a world: two cubes placed by hand, a
 // model read out of a `.glb` file, two see-through quads standing either side of
-// them, a lettered sign above them, a line of writing locked to the camera, one
+// them, a lettered sign above them, a line of writing locked to the camera, a
+// screen off to the left showing a second camera's view of the same world, one
 // sun going round it all, and a camera that either orbits them or is
 // flown. There is one of these and it always shows the
 // current state, so what is here now is expected to be deleted rather than kept
@@ -39,14 +40,21 @@
 // THE LOOP OWNS THE FRAME (ADR-0098), AND SINCE CARD 052 ITS PARTS COME FROM
 // `app` (ADR-0135). voe_app_frame_open opens the frame, voe_app_draw_open and
 // voe_app_draw_close bracket the draw, and the phases between them run in a
-// fixed order: open; one pass onto the window with the world's camera; build
-// what changes this frame, which is the readout; the draw system walks the
-// world; the pass closed; close, which presents. Building comes after the
-// open because geometry that lives one frame can only be built once the frame's
-// slot is known, and before the walk because the walk is what draws it. An open
-// that says there is nothing to draw into — a window with no area, a swapchain
-// that has just gone stale — skips all three; that case is the loop's and not
-// the draw system's.
+// fixed order: open; build what changes this frame, which is the readout and the
+// two panels' records; a pass onto the monitor's target with the monitor's
+// camera, walked and closed; a pass onto the window with the world's camera,
+// walked and closed; close, which presents. Building comes after the open
+// because geometry that lives one frame can only be built once the frame's slot
+// is known, and before both passes because both of them walk the same world —
+// something built after the first pass would be missing from that pass and stale
+// in it the frame after. An open that says there is nothing to draw into — a
+// window with no area, a swapchain that has just gone stale — skips all of it;
+// that case is the loop's and not the draw system's.
+//
+// THE MONITOR'S PASS IS FIRST BECAUSE THE WINDOW'S PASS SHOWS WHAT IT DREW. A
+// target written after it has been read in the same frame would put last frame's
+// picture on the screen, and reading and writing one image in one pass is what
+// `hidden` exists to prevent — see src/monitor.h.
 //
 // WHAT `app` DOES NOT DO IS THE POINT OF IT. There is no loop, no callback and
 // no function pointer in that folder: the `while` below is this file's, and so
@@ -98,6 +106,25 @@
 // that stays where it is however the camera moves and that nothing gets in front
 // of.
 //
+// AND OFF TO THE LEFT, A SCREEN SHOWING THIS SAME WORLD FROM SOMEWHERE ELSE. A
+// square standing on nothing, turned towards the middle of the scene, holding a
+// second camera's picture: the cubes and the figure from high up and in front,
+// lit by the same sun at the same instant, with the turning cube turning in it
+// and the sun crossing it. It is a target drawn into once a frame and worn as an
+// ordinary texture by an ordinary quad — see src/monitor.h. The world's own
+// camera orbits and the second one does not, so what is on the screen holds
+// still while everything around it swings.
+//
+// IT IS ONE-SIDED, SO HALF OF EVERY LAP IT IS NOT THERE. A screen has a back,
+// and the back of this one is culled; the alternative would show the picture
+// mirrored, which is the one thing this program's whole cast of lettered objects
+// exists to make a person suspicious of.
+//
+// AND IT IS MISSING FROM ITS OWN PICTURE, WHICH IS THE POINT. The pass that
+// fills the target leaves the screen out (ADR-0158) — so there is no screen
+// inside the screen, and no hall of mirrors, and no image being read while it is
+// written.
+//
 // And in the top-left of the view, lines of numbers that change as you watch:
 // the frame rate, the four timings — the same ones the console prints — the
 // pointer, and what the last frame cost in draw commands and element records.
@@ -116,11 +143,17 @@
 // hold still. The count includes the draw that put this readout on screen,
 // which is why counting the things you can see gives one fewer.
 //
+// AND IT COUNTS BOTH PASSES, WHICH IS WHY IT IS ABOUT TWICE WHAT IS ON SCREEN.
+// The monitor walks the same world into its own target before the window's pass
+// runs, so nearly everything visible is drawn twice a frame. The console line
+// printed once at startup says how many of the frame's commands the window's own
+// walk was, which is the half that matches what a person can count.
+//
 // THE WORST COLUMN IS THE POINT OF MAKING IT A METRIC. In this demo the scene
-// is identical every frame, so the average and the worst are both 32 and the
-// column looks like decoration. The day anything varies what is drawn — culling,
-// streaming, an interface that grows — the worst frame in the period is the
-// number that matters and the average is the one that hides it.
+// is identical every frame, so the average and the worst are both the same
+// number and the column looks like decoration. The day anything varies what is
+// drawn — culling, streaming, an interface that grows — the worst frame in the
+// period is the number that matters and the average is the one that hides it.
 //
 // And three surfaces of elements, which are two different kinds of thing:
 //
@@ -327,6 +360,26 @@
 //   - The world's picture gone and only the overlay left — the depth clear
 //     cleared colour as well. Only the depth aspect may be named; see
 //     render/src/frame.c.
+//   - THE PROGRAM STOPPING AT AN ASSERT NAMING A DRAW WHOSE SHADING RECORD
+//     NAMES THE OPEN PASS'S TARGET TEXTURE — the monitor's `hidden` is not
+//     reaching the walk, so the pass filling the target is drawing the screen
+//     that shows it. It is a debug check (render/device.h): a release build
+//     draws it, and what a person sees is whatever the driver felt like doing
+//     with an image being read and written at once. See src/monitor.h.
+//   - The screen darkening and going black as the sun crosses it — its material
+//     is not unlit, so what is on it is the picture times a lambert term rather
+//     than the picture.
+//   - The screen holding one still picture, or noise, or the background colour —
+//     nothing drew into its target this frame. A target nobody draws into keeps
+//     whatever its frame slot last held, which is a picture several frames old
+//     and then never changes; the monitor's pass is not being opened, or it was
+//     opened onto the wrong target.
+//   - The screen showing a screen showing a screen — `hidden` is naming the
+//     wrong entity, and in a release build that is what the undefined read
+//     happens to look like on a card that keeps the previous contents.
+//   - The screen's picture stretched or squashed — it is square, drawn square
+//     and shown on a square quad, so every one of those three has to agree; the
+//     aspect ratio in src/monitor.c is the target's own and never the window's.
 //   - The three quads inside the turning cube showing the far one's colour on
 //     top of the near one's — the sort, inside the overlay, which is the same
 //     sort and the same sign as the world's pair. It swaps twice a lap, so a
@@ -503,6 +556,7 @@
 #include "cubes.h"
 #include "elements.h"
 #include "interface.h"
+#include "monitor.h"
 #include "surface.h"
 #include "quad.h"
 #include "shrink.h"
@@ -554,12 +608,26 @@
 #define MAX_INTENT_TYPES 8
 
 // What the GPU makes room for. The cube is 24 vertices and the model is not
-// much more; the rest is headroom for the next thing dropped in here.
+// much more; the rest is headroom for the next thing dropped in here — the
+// monitor's screen is one geometry, one shading record and one entity out of it.
+//
+// MAX_DRAWN_OBJECTS IS PER FRAME AND THE FRAME NOW HAS TWO PASSES IN IT. Every
+// drawable is recorded once per pass it is drawn in, and the monitor draws the
+// whole world a second time, so the number this program actually spends is about
+// twice what is on the screen. It is still a small fraction of this.
 #define MAX_VERTICES (64 * 1024)
 #define MAX_INDICES (128 * 1024)
 #define MAX_MESHES 64
 #define MAX_DRAWN_OBJECTS 256
 #define MAX_SHADINGS 64
+
+// How many passes one frame opens, and how many targets this program makes over
+// its life. Two passes: the monitor's own target and then the window. One
+// target, the monitor's — the window's is not one of these and costs nothing
+// here. Each target also spends one of the device's texture slots, which is the
+// one number in this list that is not asked for by name.
+#define MAX_PASSES 2
+#define MAX_TARGETS 1
 
 // What the GPU makes room for per frame: geometry that lives one frame, which
 // today is the readout and nothing else. Sized in glyphs because that is what
@@ -2018,12 +2086,12 @@ int main(void)
 	// difference is what the walk cost, which is every mesh plus one per
 	// panel.
 	//
-	// THE FIRST IS NOUGHT TODAY AND IS STILL READ. Nothing is drawn between
-	// _begin and the walk — the readout is built there, but building a mesh
-	// is not drawing it — so the count is nought at that point every frame.
-	// The pair is kept rather than collapsed to one read because it stays
-	// correct the day something IS drawn before the walk, and a subtraction
-	// that is trivially right costs nothing to leave standing.
+	// THE FIRST IS THE MONITOR'S WHOLE PASS, WHICH IS WHY THE PAIR IS A
+	// SUBTRACTION AND NOT ONE READ. The monitor walks the same world into
+	// its own target before the window's pass opens, so by the time the
+	// window's walk starts the frame already holds that pass's draws. The
+	// difference is still exactly what the window's walk cost, which is what
+	// the line printed below claims it is.
 	bool elements_ok = true;
 	uint32_t draws_before_walk = 0;
 	uint32_t draws_after_walk = 0;
@@ -2035,6 +2103,10 @@ int main(void)
 	uint32_t badge_first = 0;
 	voe_render_geometry quad = { 0 };
 	voe_dev_sprites sprites = { 0 };
+	// The second camera's picture and the screen in the world that shows it.
+	// Its target, its camera and its screen entity are all made once, below;
+	// the loop asks it only what its pass is drawn with.
+	voe_dev_monitor monitor = { 0 };
 	voe_text_font *font = NULL;
 	voe_ui_context *interface = NULL;
 	uint32_t interface_elements = 0;
@@ -2058,9 +2130,12 @@ int main(void)
 		.elements = VOE_DEV_ELEMENTS + VOE_DEV_BADGE_ELEMENTS +
 			    VOE_DEV_SURFACE_ELEMENTS +
 			    VOE_DEV_INTERFACE_ELEMENTS,
-		// One pass onto the window a frame, with the world's camera,
-		// and everything this program draws is inside it.
-		.passes = 1,
+		// Two passes a frame: the monitor's, onto its own target with
+		// its own camera, and then the window's with the world's
+		// camera. Everything this program draws is inside one of the
+		// two, and the monitor's target is the one target it makes.
+		.passes = MAX_PASSES,
+		.targets = MAX_TARGETS,
 	};
 	voe_ecs_limits limits = {
 		.entities = MAX_ENTITIES,
@@ -2234,6 +2309,16 @@ int main(void)
 			 sizeof(HUMAN_GLB), HUMAN_X, &error))
 		VOE_BASE_ERROR("dev", "could not read the human model: %s",
 			       voe_base_error_string(error));
+
+	// The monitor, last, because its screen stands in the world everything
+	// above just built and its picture is that world seen from somewhere
+	// else. Making a target waits for the card, so it happens here and never
+	// in the loop — see src/monitor.h.
+	if (!voe_dev_monitor_create(&monitor, world, gpu, &error)) {
+		VOE_BASE_ERROR("dev", "could not build the monitor: %s",
+			       voe_base_error_string(error));
+		goto stop;
+	}
 
 	size = voe_platform_window_size(window);
 	decorated = voe_platform_window_decorated(window);
@@ -2475,12 +2560,13 @@ int main(void)
 		voe_base_samples_add(&timing.update, after_update - top);
 
 		// THE FRAME, IN THE ORDER THE HEADER GIVES: the camera and the sun
-		// out of the tables, the draw opened, a pass onto the window with
-		// that camera, build what changes this frame, the walk, the pass
-		// and the draw closed. An open that says there is nothing to draw
-		// into skips everything in the middle and the loop comes round
-		// again — it does not wait, which is what the spin on a minimised
-		// window is.
+		// out of the tables, the draw opened, build what changes this
+		// frame, a pass onto the monitor's target with the monitor's
+		// camera, a pass onto the window with the world's camera, the
+		// walk in each of them, and the draw closed. An open that says
+		// there is nothing to draw into skips everything in the middle
+		// and the loop comes round again — it does not wait, which is
+		// what the spin on a minimised window is.
 		frame = voe_3d_draw_system_frame(world, now_size);
 		if (!voe_app_draw_open(app, now_size, &drawing))
 			break;
@@ -2489,23 +2575,25 @@ int main(void)
 				.view = frame.view,
 				.light = frame.light,
 			};
+			// The monitor's own answer to the same question, and the
+			// one place in this program where a second camera
+			// exists. Its `hidden` is its screen — see
+			// src/monitor.h for why that is not optional.
+			voe_3d_frame monitor_frame =
+				voe_dev_monitor_frame(&monitor, world);
+			voe_render_pass_camera monitor_camera = {
+				.view = monitor_frame.view,
+				.light = monitor_frame.light,
+			};
 
-			// The first pass of a frame on a device made with room
-			// for one; refused only if that number were nought,
-			// which the device would have asserted on. The frame is
-			// still closed on the way out, so its slot is not left
-			// half recorded.
-			if (!voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW,
-						   &pass_camera)) {
-				(void)voe_app_draw_close(app);
-				break;
-			}
-
-			// Built inside the frame and before the walk, because
+			// Built inside the frame and before either pass, because
 			// that is the only place a one-frame mesh can be built
-			// and still be drawn. Its failure is looked at after the
-			// frame has been ended, so the slot's fence is never left
-			// waiting on a frame that was abandoned half recorded.
+			// and still be drawn — and because both passes walk the
+			// world, so anything built after the first of them would
+			// be missing from that one and stale in it the frame
+			// after. Its failure is looked at after the frame has
+			// been ended, so the slot's fence is never left waiting
+			// on a frame that was abandoned half recorded.
 			readout_ok = build_the_readout(world, gpu, font, arena,
 						       readout, window, &timing,
 						       &readout_glyphs, &error);
@@ -2518,6 +2606,13 @@ int main(void)
 			// one surface, read it again, and the difference is
 			// that surface's range — there is no id and nothing
 			// allocated.
+			//
+			// AND BEFORE ANY PASS, WHICH IS ALLOWED AND IS WHAT
+			// TWO PASSES NEED. Element submission belongs to the
+			// frame and not to a pass (render/device.h), so both
+			// the monitor's walk and the window's draw the same
+			// ranges of the same buffer — which is why the panels
+			// are on the picture the monitor shows.
 			//
 			// NOTHING IS DRAWN HERE. The draw system issues one
 			// draw per panel a moment later, in layer and sort
@@ -2539,6 +2634,34 @@ int main(void)
 				world, badge_panel, badge_first,
 				voe_render_frame_elements_submitted(gpu) -
 					badge_first);
+
+			// THE MONITOR'S PASS, AND IT IS FIRST BECAUSE THE
+			// WINDOW'S SHOWS WHAT IT DREW. The same world, the same
+			// walk and the same tables, from a camera of its own
+			// into a target of its own; the screen that shows the
+			// result is left out of it by monitor_frame.hidden.
+			// Second would be a target read in one pass and written
+			// in the next, and what the window showed would be the
+			// picture of the frame before.
+			if (!voe_render_pass_begin(gpu, monitor.target,
+						   &monitor_camera)) {
+				(void)voe_app_draw_close(app);
+				break;
+			}
+			voe_3d_draw_system_run(world, gpu, arena,
+					       monitor_frame);
+			voe_render_pass_end(gpu);
+
+			// The second pass of a frame on a device made with room
+			// for two; refused only if that number were too small,
+			// which is this file's mistake. The frame is still
+			// closed on the way out, so its slot is not left half
+			// recorded.
+			if (!voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW,
+						   &pass_camera)) {
+				(void)voe_app_draw_close(app);
+				break;
+			}
 
 			// EITHER SIDE OF THE WALK, WHICH IS WHAT THESE TWO
 			// BRACKET AND ALL THEY BRACKET. The difference is every
@@ -2661,7 +2784,7 @@ int main(void)
 				// frame's records is the pair ADR-0092's claim
 				// is made of. The averaged version of the same
 				// number is in every timing block below.
-				printf("draws      %u commands for %u element records; the walk was %u of them\n",
+				printf("draws      %u commands for %u element records; the window's walk was %u of them\n",
 				       voe_render_frame_draw_count(gpu),
 				       timing.drawn_elements,
 				       draws_after_walk - draws_before_walk);

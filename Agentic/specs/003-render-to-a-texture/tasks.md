@@ -270,7 +270,7 @@ before you say done. Say which platform you verified on and what you could not c
     prints `1280 720` and a length well above a blank file's. Put the picture in your report as a
     path and say what it shows.
 
-- [ ] 8. `dev/` — a camera's picture on a surface in the world
+- [x] 8. `dev/` — a camera's picture on a surface in the world
   - Change: Acceptance criterion 1, as the thing the sponsor runs and looks at: a second camera's
     view on a surface standing in `dev`'s world, updating as the world moves.
     - `src/monitor.h`, `src/monitor.c`, new — the pattern is `src/quad.c` and `src/surface.c`
