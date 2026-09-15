@@ -21,7 +21,8 @@ way out, and no file here holds a gamma constant.
 
 - `include/render/device.h` — the whole public surface: open a device, upload
   geometry, textures and shading records and get ids back, make targets of its
-  own and show their pictures through a texture id, then begin a frame, open
+  own, show their pictures through a texture id and read any target's picture
+  back into memory as RGBA8, then begin a frame, open
   passes onto the window or a target each with a camera and a sun or with none, draw
   objects into a pass solid or blended, submit elements and draw ranges of them,
   clear the depth part-way through, and end it. Geometry comes in two lifetimes, a caller says at startup which present
@@ -38,7 +39,9 @@ way out, and no file here holds a gamma constant.
   load it, that passes do not nest, why a target is kept rather than asked for
   per frame, why its texture id holds across frames in flight and resizes, when
   its picture is undefined, that showing a target in the pass drawing into it is
-  a debug assert, and why element submission is frame-wide
+  a debug assert; on reading one back: why the channel swap and the divide by
+  alpha are this folder's, which frame's picture comes back, and why it waits for
+  the card and is therefore not a per-frame call; and why element submission is frame-wide
   while element drawing is per pass; what the three
   alpha modes mean, why the depth write goes off for a blended draw and the
   order therefore matters, that the colour target holds premultiplied colour,

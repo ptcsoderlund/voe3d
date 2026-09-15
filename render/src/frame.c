@@ -1126,6 +1126,10 @@ bool voe_render_frame_end(voe_render_device *device)
 	// come back to it with its fence still signalled.
 	device->slot = (device->slot + 1) % VOE_RENDER_FRAMES_IN_FLIGHT;
 
+	// ready_for_copy above left the slot just spent in TRANSFER_SRC_OPTIMAL,
+	// which is what voe_render_target_read needs of the window's picture.
+	device->frame_ended = true;
+
 	if (image == NULL)
 		return true;
 

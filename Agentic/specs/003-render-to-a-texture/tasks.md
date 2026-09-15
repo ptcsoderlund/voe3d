@@ -124,7 +124,7 @@ before you say done. Say which platform you verified on and what you could not c
   - Done when: `ctest --test-dir build/debug -R '^assets/png$'` passes and `cmake -P check.cmake`
     exits zero.
 
-- [ ] 4. `render/` — read a target back
+- [x] 4. `render/` — read a target back
   - Change: Decision: `Agentic/decisions/0156-reading-a-target-back-is-public-and-a-picture-is-rgba8.md`.
     The pixels only exist on the card; this is the way back, and it is public now because a program
     that saves a picture is the caller rule 10 was waiting for.

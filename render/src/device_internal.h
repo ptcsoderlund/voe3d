@@ -624,6 +624,16 @@ struct voe_render_device {
 	struct voe_render_frame frames[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t slot;
 
+	// Whether a frame has ended since the window's targets were built, which
+	// is what says the slot before `slot` holds a window picture that may be
+	// copied out of. voe_render_frame_end leaves that slot's colour image in
+	// TRANSFER_SRC_OPTIMAL; a freshly built one is in UNDEFINED, and a copy
+	// naming the wrong layout is a validation error rather than merely an
+	// undefined picture. voe_render_target_read is the only reader, and
+	// voe_render_target_teardown — which every resize goes through — is what
+	// puts it back to false.
+	bool frame_ended;
+
 	// Set when a present said the swapchain no longer matches the surface.
 	// The rebuild happens at the top of the next frame rather than here,
 	// because the images the present is still reading are not ours to

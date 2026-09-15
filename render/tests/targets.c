@@ -1,5 +1,5 @@
 // A target of one's own, drawn into through a pass and shown on the window
-// through its texture id, read back out of the window's picture. Six claims.
+// through its texture id, read back out of the window's picture. Eight claims.
 //
 // AN ELEMENT SHOWS IT AND A MESH SHOWS IT, THE RIGHT WAY UP. The target's
 // picture is red in its top-left quarter and green everywhere else, which is the
@@ -26,13 +26,31 @@
 // THE CAPACITY IS A RETURNED REFUSAL. A device with room for no targets refuses
 // the first create, and one with room for one refuses the second.
 //
+// A TARGET READ BACK IS RGBA8, THE RIGHT WAY UP, AND THE WINDOW'S IS THE SAME
+// PICTURE. One frame draws the same three quadrants — red top-left, green
+// top-right, blue bottom-left, the fourth left to the clear colour — into the
+// target and into the window, and voe_render_target_read brings both back. The
+// corner pixels are the colours drawn, so `pixels[0]` really is the red channel
+// and row zero really is the top; alpha is 255 where the clear shows, which is
+// what says the divide by alpha left an opaque picture opaque; and the two
+// pictures are byte for byte identical, which is the whole claim that a picture
+// saved with no display is the picture a person would have seen.
+//
+// A TARGET NO PASS HAS DRAWN INTO STILL READS. Its picture is undefined, which
+// is not the same thing as an error, so the call succeeds and reports the size
+// asked for. A fresh device of its own, because every target in the scene above
+// has been drawn into.
+//
 // THE SURFACES ARE MILLIMETRES THE SIZE OF THE PICTURES, so an element's bounds
 // are pixels of whatever it is drawn into. Identity camera and an unlit record
 // for the mesh, as tests/passes.c has them.
 //
-// It includes render's internal header by relative path, as the other headless
-// tests do: reading a target back, and asking a target's size, are not things
-// the engine does.
+// IT READS THE WINDOW'S PICTURE BOTH WAYS, AND THAT IS DELIBERATE. Most of the
+// claims below copy the window's colour image by hand, through render's internal
+// header included by relative path, because they are claims about which frame
+// slot holds which picture — something the public call deliberately does not
+// expose (ADR-0156). The readback claim uses voe_render_target_read, and the two
+// agreeing on the same frame is worth having.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO.
 #include "../src/device_internal.h"
@@ -56,7 +74,9 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = 1,
 	.objects = 2,
 	.shadings = 1,
-	.elements = 4,
+	// Six in one frame is the readback claim's: three quadrants into the
+	// target and the same three into the window.
+	.elements = 8,
 	.passes = 2,
 	.targets = 1,
 };
@@ -426,6 +446,149 @@ static void a_sheet_picks_half_the_picture(struct scene *scene)
 			   SIDE * SIDE);
 }
 
+// Red top-left, green top-right, blue bottom-left, and nothing at all in the
+// fourth quarter, so the clear colour shows there. Drawn into whichever target
+// it is given, which is what makes the two pictures comparable.
+static void draw_quadrants(struct scene *scene, voe_render_target target)
+{
+	voe_render_device *device = scene->device;
+	voe_math_float2 size = { SIDE, SIDE };
+	const voe_render_element elements[3] = {
+		solid((voe_math_float4){ 0.0f, 0.0f, SIDE / 2, SIDE / 2 }, RED),
+		solid((voe_math_float4){ SIDE / 2, 0.0f, SIDE / 2, SIDE / 2 },
+		      GREEN),
+		solid((voe_math_float4){ 0.0f, SIDE / 2, SIDE / 2, SIDE / 2 },
+		      BLUE),
+	};
+	uint32_t first = voe_render_frame_elements_submitted(device);
+
+	for (uint32_t i = 0; i < 3; i++)
+		VOE_TEST_CHECK(voe_render_frame_submit_element(device,
+							       elements[i]));
+
+	VOE_TEST_CHECK(voe_render_pass_begin(device, target, NULL));
+	VOE_TEST_CHECK(voe_render_frame_draw_elements(
+		device, voe_render_element_transform(size), first, 3));
+	voe_render_pass_end(device);
+}
+
+static const uint8_t *pixel_of(const voe_render_picture *picture, uint32_t x,
+			       uint32_t y)
+{
+	return picture->pixels + ((size_t)y * picture->width + x) * 4;
+}
+
+// colour_of's counterpart for what voe_render_target_read hands back, which is
+// RGBA and not the card's own order. The difference between the two functions is
+// the whole of what the channel swap is claimed to do.
+static int rgba_colour_of(const uint8_t *pixel)
+{
+	unsigned red = pixel[0];
+	unsigned green = pixel[1];
+	unsigned blue = pixel[2];
+
+	if (red > 128 && red > green && red > blue)
+		return IS_RED;
+	if (green > 128 && green > red && green > blue)
+		return IS_GREEN;
+	if (blue > 128 && blue > red && blue > green)
+		return IS_BLUE;
+	return NEITHER;
+}
+
+static void a_target_is_read_back(struct scene *scene, voe_base_arena *arena)
+{
+	voe_render_device *device = scene->device;
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	voe_render_picture own = { 0 };
+	voe_render_picture window = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+
+	if (!open_frame(device))
+		return;
+	draw_quadrants(scene, scene->target);
+	draw_quadrants(scene, VOE_RENDER_TARGET_WINDOW);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+
+	VOE_TEST_CHECK(voe_render_target_read(device, scene->target, arena,
+					      &own, &error));
+	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
+					      arena, &window, &error));
+	if (own.pixels == NULL || window.pixels == NULL) {
+		voe_base_arena_rewind(arena, mark);
+		return;
+	}
+
+	VOE_TEST_CHECK_INT(own.width, SIDE);
+	VOE_TEST_CHECK_INT(own.height, SIDE);
+	VOE_TEST_CHECK_INT(window.width, SIDE);
+	VOE_TEST_CHECK_INT(window.height, SIDE);
+
+	// BYTE ORDER, SPELLED OUT AT THE FIRST PIXEL. It is inside the red
+	// quadrant, so pixels[0] is the largest of the three and the two after
+	// it are not — which is false the moment the swap goes the other way.
+	VOE_TEST_CHECK(own.pixels[0] > 128);
+	VOE_TEST_CHECK(own.pixels[1] < 128);
+	VOE_TEST_CHECK(own.pixels[2] < 128);
+
+	// ORIENTATION: the quadrant drawn at the top of the surface is at row
+	// zero, and the one drawn at the bottom is at the last row.
+	VOE_TEST_CHECK_INT(rgba_colour_of(pixel_of(&own, 1, 1)), IS_RED);
+	VOE_TEST_CHECK_INT(rgba_colour_of(pixel_of(&own, SIDE - 2, 1)),
+			   IS_GREEN);
+	VOE_TEST_CHECK_INT(rgba_colour_of(pixel_of(&own, 1, SIDE - 2)),
+			   IS_BLUE);
+
+	// The fourth quarter is the clear colour, which is none of the three,
+	// and it is opaque — the divide by alpha left it exactly as it was.
+	VOE_TEST_CHECK_INT(rgba_colour_of(pixel_of(&own, SIDE - 2, SIDE - 2)),
+			   NEITHER);
+	VOE_TEST_CHECK_INT(pixel_of(&own, SIDE - 2, SIDE - 2)[3], 255);
+	VOE_TEST_CHECK_INT(own.pixels[3], 255);
+
+	// ACCEPTANCE CRITERION 6, AS ONE COMPARISON. The same three elements
+	// drawn into a target of its own and into the window, on a device with
+	// no display at all, come back byte for byte the same.
+	VOE_TEST_CHECK_INT(memcmp(own.pixels, window.pixels, IMAGE_BYTES), 0);
+
+	voe_base_arena_rewind(arena, mark);
+}
+
+// A target nothing has drawn into is undefined, not an error. Its own device,
+// because every target in the scene above has been drawn into by the time the
+// claims are made.
+static void an_undrawn_target_still_reads(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_target target;
+	voe_render_texture texture;
+	voe_render_picture picture = { 0 };
+	voe_render_device *device;
+	voe_base_error error = VOE_BASE_OK;
+
+	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
+	VOE_TEST_CHECK(device != NULL);
+	if (device == NULL)
+		return;
+
+	VOE_TEST_CHECK(voe_render_target_create(device, 8, 8, &target, &texture,
+						&error));
+	VOE_TEST_CHECK(voe_render_target_read(device, target, arena, &picture,
+					      &error));
+	VOE_TEST_CHECK_INT(picture.width, 8);
+	VOE_TEST_CHECK_INT(picture.height, 8);
+	VOE_TEST_CHECK(picture.pixels != NULL);
+
+	// And so is the window's before any frame has ended, which is the other
+	// half of the same rule.
+	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
+					      arena, &picture, &error));
+	VOE_TEST_CHECK_INT(picture.width, SIDE);
+	VOE_TEST_CHECK_INT(picture.height, SIDE);
+
+	voe_render_device_destroy(device);
+}
+
 static void the_capacity_is_a_refusal(voe_base_arena *arena)
 {
 	voe_platform_size size = { SIDE, SIDE };
@@ -542,6 +705,7 @@ int main(void)
 		each_frame_reads_its_own_picture(&scene);
 		a_resize_keeps_the_id(&scene);
 		a_sheet_picks_half_the_picture(&scene);
+		a_target_is_read_back(&scene, arena);
 	} else {
 		VOE_TEST_CHECK(scene.pixels != NULL);
 	}
@@ -553,6 +717,7 @@ int main(void)
 	voe_render_buffer_teardown(scene.device, &scene.readback);
 	voe_render_device_destroy(scene.device);
 
+	an_undrawn_target_still_reads(arena);
 	the_capacity_is_a_refusal(arena);
 
 	voe_base_arena_destroy(arena);
