@@ -22,8 +22,8 @@
 
 // What the OS has told us, folded flat. Nothing in here is a queue.
 //
-// THE MOTION ACCUMULATOR IS THE ONE FIELD THAT IS NOT PLAIN STATE, AND IT IS
-// DRAINED RATHER THAN OVERWRITTEN. A window system reports mouse movement as a
+// THE MOTION AND WHEEL ACCUMULATORS ARE THE FIELDS THAT ARE NOT PLAIN STATE, AND
+// THEY ARE DRAINED RATHER THAN OVERWRITTEN. A window system reports mouse movement as a
 // series of small deltas and there is no "where the mouse is" to ask for once
 // the pointer is locked, so the deltas are summed here and the sum is zeroed at
 // the top of every poll. A poll that arrives with three motion events therefore
@@ -42,6 +42,11 @@ struct voe_platform_input {
 	bool keys[VOE_PLATFORM_KEY_COUNT];
 	float motion_x;
 	float motion_y;
+
+	// The wheel, in notches, in the public header's sign. Drained by the
+	// poll exactly as motion is, and for the same reason.
+	float wheel_x;
+	float wheel_y;
 
 	float pointer_x;
 	float pointer_y;
@@ -66,8 +71,8 @@ struct voe_platform_input *voe_platform_window_input(voe_platform_window *window
 void voe_platform_window_lock_pointer(voe_platform_window *window, bool lock);
 
 // Called by a backend at the top of its poll, before any event is dispatched. It
-// zeroes the motion accumulated for the previous frame and leaves held keys
-// alone — a key does not stop being held because a frame went by.
+// zeroes the motion and the wheel accumulated for the previous frame and leaves
+// held keys alone — a key does not stop being held because a frame went by.
 void voe_platform_input_begin_poll(struct voe_platform_input *input);
 
 // Called by a backend when the window loses keyboard focus, and this is the

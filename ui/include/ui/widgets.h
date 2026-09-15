@@ -1,5 +1,6 @@
-// Widgets: a panel, a label, a button, a number box you drag and an image, laid
-// out by layout.h and handed back as element records for somebody else to draw.
+// Widgets: a panel, a label, a button, a number box you drag, an image and a
+// scroll area, laid out by layout.h and handed back as element records for
+// somebody else to draw.
 //
 //     voe_ui_font_set(ui, font);                   // once, at startup
 //
@@ -94,14 +95,71 @@
 // way and for the same reason: they are all multipliers on one unit, which is
 // why there is never a conversion between them to get wrong.
 //
+// ---- THE SCROLL AREA ----
+//
+// THE OFFSET IS REMEMBERED HERE AND NOT IN LAYOUT, because remembering needs an
+// identity and layout has none (layout.h, OVERFLOW). A scroll area is keyed like
+// a panel; its offset lives in a table in the context under that key,
+// `capacities.scrolls` long, and is handed to layout as the container's `scroll`
+// every frame. What is stored after layout is the offset layout USED, clamped, so
+// a remembered offset is always one the content allowed.
+//
+// AN AREA THAT IS NOT CALLED IN A FRAME IS FORGOTTEN AT THAT FRAME'S END, and
+// comes back at nought. That is transient state on purpose (ADR-0153): an area
+// that stops being called at all — a panel closed, a tab switched away — comes
+// back at the top, and nothing here is saved anywhere. An area that IS called
+// every frame keeps its offset through anything its content does, however much
+// that content changes: what brings a shorter inspector back to the top of its
+// content is the clamp, which layout runs against the content's own measure,
+// and not this table forgetting.
+//
+// A SCROLL ARRIVES AS A LENGTH IN MILLIMETRES, NEVER AS WHEEL NOTCHES. How long a
+// notch is belongs to the program; a thumbstick or a hand produces a length just
+// as well, so nothing in this folder is shaped like a mouse. The pointer's
+// `scroll` starts at the innermost scroll area under the pointer. THE AREA TAKES
+// WHAT ITS CLAMP ALLOWS, ON EACH AXIS IT SCROLLS, AND PASSES THE REST OUTWARD to
+// the next scroll area around it, and so on; what nobody can take is dropped. An
+// area at the end of a nested list therefore hands the rest of a gesture to the
+// panel it sits in, and an axis an area does not scroll passes through it whole.
+//
+// A SCROLL LANDS IN THE NEXT FRAME'S LAYOUT, not this one's. It is worked out
+// inside voe_ui_frame_end, after the hit test and against this frame's
+// rectangles, because those are the rectangles the person saw: moving content
+// mid-frame would hit test a wheel, a thumb or a click against an arrangement
+// nobody was looking at. The price is one frame between the gesture and the
+// movement.
+//
+// THE SCROLLBAR IS DRAWN OVER THE CONTENT AND TAKES NO LAYOUT SPACE, so a bar
+// appearing never re-wraps what is under it. It sits inside the area's rectangle
+// along the far edge — right for Y, bottom for X — only on an axis that scrolls
+// and has something to scroll, after the area's children in paint order and in
+// front of them for the pointer. Content that must stay clear of it is padded:
+// give the area a right or bottom padding of the bar's thickness.
+//
+// ITS THUMB IS DRAGGED AND ITS TRACK IS PAGED. Pressing the thumb holds it and the
+// offset follows the pointer along the track — a gesture that carries on off the
+// bar and off the surface, as a number box's does. A press on the track outside
+// the thumb moves one arranged length towards the pointer, once per press, and
+// holds nothing.
+//
 // ---- WHAT IS NOT HERE ----
 //
 // No theme: the colours below are constants and card 036 replaces them. No text
 // input, no caret and no selection — a number box is dragged and not typed into,
-// and the click that would begin typing is reserved rather than free. No scroll
-// area and no clip narrower than a widget's own rectangle — card 035. No
-// checkbox and no slider: a number box has no track, no ends and no range, which
-// is what makes it the one that fits a field of unknown extent.
+// and the click that would begin typing is reserved rather than free. No
+// scrolling by a program and no scrolling to a node yet: both arrive with focus,
+// which is their first caller. No dragging the content itself, no focus, no smooth
+// scrolling, and no offset saved beyond the context. No checkbox and no slider: a
+// number box has no track, no ends and no range, which is what makes it the one
+// that fits a field of unknown extent.
+//
+// WHAT IS HERE INSTEAD OF A CLIP OF ITS OWN: every record is clipped to what its
+// node's clipping ancestors leave — a panel, a button or an image to its
+// voe_ui_node_visible — and a record with nothing left is not emitted and takes
+// no capacity. A widget clipped out of sight is not hit: the pointer is tested
+// against its visible rectangle, so it cannot be hovered, armed or pressed there.
+// A gesture already under way carries on when its widget is clipped or scrolled
+// away, exactly as it carries on past the surface's edge.
 #pragma once
 
 #include <ui/layout.h>
@@ -160,6 +218,12 @@ typedef struct {
 	// Nought is NOT fine, which is what lets every designated initialiser
 	// that predates this field go on meaning what it meant.
 	bool fine;
+	// Millimetres scrolled this frame, positive showing content further
+	// right or further down. The caller turns its wheel's notches into a
+	// length; this folder never sees a notch. Taken by the innermost scroll
+	// area under `at`, and only while `over` — see THE SCROLL AREA at the top
+	// of this header. Nought is no scroll.
+	voe_math_float2 scroll;
 } voe_ui_pointer;
 
 // Hands this frame's pointer over. Between voe_ui_frame_begin and
@@ -329,6 +393,40 @@ typedef struct {
 voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 					  voe_ui_node number);
 
+// --------------------------------------------------------- the scroll area
+
+// Which axes a scroll area scrolls. Absolute, as overflow is.
+typedef struct {
+	bool x;
+	bool y;
+} voe_ui_scroll_axes;
+
+// A column that clips on both axes and scrolls on the axes named, with its
+// offset remembered under its key and a scrollbar drawn over its content.
+//
+//     voe_ui_scroll_begin(ui, "inspector", 0,
+//                         (voe_ui_container){
+//                                 .size = { { VOE_UI_SIZE_GROW, 1 },
+//                                           { VOE_UI_SIZE_FIXED, 60 } },
+//                                 .gap = 2, .pad = { 2, 2, 3.5f, 3.5f } },
+//                         (voe_ui_scroll_axes){ .y = true });
+//     ...                                   // content, laid out as in a column
+//     voe_ui_end(ui);
+//
+// `container` IS A COLUMN'S, EXCEPT FOR ITS `overflow` AND ITS `scroll`: those
+// are the area's own, and a caller who set either asserts. An axis not in `axes`
+// is still clipped, and its offset is always nought.
+//
+// The key is claimed as a panel's is, so the name and index follow the same rules
+// and a duplicate refuses the frame. A frame with more scroll areas than
+// `capacities.scrolls` is refused too, named on stderr, and voe_ui_frame_end
+// comes back false.
+//
+// Closed by voe_ui_end, like any other container.
+voe_ui_node voe_ui_scroll_begin(voe_ui_context *ui, const char *name,
+				uint32_t index, voe_ui_container container,
+				voe_ui_scroll_axes axes);
+
 // --------------------------------------------------------------- the image
 
 // A picture as a node: part of a texture stretched over the node's rectangle. It
@@ -355,9 +453,9 @@ voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 // picture is { 0, 0, 1, 1 }.
 //
 // IT IS ONE ELEMENT RECORD, against the frame's budget like a panel's background:
-// kind IMAGE, clipped to its own rectangle, coloured opaque white so the picture
-// shows as it is. It paints where a leaf paints — after its parent, in call order
-// among its siblings.
+// kind IMAGE, clipped to its visible rectangle, coloured opaque white so the
+// picture shows as it is. It paints where a leaf paints — after its parent, in
+// call order among its siblings.
 //
 // THE TEXTURE IS THE CALLER'S AND SO IS ITS LIFETIME. Only its index half goes
 // into the record, and nothing here checks that it still names a live texture:

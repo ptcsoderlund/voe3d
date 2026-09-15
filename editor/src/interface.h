@@ -38,13 +38,23 @@
 // big rather than twice as much of it.
 #define VOE_EDITOR_SURFACE_HIGH 135.0f
 
-// What one frame of this interface may hold. Both are checked by `ui`, and a
-// frame that wants more is refused with a line saying which number it was — so
+// What one frame of this interface may hold. All three are checked by `ui`, and
+// a frame that wants more is refused with a line saying which number it was — so
 // these are numbers to be honest about rather than careful with. A label is one
 // element record per character that draws, which is what makes the second one
-// much the larger of the two.
+// much the larger of the three.
+//
+// THE SCROLL AREAS ARE ONE PER DOCK LEAF THAT IS NOT A SCENE VIEW, because that
+// is what dock.c puts one round. The default tree has two — the Scene list and
+// the Inspector — and a third panel is a third here.
+//
+// AND EACH OF THEM COSTS UP TO FOUR ELEMENT RECORDS OF ITS OWN, on top of
+// everything the panel draws: a track and a thumb on each of the two axes, when
+// both bars show. So the records below are the 512 the panels had before this
+// feature plus 2 areas × 4 = 8 for their bars.
 #define VOE_EDITOR_INTERFACE_NODES 128
-#define VOE_EDITOR_INTERFACE_ELEMENTS 512
+#define VOE_EDITOR_INTERFACE_ELEMENTS 520
+#define VOE_EDITOR_INTERFACE_SCROLLS 2
 
 // Makes the context the interface is built in, once. It lives in `arena` and is
 // freed with it; the font must outlive it.
@@ -68,8 +78,8 @@ void voe_editor_interface_surface(voe_platform_size target,
 // is not in any world, so it has nothing to sort against and issues its own
 // draws.
 //
-// False when a frame was refused — more nodes or more records than the two
-// numbers above — or when a submit or a draw was refused. All of those are this
+// False when a frame was refused — more nodes, more records or more scroll areas
+// than the three numbers above — or when a submit or a draw was refused. All of those are this
 // program's numbers being wrong, and whichever it was has already said so on
 // stderr.
 //

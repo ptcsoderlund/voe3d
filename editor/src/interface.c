@@ -29,7 +29,8 @@ voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
 	ui = voe_ui_context_new(
 		arena, (voe_ui_capacities){
 			       .nodes = VOE_EDITOR_INTERFACE_NODES,
-			       .elements = VOE_EDITOR_INTERFACE_ELEMENTS });
+			       .elements = VOE_EDITOR_INTERFACE_ELEMENTS,
+			       .scrolls = VOE_EDITOR_INTERFACE_SCROLLS });
 	voe_ui_font_set(ui, font);
 
 	return ui;

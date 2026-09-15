@@ -10,10 +10,16 @@
 //
 // WHICH HALF OWNS WHICH FIELD IS WRITTEN DOWN BELOW AND IS NOT A SUGGESTION. The
 // tree and the frame belong to layout.c; everything from `font` down belongs to
-// widgets.c. Neither writes the other's, and the two entry points widgets.c
-// offers layout.c are at the bottom of this file — layout.c's voe_ui_frame_end
-// calls them once, after arrange, which is the only order in which a hit test
-// can be against this frame's rectangles rather than last frame's.
+// widgets.c. Neither writes the other's, and the three entry points widgets.c
+// offers layout.c are at the bottom of this file — one at creation, for the
+// scroll table that outlives every frame, and two at the frame's boundaries.
+// voe_ui_frame_end calls its one after arrange, which is the only order in which
+// a hit test can be against this frame's rectangles rather than last frame's.
+//
+// A SCROLLBAR NEEDS NO KEY OF ITS OWN AND NO TABLE BESIDE `held`. A held thumb is
+// `held` set to its area's key with `held_thumb` saying which of the two bars, so
+// every rule that lets go of a held widget lets go of a thumb too; the area
+// cannot be held any other way, because a scroll area does not take the pointer.
 #pragma once
 
 #include <ui/layout.h>
@@ -35,6 +41,33 @@ enum voe_ui_widget {
 	VOE_UI_WIDGET_BUTTON,
 	VOE_UI_WIDGET_NUMBER,
 	VOE_UI_WIDGET_IMAGE,
+	VOE_UI_WIDGET_SCROLL,
+};
+
+// One of a scroll area's two bars: the one that scrolls X, along the bottom, or
+// the one that scrolls Y, along the right. NONE is nought, so a context that has
+// never seen a scrollbar has none held and none hovered.
+enum voe_ui_bar {
+	VOE_UI_BAR_NONE = 0,
+	VOE_UI_BAR_X,
+	VOE_UI_BAR_Y,
+};
+
+// A remembered offset, kept between frames under its area's key.
+struct voe_ui_scroll_memory {
+	uint64_t key;
+	voe_math_float2 offset;
+};
+
+// A scroll area called this frame, in call order — so an area nested in another
+// always comes after it, which is what finding the next area outward counts on.
+struct voe_ui_scroll_area {
+	uint64_t key;
+	// VOE_UI_NODE_NONE only in a frame refused for want of a node.
+	uint32_t node;
+	voe_ui_scroll_axes axes;
+	// The remembered offset handed to layout, before layout clamped it.
+	voe_math_float2 handed;
 };
 
 // What widgets.c keeps about one node, in an array indexed by the node's own
@@ -95,6 +128,10 @@ struct voe_ui_node_record {
 	// Whether this container's children may break onto further lines. False
 	// on a leaf.
 	bool wrap;
+	// Whether it clips, per axis, and the offset the caller asked for. Both
+	// nought on a leaf.
+	voe_ui_overflow overflow;
+	voe_math_float2 scroll;
 
 	// Which line of its parent's run this node landed on, counted from
 	// nought. Written by the arrange along the parent's flow, and nought —
@@ -108,6 +145,16 @@ struct voe_ui_node_record {
 	voe_math_float2 natural;
 	// What arrange came to.
 	voe_ui_rect rect;
+	// The offset arrange moved this container's children by, after clamping.
+	// Nought on a VISIBLE axis and on a leaf.
+	voe_math_float2 scrolled;
+	// What every clipping ancestor leaves this node, as the interval each
+	// axis is limited to — unbounded, ±FLT_MAX, where nothing clips — and
+	// `rect` narrowed to it. Written after both axes are arranged; nought in
+	// a refused frame, as `rect` is.
+	voe_math_float2 limit_min;
+	voe_math_float2 limit_max;
+	voe_ui_rect visible;
 
 	// This node and everything under it, counted by the paint-order pass,
 	// which is the width of the slot its subtree occupies in that order. The
@@ -216,6 +263,38 @@ struct voe_ui_context {
 	voe_render_element *elements;
 	uint32_t element_count;
 	bool element_overrun;
+
+	// THE SCROLL TABLE, THE ONE THING HERE THAT IS NOT A FRAME'S OR A GESTURE'S.
+	// Out of the arena the context was made in, `capacities.scrolls` long,
+	// and the first `scroll_remembered` entries hold last frame's areas.
+	// Rewritten wholesale at every frame_end from this frame's areas, which
+	// is how an area not called is dropped: it is simply not written back.
+	struct voe_ui_scroll_memory *scroll_memory;
+	uint32_t scroll_remembered;
+
+	// This frame's scroll areas, out of the frame's arena, and whether one
+	// more was called than there was room for. After frame_end, entry i of
+	// this and of `scroll_memory` are the same area.
+	struct voe_ui_scroll_area *scroll_areas;
+	uint32_t scroll_count;
+	bool scroll_overrun;
+
+	// A THUMB BEING DRAGGED: `held` is its area's key, and this is which bar.
+	// The offset follows the pointer from where it was pressed, so the press
+	// position and the offset at the press are what is kept, and a thumb
+	// dragged past the end and back comes back under the pointer.
+	enum voe_ui_bar held_thumb;
+	voe_math_float2 thumb_press_at;
+	float thumb_press_offset;
+	// This frame's hovered thumb, by index into `scroll_areas`, for its
+	// colour. Worked out afresh in resolve.
+	enum voe_ui_bar hovered_thumb;
+	uint32_t hovered_thumb_area;
+	// A press on a track this frame: which area, which bar, and towards
+	// which end, -1 or +1. Applied once, after the offsets are remembered.
+	enum voe_ui_bar page;
+	uint32_t page_area;
+	float page_towards;
 };
 
 // The order layout arranged the tree in, which under ADR-0092 is the order the
@@ -229,6 +308,23 @@ struct voe_ui_context {
 // above. Emission asks layout for this order and never re-derives it, which is
 // why widgets.c did not have to change when the order stopped being the array's.
 uint32_t voe_ui_paint_order(const voe_ui_context *ui, uint32_t position);
+
+// `rect` narrowed to what the clipping ancestors of `node` leave, axis by axis,
+// size nought on an axis where nothing is left. A rectangle that is not narrowed
+// comes back bit for bit, which is what keeps a tree that clips nothing emitting
+// exactly what it did before clipping existed.
+//
+// LAYOUT'S RULE AND NOT A SECOND COPY OF IT. voe_ui_node_visible is this applied
+// to the node's own rectangle; widgets.c applies it to a record whose rectangle
+// is not the node's — a glyph — so the two cannot drift apart.
+voe_ui_rect voe_ui_limit(const voe_ui_context *ui, uint32_t node,
+			 voe_ui_rect rect);
+
+// widgets.c's part of creating the context, called from voe_ui_context_new and
+// from nowhere else: the scroll table, out of the context's own arena because it
+// outlives every frame. There is no deinit; rewinding that arena frees it with
+// the context.
+void voe_ui_widgets_init(voe_ui_context *ui, voe_base_arena *arena);
 
 // The two frame boundaries, called from layout.c's voe_ui_frame_begin and
 // voe_ui_frame_end and from nowhere else.

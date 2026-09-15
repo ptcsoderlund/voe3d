@@ -20,7 +20,10 @@
 // of its own, because the day a panel is a quad standing in the world that
 // conversion is a ray against the quad — a different sum, in a different file,
 // and only a call site can know which of the two it wants. The views' drag is
-// handed the same millimetres, for the same reason.
+// handed the same millimetres, for the same reason. THE WHEEL IS THE SAME SHAPE
+// OF DECISION: `platform` counts notches, `ui` takes a length in millimetres,
+// and WHEEL_MILLIMETRES between them is this program saying how far a notch
+// moves anything.
 //
 // A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
 // the tree shows is drawn into its own target with its own camera first; the
@@ -78,6 +81,13 @@
 
 #define EDITOR_WIDE 1280
 #define EDITOR_HIGH 720
+
+// How far one notch of the wheel scrolls, in the surface's millimetres. WHAT A
+// NOTCH IS WORTH IS THIS PROGRAM'S TO CHOOSE (ADR-0153 point 10): `platform`
+// counts detents and `ui` is handed a length, so the one multiplication between
+// them is here, beside the division that turns the mouse's pixels into the same
+// millimetres.
+#define WHEEL_MILLIMETRES 10.0f
 
 // What the world may hold. Five component types are registered below, two of
 // them with an intent queue, and the entities are a number to author into rather
@@ -216,6 +226,7 @@ int main(void)
 	while (true) {
 		voe_app_frame opened;
 		voe_platform_pointer pointer;
+		voe_platform_wheel wheel;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -251,6 +262,11 @@ int main(void)
 		// this program's choice of which key means "slower" — `ui` is
 		// handed values and never asks a window anything.
 		pointer = voe_platform_input_pointer(window);
+		// Notches since the last poll, turned into a length once.
+		// Nothing else reads the wheel: a scene view takes the middle
+		// button and no wheel at all, so a wheel over one is a scroll
+		// no area under the pointer can take and is dropped.
+		wheel = voe_platform_input_wheel(window);
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
 				pointer.y / pixels_per_millimetre },
@@ -258,7 +274,9 @@ int main(void)
 			.down = voe_platform_input_button_down(
 				window, VOE_PLATFORM_BUTTON_LEFT),
 			.fine = voe_platform_input_key_down(
-				window, VOE_PLATFORM_KEY_SHIFT)
+				window, VOE_PLATFORM_KEY_SHIFT),
+			.scroll = { wheel.x * WHEEL_MILLIMETRES,
+				    wheel.y * WHEEL_MILLIMETRES }
 		};
 
 		// The middle button is the views' and the left is the

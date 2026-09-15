@@ -23,6 +23,18 @@
 // picture fills the panel edge to edge, so the rectangle the picture came to is
 // the panel's own and is what the view's target is sized by; padding would be a
 // frame of panel colour round a picture that already has an edge.
+//
+// EVERY LEAF THAT IS NOT A PICTURE IS A SCROLL AREA, AND THE PANEL AROUND IT IS
+// NOT (ADR-0153 point 11). The panel keeps the background, the size the walk
+// divided out and the padding; inside it one voe_ui_scroll_begin grows to fill
+// what the padding leaves and everything the leaf draws goes in there, so
+// nothing a panel says can reach past the panel's own edges and a column too
+// small for its content scrolls instead of spilling over its neighbour. The area
+// stretches its content across the flow, which is what gives a row that wraps a
+// width to wrap against (ui/layout.h, A RUN THAT WRAPS); the panel's gap moves
+// onto it, the panel being one child now. A scene view is left alone: its
+// picture is already sized to its panel, and a bar over it would be a bar over
+// the scene.
 #include "dock.h"
 
 #include "inspector.h"
@@ -125,12 +137,34 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 					   PANEL_ALPHA },
 			(voe_ui_container){
 				.size = sizing_in(parent, size),
-				.across = picture ? VOE_UI_ACROSS_FILL :
-						    VOE_UI_ACROSS_START,
-				.gap = PANEL_GAP,
+				.across = VOE_UI_ACROSS_FILL,
+				// The gap between the things on a leaf is the
+				// scroll area's below; the panel holds one
+				// child and has nothing to space.
+				.gap = picture ? PANEL_GAP : 0.0f,
 				.pad = { pad, pad, pad, pad } });
+
+		if (picture) {
+			voe_editor_panel_draw(ui, node->panel, node->view,
+					      scene, views);
+			voe_ui_end(ui);
+			return;
+		}
+
+		// Keyed by the panel and the view, exactly as the panel above
+		// is: the area is inside that panel, so its key is already
+		// distinct from every other leaf's, and the view keeps two
+		// leaves of one kind apart the day there are two.
+		voe_ui_scroll_begin(
+			ui, panel_key(node->panel), node->view,
+			(voe_ui_container){
+				.size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
+				.across = VOE_UI_ACROSS_FILL,
+				.gap = PANEL_GAP },
+			(voe_ui_scroll_axes){ .x = true, .y = true });
 		voe_editor_panel_draw(ui, node->panel, node->view, scene,
 				      views);
+		voe_ui_end(ui);
 		voe_ui_end(ui);
 		return;
 	}

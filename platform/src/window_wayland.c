@@ -457,7 +457,7 @@ static const struct wl_keyboard_listener keyboard_listener = {
 
 // The five events a version 1 wl_pointer sends. Four of them are the pointer's
 // position and buttons and are recorded straight into src/input.h; axis is the
-// wheel, nothing reads it, and include/platform/input.h says which card does.
+// wheel, turned into notches first — see pointer_axis.
 //
 // motion IS NOT WHERE MOUSE LOOK COMES FROM, AND THAT IS NOT A GAP. It is the
 // pointer's position inside the surface, which stops at the edge of the window;
@@ -553,18 +553,33 @@ static void pointer_button(void *data, struct wl_pointer *pointer,
 			state == WL_POINTER_BUTTON_STATE_PRESSED;
 }
 
-// The wheel. Received and dropped: nothing reads a scroll yet, and the unit the
-// two platforms are turned into is the scroll area's decision — see the public
-// header. Written out rather than left NULL because libwayland calls straight
-// through a listener slot and version 1 sends it.
+// The length in surface units a compositor sends for one wheel detent, which
+// turns wl_pointer.axis's length into the public header's notches.
+//
+// IT IS WESTON'S AND MUTTER'S NUMBER, AND NOT EVERY COMPOSITOR'S. Other
+// compositors differ — wlroots sends 15 — so a notch there reads as more than
+// one. Version 5's axis_discrete is the exact count of detents and is the
+// answer; it is not bound, because wl_seat is bound at 1 like every global here,
+// and raising it means filling frame and the axis detail as well.
+#define AXIS_LENGTH_PER_NOTCH 10.0f
+
+// The wheel, summed in notches until the next poll takes it. Wayland's positive
+// already means content further down and further right, which is the public
+// header's sign, so nothing is negated. A touchpad's continuous scroll arrives
+// here too, as fractions of a notch.
 static void pointer_axis(void *data, struct wl_pointer *pointer, uint32_t time,
 			 uint32_t axis, wl_fixed_t value)
 {
-	(void)data;
+	voe_platform_window *window = data;
+	float notches = (float)wl_fixed_to_double(value) / AXIS_LENGTH_PER_NOTCH;
+
 	(void)pointer;
 	(void)time;
-	(void)axis;
-	(void)value;
+
+	if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
+		window->input.wheel_y += notches;
+	else if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
+		window->input.wheel_x += notches;
 }
 
 // frame and the axis detail are version 5, axis_value120 is 8 and

@@ -19,7 +19,10 @@
 // OVERWRITTEN. A poll that brings no mouse movement must leave nought and not
 // the previous frame's number; a poll that brings three events must leave their
 // total. Getting that wrong gives a camera that keeps turning after the mouse
-// has stopped, which reads as drift and gets blamed on the camera.
+// has stopped, which reads as drift and gets blamed on the camera. The wheel's
+// accumulator drains the same way and is checked in the same case: nought after
+// a poll with no turn, the sum of three turns before one poll, nought again
+// after the next — or a panel keeps scrolling after the wheel has stopped.
 //
 // AND THE THIRD IS THE POINTER GOING AWAY WITH A BUTTON STILL DOWN, which is the
 // same leak as the keyboard's with a mouse in it: the release is delivered to
@@ -58,11 +61,24 @@ static void a_poll_keeps_held_keys(void)
 	VOE_TEST_CHECK(!input.keys[VOE_PLATFORM_KEY_ESCAPE]);
 }
 
-// A poll zeroes the motion, so that a frame with no mouse movement in it reports
-// none rather than repeating the frame before.
+// A poll zeroes the motion and the wheel, so that a frame with no mouse movement
+// or wheel turn in it reports none rather than repeating the frame before.
 static void a_poll_drains_the_motion(void)
 {
 	struct voe_platform_input input = { 0 };
+
+	// A poll with no wheel in it leaves nought on both axes.
+	voe_platform_input_begin_poll(&input);
+	VOE_TEST_CHECK_FLOAT(input.wheel_x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(input.wheel_y, 0.0f, 0.0f);
+
+	// Three turns before one poll: a backend adds each, in notches.
+	input.wheel_y += 1.0f;
+	input.wheel_y += 1.0f;
+	input.wheel_x += -0.5f;
+	input.wheel_y += -0.25f;
+	VOE_TEST_CHECK_FLOAT(input.wheel_x, -0.5f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(input.wheel_y, 1.75f, 0.0f);
 
 	// What a backend does when the window system reports movement: it adds.
 	input.motion_x += 4.0f;
@@ -75,12 +91,16 @@ static void a_poll_drains_the_motion(void)
 	voe_platform_input_begin_poll(&input);
 	VOE_TEST_CHECK_FLOAT(input.motion_x, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(input.motion_y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(input.wheel_x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(input.wheel_y, 0.0f, 0.0f);
 
 	// And a second empty poll leaves it at nought rather than doing anything
 	// clever.
 	voe_platform_input_begin_poll(&input);
 	VOE_TEST_CHECK_FLOAT(input.motion_x, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(input.motion_y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(input.wheel_x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(input.wheel_y, 0.0f, 0.0f);
 }
 
 // A poll does not touch the lock. It is the window system's answer, not
