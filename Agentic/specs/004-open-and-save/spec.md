@@ -1,6 +1,6 @@
 # 004 Open and save
 
-Status: approved
+Status: building
 Approved: 2026-09-15
 Accepted: -
 
