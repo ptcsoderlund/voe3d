@@ -30,6 +30,13 @@ pixels in an arena; what happens to them next is `render`'s.
 - `src/inflate.c` — the decompressor. Its header says which three things a
   compressed stream can attack and where each is bounded, and why an incomplete
   Huffman code is accepted where an over-subscribed one is not.
+- `src/deflate.h` — the compressor, internal to this folder and the mirror of
+  `src/inflate.h`. Its header says why it produces a zlib stream rather than a
+  bare DEFLATE one, why it cannot fail, and where the worst-case output size the
+  caller's arena is asked for comes from.
+- `src/deflate.c` — one block, fixed Huffman codes, and a greedy match finder
+  over a hashed chain. Its header carries the fixed code and the length and
+  distance tables, and says which three rules keep a changed matcher legal.
 - `src/png.c` — signature, chunks, CRC, filters, palette. Its header says why
   this file is flat and has no recursion in it, and the rule every length read
   out of the file is checked by.
@@ -55,6 +62,10 @@ pixels in an arena; what happens to them next is `render`'s.
   streams assembled by hand because no encoder emits them: a back-reference
   reaching behind the start of the output, an overlapping run, and every prefix
   of a good stream.
+- `tests/deflate.c` — every case round-tripped through `src/inflate.c`, from one
+  byte to 200 kB, at the longest match and the farthest distance the format has.
+  Its header says why a round trip alone would pass with the matcher switched off
+  and what the size checks do about it.
 - `tests/png.c` — real files from a real encoder, one filter per row, against the
   three failures card 017 named — truncated, wrong magic, absurd declared size —
   plus a corrupt CRC and the two variants that are refused rather than broken.

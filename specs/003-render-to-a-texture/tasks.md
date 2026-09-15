@@ -34,7 +34,7 @@ before you say done. Say which platform you verified on and what you could not c
   - Done when: `ctest --test-dir build/debug -R '^platform/file$'` passes and `cmake -P check.cmake`
     exits zero.
 
-- [ ] 2. `assets/` — DEFLATE, the other direction
+- [x] 2. `assets/` — DEFLATE, the other direction
   - Change: A compressor, internal to the folder, so the PNG encoder in task 3 has one. Rule 5 and
     ADR-0023: written here, not fetched. It is the mirror of `src/inflate.c`, which is also the
     test's oracle.
