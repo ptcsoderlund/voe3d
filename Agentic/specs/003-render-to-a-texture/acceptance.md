@@ -75,3 +75,14 @@ The `--size <W>x<H>` parsing added by task 7 is the only use of it in the tree.
 - The spec's Linux-first constraint says Windows problems arrive later as reports; this is that
   report, and it is a build break rather than a behaviour question, so it is fixed before
   acceptance resumes.
+
+### 2026-09-15 — reported by the sponsor, second round
+
+The Windows build break above was fixed by tasks 9, 10 and 11 (ADR-0159: what the deprecated CRT
+call did is written here instead, and the two tests that must keep the C library as their oracle
+suppress it at the one call). The sponsor then tested the feature and reported that everything
+checks out.
+
+- Criteria 1–7: **passed.** The sponsor tried the feature and reported no problem with any of
+  them; he did not single any criterion out, and was not asked to.
+- Nothing was left unmet, and no new wish came out of the testing.
