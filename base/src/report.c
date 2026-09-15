@@ -25,6 +25,43 @@ static const char *level_word(voe_base_report_level level)
 	return "";
 }
 
+// The first error's message, per thread, and whether one is kept. See
+// include/base/report.h for what is kept and why.
+static thread_local char g_first_error[VOE_BASE_REPORT_LINE_CAPACITY];
+static thread_local bool g_first_error_kept;
+
+void voe_base_report_error_clear(void)
+{
+	g_first_error_kept = false;
+}
+
+const char *voe_base_report_error_first(void)
+{
+	return g_first_error_kept ? g_first_error : NULL;
+}
+
+// Copies the "<message>" part out of a line already composed by
+// voe_base_report_compose(): everything after the "<level>: <module>: "
+// prefix and before the trailing newline. Reusing the composed line, rather
+// than formatting the message a second time, is what keeps the kept message
+// cut at exactly the same capacity as the printed line.
+static void keep_first_error(voe_base_report_level level, const char *module,
+			     const char *composed, size_t length)
+{
+	size_t prefix = strlen(level_word(level)) + strlen(": ") +
+			strlen(module) + strlen(": ");
+
+	// length counts the trailing newline; the pathological case of a
+	// module name alone filling the line is clamped rather than read past.
+	if (prefix > length - 1)
+		prefix = length - 1;
+
+	size_t message_length = length - 1 - prefix;
+	memcpy(g_first_error, composed + prefix, message_length);
+	g_first_error[message_length] = '\0';
+	g_first_error_kept = true;
+}
+
 size_t voe_base_report_compose(char *line, voe_base_report_level level,
 			       const char *module, const char *format,
 			       va_list arguments)
@@ -75,6 +112,9 @@ void voe_base_report_at(voe_base_report_level level, const char *module,
 	size_t length = voe_base_report_compose(composed, level, module, format,
 						arguments);
 	va_end(arguments);
+
+	if (level == VOE_BASE_LEVEL_ERROR && !g_first_error_kept)
+		keep_first_error(level, module, composed, length);
 
 	fwrite(composed, 1, length, stderr);
 	fflush(stderr);

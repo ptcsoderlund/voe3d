@@ -1,6 +1,6 @@
 # 004 Open and save — tasks
 
-- [ ] 1. `base/` — Keep the first error reported since a clear
+- [x] 1. `base/` — Keep the first error reported since a clear
   - Change: In `include/base/report.h` and `src/report.c`, per ADR-0160, add
     `void voe_base_report_error_clear(void);` and `const char *voe_base_report_error_first(void);`.
     `voe_base_report_at` at `VOE_BASE_LEVEL_ERROR`, when nothing is kept since the last clear,
