@@ -2,11 +2,11 @@
 
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
-mouse, a number box you drag sideways to change a value, an image and a scroll area
-that remembers its offset. Not drawing — what
-comes out is element records and the caller submits them — and not input either:
-the pointer is a value it is handed. Where the surface sits in the world is one
-matrix and it is the caller's.
+mouse, a number box you drag sideways to change a value, an image and a scroll
+area that remembers its offset. Not drawing — what comes out is element records
+and the caller submits them — and not input either: the pointer is a value it
+is handed. Where the surface sits in the world is one matrix and it is the
+caller's.
 
 - `include/ui/layout.h` — the context, the frame, and rows and columns and
   boxes between its begin and its end, with a rectangle and a measured size read
@@ -33,27 +33,26 @@ matrix and it is the caller's.
   `voe_ui_capacities.scrolls`.
 - `include/ui/widgets.h` — the panel, the label, the button, the number box,
   the image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`),
-  the pointer they are given with its `scroll`, and this frame's element records
-  read back. Its
-  header says why the answer to a click arrives after the frame has ended rather
-  than at the call, what a widget's key is made of and why it is a hashed path
-  and not a line number, what two widgets sharing one does, why a button is
-  composed rather than handed a string, why a fully transparent panel emits
-  nothing, and how the text scale composes with the surface's own. On the number
-  box it says why this folder knows no field kinds and takes a value and a rate
-  instead, why what comes back is a value and not a distance and what that buys
-  the typing that is not built yet, and why a press and release without movement
-  is reserved rather than free. On the image it says what it is for, why it is
-  sized as a box is, that it is one element, and that the texture's lifetime is
-  the caller's. On the scroll area it says why the offset is remembered there
-  and not in layout, that an area not called forgets, how a scroll passes
-  outward, why it arrives in millimetres and lands next frame, and that the bar
-  lies over the content.
-- `src/context.h` — the tree and the context, shared by the folder's two
-  source files. Its header says why there is one context and not two, which half
-  owns which field, why the widget pass runs where it does, and why a drag needs
-  four fields beside `held` and no keyed table, and why a held thumb needs no
-  key of its own.
+  the pointer they are given with its `scroll`, and this frame's element
+  records read back. Its header says why the answer to a click arrives after
+  the frame has ended rather than at the call, what a widget's key is made of
+  and why it is a hashed path and not a line number, what two widgets sharing
+  one does, why a button is composed rather than handed a string, why a fully
+  transparent panel emits nothing, and how the text scale composes with the
+  surface's own. On the number box it says why this folder knows no field kinds
+  and takes a value and a rate instead, why what comes back is a value and not
+  a distance and what that buys the typing that is not built yet, and why a
+  press and release without movement is reserved rather than free. On the image
+  it says what it is for, why it is sized as a box is, that it is one element,
+  and that the texture's lifetime is the caller's. On the scroll area it says
+  why the offset is remembered there and not in layout, that an area not called
+  forgets, how a scroll passes outward, why it arrives in millimetres and lands
+  next frame, and that the bar lies over the content.
+- `src/context.h` — the tree and the context, shared by the folder's two source
+  files. Its header says why there is one context and not two, which half owns
+  which field, why the widget pass runs where it does, why a drag needs four
+  fields beside `held` and no keyed table, and why a held thumb needs no key of
+  its own.
 - `src/layout.c` — the tree, and the sweeps over it, one axis at a time. Its
   header says why the array being in call order makes every pass a flat loop
   with neither recursion nor a stack, what passes between the X pass and the Y
@@ -81,11 +80,11 @@ matrix and it is the caller's.
   exercising, which two cases are about the machinery instead of the arithmetic,
   and why exactly one case reaches into `src/` — paint order is an order and no
   rectangle can show it. Needs no graphics card and no window system.
-- `tests/widgets.c` — a press and a release in every order a hand can produce, a
-  sideways drag in every order one can, a clipped button and label, a drag
+- `tests/widgets.c` — a press and a release in every order a hand can produce,
+  a sideways drag in every order one can, a clipped button and label, a drag
   scrolled out of sight, a scroll area's remembering, passing on, bar, drag,
-  page and refusal, a duplicate key, a known tree emitted as
-  a known list, and two images as two IMAGE records. Its header says why the click cases are the ones that matter,
-  why the collision case is the most valuable in the file, and why the one case
-  that measures a string takes a headless device while every other needs no
-  graphics card. Needs no window system.
+  page and refusal, a duplicate key, a known tree emitted as a known list, and
+  two images as two IMAGE records. Its header says why the click cases are the
+  ones that matter, why the collision case is the most valuable in the file,
+  and why the one case that measures a string takes a headless device while
+  every other needs no graphics card. Needs no window system.
