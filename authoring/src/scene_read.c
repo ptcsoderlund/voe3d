@@ -25,9 +25,13 @@
 // every member, its alignment is at most 8 for every kind, so that is at least its
 // sizeof; where _replace does know the size an assert holds the two to it.
 //
-// NOTHING RECURSES. The one nesting a value has — an array of a vector kind — is a
-// fixed depth the field's kind decides, read by two loops, not a descent into
-// whatever the file holds (CLAUDE.md rule 14).
+// NOTHING RECURSES OVER THE TEXT. A value nests as deep as its field's shape
+// says, up to seven of the field's own dimensions and one more for a vector
+// kind's own bracket (ADR-0154 points 3 and 5) — shape_value() walks that with
+// an explicit stack of one frame per open level, not a call for each, and
+// BRACKET_DEPTH_MAX (8) is a hostile file's ceiling regardless of what the
+// field declares, checked before anything about the array's shape is (rule
+// 14).
 //
 // THE NUMBERS ARE READ BY THE C LIBRARY IN THE "C" LOCALE, as the writer writes
 // them; the spelling is checked by hand first, so strtod never sees `inf`, `nan`,
@@ -454,11 +458,51 @@ static bool float_of(const char *text, bool single, double *out)
 	return true;
 }
 
-static bool floats_of(struct cursor *cursor, uint8_t *bytes, uint32_t count)
+// The most bracket levels a value may nest, a vector kind's own bracket
+// counted the same as one the field's shape opens (ADR-0154 point 3).
+// Refused, past this, before anything about the array's shape is checked —
+// an explicit count kept beside the cursor, not the call stack, because rule
+// 14 forbids recursing over data read from a file, and it is at least
+// possible to write a value nested past any bound this reader is not one to
+// recurse itself to find out (see shape_value() below, which is the one place
+// that ever does nest).
+#define BRACKET_DEPTH_MAX 8
+
+// Consumes '[', counting it against BRACKET_DEPTH_MAX. `depth` is one call's
+// own counter, passed down through every function that may open a bracket —
+// the field's own shape and a vector kind's leaf alike — so the two share one
+// limit.
+static bool open_bracket(struct cursor *cursor, uint32_t *depth,
+			 const struct site *site)
+{
+	if (!expect(cursor, '['))
+		return false;
+	if (*depth >= BRACKET_DEPTH_MAX) {
+		VOE_BASE_ERROR(MODULE,
+			       "line %u: %s.%s nests more than %d levels of "
+			       "brackets; nothing was loaded",
+			       site->line, site->section, site->field,
+			       BRACKET_DEPTH_MAX);
+		return false;
+	}
+	(*depth)++;
+	return true;
+}
+
+static bool close_bracket(struct cursor *cursor, uint32_t *depth)
+{
+	if (!expect(cursor, ']'))
+		return false;
+	(*depth)--;
+	return true;
+}
+
+static bool floats_of(struct cursor *cursor, uint8_t *bytes, uint32_t count,
+		      uint32_t *depth, const struct site *site)
 {
 	char number[NUMBER_MAX];
 
-	if (!expect(cursor, '['))
+	if (!open_bracket(cursor, depth, site))
 		return false;
 	for (uint32_t i = 0; i < count; i++) {
 		double value;
@@ -472,7 +516,7 @@ static bool floats_of(struct cursor *cursor, uint8_t *bytes, uint32_t count)
 
 		memcpy(bytes + i * sizeof(single), &single, sizeof(single));
 	}
-	return expect(cursor, ']');
+	return close_bracket(cursor, depth);
 }
 
 // Written at `size` bytes, which the field's kind has already checked `max` fits.
@@ -527,22 +571,25 @@ static bool store_unsigned(const char *number, uint64_t max, uint8_t *bytes,
 }
 
 // One element of a field that is neither CHAR nor ENUM. An ENTITY element holds
-// nothing yet; its id goes out through `entity_id`, and 0 is no entity.
+// nothing yet; its id goes out through `entity_id`, and 0 is no entity. `depth`
+// is the bracket-nesting counter a vector kind's own `[` is checked against,
+// same as the field's own shape (BRACKET_DEPTH_MAX above).
 static bool element_of(struct cursor *cursor, voe_base_field_kind kind,
-		       uint8_t *bytes, uint64_t *entity_id)
+		       uint8_t *bytes, uint64_t *entity_id, uint32_t *depth,
+		       const struct site *site)
 {
 	char number[NUMBER_MAX];
 
 	switch (kind) {
 	case VOE_BASE_FIELD_FLOAT2:
-		return floats_of(cursor, bytes, 2);
+		return floats_of(cursor, bytes, 2, depth, site);
 	case VOE_BASE_FIELD_FLOAT3:
-		return floats_of(cursor, bytes, 3);
+		return floats_of(cursor, bytes, 3, depth, site);
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
-		return floats_of(cursor, bytes, 4);
+		return floats_of(cursor, bytes, 4, depth, site);
 	case VOE_BASE_FIELD_FLOAT4X4:
-		return floats_of(cursor, bytes, 16);
+		return floats_of(cursor, bytes, 16, depth, site);
 	default:
 		break;
 	}
@@ -635,8 +682,9 @@ static const char *spelling(voe_base_field_kind kind)
 		return "16 decimals in brackets";
 	case VOE_BASE_FIELD_ENTITY:
 		return "an authored id, or 0";
-	case VOE_BASE_FIELD_ENUM:
 	case VOE_BASE_FIELD_CHAR:
+		return "a quoted string";
+	case VOE_BASE_FIELD_ENUM:
 		break;
 	}
 	return "a value this reader does not know";
@@ -671,14 +719,52 @@ static bool char_value(const struct site *site,
 	return true;
 }
 
-// Reads one element, and holds it for pass two if it is a reference.
+// A string inside an array: `"…"`, with the escapes `\"` and `\\` and nothing
+// else; `,` and `]` inside it are bytes, and a control character refuses it.
+// Unlike a bare value — which the sectioned reader unquotes and unescapes
+// before this ever sees it — an array's text is not the whole value, so the
+// sectioned reader has left this one exactly as the file spelled it: this
+// function strips the quotes and undoes the escapes itself (ADR-0154 point 4).
+// `max` is the slot's byte count, the field's own innermost dimension.
+static bool char_leaf(struct cursor *cursor, size_t max, uint8_t *bytes)
+{
+	size_t length = 0;
+
+	skip_blanks(cursor);
+	if (*cursor->at != '"')
+		return false;
+	cursor->at++;
+	for (;;) {
+		char c = *cursor->at;
+
+		if (c == '"') {
+			cursor->at++;
+			return true;
+		}
+		if (c == '\\') {
+			cursor->at++;
+			c = *cursor->at;
+			if (c != '"' && c != '\\')
+				return false;
+		} else if (c == '\0' || (unsigned char)c < 0x20) {
+			return false;
+		}
+		if (length + 1 >= max)
+			return false;
+		bytes[length++] = (uint8_t)c;
+		cursor->at++;
+	}
+}
+
+// Reads one element, and holds it for pass two if it is a reference. `depth`
+// is the bracket-nesting counter, shared with the field's own shape.
 static bool held_element(struct reader *reader, const struct site *site,
 			 struct cursor *cursor, voe_base_field_kind kind,
-			 uint8_t *bytes)
+			 uint8_t *bytes, uint32_t *depth)
 {
 	uint64_t id = 0;
 
-	if (!element_of(cursor, kind, bytes, &id))
+	if (!element_of(cursor, kind, bytes, &id, depth, site))
 		return false;
 	if (kind != VOE_BASE_FIELD_ENTITY || id == 0)
 		return true;
@@ -698,25 +784,96 @@ static bool held_element(struct reader *reader, const struct site *site,
 	return true;
 }
 
+// Reads a value against `bracket_rank` levels of the field's own brackets,
+// then a leaf, with an explicit stack of one frame per open level — `index`
+// and `base` below — rather than a recursive call, and BRACKET_DEPTH_MAX
+// enforced through every '[' this or a vector kind's own leaf consumes (rule
+// 14; open_bracket()/close_bracket() above are the shared counter).
+// `strides[level]` is the byte span of one whole item at `level`;
+// `strides[bracket_rank]` is one leaf: a kind element, or for CHAR the
+// string's own byte count. Every level's count is exactly its dimension —
+// a short, long or ragged level fails the comma or bracket it expects next,
+// caught here and reported by field_value(), the caller.
+static bool shape_value(struct reader *reader, const struct site *site,
+			const voe_base_field_description *field,
+			uint32_t bracket_rank, const size_t *strides,
+			struct cursor *cursor, uint8_t *bytes, uint32_t *depth)
+{
+	uint32_t index[VOE_BASE_FIELD_RANK_MAX];
+	uint8_t *base[VOE_BASE_FIELD_RANK_MAX + 1];
+	uint32_t level = 0;
+
+	base[0] = bytes;
+	if (!open_bracket(cursor, depth, site))
+		return false;
+	index[0] = 0;
+
+	for (;;) {
+		if (index[level] > 0 && !expect(cursor, ','))
+			return false;
+
+		uint8_t *at =
+			base[level] + (size_t)index[level] * strides[level + 1];
+
+		if (level + 1 == bracket_rank) {
+			if (field->kind == VOE_BASE_FIELD_CHAR) {
+				if (!char_leaf(cursor,
+						field->dims[field->rank - 1],
+						at))
+					return false;
+			} else if (!held_element(reader, site, cursor,
+						 field->kind, at, depth)) {
+				return false;
+			}
+		} else {
+			base[level + 1] = at;
+			if (!open_bracket(cursor, depth, site))
+				return false;
+			level++;
+			index[level] = 0;
+			continue;
+		}
+
+		index[level]++;
+		while (index[level] == field->dims[level]) {
+			if (!close_bracket(cursor, depth))
+				return false;
+			if (level == 0)
+				return true;
+			level--;
+			index[level]++;
+		}
+	}
+}
+
+// One value against the field's whole shape: a bare leaf for a rank-0,
+// non-CHAR field (a plain value, or a vector kind's own bracket), the field's
+// nested brackets otherwise.
 static bool elements_of(struct reader *reader, const struct site *site,
 			const voe_base_field_description *field,
-			struct cursor *cursor, uint8_t *bytes)
+			struct cursor *cursor, uint8_t *bytes, uint32_t *depth)
 {
-	size_t element = field->size / field->count;
+	// Every dimension is a bracket level, except for CHAR, whose innermost
+	// dimension is the string's own bytes and not a level (ADR-0154
+	// point 8).
+	uint32_t bracket_rank = field->kind == VOE_BASE_FIELD_CHAR
+					 ? field->rank - 1
+					 : field->rank;
 
-	if (field->count == 1)
-		return held_element(reader, site, cursor, field->kind, bytes);
+	if (bracket_rank == 0)
+		return held_element(reader, site, cursor, field->kind, bytes,
+				    depth);
 
-	if (!expect(cursor, '['))
-		return false;
-	for (uint32_t i = 0; i < field->count; i++) {
-		if (i > 0 && !expect(cursor, ','))
-			return false;
-		if (!held_element(reader, site, cursor, field->kind,
-				  bytes + i * element))
-			return false;
-	}
-	return expect(cursor, ']');
+	size_t strides[VOE_BASE_FIELD_RANK_MAX + 1];
+
+	strides[bracket_rank] = field->kind == VOE_BASE_FIELD_CHAR
+					 ? field->dims[field->rank - 1]
+					 : field->size / field->count;
+	for (uint32_t l = bracket_rank; l > 0; l--)
+		strides[l - 1] = strides[l] * field->dims[l - 1];
+
+	return shape_value(reader, site, field, bracket_rank, strides, cursor,
+			   bytes, depth);
 }
 
 static bool field_value(struct reader *reader, const struct site *site,
@@ -725,9 +882,12 @@ static bool field_value(struct reader *reader, const struct site *site,
 {
 	uint8_t *bytes = row + field->offset;
 	struct cursor cursor = { .at = value };
+	uint32_t depth = 0;
 
 	VOE_BASE_ASSERT(field->count > 0, "a field of no elements");
-	if (field->kind == VOE_BASE_FIELD_CHAR)
+	VOE_BASE_ASSERT(field->kind != VOE_BASE_FIELD_CHAR || field->rank >= 1,
+			"a CHAR field with no length dimension");
+	if (field->kind == VOE_BASE_FIELD_CHAR && field->rank <= 1)
 		return char_value(site, field, value, bytes);
 	if (field->kind == VOE_BASE_FIELD_ENUM) {
 		VOE_BASE_ERROR(MODULE,
@@ -737,7 +897,7 @@ static bool field_value(struct reader *reader, const struct site *site,
 		return false;
 	}
 
-	if (elements_of(reader, site, field, &cursor, bytes)) {
+	if (elements_of(reader, site, field, &cursor, bytes, &depth)) {
 		skip_blanks(&cursor);
 		if (*cursor.at == '\0')
 			return true;

@@ -76,7 +76,7 @@
   - Done when: `cmake -P check.cmake` exits 0 on Linux, and
     `ctest --test-dir build/check/root -R 'describe|identity'` passes.
 
-- [ ] 2. `authoring/` — writes and reads a field of any shape
+- [x] 2. `authoring/` — writes and reads a field of any shape
   - Change: Decision: `Agentic/decisions/0154-an-array-item-is-any-value-and-a-field-declares-its-shape.md`
     points 1–4, 7 and 8, and its paragraph on what a writer emits — arrays nest as the field's shape
     says, to 8 levels.

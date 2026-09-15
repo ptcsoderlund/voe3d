@@ -33,4 +33,4 @@ owns files, and text lands in an arena the caller hands over.
   refusal, and the same bytes twice.
 - `tests/scene_read.c` — a canonical file read and written back byte for byte, a
   world written and read back row for row, every refusal creating nothing, the
-  warnings that still load, and fixed arrays of a vector kind.
+  warnings that still load, and fields of every shape from rank 0 to 7.

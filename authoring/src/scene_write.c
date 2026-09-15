@@ -25,6 +25,12 @@
 // THE IDENTITY TYPE IS FOUND BY WALKING THE TYPES, not with
 // voe_ecs_component_type, which asserts on a world that registered none — and a
 // world with no identities is an ordinary world with nothing authored in it.
+//
+// A FIELD'S SHAPE IS WALKED BY RECURSION, NOT AN EXPLICIT STACK (ADR-0154). The
+// nesting here is over a field's own rank and dims — the program's own
+// description, compiled in, never read from a file — so rule 14 (no recursion
+// over data read from a file) does not bind; put_shape() recurses at most
+// VOE_BASE_FIELD_RANK_MAX deep, a fixed bound the type checks at compile time.
 #include <authoring/scene_write.h>
 
 #include "authored.h"
@@ -82,11 +88,14 @@ struct scene {
 };
 
 // Where a value sits, for a report: which entity, which component, which field.
+// `field` is a buffer and not a pointer because an element inside an array
+// names its index too — `tags[1]` — built up as put_shape() descends and torn
+// down as it returns, one field at a time, never two at once.
 struct site {
 	const struct scene *scene;
 	uint64_t id;
 	const char *component;
-	const char *field;
+	char field[128];
 };
 
 static bool measuring(const struct text *text)
@@ -367,36 +376,69 @@ static bool put_chars(struct text *text, const struct site *site,
 	return true;
 }
 
+// Levels 0 to `bracket_rank` (exclusive) of a field's own brackets — every
+// dimension but, for CHAR, the innermost, which is the string's own bytes and
+// not a level (ADR-0154 point 8). `strides[level]` is the byte span of one
+// whole item at `level`; `strides[bracket_rank]` is one leaf: one kind element,
+// or for CHAR the string's own byte count.
+static bool put_shape(struct text *text, struct site *site,
+		      const voe_base_field_description *field,
+		      uint32_t bracket_rank, const size_t *strides,
+		      uint32_t level, const uint8_t *bytes)
+{
+	if (level == bracket_rank) {
+		if (field->kind == VOE_BASE_FIELD_CHAR)
+			return put_chars(text, site, bytes,
+					 field->dims[field->rank - 1]);
+		return put_element(text, site, field->kind, bytes);
+	}
+
+	char base[sizeof(site->field)];
+	uint32_t count = field->dims[level];
+
+	memcpy(base, site->field, sizeof(base));
+	put_string(text, "[");
+	for (uint32_t i = 0; i < count; i++) {
+		if (i > 0)
+			put_string(text, ", ");
+		(void)snprintf(site->field, sizeof(site->field), "%s[%u]",
+			       base, i);
+		if (!put_shape(text, site, field, bracket_rank, strides,
+			       level + 1, bytes + i * strides[level + 1]))
+			return false;
+	}
+	put_string(text, "]");
+	return true;
+}
+
 static bool put_field(struct text *text, struct site *site,
 		      const voe_base_field_description *field,
 		      const uint8_t *row)
 {
 	const uint8_t *bytes = row + field->offset;
+	// Every dimension is a bracket level, except for CHAR, whose innermost
+	// dimension is the string's own bytes rather than an array of them
+	// (ADR-0154 point 8).
+	uint32_t bracket_rank = field->kind == VOE_BASE_FIELD_CHAR
+					 ? field->rank - 1
+					 : field->rank;
+	size_t strides[VOE_BASE_FIELD_RANK_MAX + 1];
 
 	VOE_BASE_ASSERT(field->count > 0, "a field of no elements");
-	site->field = field->name;
+	VOE_BASE_ASSERT(field->kind != VOE_BASE_FIELD_CHAR || field->rank >= 1,
+			"a CHAR field with no length dimension");
+	(void)snprintf(site->field, sizeof(site->field), "%s", field->name);
 	put_string(text, field->name);
 	put_string(text, " = ");
 
-	if (field->kind == VOE_BASE_FIELD_CHAR) {
-		if (!put_chars(text, site, bytes, field->count))
-			return false;
-	} else if (field->count == 1) {
-		if (!put_element(text, site, field->kind, bytes))
-			return false;
-	} else {
-		size_t element = field->size / field->count;
+	strides[bracket_rank] = field->kind == VOE_BASE_FIELD_CHAR
+					 ? field->dims[field->rank - 1]
+					 : field->size / field->count;
+	for (uint32_t l = bracket_rank; l > 0; l--)
+		strides[l - 1] = strides[l] * field->dims[l - 1];
 
-		put_string(text, "[");
-		for (uint32_t i = 0; i < field->count; i++) {
-			if (i > 0)
-				put_string(text, ", ");
-			if (!put_element(text, site, field->kind,
-					 bytes + i * element))
-				return false;
-		}
-		put_string(text, "]");
-	}
+	if (!put_shape(text, site, field, bracket_rank, strides, 0, bytes))
+		return false;
 
 	put_string(text, "\n");
 	return true;
@@ -514,7 +556,7 @@ static bool put_entity_block(struct text *text, const struct scene *scene,
 				return false;
 
 		site.component = described->key;
-		site.field = NULL;
+		site.field[0] = '\0';
 		if (!described_or_refuse(text, &site, described->description))
 			return false;
 

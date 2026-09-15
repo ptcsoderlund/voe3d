@@ -6,9 +6,12 @@
 // file puts its fault after at least one good section, so a reader that created as
 // it went would be caught rather than forgiven.
 //
-// THE SAMPLE COMPONENT'S DESCRIPTION IS WRITTEN BY HAND, as the writer's every-kind
-// test does and for the same reason: describe.h lets only ENUM, CHAR and ENTITY
-// repeat, and a fixed array of a vector kind still has to be proven.
+// EVERY TEST-ONLY COMPONENT IS DECLARED THROUGH VOE_BASE_DESCRIBE_STRUCT, NOT
+// WRITTEN BY HAND, since ADR-0154 lets every kind be an array and there is no
+// shape left the macro cannot declare. `shapes` is the one built to prove
+// reading every shape from rank 0 to 7 (ADR-0154 points 1–4, 7, 8), the same
+// component scene_write.c's test declares, duplicated the way `link` already
+// was between the two files — each test file is its own program.
 //
 // A WORLD THAT ALREADY HOLDS AN AUTHORED ENTITY ASSERTS, AND IS NOT TESTED HERE:
 // voe::testing has no way to catch an assert, and a test that tripped one would
@@ -23,6 +26,7 @@
 #include <base/describe.h>
 #include <ecs/component.h>
 #include <ecs/world.h>
+#include <math/float3.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
 #include <scene/identity_component.h>
@@ -39,78 +43,57 @@
 
 #define ENTITIES 16
 
-typedef struct {
-	voe_ecs_entity target;
-} link;
+#define LINK_FIELDS(F, F_READ_ONLY) \
+	F(voe_ecs_entity, target, ENTITY)
 
-static const voe_base_field_description link_rows[] = {
-	{ .name = "target", .kind = VOE_BASE_FIELD_ENTITY,
-	  .offset = offsetof(link, target), .size = sizeof(voe_ecs_entity),
-	  .count = 1 },
-};
-
-static const voe_base_struct_description link_description = {
-	.name = "link",
-	.fields = link_rows,
-	.field_count = 1,
-};
+VOE_BASE_DESCRIBE_STRUCT(link, LINK_FIELDS)
 
 static const struct voe_ecs_key link_key = { "test_link" };
 
-typedef struct {
-	bool flag;
-	int16_t small;
-	float points[2][3];
-	char label[16];
-	uint64_t big;
-	double precise;
-	voe_ecs_entity pair[2];
-} sample;
+#define SAMPLE_FIELDS(F, F_READ_ONLY)             \
+	F(bool, flag, BOOL)                        \
+	F(int16_t, small, INT16)                   \
+	F(voe_math_float3, points, FLOAT3, 2)       \
+	F(char, label, CHAR, 16)                   \
+	F(uint64_t, big, UINT64)                   \
+	F(double, precise, FLOAT64)                \
+	F(voe_ecs_entity, pair, ENTITY, 2)
 
-#define ROW(field, KIND, elements)                                            \
-	{                                                                     \
-		.name = #field,                                               \
-		.kind = VOE_BASE_FIELD_##KIND,                                \
-		.offset = offsetof(sample, field),                            \
-		.size = sizeof(((sample *)0)->field),                         \
-		.count = (elements),                                          \
-	}
-
-static const voe_base_field_description sample_rows[] = {
-	ROW(flag, BOOL, 1),    ROW(small, INT16, 1),  ROW(points, FLOAT3, 2),
-	ROW(label, CHAR, 16),  ROW(big, UINT64, 1),   ROW(precise, FLOAT64, 1),
-	ROW(pair, ENTITY, 2),
-};
-
-static const voe_base_struct_description sample_description = {
-	.name = "sample",
-	.fields = sample_rows,
-	.field_count = sizeof(sample_rows) / sizeof(sample_rows[0]),
-};
+VOE_BASE_DESCRIBE_STRUCT(sample, SAMPLE_FIELDS)
 
 static const struct voe_ecs_key sample_key = { "test_sample" };
 
-typedef struct {
-	int kind;
-} shaped;
+#define SHAPED_FIELDS(F, F_READ_ONLY) \
+	F(int, kind, ENUM)
 
-static const voe_base_field_description shaped_rows[] = {
-	{ .name = "kind", .kind = VOE_BASE_FIELD_ENUM,
-	  .offset = offsetof(shaped, kind), .size = sizeof(int), .count = 1 },
-};
-
-static const voe_base_struct_description shaped_description = {
-	.name = "shaped",
-	.fields = shaped_rows,
-	.field_count = 1,
-};
+VOE_BASE_DESCRIBE_STRUCT(shaped, SHAPED_FIELDS)
 
 static const struct voe_ecs_key shaped_key = { "test_shaped" };
 static const struct voe_ecs_key runtime_key = { "test_runtime" };
 
+// The same shapes component scene_write.c's test declares — see this file's
+// header. Proves rank 0 to 7 on the read side: a 2-by-3 grid of integers, a
+// 1-dimensional array of vectors, a 2-by-2 grid of vectors nesting three
+// brackets deep, an array of strings, a 7-dimensional array so thin every
+// dimension but the last is 1, a 7-dimensional array of vectors nesting eight
+// brackets deep, and an array of entity references.
+#define SHAPES_FIELDS(F, F_READ_ONLY)                             \
+	F(int32_t, pair, INT32, 2, 3)                              \
+	F(voe_math_float3, points, FLOAT3, 2)                      \
+	F(voe_math_float3, grid, FLOAT3, 2, 2)                     \
+	F(char, tags, CHAR, 3, 8)                                  \
+	F(uint8_t, deep, UINT8, 1, 1, 1, 1, 1, 1, 2)                \
+	F(voe_math_float3, deepest, FLOAT3, 1, 1, 1, 1, 1, 1, 1)    \
+	F(voe_ecs_entity, links, ENTITY, 2)
+
+VOE_BASE_DESCRIBE_STRUCT(shapes, SHAPES_FIELDS)
+
+static const struct voe_ecs_key shapes_key = { "test_shapes" };
+
 struct types {
 	voe_ecs_type link;
 	voe_ecs_type sample;
+	voe_ecs_type shapes;
 };
 
 static voe_ecs_world *world_of(voe_base_arena *arena, uint32_t entities,
@@ -126,11 +109,13 @@ static voe_ecs_world *world_of(voe_base_arena *arena, uint32_t entities,
 	voe_scene_identity_register(world, ENTITIES);
 	voe_scene_camera_register(world, ENTITIES);
 	types->link = voe_ecs_component_register(world, &link_key, sizeof(link),
-						 ENTITIES, &link_description);
+						 ENTITIES, link_description());
 	types->sample = voe_ecs_component_register(
-		world, &sample_key, sizeof(sample), ENTITIES, &sample_description);
+		world, &sample_key, sizeof(sample), ENTITIES, sample_description());
+	types->shapes = voe_ecs_component_register(
+		world, &shapes_key, sizeof(shapes), ENTITIES, shapes_description());
 	(void)voe_ecs_component_register(world, &shaped_key, sizeof(shaped),
-					 ENTITIES, &shaped_description);
+					 ENTITIES, shaped_description());
 	(void)voe_ecs_component_register(world, &runtime_key, sizeof(int),
 					 ENTITIES, &voe_ecs_runtime_only);
 	return world;
@@ -446,6 +431,66 @@ static void test_refusals(void)
 	CHECK_REFUSED(GOOD "[1.test_sample]\npoints = [[0, 0, 0], [1, 1, 1]] x\n");
 }
 
+// Every way a field's own shape (ADR-0154) may be wrong: a row too short, a
+// row flattened, a row mixed with another kind, a bad escape inside an array
+// string, a string one byte too long for its slot inside an array, nesting
+// past the 8-level limit, and an empty array.
+static void test_shapes_refusals(void)
+{
+	// pair: a row too short, flattened, and mixed with a string.
+	CHECK_REFUSED(GOOD "[1.test_shapes]\npair = [[1, 2, 3], [4, 5]]\n");
+	CHECK_REFUSED(GOOD "[1.test_shapes]\npair = [1, 2, 3, 4, 5, 6]\n");
+	CHECK_REFUSED(GOOD "[1.test_shapes]\npair = [[1, 2, 3], [4, 5, \"6\"]]\n");
+	// tags: a backslash escape the format does not have, inside an array —
+	// the sectioned reader does not check this text at all, since the
+	// value as a whole does not start with '"' (it starts with '[').
+	CHECK_REFUSED(GOOD "[1.test_shapes]\ntags = [\"a\", \"C:\\x\", \"\"]\n");
+	// tags: 8 bytes in a slot that holds 7 beside the terminating zero.
+	CHECK_REFUSED(GOOD "[1.test_shapes]\ntags = [\"12345678\", \"b\", \"\"]\n");
+	// deepest: nine levels of brackets, one past BRACKET_DEPTH_MAX.
+	CHECK_REFUSED(GOOD "[1.test_shapes]\ndeepest = [[[[[[[[[1, 2, 3]]]]]]]]]\n");
+	// points: an empty array where the field wants two vectors.
+	CHECK_REFUSED(GOOD "[1.test_shapes]\npoints = []\n");
+}
+
+// Blanks inside a field's own brackets load, and are written back canonical.
+static void test_shapes_tolerated_spacing(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	struct types types;
+	voe_ecs_world *world = world_of(arena, ENTITIES, &types);
+	voe_authoring_kept kept = { 0 };
+	const char *out = NULL;
+	size_t size = 0;
+
+	VOE_TEST_CHECK(read_text("[1]\n"
+				 "name = \"a\"\n"
+				 "[1.test_shapes]\n"
+				 "pair = [ [1,2,3] ,[4, 5,6] ]\n"
+				 "points = [[0, 0, 0], [1, 2.5, -3]]\n"
+				 "grid = [[[0, 0, 0], [1, 0, 0]], [[2, 0, 0], [3, 0, 0]]]\n"
+				 "tags = [\"a\", \"x\\\"y\\\\z\", \"\"]\n"
+				 "deep = [[[[[[[0, 7]]]]]]]\n"
+				 "deepest = [[[[[[[[1, 2, 3]]]]]]]]\n"
+				 "links = [0, 0]\n",
+				 world, arena, &kept));
+
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &out, &size));
+	CHECK_TEXT(out, size,
+		   "[1]\n"
+		   "name = \"a\"\n"
+		   "[1.test_shapes]\n"
+		   "pair = [[1, 2, 3], [4, 5, 6]]\n"
+		   "points = [[0, 0, 0], [1, 2.5, -3]]\n"
+		   "grid = [[[0, 0, 0], [1, 0, 0]], [[2, 0, 0], [3, 0, 0]]]\n"
+		   "tags = [\"a\", \"x\\\"y\\\\z\", \"\"]\n"
+		   "deep = [[[[[[[0, 7]]]]]]]\n"
+		   "deepest = [[[[[[[[1, 2, 3]]]]]]]]\n"
+		   "links = [0, 0]\n");
+
+	voe_base_arena_destroy(arena);
+}
+
 static void test_warnings(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -522,8 +567,8 @@ static void test_fixed_arrays(void)
 	if (row != NULL) {
 		VOE_TEST_CHECK(row->flag);
 		VOE_TEST_CHECK_INT(row->small, -32768);
-		VOE_TEST_CHECK(row->points[0][2] == 0.0f && row->points[1][0] == 1.0f &&
-			       row->points[1][2] == 1.0f);
+		VOE_TEST_CHECK(row->points[0].z == 0.0f && row->points[1].x == 1.0f &&
+			       row->points[1].z == 1.0f);
 		VOE_TEST_CHECK(strcmp(row->label, "hi") == 0);
 		VOE_TEST_CHECK(row->big == UINT64_MAX);
 		VOE_TEST_CHECK(row->precise == 0.1);
@@ -531,6 +576,78 @@ static void test_fixed_arrays(void)
 			       row->pair[0].generation == entity.generation);
 		VOE_TEST_CHECK(row->pair[1].generation == 0);
 	}
+
+	voe_base_arena_destroy(arena);
+}
+
+// The shapes component on two entities, links naming each other and the
+// second slot dead — exercises every shape ADR-0154 names, both directions.
+static const char *const shapes_canonical =
+	"[1]\n"
+	"name = \"A\"\n"
+	"[1.test_shapes]\n"
+	"pair = [[1, 2, 3], [4, 5, 6]]\n"
+	"points = [[0, 0, 0], [1, 2.5, -3]]\n"
+	"grid = [[[0, 0, 0], [1, 0, 0]], [[2, 0, 0], [3, 0, 0]]]\n"
+	"tags = [\"a\", \"x\\\"y\\\\z\", \"\"]\n"
+	"deep = [[[[[[[0, 7]]]]]]]\n"
+	"deepest = [[[[[[[[1, 2, 3]]]]]]]]\n"
+	"links = [2, 0]\n"
+	"\n"
+	"[2]\n"
+	"name = \"B\"\n"
+	"[2.test_shapes]\n"
+	"pair = [[1, 2, 3], [4, 5, 6]]\n"
+	"points = [[0, 0, 0], [1, 2.5, -3]]\n"
+	"grid = [[[0, 0, 0], [1, 0, 0]], [[2, 0, 0], [3, 0, 0]]]\n"
+	"tags = [\"a\", \"x\\\"y\\\\z\", \"\"]\n"
+	"deep = [[[[[[[0, 7]]]]]]]\n"
+	"deepest = [[[[[[[[1, 2, 3]]]]]]]]\n"
+	"links = [1, 0]\n";
+
+static void test_shapes_round_trip_text_first(void)
+{
+	CHECK_ROUND_TRIP(shapes_canonical);
+}
+
+static void test_shapes_round_trip_world_first(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
+	struct types types;
+	voe_ecs_world *first = world_of(arena, ENTITIES, &types);
+	voe_ecs_entity a = authored(first, 1, "A");
+	voe_ecs_entity b = authored(first, 2, "B");
+	const char *text = NULL;
+	size_t size = 0;
+
+	shapes row = {
+		.pair = { { 1, 2, 3 }, { 4, 5, 6 } },
+		.points = { { 0, 0, 0 }, { 1, 2.5f, -3 } },
+		.grid = { { { 0, 0, 0 }, { 1, 0, 0 } }, { { 2, 0, 0 }, { 3, 0, 0 } } },
+		.tags = { "a", "x\"y\\z", "" },
+		.deep = { { { { { { { 0, 7 } } } } } } },
+		.deepest = { { { { { { { { 1, 2, 3 } } } } } } } },
+	};
+	shapes row_a = row;
+	shapes row_b = row;
+
+	row_a.links[0] = b;
+	row_b.links[0] = a;
+
+	VOE_TEST_CHECK(voe_ecs_component_add(first, types.shapes, a, &row_a));
+	VOE_TEST_CHECK(voe_ecs_component_add(first, types.shapes, b, &row_b));
+
+	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &text, &size));
+
+	struct types second_types;
+	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
+	voe_authoring_kept kept = { 0 };
+
+	VOE_TEST_CHECK(text != NULL &&
+		       voe_authoring_scene_read(text, size, second, arena, &kept));
+	VOE_TEST_CHECK_INT(kept.count, 0);
+	VOE_TEST_CHECK_INT(voe_ecs_entity_count(second), 2);
+	check_same_rows(first, second);
 
 	voe_base_arena_destroy(arena);
 }
@@ -569,9 +686,13 @@ int main(void)
 	test_round_trip_text_first();
 	test_round_trip_world_first();
 	test_refusals();
+	test_shapes_refusals();
+	test_shapes_tolerated_spacing();
 	test_warnings();
 	test_file_order();
 	test_fixed_arrays();
+	test_shapes_round_trip_text_first();
+	test_shapes_round_trip_world_first();
 	test_world_runs_out();
 	test_empty_text();
 	return voe_test_result();

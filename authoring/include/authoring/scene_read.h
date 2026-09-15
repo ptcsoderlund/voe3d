@@ -43,13 +43,23 @@
 //     never authored. A name nothing registered is kept, not read — see below.
 //   - Any other section name is refused.
 //
-// A VALUE IS READ BY ITS FIELD'S KIND, spelled exactly as scene_write.h writes it,
-// with blanks tolerated around brackets and commas. An ENUM field is refused,
-// because no value names exist to read one with. An ENTITY is an authored id: `0`
-// is no entity, and an id with no `[N]` in the file is no entity and a warning. A
-// field the section does not mention is zero and a warning; a key naming no field
-// is ignored and a warning. A CHAR value's quotes are the sectioned reader's to
-// strip (assets/sectioned.h), so `name = Cube` reads the same as `name = "Cube"`.
+// A VALUE IS READ AGAINST ITS FIELD'S KIND AND SHAPE (ADR-0154), spelled exactly
+// as scene_write.h writes it, with blanks tolerated around brackets and commas.
+// AN ARRAY NESTS AS THE FIELD'S DIMENSIONS SAY, outermost first, and every level
+// must hold exactly its dimension's count of the next level's shape — a row too
+// short, too long, flattened or mixed with another kind all refuse the file,
+// naming the line. NESTING IS REFUSED PAST 8 BRACKET LEVELS, a vector kind's own
+// counted the same as one the field's shape opens, walked with an explicit stack
+// and not a recursive call (CLAUDE.md rule 14). An ENUM field is refused, because
+// no value names exist to read one with. AN ENTITY is an authored id: `0` is no
+// entity, and an id with no `[N]` in the file is no entity and a warning. A field
+// the section does not mention is zero and a warning; a key naming no field is
+// ignored and a warning. A CHAR VALUE'S quotes are the sectioned reader's to
+// strip (assets/sectioned.h), so `name = Cube` reads the same as `name = "Cube"`
+// — for a field of rank 1, one string. A field with more dimensions is an array
+// of strings, and there the sectioned reader has left the text exactly as the
+// file spelled it — an array is not one whole value to it — so this reader
+// strips each string's own quotes and undoes its own `\"` and `\\` escapes.
 //
 // THE KEPT SECTIONS LIVE IN `arena` AND MUST OUTLIVE THE SAVE THAT WRITES THEM
 // BACK. A section naming a type this program never registered is some other
