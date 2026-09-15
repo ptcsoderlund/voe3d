@@ -16,7 +16,7 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^base/'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 2. `platform/` — Read a whole file, test for one, and make the write atomic
+- [x] 2. `platform/` — Read a whole file, test for one, and make the write atomic
   - Change: Per ADR-0162, in `include/platform/file.h` add
     `[[nodiscard]] const uint8_t *voe_platform_file_read(const char *path, voe_base_arena *arena, size_t *out_count, voe_base_error *error);`.
     It returns the whole file pushed into `arena` with a NUL after the last byte, which

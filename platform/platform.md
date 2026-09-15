@@ -16,10 +16,11 @@ Today that is a window, its keyboard and mouse, a clock, and writing a file.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   waiting is a different question this folder cannot answer yet.
-- `include/platform/file.h` — writing a whole file in one call. Its header says
-  why files are this folder's, that the path is exactly what the caller gave and
-  nothing is written anywhere else, which failure means what, and that reading a
-  file is not here yet.
+- `include/platform/file.h` — reading a whole file into an arena, testing
+  whether a path is a regular file, and writing a whole file in one call. Its
+  header says why files are this folder's, that the path is exactly what the
+  caller gave, what an empty file reads as, which failure means what, and how
+  a write is made atomic by a `.partial` sibling and a rename.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it. Its header says why this is here and not in the folder that
   wants one.
@@ -37,11 +38,14 @@ Today that is a window, its keyboard and mouse, a clock, and writing a file.
   as the file below; its header says why the adjusted clock and not the raw one.
 - `src/clock_win32.c` — the performance counter, and the frequency asked for once.
   Its header says why not the millisecond tick counts.
-- `src/file_wayland.c` — open, write, close. Linux only despite the name; its
-  header says why the name says wayland, why the write loop and the checked
-  close are not optional.
-- `src/file_win32.c` — CreateFileA, WriteFile, CloseHandle. Its header says why
-  the ASCII call, and why a 64-bit count is written in steps.
+- `src/file_wayland.c` — open, read/write, close, and the rename that makes a
+  write atomic. Linux only despite the name; its header says why the name says
+  wayland, why the read and write loops and the checked fsync and close are
+  not optional, and why the `.partial` path is a stack buffer.
+- `src/file_win32.c` — CreateFileA, ReadFile/WriteFile, CloseHandle, and the
+  MoveFileExA that makes a write atomic. Its header says why the ASCII call,
+  why a 64-bit count is moved in steps, and why the `.partial` path is a stack
+  buffer.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
@@ -62,9 +66,12 @@ Today that is a window, its keyboard and mouse, a clock, and writing a file.
   held keys and the pointer, that losing focus releases every key and nothing else, and
   that losing the pointer releases every button and keeps its last position.
   Needs no window and no display.
-- `tests/file.c` — that the bytes written come back byte for byte, that a
-  shorter file replaces a longer one, and that a path that cannot be opened
-  fails and creates nothing. Reads back with stdio on purpose; needs no window
-  and no display.
+- `tests/file.c` — that the bytes written come back byte for byte on both sides
+  of the API, that a shorter file replaces a longer one, that an empty file
+  reads as zero bytes, that a missing path or a folder fails a read as
+  UNAVAILABLE, that no `.partial` sibling outlives a successful write, and
+  that writing to a path that is itself a folder fails the rename as REFUSED
+  without touching the folder. Reads and writes with stdio as the oracle on
+  purpose; needs no window and no display.
 - `tests/clock.c` — that the clock moves and never goes backwards. Its header
   says why nothing in it measures a duration against a duration.
