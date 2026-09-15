@@ -31,7 +31,14 @@
 // than it is, which fails the length check rather than overrunning.
 static long read_back(const char *path, unsigned char *buffer, size_t room)
 {
+	// The MSVC C runtime deprecates fopen (it names fopen_s, Annex K, as the
+	// replacement; Linux has none) and -Werror turns that into a build error.
+	// This is tests/, never src/ — ADR-0159 — so the call is suppressed here
+	// rather than the oracle changed.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 	FILE *file = fopen(path, "rb");
+#pragma clang diagnostic pop
 	size_t count;
 
 	if (file == NULL)

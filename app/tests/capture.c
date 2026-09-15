@@ -186,7 +186,15 @@ static void draw_one_frame(voe_app *app)
 static uint8_t *read_whole_file(const char *path, voe_base_arena *arena,
 				size_t *count)
 {
+	// The MSVC C runtime deprecates fopen (it names fopen_s, Annex K, as the
+	// replacement; Linux has none) and -Werror turns that into a build error.
+	// This is tests/, never src/ — ADR-0159 — so the call is suppressed here
+	// rather than the oracle changed: what platform wrote has to be read back
+	// by something that is not platform.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 	FILE *file = fopen(path, "rb");
+#pragma clang diagnostic pop
 	long length;
 	uint8_t *bytes;
 
