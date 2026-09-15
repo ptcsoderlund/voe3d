@@ -22,6 +22,15 @@
 // axis. Keeping the angles instead is the bug this shape exists to prevent — two
 // sources of one truth, which disagree the moment anything else writes the
 // rotation.
+//
+// EVERY ROW FILLS THE COLUMN AND WRAPS (ADR-0153 point 11). A component's panel
+// stretches its rows to the column's width and each row breaks onto further
+// lines, so a narrow Inspector puts a field's number boxes under its label
+// instead of past the column's edge. That needs a width from outside — see
+// ui/layout.h, A RUN THAT WRAPS — which is what the ACROSS_FILL on the panel
+// below and on the scroll area the leaf puts round it are both for. A single box
+// wider than the whole column still has its line to itself at its full size, and
+// the scroll area is what reaches it.
 #include "inspector.h"
 
 #include <base/assert.h>
@@ -495,7 +504,8 @@ static void rotation_rows(voe_ui_context *ui, voe_editor_inspector *inspector,
 
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP });
+					     .gap = ROW_GAP,
+					     .wrap = true });
 		voe_ui_label(ui, axis_name(axis));
 		number_box(ui, inspector, type, field->name, axis,
 			   field->offset, VOE_BASE_FIELD_QUAT, degrees,
@@ -520,7 +530,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	    !room(inspector, boxes)) {
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP });
+					     .gap = ROW_GAP,
+					     .wrap = true });
 		voe_ui_label(ui, field->name);
 		voe_ui_label(ui, value_text(inspector->arena, field, bytes));
 		voe_ui_end(ui);
@@ -533,7 +544,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	}
 
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
-						 .gap = ROW_GAP });
+						 .gap = ROW_GAP,
+						 .wrap = true });
 	voe_ui_label(ui, field->name);
 
 	if (field->kind == VOE_BASE_FIELD_BOOL) {
@@ -593,7 +605,7 @@ static void component_panel(voe_ui_context *ui,
 			   (voe_math_float4){ COMPONENT_RED, COMPONENT_GREEN,
 					      COMPONENT_BLUE, COMPONENT_ALPHA },
 			   (voe_ui_container){
-				   .across = VOE_UI_ACROSS_START,
+				   .across = VOE_UI_ACROSS_FILL,
 				   .gap = COMPONENT_GAP,
 				   .pad = { COMPONENT_PAD, COMPONENT_PAD,
 					    COMPONENT_PAD, COMPONENT_PAD } });

@@ -5,7 +5,10 @@ columns — `Scene` on the left, two scene views stacked in the middle, and
 `Inspector` on the right. The left one lists the authored entities of a scene
 built in code and a click on one selects it; each view draws the scene's cubes
 from its own camera, moved by a middle-button drag in it; the right one lists what
-the selected entity is made of and lets a number in it be dragged.
+the selected entity is made of and lets a number in it be dragged. Each column
+that is not a scene view clips what is on it and scrolls it with the wheel or its
+scrollbar, and the Inspector's field rows fold onto further lines when the column
+is too narrow for them.
 
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
@@ -98,10 +101,10 @@ array buys today is that the walk takes a root rather than reading a global.
 
 ## What is deliberately absent
 
-No splitter drag, no tab bar, no dragging a panel between regions, no closing
-one, no scrolling, no clipping and no saved layout (ADR-0142 point 6). No
-picking, no gizmo, no grid, no view modes, no view header bar and no wheel in a
-scene view, and no camera or light in the world. No inspector beyond the name of what is
+No splitter drag, no tab bar, no dragging a panel between regions, no closing one
+and no saved layout (ADR-0142 point 6). No picking, no gizmo, no grid, no view
+modes, no view header bar and no wheel in a scene view, and no camera or light in
+the world. No inspector beyond the name of what is
 selected — the real one is card 059 — and no create, no delete, no save and no
 load. No pixel snapping anywhere — the
 interface is world geometry and is not snapped to a pixel grid (ADR-0141 point 3).

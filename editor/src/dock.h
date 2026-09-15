@@ -154,6 +154,11 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
 // only the geometry (ADR-0142 point 2). Called from inside the leaf's panel, so
 // everything it emits is a child of that panel.
 //
+// AND INSIDE THE SCROLL AREA THAT PANEL HOLDS, unless the panel is a scene view
+// — see dock.c's header. So what is emitted here is clipped to the leaf and
+// scrolls when there is more of it than fits, and a panel need not ask for
+// either.
+//
 // `view` is the leaf's own and is read only for a SCENE_VIEW panel.
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 			   uint32_t view, voe_editor_scene *scene,

@@ -229,7 +229,7 @@
   - Depends on: 2
   - Done when: `cmake -P check.cmake` exits 0; `cmake --build --preset debug && ctest --test-dir build/debug -R '^ui/'` passes
 
-- [ ] 4. `editor/` — the editor's panels scroll, and the inspector's rows wrap
+- [x] 4. `editor/` — the editor's panels scroll, and the inspector's rows wrap
   - Change: Nothing in the editor draws outside its column. The inspector's field rows fold onto
     further lines when the column is too narrow for a label and its number boxes. A column whose
     content is longer or wider than it scrolls with the wheel or its scrollbar. Decision: ADR-0153
