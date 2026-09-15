@@ -356,7 +356,7 @@ build break. So a task here fixes the sites that are known, and no more.
     prints 0 and task 7's `python3` one-liner prints `1280 720` with a length well above a blank
     file's.
 
-- [ ] 10. `platform/` — the test's oracle survives the Windows CRT
+- [x] 10. `platform/` — the test's oracle survives the Windows CRT
   - Change: `tests/file.c`'s `read_back` opens the written file with `fopen`, which the MSVC CRT
     deprecates exactly as it does `sscanf`; under `-Werror` this test does not compile on Windows.
     ADR-0159: the C library stays the oracle — the file's header already says why reading back with
@@ -376,7 +376,7 @@ build break. So a task here fixes the sites that are known, and no more.
     exits zero on Linux — which is also the proof the pragma itself is clean, since `-Wall -Wextra
     -Wpedantic -Werror` would report an unknown one.
 
-- [ ] 11. `app/` — the same, for the capture test's reader
+- [x] 11. `app/` — the same, for the capture test's reader
   - Change: `tests/capture.c`'s `read_whole_file` opens the written PNG with `fopen`, the same
     deprecation as task 10 and the same fix, for the same reason: the file this test checks is the
     one `app` just wrote, so the reader must not be `app`'s.
