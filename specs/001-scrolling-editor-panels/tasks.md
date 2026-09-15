@@ -274,3 +274,118 @@
   - Covers: 1, 2, 3, 4, 5, 6, 7, 8 (hand-checked in plan.md Verification)
   - Depends on: 1, 3
   - Done when: `cmake -P check.cmake` exits 0
+
+- [ ] 5. `ui/` — a wrap revises every ancestor's measure
+  - Change: When a container wraps, what it measures to changes, and every ancestor that had
+    already been measured keeps the pre-wrap number. `voe_ui_node_measured` therefore lies about
+    every ancestor of a wrapping container, and both readers of that number — `scroll_clamp`
+    (`ui/src/layout.c:417`) and `scroll_range` (`ui/src/widgets.c:729`) — see range the content does
+    not need: a scroll area draws a bar over slack that is not there and lets the wheel scroll into
+    it. In the editor the phantom X range is 20–35 mm, about three quarters of the Inspector
+    column, at every width at which anything wraps, the default included. Found in review of this
+    feature; a probe confirmed it (a clipping column 50 wide over a wrapping row of four 20 boxes:
+    row measured.x 40, outer measured.x 80). The fix is a corrective measure sweep after both
+    passes. **It does not go in `widgets.c` and it does not go in `editor/`** — see step 1's last
+    bullet, which is the argument and belongs in the header you write.
+    1. The sweep, `ui/src/layout.c`, in `voe_ui_frame_end` between the two-axis loop and `clip()`:
+       - For each axis in turn, X then Y: call `measure(ui->nodes, ui->count, axis_y)` again, then
+         sweep the array forwards — parents before children, as `arrange` does — and for every
+         container remember `axis(c->scrolled, axis_y)`, call `scroll_clamp(c, axis_y)`, and where
+         the two differ `shift_subtree` every child, anchored and in flow alike, by
+         `old - new`. That is the move `arrange_along` already makes for a wrapping column's across
+         axis (`ui/src/layout.c:745-768`); this is the same move, made for every container.
+       - **Measure only. No rectangle is resized and no run is broken again**, the root's rectangle
+         included. The width a container wrapped at is the width it was arranged to; re-arranging X
+         from the revised measure could break the lines differently, and that iteration is the one
+         thing the axis order exists to rule out. So a NATURAL-width ancestor keeps its pre-wrap
+         rectangle and now measures less than it — the true statement, and the one the accessor
+         exists to make.
+       - Parents first, because a parent's shift moves its descendants and a nested area's own
+         re-clamp then adds to it. A container whose offset did not change is not touched.
+       - Both axes, and each has a case behind it (CLAUDE.md rule 10). A wrapping **row** revises
+         its own X in `arrange(X)`, after `measure(X)` fed its ancestors. A wrapping **column**
+         revises its own Y at `layout.c:737` and its own X at `layout.c:752`, both in `arrange(Y)`,
+         after `measure(Y)` fed its ancestors — and a column filled across by an `ACROSS_FILL` row
+         is how such a column gets a height to break at while staying NATURAL across, which is
+         exactly the shape whose parent reads the changed number. Step 5 has one test for each.
+       - Idempotent everywhere else: re-measuring reads the children's `natural`, which nothing
+         between the passes changed, so a tree holding no wrapping container comes out to the bit
+         as it was and no offset moves. Every existing test is the proof.
+       - **Why not `scroll_range` in `widgets.c`.** Satisfy yourself before you write it: the
+         one-line patch there hides the bar but leaves `scroll_clamp` accepting an offset in a
+         range that is not there, so the wheel still scrolls the content sideways into slack — with
+         no bar to show it and nothing to scroll back by. It would also put a second copy of the
+         rule beside `voe_ui_node_measured`, which would go on lying. A measure that is wrong is
+         fixed where the measure is made.
+    2. The file header of `ui/src/layout.c`, a paragraph in the shape of the ones around it, after
+       *SINCE CARD 072 THE PAIR RUNS ONCE PER AXIS*: that a wrap is decided in `arrange` and so
+       lands after the `measure` that fed the ancestors, which is what makes the sweep necessary;
+       that it revises measures and never rectangles, and why; that it re-clamps and shifts, because
+       an offset clamped against range that is not there is an offset the person cannot undo; and
+       that a wrapping column's own revisit is this same move made early, so the sweep finds nothing
+       left to do there.
+    3. `ui/ui.md`: the `src/layout.c` line names the corrective sweep beside what already passes
+       between the X pass and the Y pass. The public surface does not change, so nothing else does.
+    4. `ui/include/ui/widgets.h:105-108`, while the file is open: *AN AREA THAT IS NOT CALLED IN A
+       FRAME IS FORGOTTEN* illustrates itself with "an inspector switched to another entity and back
+       starts at the top", and in this editor that is false — the area is keyed by the dock leaf, is
+       called every frame, and keeps its offset across a selection change. Keep the rule, which is
+       right; replace the illustration with a true one: an area that stops being called at all — a
+       panel closed, a tab switched away — comes back at nought, while an area called every frame
+       keeps its offset and the clamp is what brings a shorter inspector back to the top of its
+       content.
+    5. Tests, `ui/tests/layout.c`, among the wrapping cases and registered in `main`. The numbers
+       below were worked out by hand; work them out again and report a disagreement rather than
+       taking either side on trust.
+       - `wrap_revises_every_ancestor`. Outer column, `fixed(30)` along and `fixed(50)` across,
+         `.across = VOE_UI_ACROSS_FILL`, clipping both axes, `.scroll = { 20.0f, 0.0f }`; inside it
+         a middle column, natural sizing, `.across = VOE_UI_ACROSS_FILL`; inside that a wrapping
+         row, natural sizing; inside that four boxes 20 by 5. No gaps, no padding. The row is
+         filled to 50 and breaks into two lines of two. Assert `measured.x` is 40 on the row, on
+         the middle column **and on the outer column** — the outer's was 80, and that is the
+         defect — and `measured.y` is 10 on all three. Assert `voe_ui_node_scroll(outer).x` is 0,
+         the phantom 30 mm of range having gone, and the four boxes at (0, 0), (20, 0), (0, 5),
+         (20, 5): before the re-clamp and shift they sat 20 mm to the left of that.
+       - `wrap_column_revises_every_ancestor`, the mirror on the other axis. Outer row, `fixed(60)`
+         along and `fixed(40)` across, `.across = VOE_UI_ACROSS_FILL`, clipping both axes,
+         `.scroll = { 0.0f, 15.0f }`; inside it a wrapping column, natural sizing; inside that four
+         boxes 10 wide by 15 tall. The column is filled to 40 tall and breaks into two lines of
+         two, so it measures 30 along Y and 20 across X while its rectangle stays 10 wide. Assert
+         the outer's `measured.y` is 30 — it was 60 — and its `measured.x` is 20 — it was 10, the
+         wrapping column's across revision being stale in its parent the same way. Assert
+         `voe_ui_node_scroll(outer).y` is 0 and the boxes at (0, 0), (0, 15), (10, 0), (10, 15).
+       - The file's top comment names what each case pins down; add the pair under the wrapping
+         paragraph, saying that a wrap is decided after the measure that fed the ancestors and that
+         these two are what keep the accessor honest on each axis.
+    6. Tests, `ui/tests/widgets.c`: extend `content_that_fits_has_no_bar` to the wrapped case —
+       content that fits **because it wrapped** has no bar either. An area 40 by 30 with
+       `.across = VOE_UI_ACROSS_FILL` and axes `{ .x = true, .y = true }`, holding a wrapping row of
+       three boxes 15 by 8: two lines, measured 30 by 16, both inside the area, so no record at all
+       and `voe_ui_element_count` is nought. Before the fix the area measured 45 wide and emitted a
+       horizontal track and thumb. Update the file's top comment where it says the bar is absent
+       when content fits.
+    7. Regenerate both screenshots, which show the defective state — a horizontal bar over slack
+       that is not there: `specs/001-scrolling-editor-panels/inspector-wraps.png` (900 by 720, rows
+       folded, no horizontal bar) and `inspector-scrolls.png` (700 by 720, scrolled, vertical bar
+       only). The throwaway that made them is `~/voe3d-scratch/capture/capture_editor.c` with
+       `bgra2png.py` beside it, taking width, height, scroll in millimetres and an output path; it
+       draws on `voe_render_device_new_headless`. **It stays out of the repository** (CLAUDE.md:
+       throwaway spikes do not live here) — only the two PNGs are committed. Rebuild it against the
+       fixed tree before capturing.
+
+    Must not change: `scroll_range` in `ui/src/widgets.c`, which becomes true of its own accord once
+    the measure is right. The X-then-Y arrangement order, `break_lines`, and every rectangle the
+    passes produce for a tree with no wrapping container in it. `editor/`, `platform/`, `render/`:
+    nothing at all — `git diff --ignore-cr-at-eol --quiet -- editor platform render` exits 0. Every
+    existing `ui` test passes unedited; an expectation that does change is this same defect showing
+    up in another case, so work the new number out by hand, correct the case's comment, and name it
+    in your report — never weaken or delete a test to make it pass.
+  - Covers: 3 (a horizontal bar only when something really is wider than the column), and it
+    re-verifies 1 and 2 — the review defect
+  - Depends on: 3
+  - Done when: `cmake -P check.cmake` exits 0 on Linux (this machine builds through the scratch
+    toolchain: `source ~/voe3d-scratch/env.sh`, `~/voe3d-scratch/mirror.sh`, then run it from
+    `~/voe3d-scratch/tree` and never from the repository, and never edit the mirror);
+    `ctest --test-dir build/debug -R '^ui/'` passes with the two new layout cases and the extended
+    widgets case in it; `git diff --ignore-cr-at-eol --stat -- specs/001-scrolling-editor-panels`
+    names both PNGs as changed, and neither shows a horizontal bar

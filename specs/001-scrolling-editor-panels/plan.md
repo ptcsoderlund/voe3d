@@ -17,6 +17,12 @@ feature and is only used here.
 - `voe_ui_scroll_by` and `voe_ui_scroll_reveal` (ADR-0153 point 9) are not built — they have no
   caller until gamepad focus exists (CLAUDE.md rule 10). The pointer's scroll goes through one
   internal function that `voe_ui_scroll_by` will later expose.
+- A wrap is decided in `arrange`, so the `measure` that fed the wrapping container's ancestors
+  has already run and every one of them keeps its pre-wrap size. Found in review, fixed in task 5
+  by a corrective measure-only sweep after both passes, which re-clamps each container's offset and
+  shifts its children by the difference. It does not change the X-then-Y order and resizes nothing,
+  so ADR-0153 stands as written and no new record is needed; `layout.c`'s header carries the
+  reasoning, as it does for the passes themselves.
 - Windows' wheel is written and not verified — Linux first, ADR-0130; Windows problems arrive as
   bug reports.
 
@@ -43,6 +49,8 @@ feature and is only used here.
   2. Narrow the window until a vector field's boxes fold under its label; widen it and they return
      to one line. Save a screenshot of the folded state as
      `specs/001-scrolling-editor-panels/inspector-wraps.png`. — criterion 2
+     (Both screenshots were captured before task 5 and show the phantom horizontal bar; task 5
+     replaces them.)
   3. Narrow further until a single box is wider than the column: a horizontal bar appears, and
      scrolling sideways (a wheel tilt, or dragging the horizontal thumb) reaches the box. —
      criteria 3 and 7
