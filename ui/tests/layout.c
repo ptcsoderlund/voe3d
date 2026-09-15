@@ -41,6 +41,15 @@
 // breaks MOVES its children out to the right without resizing them, a FILL child
 // included — the reading the principal chose when the card asked.
 //
+// AND TWO WRAPPING CASES SINCE SPEC 001, ONE PER AXIS, THAT KEEP THE MEASURED
+// SIZE HONEST. A wrap is decided in `arrange`, which is after the `measure` that
+// fed the wrapping container's ancestors, so every one of them would otherwise
+// keep the pre-wrap number and a clipping ancestor would scroll into range that
+// is not there. wrap_revises_every_ancestor is a wrapping row, whose X the
+// ancestors have wrong, and wrap_column_revises_every_ancestor a wrapping
+// column, whose X and Y they both have wrong; each asserts the ancestors'
+// measure, the offset coming back to nought, and where that leaves the boxes.
+//
 // AND THE OVERFLOW CASES SINCE SPEC 001: a clip narrows the visible rectangle
 // and never the rectangle, nested clips intersect while a VISIBLE axis narrows
 // nothing, an anchored child is clipped like any other, and an offset is clamped
@@ -155,6 +164,13 @@ static voe_ui_node content_box(voe_ui_context *ui, float x, float y)
 {
 	return voe_ui_box(ui, (voe_math_float2){ x, y },
 			  sizing(natural(), natural()));
+}
+
+// What a container clips on each axis. Read by the overflow cases and by the
+// two wrapping cases that scroll.
+static voe_ui_overflow clips(voe_ui_overflow_kind x, voe_ui_overflow_kind y)
+{
+	return (voe_ui_overflow){ x, y };
 }
 
 // ---------------------------------------------------------------- a row
@@ -1800,12 +1816,129 @@ static void wrap_nesting(voe_ui_context *ui, voe_base_arena *frames)
 	voe_base_arena_rewind(frames, mark);
 }
 
-// ------------------------------------------------------------- overflow
-
-static voe_ui_overflow clips(voe_ui_overflow_kind x, voe_ui_overflow_kind y)
+// A WRAP REVISES EVERY ANCESTOR'S MEASURE AND NOT ONLY THE WRAPPER'S OWN. A
+// wrapping row of four boxes 20 by 5, inside a column filled to 50, inside a
+// column fixed at 50 by 30 that clips: the row breaks into two lines of two and
+// so measures 40 along X and 10 across Y, and BOTH columns have to say 40 and 10
+// as well. The outer's own measure is the one that matters — it was 80, the one
+// line the X pass measured before the row had broken, which made 30 of range
+// where there is none. It asked to be scrolled 20 sideways, which that phantom
+// range allowed: the offset comes back nought and the boxes sit at their corner
+// instead of 20 to the left of it.
+//
+// AND NO RECTANGLE MOVES FOR THE REVISION. The middle column is still 50 wide,
+// the width its parent's FILL stretched it to and the width the row wrapped at,
+// while measuring 40 — which is the true statement the accessor exists to make.
+static void wrap_revises_every_ancestor(voe_ui_context *ui,
+					voe_base_arena *frames)
 {
-	return (voe_ui_overflow){ x, y };
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	static const float xs[4] = { 0.0f, 20.0f, 0.0f, 20.0f };
+	static const float ys[4] = { 0.0f, 0.0f, 5.0f, 5.0f };
+	voe_ui_node boxes[4];
+	voe_ui_node outer;
+	voe_ui_node middle;
+	voe_ui_node row_node;
+
+	voe_ui_frame_begin(ui, frames);
+	outer = voe_ui_column_begin(
+		ui, (voe_ui_container){ .size = sizing(fixed(30.0f),
+						       fixed(50.0f)),
+					.across = VOE_UI_ACROSS_FILL,
+					.overflow = clips(VOE_UI_OVERFLOW_CLIP,
+							  VOE_UI_OVERFLOW_CLIP),
+					.scroll = { 20.0f, 0.0f } });
+	middle = voe_ui_column_begin(ui, (voe_ui_container){
+						 .size = sizing(natural(),
+								natural()),
+						 .across = VOE_UI_ACROSS_FILL });
+	row_node = voe_ui_row_begin(ui, (voe_ui_container){
+						.size = sizing(natural(),
+							       natural()),
+						.wrap = true });
+	for (uint32_t i = 0; i < 4; i++)
+		boxes[i] = fixed_box(ui, 20.0f, 5.0f);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, row_node).x, 40.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, middle).x, 40.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, outer).x, 40.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, row_node).y, 10.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, middle).y, 10.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, outer).y, 10.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_scroll(ui, outer).x, 0.0f, TOLERANCE);
+	CHECK_RECT(voe_ui_node_rect(ui, outer), 0.0f, 0.0f, 50.0f, 30.0f);
+	CHECK_RECT(voe_ui_node_rect(ui, middle), 0.0f, 0.0f, 50.0f, 10.0f);
+	for (uint32_t i = 0; i < 4; i++)
+		CHECK_RECT(voe_ui_node_rect(ui, boxes[i]), xs[i], ys[i], 20.0f,
+			   5.0f);
+
+	voe_base_arena_rewind(frames, mark);
 }
+
+// THE SAME ON THE OTHER AXIS, WHERE A WRAPPING COLUMN REVISES BOTH OF ITS OWN.
+// A column of four boxes 10 wide and 15 tall, filled to 40 tall by a row fixed
+// at 60 by 40 that clips: it breaks into two lines of two, so it measures 30
+// along Y and 20 across X while its rectangle stays the 10 wide it was arranged
+// to. Its parent had both numbers from the Y pass, which ran before the column
+// broke: 60 tall and 10 wide. The 60 gave 20 of range on Y that is not there,
+// the 15 it was asked to scroll came back nought, and the boxes moved down by
+// it.
+static void wrap_column_revises_every_ancestor(voe_ui_context *ui,
+					       voe_base_arena *frames)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(frames);
+	static const float xs[4] = { 0.0f, 0.0f, 10.0f, 10.0f };
+	static const float ys[4] = { 0.0f, 15.0f, 0.0f, 15.0f };
+	voe_ui_node boxes[4];
+	voe_ui_node outer;
+	voe_ui_node column_node;
+
+	voe_ui_frame_begin(ui, frames);
+	outer = voe_ui_row_begin(
+		ui, (voe_ui_container){ .size = sizing(fixed(60.0f),
+						       fixed(40.0f)),
+					.across = VOE_UI_ACROSS_FILL,
+					.overflow = clips(VOE_UI_OVERFLOW_CLIP,
+							  VOE_UI_OVERFLOW_CLIP),
+					.scroll = { 0.0f, 15.0f } });
+	column_node = voe_ui_column_begin(ui, (voe_ui_container){
+						      .size = sizing(natural(),
+								     natural()),
+						      .wrap = true });
+	for (uint32_t i = 0; i < 4; i++)
+		boxes[i] = fixed_box(ui, 15.0f, 10.0f);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, column_node).y, 30.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, outer).y, 30.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, column_node).x, 20.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, outer).x, 20.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_scroll(ui, outer).y, 0.0f, TOLERANCE);
+	CHECK_RECT(voe_ui_node_rect(ui, column_node), 0.0f, 0.0f, 10.0f, 40.0f);
+	for (uint32_t i = 0; i < 4; i++)
+		CHECK_RECT(voe_ui_node_rect(ui, boxes[i]), xs[i], ys[i], 10.0f,
+			   15.0f);
+
+	voe_base_arena_rewind(frames, mark);
+}
+
+// ------------------------------------------------------------- overflow
 
 // A CLIP NARROWS WHAT IS SEEN AND NOT WHERE ANYTHING IS. A row 50 by 20 clipping
 // X holds a box 70 wide: the box's rectangle is still 70, its visible rectangle
@@ -2143,6 +2276,8 @@ int main(void)
 	wrap_column(ui, frames);
 	wrap_anchored(ui, frames);
 	wrap_nesting(ui, frames);
+	wrap_revises_every_ancestor(ui, frames);
+	wrap_column_revises_every_ancestor(ui, frames);
 	clip_row(ui, frames);
 	clip_nested(ui, frames);
 	clip_anchored(ui, frames);

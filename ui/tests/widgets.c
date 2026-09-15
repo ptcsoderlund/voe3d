@@ -40,7 +40,9 @@
 // A SCROLL AREA REMEMBERS, PASSES ON AND DRAWS A BAR, since spec 001. A scroll
 // lands in the next frame and is clamped; an area skipped for a frame forgets; an
 // inner area takes what it can and hands the rest to the one around it; the bar
-// is absent when content fits, has a thumb of known length at known offsets,
+// is absent when content fits — including when it fits only because it wrapped,
+// which is the case that catches an ancestor's stale measure — has a thumb of
+// known length at known offsets,
 // drags and pages by known amounts and stands in front of a button; and one area
 // too many refuses the frame. Every one of these makes its own context, so what
 // one remembers cannot leak into the next.
@@ -1165,14 +1167,45 @@ static void a_nested_area_passes_on_what_it_cannot_take(voe_base_arena *arena)
 
 // No bar when there is nothing to scroll: content 20 tall in an area 30 tall,
 // and neither the area nor its box draws anything else.
+//
+// AND NO BAR WHEN THE CONTENT FITS BECAUSE IT WRAPPED, which is the same
+// statement about a number that is only right after every wrap is decided. An
+// area 40 by 30 filling its content across, holding a wrapping row of three
+// boxes 15 by 8: the row is stretched to 40, breaks into a line of two and a
+// line of one, and so measures 30 by 16 — both inside the area. Before the
+// corrective sweep in layout the area still held the one line the X pass
+// measured, 45, and drew a horizontal track and thumb over 5 mm of slack that
+// was not there.
 static void content_that_fits_has_no_bar(voe_base_arena *arena)
 {
 	voe_ui_context *ui = scroll_context(arena, 4);
 	struct area_frame f =
 		build_area(ui, arena, pointer_at(10.0f, 10.0f, false, 0.0f),
 			   20.0f, false);
+	voe_ui_node area;
 
 	VOE_TEST_CHECK(f.ok);
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 0);
+
+	ui = scroll_context(arena, 4);
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, pointer_at(10.0f, 10.0f, false, 0.0f));
+	area = voe_ui_scroll_begin(
+		ui, "wrapping", 0,
+		(voe_ui_container){ .size = { { VOE_UI_SIZE_FIXED, AREA_HIGH },
+					      { VOE_UI_SIZE_FIXED, AREA_WIDE } },
+				    .across = VOE_UI_ACROSS_FILL },
+		(voe_ui_scroll_axes){ .x = true, .y = true });
+	voe_ui_row_begin(ui, (voe_ui_container){ .wrap = true });
+	for (uint32_t i = 0; i < 3; i++)
+		voe_ui_box(ui, (voe_math_float2){ 15.0f, 8.0f },
+			   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, area).x, 30.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_node_measured(ui, area).y, 16.0f, 0.001f);
 	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 0);
 }
 

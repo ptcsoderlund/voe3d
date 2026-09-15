@@ -56,9 +56,10 @@ caller's.
 - `src/layout.c` — the tree, and the sweeps over it, one axis at a time. Its
   header says why the array being in call order makes every pass a flat loop
   with neither recursion nor a stack, what passes between the X pass and the Y
-  pass, where a wrapping column has to revisit X, why a node's natural size is
-  written by its parent
-  rather than by itself, what a grow child contributes to a natural container and
+  pass, where a wrapping column has to revisit X, why a corrective sweep after
+  both passes measures each axis again and re-clamps every offset once the wraps
+  are decided, why a node's natural size is written by its parent rather than by
+  itself, what a grow child contributes to a natural container and
   why that answer and not the two others, why a gap belongs to the run and not to
   a child, how an anchored child is a stronger exclusion than a grow one and why
   its axes are absolute, how paint order is worked out in three linear sweeps now

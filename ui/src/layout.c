@@ -14,6 +14,37 @@
 // the two passes speak, and a container that does not wrap leaves every child on
 // line nought, which is a single run and exactly the arithmetic there was before.
 //
+// A WRAP IS DECIDED IN arrange, SO THE measure THAT FED ITS ANCESTORS HAS
+// ALREADY RUN, and every one of them keeps the pre-wrap number. A row breaks
+// while arranging X, after measure(X) told its parent it was one line long; a
+// column breaks while arranging Y and revises both of its own axes there, after
+// measure(Y) and measure(X) had both been believed. So there is a corrective
+// sweep, remeasure, between the two passes and the clip: it measures each axis
+// again — reading the `line` numbers the arrangement wrote — and re-clamps every
+// container's offset against the number that comes out.
+//
+// IT REVISES MEASURES AND NEVER RECTANGLES, the root's included. The width a
+// container wrapped at is the width it was arranged to, and re-arranging X from
+// the revised measure could break the lines differently and want measuring
+// again; that iteration is the one thing the axis order exists to rule out. So
+// a NATURAL-width ancestor keeps its pre-wrap rectangle and now measures less
+// than it, which is the true statement and the one voe_ui_node_measured exists
+// to make.
+//
+// IT RE-CLAMPS AND SHIFTS, because an offset clamped against range that is not
+// there is an offset the person cannot undo: the content sits away from the
+// corner with nothing to scroll it back by, and the bar over it is drawn on
+// slack the content does not need. Parents first, as arrange goes, so that a
+// parent's shift carries its descendants and a nested area's own re-clamp adds
+// to it. A container whose offset did not move is not touched, and a tree with
+// no wrapping container in it comes out of remeasure to the bit as it went in —
+// nothing between the passes changed a leaf's content, so the arithmetic is the
+// same arithmetic.
+//
+// A WRAPPING COLUMN'S OWN REVISIT, below, IS THIS SAME MOVE MADE EARLY, so the
+// sweep finds nothing left to do on the column itself and everything left to do
+// above it.
+//
 // A WRAPPING COLUMN IS THE ONE PLACE A PASS REVISITS THE OTHER AXIS. Its length
 // is Y, so it breaks in the Y pass, after its children were placed on X as one
 // line; breaking then moves each child and its whole subtree across to its line,
@@ -817,6 +848,45 @@ static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
 	}
 }
 
+// One axis measured again, now that every wrap has been decided, and every
+// container's offset re-clamped against what came out. See this file's header
+// for why a wrapping container's ancestors need it and why nothing is resized
+// or re-arranged here.
+//
+// measure reads the `line` numbers arrange wrote, so a wrapping container comes
+// out at its longest line and its lines' thicknesses rather than at the one run
+// it was first measured as, and every ancestor reads that through `natural`.
+// Then forwards, parents before children: where the re-clamp moves a
+// container's offset, its children — anchored and in flow alike — move by the
+// difference, which is the shift arrange_along already makes for a wrapping
+// column's across axis.
+static void remeasure(voe_ui_context *ui, bool axis_y)
+{
+	struct voe_ui_node_record *nodes = ui->nodes;
+	uint32_t i;
+
+	measure(nodes, ui->count, axis_y);
+
+	for (i = 0; i < ui->count; i++) {
+		struct voe_ui_node_record *c = &nodes[i];
+		float was;
+		float now;
+		uint32_t child;
+
+		if (c->leaf)
+			continue;
+
+		was = axis(c->scrolled, axis_y);
+		now = scroll_clamp(c, axis_y);
+		if (now == was)
+			continue;
+
+		for (child = c->first_child; child != VOE_UI_NODE_NONE;
+		     child = nodes[child].next_sibling)
+			shift_subtree(nodes, child, axis_y, was - now);
+	}
+}
+
 // Hands every child of `parent` whose anchoring matches `anchored` its slot in
 // paint order, the first at `at`, and answers where the next run would begin.
 // Call order among them is the sibling list's order, which is call order.
@@ -1177,6 +1247,13 @@ bool voe_ui_frame_end(voe_ui_context *ui)
 
 		arrange(ui->nodes, ui->count, axis_y);
 	}
+
+	// And then each axis measured again, because a wrap is decided in
+	// arrange and so lands after the measure that fed the wrapping
+	// container's ancestors. Measure only: no rectangle moves for it but
+	// the ones a re-clamped offset shifts.
+	for (int pass = 0; ok && ui->count > 0 && pass < 2; pass++)
+		remeasure(ui, pass == 1);
 
 	// After both axes, because a clip is a rectangle and a rectangle is not
 	// known until both are arranged.

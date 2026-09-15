@@ -105,9 +105,13 @@
 // a remembered offset is always one the content allowed.
 //
 // AN AREA THAT IS NOT CALLED IN A FRAME IS FORGOTTEN AT THAT FRAME'S END, and
-// comes back at nought. That is transient state on purpose (ADR-0153): an
-// inspector switched to another entity and back starts at the top, and nothing
-// here is saved anywhere.
+// comes back at nought. That is transient state on purpose (ADR-0153): an area
+// that stops being called at all — a panel closed, a tab switched away — comes
+// back at the top, and nothing here is saved anywhere. An area that IS called
+// every frame keeps its offset through anything its content does, however much
+// that content changes: what brings a shorter inspector back to the top of its
+// content is the clamp, which layout runs against the content's own measure,
+// and not this table forgetting.
 //
 // A SCROLL ARRIVES AS A LENGTH IN MILLIMETRES, NEVER AS WHEEL NOTCHES. How long a
 // notch is belongs to the program; a thumbstick or a hand produces a length just

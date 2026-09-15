@@ -275,7 +275,7 @@
   - Depends on: 1, 3
   - Done when: `cmake -P check.cmake` exits 0
 
-- [ ] 5. `ui/` — a wrap revises every ancestor's measure
+- [x] 5. `ui/` — a wrap revises every ancestor's measure
   - Change: When a container wraps, what it measures to changes, and every ancestor that had
     already been measured keeps the pre-wrap number. `voe_ui_node_measured` therefore lies about
     every ancestor of a wrapping container, and both readers of that number — `scroll_clamp`
@@ -366,8 +366,12 @@
        when content fits.
     7. Regenerate both screenshots, which show the defective state — a horizontal bar over slack
        that is not there: `specs/001-scrolling-editor-panels/inspector-wraps.png` (900 by 720, rows
-       folded, no horizontal bar) and `inspector-scrolls.png` (700 by 720, scrolled, vertical bar
-       only). The throwaway that made them is `~/voe3d-scratch/capture/capture_editor.c` with
+       folded) and `inspector-scrolls.png` (700 by 720, scrolled). A horizontal bar remains in both,
+       and correctly so: the component title is a single unwrappable label about 43 mm wide against
+       a column of 20 to 27 mm, and at 700 a number box is 0.93 mm too wide as well. What changes is
+       the thumb, which grows as 27.3 mm of phantom range goes (measured X 72.14 to 44.80 at both
+       sizes). Measured after the fact, not predicted: the original wording here said the bar would
+       go entirely, and that was wrong. The throwaway that made them is `~/voe3d-scratch/capture/capture_editor.c` with
        `bgra2png.py` beside it, taking width, height, scroll in millimetres and an output path; it
        draws on `voe_render_device_new_headless`. **It stays out of the repository** (CLAUDE.md:
        throwaway spikes do not live here) — only the two PNGs are committed. Rebuild it against the
@@ -388,4 +392,5 @@
     `~/voe3d-scratch/tree` and never from the repository, and never edit the mirror);
     `ctest --test-dir build/debug -R '^ui/'` passes with the two new layout cases and the extended
     widgets case in it; `git diff --ignore-cr-at-eol --stat -- specs/001-scrolling-editor-panels`
-    names both PNGs as changed, and neither shows a horizontal bar
+    names both PNGs as changed, and in each the horizontal thumb has grown by the phantom range
+    removed (see step 7 — a bar remains, and honestly)
