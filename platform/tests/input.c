@@ -1,12 +1,12 @@
-// THE THREE PLACES AN INPUT LAYER LEAKS STATE, AND NONE OF THEM NEEDS A
-// KEYBOARD OR A MOUSE TO CHECK.
+// THE PLACES AN INPUT LAYER LEAKS STATE, AND NONE OF THEM NEEDS A KEYBOARD OR A
+// MOUSE TO CHECK.
 //
-// voe_platform_input_begin_poll, voe_platform_input_focus_lost and
-// voe_platform_input_pointer_lost are the whole of what src/input.c decides.
-// Everything else in this folder's input is a window system handing over an
-// event, which cannot be tested without a compositor on one platform and a
-// message queue on the other — but these three are arithmetic over one struct,
-// and they are also the three that go wrong.
+// voe_platform_input_begin_poll, voe_platform_input_focus_lost,
+// voe_platform_input_pointer_lost and voe_platform_input_append_text are the
+// whole of what src/input.c decides. Everything else in this folder's input is
+// a window system handing over an event, which cannot be tested without a
+// compositor on one platform and a message queue on the other — but these are
+// arithmetic over one struct, and they are also where it goes wrong.
 //
 // FOCUS LOST WITH A KEY STILL DOWN IS THE ONE THE CARD NAMED. Alt-tab away while
 // holding W and the release is delivered to whoever has focus now, which is not
@@ -31,6 +31,16 @@
 // promises a GUI the last place the pointer was seen — and a poll must leave the
 // position, the buttons and the over-the-window flag exactly as they were,
 // because a poll that cleared them would make every hover a single-frame one.
+//
+// AND THE FOURTH IS TYPED TEXT, DRAINED THE SAME WAY THE WHEEL IS (ADR-0161).
+// A poll with nothing typed in it must leave what the frame before left there,
+// and a poll after some has been typed must empty it — get either wrong and a
+// name box either drops every other keystroke or keeps typing what was typed
+// last frame. voe_platform_input_append_text is where a code point becomes the
+// UTF-8 bytes this buffer holds, and it is also where a bad one is refused: a
+// control character, a lone surrogate, anything past U+10FFFF, or a code point
+// that would only half fit in what capacity is left — each of those is a
+// character a name box must never see appear.
 //
 // IT INCLUDES platform's INTERNAL HEADER BY RELATIVE PATH, the same way render's
 // tests reach that folder's internals: the struct these two functions operate on
@@ -258,6 +268,88 @@ static void pointer_lost_leaves_the_keyboard_the_lock_and_the_motion(void)
 	VOE_TEST_CHECK(!input.buttons[VOE_PLATFORM_BUTTON_LEFT]);
 }
 
+// TYPED TEXT IS DRAINED THE SAME WAY THE WHEEL IS, AND THIS IS THE CARD'S FIRST
+// CASE. Two callers in one frame must see the same bytes, so a poll with
+// nothing typed in it must leave what the frame before left there instead —
+// which is only checkable by reading before the poll and again after it, the
+// same shape a_poll_drains_the_motion already uses for the wheel.
+static void typed_text_survives_until_the_poll_and_is_gone_after_it(void)
+{
+	struct voe_platform_input input = { 0 };
+
+	voe_platform_input_append_text(&input, 'H');
+	voe_platform_input_append_text(&input, 'i');
+	VOE_TEST_CHECK(input.text_size == 2);
+	VOE_TEST_CHECK(input.text[0] == 'H');
+	VOE_TEST_CHECK(input.text[1] == 'i');
+
+	// Reading it again before any poll gives the same bytes back.
+	VOE_TEST_CHECK(input.text_size == 2);
+
+	voe_platform_input_begin_poll(&input);
+	VOE_TEST_CHECK(input.text_size == 0);
+}
+
+// Typed text is the keyboard's, so it goes with the keys when focus is lost —
+// a character typed just before alt-tab is not one the window that lost focus
+// should still hand out.
+static void a_focus_loss_empties_typed_text(void)
+{
+	struct voe_platform_input input = { 0 };
+
+	voe_platform_input_append_text(&input, 'x');
+	VOE_TEST_CHECK(input.text_size == 1);
+
+	voe_platform_input_focus_lost(&input);
+	VOE_TEST_CHECK(input.text_size == 0);
+}
+
+// A CODE POINT THAT WOULD NOT FIT IS DROPPED WHOLE, NEVER SPLIT. A reader that
+// decodes UTF-8 out of this buffer must never meet a lead byte whose
+// continuation bytes were cut off by the buffer's end, so a code point that
+// needs more room than is left is refused entirely and the buffer is left
+// exactly as it was.
+static void a_code_point_that_does_not_fit_is_dropped_whole(void)
+{
+	struct voe_platform_input input = { 0 };
+
+	// Fill to one byte short of capacity with single-byte code points.
+	for (uint32_t i = 0; i < sizeof(input.text) - 1; i++)
+		voe_platform_input_append_text(&input, 'a');
+	VOE_TEST_CHECK(input.text_size == sizeof(input.text) - 1);
+
+	// U+20AC (the euro sign) needs three bytes and only one is left: dropped
+	// whole, and the buffer keeps exactly what it had.
+	voe_platform_input_append_text(&input, 0x20ac);
+	VOE_TEST_CHECK(input.text_size == sizeof(input.text) - 1);
+
+	// A single-byte code point still fits in the one byte left.
+	voe_platform_input_append_text(&input, 'z');
+	VOE_TEST_CHECK(input.text_size == sizeof(input.text));
+	VOE_TEST_CHECK(input.text[sizeof(input.text) - 1] == 'z');
+}
+
+// CONTROL CODE POINTS TYPE NOTHING: below 0x20, 0x7f, a lone surrogate and
+// anything past the last valid code point are each a code point this folder
+// must never hand a caller as though it were a character.
+static void control_code_points_are_dropped(void)
+{
+	struct voe_platform_input input = { 0 };
+
+	voe_platform_input_append_text(&input, 0x09);        // tab
+	voe_platform_input_append_text(&input, 0x1f);        // last C0 control
+	voe_platform_input_append_text(&input, 0x7f);        // delete
+	voe_platform_input_append_text(&input, 0xd800);      // a lone surrogate
+	voe_platform_input_append_text(&input, 0xdfff);      // the other end of it
+	voe_platform_input_append_text(&input, 0x110000);    // past U+10FFFF
+	VOE_TEST_CHECK(input.text_size == 0);
+
+	// An ordinary character still gets through around them.
+	voe_platform_input_append_text(&input, 'A');
+	VOE_TEST_CHECK(input.text_size == 1);
+	VOE_TEST_CHECK(input.text[0] == 'A');
+}
+
 int main(void)
 {
 	a_poll_keeps_held_keys();
@@ -270,5 +362,9 @@ int main(void)
 	focus_lost_leaves_the_pointer_alone();
 	pointer_lost_releases_every_button_and_keeps_the_position();
 	pointer_lost_leaves_the_keyboard_the_lock_and_the_motion();
+	typed_text_survives_until_the_poll_and_is_gone_after_it();
+	a_focus_loss_empties_typed_text();
+	a_code_point_that_does_not_fit_is_dropped_whole();
+	control_code_points_are_dropped();
 	return voe_test_result();
 }

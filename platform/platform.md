@@ -7,13 +7,15 @@ file, and listing, making or finding a folder.
 
 - `include/platform/window.h` — the window API. Its header carries the two rules
   callers need: opening a window can fail and returns NULL, and `_poll` folds
-  events into state rather than handing them out.
+  events into state rather than handing them out; `_close_refuse` takes back a
+  close the user just asked for.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the
-  wheel in notches, the pointer's position and buttons, and the lock. Its header
-  says why this is polled state and not a queue of events, why a key is a place
-  rather than a letter, why motion and position are two questions and which is
-  for what, when a position is not live, that a pointer lock is a request with
-  an answer, and what sign a notch has.
+  wheel in notches, typed UTF-8 text, the pointer's position and buttons, and
+  the lock. Its header says why this is polled state and not a queue of events,
+  why a key is a place rather than a letter, why typed text is the one
+  exception with order in it and is still not a queue, why motion and position
+  are two questions and which is for what, when a position is not live, that a
+  pointer lock is a request with an answer, and what sign a notch has.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   waiting is a different question this folder cannot answer yet.
@@ -82,22 +84,27 @@ file, and listing, making or finding a folder.
   per level of the format's fixed nesting, none of them calling itself. Its
   header says why a brace counter stands in for recursion here.
 - `src/input.h` — the input state both backends fill and neither reads, the two
-  functions each of them defines over its own window, and the three clears both
-  of them call. Its header says why the public functions are written once.
+  functions each of them defines over its own window, the three clears both of
+  them call, and the one shared function that turns a code point into the
+  typed-text buffer's UTF-8. Its header says why the public functions are
+  written once.
 - `src/input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
 - `src/window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
   There is no X11 backend, and nothing in it draws — its header says why the
   window is invisible until something else does, why input is in the same file,
-  and why there is no `xkbcommon`.
-- `src/window_win32.c` — the Windows window, its keyboard, the mouse as a raw
-  input device for look and as ordinary messages for position and buttons. Its
-  header says why `WM_CHAR` is absent, why a held button takes the capture, and
-  why `WM_MOUSELEAVE` has to be asked for.
-- `tests/input.c` — that a poll drains the mouse's motion and wheel and keeps
-  held keys and the pointer, that losing focus releases every key and nothing else, and
-  that losing the pointer releases every button and keeps its last position.
-  Needs no window and no display.
+  and why the keymap is read in-house rather than through `xkbcommon`.
+- `src/window_win32.c` — the Windows window, its keyboard and its `WM_CHAR`
+  text, the mouse as a raw input device for look and as ordinary messages for
+  position and buttons. Its header says why Control without Alt drops
+  everything `WM_CHAR` sends, why AltGr still types, why a held button takes
+  the capture, and why `WM_MOUSELEAVE` has to be asked for.
+- `tests/input.c` — that a poll drains the mouse's motion, wheel and typed text
+  and keeps held keys and the pointer, that losing focus releases every key and
+  its typed text and nothing else, that losing the pointer releases every
+  button and keeps its last position, that a code point past capacity is
+  dropped whole, and that a control code point types nothing. Needs no window
+  and no display.
 - `tests/keymap.c` — a hand-written keymap text checked key by key: an
   ordinary key, one with a type statement beside its `symbols[Group1]`, a
   digit and its shifted punctuation, a key with one level, a dead key that

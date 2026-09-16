@@ -70,6 +70,19 @@ voe_platform_pointer voe_platform_input_pointer(voe_platform_window *window)
 	};
 }
 
+voe_platform_text voe_platform_input_text(voe_platform_window *window)
+{
+	struct voe_platform_input *input;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window for typed text");
+
+	// Not drained here, for the same reason motion and the wheel are not:
+	// two callers in one frame must see the same bytes, and the poll is the
+	// one place that knows a frame has gone by.
+	input = voe_platform_window_input(window);
+	return (voe_platform_text){ .bytes = input->text, .size = input->text_size };
+}
+
 bool voe_platform_input_button_down(voe_platform_window *window,
 				    voe_platform_button button)
 {
@@ -116,6 +129,7 @@ void voe_platform_input_begin_poll(struct voe_platform_input *input)
 	input->motion_y = 0.0f;
 	input->wheel_x = 0.0f;
 	input->wheel_y = 0.0f;
+	input->text_size = 0;
 }
 
 void voe_platform_input_focus_lost(struct voe_platform_input *input)
@@ -133,6 +147,11 @@ void voe_platform_input_focus_lost(struct voe_platform_input *input)
 	// exactly like a bug in the camera.
 	input->motion_x = 0.0f;
 	input->motion_y = 0.0f;
+
+	// Typed text is the keyboard's, the same as the keys it goes with: a
+	// character typed just before alt-tab is not one the window that lost
+	// focus should still hand out.
+	input->text_size = 0;
 }
 
 void voe_platform_input_pointer_lost(struct voe_platform_input *input)
@@ -146,4 +165,49 @@ void voe_platform_input_pointer_lost(struct voe_platform_input *input)
 	// pointer walking out of the window does not lift a finger off W.
 	memset(input->buttons, 0, sizeof(input->buttons));
 	input->pointer_over = false;
+}
+
+void voe_platform_input_append_text(struct voe_platform_input *input,
+				    uint32_t code_point)
+{
+	uint8_t encoded[4];
+	uint32_t count;
+
+	VOE_BASE_DEBUG_ASSERT(input != NULL, "appending text to nothing");
+
+	if (code_point < 0x20 || code_point == 0x7f)
+		return;
+	if (code_point >= 0xd800 && code_point <= 0xdfff)
+		return;
+	if (code_point > 0x10ffff)
+		return;
+
+	if (code_point <= 0x7f) {
+		count = 1;
+		encoded[0] = (uint8_t)code_point;
+	} else if (code_point <= 0x7ff) {
+		count = 2;
+		encoded[0] = (uint8_t)(0xc0 | (code_point >> 6));
+		encoded[1] = (uint8_t)(0x80 | (code_point & 0x3f));
+	} else if (code_point <= 0xffff) {
+		count = 3;
+		encoded[0] = (uint8_t)(0xe0 | (code_point >> 12));
+		encoded[1] = (uint8_t)(0x80 | ((code_point >> 6) & 0x3f));
+		encoded[2] = (uint8_t)(0x80 | (code_point & 0x3f));
+	} else {
+		count = 4;
+		encoded[0] = (uint8_t)(0xf0 | (code_point >> 18));
+		encoded[1] = (uint8_t)(0x80 | ((code_point >> 12) & 0x3f));
+		encoded[2] = (uint8_t)(0x80 | ((code_point >> 6) & 0x3f));
+		encoded[3] = (uint8_t)(0x80 | (code_point & 0x3f));
+	}
+
+	// Dropped whole, not truncated: a caller that decodes UTF-8 out of this
+	// buffer must never meet a lead byte with its continuation bytes cut
+	// off by the buffer's end.
+	if (input->text_size + count > sizeof(input->text))
+		return;
+
+	memcpy(input->text + input->text_size, encoded, count);
+	input->text_size += count;
 }

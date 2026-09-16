@@ -119,7 +119,7 @@
   - Depends on: 4
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^platform/keymap$'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 6. `platform/` — Typed text, four keys, and a refused close
+- [x] 6. `platform/` — Typed text, four keys, and a refused close
   - Change: Per ADR-0161, `include/platform/input.h` gains
     `typedef struct { const char *bytes; uint32_t size; } voe_platform_text;` and
     `voe_platform_text voe_platform_input_text(voe_platform_window *window);`. It returns the
