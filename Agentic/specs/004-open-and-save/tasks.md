@@ -1,11 +1,5 @@
 # 004 Open and save — tasks
 
-> **Before task 4:** run `planner` `Mode: replan`. The sponsor decided (2026-09-15) that task
-> 13's folder-name box is a real single-line text field in `ui`, which the editor's browser uses
-> exactly as a game would — dogfooding. Add a `ui` task for it (only what the name box needs:
-> typed text in, Backspace, Enter, a caret, focus) and change task 13 to use it. The spec does
-> not change. Remove this note once done.
-
 - [x] 1. `base/` — Keep the first error reported since a clear
   - Change: In `include/base/report.h` and `src/report.c`, per ADR-0160, add
     `void voe_base_report_error_clear(void);` and `const char *voe_base_report_error_first(void);`.
@@ -196,7 +190,7 @@
     per run of unknown kinds, edge-triggered like the scene drains. The world must have mesh and
     material registered, and a full table asserts. The vertices and indices move from
     `editor/src/cube.c` into `src/cube.h` and `src/cube.c`, internal. The editor's copy is deleted
-    by task 9, not here. Test `tests/shape.c`. The table half needs no graphics card: the
+    by task 10, not here. Test `tests/shape.c`. The table half needs no graphics card: the
     registration is described and not runtime-only, `kind` is read-only, a run with a
     hand-made `voe_3d_shapes` gives a shaped entity exactly one mesh and material, a second run
     adds nothing, an entity without a shape is untouched, and an unknown kind gets nothing. The
@@ -206,7 +200,66 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^3d/'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 9. `editor/` — Start on an untitled cube and light
+- [ ] 9. `ui/` — A single-line text field
+  - Change: Per ADR-0165, add to `include/ui/widgets.h` and `src/widgets.c`:
+    `#define VOE_UI_FIELD_CAPACITY 256` — how many bytes of text a field holds, the NUL not
+    counted;
+    `typedef struct { const char *text; uint32_t size; bool backspace; bool enter; } voe_ui_keyboard;`
+    and `void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);` — handed over
+    between `voe_ui_frame_begin` and `voe_ui_frame_end`, once, exactly as the pointer is, `text`
+    being the UTF-8 typed since the previous frame and read for `size` bytes. A frame that never
+    calls it has no typing, as a frame that says nothing about the pointer has none;
+    `voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index, const char *text, voe_ui_sizing sizing);`
+    `void voe_ui_field_focus(voe_ui_context *ui, voe_ui_node field);` — takes focus to that field,
+    called after the field call and before the frame ends, for the frame a panel holding one opens;
+    on a node that is not a field it asserts;
+    `typedef struct { bool focused; bool changed; bool entered; const char *text; } voe_ui_field_result;`
+    and `voe_ui_field_result voe_ui_field_action(const voe_ui_context *ui, voe_ui_node field);`,
+    read after `voe_ui_frame_end` like a button's and a number box's answer.
+    The field is a keyed container built as a button is — `BUTTON_PAD`, the run along START, the
+    three state colours and a fourth for focused — and the call makes and ends the one label of
+    `text` inside it itself, so a field costs two nodes and its `text` is read at `voe_ui_frame_end`
+    and not copied, as a label's is. It takes `voe_ui_sizing` and not a whole `voe_ui_container`:
+    the padding, the flow and the clipping are the widget's.
+    A new `VOE_UI_WIDGET_FIELD` in `src/context.h`. Emission: the background in its state colour,
+    the label's glyphs by the existing `push_label` path, and when focused a caret — one SOLID
+    record `VOE_UI_FIELD_CARET` (0.3 mm) wide at the right edge of the label's rectangle, as tall as
+    that rectangle, in `LABEL_INK`, clipped through `voe_ui_limit` like every other record. An empty
+    text measures to nothing, so the caret sits at the left of the content box.
+    Focus is one key in the context beside `held` and survives between frames: a press inside a
+    field's visible rectangle focuses it, a press anywhere else clears it, and a focus whose field
+    was not called this frame is dropped at `voe_ui_frame_end`, as a scroll area that is not called
+    is forgotten.
+    Editing happens in the resolve inside `voe_ui_frame_end`, on the focused field only, and in this
+    order: Backspace removes the last code point of the handed-in text (the trailing continuation
+    bytes and the byte before them) and does nothing on an empty text, then the typed bytes are
+    appended code point by code point, stepping by the leading byte's own length so nothing reads
+    past `size`, dropping a trailing partial sequence and dropping whole any code point that would
+    not fit. The answer goes into one `char [VOE_UI_FIELD_CAPACITY + 1]` in the context — one
+    buffer, because only one field can be focused. `result.text` is that buffer when `changed`, and
+    the pointer handed in when not, so a caller may write it back every frame and get the same
+    answer; it is valid until the next `voe_ui_frame_begin`. `entered` is true on the frame Enter
+    arrived while the field was focused; Enter changes no text and moves no focus. Backspace and
+    Enter with nothing focused do nothing.
+    Rewrite the header's WHAT IS NOT HERE, do not append to it: text input exists for this widget
+    and for nothing else, there is still no selection, no clipboard, no moving the caret, no
+    multi-line and no typing into a number box, whose click stays reserved. Say why the field takes
+    its text instead of composing a label in as a button does — the caret is measured from it — why
+    the edited text comes back as a value rather than the caller's buffer being written, that where
+    the bytes came from is not this folder's business, and what a field costs in nodes and in
+    element records.
+    Extend `tests/widgets.c`, which needs no window system: a press focuses and a press elsewhere
+    unfocuses; typed bytes appended in order; two fields in a frame, only the focused one changing;
+    Backspace taking a two-byte code point (`ö`) whole; Backspace on an empty text; a text at the
+    capacity refusing the next code point whole; `entered` true only on the frame Enter arrived; a
+    field not called losing focus; `voe_ui_field_focus` taking it; and `changed` false handing back
+    the caller's own pointer. Only a case that measures a string takes a headless device, as the
+    file already splits them. Update `ui/ui.md`.
+  - Covers: 4 (typing a folder name)
+  - Depends on: -
+  - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^ui/widgets$'` passes and `cmake -P check.cmake` exits 0
+
+- [ ] 10. `editor/` — Start on an untitled cube and light
   - Change: Replace the four built entities with the untitled scene. Entity 1 is "Cube":
     identity, a transform at the origin with no turn and scale 1, and `voe_3d_shape` kind cube.
     Entity 2 is "Light": identity and a `voe_scene_light` with direction
@@ -225,7 +278,7 @@
   - Depends on: 8
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png` exits 0
 
-- [ ] 10. `editor/` — Projects: open, save, the last project and the command line
+- [ ] 11. `editor/` — Projects: open, save, the last project and the command line
   - Change: Add `src/notice.h` and `src/notice.c`:
     `typedef struct { char text[512]; } voe_editor_notice;`,
     `void voe_editor_notice_clear(voe_editor_notice *notice);`,
@@ -238,7 +291,7 @@
     absolute folder path (NULL when untitled) and `bool unsaved`. The struct lives in its own
     arena. The world's registrations and capacities move here from `main.c`: transform, identity,
     light, shape, mesh, material, panel.
-    `voe_editor_project *voe_editor_project_new_untitled(void);` builds the scene of task 9.
+    `voe_editor_project *voe_editor_project_new_untitled(void);` builds the scene of task 10.
     `voe_editor_project *voe_editor_project_new_opened(const char *folder, voe_editor_notice *why);`
     makes the folder absolute, reads `<folder>/project.voe3d` and the scene its `scene` names
     through `platform/file.h`, `voe_authoring_project_read` and `voe_authoring_scene_read`. It
@@ -267,16 +320,16 @@
     device opens: with a folder, `_new_opened` it. On failure print `voe_editor: <why>` to stderr
     and return 1. Without `--capture`, write the last project and print a failure to write it as
     a warning. With no folder, read the last project. When there is one, try `_new_opened`; on
-    failure use `_new_untitled` and keep the notice for task 11's bar, printing it to stderr now.
+    failure use `_new_untitled` and keep the notice for task 12's bar, printing it to stderr now.
     `--capture` never writes the last project. The loop, the scene panel and the inspector read
     `project->world`. `voe_editor_scene` keeps its world pointer, set from the project. Rewrite
     `main.c`'s argument paragraph. Update `editor/editor.md`, and the root `README.md`'s Run
     section to say how to open a project and where the last one is remembered.
   - Covers: 5, 6, 10, 11, 12
-  - Depends on: 1, 2, 3, 4, 7, 9
+  - Depends on: 1, 2, 3, 4, 7, 10
   - Done when: `cmake -P check.cmake` exits 0 and the plan's four Verification commands for criteria 12, 11 and 1/6 each exit 0
 
-- [ ] 11. `editor/` — The top bar, New, Save, the unsaved mark and refusing once
+- [ ] 12. `editor/` — The top bar, New, Save, the unsaved mark and refusing once
   - Change: Add `src/session.h` and `src/session.c`. `voe_editor_session` holds the current
     `voe_editor_project *`, a `voe_editor_notice`, and `armed`, a `voe_editor_command`
     (`NONE`, `NEW`, `OPEN`, `SAVE`, `CLOSE`).
@@ -287,7 +340,7 @@
     command is armed. Armed, the same command goes ahead. `NEW` makes `_new_untitled`, destroys
     the old project and clears the selection. `SAVE` on an opened project calls
     `voe_editor_project_save(…, NULL, …)` and puts a failure in the notice. `SAVE` on an untitled
-    project, and `OPEN` once allowed, do nothing yet — tasks 12 and 13 fill them.
+    project, and `OPEN` once allowed, do nothing yet — tasks 13 and 14 fill them.
     `void voe_editor_session_edited(voe_editor_session *session);` marks the project unsaved,
     clears the notice and disarms.
     Add `src/topbar.h` and `src/topbar.c`: a fixed-height row across the top of the root surface
@@ -302,13 +355,15 @@
     `main.c`: Ctrl+N, Ctrl+O and Ctrl+S on the frame each key goes down with Control held — edge
     compared with last frame, as the Tab toggle in `dev` does — send the same commands as the
     buttons. `opened.closing` sends `CLOSE`; when refused, call
-    `voe_platform_window_close_refuse(window)` and carry on. The startup notice from task 10 goes
-    into the session's notice. Update `editor/editor.md`.
+    `voe_platform_window_close_refuse(window)` and carry on. The startup notice from task 11 goes
+    into the session's notice. Raise `VOE_EDITOR_INTERFACE_NODES` and `_ELEMENTS` in
+    `interface.h` for the bar's three buttons, its name and its notice, and say in that header's
+    comment what the new numbers count. Update `editor/editor.md`.
   - Covers: 1 (the bar says untitled), 2, 3, 5 (Save in an opened project), 8, 9 (close and New)
-  - Depends on: 6, 10
+  - Depends on: 6, 11
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png` exits 0
 
-- [ ] 12. `editor/` — The file browser, and Open
+- [ ] 13. `editor/` — The file browser, and Open
   - Change: Add `src/browser.h` and `src/browser.c`. `voe_editor_browser` holds: whether it
     shows, its mode (`OPEN` or `SAVE`), its own arena for the current folder's absolute path and
     listing (rewound on each navigation), the listed rows — folders only, not hidden, each marked
@@ -329,18 +384,27 @@
     is untouched. Every browser action clears the notice and disarms, as a command does.
     `main.c` and `interface.c`: while the browser shows, top-bar commands and shortcuts are
     ignored, the dock panels are handed a pointer with `over = false`, and views get no drag.
-    `CLOSE` still follows the unsaved rule. Update `editor/editor.md`.
+    `CLOSE` still follows the unsaved rule. Raise `VOE_EDITOR_INTERFACE_NODES`, `_ELEMENTS` and
+    `_SCROLLS` in `interface.h` — the browser is a panel of rows with a scroll area of its own, so
+    `_SCROLLS` is one more than the dock's leaves — and say in that header's comment what the new
+    numbers count. Update `editor/editor.md`.
   - Covers: 7, 9 (Open), 10 (a broken project from Open)
-  - Depends on: 11
+  - Depends on: 12
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png` exits 0
 
-- [ ] 13. `editor/` — The first save: a typed folder name and the project made
-  - Change: `browser.c` in SAVE mode adds a name row: a label showing the typed name followed by
-    `|`, and a `Make folder` button. The confirm button reads `Save here`. `main.c` hands the
-    browser `voe_platform_input_text` each frame, plus Backspace and Enter as went-down-this-frame
-    edges; there is no window on a capture, so nothing is typed there. The typed bytes append
-    when they fit a 256-byte name buffer. Backspace removes the last UTF-8 code point by skipping
-    continuation bytes. Enter or `Make folder` with a name refuses one that is empty, `.`, `..`,
+- [ ] 14. `editor/` — The first save: a typed folder name and the project made
+  - Change: `browser.c` in SAVE mode adds a name row: a `voe_ui_field` holding the name and a
+    `Make folder` button beside it. The confirm button reads `Save here`. The browser keeps the name
+    in a `char [VOE_UI_FIELD_CAPACITY + 1]` of its own and writes back what `voe_ui_field_action`
+    hands it after `voe_ui_frame_end`, the way the inspector writes back a number box's value. No
+    appending, no Backspace and no UTF-8 stepping is written here — that is task 9's widget. It
+    calls `voe_ui_field_focus` on the frame the browser opens for a save, so a name can be typed
+    without clicking the box first.
+    `main.c` reads `voe_platform_input_text` and the went-down-this-frame edges of Backspace and
+    Enter and puts them on the dock root beside its pointer, for the reason the pointer is there;
+    `interface.c` hands them over with `voe_ui_keyboard_set` beside `voe_ui_pointer_set`. There is
+    no window on a capture, so the keyboard is empty there.
+    The field's `entered`, or `Make folder`, with a name refuses one that is empty, `.`, `..`,
     starts with `.`, or contains `/` or `\`, with a notice. Otherwise it calls
     `voe_platform_folder_create(join(folder, name))`, and on success clears the name and enters
     the new folder; a failure is a notice from the report.
@@ -348,7 +412,9 @@
     calls `voe_editor_project_save(project, folder, &why)`. On success it writes the last
     project and hides the browser, and the bar then shows the folder's name with no unsaved mark.
     On failure — including "is not empty" — the notice is `why`, nothing was written, and the
-    browser stays. Update `editor/editor.md`.
+    browser stays. Raise `VOE_EDITOR_INTERFACE_NODES` and `_ELEMENTS` again for the name row: a
+    field is two nodes, and its records are the box, the caret and one per character.
+    Update `editor/editor.md`.
   - Covers: 4, 2 (Save), 6 (a first save becomes the last project)
-  - Depends on: 12
+  - Depends on: 9, 13
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png && test ! -e $d/voe3d` exits 0

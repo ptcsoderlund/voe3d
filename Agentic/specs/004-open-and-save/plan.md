@@ -3,10 +3,12 @@
 The engine folders gain what a saved project needs, each under its own tests: `base` keeps the first
 error reported so a notice can show it, `platform` reads files, replaces them atomically, lists and
 makes folders, works out paths and delivers typed text, `authoring` reads and writes
-`project.voe3d`, and `3d` gains a saved cube shape. The editor then keeps "the project being worked on" in its own arena,
+`project.voe3d`, `3d` gains a saved cube shape, and `ui` gains a single-line text field the browser's
+name box is. The editor then keeps "the project being worked on" in its own arena,
 so New and Open build a whole new world beside the old one and swap only on success. Its top bar,
 notices, unsaved mark and refuse-once rule live in an editor session. Its file browser is an
-overlay composed from existing `ui` widgets. No new folder and no new dependency edge.
+overlay composed from `ui` widgets, the new field among them. No new folder and no new dependency
+edge.
 
 ## Decisions
 
@@ -23,6 +25,11 @@ overlay composed from existing `ui` widgets. No new folder and no new dependency
 - A cube survives a save as `voe_3d_shape { kind = 1 }`, a described component in `3d`, turned
   into a mesh and material by a shape system — mesh and material are runtime-only. Project-wide:
   `Agentic/decisions/0163-a-built-in-shape-is-a-described-component-in-3d.md`.
+- The typed folder name is a real `ui` widget, not an editor-private box: a keyed single-line field
+  that is given its typed text as a value the way it is given the pointer, and hands the edited text
+  back as a value. Only what a name box needs — appending, Backspace, Enter, a caret at the end and
+  one focus. Project-wide:
+  `Agentic/decisions/0165-a-single-line-text-field-is-a-ui-widget-and-typed-text-arrives-as-a-value.md`.
 - `project.voe3d` is `[project]` with `scene = "main.scene"`. The name is the folder's. The code
   lives in `authoring`. The last project is one line in `<settings>/voe3d/last_project`. There is
   no `voe_editor new`. Project-wide:
@@ -40,9 +47,10 @@ overlay composed from existing `ui` widgets. No new folder and no new dependency
   browser action, an inspector edit — disarms it and clears the notice. That is the spec's "a
   notice stays until the next thing is done".
 - The browser is modal: while it shows, the top bar's commands and shortcuts are ignored, and the
-  dock's panels and views get no pointer. Clicking a row enters that folder, and the confirm button
-  acts on the folder the browser is in. It remembers its folder for the session only, and starts
-  in the home folder.
+  dock's panels and views get no pointer. Its name box takes the keyboard while it is focused, and
+  it is focused on the frame the browser opens for a save. Clicking a row enters that folder, and
+  the confirm button acts on the folder the browser is in. It remembers its folder for the session
+  only, and starts in the home folder.
 - A scene-view camera and the selection are not part of the project. Cameras keep their place
   across New and Open, and the selection is cleared.
 - `--capture` never writes `last_project`. It draws what a start would have opened: the
@@ -56,6 +64,9 @@ overlay composed from existing `ui` widgets. No new folder and no new dependency
   `_create`, `_home`, `_settings`. New `platform/path.h`: `voe_platform_path_join`, `_parent`,
   `_name`, `_absolute`. `input.h` gains `voe_platform_input_text` and keys N, O, BACKSPACE, ENTER.
   `window.h` gains `voe_platform_window_close_refuse`. Internal keymap reader in `src/keymap.*`.
+- `ui/` — changed — `voe_ui_keyboard`, `voe_ui_keyboard_set`, `voe_ui_field`, `voe_ui_field_focus`,
+  `voe_ui_field_result`, `voe_ui_field_action`, `VOE_UI_FIELD_CAPACITY`, all in
+  `include/ui/widgets.h`.
 - `authoring/` — changed — new `authoring/project.h`: `voe_authoring_project_read`,
   `voe_authoring_project_write`, `VOE_AUTHORING_PROJECT_FILE`.
 - `3d/` — changed — new `3d/shape_component.h` (`voe_3d_shape`, register, add, reads) and
