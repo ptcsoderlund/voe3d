@@ -91,7 +91,7 @@
   - Depends on: 3
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^platform/path$'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 5. `platform/` — The XKB keymap reader
+- [x] 5. `platform/` — The XKB keymap reader
   - Change: Per ADR-0161, add `src/keymap.h` and `src/keymap.c`, internal and built on both
     platforms because they include no OS header:
     `#define VOE_PLATFORM_KEYMAP_CODES 256`, and

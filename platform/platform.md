@@ -73,6 +73,14 @@ file, and listing, making or finding a folder.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
+- `src/keymap.h` — the XKB keymap reader: an evdev-code-and-level table built
+  from resolved XKB v1 text, internal to this folder and built on both
+  platforms because it includes no OS header. Its header says which two
+  blocks it reads, which two spellings of a key's symbols it reads, what a
+  keysym name becomes and what it does not read.
+- `src/keymap.c` — its implementation: one lexer and a small parsing function
+  per level of the format's fixed nesting, none of them calling itself. Its
+  header says why a brace counter stands in for recursion here.
 - `src/input.h` — the input state both backends fill and neither reads, the two
   functions each of them defines over its own window, and the three clears both
   of them call. Its header says why the public functions are written once.
@@ -90,6 +98,11 @@ file, and listing, making or finding a folder.
   held keys and the pointer, that losing focus releases every key and nothing else, and
   that losing the pointer releases every button and keeps its last position.
   Needs no window and no display.
+- `tests/keymap.c` — a hand-written keymap text checked key by key: an
+  ordinary key, one with a type statement beside its `symbols[Group1]`, a
+  digit and its shifted punctuation, a key with one level, a dead key that
+  types nothing, a `U`-named code point, an alias, and that text with no
+  `xkb_symbols` block is refused. Needs no window and no display.
 - `tests/file.c` — that the bytes written come back byte for byte on both sides
   of the API, that a shorter file replaces a longer one, that an empty file
   reads as zero bytes, that a missing path or a folder fails a read as
