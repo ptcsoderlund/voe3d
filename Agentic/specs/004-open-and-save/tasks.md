@@ -68,7 +68,7 @@
   - Depends on: 2
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^platform/folder$'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 4. `platform/` — Paths: join, parent, name, absolute
+- [x] 4. `platform/` — Paths: join, parent, name, absolute
   - Change: Per ADR-0162, add `include/platform/path.h`:
     `const char *voe_platform_path_join(voe_base_arena *arena, const char *folder, const char *name);`
     puts exactly one separator between, and none extra after a root.

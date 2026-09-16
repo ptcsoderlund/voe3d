@@ -26,6 +26,10 @@ file, and listing, making or finding a folder.
   one folder, and finding the person's home and this engine's settings folders.
   Its header says what folder and hidden answer, which failure means what, and
   that no path it hands back carries a trailing separator.
+- `include/platform/path.h` — joining a folder and a name, a path's parent, its
+  last name, and resolving a path to an absolute one. Its header says which
+  separator each platform reads and writes, that a root's parent is NULL, and
+  why a name is a pointer into the path itself rather than a copy.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it. Its header says why this is here and not in the folder that
   wants one.
@@ -57,6 +61,15 @@ file, and listing, making or finding a folder.
 - `src/folder_win32.c` — FindFirstFileA/FindNextFileA, CreateDirectoryA, and
   GetEnvironmentVariableA for %USERPROFILE%/%APPDATA%. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
+- `src/path.c` — joining, finding a parent and finding a name, for both
+  platforms. Its header says why the separator is one compile-time constant
+  rather than an `#ifdef` in each function.
+- `src/path_wayland.c` — realpath, resolving a path to an absolute one. Linux
+  only despite the name; its header says why `PATH_MAX` is realpath's own
+  buffer and not a limit this folder invents.
+- `src/path_win32.c` — GetFullPathNameA plus GetFileAttributesA, since the
+  first alone will invent a path for a name that is not there. Its header
+  says why two calls size the buffer.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
@@ -91,3 +104,7 @@ file, and listing, making or finding a folder.
   folder fails a listing as UNAVAILABLE, that creating over an existing name is
   REFUSED and under a missing parent UNAVAILABLE, and that the settings folder
   honours `XDG_CONFIG_HOME` on Linux. Needs no window and no display.
+- `tests/path.c` — join, parent and name on ordinary paths, roots and trailing
+  separators, for the platform it runs on; that resolving "." to an absolute
+  path is idempotent, and that resolving a made-up name is NULL. Needs no
+  window and no display.
