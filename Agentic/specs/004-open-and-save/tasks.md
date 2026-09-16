@@ -1,13 +1,10 @@
 # 004 Open and save — tasks
 
-> **Paused 2026-09-15, resume here.**
-> - Task 3's code is committed but **not yet reviewed**: resume with `reviewer` (`Mode: task.
->   Feature: F. Task: 3.`), then mark it `[x]` on PASS.
-> - Then, before task 4 continues past the platform tasks, run `planner` `Mode: replan`: the
->   sponsor decided (2026-09-15) that task 13's folder-name box is a real single-line text field in
->   `ui`, which the editor's browser uses exactly as a game would — dogfooding. Add a `ui` task for
->   it (only what the name box needs: typed text in, Backspace, Enter, a caret, focus) and change
->   task 13 to use it. The spec does not change. Remove this note once both are done.
+> **Before task 4:** run `planner` `Mode: replan`. The sponsor decided (2026-09-15) that task
+> 13's folder-name box is a real single-line text field in `ui`, which the editor's browser uses
+> exactly as a game would — dogfooding. Add a `ui` task for it (only what the name box needs:
+> typed text in, Backspace, Enter, a caret, focus) and change task 13 to use it. The spec does
+> not change. Remove this note once done.
 
 - [x] 1. `base/` — Keep the first error reported since a clear
   - Change: In `include/base/report.h` and `src/report.c`, per ADR-0160, add
@@ -48,7 +45,7 @@
   - Depends on: 1
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^platform/file$'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 3. `platform/` — Folders: list, make, home, settings
+- [x] 3. `platform/` — Folders: list, make, home, settings
   - Change: Per ADR-0162, add `include/platform/folder.h` with
     `typedef struct { const char *name; bool folder; bool hidden; } voe_platform_folder_entry;`,
     `typedef struct { const voe_platform_folder_entry *entries; uint32_t count; } voe_platform_folder_listing;`
