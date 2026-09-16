@@ -169,7 +169,7 @@
   - Depends on: 1
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^authoring/'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 8. `3d/` — The built-in shape and its system
+- [x] 8. `3d/` — The built-in shape and its system
   - Change: Per ADR-0163, add `include/3d/shape_component.h` and `src/shape_component.c`. The
     component is `#define VOE_3D_SHAPE_FIELDS(F, F_READ_ONLY) F_READ_ONLY(uint32_t, kind, UINT32)`,
     `VOE_BASE_DESCRIBE_STRUCT(voe_3d_shape, …)`, `#define VOE_3D_SHAPE_CUBE 1u`,

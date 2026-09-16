@@ -1,0 +1,266 @@
+// The shape component and the system that turns it into a mesh and a
+// material: that kind is described and read-only, that a run gives a shaped
+// entity exactly one mesh and material and a second run adds nothing, that an
+// entity without a shape is untouched, that an unknown kind gets nothing, and
+// that the GPU half uploads a device-sized cube and its one grey material.
+//
+// THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
+// scene/tests/identity.c gives at length: check.cmake builds without
+// descriptions, and a check that followed the build would never run on the one
+// run that gates a card. WHAT THE BUILD SAID IS KEPT FIRST, because
+// 3d/src/shape_component.c registers following the build and not this file.
+#if defined(VOE_BASE_DESCRIPTIONS) && VOE_BASE_DESCRIPTIONS
+#define BUILD_DESCRIBES true
+#else
+#define BUILD_DESCRIBES false
+#endif
+#undef VOE_BASE_DESCRIPTIONS
+#define VOE_BASE_DESCRIPTIONS 1
+
+#include <3d/material_component.h>
+#include <3d/mesh_component.h>
+#include <3d/shape_component.h>
+#include <3d/shape_system.h>
+
+#include <base/arena.h>
+#include <base/error.h>
+
+#include <ecs/component.h>
+#include <ecs/world.h>
+
+#include <render/device.h>
+
+#include <testing/test.h>
+
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+
+#define SCRATCH (256 * 1024)
+#define SIDE 16
+#define ENTITIES 8
+
+// Not a real geometry or shading id: the table half never opens a device, so
+// what a hand-made voe_3d_shapes carries only has to be copied faithfully into
+// the mesh and material tables, and these say so if it were not.
+static const voe_render_geometry FAKE_CUBE = { .index = 11, .generation = 22 };
+
+static const uint32_t UNKNOWN_KIND = 99;
+
+static voe_ecs_world *a_world(voe_base_arena *arena)
+{
+	voe_ecs_limits limits = {
+		.entities = ENTITIES,
+		.component_types = 4,
+		.intent_types = 1,
+	};
+	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
+
+	voe_3d_shape_register(world, ENTITIES);
+	voe_3d_mesh_register(world, ENTITIES);
+	voe_3d_material_register(world, ENTITIES);
+	return world;
+}
+
+static voe_ecs_entity shaped(voe_ecs_world *world, uint32_t kind)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_3d_shape_add(world, entity, (voe_3d_shape){
+							       .kind = kind }));
+	return entity;
+}
+
+static void check_field(const voe_base_field_description *actual,
+			const char *name, voe_base_field_kind kind,
+			size_t offset, uint32_t count, bool read_only)
+{
+	VOE_TEST_CHECK(strcmp(actual->name, name) == 0);
+	VOE_TEST_CHECK_INT(actual->kind, kind);
+	VOE_TEST_CHECK_INT((long long)actual->offset, (long long)offset);
+	VOE_TEST_CHECK_INT(actual->count, count);
+	VOE_TEST_CHECK_INT(actual->read_only, read_only);
+}
+
+// One field, kind, read-only: nothing edits a shape's kind after creation — see
+// 3d/shape_component.h.
+static void the_description_is_one_read_only_field(void)
+{
+	const voe_base_struct_description *description =
+		voe_3d_shape_description();
+
+	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_shape") == 0);
+	VOE_TEST_CHECK_INT(description->field_count, 1);
+	if (description->field_count != 1)
+		return;
+
+	check_field(&description->fields[0], "kind", VOE_BASE_FIELD_UINT32,
+		    offsetof(voe_3d_shape, kind), 1, true);
+}
+
+// The world's own introspection: described and not runtime-only, whatever the
+// build compiled — see 3d/shape_component.h and its scene/identity_component.h
+// precedent.
+static void the_type_is_described_and_not_runtime_only(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_type type = voe_ecs_component_type(world, &voe_3d_shape_key);
+
+	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, type));
+
+	if (!BUILD_DESCRIBES) {
+		VOE_TEST_CHECK(voe_ecs_component_description(world, type) ==
+			      NULL);
+		return;
+	}
+
+	VOE_TEST_CHECK(voe_ecs_component_description(world, type) != NULL);
+}
+
+// A hand-made voe_3d_shapes: what the table half of the run needs, and nothing
+// a device could refuse — see FAKE_CUBE above.
+static voe_3d_shapes a_shapes_value(void)
+{
+	return (voe_3d_shapes){
+		.cube = FAKE_CUBE,
+		.material = { .base_colour = { 0.7f, 0.7f, 0.7f, 1.0f },
+			     .roughness = 0.6f,
+			     .alpha_mode = VOE_RENDER_ALPHA_OPAQUE },
+	};
+}
+
+// A shaped cube entity gets exactly one mesh and one material, both the
+// shapes' own values, and a second run leaves it exactly as it was — the run
+// is idempotent because it skips any entity that already has a mesh.
+static void a_run_gives_a_shaped_entity_one_mesh_and_material(
+	voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity cube = shaped(world, VOE_3D_SHAPE_CUBE);
+	const voe_3d_mesh *mesh;
+	const voe_3d_material *material;
+
+	voe_3d_shape_system_run(world, &shapes);
+
+	mesh = voe_3d_mesh_get(world, cube);
+	VOE_TEST_CHECK(mesh != NULL);
+	if (mesh != NULL) {
+		VOE_TEST_CHECK_INT(mesh->geometry.index, FAKE_CUBE.index);
+		VOE_TEST_CHECK_INT(mesh->geometry.generation,
+				   FAKE_CUBE.generation);
+		VOE_TEST_CHECK_INT(mesh->layer, VOE_3D_LAYER_WORLD);
+	}
+	material = voe_3d_material_get(world, cube);
+	VOE_TEST_CHECK(material != NULL);
+	if (material != NULL)
+		VOE_TEST_CHECK_FLOAT(material->base_colour.x, 0.7f, 1e-6f);
+
+	VOE_TEST_CHECK_INT(voe_3d_mesh_count(world), 1);
+	VOE_TEST_CHECK_INT(voe_3d_material_count(world), 1);
+
+	// A second run finds the entity already meshed and adds nothing more.
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK_INT(voe_3d_mesh_count(world), 1);
+	VOE_TEST_CHECK_INT(voe_3d_material_count(world), 1);
+}
+
+// An entity with a transform and no shape is not what the run walks: it stays
+// without a mesh, whatever the run does to entities that do have one.
+static void an_entity_without_a_shape_is_untouched(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity bare = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &bare));
+
+	voe_3d_shape_system_run(world, &shapes);
+
+	VOE_TEST_CHECK(voe_3d_mesh_get(world, bare) == NULL);
+	VOE_TEST_CHECK(voe_3d_material_get(world, bare) == NULL);
+	VOE_TEST_CHECK_INT(voe_3d_mesh_count(world), 0);
+}
+
+// A kind this build does not know draws nothing: no mesh, no material, and the
+// run does not stop over it.
+static void an_unknown_kind_gets_nothing(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity mystery = shaped(world, UNKNOWN_KIND);
+	voe_ecs_entity cube = shaped(world, VOE_3D_SHAPE_CUBE);
+
+	voe_3d_shape_system_run(world, &shapes);
+
+	VOE_TEST_CHECK(voe_3d_mesh_get(world, mystery) == NULL);
+	VOE_TEST_CHECK(voe_3d_material_get(world, mystery) == NULL);
+	VOE_TEST_CHECK(voe_3d_mesh_get(world, cube) != NULL);
+	VOE_TEST_CHECK_INT(voe_3d_mesh_count(world), 1);
+}
+
+// The GPU half: a device sized exactly from the constants a program is told to
+// size it from, and the material voe_3d_shapes_upload writes.
+//
+// IT NEEDS A GRAPHICS CARD, and skips with a reason without one, for the
+// reason 3d/tests/material.c gives at length: a build box with no Vulkan is
+// the box and not this engine.
+static void the_upload_makes_a_cube_and_a_grey_material(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 1,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	voe_3d_shapes shapes;
+
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED) {
+			printf("skip: %s\n", voe_base_error_string(error));
+			voe_base_arena_destroy(arena);
+			return;
+		}
+		VOE_TEST_CHECK(device != NULL);
+		voe_base_arena_destroy(arena);
+		return;
+	}
+
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+	VOE_TEST_CHECK_FLOAT(shapes.material.base_colour.x, 0.7f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(shapes.material.base_colour.y, 0.7f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(shapes.material.base_colour.z, 0.7f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(shapes.material.metallic, 0.0f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(shapes.material.roughness, 0.6f, 1e-6f);
+	VOE_TEST_CHECK_INT(shapes.material.alpha_mode, VOE_RENDER_ALPHA_OPAQUE);
+	VOE_TEST_CHECK(!shapes.material.unlit);
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
+int main(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+
+	the_description_is_one_read_only_field();
+	the_type_is_described_and_not_runtime_only(arena);
+	a_run_gives_a_shaped_entity_one_mesh_and_material(arena);
+	an_entity_without_a_shape_is_untouched(arena);
+	an_unknown_kind_gets_nothing(arena);
+
+	voe_base_arena_destroy(arena);
+
+	the_upload_makes_a_cube_and_a_grey_material();
+
+	return voe_test_result();
+}
