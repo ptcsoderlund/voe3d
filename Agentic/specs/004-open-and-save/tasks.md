@@ -145,7 +145,7 @@
   - Depends on: 5
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^platform/'` passes and `cmake -P check.cmake` exits 0; verified on Linux, Windows backend written and unverified
 
-- [ ] 7. `authoring/` — The project file
+- [x] 7. `authoring/` — The project file
   - Change: Per ADR-0164, add `include/authoring/project.h` and `src/project.c`:
     `#define VOE_AUTHORING_PROJECT_FILE "project.voe3d"`,
     `typedef struct { const char *scene; } voe_authoring_project;`,
