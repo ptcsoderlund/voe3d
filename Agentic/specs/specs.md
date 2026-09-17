@@ -10,9 +10,13 @@ done as kanban cards, kept in `history/cards/`.
 - `005-editor-font/` — the editor's panels default to Pixel Operator, and Preferences switches them to Oxanium and back, remembered.
 - `006-themes/` — interface looks come from a theme file of an accent, two sliders, a mode and a font; nearest theme wins, live in the editor.
 - `007-plugins/` — optional parts of the engine are switched on per project from the editor's Preferences, off by default, without the person seeing CMake. Draft: the wish as it was said, not yet interviewed.
+- `008-typing-what-you-press/` — typing in the editor produces the characters actually pressed, on the machine's own keyboard layout.
 
 Order of work is not the order of the numbers: 003 was put ahead of 002 by the sponsor on
 2026-09-15, because it makes every later feature cheaper to verify.
 
 006 is built ahead of 005, by the sponsor's choice on 2026-09-15: 005's font choice sits on 006's
 themes and Preferences.
+
+008 is built ahead of the rest of 006, by the sponsor's choice on 2026-09-17: typing is broken in the
+editor on Linux, and nothing that needs a typed name can be tried until it is fixed.
