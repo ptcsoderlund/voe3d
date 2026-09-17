@@ -58,3 +58,16 @@
     Expected: it exits zero.
 
 ## Results
+
+### 2026-09-17 — Windows
+
+Criterion 13 (`check.cmake`) on Windows: **failed**. Every step up to and including `includes`
+passed; `tests` failed with 55 of 56 passing and `platform/folder` failing at
+`platform/tests/folder.c:122`, on `listing.entries[0].hidden`. Toolchain: clang 22, cmake 4.3.3,
+slangc 2026.14.1.
+
+Criterion 13 as written is Linux only, and the check is green on Linux. The failure is in a folder
+this feature changed (task 3), so it is recorded as a defect of 004 rather than as a pre-existing
+platform gap.
+
+Criteria 1–12 (the interactive ones) not yet reported.
