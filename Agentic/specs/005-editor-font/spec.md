@@ -3,6 +3,7 @@
 Status: approved
 Approved: 2026-09-15
 Accepted: -
+Waits for: 006 themes — the sponsor chose on 2026-09-17 to build 006 first, so this spec is planned but parked.
 
 The editor's own panels are drawn in Pixel Operator, a pixel-style typeface free to ship, instead
 of Oxanium. The built-in theme takes Pixel Operator as its font, and the editor's Preferences can
