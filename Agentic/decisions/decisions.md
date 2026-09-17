@@ -171,3 +171,6 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0165-a-single-line-text-field-is-a-ui-widget-and-typed-text-arrives-as-a-value.md` — A single-line text field is a `ui` widget, and typed text arrives as a value like the pointer.
 - `0166-a-hidden-entry-means-the-same-thing-on-both-platforms.md` — A hidden entry means the same thing on both platforms: a leading `.` everywhere, plus Windows' attribute.
 - `0167-the-engine-carries-pixel-operator-beside-oxanium-and-a-font-is-asked-for-by-name.md` — The engine carries Pixel Operator beside Oxanium, and a font is asked for by name.
+- `0168-a-theme-is-read-in-theme-derived-in-ui-and-nearest-wins.md` — A theme is read in `theme`, derived in `ui`, and the nearest one wins.
+- `0169-the-palette-is-derived-in-oklab-and-dark-mode-clamps-chroma.md` — The palette is derived in OKLab from one colour and two numbers, and dark mode clamps chroma.
+- `0170-a-theme-is-one-file-in-a-themes-folder-and-a-program-remembers-it-by-file-name.md` — A theme is one file in a themes folder, and a program remembers which by its file name.
