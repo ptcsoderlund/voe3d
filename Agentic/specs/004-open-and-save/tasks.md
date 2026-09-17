@@ -419,7 +419,7 @@
   - Depends on: 9, 13
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png && test ! -e $d/voe3d` exits 0
 
-- [ ] 15. `platform/` — `hidden` means the same thing on both platforms
+- [x] 15. `platform/` — `hidden` means the same thing on both platforms
   - Change: Windows acceptance failed `platform/tests/folder.c:122` — the test's `.dotted` file
     came back with `hidden` false, because `folder_win32.c` answers only
     `FILE_ATTRIBUTE_HIDDEN` while `folder_wayland.c` answers only a leading `.`. The defect is the

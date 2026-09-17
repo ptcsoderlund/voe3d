@@ -132,6 +132,8 @@ bool voe_platform_folder_list(const char *path, voe_base_arena *arena,
 		entries[filled].name = name;
 		entries[filled].folder = entry_is_folder(fd, entry->d_name,
 							 entry->d_type);
+		// ADR-0166: hidden is the dot rule, the same meaning on every
+		// platform; Linux has nothing to add on top of it.
 		entries[filled].hidden = entry->d_name[0] == '.';
 		filled++;
 	}

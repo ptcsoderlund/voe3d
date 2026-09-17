@@ -115,7 +115,13 @@ bool voe_platform_folder_list(const char *path, voe_base_arena *arena,
 		entries[filled].name = name;
 		entries[filled].folder =
 			(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+		// ADR-0166: hidden is one meaning on every platform — a name
+		// beginning with '.', which is this engine's own convention
+		// and not Windows', so it is checked here regardless of what
+		// FindFirstFileA reports — with FILE_ATTRIBUTE_HIDDEN marking
+		// a further entry hidden on top of it.
 		entries[filled].hidden =
+			data.cFileName[0] == '.' ||
 			(data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0;
 		filled++;
 	} while (FindNextFileA(search, &data));

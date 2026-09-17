@@ -20,8 +20,10 @@
 // name in path into arena — never "." or "..", which are not entries a caller
 // ever wants — sorted ascending by byte order of name, which is strcmp's order
 // and not a locale's. folder is whether the name is itself a folder, following
-// a symlink to decide when the name at path is one; hidden is a leading '.' on
-// Linux and the hidden attribute on Windows. An empty folder is a valid
+// a symlink to decide when the name at path is one; hidden is one meaning on
+// every platform (ADR-0166): a name beginning with '.', with Windows'
+// FILE_ATTRIBUTE_HIDDEN marking a further entry hidden on top of it. An empty
+// folder is a valid
 // listing of zero, in an entries pointer that may be NULL — there is nothing
 // to index — exactly as voe_platform_file_read hands back a valid pointer for
 // zero bytes. The names themselves are copied into arena; nothing in the

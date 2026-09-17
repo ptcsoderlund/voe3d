@@ -18,7 +18,17 @@
 // header pulls in <stdlib.h>, the same macro platform/src/folder_wayland.c
 // sets for the same standard); platform/src/folder_win32.c reads a different
 // variable (%APPDATA%) with no fallback to check the same way. Task 3's
-// Windows backend is written and unverified, as ADR-0130 allows.
+// Windows backend for _settings is written and unverified, as ADR-0130
+// allows.
+//
+// HIDDEN IS ONE MEANING ON BOTH PLATFORMS (ADR-0166). The .dotted checks in
+// the three-entry listing below are unconditional and unchanged by that
+// decision — they are the promise, proved identically on both platforms, not
+// a Linux-only check. The #ifdef _WIN32 block right after them checks the
+// other half of the same promise: a name Windows itself marks hidden with
+// FILE_ATTRIBUTE_HIDDEN is hidden too, on top of the dot rule. That block is
+// the one part of this file the coder could not run on Linux; the rest,
+// .dotted checks included, ran here exactly as it will on Windows.
 #ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -35,6 +45,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #else
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -132,6 +143,35 @@ int main(void)
 			VOE_TEST_CHECK(!listing.entries[2].hidden);
 		}
 	}
+
+#ifdef _WIN32
+	// ADR-0166's other half: FILE_ATTRIBUTE_HIDDEN marks a further entry
+	// hidden, on top of the dot rule already checked above. One call to
+	// mark file.txt hidden, one relisting to read it back — the attribute
+	// is cleared again right here so a rerun of this test is not affected
+	// by a leftover from this one.
+	{
+		voe_platform_folder_listing listing;
+
+		VOE_TEST_CHECK(SetFileAttributesA(LIST_FILE,
+						  FILE_ATTRIBUTE_HIDDEN));
+		VOE_TEST_CHECK(voe_platform_folder_list(LIST_ROOT, arena,
+							&listing, &error));
+		VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+		VOE_TEST_CHECK_INT(listing.count, 3);
+		if (listing.count == 3) {
+			VOE_TEST_CHECK(strcmp(listing.entries[0].name,
+					      ".dotted") == 0);
+			VOE_TEST_CHECK(listing.entries[0].hidden);
+
+			VOE_TEST_CHECK(strcmp(listing.entries[1].name,
+					      "file.txt") == 0);
+			VOE_TEST_CHECK(listing.entries[1].hidden);
+		}
+		VOE_TEST_CHECK(SetFileAttributesA(LIST_FILE,
+						  FILE_ATTRIBUTE_NORMAL));
+	}
+#endif
 
 	// A folder that is not there fails as UNAVAILABLE.
 	error = VOE_BASE_OK;
