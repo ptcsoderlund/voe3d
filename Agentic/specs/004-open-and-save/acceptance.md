@@ -76,3 +76,16 @@ Criteria 1–12: **all passed**. The sponsor tried every one and reported nothin
 
 Verdict: rejected on criterion 13 alone, and only on Windows. The Windows `hidden` defect is fixed
 inside this feature; the sponsor re-runs the Windows check afterwards.
+
+### Second hand-over, after the fix
+
+Task 15 makes `hidden` one meaning on both platforms: a leading `.` anywhere, and on Windows the
+`FILE_ATTRIBUTE_HIDDEN` attribute as well (ADR-0166). Linux behaviour is unchanged by design, so the
+green Linux check proves nothing about the fix.
+
+Only criterion 13 needs retrying, and only on Windows:
+
+    cmake -P check.cmake
+
+Expected: it exits zero, with `platform/folder` among the 56 tests passing. The Windows-only part of
+that test was written without being compiled; a compile error there is the likeliest way this fails.
