@@ -1,8 +1,8 @@
 # 004 Open and save
 
-Status: acceptance
+Status: accepted
 Approved: 2026-09-15
-Accepted: -
+Accepted: 2026-09-17
 
 The editor opens a game's project, saves the scene being worked on, and opens the last project
 again the next time it starts — the way Blender does, down to the untitled cube and light it
