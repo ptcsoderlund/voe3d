@@ -3,7 +3,7 @@
 Read `plan.md` first: it carries the measured cause and the verbatim keymap lines both tasks are
 written against. Both tasks are in `platform`; do them in order.
 
-- [ ] 1. `platform/` — the keymap reader reads numeric keysyms and four levels
+- [x] 1. `platform/` — the keymap reader reads numeric keysyms and four levels
   - Change: fix `src/keymap.c` and widen `src/keymap.h`.
     - **The lexer.** One number token covers both spellings: a decimal run as today, and `0x`
       followed by hex digits consumed whole. One `parse_number` reads either (hex when the span

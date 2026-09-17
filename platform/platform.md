@@ -75,14 +75,17 @@ file, and listing, making or finding a folder.
 - `src/library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
   header says why the name says wayland.
 - `src/library_win32.c` — LoadLibraryA and GetProcAddress.
-- `src/keymap.h` — the XKB keymap reader: an evdev-code-and-level table built
-  from resolved XKB v1 text, internal to this folder and built on both
-  platforms because it includes no OS header. Its header says which two
-  blocks it reads, which two spellings of a key's symbols it reads, what a
-  keysym name becomes and what it does not read.
+- `src/keymap.h` — the XKB keymap reader: an evdev-code, four-level table and
+  an AltGr flag per code, built from resolved XKB v1 text, internal to this
+  folder and built on both platforms because it includes no OS header. Its
+  header says which two blocks it reads, which two spellings of a key's
+  symbols it reads, how a keysym as a number differs from one as a name, what
+  makes a key AltGr, what it does not read, and when it refuses a keymap
+  outright.
 - `src/keymap.c` — its implementation: one lexer and a small parsing function
   per level of the format's fixed nesting, none of them calling itself. Its
-  header says why a brace counter stands in for recursion here.
+  header says why a brace counter stands in for recursion here, and why a key
+  body is read by its statements rather than by its first `[`.
 - `src/input.h` — the input state both backends fill and neither reads, the two
   functions each of them defines over its own window, the three clears both of
   them call, and the one shared function that turns a code point into the
@@ -109,7 +112,11 @@ file, and listing, making or finding a folder.
   ordinary key, one with a type statement beside its `symbols[Group1]`, a
   digit and its shifted punctuation, a key with one level, a dead key that
   types nothing, a `U`-named code point, an alias, and that text with no
-  `xkb_symbols` block is refused. Needs no window and no display.
+  `xkb_symbols` block is refused. A second text, copied from a real
+  compositor's own spelling, checks `0x` keysym values, a Group index written
+  `1`, an unindexed `type=`, AltGr as the keysym `0xfe03` on two keys, the
+  `0x0100xxxx` Unicode form, a key with no resolved code, and that a keymap
+  resolving to nothing is refused too. Needs no window and no display.
 - `tests/file.c` — that the bytes written come back byte for byte on both sides
   of the API, that a shorter file replaces a longer one, that an empty file
   reads as zero bytes, that a missing path or a folder fails a read as
