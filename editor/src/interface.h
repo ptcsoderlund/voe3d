@@ -8,7 +8,9 @@
 // carries its own pointer, already in this surface's millimetres; the division
 // that turns the window's pixels into them is in `main.c` and in nothing else,
 // because the day a panel is a quad standing in the world that division is a ray
-// against the quad and only the call site can know which it is.
+// against the quad and only the call site can know which it is. THE KEYBOARD
+// (dock.h) ARRIVES THE SAME WAY, beside the pointer and read by `ui` for
+// whichever field is focused — task 14's browser is the one caller today.
 //
 // A ROOT IS A FRAME, WHICH IS WHY THE LOOP IS SHAPED THIS WAY. `ui` lays out one
 // root container per frame (see ui/layout.h) and a root is its own surface with
@@ -97,8 +99,20 @@
 // own folder names, neither of which this file nor browser.h puts a limit
 // on — 120 + 32 × 24 = 888. That is 310 + 888 = 1198, and 735 + 1198 = 1933
 // elements.
-#define VOE_EDITOR_INTERFACE_NODES 246
-#define VOE_EDITOR_INTERFACE_ELEMENTS 1933
+//
+// AND, IN SAVE MODE, THE NAME ROW (browser.h, task 14) ADDS FOUR MORE NODES:
+// a field costs two — itself and the label it composes (ui/widgets.h) — and
+// Make folder, a button with a label, costs two more. 246 + 4 = 250 nodes.
+//
+// AND 269 MORE ELEMENTS, BOUNDED BY THE FIELD'S OWN DECLARED CAPACITY RATHER
+// THAN A GUESS. The field's background and its caret while focused are two;
+// up to VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed is the
+// honest ceiling, there being nowhere shorter this file could point to; that
+// is 258. Make folder's background and its ten letters ("Make folder", the
+// one space between them drawing nothing) are eleven more. 258 + 11 = 269,
+// and 1933 + 269 = 2202 elements.
+#define VOE_EDITOR_INTERFACE_NODES 250
+#define VOE_EDITOR_INTERFACE_ELEMENTS 2202
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once. It lives in `arena` and is

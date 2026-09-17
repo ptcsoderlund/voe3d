@@ -94,12 +94,17 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		return false;
 
 	case VOE_EDITOR_COMMAND_SAVE:
-		// An untitled project has nowhere to write to yet — the
-		// browser that gives it one, in SAVE mode, is task 14's — so
-		// Save does nothing until then.
+		// An opened project is written back over itself; an untitled
+		// one has nowhere to write to yet, so the browser opens in
+		// SAVE mode instead and gives it one — what its Confirm does
+		// is voe_editor_session_browser_do's.
 		if (session->project->folder != NULL)
 			(void)voe_editor_project_save(session->project, NULL,
 						      &session->notice);
+		else
+			voe_editor_browser_show(browser,
+						VOE_EDITOR_BROWSER_SAVE,
+						&session->notice);
 		return false;
 
 	case VOE_EDITOR_COMMAND_NONE:
@@ -165,8 +170,31 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 					opened->folder);
 
 			voe_editor_browser_hide(browser);
+			return;
 		}
-		// SAVE mode's Confirm is task 14's.
+
+		// SAVE MODE. The project is still session->project's own —
+		// unlike OPEN, nothing here replaces it — voe_editor_project_save
+		// writes it into browser->folder and, on success, adopts that
+		// folder as project->folder itself (project.h). A failure,
+		// "is not empty" included, leaves why set by the save and the
+		// browser open on the folder that refused it.
+		if (!voe_editor_project_save(session->project, browser->folder,
+					     &session->notice))
+			return;
+
+		if (!voe_editor_last_project_write(session->project->folder))
+			voe_editor_notice_set(
+				&session->notice,
+				"could not remember %s as the last project opened",
+				session->project->folder);
+
+		voe_editor_browser_hide(browser);
+		return;
+
+	case VOE_EDITOR_BROWSER_MAKE_FOLDER:
+		voe_editor_browser_make_folder(browser, result.name,
+					       &session->notice);
 		return;
 	}
 }

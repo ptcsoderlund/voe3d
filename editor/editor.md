@@ -22,9 +22,15 @@ exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 Open shows the editor's own file browser — an anchored panel over the dock,
 below the bar — to choose a project's folder from; a folder marked "— project"
 already holds one. Confirming it replaces the project on success, or leaves
-the browser open with a notice on failure. While it shows, the top bar's
-clicks and the three shortcuts do nothing, and a scene view's camera does not
-move; Escape or Cancel dismisses it without changing anything.
+the browser open with a notice on failure. Save on an untitled project shows
+the same browser in SAVE mode instead, with a name box and a Make folder
+button beside the confirm button, now "Save here": typing a name and either
+pressing Enter in the box or clicking Make folder makes that folder and opens
+it, and Save here writes `project.voe3d` and the scene into whichever folder
+the browser is in, refusing one that is not empty. While the browser shows,
+the top bar's clicks and the three shortcuts do nothing, and a scene view's
+camera does not move; Escape or Cancel dismisses it without changing
+anything.
 
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
@@ -41,7 +47,10 @@ reach-around from here.
   `voe_editor_session_do` call, and a refused close takes the window's own back.
   While the browser shows, the three shortcuts fire nothing and a
   middle-button drag moves no view's camera; Escape is read here too and
-  handed to the interface as the browser's own Cancel. Its header says why the
+  handed to the interface as the browser's own Cancel. Backspace, Enter and
+  `voe_platform_input_text` are read every frame, regardless of the browser,
+  and handed to the interface as this frame's keyboard (task 14) — `ui` acts
+  on them only for whichever field is focused. Its header says why the
   `while` is this file's while the parts in it are `app`'s (ADR-0135), why the
   one division that turns the mouse's pixels into the surface's millimetres is
   here and nowhere else (ADR-0141 point 4), what says how far a wheel notch
@@ -67,14 +76,16 @@ reach-around from here.
 - `src/session.h`, `src/session.c` — the project being worked on, its notice
   and the one armed command that makes closing the window, New and Open each
   refuse once while there are unsaved changes and go ahead the second time.
-  Open, once allowed, shows the browser in OPEN mode; what a folder chosen in
-  it does to the project — `voe_editor_session_browser_do`, on the browser's
-  own Confirm — is this file's too, the same shape as every other command.
-  Its header says why only a `CLOSE` that goes ahead answers true, what NEW
-  does to `scene` and to the old project, why an inspector edit disarms
-  through a call of its own rather than through this file noticing it, and
-  why a browser action that clears the notice and disarms only does either
-  when something actually fired.
+  Open, once allowed, shows the browser in OPEN mode; Save on an untitled
+  project shows it in SAVE mode instead of writing anything. What a folder
+  chosen in OPEN, a name made into a folder or entered with Enter (SAVE), or
+  "Save here" does to the project — `voe_editor_session_browser_do`, on the
+  browser's own Confirm and MAKE_FOLDER — is this file's too, the same shape
+  as every other command. Its header says why only a `CLOSE` that goes ahead
+  answers true, what NEW does to `scene` and to the old project, why an
+  inspector edit disarms through a call of its own rather than through this
+  file noticing it, and why a browser action that clears the notice and
+  disarms only does either when something actually fired.
 - `src/topbar.h`, `src/topbar.c` — the bar across the top of the root surface:
   New, Open, Save, the project's name and whether it is unsaved, then the
   session's notice. Its header says why it hands back which button fired
@@ -83,27 +94,34 @@ reach-around from here.
 - `src/browser.h`, `src/browser.c` — the editor's own file browser: a folder
   listing shown as an anchored panel over the dock, its own arena for the
   current folder and its rows, and what fired read back exactly as the top
-  bar's buttons are. Its header says why a listing failure changes nothing,
-  why it keeps its folder across showings for the whole run, and why entering
-  a row or going up is this file's own to carry out while what Confirm does to
-  the project is session.h's.
+  bar's buttons are. In SAVE mode it also draws a name row — a `ui` field
+  holding a typed folder name, focused the frame it first shows, and a Make
+  folder button — and keeps the typed text in its own buffer, written back
+  every frame the way the inspector writes back a number box's value. Its
+  header says why a listing failure changes nothing, why it keeps its folder
+  (and its typed name) across showings for the whole run, and why entering a
+  row, going up and making a folder are this file's own to carry out while
+  what Confirm does to the project is session.h's.
 - `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`,
   which is where the panels' contents are. `voe_editor_dock_walk` takes the axis
   of whatever it is called inside, because interface.c now opens a column above
-  it for the top bar. Its header says why where a panel sits is a tree of data
-  and not the order of the calls (ADR-0142), what the `fraction` is and that
-  nothing writes one yet, why no function pointer lives in this folder, how a
-  split hands its two children fixed millimetres and where a splitter would go,
-  and why root zero is the window while a second root that is its own OS window
-  is a card in three other folders before it is a line here.
+  it for the top bar. A root also carries this frame's keyboard beside its
+  pointer (task 14), for `ui` to hand to whichever field is focused. Its
+  header says why where a panel sits is a tree of data and not the order of
+  the calls (ADR-0142), what the `fraction` is and that nothing writes one
+  yet, why no function pointer lives in this folder, how a split hands its
+  two children fixed millimetres and where a splitter would go, and why root
+  zero is the window while a second root that is its own OS window is a card
+  in three other folders before it is a line here.
 - `src/interface.h`, `src/interface.c` — the screen-filling surface. Pixels per
   millimetre from the window's height over a 135 mm surface, the top bar laid
   above each root's dock tree in a column this file opens, the browser drawn
   over the tree when it shows, the records `ui` emitted submitted into the
-  open frame, and one draw command per root. It decides nothing about what is
-  on a panel, and its header says why the one question it does ask — what was
-  clicked, the top bar's and the browser's included — has to be asked from in
-  there, why nesting the tree under the bar's column means telling
+  open frame, and one draw command per root. It hands each root's keyboard to
+  `ui` beside its pointer and decides nothing about what is on a panel; its
+  header says why the one question it does ask — what was clicked, the top
+  bar's and the browser's included — has to be asked from in there, why
+  nesting the tree under the bar's column means telling
   `voe_editor_dock_walk` which axis it is now inside, and why whether the
   browser was showing is captured once and used for every decision in a root's
   frame rather than read again after its own commands have run.

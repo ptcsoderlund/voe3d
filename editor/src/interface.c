@@ -111,6 +111,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 		voe_ui_frame_begin(ui, arena);
 		voe_ui_pointer_set(ui, root->pointer);
+		// BESIDE THE POINTER AND FOR THE SAME REASON (dock.h, task 14):
+		// this frame's typing, wherever main.c read it, so the
+		// browser's own name field (browser.h) can be typed into
+		// without this file naming one.
+		voe_ui_keyboard_set(ui, root->keyboard);
 		// The inspector formats every label it draws into this arena
 		// and hands back its controls through nodes out of this frame,
 		// so it is opened here beside the frame and not inside the walk.

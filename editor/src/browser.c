@@ -41,6 +41,10 @@
 // What a marked row's label ends in.
 #define PROJECT_MARK " — project"
 
+// SAVE mode's own button, beside the name field. Literal, for the same
+// reason PROJECT_MARK is.
+#define MAKE_FOLDER_TEXT "Make folder"
+
 // A copy of text, NUL included, in arena — the row names and the folder path
 // all outlive the scratch arena they are first read into, because they are
 // this call's own way of committing to arena rather than a pointer into
@@ -119,6 +123,11 @@ void voe_editor_browser_show(voe_editor_browser *browser,
 
 	browser->mode = mode;
 	browser->showing = true;
+	// A SAVE SHOWING TAKES THE KEYBOARD TO THE NAME BOX ON THE FRAME IT
+	// DRAWS FIRST — the next voe_editor_browser_draw consumes this.
+	// `name` itself is left as it was: it keeps whatever a previous SAVE
+	// showing typed, the same "for the session" the folder already gets.
+	browser->focus_name = mode == VOE_EDITOR_BROWSER_SAVE;
 
 	// THE FIRST SHOWING EVER PICKS A FOLDER; EVERY OTHER ONE KEEPS WHAT IT
 	// HAD (the header's "across showings, for the session").
@@ -234,6 +243,37 @@ void voe_editor_browser_draw(voe_ui_context *ui, voe_editor_browser *browser,
 	}
 	voe_ui_end(ui); // scroll area
 
+	// THE NAME ROW, SAVE MODE ONLY. Outside it neither node is ever drawn,
+	// so both are set fresh to VOE_UI_NODE_NONE here rather than carrying
+	// over whatever a previous SAVE showing left in them — the same
+	// freshness the three fixed buttons above already get every call.
+	if (browser->mode == VOE_EDITOR_BROWSER_SAVE) {
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = BROWSER_GAP });
+		browser->name_field = voe_ui_field(
+			ui, "name", 0, browser->name,
+			(voe_ui_sizing){ .along = { VOE_UI_SIZE_GROW,
+						    1.0f } });
+		// CONSUMED HERE, ONCE — the frame voe_editor_browser_show
+		// armed it for, and never again until the next SAVE showing.
+		// A refused field (VOE_UI_NODE_NONE) has nothing to focus —
+		// asking would assert (ui/widgets.h) — so the flag waits for
+		// a frame that actually laid one out.
+		if (browser->focus_name &&
+		    browser->name_field != VOE_UI_NODE_NONE) {
+			voe_ui_field_focus(ui, browser->name_field);
+			browser->focus_name = false;
+		}
+		browser->make_button = voe_ui_button_begin(ui, "make", 0);
+		voe_ui_label(ui, MAKE_FOLDER_TEXT);
+		voe_ui_end(ui); // make button
+		voe_ui_end(ui); // name row
+	} else {
+		browser->name_field = VOE_UI_NODE_NONE;
+		browser->make_button = VOE_UI_NODE_NONE;
+	}
+
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = BROWSER_GAP });
 	browser->confirm_button = voe_ui_button_begin(ui, "confirm", 0);
@@ -251,13 +291,31 @@ void voe_editor_browser_draw(voe_ui_context *ui, voe_editor_browser *browser,
 
 voe_editor_browser_result
 voe_editor_browser_clicks_read(const voe_ui_context *ui,
-			       const voe_editor_browser *browser, bool escape)
+			       voe_editor_browser *browser, bool escape)
 {
 	voe_editor_browser_result result = { .action = VOE_EDITOR_BROWSER_NONE,
 					     .name = NULL };
+	bool entered = false;
 
 	VOE_BASE_ASSERT(ui != NULL, "reading the clicks of no interface");
 	VOE_BASE_ASSERT(browser != NULL, "reading the clicks of no browser");
+
+	// THE NAME FIELD IS READ FIRST, WHATEVER ELSE THIS FRAME DID — see
+	// the header on why every frame writes browser->name back, changed or
+	// not. A refused field (VOE_UI_NODE_NONE) has nothing to read, the
+	// same skip every other widget below gets.
+	if (browser->mode == VOE_EDITOR_BROWSER_SAVE &&
+	    browser->name_field != VOE_UI_NODE_NONE) {
+		voe_ui_field_result r = voe_ui_field_action(ui,
+							    browser->name_field);
+		size_t size = strlen(r.text);
+
+		VOE_BASE_ASSERT(
+			size <= VOE_UI_FIELD_CAPACITY,
+			"a field's own text wider than its own declared capacity");
+		memcpy(browser->name, r.text, size + 1);
+		entered = r.entered;
+	}
 
 	if (escape) {
 		result.action = VOE_EDITOR_BROWSER_CANCEL;
@@ -296,7 +354,85 @@ voe_editor_browser_clicks_read(const voe_ui_context *ui,
 		return result;
 	}
 
+	// THE NAME FIELD'S OWN ENTER, OR MAKE FOLDER — either means the same
+	// thing, and `name` is browser->name itself: valid as long as nothing
+	// else has written it, which is exactly until
+	// voe_editor_browser_make_folder is called with it.
+	if (browser->mode == VOE_EDITOR_BROWSER_SAVE &&
+	    (entered || (browser->make_button != VOE_UI_NODE_NONE &&
+			voe_ui_button_action(ui, browser->make_button).fired))) {
+		result.action = VOE_EDITOR_BROWSER_MAKE_FOLDER;
+		result.name = browser->name;
+		return result;
+	}
+
 	return result;
+}
+
+// Refuses name with a notice in why and returns true for the names
+// voe_platform_folder_create must never be asked to make: empty, or
+// starting with '.' — which "." and ".." already do — or holding a path
+// separator on either platform.
+static bool refused_name(voe_editor_notice *why, const char *name)
+{
+	if (name[0] == '\0' || name[0] == '.') {
+		voe_editor_notice_set(why, "\"%s\" is not a folder name", name);
+		return true;
+	}
+
+	for (const char *c = name; *c != '\0'; c++) {
+		if (*c == '/' || *c == '\\') {
+			voe_editor_notice_set(why,
+					      "\"%s\" is not a folder name",
+					      name);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void voe_editor_browser_make_folder(voe_editor_browser *browser,
+				    const char *name, voe_editor_notice *why)
+{
+	char copy[VOE_UI_FIELD_CAPACITY + 1];
+	size_t size;
+	voe_base_arena *scratch;
+	const char *candidate;
+	voe_base_error error;
+
+	VOE_BASE_ASSERT(browser != NULL, "making a folder in no browser");
+	VOE_BASE_ASSERT(browser->folder != NULL,
+			"making a folder before the browser has one to make it in");
+	VOE_BASE_ASSERT(name != NULL, "making a folder with no name");
+	VOE_BASE_ASSERT(why != NULL, "making a folder with nowhere to say why");
+
+	if (refused_name(why, name))
+		return;
+
+	// COPIED BEFORE ANYTHING IS CLEARED. `name` is ordinarily
+	// browser->name itself (voe_editor_browser_clicks_read hands it back
+	// that way), and browser->name is what gets cleared on success below
+	// — so the name voe_editor_browser_enter is asked to enter has to be
+	// somewhere else first.
+	size = strlen(name);
+	VOE_BASE_ASSERT(size <= VOE_UI_FIELD_CAPACITY,
+			"a typed name wider than the field that typed it");
+	memcpy(copy, name, size + 1);
+
+	scratch = voe_base_arena_new(VOE_EDITOR_BROWSER_SCRATCH);
+	candidate = voe_platform_path_join(scratch, browser->folder, copy);
+
+	voe_base_report_error_clear();
+	if (!voe_platform_folder_create(candidate, &error)) {
+		voe_editor_notice_from_report(why, candidate);
+		voe_base_arena_destroy(scratch);
+		return;
+	}
+	voe_base_arena_destroy(scratch);
+
+	browser->name[0] = '\0';
+	voe_editor_browser_enter(browser, copy, why);
 }
 
 void voe_editor_browser_destroy(voe_editor_browser *browser)

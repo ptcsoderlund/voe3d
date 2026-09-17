@@ -392,7 +392,7 @@
   - Depends on: 12
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png` exits 0
 
-- [ ] 14. `editor/` — The first save: a typed folder name and the project made
+- [x] 14. `editor/` — The first save: a typed folder name and the project made
   - Change: `browser.c` in SAVE mode adds a name row: a `voe_ui_field` holding the name and a
     `Make folder` button beside it. The confirm button reads `Save here`. The browser keeps the name
     in a `char [VOE_UI_FIELD_CAPACITY + 1]` of its own and writes back what `voe_ui_field_action`

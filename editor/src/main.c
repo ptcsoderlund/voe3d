@@ -23,18 +23,25 @@
 // write fails; `--capture` never writes it, because a capture is not a person
 // opening the editor.
 //
-// OPEN, ONCE ALLOWED, SHOWS browser.h'S OWN FILE BROWSER — the one thing
-// New and Save do not need one for. `browser`, beside `scene` and `views`,
-// outlives every project the whole run through, and while it shows this file
-// does two things for it and interface.c a third: Ctrl+N, Ctrl+O and Ctrl+S
-// fire nothing, the middle-button drag moves no view's camera, and (in
-// interface.c) the top bar's buttons are drawn but never asked what the
-// pointer did to them, so a click on one is not carried out — and the dock is
-// handed a pointer that cannot be hit either, the anchored browser already
-// painting over it. Escape is this file's own edge, exactly as the other
-// three shortcuts are, handed to the interface as the browser's Cancel; a
-// window close still asks session.h the same question it always has,
-// browser or not.
+// OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE
+// BROWSER. `browser`, beside `scene` and `views`, outlives every project the
+// whole run through, and while it shows this file does two things for it and
+// interface.c a third: Ctrl+N, Ctrl+O and Ctrl+S fire nothing, the
+// middle-button drag moves no view's camera, and (in interface.c) the top
+// bar's buttons are drawn but never asked what the pointer did to them, so a
+// click on one is not carried out — and the dock is handed a pointer that
+// cannot be hit either, the anchored browser already painting over it.
+// Escape is this file's own edge, exactly as the other three shortcuts are,
+// handed to the interface as the browser's Cancel; a window close still asks
+// session.h the same question it always has, browser or not.
+//
+// BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
+// (task 14). Neither is this file's to act on: both, with whatever
+// voe_platform_input_text read since the last poll, are read every frame
+// regardless of whether the browser shows and handed to the interface as
+// this frame's voe_ui_keyboard (dock.h, interface.c) — `ui` acts on them only
+// for whichever field is focused, which is nothing outside the browser's
+// SAVE mode today.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -90,10 +97,10 @@
 // the layout's own sizes, and it is the frame that gets written.
 //
 // EVERY READ OF THE WINDOW IS GUARDED, because there is none to read on a
-// capture: the pointer, the wheel, the buttons and the keys are zeroed input
-// then, and nothing else in the loop changes shape — the same passes in the
-// same order with the same draws, so the captured frame is the frame a person
-// sees.
+// capture: the pointer, the wheel, the buttons, the keys and the typed text
+// are zeroed input then, and nothing else in the loop changes shape — the
+// same passes in the same order with the same draws, so the captured frame
+// is the frame a person sees.
 //
 // main's SIGNATURE IS C'S OWN, `char *argv[]`, WHICH IS THE ONE DEVIATION FROM
 // RULE 6 IN THIS FOLDER (DEVIATION: rule 6, an array of pointers is spelled as
@@ -296,6 +303,13 @@ int main(int argc, char *argv[])
 	// browser's own Cancel (browser.h), and nothing else, so it is read
 	// only while the browser shows.
 	bool escape_was_down = false;
+	// Last frame's Backspace and Enter, the same shape again — task 14's
+	// name box (browser.h) is the one thing either reaches, through
+	// `ui`'s own voe_ui_keyboard and not through a command of this
+	// file's. A held key does not repeat here, only edge, because a
+	// repeating key waits on a later typing feature (spec's Defaults).
+	bool backspace_was_down = false;
+	bool enter_was_down = false;
 	// Shown by Open, once its unsaved-changes refusal is past; hidden by
 	// its own Cancel, Escape, or a folder it opened successfully
 	// (session.h). Kept across the whole program's run, never one
@@ -478,14 +492,19 @@ int main(int argc, char *argv[])
 		// wheel has not turned.
 		voe_platform_pointer pointer = { 0 };
 		voe_platform_wheel wheel = { 0 };
+		voe_platform_text text = { 0 };
 		bool left = false;
 		bool middle = false;
 		bool shift = false;
 		bool control = false;
 		bool escape = false;
-		// This frame's Escape edge, handed to the interface below —
-		// set once escape has been read, further down.
+		bool backspace = false;
+		bool enter = false;
+		// This frame's Escape, Backspace and Enter edges, handed to the
+		// interface below — set once each has been read, further down.
 		bool escape_fired;
+		bool backspace_fired;
+		bool enter_fired;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -552,6 +571,7 @@ int main(int argc, char *argv[])
 		if (window != NULL) {
 			pointer = voe_platform_input_pointer(window);
 			wheel = voe_platform_input_wheel(window);
+			text = voe_platform_input_text(window);
 			left = voe_platform_input_button_down(
 				window, VOE_PLATFORM_BUTTON_LEFT);
 			middle = voe_platform_input_button_down(
@@ -562,6 +582,10 @@ int main(int argc, char *argv[])
 				window, VOE_PLATFORM_KEY_CONTROL);
 			escape = voe_platform_input_key_down(
 				window, VOE_PLATFORM_KEY_ESCAPE);
+			backspace = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_BACKSPACE);
+			enter = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_ENTER);
 		}
 
 		// CTRL+N, CTRL+O AND CTRL+S DO WHAT THEIR BUTTON DOES, on the
@@ -604,12 +628,20 @@ int main(int argc, char *argv[])
 			save_was_down = save_down;
 		}
 
-		// THIS FRAME'S ESCAPE EDGE, HANDED TO THE INTERFACE BELOW — the
-		// browser's own Cancel (browser.h) and nothing else this
-		// program reads Escape for; a capture has no window, so
-		// `escape` stays false and this never fires there either.
+		// THIS FRAME'S ESCAPE, BACKSPACE AND ENTER EDGES, HANDED TO THE
+		// INTERFACE BELOW — the browser's own Cancel (browser.h) and,
+		// for the latter two, its name field's own editing and Enter
+		// (task 14), and nothing else this program reads any of the
+		// three for; a capture has no window, so all three stay false
+		// and none of them ever fires there either. NEITHER BACKSPACE
+		// NOR ENTER REPEATS WHILE HELD, for the reason the local
+		// variables above already say.
 		escape_fired = escape && !escape_was_down;
 		escape_was_down = escape;
+		backspace_fired = backspace && !backspace_was_down;
+		backspace_was_down = backspace;
+		enter_fired = enter && !enter_was_down;
+		enter_was_down = enter;
 
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
@@ -619,6 +651,15 @@ int main(int argc, char *argv[])
 			.fine = shift,
 			.scroll = { wheel.x * WHEEL_MILLIMETRES,
 				    wheel.y * WHEEL_MILLIMETRES }
+		};
+		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
+		// reads this for whichever field is focused, the browser's
+		// name box today, and nothing here decides which one that is.
+		roots[0].keyboard = (voe_ui_keyboard){
+			.text = text.bytes,
+			.size = text.size,
+			.backspace = backspace_fired,
+			.enter = enter_fired,
 		};
 
 		// The middle button is the views' and the left is the

@@ -100,8 +100,12 @@ typedef struct {
 } voe_editor_dock_tree;
 
 // A surface with a tree on it: how big it is in the surface's own millimetres,
-// and the pointer in those same millimetres. Both are the caller's to fill in —
-// nothing in this folder asks a window anything (ADR-0141 point 4).
+// the pointer in those same millimetres, and this frame's keyboard (task 14).
+// All three are the caller's to fill in — nothing in this folder asks a
+// window anything (ADR-0141 point 4). `keyboard` is handed to `ui` beside
+// `pointer` (interface.c), which is what lets the browser's own name field
+// (browser.h) be typed into without this folder or interface.c knowing a
+// field exists.
 //
 // ROOT ZERO IS THE WINDOW, AND A DETACHED PANEL WOULD BE A FURTHER ROOT. The
 // editor holds an array of them and the loop walks every one, so the shape is
@@ -117,6 +121,7 @@ typedef struct {
 	voe_editor_dock_tree tree;
 	voe_math_float2 size;
 	voe_ui_pointer pointer;
+	voe_ui_keyboard keyboard;
 } voe_editor_dock_root;
 
 // The tree the editor opens on: three columns — `Scene` a fifth of the width on

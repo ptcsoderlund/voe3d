@@ -30,9 +30,11 @@
 // SAVE NEVER ARMS. An opened project (session->project->folder is not NULL)
 // is written back over itself, through voe_editor_project_save's second
 // argument being NULL, and a failure lands in the notice the same way an open
-// or a close's refusal does. An untitled project's Save does nothing yet — the
-// first save is task 14's, through the browser in SAVE mode — so there is
-// nothing here for it to be refused over.
+// or a close's refusal does. AN UNTITLED PROJECT'S SAVE SHOWS THE BROWSER IN
+// SAVE MODE INSTEAD, there being nowhere yet to write to; what its own
+// Confirm ("Save here") does to the project is
+// voe_editor_session_browser_do's, the same shape OPEN's Confirm already
+// has.
 //
 // voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS. An edit in the
 // inspector is not a command this file was asked to do, so nothing above
@@ -89,16 +91,22 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 void voe_editor_session_edited(voe_editor_session *session);
 
 // Carries out what browser reported this frame — see browser.h's
-// voe_editor_browser_clicks_read. Entering a row and going up are
-// browser.c's own to do, given session->notice to write a listing failure
-// into; Cancel hides the browser and nothing else. CONFIRM IN OPEN MODE IS
-// THIS FILE'S OWN, the same shape session_do's other commands have:
+// voe_editor_browser_clicks_read. Entering a row, going up and making a
+// folder (MAKE_FOLDER, the name field's own Enter or its Make folder button)
+// are browser.c's own to do, given session->notice to write a failure into;
+// Cancel hides the browser and nothing else. CONFIRM IS THIS FILE'S OWN IN
+// BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
 // voe_editor_project_new_opened on browser->folder, and on success
 // session->project, scene->world and scene->selected are replaced exactly as
 // NEW replaces them, the last project is remembered (a failure to write that
-// is a notice and not a refusal), and the browser hides. On failure the
-// notice is why, the browser stays and session->project is untouched. SAVE
-// mode's Confirm is task 14's.
+// is a notice and not a refusal), and the browser hides; on failure the
+// notice is why, the browser stays and session->project is untouched. IN
+// SAVE MODE: voe_editor_project_save(session->project, browser->folder, why)
+// — the first save a project this session built untitled ever gets — and on
+// success the same "remembered, then hidden" as OPEN's; on failure,
+// INCLUDING "IS NOT EMPTY", the notice is why, nothing was written and the
+// browser stays, exactly as OPEN's own failure leaves session->project
+// untouched.
 //
 // EVERY BROWSER ACTION CLEARS THE NOTICE AND DISARMS, AS A COMMAND DOES — but
 // only when one actually fired: a call with result.action ==
