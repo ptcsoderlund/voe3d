@@ -3,19 +3,20 @@
 // a known tree comes out as a known list of records — two images in a row among
 // them, each one IMAGE record carrying the texture index and sheet it was given.
 //
-// EVERY CASE HERE EXCEPT THE LAST NEEDS NO GRAPHICS CARD AND NO WINDOW SYSTEM,
-// which is the property the whole design is arranged around: the pointer is a
-// value handed in (ADR-0093), so a drag is three calls in a row and not a mouse.
-// A button is composed rather than given a string, so nothing in the click cases
-// touches a font. Nothing here opens a window, asks a compositor for anything or
-// names `platform`.
+// EVERY CLICK, DRAG AND SCROLL CASE NEEDS NO GRAPHICS CARD AND NO WINDOW
+// SYSTEM, which is the property the whole design is arranged around: the
+// pointer is a value handed in (ADR-0093), so a drag is three calls in a row
+// and not a mouse. A button is composed rather than given a string, so nothing
+// in the click cases touches a font. Nothing here opens a window, asks a
+// compositor for anything or names `platform`.
 //
-// THE LAST CASE IS THE EXCEPTION AND IT IS DELIBERATE (ADR-0106). The text scale
-// multiplies a MEASUREMENT, and a label emits one record per letter, so proving
-// either needs a real font, and a font uploads
-// an atlas and so needs a device. It takes a headless one — no window, no
-// surface, no compositor — and where there is no driver at all it skips, saying
-// which check did not run rather than only why.
+// A CASE THAT MEASURES A STRING IS THE EXCEPTION AND IT IS DELIBERATE
+// (ADR-0106). The text scale multiplies a MEASUREMENT, a label emits one
+// record per letter, and A FIELD COMPOSES A LABEL OF ITS OWN, so proving any
+// of the three needs a real font, and a font uploads an atlas and so needs a
+// device. Those cases take a headless one — no window, no surface, no
+// compositor — and where there is no driver at all they skip, saying which
+// check did not run rather than only why.
 //
 // ---- WHY THE CLICK CASES ARE THE ONES THAT MATTER ----
 //
@@ -47,6 +48,23 @@
 // too many refuses the frame. Every one of these makes its own context, so what
 // one remembers cannot leak into the next.
 //
+// A FIELD FOCUSES ON THE PRESS ITSELF, NOT ON A RELEASE, and the cases below
+// pin that down before anything about editing: a press elsewhere — nothing, a
+// button, wherever — clears it on the very same edge a press on the field
+// sets it, and a field not called this frame loses it exactly as a scroll
+// area not called forgets its offset. TWO FIELDS IN ONE FRAME, ONLY ONE
+// FOCUSED, is the case that would catch a shared buffer: typing must reach
+// the focused one and leave the other's own text untouched. BACKSPACE ON AN
+// EMPTY FIELD AND A CODE POINT TAKEN WHOLE both come from the same walk
+// backward over continuation bytes, so both are pinned down rather than
+// trusted to follow from one another. A TEXT AT CAPACITY REFUSING THE NEXT
+// CODE POINT WHOLE is the one that would show a cut multi-byte character if
+// the append ever stopped counting in bytes instead of code points. AND
+// `changed` FALSE HANDS BACK THE CALLER'S OWN POINTER, not a copy of the same
+// bytes, which is what lets a caller write the answer back every frame with no
+// cost on the frames that changed nothing. Every field case needs the device,
+// a field always composing a label of its own — see above.
+//
 // THE GEOMETRY IS WORKED OUT BY HAND AND WRITTEN AS NUMBERS. A button's
 // rectangle comes out of layout, so a test that asked layout where the button
 // was and then clicked there would pass with the arithmetic inverted. The
@@ -63,6 +81,7 @@
 #include <testing/test.h>
 
 #include <stdio.h>
+#include <string.h>
 
 #define SCRATCH 65536
 
@@ -1570,6 +1589,334 @@ static void a_wholly_clipped_label_emits_nothing(voe_ui_context *ui,
 			   1);
 }
 
+// ---------------------------------------------------------------- the field
+
+// A field 25 x 15 at the origin of a bare panel, so a point inside it and one
+// well outside it are known without asking layout — the same premise the
+// button cases rest on. A field always composes a label, which is why every
+// case in this section runs inside the device group below rather than beside
+// the click cases above.
+#define FIELD_WIDE 25.0f
+#define FIELD_HIGH 15.0f
+#define IN_FIELD ((voe_math_float2){ 12.0f, 7.0f })
+#define OUTSIDE_FIELD ((voe_math_float2){ 100.0f, 100.0f })
+
+static const voe_ui_keyboard NO_KEYS = { 0 };
+
+static voe_ui_sizing field_sizing(void)
+{
+	return (voe_ui_sizing){ { VOE_UI_SIZE_FIXED, FIELD_WIDE },
+				{ VOE_UI_SIZE_FIXED, FIELD_HIGH } };
+}
+
+struct field_frame {
+	voe_ui_node f;
+	bool ok;
+};
+
+static struct field_frame build_field(voe_ui_context *ui,
+				      voe_base_arena *arena,
+				      voe_math_float2 at, bool over, bool down,
+				      const char *text, voe_ui_keyboard keyboard)
+{
+	struct field_frame f = { VOE_UI_NODE_NONE, false };
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = at,
+						 .over = over,
+						 .down = down });
+	voe_ui_keyboard_set(ui, keyboard);
+
+	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	f.f = voe_ui_field(ui, "name", 0, text, field_sizing());
+	voe_ui_end(ui);
+
+	f.ok = voe_ui_frame_end(ui);
+	return f;
+}
+
+// A press inside it focuses it, on the press and not on the release that
+// follows; a press outside it — nothing there, just empty panel — clears it
+// on that same edge.
+static void a_press_focuses_and_a_press_elsewhere_unfocuses(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct field_frame f =
+		build_field(ui, arena, IN_FIELD, true, false, "hi", NO_KEYS);
+
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, true, true, "hi", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	// Let go: a release does not clear it, unlike a button's press.
+	f = build_field(ui, arena, IN_FIELD, true, false, "hi", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	// A press outside it, on empty panel, clears it.
+	f = build_field(ui, arena, OUTSIDE_FIELD, true, true, "hi", NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).focused);
+}
+
+static void typed_bytes_are_appended_in_order(voe_ui_context *ui,
+					      voe_base_arena *arena)
+{
+	voe_ui_keyboard type_ab = { .text = "ab", .size = 2 };
+	voe_ui_field_result r;
+	struct field_frame f;
+
+	// Nothing is focused before the press, so the press below is an edge
+	// and not whatever the case before this left behind.
+	f = build_field(ui, arena, IN_FIELD, true, false, "", NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, true, true, "", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, false, false, "", type_ab);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(strcmp(r.text, "ab") == 0);
+}
+
+// Two fields, one focused: typing must reach the one focused and leave the
+// other's own text exactly as it was handed in.
+static void two_fields_only_the_focused_one_changes(voe_ui_context *ui,
+						    voe_base_arena *arena)
+{
+	voe_ui_keyboard type_x = { .text = "x", .size = 1 };
+	voe_ui_node a;
+	voe_ui_node b;
+	voe_ui_field_result ra;
+	voe_ui_field_result rb;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = IN_FIELD,
+						 .over = true,
+						 .down = true });
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	a = voe_ui_field(ui, "a", 0, "one", field_sizing());
+	(void)voe_ui_field(ui, "b", 0, "two", field_sizing());
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	VOE_TEST_CHECK(voe_ui_field_action(ui, a).focused);
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ 0 });
+	voe_ui_keyboard_set(ui, type_x);
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	a = voe_ui_field(ui, "a", 0, "one", field_sizing());
+	b = voe_ui_field(ui, "b", 0, "two", field_sizing());
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	ra = voe_ui_field_action(ui, a);
+	rb = voe_ui_field_action(ui, b);
+	VOE_TEST_CHECK(ra.focused);
+	VOE_TEST_CHECK(ra.changed);
+	VOE_TEST_CHECK(strcmp(ra.text, "onex") == 0);
+	VOE_TEST_CHECK(!rb.focused);
+	VOE_TEST_CHECK(!rb.changed);
+	VOE_TEST_CHECK(strcmp(rb.text, "two") == 0);
+}
+
+// The trailing continuation byte and the byte before it both go: "aö" loses
+// the whole of "ö" (0xC3 0xB6) and not just its last byte.
+static void backspace_takes_a_two_byte_code_point_whole(voe_ui_context *ui,
+							voe_base_arena *arena)
+{
+	voe_ui_keyboard erase = { .backspace = true };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	(void)build_field(ui, arena, IN_FIELD, true, true, "a\xc3" "\xb6", NO_KEYS);
+	f = build_field(ui, arena, IN_FIELD, true, false, "a\xc3" "\xb6", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, false, false, "a\xc3" "\xb6", erase);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(strcmp(r.text, "a") == 0);
+}
+
+static void backspace_on_an_empty_text_does_nothing(voe_ui_context *ui,
+						    voe_base_arena *arena)
+{
+	voe_ui_keyboard erase = { .backspace = true };
+	struct field_frame f;
+
+	(void)build_field(ui, arena, IN_FIELD, true, true, "", NO_KEYS);
+	f = build_field(ui, arena, IN_FIELD, true, false, "", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, false, false, "", erase);
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).changed);
+}
+
+// A text already at capacity refuses the next code point whole rather than
+// cutting it at a byte the capacity happens to allow.
+static void a_text_at_capacity_refuses_the_next_code_point_whole(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	static char full[VOE_UI_FIELD_CAPACITY + 1];
+	voe_ui_keyboard type_one = { .text = "x", .size = 1 };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	memset(full, 'a', VOE_UI_FIELD_CAPACITY);
+	full[VOE_UI_FIELD_CAPACITY] = '\0';
+
+	(void)build_field(ui, arena, IN_FIELD, true, true, full, NO_KEYS);
+	f = build_field(ui, arena, IN_FIELD, true, false, full, NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, false, false, full, type_one);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(strlen(r.text) == VOE_UI_FIELD_CAPACITY);
+}
+
+// Enter is true for exactly the frame it arrived on, and only while focused;
+// it moves no focus and changes no text.
+static void entered_is_true_only_on_the_frame_enter_arrived(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard press_enter = { .enter = true };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	(void)build_field(ui, arena, IN_FIELD, true, true, "hi", NO_KEYS);
+	f = build_field(ui, arena, IN_FIELD, true, false, "hi", NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).entered);
+
+	f = build_field(ui, arena, IN_FIELD, false, false, "hi", press_enter);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.entered);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	f = build_field(ui, arena, IN_FIELD, false, false, "hi", NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).entered);
+}
+
+// A field not called this frame is no longer the focus, exactly as a scroll
+// area not called forgets its offset.
+static void a_field_not_called_loses_focus(voe_ui_context *ui,
+					   voe_base_arena *arena)
+{
+	struct field_frame f;
+	bool ok;
+
+	(void)build_field(ui, arena, IN_FIELD, true, true, "hi", NO_KEYS);
+	f = build_field(ui, arena, IN_FIELD, true, false, "hi", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+
+	// A frame with no field in it at all.
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_end(ui);
+	ok = voe_ui_frame_end(ui);
+	VOE_TEST_CHECK(ok);
+
+	f = build_field(ui, arena, OUTSIDE_FIELD, false, false, "hi", NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).focused);
+}
+
+// voe_ui_field_focus takes the keyboard to a field with no press at all —
+// the frame a panel holding the one field first opens.
+static void voe_ui_field_focus_takes_it(voe_ui_context *ui,
+					voe_base_arena *arena)
+{
+	voe_ui_node f;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	f = voe_ui_field(ui, "name", 0, "hi", field_sizing());
+	voe_ui_field_focus(ui, f);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK(voe_ui_field_action(ui, f).focused);
+}
+
+// A frame that changed nothing hands back the exact pointer the call was
+// given, not a copy of the same bytes — so a caller may write the answer back
+// every frame at no cost on the frames that changed nothing.
+static void changed_false_hands_back_the_callers_own_pointer(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	static const char hello[] = "hello";
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	(void)build_field(ui, arena, IN_FIELD, true, true, hello, NO_KEYS);
+	f = build_field(ui, arena, IN_FIELD, false, false, hello, NO_KEYS);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(r.text == hello);
+}
+
+// The device and the font this section needs, and the skip that stands in for
+// them where there is no driver.
+static int the_field(voe_base_arena *arena)
+{
+	voe_platform_size size = { 64, 64 };
+	voe_render_capacities capacities = {
+		.vertices = 4,
+		.indices = 6,
+		.geometries = 1,
+		.objects = 1,
+		.shadings = 1,
+		.passes = 1,
+	};
+	voe_render_device *device;
+	voe_text_font *font;
+	voe_ui_context *ui;
+	voe_base_error error = VOE_BASE_OK;
+
+	device = voe_render_device_new_headless(arena, size, capacities,
+						&error);
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED) {
+			printf("skip: no graphics driver — the field checks "
+			       "did not run\n");
+			return 0;
+		}
+		VOE_TEST_CHECK(device != NULL);
+		return 0;
+	}
+
+	font = voe_text_font_new(device, arena, &error);
+	if (font == NULL) {
+		VOE_TEST_CHECK(font != NULL);
+		voe_render_device_destroy(device);
+		return 0;
+	}
+
+	// Elements enough for the capacity case's 256 glyphs plus a few
+	// backgrounds and carets; nodes are two per field plus a panel.
+	ui = voe_ui_context_new(arena, (voe_ui_capacities){ .nodes = 32,
+							    .elements = 512 });
+	voe_ui_font_set(ui, font);
+
+	a_press_focuses_and_a_press_elsewhere_unfocuses(ui, arena);
+	typed_bytes_are_appended_in_order(ui, arena);
+	two_fields_only_the_focused_one_changes(ui, arena);
+	backspace_takes_a_two_byte_code_point_whole(ui, arena);
+	backspace_on_an_empty_text_does_nothing(ui, arena);
+	a_text_at_capacity_refuses_the_next_code_point_whole(ui, arena);
+	entered_is_true_only_on_the_frame_enter_arrived(ui, arena);
+	a_field_not_called_loses_focus(ui, arena);
+	voe_ui_field_focus_takes_it(ui, arena);
+	changed_false_hands_back_the_callers_own_pointer(ui, arena);
+
+	voe_text_font_destroy(font);
+	voe_render_device_destroy(device);
+	return 0;
+}
+
 // The device and the font this one case needs, and the skip that stands in for
 // them where there is no driver.
 static int the_text_scale(voe_base_arena *arena)
@@ -1672,6 +2019,7 @@ int main(void)
 	too_many_scroll_areas_refuses_the_frame(arena);
 
 	(void)the_text_scale(arena);
+	(void)the_field(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

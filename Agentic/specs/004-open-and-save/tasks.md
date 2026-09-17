@@ -200,7 +200,7 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^3d/'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 9. `ui/` — A single-line text field
+- [x] 9. `ui/` — A single-line text field
   - Change: Per ADR-0165, add to `include/ui/widgets.h` and `src/widgets.c`:
     `#define VOE_UI_FIELD_CAPACITY 256` — how many bytes of text a field holds, the NUL not
     counted;

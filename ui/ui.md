@@ -2,11 +2,11 @@
 
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
-mouse, a number box you drag sideways to change a value, an image and a scroll
-area that remembers its offset. Not drawing — what comes out is element records
-and the caller submits them — and not input either: the pointer is a value it
-is handed. Where the surface sits in the world is one matrix and it is the
-caller's.
+mouse, a number box you drag sideways to change a value, a single-line text
+field, an image and a scroll area that remembers its offset. Not drawing — what
+comes out is element records and the caller submits them — and not input
+either: the pointer and the keyboard are values it is handed. Where the surface
+sits in the world is one matrix and it is the caller's.
 
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
@@ -37,28 +37,35 @@ caller's.
   is measured against its parent's content box and paints over its in-flow
   siblings, the trap that a fit-to-children parent holding only anchored
   children has no natural size at all, and what the measured size is for.
-- `include/ui/widgets.h` — the panel, the label, the button, the number box,
-  the image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`),
-  the pointer they are given with its `scroll`, and this frame's element
-  records read back. Its header says why the answer to a click arrives after
-  the frame has ended rather than at the call, what a widget's key is made of
-  and why it is a hashed path and not a line number, what two widgets sharing
-  one does, why a button is composed rather than handed a string, why a fully
-  transparent panel emits nothing, and how the text scale composes with the
-  surface's own. On the number box it says why this folder knows no field kinds
-  and takes a value and a rate instead, why what comes back is a value and not
-  a distance and what that buys the typing that is not built yet, and why a
-  press and release without movement is reserved rather than free. On the image
-  it says what it is for, why it is sized as a box is, that it is one element,
-  and that the texture's lifetime is the caller's. On the scroll area it says
-  why the offset is remembered there and not in layout, that an area not called
-  forgets, how a scroll passes outward, why it arrives in millimetres and lands
-  next frame, and that the bar lies over the content.
+- `include/ui/widgets.h` — the panel, the label, the button, the number box, a
+  single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
+  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`), the
+  image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`), the
+  pointer and the keyboard (`voe_ui_keyboard`, `voe_ui_keyboard_set`) they are
+  given, and this frame's element records read back. Its header says why the
+  answer to a click arrives after the frame has ended rather than at the call,
+  what a widget's key is made of and why it is a hashed path and not a line
+  number, what two widgets sharing one does, why a button is composed rather
+  than handed a string, why a fully transparent panel emits nothing, and how
+  the text scale composes with the surface's own. On the number box it says why
+  this folder knows no field kinds and takes a value and a rate instead, why
+  what comes back is a value and not a distance and what that buys the typing
+  that is not built yet, and why a press and release without movement is
+  reserved rather than free. On the field it says why it composes its own label
+  rather than taking one in, why the caret is measured from that label, why the
+  edited text comes back as a value rather than the caller's own buffer being
+  written into, that where the typed bytes came from is not this folder's
+  business, and what a field costs in nodes and in element records. On the
+  image it says what it is for, why it is sized as a box is, that it is one
+  element, and that the texture's lifetime is the caller's. On the scroll area
+  it says why the offset is remembered there and not in layout, that an area
+  not called forgets, how a scroll passes outward, why it arrives in
+  millimetres and lands next frame, and that the bar lies over the content.
 - `src/context.h` — the tree and the context, shared by the folder's two source
   files. Its header says why there is one context and not two, which half owns
   which field, why the widget pass runs where it does, why a drag needs four
-  fields beside `held` and no keyed table, and why a held thumb needs no key of
-  its own.
+  fields beside `held` and no keyed table, why a held thumb needs no key of its
+  own, and what `focus` is beside `held`.
 - `src/layout.c` — the tree, and the sweeps over it, one axis at a time. Its
   header says why the array being in call order makes every pass a flat loop
   with neither recursion nor a stack, what passes between the X pass and the Y
@@ -74,14 +81,17 @@ caller's.
   padding lives and why four numbers still go through two accessors, why there is
   no flip and no minus sign in front of a Y anywhere in it, and why the structs
   are declared next door.
-- `src/widgets.c` — what a node means, what the pointer is doing to it, and the
-  records that come out. Its header says why emission is a copy with no
-  arithmetic in it and where the one sign that does appear comes from, why paint
-  order is taken from layout rather than re-derived, why the hit test is after
-  arrange and against the visible rectangle, how a record is clipped, what the two ids do in every awkward case including the stuck one,
+- `src/widgets.c` — what a node means, what the pointer and the keyboard are
+  doing to it, and the records that come out. Its header says why emission is a
+  copy with no arithmetic in it and where the one sign that does appear comes
+  from, why paint order is taken from layout rather than re-derived, why the
+  hit test is after arrange and against the visible rectangle, how a record is
+  clipped, what the two ids do in every awkward case including the stuck one,
   why the key is FNV-1a over a path, why a drag measures its dead zone from
-  the press and its change from last frame, and how the scroll table is
-  rewritten each frame and where a scrollbar sits in paint order.
+  the press and its change from last frame, how the scroll table is
+  rewritten each frame and where a scrollbar sits in paint order, why a
+  field's focus follows the press itself rather than `held`/`fired`'s release,
+  and why its editing runs after resolve rather than inside it.
 - `tests/layout.c` — rectangles worked out by hand, one case per decision,
   wraps, clips and clamped scroll offsets among them. Its header names the
   answers it is pinning down rather than merely exercising, group by group and
@@ -92,8 +102,10 @@ caller's.
 - `tests/widgets.c` — a press and a release in every order a hand can produce,
   a sideways drag in every order one can, a clipped button and label, a drag
   scrolled out of sight, a scroll area's remembering, passing on, bar, drag,
-  page and refusal, a duplicate key, a known tree emitted as a known list, and
-  two images as two IMAGE records. Its header says why the click cases are the
-  ones that matter, why the collision case is the most valuable in the file,
-  and why the one case that measures a string takes a headless device while
-  every other needs no graphics card. Needs no window system.
+  page and refusal, a duplicate key, a known tree emitted as a known list, two
+  images as two IMAGE records, and a field's focus, typing, Backspace, Enter
+  and capacity. Its header says why the click cases are the ones that matter,
+  why the collision case is the most valuable in the file, and why every case
+  that measures a string — the text scale, a label's own emission, and a
+  field, which always composes one — takes a headless device while the rest
+  need no graphics card. Needs no window system.

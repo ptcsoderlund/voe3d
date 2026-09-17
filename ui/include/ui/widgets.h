@@ -144,14 +144,40 @@
 //
 // ---- WHAT IS NOT HERE ----
 //
-// No theme: the colours below are constants and card 036 replaces them. No text
-// input, no caret and no selection — a number box is dragged and not typed into,
-// and the click that would begin typing is reserved rather than free. No
-// scrolling by a program and no scrolling to a node yet: both arrive with focus,
-// which is their first caller. No dragging the content itself, no focus, no smooth
-// scrolling, and no offset saved beyond the context. No checkbox and no slider: a
-// number box has no track, no ends and no range, which is what makes it the one
-// that fits a field of unknown extent.
+// No theme: the colours below are constants and card 036 replaces them.
+//
+// TYPING EXISTS FOR THE FIELD AND FOR NOTHING ELSE. A number box is still
+// dragged and not typed into, and the click that would begin typing there is
+// still reserved rather than free — see voe_ui_number_begin. THE FIELD ITSELF
+// HAS NO SELECTION, NO CLIPBOARD, NO MOVING THE CARET AND NO MULTIPLE LINES:
+// what it does is append at the end, delete from the end, and hand back what
+// came of that. A caret that can be moved, a range that can be cut, and a
+// second line are later work built on top of this one.
+//
+// THE FIELD IS GIVEN ITS TEXT AS A VALUE AND COMPOSES ITS OWN LABEL, RATHER
+// THAN TAKING ONE IN AS A BUTTON DOES, because the caret is measured from
+// that label's own rectangle: a label a caller composed in could be anything,
+// and the field would be guessing where its box ended. WHAT COMES BACK IS THE
+// EDITED TEXT AND NOT THE CALLER'S OWN BUFFER WRITTEN INTO, for the same
+// reason a number box hands back a value and not a distance — a field cannot
+// see how the caller's text is owned, only what was in it and what a frame
+// typed, so the honest answer is a value the caller may store however it
+// likes. And WHERE THE TYPED BYTES CAME FROM IS NOT THIS FOLDER'S BUSINESS: a
+// keymap read in `platform`, an IME, anything else that turns a key into
+// UTF-8 all produce the same voe_ui_keyboard, and this folder decodes nothing
+// about the device behind it.
+//
+// A FIELD COSTS TWO NODES — itself and the label it composes — and up to one
+// element record per letter that draws, plus its own background and, while
+// it is focused, one caret: no more than a label put inside a button already
+// costs.
+//
+// No scrolling by a program and no scrolling to a node yet: both wait on a
+// focus that reaches a scroll area, which this one does not — a field's
+// focus is its own. No dragging the content itself, no smooth scrolling, and
+// no offset saved beyond the context. No checkbox and no slider: a number box
+// has no track, no ends and no range, which is what makes it the one that
+// fits a field of unknown extent.
 //
 // WHAT IS HERE INSTEAD OF A CLIP OF ITS OWN: every record is clipped to what its
 // node's clipping ancestors leave — a panel, a button or an image to its
@@ -392,6 +418,112 @@ typedef struct {
 
 voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 					  voe_ui_node number);
+
+// ------------------------------------------------------------- the field
+
+// How many bytes of text one field holds, the NUL this folder adds not
+// counted. Chosen once for the whole engine rather than being a parameter of
+// every field, because the one caller today — a typed folder name — needs
+// nothing longer and a second number per field is one more thing every caller
+// would have to decide.
+#define VOE_UI_FIELD_CAPACITY 256
+
+// What was typed since the previous frame, and the two keys a field answers
+// to beyond ordinary letters. Given, never asked for, exactly as the pointer
+// is (ADR-0093) — WHERE THE BYTES CAME FROM IS NOT THIS FOLDER'S BUSINESS. A
+// keymap read in `platform`, an IME, or anything else that turns a key into
+// UTF-8 all produce the same value, and this folder decodes nothing about the
+// device behind it.
+typedef struct {
+	// UTF-8 typed since the previous frame, read for `size` bytes and not
+	// assumed to carry a NUL: a frame that typed nothing may hand in
+	// nothing at all, which is what `size` of nought means.
+	const char *text;
+	uint32_t size;
+	// The two keys editing answers to, already decided by whoever handed
+	// this over — this folder never compares `text` against a control
+	// character to find them.
+	bool backspace;
+	bool enter;
+} voe_ui_keyboard;
+
+// Hands this frame's typing over. Between voe_ui_frame_begin and
+// voe_ui_frame_end, once, exactly as voe_ui_pointer_set is.
+//
+// A FRAME THAT NEVER CALLS THIS HAS NO TYPING, which is what a zeroed
+// voe_ui_keyboard means: nothing is appended, nothing is deleted, and no
+// field reports `entered`. A caller that gives no field the keyboard this
+// frame need not mention it at all.
+void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);
+
+// A single line of editable text: a keyed container built as a button is —
+// BUTTON_PAD round it and the three state colours a button has, plus a
+// fourth for focused — except that its run sits along START rather than
+// centred, so its text begins at the left edge and grows rightward.
+//
+//     voe_ui_node name = voe_ui_field(ui, "name", 0, folder_name,
+//                                     (voe_ui_sizing){
+//                                             .along = { VOE_UI_SIZE_GROW, 1 },
+//                                             .across = { VOE_UI_SIZE_FIXED, 8 } });
+//     ...
+//     voe_ui_field_result r = voe_ui_field_action(ui, name);
+//     if (r.changed)
+//             folder_name = r.text;
+//
+// IT TAKES A voe_ui_sizing AND NOT A voe_ui_container, unlike a panel, a
+// button or a scroll area: the padding, the run and the clipping are the
+// field's own and not the caller's to set, so only how big it is is left
+// open.
+//
+// THE CALL MAKES AND ENDS ITS OWN LABEL OF `text`, rather than composing one
+// in as a button does. That is not this widget being less flexible for no
+// reason: a field is always exactly one string, never an icon beside a word,
+// and building the label here rather than being handed one back is what lets
+// the caret be measured from that label's own rectangle at emission, instead
+// of guessed at from the field's. So a field costs two nodes — itself and
+// that one label — however it is called, and there is nothing to put between
+// this call and a matching voe_ui_end.
+voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
+			 const char *text, voe_ui_sizing sizing);
+
+// Takes the keyboard to this field, as if a press had just landed inside it.
+// Called after the field's own call and before the frame ends — for the
+// frame a panel holding one first opens, so a field a person is about to type
+// into is not one they have to click first.
+//
+// A node that is not a field is the caller's bug and asserts.
+void voe_ui_field_focus(voe_ui_context *ui, voe_ui_node field);
+
+// What a frame did to one field. Read after voe_ui_frame_end, through the
+// node the field call handed back; reading it before, or through a node that
+// is not a field, is the caller's bug and asserts.
+typedef struct {
+	// This is the field the keyboard is going to: a press landed inside
+	// it, voe_ui_field_focus named it, or it already was and nothing this
+	// frame took the keyboard elsewhere. FALSE ON EVERY OTHER FIELD IN THE
+	// FRAME, there being one focus and one edited buffer for it — see
+	// `text` below.
+	bool focused;
+	// This frame edited it: Backspace removed a code point, typing added
+	// one, or both did. False on a field that is not focused, whatever
+	// the frame typed.
+	bool changed;
+	// Enter arrived this frame while this field was focused. Enter moves
+	// no focus and changes no text, so a caller that wants "confirm and
+	// move on" does both itself.
+	bool entered;
+	// The edited text when `changed`, and the pointer this call was given
+	// when it is not — SO A CALLER MAY WRITE THIS BACK EVERY FRAME,
+	// CHANGED OR NOT, AND GET THE SAME FIELD EITHER WAY. It is not the
+	// caller's own buffer written into: a field cannot see how that
+	// buffer is owned, only what was in it and what this frame typed —
+	// the same honesty a number box's `value` is built on. Valid until
+	// the next voe_ui_frame_begin, as any widget's `text` is.
+	const char *text;
+} voe_ui_field_result;
+
+voe_ui_field_result voe_ui_field_action(const voe_ui_context *ui,
+					voe_ui_node field);
 
 // --------------------------------------------------------- the scroll area
 
