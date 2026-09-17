@@ -129,12 +129,24 @@ voe_editor_dock_tree voe_editor_dock_default(void);
 // view, because a view nobody shows is not drawn — see view.h.
 bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view);
 
-// Emits `root`'s tree into `ui` as this frame's whole interface: a split becomes
-// a row or a column whose two children are given fixed sizes in millimetres, and
-// a leaf becomes a panel with `voe_editor_panel_draw`'s contents in it.
+// Emits `root`'s tree into `ui` as one row or column whose two children are
+// given fixed sizes in millimetres, on down to a leaf's panel with
+// `voe_editor_panel_draw`'s contents in it.
 //
-// It is the whole of one `ui` frame and it opens the frame's root container, so
-// it is called between voe_ui_frame_begin and voe_ui_frame_end and once per
+// `parent` IS THE AXIS OF WHATEVER CONTAINER THIS CALL IS MADE INSIDE — the
+// same thing walk_node's own `parent` argument already is, for the tree's
+// deeper nodes, and for the same reason: a `voe_ui_container.size.along` and
+// `.across` on a child are read against its PARENT's flow, never its own
+// (ui/layout.h), and this call's own row is a child exactly like every split
+// below it once anything wraps it. `sizing_in()`, this file's one place that
+// turns a plain voe_math_float2 into the pair read correctly either way, is
+// what this call uses too. interface.c opens a column over the top bar and
+// this tree, so it passes VOE_EDITOR_DOCK_COLUMN; a caller that opens no
+// container of its own and hands this the frame's actual root passes
+// VOE_EDITOR_DOCK_ROW, which reads exactly as it did before this parameter
+// existed.
+//
+// It is called between voe_ui_frame_begin and voe_ui_frame_end and once per
 // root — see interface.h on why a root is a frame.
 //
 // `scene` is what the panels read and write: the list is its identity table and
@@ -146,7 +158,8 @@ bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view)
 // voe_editor_panel_draw is called from inside the walk and a panel's contents
 // are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
 // folder reaching for a global.
-void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
+void voe_editor_dock_walk(const voe_editor_dock_root *root,
+			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  voe_editor_scene *scene, voe_editor_views *views);
 
 // What is on one panel. One function, one `switch`, no table and no function

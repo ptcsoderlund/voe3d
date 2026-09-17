@@ -11,10 +11,14 @@
 // voe_ui_frame_end and only while the arena its nodes came out of still holds
 // them — a window this function opens and closes. So the one line that reads
 // the frame's clicks is here, between the two, and what a click MEANS is
-// scene.c's.
+// scene.c's — EXCEPT FOR THE TOP BAR'S OWN, whose click is a command carried
+// out right here, through voe_editor_session_do, because the same window is
+// the only place topbar.h's recorded buttons can be asked either.
 #include "interface.h"
 
 #include "inspector.h"
+#include "project.h"
+#include "topbar.h"
 
 #include <base/assert.h>
 
@@ -60,7 +64,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
 			       const voe_editor_dock_root *roots,
 			       uint32_t count, voe_editor_scene *scene,
-			       voe_editor_views *views)
+			       voe_editor_views *views,
+			       voe_editor_session *session)
 {
 	struct voe_base_arena_mark mark;
 	bool ok = true;
@@ -71,11 +76,21 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(roots != NULL, "drawing an interface with no roots");
 	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
+	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
 
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
+		// The dock tree's own root, its height cut down by the bar
+		// above it — dock.c's own tree is untouched, only the size
+		// its walk divides out.
+		voe_editor_dock_root below_bar = *root;
+		voe_editor_topbar bar = { 0 };
+		const char *name = voe_editor_project_name(session->project);
+		voe_editor_command clicked;
 		uint32_t first;
 		uint32_t records;
+
+		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
 
 		// The tree lives in the arena only until its records have been
 		// read out of it, which is before the next root is walked.
@@ -87,7 +102,31 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// and hands back its controls through nodes out of this frame,
 		// so it is opened here beside the frame and not inside the walk.
 		voe_editor_inspector_frame_begin(&scene->inspector, arena);
-		voe_editor_dock_walk(root, ui, scene, views);
+
+		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
+		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first
+		// call to open the root (ui/layout.h); the tree's own row,
+		// opened inside voe_editor_dock_walk, is a nested child of it
+		// rather than the root itself — WHICH IS WHY THAT CALL IS
+		// GIVEN VOE_EDITOR_DOCK_COLUMN BELOW. A child's own size is
+		// read against its PARENT's flow and not its own
+		// (ui/layout.h), so dock.c's row has to be told it is inside
+		// a column now rather than being the frame's actual root, or
+		// its width and height come out swapped (dock.h).
+		voe_ui_column_begin(
+			ui, (voe_ui_container){
+				    .size = { .along = { VOE_UI_SIZE_FIXED,
+							 root->size.y },
+					      .across = { VOE_UI_SIZE_FIXED,
+							  root->size.x } },
+				    .across = VOE_UI_ACROSS_FILL });
+		voe_editor_topbar_draw(ui, &bar, arena,
+				       name != NULL ? name : "Untitled",
+				       session->project->unsaved,
+				       session->notice.text);
+		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
+				     scene, views);
+		voe_ui_end(ui);
 
 		if (!voe_ui_frame_end(ui)) {
 			voe_base_arena_rewind(arena, mark);
@@ -107,6 +146,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						scene->world);
 		voe_editor_scene_clicks_read(scene, ui);
 		voe_editor_views_rects_read(views, ui);
+
+		// The top bar last: a button that fired is carried out on
+		// `session`, which may replace `scene->world` (a NEW that goes
+		// ahead) — after the reads above, which are this frame's own
+		// world and this frame's own selection, and before anything
+		// downstream reads either.
+		clicked = voe_editor_topbar_clicks_read(ui, &bar);
+		if (clicked != VOE_EDITOR_COMMAND_NONE)
+			voe_editor_session_do(session, scene, clicked);
 
 		// The range this root fills, read either side of its own
 		// submissions: there is no id and nothing allocated, and

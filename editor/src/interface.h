@@ -17,6 +17,7 @@
 #pragma once
 
 #include "dock.h"
+#include "session.h"
 
 #include <base/arena.h>
 #include <math/float2.h>
@@ -52,8 +53,22 @@
 // everything the panel draws: a track and a thumb on each of the two axes, when
 // both bars show. So the records below are the 512 the panels had before this
 // feature plus 2 areas × 4 = 8 for their bars.
-#define VOE_EDITOR_INTERFACE_NODES 128
-#define VOE_EDITOR_INTERFACE_ELEMENTS 520
+//
+// THE TOP BAR (topbar.h) AND THE COLUMN THIS FILE OPENS OVER IT ADD ELEVEN
+// NODES AT MOST: the column itself, one; topbar.h's own panel and the row
+// inside it, two more; New, Open and Save as a button and a composed label
+// each, six; and one label each for the project's name and the notice. That
+// is 128 + 11 = 139 nodes.
+//
+// AND THEY ADD FOUR BACKGROUNDS, ELEVEN CHARACTERS AND ROOM FOR TWO HUNDRED
+// MORE. The column and the row draw none of their own; the panel's
+// background and each button's are four, the eleven characters "New", "Open"
+// and "Save" draw between them are eleven, and two hundred more is generous
+// for whatever a project's name and a notice's line come to — neither this
+// file nor topbar.h puts a limit on how long either string is. That is
+// 520 + 4 + 11 + 200 = 735 elements.
+#define VOE_EDITOR_INTERFACE_NODES 139
+#define VOE_EDITOR_INTERFACE_ELEMENTS 735
 #define VOE_EDITOR_INTERFACE_SCROLLS 2
 
 // Makes the context the interface is built in, once. It lives in `arena` and is
@@ -89,10 +104,23 @@ void voe_editor_interface_surface(voe_platform_size target,
 // were pushed out of (ui/widgets.h), and both of those are this function's.
 // `views` is handed through the same way, and where each scene view's picture
 // came to sit is read back into it in the same window, for the same reason.
+//
+// EACH ROOT GETS THE TOP BAR ABOVE ITS DOCK TREE, DRAWN FROM `session`, FOR
+// THE SAME REASON AGAIN. The bar takes VOE_EDITOR_TOPBAR_HIGH off the top of
+// the root's own height and hands the dock tree the rest, in a column this
+// function opens as the frame's actual root; the tree itself is dock.c's
+// unchanged, only nested one level deeper than it used to be, which is why
+// voe_editor_dock_walk is called with VOE_EDITOR_DOCK_COLUMN (dock.h) — a
+// child's declared size is read against its PARENT's flow and not its own
+// (ui/layout.h), and the parent is now this column rather than the frame
+// itself. A button that fired is carried out on `session` before this root's
+// records are submitted, through voe_editor_session_do, which is the reason
+// `session` and not just its notice and its project's name are handed in.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
 					     const voe_editor_dock_root *roots,
 					     uint32_t count,
 					     voe_editor_scene *scene,
-					     voe_editor_views *views);
+					     voe_editor_views *views,
+					     voe_editor_session *session);

@@ -4,8 +4,11 @@
 // THIS FILE DOES NOT BUILD A WORLD OR ANYTHING IN ONE. What a fresh project
 // holds is project.h's decision — the untitled scene's two entities among
 // them — and what an opened one holds is authoring/scene_read.h's; scene.world
-// is set from whichever the current project's world is (main.c) and this file
-// only ever reads it.
+// is set from whichever the current project's world is (main.c, and
+// session.c when a NEW goes ahead replaces it) and this file only ever reads
+// it. session.c writes `selected` too, on that same NEW, back to a zeroed
+// entity — the one other place outside this file that touches either field,
+// and for the reason the next paragraph gives.
 //
 // SELECTION BELONGS TO THE EDITOR AND NOT TO THE DOCK TREE. It is held here,
 // beside the roots in main.c, and a panel reads it; voe_editor_dock_tree does

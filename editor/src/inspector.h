@@ -98,6 +98,13 @@ typedef struct {
 	voe_ecs_entity entity;
 	voe_editor_inspector_control controls[VOE_EDITOR_INSPECTOR_CONTROLS];
 	uint32_t control_count;
+	// How many replace intents voe_editor_inspector_edits_read submitted
+	// this frame. Zeroed by voe_editor_inspector_frame_begin, so a caller
+	// reading it after the edits are read sees this frame's count and
+	// nothing left over from the last — main.c is that caller, and a
+	// non-zero count is what tells session.h an edit reached the project
+	// (session.h).
+	uint32_t replaced;
 } voe_editor_inspector;
 
 // Forgets last frame's controls and takes this frame's arena. Called between

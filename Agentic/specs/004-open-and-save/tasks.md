@@ -329,7 +329,7 @@
   - Depends on: 1, 2, 3, 4, 7, 10
   - Done when: `cmake -P check.cmake` exits 0 and the plan's four Verification commands for criteria 12, 11 and 1/6 each exit 0
 
-- [ ] 12. `editor/` — The top bar, New, Save, the unsaved mark and refusing once
+- [x] 12. `editor/` — The top bar, New, Save, the unsaved mark and refusing once
   - Change: Add `src/session.h` and `src/session.c`. `voe_editor_session` holds the current
     `voe_editor_project *`, a `voe_editor_notice`, and `armed`, a `voe_editor_command`
     (`NONE`, `NEW`, `OPEN`, `SAVE`, `CLOSE`).
