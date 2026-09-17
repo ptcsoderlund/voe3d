@@ -6,7 +6,10 @@ mouse, a number box you drag sideways to change a value, a single-line text
 field, an image and a scroll area that remembers its offset. Not drawing — what
 comes out is element records and the caller submits them — and not input
 either: the pointer and the keyboard are values it is handed. Where the surface
-sits in the world is one matrix and it is the caller's.
+sits in the world is one matrix and it is the caller's. It also turns an
+authored theme — one colour, two scalars, a mode and a text size — into the
+palette a widget draws with (`include/ui/theme.h`); reading a theme file into
+those authored values is a different folder's job (`theme`, ADR-0168).
 
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
@@ -37,6 +40,14 @@ sits in the world is one matrix and it is the caller's.
   is measured against its parent's content box and paints over its in-flow
   siblings, the trap that a fit-to-children parent holding only anchored
   children has no natural size at all, and what the measured size is for.
+- `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
+  `voe_ui_theme` (the derived palette of roles), `voe_ui_theme_default_inputs`
+  and `voe_ui_theme_derive`. Its header says why `accent` stays sRGB in the
+  inputs and is linear in every derived role, why the derivation runs in OKLab
+  and cannot fail, why a NULL font is allowed, why the accent's chroma is
+  clamped harder in dark mode than in light, and why
+  `VOE_UI_THEME_SCALAR_MIN`/`MAX` are public — `theme` has to refuse the same
+  range this folder clamps to.
 - `include/ui/widgets.h` — the panel, the label, the button, the number box, a
   single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
   `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`), the
@@ -81,6 +92,16 @@ sits in the world is one matrix and it is the caller's.
   padding lives and why four numbers still go through two accessors, why there is
   no flip and no minus sign in front of a Y anywhere in it, and why the structs
   are declared next door.
+- `src/oklab.h` / `src/oklab.c` — the OKLab conversion `theme.c` derives every
+  lightness step in, internal to this folder. Its header says why it lives
+  here and not in `math`, why L, a and b are their own struct rather than a
+  reused `voe_math_float3`, and why conversion clamps rather than failing at
+  the edge of the gamut.
+- `src/theme.c` — the derivation. Its header says why every role but the
+  accent is grey, why the ground/surface/raised/control ladder is five equal
+  steps of `surface_separation`, why text and the border are stepped from
+  `ground` rather than from `surface`, and what "stepped until it clears its
+  surface" means as code.
 - `src/widgets.c` — what a node means, what the pointer and the keyboard are
   doing to it, and the records that come out. Its header says why emission is a
   copy with no arithmetic in it and where the one sign that does appear comes
@@ -99,6 +120,12 @@ sits in the world is one matrix and it is the caller's.
   about the machinery instead of the arithmetic, and why exactly one case
   reaches into `src/` — paint order is an order and no rectangle can show it.
   Needs no graphics card and no window system.
+- `tests/theme.c` — a round trip through OKLab, both modes legible at both
+  ends of both scalars, that only the accent moves when only the accent
+  moves, that each scalar moves what it names and nothing else, and the
+  dark/light chroma asymmetry. Its header says why a NULL font is safe
+  everywhere here and how `grey_lightness` reads an OKLab lightness back out
+  of a linear role colour by cube root. Needs no graphics card.
 - `tests/widgets.c` — a press and a release in every order a hand can produce,
   a sideways drag in every order one can, a clipped button and label, a drag
   scrolled out of sight, a scroll area's remembering, passing on, bar, drag,

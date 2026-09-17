@@ -27,7 +27,7 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^(text|ui)/'` — all tests pass, and `voe_dev` and `voe_editor` still link.
 
-- [ ] 3. `ui/` — the theme: authored inputs in, a derived palette out
+- [x] 3. `ui/` — the theme: authored inputs in, a derived palette out
   - Change: new `include/ui/theme.h` and `src/theme.c`, plus internal `src/oklab.h` / `src/oklab.c`.
     `voe_ui_theme_inputs` is the authored set of ADR-0097 — `accent` as authored sRGB,
     `contrast_strength`, `surface_separation`, `mode` (light or dark) — plus `text_size` in
