@@ -259,7 +259,7 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug && ctest --test-dir build/debug -R '^ui/widgets$'` passes and `cmake -P check.cmake` exits 0
 
-- [ ] 10. `editor/` — Start on an untitled cube and light
+- [x] 10. `editor/` — Start on an untitled cube and light
   - Change: Replace the four built entities with the untitled scene. Entity 1 is "Cube":
     identity, a transform at the origin with no turn and scale 1, and `voe_3d_shape` kind cube.
     Entity 2 is "Light": identity and a `voe_scene_light` with direction

@@ -1,9 +1,10 @@
 // voe_editor — the program a person opens to author a scene. Today it opens a
 // window on three columns — `Scene`, two scene views stacked, `Inspector` —
 // whose rectangles came out of a tree of data rather than out of the order of the
-// calls in this file, lists the authored entities of a scene built in code,
-// follows a click on one, and draws the scene's cubes into each view from that
-// view's own camera. A middle-button drag in a view moves that view's camera.
+// calls in this file, lists the authored entities of the untitled scene it
+// opens on — a cube and the light that shows it, built in code — follows a
+// click on one, and draws the world into each view from that view's own
+// camera. A middle-button drag in a view moves that view's camera.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -30,9 +31,15 @@
 // window's pass comes last, is opened with no camera — an element draw needs
 // none, and a pass without one is how `render` is told there is no eye to invent
 // — and shows each view's picture as an image on its panel. The world is drawn
-// through voe_3d_draw_system_run, but with the view's camera and the editor's
-// sun (view.h) rather than with voe_3d_draw_system_frame, which reads a camera
-// and a light out of the world and this world has neither.
+// through voe_3d_draw_system_run, but with the view's own camera and the light
+// this file reads out of the world (view.h) rather than with
+// voe_3d_draw_system_frame, which reads a camera out of the world too and this
+// world's camera is never there — a view's is the editor's own.
+//
+// THE LIGHT IS THE WORLD'S FIRST LIGHT ROW, OR ZERO INTENSITY WHEN IT HAS NONE.
+// Every view is lit the same way, once a frame, by whichever light `Light` (or
+// whatever a saved project called it) carries; a world with none — nothing to
+// see by, rather than a crash — is what a broken or half-built scene draws as.
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // opens the device with no window at all (voe_app_new_headless), builds the
@@ -63,7 +70,6 @@
 // the array it is, because the C runtime calls main with this signature and
 // nothing in this program chose it). Nothing else here holds a pointer to a
 // pointer, and the argument list is read in main and nowhere else.
-#include "cube.h"
 #include "dock.h"
 #include "interface.h"
 #include "scene.h"
@@ -73,6 +79,8 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
+#include <3d/shape_component.h>
+#include <3d/shape_system.h>
 
 #include <app/app.h>
 
@@ -88,6 +96,7 @@
 #include <render/device.h>
 
 #include <scene/identity_system.h>
+#include <scene/light_system.h>
 #include <scene/transform_system.h>
 
 #include <text/font.h>
@@ -131,7 +140,7 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
-// What the world may hold. Five component types are registered below, two of
+// What the world may hold. Seven component types are registered below, three of
 // them with an intent queue, and the entities are a number to author into rather
 // than a measurement of anything.
 #define MAX_ENTITIES 1024
@@ -146,26 +155,35 @@
 #define MAX_TRANSFORMS 256
 #define MAX_IDENTITIES VOE_EDITOR_SCENE_ROWS
 
-// How many entities may be drawn: a mesh and a material each. The scene has two
-// and this is the room, not the count. The panel table is walked by the draw
-// system whether anything has one or not (3d/draw_system.h), so it is registered
-// with room for one and nothing ever adds a row.
+// A light is only ever on an authored entity — see scene.h on why `Light` has
+// no transform — so the room for it is the same as the room for an identity.
+#define MAX_LIGHTS MAX_IDENTITIES
+
+// How many entities may be drawn: a mesh and a material each. The room for a
+// shape is the same number, because every shape the shape system finds becomes
+// one. The panel table is walked by the draw system whether anything has one or
+// not (3d/draw_system.h), so it is registered with room for one and nothing
+// ever adds a row.
 #define MAX_DRAWN 64
+#define MAX_SHAPES MAX_DRAWN
 #define MAX_PANELS 1
 
-// WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL, which is what makes the
-// geometry numbers the cube's own and `shadings` a one. `objects` is per frame:
-// every drawn entity is one object in every view's pass, so it is the room for
-// drawn entities times the room for views. `passes` is a pass per view and the
-// interface's, and `targets` a target per view — both from the room for views,
-// not the two in use, so a third view is a leaf and not a capacity. The three
-// transient numbers stay nought; see render/include/render/device.h.
-#define EDITOR_CAPACITIES                                                      \
-	(voe_render_capacities)                                                \
-	{                                                                      \
-		.vertices = VOE_EDITOR_CUBE_VERTEX_COUNT,                      \
-		.indices = VOE_EDITOR_CUBE_INDEX_COUNT, .geometries = 1,       \
-		.objects = MAX_DRAWN * VOE_EDITOR_VIEWS, .shadings = 1,        \
+// WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
+// 3d/shape_system.h — which is what makes the geometry numbers its constants
+// and `shadings` a one. `objects` is per frame: every drawn entity is one
+// object in every view's pass, so it is the room for drawn entities times the
+// room for views. `passes` is a pass per view and the interface's, and
+// `targets` a target per view — both from the room for views, not the two in
+// use, so a third view is a leaf and not a capacity. The three transient
+// numbers stay nought; see render/include/render/device.h.
+#define EDITOR_CAPACITIES                                                     \
+	(voe_render_capacities)                                               \
+	{                                                                     \
+		.vertices = VOE_3D_SHAPES_VERTICES,                            \
+		.indices = VOE_3D_SHAPES_INDICES,                              \
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
+		.objects = MAX_DRAWN * VOE_EDITOR_VIEWS,                       \
+		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 1, .targets = VOE_EDITOR_VIEWS    \
 	}
@@ -208,6 +226,24 @@ static const char *number(const char *text, int *out)
 	return text;
 }
 
+// The light every view is shown with: the world's first light row, or a light
+// of zero intensity — every surface black — when the world holds none. `render`
+// does not normalize the direction (render/device.h) but voe_scene_light_add
+// and the light system already have, so the row's is copied straight across.
+static voe_render_light world_light(const voe_ecs_world *world)
+{
+	const voe_scene_light *row;
+
+	if (voe_scene_light_count(world) == 0)
+		return (voe_render_light){ 0 };
+
+	row = &voe_scene_light_rows(world)[0];
+
+	return (voe_render_light){ .direction = row->direction,
+				   .colour = row->colour,
+				   .intensity = row->intensity };
+}
+
 // One line, on stderr, and the return code that goes with it. Every way of
 // getting the command line wrong ends here: there is one form to state and
 // stating it twice in different words would be two forms to keep in step.
@@ -237,6 +273,10 @@ int main(int argc, char *argv[])
 	voe_platform_window *window;
 	voe_render_device *gpu;
 	voe_ecs_world *world;
+	// The built-in shapes' GPU side: one cube's geometry and the one grey
+	// material every shape wears. Uploaded once, at startup, and read every
+	// frame by voe_3d_shape_system_run.
+	voe_3d_shapes shapes;
 	voe_text_font *font;
 	voe_ui_context *ui;
 	// The roots the loop walks. One of them, and it is the window; see
@@ -326,17 +366,23 @@ int main(int argc, char *argv[])
 						.intent_types = MAX_INTENT_TYPES });
 	voe_scene_transform_register(world, MAX_TRANSFORMS);
 	voe_scene_identity_register(world, MAX_IDENTITIES);
+	voe_scene_light_register(world, MAX_LIGHTS);
 	voe_3d_mesh_register(world, MAX_DRAWN);
 	voe_3d_material_register(world, MAX_DRAWN);
 	voe_3d_panel_register(world, MAX_PANELS);
+	voe_3d_shape_register(world, MAX_SHAPES);
 
 	// Both upload, so both are startup operations and both come before the
 	// first frame. `render` says why on stderr when it refuses.
-	if (!voe_editor_scene_build(&scene, world, gpu, &error) ||
+	if (!voe_3d_shapes_upload(gpu, &shapes, &error) ||
 	    !voe_editor_views_create(&views, gpu, &error)) {
 		status = 1;
 		goto stop;
 	}
+
+	// Neither uploads nor can fail — see scene.h — so it comes after the
+	// two calls that can.
+	voe_editor_scene_untitled(&scene, world);
 
 	font = voe_text_font_new(gpu, arena, &error);
 	if (font == NULL) {
@@ -366,18 +412,32 @@ int main(int argc, char *argv[])
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
+		// The light every view is shown with this frame: the world's
+		// first light row, or a light of zero intensity when it holds
+		// none — see the top of this file on what that draws as. Read
+		// once, before the pass loop, rather than once per view: every
+		// view is lit the same light the same way.
+		voe_render_light light = { 0 };
 
 		// EVERY OWNING SYSTEM RUNS EVERY FRAME, WHETHER ANYTHING
 		// SUBMITTED OR NOT (ADR-0134 point 7). An intent that reaches a
 		// queue on a frame its system does not drain is an edit that
 		// lands whenever the loop next happens to run it, which is a
-		// class of bug that does not exist if the run is
-		// unconditional. Nothing here submits one yet — card 059's
-		// inspector is what does — and the two calls are still here,
-		// because the frame the first submit arrives on must not also
-		// be the frame somebody remembers to add these.
+		// class of bug that does not exist if the run is unconditional —
+		// the Inspector can submit a replace intent for any editable
+		// field the moment it draws one, transform's and light's alike,
+		// so all three are run from the start rather than from whenever
+		// somebody remembers a first submit needs one.
 		voe_scene_transform_system_run(world);
 		voe_scene_identity_system_run(world);
+		voe_scene_light_system_run(world);
+
+		// NOT AN INTENT DRAIN — a shape's kind is read-only
+		// (3d/shape_component.h) and nothing ever submits one — but the
+		// same "every frame" rule applies: a fresh shape needs its mesh
+		// and material the first frame it exists, and the run is a no-op
+		// for every frame after (3d/shape_system.h).
+		voe_3d_shape_system_run(world, &shapes);
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
@@ -445,10 +505,12 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
+		light = world_light(world);
+
 		// A pass per view the tree shows, each onto its own target with
-		// its own camera. A device made with a pass per view and one
-		// more does not refuse these; if it did, the frame is still
-		// closed below and the program stops.
+		// its own camera and the world's light. A device made with a
+		// pass per view and one more does not refuse these; if it did,
+		// the frame is still closed below and the program stops.
 		for (uint32_t v = 0; v < views.count && drawn; v++) {
 			const voe_editor_view *view = &views.views[v];
 			voe_render_pass_camera camera;
@@ -456,7 +518,7 @@ int main(int argc, char *argv[])
 			if (!voe_editor_dock_shows_view(&roots[0].tree, v))
 				continue;
 
-			camera = voe_editor_view_pass_camera(view);
+			camera = voe_editor_view_pass_camera(view, light);
 			drawn = voe_render_pass_begin(gpu, view->target,
 						      &camera);
 			if (!drawn)

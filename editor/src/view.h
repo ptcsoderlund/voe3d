@@ -23,9 +23,11 @@
 // which is nothing a picture should be sized by. The loop asks the tree
 // (voe_editor_dock_shows_view) before it opens a pass.
 //
-// THE LIGHT IS THE EDITOR'S TOO, for the camera's reason: one fixed sun in
-// view.c, lighting every view the same way, and not an entity a person could
-// select, edit or save.
+// THE LIGHT IS THE OPPOSITE: THE WORLD'S AND NEVER THE VIEW'S OWN. Every view
+// is lit the same way, by whichever light the world holds — an authored entity,
+// selectable, editable and saved, the way `Cube` is (scene.h) — so a view keeps
+// no light of its own and its pass is simply handed one; see
+// voe_editor_view_pass_camera.
 #pragma once
 
 #include <base/error.h>
@@ -101,9 +103,12 @@ typedef struct {
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 			 float pixels_per_millimetre);
 
-// The camera and the editor's sun the view's pass is opened with, the aspect
-// ratio from the view's own size.
-voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view);
+// The camera and `light` the view's pass is opened with, the aspect ratio from
+// the view's own size. `light` is the caller's to find — the world's first
+// light row, or a light of zero intensity when the world has none — because a
+// view knows nothing about the world it is shown (view.h's own header).
+voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
+						   voe_render_light light);
 
 // The middle-button drag, once per frame, handed the pointer in the root
 // surface's millimetres and the three things it reads. A press that starts over a

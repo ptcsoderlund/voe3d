@@ -1,6 +1,6 @@
-// The four entities, the selection, and the rows the Scene panel drew. See the
-// header for why the scene is code, why the fourth entity has no name, and why
-// the rows outlive the call that drew them.
+// The untitled scene's two entities, the selection, and the rows the Scene
+// panel drew. See the header for why the scene is code, why `Light` has no
+// transform, and why the rows outlive the call that drew them.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
 // nodes because that is what a widget answers through, and it asks `ui` exactly
@@ -8,10 +8,7 @@
 // ended.
 #include "scene.h"
 
-#include "cube.h"
-
-#include <3d/material_component.h>
-#include <3d/mesh_component.h>
+#include <3d/shape_component.h>
 
 #include <base/assert.h>
 
@@ -20,6 +17,7 @@
 
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
+#include <scene/light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -27,66 +25,28 @@
 
 #include <string.h>
 
-// How far apart the three named things stand, and how big the marker is. Metres,
-// as every length in this engine is.
-//
-// THE CUBES STAND ON A DIAGONAL, so that neither hides the other from the front
-// or from the side — the two directions the scene views start from (view.c).
-// Each is CUBE_X either side of the origin across and CUBE_Z along, which leaves
-// more than a metre clear between them seen from either.
-#define SPACING 2.0f
-#define CUBE_X 1.25f
-#define CUBE_Z 1.25f
-#define MARKER_SCALE 0.5f
+// THE UNTITLED LIGHT: where its light goes, not where it is — down, and from
+// the front-right, so the cube's three visible faces are three different
+// brightnesses. Not unit length here; voe_scene_light_add normalizes it once.
+// The same numbers view.c's fixed sun used before the light moved into the
+// scene.
+#define LIGHT_X (-0.4f)
+#define LIGHT_Y (-1.0f)
+#define LIGHT_Z (-0.6f)
+#define LIGHT_INTENSITY 3.14159265f
 
-// The cubes' one material: an opaque, lit, light grey with nothing on it, so the
-// shading is the sun and nothing else. Linear.
-#define CUBE_GREY 0.7f
-#define CUBE_ROUGHNESS 0.6f
-
-// How far `Cube_2` is turned, so that "turned" is visible the day something
-// draws it and so that the transform the inspector shows is not three tidy
-// zeros. Radians: an eighth of a turn about +Y.
-#define TURN 0.7853981633974483f
-
-// A scale of one and a rotation of nothing, which is what every entity here
-// starts from. There is no identity constant in `math` on purpose (math/quat.h)
-// — an angle of zero about any axis is it.
-static voe_scene_transform placed(voe_math_float3 position,
-				  voe_math_quat rotation, float scale)
-{
-	return (voe_scene_transform){ .position = position,
-				      .rotation = rotation,
-				      .scale = { scale, scale, scale } };
-}
-
-static voe_math_quat unturned(void)
-{
-	return voe_math_quat_from_axis_angle((voe_math_float3){ 0, 1, 0 }, 0.0f);
-}
-
-// An entity with a transform and nothing else — the engine's own kind, and the
-// one the list must not show.
-static voe_ecs_entity unnamed(voe_ecs_world *world,
-			      voe_scene_transform transform)
+// An entity a person authored: just the identity, whose presence is what says
+// so (ADR-0125). A transform, a shape or a light is added by the caller once
+// this returns — some authored entities have all three, `Light` has none of the
+// first two.
+static voe_ecs_entity identified(voe_ecs_world *world, uint64_t id,
+				 const char *name)
 {
 	voe_ecs_entity entity;
+	voe_scene_identity identity = { .id = id };
 
 	VOE_BASE_ASSERT(voe_ecs_entity_create(world, &entity),
 			"the editor's world is too small for its own scene");
-	VOE_BASE_ASSERT(voe_scene_transform_add(world, entity, transform),
-			"the editor's transform table is too small for its own scene");
-
-	return entity;
-}
-
-// An entity a person authored: a transform, and the identity whose presence is
-// what says so.
-static voe_ecs_entity authored(voe_ecs_world *world, uint64_t id,
-			       const char *name, voe_scene_transform transform)
-{
-	voe_ecs_entity entity = unnamed(world, transform);
-	voe_scene_identity identity = { .id = id };
 
 	// The name is copied into the row's fixed 64 bytes rather than pointed
 	// at, because a component holds no pointers (scene/identity_component.h)
@@ -101,77 +61,46 @@ static voe_ecs_entity authored(voe_ecs_world *world, uint64_t id,
 	return entity;
 }
 
-// What makes an entity drawn: the cube's geometry in the world layer, and the
-// one material every cube shares.
-static void drawn(voe_ecs_world *world, voe_ecs_entity entity,
-		  voe_render_geometry cube, voe_3d_material material)
+void voe_editor_scene_untitled(voe_editor_scene *scene, voe_ecs_world *world)
 {
-	VOE_BASE_ASSERT(voe_3d_mesh_add(world, entity,
-					(voe_3d_mesh){
-						.geometry = cube,
-						.layer = VOE_3D_LAYER_WORLD }),
-			"the editor's mesh table is too small for its own scene");
-	VOE_BASE_ASSERT(voe_3d_material_add(world, entity, material),
-			"the editor's material table is too small for its own scene");
-}
-
-bool voe_editor_scene_build(voe_editor_scene *scene, voe_ecs_world *world,
-			    voe_render_device *gpu, voe_base_error *error)
-{
-	voe_render_geometry cube;
-	voe_3d_material material = {
-		.base_colour = { CUBE_GREY, CUBE_GREY, CUBE_GREY, 1.0f },
-		.metallic = 0.0f,
-		.roughness = CUBE_ROUGHNESS,
-		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
-	};
-	voe_ecs_entity entity;
+	voe_ecs_entity cube;
+	voe_ecs_entity light;
 
 	VOE_BASE_ASSERT(scene != NULL, "building a scene into nothing");
 	VOE_BASE_ASSERT(world != NULL, "building a scene in no world");
-	VOE_BASE_ASSERT(gpu != NULL, "building a scene with no device");
 
 	*scene = (voe_editor_scene){ .world = world };
 
-	// Uploaded once and shared: one geometry and one record, however many
-	// entities wear them (3d/material_component.h).
-	if (!voe_render_geometry_create(gpu, voe_editor_cube_vertices,
-					VOE_EDITOR_CUBE_VERTEX_COUNT,
-					voe_editor_cube_indices,
-					VOE_EDITOR_CUBE_INDEX_COUNT, &cube,
-					error))
-		return false;
-	if (!voe_3d_material_upload(gpu, &material, error))
-		return false;
+	cube = identified(world, 1, "Cube");
+	VOE_BASE_ASSERT(
+		voe_scene_transform_add(
+			world, cube,
+			(voe_scene_transform){
+				.position = { 0.0f, 0.0f, 0.0f },
+				.rotation = voe_math_quat_from_axis_angle(
+					(voe_math_float3){ 0.0f, 1.0f, 0.0f },
+					0.0f),
+				.scale = { 1.0f, 1.0f, 1.0f } }),
+		"the editor's transform table is too small for its own scene");
+	VOE_BASE_ASSERT(
+		voe_3d_shape_add(world, cube,
+				 (voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE }),
+		"the editor's shape table is too small for its own scene");
 
-	entity = authored(world, 1, "Cube",
-			  placed((voe_math_float3){ -CUBE_X, 0, CUBE_Z },
-				 unturned(), 1.0f));
-	drawn(world, entity, cube, material);
-	entity = authored(world, 2, "Cube_2",
-			  placed((voe_math_float3){ CUBE_X, 0, -CUBE_Z },
-				 voe_math_quat_from_axis_angle(
-					 (voe_math_float3){ 0, 1, 0 }, TURN),
-				 1.0f));
-	drawn(world, entity, cube, material);
-	(void)authored(world, 3, "Marker",
-		 placed((voe_math_float3){ 0, SPACING, 0 }, unturned(),
-			MARKER_SCALE));
+	// LIGHT HAS NO TRANSFORM. A directional light has no position — see
+	// scene/light_component.h — so there is nothing to place it at.
+	light = identified(world, 2, "Light");
+	VOE_BASE_ASSERT(
+		voe_scene_light_add(
+			world, light,
+			(voe_scene_light){
+				.direction = { LIGHT_X, LIGHT_Y, LIGHT_Z },
+				.colour = { 1.0f, 1.0f, 1.0f },
+				.intensity = LIGHT_INTENSITY }),
+		"the editor's light table is too small for its own scene");
 
-	// THE FOURTH, AND THE WHOLE REASON THIS FUNCTION ASSERTS ANYTHING. It is
-	// in the world with a transform and no identity, so the Scene panel must
-	// show three names and not four. Counting names on a screen is a weak
-	// check and this is the strong one: four transforms, three identities,
-	// here, where both numbers are known.
-	(void)unnamed(world, placed((voe_math_float3){ 0, -SPACING, 0 },
-				    unturned(), 1.0f));
-
-	VOE_BASE_ASSERT(voe_scene_transform_count(world) == 4,
-			"the editor's scene is not the four transforms it is written to be");
-	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 3,
-			"the editor's scene is not the three identities it is written to be");
-
-	return true;
+	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 2,
+			"the editor's untitled scene is not the two identities it is written to be");
 }
 
 voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene)
