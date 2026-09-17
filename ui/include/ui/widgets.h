@@ -3,12 +3,13 @@
 // somebody else to draw.
 //
 //     voe_ui_font_set(ui, font);                   // once, at startup
+//     voe_ui_theme_set(ui, &theme);                // once, or again to restyle
 //
 //     voe_ui_frame_begin(ui, frame_arena);
 //     voe_ui_pointer_set(ui, (voe_ui_pointer){
 //             .at = { mouse_mm_x, mouse_mm_y }, .over = true, .down = held });
 //
-//     voe_ui_panel_begin(ui, "settings", 0, (voe_math_float4){ 0, 0, 0, 0.7f },
+//     voe_ui_panel_begin(ui, "settings", 0, VOE_UI_SURFACE_RAISED,
 //                        (voe_ui_container){ .gap = 2.0f,
 //                                            .pad = { 4, 4, 4, 4 } });
 //     voe_ui_label(ui, "Settings");
@@ -76,24 +77,33 @@
 // uses, for the same reason: it is the caller's mistake, it is reported once,
 // and the next frame lays out normally.
 //
-// ---- THE TEXT SCALE ----
+// ---- THE THEME ----
 //
-// A LABEL'S NATURAL SIZE IS WHAT THE FONT MEASURES, TIMES `text_scale`, AND THE
-// MULTIPLICATION HAPPENS WHERE THE STRING IS MEASURED. So the number layout sees
-// is already scaled and everything downstream is ordinary layout: a label at 1.5
-// takes half again as much room and the row grows around it, while gaps and
-// padding — which are millimetres the caller wrote — do not move. Nothing clips,
-// because nothing was laid out against the unscaled size.
+// EVERY WIDGET DRAWS FROM THE NEAREST THEME IN FORCE (ADR-0168). voe_ui_theme_set
+// gives the context the one it falls back to, the caller's memory and outliving
+// the context exactly as the font does; voe_ui_theme_push/voe_ui_theme_pop put
+// another in force for a subtree, nested to any depth. A widget reads whichever
+// is in force AT THE CALL THAT MAKES IT, once, and keeps it — a push and a pop
+// either side of a call already made does not repaint it, because the frame is
+// built forwards and a widget's colours are already decided the moment it exists.
+// A widget with no theme anywhere in force is the caller's bug and asserts,
+// exactly as a label with no font does.
+//
+// A LABEL'S NATURAL SIZE IS WHAT THE FONT MEASURES, TIMES THE THEME'S OWN
+// `text_size` OVER ONE EM, AND THE MULTIPLICATION HAPPENS WHERE THE STRING IS
+// MEASURED. So the number layout sees is already the right size and everything
+// downstream is ordinary layout: a bigger theme takes more room and the row
+// grows around it, while gaps and padding — which are millimetres the caller
+// wrote — do not move. `text_size` IS THE ONE PLACE A TEXT SIZE IS SAID
+// (voe_ui_text_scale_set is gone for exactly this reason): a caller wanting a
+// bigger interface authors a bigger theme rather than scaling on top of one.
 //
 // IT IS NOT A SECOND SCALE AND THERE IS NO SECOND SPACE. The surface has one
 // scale, and it is the caller's (ADR-0104): pixels per millimetre, applied to
-// the whole surface, outside this folder entirely. `text_scale` is a multiplier
-// INSIDE those millimetres, on one kind of content. The two compose by
-// multiplication and in that order — the surface scale decides how big a
-// millimetre is, `text_scale` decides how many millimetres a letter is worth —
-// and a subtree scale, when ADR-0091's push and pop arrives, composes the same
-// way and for the same reason: they are all multipliers on one unit, which is
-// why there is never a conversion between them to get wrong.
+// the whole surface, outside this folder entirely. `text_size` is millimetres
+// INSIDE those millimetres, on one kind of content, and the two compose by the
+// caller's own division happening before either of them is in the picture —
+// there is never a conversion between them to get wrong.
 //
 // ---- THE SCROLL AREA ----
 //
@@ -144,8 +154,6 @@
 //
 // ---- WHAT IS NOT HERE ----
 //
-// No theme: the colours below are constants and card 036 replaces them.
-//
 // TYPING EXISTS FOR THE FIELD AND FOR NOTHING ELSE. A number box is still
 // dragged and not typed into, and the click that would begin typing there is
 // still reserved rather than free — see voe_ui_number_begin. THE FIELD ITSELF
@@ -170,7 +178,9 @@
 // A FIELD COSTS TWO NODES — itself and the label it composes — and up to one
 // element record per letter that draws, plus its own background and, while
 // it is focused, one caret: no more than a label put inside a button already
-// costs.
+// costs. NO BORDER, LIKE THE NUMBER BOX: its background is a theme role and it
+// needs the nearest theme in force, but two records are a panel's and a
+// button's, not this one's.
 //
 // No scrolling by a program and no scrolling to a node yet: both wait on a
 // focus that reaches a scroll area, which this one does not — a field's
@@ -189,6 +199,7 @@
 #pragma once
 
 #include <ui/layout.h>
+#include <ui/theme.h>
 
 #include <math/float2.h>
 #include <math/float4.h>
@@ -205,10 +216,39 @@
 // created it, and it must outlive the context.
 void voe_ui_font_set(voe_ui_context *ui, const voe_text_font *font);
 
-// What every label's measured size is multiplied by. One, until somebody says
-// otherwise, and greater than nought — nought is the caller's bug and asserts.
-// See the header on how it composes with the surface's own scale.
-void voe_ui_text_scale_set(voe_ui_context *ui, float scale);
+// The theme every widget without a nearer one draws with. The caller's memory,
+// outliving the context exactly as the font does (voe_ui_font_set) — a theme
+// derived on the stack and handed here would leave this pointer dangling the
+// moment the calling function returns.
+//
+// May be called again, which is what restyles every widget the very next
+// frame; a widget already emitted this frame keeps the colours it was given,
+// because it read them at the call that made it and not at emission. NULL is
+// the caller's bug and asserts, as a NULL font does at voe_ui_font_set.
+void voe_ui_theme_set(voe_ui_context *ui, const voe_ui_theme *theme);
+
+// Puts `theme` in force for every widget made until the matching
+// voe_ui_theme_pop, nested to any depth — ADR-0168's "the nearest one wins".
+// `theme` is the caller's memory and must outlive every widget made while it
+// is in force, exactly as voe_ui_theme_set's must.
+//
+// Between voe_ui_frame_begin and voe_ui_frame_end, like every other call that
+// touches the context's state. NULL is the caller's bug and asserts.
+//
+// UNMATCHED BY THE FRAME'S END, IT REFUSES THE FRAME the way a duplicate key
+// or a scroll area past capacity does (ui/layout.h) — reported once on
+// stderr, the frame carrying on and the next one laying out normally — rather
+// than asserting: a push forgotten inside a branch that returns early is a
+// call-site mistake worth finding from a message, not a program that stops.
+// Popping with nothing pushed is the other imbalance, and that one IS an
+// assert — see voe_ui_theme_pop.
+void voe_ui_theme_push(voe_ui_context *ui, const voe_ui_theme *theme);
+
+// Restores the theme in force before the matching voe_ui_theme_push.
+//
+// Popping with nothing pushed is the caller's bug and asserts, exactly as
+// ending a container that was never begun does (ui/layout.h).
+void voe_ui_theme_pop(voe_ui_context *ui);
 
 // What the interface is told about the pointer. Given, never asked for.
 typedef struct {
@@ -262,38 +302,65 @@ typedef struct {
 // not mention input at all.
 void voe_ui_pointer_set(voe_ui_context *ui, voe_ui_pointer pointer);
 
+// A panel's background, as one of the theme in force's own surfaces, or NONE.
+//
+// NONE EMITS NOTHING AT ALL, exactly as an alpha of nought used to before a
+// theme existed to name one. Not a transparent rectangle — no record, no
+// instance and no blend, because all three of those cost something to draw
+// nothing. A fully transparent panel with padding in it is a real thing to
+// want: a full-screen one is how a television safe area is expressed, where an
+// older set cuts the edges off and the interface has to stay inside them. And
+// such a caller may not want a panel at all — voe_ui_column_begin with the
+// same padding emits nothing already and is the same thing with fewer words.
+typedef enum {
+	VOE_UI_SURFACE_NONE = 0,
+	VOE_UI_SURFACE_GROUND,
+	VOE_UI_SURFACE_SURFACE,
+	VOE_UI_SURFACE_RAISED,
+} voe_ui_surface;
+
 // A container with a background behind its children. Everything else about it —
 // its size, how its children sit in it, its gap and its padding — is
 // voe_ui_column_begin's `container`, unchanged, because a panel IS a column with
 // something drawn behind it.
 //
-// `colour` is straight linear RGBA and IS NOT PREMULTIPLIED. The shader
-// multiplies by alpha once, at output (ADR-0069); doing it here as well gives a
-// panel that is too faint, which reads as a badly chosen colour rather than as a
-// bug.
+// A SURFACE OTHER THAN NONE DRAWS A HAIRLINE BORDER, TWO ELEMENT RECORDS AND
+// NOT ONE (ADR-0169): the border role at the panel's own bounds, then its
+// surface inset from every edge by this folder's hairline width, painted over
+// the border's middle and leaving a rim of it showing all round. That is the
+// widget's own doing and not the shader's, so nothing in `render` changes for
+// it, and it is why a panel costs one more element record than it used to.
 //
-// AN ALPHA OF NOUGHT EMITS NOTHING AT ALL. Not a transparent rectangle — no
-// record, no instance and no blend, because all three of those cost something to
-// draw nothing. A fully transparent panel with padding in it is a real thing to
-// want: a full-screen one is how a television safe area is expressed, where an
-// older set cuts the edges off and the interface has to stay inside them.
-//
-// AND SUCH A CALLER MAY NOT WANT A PANEL AT ALL. voe_ui_column_begin with the
-// same padding emits nothing already and is the same thing with fewer words.
-// What this widget is for is the background; if there is no background there is
-// nothing here that a column does not do.
+// NEEDS A THEME WHEN `surface` IS NOT NONE — the nearest one in force,
+// voe_ui_theme_set's or a voe_ui_theme_push's — and opening one with nowhere
+// to find one is the caller's bug and asserts, exactly as a label with no font
+// does.
 //
 // Closed by voe_ui_end, like any other container.
 voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
-			       uint32_t index, voe_math_float4 colour,
+			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container);
 
-// A string. Its natural size is the font's measurement of it times the text
-// scale, so a row containing one grows to fit it; it takes no sizing of its own
-// and has no identity, having nothing to remember.
+// Which of the theme's two text colours a label draws in.
+typedef enum {
+	VOE_UI_TEXT_ROLE_NORMAL = 0,
+	VOE_UI_TEXT_ROLE_ACCENT,
+} voe_ui_text_role;
+
+// A string. Its natural size is the font's measurement of it times the theme in
+// force's own `text_size`, so a row containing one grows to fit it; it takes no
+// sizing of its own and has no identity, having nothing to remember.
 //
 // `text` is read at voe_ui_frame_end and not copied, so it must still be there
 // then. A literal is; a buffer the caller rewinds with the frame's arena is not.
+//
+// NEEDS A FONT AND A THEME, the nearest of each in force: the font to measure
+// and draw the string, the theme for `text_size` and for `role`'s colour.
+// Either missing is the caller's bug and asserts.
+voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
+			      voe_ui_text_role role);
+
+// Exactly voe_ui_label_role with VOE_UI_TEXT_ROLE_NORMAL.
 voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text);
 
 // A rectangle with whatever is called between here and voe_ui_end centred in
@@ -309,15 +376,20 @@ voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text);
 // rather than a cost. A button is a container like every other container here:
 // put a label in it and it is a labelled button, put a box in it and it is a
 // swatch, put a label beside an icon in it and it is that, and none of those is
-// a second widget or an argument nobody uses. It also means a button costs
-// nothing that a label costs — a caller with no font can still build, arrange
-// and click one, which is what lets every case below be tested with no graphics
-// card anywhere near it.
+// a second widget or an argument nobody uses.
 //
 // IT FIRES ON RELEASE INSIDE ITSELF AND A DRAG OUT CANCELS, which is what
 // Windows 10 does and ADR-0088 makes that binding. Press it, drag off it and let
 // go: nothing happens. Press it, drag off it, drag BACK on and let go: it fires,
 // because cancelling is what leaving does and coming back undoes it.
+//
+// ITS THREE STATES ARE THEME ROLES, the pressed one on the accent
+// (ADR-0169): control at rest, control_hovered under the pointer, and accent
+// while held — there is no fourth role for "pressed", the accent standing in
+// for it. LIKE A PANEL IT DRAWS A HAIRLINE BORDER, two element records and not
+// one, and needs the nearest theme in force exactly as a panel with a surface
+// does; opening one with nowhere to find a theme is the caller's bug and
+// asserts.
 //
 // Closed by voe_ui_end, like any other container.
 voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
@@ -384,6 +456,11 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 // accumulates a delta of its own — which is what makes typing into one, when it
 // arrives, the same call answering the same way: a typed entry has no distance
 // to report and every caller is already written to take a value.
+//
+// ITS COLOURS ARE THE SAME THEME ROLES A BUTTON'S ARE — control, control_hovered
+// and, while held, the accent — read from the nearest theme in force, and it
+// needs one for the same reason a button does. UNLIKE A PANEL AND A BUTTON IT
+// DRAWS NO BORDER: one element record, as before this task.
 //
 // A PRESS AND A RELEASE WITHOUT MOVEMENT DOES NOTHING, AND NOTHING MAY BE BOUND
 // TO IT. It is not an event this widget has declined to expose — it is reserved,
@@ -553,6 +630,11 @@ typedef struct {
 // and a duplicate refuses the frame. A frame with more scroll areas than
 // `capacities.scrolls` is refused too, named on stderr, and voe_ui_frame_end
 // comes back false.
+//
+// ITS BAR'S COLOURS ARE THEME ROLES — the track on `ground`, the thumb on
+// control, control_hovered or the accent while held — read from the nearest
+// theme in force at this call; needing none is not an option, since a bar may
+// show later in the very frame that opened the area.
 //
 // Closed by voe_ui_end, like any other container.
 voe_ui_node voe_ui_scroll_begin(voe_ui_context *ui, const char *name,

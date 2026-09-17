@@ -47,7 +47,10 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug --target voe_ui && ctest --test-dir build/debug -R '^ui/'` — all tests pass.
 
-- [ ] 4. `ui/` — every widget draws from the nearest theme
+- [~] 4. `ui/` — every widget draws from the nearest theme
+  Coder stopped mid-check by the sponsor, 2026-09-17; both programs built and ui tests had
+  passed, but it never reported and no reviewer has seen it. Resume with a fresh reviewer,
+  which must confirm the task is complete, not only correct.
   - Change: the context carries a theme — `voe_ui_theme_set(ui, const voe_ui_theme *)`, the caller's
     memory, outliving the context as the font does — and a subtree carries its own through
     `voe_ui_theme_push` / `voe_ui_theme_pop`; every node records the theme in force when it was made

@@ -299,10 +299,13 @@ typedef struct voe_ui_context voe_ui_context;
 typedef struct {
 	uint32_t nodes;
 	// And how many element records one frame may emit — see widgets.h,
-	// which is what emits them. A panel or a button is one, a label is one
-	// per character that draws and none for a space, so a screenful of
-	// interface with writing on it is hundreds. A caller that only wants
-	// rectangles asks for none and pays for none.
+	// which is what emits them. A panel with a surface and a button are two
+	// each, their hairline border and their own fill (ui/widgets.h,
+	// ADR-0169); a panel with no surface is none. A number box and a field
+	// are one apiece, having no border. A label is one per character that
+	// draws and none for a space, so a screenful of interface with writing
+	// on it is hundreds. A caller that only wants rectangles asks for none
+	// and pays for none.
 	uint32_t elements;
 	// And how many scroll areas one frame may hold — see
 	// voe_ui_scroll_begin. It is also the length of the table their offsets

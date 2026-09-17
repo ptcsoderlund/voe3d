@@ -23,6 +23,7 @@
 #pragma once
 
 #include <ui/layout.h>
+#include <ui/theme.h>
 #include <ui/widgets.h>
 
 #include <math/float4.h>
@@ -81,10 +82,30 @@ struct voe_ui_widget_record {
 	// pointer and is read at frame_end, so it must still be there then —
 	// which a string literal and a buffer the caller owns both are.
 	const char *text;
-	// A panel's background. A button's and a number box's are not here:
-	// which of the three it is depends on the hit test, so emission picks it
-	// and nothing stores it.
-	voe_math_float4 colour;
+	// A panel's own surface. A button's, a number box's and a field's are
+	// not here: which theme role it is depends on the hit test, so
+	// emission picks it and nothing stores it.
+	voe_ui_surface surface;
+	// The theme in force when this widget was made — voe_ui_theme_set's
+	// argument or the nearest voe_ui_theme_push's — copied here once
+	// rather than looked up again at emission, which is what makes
+	// ADR-0168's "the nearest one wins" a property of WHEN a widget was
+	// called and not of what has pushed or popped by the time the frame
+	// ends. NULL on a node no widget call touched — a plain row, column or
+	// box — which is never read, because emission never reaches one.
+	//
+	// DEVIATION: ADR-0168 says "every node recording the theme in force
+	// when it was made". Read narrowly as every WIDGET node — the ones
+	// emission can go on to draw — because layout.c's node_push makes
+	// every node, including a plain row's, and giving it a theme to copy
+	// would mean layout.c has to know what one is, which is exactly the
+	// split this file draws between "layout.c's" fields and "widgets.c's".
+	// A plain container's `kind` stays VOE_UI_WIDGET_NONE and its `theme`
+	// is never asked for, so recording one there would say nothing new.
+	const voe_ui_theme *theme;
+	// A label's colour role: NORMAL or ACCENT. Meaningless on everything
+	// else.
+	voe_ui_text_role text_role;
 	// A number box's value as the caller handed it in this frame, and what
 	// one millimetre of horizontal drag is worth. Both are the caller's and
 	// neither is remembered between frames — the value lives where the
@@ -201,7 +222,24 @@ struct voe_ui_context {
 	// bug and asserts, because measuring is the one thing a label cannot do
 	// for itself.
 	const voe_text_font *font;
-	float text_scale;
+
+	// THE THEME, IN TWO PARTS — see widgets.h for the whole mechanism and
+	// ADR-0168 for why the nearest one wins.
+	//
+	// `theme` IS voe_ui_theme_set's ARGUMENT, and it survives a frame
+	// exactly as `font` does: nothing here resets it at frame_begin.
+	const voe_ui_theme *theme;
+	// The stack voe_ui_theme_push/pop keep, out of the frame's arena and
+	// bounded by the node capacity — pushing before every single node is
+	// the worst case, exactly as `open`'s bound is (ui/layout.h).
+	// `theme_depth` is how many of its slots hold a real push; a push
+	// turned away for want of room is counted in `theme_refused` instead,
+	// mirroring `open`/`refused`, so that a pop always has something to
+	// undo even when the push it matches was the one refused.
+	const voe_ui_theme **theme_stack;
+	uint32_t theme_depth;
+	uint32_t theme_refused;
+	bool theme_overrun;
 
 	// This frame's, zeroed by frame_begin so that a frame which says nothing
 	// about the pointer has none rather than yesterday's.

@@ -1037,8 +1037,6 @@ voe_ui_context *voe_ui_context_new(voe_base_arena *arena,
 
 	ui = voe_base_arena_push(arena, sizeof(*ui));
 	ui->capacities = capacities;
-	// The one field that is not nought to begin with. See widgets.h.
-	ui->text_scale = 1.0f;
 	voe_ui_widgets_init(ui, arena);
 
 	return ui;
@@ -1220,7 +1218,21 @@ bool voe_ui_frame_end(voe_ui_context *ui)
 	// interface on screen this frame builds no tree. It still goes through
 	// the widget pass, because letting go of a held button is something a
 	// frame with nothing in it has to do.
-	ok = !ui->overrun && !ui->collision && !ui->scroll_overrun;
+	//
+	// `theme_depth != 0` IS AN UNMATCHED voe_ui_theme_push (widgets.h): a
+	// call-site mistake refused the way a duplicate key or a scroll area
+	// past capacity is, not asserted, so a push forgotten inside a branch
+	// that returns early is a message and a next frame laying out
+	// normally rather than a program that stops. Reported here and not at
+	// the push, because whether it will be popped by the frame's end is
+	// not known until now.
+	if (ui->theme_depth > 0)
+		VOE_BASE_ERROR("ui",
+			       "%u theme push(es) not popped by the end of "
+			       "the frame",
+			       ui->theme_depth);
+	ok = !ui->overrun && !ui->collision && !ui->scroll_overrun &&
+	     !ui->theme_overrun && ui->theme_depth == 0;
 	// Paint order is the tree's shape and not the arrangement's, so it is
 	// worked out even for a refused frame — which keeps the accessor's
 	// answer a real position in every frame that built any tree at all,
