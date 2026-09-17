@@ -171,3 +171,4 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0165-a-single-line-text-field-is-a-ui-widget-and-typed-text-arrives-as-a-value.md` — A single-line text field is a `ui` widget, and typed text arrives as a value like the pointer.
 - `0166-a-hidden-entry-means-the-same-thing-on-both-platforms.md` — A hidden entry means the same thing on both platforms: a leading `.` everywhere, plus Windows' attribute.
 - `0167-the-engine-carries-pixel-operator-beside-oxanium-and-a-font-is-asked-for-by-name.md` — The engine carries Pixel Operator beside Oxanium, and a font is asked for by name.
+- `0168-a-keysym-is-a-number-a-key-has-four-levels-and-altgr-is-a-place.md` — A keysym is a number as often as a name, a key has four levels, and AltGr is a place the keymap names.

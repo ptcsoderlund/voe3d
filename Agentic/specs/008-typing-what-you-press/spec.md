@@ -1,6 +1,6 @@
 # 008 Typing what you press
 
-Status: approved
+Status: building
 Approved: 2026-09-17
 Accepted: -
 
