@@ -22,6 +22,10 @@ edge.
   and `voe_platform_file_write` writes `<path>.partial` then renames it over the file — an
   interrupted save leaves the old file whole. Project-wide:
   `Agentic/decisions/0162-platform-owns-folders-and-paths-and-a-file-write-replaces-its-file-whole.md`.
+- A hidden entry means the same thing to a person on both platforms: a leading `.` everywhere,
+  plus Windows' hidden attribute. Windows acceptance found the two conventions were not the same
+  thing, and the browser hides what the flag marks. Amends ADR-0162, which is not edited.
+  Project-wide: `Agentic/decisions/0166-a-hidden-entry-means-the-same-thing-on-both-platforms.md`.
 - A cube survives a save as `voe_3d_shape { kind = 1 }`, a described component in `3d`, turned
   into a mesh and material by a shape system — mesh and material are runtime-only. Project-wide:
   `Agentic/decisions/0163-a-built-in-shape-is-a-described-component-in-3d.md`.
@@ -93,3 +97,6 @@ edge.
   save and reopen, New, refuse-once on close, New and Open, and a broken project from Open — are the
   sponsor's hands-on acceptance on Linux: `./build/debug/editor/voe_editor`, with `~/.config/voe3d/`
   removed first for criterion 1.
+- Task 15's fix is Windows-only in effect: the sponsor's next `cmake -P check.cmake` on Windows is
+  its verification, and `platform/folder` passing there is what closes the defect (ADR-0130,
+  ADR-0166).

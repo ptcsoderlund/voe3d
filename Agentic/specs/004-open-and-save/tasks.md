@@ -418,3 +418,43 @@
   - Covers: 4, 2 (Save), 6 (a first save becomes the last project)
   - Depends on: 9, 13
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png && test ! -e $d/voe3d` exits 0
+
+- [ ] 15. `platform/` — `hidden` means the same thing on both platforms
+  - Change: Windows acceptance failed `platform/tests/folder.c:122` — the test's `.dotted` file
+    came back with `hidden` false, because `folder_win32.c` answers only
+    `FILE_ATTRIBUTE_HIDDEN` while `folder_wayland.c` answers only a leading `.`. The defect is the
+    definition, not the backend's code: a dot-prefix and a Windows file attribute are two
+    different conventions, and the editor's browser lists folders and hides the ones marked
+    hidden — so the same tree would offer `.git`, `.config` and `.ssh` as places to save on
+    Windows and not on Linux. Per ADR-0166 the flag gets one engine-wide meaning: **a name
+    beginning with `.` is hidden on every platform, and on Windows `FILE_ATTRIBUTE_HIDDEN` marks
+    one as well.**
+    In `src/folder_win32.c`, `hidden` becomes the two-term test — the dot on `data.cFileName` or
+    the attribute — with a short comment naming ADR-0166 and saying why the dot rule is the
+    engine's own and not Windows'. `src/folder_wayland.c` is behaviourally unchanged (Linux has
+    only the dot rule); give its `hidden` line the same one-line reference so a reader of either
+    backend finds the rule. In `include/platform/folder.h`, replace the LISTING paragraph's *"a
+    leading '.' on Linux and the hidden attribute on Windows"* with the one meaning, citing
+    ADR-0166.
+    In `tests/folder.c`, the existing `.dotted` checks stay exactly as they are and stay
+    unconditional — they are now the promise on both platforms, and that is the point; say so in
+    the file header, which today calls the Windows backend unverified. Add the attribute half in a
+    small `#ifdef _WIN32` block: mark `LIST_FILE` hidden with `SetFileAttributesA`, list
+    `LIST_ROOT` again, and check that `file.txt` comes back `hidden` and `.dotted` still does;
+    clear the attribute again before `cleanup()` so a rerun is not affected. Keep that block to
+    the one call and the one relisting — it cannot be compiled here (see below).
+    No caller changes: `editor/src/browser.c` already reads `entry->hidden` and nothing else, and
+    ADR-0166 forbids it second-guessing the flag. No `.md` change — no file is added or removed
+    from `platform/`.
+  - Covers: defect from Windows acceptance of criterion 4/7 (the browser's folder list)
+  - Depends on: -
+  - Done when: on Linux, `cmake -P check.cmake` exits 0 — unchanged Linux behaviour, `.dotted`
+    still hidden — and
+    `grep -q "cFileName\[0\] == '\.'" platform/src/folder_win32.c && grep -q "SetFileAttributesA" platform/tests/folder.c && grep -q "ADR-0166" platform/include/platform/folder.h`
+    exits 0. **The coder works on Linux and cannot build or run the Windows half**; the Windows
+    edit is written and unverified as ADR-0130 allows, and the report says so. The sponsor re-runs
+    `cmake -P check.cmake` on Windows afterwards, and that run is this fix's verification.
+    Not a defect and not to be "fixed": the three `error:` lines printed beside the failure
+    ("could not open …_missing", "…_create already exists", "could not create
+    …_create/missing_parent/child") are the test's three deliberate failure-path checks reporting
+    through `base/report.h`. The Linux run prints the same three lines and is green.

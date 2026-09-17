@@ -169,3 +169,4 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0163-a-built-in-shape-is-a-described-component-in-3d.md` — A built-in shape is a described component in `3d`, so a saved cube reopens as a cube.
 - `0164-the-editor-opens-and-saves-projects-itself-and-the-project-file-lives-in-authoring.md` — The editor opens and saves projects itself, a project's name is its folder's, and the project file's code lives in `authoring`.
 - `0165-a-single-line-text-field-is-a-ui-widget-and-typed-text-arrives-as-a-value.md` — A single-line text field is a `ui` widget, and typed text arrives as a value like the pointer.
+- `0166-a-hidden-entry-means-the-same-thing-on-both-platforms.md` — A hidden entry means the same thing on both platforms: a leading `.` everywhere, plus Windows' attribute.

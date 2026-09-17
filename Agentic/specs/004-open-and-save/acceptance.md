@@ -70,4 +70,9 @@ Criterion 13 as written is Linux only, and the check is green on Linux. The fail
 this feature changed (task 3), so it is recorded as a defect of 004 rather than as a pre-existing
 platform gap.
 
-Criteria 1–12 (the interactive ones) not yet reported.
+### 2026-09-17 — Linux, hands on
+
+Criteria 1–12: **all passed**. The sponsor tried every one and reported nothing wrong.
+
+Verdict: rejected on criterion 13 alone, and only on Windows. The Windows `hidden` defect is fixed
+inside this feature; the sponsor re-runs the Windows check afterwards.
