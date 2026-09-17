@@ -23,6 +23,19 @@
 // write fails; `--capture` never writes it, because a capture is not a person
 // opening the editor.
 //
+// OPEN, ONCE ALLOWED, SHOWS browser.h'S OWN FILE BROWSER — the one thing
+// New and Save do not need one for. `browser`, beside `scene` and `views`,
+// outlives every project the whole run through, and while it shows this file
+// does two things for it and interface.c a third: Ctrl+N, Ctrl+O and Ctrl+S
+// fire nothing, the middle-button drag moves no view's camera, and (in
+// interface.c) the top bar's buttons are drawn but never asked what the
+// pointer did to them, so a click on one is not carried out — and the dock is
+// handed a pointer that cannot be hit either, the anchored browser already
+// painting over it. Escape is this file's own edge, exactly as the other
+// three shortcuts are, handed to the interface as the browser's Cancel; a
+// window close still asks session.h the same question it always has,
+// browser or not.
+//
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
 // division that turns the mouse's pixels into the surface's millimetres.
@@ -87,6 +100,7 @@
 // the array it is, because the C runtime calls main with this signature and
 // nothing in this program chose it). Nothing else here holds a pointer to a
 // pointer, and the argument list is read in main and nowhere else.
+#include "browser.h"
 #include "dock.h"
 #include "interface.h"
 #include "last_project.h"
@@ -278,6 +292,15 @@ int main(int argc, char *argv[])
 	bool new_was_down = false;
 	bool open_was_down = false;
 	bool save_was_down = false;
+	// Last frame's Escape, the same shape without a modifier — the
+	// browser's own Cancel (browser.h), and nothing else, so it is read
+	// only while the browser shows.
+	bool escape_was_down = false;
+	// Shown by Open, once its unsaved-changes refusal is past; hidden by
+	// its own Cancel, Escape, or a folder it opened successfully
+	// (session.h). Kept across the whole program's run, never one
+	// project's — see browser.h on why it is not part of `session`.
+	voe_editor_browser browser = { 0 };
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -459,6 +482,10 @@ int main(int argc, char *argv[])
 		bool middle = false;
 		bool shift = false;
 		bool control = false;
+		bool escape = false;
+		// This frame's Escape edge, handed to the interface below —
+		// set once escape has been read, further down.
+		bool escape_fired;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -499,7 +526,7 @@ int main(int argc, char *argv[])
 			// though nothing had asked for it — the notice
 			// explaining why is session.notice's, read by the bar
 			// next frame.
-			if (voe_editor_session_do(&session, &scene,
+			if (voe_editor_session_do(&session, &scene, &browser,
 						  VOE_EDITOR_COMMAND_CLOSE))
 				break;
 			voe_platform_window_close_refuse(window);
@@ -533,6 +560,8 @@ int main(int argc, char *argv[])
 				window, VOE_PLATFORM_KEY_SHIFT);
 			control = voe_platform_input_key_down(
 				window, VOE_PLATFORM_KEY_CONTROL);
+			escape = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_ESCAPE);
 		}
 
 		// CTRL+N, CTRL+O AND CTRL+S DO WHAT THEIR BUTTON DOES, on the
@@ -542,6 +571,12 @@ int main(int argc, char *argv[])
 		// with Control mixed into what is compared. A capture has no
 		// window, so `control` stays false above and none of these
 		// ever reads true.
+		//
+		// AND NONE OF THE THREE FIRES WHILE THE BROWSER SHOWS — "top
+		// bar commands and shortcuts are ignored" (browser.h) — though
+		// the edge is still tracked every frame, so a shortcut held
+		// through the browser opening and closing does not fire the
+		// moment it is let through.
 		{
 			bool new_down = control && voe_platform_input_key_down(
 							   window, VOE_PLATFORM_KEY_N);
@@ -550,21 +585,31 @@ int main(int argc, char *argv[])
 			bool save_down = control && voe_platform_input_key_down(
 							    window, VOE_PLATFORM_KEY_S);
 
-			if (new_down && !new_was_down)
+			if (new_down && !new_was_down && !browser.showing)
 				voe_editor_session_do(&session, &scene,
+						      &browser,
 						      VOE_EDITOR_COMMAND_NEW);
 			new_was_down = new_down;
 
-			if (open_down && !open_was_down)
+			if (open_down && !open_was_down && !browser.showing)
 				voe_editor_session_do(&session, &scene,
+						      &browser,
 						      VOE_EDITOR_COMMAND_OPEN);
 			open_was_down = open_down;
 
-			if (save_down && !save_was_down)
+			if (save_down && !save_was_down && !browser.showing)
 				voe_editor_session_do(&session, &scene,
+						      &browser,
 						      VOE_EDITOR_COMMAND_SAVE);
 			save_was_down = save_down;
 		}
+
+		// THIS FRAME'S ESCAPE EDGE, HANDED TO THE INTERFACE BELOW — the
+		// browser's own Cancel (browser.h) and nothing else this
+		// program reads Escape for; a capture has no window, so
+		// `escape` stays false and this never fires there either.
+		escape_fired = escape && !escape_was_down;
+		escape_was_down = escape;
 
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
@@ -577,9 +622,13 @@ int main(int argc, char *argv[])
 		};
 
 		// The middle button is the views' and the left is the
-		// interface's, so the two never compete for one press.
-		voe_editor_views_drag(&views, roots[0].pointer.at, middle,
-				      shift, control);
+		// interface's, so the two never compete for one press. Never
+		// while the browser shows — "views get no drag" (browser.h) —
+		// so a press that started before it opened does not carry on
+		// moving a camera underneath it.
+		voe_editor_views_drag(&views, roots[0].pointer.at,
+				      middle && !browser.showing, shift,
+				      control);
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
@@ -630,7 +679,8 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &views, &session);
+				&scene, &views, &session, &browser,
+				escape_fired);
 			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
 			// FOR IT AS A COMMAND — dragging a number in the
 			// Inspector is not New, Open, Save or Close, so
@@ -676,11 +726,14 @@ stop:
 
 
 	// The device and the window, then the arena — the app struct lives in
-	// the arena and has to outlive every call made through it. The project
-	// is a separate arena again, and outlives none of this, so it goes
-	// last.
+	// the arena and has to outlive every call made through it. The
+	// project and the browser are each a separate arena again, and
+	// outlive none of this, so they go last — the browser's own may
+	// never have been made at all, on a run Open was never once asked
+	// for, which is voe_editor_browser_destroy's to tell apart.
 	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
+	voe_editor_browser_destroy(&browser);
 	return status;
 }

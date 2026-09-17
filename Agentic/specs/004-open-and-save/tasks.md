@@ -363,7 +363,7 @@
   - Depends on: 6, 11
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && XDG_CONFIG_HOME=$d ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png` exits 0
 
-- [ ] 13. `editor/` — The file browser, and Open
+- [x] 13. `editor/` — The file browser, and Open
   - Change: Add `src/browser.h` and `src/browser.c`. `voe_editor_browser` holds: whether it
     shows, its mode (`OPEN` or `SAVE`), its own arena for the current folder's absolute path and
     listing (rewound on each navigation), the listed rows — folders only, not hidden, each marked

@@ -19,6 +19,13 @@ there are unsaved changes and goes ahead the second time. It can also be
 started to draw one frame with no window at all, write it to a PNG file and
 exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 
+Open shows the editor's own file browser — an anchored panel over the dock,
+below the bar — to choose a project's folder from; a folder marked "— project"
+already holds one. Confirming it replaces the project on success, or leaves
+the browser open with a notice on failure. While it shows, the top bar's
+clicks and the three shortcuts do nothing, and a scene view's camera does not
+move; Escape or Cancel dismisses it without changing anything.
+
 It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
 and nothing names it (ADR-0121). No engine folder gains anything for the
 editor's sake — a gap in one of them is a card in that folder, never a
@@ -32,13 +39,16 @@ reach-around from here.
   uploads the built-in shapes, and runs the loop until a close goes ahead or the
   picture is written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
-  Its header says why the `while` is this file's while the parts in it are
-  `app`'s (ADR-0135), why the one division that turns the mouse's pixels into
-  the surface's millimetres is here and nowhere else (ADR-0141 point 4), what
-  says how far a wheel notch moves anything, what a frame's passes are and in
-  what order they run (ADR-0148), where the light every view is shown with
-  comes from, what each argument does, when the last project is written and
-  when it is not, and why a capture draws two frames before it writes.
+  While the browser shows, the three shortcuts fire nothing and a
+  middle-button drag moves no view's camera; Escape is read here too and
+  handed to the interface as the browser's own Cancel. Its header says why the
+  `while` is this file's while the parts in it are `app`'s (ADR-0135), why the
+  one division that turns the mouse's pixels into the surface's millimetres is
+  here and nowhere else (ADR-0141 point 4), what says how far a wheel notch
+  moves anything, what a frame's passes are and in what order they run
+  (ADR-0148), where the light every view is shown with comes from, what each
+  argument does, when the last project is written and when it is not, and why
+  a capture draws two frames before it writes.
 - `src/project.h`, `src/project.c` — the project being worked on: its own
   arena, the world in it (every component type a project may hold registered
   the same way whether the scene is untitled or read off disk), the kept
@@ -57,14 +67,26 @@ reach-around from here.
 - `src/session.h`, `src/session.c` — the project being worked on, its notice
   and the one armed command that makes closing the window, New and Open each
   refuse once while there are unsaved changes and go ahead the second time.
+  Open, once allowed, shows the browser in OPEN mode; what a folder chosen in
+  it does to the project — `voe_editor_session_browser_do`, on the browser's
+  own Confirm — is this file's too, the same shape as every other command.
   Its header says why only a `CLOSE` that goes ahead answers true, what NEW
-  does to `scene` and to the old project, and why an inspector edit disarms
-  through a call of its own rather than through this file noticing it.
+  does to `scene` and to the old project, why an inspector edit disarms
+  through a call of its own rather than through this file noticing it, and
+  why a browser action that clears the notice and disarms only does either
+  when something actually fired.
 - `src/topbar.h`, `src/topbar.c` — the bar across the top of the root surface:
   New, Open, Save, the project's name and whether it is unsaved, then the
   session's notice. Its header says why it hands back which button fired
   rather than carrying a command out itself, and why its buttons are recorded
   and read afterwards exactly as the Scene panel's rows are.
+- `src/browser.h`, `src/browser.c` — the editor's own file browser: a folder
+  listing shown as an anchored panel over the dock, its own arena for the
+  current folder and its rows, and what fired read back exactly as the top
+  bar's buttons are. Its header says why a listing failure changes nothing,
+  why it keeps its folder across showings for the whole run, and why entering
+  a row or going up is this file's own to carry out while what Confirm does to
+  the project is session.h's.
 - `src/dock.h`, `src/dock.c` — the tree, the walk, and `voe_editor_panel_draw`,
   which is where the panels' contents are. `voe_editor_dock_walk` takes the axis
   of whatever it is called inside, because interface.c now opens a column above
@@ -76,12 +98,15 @@ reach-around from here.
   is a card in three other folders before it is a line here.
 - `src/interface.h`, `src/interface.c` — the screen-filling surface. Pixels per
   millimetre from the window's height over a 135 mm surface, the top bar laid
-  above each root's dock tree in a column this file opens, the records `ui`
-  emitted submitted into the open frame, and one draw command per root. It
-  decides nothing about what is on a panel, and its header says why the one
-  question it does ask — what was clicked, the top bar's included — has to be
-  asked from in there, and why nesting the tree under the bar's column means
-  telling `voe_editor_dock_walk` which axis it is now inside.
+  above each root's dock tree in a column this file opens, the browser drawn
+  over the tree when it shows, the records `ui` emitted submitted into the
+  open frame, and one draw command per root. It decides nothing about what is
+  on a panel, and its header says why the one question it does ask — what was
+  clicked, the top bar's and the browser's included — has to be asked from in
+  there, why nesting the tree under the bar's column means telling
+  `voe_editor_dock_walk` which axis it is now inside, and why whether the
+  browser was showing is captured once and used for every decision in a root's
+  frame rather than read again after its own commands have run.
 - `src/inspector.h`, `src/inspector.c` — what the selected entity is made of, and
   the controls that change it. It walks the world's component types and expands
   whatever came with a field description, so it names no component; an edit is a

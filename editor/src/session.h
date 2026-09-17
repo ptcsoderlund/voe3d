@@ -15,20 +15,24 @@
 // went ahead, or it did not and is forgotten — so it never survives past the
 // one command it was for.
 //
-// NEW AND OPEN, ONCE ALLOWED, TAKE THE SESSION'S PROJECT ITSELF. NEW destroys
-// the old one and puts a fresh untitled project in its place — which is
-// project.h's "build a whole new project, then discard the old one" — and
-// clears `scene`'s selection, because an entity from the discarded world is
-// not a selection in the new one. Open does nothing more than clear its own
-// refusal today; the browser and what a chosen folder does to the project are
-// tasks 13 and 14's.
+// NEW REPLACES THE SESSION'S PROJECT ITSELF, ONCE ALLOWED. It destroys the old
+// one and puts a fresh untitled project in its place — which is project.h's
+// "build a whole new project, then discard the old one" — and clears `scene`'s
+// selection, because an entity from the discarded world is not a selection in
+// the new one.
+//
+// OPEN, ONCE ALLOWED, SHOWS THE BROWSER IN OPEN MODE, AND DOES NOTHING ELSE TO
+// THE PROJECT ITSELF. What a chosen folder does — voe_editor_project_new_opened
+// on it, replacing session->project on success — is
+// voe_editor_session_browser_do's, carried out on the browser's own Confirm,
+// which is not a command this function is ever asked for.
 //
 // SAVE NEVER ARMS. An opened project (session->project->folder is not NULL)
 // is written back over itself, through voe_editor_project_save's second
 // argument being NULL, and a failure lands in the notice the same way an open
 // or a close's refusal does. An untitled project's Save does nothing yet — the
-// first save is the browser task's — so there is nothing here for it to be
-// refused over.
+// first save is task 14's, through the browser in SAVE mode — so there is
+// nothing here for it to be refused over.
 //
 // voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS. An edit in the
 // inspector is not a command this file was asked to do, so nothing above
@@ -40,6 +44,7 @@
 // calls nothing here, because moving a camera does not change the project.
 #pragma once
 
+#include "browser.h"
 #include "notice.h"
 #include "project.h"
 #include "scene.h"
@@ -65,19 +70,42 @@ typedef struct {
 } voe_editor_session;
 
 // Carries out command, or refuses it once — see the header above. `scene` is
-// where NEW's fresh world and cleared selection land; it is not touched by any
-// other command.
+// where NEW's fresh world and cleared selection land; `browser` is what OPEN
+// shows; neither is touched by any other command.
 //
 // TRUE ONLY FOR A CLOSE THAT GOES AHEAD. Every other command, refused or not,
-// answers false: NEW and OPEN act by replacing or leaving `session->project`
-// and SAVE by writing to it, neither of which the caller has to be told
+// answers false: NEW replaces `session->project`, OPEN shows `browser` and
+// SAVE writes to the project, none of which the caller has to be told
 // happened, and a refused command is exactly the case in which nothing may go
 // ahead. A caller that asked for CLOSE and got false carries on running; one
 // that got true closes.
 bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
+			   voe_editor_browser *browser,
 			   voe_editor_command command);
 
 // An edit reached the project outside any command above — the inspector's.
 // Marks session->project unsaved, clears the notice and disarms, exactly as
 // "anything else done" does in voe_editor_session_do.
 void voe_editor_session_edited(voe_editor_session *session);
+
+// Carries out what browser reported this frame — see browser.h's
+// voe_editor_browser_clicks_read. Entering a row and going up are
+// browser.c's own to do, given session->notice to write a listing failure
+// into; Cancel hides the browser and nothing else. CONFIRM IN OPEN MODE IS
+// THIS FILE'S OWN, the same shape session_do's other commands have:
+// voe_editor_project_new_opened on browser->folder, and on success
+// session->project, scene->world and scene->selected are replaced exactly as
+// NEW replaces them, the last project is remembered (a failure to write that
+// is a notice and not a refusal), and the browser hides. On failure the
+// notice is why, the browser stays and session->project is untouched. SAVE
+// mode's Confirm is task 14's.
+//
+// EVERY BROWSER ACTION CLEARS THE NOTICE AND DISARMS, AS A COMMAND DOES — but
+// only when one actually fired: a call with result.action ==
+// VOE_EDITOR_BROWSER_NONE, which is every frame nothing was clicked, does
+// nothing at all, so a listing failure's notice survives the frames in which
+// nothing else happened to it.
+void voe_editor_session_browser_do(voe_editor_session *session,
+				   voe_editor_scene *scene,
+				   voe_editor_browser *browser,
+				   voe_editor_browser_result result);
