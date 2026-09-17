@@ -55,6 +55,13 @@ enum voe_ui_bar {
 	VOE_UI_BAR_Y,
 };
 
+// One slot of the theme push stack: a struct wrapping the one pointer, and
+// not a `const voe_ui_theme **`, which rule 6 forbids (one level of
+// dereference — see authoring/src/scene_read.c's `cursor` for the same move).
+struct voe_ui_theme_slot {
+	const voe_ui_theme *theme;
+};
+
 // A remembered offset, kept between frames under its area's key.
 struct voe_ui_scroll_memory {
 	uint64_t key;
@@ -236,7 +243,7 @@ struct voe_ui_context {
 	// turned away for want of room is counted in `theme_refused` instead,
 	// mirroring `open`/`refused`, so that a pop always has something to
 	// undo even when the push it matches was the one refused.
-	const voe_ui_theme **theme_stack;
+	struct voe_ui_theme_slot *theme_stack;
 	uint32_t theme_depth;
 	uint32_t theme_refused;
 	bool theme_overrun;

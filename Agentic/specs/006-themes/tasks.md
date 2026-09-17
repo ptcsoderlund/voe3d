@@ -47,7 +47,7 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug --target voe_ui && ctest --test-dir build/debug -R '^ui/'` — all tests pass.
 
-- [~] 4. `ui/` — every widget draws from the nearest theme
+- [x] 4. `ui/` — every widget draws from the nearest theme
   Coder stopped mid-check by the sponsor, 2026-09-17; both programs built and ui tests had
   passed, but it never reported and no reviewer has seen it. Resume with a fresh reviewer,
   which must confirm the task is complete, not only correct.

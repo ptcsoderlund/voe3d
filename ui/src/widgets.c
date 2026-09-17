@@ -481,8 +481,9 @@ void voe_ui_font_set(voe_ui_context *ui, const voe_text_font *font)
 // asserts for the stack's bookkeeping.
 static const voe_ui_theme *current_theme(const voe_ui_context *ui)
 {
-	return ui->theme_depth > 0 ? ui->theme_stack[ui->theme_depth - 1]
-				   : ui->theme;
+	return ui->theme_depth > 0
+		       ? ui->theme_stack[ui->theme_depth - 1].theme
+		       : ui->theme;
 }
 
 void voe_ui_theme_set(voe_ui_context *ui, const voe_ui_theme *theme)
@@ -517,7 +518,9 @@ void voe_ui_theme_push(voe_ui_context *ui, const voe_ui_theme *theme)
 		return;
 	}
 
-	ui->theme_stack[ui->theme_depth++] = theme;
+	ui->theme_stack[ui->theme_depth++] = (struct voe_ui_theme_slot){
+		.theme = theme,
+	};
 }
 
 void voe_ui_theme_pop(voe_ui_context *ui)
