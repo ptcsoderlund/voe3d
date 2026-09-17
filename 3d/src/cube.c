@@ -10,7 +10,7 @@
 // Half a metre, so the cube is one metre across. Units are metres (CLAUDE.md).
 #define H 0.5f
 
-const voe_render_vertex voe_editor_cube_vertices[VOE_EDITOR_CUBE_VERTEX_COUNT] = {
+const voe_render_vertex voe_3d_cube_vertices[VOE_3D_SHAPES_VERTICES] = {
 	// +Z
 	{ { -H, H, H }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
 	{ { H, H, H }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
@@ -45,7 +45,7 @@ const voe_render_vertex voe_editor_cube_vertices[VOE_EDITOR_CUBE_VERTEX_COUNT] =
 
 // Two triangles a face, and the order is what makes each one counter-clockwise
 // from outside. Thirty-two bits, which is what render's index pool holds.
-const uint32_t voe_editor_cube_indices[VOE_EDITOR_CUBE_INDEX_COUNT] = {
+const uint32_t voe_3d_cube_indices[VOE_3D_SHAPES_INDICES] = {
 	3, 2, 1, 3, 1, 0, // +Z
 	7, 6, 5, 7, 5, 4, // -Z
 	11, 10, 9, 11, 9, 8, // +X

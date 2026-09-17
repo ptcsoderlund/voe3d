@@ -631,6 +631,7 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 
 	inspector->arena = arena;
 	inspector->control_count = 0;
+	inspector->replaced = 0;
 	inspector->entity = (voe_ecs_entity){ 0 };
 }
 
@@ -845,15 +846,19 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 			continue;
 
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
-			if (voe_ui_button_action(ui, control->node).fired)
+			if (voe_ui_button_action(ui, control->node).fired) {
 				apply(world, inspector->entity, control, 0.0);
+				inspector->replaced++;
+			}
 			continue;
 		}
 
 		voe_ui_number_result result = voe_ui_number_action(ui,
 								   control->node);
 
-		if (result.changed)
+		if (result.changed) {
 			apply(world, inspector->entity, control, result.value);
+			inspector->replaced++;
+		}
 	}
 }

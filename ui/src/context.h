@@ -42,6 +42,7 @@ enum voe_ui_widget {
 	VOE_UI_WIDGET_NUMBER,
 	VOE_UI_WIDGET_IMAGE,
 	VOE_UI_WIDGET_SCROLL,
+	VOE_UI_WIDGET_FIELD,
 };
 
 // One of a scroll area's two bars: the one that scrolls X, along the bottom, or
@@ -207,6 +208,29 @@ struct voe_ui_context {
 	voe_ui_pointer pointer;
 	// Last frame's button, which is what turns a level into an edge.
 	bool was_down;
+
+	// This frame's typing, zeroed by frame_begin exactly as the pointer is:
+	// a frame that never calls voe_ui_keyboard_set has none.
+	voe_ui_keyboard keyboard;
+
+	// THE FOCUSED FIELD, WHICH SURVIVES BETWEEN FRAMES AS `held` DOES BUT
+	// MEANS SOMETHING ELSE: `held` is a gesture in progress and is let go
+	// on release; `focus` is which field the keyboard is going to and
+	// stays that way across as many frames as nothing changes it. Set by a
+	// press landing inside a field, cleared by a press landing anywhere
+	// else, and dropped at frame_end when the field it names was not
+	// called this frame — see widgets.c.
+	uint64_t focus;
+	bool focus_set;
+	// Whether THIS frame's edit changed the focused field's text. Worked
+	// out once, in field_edit, because only the one field the keyboard is
+	// going to can be touched by it.
+	bool field_changed;
+	// The one buffer an edit is written into, because only one field can
+	// be focused at a time. Read back by voe_ui_field_action through the
+	// focused field's composed label, whose `text` this points the record
+	// at only when `field_changed` — see field_edit in widgets.c.
+	char field_buffer[VOE_UI_FIELD_CAPACITY + 1];
 
 	// The three keys that are the whole of this folder's memory. `held`
 	// survives between frames — that is the point of it — and `hovered` and

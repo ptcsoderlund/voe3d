@@ -100,3 +100,19 @@ voe_platform_native voe_platform_window_native(voe_platform_window *window);
 // Nothing in the engine behaves differently on the answer, and nothing should.
 // It exists to be looked at.
 bool voe_platform_window_decorated(voe_platform_window *window);
+
+// Takes back a close the user just asked for: should_close reads false again
+// after this, exactly as if the request had never arrived.
+//
+// THIS IS FOR A CALLER THAT REFUSES TO CLOSE ONCE, NOT FOR ONE THAT NEVER
+// CLOSES. Unsaved work is the caller's business — a top bar arms a warning on
+// the first close and lets the second one through — and this is the one call
+// that lets it undo what the window system already recorded. Calling it when
+// should_close is already false does nothing.
+//
+// A COMPOSITOR OR CONNECTION THAT HAS DIED SETS should_close AGAIN AT THE NEXT
+// POLL, ON BOTH PLATFORMS. That is not the user asking twice; it is the same
+// "there is no other way out" this folder already falls back to when a socket
+// stops answering, and refusing it here would only be reason enough to try it
+// once, then watch the window never close.
+void voe_platform_window_close_refuse(voe_platform_window *window);

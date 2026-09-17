@@ -1,6 +1,8 @@
 // The keyboard and the mouse. Both belong to a window, both are drained by
 // voe_platform_window_poll, and both are read as state rather than received as
-// events. That is the whole of it — no gamepad, no text, no clipboard.
+// events. Typed text is the one exception with any order in it — see
+// voe_platform_input_text below — and it is drained the same way the wheel is,
+// not handed out as a queue of events. No gamepad, no clipboard.
 //
 //     while (!voe_platform_window_should_close(window)) {
 //             voe_platform_window_poll(window);
@@ -24,10 +26,12 @@
 // A key pressed and released between two polls is a key that never happened
 // here. At sixty frames a second a person cannot do it, and a caller that wants
 // "was it pressed this frame" compares against what it read last frame — which
-// is two bools at the call site and no queue in this folder. What genuinely
-// needs an ordered history is an editor recording input or text being typed, and
-// neither exists; the card that brings one is the card that revisits this, and it
-// will be replacing this decision rather than adding a second API beside it.
+// is two bools at the call site and no queue in this folder. Text being typed is
+// the one place within a frame where order matters, and voe_platform_input_text
+// answers it without a queue: a buffer appended to in the order typed and
+// drained whole by the next poll, the same shape the wheel already has. An
+// editor recording input across many frames still has no answer here; the card
+// that brings one is the card that revisits this.
 //
 // A KEY IS A PLACE ON THE KEYBOARD, NOT A LETTER. VOE_PLATFORM_KEY_W is the key
 // where W is on a US layout and it stays that key on every other layout, because
@@ -80,6 +84,8 @@
 // it.
 #pragma once
 
+#include <stdint.h>
+
 typedef struct voe_platform_window voe_platform_window;
 
 // Every key this engine reads, and the length of the state each backend keeps.
@@ -102,6 +108,10 @@ typedef enum {
 	VOE_PLATFORM_KEY_TAB,
 	VOE_PLATFORM_KEY_ESCAPE,
 	VOE_PLATFORM_KEY_P,
+	VOE_PLATFORM_KEY_N,
+	VOE_PLATFORM_KEY_O,
+	VOE_PLATFORM_KEY_BACKSPACE,
+	VOE_PLATFORM_KEY_ENTER,
 	VOE_PLATFORM_KEY_COUNT
 } voe_platform_key;
 
@@ -109,6 +119,39 @@ typedef enum {
 // and false for every key the moment focus is lost — see below.
 bool voe_platform_input_key_down(voe_platform_window *window,
 				 voe_platform_key key);
+
+// The UTF-8 bytes typed since the previous voe_platform_window_poll, in the
+// order typed, from a fixed buffer the poll empties — the same shape
+// voe_platform_input_motion and voe_platform_input_wheel already have, and for
+// the same reason: reading it twice in one frame gives the same answer twice,
+// and not reading it for a frame throws that frame's typing away.
+//
+// bytes IS VALID UNTIL THE NEXT POLL AND NOT A MOMENT LONGER. It points into
+// the window's own buffer, is not NUL-terminated by size, and size is the
+// count of bytes, not code points — a caller wanting characters decodes UTF-8
+// itself.
+//
+// A KEY IS STILL A PLACE, AND THIS IS THE ONE EXCEPTION. Everything above this
+// point on this page answers "what moved", and text answers "what would this
+// have typed" — which needs the keymap ADR-0161 has this folder read, Wayland's
+// own and in-house rather than xkbcommon. See VOE_PLATFORM_KEY_N and its
+// neighbours below for the places these bytes come from.
+//
+// NOTHING IS TYPED WHILE CONTROL IS HELD, so a shortcut built on a key below
+// does not also type a character. Losing keyboard focus empties this buffer
+// the same way it releases every key. What arrives past the buffer's capacity
+// in one frame is dropped whole, never split across two polls.
+//
+// A CODE POINT THIS FOLDER CANNOT FORM IS DROPPED, SILENTLY. Control
+// characters, a lone UTF-16 surrogate, anything past U+10FFFF and anything
+// that would not fit whole in what is left of the buffer type nothing rather
+// than a partial or replacement character.
+typedef struct {
+	const char *bytes;
+	uint32_t size;
+} voe_platform_text;
+
+voe_platform_text voe_platform_input_text(voe_platform_window *window);
 
 // How far the mouse moved, not where it is — for that, see
 // voe_platform_input_pointer below.

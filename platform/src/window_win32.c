@@ -23,13 +23,29 @@
 // comes through. What the handlers fill is src/input.h, which is the half that
 // is not Windows' and is shared with Wayland.
 //
-// A KEY IS A PLACE AND NOT A LETTER, WHICH IS WHY WM_CHAR IS NOWHERE IN HERE.
-// WM_KEYDOWN carries a virtual key, which is a position on the keyboard;
-// WM_CHAR carries the character the active layout would type, which is a
-// different question and one nothing in this engine asks. TranslateMessageW is
-// still called in the pump because it is what a Windows message loop does and
-// removing it would be a change nothing asked for — the WM_CHAR it synthesises
-// simply falls through to DefWindowProcW.
+// A KEY IS STILL A PLACE AND NOT A LETTER, AND WM_CHAR ANSWERS A DIFFERENT
+// QUESTION FROM WM_KEYDOWN'S — BUT THIS FILE NOW READS BOTH. WM_KEYDOWN carries
+// a virtual key, a position on the keyboard, and that is still all key_of and
+// key_set ever look at. WM_CHAR carries what the active layout says that
+// keystroke types, already resolved by TranslateMessage — no keymap of our own
+// to read here, unlike Wayland — and it is what fills
+// voe_platform_input_text (ADR-0161). TranslateMessage was already called in
+// the pump for the message loop's own sake; the WM_CHAR it synthesises is no
+// longer left to fall through to DefWindowProcW.
+//
+// WM_CHAR CARRIES ONE UTF-16 CODE UNIT AT A TIME, SO A CHARACTER PAST THE BASIC
+// MULTILINGUAL PLANE ARRIVES AS A SURROGATE PAIR ACROSS TWO MESSAGES. The high
+// half is held on the window until the low half arrives and the pair is joined
+// into one code point; a high half with no low half following — the sequence
+// interrupted by a key that is not text — is simply replaced rather than joined
+// into whatever comes next.
+//
+// EVERYTHING IS DROPPED WHILE CONTROL IS HELD WITHOUT ALT, SO A SHORTCUT DOES
+// NOT ALSO TYPE. AltGr types, because Windows reports it as Control+Alt held
+// together and that is indistinguishable here from the two held separately —
+// so Control+Alt is let through on purpose, and it is also what makes an AltGr
+// character in a language that needs one continue to work once this engine
+// reads its keysym.
 //
 // WM_SYSKEYDOWN IS HANDLED ALONGSIDE WM_KEYDOWN AND MUST NOT BE SWALLOWED.
 // Windows sends the SYS form for a key pressed while Alt is held, and for F10.
@@ -122,6 +138,12 @@ struct voe_platform_window {
 	// one-shot, so this says whether to ask again on the next movement.
 	bool tracking_leave;
 
+	// The high half of a UTF-16 surrogate pair, held between two WM_CHAR
+	// messages until the low half joins it — see handle_char. 0 means none
+	// is pending; 0 is never a valid high surrogate, so it doubles safely
+	// as its own "nothing waiting" value.
+	uint16_t pending_high_surrogate;
+
 	struct voe_platform_input input;
 };
 
@@ -167,6 +189,14 @@ static voe_platform_key key_of(WPARAM virtual_key)
 		return VOE_PLATFORM_KEY_ESCAPE;
 	case 'P':
 		return VOE_PLATFORM_KEY_P;
+	case 'N':
+		return VOE_PLATFORM_KEY_N;
+	case 'O':
+		return VOE_PLATFORM_KEY_O;
+	case VK_BACK:
+		return VOE_PLATFORM_KEY_BACKSPACE;
+	case VK_RETURN:
+		return VOE_PLATFORM_KEY_ENTER;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}
@@ -178,6 +208,54 @@ static void key_set(voe_platform_window *window, WPARAM virtual_key, bool down)
 
 	if (key != VOE_PLATFORM_KEY_COUNT)
 		window->input.keys[key] = down;
+}
+
+// A WM_CHAR message, which carries one UTF-16 code unit in wparam. See the
+// header for why Control without Alt drops everything and why AltGr — Control
+// and Alt together — still types.
+//
+// VK_MENU AND NOT window->input's OWN KEYS, BECAUSE ALT IS NOT ONE OF THEM.
+// Nothing else in this engine reads Alt, so it has never earned a line in
+// VOE_PLATFORM_KEY (rule 10), and this is the one place that needs to know
+// about it — straight from Windows rather than by adding a key nothing else
+// would ever read.
+static void handle_char(voe_platform_window *window, WPARAM wparam)
+{
+	uint32_t unit = (uint32_t)(wparam & 0xffff);
+	bool control = window->input.keys[VOE_PLATFORM_KEY_CONTROL];
+	bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
+
+	if (control && !alt) {
+		window->pending_high_surrogate = 0;
+		return;
+	}
+
+	if (unit >= 0xd800 && unit <= 0xdbff) {
+		// A high surrogate replaces whatever was pending rather than
+		// joining it: two high halves in a row means the first one's
+		// low half is never coming.
+		window->pending_high_surrogate = (uint16_t)unit;
+		return;
+	}
+
+	if (unit >= 0xdc00 && unit <= 0xdfff) {
+		if (window->pending_high_surrogate != 0) {
+			uint32_t code_point =
+				0x10000 +
+				(((uint32_t)window->pending_high_surrogate - 0xd800)
+				 << 10) +
+				(unit - 0xdc00);
+
+			voe_platform_input_append_text(&window->input, code_point);
+		}
+		window->pending_high_surrogate = 0;
+		return;
+	}
+
+	// An ordinary code unit, arriving with no surrogate pending or one that
+	// was about to be discarded either way.
+	window->pending_high_surrogate = 0;
+	voe_platform_input_append_text(&window->input, unit);
 }
 
 // Focus arrived, so rebuild what is held from what the OS says is held. This is
@@ -206,6 +284,10 @@ static void focus_gained(voe_platform_window *window)
 		[VOE_PLATFORM_KEY_TAB] = VK_TAB,
 		[VOE_PLATFORM_KEY_ESCAPE] = VK_ESCAPE,
 		[VOE_PLATFORM_KEY_P] = 'P',
+		[VOE_PLATFORM_KEY_N] = 'N',
+		[VOE_PLATFORM_KEY_O] = 'O',
+		[VOE_PLATFORM_KEY_BACKSPACE] = VK_BACK,
+		[VOE_PLATFORM_KEY_ENTER] = VK_RETURN,
 	};
 
 	for (int key = 0; key < VOE_PLATFORM_KEY_COUNT; key++)
@@ -403,6 +485,9 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	case WM_KEYUP:
 		key_set(window, wparam, false);
 		return 0;
+	case WM_CHAR:
+		handle_char(window, wparam);
+		return 0;
 	// Recorded and then handed on, so that Alt and Alt+F4 still do what
 	// Windows means them to do. See the header.
 	case WM_SYSKEYDOWN:
@@ -471,6 +556,9 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 		// lock_wanted is still set and apply_lock reads it.
 		window->focused = false;
 		voe_platform_input_focus_lost(&window->input);
+		// A high surrogate half-typed before focus went away has no low
+		// half coming from whoever gets it next.
+		window->pending_high_surrogate = 0;
 		apply_lock(window);
 		return 0;
 	default:
@@ -633,6 +721,13 @@ bool voe_platform_window_should_close(voe_platform_window *window)
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
 
 	return window->should_close;
+}
+
+void voe_platform_window_close_refuse(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	window->should_close = false;
 }
 
 voe_platform_size voe_platform_window_size(voe_platform_window *window)

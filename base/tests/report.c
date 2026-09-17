@@ -7,6 +7,12 @@
 // THE BOUNDARY IS THE FAILURE THIS FILE IS REALLY FOR. An off-by-one there looks
 // right on every message anyone writes by hand; it shows only on the one message
 // long enough to matter, which is the one a person was trying to read.
+//
+// It also checks ADR-0160's first-kept-error, through the real VOE_BASE_ERROR
+// and VOE_BASE_WARNING macros rather than voe_base_report_compose(), because
+// those macros are what feeds voe_base_report_error_first(). Each call still
+// prints to stderr, same as every other test that exercises a refusal; nothing
+// here captures it.
 #include "../src/report_line.h"
 
 #include <testing/test.h>
@@ -72,6 +78,33 @@ int main(void)
 	length = compose(line, VOE_BASE_LEVEL_ERROR, message, "lost");
 	VOE_TEST_CHECK_INT((long long)length, (long long)capacity);
 	VOE_TEST_CHECK(memcmp(line + capacity - 4, "...", 3) == 0);
+
+	// ADR-0160: nothing is kept before the first error, and a clear leaves
+	// nothing kept.
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+
+	// The first of two errors is what's kept, not the second.
+	VOE_BASE_ERROR("demo", "first (%d)", 1);
+	VOE_BASE_ERROR("demo", "second (%d)", 2);
+	VOE_TEST_CHECK(strcmp(voe_base_report_error_first(), "first (1)") == 0);
+
+	// A clear forgets it.
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+
+	// A warning is never kept.
+	VOE_BASE_WARNING("demo", "a warning");
+	VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+
+	// A long message is cut at the same capacity as the printed line.
+	voe_base_report_error_clear();
+	memset(message, 'x', fill + 1);
+	message[fill + 1] = '\0';
+	VOE_BASE_ERROR("m", "%s", message);
+	const char *kept = voe_base_report_error_first();
+	VOE_TEST_CHECK_INT((long long)strlen(kept), (long long)fill);
+	VOE_TEST_CHECK(memcmp(kept + fill - 3, "...", 3) == 0);
 
 	return voe_test_result();
 }

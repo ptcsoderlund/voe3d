@@ -1,9 +1,47 @@
 // voe_editor — the program a person opens to author a scene. Today it opens a
-// window on three columns — `Scene`, two scene views stacked, `Inspector` —
-// whose rectangles came out of a tree of data rather than out of the order of the
-// calls in this file, lists the authored entities of a scene built in code,
-// follows a click on one, and draws the scene's cubes into each view from that
-// view's own camera. A middle-button drag in a view moves that view's camera.
+// window on a top bar over three columns — `Scene`, two scene views stacked,
+// `Inspector` — whose rectangles came out of a tree of data rather than out of
+// the order of the calls in this file, lists the authored entities of the
+// project it opens on, follows a click on one, and draws the world into each
+// view from that view's own camera. A middle-button drag in a view moves that
+// view's camera. The bar's New, Open and Save — and Ctrl+N, Ctrl+O and Ctrl+S,
+// the same three commands — are session.h's to carry out; what this file does
+// with them is call voe_editor_session_do and, for a window close, take the
+// close back when it is refused.
+//
+// WHICH PROJECT IT OPENS ON IS project.h'S, ARGUED HERE. `voe_editor
+// [<folder>]` opens folder (project.h's voe_editor_project_new_opened); a
+// folder that cannot be opened prints `voe_editor: <why>` on stderr and this
+// program does not start (project.h names the file and the line). With no
+// folder, last_project.h's one remembered path is tried the same way, and a
+// project that can no longer be opened is not fatal there — the editor falls
+// back to an untitled cube and light, and the notice explaining why goes into
+// session.notice, for the bar to show, as well as onto stderr. A first start,
+// with no folder argued and nothing remembered, is silently the same untitled
+// scene. Unless `--capture` is given, whichever project is now open is
+// written back as the last one, warning on stderr rather than stopping if that
+// write fails; `--capture` never writes it, because a capture is not a person
+// opening the editor.
+//
+// OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE
+// BROWSER. `browser`, beside `scene` and `views`, outlives every project the
+// whole run through, and while it shows this file does two things for it and
+// interface.c a third: Ctrl+N, Ctrl+O and Ctrl+S fire nothing, the
+// middle-button drag moves no view's camera, and (in interface.c) the top
+// bar's buttons are drawn but never asked what the pointer did to them, so a
+// click on one is not carried out — and the dock is handed a pointer that
+// cannot be hit either, the anchored browser already painting over it.
+// Escape is this file's own edge, exactly as the other three shortcuts are,
+// handed to the interface as the browser's Cancel; a window close still asks
+// session.h the same question it always has, browser or not.
+//
+// BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
+// (task 14). Neither is this file's to act on: both, with whatever
+// voe_platform_input_text read since the last poll, are read every frame
+// regardless of whether the browser shows and handed to the interface as
+// this frame's voe_ui_keyboard (dock.h, interface.c) — `ui` acts on them only
+// for whichever field is focused, which is nothing outside the browser's
+// SAVE mode today.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -30,9 +68,15 @@
 // window's pass comes last, is opened with no camera — an element draw needs
 // none, and a pass without one is how `render` is told there is no eye to invent
 // — and shows each view's picture as an image on its panel. The world is drawn
-// through voe_3d_draw_system_run, but with the view's camera and the editor's
-// sun (view.h) rather than with voe_3d_draw_system_frame, which reads a camera
-// and a light out of the world and this world has neither.
+// through voe_3d_draw_system_run, but with the view's own camera and the light
+// this file reads out of the world (view.h) rather than with
+// voe_3d_draw_system_frame, which reads a camera out of the world too and this
+// world's camera is never there — a view's is the editor's own.
+//
+// THE LIGHT IS THE WORLD'S FIRST LIGHT ROW, OR ZERO INTENSITY WHEN IT HAS NONE.
+// Every view is lit the same way, once a frame, by whichever light `Light` (or
+// whatever a saved project called it) carries; a world with none — nothing to
+// see by, rather than a crash — is what a broken or half-built scene draws as.
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // opens the device with no window at all (voe_app_new_headless), builds the
@@ -53,26 +97,28 @@
 // the layout's own sizes, and it is the frame that gets written.
 //
 // EVERY READ OF THE WINDOW IS GUARDED, because there is none to read on a
-// capture: the pointer, the wheel, the buttons and the keys are zeroed input
-// then, and nothing else in the loop changes shape — the same passes in the
-// same order with the same draws, so the captured frame is the frame a person
-// sees.
+// capture: the pointer, the wheel, the buttons, the keys and the typed text
+// are zeroed input then, and nothing else in the loop changes shape — the
+// same passes in the same order with the same draws, so the captured frame
+// is the frame a person sees.
 //
 // main's SIGNATURE IS C'S OWN, `char *argv[]`, WHICH IS THE ONE DEVIATION FROM
 // RULE 6 IN THIS FOLDER (DEVIATION: rule 6, an array of pointers is spelled as
 // the array it is, because the C runtime calls main with this signature and
 // nothing in this program chose it). Nothing else here holds a pointer to a
 // pointer, and the argument list is read in main and nowhere else.
-#include "cube.h"
+#include "browser.h"
 #include "dock.h"
 #include "interface.h"
+#include "last_project.h"
+#include "notice.h"
+#include "project.h"
 #include "scene.h"
+#include "session.h"
 #include "view.h"
 
 #include <3d/draw_system.h>
-#include <3d/material_component.h>
-#include <3d/mesh_component.h>
-#include <3d/panel_component.h>
+#include <3d/shape_system.h>
 
 #include <app/app.h>
 
@@ -88,6 +134,7 @@
 #include <render/device.h>
 
 #include <scene/identity_system.h>
+#include <scene/light_system.h>
 #include <scene/transform_system.h>
 
 #include <text/font.h>
@@ -131,41 +178,25 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
-// What the world may hold. Five component types are registered below, two of
-// them with an intent queue, and the entities are a number to author into rather
-// than a measurement of anything.
-#define MAX_ENTITIES 1024
-#define MAX_COMPONENT_TYPES 8
-#define MAX_INTENT_TYPES 8
-
-// How many transforms and identities the world has room for. The identities are
-// VOE_EDITOR_SCENE_ROWS because that is how many the Scene panel can list, and
-// a world that could hold an identity the list could not show would be a
-// disagreement between two numbers in one program (scene.h). Transforms are
-// wider: an entity the engine makes for itself has one and no identity.
-#define MAX_TRANSFORMS 256
-#define MAX_IDENTITIES VOE_EDITOR_SCENE_ROWS
-
-// How many entities may be drawn: a mesh and a material each. The scene has two
-// and this is the room, not the count. The panel table is walked by the draw
-// system whether anything has one or not (3d/draw_system.h), so it is registered
-// with room for one and nothing ever adds a row.
-#define MAX_DRAWN 64
-#define MAX_PANELS 1
-
-// WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL, which is what makes the
-// geometry numbers the cube's own and `shadings` a one. `objects` is per frame:
-// every drawn entity is one object in every view's pass, so it is the room for
-// drawn entities times the room for views. `passes` is a pass per view and the
-// interface's, and `targets` a target per view — both from the room for views,
-// not the two in use, so a third view is a leaf and not a capacity. The three
-// transient numbers stay nought; see render/include/render/device.h.
-#define EDITOR_CAPACITIES                                                      \
-	(voe_render_capacities)                                                \
-	{                                                                      \
-		.vertices = VOE_EDITOR_CUBE_VERTEX_COUNT,                      \
-		.indices = VOE_EDITOR_CUBE_INDEX_COUNT, .geometries = 1,       \
-		.objects = MAX_DRAWN * VOE_EDITOR_VIEWS, .shadings = 1,        \
+// WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
+// 3d/shape_system.h — which is what makes the geometry numbers its constants
+// and `shadings` a one. `objects` is per frame: every drawn entity is one
+// object in every view's pass, so it is the room for drawn entities
+// (VOE_EDITOR_PROJECT_MAX_DRAWN, project.h's — every project's world is
+// registered with that much room for a mesh and a material, so a device that
+// draws one is sized from the same number) times the room for views. `passes`
+// is a pass per view and the interface's, and `targets` a target per view —
+// both from the room for views, not the two in use, so a third view is a leaf
+// and not a capacity. The three transient numbers stay nought; see
+// render/include/render/device.h.
+#define EDITOR_CAPACITIES                                                     \
+	(voe_render_capacities)                                               \
+	{                                                                     \
+		.vertices = VOE_3D_SHAPES_VERTICES,                            \
+		.indices = VOE_3D_SHAPES_INDICES,                              \
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
+		.objects = VOE_EDITOR_PROJECT_MAX_DRAWN * VOE_EDITOR_VIEWS,    \
+		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 1, .targets = VOE_EDITOR_VIEWS    \
 	}
@@ -208,13 +239,31 @@ static const char *number(const char *text, int *out)
 	return text;
 }
 
+// The light every view is shown with: the world's first light row, or a light
+// of zero intensity — every surface black — when the world holds none. `render`
+// does not normalize the direction (render/device.h) but voe_scene_light_add
+// and the light system already have, so the row's is copied straight across.
+static voe_render_light world_light(const voe_ecs_world *world)
+{
+	const voe_scene_light *row;
+
+	if (voe_scene_light_count(world) == 0)
+		return (voe_render_light){ 0 };
+
+	row = &voe_scene_light_rows(world)[0];
+
+	return (voe_render_light){ .direction = row->direction,
+				   .colour = row->colour,
+				   .intensity = row->intensity };
+}
+
 // One line, on stderr, and the return code that goes with it. Every way of
 // getting the command line wrong ends here: there is one form to state and
 // stating it twice in different words would be two forms to keep in step.
 static int usage(void)
 {
 	fprintf(stderr,
-		"usage: voe_editor [--capture <path> [--size <W>x<H>]]\n");
+		"usage: voe_editor [<folder>] [--capture <path> [--size <W>x<H>]]\n");
 	return 2;
 }
 
@@ -224,11 +273,48 @@ int main(int argc, char *argv[])
 	// instead. The size is the picture's, and it is the window's size until
 	// --size says otherwise.
 	const char *capture = NULL;
+	// The one non-`--` argument, or NULL when none was given — see project
+	// below on what each case opens.
+	const char *folder = NULL;
 	int wide = EDITOR_WIDE;
 	int high = EDITOR_HIGH;
 	bool sized = false;
 	// How many frames a capture has drawn so far.
 	unsigned frames = 0;
+	// The project being worked on, its notice and its refuse-once state —
+	// session.h. `session.project` is argued, remembered or untitled — see
+	// the block below main's own locals — and never NULL past it: every
+	// branch either fills it in or this program has already returned.
+	voe_editor_session session = { 0 };
+	// Only ever this program's own words, for the one project a folder on
+	// the command line named and could not open: this program stops right
+	// there, before session.notice would ever be read (see below), so a
+	// notice destined for the bar would be one nobody could show.
+	voe_editor_notice notice;
+	// Last frame's Ctrl+N, Ctrl+O and Ctrl+S: a shortcut toggles on the
+	// press and not while held, exactly as dev/src/main.c's Tab does, and
+	// the modifier is folded into the level read every frame rather than
+	// tracked on its own — holding Control and tapping N is the same edge
+	// as holding N and tapping Control.
+	bool new_was_down = false;
+	bool open_was_down = false;
+	bool save_was_down = false;
+	// Last frame's Escape, the same shape without a modifier — the
+	// browser's own Cancel (browser.h), and nothing else, so it is read
+	// only while the browser shows.
+	bool escape_was_down = false;
+	// Last frame's Backspace and Enter, the same shape again — task 14's
+	// name box (browser.h) is the one thing either reaches, through
+	// `ui`'s own voe_ui_keyboard and not through a command of this
+	// file's. A held key does not repeat here, only edge, because a
+	// repeating key waits on a later typing feature (spec's Defaults).
+	bool backspace_was_down = false;
+	bool enter_was_down = false;
+	// Shown by Open, once its unsaved-changes refusal is past; hidden by
+	// its own Cancel, Escape, or a folder it opened successfully
+	// (session.h). Kept across the whole program's run, never one
+	// project's — see browser.h on why it is not part of `session`.
+	voe_editor_browser browser = { 0 };
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -236,7 +322,10 @@ int main(int argc, char *argv[])
 	voe_base_error error;
 	voe_platform_window *window;
 	voe_render_device *gpu;
-	voe_ecs_world *world;
+	// The built-in shapes' GPU side: one cube's geometry and the one grey
+	// material every shape wears. Uploaded once, at startup, and read every
+	// frame by voe_3d_shape_system_run.
+	voe_3d_shapes shapes;
 	voe_text_font *font;
 	voe_ui_context *ui;
 	// The roots the loop walks. One of them, and it is the window; see
@@ -263,6 +352,10 @@ int main(int argc, char *argv[])
 	// parser itself: it is stricter than `%d` about a leading blank or a
 	// leading '+' — neither was ever part of the promised form `<W>x<H>`
 	// and nothing relied on them.
+	//
+	// ONE ARGUMENT NOT STARTING WITH `--` IS THE FOLDER; A SECOND ONE IS
+	// USAGE. There is only ever one project to open, so a second bare
+	// argument is not something this program can mean anything by.
 	for (int a = 1; a < argc; a++) {
 		if (strcmp(argv[a], "--capture") == 0 && a + 1 < argc) {
 			capture = argv[++a];
@@ -280,6 +373,8 @@ int main(int argc, char *argv[])
 			high = h;
 			sized = true;
 			a++;
+		} else if (argv[a][0] != '-' && folder == NULL) {
+			folder = argv[a];
 		} else {
 			return usage();
 		}
@@ -289,6 +384,53 @@ int main(int argc, char *argv[])
 	// --size could mean is one nobody asked for.
 	if (sized && capture == NULL)
 		return usage();
+
+	// WHICH PROJECT OPENS, BEFORE THE DEVICE DOES: a folder argued on the
+	// command line is opened or this program stops right here, on stderr,
+	// before a window would ever have shown (criterion 12). With none, the
+	// last project remembered (last_project.h) is tried the same way, but
+	// its failure is not this program's to stop over — an untitled cube
+	// and light is what a lost or broken last project falls back to, and
+	// the notice explaining why goes into session.notice as well as onto
+	// stderr, because the bar the session shows it in is up from the first
+	// frame (criterion 11).
+	if (folder != NULL) {
+		session.project = voe_editor_project_new_opened(folder, &notice);
+		if (session.project == NULL) {
+			fprintf(stderr, "voe_editor: %s\n", notice.text);
+			return 1;
+		}
+	} else {
+		voe_base_arena *last_scratch =
+			voe_base_arena_new(STARTUP_SCRATCH);
+		const char *last = voe_editor_last_project_read(last_scratch);
+
+		if (last != NULL) {
+			session.project = voe_editor_project_new_opened(
+				last, &session.notice);
+			if (session.project == NULL) {
+				fprintf(stderr, "voe_editor: %s\n",
+					session.notice.text);
+				session.project =
+					voe_editor_project_new_untitled();
+			}
+		} else {
+			session.project = voe_editor_project_new_untitled();
+		}
+		voe_base_arena_destroy(last_scratch);
+	}
+
+	// REMEMBERED FOR NEXT TIME, UNLESS THIS IS A CAPTURE OR THERE IS NO
+	// FOLDER TO REMEMBER. An untitled project — whether this is a first
+	// start or a last project that could not be opened — writes nothing
+	// (criterion 11), and a capture draws what a start would have opened
+	// without ever being the thing that decides what a start opens next.
+	if (capture == NULL && session.project->folder != NULL &&
+	    !voe_editor_last_project_write(session.project->folder))
+		VOE_BASE_WARNING(
+			"editor",
+			"could not remember %s as the last project opened",
+			session.project->folder);
 
 	arena = voe_base_arena_new(EDITOR_ARENA);
 
@@ -309,34 +451,25 @@ int main(int argc, char *argv[])
 	voe_base_arena_destroy(scratch);
 	if (app == NULL) {
 		voe_base_arena_destroy(arena);
+		voe_editor_project_destroy(session.project);
 		return 1;
 	}
 
 	window = voe_app_window(app);
 	gpu = voe_app_device(app);
 
-	// The world the editor authors into. Made here because it is the arena's
-	// and has to outlive every frame, and registered into immediately: a
-	// component's table, its description and its intent queue all come from
-	// the one _register call, and nothing may add a component before it.
-	world = voe_ecs_world_new(arena, (voe_ecs_limits){
-						.entities = MAX_ENTITIES,
-						.component_types =
-							MAX_COMPONENT_TYPES,
-						.intent_types = MAX_INTENT_TYPES });
-	voe_scene_transform_register(world, MAX_TRANSFORMS);
-	voe_scene_identity_register(world, MAX_IDENTITIES);
-	voe_3d_mesh_register(world, MAX_DRAWN);
-	voe_3d_material_register(world, MAX_DRAWN);
-	voe_3d_panel_register(world, MAX_PANELS);
-
 	// Both upload, so both are startup operations and both come before the
 	// first frame. `render` says why on stderr when it refuses.
-	if (!voe_editor_scene_build(&scene, world, gpu, &error) ||
+	if (!voe_3d_shapes_upload(gpu, &shapes, &error) ||
 	    !voe_editor_views_create(&views, gpu, &error)) {
 		status = 1;
 		goto stop;
 	}
+
+	// project.world lives in project's own arena, not this program's — see
+	// project.h on why every project owns its own world. NEW replaces it
+	// later, and session.c keeps this in step when it does (session.h).
+	scene.world = session.project->world;
 
 	font = voe_text_font_new(gpu, arena, &error);
 	if (font == NULL) {
@@ -359,31 +492,64 @@ int main(int argc, char *argv[])
 		// wheel has not turned.
 		voe_platform_pointer pointer = { 0 };
 		voe_platform_wheel wheel = { 0 };
+		voe_platform_text text = { 0 };
 		bool left = false;
 		bool middle = false;
 		bool shift = false;
 		bool control = false;
+		bool escape = false;
+		bool backspace = false;
+		bool enter = false;
+		// This frame's Escape, Backspace and Enter edges, handed to the
+		// interface below — set once each has been read, further down.
+		bool escape_fired;
+		bool backspace_fired;
+		bool enter_fired;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
+		// The light every view is shown with this frame: the world's
+		// first light row, or a light of zero intensity when it holds
+		// none — see the top of this file on what that draws as. Read
+		// once, before the pass loop, rather than once per view: every
+		// view is lit the same light the same way.
+		voe_render_light light = { 0 };
 
 		// EVERY OWNING SYSTEM RUNS EVERY FRAME, WHETHER ANYTHING
 		// SUBMITTED OR NOT (ADR-0134 point 7). An intent that reaches a
 		// queue on a frame its system does not drain is an edit that
 		// lands whenever the loop next happens to run it, which is a
-		// class of bug that does not exist if the run is
-		// unconditional. Nothing here submits one yet — card 059's
-		// inspector is what does — and the two calls are still here,
-		// because the frame the first submit arrives on must not also
-		// be the frame somebody remembers to add these.
-		voe_scene_transform_system_run(world);
-		voe_scene_identity_system_run(world);
+		// class of bug that does not exist if the run is unconditional —
+		// the Inspector can submit a replace intent for any editable
+		// field the moment it draws one, transform's and light's alike,
+		// so all three are run from the start rather than from whenever
+		// somebody remembers a first submit needs one.
+		voe_scene_transform_system_run(session.project->world);
+		voe_scene_identity_system_run(session.project->world);
+		voe_scene_light_system_run(session.project->world);
+
+		// NOT AN INTENT DRAIN — a shape's kind is read-only
+		// (3d/shape_component.h) and nothing ever submits one — but the
+		// same "every frame" rule applies: a fresh shape needs its mesh
+		// and material the first frame it exists, and the run is a no-op
+		// for every frame after (3d/shape_system.h).
+		voe_3d_shape_system_run(session.project->world, &shapes);
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
 		opened = voe_app_frame_open(app);
-		if (opened.closing)
-			break;
+		if (opened.closing) {
+			// A CLOSE THAT GOES AHEAD IS THE ONLY WAY OUT OF THIS
+			// LOOP BESIDES A FAILURE BELOW. A refused one takes the
+			// window's own close back and carries on exactly as
+			// though nothing had asked for it — the notice
+			// explaining why is session.notice's, read by the bar
+			// next frame.
+			if (voe_editor_session_do(&session, &scene, &browser,
+						  VOE_EDITOR_COMMAND_CLOSE))
+				break;
+			voe_platform_window_close_refuse(window);
+		}
 		// A window with no area has no surface to divide, and dividing
 		// by its height is what every number below starts with.
 		if (opened.minimised)
@@ -405,6 +571,7 @@ int main(int argc, char *argv[])
 		if (window != NULL) {
 			pointer = voe_platform_input_pointer(window);
 			wheel = voe_platform_input_wheel(window);
+			text = voe_platform_input_text(window);
 			left = voe_platform_input_button_down(
 				window, VOE_PLATFORM_BUTTON_LEFT);
 			middle = voe_platform_input_button_down(
@@ -413,7 +580,68 @@ int main(int argc, char *argv[])
 				window, VOE_PLATFORM_KEY_SHIFT);
 			control = voe_platform_input_key_down(
 				window, VOE_PLATFORM_KEY_CONTROL);
+			escape = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_ESCAPE);
+			backspace = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_BACKSPACE);
+			enter = voe_platform_input_key_down(
+				window, VOE_PLATFORM_KEY_ENTER);
 		}
+
+		// CTRL+N, CTRL+O AND CTRL+S DO WHAT THEIR BUTTON DOES, on the
+		// frame the key goes down with Control already held — the
+		// modifier is folded into the level before the edge compare,
+		// the same shape dev/src/main.c's Tab toggle already has, just
+		// with Control mixed into what is compared. A capture has no
+		// window, so `control` stays false above and none of these
+		// ever reads true.
+		//
+		// AND NONE OF THE THREE FIRES WHILE THE BROWSER SHOWS — "top
+		// bar commands and shortcuts are ignored" (browser.h) — though
+		// the edge is still tracked every frame, so a shortcut held
+		// through the browser opening and closing does not fire the
+		// moment it is let through.
+		{
+			bool new_down = control && voe_platform_input_key_down(
+							   window, VOE_PLATFORM_KEY_N);
+			bool open_down = control && voe_platform_input_key_down(
+							    window, VOE_PLATFORM_KEY_O);
+			bool save_down = control && voe_platform_input_key_down(
+							    window, VOE_PLATFORM_KEY_S);
+
+			if (new_down && !new_was_down && !browser.showing)
+				voe_editor_session_do(&session, &scene,
+						      &browser,
+						      VOE_EDITOR_COMMAND_NEW);
+			new_was_down = new_down;
+
+			if (open_down && !open_was_down && !browser.showing)
+				voe_editor_session_do(&session, &scene,
+						      &browser,
+						      VOE_EDITOR_COMMAND_OPEN);
+			open_was_down = open_down;
+
+			if (save_down && !save_was_down && !browser.showing)
+				voe_editor_session_do(&session, &scene,
+						      &browser,
+						      VOE_EDITOR_COMMAND_SAVE);
+			save_was_down = save_down;
+		}
+
+		// THIS FRAME'S ESCAPE, BACKSPACE AND ENTER EDGES, HANDED TO THE
+		// INTERFACE BELOW — the browser's own Cancel (browser.h) and,
+		// for the latter two, its name field's own editing and Enter
+		// (task 14), and nothing else this program reads any of the
+		// three for; a capture has no window, so all three stay false
+		// and none of them ever fires there either. NEITHER BACKSPACE
+		// NOR ENTER REPEATS WHILE HELD, for the reason the local
+		// variables above already say.
+		escape_fired = escape && !escape_was_down;
+		escape_was_down = escape;
+		backspace_fired = backspace && !backspace_was_down;
+		backspace_was_down = backspace;
+		enter_fired = enter && !enter_was_down;
+		enter_was_down = enter;
 
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
@@ -424,11 +652,24 @@ int main(int argc, char *argv[])
 			.scroll = { wheel.x * WHEEL_MILLIMETRES,
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
+		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
+		// reads this for whichever field is focused, the browser's
+		// name box today, and nothing here decides which one that is.
+		roots[0].keyboard = (voe_ui_keyboard){
+			.text = text.bytes,
+			.size = text.size,
+			.backspace = backspace_fired,
+			.enter = enter_fired,
+		};
 
 		// The middle button is the views' and the left is the
-		// interface's, so the two never compete for one press.
-		voe_editor_views_drag(&views, roots[0].pointer.at, middle,
-				      shift, control);
+		// interface's, so the two never compete for one press. Never
+		// while the browser shows — "views get no drag" (browser.h) —
+		// so a press that started before it opened does not carry on
+		// moving a camera underneath it.
+		voe_editor_views_drag(&views, roots[0].pointer.at,
+				      middle && !browser.showing, shift,
+				      control);
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
@@ -445,10 +686,12 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
+		light = world_light(session.project->world);
+
 		// A pass per view the tree shows, each onto its own target with
-		// its own camera. A device made with a pass per view and one
-		// more does not refuse these; if it did, the frame is still
-		// closed below and the program stops.
+		// its own camera and the world's light. A device made with a
+		// pass per view and one more does not refuse these; if it did,
+		// the frame is still closed below and the program stops.
 		for (uint32_t v = 0; v < views.count && drawn; v++) {
 			const voe_editor_view *view = &views.views[v];
 			voe_render_pass_camera camera;
@@ -456,13 +699,13 @@ int main(int argc, char *argv[])
 			if (!voe_editor_dock_shows_view(&roots[0].tree, v))
 				continue;
 
-			camera = voe_editor_view_pass_camera(view);
+			camera = voe_editor_view_pass_camera(view, light);
 			drawn = voe_render_pass_begin(gpu, view->target,
 						      &camera);
 			if (!drawn)
 				break;
 			voe_3d_draw_system_run(
-				world, gpu, arena,
+				session.project->world, gpu, arena,
 				(voe_3d_frame){ .view = camera.view,
 						.light = camera.light });
 			voe_render_pass_end(gpu);
@@ -477,7 +720,15 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &views);
+				&scene, &views, &session, &browser,
+				escape_fired);
+			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
+			// FOR IT AS A COMMAND — dragging a number in the
+			// Inspector is not New, Open, Save or Close, so
+			// session.h has no case for it; this is the other half
+			// of what marks the project unsaved (session.h).
+			if (scene.inspector.replaced > 0)
+				voe_editor_session_edited(&session);
 			voe_render_pass_end(gpu);
 		}
 
@@ -516,8 +767,14 @@ stop:
 
 
 	// The device and the window, then the arena — the app struct lives in
-	// the arena and has to outlive every call made through it.
+	// the arena and has to outlive every call made through it. The
+	// project and the browser are each a separate arena again, and
+	// outlive none of this, so they go last — the browser's own may
+	// never have been made at all, on a run Open was never once asked
+	// for, which is voe_editor_browser_destroy's to tell apart.
 	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
+	voe_editor_project_destroy(session.project);
+	voe_editor_browser_destroy(&browser);
 	return status;
 }

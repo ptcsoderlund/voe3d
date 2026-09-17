@@ -11,11 +11,9 @@
 // does not hand back: the line each section and key came from, which every
 // refusal names, and a kept section's lines as the file spelled them, which is the
 // only way they can go back out byte for byte — the parsed value has lost its
-// quotes. That walk only classifies lines: blank or `//` is nothing, `[` is a
-// header, anything else is a key. It does not validate, because the sectioned
-// reader already refused every line that is none of those, and the k-th header or
-// key it finds is the k-th the sectioned reader returned; an assert holds both
-// counts to that.
+// quotes. That walk is line_index.c, shared with authoring/project.c, which needs
+// a section's and a key's line for the same reason and nothing else this file
+// does.
 //
 // A ROW IS PUSHED AT THE SIZE ITS DESCRIPTION IMPLIES, NOT AT ITS REGISTERED SIZE.
 // DEVIATION: card 071 scope 2, "scratch bytes of the type's size" is read as the
@@ -39,6 +37,7 @@
 #include <authoring/scene_read.h>
 
 #include "authored.h"
+#include "line_index.h"
 
 #include <assets/sectioned.h>
 #include <base/assert.h>
@@ -63,11 +62,6 @@
 // forbids.
 struct cursor {
 	const char *at;
-};
-
-struct span {
-	const char *bytes;
-	size_t size;
 };
 
 // What one section is, decided before any value is read.
@@ -101,7 +95,7 @@ struct reader {
 	// One per section and one per key, as the sectioned reader numbers them.
 	uint32_t *section_line;
 	uint32_t *key_line;
-	struct span *key_span;
+	voe_authoring_span *key_span;
 
 	bool has_identity;
 	voe_ecs_type identity;
@@ -129,54 +123,6 @@ struct site {
 static bool blank(char c)
 {
 	return c == ' ' || c == '\t';
-}
-
-static void index_lines(struct reader *reader, const char *text, size_t size)
-{
-	uint32_t line = 1;
-	uint32_t section = 0;
-	uint32_t key = 0;
-	size_t at = 0;
-
-	while (at < size) {
-		const char *newline = memchr(text + at, '\n', size - at);
-		size_t end = newline != NULL ? (size_t)(newline - text) : size;
-		size_t first = at;
-		size_t last = end;
-
-		if (last > first && text[last - 1] == '\r')
-			last--;
-		while (first < last && blank(text[first]))
-			first++;
-		while (last > first && blank(text[last - 1]))
-			last--;
-
-		if (first == last ||
-		    (last - first >= 2 && text[first] == '/' &&
-		     text[first + 1] == '/')) {
-			// Blank or a comment.
-		} else if (text[first] == '[') {
-			VOE_BASE_ASSERT(section < reader->doc.section_count,
-					"more headers than the sectioned reader found");
-			reader->section_line[section++] = line;
-		} else {
-			VOE_BASE_ASSERT(key < reader->doc.key_count,
-					"more keys than the sectioned reader found");
-			reader->key_line[key] = line;
-			reader->key_span[key] = (struct span){
-				.bytes = text + first,
-				.size = last - first,
-			};
-			key++;
-		}
-
-		at = end + 1;
-		line++;
-	}
-
-	VOE_BASE_ASSERT(section == reader->doc.section_count &&
-				key == reader->doc.key_count,
-			"the line walk and the sectioned reader disagree");
 }
 
 // A decimal from 1, no sign, no leading zero, fitting 64 bits, running exactly
@@ -1018,7 +964,8 @@ static void keep_section(struct reader *reader, uint32_t s)
 	lines = voe_base_arena_push(reader->arena, size + 1);
 	size = 0;
 	for (uint32_t k = 0; k < parsed->key_count; k++) {
-		const struct span *span = &reader->key_span[parsed->first_key + k];
+		const voe_authoring_span *span =
+			&reader->key_span[parsed->first_key + k];
 
 		memcpy(lines + size, span->bytes, span->size);
 		size += span->size;
@@ -1172,7 +1119,8 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 	reader.kept =
 		voe_base_arena_push(arena, (sections + 1) * sizeof(*reader.kept));
 
-	index_lines(&reader, text, size);
+	voe_authoring_line_index(text, size, &reader.doc, reader.section_line,
+				 reader.key_line, reader.key_span);
 	if (!classify(&reader))
 		return false;
 

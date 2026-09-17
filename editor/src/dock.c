@@ -14,10 +14,22 @@
 // splitter goes when there is one; nothing draws anything in it today and
 // nothing hit-tests it.
 //
-// THE ROOT IS WRAPPED IN A ROW OF ITS OWN, WHICH IS ONE NODE AND IS NOT
-// CEREMONY. `ui`'s frame root must be a row or a column (see ui/layout.h) and a
-// leaf emits a panel, so a tree that is a single panel filling the window would
-// otherwise be the one shape the walk could not express.
+// THE TREE IS WRAPPED IN A ROW OF ITS OWN, WHICH IS ONE NODE AND IS NOT
+// CEREMONY. `ui` needs a row or a column to hold a leaf's panel (see
+// ui/layout.h) and a leaf emits a panel, so a tree that is a single panel
+// filling what it was given would otherwise be the one shape the walk could
+// not express.
+//
+// THAT ROW IS A CHILD LIKE ANY OTHER HERE, WHICH IS WHY voe_editor_dock_walk
+// TAKES `parent`. It used to be the frame's actual root, where
+// ui/layout.h says a size is read against its own flow; interface.c now opens
+// a column above it for the top bar, which makes this row an ordinary child
+// again — and a child's `voe_ui_container.size.along`/`.across` are read
+// against its PARENT's flow, never its own, exactly as walk_node's `parent`
+// argument already accounts for on every node below this one. `sizing_in()`
+// is the one place that turns root->size into the pair read correctly either
+// way, and voe_editor_dock_walk uses it for its own row now instead of
+// writing `.along`/`.across` out by hand.
 //
 // A SCENE VIEW'S PANEL HAS NO PADDING, AND ITS PICTURE IS ITS WHOLE CHILD. The
 // picture fills the panel edge to edge, so the rectangle the picture came to is
@@ -273,7 +285,8 @@ bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view)
 	return false;
 }
 
-void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
+void voe_editor_dock_walk(const voe_editor_dock_root *root,
+			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  voe_editor_scene *scene, voe_editor_views *views)
 {
 	VOE_BASE_ASSERT(root != NULL, "walking no dock root");
@@ -289,12 +302,12 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root, voe_ui_context *ui,
 	voe_editor_scene_rows_clear(scene);
 	voe_editor_views_images_clear(views);
 
-	voe_ui_row_begin(ui, (voe_ui_container){
-				     .size = { .along = { VOE_UI_SIZE_FIXED,
-							  root->size.x },
-					       .across = { VOE_UI_SIZE_FIXED,
-							   root->size.y } },
-				     .across = VOE_UI_ACROSS_FILL });
+	// sizing_in(parent, root->size) IS root->size READ IN WHATEVER AXES
+	// `parent` FLOWS IN — see the header on why this row needs that now
+	// that it is not always the frame's own root.
+	voe_ui_row_begin(ui, (voe_ui_container){ .size = sizing_in(
+							 parent, root->size),
+						 .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, root->tree.root, VOE_EDITOR_DOCK_ROW,
 		  root->size, 0, scene, views);
 	voe_ui_end(ui);

@@ -35,6 +35,20 @@
 // message and newline — is at most 1024 bytes, composed on the stack, and a line
 // that would be longer ends in "..." at that length. Reporting that something
 // failed must not be able to fail, and allocating is a way to fail.
+//
+// A PROGRAM CAN READ THE FIRST ERROR BACK (ADR-0160). Alongside stderr, this
+// file keeps the message of the first VOE_BASE_ERROR reported since the last
+// voe_base_report_error_clear(), per thread — thread_local, so a report on one
+// thread never lands in another's notice and no lock sits on a path that must
+// not fail. It is the first and not the last because a failure travels upward
+// and the site closest to the cause reports first: a scene reader refusing a
+// line is followed by nothing better from its callers. It is kept the way it
+// would be printed — no level word, no module, no newline — cut at the same
+// 1024-byte capacity as the printed line. Warnings are never kept. A reader
+// clears before the operation whose failure it wants to explain, and reads
+// voe_base_report_error_first() once that operation has returned its failure;
+// nothing below a program reads it, and a caller that forgets to clear reads a
+// stale error from earlier.
 #pragma once
 
 typedef enum {
@@ -54,3 +68,12 @@ void voe_base_report_at(voe_base_report_level level, const char *module,
 #define VOE_BASE_ERROR(module, ...)                                        \
 	voe_base_report_at(VOE_BASE_LEVEL_ERROR, (module), __FILE__,        \
 			   __LINE__, __VA_ARGS__)
+
+// Forgets the kept error, on the calling thread. Call before an operation
+// whose failure you want voe_base_report_error_first() to explain.
+void voe_base_report_error_clear(void);
+
+// The message of the first VOE_BASE_ERROR reported on the calling thread since
+// its last voe_base_report_error_clear(), or NULL when none has been. Valid
+// until the next clear or the next kept error.
+const char *voe_base_report_error_first(void);

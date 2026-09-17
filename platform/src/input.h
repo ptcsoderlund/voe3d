@@ -58,6 +58,15 @@ struct voe_platform_input {
 	// sets it from the compositor's locked and unlocked events, which is
 	// why it is not simply the argument to _lock_pointer.
 	bool pointer_locked;
+
+	// The typed text, in the public header's UTF-8 bytes and order.
+	// Appended to by voe_platform_input_append_text below, drained by
+	// voe_platform_input_begin_poll exactly as the wheel is, and emptied by
+	// voe_platform_input_focus_lost too — see include/platform/input.h for
+	// why. text_size is the count of bytes filled, never the buffer's
+	// capacity.
+	char text[256];
+	uint32_t text_size;
 };
 
 // Each backend defines this over its own struct voe_platform_window, and it is
@@ -104,3 +113,19 @@ void voe_platform_input_focus_lost(struct voe_platform_input *input);
 // pointer was seen is what a GUI uses to tell an edge from an absence, and the
 // public header promises it.
 void voe_platform_input_pointer_lost(struct voe_platform_input *input);
+
+// Encodes one Unicode code point as UTF-8 and appends it to input->text,
+// which is what makes this the one function both backends call to type a
+// character: window_wayland.c has already turned a scancode and a shift
+// level into a code point through src/keymap.h, and window_win32.c has
+// already joined a WM_CHAR surrogate pair into one — neither backend touches
+// UTF-8 itself past this point.
+//
+// A CODE POINT THIS CANNOT FORM IS DROPPED WHOLE, AND SO IS ONE THAT WOULD
+// NOT FIT. Below 0x20, 0x7f, a surrogate (0xd800..0xdfff) and anything past
+// 0x10ffff are never valid text and are dropped before any encoding is
+// attempted; a code point that would encode but not fit in what capacity is
+// left in the buffer is dropped too; there is no such thing as writing half
+// of one.
+void voe_platform_input_append_text(struct voe_platform_input *input,
+				    uint32_t code_point);

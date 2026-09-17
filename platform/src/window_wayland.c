@@ -61,15 +61,24 @@
 // NULL and libwayland never calls through them. Binding higher without filling
 // them in is a crash, not a warning.
 //
-// A KEY IS A PLACE AND NOT A LETTER, AND THAT IS WHY THERE IS NO xkbcommon HERE.
-// wl_keyboard.key carries the evdev scancode of the key that moved — KEY_W is
-// the key where W sits on a US keyboard whatever the layout says it types — and
-// <linux/input-event-codes.h> is where those numbers are written down. Turning a
-// scancode into a character needs the keymap, which needs xkbcommon, which is a
-// dependency this engine has not asked for and does not need: nothing here reads
-// text. The keymap event is therefore ignored, apart from closing the file
-// descriptor it comes with, which is not optional — one leaked descriptor per
-// keymap change is still a leak.
+// A KEY IS A PLACE AND NOT A LETTER, AND THAT STAYS TRUE EVEN THOUGH THIS FILE
+// NOW READS TEXT TOO. wl_keyboard.key carries the evdev scancode of the key
+// that moved — KEY_W is the key where W sits on a US keyboard whatever the
+// layout says it types — and <linux/input-event-codes.h> is where those numbers
+// are written down; that is still what fills the keys array. What has changed
+// is the keymap event, which used to be closed unread: it is now mapped into
+// this process and handed to src/keymap.h's in-house reader (ADR-0161), not to
+// xkbcommon — a dependency rule 5 has never asked for and D-245 closed without.
+// The file descriptor is mmapped read-only and private, read, then unmapped and
+// closed every time, because a leaked descriptor per keymap change is still a
+// leak whether or not the map is kept.
+//
+// A KEYMAP THE READER REFUSES IS REPORTED ONCE, NOT ON EVERY KEY. The keymap
+// event fires once at startup and again only when the layout changes, so there
+// is nothing to spam here regardless — but the flag exists to say so on
+// purpose rather than by accident, and a window whose keymap could not be read
+// still opens, still closes and still reads keys as places; typing a character
+// is the only thing it has lost.
 //
 // MOUSE LOOK NEEDS TWO MORE PROTOCOLS AND NEITHER IS OPTIONAL FOR IT.
 // wl_pointer.motion reports where the pointer is inside the surface, which stops
@@ -113,8 +122,10 @@
 #include <platform/window.h>
 
 #include "input.h"
+#include "keymap.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <wayland-client.h>
 
@@ -125,6 +136,9 @@
 
 #include <linux/input-event-codes.h>
 
+#include <sys/mman.h>
+
+#include <errno.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
@@ -166,6 +180,11 @@ struct voe_platform_window {
 	uint32_t decoration_mode;
 	bool configured;
 	bool should_close;
+
+	// What the compositor's keymap says each evdev code types, and whether
+	// a broken one has already been reported — see keyboard_keymap.
+	voe_platform_keymap keymap;
+	bool keymap_reported;
 
 	struct voe_platform_input input;
 };
@@ -347,6 +366,14 @@ static voe_platform_key key_of(uint32_t scancode)
 		return VOE_PLATFORM_KEY_ESCAPE;
 	case KEY_P:
 		return VOE_PLATFORM_KEY_P;
+	case KEY_N:
+		return VOE_PLATFORM_KEY_N;
+	case KEY_O:
+		return VOE_PLATFORM_KEY_O;
+	case KEY_BACKSPACE:
+		return VOE_PLATFORM_KEY_BACKSPACE;
+	case KEY_ENTER:
+		return VOE_PLATFORM_KEY_ENTER;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}
@@ -360,19 +387,43 @@ static void key_set(voe_platform_window *window, uint32_t scancode, bool down)
 		window->input.keys[key] = down;
 }
 
-// The keymap, which is ignored, and the file descriptor it arrives on, which is
-// not. The compositor maps a keymap into a file and hands over the descriptor;
-// reading it needs xkbcommon and this engine reads scancodes instead, so the
-// only thing owed here is the close. It fires again whenever the layout changes,
-// which is why leaking it would be a leak that grows.
+// The keymap: mapped read-only and private into this process, handed whole to
+// src/keymap.h's reader, then unmapped and closed — every time, whether the
+// read succeeds or not, because the descriptor and the mapping are owed back
+// regardless and the event fires again on every layout change. A read that
+// fails leaves the keymap table all zero, per voe_platform_keymap_read, which
+// is what makes "reported once" also mean "types nothing" with no separate
+// flag to check at every keystroke.
 static void keyboard_keymap(void *data, struct wl_keyboard *keyboard,
 			    uint32_t format, int32_t fd, uint32_t size)
 {
-	(void)data;
+	voe_platform_window *window = data;
+	void *mapped;
+
 	(void)keyboard;
 	(void)format;
-	(void)size;
 
+	mapped = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (mapped == MAP_FAILED) {
+		if (!window->keymap_reported) {
+			VOE_BASE_WARNING("platform",
+					 "could not map the Wayland keymap: %s",
+					 strerror(errno));
+			window->keymap_reported = true;
+		}
+		memset(&window->keymap, 0, sizeof(window->keymap));
+		close(fd);
+		return;
+	}
+
+	if (!voe_platform_keymap_read(mapped, (size_t)size, &window->keymap) &&
+	    !window->keymap_reported) {
+		VOE_BASE_WARNING("platform",
+				 "the compositor's keymap could not be read; nothing will be typed");
+		window->keymap_reported = true;
+	}
+
+	munmap(mapped, size);
 	close(fd);
 }
 
@@ -413,17 +464,34 @@ static void keyboard_leave(void *data, struct wl_keyboard *keyboard,
 	voe_platform_input_focus_lost(&window->input);
 }
 
+// The keyboard's half of ADR-0161: a press with Control up looks the scancode
+// and the shift level up in the keymap table and appends whatever it finds,
+// through the one function that also serves window_win32.c. Control held
+// types nothing, so a shortcut built on a key never also types a character;
+// a release never types, and a code point of 0 — a key the reader could not
+// resolve, or a keymap that failed to read at all — appends nothing because
+// voe_platform_input_append_text drops it.
 static void keyboard_key(void *data, struct wl_keyboard *keyboard,
 			 uint32_t serial, uint32_t time, uint32_t key,
 			 uint32_t state)
 {
 	voe_platform_window *window = data;
+	bool down = state == WL_KEYBOARD_KEY_STATE_PRESSED;
 
 	(void)keyboard;
 	(void)serial;
 	(void)time;
 
-	key_set(window, key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+	key_set(window, key, down);
+
+	if (down && !window->input.keys[VOE_PLATFORM_KEY_CONTROL] &&
+	    key < VOE_PLATFORM_KEYMAP_CODES) {
+		uint32_t level = window->input.keys[VOE_PLATFORM_KEY_SHIFT] ? 1 : 0;
+		uint32_t code_point = window->keymap.typed[key][level];
+
+		if (code_point != 0)
+			voe_platform_input_append_text(&window->input, code_point);
+	}
 }
 
 // Which modifiers the compositor thinks are latched, and it is deliberately not
@@ -1037,6 +1105,13 @@ bool voe_platform_window_should_close(voe_platform_window *window)
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
 
 	return window->should_close;
+}
+
+void voe_platform_window_close_refuse(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	window->should_close = false;
 }
 
 voe_platform_size voe_platform_window_size(voe_platform_window *window)

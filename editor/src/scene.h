@@ -1,27 +1,14 @@
-// The scene the editor opens on, and which of its entities is selected.
+// Which of the world's authored entities is selected, and the rows the Scene
+// panel drew this frame.
 //
-// THE SCENE IS BUILT IN CODE BECAUSE THERE IS NO LOADER YET. Four entities, put
-// here by hand so that the list, the selection and the inspector have something
-// real to stand on before a file format does. When a loader arrives this file is
-// what it replaces, and nothing that reads a scene through the world has to
-// change — which is why the panels below read the identity table and never this
-// struct's entities.
-//
-// THREE OF THE FOUR ARE AUTHORED AND THE FOURTH IS THE POINT. `Cube`, `Cube_2`
-// and `Marker` each have an identity and a transform; the fourth has a transform
-// and NO identity, the way a probe or a gizmo the engine built for itself does.
-// It is in the world, it is in any walk over transforms, and it must
-// not appear in the Scene panel — because an identity's presence is the whole of
-// what "authored" means (ADR-0125) and the list is the identity table and
-// nothing else. A list that showed four is this card's failure and
-// voe_editor_scene_build asserts the two counts rather than leaving it to a
-// person to count names on a screen.
-//
-// ONLY THE TWO CUBES ARE DRAWN. They have a mesh and a material, both sharing one
-// cube geometry (cube.h) and one plain material; `Marker` and the fourth have
-// neither, so the scene views show two things while the world holds four. A
-// drawable is a mesh and a material on an entity, and being named has nothing to
-// do with it.
+// THIS FILE DOES NOT BUILD A WORLD OR ANYTHING IN ONE. What a fresh project
+// holds is project.h's decision — the untitled scene's two entities among
+// them — and what an opened one holds is authoring/scene_read.h's; scene.world
+// is set from whichever the current project's world is (main.c, and
+// session.c when a NEW goes ahead replaces it) and this file only ever reads
+// it. session.c writes `selected` too, on that same NEW, back to a zeroed
+// entity — the one other place outside this file that touches either field,
+// and for the reason the next paragraph gives.
 //
 // SELECTION BELONGS TO THE EDITOR AND NOT TO THE DOCK TREE. It is held here,
 // beside the roots in main.c, and a panel reads it; voe_editor_dock_tree does
@@ -52,9 +39,7 @@
 
 #include "inspector.h"
 
-#include <base/error.h>
 #include <ecs/world.h>
-#include <render/device.h>
 #include <ui/layout.h>
 
 #include <stdint.h>
@@ -62,7 +47,7 @@
 // How many authored entities the Scene panel will list, and therefore how many
 // identities the world is given room for — the two are the same number on
 // purpose, so that the list cannot outgrow the array the clicks are read out of.
-// Thirty-two is far more than the four this file builds and far fewer than the
+// Thirty-two is far more than the two this file builds and far fewer than the
 // interface's node budget would refuse.
 #define VOE_EDITOR_SCENE_ROWS 32
 
@@ -72,9 +57,10 @@ typedef struct {
 	voe_ecs_entity entity;
 } voe_editor_scene_row;
 
-// The editor's scene: the world it authors into, what is selected in it, and
-// what the Scene panel drew this frame. Zeroed is a scene with no world, which
-// voe_editor_scene_build is what fills in.
+// The editor's scene: the current project's world, what is selected in it,
+// and what the Scene panel drew this frame. Zeroed is a scene with no world;
+// main.c sets world from the current voe_editor_project as soon as one
+// exists.
 typedef struct {
 	voe_ecs_world *world;
 	// Zeroed until something is clicked, and a zeroed entity is never a
@@ -87,20 +73,6 @@ typedef struct {
 	// inspector.c, and untouched by anything in scene.c.
 	voe_editor_inspector inspector;
 } voe_editor_scene;
-
-// Builds the four entities into `world` and points `scene` at it, uploading the
-// cube and its material to `gpu` on the way. The world must already have had
-// voe_scene_transform_register, voe_scene_identity_register,
-// voe_3d_mesh_register and voe_3d_material_register called on it. A world too
-// small to hold four entities, four transforms, three identities, or two meshes
-// and two materials, is this program's own sizing being wrong and asserts.
-//
-// A startup operation, because an upload is. False when `render` refused the
-// geometry or the material's record, which it has already said why on stderr.
-[[nodiscard]] bool voe_editor_scene_build(voe_editor_scene *scene,
-					  voe_ecs_world *world,
-					  voe_render_device *gpu,
-					  voe_base_error *error);
 
 // Which entity is selected, or a zeroed one when nothing is — including when
 // what was selected has since been destroyed.

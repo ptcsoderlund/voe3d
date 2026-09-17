@@ -1,6 +1,7 @@
-// The views: their cameras, their targets, the middle-button drag and the
-// editor's sun. See the header for why the camera is not an entity, why the
-// picture lags the layout by a frame, and why a view nobody shows is not drawn.
+// The views: their cameras, their targets and the middle-button drag. See the
+// header for why the camera is not an entity, why the light is not the views'
+// to hold, why the picture lags the layout by a frame, and why a view nobody
+// shows is not drawn.
 //
 // THE ORBIT OWNS THE EYE. A view's yaw, pitch, focus and distance are what the
 // drag changes, and the eye is always put back at the focus minus the distance
@@ -41,14 +42,6 @@
 #define FIRST_WIDTH 64u
 #define FIRST_HEIGHT 64u
 
-// THE EDITOR'S SUN: where its light goes, not where it is — down, and from the
-// front-right, so the three faces a view from the front and above sees are three
-// different brightnesses. Not unit length here; the_sun normalizes it once.
-#define SUN_X (-0.4f)
-#define SUN_Y (-1.0f)
-#define SUN_Z (-0.6f)
-#define SUN_INTENSITY 3.14159265f
-
 // Where each view in use starts. View 0 from the front and above; view 1 from
 // the side — +X, looking along −X — and a little above. Both look at the origin.
 static const struct {
@@ -59,16 +52,6 @@ static const struct {
 	{ 0.0f, -0.5f, 7.0f },
 	{ 1.5707963f, -0.2f, 7.0f },
 };
-
-static voe_render_light the_sun(void)
-{
-	return (voe_render_light){
-		.direction = voe_math_float3_normalize(
-			(voe_math_float3){ SUN_X, SUN_Y, SUN_Z }),
-		.intensity = SUN_INTENSITY,
-		.colour = { 1.0f, 1.0f, 1.0f },
-	};
-}
 
 // The eye put back where the orbit says it is.
 static void orbit_place(voe_editor_view *view)
@@ -144,7 +127,8 @@ void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 	view->height = height;
 }
 
-voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view)
+voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
+						   voe_render_light light)
 {
 	VOE_BASE_ASSERT(view != NULL, "a pass camera for no view");
 	VOE_BASE_ASSERT(view->width > 0 && view->height > 0,
@@ -156,7 +140,7 @@ voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view)
 				  view->camera,
 				  (float)view->width / (float)view->height),
 			  .eye = view->camera.eye },
-		.light = the_sun(),
+		.light = light,
 	};
 }
 

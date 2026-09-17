@@ -14,9 +14,12 @@ an operating system.
   failing function takes. Its header says why the codes are categories and never
   incidents.
 - `include/base/report.h` — the one call a recoverable problem is reported
-  through, at a warning or an error. Its header says what a report is for, and
-  the four things a writer gets wrong: the module, the newline, the file and line
-  that are kept but not printed, and the length a line is cut at.
+  through, at a warning or an error, and the first error's message kept per
+  thread since the last clear (ADR-0160) so a caller can read it back. Its
+  header says what a report is for, the four things a writer gets wrong: the
+  module, the newline, the file and line that are kept but not printed, and the
+  length a line is cut at — and what is kept, why the first, why per thread,
+  and when to clear.
 - `include/base/samples.h` — a run of measurements, and the three things anything
   asks one: how many, the average, the worst. Its header says why it is a period
   and not a sliding window, and why `worst` presumes a direction.
