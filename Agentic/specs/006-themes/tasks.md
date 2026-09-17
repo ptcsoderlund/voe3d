@@ -1,6 +1,6 @@
 # 006 Themes — tasks
 
-- [ ] 1. `assets/` — a section and a key carry the line they came from
+- [x] 1. `assets/` — a section and a key carry the line they came from
   - Change: add `uint32_t line` to `voe_assets_sectioned_section` and to
     `voe_assets_sectioned_key`, the 1-based physical line of the `[Section]` header and of the
     `key=value` line, filled by the parser as it walks (it already counts lines for its refusals).
