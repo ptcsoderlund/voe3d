@@ -12,7 +12,7 @@
   - Depends on: -
   - Done when: `cmake --build --preset debug --target voe_assets && ctest --test-dir build/debug -R '^assets/'` — all tests pass.
 
-- [ ] 2. `text/` — Pixel Operator beside Oxanium, and a font asked for by typeface
+- [x] 2. `text/` — Pixel Operator beside Oxanium, and a font asked for by typeface
   - Change: build ADR-0167. Add `PixelOperator.ttf` (Regular) and its CC0 licence text to
     `text/fonts/`, unrenamed and unmodified, beside Oxanium and its OFL. Add
     `voe_text_typeface` — `VOE_TEXT_TYPEFACE_OXANIUM`, `VOE_TEXT_TYPEFACE_PIXEL_OPERATOR` — and make

@@ -34,15 +34,21 @@
 #define GLYF_X_SAME 0x10
 #define GLYF_Y_SAME 0x20
 
-// glyf's composite-component flags. The four this reader refuses are the three
-// that transform a component and the absence of the one that says the arguments
-// are an offset; see the header.
+// glyf's composite-component flags. This reader refuses the absence of the one
+// that says the arguments are an offset, and the two transforms it does not
+// implement — independent x/y scale and a full 2x2 matrix; see the header. A
+// uniform COMPONENT_HAVE_SCALE is read, not refused — Pixel Operator needs it.
 #define COMPONENT_ARGS_ARE_WORDS 0x0001
 #define COMPONENT_ARGS_ARE_XY 0x0002
 #define COMPONENT_HAVE_SCALE 0x0008
 #define COMPONENT_MORE 0x0020
 #define COMPONENT_HAVE_XY_SCALE 0x0040
 #define COMPONENT_HAVE_TWO_BY_TWO 0x0080
+
+// A component's uniform scale is F2Dot14: a signed 16-bit fixed-point number
+// with 14 fractional bits, so 16384 is 1.0 and the sign flips a component,
+// which is exactly what turns `!` into `¡` in Pixel Operator.
+#define COMPONENT_SCALE_ONE 16384.0f
 
 struct reader {
 	const uint8_t *bytes;
@@ -393,11 +399,13 @@ static bool glyph_range(const voe_text_truetype *font, uint16_t glyph,
 	return true;
 }
 
-// One simple glyph's points, appended to what the outline already holds. `shift`
-// is where the component sits, which is zero for a glyph that is not part of a
-// composite.
+// One simple glyph's points, appended to what the outline already holds.
+// `scale` multiplies a point before `shift` moves it — one is 1.0 and the
+// other is zero for a glyph that is not part of a composite, and scale is
+// applied first because that is the order a scaled composite's own flags
+// describe: scaled about its own origin, then offset into the parent.
 static bool append_simple(const voe_text_truetype *font, uint32_t at,
-			  uint32_t length, voe_math_float2 shift,
+			  uint32_t length, float scale, voe_math_float2 shift,
 			  voe_text_truetype_outline *out,
 			  voe_base_error *error)
 {
@@ -481,7 +489,7 @@ static bool append_simple(const voe_text_truetype *font, uint32_t at,
 						   : -(int32_t)read_u8(&r);
 		else if (!(flags & GLYF_X_SAME))
 			x += read_i16(&r);
-		out->points[first + i].point.x = (float)x + shift.x;
+		out->points[first + i].point.x = (float)x * scale + shift.x;
 	}
 	for (uint16_t i = 0; i < points; i++) {
 		uint8_t flags = (uint8_t)out->points[first + i].point.y;
@@ -491,7 +499,7 @@ static bool append_simple(const voe_text_truetype *font, uint32_t at,
 						   : -(int32_t)read_u8(&r);
 		else if (!(flags & GLYF_Y_SAME))
 			y += read_i16(&r);
-		out->points[first + i].point.y = (float)y + shift.y;
+		out->points[first + i].point.y = (float)y * scale + shift.y;
 	}
 	if (!r.ok || r.at > limit)
 		return fail(error, VOE_BASE_ERROR_MALFORMED);
@@ -501,11 +509,13 @@ static bool append_simple(const voe_text_truetype *font, uint32_t at,
 }
 
 // One composite glyph being expanded: where its next component record starts,
-// and where the composite itself sits.
+// where the composite itself sits, and the one uniform scale it and every
+// frame above it have combined into.
 struct composite_frame {
 	uint32_t cursor;
 	uint32_t limit;
 	voe_math_float2 shift;
+	float scale;
 	bool more;
 };
 
@@ -521,6 +531,7 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 	uint16_t current = glyph;
 	bool pending = true;
 	voe_math_float2 shift = { 0.0f, 0.0f };
+	float scale = 1.0f;
 
 	VOE_BASE_ASSERT(font != NULL, "no font to read an outline out of");
 	VOE_BASE_ASSERT(arena != NULL,
@@ -560,7 +571,8 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 
 				if (contours >= 0) {
 					if (!append_simple(font, at, length,
-							   shift, out, error))
+							   scale, shift, out,
+							   error))
 						return false;
 				} else if (depth ==
 					   VOE_TEXT_COMPOSITE_DEPTH) {
@@ -571,6 +583,7 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 						.cursor = at + 10,
 						.limit = at + length,
 						.shift = shift,
+						.scale = scale,
 						.more = true,
 					};
 				}
@@ -583,6 +596,7 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 			uint16_t flags;
 			float dx;
 			float dy;
+			float component_scale;
 
 			if (!frame->more) {
 				depth--;
@@ -596,12 +610,13 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 				return fail(error, VOE_BASE_ERROR_MALFORMED);
 
 			// Refused by name rather than mis-drawn. The embedded
-			// font uses none of these; a component that is scaled
-			// or that is positioned by matching a point in the
-			// glyph it joins is a reader this card did not need.
+			// fonts use neither: a component skewed independently
+			// in x and y, a full 2x2 matrix, or one positioned by
+			// matching a point in the glyph it joins is a reader
+			// this card did not need. A uniform scale IS read below
+			// — see COMPONENT_HAVE_SCALE's own comment.
 			if (!(flags & COMPONENT_ARGS_ARE_XY) ||
-			    (flags & (COMPONENT_HAVE_SCALE |
-				      COMPONENT_HAVE_XY_SCALE |
+			    (flags & (COMPONENT_HAVE_XY_SCALE |
 				      COMPONENT_HAVE_TWO_BY_TWO)))
 				return fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 
@@ -612,6 +627,12 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 				dx = (float)(int8_t)read_u8(&r);
 				dy = (float)(int8_t)read_u8(&r);
 			}
+			// The transform, which sits right after the args: one
+			// F2Dot14 for a uniform scale, or nothing at all.
+			component_scale = (flags & COMPONENT_HAVE_SCALE) ?
+						   (float)read_i16(&r) /
+							   COMPONENT_SCALE_ONE :
+						   1.0f;
 			if (!r.ok || r.at > frame->limit)
 				return fail(error, VOE_BASE_ERROR_MALFORMED);
 
@@ -621,8 +642,15 @@ bool voe_text_truetype_outline_read(const voe_text_truetype *font,
 			// stops reading components here and never looks past.
 			frame->more = (flags & COMPONENT_MORE) != 0;
 
-			shift.x = frame->shift.x + dx;
-			shift.y = frame->shift.y + dy;
+			// The offset is in the component's OWN space, so the
+			// parent's scale applies to it too — a component ten
+			// units to the right of a parent shrunk by half really
+			// sits five units to the right. The scales themselves
+			// simply multiply, because a uniform scale composes
+			// with a uniform scale into one more uniform scale.
+			shift.x = frame->scale * dx + frame->shift.x;
+			shift.y = frame->scale * dy + frame->shift.y;
+			scale = frame->scale * component_scale;
 			pending = true;
 			break;
 		}

@@ -471,7 +471,9 @@ int main(int argc, char *argv[])
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
 
-	font = voe_text_font_new(gpu, arena, &error);
+	// Oxanium for now: a theme naming Pixel Operator is 006 task 6's, once
+	// `theme` exists to read one.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena, &error);
 	if (font == NULL) {
 		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
 			       voe_base_error_string(error));

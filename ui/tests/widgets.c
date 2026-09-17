@@ -1888,7 +1888,9 @@ static int the_field(voe_base_arena *arena)
 		return 0;
 	}
 
-	font = voe_text_font_new(device, arena, &error);
+	// Oxanium: nothing here cares which face, so the engine's default.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, device, arena,
+				 &error);
 	if (font == NULL) {
 		VOE_TEST_CHECK(font != NULL);
 		voe_render_device_destroy(device);
@@ -1955,7 +1957,9 @@ static int the_text_scale(voe_base_arena *arena)
 		return 0;
 	}
 
-	font = voe_text_font_new(device, arena, &error);
+	// Oxanium: nothing here cares which face, so the engine's default.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, device, arena,
+				 &error);
 	if (font == NULL) {
 		VOE_TEST_CHECK(font != NULL);
 		voe_render_device_destroy(device);
