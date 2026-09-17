@@ -41,6 +41,12 @@ The editor opens a scene with a scene list, two scene views and an inspector:
     cmake --build --preset debug --target voe_editor
     ./build/debug/editor/voe_editor
 
+With no arguments it opens the last project it had open, or an untitled cube
+and light the first time it is ever run. `voe_editor <folder>` opens the
+project at folder instead — a folder holding a `project.voe3d` file and the
+scene it names. Which project was open last is remembered per person on the
+machine, under `~/.config/voe3d/` on Linux, never inside a project.
+
 The dev program opens a window on a world of models, text, sprites and interface panels:
 
     cmake --build --preset debug --target voe_dev

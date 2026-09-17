@@ -1,10 +1,23 @@
 // voe_editor — the program a person opens to author a scene. Today it opens a
 // window on three columns — `Scene`, two scene views stacked, `Inspector` —
 // whose rectangles came out of a tree of data rather than out of the order of the
-// calls in this file, lists the authored entities of the untitled scene it
-// opens on — a cube and the light that shows it, built in code — follows a
-// click on one, and draws the world into each view from that view's own
-// camera. A middle-button drag in a view moves that view's camera.
+// calls in this file, lists the authored entities of the project it opens on,
+// follows a click on one, and draws the world into each view from that view's
+// own camera. A middle-button drag in a view moves that view's camera.
+//
+// WHICH PROJECT IT OPENS ON IS project.h'S, ARGUED HERE. `voe_editor
+// [<folder>]` opens folder (project.h's voe_editor_project_new_opened); a
+// folder that cannot be opened prints `voe_editor: <why>` on stderr and this
+// program does not start (project.h names the file and the line — task 12's
+// bar has nothing to show yet). With no folder, last_project.h's one
+// remembered path is tried the same way, and a project that can no longer be
+// opened is not fatal there — the editor falls back to an untitled cube and
+// light and the notice is printed to stderr instead of stopping. A first
+// start, with no folder argued and nothing remembered, is silently the same
+// untitled scene. Unless `--capture` is given, whichever project is now open
+// is written back as the last one, warning on stderr rather than stopping if
+// that write fails; `--capture` never writes it, because a capture is not a
+// person opening the editor.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -72,14 +85,13 @@
 // pointer, and the argument list is read in main and nowhere else.
 #include "dock.h"
 #include "interface.h"
+#include "last_project.h"
+#include "notice.h"
+#include "project.h"
 #include "scene.h"
 #include "view.h"
 
 #include <3d/draw_system.h>
-#include <3d/material_component.h>
-#include <3d/mesh_component.h>
-#include <3d/panel_component.h>
-#include <3d/shape_component.h>
 #include <3d/shape_system.h>
 
 #include <app/app.h>
@@ -140,49 +152,24 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
-// What the world may hold. Seven component types are registered below, three of
-// them with an intent queue, and the entities are a number to author into rather
-// than a measurement of anything.
-#define MAX_ENTITIES 1024
-#define MAX_COMPONENT_TYPES 8
-#define MAX_INTENT_TYPES 8
-
-// How many transforms and identities the world has room for. The identities are
-// VOE_EDITOR_SCENE_ROWS because that is how many the Scene panel can list, and
-// a world that could hold an identity the list could not show would be a
-// disagreement between two numbers in one program (scene.h). Transforms are
-// wider: an entity the engine makes for itself has one and no identity.
-#define MAX_TRANSFORMS 256
-#define MAX_IDENTITIES VOE_EDITOR_SCENE_ROWS
-
-// A light is only ever on an authored entity — see scene.h on why `Light` has
-// no transform — so the room for it is the same as the room for an identity.
-#define MAX_LIGHTS MAX_IDENTITIES
-
-// How many entities may be drawn: a mesh and a material each. The room for a
-// shape is the same number, because every shape the shape system finds becomes
-// one. The panel table is walked by the draw system whether anything has one or
-// not (3d/draw_system.h), so it is registered with room for one and nothing
-// ever adds a row.
-#define MAX_DRAWN 64
-#define MAX_SHAPES MAX_DRAWN
-#define MAX_PANELS 1
-
 // WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
 // 3d/shape_system.h — which is what makes the geometry numbers its constants
 // and `shadings` a one. `objects` is per frame: every drawn entity is one
-// object in every view's pass, so it is the room for drawn entities times the
-// room for views. `passes` is a pass per view and the interface's, and
-// `targets` a target per view — both from the room for views, not the two in
-// use, so a third view is a leaf and not a capacity. The three transient
-// numbers stay nought; see render/include/render/device.h.
+// object in every view's pass, so it is the room for drawn entities
+// (VOE_EDITOR_PROJECT_MAX_DRAWN, project.h's — every project's world is
+// registered with that much room for a mesh and a material, so a device that
+// draws one is sized from the same number) times the room for views. `passes`
+// is a pass per view and the interface's, and `targets` a target per view —
+// both from the room for views, not the two in use, so a third view is a leaf
+// and not a capacity. The three transient numbers stay nought; see
+// render/include/render/device.h.
 #define EDITOR_CAPACITIES                                                     \
 	(voe_render_capacities)                                               \
 	{                                                                     \
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = MAX_DRAWN * VOE_EDITOR_VIEWS,                       \
+		.objects = VOE_EDITOR_PROJECT_MAX_DRAWN * VOE_EDITOR_VIEWS,    \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 1, .targets = VOE_EDITOR_VIEWS    \
@@ -250,7 +237,7 @@ static voe_render_light world_light(const voe_ecs_world *world)
 static int usage(void)
 {
 	fprintf(stderr,
-		"usage: voe_editor [--capture <path> [--size <W>x<H>]]\n");
+		"usage: voe_editor [<folder>] [--capture <path> [--size <W>x<H>]]\n");
 	return 2;
 }
 
@@ -260,11 +247,19 @@ int main(int argc, char *argv[])
 	// instead. The size is the picture's, and it is the window's size until
 	// --size says otherwise.
 	const char *capture = NULL;
+	// The one non-`--` argument, or NULL when none was given — see project
+	// below on what each case opens.
+	const char *folder = NULL;
 	int wide = EDITOR_WIDE;
 	int high = EDITOR_HIGH;
 	bool sized = false;
 	// How many frames a capture has drawn so far.
 	unsigned frames = 0;
+	// The project being worked on. Argued, remembered or untitled — see the
+	// block below main's own locals — and never NULL past it: every branch
+	// either fills it in or this program has already returned.
+	voe_editor_project *project;
+	voe_editor_notice notice;
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -272,7 +267,6 @@ int main(int argc, char *argv[])
 	voe_base_error error;
 	voe_platform_window *window;
 	voe_render_device *gpu;
-	voe_ecs_world *world;
 	// The built-in shapes' GPU side: one cube's geometry and the one grey
 	// material every shape wears. Uploaded once, at startup, and read every
 	// frame by voe_3d_shape_system_run.
@@ -303,6 +297,10 @@ int main(int argc, char *argv[])
 	// parser itself: it is stricter than `%d` about a leading blank or a
 	// leading '+' — neither was ever part of the promised form `<W>x<H>`
 	// and nothing relied on them.
+	//
+	// ONE ARGUMENT NOT STARTING WITH `--` IS THE FOLDER; A SECOND ONE IS
+	// USAGE. There is only ever one project to open, so a second bare
+	// argument is not something this program can mean anything by.
 	for (int a = 1; a < argc; a++) {
 		if (strcmp(argv[a], "--capture") == 0 && a + 1 < argc) {
 			capture = argv[++a];
@@ -320,6 +318,8 @@ int main(int argc, char *argv[])
 			high = h;
 			sized = true;
 			a++;
+		} else if (argv[a][0] != '-' && folder == NULL) {
+			folder = argv[a];
 		} else {
 			return usage();
 		}
@@ -329,6 +329,50 @@ int main(int argc, char *argv[])
 	// --size could mean is one nobody asked for.
 	if (sized && capture == NULL)
 		return usage();
+
+	// WHICH PROJECT OPENS, BEFORE THE DEVICE DOES: a folder argued on the
+	// command line is opened or this program stops right here, on stderr,
+	// before a window would ever have shown (criterion 12). With none, the
+	// last project remembered (last_project.h) is tried the same way, but
+	// its failure is not this program's to stop over — an untitled cube
+	// and light is what a lost or broken last project falls back to, and
+	// the notice explaining why is printed now because there is no bar yet
+	// to keep it for (task 12's).
+	if (folder != NULL) {
+		project = voe_editor_project_new_opened(folder, &notice);
+		if (project == NULL) {
+			fprintf(stderr, "voe_editor: %s\n", notice.text);
+			return 1;
+		}
+	} else {
+		voe_base_arena *last_scratch =
+			voe_base_arena_new(STARTUP_SCRATCH);
+		const char *last = voe_editor_last_project_read(last_scratch);
+
+		if (last != NULL) {
+			project = voe_editor_project_new_opened(last, &notice);
+			if (project == NULL) {
+				fprintf(stderr, "voe_editor: %s\n",
+					notice.text);
+				project = voe_editor_project_new_untitled();
+			}
+		} else {
+			project = voe_editor_project_new_untitled();
+		}
+		voe_base_arena_destroy(last_scratch);
+	}
+
+	// REMEMBERED FOR NEXT TIME, UNLESS THIS IS A CAPTURE OR THERE IS NO
+	// FOLDER TO REMEMBER. An untitled project — whether this is a first
+	// start or a last project that could not be opened — writes nothing
+	// (criterion 11), and a capture draws what a start would have opened
+	// without ever being the thing that decides what a start opens next.
+	if (capture == NULL && project->folder != NULL &&
+	    !voe_editor_last_project_write(project->folder))
+		VOE_BASE_WARNING(
+			"editor",
+			"could not remember %s as the last project opened",
+			project->folder);
 
 	arena = voe_base_arena_new(EDITOR_ARENA);
 
@@ -349,28 +393,12 @@ int main(int argc, char *argv[])
 	voe_base_arena_destroy(scratch);
 	if (app == NULL) {
 		voe_base_arena_destroy(arena);
+		voe_editor_project_destroy(project);
 		return 1;
 	}
 
 	window = voe_app_window(app);
 	gpu = voe_app_device(app);
-
-	// The world the editor authors into. Made here because it is the arena's
-	// and has to outlive every frame, and registered into immediately: a
-	// component's table, its description and its intent queue all come from
-	// the one _register call, and nothing may add a component before it.
-	world = voe_ecs_world_new(arena, (voe_ecs_limits){
-						.entities = MAX_ENTITIES,
-						.component_types =
-							MAX_COMPONENT_TYPES,
-						.intent_types = MAX_INTENT_TYPES });
-	voe_scene_transform_register(world, MAX_TRANSFORMS);
-	voe_scene_identity_register(world, MAX_IDENTITIES);
-	voe_scene_light_register(world, MAX_LIGHTS);
-	voe_3d_mesh_register(world, MAX_DRAWN);
-	voe_3d_material_register(world, MAX_DRAWN);
-	voe_3d_panel_register(world, MAX_PANELS);
-	voe_3d_shape_register(world, MAX_SHAPES);
 
 	// Both upload, so both are startup operations and both come before the
 	// first frame. `render` says why on stderr when it refuses.
@@ -380,9 +408,9 @@ int main(int argc, char *argv[])
 		goto stop;
 	}
 
-	// Neither uploads nor can fail — see scene.h — so it comes after the
-	// two calls that can.
-	voe_editor_scene_untitled(&scene, world);
+	// project.world lives in project's own arena, not this program's — see
+	// project.h on why every project owns its own world.
+	scene.world = project->world;
 
 	font = voe_text_font_new(gpu, arena, &error);
 	if (font == NULL) {
@@ -428,16 +456,16 @@ int main(int argc, char *argv[])
 		// field the moment it draws one, transform's and light's alike,
 		// so all three are run from the start rather than from whenever
 		// somebody remembers a first submit needs one.
-		voe_scene_transform_system_run(world);
-		voe_scene_identity_system_run(world);
-		voe_scene_light_system_run(world);
+		voe_scene_transform_system_run(project->world);
+		voe_scene_identity_system_run(project->world);
+		voe_scene_light_system_run(project->world);
 
 		// NOT AN INTENT DRAIN — a shape's kind is read-only
 		// (3d/shape_component.h) and nothing ever submits one — but the
 		// same "every frame" rule applies: a fresh shape needs its mesh
 		// and material the first frame it exists, and the run is a no-op
 		// for every frame after (3d/shape_system.h).
-		voe_3d_shape_system_run(world, &shapes);
+		voe_3d_shape_system_run(project->world, &shapes);
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
@@ -505,7 +533,7 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
-		light = world_light(world);
+		light = world_light(project->world);
 
 		// A pass per view the tree shows, each onto its own target with
 		// its own camera and the world's light. A device made with a
@@ -524,7 +552,7 @@ int main(int argc, char *argv[])
 			if (!drawn)
 				break;
 			voe_3d_draw_system_run(
-				world, gpu, arena,
+				project->world, gpu, arena,
 				(voe_3d_frame){ .view = camera.view,
 						.light = camera.light });
 			voe_render_pass_end(gpu);
@@ -578,8 +606,11 @@ stop:
 
 
 	// The device and the window, then the arena — the app struct lives in
-	// the arena and has to outlive every call made through it.
+	// the arena and has to outlive every call made through it. The project
+	// is a separate arena again, and outlives none of this, so it goes
+	// last.
 	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
+	voe_editor_project_destroy(project);
 	return status;
 }

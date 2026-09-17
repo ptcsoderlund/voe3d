@@ -1,22 +1,11 @@
-// The untitled scene the editor opens on, and which of its entities is
-// selected.
+// Which of the world's authored entities is selected, and the rows the Scene
+// panel drew this frame.
 //
-// THE UNTITLED SCENE IS BUILT IN CODE, BECAUSE IT IS NOT A FILE. It is what New
-// and a first start make — one cube and the light that shows it — the same two
-// entities every time, put here by hand rather than read off disk; a saved
-// project's scene is `authoring`'s to read, and comes into this same world
-// through a different call than this one.
-//
-// TWO ENTITIES AND BOTH ARE AUTHORED. `Cube` has an identity, a transform at the
-// origin and a `voe_3d_shape` of kind cube; `Light` has an identity and a
-// `voe_scene_light` and no transform — a directional light has no position to
-// hold one for. voe_editor_scene_untitled asserts the identity count rather than
-// leaving it to a person to count names on a screen.
-//
-// THE CUBE IS DRAWN BY THE SHAPE SYSTEM AND NOT BY THIS FILE. Giving `Cube` a
-// `voe_3d_shape` is the whole of what this file does towards it being on screen;
-// turning a shape into a mesh and a material is `3d/shape_system.h`'s, run once
-// a frame by the loop, and this file names neither a mesh nor a material.
+// THIS FILE DOES NOT BUILD A WORLD OR ANYTHING IN ONE. What a fresh project
+// holds is project.h's decision — the untitled scene's two entities among
+// them — and what an opened one holds is authoring/scene_read.h's; scene.world
+// is set from whichever the current project's world is (main.c) and this file
+// only ever reads it.
 //
 // SELECTION BELONGS TO THE EDITOR AND NOT TO THE DOCK TREE. It is held here,
 // beside the roots in main.c, and a panel reads it; voe_editor_dock_tree does
@@ -65,9 +54,10 @@ typedef struct {
 	voe_ecs_entity entity;
 } voe_editor_scene_row;
 
-// The editor's scene: the world it authors into, what is selected in it, and
-// what the Scene panel drew this frame. Zeroed is a scene with no world, which
-// voe_editor_scene_untitled is what fills in.
+// The editor's scene: the current project's world, what is selected in it,
+// and what the Scene panel drew this frame. Zeroed is a scene with no world;
+// main.c sets world from the current voe_editor_project as soon as one
+// exists.
 typedef struct {
 	voe_ecs_world *world;
 	// Zeroed until something is clicked, and a zeroed entity is never a
@@ -80,18 +70,6 @@ typedef struct {
 	// inspector.c, and untouched by anything in scene.c.
 	voe_editor_inspector inspector;
 } voe_editor_scene;
-
-// Builds the untitled scene's two entities into `world` and points `scene` at
-// it. The world must already have had voe_scene_transform_register,
-// voe_scene_identity_register, voe_scene_light_register and
-// voe_3d_shape_register called on it. A world too small to hold two entities,
-// one transform, two identities, one light or one shape is this program's own
-// sizing being wrong and asserts.
-//
-// Neither uploads nor touches the device — the shape system does that once, at
-// startup, and turns `Cube`'s shape into a mesh and a material the first time it
-// runs — so this cannot fail.
-void voe_editor_scene_untitled(voe_editor_scene *scene, voe_ecs_world *world);
 
 // Which entity is selected, or a zeroed one when nothing is — including when
 // what was selected has since been destroyed.

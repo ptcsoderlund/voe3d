@@ -278,7 +278,7 @@
   - Depends on: 8
   - Done when: `cmake -P check.cmake` exits 0 and `d=$(mktemp -d) && ./build/debug/editor/voe_editor --capture $d/shot.png && test -s $d/shot.png` exits 0
 
-- [ ] 11. `editor/` — Projects: open, save, the last project and the command line
+- [x] 11. `editor/` — Projects: open, save, the last project and the command line
   - Change: Add `src/notice.h` and `src/notice.c`:
     `typedef struct { char text[512]; } voe_editor_notice;`,
     `void voe_editor_notice_clear(voe_editor_notice *notice);`,
