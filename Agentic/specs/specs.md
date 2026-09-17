@@ -9,6 +9,7 @@ done as kanban cards, kept in `history/cards/`.
 - `004-open-and-save/` — the editor opens and saves a project from a top bar and its own file browser, starts on an untitled cube and light, and reopens the last project.
 - `005-editor-font/` — the editor's panels default to Pixel Operator, and Preferences switches them to Oxanium and back, remembered.
 - `006-themes/` — interface looks come from a theme file of an accent, two sliders, a mode and a font; nearest theme wins, live in the editor.
+- `007-plugins/` — optional parts of the engine are switched on per project from the editor's Preferences, off by default, without the person seeing CMake. Draft: the wish as it was said, not yet interviewed.
 
 Order of work is not the order of the numbers: 003 was put ahead of 002 by the sponsor on
 2026-09-15, because it makes every later feature cheaper to verify.
