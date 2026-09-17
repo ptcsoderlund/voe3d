@@ -17,12 +17,20 @@ their own with CMake and Clang, and that is accepted.
 > editor, people might want to dev without editor. Then they are on their own with cmake and clang
 > (maybe even other compilers).
 
-## Open questions
+## Answered
 
-- **The one that decides the shape:** ticking the box rebuilds the project (the person never sees
-  CMake, but waits; every performance property today is kept), or the plugin is a separate file
-  loaded at startup (instant and Blender-like, but gives up "nothing is read from disk at run
-  time" and puts a pointer jump in front of calls that are inlined now).
+- **The shape, answered 2026-09-17:** ticking the box rebuilds the project. The sponsor's words:
+  "rebuild straight away, C is too damn fast." Nothing is loaded at run time, so every performance
+  property the engine has today is kept, and the editor writes the build file a programmer would
+  otherwise write by hand.
+- **Editor plugins are out of scope, 2026-09-17.** The sponsor asked whether the editor itself
+  should be moddable. Skipped until the editor is a full product: an editor plugin needs stable
+  places to hang — a panel, an Inspector row, a menu item — and those are still being laid down.
+  Deferring is cheap precisely because the answer above is "rebuild": an editor plugin would be
+  another folder the editor links and a rebuild of the editor, the same mechanism, not a second
+  design. It becomes its own spec once the editor has settled.
+
+## Open questions
 - What a plugin is allowed to be — a folder of the engine's own, or something a third party writes.
 - Whether a scene saved with a plugin's components opens in a project that has it switched off.
 - Whether "per project" means the setting lives with the project rather than with the person,
