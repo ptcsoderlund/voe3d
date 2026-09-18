@@ -72,8 +72,8 @@ carries it out.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save,
-  Preferences, the project's name and whether it is unsaved, then the session's notice. Its
-  header says why it hands back which button fired rather than carrying a
+  Preferences, the project's name and whether it is unsaved, then the
+  session's notice. Its header says why it hands back which button fired rather than carrying a
   command out itself, and why its buttons are recorded and read afterwards
   exactly as the Scene panel's rows are.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
@@ -101,11 +101,10 @@ carries it out.
 - `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, giving
   every child a fixed size in millimetres, a one-millimetre gap at each seam
   where a splitter would go, and the row the tree is wrapped in.
-- `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre from the
-  window's height over a 135 mm surface, the top bar above each root's dock
-  tree, the browser or Preferences over it when one shows, and one draw
-  command per root. Its
-  header says why the one question it asks — what was clicked — has to be
+- `interface.h` — the screen-filling surface, made in the theme it is handed:
+  pixels per millimetre from the window's height over a 135 mm surface, the top
+  bar above each root's dock tree, the browser or Preferences over it when one
+  shows, and one draw command per root. Its header says why the one question it asks — what was clicked — has to be
   asked from in there, why the tree is walked inside the bar's column, and why
   whether the browser was showing is captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and

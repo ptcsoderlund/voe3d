@@ -14,10 +14,11 @@ widget draws from the nearest theme in force — set on the context or pushed
 over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
 
 - `include` — the public headers, in `include/ui/`; each is listed below by path.
-- `src` — the implementation: the tree and the sweeps that settle it, then what a node
-  means once the pointer and the keyboard have been at it; each file is listed on `src/src.md`.
-- `tests` — one plain C program per module, found by the build, neither needing a window
-  system; each is listed on `tests/tests.md`.
+- `src` — the implementation: the tree and the sweeps that settle it, then what
+  a node means once the pointer and the keyboard have been at it; each file is
+  listed on `src/src.md`.
+- `tests` — one plain C program per module, found by the build, none of them
+  needing a window system; each is listed on `tests/tests.md`.
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
   between its begin and its end, any of which may clip what reaches past it

@@ -1,7 +1,7 @@
 # tests
 
 `ui`'s own tests: plain C programs with an ordinary `main()`, zero for pass,
-found by the build and registered nowhere. Neither needs a window system, and
+found by the build and registered nowhere. None needs a window system, and
 only the cases that measure a string take a headless device — everything else
 this folder computes is arithmetic checked against numbers worked out by hand.
 

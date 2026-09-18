@@ -14,12 +14,13 @@ is a decision, not a card. The engine's standing rules, numbered as code cites t
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser. Never recurses over a file. On platform, math, base. Open `assets/assets.md`.
 - **authoring** — scene and project text read and written, world ↔ scene file; a game does not build it. On scene, ecs, assets, math, base. Open `authoring/authoring.md`.
 - **render** — the GPU layer and the only folder that names Vulkan: device, memory, resources by id, pipelines, targets, passes, present. Headers vendored in `render/vulkan/`, loader opened by name, every call through one resolved function table. On platform, math, base. Open `render/render.md`.
-- **text** — a glyph atlas as a three-channel distance field and one mesh per text block; Oxanium embedded, Pixel Operator beside it once 006 lands. On render, math, base. Open `text/text.md`.
-- **ui** — immediate-mode GUI in millimetres: flexbox-like layout, panels, buttons, number boxes, text fields, scroll areas, one draw from an element buffer. On render, text, math, base. Open `ui/ui.md`.
+- **text** — a glyph atlas as a three-channel distance field and one mesh per text block; Oxanium and Pixel Operator embedded, named by an enum. On render, math, base. Open `text/text.md`.
+- **ui** — immediate-mode GUI in millimetres: flexbox-like layout, panels, buttons, number boxes, text fields, scroll areas, one draw from an element buffer; a theme's palette derived in OKLab from five authored values, the nearest theme in force winning. On render, text, math, base. Open `ui/ui.md`.
+- **theme** — one `.theme` file's bytes read into `ui`'s authored inputs, a typeface and a display name, or refused with the line named; opens no file and derives nothing. On ui, text, assets, math, base, and render for its test's device only. Open `theme/theme.md`.
 - **3d** — the 3D renderer: scene → draws → a render target, meshes, materials, built-in shapes. On render, scene, ecs, assets, math, base. Open `3d/3d.md`.
 - **sprite** — a sprite is a plane in the world and hands back a material. On 3d, render, math, base. Open `sprite/sprite.md`.
 - **app** — parts a program calls in its own frame loop: the frame, capture to a PNG, a windowless start. On 3d, render, assets, platform, scene, ecs, math, base. Open `app/app.md`.
-- **editor** — the program a person opens to author a scene: top bar, Scene list, scene views, Inspector, file browser, projects opened and saved, `--capture`. A leaf; nothing names it. Open `editor/editor.md`.
+- **editor** — the program a person opens to author a scene: top bar, Scene list, scene views, Inspector, file browser, projects opened and saved, themes chosen in Preferences and re-read live, `--capture`. A leaf; nothing names it. Open `editor/editor.md`.
 - **dev** — the program that shows what the engine can do; a leaf on every folder but editor and authoring. Open `dev/dev.md`.
 - **testing** — the check macros a test links as `voe::testing`; not a library and not in the dependency map. Open `testing/testing.md`.
 
@@ -40,4 +41,11 @@ Every record 0001–0167 in `history/decisions/` stands unless one says it is su
 - 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a task.
 - 0120, 0133 — A folder `.md` is a present-tense map that delegates its subfolders.
 - 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place the keymap names.
+- 0170 — A theme is read in `theme`, derived in `ui`, and the nearest one wins.
+- 0171 — The palette is derived in OKLab from one colour and two numbers, and dark mode clamps chroma.
+- 0172 — A theme is one file in a themes folder, and a program remembers which by its file name.
 - 0173 — Every folder holding code carries `<folder>.md` as an index; `src/` and `tests/` list their own files.
+- 0175 — A card that creates a folder registers it in `cmake/voe.cmake` and the root `CMakeLists.txt`.
+- 0176 — `theme`'s row names `render`, for its test's headless device.
+- 0177 — To see what was drawn, render to a PNG; the planner names this on cards that change what is drawn.
+- 0178 — Two built-in themes, Near black and Near white, the light one remembered as `near_white`.

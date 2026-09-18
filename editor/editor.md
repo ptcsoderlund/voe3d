@@ -1,8 +1,8 @@
 # editor
 
 The program a person opens to author a scene. Today it opens a window on a top
-bar — New, Open, Save, Preferences, the project's name and a notice — above three columns:
-`Scene` on the left, two scene views stacked in the middle, and `Inspector` on
+bar — New, Open, Save, Preferences, the project's name and a notice — above
+three columns: `Scene` on the left, two scene views stacked in the middle, and `Inspector` on
 the right. The left one lists the authored entities of the project it opens on
 and a click on one selects it; each view draws the world from its own camera,
 moved by a middle-button drag in it, lit by whichever light the world holds;
@@ -22,8 +22,8 @@ exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 It draws in a theme: Near black or Near white, the two with no file, or the
 `*.theme` file in `<settings>/voe3d/themes/` named by `<settings>/voe3d/theme`
 — see `src/themes.h`. A remembered theme that is gone or refused draws Near
-black and says why in the bar. The selected row in `Scene` is drawn in the theme's
-accent. Preferences lists every theme — each row drawn in its own theme, the
+black and says why in the bar. The selected row in `Scene` is drawn in the
+theme's accent. Preferences lists every theme — each row drawn in its own theme, the
 one in force marked — and Choose puts one in force and remembers it; Close or
 Escape hides it.
 
@@ -46,5 +46,5 @@ editor's sake — a gap in one of them is a card in that folder, never a
 reach-around from here.
 
 - `src` — the implementation: the loop, the project and its session, the
-  themes, the top bar, the browser, Preferences, the dock and the three panels; each file is listed on
-  `src/src.md`.
+  themes, the top bar, the browser, Preferences, the dock and the three
+  panels; each file is listed on `src/src.md`.
