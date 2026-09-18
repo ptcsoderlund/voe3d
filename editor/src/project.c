@@ -277,8 +277,7 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	voe_base_error error;
 	const char *target;
 	const char *scene_path;
-	const char *scene_text;
-	size_t scene_size;
+	voe_authoring_text scene;
 
 	VOE_BASE_ASSERT(project != NULL, "saving no project");
 	VOE_BASE_ASSERT(why != NULL, "saving a project with nowhere to say why");
@@ -321,15 +320,15 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 
 	voe_base_report_error_clear();
 	if (!voe_authoring_scene_write(project->world, &project->kept,
-				       scratch, &scene_text, &scene_size)) {
+				       scratch, &scene)) {
 		voe_editor_notice_from_report(why, scene_path);
 		voe_base_arena_destroy(scratch);
 		return false;
 	}
 
 	voe_base_report_error_clear();
-	if (!voe_platform_file_write(scene_path, (const uint8_t *)scene_text,
-				     scene_size, &error)) {
+	if (!voe_platform_file_write(scene_path, (const uint8_t *)scene.text,
+				     scene.size, &error)) {
 		voe_editor_notice_from_report(why, scene_path);
 		voe_base_arena_destroy(scratch);
 		return false;

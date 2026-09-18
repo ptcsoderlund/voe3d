@@ -745,8 +745,7 @@ static bool ids_unique_or_refuse(const struct scene *scene)
 
 bool voe_authoring_scene_write(const voe_ecs_world *world,
 			       const voe_authoring_kept *kept,
-			       voe_base_arena *arena, const char **out_text,
-			       size_t *out_size)
+			       voe_base_arena *arena, voe_authoring_text *out)
 {
 	struct scene scene;
 	struct text measured = { 0 };
@@ -754,8 +753,7 @@ bool voe_authoring_scene_write(const voe_ecs_world *world,
 
 	VOE_BASE_ASSERT(world != NULL, "writing a NULL world");
 	VOE_BASE_ASSERT(arena != NULL, "writing into a NULL arena");
-	VOE_BASE_ASSERT(out_text != NULL && out_size != NULL,
-			"nowhere to put the text");
+	VOE_BASE_ASSERT(out != NULL, "nowhere to put the text");
 
 	gather(&scene, world, kept, arena);
 	if (!ids_unique_or_refuse(&scene))
@@ -772,7 +770,9 @@ bool voe_authoring_scene_write(const voe_ecs_world *world,
 			"the writing pass disagreed with the measuring pass");
 	written.bytes[written.size] = '\0';
 
-	*out_text = written.bytes;
-	*out_size = written.size;
+	*out = (voe_authoring_text){
+		.text = written.bytes,
+		.size = written.size,
+	};
 	return true;
 }

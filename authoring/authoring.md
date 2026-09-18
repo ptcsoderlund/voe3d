@@ -19,9 +19,10 @@ owns files, and text lands in an arena the caller hands over.
 - `include` — the public headers, in `include/authoring/`; each is listed below by path.
 - `src` — the implementation; each file is listed below by path.
 - `tests` — one plain C program per module, found by the build; each is listed below by path.
-- `include/authoring/scene_write.h` — a world written as scene text. Its header
-  says which entities, components and kept sections are written and in what order,
-  how every field kind is spelled, and each thing it refuses rather than writing.
+- `include/authoring/scene_write.h` — a world written as scene text, handed back
+  in one `voe_authoring_text` out-struct. Its header says which entities,
+  components and kept sections are written and in what order, how every field
+  kind is spelled, and each thing it refuses rather than writing.
 - `include/authoring/scene_read.h` — scene text read into a world. Its header says
   why a load may create rows, that a file is validated whole first, what a world
   that runs out of room is left as, and what is kept rather than read.
