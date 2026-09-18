@@ -9,8 +9,10 @@ either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's.
 
 - `include` — the public headers, in `include/ui/`; each is listed below by path.
-- `src` — the implementation; each file is listed below by path.
-- `tests` — one plain C program per module, found by the build; each is listed below by path.
+- `src` — the implementation: the tree and the sweeps that settle it, then what a node
+  means once the pointer and the keyboard have been at it; each file is listed on `src/src.md`.
+- `tests` — one plain C program per module, found by the build, neither needing a window
+  system; each is listed on `tests/tests.md`.
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
   between its begin and its end, any of which may clip what reaches past it
@@ -64,51 +66,3 @@ sits in the world is one matrix and it is the caller's.
   it says why the offset is remembered there and not in layout, that an area
   not called forgets, how a scroll passes outward, why it arrives in
   millimetres and lands next frame, and that the bar lies over the content.
-- `src/context.h` — the tree and the context, shared by the folder's two source
-  files. Its header says why there is one context and not two, which half owns
-  which field, why the widget pass runs where it does, why a drag needs four
-  fields beside `held` and no keyed table, why a held thumb needs no key of its
-  own, and what `focus` is beside `held`.
-- `src/layout.c` — the tree, and the sweeps over it, one axis at a time. Its
-  header says why the array being in call order makes every pass a flat loop
-  with neither recursion nor a stack, what passes between the X pass and the Y
-  pass, where a wrapping column has to revisit X, why a corrective sweep after
-  both passes measures each axis again and re-clamps every offset once the wraps
-  are decided, why a node's natural size is written by its parent rather than by
-  itself, what a grow child contributes to a natural container and
-  why that answer and not the two others, why a gap belongs to the run and not to
-  a child, how an anchored child is a stronger exclusion than a grow one and why
-  its axes are absolute, how paint order is worked out in three linear sweeps now
-  that it is no longer the array's own order, where a scroll offset is clamped
-  and how the clip is a fourth flat sweep, where the single subtraction of
-  padding lives and why four numbers still go through two accessors, why there is
-  no flip and no minus sign in front of a Y anywhere in it, and why the structs
-  are declared next door.
-- `src/widgets.c` — what a node means, what the pointer and the keyboard are
-  doing to it, and the records that come out. Its header says why emission is a
-  copy with no arithmetic in it and where the one sign that does appear comes
-  from, why paint order is taken from layout rather than re-derived, why the
-  hit test is after arrange and against the visible rectangle, how a record is
-  clipped, what the two ids do in every awkward case including the stuck one,
-  why the key is FNV-1a over a path, why a drag measures its dead zone from
-  the press and its change from last frame, how the scroll table is
-  rewritten each frame and where a scrollbar sits in paint order, why a
-  field's focus follows the press itself rather than `held`/`fired`'s release,
-  and why its editing runs after resolve rather than inside it.
-- `tests/layout.c` — rectangles worked out by hand, one case per decision,
-  wraps, clips and clamped scroll offsets among them. Its header names the
-  answers it is pinning down rather than merely exercising, group by group and
-  each one a decision that could have gone the other way, which two cases are
-  about the machinery instead of the arithmetic, and why exactly one case
-  reaches into `src/` — paint order is an order and no rectangle can show it.
-  Needs no graphics card and no window system.
-- `tests/widgets.c` — a press and a release in every order a hand can produce,
-  a sideways drag in every order one can, a clipped button and label, a drag
-  scrolled out of sight, a scroll area's remembering, passing on, bar, drag,
-  page and refusal, a duplicate key, a known tree emitted as a known list, two
-  images as two IMAGE records, and a field's focus, typing, Backspace, Enter
-  and capacity. Its header says why the click cases are the ones that matter,
-  why the collision case is the most valuable in the file, and why every case
-  that measures a string — the text scale, a label's own emission, and a
-  field, which always composes one — takes a headless device while the rest
-  need no graphics card. Needs no window system.
