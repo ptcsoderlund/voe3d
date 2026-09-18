@@ -1,8 +1,8 @@
-# 003 Render to a texture, and save it
+# 003 — Render to a texture, and save it
 
-Status: accepted
-Approved: 2026-09-15
-Accepted: 2026-09-15
+Approved 2026-09-15. Accepted 2026-09-15. Built ahead of 002 by the sponsor's choice on 2026-09-15, because it makes every later feature cheaper to verify.
+
+## What
 
 A program can draw a frame into a texture rather than onto the screen, and then do either of two
 things with it: put it on something in the scene, or write it out as a PNG file. The sponsor wants
@@ -11,7 +11,11 @@ preview on a surface in the world, or an agent wanting to see what it just built
 exists: a picture has been hand-written three times as a throwaway program, and the last one had
 to write out the PNG format by hand.
 
-## Acceptance criteria
+## Why
+
+A picture of the engine had been hand-written three times as a throwaway program, the last one writing out the PNG format by hand; a developer wants a camera preview on a surface and an agent wants to see what it just built.
+
+## How to test
 
 1. A program draws a view into a texture and puts that texture on something in the scene — a
    second camera's view showing on a surface in the world — and the surface shows the view,

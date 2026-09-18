@@ -1,7 +1,6 @@
-# 0168 A keysym is a number as often as a name, a key has four levels, and AltGr is a place
-
-Status: accepted
-Date: 2026-09-17
+# 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place
+date: 2026-09-17
+by: planner
 
 ADR-0161 had `platform` read the Wayland keymap itself, and described a keysym as a name — the X11
 Latin-1 names, plus `U<hex>` and `0x0100<hex>` for the two literal forms. A real compositor does not
@@ -51,7 +50,7 @@ nothing, Windows reading `WM_CHAR`, no key repeat and the refusal to take `xkbco
 untouched. What changes is the inside of the reader it introduced: its keysym clause and its "levels
 one and two" clause.
 
-## Rejected
+## Reasoning
 
 - **Take `xkbcommon` after all** — the dependency rule 5 turned down twice, and the fault was a
   lexer rule three lines long, not the size of the problem.
@@ -81,3 +80,7 @@ one and two" clause.
 - The keymap text is now read in two spellings that no longer share a code path at the token level;
   `platform/tests/keymap.c` keeps one keymap in each spelling, and a keymap from a compositor that
   writes names stays covered.
+
+## Replaces
+
+Nothing. ADR-0161 is amended as the decision says, not superseded. Written on `feature/008-typing-what-you-press` under the earlier workflow as 0168; renumbered by ADR-0168 when the branch took the Agentic workflow.

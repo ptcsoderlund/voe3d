@@ -16,6 +16,9 @@ component being written only by its own system: it adds rows to entities it has
 just created, and edits nothing (ADR-0152). Nothing here opens a file: `platform`
 owns files, and text lands in an arena the caller hands over.
 
+- `include` — the public headers, in `include/authoring/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/authoring/scene_write.h` — a world written as scene text. Its header
   says which entities, components and kept sections are written and in what order,
   how every field kind is spelled, and each thing it refuses rather than writing.

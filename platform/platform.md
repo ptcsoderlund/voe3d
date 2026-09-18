@@ -5,6 +5,9 @@ header, and the only one that knows there is more than one operating system.
 Today that is a window, its keyboard and mouse, a clock, reading and writing a
 file, and listing, making or finding a folder.
 
+- `include` — the public headers, in `include/platform/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/platform/window.h` — the window API. Its header carries the two rules
   callers need: opening a window can fail and returns NULL, and `_poll` folds
   events into state rather than handing them out; `_close_refuse` takes back a

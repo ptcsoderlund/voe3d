@@ -4,6 +4,9 @@ Vectors and matrices, named and laid out the way Slang names and lays them out,
 so that a value here and a value in a shader are the same thing. Pure data used
 inline; no systems here, because nothing here owns an identity.
 
+- `include` — the public headers, in `include/math/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/math/float2.h` — a two-component vector, and the operations on it.
 - `include/math/float3.h` — a three-component vector; the only one with a cross
   product.

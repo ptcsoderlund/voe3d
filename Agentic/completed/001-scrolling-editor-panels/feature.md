@@ -1,15 +1,19 @@
-# 001 Scrolling editor panels
+# 001 — Scrolling editor panels
 
-Status: accepted
-Approved: 2026-09-14
-Accepted: 2026-09-15
+Approved 2026-09-14. Accepted 2026-09-15.
+
+## What
 
 Nothing in the editor draws outside its column any more. When a column is too narrow, the
 inspector folds a field's number boxes onto lines under its label. When a column is too small for
 its content, it scrolls with the mouse wheel or a scrollbar. The sponsor wants every value in the
 inspector reachable at any window size.
 
-## Acceptance criteria
+## Why
+
+Every value in the inspector has to be reachable at any window size, and nothing in the editor may draw outside its column.
+
+## How to test
 
 1. At the default window size, with an entity that has a transform selected, every number box is
    inside the Inspector column.

@@ -1,8 +1,6 @@
-# 006 Themes
+# 006 — Themes
 
-Status: approved
-Approved: 2026-09-15
-Accepted: -
+## What
 
 Every piece of interface — in the editor and in a game — takes its look from a theme: flat, square,
 hairline borders in the manner of Windows 10, with one accent colour. A theme is a small text file
@@ -11,7 +9,13 @@ font and text size, and every other colour is worked out from them, so making yo
 easy and hard to make ugly. A theme set on a panel applies to everything inside it unless something
 nearer sets its own. The editor dogfoods it first; a game editor for interfaces comes later.
 
-## Acceptance criteria
+## Why
+
+Making your own theme should be easy and hard to make ugly, and every piece of interface in the editor and in a game should take its look from one place. The editor dogfoods it first.
+
+Work on this began under the earlier workflow. Cards 01 to 04 are done and committed on branch `feature/006-themes`, which carries this feature's folder under `Agentic/kanban/` with those cards in `review/` and the rest of the old plan in `blocked/` for the planner to re-cut. Resume there: switch to the branch, merge `dev`, and run `/drive`. Built after 008 by the sponsor's choice on 2026-09-17.
+
+## How to test
 
 1. **The default look.** The editor starts in the built-in almost-black theme: near-black
    surfaces, flat square controls with hairline borders, light text, and one accent colour. The
@@ -53,12 +57,12 @@ nearer sets its own. The editor dogfoods it first; a game editor for interfaces 
 ## Constraints
 
 - Linux first: acceptance is on Linux.
-- Built after 004 (it uses the top bar) and before 005, which then adds a font choice on top of the
-  theme.
+- Built after 004 (it uses the top bar) and before 009 (editor font, was 005), which then adds a font choice
+  on top of the theme.
 
 ## Defaults
 
-- The built-in theme is dark, with a blue accent; its font is Oxanium until 005 makes it Pixel
+- The built-in theme is dark, with a blue accent; its font is Oxanium until 009 makes it Pixel
   Operator.
 - A theme can name only fonts the program carries.
 - Theme files use the engine's existing text format. The editor's own themes live in the per-person
