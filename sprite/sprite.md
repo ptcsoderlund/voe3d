@@ -6,8 +6,10 @@ component of its own — a sprite is an ordinary entity wearing this quad and on
 of these materials.
 
 - `include` — the public headers, in `include/sprite/`; each is listed below by path.
-- `src` — the implementation; each file is listed below by path.
-- `tests` — one plain C program per module, found by the build; each is listed below by path.
+- `src` — the implementation: the quad's numbers and the sheet's arithmetic; each
+  file is listed on `src/src.md`.
+- `tests` — one plain C program per module, found by the build; each is listed on
+  `tests/tests.md`.
 - `include/sprite/quad.h` — the unit quad, uploaded once and shared by every
   sprite. Its header says why nothing about a sprite may live in its mesh, why
   there are two faces in the same place, why the back one is mirrored, and where
@@ -16,9 +18,3 @@ of these materials.
   header says why a frame is a material and not a mesh, which way the cells are
   ordered, what a sheet's texture has to have been created as, and what this
   folder is deliberately not.
-- `src/quad.c` — those vertices and indices, and the upload. Its header says
-  where the winding was copied from and why the arrays are not public.
-- `src/sheet.c` — the grid division and the loop that uploads it.
-- `tests/sheet.c` — the four corners of a four-by-two sheet, a short last row,
-  and that framing a material touches nothing else in it. Its header says why the
-  sheet is not square. Needs no graphics card.
