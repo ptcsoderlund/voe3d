@@ -15,3 +15,4 @@ wherever it lives. Numbering continues here from 0168.
 - `0176-themes-row-names-render-for-its-tests-device.md` — `theme`'s row is 0170's plus `render`, so its test can make the headless device a label needs.
 - `0177-to-see-what-was-drawn-render-to-a-png.md` — A coder checks what was drawn by rendering a PNG with `voe_editor --capture` or the headless app. The planner names this decision on cards that change what is drawn.
 - `0178-two-built-in-themes-remembered-by-a-reserved-name.md` — The editor has two built-in themes, Near black (entry 0) and Near white (entry 1, light mode); the remembered line is `near_white` for Near white and empty for Near black.
+- `0179-the-editors-built-ins-take-pixel-operator-and-a-font-override-is-one-line.md` — Near black and Near white take Pixel Operator; the editor's font override (theme's own, `pixel_operator`, `oxanium`) is one line in `<settings>/voe3d/font`, applied to a copy of the chosen palette.
