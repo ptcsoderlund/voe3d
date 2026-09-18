@@ -1,0 +1,20 @@
+# scene
+
+The public headers, one entry each; the fuller account of every one of these
+stays on `scene/scene.md`.
+
+- `transform_component.h` — position, rotation and scale, and the matrix the
+  three of them become.
+- `transform_system.h` — the intent that moves one, and the direct call that
+  creates one.
+- `camera_component.h` — eye, yaw, pitch, field of view, the two planes, and the
+  view matrix.
+- `camera_system.h` — the two camera intents, absolute and relative.
+- `identity_component.h` — a 64-bit id and a 64-byte name on the entities a
+  person authored.
+- `identity_system.h` — the intent that renames one, and the direct call that
+  creates one.
+- `light_component.h` — the sun: which way its light travels, its colour and its
+  strength.
+- `light_system.h` — the intent that turns it, and the direct call that creates
+  one.
