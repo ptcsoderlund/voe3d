@@ -12,3 +12,4 @@ wherever it lives. Numbering continues here from 0168.
 - `0173-a-code-subfolder-carries-its-own-index-page.md` — Every folder holding code carries `<folder>.md` as an index; `src/` and `tests/` entries move down out of the module page, `include/` gets a thin one.
 - `0174-006s-finished-cards-are-merged-back-not-redone.md` — `feature/006-themes-old` is merged into `feature/006-themes` by the next `/drive`, with the four conflicts resolved as written; the planner then re-cuts `blocked/05`.
 - `0175-a-new-folders-card-registers-it-in-the-build.md` — The build is the coder's: a card that creates a folder adds its `cmake/voe.cmake` row and root `add_subdirectory` line, and `checks.sh` allows those two files under a named decision.
+- `0176-themes-row-names-render-for-its-tests-device.md` — `theme`'s row is 0170's plus `render`, so its test can make the headless device a label needs.
