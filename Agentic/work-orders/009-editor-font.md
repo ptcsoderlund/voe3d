@@ -3,7 +3,7 @@
 ## What
 
 The editor's own panels are drawn in Pixel Operator, a pixel-style typeface free to ship, instead
-of Oxanium. The built-in theme takes Pixel Operator as its font, and the editor's Preferences can
+of Oxanium. Both built-in themes, Near black and Near white, take Pixel Operator as their font, and the editor's Preferences can
 override whichever theme is chosen with Oxanium — the logo font — or Pixel Operator. The override
 belongs to the editor only; a game made with the engine is not affected.
 
@@ -11,12 +11,13 @@ belongs to the editor only; a game made with the engine is not affected.
 
 The sponsor wants the editor's own panels in a pixel-style face and Oxanium kept as the logo font, with the choice belonging to the editor only. This was spec 005 and ADR-0167 calls it that; it is 009 because it is built after 006, whose Preferences panel and themes it sits on, and a work order is taken in number order.
 
-The font itself is already in the tree on branch `feature/006-themes`: its card 02 embeds Pixel Operator beside Oxanium and makes a font asked for by typeface (ADR-0167). What is left here is the editor's default and the override in Preferences.
+The font itself is already in the tree, since 006 was accepted: it embeds Pixel Operator beside Oxanium and makes a font asked for by typeface (ADR-0167). What is left here is the editor's default and the override in Preferences.
 
 ## How to test
 
 1. **The new default.** Start the editor with no preference saved: every panel — top bar, Scene
-   list, Inspector, file browser, Preferences — is in Pixel Operator.
+   list, Inspector, file browser, Preferences — is in Pixel Operator. Choose Near white: still
+   Pixel Operator.
 2. **A font choice in Preferences.** Beside the list of themes, Preferences offers the font: the
    theme's own, Pixel Operator or Oxanium, the one in use marked.
 3. **Switching is immediate.** Choosing Oxanium redraws every panel in Oxanium at once, whatever
@@ -42,6 +43,8 @@ The font itself is already in the tree on branch `feature/006-themes`: its card 
 - Pixel Operator ships inside the editor with its licence file beside it, as Oxanium does. If its
   licence turns out not to permit that, the build stops and the sponsor is asked.
 - Built after 004 and 006: it uses 006's Preferences panel and themes.
+- ADR-0178 gives both built-in themes Oxanium; this order changes that one fact to Pixel Operator.
+  The rest of 0178 stands: the two entries, their order and how the choice is remembered.
 
 ## Defaults
 
