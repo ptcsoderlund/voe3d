@@ -1415,16 +1415,22 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 // THE FONT IS MADE HERE AND NOT AT STARTUP, which is the difference between a
 // program that draws text and one that does not. Nothing in `render` builds an
 // atlas; this call is what builds it, once, and a program that never makes one
-// never pays for it.
+// never pays for it. It is what this call returns, rather than a second
+// out-parameter, because rule 6 allows one level of dereference and the font
+// is made inside this function and handed straight back.
 //
 // THE SIGN IS CENTRED ON ITS OWN WIDTH. A block's origin is the left end of its
 // first baseline, so a sign that was not shifted would hang off to one side of
 // whatever it is standing on.
-static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
-			 voe_base_arena *arena, voe_render_geometry quad,
-			 voe_text_font **font, voe_ecs_entity *hud,
-			 voe_ecs_entity *panel, voe_ecs_entity *readout,
-			 voe_math_float2 *hud_size, voe_base_error *error)
+[[nodiscard]] static voe_text_font *add_the_text(voe_ecs_world *world,
+						 voe_render_device *gpu,
+						 voe_base_arena *arena,
+						 voe_render_geometry quad,
+						 voe_ecs_entity *hud,
+						 voe_ecs_entity *panel,
+						 voe_ecs_entity *readout,
+						 voe_math_float2 *hud_size,
+						 voe_base_error *error)
 {
 	voe_text_block sign;
 	voe_text_block line;
@@ -1434,17 +1440,18 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 	voe_scene_transform front;
 	voe_scene_transform back;
 	voe_ecs_entity unused = { 0 };
+	voe_text_font *font;
 
-	*font = voe_text_font_new(gpu, arena, error);
-	if (*font == NULL)
-		return false;
+	font = voe_text_font_new(gpu, arena, error);
+	if (font == NULL)
+		return NULL;
 
-	if (!voe_text_block_create(*font, gpu, arena, SIGN_TEXT, SIGN_EM, &sign,
+	if (!voe_text_block_create(font, gpu, arena, SIGN_TEXT, SIGN_EM, &sign,
 				   error))
-		return false;
-	if (!voe_text_block_create(*font, gpu, arena, HUD_TEXT, HUD_EM, &line,
+		return NULL;
+	if (!voe_text_block_create(font, gpu, arena, HUD_TEXT, HUD_EM, &line,
 				   error))
-		return false;
+		return NULL;
 
 	front = (voe_scene_transform){
 		.position = { -sign.size.x * 0.5f, SIGN_HEIGHT, 0.0f },
@@ -1463,12 +1470,12 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 
 	// The sign is in the world, so that walking something in front of it
 	// still hides it. That is half of what the two placements are for.
-	if (!add_text(world, gpu, *font, sign, sign_tint, front,
+	if (!add_text(world, gpu, font, sign, sign_tint, front,
 		      VOE_3D_LAYER_WORLD, &unused, error))
-		return false;
-	if (!add_text(world, gpu, *font, sign, sign_tint, back,
+		return NULL;
+	if (!add_text(world, gpu, font, sign, sign_tint, back,
 		      VOE_3D_LAYER_WORLD, &unused, error))
-		return false;
+		return NULL;
 
 	// The heads-up line starts wherever; the loop places it every frame from
 	// where the camera actually is, and its width is what centres it there.
@@ -1488,12 +1495,12 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 				     VOE_RENDER_ALPHA_OPAQUE, true),
 		      quad_at((voe_math_float3){ 0.0f, 0.0f, 0.0f }, 1.0f),
 		      VOE_3D_LAYER_OVERLAY, panel, error))
-		return false;
+		return NULL;
 
 	*hud_size = line.size;
-	if (!add_text(world, gpu, *font, line, hud_tint, front,
+	if (!add_text(world, gpu, font, line, hud_tint, front,
 		      VOE_3D_LAYER_OVERLAY, hud, error))
-		return false;
+		return NULL;
 
 	// The readout: an entity wearing the text material and, for now, no
 	// geometry. The block it draws is built inside every frame and put on
@@ -1501,8 +1508,11 @@ static bool add_the_text(voe_ecs_world *world, voe_render_device *gpu,
 	// nothing — is exactly right until the first frame opens, and nothing
 	// draws it before then. Same material, same layer and, until the loop
 	// places it, the same transform as the line.
-	return add_text(world, gpu, *font, (voe_text_block){ 0 }, hud_tint,
-			front, VOE_3D_LAYER_OVERLAY, readout, error);
+	if (!add_text(world, gpu, font, (voe_text_block){ 0 }, hud_tint, front,
+		      VOE_3D_LAYER_OVERLAY, readout, error))
+		return NULL;
+
+	return font;
 }
 
 // The camera's frame, for placing things that travel with it: where the eye is,
@@ -2272,8 +2282,9 @@ int main(void)
 	// The font and the three text entities. Not optional the way a model is:
 	// there is one font, it is in the binary, and a failure here is a bug in
 	// the reader rather than a file somebody could not open.
-	if (!add_the_text(world, gpu, arena, quad, &font, &hud, &panel,
-			  &readout, &hud_size, &error)) {
+	font = add_the_text(world, gpu, arena, quad, &hud, &panel, &readout,
+			    &hud_size, &error);
+	if (font == NULL) {
 		VOE_BASE_ERROR("dev", "could not build the text: %s",
 			       voe_base_error_string(error));
 		goto stop;

@@ -1,16 +1,15 @@
 # tests
 
-One plain C program per module, found by the build, checking the reader against
-the font that is actually shipped and the raster's two rules. None of them needs
-a graphics card.
+`text`'s own tests: plain C programs with an ordinary `main()`, zero for pass,
+found by the build and registered nowhere. None of them needs a graphics card —
+everything this folder computes is computed on the CPU, so every claim below is
+checked by reading numbers and pixels straight out of an arena.
 
-- `truetype.c` — the reader against the font that is actually shipped, composite
-  glyphs first. Its header says why a real file and not a built one, and why the
-  accented characters are the test that matters.
-- `raster.c` — the fill rule, as the one pair of cases that tells non-zero
-  winding from even-odd, and the field measured at one right angle. Its header
-  says why an `o` on its own would pass with the wrong rule, and why the field's
-  claims are made about a corner and about the median rather than about a letter
-  or a channel.
-- `utf8.c` — well-formed input, every malformed shape, and that walking a mangled
-  string ends.
+- `truetype.c` — that the reader gets the right numbers out of the font that is
+  actually shipped, composite glyphs first, because a reader that handles only
+  simple ones renders every accented character as a blank.
+- `raster.c` — that the fill rule is non-zero winding and not even-odd, as the
+  one pair of cases that tells them apart, and that the distance field measures a
+  right angle correctly at its corner and along its median.
+- `utf8.c` — that well-formed input decodes to the right character, that every
+  malformed shape is refused, and that walking a mangled string always ends.

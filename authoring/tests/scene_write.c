@@ -95,23 +95,22 @@ static voe_ecs_entity authored(voe_ecs_world *world, uint64_t id,
 static const char *written(const voe_ecs_world *world, voe_base_arena *arena,
 			   size_t *size)
 {
-	const char *text = NULL;
+	voe_authoring_text out = { 0 };
 
-	*size = 0;
-	VOE_TEST_CHECK(voe_authoring_scene_write(world, NULL, arena, &text, size));
-	return text != NULL ? text : "";
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, NULL, arena, &out));
+	*size = out.size;
+	return out.text != NULL ? out.text : "";
 }
 
 // Writes, checks it was refused, and that nothing was handed back.
 static void check_refused(const voe_ecs_world *world, voe_base_arena *arena)
 {
 	const char *sentinel = "untouched";
-	const char *text = sentinel;
-	size_t size = 12345;
+	voe_authoring_text out = { .text = sentinel, .size = 12345 };
 
-	VOE_TEST_CHECK(!voe_authoring_scene_write(world, NULL, arena, &text, &size));
-	VOE_TEST_CHECK(text == sentinel);
-	VOE_TEST_CHECK_INT(size, 12345);
+	VOE_TEST_CHECK(!voe_authoring_scene_write(world, NULL, arena, &out));
+	VOE_TEST_CHECK(out.text == sentinel);
+	VOE_TEST_CHECK_INT(out.size, 12345);
 }
 
 static void test_three_entities(void)
@@ -584,7 +583,6 @@ static void test_kept_sections(void)
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity cube = authored(world, 2, "Cube");
-	size_t size;
 
 	authored(world, 5, "Lamp");
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
@@ -604,10 +602,10 @@ static void test_kept_sections(void)
 		{ .id = 1, .key = "gone", .lines = "d = 4\n", .size = 6 },
 	};
 	const voe_authoring_kept kept = { .sections = sections, .count = 5 };
-	const char *text = NULL;
+	voe_authoring_text out = { 0 };
 
-	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &text, &size));
-	CHECK_TEXT(text != NULL ? text : "", size,
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &out));
+	CHECK_TEXT(out.text != NULL ? out.text : "", out.size,
 		   "[2]\n"
 		   "name = \"Cube\"\n"
 		   "[2.aa_before]\n"
@@ -629,12 +627,11 @@ static void test_kept_sections(void)
 		{ .id = 2, .key = "voe_scene_transform", .lines = "", .size = 0 },
 	};
 
-	text = "untouched";
-	size = 12345;
+	out = (voe_authoring_text){ .text = "untouched", .size = 12345 };
 	VOE_TEST_CHECK(!voe_authoring_scene_write(
 		world, &(voe_authoring_kept){ .sections = clash, .count = 1 },
-		arena, &text, &size));
-	VOE_TEST_CHECK(strcmp(text, "untouched") == 0);
+		arena, &out));
+	VOE_TEST_CHECK(strcmp(out.text, "untouched") == 0);
 
 	voe_base_arena_destroy(arena);
 }

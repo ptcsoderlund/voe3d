@@ -1,7 +1,7 @@
 # tests
 
-One plain C program per module, found by the build, checking the operations and
-the layout conventions from outside. None of them needs a graphics card.
+One plain C program per `math` module, found by the build, each checking that
+module's promises from outside.
 
 - `float2.c` — the float2 operations, checked from outside.
 - `float3.c` — the float3 operations, and that the cross product is

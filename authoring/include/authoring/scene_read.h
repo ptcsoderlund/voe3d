@@ -6,7 +6,8 @@
 //     if (!voe_authoring_scene_read(text, size, world, arena, &kept))
 //             ...                     // reported; see what the world is left as
 //     ...
-//     voe_authoring_scene_write(world, arena, &kept, &out, &out_size);
+//     voe_authoring_text out;
+//     voe_authoring_scene_write(world, &kept, arena, &out);
 //
 // A LOAD CREATES, AND IT IS THE ONE SANCTIONED GENERIC WRITER. A component is
 // written by its own system (ecs/component.h), and the exception is creation:

@@ -1,58 +1,64 @@
 # src
 
-`platform`'s implementation. A file named `_wayland` or `_win32` is that
-platform's alone and the only kind of file here that may include an OS header;
-everything else is written once for both.
+`platform`'s implementation. Every public function is here twice, once per
+operating system, in a file named for the backend it belongs to — `_wayland` is
+Linux and `_win32` is Windows — except where one file can serve both, and then
+there is only one. This is the only folder in the engine that includes an OS
+header.
 
-- `clock_wayland.c` — CLOCK_MONOTONIC. Linux only despite the name, the same as
-  the file below; its header says why the adjusted clock and not the raw one.
+- `clock_wayland.c` — CLOCK_MONOTONIC. Linux only despite the name, as every
+  `_wayland` file here is; its header says why the adjusted clock and not the
+  raw one.
 - `clock_win32.c` — the performance counter, and the frequency asked for once.
   Its header says why not the millisecond tick counts.
 - `file_wayland.c` — open, read/write, close, and the rename that makes a write
-  atomic. Linux only despite the name; its header says why the name says
-  wayland, why the read and write loops and the checked fsync and close are not
-  optional, and why the `.partial` path is a stack buffer.
+  atomic. Its header says why the name says wayland, why the read and write
+  loops and the checked fsync and close are not optional, and why the
+  `.partial` path is a stack buffer.
 - `file_win32.c` — CreateFileA, ReadFile/WriteFile, CloseHandle, and the
-  MoveFileExA that makes a write atomic. Its header says why the ASCII call, why
-  a 64-bit count is moved in steps, and why the `.partial` path is a stack
+  MoveFileExA that makes a write atomic. Its header says why the ASCII call,
+  why a 64-bit count is moved in steps, and why the `.partial` path is a stack
   buffer.
-- `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Linux
-  only despite the name; its header says why listing is two passes and the sort
-  is by hand, and when `fstatat` decides `folder` instead of `d_type`.
+- `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
+  header says why listing is two passes and the sort is by hand, and when
+  `fstatat` decides `folder` instead of `d_type`.
 - `folder_win32.c` — FindFirstFileA/FindNextFileA, CreateDirectoryA, and
   GetEnvironmentVariableA for %USERPROFILE%/%APPDATA%. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
 - `path.c` — joining, finding a parent and finding a name, for both platforms.
   Its header says why the separator is one compile-time constant rather than an
   `#ifdef` in each function.
-- `path_wayland.c` — realpath, resolving a path to an absolute one. Linux only
-  despite the name; its header says why `PATH_MAX` is realpath's own buffer and
-  not a limit this folder invents.
+- `path_wayland.c` — realpath, resolving a path to an absolute one. Its header
+  says why `PATH_MAX` is realpath's own buffer and not a limit this folder
+  invents.
 - `path_win32.c` — GetFullPathNameA plus GetFileAttributesA, since the first
   alone will invent a path for a name that is not there. Its header says why two
   calls size the buffer.
-- `library_wayland.c` — dlopen and dlsym. Linux only despite the name; its
-  header says why the name says wayland.
+- `library_wayland.c` — dlopen and dlsym. Its header says why the name says
+  wayland.
 - `library_win32.c` — LoadLibraryA and GetProcAddress.
-- `keymap.h` — the XKB keymap reader: an evdev-code-and-level table built from
-  resolved XKB v1 text, internal to this folder and built on both platforms
-  because it includes no OS header. Its header says which two blocks it reads,
-  which two spellings of a key's symbols it reads, what a keysym name becomes
-  and what it does not read.
+- `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an
+  AltGr flag per code, built from resolved XKB v1 text, internal to this folder
+  and built on both platforms because it includes no OS header. Its header says
+  which two blocks it reads, which two spellings of a key's symbols it reads,
+  how a keysym as a number differs from one as a name, what makes a key AltGr,
+  what it does not read, and when it refuses a keymap outright.
 - `keymap.c` — its implementation: one lexer and a small parsing function per
   level of the format's fixed nesting, none of them calling itself. Its header
-  says why a brace counter stands in for recursion here.
+  says why a brace counter stands in for recursion here, and why a key body is
+  read by its statements rather than by its first `[`.
 - `input.h` — the input state both backends fill and neither reads, the two
   functions each of them defines over its own window, the three clears both of
-  them call, and the one shared function that turns a code point into the
-  typed-text buffer's UTF-8. Its header says why the public functions are
-  written once.
+  them call, and the one shared function that turns a code point into the typed
+  text buffer's UTF-8. Its header says why the public functions are written
+  once.
 - `input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
 - `window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
   There is no X11 backend, and nothing in it draws — its header says why the
   window is invisible until something else does, why input is in the same file,
-  and why the keymap is read in-house rather than through `xkbcommon`.
+  why the keymap is read in-house rather than through `xkbcommon`, and why
+  AltGr is held like Shift rather than read from the compositor's modifiers.
 - `window_win32.c` — the Windows window, its keyboard and its `WM_CHAR` text,
   the mouse as a raw input device for look and as ordinary messages for position
   and buttons. Its header says why Control without Alt drops everything

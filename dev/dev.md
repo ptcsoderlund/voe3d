@@ -13,4 +13,5 @@ one sun going round it all, and a camera that either orbits them or is flown
 with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
 
-- `src` — the implementation. See `src/src.md`.
+- `src` — the implementation: the loop, the exhibits it places and the assets
+  it embeds; each file is listed on `src/src.md`.

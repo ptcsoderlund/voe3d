@@ -1,7 +1,9 @@
 # src
 
-`authoring`'s implementation: the writer, the reader and the project file, and
-the two internal pairs all three share.
+`authoring`'s implementation: the writer, the reader and the project file behind
+the three public headers, and the two helpers they share. Nothing here opens a
+file and nothing here knows what a transform or a camera is — a field is written
+and read through the description its own folder registered.
 
 - `scene_write.c` — the writer. Its header says why it walks the world twice and
   how kept sections are merged in.
@@ -11,9 +13,9 @@ the two internal pairs all three share.
   path is checked the same way on both sides.
 - `line_index.h` — the line number of every section and key in a sectioned
   document, shared by `scene_read.c` and `project.c`, both of which name a line
-  in a refusal. Its header says why it is a second walk of the same text.
-- `line_index.c` — that walk: the classification of a line, and the counts tied
-  to the parsed document's.
+  in a refusal.
+- `line_index.c` — the second walk of the same text that fills that index, and
+  each key's own trimmed bytes with it.
 - `authored.h` — the sort and search by authored id both of them use, and why
   neither is the C library's.
 - `authored.c` — the merge sort and the binary search.

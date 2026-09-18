@@ -167,15 +167,14 @@ static void check_round_trip(const char *text, const char *file, int line)
 	struct types types;
 	voe_ecs_world *world = world_of(arena, ENTITIES, &types);
 	voe_authoring_kept kept = { 0 };
-	const char *out = "";
-	size_t size = 0;
+	voe_authoring_text out = { .text = "", .size = 0 };
 
 	if (!read_text(text, world, arena, &kept))
 		voe_test_report(file, line, "the text was read");
-	else if (!voe_authoring_scene_write(world, &kept, arena, &out, &size))
+	else if (!voe_authoring_scene_write(world, &kept, arena, &out))
 		voe_test_report(file, line, "the world was written");
 	else
-		check_text(out, size, text, file, line);
+		check_text(out.text, out.size, text, file, line);
 
 	voe_base_arena_destroy(arena);
 }
@@ -319,8 +318,7 @@ static void test_round_trip_world_first(void)
 	voe_ecs_entity cube = authored(first, 2, "Cube");
 	voe_ecs_entity eye = authored(first, 5, "Eye");
 	voe_ecs_entity probe = { 0 };
-	const char *text = NULL;
-	size_t size = 0;
+	voe_authoring_text out = { 0 };
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(first, &probe));
 	VOE_TEST_CHECK(voe_scene_transform_add(first, cube, (voe_scene_transform){
@@ -355,14 +353,15 @@ static void test_round_trip_world_first(void)
 		.pair = { cube, eye },
 	}));
 
-	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &text, &size));
+	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &out));
 
 	struct types second_types;
 	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
 	voe_authoring_kept kept = { 0 };
 
-	VOE_TEST_CHECK(text != NULL &&
-		       voe_authoring_scene_read(text, size, second, arena, &kept));
+	VOE_TEST_CHECK(out.text != NULL &&
+		       voe_authoring_scene_read(out.text, out.size, second, arena,
+						&kept));
 	VOE_TEST_CHECK_INT(kept.count, 0);
 	VOE_TEST_CHECK_INT(voe_ecs_entity_count(second), 3);
 	check_same_rows(first, second);
@@ -460,8 +459,7 @@ static void test_shapes_tolerated_spacing(void)
 	struct types types;
 	voe_ecs_world *world = world_of(arena, ENTITIES, &types);
 	voe_authoring_kept kept = { 0 };
-	const char *out = NULL;
-	size_t size = 0;
+	voe_authoring_text out = { 0 };
 
 	VOE_TEST_CHECK(read_text("[1]\n"
 				 "name = \"a\"\n"
@@ -475,8 +473,8 @@ static void test_shapes_tolerated_spacing(void)
 				 "links = [0, 0]\n",
 				 world, arena, &kept));
 
-	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &out, &size));
-	CHECK_TEXT(out, size,
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &out));
+	CHECK_TEXT(out.text, out.size,
 		   "[1]\n"
 		   "name = \"a\"\n"
 		   "[1.test_shapes]\n"
@@ -527,15 +525,14 @@ static void test_file_order(void)
 	struct types types;
 	voe_ecs_world *world = world_of(arena, ENTITIES, &types);
 	voe_authoring_kept kept = { 0 };
-	const char *text = "";
-	size_t size = 0;
+	voe_authoring_text out = { .text = "", .size = 0 };
 
 	VOE_TEST_CHECK(read_text("[3]\nname = \"c\"\n[3.test_link]\ntarget = 1\n\n"
 				 "[1]\nname = \"a\"\n\n"
 				 "[2]\nname = \"b\"\n",
 				 world, arena, &kept));
-	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &text, &size));
-	CHECK_TEXT(text, size,
+	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &out));
+	CHECK_TEXT(out.text, out.size,
 		   "[1]\nname = \"a\"\n\n[2]\nname = \"b\"\n\n"
 		   "[3]\nname = \"c\"\n[3.test_link]\ntarget = 1\n");
 
@@ -617,8 +614,7 @@ static void test_shapes_round_trip_world_first(void)
 	voe_ecs_world *first = world_of(arena, ENTITIES, &types);
 	voe_ecs_entity a = authored(first, 1, "A");
 	voe_ecs_entity b = authored(first, 2, "B");
-	const char *text = NULL;
-	size_t size = 0;
+	voe_authoring_text out = { 0 };
 
 	shapes row = {
 		.pair = { { 1, 2, 3 }, { 4, 5, 6 } },
@@ -637,14 +633,15 @@ static void test_shapes_round_trip_world_first(void)
 	VOE_TEST_CHECK(voe_ecs_component_add(first, types.shapes, a, &row_a));
 	VOE_TEST_CHECK(voe_ecs_component_add(first, types.shapes, b, &row_b));
 
-	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &text, &size));
+	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &out));
 
 	struct types second_types;
 	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
 	voe_authoring_kept kept = { 0 };
 
-	VOE_TEST_CHECK(text != NULL &&
-		       voe_authoring_scene_read(text, size, second, arena, &kept));
+	VOE_TEST_CHECK(out.text != NULL &&
+		       voe_authoring_scene_read(out.text, out.size, second, arena,
+						&kept));
 	VOE_TEST_CHECK_INT(kept.count, 0);
 	VOE_TEST_CHECK_INT(voe_ecs_entity_count(second), 2);
 	check_same_rows(first, second);

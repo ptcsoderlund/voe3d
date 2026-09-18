@@ -73,6 +73,15 @@
 // closed every time, because a leaked descriptor per keymap change is still a
 // leak whether or not the map is kept.
 //
+// AltGr IS ONE OF THOSE PLACES TOO (ADR-0169), NOT A MODIFIER READ OFF THE
+// COMPOSITOR. The keymap reader flags whichever evdev code its own text names
+// as the level-three shift, and this file holds that flag exactly the way it
+// already holds Shift — set and cleared by key in keyboard_key, restored on
+// refocus from the codes keyboard_enter is handed, and dropped in
+// keyboard_leave with everything else focus takes. A press then picks one of
+// the keymap's four levels by which of Shift and AltGr are held, the same
+// question key already answers for every other key.
+//
 // A KEYMAP THE READER REFUSES IS REPORTED ONCE, NOT ON EVERY KEY. The keymap
 // event fires once at startup and again only when the layout changes, so there
 // is nothing to spam here regardless — but the flag exists to say so on
@@ -185,6 +194,12 @@ struct voe_platform_window {
 	// a broken one has already been reported — see keyboard_keymap.
 	voe_platform_keymap keymap;
 	bool keymap_reported;
+
+	// Whether the key the keymap names as level-three shift (ADR-0169) is
+	// currently held. Kept beside the keymap rather than in the shared
+	// input state below because AltGr is not one of the twelve keys
+	// include/platform/input.h exposes — see key_set.
+	bool altgr_held;
 
 	struct voe_platform_input input;
 };
@@ -379,12 +394,20 @@ static voe_platform_key key_of(uint32_t scancode)
 	}
 }
 
+// Also where AltGr is held, exactly the way the twelve keys above are: this
+// runs for every scancode from keyboard_key and, on focus arriving, for every
+// scancode keyboard_enter finds already down, so both are covered by the one
+// check against the keymap's level3_shift flag (ADR-0169).
 static void key_set(voe_platform_window *window, uint32_t scancode, bool down)
 {
 	voe_platform_key key = key_of(scancode);
 
 	if (key != VOE_PLATFORM_KEY_COUNT)
 		window->input.keys[key] = down;
+
+	if (scancode < VOE_PLATFORM_KEYMAP_CODES &&
+	    window->keymap.level3_shift[scancode])
+		window->altgr_held = down;
 }
 
 // The keymap: mapped read-only and private into this process, handed whole to
@@ -461,15 +484,22 @@ static void keyboard_leave(void *data, struct wl_keyboard *keyboard,
 	(void)serial;
 	(void)surface;
 
+	window->altgr_held = false;
 	voe_platform_input_focus_lost(&window->input);
 }
 
-// The keyboard's half of ADR-0161: a press with Control up looks the scancode
-// and the shift level up in the keymap table and appends whatever it finds,
-// through the one function that also serves window_win32.c. Control held
-// types nothing, so a shortcut built on a key never also types a character;
-// a release never types, and a code point of 0 — a key the reader could not
-// resolve, or a keymap that failed to read at all — appends nothing because
+// The keyboard's half of ADR-0161 and ADR-0169: a press with Control up looks
+// the scancode and the level it selects up in the keymap table and appends
+// whatever it finds, through the one function that also serves
+// window_win32.c. The level is AltGr counted twice plus Shift counted once —
+// 0 plain, 1 Shift, 2 AltGr, 3 both — which is the same order the keymap
+// reader fills VOE_PLATFORM_KEYMAP_LEVELS in. key_set runs first and updates
+// altgr_held for this very key, so a press of the AltGr key itself already
+// has the level right, though it never matters: level3_shift is never also a
+// range that types (see src/keymap.h). Control held types nothing, so a
+// shortcut built on a key never also types a character; a release never
+// types, and a code point of 0 — a key the reader could not resolve, or a
+// keymap that failed to read at all — appends nothing because
 // voe_platform_input_append_text drops it.
 static void keyboard_key(void *data, struct wl_keyboard *keyboard,
 			 uint32_t serial, uint32_t time, uint32_t key,
@@ -486,7 +516,8 @@ static void keyboard_key(void *data, struct wl_keyboard *keyboard,
 
 	if (down && !window->input.keys[VOE_PLATFORM_KEY_CONTROL] &&
 	    key < VOE_PLATFORM_KEYMAP_CODES) {
-		uint32_t level = window->input.keys[VOE_PLATFORM_KEY_SHIFT] ? 1 : 0;
+		uint32_t level = (window->altgr_held ? 2 : 0) +
+				 (window->input.keys[VOE_PLATFORM_KEY_SHIFT] ? 1 : 0);
 		uint32_t code_point = window->keymap.typed[key][level];
 
 		if (code_point != 0)
@@ -495,11 +526,13 @@ static void keyboard_key(void *data, struct wl_keyboard *keyboard,
 }
 
 // Which modifiers the compositor thinks are latched, and it is deliberately not
-// where Shift and Control come from. This event reports the state of the
+// where Shift, Control or AltGr come from. This event reports the state of the
 // *keymap's* modifier groups, which is a question about what a keystroke would
 // type; the engine wants whether a physical key is held, and that arrives
-// through key like every other key. Reading both would be two answers to one
-// question and they disagree — Caps Lock latches a modifier with no key held.
+// through key like every other key — AltGr included, since ADR-0169 makes it a
+// place in the keymap rather than a modifier bit read here. Reading both would
+// be two answers to one question and they disagree — Caps Lock latches a
+// modifier with no key held.
 static void keyboard_modifiers(void *data, struct wl_keyboard *keyboard,
 			       uint32_t serial, uint32_t depressed,
 			       uint32_t latched, uint32_t locked, uint32_t group)

@@ -1,36 +1,20 @@
 # src
 
-`ui`'s implementation: the tree and its sweeps, and what a node means once it
-has a rectangle. The two source files share one context, declared next door.
+`ui`'s implementation: the tree and the sweeps that settle it, then what a node
+means once the pointer and the keyboard have been at it. Nothing here is
+included from outside the folder — `include/ui/` is the whole public surface.
 
-- `context.h` — the tree and the context, shared by the folder's two source
-  files. Its header says why there is one context and not two, which half owns
-  which field, why the widget pass runs where it does, why a drag needs four
-  fields beside `held` and no keyed table, why a held thumb needs no key of its
-  own, and what `focus` is beside `held`.
-- `layout.c` — the tree, and the sweeps over it, one axis at a time. Its header
-  says why the array being in call order makes every pass a flat loop with
-  neither recursion nor a stack, what passes between the X pass and the Y pass,
-  where a wrapping column has to revisit X, why a corrective sweep after both
-  passes measures each axis again and re-clamps every offset once the wraps are
-  decided, why a node's natural size is written by its parent rather than by
-  itself, what a grow child contributes to a natural container and why that
-  answer and not the two others, why a gap belongs to the run and not to a
-  child, how an anchored child is a stronger exclusion than a grow one and why
-  its axes are absolute, how paint order is worked out in three linear sweeps
-  now that it is no longer the array's own order, where a scroll offset is
-  clamped and how the clip is a fourth flat sweep, where the single subtraction
-  of padding lives and why four numbers still go through two accessors, why
-  there is no flip and no minus sign in front of a Y anywhere in it, and why the
-  structs are declared next door.
+The seam runs by pass. `layout.c` knows rectangles and nothing about identity or
+input; `widgets.c` knows keys, hit tests and records and asks `layout.c` for
+every number it needs; and `context.h` is the one struct they share.
+
+- `context.h` — the node and the one context the two source files share, each
+  field owned by one half or the other: the capacities, the tree, the pointer
+  and the keyboard, the drag in progress and what is held and focused.
+- `layout.c` — the tree, and the sweeps over it, one axis at a time: natural
+  sizes, the X pass, the wraps, the Y pass, the corrective sweep, the clamped
+  scroll offsets, the clips and the paint order.
 - `widgets.c` — what a node means, what the pointer and the keyboard are doing
-  to it, and the records that come out. Its header says why emission is a copy
-  with no arithmetic in it and where the one sign that does appear comes from,
-  why paint order is taken from layout rather than re-derived, why the hit test
-  is after arrange and against the visible rectangle, how a record is clipped,
-  what the two ids do in every awkward case including the stuck one, why the key
-  is FNV-1a over a path, why a drag measures its dead zone from the press and
-  its change from last frame, how the scroll table is rewritten each frame and
-  where a scrollbar sits in paint order, why a field's focus follows the press
-  itself rather than `held`/`fired`'s release, and why its editing runs after
-  resolve rather than inside it.
+  to it, and the records that come out: the hashed keys, the hit test against
+  the visible rectangle, the drags, the scroll table, the field's editing and
+  the clipped element records.

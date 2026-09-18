@@ -85,15 +85,20 @@
 
 #include <stddef.h>
 
+// The text a write hands back: `text` is NUL-terminated for convenience, and
+// `size` its length without the NUL.
+typedef struct voe_authoring_text {
+	const char *text;
+	size_t size;
+} voe_authoring_text;
+
 // Writes the world's authored entities, and the sections in `kept` — NULL for
 // none — as scene text into `arena`. `kept` is read and not kept. On success
-// `*out_text` is the text, NUL-terminated for convenience, and `*out_size` its
-// length without the NUL. On failure it returns false, reports why, and leaves
-// both untouched. The arena also holds this call's working memory, beside the
-// text; what is pushed — on success or failure — is the caller's to rewind, as
-// with every reader in assets.
+// `*out` holds the text. On failure it returns false, reports why, and leaves
+// `*out` untouched. The arena also holds this call's working memory, beside
+// the text; what is pushed — on success or failure — is the caller's to
+// rewind, as with every reader in assets.
 [[nodiscard]] bool voe_authoring_scene_write(const voe_ecs_world *world,
 					     const voe_authoring_kept *kept,
 					     voe_base_arena *arena,
-					     const char **out_text,
-					     size_t *out_size);
+					     voe_authoring_text *out);

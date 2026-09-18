@@ -1,7 +1,8 @@
 # tests
 
-One plain C program per module, found by the build, checking the exact bytes on
-both sides and every refusal. None of them needs a graphics card.
+One plain C program per `authoring` module, found by the build, each checking
+that module's promises from outside. Nothing here opens a file: a test hands the
+writer a world it built and the reader text it holds in memory.
 
 - `scene_write.c` — the exact bytes for a small scene, for a component holding
   every kind and for kept sections, fields of every shape from rank 0 to 7, the

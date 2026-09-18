@@ -206,28 +206,31 @@ static bool build_layout(voe_render_device *device)
 
 // One host-visible buffer, mapped and left mapped. Both per-slot buffers are
 // made this way and the only difference is their size and their usage, which is
-// why this is a function and not two copies of eleven lines.
-static bool build_mapped(voe_render_device *device,
-			 struct voe_render_buffer *buffer, void **mapped,
-			 VkDeviceSize size, VkBufferUsageFlags usage)
+// why this is a function and not two copies of eleven lines. Returns the
+// mapping, or NULL on the one way this fails (rule 13); a successful mapping
+// is never NULL, so the two cannot be confused.
+[[nodiscard]] static void *build_mapped(voe_render_device *device,
+					struct voe_render_buffer *buffer,
+					VkDeviceSize size,
+					VkBufferUsageFlags usage)
 {
+	void *mapped;
 	VkResult result;
 
 	if (!voe_render_buffer_build(device, buffer, size, usage,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-		return false;
+		return NULL;
 
 	result = voe_render_vk.map_memory(device->device, buffer->memory, 0,
-					  VK_WHOLE_SIZE, 0, mapped);
-	if (result != VK_SUCCESS || *mapped == NULL) {
+					  VK_WHOLE_SIZE, 0, &mapped);
+	if (result != VK_SUCCESS || mapped == NULL) {
 		VOE_BASE_ERROR("render",
 			       "vkMapMemory failed on a per-frame buffer (VkResult %d)",
 			       (int)result);
-		*mapped = NULL;
-		return false;
+		return NULL;
 	}
-	return true;
+	return mapped;
 }
 
 // The per-pass block's size rounded up to the card's uniform offset alignment,
@@ -330,19 +333,22 @@ static bool build_slots(voe_render_device *device)
 			},
 		};
 
-		if (!build_mapped(device, &frame->uniforms,
-				  &frame->uniforms_mapped,
-				  (VkDeviceSize)device->capacities.passes *
-					  device->pass_stride,
-				  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT))
+		frame->uniforms_mapped = build_mapped(
+			device, &frame->uniforms,
+			(VkDeviceSize)device->capacities.passes *
+				device->pass_stride,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		if (frame->uniforms_mapped == NULL)
 			return false;
-		if (!build_mapped(device, &frame->objects, &frame->objects_mapped,
-				  objects.range,
-				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT))
+		frame->objects_mapped = build_mapped(
+			device, &frame->objects, objects.range,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		if (frame->objects_mapped == NULL)
 			return false;
-		if (!build_mapped(device, &frame->elements,
-				  &frame->elements_mapped, elements.range,
-				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT))
+		frame->elements_mapped = build_mapped(
+			device, &frame->elements, elements.range,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		if (frame->elements_mapped == NULL)
 			return false;
 
 		frame->descriptor = sets[i];
