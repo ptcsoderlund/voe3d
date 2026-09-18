@@ -13,12 +13,6 @@ every card. `ADR-NNNN` in code means the record of that number: 0001–0167 in `
 - `cmake --preset debug && cmake --build --preset debug --target voe_{folder} && ctest --test-dir build/debug -R '^{folder}/'`
 - `cmake -P check.cmake`
 
-## Seeing what was drawn
-To check layout, render to a PNG rather than taking a screenshot of the programmer's display:
-`./build/debug/editor/voe_editor --capture <path>.png [--size <W>x<H>]` draws one frame with no window,
-writes it and exits, then read the PNG. A program of your own does the same through
-`voe_app_new_headless` and `voe_app_capture_png` (ADR-0157).
-
 ## Exempt
 - `render/vulkan`
 - `history`
