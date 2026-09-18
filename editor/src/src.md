@@ -9,7 +9,8 @@ carries it out.
   device does, opens the window and the device through `voe_app_new` — or the
   device alone through `voe_app_new_headless` when a picture was asked for —
   makes the arena, both fonts, the themes, the interface context in the
-  chosen theme and the default tree,
+  chosen theme and the default tree, sets a good save of the chosen theme's
+  file on the context and puts a refused one's report in the session's notice,
   uploads the built-in shapes, and runs the loop until a close goes ahead or the
   picture is written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
@@ -44,11 +45,15 @@ carries it out.
   the two folders above it as needed.
 - `themes.h` — the built-in theme and one per `*.theme` file in
   `<settings>/voe3d/themes/`, each file's in an arena of its own, and the one
-  chosen, remembered by file name in `<settings>/voe3d/theme`. Its header says
-  why each theme's arena is its own, what a file that will not read leaves
-  behind, and when loading answers false.
+  chosen, remembered by file name in `<settings>/voe3d/theme`, whose file is
+  read again once a second and its palette replaced when a save reads. Its
+  header says why each theme's arena is its own, what a file that will not
+  read leaves behind, when loading answers false, why the live check compares
+  the bytes and not a timestamp (ADR-0172), and what a refused save leaves
+  behind.
 - `themes.c` — the folder listed and made, each file read and derived with the
-  face it names, and the remembered file read and written as its one line.
+  face it names, the remembered file read and written as its one line, and the
+  chosen file's once-a-second re-read.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.

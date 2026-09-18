@@ -29,7 +29,12 @@
 // file names, and the chosen palette and its font are set on the interface. A
 // remembered theme that is gone or refused draws the built-in instead and puts
 // the reason, naming the file, in session.notice — unless a last project's
-// failure already put one there.
+// failure already put one there. Every frame, before the systems run,
+// voe_editor_themes_check looks at the chosen file once a second: a good save
+// is set on the interface, palette and font, for this frame to draw in; a
+// mistake leaves the last good theme drawing and fills session.notice from
+// the reader's report with the file's name, and the next good save clears
+// that notice — only if it is still that one, so it never erases a project's.
 //
 // OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE
 // BROWSER. `browser`, beside `scene` and `views`, outlives every project the
@@ -306,6 +311,9 @@ int main(int argc, char *argv[])
 	// there, before session.notice would ever be read (see below), so a
 	// notice destined for the bar would be one nobody could show.
 	voe_editor_notice notice;
+	// The last notice a refused theme save put in session.notice, so the
+	// next good save clears it only while it is still the one showing.
+	voe_editor_notice theme_notice = { 0 };
 	// Last frame's Ctrl+N, Ctrl+O and Ctrl+S: a shortcut toggles on the
 	// press and not while held, exactly as dev/src/main.c's Tab does, and
 	// the modifier is folded into the level read every frame rather than
@@ -564,6 +572,29 @@ int main(int argc, char *argv[])
 		// field the moment it draws one, transform's and light's alike,
 		// so all three are run from the start rather than from whenever
 		// somebody remembers a first submit needs one.
+		// LIVE EDITING (themes.h): at most once a second, the chosen
+		// theme's file read again; set on the context before this
+		// frame's first ui call, so the frame draws in it.
+		switch (voe_editor_themes_check(&themes)) {
+		case VOE_EDITOR_THEMES_CHANGED:
+			voe_ui_font_set(
+				ui, voe_editor_themes_chosen(&themes)->palette.font);
+			voe_ui_theme_set(
+				ui, &voe_editor_themes_chosen(&themes)->palette);
+			if (theme_notice.text[0] != '\0' &&
+			    strcmp(session.notice.text, theme_notice.text) == 0)
+				voe_editor_notice_clear(&session.notice);
+			voe_editor_notice_clear(&theme_notice);
+			break;
+		case VOE_EDITOR_THEMES_REFUSED:
+			voe_editor_notice_from_report(&session.notice,
+						      themes.remembered);
+			theme_notice = session.notice;
+			break;
+		case VOE_EDITOR_THEMES_UNCHANGED:
+			break;
+		}
+
 		voe_scene_transform_system_run(session.project->world);
 		voe_scene_identity_system_run(session.project->world);
 		voe_scene_light_system_run(session.project->world);

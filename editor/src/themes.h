@@ -9,6 +9,9 @@
 //     if (!voe_editor_themes_load(&themes, oxanium, pixel_operator))
 //             voe_editor_notice_from_report(&notice, themes.remembered);
 //     voe_ui_theme_set(ui, &voe_editor_themes_chosen(&themes)->palette);
+//     ... every frame:
+//     if (voe_editor_themes_check(&themes) == VOE_EDITOR_THEMES_REFUSED)
+//             voe_editor_notice_from_report(&notice, themes.remembered);
 //     ...
 //     voe_editor_themes_destroy(&themes);
 //
@@ -36,10 +39,34 @@
 // voe_editor_themes_choose WRITES THE REMEMBERED FILE the way last_project.h
 // writes its own, making `<settings>` and `<settings>/voe3d` as needed.
 //
+// voe_editor_themes_check IS LIVE EDITING (ADR-0172). Called every frame, it
+// does something at most once a second by voe_platform_clock_now: the chosen
+// theme's file — that file only, and nothing for the built-in — is read again
+// and its bytes compared with the last ones seen. THE COMPARISON IS THE BYTES
+// AND NOT A TIMESTAMP because a modification time lies across a copy or a
+// checkout, and would be an API `platform` does not have, for a file of a few
+// hundred bytes that costs nothing to read once a second. Changed bytes are
+// read and derived into a fresh arena; on success the entry's palette is
+// replaced where it stands — the address ui keeps is the same — and the old
+// arena destroyed, and the answer is CHANGED so the caller sets it (and its
+// font) on the context.
+//
+// A REFUSAL LEAVES THE DRAWING PALETTE AND ITS ARENA UNTOUCHED. The entry
+// still holds the last good theme; the refused bytes are kept in an arena of
+// their own only so the same mistake is not read, reported and answered again
+// every second — the next check compares against them, and a save that
+// differs from them is read again. The answer is REFUSED, once per distinct
+// mistake, with base/report.h cleared first so its first kept error is the
+// reader's line and what is wrong, and the caller names the file
+// (voe_editor_notice_from_report). A file that is not there at a check is not
+// a refusal — an editor saving by rename leaves that gap — and answers
+// UNCHANGED. Choosing another theme forgets the refused bytes.
+//
 // Constraints. The fonts are the caller's and must outlive every palette
 // derived with them. A palette is kept by pointer by ui (ui/widgets.h), so the
-// list must outlive the interface context it is set on. The folder is read
-// once, at load; nothing here re-reads a file.
+// list must outlive the interface context it is set on. The folder is listed
+// once, at load: a file added later appears after a restart, and only the
+// chosen file is ever re-read.
 #pragma once
 
 #include <base/arena.h>
@@ -47,6 +74,7 @@
 #include <theme/theme.h>
 #include <ui/theme.h>
 
+#include <stddef.h>
 #include <stdint.h>
 
 // One theme the editor can draw in.
@@ -58,9 +86,24 @@ typedef struct {
 	voe_theme theme;
 	// Derived with whichever of the two fonts `theme.typeface` names.
 	voe_ui_theme palette;
+	// The file's bytes it was read from, in `arena`; NULL and 0 for the
+	// built-in theme.
+	const uint8_t *bytes;
+	size_t size;
 	// This theme's own memory, or NULL for the built-in theme.
 	voe_base_arena *arena;
 } voe_editor_theme;
+
+// What voe_editor_themes_check found.
+typedef enum {
+	// Not a second since the last look, the built-in in force, the same
+	// bytes, or no file there right now.
+	VOE_EDITOR_THEMES_UNCHANGED,
+	// The chosen entry's palette was replaced by the file's new one.
+	VOE_EDITOR_THEMES_CHANGED,
+	// The file's new bytes will not read; the last good palette stands.
+	VOE_EDITOR_THEMES_REFUSED,
+} voe_editor_themes_check_result;
 
 typedef struct {
 	voe_editor_theme *entries;
@@ -70,7 +113,19 @@ typedef struct {
 	// The file name `<settings>/voe3d/theme` holds, or NULL when it holds
 	// none — kept even when it could not be loaded, so it can be named.
 	const char *remembered;
-	// The list's own memory: entries and `remembered`.
+	// The themes folder's path, or NULL when there is no settings folder.
+	const char *folder;
+	// The two faces a palette is derived with, kept for re-reading.
+	const voe_text_font *oxanium;
+	const voe_text_font *pixel_operator;
+	// voe_platform_clock_now at the last look at the chosen file.
+	double checked;
+	// The chosen file's last refused bytes, in their own arena, or NULL
+	// when the last bytes seen were good.
+	voe_base_arena *refused;
+	const uint8_t *refused_bytes;
+	size_t refused_size;
+	// The list's own memory: entries, `remembered` and `folder`.
 	voe_base_arena *arena;
 } voe_editor_themes;
 
@@ -90,6 +145,10 @@ const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes
 // settings folder — and the theme is in force either way.
 [[nodiscard]] bool voe_editor_themes_choose(voe_editor_themes *themes,
 					    uint32_t index);
+
+// Once a second, re-reads the chosen theme's file and replaces its palette
+// when the bytes changed and read; see this file's header.
+voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes);
 
 // Frees every theme's arena and the list's own. `themes` is empty afterwards.
 void voe_editor_themes_destroy(voe_editor_themes *themes);

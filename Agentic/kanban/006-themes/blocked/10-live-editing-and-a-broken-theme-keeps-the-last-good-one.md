@@ -30,3 +30,9 @@ For the human, from `feature.md`'s `## How to test`, with the editor started fro
 6. Saving a mistake keeps the last good theme and shows a notice with the file, the line and what is wrong.
 7. In Preferences each row is drawn in its own theme.
 8. A theme naming `font=pixel_operator` or another `text_size` draws in it when chosen.
+
+## Blocked
+The change is made and `checks.sh --folder editor` and the whole suite (`cmake -P check.cmake`) pass, but
+`checks.sh --all` still exits 1 on one finding outside this card's folder: `CLAUDE.md` line 16, heading
+`## Seeing what was drawn` is not one of Checks, Exempt, Never touch. Moving that text under an allowed heading
+(a tech-lead edit to `CLAUDE.md`) unblocks it; nothing in `editor` needs to change.

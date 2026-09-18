@@ -1,11 +1,13 @@
-// The themes folder read into a list, and `<settings>/voe3d/theme` read and
-// written as its one line. See the header for the contract.
+// The themes folder read into a list, `<settings>/voe3d/theme` read and
+// written as its one line, and the chosen file re-read once a second. See the
+// header for the contract.
 #include "themes.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <platform/clock.h>
 #include <platform/file.h>
 #include <platform/folder.h>
 #include <platform/path.h>
@@ -25,6 +27,9 @@
 // the scratch a choose writes its one line from.
 #define THEMES_LIST_ARENA (16u * 1024u)
 #define THEMES_ONE_ARENA (4u * 1024u)
+
+// Seconds between two looks at the chosen file (ADR-0172: within a second).
+#define THEMES_CHECK_SECONDS 1.0
 
 // path already there, or made one level. False only when neither is true.
 // Asked of path's parent's listing rather than of path's own, so a folder
@@ -87,6 +92,38 @@ static const char *read_choice(const char *path, voe_base_arena *arena)
 	return text[0] == '\0' ? NULL : text;
 }
 
+// Reads `size` bytes of theme file `file`, already pushed into `arena`, into
+// `entry`, which then owns `arena`. False, with `entry` untouched and the
+// reason already reported, when they will not read; `arena` is the caller's
+// to destroy then.
+static bool derive_one(voe_editor_theme *entry, const char *file,
+		       const uint8_t *bytes, size_t size, voe_base_arena *arena,
+		       const voe_text_font *oxanium,
+		       const voe_text_font *pixel_operator)
+{
+	voe_theme theme;
+	size_t length = strlen(file);
+	char *name;
+
+	if (!voe_theme_read((const char *)bytes, size, arena, &theme))
+		return false;
+	name = voe_base_arena_push(arena, length + 1);
+	memcpy(name, file, length + 1);
+
+	*entry = (voe_editor_theme){
+		.name = theme.name,
+		.file = name,
+		.theme = theme,
+		.palette = voe_ui_theme_derive(
+			&theme.inputs,
+			font_for(theme.typeface, oxanium, pixel_operator)),
+		.bytes = bytes,
+		.size = size,
+		.arena = arena,
+	};
+	return true;
+}
+
 // Reads one theme file into `entry`, in an arena of its own. False, with that
 // arena destroyed and the reason already reported, when it will not read.
 static bool read_one(voe_editor_theme *entry, const char *folder,
@@ -98,25 +135,24 @@ static bool read_one(voe_editor_theme *entry, const char *folder,
 	const char *path = voe_platform_path_join(scratch, folder, file);
 	const uint8_t *bytes;
 	size_t size;
-	size_t length = strlen(file);
-	char *name;
 
 	bytes = voe_platform_file_read(path, arena, &size, NULL);
-	if (bytes == NULL ||
-	    !voe_theme_read((const char *)bytes, size, arena, &entry->theme)) {
+	if (bytes == NULL || !derive_one(entry, file, bytes, size, arena,
+					 oxanium, pixel_operator)) {
 		voe_base_arena_destroy(arena);
 		return false;
 	}
-	name = voe_base_arena_push(arena, length + 1);
-	memcpy(name, file, length + 1);
-
-	entry->name = entry->theme.name;
-	entry->file = name;
-	entry->palette = voe_ui_theme_derive(
-		&entry->theme.inputs,
-		font_for(entry->theme.typeface, oxanium, pixel_operator));
-	entry->arena = arena;
 	return true;
+}
+
+// Forgets the chosen file's last refused bytes.
+static void forget_refused(voe_editor_themes *themes)
+{
+	if (themes->refused != NULL)
+		voe_base_arena_destroy(themes->refused);
+	themes->refused = NULL;
+	themes->refused_bytes = NULL;
+	themes->refused_size = 0;
 }
 
 bool voe_editor_themes_load(voe_editor_themes *themes,
@@ -140,6 +176,9 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 	themes->arena = voe_base_arena_new(THEMES_LIST_ARENA);
 	themes->remembered = NULL;
 	themes->chosen = 0;
+	themes->oxanium = oxanium;
+	themes->pixel_operator = pixel_operator;
+	themes->checked = voe_platform_clock_now();
 
 	settings = voe_platform_folder_settings(themes->arena);
 	if (settings != NULL) {
@@ -151,6 +190,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 			voe_platform_path_join(themes->arena, dir,
 					       THEMES_CHOICE),
 			themes->arena);
+		themes->folder = folder;
 		if (!ensure_folder(settings, themes->arena) ||
 		    !ensure_folder(dir, themes->arena) ||
 		    !ensure_folder(folder, themes->arena) ||
@@ -219,6 +259,8 @@ bool voe_editor_themes_choose(voe_editor_themes *themes, uint32_t index)
 	VOE_BASE_ASSERT(themes != NULL && index < themes->count,
 			"choosing a theme the list does not have");
 
+	if (index != themes->chosen)
+		forget_refused(themes);
 	themes->chosen = index;
 	file = themes->entries[index].file;
 	themes->remembered = file;
@@ -244,10 +286,72 @@ bool voe_editor_themes_choose(voe_editor_themes *themes, uint32_t index)
 	return ok;
 }
 
+voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes)
+{
+	voe_editor_theme *entry;
+	voe_editor_theme fresh;
+	voe_base_arena *arena;
+	const char *path;
+	const uint8_t *bytes;
+	const uint8_t *last;
+	size_t last_size;
+	size_t size;
+	double now = voe_platform_clock_now();
+
+	VOE_BASE_ASSERT(themes != NULL && themes->count > 0,
+			"checking an unloaded list");
+
+	entry = &themes->entries[themes->chosen];
+	if (now - themes->checked < THEMES_CHECK_SECONDS ||
+	    entry->file == NULL || themes->folder == NULL)
+		return VOE_EDITOR_THEMES_UNCHANGED;
+	themes->checked = now;
+
+	arena = voe_base_arena_new(THEMES_ONE_ARENA);
+	path = voe_platform_path_join(arena, themes->folder, entry->file);
+	last = themes->refused != NULL ? themes->refused_bytes : entry->bytes;
+	last_size = themes->refused != NULL ? themes->refused_size :
+					      entry->size;
+	if (!voe_platform_file_exists(path)) {
+		voe_base_arena_destroy(arena);
+		return VOE_EDITOR_THEMES_UNCHANGED;
+	}
+	voe_base_report_error_clear();
+	bytes = voe_platform_file_read(path, arena, &size, NULL);
+	if (bytes != NULL && size == last_size &&
+	    (size == 0 || memcmp(bytes, last, size) == 0)) {
+		voe_base_arena_destroy(arena);
+		return VOE_EDITOR_THEMES_UNCHANGED;
+	}
+	if (bytes == NULL ||
+	    !derive_one(&fresh, entry->file, bytes, size, arena,
+			themes->oxanium, themes->pixel_operator)) {
+		// Kept only to be compared with; a read that failed outright
+		// has no bytes and is tried again next second.
+		forget_refused(themes);
+		if (bytes != NULL) {
+			themes->refused = arena;
+			themes->refused_bytes = bytes;
+			themes->refused_size = size;
+		} else {
+			voe_base_arena_destroy(arena);
+		}
+		return VOE_EDITOR_THEMES_REFUSED;
+	}
+
+	forget_refused(themes);
+	voe_base_arena_destroy(entry->arena);
+	*entry = fresh;
+	// The remembered name may have pointed into the arena just destroyed.
+	themes->remembered = entry->file;
+	return VOE_EDITOR_THEMES_CHANGED;
+}
+
 void voe_editor_themes_destroy(voe_editor_themes *themes)
 {
 	VOE_BASE_ASSERT(themes != NULL, "destroying no themes");
 
+	forget_refused(themes);
 	for (uint32_t i = 0; i < themes->count; i++)
 		if (themes->entries[i].arena != NULL)
 			voe_base_arena_destroy(themes->entries[i].arena);
