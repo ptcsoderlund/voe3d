@@ -226,16 +226,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 								   preferences);
 
 			if (result.action == VOE_EDITOR_PREFERENCES_CHOOSE) {
-				const voe_editor_theme *chosen;
-
 				if (!voe_editor_themes_choose(themes,
 							      result.index))
 					voe_editor_notice_set(
 						&session->notice,
 						"the chosen theme could not be remembered");
-				chosen = voe_editor_themes_chosen(themes);
-				voe_ui_font_set(ui, chosen->palette.font);
-				voe_ui_theme_set(ui, &chosen->palette);
+				voe_ui_font_set(
+					ui, voe_editor_themes_palette(themes)->font);
+				voe_ui_theme_set(ui,
+						 voe_editor_themes_palette(themes));
 			} else if (result.action ==
 				   VOE_EDITOR_PREFERENCES_CLOSE) {
 				voe_editor_preferences_hide(preferences);

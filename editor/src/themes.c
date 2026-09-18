@@ -1,6 +1,7 @@
-// The themes folder read into a list, `<settings>/voe3d/theme` read and
-// written as its one line, and the chosen file re-read once a second. See the
-// header for the contract.
+// The themes folder read into a list, `<settings>/voe3d/theme` and
+// `<settings>/voe3d/font` read and written as their one line each, the palette
+// in force kept with the font override applied, and the chosen file re-read
+// once a second. See the header for the contract.
 #include "themes.h"
 
 #include <base/arena.h>
@@ -20,11 +21,17 @@
 #define THEMES_SETTINGS "voe3d"
 #define THEMES_FOLDER "themes"
 #define THEMES_CHOICE "theme"
+#define THEMES_FONT "font"
 #define THEMES_SUFFIX ".theme"
 
 // What the remembered file holds for Near white, the one theme with no file
 // that is not the default (ADR-0178). No `*.theme` file can have this name.
 #define THEMES_NEAR_WHITE "near_white"
+
+// What the font file holds for the two overrides, the spellings a `.theme`
+// file's `font=` uses (ADR-0179). Empty or anything else is the theme's own.
+#define THEMES_FONT_PIXEL_OPERATOR "pixel_operator"
+#define THEMES_FONT_OXANIUM "oxanium"
 
 // How many themes with no file start the list: Near black, then Near white.
 #define THEMES_BUILT_IN 2u
@@ -97,6 +104,57 @@ static const char *read_choice(const char *path, voe_base_arena *arena)
 	if (newline != NULL)
 		*newline = '\0';
 	return text[0] == '\0' ? NULL : text;
+}
+
+// Copies the chosen entry's palette into `in_force` with its font replaced by
+// the override's face, or kept as the theme's own for VOE_EDITOR_FONT_THEME.
+static void refresh_in_force(voe_editor_themes *themes)
+{
+	themes->in_force = themes->entries[themes->chosen].palette;
+	if (themes->font_choice == VOE_EDITOR_FONT_PIXEL_OPERATOR)
+		themes->in_force.font = themes->pixel_operator;
+	else if (themes->font_choice == VOE_EDITOR_FONT_OXANIUM)
+		themes->in_force.font = themes->oxanium;
+}
+
+// The override a font file's line names; NULL or any other line is THEME.
+static voe_editor_font_choice font_choice_from(const char *line)
+{
+	if (line != NULL && strcmp(line, THEMES_FONT_PIXEL_OPERATOR) == 0)
+		return VOE_EDITOR_FONT_PIXEL_OPERATOR;
+	if (line != NULL && strcmp(line, THEMES_FONT_OXANIUM) == 0)
+		return VOE_EDITOR_FONT_OXANIUM;
+	return VOE_EDITOR_FONT_THEME;
+}
+
+// Writes `line` and a newline as the one line of `<settings>/voe3d/<name>`,
+// making `<settings>` and `<settings>/voe3d` as needed. `line` may be NULL for
+// an empty line. False when there is no settings folder or the write fails.
+static bool write_line(const char *name, const char *line)
+{
+	voe_base_arena *scratch = voe_base_arena_new(THEMES_ONE_ARENA);
+	const char *settings = voe_platform_folder_settings(scratch);
+	const char *dir;
+	size_t length;
+	char *text;
+	bool ok = false;
+
+	if (settings != NULL) {
+		dir = voe_platform_path_join(scratch, settings, THEMES_SETTINGS);
+		if (ensure_folder(settings, scratch) &&
+		    ensure_folder(dir, scratch)) {
+			length = line != NULL ? strlen(line) : 0;
+			text = voe_base_arena_push(scratch, length + 1);
+			if (length > 0)
+				memcpy(text, line, length);
+			text[length] = '\n';
+			ok = voe_platform_file_write(
+				voe_platform_path_join(scratch, dir, name),
+				(const uint8_t *)text, length + 1, NULL);
+		}
+	}
+	voe_base_arena_destroy(scratch);
+	return ok;
 }
 
 // Reads `size` bytes of theme file `file`, already pushed into `arena`, into
@@ -184,6 +242,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 	themes->arena = voe_base_arena_new(THEMES_LIST_ARENA);
 	themes->remembered = NULL;
 	themes->chosen = 0;
+	themes->font_choice = VOE_EDITOR_FONT_THEME;
 	themes->oxanium = oxanium;
 	themes->pixel_operator = pixel_operator;
 	themes->checked = voe_platform_clock_now();
@@ -198,6 +257,9 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 			voe_platform_path_join(themes->arena, dir,
 					       THEMES_CHOICE),
 			themes->arena);
+		themes->font_choice = font_choice_from(read_choice(
+			voe_platform_path_join(themes->arena, dir, THEMES_FONT),
+			themes->arena));
 		themes->folder = folder;
 		if (!ensure_folder(settings, themes->arena) ||
 		    !ensure_folder(dir, themes->arena) ||
@@ -216,15 +278,15 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		.name = "Near black",
 		.theme = { .name = "Near black",
 			   .inputs = defaults,
-			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
-		.palette = voe_ui_theme_derive(&defaults, oxanium),
+			   .typeface = VOE_TEXT_TYPEFACE_PIXEL_OPERATOR },
+		.palette = voe_ui_theme_derive(&defaults, pixel_operator),
 	};
 	themes->entries[1] = (voe_editor_theme){
 		.name = "Near white",
 		.theme = { .name = "Near white",
 			   .inputs = light,
-			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
-		.palette = voe_ui_theme_derive(&light, oxanium),
+			   .typeface = VOE_TEXT_TYPEFACE_PIXEL_OPERATOR },
+		.palette = voe_ui_theme_derive(&light, pixel_operator),
 	};
 	themes->count = THEMES_BUILT_IN;
 	if (themes->remembered != NULL &&
@@ -253,6 +315,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		themes->count++;
 	}
 
+	refresh_in_force(themes);
 	if (themes->remembered == NULL || themes->chosen != 0)
 		return true;
 	// Gone rather than refused: nothing of any other file's is kept to be
@@ -269,16 +332,15 @@ const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes
 	return &themes->entries[themes->chosen];
 }
 
+const voe_ui_theme *voe_editor_themes_palette(const voe_editor_themes *themes)
+{
+	VOE_BASE_ASSERT(themes != NULL && themes->count > 0,
+			"asking an unloaded list for its palette");
+	return &themes->in_force;
+}
+
 bool voe_editor_themes_choose(voe_editor_themes *themes, uint32_t index)
 {
-	voe_base_arena *scratch;
-	const char *settings;
-	const char *dir;
-	const char *file;
-	size_t length;
-	char *line;
-	bool ok = false;
-
 	VOE_BASE_ASSERT(themes != NULL && index < themes->count,
 			"choosing a theme the list does not have");
 
@@ -286,30 +348,27 @@ bool voe_editor_themes_choose(voe_editor_themes *themes, uint32_t index)
 		forget_refused(themes);
 	themes->chosen = index;
 	themes->remembered = themes->entries[index].file;
+	refresh_in_force(themes);
 	// What the one line holds: a file's name, `near_white`, or nothing.
-	file = themes->remembered != NULL ? themes->remembered :
-	       index == 1		  ? THEMES_NEAR_WHITE :
-					    NULL;
+	return write_line(THEMES_CHOICE,
+			  themes->remembered != NULL ? themes->remembered :
+			  index == 1		     ? THEMES_NEAR_WHITE :
+						       NULL);
+}
 
-	scratch = voe_base_arena_new(THEMES_ONE_ARENA);
-	settings = voe_platform_folder_settings(scratch);
-	if (settings != NULL) {
-		dir = voe_platform_path_join(scratch, settings, THEMES_SETTINGS);
-		if (ensure_folder(settings, scratch) &&
-		    ensure_folder(dir, scratch)) {
-			length = file != NULL ? strlen(file) : 0;
-			line = voe_base_arena_push(scratch, length + 1);
-			if (length > 0)
-				memcpy(line, file, length);
-			line[length] = '\n';
-			ok = voe_platform_file_write(
-				voe_platform_path_join(scratch, dir,
-						       THEMES_CHOICE),
-				(const uint8_t *)line, length + 1, NULL);
-		}
-	}
-	voe_base_arena_destroy(scratch);
-	return ok;
+bool voe_editor_themes_font_choose(voe_editor_themes *themes,
+				   voe_editor_font_choice choice)
+{
+	VOE_BASE_ASSERT(themes != NULL && themes->count > 0,
+			"choosing a font for an unloaded list");
+
+	themes->font_choice = choice;
+	refresh_in_force(themes);
+	return write_line(THEMES_FONT,
+			  choice == VOE_EDITOR_FONT_PIXEL_OPERATOR ?
+				  THEMES_FONT_PIXEL_OPERATOR :
+			  choice == VOE_EDITOR_FONT_OXANIUM ? THEMES_FONT_OXANIUM :
+							      NULL);
 }
 
 voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes)
@@ -370,6 +429,7 @@ voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes
 	*entry = fresh;
 	// The remembered name may have pointed into the arena just destroyed.
 	themes->remembered = entry->file;
+	refresh_in_force(themes);
 	return VOE_EDITOR_THEMES_CHANGED;
 }
 

@@ -26,7 +26,9 @@
 // IT DRAWS IN THE THEME REMEMBERED IN `<settings>/voe3d/theme` (themes.h).
 // Both faces are created, Oxanium and Pixel Operator (ADR-0167), the themes
 // folder is read into a list whose every palette is derived with the face its
-// file names, and the chosen palette and its font are set on the interface. A
+// file names, and the palette in force — the chosen one with the font
+// override in `<settings>/voe3d/font` applied — and its font are set on the
+// interface. A
 // remembered theme that is gone or refused draws Near black instead and puts
 // the reason, naming the file, in session.notice — unless a last project's
 // failure already put one there. Every frame, before the systems run,
@@ -526,8 +528,7 @@ int main(int argc, char *argv[])
 		voe_editor_notice_from_report(&session.notice,
 					      themes.remembered);
 
-	ui = voe_editor_interface_new(arena,
-				      &voe_editor_themes_chosen(&themes)->palette);
+	ui = voe_editor_interface_new(arena, voe_editor_themes_palette(&themes));
 	roots[0].tree = voe_editor_dock_default();
 
 	say_whether_descriptions_are_in();
@@ -577,10 +578,9 @@ int main(int argc, char *argv[])
 		// frame's first ui call, so the frame draws in it.
 		switch (voe_editor_themes_check(&themes)) {
 		case VOE_EDITOR_THEMES_CHANGED:
-			voe_ui_font_set(
-				ui, voe_editor_themes_chosen(&themes)->palette.font);
-			voe_ui_theme_set(
-				ui, &voe_editor_themes_chosen(&themes)->palette);
+			voe_ui_font_set(ui,
+					voe_editor_themes_palette(&themes)->font);
+			voe_ui_theme_set(ui, voe_editor_themes_palette(&themes));
 			if (theme_notice.text[0] != '\0' &&
 			    strcmp(session.notice.text, theme_notice.text) == 0)
 				voe_editor_notice_clear(&session.notice);

@@ -47,13 +47,17 @@ carries it out.
   one per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena
   of its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
   empty line, `near_white` or a file's name, whose file is
-  read again once a second and its palette replaced when a save reads. Its
+  read again once a second and its palette replaced when a save reads; the
+  built-ins are in Pixel Operator, and a font override remembered in
+  `<settings>/voe3d/font` is applied to a copy of the chosen palette, the one
+  the interface is set with. Its
   header says why each theme's arena is its own, what a file that will not
   read leaves behind, when loading answers false, why the live check compares
   the bytes and not a timestamp (ADR-0172), and what a refused save leaves
-  behind.
+  behind, and why the override leaves the entries alone.
 - `themes.c` — the folder listed and made, each file read and derived with the
-  face it names, the remembered file read and written as its one line, and the
+  face it names, the two remembered files read and written as one line each,
+  the palette in force refreshed, and the
   chosen file's once-a-second re-read.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
