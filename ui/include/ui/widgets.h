@@ -79,7 +79,7 @@
 //
 // ---- THE THEME ----
 //
-// EVERY WIDGET DRAWS FROM THE NEAREST THEME IN FORCE (ADR-0168). voe_ui_theme_set
+// EVERY WIDGET DRAWS FROM THE NEAREST THEME IN FORCE (ADR-0170). voe_ui_theme_set
 // gives the context the one it falls back to, the caller's memory and outliving
 // the context exactly as the font does; voe_ui_theme_push/voe_ui_theme_pop put
 // another in force for a subtree, nested to any depth. A widget reads whichever
@@ -228,7 +228,7 @@ void voe_ui_font_set(voe_ui_context *ui, const voe_text_font *font);
 void voe_ui_theme_set(voe_ui_context *ui, const voe_ui_theme *theme);
 
 // Puts `theme` in force for every widget made until the matching
-// voe_ui_theme_pop, nested to any depth — ADR-0168's "the nearest one wins".
+// voe_ui_theme_pop, nested to any depth — ADR-0170's "the nearest one wins".
 // `theme` is the caller's memory and must outlive every widget made while it
 // is in force, exactly as voe_ui_theme_set's must.
 //
@@ -325,7 +325,7 @@ typedef enum {
 // something drawn behind it.
 //
 // A SURFACE OTHER THAN NONE DRAWS A HAIRLINE BORDER, TWO ELEMENT RECORDS AND
-// NOT ONE (ADR-0169): the border role at the panel's own bounds, then its
+// NOT ONE (ADR-0171): the border role at the panel's own bounds, then its
 // surface inset from every edge by this folder's hairline width, painted over
 // the border's middle and leaving a rim of it showing all round. That is the
 // widget's own doing and not the shader's, so nothing in `render` changes for
@@ -384,7 +384,7 @@ voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text);
 // because cancelling is what leaving does and coming back undoes it.
 //
 // ITS THREE STATES ARE THEME ROLES, the pressed one on the accent
-// (ADR-0169): control at rest, control_hovered under the pointer, and accent
+// (ADR-0171): control at rest, control_hovered under the pointer, and accent
 // while held — there is no fourth role for "pressed", the accent standing in
 // for it. LIKE A PANEL IT DRAWS A HAIRLINE BORDER, two element records and not
 // one, and needs the nearest theme in force exactly as a panel with a surface

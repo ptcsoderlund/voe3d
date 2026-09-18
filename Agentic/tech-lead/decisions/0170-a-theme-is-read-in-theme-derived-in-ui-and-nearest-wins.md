@@ -1,7 +1,6 @@
-# 0168 A theme is read in `theme`, derived in `ui`, and the nearest one wins
-
-Status: accepted
-Date: 2026-09-17
+# 0170 — A theme is read in `theme`, derived in `ui`, and the nearest one wins
+date: 2026-09-17
+by: planner
 
 Spec 006 makes every panel, label and button take its look from an authored theme file, in the
 editor and in a game alike, and asks for a check that proves it with no editor involved. The
@@ -37,7 +36,7 @@ fall through from once a theme is a derived palette rather than a list of author
 **`editor` gains `theme` and nothing else; `dev` does not.** Nothing in `dev` asks for a theme
 (rule 10), so CLAUDE.md's `dev` row reads *every folder but `editor`, `authoring` and `theme`*.
 
-## Rejected
+## Reasoning
 
 - **The reader in `assets`** — no new folder and no new edge, and it is the cheapest option. It
   cannot name `voe_ui_theme_inputs` or `voe_text_typeface`, so the inputs would be duplicated as an
@@ -66,3 +65,7 @@ fall through from once a theme is a derived palette rather than a list of author
   above.
 - A theme that sets only some roles is not expressible, and would need a real decision rather than
   an edit, since a partial theme cannot be derived from one colour and two numbers.
+
+## Replaces
+
+Nothing. Written on `feature/006-themes` under the earlier workflow as 0168; renumbered 0170 by ADR-0168 when the branch took the Agentic workflow.

@@ -1,11 +1,11 @@
 // OKLab, internal to this folder. theme.c is the only caller: the palette in
 // ui/theme.h is derived by stepping LIGHTNESS in this space, because a step
 // sized in sRGB or linear RGB is a different size per hue and the palette
-// looks derived (ADR-0087, kept by ADR-0169). Björn Ottosson's published
+// looks derived (ADR-0087, kept by ADR-0171). Björn Ottosson's published
 // matrices, unchanged — this is a well-known, checkable conversion and not
 // this folder's own invention.
 //
-// IT LIVES HERE AND NOT IN `math` (ADR-0168, answering D-131). `math` is
+// IT LIVES HERE AND NOT IN `math` (ADR-0170, answering D-131). `math` is
 // spelled the way Slang spells it and OKLab is not a Slang concept; nothing
 // outside `ui` has asked for one (rule 10). Move it to `math` the day a second
 // folder needs it, unchanged.

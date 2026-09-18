@@ -1,15 +1,19 @@
-# 002 Fields of any shape
+# 002 — Fields of any shape
 
-Status: accepted
-Approved: 2026-09-14
-Accepted: 2026-09-15
+Approved 2026-09-14. Accepted 2026-09-15.
+
+## What
 
 A component field can be an array of any kind — numbers, vectors, strings, entity references —
 with up to seven fixed dimensions, and a scene file saves and loads it as nested brackets. A
 component stays plain bytes, so saving, undo and loading still copy it for free. The sponsor wants
 arrays in the text format whose items can be anything a value can be, arrays included.
 
-## Acceptance criteria
+## Why
+
+The text format needs arrays whose items can be anything a value can be, arrays included, while a component stays plain bytes.
+
+## How to test
 
 1. A field declared as a 4-by-2 grid of vectors, or as eight names of 32 bytes, compiles to
    exactly the struct C would give for the same array, and every existing component is the same

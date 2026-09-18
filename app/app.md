@@ -6,6 +6,9 @@ opened and closed, and what was drawn written out as a picture. Not the loop
 itself, and not what a program decides — system order, a world, arenas, a
 readout, key bindings and the present mode are all the program's.
 
+- `include` — the public headers, in `include/app/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/app/app.h` — the whole public surface: the two startups, frame open,
   draw open and close, a capture, and the window and device to reach past them.
   Its header shows the dozen-line loop a program writes, says why there is no

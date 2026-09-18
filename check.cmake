@@ -674,7 +674,7 @@ step_ok("${step} (scene, ${CMAKE_MATCH_1} passed)")
 
 # ------------------------------------------------------------- 7 analyser
 
-# The step CLAUDE.md rule 8 has always promised and ADR-0042 decided: clang's
+# The step rule 8 (ADR-0168) has always promised and ADR-0042 decided: clang's
 # static analyser over every folder's own sources, zero findings, no baseline
 # file and no tolerated count. It is step 7 because rule 8 already calls it
 # that, and 7b below is its can't-fail proof exactly as 6b is step 6's.

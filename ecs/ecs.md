@@ -4,6 +4,9 @@ Entities, component tables and intent queues — the shape the world is kept in.
 Not any particular component: nothing here knows what a transform or a mesh is,
 and the folder that owns a component's meaning is the folder that registers it.
 
+- `include` — the public headers, in `include/ecs/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/ecs/world.h` — the world, entity ids and the key a registration is
   made against. Its header says why an id has a generation in it, why the world
   lives in an arena and has no destroy, and why capacities are fixed.

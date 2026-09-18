@@ -1,7 +1,6 @@
-# 0169 The palette is derived in OKLab from one colour and two numbers, and dark mode clamps chroma
-
-Status: accepted
-Date: 2026-09-17
+# 0171 — The palette is derived in OKLab from one colour and two numbers, and dark mode clamps chroma
+date: 2026-09-17
+by: planner
 
 ADR-0097 fixed the authored set at an accent, `contrast_strength`, `surface_separation` and a mode,
 and left two things to the theme card: which roles come out of it, and whether the derivation
@@ -36,7 +35,7 @@ accent, which is what makes ADR-0088's Windows 10 look read. There are no semant
 border colour with the fill inset by a hairline, so a panel and a button cost two element records
 instead of one. Nothing in `render` changes for it.
 
-## Rejected
+## Reasoning
 
 - **Deriving in linear or sRGB RGB** — ADR-0087 rejected it with the argument that still holds: a
   ten-percent step is a different size per hue and the palette looks derived.
@@ -57,3 +56,7 @@ instead of one. Nothing in `render` changes for it.
 - Panels and buttons cost one more element record each, and a context's capacities move with it.
 - Someone who wants a flat rectangle with no border has no role for it; the honest fix is a role
   when something asks.
+
+## Replaces
+
+Nothing. Written on `feature/006-themes` under the earlier workflow as 0169; renumbered 0171 by ADR-0168 when the branch took the Agentic workflow.

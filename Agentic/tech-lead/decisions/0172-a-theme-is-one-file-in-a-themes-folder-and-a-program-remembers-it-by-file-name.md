@@ -1,7 +1,6 @@
-# 0170 A theme is one file in a themes folder, and a program remembers which by its file name
-
-Status: accepted
-Date: 2026-09-17
+# 0172 — A theme is one file in a themes folder, and a program remembers which by its file name
+date: 2026-09-17
+by: planner
 
 ADR-0096 made a theme an authored file in the sectioned format and left D-160 open: where such a
 file lives and how a program names one. Spec 006 answers the first half for the editor —
@@ -36,7 +35,7 @@ whoever opened it.
 a timer and compares the bytes with the last good ones. `platform` gains nothing; a theme file is
 small enough that reading it once a second is free, and nothing else is watched.
 
-## Rejected
+## Reasoning
 
 - **Several themes per file** — ADR-0096's sketch allowed it and nothing wants it; it makes
   *remember which theme* two identifiers instead of one and makes live editing watch a file whose
@@ -61,3 +60,7 @@ small enough that reading it once a second is free, and nothing else is watched.
   interface.
 - Nothing here is the cooked game's: a cooked game's theme is fixed when it is cooked, and none of
   this polls anything.
+
+## Replaces
+
+Nothing. Written on `feature/006-themes` under the earlier workflow as 0170; renumbered 0172 by ADR-0168 when the branch took the Agentic workflow.

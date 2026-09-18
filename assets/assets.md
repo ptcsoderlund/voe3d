@@ -9,6 +9,9 @@ caller says where the bytes came from or where they go.
 Nothing here knows about Vulkan, a scene or an entity. A decoded picture is
 pixels in an arena; what happens to them next is `render`'s.
 
+- `include` — the public headers, in `include/assets/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/assets/model.h` — `.glb` files, read into vertex attributes,
   materials, decoded pictures and a node tree. Its header says why the binary
   form only, why no coordinate is ever converted while matrix layout is, which

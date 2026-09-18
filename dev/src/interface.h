@@ -5,7 +5,7 @@
 // THE DRAW COUNT IS THE CLAIM AND IT IS WHY THIS IS A SEPARATE SURFACE. A panel,
 // two buttons, three number boxes and six lines of writing is around fifty
 // element records and one command — the panel and each button draw a hairline
-// border now (ADR-0169), two records where one used to do, three more than
+// border now (ADR-0171), two records where one used to do, three more than
 // before — and the readout on screen says how many commands the whole frame
 // took, and adding this interface to the program moved that number by one. Not
 // by one per widget and not by one per letter, which is what an interface built
@@ -45,7 +45,7 @@
 // What the interface may need in one frame. Both are checked by `ui` and a
 // frame that wants more is refused with a line saying which number it was, so
 // these are numbers to be honest about rather than careful with. The border a
-// panel and a button now draw (ADR-0169) is a second element record on the
+// panel and a button now draw (ADR-0171) is a second element record on the
 // same node, never a new node, so it moves VOE_DEV_INTERFACE_ELEMENTS by three
 // — one for the panel, one for each of the two buttons — and leaves
 // VOE_DEV_INTERFACE_NODES untouched.

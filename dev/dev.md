@@ -13,6 +13,7 @@ one sun going round it all, and a camera that either orbits them or is flown
 with the keyboard and the mouse. Not a menu of past
 states and not a test — it is looked at, not asserted on.
 
+- `src` — the implementation; each file is listed below by path.
 - `src/main.c` — opens a window and a device, builds a world, reads the model
   into it, and runs the systems and the draw every frame until it closes. The
   window and the device come from `voe_app_new`, the clock and the poll from

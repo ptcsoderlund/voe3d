@@ -4,6 +4,9 @@ Memory, containers, strings, assert and the description of a struct's fields —
 the primitives any other folder may depend on. Not maths, and nothing that knows
 an operating system.
 
+- `include` — the public headers, in `include/base/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/base/assert.h` — the two assert macros. Its header says which one
   survives a release build, why it is that one, and where the line between an
   assert and a recoverable failure runs.

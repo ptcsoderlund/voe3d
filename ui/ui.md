@@ -9,10 +9,13 @@ either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's. It also turns an
 authored theme — one colour, two scalars, a mode and a text size — into the
 palette a widget draws with (`include/ui/theme.h`); reading a theme file into
-those authored values is a different folder's job (`theme`, ADR-0168). Every
+those authored values is a different folder's job (`theme`, ADR-0170). Every
 widget draws from the nearest theme in force — set on the context or pushed
 over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
 
+- `include` — the public headers, in `include/ui/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
   between its begin and its end, any of which may clip what reaches past it

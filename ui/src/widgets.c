@@ -209,7 +209,7 @@
 
 #include <string.h>
 
-// EVERY COLOUR BELOW IS A THEME ROLE NOW (ADR-0168, ADR-0169), READ FROM
+// EVERY COLOUR BELOW IS A THEME ROLE NOW (ADR-0170, ADR-0171), READ FROM
 // WHICHEVER WIDGET RECORD ASKS FOR ONE — there is no constant left in this file
 // for a button's, a panel's, a field's, a caret's or a scrollbar's colour. See
 // state_colour, field_colour, surface_colour and push_scrollbar for where each
@@ -237,7 +237,7 @@ static const voe_math_float4 IMAGE_AS_IT_IS = { 1.0f, 1.0f, 1.0f, 1.0f };
 #define FIELD_CARET_WIDE 0.3f
 
 // A panel's and a button's hairline border, in millimetres on every side
-// (ADR-0169) — the one width this folder draws a border at, so a change to how
+// (ADR-0171) — the one width this folder draws a border at, so a change to how
 // thick "hairline" is is one number. Not in ui/theme.h: the border's COLOUR is
 // a role and the theme's to say, but how wide the rectangle it is drawn as is
 // a layout fact about this folder's widgets and not a colour at all.
@@ -1422,7 +1422,7 @@ static voe_ui_rect inset(voe_ui_rect rect, float by)
 	return out;
 }
 
-// The hairline border, ADR-0169: the border role at the node's own bounds,
+// The hairline border, ADR-0171: the border role at the node's own bounds,
 // then `fill` inset from every edge by HAIRLINE_WIDE, painted over the
 // border's middle and leaving a rim of it showing all round. Two element
 // records for what a plain fill costs one of.
@@ -1570,7 +1570,7 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 }
 
 // The three states, for a button and for a number box alike — control at
-// rest, control_hovered under the pointer, accent while held (ADR-0169: a
+// rest, control_hovered under the pointer, accent while held (ADR-0171: a
 // pressed control is the accent and there is no fourth role for it). They
 // look the same on purpose — see BUTTON_PAD.
 static voe_math_float4 state_colour(const voe_ui_context *ui, uint32_t node)
@@ -1594,7 +1594,7 @@ static voe_math_float4 state_colour(const voe_ui_context *ui, uint32_t node)
 // normal, a field being focused being worth seeing whether or not the
 // pointer still happens to be over it.
 //
-// DEVIATION: ADR-0169 names control, control_hovered and the accent, and no
+// DEVIATION: ADR-0171 names control, control_hovered and the accent, and no
 // fourth role for a field's own "focused" state — nothing before this theme
 // existed asked for one. Read narrowly as surface_raised, a surface already
 // meant to read as sitting above its neighbour, because the alternative of
@@ -1713,7 +1713,7 @@ static void emit(voe_ui_context *ui)
 			// no blend to draw nothing — and a transparent panel
 			// with padding in it is a real thing to want. See
 			// widgets.h. Every other surface draws the hairline
-			// border ADR-0169 asks for, two records where one
+			// border ADR-0171 asks for, two records where one
 			// used to do.
 			if (ui->widgets[node].surface != VOE_UI_SURFACE_NONE)
 				push_bordered(ui, node,

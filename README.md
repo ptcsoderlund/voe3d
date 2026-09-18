@@ -64,6 +64,9 @@ The editor can also draw one frame with no window at all and save it as a pictur
 
 ## Where to read more
 
-- `CLAUDE.md` — the engine's rules, folder map and world conventions.
-- `Agentic/decisions/` — why things are the way they are, one record per decision.
+- `Agentic/tech-lead/system.md` — the folder map, and which decisions every change leans on.
+- `Agentic/tech-lead/decisions/0168-…` — the engine's rules, givens and world conventions, in one record.
+- `history/decisions/` and `Agentic/tech-lead/decisions/` — why things are the way they are, one record per
+  decision: 0001–0167 in the first, later ones in the second.
 - Each folder's `<folder>.md` — what is in it.
+- `Agentic/` — the workflow's state: work orders, the feature being built, the ones accepted.

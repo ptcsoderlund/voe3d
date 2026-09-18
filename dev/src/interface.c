@@ -32,7 +32,7 @@
 // look away at to see whether it worked: `text` grows every letter on it
 // through a theme of this file's own, and `gap` pushes the rows apart.
 // `alpha` NO LONGER FADES THE PLATE — a panel's colour is a theme role now
-// and every role is opaque (ADR-0169) — so it demonstrates nothing but an
+// and every role is opaque (ADR-0171) — so it demonstrates nothing but an
 // ordinary number box's drag, clamp and rounding, exactly as `gap` does. It
 // also puts the widget through the case that is easiest to get wrong — a
 // drag whose own box MOVES under the pointer while it is being dragged,
@@ -52,7 +52,7 @@
 // cleanly without the gesture losing the fractions between steps.
 //
 // THIS FILE HAS NO COLOUR OF ITS OWN ANY MORE. The panel is a themed RAISED
-// surface (`ui/theme.h`, ADR-0169) and every other colour on the interface is
+// surface (`ui/theme.h`, ADR-0171) and every other colour on the interface is
 // `ui`'s own; this file only says how big the theme's text is.
 #include "interface.h"
 #include "surface.h"

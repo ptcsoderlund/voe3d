@@ -61,7 +61,7 @@
 // all of them. The two regions are told apart by the seam between them and by
 // where their headings start, not by being different colours — a colour per
 // panel would be this file deciding something nobody has decided, and there
-// is no role for it besides (ui/theme.h, ADR-0169).
+// is no role for it besides (ui/theme.h, ADR-0171).
 
 // Inside a panel's four edges, and between the things on it. Millimetres.
 #define PANEL_PAD 3.0f

@@ -1,5 +1,11 @@
 # decisions
 
+The engine's decision records 0001–0167, written under the two earlier workflows — the kanban of 0001–0154, the
+spec-driven 0155–0167 — and never edited; a superseded record says what replaced it. `ADR-NNNN` in code and
+comments means `NNNN-*.md` here for these numbers. Nothing is added here: from 0168 on, records live in
+`Agentic/tech-lead/decisions/` under the Agentic workflow (ADR-0168), which is also where 0155's spec → plan →
+tasks shape was retired.
+
 Project-wide technical decisions, one file each, never edited once written. `ADR-NNNN` in code and
 comments means `NNNN-*.md` here. 0001–0154 were written under the earlier tech-lead and kanban workflow,
 so they speak of cards, the principal and the planning root; a superseded record says what replaced it.
@@ -171,6 +177,3 @@ so they speak of cards, the principal and the planning root; a superseded record
 - `0165-a-single-line-text-field-is-a-ui-widget-and-typed-text-arrives-as-a-value.md` — A single-line text field is a `ui` widget, and typed text arrives as a value like the pointer.
 - `0166-a-hidden-entry-means-the-same-thing-on-both-platforms.md` — A hidden entry means the same thing on both platforms: a leading `.` everywhere, plus Windows' attribute.
 - `0167-the-engine-carries-pixel-operator-beside-oxanium-and-a-font-is-asked-for-by-name.md` — The engine carries Pixel Operator beside Oxanium, and a font is asked for by name.
-- `0168-a-theme-is-read-in-theme-derived-in-ui-and-nearest-wins.md` — A theme is read in `theme`, derived in `ui`, and the nearest one wins.
-- `0169-the-palette-is-derived-in-oklab-and-dark-mode-clamps-chroma.md` — The palette is derived in OKLab from one colour and two numbers, and dark mode clamps chroma.
-- `0170-a-theme-is-one-file-in-a-themes-folder-and-a-program-remembers-it-by-file-name.md` — A theme is one file in a themes folder, and a program remembers which by its file name.

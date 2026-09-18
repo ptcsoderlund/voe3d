@@ -16,7 +16,7 @@
 // again" the same sentence at every value of the scalar.
 //
 // THE THREE TEXT LIGHTNESSES AND THE BORDER ARE STEPPED FROM `ground`, NOT
-// FROM WHICHEVER SURFACE THEY ARE ACTUALLY DRAWN ON. ADR-0169 says a text role
+// FROM WHICHEVER SURFACE THEY ARE ACTUALLY DRAWN ON. ADR-0171 says a text role
 // is stepped from the surface it sits on, and `ground` is a surface — the
 // bottom rung of the one ladder this derivation has — chosen as the reference
 // rather than `surface` FOR A NAMED REASON: `ground` never moves with
@@ -31,14 +31,14 @@
 // background than the formula assumed, because there is no per-surface
 // variant of a text colour in this struct to compute.
 //
-// DEVIATION: ADR-0169 ("a text role is stepped from the surface it sits
+// DEVIATION: ADR-0171 ("a text role is stepped from the surface it sits
 // on"), read narrowly as `ground` — the ladder's own bottom surface — rather
 // than `surface`, because only the `ground` reading keeps contrast_strength
 // and surface_separation independent, which task 3's own required tests
 // ("each scalar moves what it names and nothing else") could not otherwise
 // pass.
 //
-// role_lightness IS THE "STEPPED UNTIL IT CLEARS ITS SURFACE" IN ADR-0169: the
+// role_lightness IS THE "STEPPED UNTIL IT CLEARS ITS SURFACE" IN ADR-0171: the
 // step is contrast_strength's own, or a floor that already clears the
 // surface, whichever is bigger. That is what makes "both modes stay legible
 // at both ends of both scalars" true by construction rather than by
@@ -77,7 +77,7 @@
 #define BORDER_FLOOR 0.05f
 
 // The accent's chroma ceiling, per mode (ADR-0097's bench figures, kept by
-// ADR-0169): a saturated colour fringes on a dark ground well before it does
+// ADR-0171): a saturated colour fringes on a dark ground well before it does
 // on a light one, so the dark ceiling is under half the light one.
 #define ACCENT_CHROMA_MAX_DARK 0.10f
 #define ACCENT_CHROMA_MAX_LIGHT 0.22f

@@ -301,7 +301,7 @@ typedef struct {
 	// And how many element records one frame may emit — see widgets.h,
 	// which is what emits them. A panel with a surface and a button are two
 	// each, their hairline border and their own fill (ui/widgets.h,
-	// ADR-0169); a panel with no surface is none. A number box and a field
+	// ADR-0171); a panel with no surface is none. A number box and a field
 	// are one apiece, having no border. A label is one per character that
 	// draws and none for a space, so a screenful of interface with writing
 	// on it is hundreds. A caller that only wants rectangles asks for none

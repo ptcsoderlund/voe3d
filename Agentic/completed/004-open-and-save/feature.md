@@ -1,15 +1,19 @@
-# 004 Open and save
+# 004 — Open and save
 
-Status: accepted
-Approved: 2026-09-15
-Accepted: 2026-09-17
+Approved 2026-09-15. Accepted 2026-09-17.
+
+## What
 
 The editor opens a game's project, saves the scene being worked on, and opens the last project
 again the next time it starts — the way Blender does, down to the untitled cube and light it
 starts on. Until now the editor showed a scene built into its code and nothing made in it
 survived closing it; this is what makes the editor a place work is kept.
 
-## Acceptance criteria
+## Why
+
+Until now the editor showed a scene built into its code and nothing made in it survived closing it; this is what makes the editor a place work is kept.
+
+## How to test
 
 1. **First start.** With no project ever opened, the editor starts on an untitled scene holding one
    cube and one directional light that lights it. The top bar says the scene is untitled.

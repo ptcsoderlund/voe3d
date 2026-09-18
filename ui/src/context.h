@@ -96,12 +96,12 @@ struct voe_ui_widget_record {
 	// The theme in force when this widget was made — voe_ui_theme_set's
 	// argument or the nearest voe_ui_theme_push's — copied here once
 	// rather than looked up again at emission, which is what makes
-	// ADR-0168's "the nearest one wins" a property of WHEN a widget was
+	// ADR-0170's "the nearest one wins" a property of WHEN a widget was
 	// called and not of what has pushed or popped by the time the frame
 	// ends. NULL on a node no widget call touched — a plain row, column or
 	// box — which is never read, because emission never reaches one.
 	//
-	// DEVIATION: ADR-0168 says "every node recording the theme in force
+	// DEVIATION: ADR-0170 says "every node recording the theme in force
 	// when it was made". Read narrowly as every WIDGET node — the ones
 	// emission can go on to draw — because layout.c's node_push makes
 	// every node, including a plain row's, and giving it a theme to copy
@@ -231,7 +231,7 @@ struct voe_ui_context {
 	const voe_text_font *font;
 
 	// THE THEME, IN TWO PARTS — see widgets.h for the whole mechanism and
-	// ADR-0168 for why the nearest one wins.
+	// ADR-0170 for why the nearest one wins.
 	//
 	// `theme` IS voe_ui_theme_set's ARGUMENT, and it survives a frame
 	// exactly as `font` does: nothing here resets it at frame_begin.

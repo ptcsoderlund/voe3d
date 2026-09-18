@@ -55,7 +55,7 @@
 // AND EACH OF THEM COSTS UP TO FOUR ELEMENT RECORDS OF ITS OWN, on top of
 // everything the panel draws: a track and a thumb on each of the two axes, when
 // both bars show. The 512 predates any itemized count and is left as it stands
-// except for the two things named here that ADR-0169's border touches: dock.c's
+// except for the two things named here that ADR-0171's border touches: dock.c's
 // two leaf panels, Scene and Inspector, whose one background each is now a
 // border and a fill (+2), and the Scene list's own rows — dock.c's
 // voe_ui_button_begin(ui, "entity", i), up to VOE_EDITOR_SCENE_ROWS (scene.h,
@@ -72,7 +72,7 @@
 //
 // AND THEY ADD EIGHT BACKGROUNDS, ELEVEN CHARACTERS AND ROOM FOR TWO HUNDRED
 // MORE. The column and the row draw none of their own; the panel and each of
-// the three buttons draw a hairline border now (ADR-0169), two records apiece
+// the three buttons draw a hairline border now (ADR-0171), two records apiece
 // where one used to do — eight where four used to be; the eleven characters
 // "New", "Open" and "Save" draw between them are eleven, and two hundred more
 // is generous for whatever a project's name and a notice's line come to —
@@ -95,7 +95,7 @@
 //
 // AND 1234 MORE ELEMENTS. Exactly, on top of what is generous: the panel's
 // background and each of the Up, Confirm and Cancel buttons' are eight now,
-// each drawing a hairline border (ADR-0169), two records apiece where one
+// each drawing a hairline border (ADR-0171), two records apiece where one
 // used to do; "Up" draws two characters, "Cancel" six, and "Save here" — the
 // longer of the two Confirm ever shows, its one space drawing nothing —
 // eight; the scrollbar up to two; and every one of the 32 rows is a button
@@ -114,7 +114,7 @@
 //
 // AND 270 MORE ELEMENTS, BOUNDED BY THE FIELD'S OWN DECLARED CAPACITY RATHER
 // THAN A GUESS. The field draws no border — only a panel and a button do
-// (ADR-0169) — so its background and its caret while focused stay two; up to
+// (ADR-0171) — so its background and its caret while focused stay two; up to
 // VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed is the honest
 // ceiling, there being nowhere shorter this file could point to; that is 258.
 // Make folder IS a button, so its background is two now rather than one,
@@ -128,7 +128,7 @@
 // the only place that decides it, and ecs/component.h asserts rather than
 // lets a world grow past what it was made with — so at most eight are drawn
 // a frame. Each is a panel and its heading label, two nodes, and — the
-// border ADR-0169 draws — two elements for the border and the fill plus
+// border ADR-0171 draws — two elements for the border and the fill plus
 // twenty-four generous for whatever its component's key is named, this file
 // naming none of them (inspector.h's own claim). 8 × 2 = 16 nodes,
 // 8 × 26 = 208 elements.
@@ -138,7 +138,7 @@
 // panel together, three nodes each as inspector.h already counts —
 // 192 nodes. The most one costs is a boolean's button rather than a number
 // box's plain rectangle — two elements for its own border and fill
-// (ADR-0169) — plus sixteen generous for the field's name and the word it
+// (ADR-0171) — plus sixteen generous for the field's name and the word it
 // shows, neither of which this file nor inspector.c puts a limit on.
 // 64 × (2 + 16) = 1152 elements. 250 + 16 + 192 = 458 nodes, and
 // 2277 + 208 + 1152 = 3637 elements.

@@ -471,7 +471,7 @@ int main(int argc, char *argv[])
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
 
-	// Oxanium for now: a theme naming Pixel Operator is 006 task 6's, once
+	// Oxanium for now: a theme naming Pixel Operator is a later 006 card's, once
 	// `theme` exists to read one.
 	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena, &error);
 	if (font == NULL) {

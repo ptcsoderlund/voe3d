@@ -760,7 +760,7 @@ static void a_number_and_a_button_sharing_a_key_refuse_the_frame(
 
 // A known tree, a known list. Six records: the panel's border and its fill,
 // then each button's border and its fill, in the order they were called
-// (ADR-0169: a bordered widget is two records and not one). The boxes inside
+// (ADR-0171: a bordered widget is two records and not one). The boxes inside
 // the buttons draw nothing, and nothing is emitted for them.
 static void a_known_tree_emits_a_known_list(voe_ui_context *ui,
 					    voe_base_arena *arena)
@@ -849,7 +849,7 @@ static voe_ui_theme derive_variant(float surface_separation)
 	return voe_ui_theme_derive(&inputs, NULL);
 }
 
-// THE NEAREST THEME WINS (ADR-0168), AND A POP RESTORES THE ONE ABOVE IT.
+// THE NEAREST THEME WINS (ADR-0170), AND A POP RESTORES THE ONE ABOVE IT.
 // Three buttons in a row: the first before any push, reading TEST_THEME; the
 // second between a push and its pop, reading the pushed theme; the third
 // after the pop, back to TEST_THEME. A button's fill is the second of its two
@@ -973,7 +973,7 @@ static struct frame build_clipped(voe_ui_context *ui, voe_base_arena *arena,
 // the left 12.5 of it. The wholly clipped button emits nothing and takes no
 // capacity, which the count says. The seen half is TWO records now — its
 // border, then its fill inset from every edge — and both are narrowed to the
-// same clip (ADR-0169).
+// same clip (ADR-0171).
 #define BORDER_WIDE 0.3f
 
 static void a_half_clipped_button_emits_its_visible_half(voe_ui_context *ui,
@@ -1722,7 +1722,7 @@ static void a_wholly_clipped_label_emits_nothing(voe_ui_context *ui,
 			   2);
 }
 
-// A LABEL IN ACCENT DRAWS IN THE ACCENT (ADR-0169's role list, task 4's
+// A LABEL IN ACCENT DRAWS IN THE ACCENT (ADR-0171's role list, task 4's
 // voe_ui_text_role), rather than the ordinary text_primary voe_ui_label
 // itself draws in.
 static void a_label_in_accent_draws_the_accent(voe_ui_context *ui,

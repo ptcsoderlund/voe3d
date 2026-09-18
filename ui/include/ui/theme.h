@@ -1,6 +1,6 @@
 // A theme: the handful of values a person authors, and the palette of roles a
 // widget actually draws with. Splitting the two is the whole point of this
-// file (ADR-0097, ADR-0168, ADR-0169) — a theme file or a game names four
+// file (ADR-0097, ADR-0170, ADR-0171) — a theme file or a game names four
 // things and a size, and everything a panel, a label or a button needs comes
 // out the other end already worked out.
 //
@@ -10,19 +10,19 @@
 //     voe_ui_theme_set(ui, &theme);                 // task 4
 //
 // WHO READS THE FILE AND WHO DERIVES THE PALETTE ARE TWO DIFFERENT FOLDERS
-// (ADR-0168). `theme` turns a `.theme` file's bytes into a voe_ui_theme_inputs
+// (ADR-0170). `theme` turns a `.theme` file's bytes into a voe_ui_theme_inputs
 // and hands it here; this folder never opens a file, never names `assets` and
 // never picks a typeface's bytes apart — it only turns the five authored
 // values into the roles below. A game that wants a theme with no file at all
 // may fill in voe_ui_theme_inputs itself and call voe_ui_theme_derive directly.
 //
 // THE DERIVATION RUNS IN OKLAB AND NOTHING HERE IS ARITHMETIC ON sRGB
-// CHANNELS (ADR-0169). `accent` is authored sRGB exactly as a person or a file
+// CHANNELS (ADR-0171). `accent` is authored sRGB exactly as a person or a file
 // wrote it — this struct does not convert it — and every voe_ui_theme field is
 // LINEAR, ready for an element record, because the conversion is the
 // derivation's first and last step and nowhere else. The OKLab conversion
 // itself lives in ui/src/oklab.h, internal to this folder, and moves to `math`
-// the day a second folder needs it (ADR-0168).
+// the day a second folder needs it (ADR-0170).
 //
 // ONE COLOUR AND TWO NUMBERS ARE ENOUGH BECAUSE HUE IS NEVER ROTATED. Every
 // role but the accent is a step of LIGHTNESS ALONE — zero chroma, so the
@@ -39,13 +39,13 @@
 // none.
 //
 // THE ACCENT'S CHROMA IS CLAMPED HARDER IN DARK MODE THAN IN LIGHT (ADR-0097,
-// ADR-0169): a saturated colour that is comfortable on a light ground fringes
+// ADR-0171): a saturated colour that is comfortable on a light ground fringes
 // on a dark one, so VOE_UI_THEME_ACCENT_CHROMA_MAX_DARK is under half of
 // VOE_UI_THEME_ACCENT_CHROMA_MAX_LIGHT. Only chroma moves; the accent's own
 // hue and lightness are exactly what the derivation found in the authored
 // colour.
 //
-// THE ROLES ARE WHAT THE WIDGETS DRAW WITH AND NO MORE (ADR-0169, rule 10):
+// THE ROLES ARE WHAT THE WIDGETS DRAW WITH AND NO MORE (ADR-0171, rule 10):
 // three surfaces to sit a panel on, a hairline border, a control and its
 // hovered state, three text lightnesses, the accent, and the ink that goes on
 // it. A pressed control and a dragged number box are the accent itself

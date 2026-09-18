@@ -1,4 +1,4 @@
-// The derivation, pinned down against the five claims ADR-0169 and spec 006's
+// The derivation, pinned down against the five claims ADR-0171 and spec 006's
 // criterion 4 make about it, one group of cases per claim:
 //
 //   - A ROUND TRIP THROUGH OKLAB holds for an in-gamut colour, which is what
@@ -21,7 +21,7 @@
 //     for exactly this reason — see its header — and this is the case that
 //     would catch the reference drifting back to `surface`.
 //   - THE DARK/LIGHT CHROMA ASYMMETRY, pinned to the two figures ADR-0097's
-//     bench found and ADR-0169 turned into a rule: a saturated accent keeps
+//     bench found and ADR-0171 turned into a rule: a saturated accent keeps
 //     less chroma in dark mode than in light.
 //
 // NEEDS NO GRAPHICS CARD. voe_ui_theme_derive only copies a font pointer
@@ -244,7 +244,7 @@ static void test_dark_clamps_chroma_harder_than_light(void)
 	float chroma_light = role_chroma(tlight.accent);
 
 	VOE_TEST_CHECK(chroma_dark < chroma_light);
-	// The figures ADR-0097's bench found and ADR-0169 fixed as the rule.
+	// The figures ADR-0097's bench found and ADR-0171 fixed as the rule.
 	VOE_TEST_CHECK_FLOAT(chroma_dark, 0.10, 0.01);
 	VOE_TEST_CHECK_FLOAT(chroma_light, 0.22, 0.01);
 }
