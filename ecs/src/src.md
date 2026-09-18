@@ -1,0 +1,12 @@
+# src
+
+`ecs`'s implementation: the entity slots, the tables and the queues, behind one
+internal header that holds the struct they share.
+
+- `world_internal.h` — the struct the three files below share, and where the
+  split between them runs.
+- `world.c` — the entity slots: what a create takes, what a destroy gives back,
+  and why a create prefers a slot something used to be in.
+- `component.c` — registration, the type list, the row lookups, and the swap a
+  removal does. Its header says which three things a removal has to keep in step.
+- `intent.c` — the queues, and why a drain is all or nothing.
