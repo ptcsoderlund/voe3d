@@ -39,3 +39,5 @@ Every record 0001–0167 in `history/decisions/` stands unless one says it is su
 - 0040, 0046, 0015 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
 - 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a task.
 - 0120, 0133 — A folder `.md` is a present-tense map that delegates its subfolders.
+- 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place the keymap names.
+- 0173 — Every folder holding code carries `<folder>.md` as an index; `src/` and `tests/` list their own files.
