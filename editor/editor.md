@@ -37,6 +37,7 @@ and nothing names it (ADR-0121). No engine folder gains anything for the
 editor's sake — a gap in one of them is a card in that folder, never a
 reach-around from here.
 
+- `src` — the implementation; each file is listed below by path.
 - `src/main.c` — reads the command line, opens whichever project the folder
   argument, the last one remembered or an untitled scene names before the
   device does, opens the window and the device through `voe_app_new` — or the

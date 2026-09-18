@@ -8,6 +8,9 @@ comes out is element records and the caller submits them — and not input
 either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's.
 
+- `include` — the public headers, in `include/ui/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
   between its begin and its end, any of which may clip what reaches past it

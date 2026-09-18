@@ -5,6 +5,9 @@ person would author, and the systems that own them. Nothing here names a GPU
 resource, a file or a graphics API — a projection matrix is `3d`'s, because clip
 space is.
 
+- `include` — the public headers, in `include/scene/`; each is listed below by path.
+- `src` — the implementation; each file is listed below by path.
+- `tests` — one plain C program per module, found by the build; each is listed below by path.
 - `include/scene/transform_component.h` — position, rotation, scale, written as a
   described field list, and the matrix they become. Its header says why there is
   no parent, why the matrix is not stored, in which order the three are composed,

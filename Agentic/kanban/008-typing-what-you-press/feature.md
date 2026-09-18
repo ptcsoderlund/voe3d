@@ -1,15 +1,17 @@
-# 008 Typing what you press
+# 008 — Typing what you press
 
-Status: approved
-Approved: 2026-09-17
-Accepted: -
+## What
 
 Typing in the editor on Linux puts a `0` in the box whatever key is pressed, so the folder name
 box beside *Make folder* — and every other place text is typed — cannot be used. The editor reads
 the keyboard layout the system hands it when it starts, and misreads it. This makes typing produce
 the characters actually pressed, on whatever layout the machine is set to.
 
-## Acceptance criteria
+## Why
+
+Typing in the editor on Linux puts a `0` in the box whatever key is pressed, so the folder name box beside *Make folder* and every other place text is typed cannot be used, and nothing that needs a typed name can be tried. Built ahead of the rest by the sponsor's choice on 2026-09-17.
+
+## How to test
 
 1. **Letters and digits.** In the editor's file browser, with Save on an untitled scene, type in the
    name box beside *Make folder*: each key puts its own character in the box, in the order pressed.

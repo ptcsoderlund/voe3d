@@ -19,6 +19,7 @@ Nothing draws into a swapchain image, and everything inside one is linear light:
 the sRGB curve is a texture format on the way in and the target's format on the
 way out, and no file here holds a gamma constant.
 
+- `include` — the public headers, in `include/render/`; each is listed below by path.
 - `include/render/device.h` — the whole public surface: open a device, upload
   geometry, textures and shading records and get ids back, make targets of its
   own, show their pictures through a texture id and read any target's picture

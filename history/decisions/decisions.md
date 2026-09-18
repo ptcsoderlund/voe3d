@@ -1,5 +1,11 @@
 # decisions
 
+The engine's decision records 0001–0167, written under the two earlier workflows — the kanban of 0001–0154, the
+spec-driven 0155–0167 — and never edited; a superseded record says what replaced it. `ADR-NNNN` in code and
+comments means `NNNN-*.md` here for these numbers. Nothing is added here: from 0168 on, records live in
+`Agentic/tech-lead/decisions/` under the Agentic workflow (ADR-0168), which is also where 0155's spec → plan →
+tasks shape was retired.
+
 Project-wide technical decisions, one file each, never edited once written. `ADR-NNNN` in code and
 comments means `NNNN-*.md` here. 0001–0154 were written under the earlier tech-lead and kanban workflow,
 so they speak of cards, the principal and the planning root; a superseded record says what replaced it.

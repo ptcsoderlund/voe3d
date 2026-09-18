@@ -1,16 +1,19 @@
-# 005 Editor font
+# 009 — Editor font
 
-Status: approved
-Approved: 2026-09-15
-Accepted: -
-Waits for: 006 themes — the sponsor chose on 2026-09-17 to build 006 first, so this spec is planned but parked.
+## What
 
 The editor's own panels are drawn in Pixel Operator, a pixel-style typeface free to ship, instead
 of Oxanium. The built-in theme takes Pixel Operator as its font, and the editor's Preferences can
 override whichever theme is chosen with Oxanium — the logo font — or Pixel Operator. The override
 belongs to the editor only; a game made with the engine is not affected.
 
-## Acceptance criteria
+## Why
+
+The sponsor wants the editor's own panels in a pixel-style face and Oxanium kept as the logo font, with the choice belonging to the editor only. This was spec 005 and ADR-0167 calls it that; it is 009 because it is built after 006, whose Preferences panel and themes it sits on, and a work order is taken in number order.
+
+The font itself is already in the tree on branch `feature/006-themes`: its card 02 embeds Pixel Operator beside Oxanium and makes a font asked for by typeface (ADR-0167). What is left here is the editor's default and the override in Preferences.
+
+## How to test
 
 1. **The new default.** Start the editor with no preference saved: every panel — top bar, Scene
    list, Inspector, file browser, Preferences — is in Pixel Operator.
