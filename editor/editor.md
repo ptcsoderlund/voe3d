@@ -1,7 +1,7 @@
 # editor
 
 The program a person opens to author a scene. Today it opens a window on a top
-bar — New, Open, Save, the project's name and a notice — above three columns:
+bar — New, Open, Save, Preferences, the project's name and a notice — above three columns:
 `Scene` on the left, two scene views stacked in the middle, and `Inspector` on
 the right. The left one lists the authored entities of the project it opens on
 and a click on one selects it; each view draws the world from its own camera,
@@ -23,7 +23,9 @@ It draws in a theme: the built-in one, or the `*.theme` file in
 `<settings>/voe3d/themes/` named by `<settings>/voe3d/theme` — see
 `src/themes.h`. A remembered theme that is gone or refused draws the built-in
 and says why in the bar. The selected row in `Scene` is drawn in the theme's
-accent.
+accent. Preferences lists every theme — each row drawn in its own theme, the
+one in force marked — and Choose puts one in force and remembers it; Close or
+Escape hides it.
 
 Open shows the editor's own file browser — an anchored panel over the dock,
 below the bar — to choose a project's folder from; a folder marked "— project"
@@ -44,5 +46,5 @@ editor's sake — a gap in one of them is a card in that folder, never a
 reach-around from here.
 
 - `src` — the implementation: the loop, the project and its session, the
-  themes, the top bar, the browser, the dock and the three panels; each file is listed on
+  themes, the top bar, the browser, Preferences, the dock and the three panels; each file is listed on
   `src/src.md`.

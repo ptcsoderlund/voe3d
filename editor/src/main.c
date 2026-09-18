@@ -43,6 +43,11 @@
 // handed to the interface as the browser's Cancel; a window close still asks
 // session.h the same question it always has, browser or not.
 //
+// THE BAR'S PREFERENCES SHOWS preferences.h'S PANEL IN THE SAME PLACE, and
+// it suppresses nothing: the shortcuts and the drag go on as ever. Escape
+// hides it when the browser is not showing; while the browser shows, Escape
+// is the browser's.
+//
 // BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
 // (task 14). Neither is this file's to act on: both, with whatever
 // voe_platform_input_text read since the last poll, are read every frame
@@ -118,6 +123,7 @@
 #include "browser.h"
 #include "dock.h"
 #include "interface.h"
+#include "preferences.h"
 #include "last_project.h"
 #include "notice.h"
 #include "project.h"
@@ -309,8 +315,8 @@ int main(int argc, char *argv[])
 	bool open_was_down = false;
 	bool save_was_down = false;
 	// Last frame's Escape, the same shape without a modifier — the
-	// browser's own Cancel (browser.h), and nothing else, so it is read
-	// only while the browser shows.
+	// browser's own Cancel (browser.h) while it shows, and Preferences'
+	// Close (preferences.h) while it does not.
 	bool escape_was_down = false;
 	// Last frame's Backspace and Enter, the same shape again — task 14's
 	// name box (browser.h) is the one thing either reaches, through
@@ -324,6 +330,9 @@ int main(int argc, char *argv[])
 	// (session.h). Kept across the whole program's run, never one
 	// project's — see browser.h on why it is not part of `session`.
 	voe_editor_browser browser = { 0 };
+	// Shown by the bar's Preferences, hidden by its Close or by Escape
+	// while the browser is not showing (preferences.h).
+	voe_editor_preferences preferences = { 0 };
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -669,6 +678,10 @@ int main(int argc, char *argv[])
 		// variables above already say.
 		escape_fired = escape && !escape_was_down;
 		escape_was_down = escape;
+		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
+		// Preferences, which it does nothing else to.
+		if (escape_fired && !browser.showing)
+			voe_editor_preferences_hide(&preferences);
 		backspace_fired = backspace && !backspace_was_down;
 		backspace_was_down = backspace;
 		enter_fired = enter && !enter_was_down;
@@ -752,7 +765,7 @@ int main(int argc, char *argv[])
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &views, &session, &browser,
-				escape_fired);
+				&preferences, &themes, escape_fired);
 			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
 			// FOR IT AS A COMMAND — dragging a number in the
 			// Inspector is not New, Open, Save or Close, so

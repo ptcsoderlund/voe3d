@@ -15,7 +15,8 @@ carries it out.
   `voe_editor_session_do` call, and a refused close takes the window's own back.
   While the browser shows, the three shortcuts fire nothing and a
   middle-button drag moves no view's camera; Escape is read here too and
-  handed to the interface as the browser's own Cancel. Backspace, Enter and
+  handed to the interface as the browser's own Cancel, and hides Preferences
+  while the browser does not show. Backspace, Enter and
   `voe_platform_input_text` are read every frame, regardless of the browser,
   and handed to the interface as this frame's keyboard (task 14) — `ui` acts
   on them only for whichever field is focused. Its header says why the
@@ -64,13 +65,19 @@ carries it out.
   clears the notice and disarms only when something actually fired.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, the
-  project's name and whether it is unsaved, then the session's notice. Its
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save,
+  Preferences, the project's name and whether it is unsaved, then the session's notice. Its
   header says why it hands back which button fired rather than carrying a
   command out itself, and why its buttons are recorded and read afterwards
   exactly as the Scene panel's rows are.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its three buttons afterwards.
+  the read of its four buttons afterwards.
+- `preferences.h` — Preferences: one row per theme with its name and a Choose
+  button, the one in force marked, and Close, as an anchored panel over the
+  dock. Its header says why each row is drawn in its own theme, why Choose is
+  carried out elsewhere, and how many themes it lists.
+- `preferences.c` — the panel's one frame of `ui` calls and the read of its
+  buttons afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
   anchored panel over the dock, its own arena for the current folder and its
   rows, and in SAVE mode a name row with a focused `ui` field and a Make folder
@@ -90,13 +97,14 @@ carries it out.
   where a splitter would go, and the row the tree is wrapped in.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre from the
   window's height over a 135 mm surface, the top bar above each root's dock
-  tree, the browser over it when it shows, and one draw command per root. Its
+  tree, the browser or Preferences over it when one shows, and one draw
+  command per root. Its
   header says why the one question it asks — what was clicked — has to be
   asked from in there, why the tree is walked inside the bar's column, and why
   whether the browser was showing is captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
-  the one read of the frame's clicks that carries out the top bar's and the
-  browser's commands.
+  the one read of the frame's clicks that carries out the top bar's, the
+  browser's and Preferences' commands.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
   submitted this frame is a count `main.c` reads. Its header says why the

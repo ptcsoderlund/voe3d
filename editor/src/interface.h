@@ -20,7 +20,9 @@
 
 #include "browser.h"
 #include "dock.h"
+#include "preferences.h"
 #include "session.h"
+#include "themes.h"
 
 #include <base/arena.h>
 #include <math/float2.h>
@@ -143,8 +145,24 @@
 // shows, neither of which this file nor inspector.c puts a limit on.
 // 64 × (2 + 16) = 1152 elements. 250 + 16 + 192 = 458 nodes, and
 // 2277 + 208 + 1152 = 3637 elements.
-#define VOE_EDITOR_INTERFACE_NODES 458
-#define VOE_EDITOR_INTERFACE_ELEMENTS 3637
+//
+// THE BAR'S PREFERENCES BUTTON (topbar.h) ADDS TWO NODES, a button and its
+// label, and THIRTEEN ELEMENTS: its border and fill, and the eleven letters
+// of "Preferences". 458 + 2 = 460 nodes, 3637 + 13 = 3650 elements.
+//
+// PREFERENCES (preferences.h) ADDS NOTHING, BECAUSE IT IS NEVER DRAWN IN THE
+// SAME FRAME AS THE BROWSER AND COSTS LESS. It takes the browser's place: the
+// panel, one; its scroll area, one; up to VOE_EDITOR_PREFERENCES_ROWS (16)
+// rows, each a panel, a row, the name label and Choose as a button and a
+// label, five apiece, eighty; the one "(in force)" label; Close's row, and
+// Close as a button and a label, three — 86 nodes against the browser's 111.
+// Elements: the panel's border and fill, two; the scrollbar, two; each row's
+// panel and Choose button, four, "Choose", six, and twenty-four generous for
+// the theme's name, thirty-four apiece, 544; "(in force)", nine, its space
+// drawing nothing; Close, two and five — 564 against the browser's 1504. Its
+// one scroll area is the one the browser would have used.
+#define VOE_EDITOR_INTERFACE_NODES 460
+#define VOE_EDITOR_INTERFACE_ELEMENTS 3650
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -216,6 +234,15 @@ void voe_editor_interface_surface(voe_platform_size target,
 // all, there being nothing drawn on it to answer for. `escape` is this
 // frame's Escape key edge, read as the browser's Cancel — main.c's to
 // compute, there being no window in here to ask (ADR-0141 point 4).
+//
+// `preferences` IS DRAWN THE SAME WAY, WHEN IT IS SHOWING AND THE BROWSER IS
+// NOT — the browser covers the same area and wins. Whether it was drawn is
+// captured once per root's frame, as `browsing` is; while it was, the dock is
+// handed a pointer with `over` false for the same reason, and its clicks are
+// read beside the top bar's, which stays live. The bar's Preferences shows
+// it; Choose puts `themes`' entry in force through voe_editor_themes_choose
+// and sets that palette and its font on `ui`, saying in the session's notice
+// when it could not be remembered; Close hides it.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
@@ -225,4 +252,6 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     voe_editor_views *views,
 					     voe_editor_session *session,
 					     voe_editor_browser *browser,
+					     voe_editor_preferences *preferences,
+					     voe_editor_themes *themes,
 					     bool escape);

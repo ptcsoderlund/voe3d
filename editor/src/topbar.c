@@ -1,4 +1,4 @@
-// The bar's one frame of `ui` calls, and the read of its three buttons
+// The bar's one frame of `ui` calls, and the read of its four buttons
 // afterwards. See the header for why the command it hands back is not carried
 // out here.
 //
@@ -79,6 +79,10 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	voe_ui_label(ui, "Save");
 	voe_ui_end(ui);
 
+	bar->preferences_button = voe_ui_button_begin(ui, "preferences", 0);
+	voe_ui_label(ui, "Preferences");
+	voe_ui_end(ui);
+
 	voe_ui_label(ui, unsaved ? unsaved_name(arena, name) : name);
 
 	if (notice[0] != '\0')
@@ -112,4 +116,14 @@ voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 		return VOE_EDITOR_COMMAND_SAVE;
 
 	return VOE_EDITOR_COMMAND_NONE;
+}
+
+bool voe_editor_topbar_preferences_read(const voe_ui_context *ui,
+					const voe_editor_topbar *bar)
+{
+	VOE_BASE_ASSERT(ui != NULL, "reading the clicks of no interface");
+	VOE_BASE_ASSERT(bar != NULL, "reading the clicks of no top bar");
+
+	return bar->preferences_button != VOE_UI_NODE_NONE &&
+	       voe_ui_button_action(ui, bar->preferences_button).fired;
 }
