@@ -103,16 +103,28 @@
 // VERSION 1 wl_pointer SENDS. enter and motion carry surface-local coordinates as
 // wl_fixed_t — 24.8 fixed point, so fractions of a unit are real and are kept —
 // with the origin at the surface's top-left, +x right and +y down. A surface unit
-// is a pixel of ours: this file never calls wl_surface_set_buffer_scale, so the
-// buffer is one pixel per surface unit and the size the configure hands over is
-// in the same unit, which is what makes the position and voe_platform_size
-// measure the same space without any arithmetic here. A compositor scaling the
-// window up on a high-density display does that on its side and reports the
-// pointer in our units regardless. button carries an evdev code, BTN_LEFT and
+// is a logical unit, not a pixel of ours, and is turned into one here — see
+// the next paragraph. button carries an evdev code, BTN_LEFT and
 // its neighbours from the same header the scancodes come from. While the pointer
 // is locked, the compositor sends no motion at all — the position underneath
 // simply stops — which is one of the reasons include/platform/input.h says a
 // locked pointer is not over the window.
+//
+// THE BUFFER IS DRAWN AT THE COMPOSITOR'S FRACTIONAL SCALE, AND ITS PIXELS ARE
+// THE ONES CALLERS SEE (ADR-0180). The configure hands over a logical size, and
+// on an output scaled by 1.25 a buffer that size is stretched by the compositor
+// with a smoothing filter — every edge goes soft. So wp_fractional_scale_v1's
+// preferred_scale is kept (in 120ths, 120 until it says otherwise), the logical
+// size is kept beside it, and voe_platform_window_size answers the logical size
+// times the scale through src/scale.h; the swapchain builds its buffer at that
+// size, and wp_viewport's destination, set to the logical size whenever either
+// number changes, tells the compositor to show it at the logical size without
+// resampling. Pointer positions go through the same scale on enter and motion,
+// so they and voe_platform_size still measure one space; relative motion and the
+// wheel are not positions and are not scaled. wl_surface_set_buffer_scale is
+// never called: an integer cannot say 1.25. Both protocols are optional and
+// bound at version 1 — with either one missing the scale stays 120 and every
+// number here is the logical one, exactly as before.
 //
 // NOTHING HERE TOUCHES THE CURSOR IMAGE, AND THAT IS A LIMIT RATHER THAN AN
 // OVERSIGHT. A locked pointer is frozen by the compositor and stays visible,
@@ -132,14 +144,17 @@
 
 #include "input.h"
 #include "keymap.h"
+#include "scale.h"
 
 #include <base/assert.h>
 #include <base/report.h>
 
 #include <wayland-client.h>
 
+#include "fractional-scale-v1-client-protocol.h"
 #include "pointer-constraints-unstable-v1-client-protocol.h"
 #include "relative-pointer-unstable-v1-client-protocol.h"
+#include "viewporter-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
@@ -161,11 +176,15 @@ struct voe_platform_window {
 	struct zxdg_decoration_manager_v1 *decorations;
 	struct zwp_relative_pointer_manager_v1 *relative_pointers;
 	struct zwp_pointer_constraints_v1 *constraints;
+	struct wp_fractional_scale_manager_v1 *fractional_scales;
+	struct wp_viewporter *viewporter;
 
 	struct wl_surface *surface;
 	struct xdg_surface *xdg_surface;
 	struct xdg_toplevel *toplevel;
 	struct zxdg_toplevel_decoration_v1 *decoration;
+	struct wp_viewport *viewport;
+	struct wp_fractional_scale_v1 *fractional_scale;
 
 	// The seat and what it currently has. A seat's capabilities change while
 	// the program runs — a mouse is unplugged, a tablet is picked up — so
@@ -182,10 +201,16 @@ struct voe_platform_window {
 	struct zwp_locked_pointer_v1 *locked_pointer;
 	bool lock_wanted;
 
+	// Logical sizes, as the configure sends them; _size scales them.
 	int width;
 	int height;
 	int wanted_width;
 	int wanted_height;
+
+	// The preferred scale in 120ths, and whether the viewport's destination
+	// is behind the logical size or the scale — see the file's header.
+	uint32_t scale;
+	bool viewport_stale;
 	uint32_t decoration_mode;
 	bool configured;
 	bool should_close;
@@ -250,6 +275,13 @@ static void registry_global(void *data, struct wl_registry *registry,
 	else if (strcmp(interface, zwp_pointer_constraints_v1_interface.name) == 0)
 		window->constraints = wl_registry_bind(registry, name,
 			&zwp_pointer_constraints_v1_interface, 1);
+	// Drawing at the fractional scale takes both; either alone is unused.
+	else if (strcmp(interface, wp_fractional_scale_manager_v1_interface.name) == 0)
+		window->fractional_scales = wl_registry_bind(registry, name,
+			&wp_fractional_scale_manager_v1_interface, 1);
+	else if (strcmp(interface, wp_viewporter_interface.name) == 0)
+		window->viewporter = wl_registry_bind(registry, name,
+			&wp_viewporter_interface, 1);
 }
 
 // Nothing here holds a global long enough to care that one went away.
@@ -338,6 +370,26 @@ static void decoration_configure(void *data,
 
 static const struct zxdg_toplevel_decoration_v1_listener decoration_listener = {
 	.configure = decoration_configure,
+};
+
+// The compositor's preferred scale for the surface, in 120ths. Stored, and the
+// viewport marked stale; _poll folds it in, as it does a new size.
+static void fractional_scale_preferred(void *data,
+				       struct wp_fractional_scale_v1 *fractional_scale,
+				       uint32_t scale)
+{
+	voe_platform_window *window = data;
+
+	(void)fractional_scale;
+
+	if (scale != window->scale) {
+		window->scale = scale;
+		window->viewport_stale = true;
+	}
+}
+
+static const struct wp_fractional_scale_v1_listener fractional_scale_listener = {
+	.preferred_scale = fractional_scale_preferred,
 };
 
 // --------------------------------------------------------------------- input
@@ -578,8 +630,10 @@ static const struct wl_keyboard_listener keyboard_listener = {
 // wherever it was last seen before it left, which could be the other side.
 static void pointer_at(voe_platform_window *window, wl_fixed_t x, wl_fixed_t y)
 {
-	window->input.pointer_x = (float)wl_fixed_to_double(x);
-	window->input.pointer_y = (float)wl_fixed_to_double(y);
+	window->input.pointer_x = (float)voe_platform_scale_position(
+		wl_fixed_to_double(x), window->scale);
+	window->input.pointer_y = (float)voe_platform_scale_position(
+		wl_fixed_to_double(y), window->scale);
 	window->input.pointer_over = true;
 }
 
@@ -942,6 +996,10 @@ static void close_down(voe_platform_window *window)
 	if (window->seat != NULL)
 		wl_seat_destroy(window->seat);
 
+	if (window->fractional_scale != NULL)
+		wp_fractional_scale_v1_destroy(window->fractional_scale);
+	if (window->viewport != NULL)
+		wp_viewport_destroy(window->viewport);
 	if (window->decoration != NULL)
 		zxdg_toplevel_decoration_v1_destroy(window->decoration);
 	if (window->toplevel != NULL)
@@ -951,6 +1009,10 @@ static void close_down(voe_platform_window *window)
 	if (window->surface != NULL)
 		wl_surface_destroy(window->surface);
 
+	if (window->viewporter != NULL)
+		wp_viewporter_destroy(window->viewporter);
+	if (window->fractional_scales != NULL)
+		wp_fractional_scale_manager_v1_destroy(window->fractional_scales);
 	if (window->constraints != NULL)
 		zwp_pointer_constraints_v1_destroy(window->constraints);
 	if (window->relative_pointers != NULL)
@@ -967,6 +1029,16 @@ static void close_down(voe_platform_window *window)
 		wl_display_disconnect(window->display);
 
 	free(window);
+}
+
+// The viewport shows the buffer at the logical size, whatever the scale made the
+// buffer. Set only when stale; the swapchain's next present commits it.
+static void viewport_update(voe_platform_window *window)
+{
+	if (window->viewport != NULL && window->viewport_stale)
+		wp_viewport_set_destination(window->viewport, window->width,
+					    window->height);
+	window->viewport_stale = false;
 }
 
 // Every failure below lands here, so a half-open window is torn down by the same
@@ -992,6 +1064,7 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	window->height = height;
 	window->wanted_width = width;
 	window->wanted_height = height;
+	window->scale = 120;
 
 	// No compositor, no WAYLAND_DISPLAY, no session: recoverable, and the
 	// reason this function returns a pointer that can be NULL.
@@ -1050,6 +1123,20 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 		}
 	}
 
+	// Draw at the compositor's fractional scale when it offers the means to;
+	// without both objects the scale stays 120 and nothing changes.
+	if (window->fractional_scales != NULL && window->viewporter != NULL) {
+		window->viewport = wp_viewporter_get_viewport(window->viewporter,
+							      window->surface);
+		window->fractional_scale =
+			wp_fractional_scale_manager_v1_get_fractional_scale(
+				window->fractional_scales, window->surface);
+		if (window->fractional_scale != NULL)
+			wp_fractional_scale_v1_add_listener(window->fractional_scale,
+							    &fractional_scale_listener,
+							    window);
+	}
+
 	// The empty commit that asks for the first configure, then the wait for
 	// it. Attaching a buffer before that configure is a protocol error, so
 	// whoever draws into this surface may not start until it has arrived —
@@ -1067,6 +1154,8 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 
 	window->width = window->wanted_width;
 	window->height = window->wanted_height;
+	window->viewport_stale = true;
+	viewport_update(window);
 
 	return window;
 }
@@ -1130,7 +1219,9 @@ void voe_platform_window_poll(voe_platform_window *window)
 	    window->wanted_height != window->height) {
 		window->width = window->wanted_width;
 		window->height = window->wanted_height;
+		window->viewport_stale = true;
 	}
+	viewport_update(window);
 }
 
 bool voe_platform_window_should_close(voe_platform_window *window)
@@ -1151,7 +1242,10 @@ voe_platform_size voe_platform_window_size(voe_platform_window *window)
 {
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
 
-	return (voe_platform_size){ window->width, window->height };
+	return (voe_platform_size){
+		voe_platform_scale_length(window->width, window->scale),
+		voe_platform_scale_length(window->height, window->scale),
+	};
 }
 
 bool voe_platform_window_decorated(voe_platform_window *window)

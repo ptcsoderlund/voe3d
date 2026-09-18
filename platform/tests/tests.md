@@ -29,6 +29,9 @@ that module's promises from outside. None of them needs a window or a display.
   `0x` keysym values, a Group index written `1`, an unindexed `type=`, AltGr as
   the keysym `0xfe03` on two keys, the `0x0100xxxx` Unicode form, a key with no
   resolved code, and that a keymap resolving to nothing is refused too.
+- `scale.c` — that 120 is the identity, that 150 turns 1536×864 into 1920×1080
+  and 100.5 into 125.625, that a length at 180 rounds 1 up to 2, and that zero
+  stays zero.
 - `path.c` — join, parent and name on ordinary paths, roots and trailing
   separators, for the platform it runs on; that resolving "." to an absolute
   path is idempotent, and that resolving a made-up name is NULL.

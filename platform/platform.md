@@ -48,3 +48,7 @@ file, and listing, making or finding a folder.
   it.
 - `protocol/pointer-constraints-unstable-v1.xml` — how a client asks for the
   pointer to stop going anywhere. Optional, and the compositor may say no.
+- `protocol/fractional-scale-v1.xml` — the scale the compositor would like a
+  surface drawn at, in 120ths. Optional; without it the window is stretched.
+- `protocol/viewporter.xml` — how a client shows a bigger buffer at the logical
+  size. Optional, and only used together with the fractional scale.
