@@ -99,7 +99,8 @@ file, and listing, making or finding a folder.
 - `src/window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
   There is no X11 backend, and nothing in it draws — its header says why the
   window is invisible until something else does, why input is in the same file,
-  and why the keymap is read in-house rather than through `xkbcommon`.
+  why the keymap is read in-house rather than through `xkbcommon`, and why
+  AltGr is held like Shift rather than read from the compositor's modifiers.
 - `src/window_win32.c` — the Windows window, its keyboard and its `WM_CHAR`
   text, the mouse as a raw input device for look and as ordinary messages for
   position and buttons. Its header says why Control without Alt drops
