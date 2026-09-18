@@ -17,8 +17,8 @@ just created, and edits nothing (ADR-0152). Nothing here opens a file: `platform
 owns files, and text lands in an arena the caller hands over.
 
 - `include` — the public headers, in `include/authoring/`; each is listed below by path.
-- `src` — the implementation; each file is listed below by path.
-- `tests` — one plain C program per module, found by the build; each is listed below by path.
+- `src` — the implementation. See `src/src.md`.
+- `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/authoring/scene_write.h` — a world written as scene text, handed back
   in one `voe_authoring_text` out-struct. Its header says which entities,
   components and kept sections are written and in what order, how every field
@@ -28,24 +28,3 @@ owns files, and text lands in an arena the caller hands over.
   that runs out of room is left as, and what is kept rather than read.
 - `include/authoring/project.h` — `project.voe3d` read and written. Its header
   says the one key it holds, what it refuses, and why the writer cannot fail.
-- `src/scene_write.c` — the writer. Its header says why it walks the world twice
-  and how kept sections are merged in.
-- `src/scene_read.c` — the reader. Its header says why only its second pass touches
-  the world and why it walks the text beside the sectioned reader.
-- `src/project.c` — the project file reader and writer. Its header says how a
-  scene path is checked the same way on both sides.
-- `src/line_index.h` / `src/line_index.c` — the line number of every section and
-  key in a sectioned document, shared by `scene_read.c` and `project.c`, both of
-  which name a line in a refusal.
-- `src/authored.h` — the sort and search by authored id both of them use, and why
-  neither is the C library's.
-- `src/authored.c` — the merge sort and the binary search.
-- `tests/scene_write.c` — the exact bytes for a small scene, for a component
-  holding every kind and for kept sections, fields of every shape from rank 0
-  to 7, the shortest float spellings, every refusal, and the same bytes twice.
-- `tests/scene_read.c` — a canonical file read and written back byte for byte, a
-  world written and read back row for row, every refusal creating nothing, the
-  warnings that still load, and fields of every shape from rank 0 to 7.
-- `tests/project.c` — the exact bytes the writer emits, a round trip through the
-  reader, every refusal with the line it names, and an unknown key that warns and
-  still loads.
