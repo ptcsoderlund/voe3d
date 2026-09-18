@@ -23,6 +23,14 @@
 // write fails; `--capture` never writes it, because a capture is not a person
 // opening the editor.
 //
+// IT DRAWS IN THE THEME REMEMBERED IN `<settings>/voe3d/theme` (themes.h).
+// Both faces are created, Oxanium and Pixel Operator (ADR-0167), the themes
+// folder is read into a list whose every palette is derived with the face its
+// file names, and the chosen palette and its font are set on the interface. A
+// remembered theme that is gone or refused draws the built-in instead and puts
+// the reason, naming the file, in session.notice — unless a last project's
+// failure already put one there.
+//
 // OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE
 // BROWSER. `browser`, beside `scene` and `views`, outlives every project the
 // whole run through, and while it shows this file does two things for it and
@@ -80,8 +88,8 @@
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // opens the device with no window at all (voe_app_new_headless), builds the
-// same world, font, interface and scene, runs the same loop body, writes the
-// frame to `path` through voe_app_capture_png and returns. `--size <W>x<H>`
+// same world, fonts, themes, interface and scene, runs the same loop body,
+// writes the frame to `path` through voe_app_capture_png and returns. `--size <W>x<H>`
 // says how big that picture is and defaults to the size the window would have
 // opened at; it means nothing without `--capture`, so it is refused there
 // rather than quietly ignored. `--size` without `--capture`, a missing value
@@ -115,6 +123,7 @@
 #include "project.h"
 #include "scene.h"
 #include "session.h"
+#include "themes.h"
 #include "view.h"
 
 #include <3d/draw_system.h>
@@ -146,7 +155,7 @@
 #include <string.h>
 
 // The block size of the one arena everything lives in — the app struct, the
-// world, the font, the interface context and every frame's tree. It is a block
+// world, the fonts, the interface context and every frame's tree. It is a block
 // size and not a limit; the arena asks the operating system for another when it
 // runs out.
 #define EDITOR_ARENA (4u * 1024u * 1024u)
@@ -326,7 +335,13 @@ int main(int argc, char *argv[])
 	// material every shape wears. Uploaded once, at startup, and read every
 	// frame by voe_3d_shape_system_run.
 	voe_3d_shapes shapes;
-	voe_text_font *font;
+	// Both faces the editor carries (ADR-0167); a theme names one of them,
+	// and themes.h derives each palette with whichever it names.
+	voe_text_font *oxanium;
+	voe_text_font *pixel_operator;
+	// The built-in theme and every file in the themes folder, and the one
+	// in force (themes.h). It outlives `ui`, which keeps the palette.
+	voe_editor_themes themes = { 0 };
 	voe_ui_context *ui;
 	// The roots the loop walks. One of them, and it is the window; see
 	// dock.h on what a second one would cost.
@@ -471,17 +486,31 @@ int main(int argc, char *argv[])
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
 
-	// Oxanium for now: a theme naming Pixel Operator is a later 006 card's, once
-	// `theme` exists to read one.
-	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena, &error);
-	if (font == NULL) {
-		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
+	oxanium = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena,
+				    &error);
+	pixel_operator = oxanium == NULL ?
+				 NULL :
+				 voe_text_font_new(VOE_TEXT_TYPEFACE_PIXEL_OPERATOR,
+						   gpu, arena, &error);
+	if (pixel_operator == NULL) {
+		VOE_BASE_ERROR("editor", "the editor could not build its fonts: %s",
 			       voe_base_error_string(error));
 		status = 1;
 		goto stop;
 	}
 
-	ui = voe_editor_interface_new(arena, font);
+	// A REMEMBERED THEME THAT IS GONE OR REFUSED IS A NOTICE, NOT A STOP:
+	// the built-in is drawn instead and the bar says why, naming the file,
+	// as a failed open does. A last project's own notice, set above, is
+	// the one left standing when both failed — it says more about what is
+	// on screen.
+	if (!voe_editor_themes_load(&themes, oxanium, pixel_operator) &&
+	    session.notice.text[0] == '\0')
+		voe_editor_notice_from_report(&session.notice,
+					      themes.remembered);
+
+	ui = voe_editor_interface_new(arena,
+				      &voe_editor_themes_chosen(&themes)->palette);
 	roots[0].tree = voe_editor_dock_default();
 
 	say_whether_descriptions_are_in();
@@ -778,5 +807,6 @@ stop:
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
 	voe_editor_browser_destroy(&browser);
+	voe_editor_themes_destroy(&themes);
 	return status;
 }

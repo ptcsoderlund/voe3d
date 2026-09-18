@@ -70,15 +70,6 @@
 // The space between the two children of a split. See the header note above.
 #define SEAM 1.0f
 
-// What goes in front of the selected row's name. IT IS A SECOND LABEL IN THE
-// BUTTON AND NOT A COMPOSED STRING, which is the shape ui/widgets.h asks for —
-// a button is a row and a second thing in one goes across. The alternative is a
-// buffer holding the name with the marker glued on, and that buffer would have
-// to outlive the call that filled it: a label's text is read at
-// voe_ui_frame_end, long after this function has returned. A literal and a
-// pointer into the identity table are both still there then.
-#define SELECTED_MARK "> "
-
 // A child's size, in the axes its PARENT flows in. `ui` reads `size.along` and
 // `size.across` against the container the child is in, so which of x and y is
 // which depends on the parent and on nothing else — see ui/layout.h.
@@ -335,9 +326,13 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 	for (uint32_t i = 0; i < count; i++) {
 		voe_ui_node row = voe_ui_button_begin(ui, "entity", i);
 
-		if (voe_editor_scene_is_selected(scene, entities[i]))
-			voe_ui_label(ui, SELECTED_MARK);
-		voe_ui_label(ui, rows[i].name);
+		// The selected row's name is in the theme's accent, which is
+		// what a selection is drawn in (ui/theme.h).
+		voe_ui_label_role(ui, rows[i].name,
+				  voe_editor_scene_is_selected(scene,
+							       entities[i]) ?
+					  VOE_UI_TEXT_ROLE_ACCENT :
+					  VOE_UI_TEXT_ROLE_NORMAL);
 		voe_ui_end(ui);
 
 		// The click is answered after voe_ui_frame_end and this

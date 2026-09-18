@@ -19,6 +19,12 @@ there are unsaved changes and goes ahead the second time. It can also be
 started to draw one frame with no window at all, write it to a PNG file and
 exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 
+It draws in a theme: the built-in one, or the `*.theme` file in
+`<settings>/voe3d/themes/` named by `<settings>/voe3d/theme` — see
+`src/themes.h`. A remembered theme that is gone or refused draws the built-in
+and says why in the bar. The selected row in `Scene` is drawn in the theme's
+accent.
+
 Open shows the editor's own file browser — an anchored panel over the dock,
 below the bar — to choose a project's folder from; a folder marked "— project"
 already holds one. Confirming it replaces the project on success, or leaves
@@ -37,6 +43,6 @@ and nothing names it (ADR-0121). No engine folder gains anything for the
 editor's sake — a gap in one of them is a card in that folder, never a
 reach-around from here.
 
-- `src` — the implementation: the loop, the project and its session, the top
-  bar, the browser, the dock and the three panels; each file is listed on
+- `src` — the implementation: the loop, the project and its session, the
+  themes, the top bar, the browser, the dock and the three panels; each file is listed on
   `src/src.md`.

@@ -28,30 +28,22 @@
 
 #include <ui/theme.h>
 
-// THE BUILT-IN THEME, SET ONCE, BEFORE task 6 GIVES THE EDITOR A CHOICE OF
-// ITS OWN. A function static rather than a frame-local one: voe_ui_theme_set
-// keeps the pointer it is given and it must outlive every frame drawn with
-// it, exactly as the font does — see ui/widgets.h.
-static voe_ui_theme interface_theme;
-
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
-					 const voe_text_font *font)
+					 const voe_ui_theme *theme)
 {
 	voe_ui_context *ui;
-	voe_ui_theme_inputs inputs = voe_ui_theme_default_inputs();
 
 	VOE_BASE_ASSERT(arena != NULL, "making an interface without an arena");
-	VOE_BASE_ASSERT(font != NULL, "an interface with no font");
+	VOE_BASE_ASSERT(theme != NULL && theme->font != NULL,
+			"an interface with no theme or no font");
 
 	ui = voe_ui_context_new(
 		arena, (voe_ui_capacities){
 			       .nodes = VOE_EDITOR_INTERFACE_NODES,
 			       .elements = VOE_EDITOR_INTERFACE_ELEMENTS,
 			       .scrolls = VOE_EDITOR_INTERFACE_SCROLLS });
-	voe_ui_font_set(ui, font);
-
-	interface_theme = voe_ui_theme_derive(&inputs, font);
-	voe_ui_theme_set(ui, &interface_theme);
+	voe_ui_font_set(ui, theme->font);
+	voe_ui_theme_set(ui, theme);
 
 	return ui;
 }

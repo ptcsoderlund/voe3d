@@ -28,6 +28,7 @@
 #include <render/device.h>
 #include <text/font.h>
 #include <ui/layout.h>
+#include <ui/theme.h>
 
 #include <stdint.h>
 
@@ -146,10 +147,13 @@
 #define VOE_EDITOR_INTERFACE_ELEMENTS 3637
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
-// Makes the context the interface is built in, once. It lives in `arena` and is
-// freed with it; the font must outlive it.
+// Makes the context the interface is built in, once, drawing in `theme` and
+// with the font that theme was derived with — ui measures and draws every
+// label from the context's one font, so it is the theme's (themes.h). It
+// lives in `arena` and is freed with it; the theme and its font must outlive
+// it.
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
-					 const voe_text_font *font);
+					 const voe_ui_theme *theme);
 
 // How big the surface is on a window of this size, and what one of its
 // millimetres is worth in pixels. Both answers come out of one call because they

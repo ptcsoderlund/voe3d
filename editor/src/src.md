@@ -8,7 +8,8 @@ carries it out.
   argument, the last one remembered or an untitled scene names before the
   device does, opens the window and the device through `voe_app_new` — or the
   device alone through `voe_app_new_headless` when a picture was asked for —
-  makes the arena, the font, the interface context and the default tree,
+  makes the arena, both fonts, the themes, the interface context in the
+  chosen theme and the default tree,
   uploads the built-in shapes, and runs the loop until a close goes ahead or the
   picture is written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
@@ -40,6 +41,13 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
+- `themes.h` — the built-in theme and one per `*.theme` file in
+  `<settings>/voe3d/themes/`, each file's in an arena of its own, and the one
+  chosen, remembered by file name in `<settings>/voe3d/theme`. Its header says
+  why each theme's arena is its own, what a file that will not read leaves
+  behind, and when loading answers false.
+- `themes.c` — the folder listed and made, each file read and derived with the
+  face it names, and the remembered file read and written as its one line.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.
@@ -80,7 +88,7 @@ carries it out.
 - `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, giving
   every child a fixed size in millimetres, a one-millimetre gap at each seam
   where a splitter would go, and the row the tree is wrapped in.
-- `interface.h` — the screen-filling surface: pixels per millimetre from the
+- `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre from the
   window's height over a 135 mm surface, the top bar above each root's dock
   tree, the browser over it when it shows, and one draw command per root. Its
   header says why the one question it asks — what was clicked — has to be

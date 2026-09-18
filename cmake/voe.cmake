@@ -156,8 +156,11 @@ function(voe_allowed_deps folder out_var)
         # into a target of its own (ADR-0151 point 3), and authoring because a
         # scene is saved and opened through it (ADR-0151). It decodes no files and
         # no sprite sheets itself, so assets and sprite are absent, and a card that
-        # wants one of them is a decision, not an edit here.
-        set(deps base math ecs scene platform render text ui 3d authoring app)
+        # wants one of them is a decision, not an edit here. It names theme
+        # because it reads the person's theme files into the palette it draws
+        # with, and theme is the one folder between a theme file and ui
+        # (ADR-0170); assets stays absent, theme's own row carries it.
+        set(deps base math ecs scene platform render text ui 3d authoring app theme)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
