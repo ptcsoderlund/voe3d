@@ -82,16 +82,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-// The font, in the binary. `#embed` is the mechanism the compiled shaders
-// already use (ADR-0046) and it is why the Clang floor is 19. The path is
-// relative to this file, which is what makes it need nothing from CMake.
+// Both faces, in the binary (ADR-0167). `#embed` is the mechanism the compiled
+// shaders already use (ADR-0046) and it is why the Clang floor is 19. Both
+// paths are relative to this file, which is what makes it need nothing from
+// CMake.
 //
-// IT IS UNMODIFIED AND IT IS NOT RENAMED, and neither is an accident. The SIL
-// Open Font License permits embedding provided the notice travels — that is
-// text/fonts/OFL.txt, beside it, also unmodified — and leaving the file exactly
-// as it was published is what keeps its reserved-name clause from engaging.
+// NEITHER IS RENAMED AND NEITHER IS MODIFIED, and neither omission is an
+// accident. The SIL Open Font License permits embedding Oxanium provided the
+// notice travels — that is text/fonts/OFL.txt, beside it, also unmodified —
+// and leaving the file exactly as it was published is what keeps its
+// reserved-name clause from engaging. Pixel Operator ships under CC0 1.0
+// Universal, which asks for no notice at all; text/fonts/PixelOperator-LICENSE.txt
+// travels beside it anyway, so a reader of fonts/ never has to look up which of
+// two files is under what.
 static const uint8_t OXANIUM_TTF[] = {
 #embed "../fonts/Oxanium-Regular.ttf"
+};
+
+static const uint8_t PIXEL_OPERATOR_TTF[] = {
+#embed "../fonts/PixelOperator.ttf"
 };
 
 // The characters the atlas holds: Basic Latin from the space up, and the Latin-1
@@ -102,30 +111,37 @@ static const uint8_t OXANIUM_TTF[] = {
 // ONCE. Oxanium carries three hundred and seventy-five glyphs and most of them
 // are for languages nothing in this engine writes; the day something needs one,
 // the card that needs it is the card that decides how the atlas grows.
+//
+// THE SAME RANGE IS ASKED OF BOTH FACES, AND PIXEL OPERATOR DOES NOT COVER ALL
+// OF IT. A codepoint it does not carry is its own missing-glyph box — there is
+// no reaching from one embedded face to the other (ADR-0062's no-fallback rule,
+// which ADR-0167 keeps).
 #define FIRST_CHARACTER 0x20u
 #define LAST_CHARACTER 0xffu
 #define CHARACTER_COUNT (LAST_CHARACTER - FIRST_CHARACTER + 1u)
 
-// One past the last character's slot, holding the font's own missing-glyph box.
+// One past the last character's slot, holding the face's own missing-glyph box.
 // Anything not in the range above is drawn as this, which is what makes a
-// character Oxanium does not carry visible rather than absent.
+// character the active face does not carry visible rather than absent.
 #define NOTDEF_SLOT CHARACTER_COUNT
 
 // How big the sheet is and at what resolution a glyph's shape is measured into
-// it.
+// it. HOW FINELY IS A FACT OF THE FACE AND NOT ONE NUMBER FOR THE FOLDER
+// (ADR-0167): each embedded face below has its own pair, and voe_text_font_new
+// picks the pair that matches `typeface`.
 //
-// THIRTY-TWO, AND IT IS NOT A FUNCTION OF THE SCREEN ANY MORE — WHICH IS THE
-// WHOLE OF WHAT CHANGED HERE. This number used to have to guess how many pixels
-// a letter would land on, because the sheet held a picture of a letter and a
-// picture is only sharp at the size it was drawn at. It holds a description of
-// the letter's shape now, so the question it answers is a different one: how
-// finely does the SHAPE have to be sampled for its outline to be recoverable
-// from it. The answer is set by the thinnest thing in the font — a stem in
-// Oxanium Regular is about eight hundredths of an em, so at thirty-two texels to
-// the em it is two and a half texels across, and a feature narrower than about
-// one and a half texels is one the field has nowhere to put. Everything above
-// that is sharp at any size, so there is nothing bought by going higher and a
-// megabyte to be paid for it.
+// THIRTY-TWO FOR OXANIUM, AND IT IS NOT A FUNCTION OF THE SCREEN ANY MORE —
+// WHICH IS THE WHOLE OF WHAT CHANGED HERE. This number used to have to guess
+// how many pixels a letter would land on, because the sheet held a picture of a
+// letter and a picture is only sharp at the size it was drawn at. It holds a
+// description of the letter's shape now, so the question it answers is a
+// different one: how finely does the SHAPE have to be sampled for its outline
+// to be recoverable from it. The answer is set by the thinnest thing in the
+// font — a stem in Oxanium Regular is about eight hundredths of an em, so at
+// thirty-two texels to the em it is two and a half texels across, and a feature
+// narrower than about one and a half texels is one the field has nowhere to
+// put. Everything above that is sharp at any size, so there is nothing bought
+// by going higher and a megabyte to be paid for it.
 //
 // THE OLD ARGUMENT FOR FORTY IS GONE, NOT MERELY OUTVOTED, AND IT IS WORTH
 // SAYING WHY. It ran: a sheet stored finer than the screen is minified, a
@@ -137,8 +153,25 @@ static const uint8_t OXANIUM_TTF[] = {
 //
 // FIVE HUNDRED AND TWELVE SQUARE, WHICH THE RANGE ABOVE FITS IN WITH ROOM. One
 // megabyte on the graphics card, once, for a program that draws any text at all.
-#define ATLAS_PIXELS 512u
-#define ATLAS_EM 32.0f
+#define OXANIUM_ATLAS_PIXELS 512u
+#define OXANIUM_ATLAS_EM 32.0f
+
+// SIXTY-FOUR FOR PIXEL OPERATOR, DOUBLE OXANIUM'S NUMBER, AND FOR A DIFFERENT
+// REASON THAN OXANIUM'S WAS CHOSEN FOR (ADR-0167). Pixel Operator is
+// not drawn from curves that happen to have one thin stroke: its whole design
+// grid is 0.0625 em, so every stem, serif and counter in the face — not one
+// rare stroke but the entire alphabet — sits on that one unit. At Oxanium's own
+// thirty-two texels to the em that unit is two texels: above the one-and-a-
+// half-texel floor above, but with none of the margin Oxanium's own thinnest
+// stem (two and a half texels) has, and here it is every stroke rather than
+// one. Doubling the sampling puts the grid unit at four texels — the same
+// width as VOE_TEXT_FIELD_SPREAD itself — which is comfortably clear of the
+// floor. The sheet no longer fits the 512-square atlas above at this face's own
+// character count and margins, so its own dimension grows with it: measured
+// against this file's own shelf packing, seven hundred and sixty-eight square
+// fits with room, the same way five hundred and twelve does for Oxanium.
+#define PIXEL_OPERATOR_ATLAS_PIXELS 768u
+#define PIXEL_OPERATOR_ATLAS_EM 64.0f
 
 // Blank texels left round every glyph, and between one glyph and the next.
 //
@@ -147,12 +180,17 @@ static const uint8_t OXANIUM_TTF[] = {
 // outline, so a box drawn tighter than that would cut it off and two glyphs
 // closer than that would have their fields run into each other — which is one
 // letter's edge reappearing faintly beside another's. It is a floor and not a
-// taste: raster.h owns the number and this follows it.
+// taste: raster.h owns the number and this follows it. It does not vary by
+// face — it is a property of the field's encoding and not of what is sampled.
 #define ATLAS_MARGIN ((uint32_t)VOE_TEXT_FIELD_SPREAD)
 
-// The widest and tallest one glyph may rasterise to. Oxanium's largest is
-// thirty-seven by forty-one at the size above, and no face puts a character more
-// than about twice an em across, so this is slack rather than a limit anything
+// The widest and tallest one glyph may rasterise to, common to both faces.
+// Oxanium's largest is thirty-seven by forty-one at its own size above, and
+// Pixel Operator's largest is about forty-four by sixty at its own — smaller in
+// texels despite the higher sampling, because nothing in a pixel-grid face
+// reaches as far from the baseline as Oxanium's ascenders and descenders
+// together do. No face this folder embeds puts a character more than about
+// twice an em across, so this is slack rather than a limit anything
 // approaches — and a glyph that did exceed it is refused rather than written
 // past the end of the scratch bitmap.
 #define GLYPH_PIXELS 128u
@@ -242,7 +280,11 @@ static bool outline_bounds(const voe_text_truetype_outline *outline,
 // box written into `out`. `bitmap` is scratch of GLYPH_PIXELS squared times
 // VOE_TEXT_FIELD_CHANNELS and arrives holding whatever the last glyph left in
 // it; voe_text_raster_field writes every texel of the part it is given.
+// `atlas_em` and `atlas_pixels` are the active face's own pair — see where they
+// are defined above — so this function has no opinion of its own about which
+// face it is measuring.
 static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
+		      float atlas_em, uint32_t atlas_pixels,
 		      voe_base_arena *arena, uint8_t *bitmap, uint8_t *atlas,
 		      struct shelf *shelf, struct glyph *out,
 		      voe_base_error *error)
@@ -252,7 +294,7 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 	voe_math_float2 low;
 	voe_math_float2 high;
 	voe_math_float2 origin;
-	float scale = ATLAS_EM / (float)ttf->units_per_em;
+	float scale = atlas_em / (float)ttf->units_per_em;
 	uint32_t width;
 	uint32_t height;
 	bool ok = true;
@@ -280,12 +322,12 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 	if (width > GLYPH_PIXELS || height > GLYPH_PIXELS)
 		ok = fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 
-	if (ok && shelf->x + width + ATLAS_MARGIN > ATLAS_PIXELS) {
+	if (ok && shelf->x + width + ATLAS_MARGIN > atlas_pixels) {
 		shelf->x = 0;
 		shelf->y += shelf->height + ATLAS_MARGIN;
 		shelf->height = 0;
 	}
-	if (ok && shelf->y + height > ATLAS_PIXELS)
+	if (ok && shelf->y + height > atlas_pixels)
 		ok = fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 
 	if (ok) {
@@ -308,7 +350,7 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 		// looked like a picture of nothing to anybody debugging it.
 		for (uint32_t r = 0; r < height; r++) {
 			uint8_t *row = atlas + ((size_t)(shelf->y + r) *
-							ATLAS_PIXELS +
+							atlas_pixels +
 						shelf->x) *
 					               4u;
 
@@ -324,14 +366,14 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 		}
 
 		out->drawn = true;
-		out->x0 = (low.x * scale - margin) / ATLAS_EM;
-		out->x1 = out->x0 + (float)width / ATLAS_EM;
-		out->y1 = (high.y * scale + margin) / ATLAS_EM;
-		out->y0 = out->y1 - (float)height / ATLAS_EM;
-		out->u0 = (float)shelf->x / (float)ATLAS_PIXELS;
-		out->v0 = (float)shelf->y / (float)ATLAS_PIXELS;
-		out->u1 = (float)(shelf->x + width) / (float)ATLAS_PIXELS;
-		out->v1 = (float)(shelf->y + height) / (float)ATLAS_PIXELS;
+		out->x0 = (low.x * scale - margin) / atlas_em;
+		out->x1 = out->x0 + (float)width / atlas_em;
+		out->y1 = (high.y * scale + margin) / atlas_em;
+		out->y0 = out->y1 - (float)height / atlas_em;
+		out->u0 = (float)shelf->x / (float)atlas_pixels;
+		out->v0 = (float)shelf->y / (float)atlas_pixels;
+		out->u1 = (float)(shelf->x + width) / (float)atlas_pixels;
+		out->v1 = (float)(shelf->y + height) / (float)atlas_pixels;
 
 		shelf->x += width + ATLAS_MARGIN;
 		if (height > shelf->height)
@@ -342,7 +384,8 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 	return ok;
 }
 
-voe_text_font *voe_text_font_new(voe_render_device *device,
+voe_text_font *voe_text_font_new(voe_text_typeface typeface,
+				 voe_render_device *device,
 				 voe_base_arena *arena, voe_base_error *error)
 {
 	struct voe_base_arena_mark mark;
@@ -351,14 +394,35 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 	struct shelf shelf = { 0 };
 	uint8_t *pixels;
 	uint8_t *bitmap;
+	const uint8_t *bytes;
+	uint32_t bytes_size;
+	float atlas_em;
+	uint32_t atlas_pixels;
 	bool ok = true;
 
 	VOE_BASE_ASSERT(device != NULL, "a font needs a device to upload to");
 	VOE_BASE_ASSERT(arena != NULL,
 			"building an atlas needs scratch: rule 11");
 
-	if (!voe_text_truetype_read(OXANIUM_TTF, (uint32_t)sizeof OXANIUM_TTF,
-				    &ttf, error))
+	// Which embedded bytes and which sampling pair, chosen once here and
+	// nowhere else — add_glyph and the loop below have no opinion of their
+	// own about which face is active.
+	switch (typeface) {
+	case VOE_TEXT_TYPEFACE_OXANIUM:
+		bytes = OXANIUM_TTF;
+		bytes_size = (uint32_t)sizeof OXANIUM_TTF;
+		atlas_em = OXANIUM_ATLAS_EM;
+		atlas_pixels = OXANIUM_ATLAS_PIXELS;
+		break;
+	case VOE_TEXT_TYPEFACE_PIXEL_OPERATOR:
+		bytes = PIXEL_OPERATOR_TTF;
+		bytes_size = (uint32_t)sizeof PIXEL_OPERATOR_TTF;
+		atlas_em = PIXEL_OPERATOR_ATLAS_EM;
+		atlas_pixels = PIXEL_OPERATOR_ATLAS_PIXELS;
+		break;
+	}
+
+	if (!voe_text_truetype_read(bytes, bytes_size, &ttf, error))
 		return NULL;
 
 	font = calloc(1, sizeof *font);
@@ -370,8 +434,8 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 	mark = voe_base_arena_mark(arena);
 	// One push and not one per row: two pushes are not guaranteed to be
 	// next to each other (base/arena.h) and this is indexed as one array.
-	pixels = voe_base_arena_push(arena,
-				     (size_t)ATLAS_PIXELS * ATLAS_PIXELS * 4u);
+	pixels = voe_base_arena_push(
+		arena, (size_t)atlas_pixels * atlas_pixels * 4u);
 	bitmap = voe_base_arena_push(arena, (size_t)GLYPH_PIXELS *
 						    GLYPH_PIXELS *
 						    VOE_TEXT_FIELD_CHANNELS);
@@ -382,7 +446,7 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 	// outline is exactly on top of them, which is what a zeroed fourth
 	// channel and a zeroed field would have meant in two different
 	// directions.
-	for (size_t i = 0; i < (size_t)ATLAS_PIXELS * ATLAS_PIXELS; i++) {
+	for (size_t i = 0; i < (size_t)atlas_pixels * atlas_pixels; i++) {
 		pixels[i * 4u + 0u] = 0;
 		pixels[i * 4u + 1u] = 0;
 		pixels[i * 4u + 2u] = 0;
@@ -391,14 +455,15 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 
 	// The missing-glyph box first, so that it is in the atlas whatever
 	// happens to the rest, and then the range.
-	ok = add_glyph(&ttf, 0, arena, bitmap, pixels, &shelf,
-		       &font->glyphs[NOTDEF_SLOT], error);
+	ok = add_glyph(&ttf, 0, atlas_em, atlas_pixels, arena, bitmap, pixels,
+		       &shelf, &font->glyphs[NOTDEF_SLOT], error);
 	for (uint32_t c = 0; ok && c < CHARACTER_COUNT; c++) {
 		uint16_t index = voe_text_truetype_glyph(&ttf,
 							 FIRST_CHARACTER + c);
 
-		ok = add_glyph(&ttf, index, arena, bitmap, pixels, &shelf,
-			       &font->glyphs[c], error);
+		ok = add_glyph(&ttf, index, atlas_em, atlas_pixels, arena,
+			       bitmap, pixels, &shelf, &font->glyphs[c],
+			       error);
 	}
 
 	// DATA and FIELD, and neither is optional: see the header. A sheet
@@ -407,7 +472,7 @@ voe_text_font *voe_text_font_new(voe_render_device *device,
 	if (ok)
 		ok = voe_render_texture_create(device, VOE_RENDER_TEXTURE_DATA,
 					       VOE_RENDER_SAMPLING_FIELD,
-					       ATLAS_PIXELS, ATLAS_PIXELS,
+					       atlas_pixels, atlas_pixels,
 					       pixels, &font->atlas, error);
 
 	voe_base_arena_rewind(arena, mark);

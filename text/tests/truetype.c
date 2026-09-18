@@ -1,18 +1,33 @@
-// The reader, against the font that is actually shipped. Needs no graphics card.
+// The reader, against both fonts that are actually shipped (ADR-0167). Needs no
+// graphics card.
 //
-// IT READS THE REAL FILE AND NOT A HAND-BUILT ONE, which is the opposite of what
-// assets/tests/model.c does and is right for the opposite reason. There is one
-// font in this engine, it is in the binary, and it is the same bytes on every
-// machine for ever; a synthetic `.ttf` would test a reader against a file nobody
-// will ever hand it. The numbers below were read out of Oxanium Regular with a
+// IT READS THE REAL FILES AND NOT HAND-BUILT ONES, which is the opposite of
+// what assets/tests/model.c does and is right for the opposite reason. Both
+// fonts in this engine are in the binary, and each is the same bytes on every
+// machine for ever; a synthetic `.ttf` would test a reader against a file
+// nobody will ever hand it. The numbers below were read out of each font with a
 // separate tool before this reader existed, so they are an independent answer
 // and not this reader's own output written down.
 //
-// THE COMPOSITE GLYPH IS THE TEST THAT MATTERS. Most accented characters are
-// stored as references to other glyphs rather than as outlines, and a reader
-// that handles only simple ones renders `é`, `ü` and `å` as blanks while looking
-// perfectly correct on an English string. check_composite_glyphs is what catches
-// that, and it is why this file spells three accented characters out.
+// THE COMPOSITE GLYPH IS THE TEST THAT MATTERS, FOR BOTH FACES. Most accented
+// characters are stored as references to other glyphs rather than as outlines,
+// and a reader that handles only simple ones renders `é`, `ü` and `å` as blanks
+// while looking perfectly correct on an English string. check_composite_glyphs
+// and check_composite_glyphs_pixel_operator are what catch that, and it is why
+// this file spells three accented characters out for each face.
+//
+// PIXEL OPERATOR'S `¡` IS A DIFFERENT COMPOSITE. It is `!` referenced through a
+// component scaled by exactly -1 rather than only offset — Oxanium has no such
+// glyph, so nothing exercised that path before this font arrived, and the
+// reader refused it (UNSUPPORTED) until it learned to read a uniform
+// COMPONENT_HAVE_SCALE. check_scaled_composite_glyph_pixel_operator is what
+// would fail if that regressed.
+//
+// BOTH FONTS ARE READ AT ONCE, WHICH IS check_both_faces_at_once. voe_text_font
+// keeps two of these open together the moment a program draws in both faces
+// (ADR-0167), so this proves the reader keeps no state outside the struct
+// it hands back — a static or a global here would have one read's numbers
+// bleed into the other's.
 #include "../src/truetype.h"
 
 #include <base/arena.h>
@@ -20,11 +35,15 @@
 
 #include <stdint.h>
 
-// The same file text/src/font.c embeds, embedded again. Two copies of
-// twenty-eight kilobytes in two binaries, which is cheaper than making the
-// bytes public so that one test can see them.
+// The same files text/src/font.c embeds, embedded again. Two copies of each in
+// two binaries, which is cheaper than making the bytes public so that one test
+// can see them.
 static const uint8_t OXANIUM_TTF[] = {
 #embed "../fonts/Oxanium-Regular.ttf"
+};
+
+static const uint8_t PIXEL_OPERATOR_TTF[] = {
+#embed "../fonts/PixelOperator.ttf"
 };
 
 #define ARENA (256 * 1024)
@@ -35,6 +54,13 @@ static const uint8_t OXANIUM_TTF[] = {
 #define ASCENDER 790
 #define DESCENDER (-210)
 #define LINE_GAP 250
+
+// Pixel Operator Regular's own numbers.
+#define PIXEL_OPERATOR_UNITS_PER_EM 1600
+#define PIXEL_OPERATOR_GLYPH_COUNT 241
+#define PIXEL_OPERATOR_ASCENDER 1300
+#define PIXEL_OPERATOR_DESCENDER (-300)
+#define PIXEL_OPERATOR_LINE_GAP 72
 
 static void check_header(const voe_text_truetype *font)
 {
@@ -183,6 +209,142 @@ static void check_composite_offsets(const voe_text_truetype *font,
 	voe_base_arena_rewind(arena, mark);
 }
 
+// Pixel Operator's own header, read the same way Oxanium's is above.
+static void check_header_pixel_operator(const voe_text_truetype *font)
+{
+	VOE_TEST_CHECK_INT(font->units_per_em, PIXEL_OPERATOR_UNITS_PER_EM);
+	VOE_TEST_CHECK_INT(font->glyph_count, PIXEL_OPERATOR_GLYPH_COUNT);
+	VOE_TEST_CHECK_INT(font->ascender, PIXEL_OPERATOR_ASCENDER);
+	VOE_TEST_CHECK_INT(font->descender, PIXEL_OPERATOR_DESCENDER);
+	VOE_TEST_CHECK_INT(font->line_gap, PIXEL_OPERATOR_LINE_GAP);
+	// Short `loca`, exactly as Oxanium's is — see check_header.
+	VOE_TEST_CHECK(!font->loca_long);
+}
+
+// Pixel Operator's character map, the same shape as check_character_map.
+static void check_character_map_pixel_operator(const voe_text_truetype *font)
+{
+	VOE_TEST_CHECK(voe_text_truetype_glyph(font, 'A') != 0);
+	VOE_TEST_CHECK(voe_text_truetype_glyph(font, 'o') != 0);
+	VOE_TEST_CHECK(voe_text_truetype_glyph(font, ' ') != 0);
+	VOE_TEST_CHECK(voe_text_truetype_glyph(font, 'A') !=
+		       voe_text_truetype_glyph(font, 'B'));
+
+	// Neither face carries a CJK ideograph or an emoji — see
+	// check_character_map for why 0x1f600 is 0 whatever the face.
+	VOE_TEST_CHECK_INT(voe_text_truetype_glyph(font, 0x4e00), 0);
+	VOE_TEST_CHECK_INT(voe_text_truetype_glyph(font, 0x1f600), 0);
+}
+
+// THE ONE THIS FUNCTION EXISTS FOR, AGAIN. Pixel Operator's `é`, `ü` and `å`
+// are composite glyphs too, exactly as Oxanium's are, so this is the reader
+// proven against a second, unrelated file rather than only against one that
+// happens to work.
+static void check_composite_glyphs_pixel_operator(const voe_text_truetype *font,
+						   voe_base_arena *arena)
+{
+	static const uint32_t accented[] = { 0xe9, 0xfc, 0xe5 }; // é ü å
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	voe_text_truetype_outline plain;
+
+	VOE_TEST_CHECK(voe_text_truetype_outline_read(
+		font, voe_text_truetype_glyph(font, 'e'), arena, &plain, NULL));
+
+	for (uint32_t i = 0; i < sizeof accented / sizeof *accented; i++) {
+		uint16_t glyph = voe_text_truetype_glyph(font, accented[i]);
+		voe_text_truetype_outline outline;
+
+		VOE_TEST_CHECK(glyph != 0);
+		VOE_TEST_CHECK(voe_text_truetype_outline_read(
+			font, glyph, arena, &outline, NULL));
+		VOE_TEST_CHECK(outline.contour_count > 0);
+		VOE_TEST_CHECK(outline.point_count > 0);
+		VOE_TEST_CHECK(outline.contour_count > plain.contour_count);
+	}
+
+	voe_base_arena_rewind(arena, mark);
+}
+
+// THE CASE OXANIUM NEVER EXERCISED. Pixel Operator's `¡` (U+00A1) is not an
+// offset composite like `é`: it is `!` turned a half turn through a component
+// scaled by exactly -1 (COMPONENT_HAVE_SCALE, an F2Dot14 of -16384), which is
+// how this font draws an upside-down glyph without a second outline. A reader
+// that only reads offset composites returns UNSUPPORTED here — this is what
+// caught that this reader did, before it read the scale.
+static void check_scaled_composite_glyph_pixel_operator(
+	const voe_text_truetype *font, voe_base_arena *arena)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	voe_text_truetype_outline bang;
+	voe_text_truetype_outline inverted;
+	float bang_low = 0.0f;
+	float inverted_low = 0.0f;
+
+	VOE_TEST_CHECK(voe_text_truetype_outline_read(
+		font, voe_text_truetype_glyph(font, '!'), arena, &bang, NULL));
+	VOE_TEST_CHECK(voe_text_truetype_outline_read(
+		font, voe_text_truetype_glyph(font, 0xa1), arena, &inverted,
+		NULL));
+
+	VOE_TEST_CHECK(inverted.contour_count > 0);
+	VOE_TEST_CHECK(inverted.point_count > 0);
+
+	for (uint16_t i = 0; i < bang.point_count; i++) {
+		if (bang.points[i].point.y < bang_low)
+			bang_low = bang.points[i].point.y;
+	}
+	for (uint16_t i = 0; i < inverted.point_count; i++) {
+		if (inverted.points[i].point.y < inverted_low)
+			inverted_low = inverted.points[i].point.y;
+	}
+
+	// `!`'s dot sits on the baseline; `¡`'s sits below it, which is the
+	// -1 scale carrying every point through the origin rather than the
+	// offset alone shifting the whole glyph down.
+	VOE_TEST_CHECK(inverted_low < bang_low);
+
+	voe_base_arena_rewind(arena, mark);
+}
+
+// BOTH FACES, OPEN AT ONCE. voe_text_truetype keeps nothing outside the struct
+// it hands back — no static, no global — so reading Pixel Operator in between
+// two facts about Oxanium must not move either of them. Interleaving the reads
+// this way is what a shared piece of state would fail at and two sequential
+// mains would not have caught.
+static void check_both_faces_at_once(voe_base_arena *arena)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	voe_text_truetype oxanium;
+	voe_text_truetype pixel_operator;
+	voe_text_truetype_outline oxanium_a;
+	voe_text_truetype_outline pixel_operator_a;
+
+	VOE_TEST_CHECK(voe_text_truetype_read(
+		OXANIUM_TTF, (uint32_t)sizeof OXANIUM_TTF, &oxanium, NULL));
+	VOE_TEST_CHECK_INT(oxanium.units_per_em, UNITS_PER_EM);
+
+	VOE_TEST_CHECK(voe_text_truetype_read(PIXEL_OPERATOR_TTF,
+					      (uint32_t)sizeof PIXEL_OPERATOR_TTF,
+					      &pixel_operator, NULL));
+	VOE_TEST_CHECK_INT(pixel_operator.units_per_em,
+			   PIXEL_OPERATOR_UNITS_PER_EM);
+
+	// Reading Pixel Operator did not move what Oxanium had already said
+	// about itself.
+	VOE_TEST_CHECK_INT(oxanium.units_per_em, UNITS_PER_EM);
+
+	VOE_TEST_CHECK(voe_text_truetype_outline_read(
+		&oxanium, voe_text_truetype_glyph(&oxanium, 'A'), arena,
+		&oxanium_a, NULL));
+	VOE_TEST_CHECK(voe_text_truetype_outline_read(
+		&pixel_operator, voe_text_truetype_glyph(&pixel_operator, 'A'),
+		arena, &pixel_operator_a, NULL));
+	VOE_TEST_CHECK(oxanium_a.point_count > 0);
+	VOE_TEST_CHECK(pixel_operator_a.point_count > 0);
+
+	voe_base_arena_rewind(arena, mark);
+}
+
 // A file that is not a font at all, and one truncated to nothing. Both are
 // returned failures rather than a read of whatever was in memory.
 static void check_refusals(void)
@@ -206,10 +368,11 @@ int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
 	voe_text_truetype font;
+	voe_text_truetype pixel_operator;
 
 	if (!voe_text_truetype_read(OXANIUM_TTF, (uint32_t)sizeof OXANIUM_TTF,
 				    &font, NULL)) {
-		VOE_TEST_CHECK(!"the embedded font did not read at all");
+		VOE_TEST_CHECK(!"the embedded Oxanium did not read at all");
 		return voe_test_result();
 	}
 
@@ -219,6 +382,20 @@ int main(void)
 	check_simple_glyphs(&font, arena);
 	check_composite_glyphs(&font, arena);
 	check_composite_offsets(&font, arena);
+
+	if (!voe_text_truetype_read(PIXEL_OPERATOR_TTF,
+				    (uint32_t)sizeof PIXEL_OPERATOR_TTF,
+				    &pixel_operator, NULL)) {
+		VOE_TEST_CHECK(!"the embedded Pixel Operator did not read at all");
+		return voe_test_result();
+	}
+
+	check_header_pixel_operator(&pixel_operator);
+	check_character_map_pixel_operator(&pixel_operator);
+	check_composite_glyphs_pixel_operator(&pixel_operator, arena);
+	check_scaled_composite_glyph_pixel_operator(&pixel_operator, arena);
+
+	check_both_faces_at_once(arena);
 	check_refusals();
 
 	voe_base_arena_destroy(arena);

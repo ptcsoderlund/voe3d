@@ -17,36 +17,39 @@ Work on this began under the earlier workflow. Cards 01 to 04 are done and commi
 
 ## How to test
 
-1. **The default look.** The editor starts in the built-in almost-black theme: near-black
+1. **The default look.** The editor starts in the built-in Near black theme: near-black
    surfaces, flat square controls with hairline borders, light text, and one accent colour. The
    selected entity in the Scene list is shown in the accent instead of today's `> ` marker; a
    button being pressed and a number being dragged show the accent too.
 2. **Preferences.** A Preferences button in the top bar opens a Preferences panel listing the
    themes, the one in use marked. It can be closed again.
-3. **Your own theme.** Put a theme file with an accent, the two sliders and a mode into the editor's
+3. **Two built-in themes.** With no theme files of your own, Preferences lists Near black and Near
+   white. Choosing Near white turns every panel light, with near-white surfaces, dark readable text
+   and the same blue accent; choosing Near black turns it back. The choice is remembered on the
+   next start.
+4. **Your own theme.** Put a theme file with an accent, the two sliders and a mode into the editor's
    themes folder (on Linux `~/.config/voe3d/themes/`): it appears in Preferences. Choosing it
    restyles every panel at once, and the choice is remembered on the next start.
-4. **Few inputs are enough.** Setting the mode to light turns the whole editor light with readable
+5. **Few inputs are enough.** Setting the mode to light turns the whole editor light with readable
    text; changing only the accent recolours everything that uses it; the sliders visibly change
    how much surfaces and text stand apart.
-5. **Live editing.** With the editor running on a theme, change its file and save: the editor
+6. **Live editing.** With the editor running on a theme, change its file and save: the editor
    shows the change within about a second, without restarting.
-6. **A broken theme keeps the last good one.** Save a theme file with a mistake: the editor keeps
+7. **A broken theme keeps the last good one.** Save a theme file with a mistake: the editor keeps
    drawing the last good theme and shows a notice naming the file, the line and what is wrong.
-7. **A theme inherits downwards.** In Preferences each theme's row is drawn in that theme — its
+8. **A theme inherits downwards.** In Preferences each theme's row is drawn in that theme — its
    label and button take it from their row — while the rest of the editor stays in the chosen
    theme.
-8. **Font and size are part of a theme.** A theme file naming a different font or text size draws
+9. **Font and size are part of a theme.** A theme file naming a different font or text size draws
    the panels in it when chosen.
-9. **A picture shows it.** `voe_editor --capture` draws the panels in the chosen theme.
-10. **Not only for the editor.** The theme system is part of the engine's interface pieces, which a
+10. **A picture shows it.** `voe_editor --capture` draws the panels in the chosen theme.
+11. **Not only for the editor.** The theme system is part of the engine's interface pieces, which a
     game uses; a check proves a theme read from a file decides the colours of a panel, label and
     button with no editor involved.
-11. `cmake -P check.cmake` exits zero on Linux.
+12. `cmake -P check.cmake` exits zero on Linux.
 
 ## Out of scope
 
-- A built-in light theme; light is a file anyone can write.
 - Changing theme while a finished (cooked) game runs. A game's theme is fixed at cooking unless its
   developer deliberately exposes a choice.
 - An editor for game interfaces, and showing themes in the dev program.
@@ -62,8 +65,10 @@ Work on this began under the earlier workflow. Cards 01 to 04 are done and commi
 
 ## Defaults
 
-- The built-in theme is dark, with a blue accent; its font is Oxanium until 009 makes it Pixel
-  Operator.
+- Two built-in themes: Near black (dark, the default) and Near white (light). Both have the same
+  blue accent, sliders, font and text size, so they differ only in mode. Their font is Oxanium
+  until 009 makes it Pixel Operator. Added on 2026-09-18 at the sponsor's request, so switching can
+  be tried without writing a file.
 - A theme can name only fonts the program carries.
 - Theme files use the engine's existing text format. The editor's own themes live in the per-person
   settings folder; a game's live in its project.

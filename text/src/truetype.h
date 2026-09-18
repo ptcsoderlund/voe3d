@@ -11,17 +11,18 @@
 // over without being looked at. A table this engine has no use for is not a
 // table this file has an opinion about.
 //
-// FORMAT 4 IS THE ONLY CHARACTER MAP READ. Oxanium covers Adobe Latin 3, which
-// is entirely inside the basic multilingual plane, and format 4 is the subtable
-// every font carries for it. A file whose only map is a format this does not
-// know is VOE_BASE_ERROR_UNSUPPORTED naming the format.
+// FORMAT 4 IS THE ONLY CHARACTER MAP READ. Both embedded fonts carry it: every
+// character either one covers is inside the basic multilingual plane, and
+// format 4 is the subtable a font carries for that. A file whose only map is a
+// format this does not know is VOE_BASE_ERROR_UNSUPPORTED naming the format.
 //
-// AND THE FONT IS EMBEDDED, SO A FAILURE HERE IS A BUG IN THIS FILE. There is no
-// file I/O anywhere near this: the bytes come out of the binary (text/src/font.c
-// `#embed`s them) and they are the same bytes on every machine that ever runs
-// the engine. The failures below are still returned rather than fatal, because
-// rule 13 says a reader reports and the caller decides, but the honest reading
-// of one is that this reader is wrong and not that the font is.
+// AND BOTH FONTS ARE EMBEDDED, SO A FAILURE HERE IS A BUG IN THIS FILE. There is
+// no file I/O anywhere near this: the bytes come out of the binary
+// (text/src/font.c `#embed`s them) and they are the same bytes on every machine
+// that ever runs the engine. The failures below are still returned rather than
+// fatal, because rule 13 says a reader reports and the caller decides, but the
+// honest reading of one is that this reader is wrong and not that either font
+// is.
 //
 // EVERY LENGTH IN THE FILE IS CHECKED BEFORE IT IS TRUSTED. A table directory
 // entry that runs past the end, a `loca` entry that points outside `glyf`, a
@@ -144,9 +145,12 @@ uint16_t voe_text_truetype_advance(const voe_text_truetype *font,
 //
 // MALFORMED for an outline that does not fit the space `loca` gave it or that
 // runs past the end of `glyf`. UNSUPPORTED for a composite component this reader
-// does not implement — a scaled one, or one positioned by matching points rather
-// than by an offset. Neither happens in the embedded font; both are refused by
-// name rather than silently mis-drawn.
+// does not implement — one scaled and skewed independently in x and y, one
+// scaled by a full 2x2 matrix, or one positioned by matching points rather than
+// by an offset. A component scaled by one uniform factor IS read: Pixel
+// Operator's `¡` and `¿` are `!` and `?` flipped through such a scale, and
+// ADR-0167 needed that read. The other three shapes still are not, because
+// nothing has needed them yet.
 [[nodiscard]] bool
 voe_text_truetype_outline_read(const voe_text_truetype *font, uint16_t glyph,
 			       voe_base_arena *arena,

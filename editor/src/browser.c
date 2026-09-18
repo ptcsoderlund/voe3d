@@ -10,8 +10,6 @@
 #include <base/error.h>
 #include <base/report.h>
 
-#include <math/float4.h>
-
 #include <platform/file.h>
 #include <platform/folder.h>
 #include <platform/path.h>
@@ -27,14 +25,8 @@
 #define VOE_EDITOR_BROWSER_ARENA (64u * 1024u)
 #define VOE_EDITOR_BROWSER_SCRATCH (256u * 1024u)
 
-// The plate behind the browser: the same dark, linear panel colour every
-// other panel in this program uses, only closer to opaque — a modal panel
-// reads as one thing covering another and not as a tint over it.
-#define BROWSER_RED 0.04f
-#define BROWSER_GREEN 0.05f
-#define BROWSER_BLUE 0.07f
-#define BROWSER_ALPHA 0.98f
-
+// The plate behind the browser is the theme's RAISED surface — a floating
+// panel covering another, exactly what that role is for (ui/theme.h).
 #define BROWSER_PAD 3.0f
 #define BROWSER_GAP 2.0f
 
@@ -206,9 +198,7 @@ void voe_editor_browser_draw(voe_ui_context *ui, voe_editor_browser *browser,
 	// size is (layout.h): x is width, y is height, whatever this
 	// container's own flow would otherwise have meant them as.
 	voe_ui_panel_begin(
-		ui, "browser", 0,
-		(voe_math_float4){ BROWSER_RED, BROWSER_GREEN, BROWSER_BLUE,
-				   BROWSER_ALPHA },
+		ui, "browser", 0, VOE_UI_SURFACE_RAISED,
 		(voe_ui_container){
 			.across = VOE_UI_ACROSS_FILL,
 			.gap = BROWSER_GAP,

@@ -121,6 +121,14 @@ function(voe_allowed_deps folder out_var)
         # string, which is the one thing a label cannot work out for itself.
         # Card 033 decided that.
         set(deps render text math base)
+    elseif(folder STREQUAL "theme")
+        # theme is the step between a theme file's bytes and ui's authored
+        # inputs (ADR-0170): assets parses the sectioned text, ui owns the
+        # inputs it fills, text owns the typeface it names. render is here for
+        # one reason only (ADR-0176) — the test makes a headless device so a
+        # label and a button can measure a string — and src/ and include/ name
+        # no render header.
+        set(deps ui text render assets math base)
     elseif(folder STREQUAL "3d")
         set(deps render scene ecs assets math base)
     elseif(folder STREQUAL "sprite")
@@ -148,8 +156,11 @@ function(voe_allowed_deps folder out_var)
         # into a target of its own (ADR-0151 point 3), and authoring because a
         # scene is saved and opened through it (ADR-0151). It decodes no files and
         # no sprite sheets itself, so assets and sprite are absent, and a card that
-        # wants one of them is a decision, not an edit here.
-        set(deps base math ecs scene platform render text ui 3d authoring app)
+        # wants one of them is a decision, not an edit here. It names theme
+        # because it reads the person's theme files into the palette it draws
+        # with, and theme is the one folder between a theme file and ui
+        # (ADR-0170); assets stays absent, theme's own row carries it.
+        set(deps base math ecs scene platform render text ui 3d authoring app theme)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

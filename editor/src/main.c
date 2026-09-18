@@ -23,6 +23,19 @@
 // write fails; `--capture` never writes it, because a capture is not a person
 // opening the editor.
 //
+// IT DRAWS IN THE THEME REMEMBERED IN `<settings>/voe3d/theme` (themes.h).
+// Both faces are created, Oxanium and Pixel Operator (ADR-0167), the themes
+// folder is read into a list whose every palette is derived with the face its
+// file names, and the chosen palette and its font are set on the interface. A
+// remembered theme that is gone or refused draws Near black instead and puts
+// the reason, naming the file, in session.notice — unless a last project's
+// failure already put one there. Every frame, before the systems run,
+// voe_editor_themes_check looks at the chosen file once a second: a good save
+// is set on the interface, palette and font, for this frame to draw in; a
+// mistake leaves the last good theme drawing and fills session.notice from
+// the reader's report with the file's name, and the next good save clears
+// that notice — only if it is still that one, so it never erases a project's.
+//
 // OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE
 // BROWSER. `browser`, beside `scene` and `views`, outlives every project the
 // whole run through, and while it shows this file does two things for it and
@@ -34,6 +47,11 @@
 // Escape is this file's own edge, exactly as the other three shortcuts are,
 // handed to the interface as the browser's Cancel; a window close still asks
 // session.h the same question it always has, browser or not.
+//
+// THE BAR'S PREFERENCES SHOWS preferences.h'S PANEL IN THE SAME PLACE, and
+// it suppresses nothing: the shortcuts and the drag go on as ever. Escape
+// hides it when the browser is not showing; while the browser shows, Escape
+// is the browser's.
 //
 // BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
 // (task 14). Neither is this file's to act on: both, with whatever
@@ -80,8 +98,8 @@
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // opens the device with no window at all (voe_app_new_headless), builds the
-// same world, font, interface and scene, runs the same loop body, writes the
-// frame to `path` through voe_app_capture_png and returns. `--size <W>x<H>`
+// same world, fonts, themes, interface and scene, runs the same loop body,
+// writes the frame to `path` through voe_app_capture_png and returns. `--size <W>x<H>`
 // says how big that picture is and defaults to the size the window would have
 // opened at; it means nothing without `--capture`, so it is refused there
 // rather than quietly ignored. `--size` without `--capture`, a missing value
@@ -110,11 +128,13 @@
 #include "browser.h"
 #include "dock.h"
 #include "interface.h"
+#include "preferences.h"
 #include "last_project.h"
 #include "notice.h"
 #include "project.h"
 #include "scene.h"
 #include "session.h"
+#include "themes.h"
 #include "view.h"
 
 #include <3d/draw_system.h>
@@ -146,7 +166,7 @@
 #include <string.h>
 
 // The block size of the one arena everything lives in — the app struct, the
-// world, the font, the interface context and every frame's tree. It is a block
+// world, the fonts, the interface context and every frame's tree. It is a block
 // size and not a limit; the arena asks the operating system for another when it
 // runs out.
 #define EDITOR_ARENA (4u * 1024u * 1024u)
@@ -291,6 +311,9 @@ int main(int argc, char *argv[])
 	// there, before session.notice would ever be read (see below), so a
 	// notice destined for the bar would be one nobody could show.
 	voe_editor_notice notice;
+	// The last notice a refused theme save put in session.notice, so the
+	// next good save clears it only while it is still the one showing.
+	voe_editor_notice theme_notice = { 0 };
 	// Last frame's Ctrl+N, Ctrl+O and Ctrl+S: a shortcut toggles on the
 	// press and not while held, exactly as dev/src/main.c's Tab does, and
 	// the modifier is folded into the level read every frame rather than
@@ -300,8 +323,8 @@ int main(int argc, char *argv[])
 	bool open_was_down = false;
 	bool save_was_down = false;
 	// Last frame's Escape, the same shape without a modifier — the
-	// browser's own Cancel (browser.h), and nothing else, so it is read
-	// only while the browser shows.
+	// browser's own Cancel (browser.h) while it shows, and Preferences'
+	// Close (preferences.h) while it does not.
 	bool escape_was_down = false;
 	// Last frame's Backspace and Enter, the same shape again — task 14's
 	// name box (browser.h) is the one thing either reaches, through
@@ -315,6 +338,9 @@ int main(int argc, char *argv[])
 	// (session.h). Kept across the whole program's run, never one
 	// project's — see browser.h on why it is not part of `session`.
 	voe_editor_browser browser = { 0 };
+	// Shown by the bar's Preferences, hidden by its Close or by Escape
+	// while the browser is not showing (preferences.h).
+	voe_editor_preferences preferences = { 0 };
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -326,7 +352,13 @@ int main(int argc, char *argv[])
 	// material every shape wears. Uploaded once, at startup, and read every
 	// frame by voe_3d_shape_system_run.
 	voe_3d_shapes shapes;
-	voe_text_font *font;
+	// Both faces the editor carries (ADR-0167); a theme names one of them,
+	// and themes.h derives each palette with whichever it names.
+	voe_text_font *oxanium;
+	voe_text_font *pixel_operator;
+	// The two themes with no file, every one in the themes folder, and
+	// the one in force (themes.h). It outlives `ui`, which keeps the palette.
+	voe_editor_themes themes = { 0 };
 	voe_ui_context *ui;
 	// The roots the loop walks. One of them, and it is the window; see
 	// dock.h on what a second one would cost.
@@ -471,15 +503,31 @@ int main(int argc, char *argv[])
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
 
-	font = voe_text_font_new(gpu, arena, &error);
-	if (font == NULL) {
-		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
+	oxanium = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena,
+				    &error);
+	pixel_operator = oxanium == NULL ?
+				 NULL :
+				 voe_text_font_new(VOE_TEXT_TYPEFACE_PIXEL_OPERATOR,
+						   gpu, arena, &error);
+	if (pixel_operator == NULL) {
+		VOE_BASE_ERROR("editor", "the editor could not build its fonts: %s",
 			       voe_base_error_string(error));
 		status = 1;
 		goto stop;
 	}
 
-	ui = voe_editor_interface_new(arena, font);
+	// A REMEMBERED THEME THAT IS GONE OR REFUSED IS A NOTICE, NOT A STOP:
+	// Near black is drawn instead and the bar says why, naming the file,
+	// as a failed open does. A last project's own notice, set above, is
+	// the one left standing when both failed — it says more about what is
+	// on screen.
+	if (!voe_editor_themes_load(&themes, oxanium, pixel_operator) &&
+	    session.notice.text[0] == '\0')
+		voe_editor_notice_from_report(&session.notice,
+					      themes.remembered);
+
+	ui = voe_editor_interface_new(arena,
+				      &voe_editor_themes_chosen(&themes)->palette);
 	roots[0].tree = voe_editor_dock_default();
 
 	say_whether_descriptions_are_in();
@@ -524,6 +572,29 @@ int main(int argc, char *argv[])
 		// field the moment it draws one, transform's and light's alike,
 		// so all three are run from the start rather than from whenever
 		// somebody remembers a first submit needs one.
+		// LIVE EDITING (themes.h): at most once a second, the chosen
+		// theme's file read again; set on the context before this
+		// frame's first ui call, so the frame draws in it.
+		switch (voe_editor_themes_check(&themes)) {
+		case VOE_EDITOR_THEMES_CHANGED:
+			voe_ui_font_set(
+				ui, voe_editor_themes_chosen(&themes)->palette.font);
+			voe_ui_theme_set(
+				ui, &voe_editor_themes_chosen(&themes)->palette);
+			if (theme_notice.text[0] != '\0' &&
+			    strcmp(session.notice.text, theme_notice.text) == 0)
+				voe_editor_notice_clear(&session.notice);
+			voe_editor_notice_clear(&theme_notice);
+			break;
+		case VOE_EDITOR_THEMES_REFUSED:
+			voe_editor_notice_from_report(&session.notice,
+						      themes.remembered);
+			theme_notice = session.notice;
+			break;
+		case VOE_EDITOR_THEMES_UNCHANGED:
+			break;
+		}
+
 		voe_scene_transform_system_run(session.project->world);
 		voe_scene_identity_system_run(session.project->world);
 		voe_scene_light_system_run(session.project->world);
@@ -638,6 +709,10 @@ int main(int argc, char *argv[])
 		// variables above already say.
 		escape_fired = escape && !escape_was_down;
 		escape_was_down = escape;
+		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
+		// Preferences, which it does nothing else to.
+		if (escape_fired && !browser.showing)
+			voe_editor_preferences_hide(&preferences);
 		backspace_fired = backspace && !backspace_was_down;
 		backspace_was_down = backspace;
 		enter_fired = enter && !enter_was_down;
@@ -721,7 +796,7 @@ int main(int argc, char *argv[])
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &views, &session, &browser,
-				escape_fired);
+				&preferences, &themes, escape_fired);
 			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
 			// FOR IT AS A COMMAND — dragging a number in the
 			// Inspector is not New, Open, Save or Close, so
@@ -776,5 +851,6 @@ stop:
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
 	voe_editor_browser_destroy(&browser);
+	voe_editor_themes_destroy(&themes);
 	return status;
 }

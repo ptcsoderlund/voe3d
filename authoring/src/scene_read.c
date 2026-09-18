@@ -7,13 +7,11 @@
 // to them, patches the references and adds the rows, and can only fail on the
 // world's capacity.
 //
-// THE TEXT IS WALKED A SECOND TIME, BESIDE THE SECTIONED READER, for two things it
-// does not hand back: the line each section and key came from, which every
-// refusal names, and a kept section's lines as the file spelled them, which is the
-// only way they can go back out byte for byte — the parsed value has lost its
-// quotes. That walk is line_index.c, shared with authoring/project.c, which needs
-// a section's and a key's line for the same reason and nothing else this file
-// does.
+// THE TEXT IS WALKED A SECOND TIME, BESIDE THE SECTIONED READER, for key spans
+// only: a kept section's lines as the file spelled them, which is the only way
+// they can go back out byte for byte — the parsed value has lost its quotes.
+// That walk is key_span.c. The line every refusal names is the parser's own,
+// read off the parsed section or key.
 //
 // A ROW IS PUSHED AT THE SIZE ITS DESCRIPTION IMPLIES, NOT AT ITS REGISTERED SIZE.
 // DEVIATION: card 071 scope 2, "scratch bytes of the type's size" is read as the
@@ -37,7 +35,7 @@
 #include <authoring/scene_read.h>
 
 #include "authored.h"
-#include "line_index.h"
+#include "key_span.h"
 
 #include <assets/sectioned.h>
 #include <base/assert.h>
@@ -92,9 +90,7 @@ struct reader {
 	voe_base_arena *arena;
 	voe_assets_sectioned doc;
 
-	// One per section and one per key, as the sectioned reader numbers them.
-	uint32_t *section_line;
-	uint32_t *key_line;
+	// One per key, as the sectioned reader numbers them.
 	voe_authoring_span *key_span;
 
 	bool has_identity;
@@ -202,7 +198,7 @@ static bool classify(struct reader *reader)
 				       "which is [N] or [N.<key name>] with N a "
 				       "decimal from 1 and no leading zero; nothing "
 				       "was loaded",
-				       reader->section_line[s], name);
+				       reader->doc.sections[s].line, name);
 			return false;
 		}
 		if (dot != NULL)
@@ -213,7 +209,7 @@ static bool classify(struct reader *reader)
 				       "line %u: [%s] is an authored entity, and "
 				       "this world registered no %s to give it "
 				       "one with; nothing was loaded",
-				       reader->section_line[s], name,
+				       reader->doc.sections[s].line, name,
 				       voe_scene_identity_key.name);
 			return false;
 		}
@@ -247,7 +243,7 @@ static bool classify(struct reader *reader)
 				       "line %u: [%s] belongs to entity %" PRIu64
 				       ", and the file has no [%" PRIu64 "]; "
 				       "nothing was loaded",
-				       reader->section_line[s], name, section->id,
+				       reader->doc.sections[s].line, name, section->id,
 				       section->id);
 			return false;
 		}
@@ -264,7 +260,7 @@ static bool classify(struct reader *reader)
 				       "line %u: [%s] is an identity, and an "
 				       "identity is written as [%" PRIu64 "] "
 				       "itself; nothing was loaded",
-				       reader->section_line[s], name, section->id);
+				       reader->doc.sections[s].line, name, section->id);
 			return false;
 		}
 		if (voe_ecs_component_runtime_only(reader->world,
@@ -273,7 +269,7 @@ static bool classify(struct reader *reader)
 				       "line %u: [%s] is %s, which is runtime-only "
 				       "and never authored, so a file cannot hold "
 				       "one; nothing was loaded",
-				       reader->section_line[s], name, key);
+				       reader->doc.sections[s].line, name, key);
 			return false;
 		}
 		section->role = ROLE_COMPONENT;
@@ -887,7 +883,7 @@ static bool read_section(struct reader *reader, uint32_t s)
 	const voe_base_struct_description *description = section->description;
 	bool entity = section->role == ROLE_ENTITY;
 	struct site site = {
-		.line = reader->section_line[s],
+		.line = reader->doc.sections[s].line,
 		.section = parsed->name,
 	};
 
@@ -915,7 +911,7 @@ static bool read_section(struct reader *reader, uint32_t s)
 		const voe_base_field_description *field =
 			field_by_name(description, key->name, entity);
 
-		site.line = reader->key_line[index];
+		site.line = reader->doc.keys[index].line;
 		if (field == NULL) {
 			VOE_BASE_WARNING(MODULE,
 					 "line %u: [%s] has no field %s; the "
@@ -938,7 +934,7 @@ static bool read_section(struct reader *reader, uint32_t s)
 			continue;
 		VOE_BASE_WARNING(MODULE,
 				 "line %u: [%s] does not say %s; loaded as zero",
-				 reader->section_line[s], parsed->name,
+				 reader->doc.sections[s].line, parsed->name,
 				 field->name);
 	}
 
@@ -1036,7 +1032,7 @@ static bool create(struct reader *reader)
 				       "line %u: the world is full at [%" PRIu64
 				       "]; it holds part of the scene and must "
 				       "be discarded",
-				       reader->section_line[s], section->id);
+				       reader->doc.sections[s].line, section->id);
 			return false;
 		}
 	}
@@ -1073,7 +1069,7 @@ static bool create(struct reader *reader)
 				       "line %u: the world has no room for [%s]; "
 				       "it holds part of the scene and must be "
 				       "discarded",
-				       reader->section_line[s],
+				       reader->doc.sections[s].line,
 				       doc->sections[s].name);
 			return false;
 		}
@@ -1105,10 +1101,6 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 	uint32_t keys = reader.doc.key_count;
 
 	// One more than needed of each, so that an empty file pushes something.
-	reader.section_line = voe_base_arena_push(
-		arena, (sections + 1) * sizeof(*reader.section_line));
-	reader.key_line =
-		voe_base_arena_push(arena, (keys + 1) * sizeof(*reader.key_line));
 	reader.key_span =
 		voe_base_arena_push(arena, (keys + 1) * sizeof(*reader.key_span));
 	reader.sections = voe_base_arena_push(
@@ -1119,8 +1111,7 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 	reader.kept =
 		voe_base_arena_push(arena, (sections + 1) * sizeof(*reader.kept));
 
-	voe_authoring_line_index(text, size, &reader.doc, reader.section_line,
-				 reader.key_line, reader.key_span);
+	voe_authoring_key_spans(text, size, &reader.doc, reader.key_span);
 	if (!classify(&reader))
 		return false;
 

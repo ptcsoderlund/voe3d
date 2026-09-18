@@ -5,9 +5,10 @@ found by the build and registered nowhere. None of them needs a graphics card �
 everything this folder computes is computed on the CPU, so every claim below is
 checked by reading numbers and pixels straight out of an arena.
 
-- `truetype.c` — that the reader gets the right numbers out of the font that is
-  actually shipped, composite glyphs first, because a reader that handles only
-  simple ones renders every accented character as a blank.
+- `truetype.c` — that the reader gets the right numbers out of both fonts that
+  are actually shipped, composite glyphs first and Pixel Operator's scaled `¡`
+  on top, because a reader that handles only simple ones renders every accented
+  character as a blank, and that both open at once without a leaking static.
 - `raster.c` — that the fill rule is non-zero winding and not even-odd, as the
   one pair of cases that tells them apart, and that the distance field measures a
   right angle correctly at its corner and along its median.

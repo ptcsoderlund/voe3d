@@ -1,5 +1,5 @@
-// The bar across the top of the root surface: New, Open and Save, then the
-// project's name and whether it is unsaved, then whatever notice the session
+// The bar across the top of the root surface: New, Open and Save, then
+// Preferences, then the project's name and whether it is unsaved, then whatever notice the session
 // has to say.
 //
 // A FIXED HEIGHT AND NOTHING ELSE ABOUT THE LAYOUT IS THIS FILE'S. It draws one
@@ -8,7 +8,7 @@
 // rest of the surface's height, and neither of those is a decision this file
 // makes.
 //
-// THE THREE BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
+// THE FOUR BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
 // ROWS ARE (scene.h). A `ui` widget answers what the pointer did to it only
 // after voe_ui_frame_end (ui/widgets.h), and this call returns long before
 // that, so voe_editor_topbar_draw records where each button is and
@@ -17,7 +17,9 @@
 //
 // THE COMMAND IT HANDS BACK IS NOT CARRIED OUT HERE. This file knows nothing
 // of a project, a world or an arm — it says which button fired and nothing
-// more; what a command does is session.h's.
+// more; what a command does is session.h's. Preferences is no session
+// command — it only shows preferences.h's panel — so it is read on its own,
+// by voe_editor_topbar_preferences_read.
 #pragma once
 
 #include "session.h"
@@ -30,18 +32,19 @@
 // given.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's three buttons, recorded as they are drawn. Zeroed is a bar that has
+// The bar's four buttons, recorded as they are drawn. Zeroed is a bar that has
 // drawn nothing yet, which is only true before the first frame.
 typedef struct {
 	voe_ui_node new_button;
 	voe_ui_node open_button;
 	voe_ui_node save_button;
+	voe_ui_node preferences_button;
 } voe_editor_topbar;
 
-// Draws the bar as one row: New, Open, Save, then `name` with " (unsaved)"
+// Draws the bar as one row: New, Open, Save, Preferences, then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
-// exactly as long as the row's labels are (ui/widgets.h). Records the three
+// exactly as long as the row's labels are (ui/widgets.h). Records the four
 // buttons into `bar`.
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, const char *name,
@@ -52,3 +55,8 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 // one window in which a widget will answer.
 voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 						 const voe_editor_topbar *bar);
+
+// Whether Preferences fired this frame, in the same window as
+// voe_editor_topbar_clicks_read.
+bool voe_editor_topbar_preferences_read(const voe_ui_context *ui,
+					const voe_editor_topbar *bar);

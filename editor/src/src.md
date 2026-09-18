@@ -8,13 +8,16 @@ carries it out.
   argument, the last one remembered or an untitled scene names before the
   device does, opens the window and the device through `voe_app_new` — or the
   device alone through `voe_app_new_headless` when a picture was asked for —
-  makes the arena, the font, the interface context and the default tree,
+  makes the arena, both fonts, the themes, the interface context in the
+  chosen theme and the default tree, sets a good save of the chosen theme's
+  file on the context and puts a refused one's report in the session's notice,
   uploads the built-in shapes, and runs the loop until a close goes ahead or the
   picture is written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
   While the browser shows, the three shortcuts fire nothing and a
   middle-button drag moves no view's camera; Escape is read here too and
-  handed to the interface as the browser's own Cancel. Backspace, Enter and
+  handed to the interface as the browser's own Cancel, and hides Preferences
+  while the browser does not show. Backspace, Enter and
   `voe_platform_input_text` are read every frame, regardless of the browser,
   and handed to the interface as this frame's keyboard (task 14) — `ui` acts
   on them only for whichever field is focused. Its header says why the
@@ -40,6 +43,18 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
+- `themes.h` — Near black and Near white, the two themes with no file, then
+  one per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena
+  of its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
+  empty line, `near_white` or a file's name, whose file is
+  read again once a second and its palette replaced when a save reads. Its
+  header says why each theme's arena is its own, what a file that will not
+  read leaves behind, when loading answers false, why the live check compares
+  the bytes and not a timestamp (ADR-0172), and what a refused save leaves
+  behind.
+- `themes.c` — the folder listed and made, each file read and derived with the
+  face it names, the remembered file read and written as its one line, and the
+  chosen file's once-a-second re-read.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.
@@ -56,13 +71,19 @@ carries it out.
   clears the notice and disarms only when something actually fired.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, the
-  project's name and whether it is unsaved, then the session's notice. Its
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save,
+  Preferences, the project's name and whether it is unsaved, then the session's notice. Its
   header says why it hands back which button fired rather than carrying a
   command out itself, and why its buttons are recorded and read afterwards
   exactly as the Scene panel's rows are.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its three buttons afterwards.
+  the read of its four buttons afterwards.
+- `preferences.h` — Preferences: one row per theme with its name and a Choose
+  button, the one in force marked, and Close, as an anchored panel over the
+  dock. Its header says why each row is drawn in its own theme, why Choose is
+  carried out elsewhere, and how many themes it lists.
+- `preferences.c` — the panel's one frame of `ui` calls and the read of its
+  buttons afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
   anchored panel over the dock, its own arena for the current folder and its
   rows, and in SAVE mode a name row with a focused `ui` field and a Make folder
@@ -80,15 +101,16 @@ carries it out.
 - `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, giving
   every child a fixed size in millimetres, a one-millimetre gap at each seam
   where a splitter would go, and the row the tree is wrapped in.
-- `interface.h` — the screen-filling surface: pixels per millimetre from the
+- `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre from the
   window's height over a 135 mm surface, the top bar above each root's dock
-  tree, the browser over it when it shows, and one draw command per root. Its
+  tree, the browser or Preferences over it when one shows, and one draw
+  command per root. Its
   header says why the one question it asks — what was clicked — has to be
   asked from in there, why the tree is walked inside the bar's column, and why
   whether the browser was showing is captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
-  the one read of the frame's clicks that carries out the top bar's and the
-  browser's commands.
+  the one read of the frame's clicks that carries out the top bar's, the
+  browser's and Preferences' commands.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
   submitted this frame is a count `main.c` reads. Its header says why the

@@ -11,35 +11,44 @@
 // voe_ui_frame_end and only while the arena its nodes came out of still holds
 // them — a window this function opens and closes. So the one line that reads
 // the frame's clicks is here, between the two, and what a click MEANS is
-// scene.c's — EXCEPT FOR THE TOP BAR'S AND THE BROWSER'S OWN, whose clicks are
+// scene.c's — EXCEPT FOR THE TOP BAR'S, THE BROWSER'S AND PREFERENCES' OWN,
+// whose clicks are
 // commands carried out right here, through voe_editor_session_do and
 // voe_editor_session_browser_do, because the same window is the only place
 // topbar.h's and browser.h's recorded buttons can be asked either. Only one of
 // the two is ever read in a given frame — see voe_editor_interface_draw's own
-// header on `browsing`.
+// header on `browsing`. Preferences' Choose is carried out here too, through
+// themes.h, and its palette set on the context for the next frame.
 #include "interface.h"
 
 #include "browser.h"
 #include "inspector.h"
+#include "notice.h"
+#include "preferences.h"
 #include "project.h"
+#include "themes.h"
 #include "topbar.h"
 
 #include <base/assert.h>
 
+#include <ui/theme.h>
+
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
-					 const voe_text_font *font)
+					 const voe_ui_theme *theme)
 {
 	voe_ui_context *ui;
 
 	VOE_BASE_ASSERT(arena != NULL, "making an interface without an arena");
-	VOE_BASE_ASSERT(font != NULL, "an interface with no font");
+	VOE_BASE_ASSERT(theme != NULL && theme->font != NULL,
+			"an interface with no theme or no font");
 
 	ui = voe_ui_context_new(
 		arena, (voe_ui_capacities){
 			       .nodes = VOE_EDITOR_INTERFACE_NODES,
 			       .elements = VOE_EDITOR_INTERFACE_ELEMENTS,
 			       .scrolls = VOE_EDITOR_INTERFACE_SCROLLS });
-	voe_ui_font_set(ui, font);
+	voe_ui_font_set(ui, theme->font);
+	voe_ui_theme_set(ui, theme);
 
 	return ui;
 }
@@ -70,7 +79,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       uint32_t count, voe_editor_scene *scene,
 			       voe_editor_views *views,
 			       voe_editor_session *session,
-			       voe_editor_browser *browser, bool escape)
+			       voe_editor_browser *browser,
+			       voe_editor_preferences *preferences,
+			       voe_editor_themes *themes, bool escape)
 {
 	struct voe_base_arena_mark mark;
 	bool ok = true;
@@ -83,6 +94,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
 	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
 	VOE_BASE_ASSERT(browser != NULL, "drawing an interface with no browser");
+	VOE_BASE_ASSERT(preferences != NULL,
+			"drawing an interface with no preferences");
+	VOE_BASE_ASSERT(themes != NULL, "drawing an interface with no themes");
 
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
@@ -100,9 +114,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// commands have run has to answer for what this frame
 		// actually laid out.
 		bool browsing = browser->showing;
+		// The same, for preferences, which the browser covers.
+		bool preferring = preferences->showing && !browsing;
 
 		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
-		if (browsing)
+		if (browsing || preferring)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -152,6 +168,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_browser_draw(ui, browser,
 						VOE_EDITOR_TOPBAR_HIGH,
 						below_bar.size);
+		if (preferring)
+			voe_editor_preferences_draw(ui, preferences, themes,
+						    VOE_EDITOR_TOPBAR_HIGH,
+						    below_bar.size);
 		voe_ui_end(ui);
 
 		if (!voe_ui_frame_end(ui)) {
@@ -193,6 +213,33 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			if (clicked != VOE_EDITOR_COMMAND_NONE)
 				voe_editor_session_do(session, scene, browser,
 						      clicked);
+			if (voe_editor_topbar_preferences_read(ui, &bar))
+				voe_editor_preferences_show(preferences);
+		}
+
+		// PREFERENCES, WHEN IT WAS DRAWN. A theme chosen here is set on
+		// the context after this frame's records were built, so it
+		// restyles the next frame (ui/widgets.h's voe_ui_theme_set).
+		if (preferring) {
+			voe_editor_preferences_result result =
+				voe_editor_preferences_clicks_read(ui,
+								   preferences);
+
+			if (result.action == VOE_EDITOR_PREFERENCES_CHOOSE) {
+				const voe_editor_theme *chosen;
+
+				if (!voe_editor_themes_choose(themes,
+							      result.index))
+					voe_editor_notice_set(
+						&session->notice,
+						"the chosen theme could not be remembered");
+				chosen = voe_editor_themes_chosen(themes);
+				voe_ui_font_set(ui, chosen->palette.font);
+				voe_ui_theme_set(ui, &chosen->palette);
+			} else if (result.action ==
+				   VOE_EDITOR_PREFERENCES_CLOSE) {
+				voe_editor_preferences_hide(preferences);
+			}
 		}
 
 		// The range this root fills, read either side of its own

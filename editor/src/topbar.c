@@ -1,4 +1,4 @@
-// The bar's one frame of `ui` calls, and the read of its three buttons
+// The bar's one frame of `ui` calls, and the read of its four buttons
 // afterwards. See the header for why the command it hands back is not carried
 // out here.
 //
@@ -11,19 +11,13 @@
 #include <base/arena.h>
 #include <base/assert.h>
 
-#include <math/float4.h>
-
 #include <ui/widgets.h>
 
 #include <stdio.h>
 
-// The plate behind the bar: the same dark, linear panel colour dock.c's
-// panels use, so the bar reads as part of the one interface and not as a
-// strip of something else drawn over it.
-#define BAR_RED 0.04f
-#define BAR_GREEN 0.05f
-#define BAR_BLUE 0.07f
-#define BAR_ALPHA 0.95f
+// The bar's own surface is the theme's ordinary SURFACE, the same role
+// dock.c's panels use, so the bar reads as part of the one interface and not
+// as a strip of something else drawn over it.
 
 // Inside the bar's four edges, and between the things on it. Millimetres.
 #define BAR_PAD 2.0f
@@ -60,8 +54,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			"drawing a top bar with no notice to show");
 
 	voe_ui_panel_begin(
-		ui, "topbar", 0,
-		(voe_math_float4){ BAR_RED, BAR_GREEN, BAR_BLUE, BAR_ALPHA },
+		ui, "topbar", 0, VOE_UI_SURFACE_SURFACE,
 		(voe_ui_container){
 			.size = { .along = { VOE_UI_SIZE_FIXED,
 					     VOE_EDITOR_TOPBAR_HIGH } },
@@ -84,6 +77,10 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 
 	bar->save_button = voe_ui_button_begin(ui, "save", 0);
 	voe_ui_label(ui, "Save");
+	voe_ui_end(ui);
+
+	bar->preferences_button = voe_ui_button_begin(ui, "preferences", 0);
+	voe_ui_label(ui, "Preferences");
 	voe_ui_end(ui);
 
 	voe_ui_label(ui, unsaved ? unsaved_name(arena, name) : name);
@@ -119,4 +116,14 @@ voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 		return VOE_EDITOR_COMMAND_SAVE;
 
 	return VOE_EDITOR_COMMAND_NONE;
+}
+
+bool voe_editor_topbar_preferences_read(const voe_ui_context *ui,
+					const voe_editor_topbar *bar)
+{
+	VOE_BASE_ASSERT(ui != NULL, "reading the clicks of no interface");
+	VOE_BASE_ASSERT(bar != NULL, "reading the clicks of no top bar");
+
+	return bar->preferences_button != VOE_UI_NODE_NONE &&
+	       voe_ui_button_action(ui, bar->preferences_button).fired;
 }

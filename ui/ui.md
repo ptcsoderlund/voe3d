@@ -6,7 +6,12 @@ mouse, a number box you drag sideways to change a value, a single-line text
 field, an image and a scroll area that remembers its offset. Not drawing — what
 comes out is element records and the caller submits them — and not input
 either: the pointer and the keyboard are values it is handed. Where the surface
-sits in the world is one matrix and it is the caller's.
+sits in the world is one matrix and it is the caller's. It also turns an
+authored theme — one colour, two scalars, a mode and a text size — into the
+palette a widget draws with (`include/ui/theme.h`); reading a theme file into
+those authored values is a different folder's job (`theme`, ADR-0170). Every
+widget draws from the nearest theme in force — set on the context or pushed
+over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
 
 - `include` — the public headers, in `include/ui/`; each is listed below by path.
 - `src` — the implementation: the tree and the sweeps that settle it, then what a node
@@ -42,8 +47,18 @@ sits in the world is one matrix and it is the caller's.
   is measured against its parent's content box and paints over its in-flow
   siblings, the trap that a fit-to-children parent holding only anchored
   children has no natural size at all, and what the measured size is for.
-- `include/ui/widgets.h` — the panel, the label, the button, the number box, a
-  single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
+- `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
+  `voe_ui_theme` (the derived palette of roles), `voe_ui_theme_default_inputs`
+  and `voe_ui_theme_derive`. Its header says why `accent` stays sRGB in the
+  inputs and is linear in every derived role, why the derivation runs in OKLab
+  and cannot fail, why a NULL font is allowed, why the accent's chroma is
+  clamped harder in dark mode than in light, and why
+  `VOE_UI_THEME_SCALAR_MIN`/`MAX` are public — `theme` has to refuse the same
+  range this folder clamps to.
+- `include/ui/widgets.h` — the theme mechanism (`voe_ui_theme_set`,
+  `voe_ui_theme_push`, `voe_ui_theme_pop`), the panel (`voe_ui_surface`), the
+  label (`voe_ui_text_role`, `voe_ui_label_role`), the button, the number box,
+  a single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
   `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`), the
   image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`), the
   pointer and the keyboard (`voe_ui_keyboard`, `voe_ui_keyboard_set`) they are
@@ -51,18 +66,22 @@ sits in the world is one matrix and it is the caller's.
   answer to a click arrives after the frame has ended rather than at the call,
   what a widget's key is made of and why it is a hashed path and not a line
   number, what two widgets sharing one does, why a button is composed rather
-  than handed a string, why a fully transparent panel emits nothing, and how
-  the text scale composes with the surface's own. On the number box it says why
-  this folder knows no field kinds and takes a value and a rate instead, why
-  what comes back is a value and not a distance and what that buys the typing
-  that is not built yet, and why a press and release without movement is
-  reserved rather than free. On the field it says why it composes its own label
-  rather than taking one in, why the caret is measured from that label, why the
-  edited text comes back as a value rather than the caller's own buffer being
-  written into, that where the typed bytes came from is not this folder's
-  business, and what a field costs in nodes and in element records. On the
-  image it says what it is for, why it is sized as a box is, that it is one
-  element, and that the texture's lifetime is the caller's. On the scroll area
-  it says why the offset is remembered there and not in layout, that an area
-  not called forgets, how a scroll passes outward, why it arrives in
-  millimetres and lands next frame, and that the bar lies over the content.
+  than handed a string, why a NONE panel emits nothing, why a panel's and a
+  button's hairline border is two element records and not one, why a widget
+  reads the theme in force at the call that makes it and not again at
+  emission, why an unmatched push refuses the frame while an unmatched pop
+  asserts, and how the theme's `text_size` composes with the surface's own
+  scale. On the number box it says why this folder knows no field kinds and
+  takes a value and a rate instead, why what comes back is a value and not a
+  distance and what that buys the typing that is not built yet, and why a
+  press and release without movement is reserved rather than free. On the
+  field it says why it composes its own label rather than taking one in, why
+  the caret is measured from that label, why the edited text comes back as a
+  value rather than the caller's own buffer being written into, that where the
+  typed bytes came from is not this folder's business, and what a field costs
+  in nodes and in element records. On the image it says what it is for, why it
+  is sized as a box is, that it is one element, and that the texture's
+  lifetime is the caller's. On the scroll area it says why the offset is
+  remembered there and not in layout, that an area not called forgets, how a
+  scroll passes outward, why it arrives in millimetres and lands next frame,
+  and that the bar lies over the content.

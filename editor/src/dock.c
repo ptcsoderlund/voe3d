@@ -57,14 +57,11 @@
 
 #include <scene/identity_component.h>
 
-// The plate every panel is drawn on: dark, linear, and the same for all of them.
-// The two regions are told apart by the seam between them and by where their
-// headings start, not by being different colours — a colour per panel would be
-// this file deciding something nobody has decided.
-#define PANEL_RED 0.04f
-#define PANEL_GREEN 0.05f
-#define PANEL_BLUE 0.07f
-#define PANEL_ALPHA 0.95f
+// Every leaf's own surface is the theme's ordinary SURFACE, the same role for
+// all of them. The two regions are told apart by the seam between them and by
+// where their headings start, not by being different colours — a colour per
+// panel would be this file deciding something nobody has decided, and there
+// is no role for it besides (ui/theme.h, ADR-0171).
 
 // Inside a panel's four edges, and between the things on it. Millimetres.
 #define PANEL_PAD 3.0f
@@ -72,15 +69,6 @@
 
 // The space between the two children of a split. See the header note above.
 #define SEAM 1.0f
-
-// What goes in front of the selected row's name. IT IS A SECOND LABEL IN THE
-// BUTTON AND NOT A COMPOSED STRING, which is the shape ui/widgets.h asks for —
-// a button is a row and a second thing in one goes across. The alternative is a
-// buffer holding the name with the marker glued on, and that buffer would have
-// to outlive the call that filled it: a label's text is read at
-// voe_ui_frame_end, long after this function has returned. A literal and a
-// pointer into the identity table are both still there then.
-#define SELECTED_MARK "> "
 
 // A child's size, in the axes its PARENT flows in. `ui` reads `size.along` and
 // `size.across` against the container the child is in, so which of x and y is
@@ -145,8 +133,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		// keyed by the view it shows as well as by its name.
 		voe_ui_panel_begin(
 			ui, panel_key(node->panel), picture ? node->view : 0,
-			(voe_math_float4){ PANEL_RED, PANEL_GREEN, PANEL_BLUE,
-					   PANEL_ALPHA },
+			VOE_UI_SURFACE_SURFACE,
 			(voe_ui_container){
 				.size = sizing_in(parent, size),
 				.across = VOE_UI_ACROSS_FILL,
@@ -339,9 +326,13 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 	for (uint32_t i = 0; i < count; i++) {
 		voe_ui_node row = voe_ui_button_begin(ui, "entity", i);
 
-		if (voe_editor_scene_is_selected(scene, entities[i]))
-			voe_ui_label(ui, SELECTED_MARK);
-		voe_ui_label(ui, rows[i].name);
+		// The selected row's name is in the theme's accent, which is
+		// what a selection is drawn in (ui/theme.h).
+		voe_ui_label_role(ui, rows[i].name,
+				  voe_editor_scene_is_selected(scene,
+							       entities[i]) ?
+					  VOE_UI_TEXT_ROLE_ACCENT :
+					  VOE_UI_TEXT_ROLE_NORMAL);
 		voe_ui_end(ui);
 
 		// The click is answered after voe_ui_frame_end and this

@@ -48,13 +48,8 @@
 #include <stdio.h>
 #include <string.h>
 
-// The plate a component's fields sit on, a shade above the panel's own so that
-// two components read as two blocks. Linear RGBA, not premultiplied, exactly as
-// ui/widgets.h asks for.
-#define COMPONENT_RED 0.09f
-#define COMPONENT_GREEN 0.10f
-#define COMPONENT_BLUE 0.13f
-#define COMPONENT_ALPHA 0.95f
+// A component's fields sit on the theme's RAISED surface, a shade above the
+// panel's own SURFACE, so that two components read as two blocks.
 
 // Inside a component's four edges, between its rows, and between the things on
 // one row. Millimetres.
@@ -601,9 +596,7 @@ static void component_panel(voe_ui_context *ui,
 	const voe_base_struct_description *description;
 	bool editable = voe_ecs_component_replace(world, type).set;
 
-	voe_ui_panel_begin(ui, "component", index,
-			   (voe_math_float4){ COMPONENT_RED, COMPONENT_GREEN,
-					      COMPONENT_BLUE, COMPONENT_ALPHA },
+	voe_ui_panel_begin(ui, "component", index, VOE_UI_SURFACE_RAISED,
 			   (voe_ui_container){
 				   .across = VOE_UI_ACROSS_FILL,
 				   .gap = COMPONENT_GAP,
