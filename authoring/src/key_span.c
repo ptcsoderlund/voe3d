@@ -1,8 +1,9 @@
 // See the header.
-#include "line_index.h"
+#include "key_span.h"
 
 #include <base/assert.h>
 
+#include <stdint.h>
 #include <string.h>
 
 static bool blank(char c)
@@ -10,18 +11,16 @@ static bool blank(char c)
 	return c == ' ' || c == '\t';
 }
 
-void voe_authoring_line_index(const char *text, size_t size,
-			      const voe_assets_sectioned *doc,
-			      uint32_t *out_section_line, uint32_t *out_key_line,
-			      voe_authoring_span *out_key_span)
+void voe_authoring_key_spans(const char *text, size_t size,
+			     const voe_assets_sectioned *doc,
+			     voe_authoring_span *out_key_span)
 {
-	uint32_t line = 1;
 	uint32_t section = 0;
 	uint32_t key = 0;
 	size_t at = 0;
 
-	VOE_BASE_ASSERT(text != NULL || size == 0, "indexing NULL text");
-	VOE_BASE_ASSERT(doc != NULL, "indexing with no parsed document");
+	VOE_BASE_ASSERT(text != NULL || size == 0, "walking NULL text");
+	VOE_BASE_ASSERT(doc != NULL, "walking with no parsed document");
 
 	while (at < size) {
 		const char *newline = memchr(text + at, '\n', size - at);
@@ -43,23 +42,19 @@ void voe_authoring_line_index(const char *text, size_t size,
 		} else if (text[first] == '[') {
 			VOE_BASE_ASSERT(section < doc->section_count,
 					"more headers than the sectioned reader found");
-			out_section_line[section++] = line;
+			section++;
 		} else {
 			VOE_BASE_ASSERT(key < doc->key_count,
 					"more keys than the sectioned reader found");
-			out_key_line[key] = line;
-			if (out_key_span != NULL)
-				out_key_span[key] = (voe_authoring_span){
-					.bytes = text + first,
-					.size = last - first,
-				};
-			key++;
+			out_key_span[key++] = (voe_authoring_span){
+				.bytes = text + first,
+				.size = last - first,
+			};
 		}
 
 		at = end + 1;
-		line++;
 	}
 
 	VOE_BASE_ASSERT(section == doc->section_count && key == doc->key_count,
-			"the line walk and the sectioned reader disagree");
+			"the key-span walk and the sectioned reader disagree");
 }

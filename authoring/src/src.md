@@ -8,14 +8,12 @@ and read through the description its own folder registered.
 - `scene_write.c` — the writer. Its header says why it walks the world twice and
   how kept sections are merged in.
 - `scene_read.c` — the reader. Its header says why only its second pass touches
-  the world and why it walks the text beside the sectioned reader.
+  the world and why it walks the text beside the sectioned reader for key spans.
 - `project.c` — the project file reader and writer. Its header says how a scene
   path is checked the same way on both sides.
-- `line_index.h` — the line number of every section and key in a sectioned
-  document, shared by `scene_read.c` and `project.c`, both of which name a line
-  in a refusal.
-- `line_index.c` — the second walk of the same text that fills that index, and
-  each key's own trimmed bytes with it.
+- `key_span.h` — each key's own trimmed bytes in a sectioned document, which
+  `scene_read.c` writes a kept section back out from; a line is the parser's.
+- `key_span.c` — the second walk of the same text that fills those spans.
 - `authored.h` — the sort and search by authored id both of them use, and why
   neither is the C library's.
 - `authored.c` — the merge sort and the binary search.

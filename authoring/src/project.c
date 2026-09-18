@@ -1,18 +1,15 @@
 // The project file. See the header for what it holds and what it refuses.
 //
-// THE READER GOES THROUGH assets/sectioned.h, THEN LINE_INDEX.H FOR A LINE TO
-// NAME. A malformed file never reaches this code: voe_assets_sectioned_parse
-// has already reported it, with a line, under its own module. Past that, this
-// file's own refusals reuse the same line-index walk scene_read.c does, for
-// the same reason — the sectioned reader hands back no line numbers with its
-// parsed document.
+// THE READER GOES THROUGH assets/sectioned.h AND NOTHING ELSE. A malformed file
+// never reaches this code: voe_assets_sectioned_parse has already reported it,
+// with a line, under its own module. Past that, this file's own refusals name
+// the line the parser put on each section and key.
 //
 // A "SCENE PATH" IS CHECKED THE SAME WAY ON THE WAY IN AND THE WAY OUT, one
 // function shared by the reader and the writer's assert, so the writer can
 // never produce a path the reader refuses.
 #include <authoring/project.h>
 
-#include "line_index.h"
 
 #include <assets/sectioned.h>
 #include <base/assert.h>
@@ -82,13 +79,6 @@ bool voe_authoring_project_read(const char *text, size_t size,
 		return false;
 	}
 
-	uint32_t *section_line = voe_base_arena_push(
-		arena, doc.section_count * sizeof(*section_line));
-	uint32_t *key_line = voe_base_arena_push(
-		arena, (doc.key_count + 1) * sizeof(*key_line));
-
-	voe_authoring_line_index(text, size, &doc, section_line, key_line, NULL);
-
 	for (uint32_t s = 0; s < doc.section_count; s++) {
 		if (strcmp(doc.sections[s].name, "project") == 0)
 			continue;
@@ -96,7 +86,7 @@ bool voe_authoring_project_read(const char *text, size_t size,
 			       "line %u: [%s] is not [project], the only "
 			       "section a project file holds; nothing was "
 			       "loaded",
-			       section_line[s], doc.sections[s].name);
+			       doc.sections[s].line, doc.sections[s].name);
 		return false;
 	}
 
@@ -113,20 +103,20 @@ bool voe_authoring_project_read(const char *text, size_t size,
 
 		if (strcmp(key->name, "scene") == 0) {
 			scene = key->value;
-			scene_line = key_line[index];
+			scene_line = key->line;
 			continue;
 		}
 		VOE_BASE_WARNING(MODULE,
 				 "line %u: [project] has no key %s; the line "
 				 "is ignored",
-				 key_line[index], key->name);
+				 key->line, key->name);
 	}
 
 	if (scene == NULL) {
 		VOE_BASE_ERROR(MODULE,
 			       "line %u: [project] has no scene key; nothing "
 			       "was loaded",
-			       section_line[0]);
+			       project->line);
 		return false;
 	}
 	if (!valid_scene_path(scene)) {
