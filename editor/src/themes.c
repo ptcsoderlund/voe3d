@@ -22,6 +22,13 @@
 #define THEMES_CHOICE "theme"
 #define THEMES_SUFFIX ".theme"
 
+// What the remembered file holds for Near white, the one theme with no file
+// that is not the default (ADR-0178). No `*.theme` file can have this name.
+#define THEMES_NEAR_WHITE "near_white"
+
+// How many themes with no file start the list: Near black, then Near white.
+#define THEMES_BUILT_IN 2u
+
 // Block sizes, not limits: the list's own (paths, the listing, the entries),
 // and one theme's (its file's bytes and the strings read out of them) — also
 // the scratch a choose writes its one line from.
@@ -161,6 +168,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 {
 	voe_platform_folder_listing listing = { 0 };
 	voe_ui_theme_inputs defaults = voe_ui_theme_default_inputs();
+	voe_ui_theme_inputs light;
 	const char *settings;
 	const char *dir = NULL;
 	const char *folder = NULL;
@@ -199,16 +207,31 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 			listing = (voe_platform_folder_listing){ 0 };
 	}
 
+	light = defaults;
+	light.mode = VOE_UI_THEME_MODE_LIGHT;
 	themes->entries = voe_base_arena_push(
-		themes->arena, sizeof(voe_editor_theme) * (listing.count + 1));
+		themes->arena,
+		sizeof(voe_editor_theme) * (listing.count + THEMES_BUILT_IN));
 	themes->entries[0] = (voe_editor_theme){
-		.name = "Built-in",
-		.theme = { .name = "Built-in",
+		.name = "Near black",
+		.theme = { .name = "Near black",
 			   .inputs = defaults,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
 		.palette = voe_ui_theme_derive(&defaults, oxanium),
 	};
-	themes->count = 1;
+	themes->entries[1] = (voe_editor_theme){
+		.name = "Near white",
+		.theme = { .name = "Near white",
+			   .inputs = light,
+			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
+		.palette = voe_ui_theme_derive(&light, oxanium),
+	};
+	themes->count = THEMES_BUILT_IN;
+	if (themes->remembered != NULL &&
+	    strcmp(themes->remembered, THEMES_NEAR_WHITE) == 0) {
+		themes->chosen = 1;
+		themes->remembered = NULL;
+	}
 
 	for (uint32_t i = 0; i < listing.count; i++) {
 		const voe_platform_folder_entry *entry = &listing.entries[i];
@@ -262,8 +285,11 @@ bool voe_editor_themes_choose(voe_editor_themes *themes, uint32_t index)
 	if (index != themes->chosen)
 		forget_refused(themes);
 	themes->chosen = index;
-	file = themes->entries[index].file;
-	themes->remembered = file;
+	themes->remembered = themes->entries[index].file;
+	// What the one line holds: a file's name, `near_white`, or nothing.
+	file = themes->remembered != NULL ? themes->remembered :
+	       index == 1		  ? THEMES_NEAR_WHITE :
+					    NULL;
 
 	scratch = voe_base_arena_new(THEMES_ONE_ARENA);
 	settings = voe_platform_folder_settings(scratch);

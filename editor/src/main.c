@@ -27,7 +27,7 @@
 // Both faces are created, Oxanium and Pixel Operator (ADR-0167), the themes
 // folder is read into a list whose every palette is derived with the face its
 // file names, and the chosen palette and its font are set on the interface. A
-// remembered theme that is gone or refused draws the built-in instead and puts
+// remembered theme that is gone or refused draws Near black instead and puts
 // the reason, naming the file, in session.notice — unless a last project's
 // failure already put one there. Every frame, before the systems run,
 // voe_editor_themes_check looks at the chosen file once a second: a good save
@@ -356,8 +356,8 @@ int main(int argc, char *argv[])
 	// and themes.h derives each palette with whichever it names.
 	voe_text_font *oxanium;
 	voe_text_font *pixel_operator;
-	// The built-in theme and every file in the themes folder, and the one
-	// in force (themes.h). It outlives `ui`, which keeps the palette.
+	// The two themes with no file, every one in the themes folder, and
+	// the one in force (themes.h). It outlives `ui`, which keeps the palette.
 	voe_editor_themes themes = { 0 };
 	voe_ui_context *ui;
 	// The roots the loop walks. One of them, and it is the window; see
@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
 	}
 
 	// A REMEMBERED THEME THAT IS GONE OR REFUSED IS A NOTICE, NOT A STOP:
-	// the built-in is drawn instead and the bar says why, naming the file,
+	// Near black is drawn instead and the bar says why, naming the file,
 	// as a failed open does. A last project's own notice, set above, is
 	// the one left standing when both failed — it says more about what is
 	// on screen.

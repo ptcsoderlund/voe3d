@@ -43,9 +43,10 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `themes.h` — the built-in theme and one per `*.theme` file in
-  `<settings>/voe3d/themes/`, each file's in an arena of its own, and the one
-  chosen, remembered by file name in `<settings>/voe3d/theme`, whose file is
+- `themes.h` — Near black and Near white, the two themes with no file, then
+  one per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena
+  of its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
+  empty line, `near_white` or a file's name, whose file is
   read again once a second and its palette replaced when a save reads. Its
   header says why each theme's arena is its own, what a file that will not
   read leaves behind, when loading answers false, why the live check compares

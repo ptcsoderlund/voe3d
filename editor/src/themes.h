@@ -1,9 +1,11 @@
-// The themes the editor has and the one in force (ADR-0170, ADR-0172). The
-// list's first entry is the built-in theme — ui's default inputs, Oxanium, no
-// file, shown as `Built-in` — and after it comes one entry per `*.theme` file in
-// `<settings>/voe3d/themes/`, in the order the folder lists them. The one
-// chosen is remembered by its file name in `<settings>/voe3d/theme`, one line,
-// empty or absent meaning the built-in.
+// The themes the editor has and the one in force (ADR-0170, ADR-0172,
+// ADR-0178). The list's first two entries have no file: entry 0 is `Near
+// black` — ui's default inputs, Oxanium — and entry 1 is `Near white` — the
+// same inputs in the light mode. After them comes one entry per `*.theme` file
+// in `<settings>/voe3d/themes/`, in the order the folder lists them. The one
+// chosen is remembered in `<settings>/voe3d/theme` as one line: empty or absent
+// for Near black, `near_white` for Near white — which no `*.theme` file can be
+// named — and otherwise a file's name.
 //
 //     voe_editor_themes themes = { 0 };
 //     if (!voe_editor_themes_load(&themes, oxanium, pixel_operator))
@@ -24,26 +26,26 @@
 // A FILE THAT CANNOT BE READ IS LEFT OUT AND NOTHING ELSE STOPS. Its reason is
 // already on stderr (platform/file.h, theme/theme.h), its arena is gone, and
 // the rest of the folder is still read. What such a failure leaves behind is a
-// shorter list and nothing more; the built-in entry is always there, so the
-// list is never empty.
+// shorter list and nothing more; the two themes with no file are always
+// there, so the list is never empty.
 //
 // voe_editor_themes_load ANSWERS FALSE ONLY FOR THE REMEMBERED THEME. A
-// remembered file that is gone or refused falls back to the built-in, and the
+// remembered file that is gone or refused falls back to Near black, and the
 // false return is how the caller learns it should say so. The load clears
 // base/report.h's kept error itself, so that afterwards the first kept error is
 // that file's own refusal — or nothing, for a file that is gone — and a caller
 // hands `remembered` to voe_editor_notice_from_report to name it. A folder
 // that cannot be listed or made, or no settings folder at all, is not a
-// failure: the list is the built-in theme alone.
+// failure: the list is the two themes with no file alone.
 //
 // voe_editor_themes_choose WRITES THE REMEMBERED FILE the way last_project.h
 // writes its own, making `<settings>` and `<settings>/voe3d` as needed.
 //
 // voe_editor_themes_check IS LIVE EDITING (ADR-0172). Called every frame, it
 // does something at most once a second by voe_platform_clock_now: the chosen
-// theme's file — that file only, and nothing for the built-in — is read again
-// and its bytes compared with the last ones seen. THE COMPARISON IS THE BYTES
-// AND NOT A TIMESTAMP because a modification time lies across a copy or a
+// theme's file — that file only, and nothing for a theme with no file — is
+// read again and its bytes compared with the last ones seen. THE COMPARISON
+// IS THE BYTES AND NOT A TIMESTAMP because a modification time lies across a copy or a
 // checkout, and would be an API `platform` does not have, for a file of a few
 // hundred bytes that costs nothing to read once a second. Changed bytes are
 // read and derived into a fresh arena; on success the entry's palette is
@@ -79,25 +81,26 @@
 
 // One theme the editor can draw in.
 typedef struct {
-	// What a person reads: the file's section name, or `Built-in`.
+	// What a person reads: the file's section name, `Near black` or
+	// `Near white`.
 	const char *name;
-	// The file inside the themes folder, or NULL for the built-in theme.
+	// The file inside the themes folder, or NULL for a theme with no file.
 	const char *file;
 	voe_theme theme;
 	// Derived with whichever of the two fonts `theme.typeface` names.
 	voe_ui_theme palette;
-	// The file's bytes it was read from, in `arena`; NULL and 0 for the
-	// built-in theme.
+	// The file's bytes it was read from, in `arena`; NULL and 0 for a
+	// theme with no file.
 	const uint8_t *bytes;
 	size_t size;
-	// This theme's own memory, or NULL for the built-in theme.
+	// This theme's own memory, or NULL for a theme with no file.
 	voe_base_arena *arena;
 } voe_editor_theme;
 
 // What voe_editor_themes_check found.
 typedef enum {
-	// Not a second since the last look, the built-in in force, the same
-	// bytes, or no file there right now.
+	// Not a second since the last look, a theme with no file in force,
+	// the same bytes, or no file there right now.
 	VOE_EDITOR_THEMES_UNCHANGED,
 	// The chosen entry's palette was replaced by the file's new one.
 	VOE_EDITOR_THEMES_CHANGED,
@@ -111,7 +114,8 @@ typedef struct {
 	// Index into entries of the theme in force.
 	uint32_t chosen;
 	// The file name `<settings>/voe3d/theme` holds, or NULL when it holds
-	// none — kept even when it could not be loaded, so it can be named.
+	// none or `near_white` — kept even when it could not be loaded, so it
+	// can be named.
 	const char *remembered;
 	// The themes folder's path, or NULL when there is no settings folder.
 	const char *folder;
@@ -131,7 +135,7 @@ typedef struct {
 
 // Fills an empty `themes` from the themes folder and the remembered choice,
 // making the folder when it is missing. False when a remembered file is gone
-// or refused, with the built-in chosen instead; see this file's header.
+// or refused, with Near black chosen instead; see this file's header.
 [[nodiscard]] bool voe_editor_themes_load(voe_editor_themes *themes,
 					  const voe_text_font *oxanium,
 					  const voe_text_font *pixel_operator);
@@ -139,8 +143,8 @@ typedef struct {
 // The theme in force.
 const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes);
 
-// Puts entry `index` in force and remembers its file name, or an empty line
-// for the built-in. False when the remembered file could not be written —
+// Puts entry `index` in force and remembers its file name, `near_white` for
+// entry 1, or an empty line for entry 0. False when the remembered file could not be written —
 // reported at the site by platform, or not at all when the machine has no
 // settings folder — and the theme is in force either way.
 [[nodiscard]] bool voe_editor_themes_choose(voe_editor_themes *themes,

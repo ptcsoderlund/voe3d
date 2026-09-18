@@ -19,10 +19,10 @@ there are unsaved changes and goes ahead the second time. It can also be
 started to draw one frame with no window at all, write it to a PNG file and
 exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 
-It draws in a theme: the built-in one, or the `*.theme` file in
-`<settings>/voe3d/themes/` named by `<settings>/voe3d/theme` — see
-`src/themes.h`. A remembered theme that is gone or refused draws the built-in
-and says why in the bar. The selected row in `Scene` is drawn in the theme's
+It draws in a theme: Near black or Near white, the two with no file, or the
+`*.theme` file in `<settings>/voe3d/themes/` named by `<settings>/voe3d/theme`
+— see `src/themes.h`. A remembered theme that is gone or refused draws Near
+black and says why in the bar. The selected row in `Scene` is drawn in the theme's
 accent. Preferences lists every theme — each row drawn in its own theme, the
 one in force marked — and Choose puts one in force and remembers it; Close or
 Escape hides it.
