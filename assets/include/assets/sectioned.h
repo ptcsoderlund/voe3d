@@ -103,21 +103,27 @@
 
 // One `key=value` line. Both are NUL-terminated text in the arena the reader
 // was handed; `value` is never NULL and is "" for a key that had nothing after
-// its `=`.
+// its `=`. `line` is the 1-based physical line the `key=value` text was on — a
+// consumer naming a line in its own refusal takes it from here and does not
+// walk the text again.
 typedef struct {
 	const char *name;
 	const char *value;
+	uint32_t line;
 } voe_assets_sectioned_key;
 
 // One `[Section]`, and the run of keys that followed it. `name` is the text
 // between the brackets, dots and all, and nothing here relates one dotted name
-// to another.
+// to another. `line` is the 1-based physical line the `[Section]` header was
+// on — a consumer naming a line in its own refusal takes it from here and does
+// not walk the text again.
 typedef struct {
 	const char *name;
 	// Into voe_assets_sectioned.keys. The keys of one section are
 	// contiguous and in file order.
 	uint32_t first_key;
 	uint32_t key_count;
+	uint32_t line;
 } voe_assets_sectioned_section;
 
 // Everything the file held, in file order, in the arena the reader was handed.

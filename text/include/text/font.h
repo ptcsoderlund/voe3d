@@ -2,7 +2,8 @@
 // purpose: turn a string into one mesh you can draw in the world, or ask where
 // one character sits and place it yourself.
 //
-//     voe_text_font *font = voe_text_font_new(gpu, scratch, &error);
+//     voe_text_font *font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu,
+//                                             scratch, &error);
 //     voe_text_block block;
 //
 //     voe_text_block_create(font, gpu, scratch, "Hello", 0.25f, &block, &error);
@@ -56,12 +57,17 @@
 // reads as a heads-up display. There is no screen-space path here and a "just
 // for debug" one is what that rule exists to prevent.
 //
-// THE FONT IS OXANIUM REGULAR AND IT IS IN THE BINARY. text/fonts/ holds the
-// file and `#embed` puts it in the executable, so there is no path, no file I/O
-// and no way for it to be missing — the same mechanism the compiled shaders use.
-// The licence is the SIL Open Font License and it permits this provided the
-// notice travels: text/fonts/OFL.txt is that notice, it is unmodified, and
-// anything shipping this engine ships it too.
+// TWO FACES ARE IN THE BINARY AND A FONT NAMES WHICH ONE IT IS (ADR-0167).
+// text/fonts/ holds Oxanium Regular and Pixel Operator Regular, and `#embed`
+// puts both in the executable, so there is no path, no file I/O and no way for
+// either to be missing — the same mechanism the compiled shaders use. A
+// voe_text_typeface is not a path or a caller's bytes: it is a lookup into a set
+// the binary always carries, which is what lets a theme file name a font
+// without ever failing at a file's mercy. Oxanium's licence is the SIL Open
+// Font License and Pixel Operator's is the CC0 1.0 Universal dedication; both
+// permit embedding, and both notices travel unmodified beside their fonts —
+// text/fonts/OFL.txt and text/fonts/PixelOperator-LICENSE.txt — so anything
+// shipping this engine ships both.
 //
 // ---- WHAT IT DOES NOT DO, EACH BY NAME ----
 //
@@ -87,9 +93,11 @@
 // size and is written down as the right next move if this is ever not enough; it
 // is a much larger piece of work and nothing has asked for it.
 //
-// ONE WEIGHT, ONE FONT, NO FALLBACK. There is no bold, no italic and no second
-// face, and a character Oxanium does not carry is drawn as the font's own
-// missing-glyph box rather than looked for somewhere else.
+// ONE WEIGHT, ONE FONT, NO FALLBACK. A voe_text_font is one face at one weight:
+// there is no bold, no italic, and no reaching for the other embedded face
+// mid-string. A character its own face does not carry is drawn as that face's
+// own missing-glyph box rather than looked for in the other one — a caller that
+// wants both draws two fonts and two blocks.
 #pragma once
 
 #include <base/arena.h>
@@ -103,6 +111,15 @@
 // names.
 typedef struct voe_text_font voe_text_font;
 
+// Which of the two embedded faces a font draws from (ADR-0167). An enum and
+// not a path or a caller's bytes: the set is exactly what the binary carries,
+// so naming one can never fail at a file's mercy — which is what lets a theme
+// file name a font. Neither face is a fallback for the other.
+typedef enum {
+	VOE_TEXT_TYPEFACE_OXANIUM,
+	VOE_TEXT_TYPEFACE_PIXEL_OPERATOR,
+} voe_text_typeface;
+
 // One string, ready to draw.
 //
 // THE ORIGIN IS THE LEFT END OF THE FIRST LINE'S BASELINE, and the mesh runs
@@ -115,21 +132,23 @@ typedef struct {
 	voe_math_float2 size;
 } voe_text_block;
 
-// Reads the embedded font, rasterises every glyph it covers into one atlas and
-// uploads it. `arena` is scratch — the outlines and the atlas pixels come out of
-// it and nothing the font keeps does, so it may be rewound as soon as this
-// returns.
+// Reads `typeface`'s embedded bytes, rasterises every glyph it covers into one
+// atlas and uploads it. `arena` is scratch — the outlines and the atlas pixels
+// come out of it and nothing the font keeps does, so it may be rewound as soon
+// as this returns.
 //
 // THE ATLAS IS BUILT HERE AND NOWHERE ELSE, WHICH IS WHY THIS IS A CALL AND NOT
 // SOMETHING THE DEVICE DOES. A program that draws no text never calls this and
-// pays nothing; a program that draws a hundred strings calls it once and they
-// all sample the one texture.
+// pays nothing; a program that draws a hundred strings in one face calls it
+// once and they all sample the one texture. A program drawing two faces calls
+// it twice and pays for two atlases — nothing shares a sheet between faces.
 //
 // NULL on failure. UNSUPPORTED and MALFORMED come from the reader and mean it is
 // wrong rather than the font is — the bytes are in the binary and are the same
 // everywhere — and REFUSED means the graphics card would not take the atlas.
 // error may be NULL.
-[[nodiscard]] voe_text_font *voe_text_font_new(voe_render_device *device,
+[[nodiscard]] voe_text_font *voe_text_font_new(voe_text_typeface typeface,
+					       voe_render_device *device,
 					       voe_base_arena *arena,
 					       voe_base_error *error);
 

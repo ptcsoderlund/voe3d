@@ -57,14 +57,11 @@
 
 #include <scene/identity_component.h>
 
-// The plate every panel is drawn on: dark, linear, and the same for all of them.
-// The two regions are told apart by the seam between them and by where their
-// headings start, not by being different colours — a colour per panel would be
-// this file deciding something nobody has decided.
-#define PANEL_RED 0.04f
-#define PANEL_GREEN 0.05f
-#define PANEL_BLUE 0.07f
-#define PANEL_ALPHA 0.95f
+// Every leaf's own surface is the theme's ordinary SURFACE, the same role for
+// all of them. The two regions are told apart by the seam between them and by
+// where their headings start, not by being different colours — a colour per
+// panel would be this file deciding something nobody has decided, and there
+// is no role for it besides (ui/theme.h, ADR-0171).
 
 // Inside a panel's four edges, and between the things on it. Millimetres.
 #define PANEL_PAD 3.0f
@@ -145,8 +142,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		// keyed by the view it shows as well as by its name.
 		voe_ui_panel_begin(
 			ui, panel_key(node->panel), picture ? node->view : 0,
-			(voe_math_float4){ PANEL_RED, PANEL_GREEN, PANEL_BLUE,
-					   PANEL_ALPHA },
+			VOE_UI_SURFACE_SURFACE,
 			(voe_ui_container){
 				.size = sizing_in(parent, size),
 				.across = VOE_UI_ACROSS_FILL,

@@ -11,19 +11,13 @@
 #include <base/arena.h>
 #include <base/assert.h>
 
-#include <math/float4.h>
-
 #include <ui/widgets.h>
 
 #include <stdio.h>
 
-// The plate behind the bar: the same dark, linear panel colour dock.c's
-// panels use, so the bar reads as part of the one interface and not as a
-// strip of something else drawn over it.
-#define BAR_RED 0.04f
-#define BAR_GREEN 0.05f
-#define BAR_BLUE 0.07f
-#define BAR_ALPHA 0.95f
+// The bar's own surface is the theme's ordinary SURFACE, the same role
+// dock.c's panels use, so the bar reads as part of the one interface and not
+// as a strip of something else drawn over it.
 
 // Inside the bar's four edges, and between the things on it. Millimetres.
 #define BAR_PAD 2.0f
@@ -60,8 +54,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			"drawing a top bar with no notice to show");
 
 	voe_ui_panel_begin(
-		ui, "topbar", 0,
-		(voe_math_float4){ BAR_RED, BAR_GREEN, BAR_BLUE, BAR_ALPHA },
+		ui, "topbar", 0, VOE_UI_SURFACE_SURFACE,
 		(voe_ui_container){
 			.size = { .along = { VOE_UI_SIZE_FIXED,
 					     VOE_EDITOR_TOPBAR_HIGH } },

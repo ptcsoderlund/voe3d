@@ -68,6 +68,9 @@ struct line {
 	// The value was quoted, so its span may hold `\"` and `\\`, and nothing
 	// else after a backslash.
 	bool quoted;
+	// The 1-based physical line this was read from, set by read_line()
+	// before it classifies the line, so every kind carries it.
+	uint32_t line;
 };
 
 struct parser {
@@ -250,6 +253,7 @@ static bool read_line(struct parser *parser, struct line *line)
 	// twice.
 	parser->pos = end < parser->size ? end + 1 : end;
 	parser->line++;
+	line->line = parser->line;
 
 	if (content_end > start && parser->text[content_end - 1] == '\r')
 		content_end--;
@@ -300,7 +304,8 @@ static bool same(const struct parser *parser, const char *stored,
 	       memcmp(stored, parser->text + span.start, span.length) == 0;
 }
 
-static bool add_section(struct parser *parser, struct span name)
+static bool add_section(struct parser *parser, struct span name,
+			uint32_t line)
 {
 	if (!parser->storing) {
 		parser->section_count++;
@@ -319,12 +324,13 @@ static bool add_section(struct parser *parser, struct span name)
 			.name = intern(parser, name, false),
 			.first_key = parser->key_count,
 			.key_count = 0,
+			.line = line,
 		};
 	return true;
 }
 
 static bool add_key(struct parser *parser, struct span name, struct span value,
-		    bool quoted)
+		    bool quoted, uint32_t line)
 {
 	voe_assets_sectioned_section *section;
 
@@ -347,6 +353,7 @@ static bool add_key(struct parser *parser, struct span name, struct span value,
 	parser->keys[parser->key_count++] = (voe_assets_sectioned_key){
 		.name = intern(parser, name, false),
 		.value = intern(parser, value, quoted),
+		.line = line,
 	};
 	section->key_count++;
 	return true;
@@ -369,12 +376,12 @@ static bool read_lines(struct parser *parser)
 		case LINE_BLANK:
 			break;
 		case LINE_SECTION:
-			if (!add_section(parser, line.name))
+			if (!add_section(parser, line.name, line.line))
 				return false;
 			break;
 		case LINE_KEY:
 			if (!add_key(parser, line.name, line.value,
-				     line.quoted))
+				     line.quoted, line.line))
 				return false;
 			break;
 		}

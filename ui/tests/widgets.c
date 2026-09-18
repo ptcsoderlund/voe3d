@@ -112,7 +112,11 @@ struct frame {
 	bool ok;
 };
 
-static const voe_math_float4 PANEL = { 0.05f, 0.05f, 0.06f, 0.8f };
+// The theme every context in this file draws with, set once in main() —
+// every case that opens a panel, a button, a number box or a field needs one
+// in force, and the roles it derives to are what a known list's colours are
+// checked against.
+static voe_ui_theme TEST_THEME;
 
 // The same padding on all four sides, which is what every case in this file
 // wants and what one number used to say.
@@ -135,7 +139,7 @@ static struct frame build(voe_ui_context *ui, voe_base_arena *arena,
 						 .over = over,
 						 .down = down });
 
-	voe_ui_panel_begin(ui, "panel", 0, PANEL,
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
 			   (voe_ui_container){ .gap = 3.0f,
 					       .pad = pad_all(4.0f) });
 	if (buttons > 0) {
@@ -346,7 +350,8 @@ static void a_duplicate_key_refuses_the_frame(voe_ui_context *ui,
 	fprintf(stderr, "-- the next voe_ui line is this test's own --\n");
 
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	voe_ui_button_begin(ui, "same", 0);
 	voe_ui_end(ui);
 	voe_ui_button_begin(ui, "same", 0);
@@ -359,7 +364,8 @@ static void a_duplicate_key_refuses_the_frame(voe_ui_context *ui,
 	// And the next frame is fine, which is what "a refusal and not a fatal
 	// error" has to mean.
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	voe_ui_button_begin(ui, "same", 0);
 	voe_ui_end(ui);
 	voe_ui_button_begin(ui, "same", 1);
@@ -386,14 +392,16 @@ static void the_same_name_under_two_panels_is_two_widgets(voe_ui_context *ui,
 						 .over = true });
 	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
 
-	voe_ui_panel_begin(ui, "left", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "left", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	first = voe_ui_button_begin(ui, "go", 0);
 	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
 		   (voe_ui_sizing){ 0 });
 	voe_ui_end(ui);
 	voe_ui_end(ui);
 
-	voe_ui_panel_begin(ui, "right", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "right", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	second = voe_ui_button_begin(ui, "go", 0);
 	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
 		   (voe_ui_sizing){ 0 });
@@ -448,7 +456,8 @@ static struct number_frame build_number(voe_ui_context *ui,
 						 .down = down,
 						 .fine = fine });
 
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	if (boxes > 0) {
 		f.n = voe_ui_number_begin(ui, "n", 0, START, PER_MM);
 		voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
@@ -726,7 +735,8 @@ static void a_number_and_a_button_sharing_a_key_refuse_the_frame(
 	fprintf(stderr, "-- the next voe_ui line is this test's own --\n");
 
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	voe_ui_button_begin(ui, "same", 0);
 	voe_ui_end(ui);
 	voe_ui_number_begin(ui, "same", 0, START, PER_MM);
@@ -737,7 +747,8 @@ static void a_number_and_a_button_sharing_a_key_refuse_the_frame(
 
 	// And the next frame is fine, which is what a refusal has to mean.
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	voe_ui_button_begin(ui, "same", 0);
 	voe_ui_end(ui);
 	voe_ui_number_begin(ui, "same", 1, START, PER_MM);
@@ -747,68 +758,159 @@ static void a_number_and_a_button_sharing_a_key_refuse_the_frame(
 	VOE_TEST_CHECK(voe_ui_frame_end(ui));
 }
 
-// A known tree, a known list. Three records: the panel's background, then each
-// button's, in the order they were called. The boxes inside the buttons draw
-// nothing, and nothing is emitted for them.
+// A known tree, a known list. Six records: the panel's border and its fill,
+// then each button's border and its fill, in the order they were called
+// (ADR-0171: a bordered widget is two records and not one). The boxes inside
+// the buttons draw nothing, and nothing is emitted for them.
 static void a_known_tree_emits_a_known_list(voe_ui_context *ui,
 					    voe_base_arena *arena)
 {
 	struct frame f = build(ui, arena, IN_A, true, false, 2);
-	voe_render_element panel;
-	voe_render_element a;
-	voe_render_element b;
+	voe_render_element panel_border;
+	voe_render_element panel_fill;
+	voe_render_element a_border;
+	voe_render_element a_fill;
+	voe_render_element b_border;
+	voe_render_element b_fill;
 
 	VOE_TEST_CHECK(f.ok);
-	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 3);
-	if (voe_ui_element_count(ui) != 3)
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 6);
+	if (voe_ui_element_count(ui) != 6)
 		return;
 
-	panel = voe_ui_element(ui, 0);
-	a = voe_ui_element(ui, 1);
-	b = voe_ui_element(ui, 2);
+	panel_border = voe_ui_element(ui, 0);
+	panel_fill = voe_ui_element(ui, 1);
+	a_border = voe_ui_element(ui, 2);
+	a_fill = voe_ui_element(ui, 3);
+	b_border = voe_ui_element(ui, 4);
+	b_fill = voe_ui_element(ui, 5);
 
-	// THE PANEL'S BACKGROUND COMES FIRST, which is the claim: paint order
-	// is submission order and a parent is submitted before its children.
-	// Reversed, the panel would cover both buttons and the interface would
-	// look like a plain rectangle.
-	VOE_TEST_CHECK_FLOAT(panel.bounds.z, 33.0f, 0.001f);
-	VOE_TEST_CHECK_FLOAT(panel.bounds.w, 41.0f, 0.001f);
-	VOE_TEST_CHECK_FLOAT(panel.colour.w, PANEL.w, 0.001f);
+	// THE PANEL'S BORDER AND FILL COME FIRST, IN THAT ORDER, which is the
+	// claim: paint order is submission order, a parent is submitted before
+	// its children, and a border is submitted before the fill drawn over
+	// its middle. Reversed at either level, something would cover what
+	// should be in front of it.
+	VOE_TEST_CHECK_FLOAT(panel_border.bounds.z, 33.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(panel_border.bounds.w, 41.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(panel_fill.bounds.z, 33.0f - 0.6f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(panel_fill.bounds.w, 41.0f - 0.6f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(panel_border.colour.x, TEST_THEME.border.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(panel_fill.colour.x, TEST_THEME.surface.x, 0.001f);
 
 	// A COPY AND NOT A CONVERSION: min is the xy and size is the zw, and
-	// there is no arithmetic between voe_ui_node_rect and this.
-	VOE_TEST_CHECK_FLOAT(a.bounds.x, 4.0f, 0.001f);
-	VOE_TEST_CHECK_FLOAT(a.bounds.y, A_Y, 0.001f);
-	VOE_TEST_CHECK_FLOAT(a.bounds.z, BUTTON_WIDE, 0.001f);
-	VOE_TEST_CHECK_FLOAT(a.bounds.w, BUTTON_HIGH, 0.001f);
-	VOE_TEST_CHECK_FLOAT(b.bounds.y, B_Y, 0.001f);
+	// there is no arithmetic between voe_ui_node_rect and a border's own
+	// bounds.
+	VOE_TEST_CHECK_FLOAT(a_border.bounds.x, 4.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(a_border.bounds.y, A_Y, 0.001f);
+	VOE_TEST_CHECK_FLOAT(a_border.bounds.z, BUTTON_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(a_border.bounds.w, BUTTON_HIGH, 0.001f);
+	VOE_TEST_CHECK_FLOAT(b_border.bounds.y, B_Y, 0.001f);
 
 	// NOT A ZEROED CLIP, WHICH WOULD CLIP EVERY ONE OF THEM AWAY. Its own
 	// bounds, so nothing is clipped and card 035 has something to narrow.
-	VOE_TEST_CHECK_FLOAT(a.clip.x, a.bounds.x, 0.001f);
-	VOE_TEST_CHECK_FLOAT(a.clip.z, a.bounds.z, 0.001f);
+	VOE_TEST_CHECK_FLOAT(a_border.clip.x, a_border.bounds.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(a_border.clip.z, a_border.bounds.z, 0.001f);
 
-	VOE_TEST_CHECK_INT((int)a.kind, (int)VOE_RENDER_ELEMENT_SOLID);
+	VOE_TEST_CHECK_INT((int)a_border.kind, (int)VOE_RENDER_ELEMENT_SOLID);
 
-	// The hovered button is not the same colour as the other one, which is
-	// the whole of what a visual state is.
-	VOE_TEST_CHECK(a.colour.x != b.colour.x || a.colour.y != b.colour.y ||
-		       a.colour.z != b.colour.z);
+	// The hovered button's fill is not the same colour as the other one's,
+	// which is the whole of what a visual state is; their borders, being
+	// the border role whatever their state, are the same.
+	VOE_TEST_CHECK(a_fill.colour.x != b_fill.colour.x ||
+		       a_fill.colour.y != b_fill.colour.y ||
+		       a_fill.colour.z != b_fill.colour.z);
+	VOE_TEST_CHECK_FLOAT(a_border.colour.x, b_border.colour.x, 0.001f);
 }
 
-// An alpha of nought is not a transparent rectangle. It is no record at all.
+// NONE is not a transparent rectangle. It is no record at all.
 static void a_transparent_panel_emits_nothing(voe_ui_context *ui,
 					      voe_base_arena *arena)
 {
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "invisible", 0,
-			   (voe_math_float4){ 0.5f, 0.5f, 0.5f, 0.0f },
+	voe_ui_panel_begin(ui, "invisible", 0, VOE_UI_SURFACE_NONE,
 			   (voe_ui_container){ .pad = pad_all(6.0f) });
 	voe_ui_box(ui, (voe_math_float2){ 10.0f, 10.0f }, (voe_ui_sizing){ 0 });
 	voe_ui_end(ui);
 	VOE_TEST_CHECK(voe_ui_frame_end(ui));
 
 	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 0);
+}
+
+// ------------------------------------------------------------- the theme
+
+// A theme with a different surface_separation than TEST_THEME's, so its
+// `control` role is a different lightness — the signal these cases read to
+// tell which theme a widget actually drew with.
+static voe_ui_theme derive_variant(float surface_separation)
+{
+	voe_ui_theme_inputs inputs = voe_ui_theme_default_inputs();
+
+	inputs.surface_separation = surface_separation;
+	return voe_ui_theme_derive(&inputs, NULL);
+}
+
+// THE NEAREST THEME WINS (ADR-0170), AND A POP RESTORES THE ONE ABOVE IT.
+// Three buttons in a row: the first before any push, reading TEST_THEME; the
+// second between a push and its pop, reading the pushed theme; the third
+// after the pop, back to TEST_THEME. A button's fill is the second of its two
+// records (its border comes first), and it is `control` at rest.
+static void the_nearest_theme_wins_and_a_pop_restores_it(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_theme inner = derive_variant(2.0f);
+
+	VOE_TEST_CHECK(inner.control.x != TEST_THEME.control.x);
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_row_begin(ui, (voe_ui_container){ .gap = 1.0f });
+	voe_ui_button_begin(ui, "outer", 0);
+	voe_ui_end(ui);
+	voe_ui_theme_push(ui, &inner);
+	voe_ui_button_begin(ui, "inner", 0);
+	voe_ui_end(ui);
+	voe_ui_theme_pop(ui);
+	voe_ui_button_begin(ui, "after", 0);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 6);
+	if (voe_ui_element_count(ui) != 6)
+		return;
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 1).colour.x,
+			     TEST_THEME.control.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 3).colour.x, inner.control.x,
+			     0.001f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 5).colour.x,
+			     TEST_THEME.control.x, 0.001f);
+}
+
+// AN UNMATCHED PUSH REFUSES THE FRAME the way a duplicate key does: reported
+// once on stderr, every rectangle in the frame nought, and the next frame
+// laying out normally.
+static void an_unbalanced_push_refuses_the_frame(voe_ui_context *ui,
+						 voe_base_arena *arena)
+{
+	fprintf(stderr, "-- the next voe_ui line is this test's own --\n");
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_row_begin(ui, (voe_ui_container){ 0 });
+	voe_ui_theme_push(ui, &TEST_THEME);
+	voe_ui_button_begin(ui, "unpopped", 0);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(!voe_ui_frame_end(ui));
+
+	// And the next frame is fine, which is what a refusal has to mean.
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_row_begin(ui, (voe_ui_container){ 0 });
+	voe_ui_button_begin(ui, "unpopped", 0);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
 }
 
 // A frame that emits more than it was given is refused, the same way one that
@@ -818,10 +920,12 @@ static void too_many_elements_refuses_the_frame(voe_base_arena *arena)
 	voe_ui_context *ui = voe_ui_context_new(
 		arena, (voe_ui_capacities){ .nodes = 8, .elements = 1 });
 
+	voe_ui_theme_set(ui, &TEST_THEME);
 	fprintf(stderr, "-- the next voe_ui line is this test's own --\n");
 
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	voe_ui_button_begin(ui, "a", 0);
 	voe_ui_end(ui);
 	voe_ui_end(ui);
@@ -867,25 +971,38 @@ static struct frame build_clipped(voe_ui_context *ui, voe_base_arena *arena,
 
 // ONE RECORD, FOR THE HALF THAT IS SEEN: its bounds the whole button, its clip
 // the left 12.5 of it. The wholly clipped button emits nothing and takes no
-// capacity, which the count says.
+// capacity, which the count says. The seen half is TWO records now — its
+// border, then its fill inset from every edge — and both are narrowed to the
+// same clip (ADR-0171).
+#define BORDER_WIDE 0.3f
+
 static void a_half_clipped_button_emits_its_visible_half(voe_ui_context *ui,
 							 voe_base_arena *arena)
 {
 	struct frame f = build_clipped(ui, arena, (voe_math_float2){ 0 }, false);
-	voe_render_element e;
+	voe_render_element border;
+	voe_render_element fill;
 
 	VOE_TEST_CHECK(f.ok);
-	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 1);
-	if (voe_ui_element_count(ui) != 1)
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 2);
+	if (voe_ui_element_count(ui) != 2)
 		return;
 
-	e = voe_ui_element(ui, 0);
-	VOE_TEST_CHECK_FLOAT(e.bounds.x, 0.0f, 0.001f);
-	VOE_TEST_CHECK_FLOAT(e.bounds.z, BUTTON_WIDE, 0.001f);
-	VOE_TEST_CHECK_FLOAT(e.clip.x, 0.0f, 0.001f);
-	VOE_TEST_CHECK_FLOAT(e.clip.y, 0.0f, 0.001f);
-	VOE_TEST_CHECK_FLOAT(e.clip.z, HALF_WIDE, 0.001f);
-	VOE_TEST_CHECK_FLOAT(e.clip.w, BUTTON_HIGH, 0.001f);
+	border = voe_ui_element(ui, 0);
+	fill = voe_ui_element(ui, 1);
+
+	VOE_TEST_CHECK_FLOAT(border.bounds.x, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(border.bounds.z, BUTTON_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(border.clip.x, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(border.clip.y, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(border.clip.z, HALF_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(border.clip.w, BUTTON_HIGH, 0.001f);
+
+	VOE_TEST_CHECK_FLOAT(fill.bounds.x, BORDER_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(fill.bounds.z, BUTTON_WIDE - 2.0f * BORDER_WIDE,
+			     0.001f);
+	VOE_TEST_CHECK_FLOAT(fill.clip.x, BORDER_WIDE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(fill.clip.z, HALF_WIDE - BORDER_WIDE, 0.001f);
 }
 
 // THE POINTER HITS WHAT IS SEEN. Over the visible half the button is hovered; over
@@ -1009,10 +1126,14 @@ struct area_frame {
 
 static voe_ui_context *scroll_context(voe_base_arena *arena, uint32_t scrolls)
 {
-	return voe_ui_context_new(arena,
-				  (voe_ui_capacities){ .nodes = 64,
-						       .elements = 64,
-						       .scrolls = scrolls });
+	voe_ui_context *ui =
+		voe_ui_context_new(arena, (voe_ui_capacities){
+						   .nodes = 64,
+						   .elements = 64,
+						   .scrolls = scrolls });
+
+	voe_ui_theme_set(ui, &TEST_THEME);
+	return ui;
 }
 
 static voe_ui_pointer pointer_at(float x, float y, bool down, float scroll_y)
@@ -1470,103 +1591,115 @@ static void two_images_are_two_records_in_call_order(voe_ui_context *ui,
 			   IMAGE_TWO_TEXTURE, IMAGE_TWO_SHEET);
 }
 
-// ---------------------------------------------------------- the text scale
+// ---------------------------------------------------------- the theme's size
 
 // The one case that needs a font, and so a device. See this file's header.
 //
-// A COLUMN OF TWO LABELS, MEASURED AT 1.0 AND AT 1.5. What must grow is the
-// labels; what must not is the gap between them or the padding round them, and
-// the way to say both at once is that the column's height grows by exactly the
-// labels' growth and by nothing else.
+// A COLUMN OF TWO LABELS, MEASURED UNDER A PUSHED THEME OF A GIVEN text_size.
+// What must grow is the labels; what must not is the gap between them or the
+// padding round them, and the way to say both at once is that the column's
+// height grows by exactly the labels' growth and by nothing else.
 #define SCALE_GAP 3.0f
 #define SCALE_PAD 4.0f
 
 static float labelled_column_height(voe_ui_context *ui, voe_base_arena *arena,
-				    float scale)
+				    const voe_ui_theme *theme)
 {
 	voe_ui_node column;
 
-	voe_ui_text_scale_set(ui, scale);
-
 	voe_ui_frame_begin(ui, arena);
+	voe_ui_theme_push(ui, theme);
 	column = voe_ui_column_begin(ui, (voe_ui_container){
 						.gap = SCALE_GAP,
 						.pad = pad_all(SCALE_PAD) });
 	voe_ui_label(ui, "Measure me");
 	voe_ui_label(ui, "Measure me");
 	voe_ui_end(ui);
+	voe_ui_theme_pop(ui);
 	VOE_TEST_CHECK(voe_ui_frame_end(ui));
 
 	return voe_ui_node_rect(ui, column).size.y;
 }
 
-static void a_bigger_text_scale_grows_the_row_and_not_the_gaps(
+static void a_bigger_theme_grows_the_row_and_not_the_gaps(
 	voe_ui_context *ui, voe_base_arena *arena)
 {
-	float one = labelled_column_height(ui, arena, 1.0f);
-	float half_again = labelled_column_height(ui, arena, 1.5f);
-	float labels_at_one = one - SCALE_GAP - 2.0f * SCALE_PAD;
+	voe_ui_theme_inputs inputs = voe_ui_theme_default_inputs();
+	voe_ui_theme normal = voe_ui_theme_derive(&inputs, NULL);
+	voe_ui_theme bigger;
+	float one;
+	float half_again;
+	float labels_at_one;
+
+	inputs.text_size *= 1.5f;
+	bigger = voe_ui_theme_derive(&inputs, NULL);
+
+	one = labelled_column_height(ui, arena, &normal);
+	half_again = labelled_column_height(ui, arena, &bigger);
+	labels_at_one = one - SCALE_GAP - 2.0f * SCALE_PAD;
 
 	// The labels are real: a measured string has a height.
 	VOE_TEST_CHECK(labels_at_one > 0.0f);
 
 	// Half again as much room for the labels, and the gap and the padding
-	// exactly where they were. If the scale had been applied to the whole
-	// column instead, this would come out at 1.5 * one.
+	// exactly where they were. If the bigger text_size had been applied to
+	// the whole column instead, this would come out at 1.5 * one.
 	VOE_TEST_CHECK_FLOAT(half_again,
 			     labels_at_one * 1.5f + SCALE_GAP +
 				     2.0f * SCALE_PAD,
 			     0.01f);
 	VOE_TEST_CHECK(half_again < one * 1.5f);
-
-	voe_ui_text_scale_set(ui, 1.0f);
 }
 
 // A label is one record per character that draws and none for a space, and its
-// letters come after the panel behind them.
+// letters come after the panel's border and fill behind them.
 static void a_label_emits_its_letters_after_the_panel(voe_ui_context *ui,
 						      voe_base_arena *arena)
 {
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL,
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
 			   (voe_ui_container){ .pad = pad_all(2.0f) });
 	voe_ui_label(ui, "A B");
 	voe_ui_end(ui);
 	VOE_TEST_CHECK(voe_ui_frame_end(ui));
 
-	// The panel, then A, then B. The space costs nothing.
-	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 3);
-	if (voe_ui_element_count(ui) != 3)
+	// The panel's border, its fill, then A, then B. The space costs
+	// nothing.
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 4);
+	if (voe_ui_element_count(ui) != 4)
 		return;
 
 	VOE_TEST_CHECK_INT((int)voe_ui_element(ui, 0).kind,
 			   (int)VOE_RENDER_ELEMENT_SOLID);
 	VOE_TEST_CHECK_INT((int)voe_ui_element(ui, 1).kind,
-			   (int)VOE_RENDER_ELEMENT_GLYPH);
+			   (int)VOE_RENDER_ELEMENT_SOLID);
 	VOE_TEST_CHECK_INT((int)voe_ui_element(ui, 2).kind,
+			   (int)VOE_RENDER_ELEMENT_GLYPH);
+	VOE_TEST_CHECK_INT((int)voe_ui_element(ui, 3).kind,
 			   (int)VOE_RENDER_ELEMENT_GLYPH);
 
 	// Reading order, left to right.
-	VOE_TEST_CHECK(voe_ui_element(ui, 2).bounds.x >
-		       voe_ui_element(ui, 1).bounds.x);
+	VOE_TEST_CHECK(voe_ui_element(ui, 3).bounds.x >
+		       voe_ui_element(ui, 2).bounds.x);
 
 	// Inside the panel and below its top edge, not above it: the baseline
 	// is found by ADDING the ascender to the top of the label's rectangle,
 	// and getting that sign wrong puts every letter above the panel.
-	VOE_TEST_CHECK(voe_ui_element(ui, 1).bounds.y >=
+	VOE_TEST_CHECK(voe_ui_element(ui, 2).bounds.y >=
 		       voe_ui_element(ui, 0).bounds.y);
 }
 
 // A LABEL WHOLLY CLIPPED EMITS NOTHING. A panel 40 by 10 clipping both holds a
 // spacer 30 tall and then a label, which begins 20 below the panel's bottom edge.
-// Unclipped the same tree emits the panel and the label's letters; clipped it
-// emits the panel alone, and the count says so.
+// Unclipped the same tree emits the panel's border and fill and the label's
+// letters; clipped it emits the panel's border and fill alone, and the count
+// says so.
 static uint32_t clipped_label_elements(voe_ui_context *ui,
 				       voe_base_arena *arena,
 				       voe_ui_overflow_kind kind)
 {
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "clipper", 0, PANEL,
+	voe_ui_panel_begin(ui, "clipper", 0, VOE_UI_SURFACE_SURFACE,
 			   (voe_ui_container){
 				   .size = { { VOE_UI_SIZE_FIXED, 10.0f },
 					     { VOE_UI_SIZE_FIXED, 40.0f } },
@@ -1583,10 +1716,34 @@ static void a_wholly_clipped_label_emits_nothing(voe_ui_context *ui,
 						 voe_base_arena *arena)
 {
 	VOE_TEST_CHECK(clipped_label_elements(ui, arena,
-					      VOE_UI_OVERFLOW_VISIBLE) > 1);
+					      VOE_UI_OVERFLOW_VISIBLE) > 2);
 	VOE_TEST_CHECK_INT((int)clipped_label_elements(ui, arena,
 						       VOE_UI_OVERFLOW_CLIP),
-			   1);
+			   2);
+}
+
+// A LABEL IN ACCENT DRAWS IN THE ACCENT (ADR-0171's role list, task 4's
+// voe_ui_text_role), rather than the ordinary text_primary voe_ui_label
+// itself draws in.
+static void a_label_in_accent_draws_the_accent(voe_ui_context *ui,
+					       voe_base_arena *arena)
+{
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	voe_ui_label_role(ui, "A", VOE_UI_TEXT_ROLE_ACCENT);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 1);
+	if (voe_ui_element_count(ui) != 1)
+		return;
+
+	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 0).colour.x, TEST_THEME.accent.x,
+			     0.001f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 0).colour.y, TEST_THEME.accent.y,
+			     0.001f);
+	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 0).colour.z, TEST_THEME.accent.z,
+			     0.001f);
 }
 
 // ---------------------------------------------------------------- the field
@@ -1627,7 +1784,8 @@ static struct field_frame build_field(voe_ui_context *ui,
 						 .down = down });
 	voe_ui_keyboard_set(ui, keyboard);
 
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	f.f = voe_ui_field(ui, "name", 0, text, field_sizing());
 	voe_ui_end(ui);
 
@@ -1813,7 +1971,8 @@ static void a_field_not_called_loses_focus(voe_ui_context *ui,
 
 	// A frame with no field in it at all.
 	voe_ui_frame_begin(ui, arena);
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	voe_ui_end(ui);
 	ok = voe_ui_frame_end(ui);
 	VOE_TEST_CHECK(ok);
@@ -1831,7 +1990,8 @@ static void voe_ui_field_focus_takes_it(voe_ui_context *ui,
 
 	voe_ui_frame_begin(ui, arena);
 	voe_ui_pointer_set(ui, (voe_ui_pointer){ 0 });
-	voe_ui_panel_begin(ui, "panel", 0, PANEL, (voe_ui_container){ 0 });
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
 	f = voe_ui_field(ui, "name", 0, "hi", field_sizing());
 	voe_ui_field_focus(ui, f);
 	voe_ui_end(ui);
@@ -1888,7 +2048,9 @@ static int the_field(voe_base_arena *arena)
 		return 0;
 	}
 
-	font = voe_text_font_new(device, arena, &error);
+	// Oxanium: nothing here cares which face, so the engine's default.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, device, arena,
+				 &error);
 	if (font == NULL) {
 		VOE_TEST_CHECK(font != NULL);
 		voe_render_device_destroy(device);
@@ -1900,6 +2062,7 @@ static int the_field(voe_base_arena *arena)
 	ui = voe_ui_context_new(arena, (voe_ui_capacities){ .nodes = 32,
 							    .elements = 512 });
 	voe_ui_font_set(ui, font);
+	voe_ui_theme_set(ui, &TEST_THEME);
 
 	a_press_focuses_and_a_press_elsewhere_unfocuses(ui, arena);
 	typed_bytes_are_appended_in_order(ui, arena);
@@ -1919,7 +2082,7 @@ static int the_field(voe_base_arena *arena)
 
 // The device and the font this one case needs, and the skip that stands in for
 // them where there is no driver.
-static int the_text_scale(voe_base_arena *arena)
+static int the_theme_size(voe_base_arena *arena)
 {
 	voe_platform_size size = { 64, 64 };
 	// Nothing here draws anything. The device exists so that a font can
@@ -1955,7 +2118,9 @@ static int the_text_scale(voe_base_arena *arena)
 		return 0;
 	}
 
-	font = voe_text_font_new(device, arena, &error);
+	// Oxanium: nothing here cares which face, so the engine's default.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, device, arena,
+				 &error);
 	if (font == NULL) {
 		VOE_TEST_CHECK(font != NULL);
 		voe_render_device_destroy(device);
@@ -1965,10 +2130,12 @@ static int the_text_scale(voe_base_arena *arena)
 	ui = voe_ui_context_new(arena, (voe_ui_capacities){ .nodes = 64,
 							    .elements = 64 });
 	voe_ui_font_set(ui, font);
+	voe_ui_theme_set(ui, &TEST_THEME);
 
-	a_bigger_text_scale_grows_the_row_and_not_the_gaps(ui, arena);
+	a_bigger_theme_grows_the_row_and_not_the_gaps(ui, arena);
 	a_label_emits_its_letters_after_the_panel(ui, arena);
 	a_wholly_clipped_label_emits_nothing(ui, arena);
+	a_label_in_accent_draws_the_accent(ui, arena);
 
 	voe_text_font_destroy(font);
 	voe_render_device_destroy(device);
@@ -1978,8 +2145,14 @@ static int the_text_scale(voe_base_arena *arena)
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ui_context *ui = voe_ui_context_new(
+	voe_ui_context *ui;
+	voe_ui_theme_inputs inputs = voe_ui_theme_default_inputs();
+
+	TEST_THEME = voe_ui_theme_derive(&inputs, NULL);
+
+	ui = voe_ui_context_new(
 		arena, (voe_ui_capacities){ .nodes = 64, .elements = 64 });
+	voe_ui_theme_set(ui, &TEST_THEME);
 
 	the_tree_is_where_the_tests_think_it_is(ui, arena);
 	a_pointer_over_a_button_hovers_it(ui, arena);
@@ -2003,6 +2176,8 @@ int main(void)
 	a_number_and_a_button_sharing_a_key_refuse_the_frame(ui, arena);
 	a_known_tree_emits_a_known_list(ui, arena);
 	a_transparent_panel_emits_nothing(ui, arena);
+	the_nearest_theme_wins_and_a_pop_restores_it(ui, arena);
+	an_unbalanced_push_refuses_the_frame(ui, arena);
 	two_images_are_two_records_in_call_order(ui, arena);
 	a_half_clipped_button_emits_its_visible_half(ui, arena);
 	a_pointer_over_the_clipped_half_hovers_nothing(ui, arena);
@@ -2018,7 +2193,7 @@ int main(void)
 	a_thumb_hides_the_button_beneath_it(arena);
 	too_many_scroll_areas_refuses_the_frame(arena);
 
-	(void)the_text_scale(arena);
+	(void)the_theme_size(arena);
 	(void)the_field(arena);
 
 	voe_base_arena_destroy(arena);

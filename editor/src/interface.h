@@ -54,8 +54,15 @@
 //
 // AND EACH OF THEM COSTS UP TO FOUR ELEMENT RECORDS OF ITS OWN, on top of
 // everything the panel draws: a track and a thumb on each of the two axes, when
-// both bars show. So the records below are the 512 the panels had before this
-// feature plus 2 areas × 4 = 8 for their bars.
+// both bars show. The 512 predates any itemized count and is left as it stands
+// except for the two things named here that ADR-0171's border touches: dock.c's
+// two leaf panels, Scene and Inspector, whose one background each is now a
+// border and a fill (+2), and the Scene list's own rows — dock.c's
+// voe_ui_button_begin(ui, "entity", i), up to VOE_EDITOR_SCENE_ROWS (scene.h,
+// 32) of them — each a button and so gaining the same second record (+32).
+// DEVIATION: the 512 is not decomposed beyond those two named contributors;
+// whatever else it loosely covers is left as it stood. 512 + 2 + 32 = 546,
+// before this feature's own 2 areas × 4 = 8 for their bars, 554.
 //
 // THE TOP BAR (topbar.h) AND THE COLUMN THIS FILE OPENS OVER IT ADD ELEVEN
 // NODES AT MOST: the column itself, one; topbar.h's own panel and the row
@@ -63,13 +70,14 @@
 // each, six; and one label each for the project's name and the notice. That
 // is 128 + 11 = 139 nodes.
 //
-// AND THEY ADD FOUR BACKGROUNDS, ELEVEN CHARACTERS AND ROOM FOR TWO HUNDRED
-// MORE. The column and the row draw none of their own; the panel's
-// background and each button's are four, the eleven characters "New", "Open"
-// and "Save" draw between them are eleven, and two hundred more is generous
-// for whatever a project's name and a notice's line come to — neither this
-// file nor topbar.h puts a limit on how long either string is. That is
-// 520 + 4 + 11 + 200 = 735 elements.
+// AND THEY ADD EIGHT BACKGROUNDS, ELEVEN CHARACTERS AND ROOM FOR TWO HUNDRED
+// MORE. The column and the row draw none of their own; the panel and each of
+// the three buttons draw a hairline border now (ADR-0171), two records apiece
+// where one used to do — eight where four used to be; the eleven characters
+// "New", "Open" and "Save" draw between them are eleven, and two hundred more
+// is generous for whatever a project's name and a notice's line come to —
+// neither this file nor topbar.h puts a limit on how long either string is.
+// That is 554 + 8 + 11 + 200 = 773 elements.
 //
 // THE BROWSER (browser.h), WHEN IT SHOWS, ADDS ANOTHER SCROLL AREA — ITS OWN
 // LIST OF ROWS — ON TOP OF THE DOCK'S TWO, so VOE_EDITOR_INTERFACE_SCROLLS is
@@ -85,34 +93,57 @@
 // a button and a label each, four. That is 11 + 96 = 107, and 139 + 107 = 246
 // nodes.
 //
-// AND 1198 MORE ELEMENTS. Exactly, on top of what is generous: the panel's
-// background and each of the Up, Confirm and Cancel buttons' are four; "Up"
-// draws two characters, "Cancel" six, and "Save here" — the longer of the
-// two Confirm ever shows, its one space drawing nothing — eight; the
-// scrollbar up to two; and every one of the 32 rows may read
-// " — project", whose em dash and "project" draw eight characters and
-// whose two spaces draw none, twenty-eight backgrounds and marks after the
-// four above already counted for the fixed buttons — that is
-// 4 + 2 + 6 + 8 + 2 + 32 × (1 + 8) = 310. And generous, exactly as a
-// project's name and a notice's line are above: a hundred and twenty
-// characters for the current path, and twenty-four apiece for the 32 rows'
-// own folder names, neither of which this file nor browser.h puts a limit
-// on — 120 + 32 × 24 = 888. That is 310 + 888 = 1198, and 735 + 1198 = 1933
-// elements.
+// AND 1234 MORE ELEMENTS. Exactly, on top of what is generous: the panel's
+// background and each of the Up, Confirm and Cancel buttons' are eight now,
+// each drawing a hairline border (ADR-0171), two records apiece where one
+// used to do; "Up" draws two characters, "Cancel" six, and "Save here" — the
+// longer of the two Confirm ever shows, its one space drawing nothing —
+// eight; the scrollbar up to two; and every one of the 32 rows is a button
+// too, so its own background is two rather than one, and it may read
+// " — project", whose em dash and "project" draw eight characters and whose
+// two spaces draw none — that is 8 + 2 + 6 + 8 + 2 + 32 × (2 + 8) = 346. And
+// generous, exactly as a project's name and a notice's line are above: a
+// hundred and twenty characters for the current path, and twenty-four
+// apiece for the 32 rows' own folder names, neither of which this file nor
+// browser.h puts a limit on — 120 + 32 × 24 = 888. That is 346 + 888 = 1234,
+// and 773 + 1234 = 2007 elements.
 //
 // AND, IN SAVE MODE, THE NAME ROW (browser.h, task 14) ADDS FOUR MORE NODES:
 // a field costs two — itself and the label it composes (ui/widgets.h) — and
 // Make folder, a button with a label, costs two more. 246 + 4 = 250 nodes.
 //
-// AND 269 MORE ELEMENTS, BOUNDED BY THE FIELD'S OWN DECLARED CAPACITY RATHER
-// THAN A GUESS. The field's background and its caret while focused are two;
-// up to VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed is the
-// honest ceiling, there being nowhere shorter this file could point to; that
-// is 258. Make folder's background and its ten letters ("Make folder", the
-// one space between them drawing nothing) are eleven more. 258 + 11 = 269,
-// and 1933 + 269 = 2202 elements.
-#define VOE_EDITOR_INTERFACE_NODES 250
-#define VOE_EDITOR_INTERFACE_ELEMENTS 2202
+// AND 270 MORE ELEMENTS, BOUNDED BY THE FIELD'S OWN DECLARED CAPACITY RATHER
+// THAN A GUESS. The field draws no border — only a panel and a button do
+// (ADR-0171) — so its background and its caret while focused stay two; up to
+// VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed is the honest
+// ceiling, there being nowhere shorter this file could point to; that is 258.
+// Make folder IS a button, so its background is two now rather than one,
+// plus its ten letters ("Make folder", the one space between them drawing
+// nothing) — twelve more. 258 + 12 = 270, and 2007 + 270 = 2277 elements.
+//
+// AND INSPECTOR.C'S PER-COMPONENT PANELS, NAMED BY NEITHER NUMBER ABOVE UNTIL
+// NOW. Every component type the selected entity has a row of gets its own
+// RAISED panel (inspector.c's component_panel), and this editor's world never
+// holds more than eight component types at once — project.c's world_new is
+// the only place that decides it, and ecs/component.h asserts rather than
+// lets a world grow past what it was made with — so at most eight are drawn
+// a frame. Each is a panel and its heading label, two nodes, and — the
+// border ADR-0171 draws — two elements for the border and the fill plus
+// twenty-four generous for whatever its component's key is named, this file
+// naming none of them (inspector.h's own claim). 8 × 2 = 16 nodes,
+// 8 × 26 = 208 elements.
+//
+// AND ITS ROWS, BOUNDED BY VOE_EDITOR_INSPECTOR_CONTROLS (inspector.h)
+// RATHER THAN BY WHAT ANY ONE COMPONENT DESCRIBES: at most 64 across every
+// panel together, three nodes each as inspector.h already counts —
+// 192 nodes. The most one costs is a boolean's button rather than a number
+// box's plain rectangle — two elements for its own border and fill
+// (ADR-0171) — plus sixteen generous for the field's name and the word it
+// shows, neither of which this file nor inspector.c puts a limit on.
+// 64 × (2 + 16) = 1152 elements. 250 + 16 + 192 = 458 nodes, and
+// 2277 + 208 + 1152 = 3637 elements.
+#define VOE_EDITOR_INTERFACE_NODES 458
+#define VOE_EDITOR_INTERFACE_ELEMENTS 3637
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once. It lives in `arena` and is

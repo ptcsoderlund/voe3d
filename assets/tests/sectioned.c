@@ -303,6 +303,41 @@ static void empty_things_are_legal(voe_base_arena *arena)
 	reads_as(arena, "[A]\nx=   \n", "A", "x", "");
 }
 
+// A section and a key carry the 1-based physical line they were read from —
+// counting every line, comments and blanks included, and not just the ones
+// that came back as something.
+static void a_section_and_a_key_carry_their_line(voe_base_arena *arena)
+{
+	voe_assets_sectioned doc;
+
+	// Across a blank line and a comment before the first section: the
+	// section is not on line 1.
+	VOE_TEST_CHECK(parse(arena,
+			     "\n"
+			     "// a comment\n"
+			     "[A]\n"
+			     "x=1\n",
+			     &doc));
+	VOE_TEST_CHECK_INT(doc.sections[0].line, 3);
+	VOE_TEST_CHECK_INT(doc.keys[0].line, 4);
+
+	// Across a blank line and a comment between the section and its key.
+	VOE_TEST_CHECK(parse(arena,
+			     "[A]\n"
+			     "\n"
+			     "// a comment\n"
+			     "x=1\n",
+			     &doc));
+	VOE_TEST_CHECK_INT(doc.sections[0].line, 1);
+	VOE_TEST_CHECK_INT(doc.keys[0].line, 4);
+
+	// `\r\n` endings count the same as `\n`.
+	VOE_TEST_CHECK(parse(arena, "[A]\r\nx=1\r\ny=2\r\n", &doc));
+	VOE_TEST_CHECK_INT(doc.sections[0].line, 1);
+	VOE_TEST_CHECK_INT(doc.keys[0].line, 2);
+	VOE_TEST_CHECK_INT(doc.keys[1].line, 3);
+}
+
 // `\r\n` reads as `\n`, and the last line need not end at all.
 static void line_endings(voe_base_arena *arena)
 {
@@ -387,6 +422,7 @@ int main(void)
 	a_key_belongs_to_a_section(arena);
 	a_comment_is_a_whole_line(arena);
 	empty_things_are_legal(arena);
+	a_section_and_a_key_carry_their_line(arena);
 	line_endings(arena);
 	broken_lines_are_refused(arena);
 	the_size_is_the_end(arena);

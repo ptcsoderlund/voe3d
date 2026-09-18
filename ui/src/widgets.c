@@ -209,65 +209,45 @@
 
 #include <string.h>
 
-// CARD 036 REPLACES EVERY COLOUR IN THIS BLOCK AND THEY ARE HERE SO THAT IT HAS
-// SOMETHING TO REPLACE. Three states and an ink, written as constants in one
-// place: a struct of named roles here would be the theme arriving early and
-// badly, and the whole of a theme is a decision this card does not get to make.
+// EVERY COLOUR BELOW IS A THEME ROLE NOW (ADR-0170, ADR-0171), READ FROM
+// WHICHEVER WIDGET RECORD ASKS FOR ONE — there is no constant left in this file
+// for a button's, a panel's, a field's, a caret's or a scrollbar's colour. See
+// state_colour, field_colour, surface_colour and push_scrollbar for where each
+// widget picks its role, and ui/theme.h for what the roles are and how they are
+// derived.
 //
-// THEY ARE LINEAR, like every colour that crosses render's boundary, so they
-// look further apart on screen than the numbers do. And they are STRAIGHT, not
-// premultiplied — the shader multiplies rgb by a once, at output (ADR-0069), and
-// doing it here as well gives an interface that reads as washed out rather than
-// as wrong.
-static const voe_math_float4 BUTTON_NORMAL = { 0.14f, 0.15f, 0.17f, 1.0f };
-static const voe_math_float4 BUTTON_HOVERED = { 0.28f, 0.30f, 0.34f, 1.0f };
-static const voe_math_float4 BUTTON_HELD = { 0.02f, 0.20f, 0.48f, 1.0f };
-static const voe_math_float4 LABEL_INK = { 0.85f, 0.87f, 0.90f, 1.0f };
-
-// A FIELD'S FOURTH STATE, beside the three above it shares with a button. Held
-// beats it, because that is a press in progress and this is a standing state;
-// it beats hovered and normal, because a field being focused is worth seeing
-// whether or not the pointer happens to still be over it.
-static const voe_math_float4 FIELD_FOCUSED = { 0.10f, 0.28f, 0.22f, 1.0f };
-
-// NOT A THEME COLOUR AND CARD 036 LEAVES IT ALONE. An image record's colour
+// NOT A THEME COLOUR, AND IT STAYS A CONSTANT: an image record's colour
 // multiplies the picture, and opaque white is the one value that shows the
 // picture as it is. There is no tint argument, so there is nothing else it could
-// be.
+// be, and no theme could name one either.
 static const voe_math_float4 IMAGE_AS_IT_IS = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-// How many millimetres one em is, before the text scale. Card 036 owns this one
-// as well: a text size is a thing a theme says, and until there is a theme it is
-// a number here with the font's own measurements multiplied by it.
-#define TEXT_EM 4.0f
 
 // Inside every edge of a button, in millimetres. Its size is otherwise entirely
 // its label's, so this is the whole of what makes a button bigger than the word
-// in it.
-// The same on all four sides, which is what a button wants and what the four
-// numbers make explicit rather than assume.
+// in it. The same on all four sides, which is what a button wants and what the
+// four numbers make explicit rather than assume.
 //
-// A NUMBER BOX AND A FIELD USE IT TOO, and share the colours above, because
-// both are meant to look like a button — a thing you put the pointer on and
-// press. One constant and not a copy, so that card 036 replaces it once.
+// A NUMBER BOX AND A FIELD USE IT TOO, because both are meant to look like a
+// button — a thing you put the pointer on and press.
 #define BUTTON_PAD                                                             \
 	((voe_ui_pad){ 2.5f, 2.5f, 2.5f, 2.5f })
 
 // A field's caret, in millimetres wide and as tall as its label's own
-// rectangle. Card 036 replaces this beside the rest.
+// rectangle.
 #define FIELD_CARET_WIDE 0.3f
 
-// A scroll area's bar, in millimetres, until a theme says otherwise — card 036
-// replaces these beside the button's. The thumb is never shorter than the
+// A panel's and a button's hairline border, in millimetres on every side
+// (ADR-0171) — the one width this folder draws a border at, so a change to how
+// thick "hairline" is is one number. Not in ui/theme.h: the border's COLOUR is
+// a role and the theme's to say, but how wide the rectangle it is drawn as is
+// a layout fact about this folder's widgets and not a colour at all.
+#define HAIRLINE_WIDE 0.3f
+
+// A scroll area's bar, in millimetres. The thumb is never shorter than the
 // minimum, so a very long list still has something to take hold of; where the
 // track itself is shorter, the thumb is the track.
 #define SCROLL_THICKNESS 1.5f
 #define SCROLL_THUMB_MIN 5.0f
-static const voe_math_float4 SCROLL_TRACK = { 0.02f, 0.02f, 0.03f, 0.6f };
-static const voe_math_float4 SCROLL_THUMB_NORMAL = { 0.28f, 0.30f, 0.34f, 1.0f };
-static const voe_math_float4 SCROLL_THUMB_HOVERED = { 0.45f, 0.48f, 0.53f,
-						      1.0f };
-static const voe_math_float4 SCROLL_THUMB_HELD = { 0.02f, 0.20f, 0.48f, 1.0f };
 
 // No scroll area, where an index into this frame's areas is expected.
 #define NO_AREA UINT32_MAX
@@ -486,16 +466,6 @@ static voe_ui_rect intersect(voe_ui_rect rect, voe_ui_rect within)
 	return out;
 }
 
-// How many millimetres one em is worth on this frame's surface. The one
-// multiplication that turns a font's own unit into the surface's, and it happens
-// here so that everything downstream — a natural size, a pen position, a glyph's
-// box — is already in millimetres. See widgets.h on how it composes with the
-// surface's own scale.
-static float em_millimetres(const voe_ui_context *ui)
-{
-	return TEXT_EM * ui->text_scale;
-}
-
 void voe_ui_font_set(voe_ui_context *ui, const voe_text_font *font)
 {
 	VOE_BASE_ASSERT(ui != NULL, "giving a font to no context");
@@ -504,12 +474,67 @@ void voe_ui_font_set(voe_ui_context *ui, const voe_text_font *font)
 	ui->font = font;
 }
 
-void voe_ui_text_scale_set(voe_ui_context *ui, float scale)
+// The theme in force right now: the top of the push stack, or the base one
+// voe_ui_theme_set gave the context when nothing is pushed. NULL when
+// neither has happened, which every caller of this asserts against before
+// using what it returns — see voe_ui_theme_push's and voe_ui_theme_pop's own
+// asserts for the stack's bookkeeping.
+static const voe_ui_theme *current_theme(const voe_ui_context *ui)
 {
-	VOE_BASE_ASSERT(ui != NULL, "setting a text scale on no context");
-	VOE_BASE_ASSERT(scale > 0.0f, "a text scale of nought or less");
+	return ui->theme_depth > 0
+		       ? ui->theme_stack[ui->theme_depth - 1].theme
+		       : ui->theme;
+}
 
-	ui->text_scale = scale;
+void voe_ui_theme_set(voe_ui_context *ui, const voe_ui_theme *theme)
+{
+	VOE_BASE_ASSERT(ui != NULL, "setting a theme on no context");
+	VOE_BASE_ASSERT(theme != NULL, "setting a context no theme");
+
+	ui->theme = theme;
+}
+
+void voe_ui_theme_push(voe_ui_context *ui, const voe_ui_theme *theme)
+{
+	VOE_BASE_ASSERT(ui != NULL, "pushing a theme on no context");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_BUILDING,
+			"pushing a theme outside a frame");
+	VOE_BASE_ASSERT(theme != NULL, "pushing no theme");
+
+	// Refused as a node past capacity is: named once, the frame carries on
+	// with `theme_depth` still counting this push through `theme_refused`
+	// instead, so the matching pop always finds something to undo. See
+	// context.h.
+	if (ui->theme_depth == ui->capacities.nodes) {
+		if (!ui->theme_overrun)
+			VOE_BASE_ERROR("ui",
+				       "theme %u refused, this context was "
+				       "created with room for %u pushed at "
+				       "once",
+				       ui->theme_depth + 1,
+				       ui->capacities.nodes);
+		ui->theme_overrun = true;
+		ui->theme_refused++;
+		return;
+	}
+
+	ui->theme_stack[ui->theme_depth++] = (struct voe_ui_theme_slot){
+		.theme = theme,
+	};
+}
+
+void voe_ui_theme_pop(voe_ui_context *ui)
+{
+	VOE_BASE_ASSERT(ui != NULL, "popping a theme on no context");
+	VOE_BASE_ASSERT(ui->state == VOE_UI_BUILDING,
+			"popping a theme outside a frame");
+	VOE_BASE_ASSERT(ui->theme_depth > 0 || ui->theme_refused > 0,
+			"popping a theme that was never pushed");
+
+	if (ui->theme_refused > 0)
+		ui->theme_refused--;
+	else
+		ui->theme_depth--;
 }
 
 void voe_ui_pointer_set(voe_ui_context *ui, voe_ui_pointer pointer)
@@ -531,21 +556,26 @@ void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard)
 }
 
 voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
-			       uint32_t index, voe_math_float4 colour,
+			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container)
 {
 	voe_ui_node node;
 	uint64_t key;
+	const voe_ui_theme *theme = current_theme(ui);
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a panel on no context");
 	VOE_BASE_ASSERT(name != NULL, "a panel with no name has no identity");
+	VOE_BASE_ASSERT(surface == VOE_UI_SURFACE_NONE || theme != NULL,
+			"a panel with a surface needs a theme: see "
+			"voe_ui_theme_set/voe_ui_theme_push");
 
 	key = claim(ui, name, index);
 
 	node = voe_ui_column_begin(ui, container);
 	if (node != VOE_UI_NODE_NONE) {
 		ui->widgets[node].kind = VOE_UI_WIDGET_PANEL;
-		ui->widgets[node].colour = colour;
+		ui->widgets[node].surface = surface;
+		ui->widgets[node].theme = theme;
 		ui->widgets[node].key = key;
 		ui->widgets[node].keyed = true;
 	}
@@ -553,9 +583,11 @@ voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
 	return node;
 }
 
-voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text)
+voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
+			      voe_ui_text_role role)
 {
 	voe_text_measure measured;
+	const voe_ui_theme *theme = current_theme(ui);
 	float em;
 	voe_ui_node node;
 
@@ -564,13 +596,16 @@ voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text)
 	VOE_BASE_ASSERT(ui->font != NULL,
 			"a label needs a font: measuring a string is the one "
 			"thing it cannot do for itself — see voe_ui_font_set");
+	VOE_BASE_ASSERT(theme != NULL,
+			"a label needs a theme: its size and its ink both "
+			"come from one — see voe_ui_theme_set/voe_ui_theme_push");
 
 	// ADR-0090: the size is the font's measurement of this string, and
 	// there is no table of advances and no assumed line height anywhere
-	// above this call. The text scale is applied HERE, before the number
-	// becomes a natural size, so that everything layout does afterwards is
-	// ordinary layout in ordinary millimetres.
-	em = em_millimetres(ui);
+	// above this call. The theme's own text_size is applied HERE, before
+	// the number becomes a natural size, so that everything layout does
+	// afterwards is ordinary layout in ordinary millimetres.
+	em = theme->text_size;
 	measured = voe_text_font_measure(ui->font, text);
 
 	node = voe_ui_box(ui,
@@ -581,9 +616,16 @@ voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text)
 		ui->widgets[node].kind = VOE_UI_WIDGET_LABEL;
 		ui->widgets[node].text = text;
 		ui->widgets[node].baseline = measured.baseline * em;
+		ui->widgets[node].theme = theme;
+		ui->widgets[node].text_role = role;
 	}
 
 	return node;
+}
+
+voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text)
+{
+	return voe_ui_label_role(ui, text, VOE_UI_TEXT_ROLE_NORMAL);
 }
 
 voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
@@ -591,9 +633,13 @@ voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
 {
 	voe_ui_node node;
 	uint64_t key;
+	const voe_ui_theme *theme = current_theme(ui);
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a button on no context");
 	VOE_BASE_ASSERT(name != NULL, "a button with no name has no identity");
+	VOE_BASE_ASSERT(theme != NULL,
+			"a button needs a theme: see "
+			"voe_ui_theme_set/voe_ui_theme_push");
 
 	key = claim(ui, name, index);
 
@@ -608,6 +654,7 @@ voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
 		ui->widgets[node].kind = VOE_UI_WIDGET_BUTTON;
 		ui->widgets[node].key = key;
 		ui->widgets[node].keyed = true;
+		ui->widgets[node].theme = theme;
 	}
 
 	return node;
@@ -619,10 +666,14 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 {
 	voe_ui_node node;
 	uint64_t key;
+	const voe_ui_theme *theme = current_theme(ui);
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a number box on no context");
 	VOE_BASE_ASSERT(name != NULL,
 			"a number box with no name has no identity");
+	VOE_BASE_ASSERT(theme != NULL,
+			"a number box needs a theme: see "
+			"voe_ui_theme_set/voe_ui_theme_push");
 
 	key = claim(ui, name, index);
 
@@ -639,6 +690,7 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 		ui->widgets[node].keyed = true;
 		ui->widgets[node].value = value;
 		ui->widgets[node].per_millimetre = per_millimetre;
+		ui->widgets[node].theme = theme;
 	}
 
 	return node;
@@ -649,10 +701,14 @@ voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
 {
 	voe_ui_node node;
 	uint64_t key;
+	const voe_ui_theme *theme = current_theme(ui);
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a field on no context");
 	VOE_BASE_ASSERT(name != NULL, "a field with no name has no identity");
 	VOE_BASE_ASSERT(text != NULL, "a field with no text");
+	VOE_BASE_ASSERT(theme != NULL,
+			"a field needs a theme: see "
+			"voe_ui_theme_set/voe_ui_theme_push");
 
 	key = claim(ui, name, index);
 
@@ -668,6 +724,7 @@ voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
 		ui->widgets[node].kind = VOE_UI_WIDGET_FIELD;
 		ui->widgets[node].key = key;
 		ui->widgets[node].keyed = true;
+		ui->widgets[node].theme = theme;
 	}
 
 	// Made and ended here, whether or not `node` is a real one: a field
@@ -744,10 +801,15 @@ voe_ui_node voe_ui_scroll_begin(voe_ui_context *ui, const char *name,
 	voe_math_float2 handed;
 	voe_ui_node node;
 	uint64_t key;
+	const voe_ui_theme *theme = current_theme(ui);
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a scroll area on no context");
 	VOE_BASE_ASSERT(name != NULL,
 			"a scroll area with no name has no identity");
+	VOE_BASE_ASSERT(theme != NULL,
+			"a scroll area needs a theme, its bar may be drawn "
+			"later in this very frame: see "
+			"voe_ui_theme_set/voe_ui_theme_push");
 	VOE_BASE_ASSERT(container.overflow.x == VOE_UI_OVERFLOW_VISIBLE &&
 				container.overflow.y == VOE_UI_OVERFLOW_VISIBLE,
 			"a scroll area's overflow is its own; it clips on both "
@@ -787,6 +849,7 @@ voe_ui_node voe_ui_scroll_begin(voe_ui_context *ui, const char *name,
 		ui->widgets[node].kind = VOE_UI_WIDGET_SCROLL;
 		ui->widgets[node].key = key;
 		ui->widgets[node].keyed = true;
+		ui->widgets[node].theme = theme;
 	}
 
 	return node;
@@ -845,6 +908,15 @@ void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 				       sizeof(*ui->scroll_areas));
 	ui->scroll_count = 0;
 	ui->scroll_overrun = false;
+
+	// Bounded by the node capacity, exactly as `open` is — see context.h.
+	// `ui->theme` itself is not reset here: it survives a frame as `font`
+	// does.
+	ui->theme_stack = voe_base_arena_push(
+		arena, (size_t)ui->capacities.nodes * sizeof(*ui->theme_stack));
+	ui->theme_depth = 0;
+	ui->theme_refused = 0;
+	ui->theme_overrun = false;
 
 	// A frame that says nothing about the pointer has none. See widgets.h.
 	ui->pointer = (voe_ui_pointer){ 0 };
@@ -1307,11 +1379,13 @@ static voe_math_float4 bounds_of(voe_ui_rect rect)
 				  rect.size.y };
 }
 
-// A node's rectangle straight across, clipped to its visible rectangle.
-static void push_rect(voe_ui_context *ui, uint32_t node,
-		      voe_math_float4 colour)
+// A record over `at`, clipped by `node`'s own clipping ancestors — the same
+// rule a node's own rectangle goes through, for a rectangle that need not be
+// it (the fill inset inside a border, for one).
+static void push_rect_at(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
+			 voe_math_float4 colour)
 {
-	voe_math_float4 bounds = bounds_of(ui->nodes[node].rect);
+	voe_math_float4 bounds = bounds_of(at);
 	voe_math_float4 clip;
 
 	if (!clip_of(ui, node, bounds, &clip))
@@ -1323,6 +1397,41 @@ static void push_rect(voe_ui_context *ui, uint32_t node,
 				 .colour = colour,
 				 .kind = VOE_RENDER_ELEMENT_SOLID,
 			 });
+}
+
+// A node's rectangle straight across, clipped to its visible rectangle.
+static void push_rect(voe_ui_context *ui, uint32_t node,
+		      voe_math_float4 colour)
+{
+	push_rect_at(ui, node, ui->nodes[node].rect, colour);
+}
+
+// `rect` moved in by `by` on every side, size nought rather than negative
+// where the inset would cross itself — a node smaller than twice the
+// hairline draws its fill at nothing rather than turned inside out.
+static voe_ui_rect inset(voe_ui_rect rect, float by)
+{
+	voe_ui_rect out = { .min = { rect.min.x + by, rect.min.y + by },
+			    .size = { rect.size.x - 2.0f * by,
+				      rect.size.y - 2.0f * by } };
+
+	if (out.size.x < 0.0f)
+		out.size.x = 0.0f;
+	if (out.size.y < 0.0f)
+		out.size.y = 0.0f;
+	return out;
+}
+
+// The hairline border, ADR-0171: the border role at the node's own bounds,
+// then `fill` inset from every edge by HAIRLINE_WIDE, painted over the
+// border's middle and leaving a rim of it showing all round. Two element
+// records for what a plain fill costs one of.
+static void push_bordered(voe_ui_context *ui, uint32_t node,
+			  voe_math_float4 fill, voe_math_float4 border)
+{
+	push_rect(ui, node, border);
+	push_rect_at(ui, node, inset(ui->nodes[node].rect, HAIRLINE_WIDE),
+		    fill);
 }
 
 // A picture over the node's rectangle, clipped as push_rect's record is. The
@@ -1356,7 +1465,8 @@ static void push_image(voe_ui_context *ui, uint32_t node)
 // is narrowed by what the label's clipping ancestors leave, which is the visible
 // rectangle's own rule, and not by the label's rectangle.
 static void push_glyph(voe_ui_context *ui, uint32_t node,
-		       voe_math_float4 bounds, voe_math_float4 sheet)
+		       voe_math_float4 bounds, voe_math_float4 sheet,
+		       voe_math_float4 ink)
 {
 	voe_math_float4 clip;
 
@@ -1366,7 +1476,7 @@ static void push_glyph(voe_ui_context *ui, uint32_t node,
 	push_element(ui, (voe_render_element){
 				 .bounds = bounds,
 				 .clip = clip,
-				 .colour = LABEL_INK,
+				 .colour = ink,
 				 .kind = VOE_RENDER_ELEMENT_GLYPH,
 				 .sheet_texture =
 					 voe_text_font_atlas(ui->font).index,
@@ -1385,7 +1495,14 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 {
 	const struct voe_ui_widget_record *w = &ui->widgets[node];
 	voe_ui_rect rect = ui->nodes[node].rect;
-	float em = em_millimetres(ui);
+	// The SAME theme this label read at the call that made it, so what is
+	// drawn here can never disagree with what was measured then — see
+	// context.h on why the theme is copied onto the node rather than
+	// looked up again.
+	float em = w->theme->text_size;
+	voe_math_float4 ink = w->text_role == VOE_UI_TEXT_ROLE_ACCENT
+				      ? w->theme->accent
+				      : w->theme->text_primary;
 	float line = voe_text_font_line_height(ui->font) * em;
 	float pen = rect.min.x;
 	// The slack under the last line: the descender and the line gap, which
@@ -1445,53 +1562,63 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 				(g.high.y - g.low.y) * em
 			};
 
-			push_glyph(ui, node, bounds, g.sheet);
+			push_glyph(ui, node, bounds, g.sheet, ink);
 		}
 
 		pen += g.advance * em;
 	}
 }
 
-// The three states, for a button and for a number box alike. They look the same
-// on purpose — see BUTTON_PAD.
+// The three states, for a button and for a number box alike — control at
+// rest, control_hovered under the pointer, accent while held (ADR-0171: a
+// pressed control is the accent and there is no fourth role for it). They
+// look the same on purpose — see BUTTON_PAD.
 static voe_math_float4 state_colour(const voe_ui_context *ui, uint32_t node)
 {
-	uint64_t key = ui->widgets[node].key;
+	const struct voe_ui_widget_record *w = &ui->widgets[node];
 
 	// Held beats hovered, because a button being pressed is what a person
 	// is doing and hovering is only where the pointer happens to be. A
 	// button held with the pointer dragged off it stays in its held colour,
 	// which is what says the press is still live and can still be
 	// completed by coming back.
-	if (ui->held_set && ui->held == key)
-		return BUTTON_HELD;
-	if (ui->hovered_set && ui->hovered == key)
-		return BUTTON_HOVERED;
-	return BUTTON_NORMAL;
+	if (ui->held_set && ui->held == w->key)
+		return w->theme->accent;
+	if (ui->hovered_set && ui->hovered == w->key)
+		return w->theme->control_hovered;
+	return w->theme->control;
 }
 
 // A field's own four states. Held still beats everything, a press in
 // progress being what a person is doing right now; focused beats hovered and
 // normal, a field being focused being worth seeing whether or not the
 // pointer still happens to be over it.
+//
+// DEVIATION: ADR-0171 names control, control_hovered and the accent, and no
+// fourth role for a field's own "focused" state — nothing before this theme
+// existed asked for one. Read narrowly as surface_raised, a surface already
+// meant to read as sitting above its neighbour, because the alternative of
+// reusing control_hovered would make a focused, unhovered field look exactly
+// like one the pointer merely sits over, losing the distinction the field's
+// four states had before this task.
 static voe_math_float4 field_colour(const voe_ui_context *ui, uint32_t node)
 {
-	uint64_t key = ui->widgets[node].key;
+	const struct voe_ui_widget_record *w = &ui->widgets[node];
 
-	if (ui->held_set && ui->held == key)
-		return BUTTON_HELD;
-	if (ui->focus_set && ui->focus == key)
-		return FIELD_FOCUSED;
-	if (ui->hovered_set && ui->hovered == key)
-		return BUTTON_HOVERED;
-	return BUTTON_NORMAL;
+	if (ui->held_set && ui->held == w->key)
+		return w->theme->accent;
+	if (ui->focus_set && ui->focus == w->key)
+		return w->theme->surface_raised;
+	if (ui->hovered_set && ui->hovered == w->key)
+		return w->theme->control_hovered;
+	return w->theme->control;
 }
 
 // The caret: FIELD_CARET_WIDE at the right edge of the focused field's
-// composed label, as tall as that label's own rectangle. An empty label
-// measures to nothing, so its rectangle has no width and the caret sits at
-// the left of the field's content box, exactly where the next letter typed
-// will begin.
+// composed label, as tall as that label's own rectangle, in the field's own
+// theme's text_primary. An empty label measures to nothing, so its rectangle
+// has no width and the caret sits at the left of the field's content box,
+// exactly where the next letter typed will begin.
 static void push_caret(voe_ui_context *ui, uint32_t node)
 {
 	voe_ui_rect label = ui->nodes[node + 1].rect;
@@ -1505,7 +1632,7 @@ static void push_caret(voe_ui_context *ui, uint32_t node)
 	push_element(ui, (voe_render_element){
 				 .bounds = bounds,
 				 .clip = clip,
-				 .colour = LABEL_INK,
+				 .colour = ui->widgets[node].theme->text_primary,
 				 .kind = VOE_RENDER_ELEMENT_SOLID,
 			 });
 }
@@ -1529,25 +1656,49 @@ static void push_solid_within(voe_ui_context *ui, voe_ui_rect bounds,
 }
 
 // One of an area's bars, track and then thumb, clipped to the area's visible
-// rectangle. Held beats hovered, as it does on a button.
+// rectangle. The track is `ground`, the thumb a button's own three states —
+// control, control_hovered, and the accent while held. Held beats hovered, as
+// it does on a button.
 static void push_scrollbar(voe_ui_context *ui, uint32_t area, bool y)
 {
 	const struct voe_ui_scroll_area *a = &ui->scroll_areas[area];
+	const voe_ui_theme *theme = ui->widgets[a->node].theme;
 	struct voe_ui_scrollbar bar = scrollbar(ui, a, y);
 	enum voe_ui_bar which = y ? VOE_UI_BAR_Y : VOE_UI_BAR_X;
 	voe_ui_rect visible = ui->nodes[a->node].visible;
-	voe_math_float4 thumb = SCROLL_THUMB_NORMAL;
+	voe_math_float4 thumb = theme->control;
 
 	if (!bar.shows)
 		return;
 
 	if (ui->held_set && ui->held_thumb == which && ui->held == a->key)
-		thumb = SCROLL_THUMB_HELD;
+		thumb = theme->accent;
 	else if (ui->hovered_thumb == which && ui->hovered_thumb_area == area)
-		thumb = SCROLL_THUMB_HOVERED;
+		thumb = theme->control_hovered;
 
-	push_solid_within(ui, bar.track, visible, SCROLL_TRACK);
+	push_solid_within(ui, bar.track, visible, theme->ground);
 	push_solid_within(ui, bar.thumb, visible, thumb);
+}
+
+// A panel's own surface, read off its theme. Never called for NONE: emit
+// skips such a panel before this, there being no colour a NONE panel draws.
+static voe_math_float4 surface_colour(const voe_ui_theme *theme,
+				      voe_ui_surface surface)
+{
+	switch (surface) {
+	case VOE_UI_SURFACE_GROUND:
+		return theme->ground;
+	case VOE_UI_SURFACE_SURFACE:
+		return theme->surface;
+	case VOE_UI_SURFACE_RAISED:
+		return theme->surface_raised;
+	case VOE_UI_SURFACE_NONE:
+		break;
+	}
+	VOE_BASE_ASSERT(false,
+			"a NONE panel has no surface colour; emit skips it "
+			"before this is called");
+	return theme->ground;
 }
 
 static void emit(voe_ui_context *ui)
@@ -1557,14 +1708,23 @@ static void emit(voe_ui_context *ui)
 
 		switch (ui->widgets[node].kind) {
 		case VOE_UI_WIDGET_PANEL:
-			// A fully transparent panel emits nothing at all: an
-			// alpha of nought costs a record, an instance and a
-			// blend to draw nothing, and a transparent panel with
-			// padding in it is a real thing to want. See widgets.h.
-			if (ui->widgets[node].colour.w > 0.0f)
-				push_rect(ui, node, ui->widgets[node].colour);
+			// A NONE surface emits nothing at all: not a
+			// transparent rectangle — no record, no instance and
+			// no blend to draw nothing — and a transparent panel
+			// with padding in it is a real thing to want. See
+			// widgets.h. Every other surface draws the hairline
+			// border ADR-0171 asks for, two records where one
+			// used to do.
+			if (ui->widgets[node].surface != VOE_UI_SURFACE_NONE)
+				push_bordered(ui, node,
+					     surface_colour(ui->widgets[node].theme,
+							    ui->widgets[node].surface),
+					     ui->widgets[node].theme->border);
 			break;
 		case VOE_UI_WIDGET_BUTTON:
+			push_bordered(ui, node, state_colour(ui, node),
+				     ui->widgets[node].theme->border);
+			break;
 		case VOE_UI_WIDGET_NUMBER:
 			push_rect(ui, node, state_colour(ui, node));
 			break;

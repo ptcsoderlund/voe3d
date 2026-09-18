@@ -28,13 +28,17 @@
 // tenth as fast; click one without moving and nothing happens at all, which is
 // the click reserved for the typing that does not exist yet.
 //
-// EACH OF THEM CHANGES THE PANEL IT IS STANDING ON, so there is nothing to look
-// away at to see whether it worked: `alpha` fades the plate, `text` grows every
-// letter on it, and `gap` pushes the rows apart. It also puts the widget through
-// the case that is easiest to get wrong — a drag whose own box MOVES under the
-// pointer while it is being dragged, because the thing it is changing is the
-// layout around it. It keeps working, and that is `ui` keying a widget by its
-// path rather than by where it is.
+// TWO OF THEM CHANGE THE PANEL THEY ARE STANDING ON, so there is nothing to
+// look away at to see whether it worked: `text` grows every letter on it
+// through a theme of this file's own, and `gap` pushes the rows apart.
+// `alpha` NO LONGER FADES THE PLATE — a panel's colour is a theme role now
+// and every role is opaque (ADR-0171) — so it demonstrates nothing but an
+// ordinary number box's drag, clamp and rounding, exactly as `gap` does. It
+// also puts the widget through the case that is easiest to get wrong — a
+// drag whose own box MOVES under the pointer while it is being dragged,
+// because the thing it is changing is the layout around it. It keeps
+// working, and that is `ui` keying a widget by its path rather than by where
+// it is.
 //
 // THE VALUE IS THIS FILE'S, EXACTLY AS THE CLICK COUNT IS. `ui` is handed the
 // value every frame and hands back what the drag made of it; the three doubles
@@ -42,14 +46,14 @@
 //
 // AND THE CLAMPING AND THE ROUNDING ARE THIS FILE'S TOO, WHICH IS THE POINT OF
 // THE THIRD ONE. `ui` knows no field kinds: it cannot know that an alpha stops
-// at one, that a text scale must stay above nought, or that a gap is a whole
-// number of millimetres. `gap` is the demonstration — the drag accumulates
+// at one, that a theme's text_size must stay legible, or that a gap is a
+// whole number of millimetres. `gap` is the demonstration — the drag accumulates
 // smoothly in a double and the layout is given the rounded value, so it steps
 // cleanly without the gesture losing the fractions between steps.
 //
-// EVERY COLOUR IN HERE IS LINEAR, as everything crossing render's boundary is.
-// There is exactly one of them, the panel's, because every other colour on the
-// interface is `ui`'s own and card 036 is what replaces those.
+// THIS FILE HAS NO COLOUR OF ITS OWN ANY MORE. The panel is a themed RAISED
+// surface (`ui/theme.h`, ADR-0171) and every other colour on the interface is
+// `ui`'s own; this file only says how big the theme's text is.
 #include "interface.h"
 #include "surface.h"
 
@@ -57,6 +61,7 @@
 
 #include <math/float2.h>
 #include <math/float4.h>
+#include <ui/theme.h>
 #include <ui/widgets.h>
 
 #include <stdio.h>
@@ -72,16 +77,20 @@
 #define INTERFACE_INSET 6.0f
 #define INTERFACE_TOP 60.0f
 
-// A dark plate, mostly see-through, so that what is behind the interface shows
-// through it — which is the whole reason a panel has an alpha and is worth
-// looking at in the picture.
+// `alpha`'s starting value. Kept for the drag to have somewhere to start from
+// even though nothing draws it any more — see this file's header.
 #define PANEL_ALPHA 0.72f
+
+// Millimetres per em at `text`'s starting value of 1.0, matching
+// ui/src/theme.c's own default so the built-in look this file derives is the
+// size the interface already drew at before a theme said so.
+#define TEXT_MM_PER_EM 4.0f
 
 // What one millimetre of sideways drag is worth on each of the three, and the
 // range this program will let each of them have. The limits are here and not in
 // `ui` because they are facts about what the value MEANS: an alpha above one is
-// not a colour, a text scale of nought asserts inside `ui`, and a negative gap
-// is not a gap.
+// not a colour, a text scale below TEXT_LEAST is too small to read, and a
+// negative gap is not a gap.
 //
 // A HUNDRED MILLIMETRES ACROSS THE WHOLE RANGE, on all three, which at this
 // surface's scale is a comfortable sweep of the hand — and a tenth of that with
@@ -115,6 +124,11 @@ static float rounded(double value)
 	return (float)(int)(value + 0.5);
 }
 
+// The font handed to voe_dev_interface_new, kept so that voe_dev_interface_draw
+// can re-derive this file's own theme from it every frame the text-size number
+// box changes `text`. Not this file's to create or destroy — see the header.
+static const voe_text_font *interface_font;
+
 voe_ui_context *voe_dev_interface_new(voe_base_arena *arena,
 				      const voe_text_font *font)
 {
@@ -128,6 +142,7 @@ voe_ui_context *voe_dev_interface_new(voe_base_arena *arena,
 			       .nodes = VOE_DEV_INTERFACE_NODES,
 			       .elements = VOE_DEV_INTERFACE_ELEMENTS });
 	voe_ui_font_set(ui, font);
+	interface_font = font;
 
 	return ui;
 }
@@ -153,7 +168,14 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	static char text_label[32];
 	static char gap_label[32];
 
-	voe_math_float4 plate = { 0.02f, 0.03f, 0.05f, (float)alpha };
+	// THIS FILE'S OWN THEME, RE-DERIVED EVERY FRAME FROM `text`. A function
+	// static, not a frame-local one: voe_ui_theme_set keeps the pointer it
+	// is given and it must outlive the frame that set it, exactly as the
+	// font does (ui/widgets.h) — a theme derived on the stack here would
+	// leave that pointer dangling the moment this call returned.
+	static voe_ui_theme theme;
+	voe_ui_theme_inputs inputs = voe_ui_theme_default_inputs();
+
 	// ADR-0104's formula, and it is the same one src/surface.c uses and out
 	// of the same two constants — one surface, one scale, and the mouse
 	// below divides by this very number.
@@ -183,8 +205,10 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	mark = voe_base_arena_mark(arena);
 
 	// Before the frame, because it is what every label in it is measured
-	// with — see ui/widgets.h on the text scale.
-	voe_ui_text_scale_set(ui, (float)text);
+	// with — see ui/widgets.h on the theme's own text_size.
+	inputs.text_size = TEXT_MM_PER_EM * (float)text;
+	theme = voe_ui_theme_derive(&inputs, interface_font);
+	voe_ui_theme_set(ui, &theme);
 
 	voe_ui_frame_begin(ui, arena);
 	// THE POINTER'S PIXELS BECOME THE SURFACE'S MILLIMETRES BY ONE
@@ -212,7 +236,7 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			    .pad = { INTERFACE_INSET, INTERFACE_TOP,
 				     INTERFACE_INSET, INTERFACE_INSET } });
 
-	voe_ui_panel_begin(ui, "hud", 0, plate,
+	voe_ui_panel_begin(ui, "hud", 0, VOE_UI_SURFACE_RAISED,
 			   (voe_ui_container){ .across = VOE_UI_ACROSS_START,
 					       .gap = rounded(gap),
 					       .pad = { 4.0f, 4.0f, 4.0f,
@@ -281,8 +305,8 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	// arrives, land on these very lines unchanged.
 	//
 	// AND EACH IS CLAMPED ON THE WAY IN, because `ui` does not know what any
-	// of them mean. A text scale that reached nought would assert inside
-	// voe_ui_text_scale_set on the next frame.
+	// of them mean. A text size at or below nought would draw nothing
+	// legible on the next frame; TEXT_LEAST keeps it well clear.
 	alpha = clamped(voe_ui_number_action(ui, alpha_number).value,
 			ALPHA_LEAST, ALPHA_MOST);
 	text = clamped(voe_ui_number_action(ui, text_number).value, TEXT_LEAST,

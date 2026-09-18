@@ -1442,7 +1442,9 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 	voe_ecs_entity unused = { 0 };
 	voe_text_font *font;
 
-	font = voe_text_font_new(gpu, arena, error);
+	// Oxanium, which is dev's face and stays so — 005's own criterion 7
+	// keeps the dev program on it while the editor is free to name either.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena, error);
 	if (font == NULL)
 		return NULL;
 
