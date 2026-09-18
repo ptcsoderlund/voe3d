@@ -83,9 +83,12 @@ carries it out.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
-  button, the one in force marked, and Close, as an anchored panel over the
-  dock. Its header says why each row is drawn in its own theme, why Choose is
-  carried out elsewhere, and how many themes it lists.
+  button, the one in force marked, then the font group — the theme's own,
+  Pixel Operator and Oxanium, each with a Choose button, the one in use
+  marked — and Close, as an anchored panel over the dock. Its header says why
+  each theme row is drawn in its own theme, why the font rows are drawn in
+  the theme in force, why Choose is carried out elsewhere, and how many
+  themes it lists.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
@@ -113,7 +116,7 @@ carries it out.
   whether the browser was showing is captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
   the one read of the frame's clicks that carries out the top bar's, the
-  browser's and Preferences' commands.
+  browser's and Preferences' commands, a font choice among them.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
   submitted this frame is a count `main.c` reads. Its header says why the

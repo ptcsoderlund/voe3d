@@ -1,6 +1,6 @@
 // The Preferences panel's one frame of `ui` calls and the read of its buttons
-// afterwards. See the header for why each row is pushed into its own theme and
-// why Choose is carried out elsewhere.
+// afterwards. See the header for why each theme row is pushed into its own
+// theme, why the font rows are not, and why Choose is carried out elsewhere.
 #include "preferences.h"
 
 #include <base/assert.h>
@@ -12,6 +12,13 @@
 
 // What the row of the theme in force ends in.
 #define IN_FORCE_MARK "(in force)"
+
+// What each font row reads, indexed by voe_editor_font_choice.
+static const char *const FONT_NAMES[VOE_EDITOR_PREFERENCES_FONTS] = {
+	[VOE_EDITOR_FONT_THEME] = "Theme's own",
+	[VOE_EDITOR_FONT_PIXEL_OPERATOR] = "Pixel Operator",
+	[VOE_EDITOR_FONT_OXANIUM] = "Oxanium",
+};
 
 void voe_editor_preferences_show(voe_editor_preferences *preferences)
 {
@@ -91,6 +98,30 @@ void voe_editor_preferences_draw(voe_ui_context *ui,
 	}
 	voe_ui_end(ui); // scroll area
 
+	// The font group, laid out as a theme row is but in the theme in
+	// force — see the header.
+	for (uint32_t i = 0; i < VOE_EDITOR_PREFERENCES_FONTS; i++) {
+		voe_ui_panel_begin(ui, "font", i, VOE_UI_SURFACE_SURFACE,
+				   (voe_ui_container){
+					   .across = VOE_UI_ACROSS_FILL,
+					   .pad = { PREFERENCES_PAD,
+						    PREFERENCES_PAD,
+						    PREFERENCES_PAD,
+						    PREFERENCES_PAD } });
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = PREFERENCES_GAP });
+		voe_ui_label(ui, FONT_NAMES[i]);
+		if (i == (uint32_t)themes->font_choice)
+			voe_ui_label(ui, IN_FORCE_MARK);
+		preferences->font_buttons[i] =
+			voe_ui_button_begin(ui, "font_choose", i);
+		voe_ui_label(ui, "Choose");
+		voe_ui_end(ui); // choose button
+		voe_ui_end(ui); // row
+		voe_ui_end(ui); // panel
+	}
+
 	// In a row of its own so it keeps its natural width, as browser.c's
 	// Cancel does.
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
@@ -119,6 +150,14 @@ voe_editor_preferences_clicks_read(const voe_ui_context *ui,
 			    .fired)
 			return (voe_editor_preferences_result){
 				.action = VOE_EDITOR_PREFERENCES_CHOOSE,
+				.index = i
+			};
+
+	for (uint32_t i = 0; i < VOE_EDITOR_PREFERENCES_FONTS; i++)
+		if (preferences->font_buttons[i] != VOE_UI_NODE_NONE &&
+		    voe_ui_button_action(ui, preferences->font_buttons[i]).fired)
+			return (voe_editor_preferences_result){
+				.action = VOE_EDITOR_PREFERENCES_FONT,
 				.index = i
 			};
 

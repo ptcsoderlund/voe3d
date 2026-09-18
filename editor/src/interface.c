@@ -217,9 +217,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_editor_preferences_show(preferences);
 		}
 
-		// PREFERENCES, WHEN IT WAS DRAWN. A theme chosen here is set on
-		// the context after this frame's records were built, so it
-		// restyles the next frame (ui/widgets.h's voe_ui_theme_set).
+		// PREFERENCES, WHEN IT WAS DRAWN. A theme or font chosen here is
+		// set on the context after this frame's records were built, so
+		// it restyles the next frame (ui/widgets.h's voe_ui_theme_set).
 		if (preferring) {
 			voe_editor_preferences_result result =
 				voe_editor_preferences_clicks_read(ui,
@@ -231,6 +231,20 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					voe_editor_notice_set(
 						&session->notice,
 						"the chosen theme could not be remembered");
+				voe_ui_font_set(
+					ui, voe_editor_themes_palette(themes)->font);
+				voe_ui_theme_set(ui,
+						 voe_editor_themes_palette(themes));
+			} else if (result.action ==
+				   VOE_EDITOR_PREFERENCES_FONT) {
+				// Not a change to the project: the session is
+				// neither marked unsaved nor disarmed.
+				if (!voe_editor_themes_font_choose(
+					    themes,
+					    (voe_editor_font_choice)result.index))
+					voe_editor_notice_set(
+						&session->notice,
+						"the chosen font could not be remembered");
 				voe_ui_font_set(
 					ui, voe_editor_themes_palette(themes)->font);
 				voe_ui_theme_set(ui,

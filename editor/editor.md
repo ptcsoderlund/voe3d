@@ -26,8 +26,10 @@ override — the theme's own, Pixel Operator or Oxanium — is remembered in
 `<settings>/voe3d/font` and applied to whichever theme is in force. A remembered theme that is gone or refused draws Near
 black and says why in the bar. The selected row in `Scene` is drawn in the
 theme's accent. Preferences lists every theme — each row drawn in its own theme, the
-one in force marked — and Choose puts one in force and remembers it; Close or
-Escape hides it.
+one in force marked — and Choose puts one in force and remembers it. Beside
+them it offers the font — the theme's own, Pixel Operator or Oxanium, the one
+in use marked — whose Choose redraws every panel in it at once and remembers
+it, without counting as an unsaved change. Close or Escape hides it.
 
 Open shows the editor's own file browser — an anchored panel over the dock,
 below the bar — to choose a project's folder from; a folder marked "— project"
