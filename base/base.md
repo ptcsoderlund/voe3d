@@ -5,8 +5,8 @@ the primitives any other folder may depend on. Not maths, and nothing that knows
 an operating system.
 
 - `include` — the public headers, in `include/base/`; each is listed below by path.
-- `src` — the implementation; each file is listed below by path.
-- `tests` — one plain C program per module, found by the build; each is listed below by path.
+- `src` — the implementation. See `src/src.md`.
+- `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/base/assert.h` — the two assert macros. Its header says which one
   survives a release build, why it is that one, and where the line between an
   assert and a recoverable failure runs.
@@ -31,20 +31,3 @@ an operating system.
   why the declaring folder supplies the type, what the build refuses, what the
   switch leaves out, and what marking a field read-only does and does not mean.
 - `include/base/version.h` — the placeholder that proves the folder builds.
-- `src/assert.c` — the one function both macros expand to.
-- `src/arena.c` — the blocks behind the arena, and the pointer bump.
-- `src/error.c` — one phrase per code.
-- `src/report.c` — the line composed on the stack and written in one call.
-- `src/report_line.h` — the composition on its own, so the test can read the line.
-- `src/samples.c` — the three lines of arithmetic behind the header above.
-- `src/version.c` — the placeholder's one function, and the C23 assertion.
-- `tests/arena.c` — the arena's promises, checked from outside.
-- `tests/describe.c` — that a table's offsets, kind, shape and count are the
-  compiler's own, on a struct padded so that any worked out by hand would be
-  wrong, and on a second struct proving every rank from 0 to 7. Its header says
-  why the switch is turned on inside the test.
-- `tests/report.c` — each level's word, the line's exact shape, and that the cut
-  falls exactly at the capacity. Its header says why the boundary is the test.
-- `tests/samples.c` — that an empty run reads as noughts, that the average and
-  the worst are over exactly what was added, and that a reset does not leave the
-  worst behind. Its header says why that last one is the failure worth a test.
