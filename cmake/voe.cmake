@@ -121,6 +121,14 @@ function(voe_allowed_deps folder out_var)
         # string, which is the one thing a label cannot work out for itself.
         # Card 033 decided that.
         set(deps render text math base)
+    elseif(folder STREQUAL "theme")
+        # theme is the step between a theme file's bytes and ui's authored
+        # inputs (ADR-0170): assets parses the sectioned text, ui owns the
+        # inputs it fills, text owns the typeface it names. render is here for
+        # one reason only (ADR-0176) — the test makes a headless device so a
+        # label and a button can measure a string — and src/ and include/ name
+        # no render header.
+        set(deps ui text render assets math base)
     elseif(folder STREQUAL "3d")
         set(deps render scene ecs assets math base)
     elseif(folder STREQUAL "sprite")
