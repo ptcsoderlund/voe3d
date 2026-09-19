@@ -92,17 +92,20 @@
 // that can produce a partly covered pixel. Softening the edge here would put
 // back the thing that was deliberately removed.
 //
-// BUT THE CUT IS NOT AT THE FIELD'S HALF: IT SITS 0.49 OF A SCREEN PIXEL OUTSIDE
-// THE OUTLINE (ADR-0182, ADR-0183). A pixel is inside when its centre is within
-// that distance of the letter, so a stroke of width w keeps a pixel whenever
-// w + 2 * 0.49 >= 1 — every stroke wider than a fiftieth of a pixel, which is
-// every stroke either font has at any window height. At the half alone, a thin
-// stroke that falls between two pixel centres lost every pixel and the letter
-// lost a limb. 0.49 and not 0.5 because an outline lying exactly on pixel
-// boundaries has its nearest outside centre exactly half a pixel away: at 0.5
-// that pixel would count and a pixel font at a whole-number scale would grow a
-// pixel on every side; just under it, such text keeps its true width, and text
-// that does not line up is at most one pixel wider, which bug 01 of 009 accepts.
+// BUT THE CUT IS NOT AT THE FIELD'S HALF: IT SITS HALF A SCREEN PIXEL OUTSIDE
+// THE OUTLINE, LESS ONE BYTE STEP OF THE FIELD (ADR-0182, ADR-0183, ADR-0184).
+// A pixel is inside when its centre is within that distance of the letter, so a
+// thin stroke keeps a pixel even when it falls between two pixel centres; at the
+// half alone such a stroke lost every pixel and the letter lost a limb. At four
+// texels per pixel, where strokes are thin, the distance is just under half a
+// pixel; it only shrinks when text is magnified, where every stroke is several
+// pixels wide. Less than half because an outline lying exactly on pixel boundaries has
+// its nearest outside centre exactly half a pixel away, and the sheet stores
+// bytes: a rounded texel can read up to half a byte step high, so the guard is a
+// whole byte step in field, not a fraction of a pixel, which would fail at some
+// magnification. Such text keeps its true width at every scale and does not gain
+// a row; text that does not line up is at most one pixel wider, which bug 01 of
+// 009 accepts.
 // voe_render_element_cutoff turns the distance into a field value, and
 // draw.slang's world text keeps the half.
 //
@@ -192,16 +195,20 @@ static const uint VOE_RENDER_ELEMENT_IMAGE = 2;
 static const float VOE_RENDER_ELEMENT_FIELD_SPREAD = 4.0;
 
 // The field value at and above which a glyph's pixel counts as inside: the
-// half, moved 0.49 of a screen pixel outward (ADR-0183). `texels_per_pixel` is
-// how many sheet texels one screen pixel spans along each axis; the larger is
-// taken, so a squeezed axis never under-dilates. Clamped to a five-hundred-and-
+// half, moved half a screen pixel outward less one byte step of the field
+// (ADR-0183, ADR-0184). `texels_per_pixel` is how many sheet texels one screen
+// pixel spans along each axis; the larger is taken, so a squeezed axis never
+// under-dilates. The byte step keeps an outline on pixel boundaries from gaining
+// a row when a rounded texel reads half a step high. Clamped to at most the half
+// so the cut never erodes past the outline, and to at least a five-hundred-and-
 // twelfth so that a texel encoded as nought — far outside everything — is never
 // inside, however small the text gets.
 float voe_render_element_cutoff(float2 texels_per_pixel)
 {
-	return max(0.5 - 0.49 * max(texels_per_pixel.x, texels_per_pixel.y)
-			       / (2.0 * VOE_RENDER_ELEMENT_FIELD_SPREAD),
-		   1.0 / 512.0);
+	float field_per_pixel = max(texels_per_pixel.x, texels_per_pixel.y)
+		/ (2.0 * VOE_RENDER_ELEMENT_FIELD_SPREAD);
+	return clamp(0.5 - 0.5 * field_per_pixel + 1.0 / 255.0,
+		     1.0 / 512.0, 0.5);
 }
 
 // The middle of three, which is what turns three one-sided distance fields back
@@ -334,7 +341,7 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 			NonUniformResourceIndex(vertex.sheet_texture)]
 			.SampleLevel(vertex.sheet_at, 0.0).rgb;
 
-		// A hard cut 0.49 of a screen pixel outside the outline, not
+		// A hard cut half a pixel less a byte step outside the outline, not
 		// draw.slang's half: see the header. The derivative was taken
 		// above; here it only becomes texels by the sheet's size.
 		// Inside or outside, and nothing in between.
