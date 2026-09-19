@@ -24,6 +24,6 @@ every number it needs; and `context.h` is the one struct they share.
   and text and the border stepped from `ground` until they clear their surface.
 - `widgets.c` — what a node means, what the pointer and the keyboard are doing
   to it, and the records that come out: the hashed keys, the hit test against
-  the visible rectangle, the drags, the scroll table, the field's editing, the
+  the visible rectangle, the drags, the scroll table, the field's editing and typing into a number box, the
   theme role every widget's colours come from and the clipped element records,
   a panel's and a button's hairline border among them.

@@ -107,8 +107,9 @@
 // what happened is a distance, and what it is worth is the caller's business.
 //
 // A NUMBER BOX NEVER FIRES, and that is enforced where the release is handled
-// rather than left to the reader. The click is reserved for the typing that is
-// not built yet — see widgets.h.
+// rather than left to the reader. Its click opens it for typing instead
+// (ADR-0192): a release inside the dead zone, over the box, that no drag has
+// crossed out of, gives it the focus a field has — see below.
 //
 // ---- THE FIELD: FOCUS IS NOT HELD, AND EDITING WAITS FOR RESOLVE ----
 //
@@ -144,6 +145,16 @@
 // buffer because a press into another field seeds this one in the same
 // frame; Escape points the label back at the caller's text. The outcome is
 // written onto the field's own widget record, read by voe_ui_field_action.
+//
+// A NUMBER BOX OPEN FOR TYPING IS THE SAME FOCUS AND THE SAME BUFFER, seeded
+// with `%.6g` of the caller's value rather than a string. From the frame after
+// the focus arrives voe_ui_number_begin builds it open: along START, a
+// composed row first — a label of the buffer and, after a refused Enter or Tab,
+// "not a number" — and the caller's own content after it, which still takes its
+// room in the row but is neither drawn nor hit tested while the box is open,
+// because a label the caller composed is the value it was handed and not what
+// is being typed. A commit parses the buffer; the frame's answer goes on the
+// box's own widget record as a field's does.
 
 // ---- A SCROLL AREA: A TABLE REWRITTEN EVERY FRAME, AND A BAR IN PAINT ORDER ----
 //
@@ -209,6 +220,10 @@
 #include <text/font.h>
 #include <text/utf8.h>
 
+#include <ctype.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // EVERY COLOUR BELOW IS A THEME ROLE NOW (ADR-0170, ADR-0171), READ FROM
@@ -233,6 +248,10 @@ static const voe_math_float4 IMAGE_AS_IT_IS = { 1.0f, 1.0f, 1.0f, 1.0f };
 // button — a thing you put the pointer on and press.
 #define BUTTON_PAD                                                             \
 	((voe_ui_pad){ 2.5f, 2.5f, 2.5f, 2.5f })
+
+// Between an open number box's typed text and its "not a number", in
+// millimetres.
+#define NUMBER_REFUSED_GAP 1.5f
 
 // A field's caret, in millimetres wide and as tall as its label's own
 // rectangle.
@@ -437,6 +456,38 @@ static void field_append(char *text, const char *typed, uint32_t size)
 		at += bytes;
 	}
 	text[len] = '\0';
+}
+
+// A number box opening for typing: the buffer seeded with `%.6g` of the value
+// the caller handed in, all of it selected, and that text kept as what a commit
+// compares against. See context.h.
+static void number_seed(voe_ui_context *ui, uint64_t key, double value)
+{
+	snprintf(ui->number_opened, sizeof(ui->number_opened), "%.6g", value);
+	memcpy(ui->field_buffer, ui->number_opened, sizeof(ui->number_opened));
+	ui->field_owner = key;
+	ui->field_holding = true;
+	ui->field_selected = true;
+	ui->number_refused = false;
+}
+
+// Whether `text` is one finite number and nothing else: what strtod reads,
+// blanks allowed either side of it, the whole text consumed. "1e999" reads as
+// an infinity and "nan" as a NaN, and both are refused by the finite check;
+// an empty text reads nothing and is refused too.
+static bool number_parse(const char *text, double *out)
+{
+	char *end;
+	double value = strtod(text, &end);
+
+	if (end == text)
+		return false;
+	while (isspace((unsigned char)*end))
+		end++;
+	if (*end != '\0' || !isfinite(value))
+		return false;
+	*out = value;
+	return true;
 }
 
 // One axis of a pair, `y` saying which, as layout.c reads them. Only the scroll
@@ -680,7 +731,9 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 				double per_millimetre)
 {
 	voe_ui_node node;
+	voe_ui_node label = VOE_UI_NODE_NONE;
 	uint64_t key;
+	bool open;
 	const voe_ui_theme *theme = current_theme(ui);
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a number box on no context");
@@ -692,11 +745,22 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 
 	key = claim(ui, name, index);
 
+	// Open when it has the focus and the buffer is not another widget's.
+	// Seeded here when the focus came by Tab, which has not seeded it yet,
+	// so that it draws open on the very frame after the Tab.
+	open = ui->focus_set && ui->focus == key &&
+	       (!ui->field_holding || ui->field_owner == key);
+	if (open && !ui->field_holding)
+		number_seed(ui, key, value);
+
 	// Built exactly as a button is, down to the padding and the centring:
 	// what is in it is composed rather than passed, so a caller with no
-	// font can still build one and drag it. See widgets.h.
+	// font can still build one and drag it. See widgets.h. Open, its run
+	// sits along START, as a field's does, so the typed text begins at the
+	// left edge.
 	node = voe_ui_row_begin(ui, (voe_ui_container){
-					   .along = VOE_UI_ALONG_CENTER,
+					   .along = open ? VOE_UI_ALONG_START
+							 : VOE_UI_ALONG_CENTER,
 					   .across = VOE_UI_ACROSS_CENTER,
 					   .pad = BUTTON_PAD });
 	if (node != VOE_UI_NODE_NONE) {
@@ -706,6 +770,25 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 		ui->widgets[node].value = value;
 		ui->widgets[node].per_millimetre = per_millimetre;
 		ui->widgets[node].theme = theme;
+		ui->widgets[node].open = open;
+	}
+
+	// The composed row comes first, so that everything the caller calls
+	// before its voe_ui_end lands after it and is the part not drawn.
+	if (open) {
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = NUMBER_REFUSED_GAP });
+		label = voe_ui_label(ui, ui->field_buffer);
+		if (ui->number_refused)
+			voe_ui_label_role(ui, "not a number",
+					  VOE_UI_TEXT_ROLE_SECONDARY);
+		voe_ui_end(ui);
+		if (node != VOE_UI_NODE_NONE) {
+			ui->number_open_node = node;
+			ui->number_open_label = label;
+			ui->number_open_end = ui->count;
+		}
 	}
 
 	return node;
@@ -943,6 +1026,11 @@ void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 	// And a frame that says nothing about typing has none, for the same
 	// reason.
 	ui->keyboard = (voe_ui_keyboard){ 0 };
+
+	// No number box is built open until one is.
+	ui->number_open_node = VOE_UI_NODE_NONE;
+	ui->number_open_label = VOE_UI_NODE_NONE;
+	ui->number_open_end = 0;
 }
 
 // Which widgets answer the pointer at all. A panel, a label and an image do not:
@@ -1139,6 +1227,18 @@ static void hit_bar(const voe_ui_context *ui, uint32_t area, bool y,
 	};
 }
 
+// Whether `node` is the caller's own content of the number box open for
+// typing, which is neither drawn nor hit while it is open. It is the tail of
+// that box's subtree, after what the box composed itself — see
+// voe_ui_number_begin.
+static bool hidden(const voe_ui_context *ui, uint32_t node)
+{
+	uint32_t open = ui->number_open_node;
+
+	return open != VOE_UI_NODE_NONE && node >= ui->number_open_end &&
+	       node < open + ui->nodes[open].subtree;
+}
+
 static struct voe_ui_hit hit_test(const voe_ui_context *ui)
 {
 	struct voe_ui_hit hit = { 0 };
@@ -1149,6 +1249,7 @@ static struct voe_ui_hit hit_test(const voe_ui_context *ui)
 		uint32_t node = voe_ui_paint_order(ui, at);
 
 		if (takes_the_pointer(ui->widgets[node].kind) &&
+		    !hidden(ui, node) &&
 		    inside(ui->nodes[node].visible, ui->pointer.at))
 			hit = (struct voe_ui_hit){
 				.kind = VOE_UI_HIT_WIDGET,
@@ -1255,8 +1356,17 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 		// FOCUS FOLLOWS THE PRESS ITSELF AND NOT A RELEASE, unlike
 		// `held`/`fired`: a press inside a field focuses it and a press
 		// ANYWHERE ELSE — nothing, a button, a bar — clears it, on the
-		// same edge. See widgets.h.
-		if (hit.kind == VOE_UI_HIT_WIDGET && hit.field) {
+		// same edge. See widgets.h. A press inside the number box open
+		// for typing is not elsewhere: it keeps the focus, and arms no
+		// drag, the box being a field until it closes.
+		bool on_focus = hit.kind == VOE_UI_HIT_WIDGET &&
+				ui->focus_set && ui->focus == hovered;
+
+		if (on_focus && hit.number) {
+			ui->held_set = false;
+			ui->held_number = false;
+		}
+		if (hit.kind == VOE_UI_HIT_WIDGET && (hit.field || on_focus)) {
 			ui->focus = hovered;
 			ui->focus_set = true;
 		} else {
@@ -1265,9 +1375,16 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 	} else if (!ui->pointer.down && ui->was_down) {
 		// A NUMBER BOX NEVER FIRES, which is why `held_number` is asked
 		// here. The release that would have fired a button is the click
-		// reserved for typing into one, and a caller that could see it
-		// would bind something to it that has to be taken away again
-		// when the caret arrives. See widgets.h.
+		// that opens one for typing instead: over the box, and never
+		// out of the dead zone — not by a drag, and not by where the
+		// release itself happened. See widgets.h.
+		if (ui->held_set && ui->held_number && !ui->number_crossed &&
+		    hovered_set && hovered == ui->held &&
+		    fabsf(ui->pointer.at.x - ui->number_press_x) <
+			    VOE_UI_NUMBER_DEAD_ZONE) {
+			ui->focus = ui->held;
+			ui->focus_set = true;
+		}
 		if (ui->held_set && !ui->held_number && hovered_set &&
 		    hovered == ui->held) {
 			ui->fired = ui->held;
@@ -1291,11 +1408,19 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 	ui->was_down = ui->pointer.down;
 }
 
-// The node of the field keyed `key` this frame, or VOE_UI_NODE_NONE.
-static uint32_t field_of(const voe_ui_context *ui, uint64_t key)
+// The widgets the keyboard focus can go to: a field, and a number box, which
+// is typed into once it is open (ADR-0192).
+static bool typeable_kind(enum voe_ui_widget kind)
+{
+	return kind == VOE_UI_WIDGET_FIELD || kind == VOE_UI_WIDGET_NUMBER;
+}
+
+// The node of the field or number box keyed `key` this frame, or
+// VOE_UI_NODE_NONE.
+static uint32_t typeable_of(const voe_ui_context *ui, uint64_t key)
 {
 	for (uint32_t i = 0; i < ui->count; i++)
-		if (ui->widgets[i].kind == VOE_UI_WIDGET_FIELD &&
+		if (typeable_kind(ui->widgets[i].kind) &&
 		    ui->widgets[i].key == key)
 			return i;
 	return VOE_UI_NODE_NONE;
@@ -1312,22 +1437,51 @@ static void field_commit(voe_ui_context *ui, uint32_t field)
 	ui->field_holding = false;
 }
 
-// The first field made after `field` in this frame, wrapping to the first
-// field of all — `field` itself when it is the only one. Call order is node
+// The first field or number box made after `node` in this frame, wrapping to
+// the first of all — `node` itself when it is the only one. Call order is node
 // order, which is what Tab follows (ADR-0192).
-static uint32_t field_after(const voe_ui_context *ui, uint32_t field)
+static uint32_t typeable_after(const voe_ui_context *ui, uint32_t node)
 {
 	for (uint32_t step = 1; step <= ui->count; step++) {
-		uint32_t i = (field + step) % ui->count;
+		uint32_t i = (node + step) % ui->count;
 
-		if (ui->widgets[i].kind == VOE_UI_WIDGET_FIELD)
+		if (typeable_kind(ui->widgets[i].kind))
 			return i;
 	}
-	return field;
+	return node;
 }
 
-// What this frame's keyboard does to the focused field, once focus is
-// settled — which is why this runs after resolve rather than inside it: a
+// A number box's commit: true when it is taken, false when it is refused. The
+// text it opened with, unchanged, is taken and changes nothing; otherwise the
+// text must be one finite number, which becomes the box's `value` with
+// `changed` set.
+static bool number_commit(voe_ui_context *ui, uint32_t number)
+{
+	double typed;
+
+	if (strcmp(ui->field_buffer, ui->number_opened) == 0)
+		return true;
+	if (!number_parse(ui->field_buffer, &typed))
+		return false;
+	ui->widgets[number].changed = true;
+	ui->widgets[number].value = typed;
+	return true;
+}
+
+// A number box closing: the context stops holding its text. When it was built
+// open this frame its label is pointed at a copy, because a press into a field
+// may seed the buffer again in this same frame.
+static void number_close(voe_ui_context *ui, uint32_t number)
+{
+	memcpy(ui->field_final, ui->field_buffer, sizeof(ui->field_final));
+	if (ui->number_open_node == number)
+		ui->widgets[ui->number_open_label].text = ui->field_final;
+	ui->field_holding = false;
+	ui->number_refused = false;
+}
+
+// What this frame's keyboard does to the focused field or number box, once
+// focus is settled — which is why this runs after resolve rather than inside it: a
 // press this same frame can move focus to a field before its first
 // keystroke, and the field found here is the one that press produced.
 //
@@ -1339,6 +1493,12 @@ static uint32_t field_after(const voe_ui_context *ui, uint32_t field)
 // text this leaves the field showing, so a letter typed shows in the frame
 // that read it.
 //
+// A NUMBER BOX GOES THROUGH THE SAME STEPS with its own commit: seeded with
+// `%.6g`, edited as a field is, and on Enter or Tab parsed — a refused parse
+// keeps it open and Tab where it is. Losing the focus to a press elsewhere
+// commits it as Enter would, and a refused one then closes changing nothing,
+// the press having already gone to something else. Escape closes it.
+//
 // THE LABEL IS ALWAYS THE NODE RIGHT AFTER THE FIELD'S OWN — see
 // voe_ui_field — so once the field is found there is no second table to
 // consult for its text.
@@ -1346,22 +1506,31 @@ static void field_edit(voe_ui_context *ui)
 {
 	char before[VOE_UI_FIELD_CAPACITY + 1];
 	uint32_t field;
+	bool number;
 	bool typed = false;
 
 	if (ui->field_holding &&
 	    (!ui->focus_set || ui->focus != ui->field_owner)) {
-		field = field_of(ui, ui->field_owner);
-		if (field != VOE_UI_NODE_NONE)
+		field = typeable_of(ui, ui->field_owner);
+		if (field != VOE_UI_NODE_NONE &&
+		    ui->widgets[field].kind == VOE_UI_WIDGET_FIELD) {
 			field_commit(ui, field);
+		} else if (field != VOE_UI_NODE_NONE) {
+			(void)number_commit(ui, field);
+			number_close(ui, field);
+		}
 		ui->field_holding = false;
 	}
 	if (!ui->focus_set)
 		return;
-	field = field_of(ui, ui->focus);
+	field = typeable_of(ui, ui->focus);
 	if (field == VOE_UI_NODE_NONE)
 		return;
+	number = ui->widgets[field].kind == VOE_UI_WIDGET_NUMBER;
 
-	if (!ui->field_holding) {
+	if (!ui->field_holding && number) {
+		number_seed(ui, ui->focus, ui->widgets[field].value);
+	} else if (!ui->field_holding) {
 		// Copied defensively rather than trusted: the buffer is fixed
 		// and a caller handing in more than VOE_UI_FIELD_CAPACITY
 		// bytes is a bug this folder does not crash over.
@@ -1375,8 +1544,14 @@ static void field_edit(voe_ui_context *ui)
 		ui->field_holding = true;
 		ui->field_selected = true;
 	}
-	ui->widgets[field + 1].text = ui->field_buffer;
+	if (!number)
+		ui->widgets[field + 1].text = ui->field_buffer;
 
+	if (ui->keyboard.escape && number) {
+		number_close(ui, field);
+		ui->focus_set = false;
+		return;
+	}
 	if (ui->keyboard.escape) {
 		ui->widgets[field].cancelled = true;
 		ui->widgets[field + 1].text = ui->widgets[field].text;
@@ -1399,15 +1574,30 @@ static void field_edit(voe_ui_context *ui)
 	if (typed)
 		field_append(ui->field_buffer, ui->keyboard.text,
 			     ui->keyboard.size);
-	ui->widgets[field].changed = strcmp(before, ui->field_buffer) != 0;
+	// A number box's `changed` is a commit taken and not an edit; what an
+	// edit does to one is take "not a number" away until the next refusal.
+	if (number && strcmp(before, ui->field_buffer) != 0)
+		ui->number_refused = false;
+	else if (!number)
+		ui->widgets[field].changed =
+			strcmp(before, ui->field_buffer) != 0;
 
-	if (ui->keyboard.enter || ui->keyboard.tab) {
+	if (!ui->keyboard.enter && !ui->keyboard.tab)
+		return;
+	if (number && !number_commit(ui, field)) {
+		ui->widgets[field].refused = true;
+		ui->number_refused = true;
+		return;
+	}
+	if (number) {
+		number_close(ui, field);
+	} else {
 		ui->widgets[field].entered = ui->keyboard.enter;
 		field_commit(ui, field);
-		ui->focus_set = ui->keyboard.tab;
-		if (ui->keyboard.tab)
-			ui->focus = ui->widgets[field_after(ui, field)].key;
 	}
+	ui->focus_set = ui->keyboard.tab;
+	if (ui->keyboard.tab)
+		ui->focus = ui->widgets[typeable_after(ui, field)].key;
 }
 
 static void push_element(voe_ui_context *ui, voe_render_element element)
@@ -1575,6 +1765,8 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 	float em = w->theme->text_size;
 	voe_math_float4 ink = w->text_role == VOE_UI_TEXT_ROLE_ACCENT
 				      ? w->theme->accent
+			      : w->text_role == VOE_UI_TEXT_ROLE_SECONDARY
+				      ? w->theme->text_secondary
 				      : w->theme->text_primary;
 	float line = voe_text_font_line_height(ui->font) * em;
 	float pen = rect.min.x;
@@ -1687,14 +1879,14 @@ static voe_math_float4 field_colour(const voe_ui_context *ui, uint32_t node)
 	return w->theme->control;
 }
 
-// The caret: FIELD_CARET_WIDE at the right edge of the focused field's
-// composed label, as tall as that label's own rectangle, in the field's own
-// theme's text_primary. An empty label measures to nothing, so its rectangle
-// has no width and the caret sits at the left of the field's content box,
-// exactly where the next letter typed will begin.
-static void push_caret(voe_ui_context *ui, uint32_t node)
+// The caret: FIELD_CARET_WIDE at the right edge of the focused field's — or
+// open number box's — composed label, as tall as that label's own rectangle,
+// in the widget's own theme's text_primary. An empty label measures to
+// nothing, so its rectangle has no width and the caret sits at the left of the
+// content box, exactly where the next letter typed will begin.
+static void push_caret(voe_ui_context *ui, uint32_t node, uint32_t text)
 {
-	voe_ui_rect label = ui->nodes[node + 1].rect;
+	voe_ui_rect label = ui->nodes[text].rect;
 	voe_math_float4 bounds = { label.min.x + label.size.x, label.min.y,
 				   FIELD_CARET_WIDE, label.size.y };
 	voe_math_float4 clip;
@@ -1774,12 +1966,28 @@ static voe_math_float4 surface_colour(const voe_ui_theme *theme,
 	return theme->ground;
 }
 
+// The field or open number box whose composed label `label` is, or
+// VOE_UI_NODE_NONE. A field's is the node right after it — see voe_ui_field —
+// and an open number box's is recorded when it is built.
+static uint32_t label_owner(const voe_ui_context *ui, uint32_t label)
+{
+	if (label > 0 && ui->widgets[label - 1].kind == VOE_UI_WIDGET_FIELD)
+		return label - 1;
+	if (label == ui->number_open_label)
+		return ui->number_open_node;
+	return VOE_UI_NODE_NONE;
+}
+
 static void emit(voe_ui_context *ui)
 {
 	for (uint32_t at = 0; at < ui->count; at++) {
 		uint32_t node = voe_ui_paint_order(ui, at);
+		uint32_t owner;
 
-		switch (ui->widgets[node].kind) {
+		// An open number box's own content is not drawn: nothing
+		// emitted, as a plain row emits nothing.
+		switch (hidden(ui, node) ? VOE_UI_WIDGET_NONE
+					 : ui->widgets[node].kind) {
 		case VOE_UI_WIDGET_PANEL:
 			// A NONE surface emits nothing at all: not a
 			// transparent rectangle — no record, no instance and
@@ -1799,7 +2007,18 @@ static void emit(voe_ui_context *ui)
 				     ui->widgets[node].theme->border);
 			break;
 		case VOE_UI_WIDGET_NUMBER:
-			push_rect(ui, node, state_colour(ui, node));
+			// OPEN FOR TYPING IT DRAWS AS A FIELD DOES: a field's
+			// colours, and the whole text selected as the accent
+			// behind its composed label.
+			if (!ui->widgets[node].open) {
+				push_rect(ui, node, state_colour(ui, node));
+				break;
+			}
+			push_rect(ui, node, field_colour(ui, node));
+			if (ui->field_holding && ui->field_selected &&
+			    ui->field_owner == ui->widgets[node].key)
+				push_rect(ui, ui->number_open_label,
+					  ui->widgets[node].theme->accent);
 			break;
 		case VOE_UI_WIDGET_FIELD:
 			push_rect(ui, node, field_colour(ui, node));
@@ -1815,15 +2034,12 @@ static void emit(voe_ui_context *ui)
 			// THE CARET COMES AFTER THE LABEL'S OWN GLYPHS, so it
 			// paints in front of them rather than under them, which
 			// is why it is pushed here and not beside the field's
-			// own background above. A label is a field's composed
-			// one exactly when the node right before it is that
-			// field — see voe_ui_field — and this frame laid out,
-			// so that is always the field's own real index.
-			if (node > 0 &&
-			    ui->widgets[node - 1].kind == VOE_UI_WIDGET_FIELD &&
-			    ui->focus_set &&
-			    ui->focus == ui->widgets[node - 1].key)
-				push_caret(ui, node - 1);
+			// own background above. See label_owner for which
+			// labels are a field's or an open number box's.
+			owner = label_owner(ui, node);
+			if (owner != VOE_UI_NODE_NONE && ui->focus_set &&
+			    ui->focus == ui->widgets[owner].key)
+				push_caret(ui, owner, node);
 			break;
 		case VOE_UI_WIDGET_IMAGE:
 			push_image(ui, node);
@@ -2056,10 +2272,14 @@ voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 	result = (voe_ui_number_result){
 		.hovered = ui->hovered_set && ui->hovered == w->key,
 		.held = ui->held_set && ui->held == w->key,
-		.changed = false,
+		// A typed commit taken this frame, when `value` is the number
+		// typed — see number_commit.
+		.changed = w->changed,
 		// The value handed in, unchanged, which is the answer on every
-		// frame but the ones a drag moved it.
+		// frame but the ones a drag or a typed commit moved it.
 		.value = w->value,
+		.typing = ui->focus_set && ui->focus == w->key,
+		.refused = w->refused,
 	};
 
 	if (result.held && ui->number_moved) {

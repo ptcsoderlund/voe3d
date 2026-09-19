@@ -141,6 +141,12 @@ struct voe_ui_widget_record {
 	bool entered;
 	bool committed;
 	bool cancelled;
+	// A number box's own: built open for typing this frame, and this
+	// frame's typed commit refused (ADR-0192). A number box's `changed`
+	// above is a typed commit accepted, and then `value` is the typed
+	// number rather than the caller's.
+	bool open;
+	bool refused;
 	// Whether `key` was worked out for this node. Panels, buttons and number
 	// boxes are keyed; labels and images are not, having nothing to remember.
 	bool keyed;
@@ -273,8 +279,9 @@ struct voe_ui_context {
 	// MEANS SOMETHING ELSE: `held` is a gesture in progress and is let go
 	// on release; `focus` is which field the keyboard is going to and
 	// stays that way across as many frames as nothing changes it. Set by a
-	// press landing inside a field, voe_ui_field_focus or Tab, cleared by a
-	// press landing anywhere else, Enter or Escape, and dropped at
+	// press landing inside a field, a click on a number box,
+	// voe_ui_field_focus or Tab, cleared by a press landing anywhere else,
+	// Enter or Escape, and dropped at
 	// frame_end when the field it names was not called this frame — see
 	// widgets.c.
 	uint64_t focus;
@@ -298,6 +305,20 @@ struct voe_ui_context {
 	// Whether a field held the focus at the end of the last frame, which is
 	// what voe_ui_typing answers.
 	bool typing;
+	// A NUMBER BOX OPEN FOR TYPING SHARES THE FOCUS AND THE BUFFER ABOVE
+	// (ADR-0192): `focus` and `field_owner` are its key. What it adds is
+	// the text it opened with, `%.6g` of the caller's value, which a
+	// commit compares against; whether the last Enter or Tab was refused,
+	// which keeps "not a number" showing until the text changes; and,
+	// this frame's and reset at frame_begin, the node built open, its
+	// composed label of the buffer, and the first node after what it
+	// composed — from there to the end of its subtree is the caller's own
+	// content, which is not drawn while it is open.
+	char number_opened[32];
+	bool number_refused;
+	uint32_t number_open_node;
+	uint32_t number_open_label;
+	uint32_t number_open_end;
 
 	// The three keys that are the whole of this folder's memory. `held`
 	// survives between frames — that is the point of it — and `hovered` and

@@ -18,4 +18,8 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   unbalanced push refusing the frame, and a field's focus, typing, Backspace,
   Enter and capacity, the whole text selected when the focus arrives, Escape
   cancelling, Enter, Tab and a press elsewhere committing, Tab wrapping between
-  two fields, control bytes ignored and `voe_ui_typing` following the focus.
+  two fields, control bytes ignored and `voe_ui_typing` following the focus,
+  and a number box opened by a click and never by a drag, a typed number
+  taken on Enter, an unchanged text changing nothing, a refused text staying
+  open until Escape, Tab committing and opening the next box, and which texts
+  count as one finite number.

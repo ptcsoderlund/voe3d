@@ -2,8 +2,8 @@
 
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
-mouse, a number box you drag sideways to change a value, a single-line text
-field, an image and a scroll area that remembers its offset. Not drawing — what
+mouse, a number box you drag sideways or click and type into to change a
+value, a single-line text field, an image and a scroll area that remembers its offset. Not drawing — what
 comes out is element records and the caller submits them — and not input
 either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's. It also turns an
@@ -75,11 +75,12 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   asserts, and how the theme's `text_size` composes with the surface's own
   scale. On the number box it says why this folder knows no field kinds and
   takes a value and a rate instead, why what comes back is a value and not a
-  distance and what that buys the typing that is not built yet, and why a
-  press and release without movement is reserved rather than free. On the
+  distance and what that buys typing into one, how a click inside the dead
+  zone opens it for typing, what a commit accepts and refuses and what it
+  shows while it is open (ADR-0192). On the
   field it says that the context holds the focused field's text so a caller
   keeps no copy of an edit, how the focus arrives selected, commits and
-  cancels, and where Tab takes it, why it composes its own label rather than
+  cancels, and where Tab takes it among fields and number boxes, why it composes its own label rather than
   taking one in, why
   the caret is measured from that label, why the edited text comes back as a
   value rather than the caller's own buffer being written into, that where the
