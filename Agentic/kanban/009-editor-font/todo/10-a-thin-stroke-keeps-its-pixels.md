@@ -1,6 +1,6 @@
-# 07 — A thin stroke keeps its pixels, an aligned one keeps its width
+# 10 — A thin stroke keeps its pixels, an aligned one keeps its width
 folder: render/tests
-decisions: 0168, 0182, 0183, 0177
+decisions: 0168, 0182, 0183, 0184, 0177
 
 ## Change
 Two claims added to `render/tests/elements.c`, headless, using the hand-made sheet and the glyph
@@ -13,8 +13,8 @@ pixels). Each makes its own sheet: a horizontal bar, every texel's three channel
   the outline; with the old 0.5 cut nothing would be drawn). Read back: every column across the
   glyph's width has at least one pixel of the glyph's colour.
 - `aligned_stroke_keeps_its_width`: a bar 8 texels tall drawn at one texel per pixel with its edges
-  on pixel boundaries. Read back: exactly 8 rows in the glyph's colour in the middle column, not 9
-  (the cutoff sits under half a pixel out).
+  on pixel boundaries. Read back: exactly 8 rows in the glyph's colour in the middle column, not 10
+  (the cutoff sits half a pixel out less one byte step, ADR-0184; the rows just outside read about 0.439 after byte rounding, under the cutoff of about 0.441).
 
 Add both to the `elements.c` entry in `render/tests/tests.md`.
 
@@ -32,6 +32,3 @@ For the human, with `./build/debug/editor/voe_editor` on the sponsor's display:
 2. Text still shrinks smoothly with the window; edges stay hard, no grey.
 3. Choose Pixel Operator and repeat 1 and 2.
 4. At full screen, both fonts look no worse than before this card.
-
-## Blocked
-`thin_stroke_keeps_a_pixel` passes, and it fails when the cutoff goes back to `step(0.5, …)`. `aligned_stroke_keeps_its_width` gets 10 rows, not 8. The 0.49 margin is 0.49/8 = 0.06125 in field value. The nearest outside pixel centre is at exactly 0.4375, and that is 111.5625 as a byte. Rounded as text/src/raster.c rounds, that becomes 112/255 = 0.43922, which is above the cutoff of 0.43875. So a stroke on pixel boundaries grows a pixel on each side (truncating to 111 would pass, which confirms it). To unblock, a card in `render/shaders` (and an amendment to ADR-0183) needs to bring the margin under about 0.484 px. With 0.48, for example, the cutoff is 0.44, and the thin case still keeps its pixels. `checks.sh --folder render/tests` also reports `unknown target 'voe_render/tests'`. That is the check's own target naming, not this folder.
