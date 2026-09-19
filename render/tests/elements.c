@@ -990,10 +990,11 @@ static void thin_stroke_keeps_a_pixel(struct scene *scene)
 	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
 }
 
-// A stroke whose edges lie on pixel boundaries keeps its true width (ADR-0183):
+// A stroke whose edges lie on pixel boundaries keeps its true width (ADR-0184):
 // eight texels tall at one texel a pixel, rows 4 to 11. The nearest outside
-// pixel centres are exactly half a pixel out, and the cutoff sits under half a
-// pixel out, so they stay paper — eight rows, not nine or ten.
+// pixel centres are exactly half a pixel out, reading about 0.439 after byte
+// rounding, and the cutoff sits half a pixel out less one byte step, about
+// 0.441, so they stay paper — eight rows, not nine or ten.
 static void aligned_stroke_keeps_its_width(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
