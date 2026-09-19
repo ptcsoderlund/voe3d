@@ -1,10 +1,11 @@
-// The innards of voe_ecs_world, shared by the three files that make one:
-// world.c owns the entity slots, component.c the tables, intent.c the queues.
-// Nothing outside ecs/src sees this.
+// The innards of voe_ecs_world, shared by the four files that make one:
+// world.c owns the entity slots, component.c the tables, intent.c the queues,
+// structure.c the structural queue. Nothing outside ecs/src sees this.
 //
 // The split is by what a reader is chasing. An id that names the wrong thing is
 // world.c's; a row that is not where it should be is component.c's; work that
-// never happened is intent.c's.
+// never happened is intent.c's; a row that appeared or vanished at the wrong
+// moment is structure.c's.
 //
 // EVERY ARRAY IN HERE IS PUSHED ONCE, AT CREATION, OUT OF THE CALLER'S ARENA.
 // Nothing in this folder allocates after that and nothing frees: the world's
@@ -47,6 +48,30 @@ struct voe_ecs_table {
 	voe_ecs_intent replace;
 	size_t replace_row_offset;
 	bool replace_set;
+
+	// The type's default row, `size` bytes pushed when it is set, NULL until
+	// then. And the type its rows need beside them, stored and never read
+	// here; needs_set tells "none" from type zero.
+	unsigned char *default_row;
+	voe_ecs_type needs;
+	bool needs_set;
+};
+
+// What a structural request asks for.
+enum voe_ecs_structure_kind {
+	VOE_ECS_STRUCTURE_ADD,
+	VOE_ECS_STRUCTURE_REMOVE,
+	VOE_ECS_STRUCTURE_DESTROY,
+};
+
+// One structural request. An add's row is `table size` bytes at `offset` into
+// the world's structure_bytes; a remove and a destroy carry no bytes, and a
+// destroy's type is unused.
+struct voe_ecs_structure_request {
+	enum voe_ecs_structure_kind kind;
+	voe_ecs_type type;
+	voe_ecs_entity entity;
+	uint32_t offset;
 };
 
 // One intent type. values is capacity * size bytes and count is how much of it
@@ -94,6 +119,17 @@ struct voe_ecs_world {
 	struct voe_ecs_queue *queues;
 	uint32_t queue_capacity;
 	uint32_t queue_count;
+
+	// The structural queue. Both arrays are NULL and both capacities zero in
+	// a world made without one, which is what makes every submit to it fail.
+	// The bytes are appended in submission order and emptied with the
+	// requests, so bytes_used is the next add's offset.
+	struct voe_ecs_structure_request *structure_requests;
+	uint32_t structure_request_capacity;
+	uint32_t structure_count;
+	unsigned char *structure_bytes;
+	uint32_t structure_byte_capacity;
+	uint32_t structure_bytes_used;
 };
 
 // True when the id names a live slot with a matching generation. The one check

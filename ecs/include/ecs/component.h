@@ -40,11 +40,24 @@
 // Nothing in ecs can enforce that; the folder that owns the component is what
 // enforces it, by exposing reads publicly and keeping the writes to itself.
 //
-// The exception is creation, and it takes two forms: a folder's typed
-// creation call (voe_scene_transform_add), and authoring's scene reader, which adds
-// the rows of entities it has just created straight from their descriptions
-// (ADR-0152). Both create and neither edits. That _add is public does not widen
-// it: calling it on an entity somebody else made is still writing their data.
+// WHICH ROWS EXIST IS THE WORLD'S, AND WHAT IS IN THEM IS THE OWNER'S (0190).
+// A row's values are written only by its own system, and anyone else changes
+// them through its intent. Rows are added and removed through the world's
+// structural queue (ecs/structure.h), which anyone may submit to and the
+// program applies once a frame. The creation exceptions stand as they are: a
+// folder's typed creation call (voe_scene_transform_add) and authoring's scene
+// reader, which adds the rows of entities it has just created straight from
+// their descriptions (ADR-0152). Both create and neither edits. That _add is
+// public does not widen them: calling it on an entity somebody else made is
+// still writing their data.
+//
+// A DESCRIBED TYPE HAS A DEFAULT ROW, SET BY THE FOLDER THAT DECLARES IT, the way
+// its replace intent is. "Add at default" is a structural add with those bytes;
+// the world copies them once and hands them back, and never reads them.
+//
+// AND IT MAY NAME ONE TYPE ITS ROWS NEED (0193): a shape does nothing without a
+// transform on the same entity. Stored and handed back like the rest, never read
+// by ecs, never enforced — a tool shows it; nothing here refuses an add over it.
 //
 // A STALE ENTITY IS REFUSED RATHER THAN ANSWERED. Every function here checks the
 // generation, so an id from a destroyed entity gets NULL or false and never the
@@ -200,6 +213,25 @@ typedef struct {
 
 voe_ecs_replace voe_ecs_component_replace(const voe_ecs_world *world,
 					  voe_ecs_type type);
+
+// Copies `row` — the type's registered size — as the type's default, into
+// memory the world pushes for it. Once per type: a second call asserts.
+void voe_ecs_component_default_set(voe_ecs_world *world, voe_ecs_type type,
+				   const void *row);
+
+// The default row, or NULL when none was set. Valid as long as the world.
+const void *voe_ecs_component_default(const voe_ecs_world *world,
+				      voe_ecs_type type);
+
+// Says rows of `type` do nothing without a row of `needed` on the same entity.
+// Once per type: a second call asserts.
+void voe_ecs_component_needs_set(voe_ecs_world *world, voe_ecs_type type,
+				 voe_ecs_type needed);
+
+// Writes the needed type to `out` and returns true, or returns false when none
+// was set and leaves `out` alone.
+bool voe_ecs_component_needs(const voe_ecs_world *world, voe_ecs_type type,
+			     voe_ecs_type *out);
 
 // The type registered against that key. Asserts if nothing was — a module asking
 // for its own type before it registered it is a bug in the order the program

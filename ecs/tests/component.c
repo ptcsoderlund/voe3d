@@ -2,7 +2,9 @@
 // an iteration sees every live row exactly once, that a full table and a stale
 // entity are both refused rather than answered, that the world can say what an
 // entity is made of without anyone naming a type, and that the two markers a
-// registration passes instead of a description answer differently.
+// registration passes instead of a description answer differently. And that a
+// default row and a needed type come back as they were set, and as nothing when
+// they were not.
 //
 // THE ITERATION CHECK IS THE ONE THAT WOULD CATCH A BROKEN REMOVAL. A removal
 // swaps the last row into the hole, so the way to get it wrong is to leave the
@@ -480,6 +482,47 @@ static void a_row_is_edited_through_its_replace_intent(voe_base_arena *arena)
 	}
 }
 
+// The default comes back byte for byte, from the world's own copy: the row it was
+// set from is overwritten before it is read.
+static void a_default_comes_back_as_it_was_set(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+	unsigned char row[sizeof(struct marker)] = { 0x0A, 0x0B, 0x0C, 0x0D };
+	static const unsigned char expected[sizeof(struct marker)] = {
+		0x0A, 0x0B, 0x0C, 0x0D
+	};
+	const unsigned char *read;
+
+	register_three(world, types);
+	voe_ecs_component_default_set(world, types[0], row);
+	memset(row, 0, sizeof row);
+
+	read = voe_ecs_component_default(world, types[0]);
+	VOE_TEST_CHECK(read != NULL);
+	if (read != NULL)
+		for (size_t i = 0; i < sizeof expected; i++)
+			VOE_TEST_CHECK_INT(read[i], expected[i]);
+	VOE_TEST_CHECK(voe_ecs_component_default(world, types[1]) == NULL);
+}
+
+// Type zero is the one needed, so a "needs" that came back as a zeroed type
+// without being set would look right — which the unset types' false rules out.
+static void a_need_comes_back_as_it_was_set(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+	voe_ecs_type needed = { .value = UINT32_MAX };
+
+	register_three(world, types);
+	voe_ecs_component_needs_set(world, types[2], types[0]);
+
+	VOE_TEST_CHECK(voe_ecs_component_needs(world, types[2], &needed));
+	VOE_TEST_CHECK_INT(needed.value, types[0].value);
+	VOE_TEST_CHECK(!voe_ecs_component_needs(world, types[0], &needed));
+	VOE_TEST_CHECK(!voe_ecs_component_needs(world, types[1], &needed));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -495,6 +538,8 @@ int main(void)
 	a_type_hands_back_the_intent_it_was_given(arena);
 	a_type_without_one_says_so_and_nothing_else(arena);
 	a_row_is_edited_through_its_replace_intent(arena);
+	a_default_comes_back_as_it_was_set(arena);
+	a_need_comes_back_as_it_was_set(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

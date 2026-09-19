@@ -1,5 +1,7 @@
 // The component tables: registration, the two directions between an entity and
-// its row, and what a removal does to the order.
+// its row, and what a removal does to the order. Also what a registration is
+// given afterwards and only hands back: the replace intent, the default row and
+// the type a type needs.
 //
 // A ROW IS FOUND BY INDEXING TWICE AND NOT BY SEARCHING. row_of[entity.index] is
 // the row, and owners[row] is the entity — one load each way, no hashing and no
@@ -119,6 +121,9 @@ voe_ecs_type voe_ecs_component_register(
 	table->replace = (voe_ecs_intent){ 0 };
 	table->replace_row_offset = 0;
 	table->replace_set = false;
+	table->default_row = NULL;
+	table->needs = (voe_ecs_type){ 0 };
+	table->needs_set = false;
 
 	for (uint32_t i = 0; i < world->entity_capacity; i++)
 		table->row_of[i] = VOE_ECS_NO_ROW;
@@ -238,6 +243,54 @@ voe_ecs_replace voe_ecs_component_replace(const voe_ecs_world *world,
 	// number and copying it here would be a second place for it to be wrong.
 	replace.value_size = voe_ecs_intent_value_size(world, table->replace);
 	return replace;
+}
+
+void voe_ecs_component_default_set(voe_ecs_world *world, voe_ecs_type type,
+				   const void *row)
+{
+	struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_ASSERT(row != NULL, "setting a component's default from nothing");
+	VOE_BASE_ASSERT(table->default_row == NULL,
+			"giving a component type a second default row");
+
+	// Copied, so the caller's row can be a local: the world's copy lives as
+	// long as the world does, in the world's arena.
+	table->default_row = voe_base_arena_push(world->arena, table->size);
+	memcpy(table->default_row, row, table->size);
+}
+
+const void *voe_ecs_component_default(const voe_ecs_world *world,
+				      voe_ecs_type type)
+{
+	return table_at(world, type)->default_row;
+}
+
+void voe_ecs_component_needs_set(voe_ecs_world *world, voe_ecs_type type,
+				 voe_ecs_type needed)
+{
+	struct voe_ecs_table *table = table_at(world, type);
+
+	(void)table_at(world, needed);
+	VOE_BASE_ASSERT(!table->needs_set,
+			"giving a component type a second type it needs");
+
+	table->needs = needed;
+	table->needs_set = true;
+}
+
+bool voe_ecs_component_needs(const voe_ecs_world *world, voe_ecs_type type,
+			     voe_ecs_type *out)
+{
+	const struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_DEBUG_ASSERT(out != NULL, "asking what a type needs into nothing");
+
+	if (!table->needs_set)
+		return false;
+
+	*out = table->needs;
+	return true;
 }
 
 bool voe_ecs_component_add(voe_ecs_world *world, voe_ecs_type type,

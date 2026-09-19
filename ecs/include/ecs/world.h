@@ -60,10 +60,17 @@ typedef struct {
 // What a world can hold, decided by whoever makes it. component_types and
 // intent_types are how many _register calls the world will accept, not how many
 // components an entity may have.
+//
+// structure_requests and structure_bytes size the structural queue
+// (ecs/structure.h): how many requests may wait, and how many bytes of rows the
+// adds among them may carry. Unlike the three above they may be zero, and a
+// world with either at zero has no structural queue at all.
 typedef struct {
 	uint32_t entities;
 	uint32_t component_types;
 	uint32_t intent_types;
+	uint32_t structure_requests;
+	uint32_t structure_bytes;
 } voe_ecs_limits;
 
 // The identity of a component type or an intent type. One per module, defined
@@ -76,8 +83,9 @@ struct voe_ecs_key {
 	const char *name;
 };
 
-// Never NULL — the arena aborts rather than failing (rule 11). Every limit must
-// be greater than zero; a zero is the caller's bug and asserts.
+// Never NULL — the arena aborts rather than failing (rule 11). entities,
+// component_types and intent_types must be greater than zero; a zero there is
+// the caller's bug and asserts. The two structure limits may be zero.
 voe_ecs_world *voe_ecs_world_new(voe_base_arena *arena, voe_ecs_limits limits);
 
 // False when the world already holds `limits.entities` of them. That is the one
