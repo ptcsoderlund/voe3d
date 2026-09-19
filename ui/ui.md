@@ -60,7 +60,8 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   `voe_ui_theme_push`, `voe_ui_theme_pop`), the panel (`voe_ui_surface`), the
   label (`voe_ui_text_role`, `voe_ui_label_role`), the button, the number box,
   a single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
-  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`), the
+  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`) and the
+  one keyboard focus this folder holds its text for (`voe_ui_typing`), the
   image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`), the
   pointer and the keyboard (`voe_ui_keyboard`, `voe_ui_keyboard_set`) they are
   given, and this frame's element records read back. Its header says why the
@@ -76,7 +77,10 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   takes a value and a rate instead, why what comes back is a value and not a
   distance and what that buys the typing that is not built yet, and why a
   press and release without movement is reserved rather than free. On the
-  field it says why it composes its own label rather than taking one in, why
+  field it says that the context holds the focused field's text so a caller
+  keeps no copy of an edit, how the focus arrives selected, commits and
+  cancels, and where Tab takes it, why it composes its own label rather than
+  taking one in, why
   the caret is measured from that label, why the edited text comes back as a
   value rather than the caller's own buffer being written into, that where the
   typed bytes came from is not this folder's business, and what a field costs

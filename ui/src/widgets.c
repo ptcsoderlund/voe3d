@@ -133,16 +133,18 @@
 // EDITING RUNS IN field_edit, AFTER resolve AND BEFORE emit, AND NOT INSIDE
 // resolve ITSELF, because resolve is where this frame's press can MOVE focus
 // to a field it had not settled on yet — the frame a person first clicks into
-// one. Only once focus for this frame is final is there a field to edit, so
-// field_edit walks the tree once to find whichever field key `ui->focus`
-// names, edits `ui->field_buffer` from its composed label's own text — always
-// the node right after the field's, since voe_ui_field makes and ends that
-// label itself — and repoints the label at the buffer only when something
-// changed, which is what makes the very letters just typed show up in the
-// frame that read them rather than one frame later. ONE BUFFER AND NOT A
-// TABLE, because only one field can be focused, exactly as only one widget
-// can be held.
+// one. Only once focus for this frame is final is there a field to edit.
 //
+// THE CONTEXT HOLDS THE FOCUSED FIELD'S TEXT IN ONE BUFFER AND NOT A TABLE,
+// because only one field can be focused (ADR-0192). field_edit seeds it from
+// the caller's text the frame the focus arrives, all of it selected; from the
+// next frame voe_ui_field hands the buffer to its label instead of the
+// caller's text, so layout measures what is shown. Focus leaving by Enter,
+// Tab or a press elsewhere copies the buffer to `field_final`, a second
+// buffer because a press into another field seeds this one in the same
+// frame; Escape points the label back at the caller's text. The outcome is
+// written onto the field's own widget record, read by voe_ui_field_action.
+
 // ---- A SCROLL AREA: A TABLE REWRITTEN EVERY FRAME, AND A BAR IN PAINT ORDER ----
 //
 // THE TABLE IS NEVER EDITED IN PLACE, IT IS REWRITTEN. During a frame each
@@ -384,6 +386,14 @@ static uint32_t utf8_length(unsigned char lead)
 	return 1;
 }
 
+// Whether a typed byte is one field_append keeps: nothing below 0x20 and not
+// 0x7F, which a keyboard hands over for Tab, Enter or Delete but which a
+// field's text never holds.
+static bool typeable(unsigned char byte)
+{
+	return byte >= 0x20 && byte != 0x7f;
+}
+
 // Removes the last code point of a NUL-terminated string in place: the
 // trailing continuation bytes and the byte before them. Does nothing on an
 // empty string, there being no last code point to remove.
@@ -404,7 +414,8 @@ static void field_backspace(char *text)
 // stepping by each one's own leading byte's length so nothing reads past
 // `size`, dropping a trailing partial sequence whole rather than reading past
 // the end of what was typed, and dropping whole any code point that would not
-// fit rather than cutting it at a byte capacity does not respect.
+// fit rather than cutting it at a byte capacity does not respect. A byte that
+// is not typeable is skipped.
 static void field_append(char *text, const char *typed, uint32_t size)
 {
 	size_t len = strlen(text);
@@ -415,6 +426,10 @@ static void field_append(char *text, const char *typed, uint32_t size)
 
 		if (at + bytes > size)
 			break;
+		if (bytes == 1 && !typeable((unsigned char)typed[at])) {
+			at++;
+			continue;
+		}
 		if (len + bytes <= VOE_UI_FIELD_CAPACITY) {
 			memcpy(text + len, typed + at, bytes);
 			len += bytes;
@@ -725,14 +740,19 @@ voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
 		ui->widgets[node].key = key;
 		ui->widgets[node].keyed = true;
 		ui->widgets[node].theme = theme;
+		ui->widgets[node].text = text;
 	}
 
 	// Made and ended here, whether or not `node` is a real one: a field
 	// refused for want of a node is still a balanced begin/end pair, as
 	// every other refused container is. THE LABEL IS ALWAYS THE NEXT NODE
 	// AFTER THE FIELD'S OWN, which is what lets field_edit and
-	// voe_ui_field_action find it from the field's index alone.
-	voe_ui_label(ui, text);
+	// voe_ui_field_action find it from the field's index alone. WHILE THE
+	// CONTEXT HOLDS THIS FIELD'S TEXT THE LABEL IS THAT TEXT, so layout
+	// measures what is shown and the caller's `text` is not read.
+	voe_ui_label(ui, ui->field_holding && ui->field_owner == key
+				 ? ui->field_buffer
+				 : text);
 	voe_ui_end(ui);
 
 	return node;
@@ -1174,6 +1194,8 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 	// regardless of refusal, so the check is meaningful either way.
 	if (ui->focus_set && !key_taken(ui, ui->focus))
 		ui->focus_set = false;
+	if (ui->field_holding && !key_taken(ui, ui->field_owner))
+		ui->field_holding = false;
 
 	if (!laid_out) {
 		ui->hovered_set = false;
@@ -1269,72 +1291,123 @@ static void resolve(voe_ui_context *ui, bool laid_out)
 	ui->was_down = ui->pointer.down;
 }
 
-// Edits the focused field's text with this frame's keyboard, once focus is
+// The node of the field keyed `key` this frame, or VOE_UI_NODE_NONE.
+static uint32_t field_of(const voe_ui_context *ui, uint64_t key)
+{
+	for (uint32_t i = 0; i < ui->count; i++)
+		if (ui->widgets[i].kind == VOE_UI_WIDGET_FIELD &&
+		    ui->widgets[i].key == key)
+			return i;
+	return VOE_UI_NODE_NONE;
+}
+
+// Focus leaves the field whose text the context holds, keeping that text:
+// copied to `field_final`, shown by its label this frame and handed back as
+// its `text`, and the field marked committed.
+static void field_commit(voe_ui_context *ui, uint32_t field)
+{
+	memcpy(ui->field_final, ui->field_buffer, sizeof(ui->field_final));
+	ui->widgets[field + 1].text = ui->field_final;
+	ui->widgets[field].committed = true;
+	ui->field_holding = false;
+}
+
+// The first field made after `field` in this frame, wrapping to the first
+// field of all — `field` itself when it is the only one. Call order is node
+// order, which is what Tab follows (ADR-0192).
+static uint32_t field_after(const voe_ui_context *ui, uint32_t field)
+{
+	for (uint32_t step = 1; step <= ui->count; step++) {
+		uint32_t i = (field + step) % ui->count;
+
+		if (ui->widgets[i].kind == VOE_UI_WIDGET_FIELD)
+			return i;
+	}
+	return field;
+}
+
+// What this frame's keyboard does to the focused field, once focus is
 // settled — which is why this runs after resolve rather than inside it: a
 // press this same frame can move focus to a field before its first
 // keystroke, and the field found here is the one that press produced.
+//
+// IN THIS ORDER: a field that lost the focus since the buffer was seeded
+// commits; the newly focused one is seeded from its caller's text with all
+// of it selected; Escape cancels and nothing else is read; Backspace, then
+// typing, edit; Enter or Tab commits, and Tab hands the focus to the next
+// field, which is seeded the next frame. The label is pointed at whichever
+// text this leaves the field showing, so a letter typed shows in the frame
+// that read it.
 //
 // THE LABEL IS ALWAYS THE NODE RIGHT AFTER THE FIELD'S OWN — see
 // voe_ui_field — so once the field is found there is no second table to
 // consult for its text.
 static void field_edit(voe_ui_context *ui)
 {
-	uint32_t field = VOE_UI_NODE_NONE;
-	uint32_t label;
-	const char *source;
-	size_t len;
+	char before[VOE_UI_FIELD_CAPACITY + 1];
+	uint32_t field;
+	bool typed = false;
 
-	ui->field_changed = false;
+	if (ui->field_holding &&
+	    (!ui->focus_set || ui->focus != ui->field_owner)) {
+		field = field_of(ui, ui->field_owner);
+		if (field != VOE_UI_NODE_NONE)
+			field_commit(ui, field);
+		ui->field_holding = false;
+	}
 	if (!ui->focus_set)
 		return;
-
-	for (uint32_t i = 0; i < ui->count; i++) {
-		if (ui->widgets[i].kind == VOE_UI_WIDGET_FIELD &&
-		    ui->widgets[i].key == ui->focus) {
-			field = i;
-			break;
-		}
-	}
+	field = field_of(ui, ui->focus);
 	if (field == VOE_UI_NODE_NONE)
 		return;
 
-	label = field + 1;
-	source = ui->widgets[label].text;
+	if (!ui->field_holding) {
+		// Copied defensively rather than trusted: the buffer is fixed
+		// and a caller handing in more than VOE_UI_FIELD_CAPACITY
+		// bytes is a bug this folder does not crash over.
+		size_t len = strlen(ui->widgets[field].text);
 
-	// Copied defensively rather than trusted: the buffer is fixed and a
-	// caller handing in more than VOE_UI_FIELD_CAPACITY bytes is a bug
-	// this folder does not crash over.
-	len = strlen(source);
-	if (len > VOE_UI_FIELD_CAPACITY)
-		len = VOE_UI_FIELD_CAPACITY;
-	memcpy(ui->field_buffer, source, len);
-	ui->field_buffer[len] = '\0';
+		if (len > VOE_UI_FIELD_CAPACITY)
+			len = VOE_UI_FIELD_CAPACITY;
+		memcpy(ui->field_buffer, ui->widgets[field].text, len);
+		ui->field_buffer[len] = '\0';
+		ui->field_owner = ui->focus;
+		ui->field_holding = true;
+		ui->field_selected = true;
+	}
+	ui->widgets[field + 1].text = ui->field_buffer;
 
-	// BACKSPACE BEFORE TYPING, IN THAT ORDER — see widgets.h. Either one
-	// changes the length whenever it changed anything, which is enough to
-	// know that something did without a second comparison of the bytes.
-	if (ui->keyboard.backspace) {
-		size_t before = strlen(ui->field_buffer);
+	if (ui->keyboard.escape) {
+		ui->widgets[field].cancelled = true;
+		ui->widgets[field + 1].text = ui->widgets[field].text;
+		ui->field_holding = false;
+		ui->focus_set = false;
+		return;
+	}
 
+	memcpy(before, ui->field_buffer, sizeof(before));
+	for (uint32_t i = 0; i < ui->keyboard.size; i++)
+		typed = typed || typeable((unsigned char)ui->keyboard.text[i]);
+	// THE WHOLE TEXT SELECTED IS WHAT THE FIRST EDIT REPLACES: Backspace
+	// empties it and typing starts it again, and either ends the selection.
+	if (ui->field_selected && (ui->keyboard.backspace || typed)) {
+		ui->field_buffer[0] = '\0';
+		ui->field_selected = false;
+	} else if (ui->keyboard.backspace) {
 		field_backspace(ui->field_buffer);
-		if (strlen(ui->field_buffer) != before)
-			ui->field_changed = true;
 	}
-	if (ui->keyboard.size > 0) {
-		size_t before = strlen(ui->field_buffer);
-
+	if (typed)
 		field_append(ui->field_buffer, ui->keyboard.text,
-			    ui->keyboard.size);
-		if (strlen(ui->field_buffer) != before)
-			ui->field_changed = true;
-	}
+			     ui->keyboard.size);
+	ui->widgets[field].changed = strcmp(before, ui->field_buffer) != 0;
 
-	// THE LABEL'S TEXT IS REPOINTED ONLY WHEN SOMETHING CHANGED, so that a
-	// field nothing edited this frame still shows exactly the pointer it
-	// was given — which is also what voe_ui_field_action reads back as
-	// "the pointer handed in" (see widgets.h).
-	if (ui->field_changed)
-		ui->widgets[label].text = ui->field_buffer;
+	if (ui->keyboard.enter || ui->keyboard.tab) {
+		ui->widgets[field].entered = ui->keyboard.enter;
+		field_commit(ui, field);
+		ui->focus_set = ui->keyboard.tab;
+		if (ui->keyboard.tab)
+			ui->focus = ui->widgets[field_after(ui, field)].key;
+	}
 }
 
 static void push_element(voe_ui_context *ui, voe_render_element element)
@@ -1730,6 +1803,12 @@ static void emit(voe_ui_context *ui)
 			break;
 		case VOE_UI_WIDGET_FIELD:
 			push_rect(ui, node, field_colour(ui, node));
+			// THE WHOLE TEXT SELECTED IS THE ACCENT BEHIND IT: the
+			// label's own rectangle, before the label's glyphs.
+			if (ui->field_holding && ui->field_selected &&
+			    ui->field_owner == ui->widgets[node].key)
+				push_rect(ui, node + 1,
+					  ui->widgets[node].theme->accent);
 			break;
 		case VOE_UI_WIDGET_LABEL:
 			push_label(ui, node);
@@ -1923,6 +2002,7 @@ void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out)
 		field_edit(ui);
 		emit(ui);
 	}
+	ui->typing = ui->focus_set;
 }
 
 // ------------------------------------------------------------- read back
@@ -2027,13 +2107,22 @@ voe_ui_field_result voe_ui_field_action(const voe_ui_context *ui,
 
 	return (voe_ui_field_result){
 		.focused = focused,
-		.changed = focused && ui->field_changed,
-		.entered = focused && ui->keyboard.enter,
-		// The composed label's own text: field_edit repointed it at
-		// ui->field_buffer exactly when this frame changed it, and left
-		// it as the pointer the call was given otherwise. See widgets.h.
+		.changed = ui->widgets[field].changed,
+		.entered = ui->widgets[field].entered,
+		.committed = ui->widgets[field].committed,
+		.cancelled = ui->widgets[field].cancelled,
+		// The composed label's own text: field_edit pointed it at the
+		// context's buffer while focused, at the committed text on the
+		// frame focus left, and left it as the caller's otherwise.
 		.text = ui->widgets[field + 1].text,
 	};
+}
+
+bool voe_ui_typing(const voe_ui_context *ui)
+{
+	VOE_BASE_ASSERT(ui != NULL, "asking whether no context is typing");
+
+	return ui->typing;
 }
 
 uint32_t voe_ui_element_count(const voe_ui_context *ui)

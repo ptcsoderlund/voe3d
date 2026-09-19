@@ -16,4 +16,6 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   a scroll area's remembering, a duplicate key, a known tree emitted as a known
   list with every border and fill in order, the nearest theme winning and an
   unbalanced push refusing the frame, and a field's focus, typing, Backspace,
-  Enter and capacity.
+  Enter and capacity, the whole text selected when the focus arrives, Escape
+  cancelling, Enter, Tab and a press elsewhere committing, Tab wrapping between
+  two fields, control bytes ignored and `voe_ui_typing` following the focus.

@@ -85,9 +85,10 @@ struct voe_ui_scroll_area {
 struct voe_ui_widget_record {
 	// The hashed path to this call site. Meaningless unless `keyed`.
 	uint64_t key;
-	// A label's string, and NULL on everything else. It is the caller's
-	// pointer and is read at frame_end, so it must still be there then —
-	// which a string literal and a buffer the caller owns both are.
+	// A label's string, a field's text as the caller handed it in, and
+	// NULL on everything else. It is the caller's pointer and is read at
+	// frame_end, so it must still be there then — which a string literal
+	// and a buffer the caller owns both are.
 	const char *text;
 	// A panel's own surface. A button's, a number box's and a field's are
 	// not here: which theme role it is depends on the hit test, so
@@ -130,6 +131,16 @@ struct voe_ui_widget_record {
 	// the string a second time to ask the same question.
 	float baseline;
 	enum voe_ui_widget kind;
+	// What this frame did to a field, written by field_edit and read back
+	// by voe_ui_field_action: an edit changed its text, Enter arrived while
+	// it was focused, focus left it keeping its text, or Escape dropped
+	// it. Per node rather than one set in the context, because a press
+	// into another field commits one field and edits the next in the same
+	// frame. False on everything else.
+	bool changed;
+	bool entered;
+	bool committed;
+	bool cancelled;
 	// Whether `key` was worked out for this node. Panels, buttons and number
 	// boxes are keyed; labels and images are not, having nothing to remember.
 	bool keyed;
@@ -262,20 +273,31 @@ struct voe_ui_context {
 	// MEANS SOMETHING ELSE: `held` is a gesture in progress and is let go
 	// on release; `focus` is which field the keyboard is going to and
 	// stays that way across as many frames as nothing changes it. Set by a
-	// press landing inside a field, cleared by a press landing anywhere
-	// else, and dropped at frame_end when the field it names was not
-	// called this frame — see widgets.c.
+	// press landing inside a field, voe_ui_field_focus or Tab, cleared by a
+	// press landing anywhere else, Enter or Escape, and dropped at
+	// frame_end when the field it names was not called this frame — see
+	// widgets.c.
 	uint64_t focus;
 	bool focus_set;
-	// Whether THIS frame's edit changed the focused field's text. Worked
-	// out once, in field_edit, because only the one field the keyboard is
-	// going to can be touched by it.
-	bool field_changed;
-	// The one buffer an edit is written into, because only one field can
-	// be focused at a time. Read back by voe_ui_field_action through the
-	// focused field's composed label, whose `text` this points the record
-	// at only when `field_changed` — see field_edit in widgets.c.
+	// THE FOCUSED FIELD'S TEXT, WHICH THE CONTEXT HOLDS WHILE IT IS
+	// FOCUSED (ADR-0192). `field_holding` says the buffer is seeded, and
+	// `field_owner` is the key it was seeded for: from the frame after the
+	// focus arrived, voe_ui_field shows this buffer instead of the caller's
+	// text, which it no longer reads. `field_selected` is the whole text
+	// being selected, as it is when the focus arrives and until the first
+	// edit.
+	uint64_t field_owner;
+	bool field_holding;
+	bool field_selected;
 	char field_buffer[VOE_UI_FIELD_CAPACITY + 1];
+	// The text a field was committed with this frame, kept apart from
+	// `field_buffer` because a press into another field seeds that one in
+	// the same frame. Valid until the next commit, which is at least the
+	// next frame.
+	char field_final[VOE_UI_FIELD_CAPACITY + 1];
+	// Whether a field held the focus at the end of the last frame, which is
+	// what voe_ui_typing answers.
+	bool typing;
 
 	// The three keys that are the whole of this folder's memory. `held`
 	// survives between frames — that is the point of it — and `hovered` and
