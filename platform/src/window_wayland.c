@@ -441,6 +441,8 @@ static voe_platform_key key_of(uint32_t scancode)
 		return VOE_PLATFORM_KEY_BACKSPACE;
 	case KEY_ENTER:
 		return VOE_PLATFORM_KEY_ENTER;
+	case KEY_DELETE:
+		return VOE_PLATFORM_KEY_DELETE;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}
