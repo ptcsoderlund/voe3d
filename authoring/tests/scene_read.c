@@ -90,10 +90,22 @@ VOE_BASE_DESCRIBE_STRUCT(shapes, SHAPES_FIELDS)
 
 static const struct voe_ecs_key shapes_key = { "test_shapes" };
 
+// A COLOUR field beside a plain float, with a default row giving both a non-zero
+// value: proves COLOUR reads back byte for byte and that a missing field reads
+// as its default (ADR-0190, ADR-0191).
+#define TINTED_FIELDS(F, F_READ_ONLY)    \
+	F(voe_math_float3, colour, COLOUR) \
+	F(float, weight, FLOAT32)
+
+VOE_BASE_DESCRIBE_STRUCT(tinted, TINTED_FIELDS)
+
+static const struct voe_ecs_key tinted_key = { "test_tinted" };
+
 struct types {
 	voe_ecs_type link;
 	voe_ecs_type sample;
 	voe_ecs_type shapes;
+	voe_ecs_type tinted;
 };
 
 static voe_ecs_world *world_of(voe_base_arena *arena, uint32_t entities,
@@ -114,6 +126,12 @@ static voe_ecs_world *world_of(voe_base_arena *arena, uint32_t entities,
 		world, &sample_key, sizeof(sample), ENTITIES, sample_description());
 	types->shapes = voe_ecs_component_register(
 		world, &shapes_key, sizeof(shapes), ENTITIES, shapes_description());
+	types->tinted = voe_ecs_component_register(
+		world, &tinted_key, sizeof(tinted), ENTITIES, tinted_description());
+	voe_ecs_component_default_set(world, types->tinted, &(tinted){
+		.colour = { 0.7f, 0.7f, 0.7f },
+		.weight = 2.0f,
+	});
 	(void)voe_ecs_component_register(world, &shaped_key, sizeof(shaped),
 					 ENTITIES, shaped_description());
 	(void)voe_ecs_component_register(world, &runtime_key, sizeof(int),
@@ -369,6 +387,42 @@ static void test_round_trip_world_first(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A COLOUR field goes out as three numbers, as FLOAT3 does, and comes back byte
+// for byte.
+static void test_colour_round_trip(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
+	struct types types;
+	voe_ecs_world *first = world_of(arena, ENTITIES, &types);
+	voe_ecs_entity cube = authored(first, 1, "Cube");
+	tinted row = { .colour = { 0.25f, 0.1f, 1.0f }, .weight = 0.5f };
+	voe_authoring_text out = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_component_add(first, types.tinted, cube, &row));
+	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &out));
+	CHECK_TEXT(out.text, out.size,
+		   "[1]\n"
+		   "name = \"Cube\"\n"
+		   "[1.test_tinted]\n"
+		   "colour = [0.25, 0.1, 1]\n"
+		   "weight = 0.5\n");
+
+	struct types second_types;
+	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
+	voe_authoring_kept kept = { 0 };
+
+	VOE_TEST_CHECK(out.text != NULL &&
+		       voe_authoring_scene_read(out.text, out.size, second, arena,
+						&kept));
+
+	const tinted *back = voe_ecs_component_get(
+		second, second_types.tinted, entity_with_id(second, 1));
+
+	VOE_TEST_CHECK(back != NULL && memcmp(back, &row, sizeof(row)) == 0);
+
+	voe_base_arena_destroy(arena);
+}
+
 static void check_refused(const char *text, const char *file, int line)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -503,15 +557,30 @@ static void test_warnings(void)
 				 "position = [1, 2, 3]\n"
 				 "rotation = [0, 0, 0, 1]\n"
 				 "[1.test_link]\n"
-				 "target = 77\n",
+				 "target = 77\n"
+				 "[1.test_sample]\n"
+				 "flag = true\n"
+				 "[1.test_tinted]\n"
+				 "weight = 3\n",
 				 world, arena, &kept));
 
 	voe_ecs_entity entity = entity_with_id(world, 1);
 	const voe_scene_transform *transform = voe_scene_transform_get(world, entity);
 	const link *reference = voe_ecs_component_get(world, types.link, entity);
+	const sample *plain = voe_ecs_component_get(world, types.sample, entity);
+	const tinted *tint = voe_ecs_component_get(world, types.tinted, entity);
 
+	// A missing field reads as the type's default row: transform's scale is 1,
+	// tinted's colour its grey; sample has no default, so its missing fields
+	// read zero.
 	VOE_TEST_CHECK(transform != NULL && transform->position.y == 2.0f &&
-		       transform->scale.x == 0.0f && transform->scale.z == 0.0f);
+		       transform->scale.x == 1.0f && transform->scale.z == 1.0f);
+	VOE_TEST_CHECK(tint != NULL && tint->weight == 3.0f &&
+		       tint->colour.x == 0.7f && tint->colour.y == 0.7f &&
+		       tint->colour.z == 0.7f);
+	VOE_TEST_CHECK(plain != NULL && plain->flag && plain->small == 0 &&
+		       plain->big == 0 && plain->precise == 0.0 &&
+		       plain->label[0] == '\0');
 	VOE_TEST_CHECK(reference != NULL && reference->target.index == 0 &&
 		       reference->target.generation == 0);
 	VOE_TEST_CHECK(strcmp(voe_scene_identity_get(world, entity)->name, "a") == 0);
@@ -682,6 +751,7 @@ int main(void)
 {
 	test_round_trip_text_first();
 	test_round_trip_world_first();
+	test_colour_round_trip();
 	test_refusals();
 	test_shapes_refusals();
 	test_shapes_tolerated_spacing();

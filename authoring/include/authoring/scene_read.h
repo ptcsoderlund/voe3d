@@ -54,7 +54,10 @@
 // and not a recursive call (CLAUDE.md rule 14). An ENUM field is refused, because
 // no value names exist to read one with. AN ENTITY is an authored id: `0` is no
 // entity, and an id with no `[N]` in the file is no entity and a warning. A field
-// the section does not mention is zero and a warning; a key naming no field is
+// the section does not mention starts from that field's bytes in the type's
+// default row (voe_ecs_component_default), or zero when the type has none, and
+// is a warning — so a scene saved before spec 010 opens its shapes grey, not
+// black; a key naming no field is
 // ignored and a warning. A CHAR VALUE'S quotes are the sectioned reader's to
 // strip (assets/sectioned.h), so `name = Cube` reads the same as `name = "Cube"`
 // — for a field of rank 1, one string. A field with more dimensions is an array
