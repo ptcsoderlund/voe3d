@@ -14,7 +14,7 @@ is a decision, not a card. The engine's standing rules, numbered as code cites t
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser. Never recurses over a file. On platform, math, base. Open `assets/assets.md`.
 - **authoring** — scene and project text read and written, world ↔ scene file; a game does not build it. On scene, ecs, assets, math, base. Open `authoring/authoring.md`.
 - **render** — the GPU layer and the only folder that names Vulkan: device, memory, resources by id, pipelines, targets, passes, present. Headers vendored in `render/vulkan/`, loader opened by name, every call through one resolved function table. On platform, math, base. Open `render/render.md`.
-- **text** — a glyph atlas as a three-channel distance field and one mesh per text block; Oxanium and Pixel Operator embedded, named by an enum. On render, math, base. Open `text/text.md`.
+- **text** — a glyph atlas as a three-channel distance field and one mesh per text block; Oxanium embedded, the one face, named by an enum (ADR-0185). On render, math, base. Open `text/text.md`.
 - **ui** — immediate-mode GUI in millimetres: flexbox-like layout, panels, buttons, number boxes, text fields, scroll areas, one draw from an element buffer; a theme's palette derived in OKLab from five authored values, the nearest theme in force winning. On render, text, math, base. Open `ui/ui.md`.
 - **theme** — one `.theme` file's bytes read into `ui`'s authored inputs, a typeface and a display name, or refused with the line named; opens no file and derives nothing. On ui, text, assets, math, base, and render for its test's device only. Open `theme/theme.md`.
 - **3d** — the 3D renderer: scene → draws → a render target, meshes, materials, built-in shapes. On render, scene, ecs, assets, math, base. Open `3d/3d.md`.
@@ -49,3 +49,4 @@ Every record 0001–0167 in `history/decisions/` stands unless one says it is su
 - 0176 — `theme`'s row names `render`, for its test's headless device.
 - 0177 — To see what was drawn, render to a PNG; the planner names this on cards that change what is drawn.
 - 0178 — Two built-in themes, Near black and Near white, the light one remembered as `near_white`.
+- 0185 — Oxanium is the only font; a theme naming any other gets it, and the editor offers no font choice.
