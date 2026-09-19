@@ -1,12 +1,12 @@
 // Which of the world's authored entities is selected, and the rows the Scene
 // panel drew this frame.
 //
-// THIS FILE DOES NOT BUILD A WORLD OR ANYTHING IN ONE. What a fresh project
-// holds is project.h's decision — the untitled scene's two entities among
-// them — and what an opened one holds is authoring/scene_read.h's; scene.world
-// is set from whichever the current project's world is (main.c, and
-// session.c when a NEW goes ahead replaces it) and this file only ever reads
-// it. session.c writes `selected` too, on that same NEW, back to a zeroed
+// THIS FILE DOES NOT BUILD A WORLD. What a fresh project holds is project.h's
+// decision — the untitled scene's two entities among them — and what an opened
+// one holds is authoring/scene_read.h's; scene.world is set from whichever the
+// current project's world is (main.c, and session.c when a NEW goes ahead
+// replaces it). The one thing this file does to it is the Add menu's choice,
+// handed to entities.h, which queues the new entity's rows (ADR-0193). session.c writes `selected` too, on that same NEW, back to a zeroed
 // entity — the one other place outside this file that touches either field,
 // and for the reason the next paragraph gives.
 //
@@ -35,13 +35,40 @@
 // have to be asked about after the frame; the inspector's own is one field below
 // and inspector.h owns every line of what is in it. A scene view's panel keeps
 // its picture in view.h's struct instead, because a view is not the scene's.
+//
+// THE ADD MENU IS THE SCENE PANEL'S, AND SO IS WHETHER IT SHOWS. Add toggles
+// `adding`; while it is set the panel draws the four choices under it. A press
+// that starts on none of those five buttons hides them — which is why the
+// clicks are read with the pointer's button, this file keeping last frame's to
+// find the press. A choice made is an entity added, selected, and counted in
+// `structural`, which main.c reads to mark the project unsaved.
+//
+// DELETE AND DUPLICATE ACT ON THE SELECTION, and are this file's so that the
+// Delete key and Ctrl+D (main.c) and the Inspector's two buttons (inspector.c)
+// are one call each and not two copies. Delete clears the selection and
+// Duplicate selects the copy; each success counts one in `structural`, and a
+// full world or queue sets `full`, which main.c turns into "The scene is
+// full." The Inspector's Remove and Add component count and refuse into the
+// same two fields (inspector.h). Both are zeroed with the rows, every frame, which is why main.c
+// calls these after the interface has drawn and not before.
+//
+// THE COLOUR PICKER'S TARGET IS HERE TOO, IN `picking`, because it outlives the
+// frame the Inspector's swatch fired in and the Inspector's own struct forgets
+// its controls every frame. It names an entity, a component type and the
+// colour's offset in the row, never a component. It is opened by the Inspector
+// (inspector.h) and closed by interface.c on a press outside the picker, by
+// main.c on Escape, and here, on the next ask, when its entity is gone, no longer
+// selected or without the row. Closing changes no colour: every change was
+// already submitted as it happened.
 #pragma once
 
 #include "inspector.h"
 
 #include <ecs/world.h>
+#include <math/float3.h>
 #include <ui/layout.h>
 
+#include <stddef.h>
 #include <stdint.h>
 
 // How many authored entities the Scene panel will list, and therefore how many
@@ -50,6 +77,22 @@
 // Thirty-two is far more than the two this file builds and far fewer than the
 // interface's node budget would refuse.
 #define VOE_EDITOR_SCENE_ROWS 32
+
+// Entity, Cube, Capsule and Cylinder.
+#define VOE_EDITOR_SCENE_ADD_CHOICES 4
+
+// What the colour picker edits while it is open. Zeroed is a closed picker.
+typedef struct {
+	bool open;
+	voe_ecs_entity entity;
+	voe_ecs_type type;
+	// Bytes from the start of the row to the colour's three floats.
+	size_t offset;
+	// Where the Inspector column's content began on the surface when the
+	// swatch fired, in millimetres from the left: the picker is anchored to
+	// end just short of it.
+	float left;
+} voe_editor_picking;
 
 // One row the Scene panel drew: the button, and the entity it names.
 typedef struct {
@@ -61,17 +104,35 @@ typedef struct {
 // and what the Scene panel drew this frame. Zeroed is a scene with no world;
 // main.c sets world from the current voe_editor_project as soon as one
 // exists.
-typedef struct {
+typedef struct voe_editor_scene {
 	voe_ecs_world *world;
 	// Zeroed until something is clicked, and a zeroed entity is never a
 	// live one (ecs/world.h) — so there is no separate "nothing" flag.
 	voe_ecs_entity selected;
 	voe_editor_scene_row listed[VOE_EDITOR_SCENE_ROWS];
 	uint32_t listed_count;
+	// The Add button and its four choices as the panel drew them this
+	// frame, VOE_UI_NODE_NONE for any it did not. The choices are in
+	// voe_editor_add's order (entities.h).
+	voe_ui_node add;
+	voe_ui_node add_choices[VOE_EDITOR_SCENE_ADD_CHOICES];
+	// Whether the four choices show under Add.
+	bool adding;
+	// Last frame's primary button, so a press is found as an edge.
+	bool pointer_was_down;
+	// How many structural changes this panel and the Inspector's buttons
+	// made this frame. Zeroed with
+	// the rows, every frame.
+	uint32_t structural;
+	// Whether a Delete, Duplicate, Remove or Add component was refused
+	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
+	bool full;
 	// What the Inspector panel drew this frame, and the arena its labels
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.
 	voe_editor_inspector inspector;
+	// The colour picker's target, kept across frames.
+	voe_editor_picking picking;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -84,9 +145,16 @@ voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene);
 bool voe_editor_scene_is_selected(const voe_editor_scene *scene,
 				  voe_ecs_entity entity);
 
-// Forgets what the Scene panel drew last frame. Called before the panel draws,
-// because the nodes it holds name this frame's tree and last frame's are gone.
+// Forgets what the Scene panel drew last frame, the Add menu's buttons among it,
+// and zeroes `structural` and `full`. Called before the panel draws, because the nodes it
+// holds name this frame's tree and last frame's are gone.
 void voe_editor_scene_rows_clear(voe_editor_scene *scene);
+
+// Records the Add button and, when `adding`, the four choices the panel just
+// drew — `choices` is VOE_EDITOR_SCENE_ADD_CHOICES long, or NULL when they were
+// not drawn.
+void voe_editor_scene_add_menu_record(voe_editor_scene *scene, voe_ui_node add,
+				      const voe_ui_node *choices);
 
 // Records one row the Scene panel just drew. Silently keeps nothing past
 // VOE_EDITOR_SCENE_ROWS — the identity table is that size, so a further row is
@@ -94,8 +162,39 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene);
 void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 			      voe_ecs_entity entity);
 
-// Moves the selection to whichever recorded row fired this frame. Called after
-// voe_ui_frame_end and before the frame's arena is rewound, which is the one
-// window in which a widget will answer (ui/widgets.h).
-void voe_editor_scene_clicks_read(voe_editor_scene *scene,
-				  const voe_ui_context *ui);
+// Moves the selection to whichever recorded row fired this frame, and carries
+// out the Add menu: Add toggles the choices, a choice adds that entity through
+// entities.h, selects it, hides the choices and counts one in `structural`, and
+// a press on none of the five hides the choices. `down` is the pointer's
+// primary button this frame. Called after voe_ui_frame_end and before the
+// frame's arena is rewound, which is the one window in which a widget will
+// answer (ui/widgets.h).
+//
+// False when a choice was refused because the world or its queue is full; the
+// caller says "The scene is full." and nothing was counted.
+[[nodiscard]] bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
+						const voe_ui_context *ui,
+						bool down);
+
+// Queues the selected entity's destruction and clears the selection. Nothing
+// selected does nothing. Counts one in `structural`, or sets `full` when the
+// queue is full.
+void voe_editor_scene_delete(voe_editor_scene *scene);
+
+// Queues a copy of the selected entity (entities.h) and selects the copy.
+// Nothing selected does nothing. Counts one in `structural`, or sets `full`
+// when the world or the queue is full.
+void voe_editor_scene_duplicate(voe_editor_scene *scene);
+
+// Opens the picker on `picking`, replacing whatever it was open on.
+void voe_editor_scene_picker_open(voe_editor_scene *scene,
+				  voe_editor_picking picking);
+
+// Closes the picker. The colour stays whatever it last became.
+void voe_editor_scene_picker_close(voe_editor_scene *scene);
+
+// Whether the picker shows this frame, and the colour in its row when it does.
+// Closes it first when its entity is not alive, is no longer the selection or
+// no longer has the row — a change of selection is what closes it.
+[[nodiscard]] bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
+						   voe_math_float3 *colour);

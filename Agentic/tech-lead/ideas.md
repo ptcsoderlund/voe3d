@@ -28,3 +28,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **A visual shader editor** (node graph) and **a material editor**, two separate editors; a material is
   an instance of a shader (0189). They replace a shape's lone colour.
 - **Drag and drop into the scene**: place a new thing where it is dropped rather than at the origin (0189).
+- **A runtime-GUI editor** for what the cooker outputs, itself drawn in the editor themes (0194). A game's GUI
+  draws with a theme; per-element property overrides and a theme override are how it gets colour on purpose.
+  After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
+  that game actually needed.

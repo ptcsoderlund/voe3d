@@ -2,8 +2,8 @@
 
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
-mouse, a number box you drag sideways to change a value, a single-line text
-field, an image and a scroll area that remembers its offset. Not drawing — what
+mouse, a number box you drag sideways or click and type into to change a
+value, a single-line text field, an image, a scroll area that remembers its offset, a swatch and a colour picker. Not drawing — what
 comes out is element records and the caller submits them — and not input
 either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's. It also turns an
@@ -19,6 +19,12 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   listed on `src/src.md`.
 - `tests` — one plain C program per module, found by the build, none of them
   needing a window system; each is listed on `tests/tests.md`.
+- `include/ui/colour.h` — the swatch, one solid element of a linear colour,
+  and the colour picker (`voe_ui_colour_picker`, `voe_ui_colour_picker_action`,
+  `voe_ui_colour_result`): a saturation/value square, a hue strip and a hex
+  field in a panel the caller places. Its header says why it is placed by the
+  caller and not a popup, why the gradients are cells, how the hue survives a
+  grey, and what it costs in nodes and element records.
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
   between its begin and its end, any of which may clip what reaches past it
@@ -60,7 +66,8 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   `voe_ui_theme_push`, `voe_ui_theme_pop`), the panel (`voe_ui_surface`), the
   label (`voe_ui_text_role`, `voe_ui_label_role`), the button, the number box,
   a single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
-  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`), the
+  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`) and the
+  one keyboard focus this folder holds its text for (`voe_ui_typing`), the
   image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`), the
   pointer and the keyboard (`voe_ui_keyboard`, `voe_ui_keyboard_set`) they are
   given, and this frame's element records read back. Its header says why the
@@ -74,9 +81,13 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   asserts, and how the theme's `text_size` composes with the surface's own
   scale. On the number box it says why this folder knows no field kinds and
   takes a value and a rate instead, why what comes back is a value and not a
-  distance and what that buys the typing that is not built yet, and why a
-  press and release without movement is reserved rather than free. On the
-  field it says why it composes its own label rather than taking one in, why
+  distance and what that buys typing into one, how a click inside the dead
+  zone opens it for typing, what a commit accepts and refuses and what it
+  shows while it is open (ADR-0192). On the
+  field it says that the context holds the focused field's text so a caller
+  keeps no copy of an edit, how the focus arrives selected, commits and
+  cancels, and where Tab takes it among fields and number boxes, why it composes its own label rather than
+  taking one in, why
   the caret is measured from that label, why the edited text comes back as a
   value rather than the caller's own buffer being written into, that where the
   typed bytes came from is not this folder's business, and what a field costs

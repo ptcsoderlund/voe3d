@@ -217,6 +217,10 @@ void voe_scene_transform_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_replace_set(
 		world, type, intent,
 		offsetof(voe_scene_transform_intent, transform));
+	voe_ecs_component_default_set(
+		world, type,
+		&(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+					.scale = { 1.0f, 1.0f, 1.0f } });
 }
 
 bool voe_scene_transform_add(voe_ecs_world *world, voe_ecs_entity entity,

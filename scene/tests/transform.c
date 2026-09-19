@@ -517,6 +517,30 @@ static void the_world_hands_back_the_transforms_field_list(
 		check_description(found);
 }
 
+// What "add at default" gives (ADR-0190): at the origin, unrotated, scale one.
+// A zeroed rotation or scale would be a transform that draws nothing.
+static void the_default_is_the_origin_unrotated_at_scale_one(
+	voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	const voe_scene_transform *row = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_transform_key));
+
+	VOE_TEST_CHECK(row != NULL);
+	if (row == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(row->position.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->position.y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->position.z, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->rotation.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->rotation.y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->rotation.z, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->rotation.w, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->scale.x, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->scale.y, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->scale.z, 1.0f, 0.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -525,6 +549,7 @@ int main(void)
 	the_description_is_the_struct_the_compiler_laid_out();
 	the_world_hands_back_the_transforms_field_list(arena);
 	the_world_names_the_intent_that_replaces_a_transform(arena);
+	the_default_is_the_origin_unrotated_at_scale_one(arena);
 	a_transform_round_trips_through_the_table(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);

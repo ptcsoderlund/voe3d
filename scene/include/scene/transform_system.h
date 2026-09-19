@@ -66,8 +66,10 @@
 
 #include <stdint.h>
 
-// Registers the table, its description, the intent queue, and the intent as the
-// component's replace. Call it once per world, before anything adds a transform.
+// Registers the table, its description, the intent queue, the intent as the
+// component's replace, and the default row: at the origin, unrotated, scale one.
+// The default row is what "add at default" gives (0190). Call it once per world,
+// before anything adds a transform.
 // capacity is how many transforms the world may hold and also how many intents
 // may be waiting at once: one submission per transform per frame is what that
 // sizing assumes.

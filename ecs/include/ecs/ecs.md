@@ -8,3 +8,5 @@ stays on `ecs/ecs.md`.
   an entity and its row.
 - `intent.h` — a queue per intent type, and the only way one module changes
   another's data.
+- `structure.h` — the world's structural queue, through which rows are added and
+  removed and entities destroyed.

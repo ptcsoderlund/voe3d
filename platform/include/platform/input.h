@@ -45,9 +45,9 @@
 // THE LIST IS SHORT BECAUSE OF RULE 10 AND NOT BECAUSE IT WAS HARD. Every key
 // below has a caller today. There is no rest of the alphabet, no F-keys and no
 // arrows, because nothing reads them; adding one is a line in the enum and a line
-// in each backend's table, and it happens when something wants it. P is the most
-// recent to arrive that way and is not a movement key: dev/src/main.c toggles the
-// present mode with it.
+// in each backend's table, and it happens when something wants it. Delete is the
+// most recent to arrive that way and is not a movement key: the editor's Delete
+// command (spec 010) reads it.
 //
 // THE MOUSE IS TWO DIFFERENT QUESTIONS AND BOTH ARE ANSWERED BELOW. A camera
 // asks how far the mouse moved, which is voe_platform_input_motion and keeps
@@ -112,6 +112,7 @@ typedef enum {
 	VOE_PLATFORM_KEY_O,
 	VOE_PLATFORM_KEY_BACKSPACE,
 	VOE_PLATFORM_KEY_ENTER,
+	VOE_PLATFORM_KEY_DELETE,
 	VOE_PLATFORM_KEY_COUNT
 } voe_platform_key;
 

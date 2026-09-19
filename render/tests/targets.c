@@ -342,6 +342,7 @@ static void a_mesh_shows_the_target(struct scene *scene)
 						     .world = voe_math_float4x4_identity(),
 						     .normal = voe_math_float4x4_identity(),
 						     .shading = scene->shows_picture.index,
+						     .colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 					     }));
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));

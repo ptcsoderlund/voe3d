@@ -1,4 +1,5 @@
-// OKLab, internal to this folder. theme.c is the only caller: the palette in
+// OKLab, internal to this folder, and the sRGB transfer function both ways
+// that it is built on. theme.c is the only caller of OKLab: the palette in
 // ui/theme.h is derived by stepping LIGHTNESS in this space, because a step
 // sized in sRGB or linear RGB is a different size per hue and the palette
 // looks derived (ADR-0087, kept by ADR-0171). Björn Ottosson's published
@@ -9,6 +10,10 @@
 // spelled the way Slang spells it and OKLab is not a Slang concept; nothing
 // outside `ui` has asked for one (rule 10). Move it to `math` the day a second
 // folder needs it, unchanged.
+//
+// THE TRANSFER FUNCTION IS DECLARED HERE AS WELL, one channel at a time,
+// because colour.c's picker needs sRGB <-> linear and nothing else of OKLab,
+// and a second copy of the curve would be two answers to one question.
 //
 // L, a AND b ARE NOT x, y AND z. This is deliberately its own three-float
 // struct rather than a reused voe_math_float3: a lightness, a green-red axis
@@ -60,3 +65,9 @@ voe_math_float3 voe_ui_oklab_to_linear(voe_ui_oklab lab);
 // is linear all the way — and it exists for ui/tests/theme.c to check the
 // conversion against a value a person can read off a colour picker.
 voe_math_float3 voe_ui_oklab_to_srgb(voe_ui_oklab lab);
+
+// One channel of sRGB-encoded 0..1 to linear, and back. The way back clamps
+// into 0..1 first; the way in does not, every sRGB channel in range being a
+// real value.
+float voe_ui_srgb_to_linear(float c);
+float voe_ui_linear_to_srgb(float c);

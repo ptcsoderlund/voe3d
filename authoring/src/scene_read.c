@@ -1,7 +1,8 @@
 // The scene reader. Two passes, and only the second one touches the world.
 //
 // PASS ONE READS EVERYTHING INTO SCRATCH. Every section's rows are pushed zeroed
-// and filled from the text, every entity reference is held as an authored id, and
+// and filled from the text — a field the text does not mention from the type's
+// default row (voe_ecs_component_default), when it has one — every entity reference is held as an authored id, and
 // every kept section is copied out — so every refusal happens while the world is
 // still exactly as it was handed over. Pass two creates the entities, maps the ids
 // to them, patches the references and adds the rows, and can only fail on the
@@ -526,6 +527,7 @@ static bool element_of(struct cursor *cursor, voe_base_field_kind kind,
 	case VOE_BASE_FIELD_FLOAT2:
 		return floats_of(cursor, bytes, 2, depth, site);
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 		return floats_of(cursor, bytes, 3, depth, site);
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
@@ -616,6 +618,7 @@ static const char *spelling(voe_base_field_kind kind)
 	case VOE_BASE_FIELD_FLOAT2:
 		return "[x, y]";
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 		return "[x, y, z]";
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
@@ -924,6 +927,9 @@ static bool read_section(struct reader *reader, uint32_t s)
 			return false;
 	}
 
+	const uint8_t *fallback =
+		voe_ecs_component_default(reader->world, section->type);
+
 	for (uint32_t f = 0; f < description->field_count; f++) {
 		const voe_base_field_description *field = &description->fields[f];
 
@@ -932,10 +938,14 @@ static bool read_section(struct reader *reader, uint32_t s)
 		if (voe_assets_sectioned_value(&reader->doc, s, field->name) !=
 		    NULL)
 			continue;
+		if (fallback != NULL)
+			memcpy((uint8_t *)section->row + field->offset,
+			       fallback + field->offset, field->size);
 		VOE_BASE_WARNING(MODULE,
-				 "line %u: [%s] does not say %s; loaded as zero",
+				 "line %u: [%s] does not say %s; loaded as %s",
 				 reader->doc.sections[s].line, parsed->name,
-				 field->name);
+				 field->name,
+				 fallback != NULL ? "its default" : "zero");
 	}
 
 	if (entity) {

@@ -40,14 +40,21 @@ static const voe_base_struct_description *light_description(void)
 
 void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 {
+	voe_ecs_type type;
+
 	VOE_BASE_ASSERT(world != NULL, "registering lights in no world");
 
-	(void)voe_ecs_component_register(world, &voe_scene_light_key,
-					 sizeof(voe_scene_light), capacity,
-					 light_description());
+	type = voe_ecs_component_register(world, &voe_scene_light_key,
+					  sizeof(voe_scene_light), capacity,
+					  light_description());
 	(void)voe_ecs_intent_register(world, &light_intent_key,
 				      sizeof(voe_scene_light_intent),
 				      capacity);
+	voe_ecs_component_default_set(
+		world, type,
+		&(voe_scene_light){ .direction = { 0.0f, -1.0f, 0.0f },
+				    .colour = { 1.0f, 1.0f, 1.0f },
+				    .intensity = 1.0f });
 }
 
 bool voe_scene_light_add(voe_ecs_world *world, voe_ecs_entity entity,

@@ -51,15 +51,24 @@
 // THE BAR'S PREFERENCES SHOWS preferences.h'S PANEL IN THE SAME PLACE, and
 // it suppresses nothing: the shortcuts and the drag go on as ever. Escape
 // hides it when the browser is not showing; while the browser shows, Escape
-// is the browser's.
+// is the browser's. WHILE voe_ui_typing SAYS A FIELD OR NUMBER BOX HELD THE
+// KEYBOARD AT THE LAST FRAME'S END, ESCAPE IS `ui`'s ALONE: it cancels the
+// typing and neither cancels the browser nor hides Preferences that frame.
+// OTHERWISE, WHILE THE COLOUR PICKER IS OPEN (scene.h's `picking`), ESCAPE
+// CLOSES IT AND DOES NOTHING ELSE: typing first, then the picker, then the
+// browser and Preferences.
 //
-// BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
-// (task 14). Neither is this file's to act on: both, with whatever
-// voe_platform_input_text read since the last poll, are read every frame
-// regardless of whether the browser shows and handed to the interface as
-// this frame's voe_ui_keyboard (dock.h, interface.c) — `ui` acts on them only
-// for whichever field is focused, which is nothing outside the browser's
-// SAVE mode today.
+// DELETE AND CTRL+D DELETE AND DUPLICATE THE SELECTED ENTITY (scene.h), on
+// their down edge, and neither fires while the browser shows or while
+// voe_ui_typing says a field holds the keyboard.
+//
+// BACKSPACE, ENTER AND TAB ARE THE SAME SHAPE OF EDGE, FOR WHATEVER FIELD OR
+// NUMBER BOX HOLDS THE KEYBOARD — SAVE mode's name box, the Inspector's name
+// and its numbers. None is this file's to act on: all three and Escape, with
+// whatever voe_platform_input_text read since the last poll, are read every
+// frame regardless of whether the browser shows and handed to the interface
+// as this frame's voe_ui_keyboard (dock.h, interface.c) — `ui` acts on them
+// only for whichever widget is focused.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -80,6 +89,10 @@
 // OF DECISION: `platform` counts notches, `ui` takes a length in millimetres,
 // and WHEEL_MILLIMETRES between them is this program saying how far a notch
 // moves anything.
+//
+// A FRAME STARTS WITH THE WORLD'S STRUCTURAL QUEUE APPLIED (ADR-0193), before
+// the first system runs, so a row the Add menu queued last frame is there for
+// every system this frame and none sees one appear partway through its run.
 //
 // A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
 // the tree shows is drawn into its own target with its own camera first; the
@@ -146,6 +159,7 @@
 #include <base/error.h>
 #include <base/report.h>
 
+#include <ecs/structure.h>
 #include <ecs/world.h>
 
 #include <platform/input.h>
@@ -322,6 +336,10 @@ int main(int argc, char *argv[])
 	bool new_was_down = false;
 	bool open_was_down = false;
 	bool save_was_down = false;
+	// Last frame's Delete and Ctrl+D, the same shape — carried out on the
+	// scene's selection (scene.h) rather than through session.h.
+	bool delete_was_down = false;
+	bool duplicate_was_down = false;
 	// Last frame's Escape, the same shape without a modifier — the
 	// browser's own Cancel (browser.h) while it shows, and Preferences'
 	// Close (preferences.h) while it does not.
@@ -333,6 +351,8 @@ int main(int argc, char *argv[])
 	// repeating key waits on a later typing feature (spec's Defaults).
 	bool backspace_was_down = false;
 	bool enter_was_down = false;
+	// Last frame's Tab, the same shape: `ui` moves the focus on it.
+	bool tab_was_down = false;
 	// Shown by Open, once its unsaved-changes refusal is past; hidden by
 	// its own Cancel, Escape, or a folder it opened successfully
 	// (session.h). Kept across the whole program's run, never one
@@ -348,7 +368,7 @@ int main(int argc, char *argv[])
 	voe_base_error error;
 	voe_platform_window *window;
 	voe_render_device *gpu;
-	// The built-in shapes' GPU side: one cube's geometry and the one grey
+	// The built-in shapes' GPU side: their geometry and the one white
 	// material every shape wears. Uploaded once, at startup, and read every
 	// frame by voe_3d_shape_system_run.
 	voe_3d_shapes shapes;
@@ -543,11 +563,24 @@ int main(int argc, char *argv[])
 		bool escape = false;
 		bool backspace = false;
 		bool enter = false;
-		// This frame's Escape, Backspace and Enter edges, handed to the
-		// interface below — set once each has been read, further down.
+		bool tab = false;
+		// This frame's Escape, Backspace, Enter and Tab edges, handed to
+		// the interface below — set once each has been read, further
+		// down.
 		bool escape_fired;
 		bool backspace_fired;
 		bool enter_fired;
+		bool tab_fired;
+		// Whether a field or number box held the keyboard at the last
+		// frame's end, when this frame's Escape is `ui`'s alone.
+		bool typing;
+		// This frame's Escape edge when neither typing nor the picker
+		// took it: the browser's Cancel and Preferences' Close.
+		bool escape_free;
+		// This frame's Delete and Ctrl+D edges, carried out after the
+		// interface has drawn — see where they are read.
+		bool delete_fired;
+		bool duplicate_fired;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -590,15 +623,17 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		// Which rows exist changes here and nowhere else in the frame
+		// (ecs/structure.h), before any system below reads a table.
+		voe_ecs_structure_apply(session.project->world);
+
 		voe_scene_transform_system_run(session.project->world);
 		voe_scene_identity_system_run(session.project->world);
 		voe_scene_light_system_run(session.project->world);
 
-		// NOT AN INTENT DRAIN — a shape's kind is read-only
-		// (3d/shape_component.h) and nothing ever submits one — but the
-		// same "every frame" rule applies: a fresh shape needs its mesh
-		// and material the first frame it exists, and the run is a no-op
-		// for every frame after (3d/shape_system.h).
+		// Drains the shape's intent, like the three above, and gives a
+		// fresh shape its mesh and material the first frame it exists
+		// (3d/shape_system.h).
 		voe_3d_shape_system_run(session.project->world, &shapes);
 
 		// The clock, the poll, and what the window says afterwards, in
@@ -652,6 +687,8 @@ int main(int argc, char *argv[])
 				window, VOE_PLATFORM_KEY_BACKSPACE);
 			enter = voe_platform_input_key_down(
 				window, VOE_PLATFORM_KEY_ENTER);
+			tab = voe_platform_input_key_down(window,
+							  VOE_PLATFORM_KEY_TAB);
 		}
 
 		// CTRL+N, CTRL+O AND CTRL+S DO WHAT THEIR BUTTON DOES, on the
@@ -694,24 +731,56 @@ int main(int argc, char *argv[])
 			save_was_down = save_down;
 		}
 
-		// THIS FRAME'S ESCAPE, BACKSPACE AND ENTER EDGES, HANDED TO THE
-		// INTERFACE BELOW — the browser's own Cancel (browser.h) and,
-		// for the latter two, its name field's own editing and Enter
-		// (task 14), and nothing else this program reads any of the
-		// three for; a capture has no window, so all three stay false
-		// and none of them ever fires there either. NEITHER BACKSPACE
-		// NOR ENTER REPEATS WHILE HELD, for the reason the local
-		// variables above already say.
+		// DELETE AND CTRL+D ARE THE SAME SHAPE OF EDGE, and neither fires
+		// while the browser shows or while a field or number box holds
+		// the keyboard — a person typing is not also commanding
+		// (ui/widgets.h's voe_ui_typing). They are carried out after the
+		// interface has drawn, because the dock walk zeroes the scene's
+		// `structural` and `full` for the frame (scene.h).
+		{
+			bool delete_down =
+				window != NULL &&
+				voe_platform_input_key_down(
+					window, VOE_PLATFORM_KEY_DELETE);
+			bool duplicate_down = control && voe_platform_input_key_down(
+								 window, VOE_PLATFORM_KEY_D);
+			bool quiet = browser.showing || voe_ui_typing(ui);
+
+			delete_fired = delete_down && !delete_was_down && !quiet;
+			delete_was_down = delete_down;
+			duplicate_fired = duplicate_down && !duplicate_was_down &&
+					  !quiet;
+			duplicate_was_down = duplicate_down;
+		}
+
+		// THIS FRAME'S ESCAPE, BACKSPACE, ENTER AND TAB EDGES, HANDED TO
+		// THE INTERFACE BELOW — all four as `ui`'s keyboard for whichever
+		// field or number box is focused, and Escape besides as the
+		// browser's own Cancel (browser.h) when nobody is typing; a
+		// capture has no window, so all four stay false and none of them
+		// ever fires there either. NONE REPEATS WHILE HELD, for the
+		// reason the local variables above already say.
 		escape_fired = escape && !escape_was_down;
 		escape_was_down = escape;
+		typing = voe_ui_typing(ui);
+		// THE PICKER TAKES ESCAPE WHEN NOBODY IS TYPING, and the edge
+		// goes no further (the header's order).
+		escape_free = escape_fired && !typing;
+		if (escape_free && scene.picking.open) {
+			voe_editor_scene_picker_close(&scene);
+			escape_free = false;
+		}
 		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
-		// Preferences, which it does nothing else to.
-		if (escape_fired && !browser.showing)
+		// Preferences, which it does nothing else to. Neither while a
+		// person is typing: then it cancels that and nothing more.
+		if (escape_free && !browser.showing)
 			voe_editor_preferences_hide(&preferences);
 		backspace_fired = backspace && !backspace_was_down;
 		backspace_was_down = backspace;
 		enter_fired = enter && !enter_was_down;
 		enter_was_down = enter;
+		tab_fired = tab && !tab_was_down;
+		tab_was_down = tab;
 
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
@@ -723,13 +792,15 @@ int main(int argc, char *argv[])
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
 		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
-		// reads this for whichever field is focused, the browser's
-		// name box today, and nothing here decides which one that is.
+		// reads this for whichever field or number box is focused, and
+		// nothing here decides which one that is.
 		roots[0].keyboard = (voe_ui_keyboard){
 			.text = text.bytes,
 			.size = text.size,
 			.backspace = backspace_fired,
 			.enter = enter_fired,
+			.escape = escape_fired,
+			.tab = tab_fired,
 		};
 
 		// The middle button is the views' and the left is the
@@ -791,13 +862,27 @@ int main(int argc, char *argv[])
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &views, &session, &browser,
-				&preferences, &themes, escape_fired);
+				&preferences, &themes,
+				escape_free);
+			// Only when the Inspector's own buttons changed nothing
+			// structural this frame: two changes before the queue is
+			// applied would be given one id (entities.h).
+			if (scene.structural == 0 && delete_fired)
+				voe_editor_scene_delete(&scene);
+			if (scene.structural == 0 && duplicate_fired)
+				voe_editor_scene_duplicate(&scene);
+			if (scene.full)
+				voe_editor_notice_set(&session.notice,
+						      "The scene is full.");
 			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
 			// FOR IT AS A COMMAND — dragging a number in the
 			// Inspector is not New, Open, Save or Close, so
 			// session.h has no case for it; this is the other half
 			// of what marks the project unsaved (session.h).
-			if (scene.inspector.replaced > 0)
+			// And so is an entity the Add menu, Delete or Duplicate
+			// queued (scene.h).
+			if (scene.inspector.replaced > 0 ||
+			    scene.structural > 0)
 				voe_editor_session_edited(&session);
 			voe_render_pass_end(gpu);
 		}

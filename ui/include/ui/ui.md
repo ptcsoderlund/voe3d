@@ -1,8 +1,10 @@
 # ui
 
-The public headers, one entry each; the fuller account of all three stays on
+The public headers, one entry each; the fuller account of all four stays on
 `ui/ui.md`.
 
+- `colour.h` — the swatch and the colour picker, taking and handing back a
+  linear colour, and what a picker costs.
 - `layout.h` — nested rows and columns of boxes in millimetres and a rectangle
   for every one of them, with clipping, scroll offsets and a measured size read
   back through a handle; it lays out and does nothing else.

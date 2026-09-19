@@ -1,6 +1,7 @@
 # src
 
-`3d`'s implementation: one file per public header, plus the built-in cube's data.
+`3d`'s implementation: one file per public header, plus the built-in shapes'
+geometry.
 Nothing here is included from outside the folder — `include/3d/` is the whole
 public surface.
 
@@ -20,16 +21,26 @@ The work is in the two systems — `shape_system.c` once at startup and
   place of the geometry.
 - `material_component.c` — the same again, runtime-only too, plus the upload that
   turns a material's numbers into a record `render` holds.
-- `shape_component.c` — the shape table: its key, its registration as described,
-  its creation call and the reads.
-- `shape_system.c` — the one upload of the cube's geometry and the grey material
-  every shape wears, and the run that gives them to a shape that has neither yet.
+- `shape_component.c` — the shape table: its key, its registration as described
+  with its default row, its need of a transform and its intent, its creation
+  call and the reads.
+- `shape_system.c` — the one upload of the three shapes' geometry and the white
+  material every shape wears, the intent's submit and drain, the run that gives
+  them to a shape that has neither yet, and the removal of both once the shape
+  is gone.
 - `cube.h` — the built-in cube's vertices and indices as the one file that uses
   them sees them, internal to this folder.
 - `cube.c` — those twenty-four vertices and thirty-six indices written out by
   hand, every face wound counter-clockwise seen from outside.
+- `capsule.h` — the built-in capsule's counts and its builder, internal to this
+  folder, and why a pole row is thirty-three copies of one point.
+- `capsule.c` — the capsule's eighteen rows and the bands between them, a pole's
+  band one triangle a segment.
+- `cylinder.h` — the built-in cylinder's counts and its builder, internal to
+  this folder, and why its rim is built three times.
+- `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
-- `draw_system.c` — the camera, the sun, two matrices per object, the solid pass
+- `draw_system.c` — the camera, the sun, two matrices and a colour per object, the solid pass
   in table order and the blended one furthest first, on each side of the
   overlay's depth clear, over both tables.
 - `import.c` — the three uploads in their forced order and the tree walk that

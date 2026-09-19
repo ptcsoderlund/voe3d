@@ -10,8 +10,10 @@
 //
 // WHICH HALF OWNS WHICH FIELD IS WRITTEN DOWN BELOW AND IS NOT A SUGGESTION. The
 // tree and the frame belong to layout.c; everything from `font` down belongs to
-// widgets.c. Neither writes the other's, and the three entry points widgets.c
-// offers layout.c are at the bottom of this file — one at creation, for the
+// widgets.c, but for the pickers at the end, which are colour.c's — and colour.c
+// fills in the widget record of a node it makes, as every widget call does.
+// Nothing else is written across the line, and the entry points each file
+// offers another are at the bottom of this file; widgets.c's to layout.c are — one at creation, for the
 // scroll table that outlives every frame, and two at the frame's boundaries.
 // voe_ui_frame_end calls its one after arrange, which is the only order in which
 // a hit test can be against this frame's rectangles rather than last frame's.
@@ -26,6 +28,7 @@
 #include <ui/theme.h>
 #include <ui/widgets.h>
 
+#include <math/float3.h>
 #include <math/float4.h>
 #include <render/device.h>
 #include <text/font.h>
@@ -44,6 +47,48 @@ enum voe_ui_widget {
 	VOE_UI_WIDGET_IMAGE,
 	VOE_UI_WIDGET_SCROLL,
 	VOE_UI_WIDGET_FIELD,
+	// colour.c's: a swatch, a colour picker's panel, and the picker's
+	// saturation/value square and hue strip, the two that take the pointer.
+	VOE_UI_WIDGET_SWATCH,
+	VOE_UI_WIDGET_COLOUR_PICKER,
+	VOE_UI_WIDGET_COLOUR_SQUARE,
+	VOE_UI_WIDGET_COLOUR_HUE,
+};
+
+// How many colour pickers one frame may make, and so how many the context
+// remembers a hue for. A fixed ceiling rather than a voe_ui_capacities entry:
+// a panel shows one picker at a time today. One more refuses the frame, named
+// on stderr, as a scroll area past capacity does; a capacity is what lifts it.
+#define VOE_UI_COLOUR_PICKERS 8
+
+// A picker made this frame, colour.c's, in call order. The nodes are the
+// picker's panel, its square, its strip and its hex field; `hsv` is what it
+// was built showing (hue as a fraction of a turn), `linear` what the caller
+// handed in and `hex` the field's text, which must outlive the call. The rest
+// is the frame's answer, written at frame_end.
+struct voe_ui_colour_picker {
+	uint64_t key;
+	uint32_t node;
+	uint32_t square;
+	uint32_t strip;
+	uint32_t field;
+	voe_math_float3 hsv;
+	voe_math_float3 linear;
+	char hex[8];
+	bool refused_showing;
+	bool changed;
+	bool outside;
+	bool refused;
+	voe_math_float3 value;
+};
+
+// What a picker remembers between frames under its key: the HSV it last
+// showed, the linear colour that HSV is, and whether "not #RRGGBB" is showing.
+struct voe_ui_colour_memory {
+	uint64_t key;
+	voe_math_float3 hsv;
+	voe_math_float3 linear;
+	bool refused;
 };
 
 // One of a scroll area's two bars: the one that scrolls X, along the bottom, or
@@ -85,9 +130,10 @@ struct voe_ui_scroll_area {
 struct voe_ui_widget_record {
 	// The hashed path to this call site. Meaningless unless `keyed`.
 	uint64_t key;
-	// A label's string, and NULL on everything else. It is the caller's
-	// pointer and is read at frame_end, so it must still be there then —
-	// which a string literal and a buffer the caller owns both are.
+	// A label's string, a field's text as the caller handed it in, and
+	// NULL on everything else. It is the caller's pointer and is read at
+	// frame_end, so it must still be there then — which a string literal
+	// and a buffer the caller owns both are.
 	const char *text;
 	// A panel's own surface. A button's, a number box's and a field's are
 	// not here: which theme role it is depends on the hit test, so
@@ -130,6 +176,26 @@ struct voe_ui_widget_record {
 	// the string a second time to ask the same question.
 	float baseline;
 	enum voe_ui_widget kind;
+	// What this frame did to a field, written by field_edit and read back
+	// by voe_ui_field_action: an edit changed its text, Enter arrived while
+	// it was focused, focus left it keeping its text, or Escape dropped
+	// it. Per node rather than one set in the context, because a press
+	// into another field commits one field and edits the next in the same
+	// frame. False on everything else.
+	bool changed;
+	bool entered;
+	bool committed;
+	bool cancelled;
+	// A number box's own: built open for typing this frame, and this
+	// frame's typed commit refused (ADR-0192). A number box's `changed`
+	// above is a typed commit accepted, and then `value` is the typed
+	// number rather than the caller's.
+	bool open;
+	bool refused;
+	// A swatch's and a picker's linear colour as handed in, and a picker
+	// square's or strip's HSV, hue a fraction of a turn. colour.c's; zero
+	// on everything else.
+	voe_math_float3 colour;
 	// Whether `key` was worked out for this node. Panels, buttons and number
 	// boxes are keyed; labels and images are not, having nothing to remember.
 	bool keyed;
@@ -262,20 +328,46 @@ struct voe_ui_context {
 	// MEANS SOMETHING ELSE: `held` is a gesture in progress and is let go
 	// on release; `focus` is which field the keyboard is going to and
 	// stays that way across as many frames as nothing changes it. Set by a
-	// press landing inside a field, cleared by a press landing anywhere
-	// else, and dropped at frame_end when the field it names was not
-	// called this frame — see widgets.c.
+	// press landing inside a field, a click on a number box,
+	// voe_ui_field_focus or Tab, cleared by a press landing anywhere else,
+	// Enter or Escape, and dropped at
+	// frame_end when the field it names was not called this frame — see
+	// widgets.c.
 	uint64_t focus;
 	bool focus_set;
-	// Whether THIS frame's edit changed the focused field's text. Worked
-	// out once, in field_edit, because only the one field the keyboard is
-	// going to can be touched by it.
-	bool field_changed;
-	// The one buffer an edit is written into, because only one field can
-	// be focused at a time. Read back by voe_ui_field_action through the
-	// focused field's composed label, whose `text` this points the record
-	// at only when `field_changed` — see field_edit in widgets.c.
+	// THE FOCUSED FIELD'S TEXT, WHICH THE CONTEXT HOLDS WHILE IT IS
+	// FOCUSED (ADR-0192). `field_holding` says the buffer is seeded, and
+	// `field_owner` is the key it was seeded for: from the frame after the
+	// focus arrived, voe_ui_field shows this buffer instead of the caller's
+	// text, which it no longer reads. `field_selected` is the whole text
+	// being selected, as it is when the focus arrives and until the first
+	// edit.
+	uint64_t field_owner;
+	bool field_holding;
+	bool field_selected;
 	char field_buffer[VOE_UI_FIELD_CAPACITY + 1];
+	// The text a field was committed with this frame, kept apart from
+	// `field_buffer` because a press into another field seeds that one in
+	// the same frame. Valid until the next commit, which is at least the
+	// next frame.
+	char field_final[VOE_UI_FIELD_CAPACITY + 1];
+	// Whether a field held the focus at the end of the last frame, which is
+	// what voe_ui_typing answers.
+	bool typing;
+	// A NUMBER BOX OPEN FOR TYPING SHARES THE FOCUS AND THE BUFFER ABOVE
+	// (ADR-0192): `focus` and `field_owner` are its key. What it adds is
+	// the text it opened with, `%.6g` of the caller's value, which a
+	// commit compares against; whether the last Enter or Tab was refused,
+	// which keeps "not a number" showing until the text changes; and,
+	// this frame's and reset at frame_begin, the node built open, its
+	// composed label of the buffer, and the first node after what it
+	// composed — from there to the end of its subtree is the caller's own
+	// content, which is not drawn while it is open.
+	char number_opened[32];
+	bool number_refused;
+	uint32_t number_open_node;
+	uint32_t number_open_label;
+	uint32_t number_open_end;
 
 	// The three keys that are the whole of this folder's memory. `held`
 	// survives between frames — that is the point of it — and `hovered` and
@@ -364,6 +456,19 @@ struct voe_ui_context {
 	enum voe_ui_bar page;
 	uint32_t page_area;
 	float page_towards;
+
+	// ---- colour.c's ----
+
+	// This frame's pickers, reset at frame_begin, and whether one more was
+	// made than VOE_UI_COLOUR_PICKERS allows, which refuses the frame.
+	struct voe_ui_colour_picker pickers[VOE_UI_COLOUR_PICKERS];
+	uint32_t picker_count;
+	bool picker_overrun;
+	// Last laid-out frame's pickers, rewritten from `pickers` at its end,
+	// so a picker not made is forgotten. A refused frame leaves it as it
+	// was, which is what keeps a hue through a frame nobody saw.
+	struct voe_ui_colour_memory picker_memory[VOE_UI_COLOUR_PICKERS];
+	uint32_t picker_remembered;
 };
 
 // The order layout arranged the tree in, which under ADR-0092 is the order the
@@ -407,3 +512,20 @@ void voe_ui_widgets_init(voe_ui_context *ui, voe_base_arena *arena);
 // button looks like depends on what the pointer is doing to it.
 void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out);
+
+// What widgets.c offers colour.c: a key claimed for a call site exactly as
+// every widget's is, the theme in force, and a solid record over `at` clipped
+// by `node`'s clipping ancestors.
+uint64_t voe_ui_widget_claim(voe_ui_context *ui, const char *name,
+			     uint32_t index);
+const voe_ui_theme *voe_ui_theme_current(const voe_ui_context *ui);
+void voe_ui_push_solid(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
+		       voe_math_float4 colour);
+
+// What colour.c offers widgets.c: its frame's start, its frame's end — run
+// after field_edit, so a hex commit is settled, and before emission — with
+// whether the primary button went down this frame, and the records of a
+// swatch, a square or a strip.
+void voe_ui_colour_frame_begin(voe_ui_context *ui);
+void voe_ui_colour_frame_end(voe_ui_context *ui, bool laid_out, bool pressed);
+void voe_ui_colour_emit(voe_ui_context *ui, uint32_t node);

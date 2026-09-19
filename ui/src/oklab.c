@@ -12,14 +12,14 @@ static float clamp01(float v)
 	return v;
 }
 
-static float srgb_to_linear(float c)
+float voe_ui_srgb_to_linear(float c)
 {
 	if (c <= 0.04045f)
 		return c / 12.92f;
 	return powf((c + 0.055f) / 1.055f, 2.4f);
 }
 
-static float linear_to_srgb(float c)
+float voe_ui_linear_to_srgb(float c)
 {
 	c = clamp01(c);
 	if (c <= 0.0031308f)
@@ -52,9 +52,9 @@ static voe_ui_oklab linear_to_oklab(voe_math_float3 linear)
 voe_ui_oklab voe_ui_oklab_from_srgb(voe_math_float3 srgb)
 {
 	return linear_to_oklab((voe_math_float3){
-		srgb_to_linear(srgb.x),
-		srgb_to_linear(srgb.y),
-		srgb_to_linear(srgb.z),
+		voe_ui_srgb_to_linear(srgb.x),
+		voe_ui_srgb_to_linear(srgb.y),
+		voe_ui_srgb_to_linear(srgb.z),
 	});
 }
 
@@ -88,8 +88,8 @@ voe_math_float3 voe_ui_oklab_to_srgb(voe_ui_oklab lab)
 	voe_math_float3 linear = voe_ui_oklab_to_linear(lab);
 
 	return (voe_math_float3){
-		linear_to_srgb(linear.x),
-		linear_to_srgb(linear.y),
-		linear_to_srgb(linear.z),
+		voe_ui_linear_to_srgb(linear.x),
+		voe_ui_linear_to_srgb(linear.y),
+		voe_ui_linear_to_srgb(linear.z),
 	};
 }

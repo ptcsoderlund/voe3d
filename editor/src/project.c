@@ -50,12 +50,18 @@
 #define PROJECT_ARENA (4u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
 
-// What a project's world may hold. Seven component types, three of them with
+// What a project's world may hold. Seven component types, four of them with
 // an intent queue, and the entities are a number to author into rather than a
 // measurement of anything.
 #define MAX_ENTITIES 1024
 #define MAX_COMPONENT_TYPES 8
 #define MAX_INTENT_TYPES 8
+
+// The structural queue (ecs/structure.h): room for a frame's Add, Delete,
+// Duplicate or component change many times over, and for the rows those
+// requests carry.
+#define STRUCTURE_REQUESTS 256
+#define STRUCTURE_BYTES 32768
 
 // Transforms and identities. The identities are VOE_EDITOR_SCENE_ROWS because
 // that is how many the Scene panel can list, and a world that could hold an
@@ -97,7 +103,9 @@ static voe_ecs_world *world_new(voe_base_arena *arena)
 	voe_ecs_world *world = voe_ecs_world_new(
 		arena, (voe_ecs_limits){ .entities = MAX_ENTITIES,
 					 .component_types = MAX_COMPONENT_TYPES,
-					 .intent_types = MAX_INTENT_TYPES });
+					 .intent_types = MAX_INTENT_TYPES,
+					 .structure_requests = STRUCTURE_REQUESTS,
+					 .structure_bytes = STRUCTURE_BYTES });
 
 	voe_scene_transform_register(world, MAX_TRANSFORMS);
 	voe_scene_identity_register(world, MAX_IDENTITIES);
@@ -153,7 +161,8 @@ static void build_untitled(voe_ecs_world *world)
 		"a project's transform table is too small for its own untitled scene");
 	VOE_BASE_ASSERT(
 		voe_3d_shape_add(world, cube,
-				 (voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE }),
+				 (voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+						 .colour = VOE_3D_SHAPE_GREY }),
 		"a project's shape table is too small for its own untitled scene");
 
 	// LIGHT HAS NO TRANSFORM. A directional light has no position — see

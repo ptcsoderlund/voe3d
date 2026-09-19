@@ -21,7 +21,13 @@ and the folder that owns a component's meaning is the folder that registers it.
   replace intent — the one a whole row is written through — it says why the entity
   is at offset zero and the row's offset is the declaring folder's to give, why it
   is its own call rather than a parameter to registration, and why a type without
-  one is shown and not edited.
+  one is shown and not edited. It also says who writes a row's values and who
+  adds and removes rows (0190), and holds each type's default row and the one
+  type its rows need (0193), both stored and never read.
+- `include/ecs/structure.h` — the world's structural queue: add a row with given
+  bytes, remove a row, destroy an entity. Its header says who may submit, why the
+  program applies it once a frame before its systems run, and why a request that
+  no longer makes sense is dropped silently.
 - `include/ecs/intent.h` — a queue per intent type. Its header says why this is
   the only way one module changes another's data, and how little it promises
   about when an intent takes effect.

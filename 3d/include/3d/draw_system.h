@@ -125,6 +125,13 @@
 // whole reason an interface is one draw command. THE ONE EXCEPTION IS THE
 // FRAME'S `hidden`: the entity it names is not drawn however complete it is.
 //
+// A DRAWN OBJECT'S COLOUR IS ITS SHAPE'S, OR WHITE (ADR-0191). The per-object
+// record carries a colour the shader multiplies into the material's base
+// colour: the entity's shape colour with alpha 1 when it has a shape, and
+// (1, 1, 1, 1) — the material as it is — when it has none or the world
+// registered no shapes. It is in the object's record and not the material's
+// because an object's record is written every frame and a material's once.
+//
 // A PASS MAY HIDE ONE ENTITY, AND THE CASE IS A SURFACE SHOWING THIS PASS'S OWN
 // PICTURE (ADR-0158). A quad whose base colour texture is the target being drawn
 // into would be an image read while it is written — undefined in Vulkan, and

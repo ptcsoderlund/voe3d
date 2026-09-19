@@ -1,6 +1,6 @@
-// Widgets: a panel, a label, a button, a number box you drag, an image and a
-// scroll area, laid out by layout.h and handed back as element records for
-// somebody else to draw.
+// Widgets: a panel, a label, a button, a number box you drag or type into, a
+// field, an image and a scroll area, laid out by layout.h and handed back as
+// element records for somebody else to draw.
 //
 //     voe_ui_font_set(ui, font);                   // once, at startup
 //     voe_ui_theme_set(ui, &theme);                // once, or again to restyle
@@ -154,13 +154,25 @@
 //
 // ---- WHAT IS NOT HERE ----
 //
-// TYPING EXISTS FOR THE FIELD AND FOR NOTHING ELSE. A number box is still
-// dragged and not typed into, and the click that would begin typing there is
-// still reserved rather than free — see voe_ui_number_begin. THE FIELD ITSELF
-// HAS NO SELECTION, NO CLIPBOARD, NO MOVING THE CARET AND NO MULTIPLE LINES:
-// what it does is append at the end, delete from the end, and hand back what
-// came of that. A caret that can be moved, a range that can be cut, and a
-// second line are later work built on top of this one.
+// TYPING EXISTS FOR THE FIELD AND THE NUMBER BOX AND FOR NOTHING ELSE,
+// THROUGH ONE KEYBOARD FOCUS THAT THIS FOLDER HOLDS (ADR-0192). At most one
+// of them has it; a number box takes it by a click — see
+// voe_ui_number_begin. THE FIELD ITSELF HAS NO SELECTION BUT THE WHOLE TEXT
+// THE FOCUS ARRIVES WITH, NO CLIPBOARD, NO MOVING THE CARET AND NO MULTIPLE
+// LINES: what it does is replace that selection, append at the end, delete
+// from the end, and hand back what came of that. A caret that can be moved,
+// a range that can be cut, and a second line are later work built on top of
+// this one.
+//
+// WHILE A FIELD IS FOCUSED ITS TEXT LIVES IN THE CONTEXT AND NOT WITH THE
+// CALLER. It is copied from the caller's `text` when the focus arrives, and
+// that `text` is not read again until the focus leaves — so a caller keeps
+// no copy of an edit, and Escape can put the caller's own text back without
+// the caller having saved it. Enter, Tab or a press elsewhere commits;
+// Escape cancels; Tab moves the focus to the next field or number box made
+// in the frame. voe_ui_typing says whether either held the focus when the
+// last frame ended, so a program can keep its own shortcuts from a person
+// typing.
 //
 // THE FIELD IS GIVEN ITS TEXT AS A VALUE AND COMPOSES ITS OWN LABEL, RATHER
 // THAN TAKING ONE IN AS A BUTTON DOES, because the caret is measured from
@@ -168,16 +180,16 @@
 // and the field would be guessing where its box ended. WHAT COMES BACK IS THE
 // EDITED TEXT AND NOT THE CALLER'S OWN BUFFER WRITTEN INTO, for the same
 // reason a number box hands back a value and not a distance — a field cannot
-// see how the caller's text is owned, only what was in it and what a frame
-// typed, so the honest answer is a value the caller may store however it
-// likes. And WHERE THE TYPED BYTES CAME FROM IS NOT THIS FOLDER'S BUSINESS: a
-// keymap read in `platform`, an IME, anything else that turns a key into
-// UTF-8 all produce the same voe_ui_keyboard, and this folder decodes nothing
-// about the device behind it.
+// see how the caller's text is owned, so the honest answer is a value the
+// caller may store however it likes. And WHERE THE TYPED BYTES CAME FROM IS
+// NOT THIS FOLDER'S BUSINESS: a keymap read in `platform`, an IME, anything
+// else that turns a key into UTF-8 all produce the same voe_ui_keyboard, and
+// this folder decodes nothing about the device behind it.
 //
 // A FIELD COSTS TWO NODES — itself and the label it composes — and up to one
-// element record per letter that draws, plus its own background and, while
-// it is focused, one caret: no more than a label put inside a button already
+// element record per letter that draws, plus its own background, while it
+// is focused one caret, and while its whole text is selected one accent
+// rectangle behind the letters: no more than a label put inside a button already
 // costs. NO BORDER, LIKE THE NUMBER BOX: its background is a theme role and it
 // needs the nearest theme in force, but two records are a panel's and a
 // button's, not this one's.
@@ -341,10 +353,12 @@ voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
 			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container);
 
-// Which of the theme's two text colours a label draws in.
+// Which of the theme's text colours a label draws in: text_primary, the
+// accent, or text_secondary — the one a number box says "not a number" in.
 typedef enum {
 	VOE_UI_TEXT_ROLE_NORMAL = 0,
 	VOE_UI_TEXT_ROLE_ACCENT,
+	VOE_UI_TEXT_ROLE_SECONDARY,
 } voe_ui_text_role;
 
 // A string. Its natural size is the font's measurement of it times the theme in
@@ -421,15 +435,14 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 //
 // THE DEAD ZONE IS WHAT KEEPS A CLICK A CLICK. Without it every press nudges the
 // value by whatever the hand did between two frames, so a number could not be
-// clicked at all without changing it — and clicking one is reserved for typing
-// into it. The drag starts from the far edge of the dead zone and not from the
+// clicked at all without changing it — and clicking one opens it for typing. The drag starts from the far edge of the dead zone and not from the
 // press, so the value does not jump by a millimetre the moment it begins.
 #define VOE_UI_NUMBER_DEAD_ZONE 1.0f
 #define VOE_UI_NUMBER_FINE 0.1
 
-// A rectangle whose value changes when you drag across it, with whatever is
-// called between here and voe_ui_end centred in it. It looks like a button and
-// is built like one.
+// A rectangle whose value changes when you drag across it or type into it,
+// with whatever is called between here and voe_ui_end centred in it. It looks
+// like a button and is built like one.
 //
 //     voe_ui_node x = voe_ui_number_begin(ui, "x", 0, position.x, 0.5);
 //     voe_ui_label(ui, "0.50");
@@ -453,21 +466,33 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 //
 // WHAT COMES BACK IS A VALUE AND NOT A DISTANCE, and that is a contract rather
 // than a convenience. The caller writes back what it is given and never
-// accumulates a delta of its own — which is what makes typing into one, when it
-// arrives, the same call answering the same way: a typed entry has no distance
-// to report and every caller is already written to take a value.
+// accumulates a delta of its own — which is what makes typing into one the
+// same call answering the same way: a typed entry has no distance to report
+// and every caller is already written to take a value.
 //
 // ITS COLOURS ARE THE SAME THEME ROLES A BUTTON'S ARE — control, control_hovered
 // and, while held, the accent — read from the nearest theme in force, and it
 // needs one for the same reason a button does. UNLIKE A PANEL AND A BUTTON IT
 // DRAWS NO BORDER: one element record, as before this task.
 //
-// A PRESS AND A RELEASE WITHOUT MOVEMENT DOES NOTHING, AND NOTHING MAY BE BOUND
-// TO IT. It is not an event this widget has declined to expose — it is reserved,
-// for the typing that card 057 does not build. A caller that gave a click a
-// meaning of its own would have to take it away again when a caret appears here.
-// So a number box NEVER FIRES: there is no `fired` below and
-// voe_ui_button_action refuses one.
+// A PRESS AND A RELEASE INSIDE VOE_UI_NUMBER_DEAD_ZONE OPENS IT FOR TYPING
+// (ADR-0192), and a drag never does. It takes the keyboard focus a field
+// takes, and from the next frame draws as a field would — a field's colours,
+// the focused one among them, a caret, the whole text selected — with the text
+// `value` formatted `%.6g`. The content the caller composed is not drawn while
+// it is open, though it still takes its room: the box is at least as wide as
+// it was, with the typed text along its left. So a number box NEVER FIRES:
+// there is no `fired` below and voe_ui_button_action refuses one.
+//
+// ENTER, TAB OR A PRESS ELSEWHERE COMMITS, AND ESCAPE CLOSES IT changing
+// nothing. A commit of the text it opened with changes nothing. Any other
+// text must be one finite number — strtod's, blanks allowed around it, the
+// whole text consumed — and then `changed` is true, `value` is that number and
+// the box closes. Refused on Enter or Tab, it stays open, says "not a number"
+// after the text in text_secondary until the text changes, and Tab does not
+// move; refused by a press elsewhere, it closes changing nothing, the press
+// having gone to something else. Tab moves between fields and number boxes
+// alike, in call order.
 //
 // Closed by voe_ui_end, like any other container.
 voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
@@ -484,13 +509,22 @@ typedef struct {
 	// It is the number box the pointer went down on and has not yet let go
 	// of. True for the whole drag, wherever the pointer has got to.
 	bool held;
-	// This frame's drag moved the value. False on the frames inside the
-	// dead zone, and false on a frame the pointer did not move.
+	// This frame's drag moved the value, or this frame's typed commit was
+	// taken. False on the frames inside the dead zone, on a frame the
+	// pointer did not move, and on a commit of the unchanged text.
 	bool changed;
-	// The value handed in, plus this frame's drag. Equal to what was handed
-	// in whenever `changed` is false, so a caller may write it back every
+	// The value handed in, plus this frame's drag — or the number typed, on
+	// the frame a typed commit is taken. Equal to what was handed in
+	// whenever `changed` is false, so a caller may write it back every
 	// frame or only when it changed and get the same answer.
 	double value;
+	// The box holds the keyboard focus at this frame's end: open for
+	// typing, or opening — a click's release frame and a Tab's, after
+	// which it draws open.
+	bool typing;
+	// This frame's Enter or Tab was refused: the text is not one finite
+	// number, and the box is still open.
+	bool refused;
 } voe_ui_number_result;
 
 voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
@@ -505,7 +539,7 @@ voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 // would have to decide.
 #define VOE_UI_FIELD_CAPACITY 256
 
-// What was typed since the previous frame, and the two keys a field answers
+// What was typed since the previous frame, and the four keys a field answers
 // to beyond ordinary letters. Given, never asked for, exactly as the pointer
 // is (ADR-0093) — WHERE THE BYTES CAME FROM IS NOT THIS FOLDER'S BUSINESS. A
 // keymap read in `platform`, an IME, or anything else that turns a key into
@@ -514,14 +548,18 @@ voe_ui_number_result voe_ui_number_action(const voe_ui_context *ui,
 typedef struct {
 	// UTF-8 typed since the previous frame, read for `size` bytes and not
 	// assumed to carry a NUL: a frame that typed nothing may hand in
-	// nothing at all, which is what `size` of nought means.
+	// nothing at all, which is what `size` of nought means. A byte below
+	// 0x20, or 0x7F, is ignored: a field's text holds no control
+	// characters.
 	const char *text;
 	uint32_t size;
-	// The two keys editing answers to, already decided by whoever handed
-	// this over — this folder never compares `text` against a control
-	// character to find them.
+	// The four keys editing answers to, this frame's edges, already
+	// decided by whoever handed this over — this folder never compares
+	// `text` against a control character to find them.
 	bool backspace;
 	bool enter;
+	bool escape;
+	bool tab;
 } voe_ui_keyboard;
 
 // Hands this frame's typing over. Between voe_ui_frame_begin and
@@ -544,7 +582,7 @@ void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);
 //                                             .across = { VOE_UI_SIZE_FIXED, 8 } });
 //     ...
 //     voe_ui_field_result r = voe_ui_field_action(ui, name);
-//     if (r.changed)
+//     if (r.committed)
 //             folder_name = r.text;
 //
 // IT TAKES A voe_ui_sizing AND NOT A voe_ui_container, unlike a panel, a
@@ -560,10 +598,24 @@ void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);
 // of guessed at from the field's. So a field costs two nodes — itself and
 // that one label — however it is called, and there is nothing to put between
 // this call and a matching voe_ui_end.
+//
+// `text` IS READ WHILE THE FIELD IS NOT FOCUSED, AND ON THE FRAME THE FOCUS
+// ARRIVES. From then until the focus leaves the context holds the text,
+// VOE_UI_FIELD_CAPACITY bytes of it, and the field shows that. The focus
+// arrives — by a press inside, voe_ui_field_focus or Tab — with the whole
+// text selected, drawn with the theme's accent behind it: the first typed
+// text replaces it, Backspace empties it, and after that typing appends and
+// Backspace removes the last code point.
+//
+// ENTER, TAB OR A PRESS ELSEWHERE COMMITS, AND ESCAPE CANCELS — see
+// voe_ui_field_result. TAB MOVES THE FOCUS to the next field or number box
+// made after this one in the frame, wrapping to the first; that one is
+// seeded and selected the next frame.
 voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
 			 const char *text, voe_ui_sizing sizing);
 
-// Takes the keyboard to this field, as if a press had just landed inside it.
+// Takes the keyboard to this field, as if a press had just landed inside it,
+// with its whole text selected.
 // Called after the field's own call and before the frame ends — for the
 // frame a panel holding one first opens, so a field a person is about to type
 // into is not one they have to click first.
@@ -576,31 +628,41 @@ void voe_ui_field_focus(voe_ui_context *ui, voe_ui_node field);
 // is not a field, is the caller's bug and asserts.
 typedef struct {
 	// This is the field the keyboard is going to: a press landed inside
-	// it, voe_ui_field_focus named it, or it already was and nothing this
-	// frame took the keyboard elsewhere. FALSE ON EVERY OTHER FIELD IN THE
-	// FRAME, there being one focus and one edited buffer for it — see
-	// `text` below.
+	// it, voe_ui_field_focus or Tab named it, or it already was and
+	// nothing this frame took the keyboard elsewhere. FALSE ON EVERY OTHER
+	// FIELD IN THE FRAME, there being one focus and one held text for it.
 	bool focused;
-	// This frame edited it: Backspace removed a code point, typing added
-	// one, or both did. False on a field that is not focused, whatever
-	// the frame typed.
+	// This frame edited it: the selection was replaced or emptied,
+	// Backspace removed a code point, or typing added one. False on a
+	// field that is not focused, whatever the frame typed.
 	bool changed;
-	// Enter arrived this frame while this field was focused. Enter moves
-	// no focus and changes no text, so a caller that wants "confirm and
-	// move on" does both itself.
+	// Enter arrived this frame while this field was focused. It commits,
+	// so `committed` is true with it.
 	bool entered;
-	// The edited text when `changed`, and the pointer this call was given
-	// when it is not — SO A CALLER MAY WRITE THIS BACK EVERY FRAME,
-	// CHANGED OR NOT, AND GET THE SAME FIELD EITHER WAY. It is not the
-	// caller's own buffer written into: a field cannot see how that
-	// buffer is owned, only what was in it and what this frame typed —
-	// the same honesty a number box's `value` is built on. Valid until
+	// The focus left this field this frame, by Enter, Tab or a press
+	// anywhere else, keeping what was typed: `text` is the final text,
+	// and this is the frame a caller stores it.
+	bool committed;
+	// Escape arrived this frame while this field was focused. The focus is
+	// dropped and `text` is the caller's own, as handed in, so a caller
+	// that stores `text` every frame stores what it already had.
+	bool cancelled;
+	// While focused, the text the context holds; on the frame the focus
+	// left by a commit, the final text; otherwise the pointer this call was
+	// given — SO A CALLER MAY WRITE THIS BACK EVERY FRAME AND GET THE SAME
+	// FIELD. It is never the caller's own buffer written into. Valid until
 	// the next voe_ui_frame_begin, as any widget's `text` is.
 	const char *text;
 } voe_ui_field_result;
 
 voe_ui_field_result voe_ui_field_action(const voe_ui_context *ui,
 					voe_ui_node field);
+
+// True when a field or a number box held the keyboard focus at the end of the
+// last frame — including one Tab or a click has just handed it to. A program asks it before giving
+// Escape, Delete or a shortcut of its own a meaning, so that a person typing
+// is not also commanding.
+bool voe_ui_typing(const voe_ui_context *ui);
 
 // --------------------------------------------------------- the scroll area
 

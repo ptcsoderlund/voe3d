@@ -14,12 +14,18 @@ carries it out.
   built-in shapes, and runs the loop until a close goes ahead or the picture is
   written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
+  The Delete key and Ctrl+D delete and duplicate the selected entity through
+  `scene.h`, on their down edge and never while the browser shows or a field
+  holds the keyboard.
   While the browser shows, the three shortcuts fire nothing and a middle-button
   drag moves no view's camera; Escape is read here too and handed to the
   interface as the browser's own Cancel, and hides Preferences while the browser
-  does not show. Backspace, Enter and `voe_platform_input_text` are read every
-  frame, regardless of the browser, and handed to the interface as this frame's
-  keyboard (task 14) — `ui` acts on them only for whichever field is focused.
+  does not show — but while a field or number box held the keyboard at the last
+  frame's end, Escape only cancels that typing, and otherwise, while the
+  colour picker is open, only closes it. Escape, Backspace, Enter, Tab
+  and `voe_platform_input_text` are read every frame, regardless of the browser,
+  and handed to the interface as this frame's keyboard — `ui` acts on them only
+  for whichever field or number box is focused.
   Its header says why the `while` is this file's while the parts in it are
   `app`'s (ADR-0135), why the one division that turns the mouse's pixels into
   the surface's millimetres is here and nowhere else (ADR-0141 point 4), what
@@ -103,20 +109,30 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed:
   pixels per millimetre from the window's height over a 135 mm surface, the top
   bar above each root's dock tree, the browser or Preferences over it when one
-  shows, and one draw command per root. Its header says why the one question it
+  shows, the colour picker beside the Inspector column when it is open, and
+  one draw command per root. Its header says why the one question it
   asks — what was clicked — has to be asked from in there, why the tree is
   walked inside the bar's column, and why whether the browser was showing is
   captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
   the one read of the frame's clicks that carries out the top bar's, the
-  browser's and Preferences' commands.
+  browser's and Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
-  submitted this frame is a count `main.c` reads. Its header says why the
-  controls and every label's text have to outlive the call that drew them.
-- `inspector.c` — the walk over the world's component types driven by
-  base/describe.h alone, a wrapping row per described field, the three angles
-  shown and never stored, and the replace intent a moved control becomes.
+  submitted this frame is a count `main.c` reads, a typed number or name going
+  the same way as a drag; with an entity selected,
+  Duplicate and Delete buttons head it, every section but the identity's has a
+  Remove button, Add component lists the described types it lacks, and a
+  colour is a swatch whose button opens the colour picker. Its
+  header says why runtime-only types are not shown, how a heading is made from a
+  key, and why the controls and every label's text have to outlive the call
+  that drew them.
+- `inspector.c` — the Duplicate and Delete row, the walk over the world's
+  described component types driven by base/describe.h alone, each section's
+  heading, Remove and "Needs" line, a wrapping row per described field, a text
+  field for a CHAR array such as the name, a swatch for a colour, the three angles shown and never
+  stored, the replace intent a dragged or typed control becomes, and the Add
+  component list.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
   world's, why the picture's size lags the layout by a frame, and why a view
@@ -124,9 +140,17 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
 - `scene.h` — the current project's world, the selection in it, the rows the
-  Scene panel drew, and what the Inspector drew this frame. Its header says why
+  Scene panel drew, its Add menu, Delete and Duplicate on the selection and
+  the structural changes and refusals made this frame, what the Inspector drew this frame,
+  and what the colour picker is open on. Its header says why
   building a project's entities is not this file's job, why the selection is
   the editor's and not the dock tree's, and why those rows outlive the call
   that drew them.
-- `scene.c` — the selection, and the one question asked of the Scene panel's
-  rows after the frame has ended; nothing in it draws or lays out.
+- `scene.c` — the selection, Delete and Duplicate, opening and closing the
+  colour picker, and the one question asked of the Scene panel's
+  rows and Add menu after the frame has ended; nothing in it draws or lays out.
+- `entities.h` — adding, duplicating and deleting entities and giving or taking
+  their components, all through the world's structural queue. Its header says
+  the id and name rules and what a failure leaves behind.
+- `entities.c` — the new id and name, the queued rows, and the destroy that
+  undoes a half-made entity.

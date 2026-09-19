@@ -33,14 +33,19 @@
 // the scroll area is what reaches it.
 #include "inspector.h"
 
+#include "entities.h"
+#include "scene.h"
+
 #include <base/assert.h>
 #include <base/report.h>
 
 #include <math/float3.h>
 #include <math/quat.h>
 
+#include <ui/colour.h>
 #include <ui/widgets.h>
 
+#include <ctype.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdarg.h>
@@ -87,6 +92,10 @@
 // reason math/tests/quat.c writes its own out.
 #define QUARTER_TURN 1.5707963267948966f
 
+// A colour's swatch, in millimetres: wider than tall, about a line of text high.
+#define SWATCH_WIDE 8.0f
+#define SWATCH_HIGH 3.0f
+
 // ------------------------------------------------------------------ text
 
 // Formats into the frame's arena. Measured first and written second, because
@@ -127,6 +136,26 @@ static const char *chars(voe_base_arena *arena, size_t size, const uint8_t *byte
 	out = voe_base_arena_push(arena, length + 1);
 	memcpy(out, bytes, length);
 	out[length] = 0;
+
+	return out;
+}
+
+// A type's heading: its key name's last `_` word, first letter capitalised, in
+// the frame's arena (ADR-0193).
+static const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
+			   voe_ecs_type type)
+{
+	const char *name = voe_ecs_component_key(world, type)->name;
+	const char *last = strrchr(name, '_');
+	size_t length;
+	char *out;
+
+	last = last != NULL ? last + 1 : name;
+	length = strlen(last);
+	out = voe_base_arena_push(arena, length + 1);
+	memcpy(out, last, length + 1);
+	if (length > 0)
+		out[0] = (char)toupper((unsigned char)out[0]);
 
 	return out;
 }
@@ -350,6 +379,7 @@ static const char *value_text(voe_base_arena *arena,
 		return text(arena, "%.3f, %.3f", (double)real32_at(bytes, 0),
 			    (double)real32_at(bytes, 1));
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 		return text(arena, "%.3f, %.3f, %.3f",
 			    (double)real32_at(bytes, 0),
 			    (double)real32_at(bytes, 1),
@@ -407,6 +437,7 @@ static uint32_t lanes(voe_base_field_kind kind)
 	case VOE_BASE_FIELD_FLOAT2:
 		return 2;
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 	case VOE_BASE_FIELD_QUAT:
 		return 3;
 	case VOE_BASE_FIELD_FLOAT4:
@@ -519,10 +550,45 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 		      const uint8_t *row)
 {
 	const uint8_t *bytes = row + field->offset;
-	uint32_t boxes = lanes(field->kind);
+	bool text_box = field->kind == VOE_BASE_FIELD_CHAR && field->rank == 1;
+	bool colour = field->kind == VOE_BASE_FIELD_COLOUR;
+	uint32_t boxes = text_box || colour ? 1 : lanes(field->kind);
+	bool shown_only = !editable || field->read_only || boxes == 0 ||
+			  !room(inspector, boxes);
+	voe_ui_sizing swatch = { .along = { VOE_UI_SIZE_FIXED, SWATCH_WIDE },
+				 .across = { VOE_UI_SIZE_FIXED, SWATCH_HIGH } };
+	voe_math_float3 linear;
 
-	if (!editable || field->read_only || boxes == 0 ||
-	    !room(inspector, boxes)) {
+	// A COLOUR IS A SWATCH AND NEVER THREE NUMBERS (card 16): inside a
+	// button when it can be replaced, which opens the picker once the
+	// frame has ended (voe_editor_inspector_buttons_read), and bare when
+	// it cannot.
+	if (colour) {
+		voe_ui_node node = VOE_UI_NODE_NONE;
+
+		memcpy(&linear, bytes, sizeof linear);
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = ROW_GAP,
+					     .wrap = true });
+		voe_ui_label(ui, field->name);
+		if (!shown_only)
+			node = voe_ui_button_begin(ui, field->name, 0);
+		voe_ui_swatch(ui, linear, swatch);
+		if (!shown_only)
+			voe_ui_end(ui);
+		voe_ui_end(ui);
+
+		if (!shown_only)
+			record(inspector, (voe_editor_inspector_control){
+						  .node = node,
+						  .type = type,
+						  .offset = field->offset,
+						  .writes = VOE_BASE_FIELD_COLOUR });
+		return;
+	}
+
+	if (shown_only) {
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
 					     .gap = ROW_GAP,
@@ -530,6 +596,29 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 		voe_ui_label(ui, field->name);
 		voe_ui_label(ui, value_text(inspector->arena, field, bytes));
 		voe_ui_end(ui);
+		return;
+	}
+
+	if (text_box) {
+		voe_ui_node node;
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = ROW_GAP,
+					     .wrap = true });
+		voe_ui_label(ui, field->name);
+		node = voe_ui_field(ui, field->name, 0,
+				    chars(inspector->arena, field->size, bytes),
+				    (voe_ui_sizing){
+					    .along = { VOE_UI_SIZE_GROW, 1.0f } });
+		voe_ui_end(ui);
+
+		record(inspector, (voe_editor_inspector_control){
+					  .node = node,
+					  .type = type,
+					  .offset = field->offset,
+					  .writes = VOE_BASE_FIELD_CHAR,
+					  .size = field->size });
 		return;
 	}
 
@@ -584,17 +673,20 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	voe_ui_end(ui);
 }
 
-// One component: its key name, and a row per described field. A panel and not a
-// column because the key is what makes every widget beneath it unique — two
-// components with a field of the same name would otherwise be one widget
-// sharing one highlight (ui/widgets.h).
+// One component: its heading with a Remove button beside it — none for the
+// identity — the line saying what it needs when the entity lacks that, and a row
+// per described field. A panel and not a column because the key is what makes
+// every widget beneath it unique — two components with a field of the same name
+// would otherwise be one widget sharing one highlight (ui/widgets.h).
 static void component_panel(voe_ui_context *ui,
 			    voe_editor_inspector *inspector,
 			    voe_ecs_world *world, uint32_t index,
-			    voe_ecs_type type, const uint8_t *row)
+			    voe_ecs_type type, bool removable,
+			    const uint8_t *row)
 {
 	const voe_base_struct_description *description;
 	bool editable = voe_ecs_component_replace(world, type).set;
+	voe_ecs_type needed;
 
 	voe_ui_panel_begin(ui, "component", index, VOE_UI_SURFACE_RAISED,
 			   (voe_ui_container){
@@ -603,7 +695,27 @@ static void component_panel(voe_ui_context *ui,
 				   .pad = { COMPONENT_PAD, COMPONENT_PAD,
 					    COMPONENT_PAD, COMPONENT_PAD } });
 
-	voe_ui_label(ui, voe_ecs_component_key(world, type)->name);
+	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						 .gap = ROW_GAP,
+						 .wrap = true });
+	voe_ui_label(ui, heading(inspector->arena, world, type));
+	if (removable &&
+	    inspector->remove_count < VOE_EDITOR_INSPECTOR_SECTIONS) {
+		voe_ui_node node = voe_ui_button_begin(ui, "remove", 0);
+
+		voe_ui_label(ui, "Remove");
+		voe_ui_end(ui);
+		inspector->removes[inspector->remove_count++] =
+			(voe_editor_inspector_type_button){ .node = node,
+							    .type = type };
+	}
+	voe_ui_end(ui);
+
+	if (voe_ecs_component_needs(world, type, &needed) &&
+	    voe_ecs_component_get(world, needed, inspector->entity) == NULL)
+		voe_ui_label(ui, text(inspector->arena, "Needs %s",
+				      heading(inspector->arena, world,
+					      needed)));
 
 	description = voe_ecs_component_description(world, type);
 	if (description != NULL)
@@ -612,6 +724,39 @@ static void component_panel(voe_ui_context *ui,
 				  &description->fields[i], row);
 
 	voe_ui_end(ui);
+}
+
+// Add component, and while it is choosing one button per described type the
+// entity has no row of, each headed as its section would be.
+static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
+			  voe_ecs_world *world)
+{
+	uint32_t types = voe_ecs_component_type_count(world);
+
+	inspector->add_component = voe_ui_button_begin(ui, "add component", 0);
+	voe_ui_label(ui, "Add component");
+	voe_ui_end(ui);
+
+	if (!inspector->choosing)
+		return;
+
+	for (uint32_t i = 0; i < types; i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+		voe_ui_node node;
+
+		if (voe_ecs_component_runtime_only(world, type) ||
+		    voe_ecs_component_get(world, type, inspector->entity) !=
+			    NULL ||
+		    inspector->choice_count == VOE_EDITOR_INSPECTOR_SECTIONS)
+			continue;
+
+		node = voe_ui_button_begin(ui, "component choice", i);
+		voe_ui_label(ui, heading(inspector->arena, world, type));
+		voe_ui_end(ui);
+		inspector->choices[inspector->choice_count++] =
+			(voe_editor_inspector_type_button){ .node = node,
+							    .type = type };
+	}
 }
 
 // ----------------------------------------------------------- the surface
@@ -626,11 +771,17 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->control_count = 0;
 	inspector->replaced = 0;
 	inspector->entity = (voe_ecs_entity){ 0 };
+	inspector->duplicate = VOE_UI_NODE_NONE;
+	inspector->remove = VOE_UI_NODE_NONE;
+	inspector->remove_count = 0;
+	inspector->add_component = VOE_UI_NODE_NONE;
+	inspector->choice_count = 0;
 }
 
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
-			       voe_ecs_world *world, voe_ecs_entity selected)
+			       voe_ecs_world *world, voe_ecs_entity selected,
+			       voe_ecs_type identity)
 {
 	uint32_t types;
 
@@ -647,19 +798,32 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		return;
 	}
 
+	voe_ui_row_begin(ui, (voe_ui_container){ .gap = COMPONENT_GAP });
+	inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
+	voe_ui_label(ui, "Duplicate");
+	voe_ui_end(ui);
+	inspector->remove = voe_ui_button_begin(ui, "delete", 0);
+	voe_ui_label(ui, "Delete");
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
 	// THE WALK, AND THE WHOLE OF WHAT THIS PANEL KNOWS ABOUT COMPONENTS.
-	// Every type the world holds, asked whether this entity has a row of it.
+	// Every described type the world holds, asked whether this entity has
+	// a row of it.
 	types = voe_ecs_component_type_count(world);
 	for (uint32_t i = 0; i < types; i++) {
 		voe_ecs_type type = voe_ecs_component_type_at(world, i);
 		const void *row = voe_ecs_component_get(world, type, selected);
 
-		if (row == NULL)
+		if (row == NULL || voe_ecs_component_runtime_only(world, type))
 			continue;
 
 		component_panel(ui, inspector, world, i, type,
+				type.value != identity.value,
 				(const uint8_t *)row);
 	}
+
+	add_component(ui, inspector, world);
 }
 
 // ------------------------------------------------------------- the edit
@@ -815,6 +979,40 @@ static void apply(voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_ASSERT(false, "a control writing a kind no control is drawn for");
 }
 
+// A text field's commit, as the row's CHAR bytes: the text truncated to leave
+// its terminating zero, the rest zeroed, submitted only when it differs from
+// what the row holds now. True when an intent was submitted.
+static bool typed(voe_ecs_world *world, voe_ecs_entity entity,
+		  const voe_editor_inspector_control *control,
+		  voe_ui_field_result result)
+{
+	const uint8_t *row = voe_ecs_component_get(world, control->type, entity);
+	uint8_t value[VOE_EDITOR_INSPECTOR_INTENT] = { 0 };
+	const uint8_t *end;
+	size_t length;
+
+	if (!result.committed || row == NULL || control->size == 0)
+		return false;
+
+	VOE_BASE_ASSERT(control->size <= sizeof value,
+			"a text field wider than VOE_EDITOR_INSPECTOR_INTENT");
+
+	length = strlen(result.text);
+	if (length > control->size - 1)
+		length = control->size - 1;
+	memcpy(value, result.text, length);
+
+	// The row's own text ends at its first zero or at its last byte.
+	end = memchr(row + control->offset, 0, control->size);
+	if ((end != NULL ? (size_t)(end - (row + control->offset)) :
+			   control->size) == length &&
+	    memcmp(row + control->offset, value, length) == 0)
+		return false;
+
+	submit(world, entity, control, value, control->size);
+	return true;
+}
+
 void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 				     const voe_ui_context *ui,
 				     voe_ecs_world *world)
@@ -838,6 +1036,18 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 		if (control->node == VOE_UI_NODE_NONE)
 			continue;
 
+		if (control->writes == VOE_BASE_FIELD_CHAR) {
+			if (typed(world, inspector->entity, control,
+				  voe_ui_field_action(ui, control->node)))
+				inspector->replaced++;
+			continue;
+		}
+
+		// A swatch's button opens the picker, which is a button and not
+		// an edit — voe_editor_inspector_buttons_read's.
+		if (control->writes == VOE_BASE_FIELD_COLOUR)
+			continue;
+
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
 			if (voe_ui_button_action(ui, control->node).fired) {
 				apply(world, inspector->entity, control, 0.0);
@@ -854,4 +1064,121 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 			inspector->replaced++;
 		}
 	}
+}
+
+// What the pointer did to a recorded button, or nothing for one not drawn or
+// past a refused frame's node budget, which the controls above skip too.
+static voe_ui_action action_of(const voe_ui_context *ui, voe_ui_node node)
+{
+	if (node == VOE_UI_NODE_NONE)
+		return (voe_ui_action){ 0 };
+
+	return voe_ui_button_action(ui, node);
+}
+
+// One structural change's result, counted the way Delete and Duplicate count
+// theirs (scene.h).
+static void counted(struct voe_editor_scene *scene, bool done)
+{
+	if (done)
+		scene->structural++;
+	else
+		scene->full = true;
+}
+
+void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
+				       const voe_ui_context *ui,
+				       struct voe_editor_scene *scene,
+				       bool down)
+{
+	bool pressed = down && !inspector->pointer_was_down;
+	bool on_menu;
+
+	VOE_BASE_ASSERT(inspector != NULL, "reading the buttons of no inspector");
+	VOE_BASE_ASSERT(ui != NULL, "reading buttons out of no interface");
+	VOE_BASE_ASSERT(scene != NULL, "carrying out a button on no scene");
+
+	inspector->pointer_was_down = down;
+
+	if (action_of(ui, inspector->duplicate).fired)
+		voe_editor_scene_duplicate(scene);
+	if (action_of(ui, inspector->remove).fired)
+		voe_editor_scene_delete(scene);
+
+	// A press that armed Add component or a choice is the list's own; any
+	// other hides it, on the press and not the release — the Add menu's
+	// rule (scene.h).
+	on_menu = action_of(ui, inspector->add_component).held;
+	for (uint32_t i = 0; i < inspector->choice_count; i++)
+		on_menu = on_menu ||
+			  action_of(ui, inspector->choices[i].node).held;
+	if (pressed && !on_menu)
+		inspector->choosing = false;
+	if (action_of(ui, inspector->add_component).fired)
+		inspector->choosing = !inspector->choosing;
+
+	// The entity the buttons were drawn for, when it is no longer alive,
+	// has nothing to give or take.
+	if (!voe_ecs_entity_alive(scene->world, inspector->entity))
+		return;
+
+	// A fired swatch opens the picker on its row's colour, beside the
+	// column: Duplicate, the first thing drawn, starts at its left edge.
+	for (uint32_t i = 0; i < inspector->control_count; i++) {
+		const voe_editor_inspector_control *control =
+			&inspector->controls[i];
+
+		if (control->writes != VOE_BASE_FIELD_COLOUR ||
+		    !action_of(ui, control->node).fired)
+			continue;
+		voe_editor_scene_picker_open(
+			scene,
+			(voe_editor_picking){
+				.entity = inspector->entity,
+				.type = control->type,
+				.offset = control->offset,
+				.left = inspector->duplicate != VOE_UI_NODE_NONE
+						? voe_ui_node_rect(
+							  ui, inspector->duplicate)
+							  .min.x
+						: 0.0f });
+	}
+
+	for (uint32_t i = 0; i < inspector->remove_count; i++)
+		if (action_of(ui, inspector->removes[i].node).fired)
+			counted(scene, voe_editor_entities_component_remove(
+					       scene->world, inspector->entity,
+					       inspector->removes[i].type));
+
+	for (uint32_t i = 0; i < inspector->choice_count; i++) {
+		if (!action_of(ui, inspector->choices[i].node).fired)
+			continue;
+		inspector->choosing = false;
+		counted(scene, voe_editor_entities_component_add(
+				       scene->world, inspector->entity,
+				       inspector->choices[i].type));
+	}
+}
+
+void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
+					voe_ecs_world *world,
+					voe_ecs_entity entity,
+					voe_ecs_type type, size_t offset,
+					voe_math_float3 colour)
+{
+	voe_editor_inspector_control control = {
+		.type = type,
+		.offset = offset,
+		.writes = VOE_BASE_FIELD_COLOUR
+	};
+
+	VOE_BASE_ASSERT(inspector != NULL, "a colour submitted by no inspector");
+	VOE_BASE_ASSERT(world != NULL, "a colour submitted into no world");
+
+	if (!voe_ecs_entity_alive(world, entity) ||
+	    voe_ecs_component_get(world, type, entity) == NULL)
+		return;
+
+	submit(world, entity, &control, &colour, sizeof colour);
+	inspector->replaced++;
 }

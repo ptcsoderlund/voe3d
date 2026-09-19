@@ -536,7 +536,9 @@ static void dragging_sideways_moves_the_value(voe_ui_context *ui,
 
 // Half a millimetre is not a drag, and this is what keeps a click a click. Two
 // frames inside the zone, so that a slow hand crossing it in small steps is
-// covered as well as one that never leaves it.
+// covered as well as one that never leaves it. Its release, inside the zone,
+// opens the box for typing, whose next frame composes a label — so it runs
+// among the device cases and not beside the drags around it.
 static void movement_inside_the_dead_zone_changes_nothing(
 	voe_ui_context *ui, voe_base_arena *arena)
 {
@@ -592,37 +594,6 @@ static void a_fine_drag_moves_a_tenth_as_far(voe_ui_context *ui,
 
 	f = build_number(ui, arena, 10.0f, true, false, true, 1);
 	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
-}
-
-// A CLICK DOES NOTHING, AND IT IS RESERVED RATHER THAN MERELY UNUSED. Press and
-// release without moving: no frame reports a change and no frame reports a
-// different value. There is nothing to bind to here because typing is going to
-// want it.
-static void a_press_and_release_without_movement_does_nothing(
-	voe_ui_context *ui, voe_base_arena *arena)
-{
-	struct number_frame f = build_number(ui, arena, 10.0f, true, false,
-					     false, 1);
-	voe_ui_number_result r = voe_ui_number_action(ui, f.n);
-
-	VOE_TEST_CHECK(!r.changed);
-
-	f = build_number(ui, arena, 10.0f, true, true, false, 1);
-	r = voe_ui_number_action(ui, f.n);
-	VOE_TEST_CHECK(r.held);
-	VOE_TEST_CHECK(!r.changed);
-	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
-
-	f = build_number(ui, arena, 10.0f, true, false, false, 1);
-	r = voe_ui_number_action(ui, f.n);
-	VOE_TEST_CHECK(!r.held);
-	VOE_TEST_CHECK(!r.changed);
-	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
-
-	// And the frame after the release, which is where a fired flag that
-	// stayed set would show up if this widget had one.
-	f = build_number(ui, arena, 10.0f, true, false, false, 1);
-	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).changed);
 }
 
 // A DRAG DOES NOT STOP AT THE EDGE OF WHAT IT STARTED ON. The pointer is far to
@@ -1837,8 +1808,9 @@ static void typed_bytes_are_appended_in_order(voe_ui_context *ui,
 	VOE_TEST_CHECK(strcmp(r.text, "ab") == 0);
 }
 
-// Two fields, one focused: typing must reach the one focused and leave the
-// other's own text exactly as it was handed in.
+// Two fields, one focused: typing must reach the one focused — replacing
+// its whole text, the focus having just arrived — and leave the other's own
+// text exactly as it was handed in.
 static void two_fields_only_the_focused_one_changes(voe_ui_context *ui,
 						    voe_base_arena *arena)
 {
@@ -1872,10 +1844,22 @@ static void two_fields_only_the_focused_one_changes(voe_ui_context *ui,
 	rb = voe_ui_field_action(ui, b);
 	VOE_TEST_CHECK(ra.focused);
 	VOE_TEST_CHECK(ra.changed);
-	VOE_TEST_CHECK(strcmp(ra.text, "onex") == 0);
+	VOE_TEST_CHECK(strcmp(ra.text, "x") == 0);
 	VOE_TEST_CHECK(!rb.focused);
 	VOE_TEST_CHECK(!rb.changed);
 	VOE_TEST_CHECK(strcmp(rb.text, "two") == 0);
+}
+
+// Focuses the one field of build_field, text `text`, and lets go. A press
+// outside first, so the focus arrives rather than staying where the case
+// before left it.
+static void focus_field(voe_ui_context *ui, voe_base_arena *arena,
+			const char *text)
+{
+	(void)build_field(ui, arena, OUTSIDE_FIELD, true, true, text, NO_KEYS);
+	(void)build_field(ui, arena, OUTSIDE_FIELD, true, false, text, NO_KEYS);
+	(void)build_field(ui, arena, IN_FIELD, true, true, text, NO_KEYS);
+	(void)build_field(ui, arena, IN_FIELD, true, false, text, NO_KEYS);
 }
 
 // The trailing continuation byte and the byte before it both go: "aö" loses
@@ -1884,14 +1868,17 @@ static void backspace_takes_a_two_byte_code_point_whole(voe_ui_context *ui,
 							voe_base_arena *arena)
 {
 	voe_ui_keyboard erase = { .backspace = true };
+	voe_ui_keyboard type_it = { .text = "a\xc3" "\xb6", .size = 3 };
 	struct field_frame f;
 	voe_ui_field_result r;
 
-	(void)build_field(ui, arena, IN_FIELD, true, true, "a\xc3" "\xb6", NO_KEYS);
-	f = build_field(ui, arena, IN_FIELD, true, false, "a\xc3" "\xb6", NO_KEYS);
+	// Typed rather than handed in, so no selection is left for the
+	// Backspace to empty.
+	focus_field(ui, arena, "");
+	f = build_field(ui, arena, IN_FIELD, true, false, "", type_it);
 	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
 
-	f = build_field(ui, arena, IN_FIELD, false, false, "a\xc3" "\xb6", erase);
+	f = build_field(ui, arena, IN_FIELD, false, false, "", erase);
 	r = voe_ui_field_action(ui, f.f);
 	VOE_TEST_CHECK(r.changed);
 	VOE_TEST_CHECK(strcmp(r.text, "a") == 0);
@@ -1903,7 +1890,7 @@ static void backspace_on_an_empty_text_does_nothing(voe_ui_context *ui,
 	voe_ui_keyboard erase = { .backspace = true };
 	struct field_frame f;
 
-	(void)build_field(ui, arena, IN_FIELD, true, true, "", NO_KEYS);
+	focus_field(ui, arena, "");
 	f = build_field(ui, arena, IN_FIELD, true, false, "", NO_KEYS);
 	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
 
@@ -1924,18 +1911,23 @@ static void a_text_at_capacity_refuses_the_next_code_point_whole(
 	memset(full, 'a', VOE_UI_FIELD_CAPACITY);
 	full[VOE_UI_FIELD_CAPACITY] = '\0';
 
-	(void)build_field(ui, arena, IN_FIELD, true, true, full, NO_KEYS);
-	f = build_field(ui, arena, IN_FIELD, true, false, full, NO_KEYS);
+	voe_ui_keyboard type_full = { .text = full,
+				      .size = VOE_UI_FIELD_CAPACITY };
+
+	// Typed to capacity rather than handed in, so no selection is left
+	// for the next letter to replace.
+	focus_field(ui, arena, "");
+	f = build_field(ui, arena, IN_FIELD, true, false, "", type_full);
 	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
 
-	f = build_field(ui, arena, IN_FIELD, false, false, full, type_one);
+	f = build_field(ui, arena, IN_FIELD, false, false, "", type_one);
 	r = voe_ui_field_action(ui, f.f);
 	VOE_TEST_CHECK(!r.changed);
 	VOE_TEST_CHECK(strlen(r.text) == VOE_UI_FIELD_CAPACITY);
 }
 
 // Enter is true for exactly the frame it arrived on, and only while focused;
-// it moves no focus and changes no text.
+// it changes no text, commits, and drops the focus.
 static void entered_is_true_only_on_the_frame_enter_arrived(
 	voe_ui_context *ui, voe_base_arena *arena)
 {
@@ -1943,15 +1935,16 @@ static void entered_is_true_only_on_the_frame_enter_arrived(
 	struct field_frame f;
 	voe_ui_field_result r;
 
-	(void)build_field(ui, arena, IN_FIELD, true, true, "hi", NO_KEYS);
+	focus_field(ui, arena, "hi");
 	f = build_field(ui, arena, IN_FIELD, true, false, "hi", NO_KEYS);
 	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).entered);
 
 	f = build_field(ui, arena, IN_FIELD, false, false, "hi", press_enter);
 	r = voe_ui_field_action(ui, f.f);
 	VOE_TEST_CHECK(r.entered);
+	VOE_TEST_CHECK(r.committed);
 	VOE_TEST_CHECK(!r.changed);
-	VOE_TEST_CHECK(voe_ui_field_action(ui, f.f).focused);
+	VOE_TEST_CHECK(!r.focused);
 
 	f = build_field(ui, arena, IN_FIELD, false, false, "hi", NO_KEYS);
 	VOE_TEST_CHECK(!voe_ui_field_action(ui, f.f).entered);
@@ -2000,21 +1993,456 @@ static void voe_ui_field_focus_takes_it(voe_ui_context *ui,
 	VOE_TEST_CHECK(voe_ui_field_action(ui, f).focused);
 }
 
-// A frame that changed nothing hands back the exact pointer the call was
+// A field that is not focused hands back the exact pointer the call was
 // given, not a copy of the same bytes — so a caller may write the answer back
-// every frame at no cost on the frames that changed nothing.
-static void changed_false_hands_back_the_callers_own_pointer(
+// every frame at no cost.
+static void unfocused_hands_back_the_callers_own_pointer(
 	voe_ui_context *ui, voe_base_arena *arena)
 {
 	static const char hello[] = "hello";
 	struct field_frame f;
 	voe_ui_field_result r;
 
-	(void)build_field(ui, arena, IN_FIELD, true, true, hello, NO_KEYS);
-	f = build_field(ui, arena, IN_FIELD, false, false, hello, NO_KEYS);
+	build_field(ui, arena, OUTSIDE_FIELD, true, true, hello, NO_KEYS);
+	f = build_field(ui, arena, OUTSIDE_FIELD, false, false, hello, NO_KEYS);
 	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(!r.focused);
 	VOE_TEST_CHECK(!r.changed);
 	VOE_TEST_CHECK(r.text == hello);
+}
+
+// The focus arrives with the whole text selected: the first typed text
+// replaces it, and the next is appended as before.
+static void typing_into_a_newly_focused_field_replaces_its_text(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard type_x = { .text = "x", .size = 1 };
+	voe_ui_keyboard type_y = { .text = "y", .size = 1 };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	focus_field(ui, arena, "hello");
+	f = build_field(ui, arena, IN_FIELD, true, false, "hello", type_x);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(strcmp(r.text, "x") == 0);
+
+	// The caller's "hello" is not read while focused.
+	f = build_field(ui, arena, IN_FIELD, true, false, "hello", type_y);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(strcmp(r.text, "xy") == 0);
+}
+
+static void backspace_on_a_newly_focused_field_empties_it(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard erase = { .backspace = true };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	focus_field(ui, arena, "hello");
+	f = build_field(ui, arena, IN_FIELD, true, false, "hello", erase);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(strcmp(r.text, "") == 0);
+}
+
+// Escape cancels: the focus drops, `text` is the caller's own that frame,
+// and the next frame shows the caller's text again.
+static void escape_cancels_and_the_callers_text_stands(voe_ui_context *ui,
+						       voe_base_arena *arena)
+{
+	static const char hello[] = "hello";
+	voe_ui_keyboard type_x = { .text = "x", .size = 1 };
+	voe_ui_keyboard escape = { .escape = true };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	focus_field(ui, arena, hello);
+	(void)build_field(ui, arena, IN_FIELD, true, false, hello, type_x);
+	f = build_field(ui, arena, IN_FIELD, true, false, hello, escape);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.cancelled);
+	VOE_TEST_CHECK(!r.committed);
+	VOE_TEST_CHECK(!r.focused);
+	VOE_TEST_CHECK(r.text == hello);
+
+	f = build_field(ui, arena, IN_FIELD, true, false, hello, NO_KEYS);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(!r.focused);
+	VOE_TEST_CHECK(!r.cancelled);
+	VOE_TEST_CHECK(r.text == hello);
+}
+
+// Enter and a press elsewhere each commit with the typed text.
+static void enter_and_a_press_elsewhere_commit_the_typed_text(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard type_x = { .text = "x", .size = 1 };
+	voe_ui_keyboard press_enter = { .enter = true };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	focus_field(ui, arena, "hello");
+	(void)build_field(ui, arena, IN_FIELD, true, false, "hello", type_x);
+	f = build_field(ui, arena, IN_FIELD, true, false, "hello", press_enter);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.committed);
+	VOE_TEST_CHECK(!r.focused);
+	VOE_TEST_CHECK(strcmp(r.text, "x") == 0);
+
+	focus_field(ui, arena, "hello");
+	(void)build_field(ui, arena, IN_FIELD, true, false, "hello", type_x);
+	f = build_field(ui, arena, OUTSIDE_FIELD, true, true, "hello", NO_KEYS);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(r.committed);
+	VOE_TEST_CHECK(!r.entered);
+	VOE_TEST_CHECK(!r.focused);
+	VOE_TEST_CHECK(strcmp(r.text, "x") == 0);
+}
+
+struct two_fields {
+	voe_ui_field_result a;
+	voe_ui_field_result b;
+};
+
+// Fields "a" and "b" in a column, "a" at the origin, with no pointer.
+static struct two_fields build_two_fields(voe_ui_context *ui,
+					  voe_base_arena *arena,
+					  voe_ui_pointer pointer,
+					  voe_ui_keyboard keyboard)
+{
+	struct two_fields r;
+	voe_ui_node a;
+	voe_ui_node b;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, pointer);
+	voe_ui_keyboard_set(ui, keyboard);
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	a = voe_ui_field(ui, "a", 0, "one", field_sizing());
+	b = voe_ui_field(ui, "b", 0, "two", field_sizing());
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	r.a = voe_ui_field_action(ui, a);
+	r.b = voe_ui_field_action(ui, b);
+	return r;
+}
+
+// Tab from the first commits it and focuses the second; Tab from the second
+// wraps to the first.
+static void tab_moves_the_focus_to_the_next_field_and_wraps(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_pointer press = { .at = IN_FIELD, .over = true, .down = true };
+	voe_ui_pointer none = { 0 };
+	voe_ui_keyboard type_x = { .text = "x", .size = 1 };
+	voe_ui_keyboard tab = { .tab = true };
+	struct two_fields r;
+
+	(void)build_two_fields(ui, arena, none, NO_KEYS);
+	r = build_two_fields(ui, arena, press, NO_KEYS);
+	VOE_TEST_CHECK(r.a.focused);
+	(void)build_two_fields(ui, arena, none, type_x);
+
+	r = build_two_fields(ui, arena, none, tab);
+	VOE_TEST_CHECK(r.a.committed);
+	VOE_TEST_CHECK(strcmp(r.a.text, "x") == 0);
+	VOE_TEST_CHECK(!r.a.focused);
+	VOE_TEST_CHECK(r.b.focused);
+
+	// The second opens the next frame, its whole text selected.
+	r = build_two_fields(ui, arena, none, type_x);
+	VOE_TEST_CHECK(r.b.focused);
+	VOE_TEST_CHECK(strcmp(r.b.text, "x") == 0);
+
+	r = build_two_fields(ui, arena, none, tab);
+	VOE_TEST_CHECK(r.b.committed);
+	VOE_TEST_CHECK(r.a.focused);
+	VOE_TEST_CHECK(!r.b.focused);
+}
+
+// A 0x09 or 0x7F byte in `text` is not appended; the bytes around it are.
+static void control_bytes_are_not_appended(voe_ui_context *ui,
+					   voe_base_arena *arena)
+{
+	voe_ui_keyboard typed = { .text = "a\tb\x7f" "c", .size = 5 };
+	voe_ui_keyboard only_tab = { .text = "\t", .size = 1 };
+	struct field_frame f;
+	voe_ui_field_result r;
+
+	// A control byte alone does not replace the selection either.
+	focus_field(ui, arena, "hi");
+	f = build_field(ui, arena, IN_FIELD, true, false, "hi", only_tab);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(strcmp(r.text, "hi") == 0);
+
+	f = build_field(ui, arena, IN_FIELD, true, false, "hi", typed);
+	r = voe_ui_field_action(ui, f.f);
+	VOE_TEST_CHECK(strcmp(r.text, "abc") == 0);
+}
+
+// voe_ui_typing is true exactly while a field held the focus at the end of
+// the last frame.
+static void typing_follows_the_focus(voe_ui_context *ui,
+				     voe_base_arena *arena)
+{
+	voe_ui_keyboard press_enter = { .enter = true };
+
+	(void)build_field(ui, arena, OUTSIDE_FIELD, true, false, "hi", NO_KEYS);
+	(void)build_field(ui, arena, OUTSIDE_FIELD, true, true, "hi", NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_typing(ui));
+	(void)build_field(ui, arena, IN_FIELD, true, false, "hi", NO_KEYS);
+	(void)build_field(ui, arena, IN_FIELD, true, true, "hi", NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_typing(ui));
+	(void)build_field(ui, arena, IN_FIELD, true, false, "hi", press_enter);
+	VOE_TEST_CHECK(!voe_ui_typing(ui));
+}
+
+// ------------------------------------------------ typing into a number box
+
+// Two number boxes, "n" handed START over "m" handed M_START, each holding
+// the box every number case above holds. "n" is at the origin, so the point
+// ON_N is inside it whether it is open or not — open, it only grows. A click
+// is all these cases do with the pointer; the rest is the keyboard. Open, a
+// number box composes a label, which is why these run in the device group.
+#define M_START 7.0
+#define ON_N ((voe_math_float2){ 10.0f, ON_NUMBER_Y })
+
+struct numbers_frame {
+	voe_ui_node n;
+	voe_ui_node m;
+};
+
+static struct numbers_frame build_numbers(voe_ui_context *ui,
+					  voe_base_arena *arena,
+					  voe_math_float2 at, bool down,
+					  voe_ui_keyboard keyboard)
+{
+	struct numbers_frame f;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = at,
+						 .over = true,
+						 .down = down });
+	voe_ui_keyboard_set(ui, keyboard);
+
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ 0 });
+	f.n = voe_ui_number_begin(ui, "n", 0, START, PER_MM);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	f.m = voe_ui_number_begin(ui, "m", 0, M_START, PER_MM);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	return f;
+}
+
+// A press and a release far away, which closes whatever an earlier case left
+// open, then a click on "n" — which opens it.
+static void open_n(voe_ui_context *ui, voe_base_arena *arena)
+{
+	(void)build_numbers(ui, arena, OUTSIDE_FIELD, true, NO_KEYS);
+	(void)build_numbers(ui, arena, OUTSIDE_FIELD, false, NO_KEYS);
+	(void)build_numbers(ui, arena, ON_N, true, NO_KEYS);
+	(void)build_numbers(ui, arena, ON_N, false, NO_KEYS);
+}
+
+static voe_ui_keyboard typing(const char *text)
+{
+	return (voe_ui_keyboard){ .text = text,
+				  .size = (uint32_t)strlen(text) };
+}
+
+// A CLICK OPENS IT AND A DRAG NEVER DOES. Clicked, it is typing on the frame
+// after the release, draws open with its caller's content hidden, and Escape
+// closes it; pressed and dragged 5 mm, nothing on any frame opens it.
+static void a_click_opens_the_box_and_a_drag_never_does(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard escape = { .escape = true };
+	struct numbers_frame f;
+	voe_ui_number_result r;
+
+	open_n(ui, arena);
+	f = build_numbers(ui, arena, ON_N, false, NO_KEYS);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.typing);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+	VOE_TEST_CHECK(voe_ui_typing(ui));
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.m).typing);
+
+	f = build_numbers(ui, arena, ON_N, false, escape);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(!voe_ui_typing(ui));
+
+	(void)build_numbers(ui, arena, ON_N, true, NO_KEYS);
+	(void)build_numbers(ui, arena, (voe_math_float2){ 15.0f, ON_NUMBER_Y },
+			    true, NO_KEYS);
+	f = build_numbers(ui, arena, (voe_math_float2){ 15.0f, ON_NUMBER_Y },
+			  false, NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).typing);
+	f = build_numbers(ui, arena, (voe_math_float2){ 15.0f, ON_NUMBER_Y },
+			  false, NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).typing);
+}
+
+// Typed, then Enter: the typed number comes back as `value` with `changed`,
+// on the Enter frame and not on the typing one, and the box closes.
+static void typing_a_number_then_enter_changes_the_value(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard enter = { .enter = true };
+	struct numbers_frame f;
+	voe_ui_number_result r;
+
+	open_n(ui, arena);
+	f = build_numbers(ui, arena, ON_N, false, typing("0.1"));
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.typing);
+	VOE_TEST_CHECK(!r.changed);
+
+	f = build_numbers(ui, arena, ON_N, false, enter);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(r.value == 0.1);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK(!r.refused);
+
+	f = build_numbers(ui, arena, ON_N, false, NO_KEYS);
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).changed);
+}
+
+// Opened and entered with nothing typed: the text is what it opened with, so
+// nothing changes — not even the value going through `%.6g` and back.
+static void enter_with_nothing_typed_changes_nothing(voe_ui_context *ui,
+						     voe_base_arena *arena)
+{
+	voe_ui_keyboard enter = { .enter = true };
+	struct numbers_frame f;
+	voe_ui_number_result r;
+
+	open_n(ui, arena);
+	f = build_numbers(ui, arena, ON_N, false, enter);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(!r.refused);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+}
+
+// Not a number, then Enter: refused, nothing changed, still open — and the
+// next frame says so with one more label's worth of letters. Escape then
+// closes it with the caller's value standing.
+static void a_refused_enter_stays_open_and_escape_closes(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_keyboard enter = { .enter = true };
+	voe_ui_keyboard escape = { .escape = true };
+	struct numbers_frame f;
+	voe_ui_number_result r;
+	uint32_t before;
+
+	open_n(ui, arena);
+	build_numbers(ui, arena, ON_N, false, typing("abc"));
+	before = voe_ui_element_count(ui);
+	f = build_numbers(ui, arena, ON_N, false, enter);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.refused);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(r.typing);
+	VOE_TEST_CHECK(voe_ui_typing(ui));
+
+	f = build_numbers(ui, arena, ON_N, false, NO_KEYS);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.typing);
+	VOE_TEST_CHECK(!r.refused);
+	VOE_TEST_CHECK(voe_ui_element_count(ui) > before);
+
+	f = build_numbers(ui, arena, ON_N, false, escape);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)START, 0.001f);
+}
+
+// `3` then Tab: "n" takes 3 and the focus goes to "m", which opens; Escape
+// there leaves "m"'s value as it was handed in.
+static void tab_commits_and_opens_the_next_number_box(voe_ui_context *ui,
+						      voe_base_arena *arena)
+{
+	voe_ui_keyboard tab = { .text = "3", .size = 1, .tab = true };
+	voe_ui_keyboard escape = { .escape = true };
+	struct numbers_frame f;
+	voe_ui_number_result r;
+
+	open_n(ui, arena);
+	f = build_numbers(ui, arena, ON_N, false, tab);
+	r = voe_ui_number_action(ui, f.n);
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(r.value == 3.0);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.m).typing);
+
+	f = build_numbers(ui, arena, ON_N, false, NO_KEYS);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, f.m).typing);
+
+	f = build_numbers(ui, arena, ON_N, false, escape);
+	r = voe_ui_number_action(ui, f.m);
+	VOE_TEST_CHECK(!r.changed);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK_FLOAT((float)r.value, (float)M_START, 0.001f);
+}
+
+// Opens "n", types `text` and presses Enter, and hands back that frame's
+// answer; a box left open by a refusal is closed by the next open_n.
+static voe_ui_number_result enter_typed(voe_ui_context *ui,
+					voe_base_arena *arena,
+					const char *text)
+{
+	voe_ui_keyboard enter = typing(text);
+	struct numbers_frame f;
+
+	enter.enter = true;
+	open_n(ui, arena);
+	f = build_numbers(ui, arena, ON_N, false, enter);
+	return voe_ui_number_action(ui, f.n);
+}
+
+// Blanks around a number are allowed; an infinity, a NaN and trailing
+// letters are not one finite number, and are refused.
+static void what_counts_as_a_number(voe_ui_context *ui, voe_base_arena *arena)
+{
+	voe_ui_number_result r = enter_typed(ui, arena, " 2.5 ");
+
+	VOE_TEST_CHECK(r.changed);
+	VOE_TEST_CHECK(!r.refused);
+	VOE_TEST_CHECK(r.value == 2.5);
+
+	r = enter_typed(ui, arena, "1e999");
+	VOE_TEST_CHECK(r.refused);
+	VOE_TEST_CHECK(!r.changed);
+	r = enter_typed(ui, arena, "nan");
+	VOE_TEST_CHECK(r.refused);
+	VOE_TEST_CHECK(!r.changed);
+	r = enter_typed(ui, arena, "2x");
+	VOE_TEST_CHECK(r.refused);
+	VOE_TEST_CHECK(!r.changed);
+
+	// And a press elsewhere closes a refused box, changing nothing.
+	r = voe_ui_number_action(
+		ui, build_numbers(ui, arena, OUTSIDE_FIELD, true, NO_KEYS).n);
+	VOE_TEST_CHECK(!r.typing);
+	VOE_TEST_CHECK(!r.changed);
 }
 
 // The device and the font this section needs, and the skip that stands in for
@@ -2073,7 +2501,21 @@ static int the_field(voe_base_arena *arena)
 	entered_is_true_only_on_the_frame_enter_arrived(ui, arena);
 	a_field_not_called_loses_focus(ui, arena);
 	voe_ui_field_focus_takes_it(ui, arena);
-	changed_false_hands_back_the_callers_own_pointer(ui, arena);
+	unfocused_hands_back_the_callers_own_pointer(ui, arena);
+	typing_into_a_newly_focused_field_replaces_its_text(ui, arena);
+	backspace_on_a_newly_focused_field_empties_it(ui, arena);
+	escape_cancels_and_the_callers_text_stands(ui, arena);
+	enter_and_a_press_elsewhere_commit_the_typed_text(ui, arena);
+	tab_moves_the_focus_to_the_next_field_and_wraps(ui, arena);
+	control_bytes_are_not_appended(ui, arena);
+	typing_follows_the_focus(ui, arena);
+	movement_inside_the_dead_zone_changes_nothing(ui, arena);
+	a_click_opens_the_box_and_a_drag_never_does(ui, arena);
+	typing_a_number_then_enter_changes_the_value(ui, arena);
+	enter_with_nothing_typed_changes_nothing(ui, arena);
+	a_refused_enter_stays_open_and_escape_closes(ui, arena);
+	tab_commits_and_opens_the_next_number_box(ui, arena);
+	what_counts_as_a_number(ui, arena);
 
 	voe_text_font_destroy(font);
 	voe_render_device_destroy(device);
@@ -2167,9 +2609,7 @@ int main(void)
 	the_same_name_under_two_panels_is_two_widgets(ui, arena);
 	the_number_box_is_where_the_tests_think_it_is(ui, arena);
 	dragging_sideways_moves_the_value(ui, arena);
-	movement_inside_the_dead_zone_changes_nothing(ui, arena);
 	a_fine_drag_moves_a_tenth_as_far(ui, arena);
-	a_press_and_release_without_movement_does_nothing(ui, arena);
 	a_drag_past_the_edge_keeps_working(ui, arena);
 	arriving_with_the_button_already_down_arms_no_number(ui, arena);
 	a_number_box_that_stops_being_called_is_let_go(ui, arena);

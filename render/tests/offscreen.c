@@ -42,6 +42,13 @@
 // cube seen from the inside — so that claim could not survive the geometry
 // changing and was replaced by the ones below rather than weakened.
 //
+// AND A THIRD IMAGE SAYS THE OBJECT RECORD'S COLOUR REACHES THE PICTURE. The
+// same cube, wearing a second shading record that is plain white and unlit, drawn
+// with an object colour of (1, 0, 0, 1). Unlit so that no light and no specular
+// white moves the numbers: what reaches the target is the factor times the
+// object's colour and nothing else, so the centre reads red with green and blue
+// near nothing. A colour that never reached the shader reads white.
+//
 // AND THE DEPTH TEST IS CHECKED BY THE CUBE BEING THERE AT ALL. Depth runs
 // backwards here: cleared to 0, compared GREATER. Both of the ways to get that
 // wrong reject every fragment rather than sorting them wrongly — LESS against a
@@ -79,10 +86,11 @@
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
 
-// The two images land one after the other in one buffer. Front first, because
+// The three images land one after the other in one buffer. Front first, because
 // the clear colour every other check is measured against is read out of it.
 #define FRONT_OFFSET ((VkDeviceSize)0)
 #define BACK_OFFSET IMAGE_BYTES
+#define TINTED_OFFSET (IMAGE_BYTES * 2)
 
 // The channel order of VK_FORMAT_B8G8R8A8_SRGB, which is the format a headless
 // device takes and which the test checks it really got before reading a byte.
@@ -92,7 +100,7 @@
 #define GREEN 1
 #define RED 2
 
-// One cube of twenty-four vertices, one shading record, one drawn object per
+// One cube of twenty-four vertices, two shading records, one drawn object per
 // frame. Two frames in flight, so the second case draws into the other slot's
 // target and neither has to wait for the other's readback.
 static const voe_render_capacities CAPACITIES = {
@@ -100,7 +108,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 36,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 1,
+	.shadings = 2,
 	.passes = 1,
 };
 
@@ -307,8 +315,8 @@ static voe_render_light the_sun(bool mirrored)
 // finished and readable, and a test is the one place where waiting for idle
 // costs nothing.
 static void draw_case(voe_render_device *device, voe_render_geometry cube,
-		      voe_render_shading shading, bool mirrored,
-		      VkBuffer buffer, VkDeviceSize offset)
+		      voe_render_shading shading, voe_math_float4 colour,
+		      bool mirrored, VkBuffer buffer, VkDeviceSize offset)
 {
 	const struct voe_render_frame *frame;
 	voe_platform_size size = { SIDE, SIDE };
@@ -320,6 +328,7 @@ static void draw_case(voe_render_device *device, voe_render_geometry cube,
 		// is the claim.
 		.normal = voe_math_float4x4_identity(),
 		.shading = shading.index,
+		.colour = colour,
 	};
 	VkCommandBufferAllocateInfo allocate = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -568,6 +577,19 @@ static void check_the_pictures(const unsigned char *pixels)
 		       SIDE * SIDE);
 }
 
+// The white unlit cube drawn with an object colour of red: its centre is red
+// with green and blue near nothing. Near and not exactly, so a driver's rounding
+// on the way into an sRGB target is no failure.
+static void check_the_tint(const unsigned char *pixels)
+{
+	const unsigned char *centre = pixel_at(pixels + TINTED_OFFSET, SIDE / 2,
+					       SIDE / 2);
+
+	VOE_TEST_CHECK(centre[RED] > 240);
+	VOE_TEST_CHECK(centre[GREEN] < 8);
+	VOE_TEST_CHECK(centre[BLUE] < 8);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -578,6 +600,16 @@ int main(void)
 	voe_render_geometry cube = { 0 };
 	voe_render_texture texture = { 0 };
 	voe_render_shading shading = { 0 };
+	voe_render_shading plain = { 0 };
+	// White, unlit and untextured, for the tint case: see the header.
+	voe_render_shading_values white = {
+		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+		.roughness = 1.0f,
+		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
+		.unlit = 1,
+	};
+	voe_math_float4 untinted = { 1.0f, 1.0f, 1.0f, 1.0f };
+	voe_math_float4 red = { 1.0f, 0.0f, 0.0f, 1.0f };
 	// No metalness and fully rough: the plainest surface there is, and the
 	// only one whose colour on screen is still the picture's colour. See the
 	// header.
@@ -640,7 +672,7 @@ int main(void)
 	// render's own buffer helper. Coherent as well as visible, so that
 	// reading it after the idle wait needs no invalidate call.
 	VOE_TEST_CHECK(voe_render_buffer_build(
-		device, &readback, IMAGE_BYTES * 2,
+		device, &readback, IMAGE_BYTES * 3,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
@@ -670,6 +702,7 @@ int main(void)
 	values.base_colour_texture = texture.index;
 	VOE_TEST_CHECK(voe_render_shading_create(device, values, &shading,
 						 &error));
+	VOE_TEST_CHECK(voe_render_shading_create(device, white, &plain, &error));
 
 	// A geometry id whose generation was never issued names nothing, and a
 	// draw with it is refused rather than drawing whatever lives in the
@@ -696,15 +729,20 @@ int main(void)
 				device, stale,
 				(voe_render_object){
 					.world = voe_math_float4x4_identity(),
-					.normal = voe_math_float4x4_identity() }));
+					.normal = voe_math_float4x4_identity(),
+					.colour = { 1.0f, 1.0f, 1.0f, 1.0f } }));
 			voe_render_pass_end(device);
 			VOE_TEST_CHECK(voe_render_frame_end(device));
 			voe_render_vk.device_wait_idle(device->device);
 		}
 	}
 
-	draw_case(device, cube, shading, false, readback.buffer, FRONT_OFFSET);
-	draw_case(device, cube, shading, true, readback.buffer, BACK_OFFSET);
+	draw_case(device, cube, shading, untinted, false, readback.buffer,
+		  FRONT_OFFSET);
+	draw_case(device, cube, shading, untinted, true, readback.buffer,
+		  BACK_OFFSET);
+	draw_case(device, cube, plain, red, false, readback.buffer,
+		  TINTED_OFFSET);
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -712,6 +750,7 @@ int main(void)
 			   VK_SUCCESS);
 	if (mapped != NULL) {
 		check_the_pictures(mapped);
+		check_the_tint(mapped);
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	} else {
 		VOE_TEST_CHECK(mapped != NULL);

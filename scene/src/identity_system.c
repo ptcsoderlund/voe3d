@@ -120,6 +120,7 @@ void voe_scene_identity_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_replace_set(
 		world, type, intent,
 		offsetof(voe_scene_identity_intent, identity));
+	voe_ecs_component_default_set(world, type, &(voe_scene_identity){ 0 });
 }
 
 bool voe_scene_identity_add(voe_ecs_world *world, voe_ecs_entity entity,

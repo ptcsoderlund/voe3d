@@ -10,6 +10,10 @@ module's promises from outside.
   every registered type, that only a runtime-only registration says it is one,
   and the editor's round trip written out once by hand: a row read, copied
   into a zeroed intent value at the offset the type gave, one byte changed,
-  submitted, drained, and that byte changed in the table and no other.
+  submitted, drained, and that byte changed in the table and no other; and a
+  default row and a needed type read back as set, and as nothing when unset.
 - `intent.c` — two submitters in one queue in submission order, and a full
   queue.
+- `structure.c` — structural requests landing only at apply, in submission
+  order, every drop case dropped, a queue full of requests or of bytes, and a
+  world without a queue refusing every submit.

@@ -17,14 +17,15 @@
 // engine's front-face constant means. A cube wound the other way is inside out
 // and every face of it is culled.
 //
-// SIZED FROM voe_3d_shapes' OWN CONSTANTS (3d/shape_system.h) rather than a
-// second pair of numbers, so the two can never drift apart.
+// ITS TWO COUNTS ARE CONSTANTS HERE, beside capsule.h's and cylinder.h's, and
+// shape_system.c asserts at compile time that 3d/shape_system.h's capacity
+// constants are their sums, so the two can never drift apart.
 #pragma once
-
-#include <3d/shape_system.h>
 
 #include <render/device.h>
 
-extern const voe_render_vertex
-	voe_3d_cube_vertices[VOE_3D_SHAPES_VERTICES];
-extern const uint32_t voe_3d_cube_indices[VOE_3D_SHAPES_INDICES];
+#define VOE_3D_CUBE_VERTICES 24
+#define VOE_3D_CUBE_INDICES 36
+
+extern const voe_render_vertex voe_3d_cube_vertices[VOE_3D_CUBE_VERTICES];
+extern const uint32_t voe_3d_cube_indices[VOE_3D_CUBE_INDICES];

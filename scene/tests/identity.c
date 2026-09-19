@@ -318,6 +318,22 @@ static void a_quiet_drain(voe_base_arena *arena)
 	voe_scene_identity_system_run(world_of(arena));
 }
 
+// What "add at default" gives (ADR-0190): id 0 and an empty name, every byte of
+// the name zero so no stale text follows the terminator.
+static void the_default_is_id_zero_with_no_name(voe_base_arena *arena)
+{
+	static const char nothing[VOE_SCENE_IDENTITY_NAME] = { 0 };
+	voe_ecs_world *world = world_of(arena);
+	const voe_scene_identity *row = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_identity_key));
+
+	VOE_TEST_CHECK(row != NULL);
+	if (row == NULL)
+		return;
+	VOE_TEST_CHECK_INT((long long)row->id, 0);
+	VOE_TEST_CHECK(memcmp(row->name, nothing, sizeof(nothing)) == 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -333,6 +349,7 @@ int main(void)
 	a_quiet_drain(arena);
 	a_replaced_id_is_put_back(arena);
 	a_quiet_drain(arena);
+	the_default_is_id_zero_with_no_name(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

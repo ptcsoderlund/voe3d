@@ -1,5 +1,6 @@
 // The world and its entity slots: what a create takes, what a destroy gives
-// back, and the generation that makes a stale id safe.
+// back, and the generation that makes a stale id safe. It also pushes the
+// structural queue's two arrays, once, when both structure limits ask for one.
 //
 // A CREATE PREFERS A SLOT SOMETHING USED TO BE IN. Free slots are taken newest
 // first and a slot nothing has ever used is only reached when there are none, so
@@ -58,6 +59,19 @@ voe_ecs_world *voe_ecs_world_new(voe_base_arena *arena, voe_ecs_limits limits)
 	world->queues = voe_base_arena_push(
 		arena, (size_t)limits.intent_types * sizeof(*world->queues));
 	world->queue_capacity = limits.intent_types;
+
+	// No structural queue unless both limits ask for one: a push of zero
+	// bytes asserts, and half a queue (requests with no bytes for an add's
+	// row) is not something a caller asked for by name.
+	if (limits.structure_requests > 0 && limits.structure_bytes > 0) {
+		world->structure_requests = voe_base_arena_push(
+			arena, (size_t)limits.structure_requests *
+				       sizeof(*world->structure_requests));
+		world->structure_request_capacity = limits.structure_requests;
+		world->structure_bytes =
+			voe_base_arena_push(arena, limits.structure_bytes);
+		world->structure_byte_capacity = limits.structure_bytes;
+	}
 
 	return world;
 }

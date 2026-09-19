@@ -112,6 +112,16 @@ static_assert(offsetof(shapes, deep) == offsetof(shapes_by_hand, deep),
 static_assert(offsetof(shapes, one) == offsetof(shapes_by_hand, one),
 	      "one moved");
 
+// A colour as a declaring folder spells it: three floats, described as COLOUR
+// and not FLOAT3, so the kind that comes out is the one that went in.
+typedef struct {
+	float r, g, b;
+} colour;
+
+#define TINTED_FIELDS(F, F_READ_ONLY) F(colour, tint, COLOUR)
+
+VOE_BASE_DESCRIBE_STRUCT(tinted, TINTED_FIELDS)
+
 static void check_name(const char *actual, const char *expected)
 {
 	VOE_TEST_CHECK(strcmp(actual, expected) == 0);
@@ -195,6 +205,14 @@ int main(void)
 		    offsetof(shapes, deep), 8, 8, 7, deep_dims, true);
 	check_field(&shapes_desc->fields[4], "one", VOE_BASE_FIELD_INT32,
 		    offsetof(shapes, one), 4, 1, 0, no_dims, false);
+
+	const voe_base_struct_description *tinted_desc = tinted_description();
+	check_name(tinted_desc->name, "tinted");
+	VOE_TEST_CHECK_INT(tinted_desc->field_count, 1);
+	if (tinted_desc->field_count != 1)
+		return voe_test_result();
+	check_field(&tinted_desc->fields[0], "tint", VOE_BASE_FIELD_COLOUR,
+		    offsetof(tinted, tint), 12, 1, 0, no_dims, false);
 
 	return voe_test_result();
 }
