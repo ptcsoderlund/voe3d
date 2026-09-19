@@ -98,6 +98,10 @@
 // is a thirty-second of a texel, far finer than anything the edge is placed to.
 // And every texel of it is padding around every glyph in the sheet, which is
 // what stops it being made larger for free.
+//
+// render/shaders/elements.slang holds a copy, VOE_RENDER_ELEMENT_FIELD_SPREAD,
+// from which its glyph cutoff measures half a screen pixel (ADR-0183); change
+// both or neither.
 #define VOE_TEXT_FIELD_SPREAD 4.0f
 
 // How sharp a turn between two edges of the outline has to be before they are
