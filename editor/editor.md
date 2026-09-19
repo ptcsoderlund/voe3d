@@ -4,7 +4,8 @@ The program a person opens to author a scene. Today it opens a window on a top
 bar — New, Open, Save, Preferences, the project's name and a notice — above
 three columns: `Scene` on the left, two scene views stacked in the middle, and `Inspector` on
 the right. The left one lists the authored entities of the project it opens on
-and a click on one selects it; each view draws the world from its own camera,
+under an Add button, whose Entity, Cube, Capsule and Cylinder add one through
+the world's structural queue and select it, and a click on one selects it; each view draws the world from its own camera,
 moved by a middle-button drag in it, lit by whichever light the world holds;
 the right one lists what the selected entity is made of and lets a number in
 it be dragged, which is what marks the project unsaved. Each column that is

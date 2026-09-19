@@ -161,8 +161,15 @@
 // the theme's name, thirty-four apiece, 544; "(in force)", nine, its space
 // drawing nothing; Close, two and five — 564 against the browser's 1504. Its
 // one scroll area is the one the browser would have used.
-#define VOE_EDITOR_INTERFACE_NODES 460
-#define VOE_EDITOR_INTERFACE_ELEMENTS 3650
+//
+// THE SCENE PANEL'S ADD MENU (scene.h) ADDS TEN NODES: Add as a button and its
+// label, two; and, while it shows, Entity, Cube, Capsule and Cylinder as a
+// button and a label each, eight. 460 + 10 = 470 nodes. AND THIRTY-EIGHT
+// ELEMENTS: each of the five buttons' border and fill, ten; and the letters of
+// "Add", "Entity", "Cube", "Capsule" and "Cylinder", 3 + 6 + 4 + 7 + 8 = 28.
+// 3650 + 38 = 3688 elements.
+#define VOE_EDITOR_INTERFACE_NODES 470
+#define VOE_EDITOR_INTERFACE_ELEMENTS 3688
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and

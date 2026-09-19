@@ -190,7 +190,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// the order is belt as well as braces.
 		voe_editor_inspector_edits_read(&scene->inspector, ui,
 						scene->world);
-		voe_editor_scene_clicks_read(scene, ui);
+		if (!voe_editor_scene_clicks_read(scene, ui,
+						  root->pointer.down))
+			voe_editor_notice_set(&session->notice,
+					      "The scene is full.");
 		voe_editor_views_rects_read(views, ui);
 
 		// THE BROWSER, WHEN IT WAS SHOWING, INSTEAD OF THE TOP BAR —

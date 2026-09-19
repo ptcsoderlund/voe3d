@@ -124,9 +124,15 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
 - `scene.h` — the current project's world, the selection in it, the rows the
-  Scene panel drew, and what the Inspector drew this frame. Its header says why
+  Scene panel drew, its Add menu and the structural changes that made this
+  frame, and what the Inspector drew this frame. Its header says why
   building a project's entities is not this file's job, why the selection is
   the editor's and not the dock tree's, and why those rows outlive the call
   that drew them.
 - `scene.c` — the selection, and the one question asked of the Scene panel's
-  rows after the frame has ended; nothing in it draws or lays out.
+  rows and Add menu after the frame has ended; nothing in it draws or lays out.
+- `entities.h` — adding, duplicating and deleting entities and giving or taking
+  their components, all through the world's structural queue. Its header says
+  the id and name rules and what a failure leaves behind.
+- `entities.c` — the new id and name, the queued rows, and the destroy that
+  undoes a half-made entity.

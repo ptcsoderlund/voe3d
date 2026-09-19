@@ -81,6 +81,10 @@
 // and WHEEL_MILLIMETRES between them is this program saying how far a notch
 // moves anything.
 //
+// A FRAME STARTS WITH THE WORLD'S STRUCTURAL QUEUE APPLIED (ADR-0193), before
+// the first system runs, so a row the Add menu queued last frame is there for
+// every system this frame and none sees one appear partway through its run.
+//
 // A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
 // the tree shows is drawn into its own target with its own camera first; the
 // window's pass comes last, is opened with no camera — an element draw needs
@@ -146,6 +150,7 @@
 #include <base/error.h>
 #include <base/report.h>
 
+#include <ecs/structure.h>
 #include <ecs/world.h>
 
 #include <platform/input.h>
@@ -590,6 +595,10 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		// Which rows exist changes here and nowhere else in the frame
+		// (ecs/structure.h), before any system below reads a table.
+		voe_ecs_structure_apply(session.project->world);
+
 		voe_scene_transform_system_run(session.project->world);
 		voe_scene_identity_system_run(session.project->world);
 		voe_scene_light_system_run(session.project->world);
@@ -795,7 +804,9 @@ int main(int argc, char *argv[])
 			// Inspector is not New, Open, Save or Close, so
 			// session.h has no case for it; this is the other half
 			// of what marks the project unsaved (session.h).
-			if (scene.inspector.replaced > 0)
+			// And so is an entity the Add menu queued (scene.h).
+			if (scene.inspector.replaced > 0 ||
+			    scene.structural > 0)
 				voe_editor_session_edited(&session);
 			voe_render_pass_end(gpu);
 		}

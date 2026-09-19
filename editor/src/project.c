@@ -57,6 +57,12 @@
 #define MAX_COMPONENT_TYPES 8
 #define MAX_INTENT_TYPES 8
 
+// The structural queue (ecs/structure.h): room for a frame's Add, Delete,
+// Duplicate or component change many times over, and for the rows those
+// requests carry.
+#define STRUCTURE_REQUESTS 256
+#define STRUCTURE_BYTES 32768
+
 // Transforms and identities. The identities are VOE_EDITOR_SCENE_ROWS because
 // that is how many the Scene panel can list, and a world that could hold an
 // identity the list could not show would be a disagreement between two
@@ -97,7 +103,9 @@ static voe_ecs_world *world_new(voe_base_arena *arena)
 	voe_ecs_world *world = voe_ecs_world_new(
 		arena, (voe_ecs_limits){ .entities = MAX_ENTITIES,
 					 .component_types = MAX_COMPONENT_TYPES,
-					 .intent_types = MAX_INTENT_TYPES });
+					 .intent_types = MAX_INTENT_TYPES,
+					 .structure_requests = STRUCTURE_REQUESTS,
+					 .structure_bytes = STRUCTURE_BYTES });
 
 	voe_scene_transform_register(world, MAX_TRANSFORMS);
 	voe_scene_identity_register(world, MAX_IDENTITIES);
