@@ -32,3 +32,5 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   draws with a theme; per-element property overrides and a theme override are how it gets colour on purpose.
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
+- **Rotate and scale gizmos**, and a toggle for the move gizmo to follow the entity's own axes rather than the
+  world's (left out of 015 on purpose, 2026-09-19).
