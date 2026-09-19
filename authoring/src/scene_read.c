@@ -616,6 +616,7 @@ static const char *spelling(voe_base_field_kind kind)
 	case VOE_BASE_FIELD_FLOAT2:
 		return "[x, y]";
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 		return "[x, y, z]";
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:

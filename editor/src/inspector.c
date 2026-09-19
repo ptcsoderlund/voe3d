@@ -350,6 +350,7 @@ static const char *value_text(voe_base_arena *arena,
 		return text(arena, "%.3f, %.3f", (double)real32_at(bytes, 0),
 			    (double)real32_at(bytes, 1));
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 		return text(arena, "%.3f, %.3f, %.3f",
 			    (double)real32_at(bytes, 0),
 			    (double)real32_at(bytes, 1),
@@ -407,6 +408,7 @@ static uint32_t lanes(voe_base_field_kind kind)
 	case VOE_BASE_FIELD_FLOAT2:
 		return 2;
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 	case VOE_BASE_FIELD_QUAT:
 		return 3;
 	case VOE_BASE_FIELD_FLOAT4:

@@ -326,6 +326,7 @@ static bool put_element(struct text *text, const struct site *site,
 	case VOE_BASE_FIELD_FLOAT2:
 		return put_floats(text, site, bytes, 2);
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_COLOUR:
 		return put_floats(text, site, bytes, 3);
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:

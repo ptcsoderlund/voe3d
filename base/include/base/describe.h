@@ -65,6 +65,11 @@
 // "too many arguments provided to function-like macro invocation", still a
 // build failure.
 //
+// COLOUR IS THREE FLOATS, LINEAR RGB, EACH 0 TO 1, LAID OUT AND SPELLED AS
+// FLOAT3. It is 12 bytes like FLOAT3 and is written and read in scene text the
+// same way; it exists so a tool can show the field as a swatch without naming
+// the component, the way QUAT lets it show three angles (ADR-0191).
+//
 // VOE_BASE_DESCRIPTIONS IS THE SWITCH, AND IT IS OFF UNLESS A BUILD ASKS. Define
 // it to 1 — on the command line, or before the first #include in a file — and the
 // tables are compiled in; leave it undefined and there is no table, no accessor
@@ -95,6 +100,7 @@ typedef enum {
 	VOE_BASE_FIELD_FLOAT4,
 	VOE_BASE_FIELD_QUAT,
 	VOE_BASE_FIELD_FLOAT4X4,
+	VOE_BASE_FIELD_COLOUR,
 	VOE_BASE_FIELD_ENUM,
 	VOE_BASE_FIELD_CHAR,
 	VOE_BASE_FIELD_ENTITY,
@@ -148,6 +154,7 @@ typedef struct {
 #define VOE_BASE_FIELD_SIZE_FLOAT4 16
 #define VOE_BASE_FIELD_SIZE_QUAT 16
 #define VOE_BASE_FIELD_SIZE_FLOAT4X4 64
+#define VOE_BASE_FIELD_SIZE_COLOUR 12
 #define VOE_BASE_FIELD_SIZE_ENUM 4
 #define VOE_BASE_FIELD_SIZE_CHAR 1
 #define VOE_BASE_FIELD_SIZE_ENTITY 8
