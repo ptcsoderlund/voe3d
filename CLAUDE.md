@@ -10,7 +10,7 @@ every card. `ADR-NNNN` in code means the record of that number: 0001–0167 in `
 `history/bugs/`, "spec NNN" the feature of that number under `Agentic/completed/` or `Agentic/kanban/`.
 
 ## Checks
-- `cmake --preset debug && cmake --build --preset debug --target voe_{folder} && ctest --test-dir build/debug -R '^{folder}/'`
+- `top={folder}; top=${top%%/*}; cmake --preset debug && cmake --build --preset debug --target voe_$top $(ninja -C build/debug -t targets all | grep -oE "^voe_test_${top}_[A-Za-z0-9_]+") && ctest --test-dir build/debug -R "^$top/"`
 - `cmake -P check.cmake`
 
 ## Exempt
