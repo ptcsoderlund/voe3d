@@ -16,8 +16,11 @@
 //
 // THE CAPACITY CONSTANTS BELOW ARE WHAT A DEVICE MUST HAVE ROOM FOR before
 // voe_3d_shapes_upload is called on it — the vertices, indices, geometries and
-// shadings one cube costs. A program that draws shapes sizes its
-// voe_render_capacities from these; today they are all the one cube spends.
+// shadings the cube, the capsule and the cylinder cost together, one geometry
+// each and one shading between them. A program that draws shapes sizes its
+// voe_render_capacities from these. They are written out as numbers so a
+// reader sees the cost; 3d/src/shape_system.c asserts at compile time that each
+// is the sum of the three shapes' own counts.
 //
 // voe_3d_shape_system_run GIVES A MESH AND A MATERIAL TO EVERY SHAPED ENTITY
 // THAT HAS NEITHER YET, through 3d's own creation calls — voe_3d_mesh_add and
@@ -50,22 +53,25 @@
 
 #include <render/device.h>
 
-// The vertices, indices, geometries and shadings one cube costs — see the
-// header.
-#define VOE_3D_SHAPES_VERTICES 24
-#define VOE_3D_SHAPES_INDICES 36
-#define VOE_3D_SHAPES_GEOMETRIES 1
+// The vertices, indices, geometries and shadings the three shapes cost — see
+// the header.
+#define VOE_3D_SHAPES_VERTICES 750
+#define VOE_3D_SHAPES_INDICES 3492
+#define VOE_3D_SHAPES_GEOMETRIES 3
 #define VOE_3D_SHAPES_SHADINGS 1
 
-// The GPU side of every built-in shape: today, one cube's geometry and the one
-// grey material every shape uses. A program keeps one of these for as long as
-// it runs the shape system.
+// The GPU side of every built-in shape: one geometry per kind and the one grey
+// material every shape uses. A program keeps one of these for as long as it
+// runs the shape system.
 typedef struct {
 	voe_render_geometry cube;
+	voe_render_geometry capsule;
+	voe_render_geometry cylinder;
 	voe_3d_material material;
 } voe_3d_shapes;
 
-// Creates the cube's geometry and uploads the shapes' one material — opaque,
+// Creates the cube's, the capsule's and the cylinder's geometry, in that order,
+// and uploads the shapes' one material — opaque,
 // grey (0.7, 0.7, 0.7), metallic 0, roughness 0.6, lit. False when the device
 // has no room, which is the one way this fails (see voe_render_geometry_create
 // and voe_3d_material_upload, both of which it calls).

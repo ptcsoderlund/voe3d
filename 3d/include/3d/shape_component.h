@@ -8,7 +8,7 @@
 // shape system turns back into a mesh and a material on the next run.
 //
 // KIND NAMES ONE OF A SMALL, FIXED SET OF BUILT-IN SHAPES, not an arbitrary
-// asset. VOE_3D_SHAPE_CUBE is the only one defined yet; a kind this build does
+// asset: a cube, a capsule and a cylinder (ADR-0191). A kind this build does
 // not know draws nothing and is a warning (3d/shape_system.h) rather than a
 // refusal, because an old scene opened by a newer or older build should still
 // open. A path to a model is a different question — D-259 — and is not what
@@ -31,9 +31,11 @@
 
 #include <stdint.h>
 
-// The one kind defined so far. A future kind is a new constant here, never a
-// reuse of this one.
+// The kinds defined so far. A future kind is a new constant here, never a
+// reuse of one of these.
 #define VOE_3D_SHAPE_CUBE 1u
+#define VOE_3D_SHAPE_CAPSULE 2u
+#define VOE_3D_SHAPE_CYLINDER 3u
 
 #define VOE_3D_SHAPE_FIELDS(F, F_READ_ONLY) \
 	F_READ_ONLY(uint32_t, kind, UINT32)

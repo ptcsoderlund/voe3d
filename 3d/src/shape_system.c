@@ -4,7 +4,13 @@
 // THE RUN AND THE COUNT ARE FILE-SCOPE STATICS AND THEREFORE PER PROCESS, the
 // same trade scene/identity_system.c makes and explains: two worlds in one
 // process share them, and nothing here has needed more.
+//
+// THE CAPSULE AND THE CYLINDER ARE BUILT ON THE STACK AT UPLOAD, about forty
+// kilobytes between them, and forgotten once render has copied them; the cube
+// is data and needs no building.
+#include "capsule.h"
 #include "cube.h"
+#include "cylinder.h"
 
 #include <3d/mesh_component.h>
 #include <3d/shape_system.h>
@@ -20,6 +26,14 @@
 #define GREY 0.7f
 #define ROUGHNESS 0.6f
 
+static_assert(VOE_3D_SHAPES_VERTICES == VOE_3D_CUBE_VERTICES +
+					VOE_3D_CAPSULE_VERTICES +
+					VOE_3D_CYLINDER_VERTICES);
+static_assert(VOE_3D_SHAPES_INDICES == VOE_3D_CUBE_INDICES +
+				       VOE_3D_CAPSULE_INDICES +
+				       VOE_3D_CYLINDER_INDICES);
+static_assert(VOE_3D_SHAPES_GEOMETRIES == 3);
+
 // Whether the last run found an unknown kind, and how many it has found so far
 // in the run it belongs to. Per process — see above.
 static bool in_run;
@@ -29,6 +43,12 @@ bool voe_3d_shapes_upload(voe_render_device *device, voe_3d_shapes *out,
 			  voe_base_error *error)
 {
 	voe_render_geometry cube;
+	voe_render_geometry capsule;
+	voe_render_geometry cylinder;
+	voe_render_vertex capsule_vertices[VOE_3D_CAPSULE_VERTICES];
+	uint32_t capsule_indices[VOE_3D_CAPSULE_INDICES];
+	voe_render_vertex cylinder_vertices[VOE_3D_CYLINDER_VERTICES];
+	uint32_t cylinder_indices[VOE_3D_CYLINDER_INDICES];
 	voe_3d_material material = {
 		.base_colour = { GREY, GREY, GREY, 1.0f },
 		.metallic = 0.0f,
@@ -39,15 +59,32 @@ bool voe_3d_shapes_upload(voe_render_device *device, voe_3d_shapes *out,
 	VOE_BASE_ASSERT(device != NULL, "uploading shapes to no device");
 	VOE_BASE_ASSERT(out != NULL, "uploading shapes into nothing");
 
+	voe_3d_capsule_build(capsule_vertices, capsule_indices);
+	voe_3d_cylinder_build(cylinder_vertices, cylinder_indices);
+
 	if (!voe_render_geometry_create(device, voe_3d_cube_vertices,
-					VOE_3D_SHAPES_VERTICES,
+					VOE_3D_CUBE_VERTICES,
 					voe_3d_cube_indices,
-					VOE_3D_SHAPES_INDICES, &cube, error))
+					VOE_3D_CUBE_INDICES, &cube, error))
+		return false;
+	if (!voe_render_geometry_create(device, capsule_vertices,
+					VOE_3D_CAPSULE_VERTICES,
+					capsule_indices, VOE_3D_CAPSULE_INDICES,
+					&capsule, error))
+		return false;
+	if (!voe_render_geometry_create(device, cylinder_vertices,
+					VOE_3D_CYLINDER_VERTICES,
+					cylinder_indices,
+					VOE_3D_CYLINDER_INDICES, &cylinder,
+					error))
 		return false;
 	if (!voe_3d_material_upload(device, &material, error))
 		return false;
 
-	*out = (voe_3d_shapes){ .cube = cube, .material = material };
+	*out = (voe_3d_shapes){ .cube = cube,
+				.capsule = capsule,
+				.cylinder = cylinder,
+				.material = material };
 	return true;
 }
 
@@ -69,14 +106,20 @@ void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	count = voe_ecs_component_count(world, type);
 
 	for (uint32_t i = 0; i < count; i++) {
+		const voe_render_geometry *geometry =
+			rows[i].kind == VOE_3D_SHAPE_CUBE     ? &shapes->cube :
+			rows[i].kind == VOE_3D_SHAPE_CAPSULE  ? &shapes->capsule :
+			rows[i].kind == VOE_3D_SHAPE_CYLINDER ? &shapes->cylinder :
+								NULL;
+
 		if (voe_3d_mesh_get(world, entities[i]) != NULL)
 			continue;
 
-		if (rows[i].kind == VOE_3D_SHAPE_CUBE) {
+		if (geometry != NULL) {
 			VOE_BASE_ASSERT(
 				voe_3d_mesh_add(
 					world, entities[i],
-					(voe_3d_mesh){ .geometry = shapes->cube,
+					(voe_3d_mesh){ .geometry = *geometry,
 						       .layer = VOE_3D_LAYER_WORLD }),
 				"the world's mesh table is too small for its own shapes");
 			VOE_BASE_ASSERT(

@@ -29,5 +29,7 @@ card, and says so below.
   card.
 - `shape.c` — that kind is described and read-only, that a run gives a shaped
   entity exactly one mesh and material and a second run adds nothing, that an
-  entity without a shape is untouched, and that an unknown kind gets nothing. The
-  table half needs no graphics card; the upload half skips without one.
+  entity without a shape is untouched, that an unknown kind gets nothing, that
+  each kind gets its own geometry, and that the capsule and cylinder are unit-
+  normalled, the right size and wound outward. The table and geometry half needs
+  no graphics card; the upload half skips without one.
