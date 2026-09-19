@@ -371,6 +371,12 @@ static uint64_t claim(voe_ui_context *ui, const char *name, uint32_t index)
 	return key;
 }
 
+uint64_t voe_ui_widget_claim(voe_ui_context *ui, const char *name,
+			     uint32_t index)
+{
+	return claim(ui, name, index);
+}
+
 static bool inside(voe_ui_rect rect, voe_math_float2 at)
 {
 	return at.x >= rect.min.x && at.x < rect.min.x + rect.size.x &&
@@ -550,6 +556,11 @@ static const voe_ui_theme *current_theme(const voe_ui_context *ui)
 	return ui->theme_depth > 0
 		       ? ui->theme_stack[ui->theme_depth - 1].theme
 		       : ui->theme;
+}
+
+const voe_ui_theme *voe_ui_theme_current(const voe_ui_context *ui)
+{
+	return current_theme(ui);
 }
 
 void voe_ui_theme_set(voe_ui_context *ui, const voe_ui_theme *theme)
@@ -1031,16 +1042,21 @@ void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena)
 	ui->number_open_node = VOE_UI_NODE_NONE;
 	ui->number_open_label = VOE_UI_NODE_NONE;
 	ui->number_open_end = 0;
+
+	voe_ui_colour_frame_begin(ui);
 }
 
 // Which widgets answer the pointer at all. A panel, a label and an image do not:
 // a panel is a background, a label is a measurement and an image is a picture,
 // and none of them has ever been asked what the mouse is doing to it. A field
-// does, because a press is what focuses one.
+// does, because a press is what focuses one; so do a colour picker's square
+// and strip, because a press held there is what sets the colour.
 static bool takes_the_pointer(enum voe_ui_widget kind)
 {
 	return kind == VOE_UI_WIDGET_BUTTON || kind == VOE_UI_WIDGET_NUMBER ||
-	       kind == VOE_UI_WIDGET_FIELD;
+	       kind == VOE_UI_WIDGET_FIELD ||
+	       kind == VOE_UI_WIDGET_COLOUR_SQUARE ||
+	       kind == VOE_UI_WIDGET_COLOUR_HUE;
 }
 
 // This frame's movement of the held number box, in millimetres.
@@ -1662,6 +1678,12 @@ static void push_rect_at(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
 			 });
 }
 
+void voe_ui_push_solid(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
+		       voe_math_float4 colour)
+{
+	push_rect_at(ui, node, at, colour);
+}
+
 // A node's rectangle straight across, clipped to its visible rectangle.
 static void push_rect(voe_ui_context *ui, uint32_t node,
 		      voe_math_float4 colour)
@@ -1988,6 +2010,8 @@ static void emit(voe_ui_context *ui)
 		// emitted, as a plain row emits nothing.
 		switch (hidden(ui, node) ? VOE_UI_WIDGET_NONE
 					 : ui->widgets[node].kind) {
+		case VOE_UI_WIDGET_COLOUR_PICKER:
+			// A picker is a panel: see colour.c.
 		case VOE_UI_WIDGET_PANEL:
 			// A NONE surface emits nothing at all: not a
 			// transparent rectangle — no record, no instance and
@@ -2043,6 +2067,11 @@ static void emit(voe_ui_context *ui)
 			break;
 		case VOE_UI_WIDGET_IMAGE:
 			push_image(ui, node);
+			break;
+		case VOE_UI_WIDGET_SWATCH:
+		case VOE_UI_WIDGET_COLOUR_SQUARE:
+		case VOE_UI_WIDGET_COLOUR_HUE:
+			voe_ui_colour_emit(ui, node);
 			break;
 		case VOE_UI_WIDGET_SCROLL:
 			// Nothing behind its content: its bars come after it.
@@ -2206,6 +2235,9 @@ static void scrolls_move(voe_ui_context *ui)
 
 void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out)
 {
+	// Asked before resolve, which is what moves `was_down` on.
+	bool pressed = ui->pointer.down && !ui->was_down;
+
 	resolve(ui, laid_out);
 	scrolls_remember(ui, laid_out);
 	if (laid_out) {
@@ -2216,8 +2248,12 @@ void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out)
 		// see field_edit — and before emission, which is what draws
 		// the text field_edit just wrote.
 		field_edit(ui);
-		emit(ui);
 	}
+	// After field_edit, so a hex field's commit is settled, and before
+	// emission; a refused frame's pickers answer with what they were given.
+	voe_ui_colour_frame_end(ui, laid_out, pressed);
+	if (laid_out)
+		emit(ui);
 	ui->typing = ui->focus_set;
 }
 

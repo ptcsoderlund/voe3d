@@ -3,7 +3,7 @@
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
 mouse, a number box you drag sideways or click and type into to change a
-value, a single-line text field, an image and a scroll area that remembers its offset. Not drawing — what
+value, a single-line text field, an image, a scroll area that remembers its offset, a swatch and a colour picker. Not drawing — what
 comes out is element records and the caller submits them — and not input
 either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's. It also turns an
@@ -19,6 +19,12 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   listed on `src/src.md`.
 - `tests` — one plain C program per module, found by the build, none of them
   needing a window system; each is listed on `tests/tests.md`.
+- `include/ui/colour.h` — the swatch, one solid element of a linear colour,
+  and the colour picker (`voe_ui_colour_picker`, `voe_ui_colour_picker_action`,
+  `voe_ui_colour_result`): a saturation/value square, a hue strip and a hex
+  field in a panel the caller places. Its header says why it is placed by the
+  caller and not a popup, why the gradients are cells, how the hue survives a
+  grey, and what it costs in nodes and element records.
 - `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
   element records and scroll areas, the frame, and rows and columns and boxes
   between its begin and its end, any of which may clip what reaches past it

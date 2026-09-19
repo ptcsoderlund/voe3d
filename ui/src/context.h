@@ -10,8 +10,10 @@
 //
 // WHICH HALF OWNS WHICH FIELD IS WRITTEN DOWN BELOW AND IS NOT A SUGGESTION. The
 // tree and the frame belong to layout.c; everything from `font` down belongs to
-// widgets.c. Neither writes the other's, and the three entry points widgets.c
-// offers layout.c are at the bottom of this file — one at creation, for the
+// widgets.c, but for the pickers at the end, which are colour.c's — and colour.c
+// fills in the widget record of a node it makes, as every widget call does.
+// Nothing else is written across the line, and the entry points each file
+// offers another are at the bottom of this file; widgets.c's to layout.c are — one at creation, for the
 // scroll table that outlives every frame, and two at the frame's boundaries.
 // voe_ui_frame_end calls its one after arrange, which is the only order in which
 // a hit test can be against this frame's rectangles rather than last frame's.
@@ -26,6 +28,7 @@
 #include <ui/theme.h>
 #include <ui/widgets.h>
 
+#include <math/float3.h>
 #include <math/float4.h>
 #include <render/device.h>
 #include <text/font.h>
@@ -44,6 +47,48 @@ enum voe_ui_widget {
 	VOE_UI_WIDGET_IMAGE,
 	VOE_UI_WIDGET_SCROLL,
 	VOE_UI_WIDGET_FIELD,
+	// colour.c's: a swatch, a colour picker's panel, and the picker's
+	// saturation/value square and hue strip, the two that take the pointer.
+	VOE_UI_WIDGET_SWATCH,
+	VOE_UI_WIDGET_COLOUR_PICKER,
+	VOE_UI_WIDGET_COLOUR_SQUARE,
+	VOE_UI_WIDGET_COLOUR_HUE,
+};
+
+// How many colour pickers one frame may make, and so how many the context
+// remembers a hue for. A fixed ceiling rather than a voe_ui_capacities entry:
+// a panel shows one picker at a time today. One more refuses the frame, named
+// on stderr, as a scroll area past capacity does; a capacity is what lifts it.
+#define VOE_UI_COLOUR_PICKERS 8
+
+// A picker made this frame, colour.c's, in call order. The nodes are the
+// picker's panel, its square, its strip and its hex field; `hsv` is what it
+// was built showing (hue as a fraction of a turn), `linear` what the caller
+// handed in and `hex` the field's text, which must outlive the call. The rest
+// is the frame's answer, written at frame_end.
+struct voe_ui_colour_picker {
+	uint64_t key;
+	uint32_t node;
+	uint32_t square;
+	uint32_t strip;
+	uint32_t field;
+	voe_math_float3 hsv;
+	voe_math_float3 linear;
+	char hex[8];
+	bool refused_showing;
+	bool changed;
+	bool outside;
+	bool refused;
+	voe_math_float3 value;
+};
+
+// What a picker remembers between frames under its key: the HSV it last
+// showed, the linear colour that HSV is, and whether "not #RRGGBB" is showing.
+struct voe_ui_colour_memory {
+	uint64_t key;
+	voe_math_float3 hsv;
+	voe_math_float3 linear;
+	bool refused;
 };
 
 // One of a scroll area's two bars: the one that scrolls X, along the bottom, or
@@ -147,6 +192,10 @@ struct voe_ui_widget_record {
 	// number rather than the caller's.
 	bool open;
 	bool refused;
+	// A swatch's and a picker's linear colour as handed in, and a picker
+	// square's or strip's HSV, hue a fraction of a turn. colour.c's; zero
+	// on everything else.
+	voe_math_float3 colour;
 	// Whether `key` was worked out for this node. Panels, buttons and number
 	// boxes are keyed; labels and images are not, having nothing to remember.
 	bool keyed;
@@ -407,6 +456,19 @@ struct voe_ui_context {
 	enum voe_ui_bar page;
 	uint32_t page_area;
 	float page_towards;
+
+	// ---- colour.c's ----
+
+	// This frame's pickers, reset at frame_begin, and whether one more was
+	// made than VOE_UI_COLOUR_PICKERS allows, which refuses the frame.
+	struct voe_ui_colour_picker pickers[VOE_UI_COLOUR_PICKERS];
+	uint32_t picker_count;
+	bool picker_overrun;
+	// Last laid-out frame's pickers, rewritten from `pickers` at its end,
+	// so a picker not made is forgotten. A refused frame leaves it as it
+	// was, which is what keeps a hue through a frame nobody saw.
+	struct voe_ui_colour_memory picker_memory[VOE_UI_COLOUR_PICKERS];
+	uint32_t picker_remembered;
 };
 
 // The order layout arranged the tree in, which under ADR-0092 is the order the
@@ -450,3 +512,20 @@ void voe_ui_widgets_init(voe_ui_context *ui, voe_base_arena *arena);
 // button looks like depends on what the pointer is doing to it.
 void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out);
+
+// What widgets.c offers colour.c: a key claimed for a call site exactly as
+// every widget's is, the theme in force, and a solid record over `at` clipped
+// by `node`'s clipping ancestors.
+uint64_t voe_ui_widget_claim(voe_ui_context *ui, const char *name,
+			     uint32_t index);
+const voe_ui_theme *voe_ui_theme_current(const voe_ui_context *ui);
+void voe_ui_push_solid(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
+		       voe_math_float4 colour);
+
+// What colour.c offers widgets.c: its frame's start, its frame's end — run
+// after field_edit, so a hex commit is settled, and before emission — with
+// whether the primary button went down this frame, and the records of a
+// swatch, a square or a strip.
+void voe_ui_colour_frame_begin(voe_ui_context *ui);
+void voe_ui_colour_frame_end(voe_ui_context *ui, bool laid_out, bool pressed);
+void voe_ui_colour_emit(voe_ui_context *ui, uint32_t node);

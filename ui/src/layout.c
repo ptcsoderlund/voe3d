@@ -1232,6 +1232,7 @@ bool voe_ui_frame_end(voe_ui_context *ui)
 			       "the frame",
 			       ui->theme_depth);
 	ok = !ui->overrun && !ui->collision && !ui->scroll_overrun &&
+	     !ui->picker_overrun &&
 	     !ui->theme_overrun && ui->theme_depth == 0;
 	// Paint order is the tree's shape and not the arrangement's, so it is
 	// worked out even for a refused frame — which keeps the accessor's
