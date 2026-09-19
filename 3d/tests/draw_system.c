@@ -3,9 +3,7 @@
 // with a panel, a transform and a fresh range is drawn — except the entity the
 // frame names, of either table and either layer.
 //
-// THE DRAW COUNT IS THE MEASUREMENT, BECAUSE THE PICTURE IS NOT VISIBLE FROM
-// HERE. This folder must not read a target back: that would mean reaching into
-// render's source directory for its internals, which the folder rule forbids.
+// THE DRAW COUNT IS THE MEASUREMENT FOR HIDING, BECAUSE A PICTURE SAYS LESS.
 // What is observable is voe_render_frame_draw_count — every mesh drawn is one
 // command and every panel is one command — so "not drawn" is exactly "one
 // command fewer", and a skip that happened in the wrong place is a number that
@@ -27,6 +25,11 @@
 // forgotten; hiding an entity that draws nothing and getting fewer means the
 // comparison is on the index alone and a stale generation matches.
 //
+// ONE CASE READS THE PICTURE, THROUGH render's PUBLIC voe_render_target_read: a
+// shaped cube coloured red, in front of the camera, reads red at the centre —
+// the shape's colour reaching the object's record (ADR-0191). It has a device
+// of its own, sized for the built-in shapes.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, for the reason
 // 3d/tests/import.c gives at length: a box with no Vulkan is the box and not
 // this engine.
@@ -34,6 +37,8 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
+#include <3d/shape_component.h>
+#include <3d/shape_system.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/world.h>
@@ -76,6 +81,10 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 		.entities = 16,
 		.component_types = 8,
 		.intent_types = 8,
+		// Only for the shaped case: the shape system queues removals
+		// through it (3d/shape_system.h).
+		.structure_requests = 8,
+		.structure_bytes = 256,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
@@ -394,6 +403,88 @@ static void a_hidden_entity_goes_from_any_group(voe_base_arena *arena,
 		draws_of_a_frame(world, device, arena, 2, overlay_panel), 3);
 }
 
+// A cube coloured (1, 0, 0), three metres in front of the camera and lit
+// from above and in front, drawn into a headless device's own picture: the centre pixel is red.
+static void a_shaped_cube_draws_in_its_colour(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 1,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	voe_3d_shapes shapes;
+	voe_ecs_world *world;
+	voe_ecs_entity cube = { 0 };
+	voe_ecs_entity sun = { 0 };
+	voe_3d_frame frame;
+	voe_render_pass_camera camera;
+	voe_render_picture picture = { 0 };
+	bool drawing = false;
+	const uint8_t *centre;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+
+	world = a_world(arena);
+	voe_3d_shape_register(world, 2);
+	add_a_camera(world);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, sun,
+		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
+				   .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 3.0f }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(3.0f)));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, cube,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = { 1.0f, 0.0f, 0.0f } }));
+	voe_3d_shape_system_run(world, &shapes);
+
+	frame = voe_3d_draw_system_frame(world, size);
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light };
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (drawing) {
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			device, VOE_RENDER_TARGET_WINDOW, &camera));
+		voe_3d_draw_system_run(world, device, arena, frame);
+		voe_render_pass_end(device);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+	}
+
+	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
+					      arena, &picture, &error));
+	if (picture.pixels != NULL) {
+		centre = picture.pixels +
+			 ((size_t)(picture.height / 2) * picture.width +
+			  picture.width / 2) *
+				 4;
+		// Red and not white: a lit dielectric adds a little of every
+		// channel as its highlight, so green and blue are small next to
+		// red rather than nought. A grey cube reads all three alike.
+		VOE_TEST_CHECK(centre[0] > 128);
+		VOE_TEST_CHECK(centre[1] < centre[0] / 2);
+		VOE_TEST_CHECK(centre[2] < centre[0] / 2);
+	}
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -428,5 +519,7 @@ int main(void)
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
+
+	a_shaped_cube_draws_in_its_colour();
 	return voe_test_result();
 }

@@ -1,12 +1,17 @@
-// The built-in shapes' GPU side, and the system that turns a shape into a mesh
-// and a material (ADR-0163).
+// The built-in shapes' GPU side, the shape's intent, and the system that drains
+// it and turns a shape into a mesh and a material (ADR-0163, ADR-0191).
 //
 //     voe_3d_shapes shapes;
 //
 //     if (!voe_3d_shapes_upload(device, &shapes, &error))
 //             ...
 //
-//     // once a frame, before the draw system walks
+//     // from anywhere, any number of times:
+//     if (!voe_3d_shape_submit(world, (voe_3d_shape_intent){
+//                 .entity = entity, .shape = recoloured }))
+//             ...                                  // the queue is full
+//
+//     // once a frame, after voe_ecs_structure_apply, before the draw system
 //     voe_3d_shape_system_run(world, &shapes);
 //
 // voe_3d_shapes_upload IS A STARTUP OPERATION, exactly as voe_render_geometry_-
@@ -22,6 +27,13 @@
 // reader sees the cost; 3d/src/shape_system.c asserts at compile time that each
 // is the sum of the three shapes' own counts.
 //
+// THE INTENT CARRIES THE WHOLE ROW, as the transform's does
+// (scene/transform_system.h), and is the shape's replace (ecs/component.h). The
+// run drains it first. An intent naming a dead entity or one with no shape is
+// dropped, silently. Kind is read-only, so the drain puts it back to the
+// entity's own; each colour channel is clamped to 0..1, a NaN to 0. Both
+// corrections are reported the way an unknown kind is, below.
+//
 // voe_3d_shape_system_run GIVES A MESH AND A MATERIAL TO EVERY SHAPED ENTITY
 // THAT HAS NEITHER YET, through 3d's own creation calls — voe_3d_mesh_add and
 // voe_3d_material_add — never by writing those tables directly. An entity that
@@ -36,12 +48,24 @@
 // rather than dropping the shape silently, because a program that draws shapes
 // chose its own capacities.
 //
+// IT DROPS WHAT IT DERIVED WHEN THE SHAPE IS GONE (0190, ADR-0191). After giving
+// meshes, an entity whose mesh is on one of the shapes' geometries and whose
+// material is the shapes' own, and which has no shape, gets a structural remove
+// for its mesh and its material. So THE WORLD NEEDS A STRUCTURAL QUEUE
+// (ecs/structure.h) as soon as anything removes a shape, and a remove the queue
+// refuses asserts: the program chose the world's capacities. A removed shape
+// draws one more frame, white: the removes are applied at the next
+// voe_ecs_structure_apply, and until then the mesh is drawn with no shape to
+// give it a colour (3d/draw_system.h). An imported mesh is on other geometry
+// and is never touched.
+//
 // AN UNKNOWN KIND DRAWS NOTHING AND IS A WARNING, EDGE-TRIGGERED LIKE THE SCENE'S
 // OTHER DRAINS (see scene/identity_system.c): the first entity found with an
 // unknown kind in a run is named on stderr, further ones in the same run add to
 // a count, and the count is reported once the run that had any ends. A build
 // newer than the file it opened should not print one warning per unknown shape
-// in a scene that has many.
+// in a scene that has many. A corrected intent is reported the same way, with a
+// run and a count of its own.
 #pragma once
 
 #include <3d/material_component.h>
@@ -60,7 +84,7 @@
 #define VOE_3D_SHAPES_GEOMETRIES 3
 #define VOE_3D_SHAPES_SHADINGS 1
 
-// The GPU side of every built-in shape: one geometry per kind and the one grey
+// The GPU side of every built-in shape: one geometry per kind and the one white
 // material every shape uses. A program keeps one of these for as long as it
 // runs the shape system.
 typedef struct {
@@ -71,15 +95,30 @@ typedef struct {
 } voe_3d_shapes;
 
 // Creates the cube's, the capsule's and the cylinder's geometry, in that order,
-// and uploads the shapes' one material — opaque,
-// grey (0.7, 0.7, 0.7), metallic 0, roughness 0.6, lit. False when the device
+// and uploads the shapes' one material — opaque, white (1, 1, 1), metallic 0,
+// roughness 0.6, lit. White because a shape's own colour is multiplied in
+// through its drawn object's record (ADR-0191). False when the device
 // has no room, which is the one way this fails (see voe_render_geometry_create
 // and voe_3d_material_upload, both of which it calls).
 [[nodiscard]] bool voe_3d_shapes_upload(voe_render_device *device,
 					voe_3d_shapes *out,
 					voe_base_error *error);
 
-// Gives a mesh and a material, both in the world layer, to every shape row
-// whose entity has no mesh yet. See the header for what an unknown kind does
-// and why the world must already have mesh and material registered.
+// Change this entity's shape to the submitter's row. Kind is put back; see the
+// header.
+typedef struct {
+	voe_ecs_entity entity;
+	voe_3d_shape shape;
+} voe_3d_shape_intent;
+
+// False when the queue is full — the system has not run for long enough, and
+// the caller is the one that can do something about that.
+[[nodiscard]] bool voe_3d_shape_submit(voe_ecs_world *world,
+				       voe_3d_shape_intent intent);
+
+// Drains the shape's intents, gives a mesh and a material, both in the world
+// layer, to every shape row whose entity has no mesh yet, and queues the
+// removal of the mesh and material of every entity whose shape is gone. See the
+// header for what an unknown kind does, why the world must already have mesh
+// and material registered, and why it needs a structural queue.
 void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes);

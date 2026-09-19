@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
 	voe_base_error error;
 	voe_platform_window *window;
 	voe_render_device *gpu;
-	// The built-in shapes' GPU side: one cube's geometry and the one grey
+	// The built-in shapes' GPU side: their geometry and the one white
 	// material every shape wears. Uploaded once, at startup, and read every
 	// frame by voe_3d_shape_system_run.
 	voe_3d_shapes shapes;
@@ -594,11 +594,9 @@ int main(int argc, char *argv[])
 		voe_scene_identity_system_run(session.project->world);
 		voe_scene_light_system_run(session.project->world);
 
-		// NOT AN INTENT DRAIN — a shape's kind is read-only
-		// (3d/shape_component.h) and nothing ever submits one — but the
-		// same "every frame" rule applies: a fresh shape needs its mesh
-		// and material the first frame it exists, and the run is a no-op
-		// for every frame after (3d/shape_system.h).
+		// Drains the shape's intent, like the three above, and gives a
+		// fresh shape its mesh and material the first frame it exists
+		// (3d/shape_system.h).
 		voe_3d_shape_system_run(session.project->world, &shapes);
 
 		// The clock, the poll, and what the window says afterwards, in

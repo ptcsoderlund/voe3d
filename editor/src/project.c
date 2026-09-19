@@ -50,7 +50,7 @@
 #define PROJECT_ARENA (4u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
 
-// What a project's world may hold. Seven component types, three of them with
+// What a project's world may hold. Seven component types, four of them with
 // an intent queue, and the entities are a number to author into rather than a
 // measurement of anything.
 #define MAX_ENTITIES 1024
@@ -153,7 +153,8 @@ static void build_untitled(voe_ecs_world *world)
 		"a project's transform table is too small for its own untitled scene");
 	VOE_BASE_ASSERT(
 		voe_3d_shape_add(world, cube,
-				 (voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE }),
+				 (voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+						 .colour = VOE_3D_SHAPE_GREY }),
 		"a project's shape table is too small for its own untitled scene");
 
 	// LIGHT HAS NO TRANSFORM. A directional light has no position — see

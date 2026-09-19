@@ -82,6 +82,7 @@
 #include <3d/normal_matrix.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
+#include <3d/shape_component.h>
 #include <base/assert.h>
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
@@ -185,8 +186,28 @@ static float view_depth(voe_math_float4x4 view, voe_math_float4x4 world)
 
 // The record an entity is drawn with, which is the same two matrices and the
 // same shading id whichever pass it ends up in.
+// The world's shape table, or false when it has none — dev registers none. A
+// walk of the types rather than voe_ecs_component_type, which asserts on a key
+// nothing registered; once per run, not per object.
+static bool shape_type(const voe_ecs_world *world, voe_ecs_type *out)
+{
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_key(world, type) == &voe_3d_shape_key) {
+			*out = type;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// `shape` is the entity's shape or NULL; its colour, opaque, is the object's,
+// and anything without one is drawn white — its material's colour as it is.
 static voe_render_object object_of(const voe_scene_transform *transform,
-				   const voe_3d_material *material)
+				   const voe_3d_material *material,
+				   const voe_3d_shape *shape)
 {
 	voe_render_object object = { 0 };
 
@@ -199,7 +220,11 @@ static voe_render_object object_of(const voe_scene_transform *transform,
 	// the transform table and nothing here changes.
 	object.normal = voe_3d_normal_matrix(object.world);
 	object.shading = material->shading.index;
-	object.colour = (voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
+	object.colour = shape != NULL ?
+				(voe_math_float4){ shape->colour.x,
+						   shape->colour.y,
+						   shape->colour.z, 1.0f } :
+				(voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	return object;
 }
@@ -409,6 +434,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	struct group world_blended = { 0 };
 	struct group overlay_solid = { 0 };
 	struct group overlay_blended = { 0 };
+	voe_ecs_type shapes = { 0 };
+	bool has_shapes;
 
 	VOE_BASE_ASSERT(world != NULL, "drawing no world");
 	VOE_BASE_ASSERT(device != NULL, "drawing to no device");
@@ -419,6 +446,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	VOE_BASE_DEBUG_ASSERT(voe_render_pass_is_open(device),
 			      "drawing the world with no pass open — the loop calls voe_render_pass_begin with the frame's camera first; see 3d/draw_system.h");
 
+	has_shapes = shape_type(world, &shapes);
 	meshes = voe_3d_mesh_rows(world);
 	owners = voe_3d_mesh_entities(world);
 	count = voe_3d_mesh_count(world);
@@ -465,7 +493,12 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		entry = (struct deferred){
 			.panel = false,
 			.mesh = { .geometry = meshes[row].geometry,
-				  .object = object_of(transform, material) },
+				  .object = object_of(
+					  transform, material,
+					  has_shapes ? voe_ecs_component_get(
+							       world, shapes,
+							       owners[row]) :
+						       NULL) },
 		};
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.
