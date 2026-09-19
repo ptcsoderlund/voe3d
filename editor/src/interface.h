@@ -185,8 +185,18 @@
 // component's border and fill and its twelve letters, fourteen; each choice's
 // border and fill and twenty-four generous for its heading, twenty-six apiece,
 // 208. 3707 + 296 + 14 + 208 = 4225 elements.
-#define VOE_EDITOR_INTERFACE_NODES 525
-#define VOE_EDITOR_INTERFACE_ELEMENTS 4225
+//
+// THE COLOUR PICKER (interface.c) ADDS SEVEN NODES: the six ui/colour.h states
+// and the anchored column this file puts round it. 525 + 7 = 532 nodes. AND
+// SEVEN HUNDRED AND TEN ELEMENTS: ui/colour.h's 461 while the hex field holds
+// seven characters, and one more for each typed past them up to the field's
+// VOE_UI_FIELD_CAPACITY (256), 249. 4225 + 710 = 4935 elements. It is never
+// drawn beside the browser or Preferences, and costs less than either, but it
+// is counted on top, as the card asked. A colour field's swatch is a button and
+// one solid element, inside the three nodes and eighteen elements a control
+// is already counted at above.
+#define VOE_EDITOR_INTERFACE_NODES 532
+#define VOE_EDITOR_INTERFACE_ELEMENTS 4935
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -267,6 +277,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // it; Choose puts `themes`' entry in force through voe_editor_themes_choose
 // and sets that palette and its font on `ui`, saying in the session's notice
 // when it could not be remembered; Close hides it.
+//
+// THE COLOUR PICKER IS DRAWN OVER THE DOCK TOO, beside the Inspector column,
+// while scene.h's `picking` shows and neither the browser nor Preferences does
+// — either of those closes it. What it changes is submitted at once as the
+// row's replace intent and counted in `scene->inspector.replaced`; a press
+// outside it closes it. See interface.c.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,

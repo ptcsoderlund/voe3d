@@ -1,6 +1,6 @@
-// The selection, and the rows the Scene panel drew. See the header for why
-// building a project's entities is not this file's job, and why the rows
-// outlive the call that drew them.
+// The selection, the colour picker's target, and the rows the Scene panel
+// drew. See the header for why building a project's entities is not this
+// file's job, and why the rows outlive the call that drew them.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
 // nodes because that is what a widget answers through, and it asks `ui` exactly
@@ -14,6 +14,8 @@
 #include <base/assert.h>
 
 #include <ui/widgets.h>
+
+#include <string.h>
 
 voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene)
 {
@@ -160,4 +162,46 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene)
 	}
 	scene->selected = made;
 	scene->structural++;
+}
+
+void voe_editor_scene_picker_open(voe_editor_scene *scene,
+				  voe_editor_picking picking)
+{
+	VOE_BASE_ASSERT(scene != NULL, "opening a colour picker on no scene");
+
+	picking.open = true;
+	scene->picking = picking;
+}
+
+void voe_editor_scene_picker_close(voe_editor_scene *scene)
+{
+	VOE_BASE_ASSERT(scene != NULL, "closing the colour picker of no scene");
+
+	scene->picking.open = false;
+}
+
+bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
+				     voe_math_float3 *colour)
+{
+	const uint8_t *row;
+
+	VOE_BASE_ASSERT(scene != NULL, "asking after the picker of no scene");
+	VOE_BASE_ASSERT(colour != NULL,
+			"asking the picker's colour with nowhere to put it");
+
+	if (!scene->picking.open)
+		return false;
+
+	row = voe_editor_scene_is_selected(scene, scene->picking.entity)
+		      ? voe_ecs_component_get(scene->world,
+					      scene->picking.type,
+					      scene->picking.entity)
+		      : NULL;
+	if (row == NULL) {
+		scene->picking.open = false;
+		return false;
+	}
+
+	memcpy(colour, row + scene->picking.offset, sizeof *colour);
+	return true;
 }

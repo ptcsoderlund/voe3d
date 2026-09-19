@@ -51,13 +51,24 @@
 // full." The Inspector's Remove and Add component count and refuse into the
 // same two fields (inspector.h). Both are zeroed with the rows, every frame, which is why main.c
 // calls these after the interface has drawn and not before.
+//
+// THE COLOUR PICKER'S TARGET IS HERE TOO, IN `picking`, because it outlives the
+// frame the Inspector's swatch fired in and the Inspector's own struct forgets
+// its controls every frame. It names an entity, a component type and the
+// colour's offset in the row, never a component. It is opened by the Inspector
+// (inspector.h) and closed by interface.c on a press outside the picker, by
+// main.c on Escape, and here, on the next ask, when its entity is gone, no longer
+// selected or without the row. Closing changes no colour: every change was
+// already submitted as it happened.
 #pragma once
 
 #include "inspector.h"
 
 #include <ecs/world.h>
+#include <math/float3.h>
 #include <ui/layout.h>
 
+#include <stddef.h>
 #include <stdint.h>
 
 // How many authored entities the Scene panel will list, and therefore how many
@@ -69,6 +80,19 @@
 
 // Entity, Cube, Capsule and Cylinder.
 #define VOE_EDITOR_SCENE_ADD_CHOICES 4
+
+// What the colour picker edits while it is open. Zeroed is a closed picker.
+typedef struct {
+	bool open;
+	voe_ecs_entity entity;
+	voe_ecs_type type;
+	// Bytes from the start of the row to the colour's three floats.
+	size_t offset;
+	// Where the Inspector column's content began on the surface when the
+	// swatch fired, in millimetres from the left: the picker is anchored to
+	// end just short of it.
+	float left;
+} voe_editor_picking;
 
 // One row the Scene panel drew: the button, and the entity it names.
 typedef struct {
@@ -107,6 +131,8 @@ typedef struct voe_editor_scene {
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.
 	voe_editor_inspector inspector;
+	// The colour picker's target, kept across frames.
+	voe_editor_picking picking;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -159,3 +185,16 @@ void voe_editor_scene_delete(voe_editor_scene *scene);
 // Nothing selected does nothing. Counts one in `structural`, or sets `full`
 // when the world or the queue is full.
 void voe_editor_scene_duplicate(voe_editor_scene *scene);
+
+// Opens the picker on `picking`, replacing whatever it was open on.
+void voe_editor_scene_picker_open(voe_editor_scene *scene,
+				  voe_editor_picking picking);
+
+// Closes the picker. The colour stays whatever it last became.
+void voe_editor_scene_picker_close(voe_editor_scene *scene);
+
+// Whether the picker shows this frame, and the colour in its row when it does.
+// Closes it first when its entity is not alive, is no longer the selection or
+// no longer has the row — a change of selection is what closes it.
+[[nodiscard]] bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
+						   voe_math_float3 *colour);

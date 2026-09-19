@@ -42,6 +42,7 @@
 #include <math/float3.h>
 #include <math/quat.h>
 
+#include <ui/colour.h>
 #include <ui/widgets.h>
 
 #include <ctype.h>
@@ -90,6 +91,10 @@
 // because M_PI is not standard C and -std=c23 does not define it — the same
 // reason math/tests/quat.c writes its own out.
 #define QUARTER_TURN 1.5707963267948966f
+
+// A colour's swatch, in millimetres: wider than tall, about a line of text high.
+#define SWATCH_WIDE 8.0f
+#define SWATCH_HIGH 3.0f
 
 // ------------------------------------------------------------------ text
 
@@ -546,10 +551,44 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 {
 	const uint8_t *bytes = row + field->offset;
 	bool text_box = field->kind == VOE_BASE_FIELD_CHAR && field->rank == 1;
-	uint32_t boxes = text_box ? 1 : lanes(field->kind);
+	bool colour = field->kind == VOE_BASE_FIELD_COLOUR;
+	uint32_t boxes = text_box || colour ? 1 : lanes(field->kind);
+	bool shown_only = !editable || field->read_only || boxes == 0 ||
+			  !room(inspector, boxes);
+	voe_ui_sizing swatch = { .along = { VOE_UI_SIZE_FIXED, SWATCH_WIDE },
+				 .across = { VOE_UI_SIZE_FIXED, SWATCH_HIGH } };
+	voe_math_float3 linear;
 
-	if (!editable || field->read_only || boxes == 0 ||
-	    !room(inspector, boxes)) {
+	// A COLOUR IS A SWATCH AND NEVER THREE NUMBERS (card 16): inside a
+	// button when it can be replaced, which opens the picker once the
+	// frame has ended (voe_editor_inspector_buttons_read), and bare when
+	// it cannot.
+	if (colour) {
+		voe_ui_node node = VOE_UI_NODE_NONE;
+
+		memcpy(&linear, bytes, sizeof linear);
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = ROW_GAP,
+					     .wrap = true });
+		voe_ui_label(ui, field->name);
+		if (!shown_only)
+			node = voe_ui_button_begin(ui, field->name, 0);
+		voe_ui_swatch(ui, linear, swatch);
+		if (!shown_only)
+			voe_ui_end(ui);
+		voe_ui_end(ui);
+
+		if (!shown_only)
+			record(inspector, (voe_editor_inspector_control){
+						  .node = node,
+						  .type = type,
+						  .offset = field->offset,
+						  .writes = VOE_BASE_FIELD_COLOUR });
+		return;
+	}
+
+	if (shown_only) {
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
 					     .gap = ROW_GAP,
@@ -1004,6 +1043,11 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 			continue;
 		}
 
+		// A swatch's button opens the picker, which is a button and not
+		// an edit — voe_editor_inspector_buttons_read's.
+		if (control->writes == VOE_BASE_FIELD_COLOUR)
+			continue;
+
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
 			if (voe_ui_button_action(ui, control->node).fired) {
 				apply(world, inspector->entity, control, 0.0);
@@ -1078,6 +1122,28 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	if (!voe_ecs_entity_alive(scene->world, inspector->entity))
 		return;
 
+	// A fired swatch opens the picker on its row's colour, beside the
+	// column: Duplicate, the first thing drawn, starts at its left edge.
+	for (uint32_t i = 0; i < inspector->control_count; i++) {
+		const voe_editor_inspector_control *control =
+			&inspector->controls[i];
+
+		if (control->writes != VOE_BASE_FIELD_COLOUR ||
+		    !action_of(ui, control->node).fired)
+			continue;
+		voe_editor_scene_picker_open(
+			scene,
+			(voe_editor_picking){
+				.entity = inspector->entity,
+				.type = control->type,
+				.offset = control->offset,
+				.left = inspector->duplicate != VOE_UI_NODE_NONE
+						? voe_ui_node_rect(
+							  ui, inspector->duplicate)
+							  .min.x
+						: 0.0f });
+	}
+
 	for (uint32_t i = 0; i < inspector->remove_count; i++)
 		if (action_of(ui, inspector->removes[i].node).fired)
 			counted(scene, voe_editor_entities_component_remove(
@@ -1092,4 +1158,27 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       scene->world, inspector->entity,
 				       inspector->choices[i].type));
 	}
+}
+
+void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
+					voe_ecs_world *world,
+					voe_ecs_entity entity,
+					voe_ecs_type type, size_t offset,
+					voe_math_float3 colour)
+{
+	voe_editor_inspector_control control = {
+		.type = type,
+		.offset = offset,
+		.writes = VOE_BASE_FIELD_COLOUR
+	};
+
+	VOE_BASE_ASSERT(inspector != NULL, "a colour submitted by no inspector");
+	VOE_BASE_ASSERT(world != NULL, "a colour submitted into no world");
+
+	if (!voe_ecs_entity_alive(world, entity) ||
+	    voe_ecs_component_get(world, type, entity) == NULL)
+		return;
+
+	submit(world, entity, &control, &colour, sizeof colour);
+	inspector->replaced++;
 }

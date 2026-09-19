@@ -59,6 +59,13 @@
 // voe_editor_inspector_frame_begin and valid for exactly as long as the nodes
 // are.
 //
+// A COLOUR IS A SWATCH (ADR-0192), inside a button when the type has a replace
+// intent and the field is not read-only, bare otherwise. A fired swatch opens
+// the colour picker on that entity, type and offset — scene.h's `picking` — and
+// what the picker changes comes back through
+// voe_editor_inspector_colour_submit, the same replace intent and the same
+// count in `replaced` a dragged number is.
+//
 // DUPLICATE AND DELETE HEAD THE PANEL WHEN AN ENTITY IS SELECTED, recorded like
 // every other control and read after the frame by
 // voe_editor_inspector_buttons_read, which calls the same scene.h function the
@@ -71,6 +78,8 @@
 
 #include <ecs/component.h>
 #include <ecs/world.h>
+
+#include <math/float3.h>
 
 #include <ui/layout.h>
 
@@ -198,7 +207,7 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 // Carries out whichever of Duplicate and Delete fired this frame, through
 // voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`, and
 // whichever Remove or Add component choice did, through entities.h on the
-// entity they were drawn for — counting one in scene->structural, or setting
+// entity they were drawn for, and opens the picker on whichever swatch did — counting one in scene->structural, or setting
 // scene->full when refused. Add component toggles the choices, and a press on
 // none of those buttons hides them; `down` is the pointer's primary button this
 // frame. Called in the same window as voe_editor_inspector_edits_read and before
@@ -207,3 +216,13 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
 				       struct voe_editor_scene *scene,
 				       bool down);
+
+// Submits `colour` as the replace intent of `type`'s row on `entity`, its three
+// floats at `offset`, and counts one in `replaced`. The picker's change, read
+// by interface.c in the same window as the edits. An entity no longer alive, or
+// without the row, submits and counts nothing past the check.
+void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
+					voe_ecs_world *world,
+					voe_ecs_entity entity,
+					voe_ecs_type type, size_t offset,
+					voe_math_float3 colour);

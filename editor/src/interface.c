@@ -19,6 +19,17 @@
 // the two is ever read in a given frame — see voe_editor_interface_draw's own
 // header on `browsing`. Preferences' Choose is carried out here too, through
 // themes.h, and its palette set on the context for the next frame.
+//
+// THE COLOUR PICKER IS DRAWN HERE TOO, AND ITS RESULT READ HERE, for the same
+// reason: it is a `ui` widget answering after voe_ui_frame_end. While scene.h's
+// `picking` names the selected entity and that entity still has the row, the
+// picker sits anchored over the dock just left of the Inspector column, seeded
+// from the row. A `changed` goes through inspector.h's
+// voe_editor_inspector_colour_submit at once, so the shape changes live; an
+// `outside` press closes it. It is read before the Inspector's buttons, so a
+// swatch that fires in the frame an outside press closed the picker opens it
+// again rather than being closed behind. The browser and Preferences cover the
+// same area, and either showing closes it.
 #include "interface.h"
 
 #include "browser.h"
@@ -31,7 +42,11 @@
 
 #include <base/assert.h>
 
+#include <ui/colour.h>
 #include <ui/theme.h>
+
+// Between the picker and the Inspector column, and below the bar. Millimetres.
+#define PICKER_GAP 1.0f
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
 					 const voe_ui_theme *theme)
@@ -116,6 +131,17 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		bool browsing = browser->showing;
 		// The same, for preferences, which the browser covers.
 		bool preferring = preferences->showing && !browsing;
+		// The picker, when it shows, and what it edits: the target as
+		// it was when drawn, whatever this frame's clicks do to it.
+		voe_math_float3 colour;
+		voe_editor_picking picked;
+		voe_ui_node picker = VOE_UI_NODE_NONE;
+		bool picking;
+
+		if (browsing || preferring)
+			voe_editor_scene_picker_close(scene);
+		picking = voe_editor_scene_picker_showing(scene, &colour);
+		picked = scene->picking;
 
 		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
 		if (browsing || preferring)
@@ -172,6 +198,26 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_preferences_draw(ui, preferences, themes,
 						    VOE_EDITOR_TOPBAR_HIGH,
 						    below_bar.size);
+		// Its right edge PICKER_GAP short of the Inspector's content,
+		// its top PICKER_GAP under the bar; the column around it only
+		// carries the anchor, the picker being a panel of its own.
+		if (picking) {
+			voe_ui_column_begin(
+				ui,
+				(voe_ui_container){
+					.anchor = {
+						.anchored = true,
+						.x = { VOE_UI_ACROSS_END,
+						       root->size.x -
+							       picked.left +
+							       PICKER_GAP },
+						.y = { VOE_UI_ACROSS_START,
+						       VOE_EDITOR_TOPBAR_HIGH +
+							       PICKER_GAP } } });
+			picker = voe_ui_colour_picker(ui, "colour picker", 0,
+						      colour);
+			voe_ui_end(ui);
+		}
 		voe_ui_end(ui);
 
 		if (!voe_ui_frame_end(ui)) {
@@ -190,6 +236,18 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// the order is belt as well as braces.
 		voe_editor_inspector_edits_read(&scene->inspector, ui,
 						scene->world);
+		if (picker != VOE_UI_NODE_NONE) {
+			voe_ui_colour_result result =
+				voe_ui_colour_picker_action(ui, picker);
+
+			if (result.changed)
+				voe_editor_inspector_colour_submit(
+					&scene->inspector, scene->world,
+					picked.entity, picked.type,
+					picked.offset, result.value);
+			if (result.outside)
+				voe_editor_scene_picker_close(scene);
+		}
 		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
 						  root->pointer.down);
 		if (!voe_editor_scene_clicks_read(scene, ui,

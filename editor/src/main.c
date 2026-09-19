@@ -54,6 +54,9 @@
 // is the browser's. WHILE voe_ui_typing SAYS A FIELD OR NUMBER BOX HELD THE
 // KEYBOARD AT THE LAST FRAME'S END, ESCAPE IS `ui`'s ALONE: it cancels the
 // typing and neither cancels the browser nor hides Preferences that frame.
+// OTHERWISE, WHILE THE COLOUR PICKER IS OPEN (scene.h's `picking`), ESCAPE
+// CLOSES IT AND DOES NOTHING ELSE: typing first, then the picker, then the
+// browser and Preferences.
 //
 // DELETE AND CTRL+D DELETE AND DUPLICATE THE SELECTED ENTITY (scene.h), on
 // their down edge, and neither fires while the browser shows or while
@@ -571,6 +574,9 @@ int main(int argc, char *argv[])
 		// Whether a field or number box held the keyboard at the last
 		// frame's end, when this frame's Escape is `ui`'s alone.
 		bool typing;
+		// This frame's Escape edge when neither typing nor the picker
+		// took it: the browser's Cancel and Preferences' Close.
+		bool escape_free;
 		// This frame's Delete and Ctrl+D edges, carried out after the
 		// interface has drawn — see where they are read.
 		bool delete_fired;
@@ -757,10 +763,17 @@ int main(int argc, char *argv[])
 		escape_fired = escape && !escape_was_down;
 		escape_was_down = escape;
 		typing = voe_ui_typing(ui);
+		// THE PICKER TAKES ESCAPE WHEN NOBODY IS TYPING, and the edge
+		// goes no further (the header's order).
+		escape_free = escape_fired && !typing;
+		if (escape_free && scene.picking.open) {
+			voe_editor_scene_picker_close(&scene);
+			escape_free = false;
+		}
 		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
 		// Preferences, which it does nothing else to. Neither while a
 		// person is typing: then it cancels that and nothing more.
-		if (escape_fired && !browser.showing && !typing)
+		if (escape_free && !browser.showing)
 			voe_editor_preferences_hide(&preferences);
 		backspace_fired = backspace && !backspace_was_down;
 		backspace_was_down = backspace;
@@ -850,7 +863,7 @@ int main(int argc, char *argv[])
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &views, &session, &browser,
 				&preferences, &themes,
-				escape_fired && !typing);
+				escape_free);
 			// Only when the Inspector's own buttons changed nothing
 			// structural this frame: two changes before the queue is
 			// applied would be given one id (entities.h).

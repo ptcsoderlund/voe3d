@@ -31,3 +31,6 @@ disc, an upright capsule with rounded ends and a grey cube, lit, in both views.
 For the human, with `./build/debug/editor/voe_editor` and `feature.md`'s `## How to test`: steps 1–14. Step 2
 (shapes look right when orbited), step 9 (the picker's square, strip and hex box) and step 14 (the capture of
 the scene built in steps 1–10) are looked at on screen.
+
+## Blocked
+The editor work is done: the swatch, `picking`, the anchored picker, Escape's order and the budgets. `checks.sh --folder editor` reports 0 findings, and the hand-written project's capture shows the gold disc, the upright capsule and the grey cube, lit. `checks.sh --all` still fails at check.cmake's analyser step on two dead stores in `ui/tests/widgets.c` (lines 2006 and 2356, `Value stored to 'f' is never read`). Card 10 introduced them, and they are outside this card's folder. A `ui` card that drops or uses those two assignments would unblock this; then re-run `--all` and move this card to review.
