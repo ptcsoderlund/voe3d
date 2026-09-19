@@ -168,8 +168,13 @@
 // ELEMENTS: each of the five buttons' border and fill, ten; and the letters of
 // "Add", "Entity", "Cube", "Capsule" and "Cylinder", 3 + 6 + 4 + 7 + 8 = 28.
 // 3650 + 38 = 3688 elements.
-#define VOE_EDITOR_INTERFACE_NODES 470
-#define VOE_EDITOR_INTERFACE_ELEMENTS 3688
+//
+// THE INSPECTOR'S DUPLICATE AND DELETE ROW (inspector.h) ADDS FIVE NODES: the
+// row, and each button and its label. 470 + 5 = 475 nodes. AND NINETEEN
+// ELEMENTS: each button's border and fill, four, and the letters of
+// "Duplicate" and "Delete", 9 + 6 = 15. 3688 + 19 = 3707 elements.
+#define VOE_EDITOR_INTERFACE_NODES 475
+#define VOE_EDITOR_INTERFACE_ELEMENTS 3707
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and

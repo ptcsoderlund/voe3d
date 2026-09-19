@@ -33,6 +33,8 @@
 // the scroll area is what reaches it.
 #include "inspector.h"
 
+#include "scene.h"
+
 #include <base/assert.h>
 #include <base/report.h>
 
@@ -628,6 +630,8 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->control_count = 0;
 	inspector->replaced = 0;
 	inspector->entity = (voe_ecs_entity){ 0 };
+	inspector->duplicate = VOE_UI_NODE_NONE;
+	inspector->remove = VOE_UI_NODE_NONE;
 }
 
 void voe_editor_inspector_draw(voe_ui_context *ui,
@@ -648,6 +652,15 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		voe_ui_label(ui, NOTHING_TEXT);
 		return;
 	}
+
+	voe_ui_row_begin(ui, (voe_ui_container){ .gap = COMPONENT_GAP });
+	inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
+	voe_ui_label(ui, "Duplicate");
+	voe_ui_end(ui);
+	inspector->remove = voe_ui_button_begin(ui, "delete", 0);
+	voe_ui_label(ui, "Delete");
+	voe_ui_end(ui);
+	voe_ui_end(ui);
 
 	// THE WALK, AND THE WHOLE OF WHAT THIS PANEL KNOWS ABOUT COMPONENTS.
 	// Every type the world holds, asked whether this entity has a row of it.
@@ -856,4 +869,22 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 			inspector->replaced++;
 		}
 	}
+}
+
+void voe_editor_inspector_buttons_read(const voe_editor_inspector *inspector,
+				       const voe_ui_context *ui,
+				       struct voe_editor_scene *scene)
+{
+	VOE_BASE_ASSERT(inspector != NULL, "reading the buttons of no inspector");
+	VOE_BASE_ASSERT(ui != NULL, "reading buttons out of no interface");
+	VOE_BASE_ASSERT(scene != NULL, "carrying out a button on no scene");
+
+	// Skipped when not drawn, or past a refused frame's node budget, as
+	// the controls above are.
+	if (inspector->duplicate != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, inspector->duplicate).fired)
+		voe_editor_scene_duplicate(scene);
+	if (inspector->remove != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, inspector->remove).fired)
+		voe_editor_scene_delete(scene);
 }

@@ -14,6 +14,9 @@ carries it out.
   built-in shapes, and runs the loop until a close goes ahead or the picture is
   written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
+  The Delete key and Ctrl+D delete and duplicate the selected entity through
+  `scene.h`, on their down edge and never while the browser shows or a field
+  holds the keyboard.
   While the browser shows, the three shortcuts fire nothing and a middle-button
   drag moves no view's camera; Escape is read here too and handed to the
   interface as the browser's own Cancel, and hides Preferences while the browser
@@ -112,10 +115,11 @@ carries it out.
   browser's and Preferences' commands.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
-  submitted this frame is a count `main.c` reads. Its header says why the
+  submitted this frame is a count `main.c` reads; with an entity selected,
+  Duplicate and Delete buttons head it. Its header says why the
   controls and every label's text have to outlive the call that drew them.
-- `inspector.c` — the walk over the world's component types driven by
-  base/describe.h alone, a wrapping row per described field, the three angles
+- `inspector.c` — the Duplicate and Delete row, the walk over the world's
+  component types driven by base/describe.h alone, a wrapping row per described field, the three angles
   shown and never stored, and the replace intent a moved control becomes.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
@@ -124,12 +128,12 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
 - `scene.h` — the current project's world, the selection in it, the rows the
-  Scene panel drew, its Add menu and the structural changes that made this
-  frame, and what the Inspector drew this frame. Its header says why
+  Scene panel drew, its Add menu, Delete and Duplicate on the selection and
+  the structural changes and refusals made this frame, and what the Inspector drew this frame. Its header says why
   building a project's entities is not this file's job, why the selection is
   the editor's and not the dock tree's, and why those rows outlive the call
   that drew them.
-- `scene.c` — the selection, and the one question asked of the Scene panel's
+- `scene.c` — the selection, Delete and Duplicate, and the one question asked of the Scene panel's
   rows and Add menu after the frame has ended; nothing in it draws or lays out.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says

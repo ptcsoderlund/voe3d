@@ -42,6 +42,14 @@
 // clicks are read with the pointer's button, this file keeping last frame's to
 // find the press. A choice made is an entity added, selected, and counted in
 // `structural`, which main.c reads to mark the project unsaved.
+//
+// DELETE AND DUPLICATE ACT ON THE SELECTION, and are this file's so that the
+// Delete key and Ctrl+D (main.c) and the Inspector's two buttons (inspector.c)
+// are one call each and not two copies. Delete clears the selection and
+// Duplicate selects the copy; each success counts one in `structural`, and a
+// full world or queue sets `full`, which main.c turns into "The scene is
+// full." Both are zeroed with the rows, every frame, which is why main.c
+// calls these after the interface has drawn and not before.
 #pragma once
 
 #include "inspector.h"
@@ -71,7 +79,7 @@ typedef struct {
 // and what the Scene panel drew this frame. Zeroed is a scene with no world;
 // main.c sets world from the current voe_editor_project as soon as one
 // exists.
-typedef struct {
+typedef struct voe_editor_scene {
 	voe_ecs_world *world;
 	// Zeroed until something is clicked, and a zeroed entity is never a
 	// live one (ecs/world.h) — so there is no separate "nothing" flag.
@@ -90,6 +98,9 @@ typedef struct {
 	// How many structural changes the panel made this frame. Zeroed with
 	// the rows, every frame.
 	uint32_t structural;
+	// Whether a Delete or Duplicate was refused this frame because the
+	// world or its queue is full. Zeroed with the rows, every frame.
+	bool full;
 	// What the Inspector panel drew this frame, and the arena its labels
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.
@@ -107,7 +118,7 @@ bool voe_editor_scene_is_selected(const voe_editor_scene *scene,
 				  voe_ecs_entity entity);
 
 // Forgets what the Scene panel drew last frame, the Add menu's buttons among it,
-// and zeroes `structural`. Called before the panel draws, because the nodes it
+// and zeroes `structural` and `full`. Called before the panel draws, because the nodes it
 // holds name this frame's tree and last frame's are gone.
 void voe_editor_scene_rows_clear(voe_editor_scene *scene);
 
@@ -136,3 +147,13 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 [[nodiscard]] bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 						const voe_ui_context *ui,
 						bool down);
+
+// Queues the selected entity's destruction and clears the selection. Nothing
+// selected does nothing. Counts one in `structural`, or sets `full` when the
+// queue is full.
+void voe_editor_scene_delete(voe_editor_scene *scene);
+
+// Queues a copy of the selected entity (entities.h) and selects the copy.
+// Nothing selected does nothing. Counts one in `structural`, or sets `full`
+// when the world or the queue is full.
+void voe_editor_scene_duplicate(voe_editor_scene *scene);

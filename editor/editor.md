@@ -7,8 +7,11 @@ the right. The left one lists the authored entities of the project it opens on
 under an Add button, whose Entity, Cube, Capsule and Cylinder add one through
 the world's structural queue and select it, and a click on one selects it; each view draws the world from its own camera,
 moved by a middle-button drag in it, lit by whichever light the world holds;
-the right one lists what the selected entity is made of and lets a number in
-it be dragged, which is what marks the project unsaved. Each column that is
+the right one lists what the selected entity is made of under Duplicate and
+Delete buttons and lets a number in it be dragged, which is what marks the
+project unsaved, as an add, a duplicate or a delete does. The Delete key and
+Ctrl+D delete and duplicate the selected entity too, except while the browser
+shows or a field holds the keyboard. Each column that is
 not a scene view clips what is on it and scrolls it with the wheel or its
 scrollbar, and the Inspector's field rows fold onto further lines when the
 column is too narrow for them. `voe_editor [<folder>]` opens folder, or the

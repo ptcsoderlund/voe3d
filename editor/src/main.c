@@ -53,6 +53,10 @@
 // hides it when the browser is not showing; while the browser shows, Escape
 // is the browser's.
 //
+// DELETE AND CTRL+D DELETE AND DUPLICATE THE SELECTED ENTITY (scene.h), on
+// their down edge, and neither fires while the browser shows or while
+// voe_ui_typing says a field holds the keyboard.
+//
 // BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
 // (task 14). Neither is this file's to act on: both, with whatever
 // voe_platform_input_text read since the last poll, are read every frame
@@ -327,6 +331,10 @@ int main(int argc, char *argv[])
 	bool new_was_down = false;
 	bool open_was_down = false;
 	bool save_was_down = false;
+	// Last frame's Delete and Ctrl+D, the same shape — carried out on the
+	// scene's selection (scene.h) rather than through session.h.
+	bool delete_was_down = false;
+	bool duplicate_was_down = false;
 	// Last frame's Escape, the same shape without a modifier — the
 	// browser's own Cancel (browser.h) while it shows, and Preferences'
 	// Close (preferences.h) while it does not.
@@ -553,6 +561,10 @@ int main(int argc, char *argv[])
 		bool escape_fired;
 		bool backspace_fired;
 		bool enter_fired;
+		// This frame's Delete and Ctrl+D edges, carried out after the
+		// interface has drawn — see where they are read.
+		bool delete_fired;
+		bool duplicate_fired;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -701,6 +713,28 @@ int main(int argc, char *argv[])
 			save_was_down = save_down;
 		}
 
+		// DELETE AND CTRL+D ARE THE SAME SHAPE OF EDGE, and neither fires
+		// while the browser shows or while a field or number box holds
+		// the keyboard — a person typing is not also commanding
+		// (ui/widgets.h's voe_ui_typing). They are carried out after the
+		// interface has drawn, because the dock walk zeroes the scene's
+		// `structural` and `full` for the frame (scene.h).
+		{
+			bool delete_down =
+				window != NULL &&
+				voe_platform_input_key_down(
+					window, VOE_PLATFORM_KEY_DELETE);
+			bool duplicate_down = control && voe_platform_input_key_down(
+								 window, VOE_PLATFORM_KEY_D);
+			bool quiet = browser.showing || voe_ui_typing(ui);
+
+			delete_fired = delete_down && !delete_was_down && !quiet;
+			delete_was_down = delete_down;
+			duplicate_fired = duplicate_down && !duplicate_was_down &&
+					  !quiet;
+			duplicate_was_down = duplicate_down;
+		}
+
 		// THIS FRAME'S ESCAPE, BACKSPACE AND ENTER EDGES, HANDED TO THE
 		// INTERFACE BELOW — the browser's own Cancel (browser.h) and,
 		// for the latter two, its name field's own editing and Enter
@@ -799,12 +833,23 @@ int main(int argc, char *argv[])
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &views, &session, &browser,
 				&preferences, &themes, escape_fired);
+			// Only when the Inspector's own buttons changed nothing
+			// structural this frame: two changes before the queue is
+			// applied would be given one id (entities.h).
+			if (scene.structural == 0 && delete_fired)
+				voe_editor_scene_delete(&scene);
+			if (scene.structural == 0 && duplicate_fired)
+				voe_editor_scene_duplicate(&scene);
+			if (scene.full)
+				voe_editor_notice_set(&session.notice,
+						      "The scene is full.");
 			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
 			// FOR IT AS A COMMAND — dragging a number in the
 			// Inspector is not New, Open, Save or Close, so
 			// session.h has no case for it; this is the other half
 			// of what marks the project unsaved (session.h).
-			// And so is an entity the Add menu queued (scene.h).
+			// And so is an entity the Add menu, Delete or Duplicate
+			// queued (scene.h).
 			if (scene.inspector.replaced > 0 ||
 			    scene.structural > 0)
 				voe_editor_session_edited(&session);

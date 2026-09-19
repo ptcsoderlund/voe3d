@@ -37,6 +37,12 @@
 // panel formats goes into the frame's arena, handed over by
 // voe_editor_inspector_frame_begin and valid for exactly as long as the nodes
 // are.
+//
+// DUPLICATE AND DELETE HEAD THE PANEL WHEN AN ENTITY IS SELECTED, recorded like
+// every other control and read after the frame by
+// voe_editor_inspector_buttons_read, which calls the same scene.h function the
+// Delete key and Ctrl+D call. scene.h holds this struct, so it is named here by
+// its tag and not by including it.
 #pragma once
 
 #include <base/arena.h>
@@ -105,7 +111,13 @@ typedef struct {
 	// non-zero count is what tells session.h an edit reached the project
 	// (session.h).
 	uint32_t replaced;
+	// The Duplicate and Delete buttons as drawn this frame,
+	// VOE_UI_NODE_NONE when they were not.
+	voe_ui_node duplicate;
+	voe_ui_node remove;
 } voe_editor_inspector;
+
+struct voe_editor_scene;
 
 // Forgets last frame's controls and takes this frame's arena. Called between
 // voe_ui_frame_begin and the walk, because the nodes and the text below both
@@ -126,3 +138,11 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 				     const voe_ui_context *ui,
 				     voe_ecs_world *world);
+
+// Carries out whichever of Duplicate and Delete fired this frame, through
+// voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`. Called in the
+// same window as voe_editor_inspector_edits_read and before the Scene panel's
+// clicks can move the selection the buttons were drawn for.
+void voe_editor_inspector_buttons_read(const voe_editor_inspector *inspector,
+				       const voe_ui_context *ui,
+				       struct voe_editor_scene *scene);

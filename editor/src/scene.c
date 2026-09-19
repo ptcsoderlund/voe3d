@@ -5,7 +5,8 @@
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
 // nodes because that is what a widget answers through, and it asks `ui` exactly
 // one question — what did the pointer do to this button — after the frame has
-// ended. What an Add choice makes is entities.h's.
+// ended. What an Add choice makes, and what Delete and Duplicate queue, is
+// entities.h's.
 #include "scene.h"
 
 #include "entities.h"
@@ -45,6 +46,7 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene)
 	for (uint32_t i = 0; i < VOE_EDITOR_SCENE_ADD_CHOICES; i++)
 		scene->add_choices[i] = VOE_UI_NODE_NONE;
 	scene->structural = 0;
+	scene->full = false;
 }
 
 void voe_editor_scene_add_menu_record(voe_editor_scene *scene, voe_ui_node add,
@@ -129,4 +131,33 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 	}
 
 	return added;
+}
+
+void voe_editor_scene_delete(voe_editor_scene *scene)
+{
+	voe_ecs_entity selected = voe_editor_scene_selected(scene);
+
+	if (selected.generation == 0)
+		return;
+	if (!voe_editor_entities_delete(scene->world, selected)) {
+		scene->full = true;
+		return;
+	}
+	scene->selected = (voe_ecs_entity){ 0 };
+	scene->structural++;
+}
+
+void voe_editor_scene_duplicate(voe_editor_scene *scene)
+{
+	voe_ecs_entity selected = voe_editor_scene_selected(scene);
+	voe_ecs_entity made;
+
+	if (selected.generation == 0)
+		return;
+	if (!voe_editor_entities_duplicate(scene->world, selected, &made)) {
+		scene->full = true;
+		return;
+	}
+	scene->selected = made;
+	scene->structural++;
 }
