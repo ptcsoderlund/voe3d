@@ -23,3 +23,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Key repeat, dead keys and input methods** for typing in the editor (left out of 004 and 008).
 - **Caps Lock and the `€` on AltGr+5**: left out of 008 on purpose; a later feature adds the legacy keysym blocks
   together with a font that can draw them.
+- **Visual logic** as an opt-in editor plugin (node graphs, Blueprint-like), off by default, that produces
+  what hand-written C would (0187). After the coin game (0186).
+- **A visual shader editor** (node graph) and **a material editor**, two separate editors; a material is
+  an instance of a shader (0189). They replace a shape's lone colour.
+- **Drag and drop into the scene**: place a new thing where it is dropped rather than at the origin (0189).
