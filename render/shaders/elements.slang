@@ -86,11 +86,28 @@
 //
 // A THRESHOLD, NOT A SMOOTHSTEP, AND NOT BY OVERSIGHT. Card 026 took the
 // antialiasing out of this engine. The sheet asks for a filtered sampler
-// (VOE_RENDER_SAMPLING_FIELD) so that the field's 0.5 crossing lands where the
-// distances say it lands rather than on the nearest texel boundary; that moves
+// (VOE_RENDER_SAMPLING_FIELD) so that the field's crossings land where the
+// distances say they land rather than on the nearest texel boundary; that moves
 // the edge, it does not blur it, and there is no sampler setting on that path
 // that can produce a partly covered pixel. Softening the edge here would put
 // back the thing that was deliberately removed.
+//
+// BUT THE CUT IS NOT AT THE FIELD'S HALF: IT SITS HALF A SCREEN PIXEL OUTSIDE
+// THE OUTLINE, LESS ONE BYTE STEP OF THE FIELD (ADR-0182, ADR-0183, ADR-0184).
+// A pixel is inside when its centre is within that distance of the letter, so a
+// thin stroke keeps a pixel even when it falls between two pixel centres; at the
+// half alone such a stroke lost every pixel and the letter lost a limb. At four
+// texels per pixel, where strokes are thin, the distance is just under half a
+// pixel; it only shrinks when text is magnified, where every stroke is several
+// pixels wide. Less than half because an outline lying exactly on pixel boundaries has
+// its nearest outside centre exactly half a pixel away, and the sheet stores
+// bytes: a rounded texel can read up to half a byte step high, so the guard is a
+// whole byte step in field, not a fraction of a pixel, which would fail at some
+// magnification. Such text keeps its true width at every scale and does not gain
+// a row; text that does not line up is at most one pixel wider, which bug 01 of
+// 009 accepts.
+// voe_render_element_cutoff turns the distance into a field value, and
+// draw.slang's world text keeps the half.
 //
 // THE SHEET IS SAMPLED AT AN EXPLICIT LEVEL AND THAT IS WHY THE BRANCH BELOW IS
 // FREE. draw.slang's fragment stage samples everything before it branches,
@@ -100,6 +117,15 @@
 // needs no derivatives at all, so a branch on the record's kind costs nothing
 // and needs no rule about where it may go. A solid then samples nothing rather
 // than fetching a white pixel it would throw away.
+//
+// THE ONE DERIVATIVE THE GLYPH NEEDS IS TAKEN BEFORE ANY BRANCH. The cutoff
+// needs how many sheet texels one screen pixel spans, which is fwidth of the
+// interpolated sheet coordinate, and a derivative is only defined in uniform
+// control flow. So it is the first thing the fragment stage does — ahead of the
+// clip test's discard as well as the kind branch — and the glyph branch only
+// multiplies it by its sheet's size. It is taken from the sheet coordinate and
+// not from the median, whose slope flattens on the ridge of a thin stroke,
+// exactly where the cut has to move (ADR-0183).
 //
 // AND THE TEXTURE INDEX HERE IS GENUINELY NON-UNIFORM, WHICH draw.slang'S IS
 // NOT. Over there the index comes from a record a push constant picked, so it
@@ -160,6 +186,30 @@ Sampler2D voe_render_textures[64];
 static const uint VOE_RENDER_ELEMENT_GLYPH = 1;
 // VOE_RENDER_ELEMENT_IMAGE, the third.
 static const uint VOE_RENDER_ELEMENT_IMAGE = 2;
+
+// The field's encoded range, in sheet texels either side of the outline: a
+// field value of nought or one is this many texels outside or inside it. It
+// must equal VOE_TEXT_FIELD_SPREAD in text/src/raster.h, which is where the
+// sheets are written; it is copied because render cannot include text. Change
+// one, change the other.
+static const float VOE_RENDER_ELEMENT_FIELD_SPREAD = 4.0;
+
+// The field value at and above which a glyph's pixel counts as inside: the
+// half, moved half a screen pixel outward less one byte step of the field
+// (ADR-0183, ADR-0184). `texels_per_pixel` is how many sheet texels one screen
+// pixel spans along each axis; the larger is taken, so a squeezed axis never
+// under-dilates. The byte step keeps an outline on pixel boundaries from gaining
+// a row when a rounded texel reads half a step high. Clamped to at most the half
+// so the cut never erodes past the outline, and to at least a five-hundred-and-
+// twelfth so that a texel encoded as nought — far outside everything — is never
+// inside, however small the text gets.
+float voe_render_element_cutoff(float2 texels_per_pixel)
+{
+	float field_per_pixel = max(texels_per_pixel.x, texels_per_pixel.y)
+		/ (2.0 * VOE_RENDER_ELEMENT_FIELD_SPREAD);
+	return clamp(0.5 - 0.5 * field_per_pixel + 1.0 / 255.0,
+		     1.0 / 512.0, 0.5);
+}
 
 // The middle of three, which is what turns three one-sided distance fields back
 // into one shape with its corners intact.
@@ -266,6 +316,11 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 	// decides. A zeroed rectangle discards everything, which is what
 	// voe_render_element says it does: whoever builds a record says what it
 	// is clipped to and nothing here repairs a caller that did not.
+	// Sheet coordinate per screen pixel, for the glyph's cutoff. First, in
+	// uniform control flow, before the discard and the branch below: see the
+	// header. Every kind computes it and only a glyph reads it.
+	float2 sheet_per_pixel = fwidth(vertex.sheet_at);
+
 	float2 low = vertex.clip.xy;
 	float2 high = vertex.clip.xy + vertex.clip.zw;
 
@@ -286,10 +341,18 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 			NonUniformResourceIndex(vertex.sheet_texture)]
 			.SampleLevel(vertex.sheet_at, 0.0).rgb;
 
-		// A hard cut at the half, which is draw.slang's answer and is
-		// not re-derived here. Inside the outline or outside it, and
-		// nothing in between.
-		colour.a *= step(0.5, voe_render_element_median(field));
+		// A hard cut half a pixel less a byte step outside the outline, not
+		// draw.slang's half: see the header. The derivative was taken
+		// above; here it only becomes texels by the sheet's size.
+		// Inside or outside, and nothing in between.
+		uint sheet_width;
+		uint sheet_height;
+		voe_render_textures[NonUniformResourceIndex(vertex.sheet_texture)]
+			.GetDimensions(sheet_width, sheet_height);
+		float2 texels_per_pixel =
+			sheet_per_pixel * float2(sheet_width, sheet_height);
+		colour.a *= step(voe_render_element_cutoff(texels_per_pixel),
+				 voe_render_element_median(field));
 	} else if (vertex.kind == VOE_RENDER_ELEMENT_IMAGE) {
 		// The same explicit level and the same non-uniform subscript as
 		// the glyph above, for the same reasons; the texture is a picture

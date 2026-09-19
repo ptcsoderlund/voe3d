@@ -191,12 +191,16 @@ voe_platform_wheel voe_platform_input_wheel(voe_platform_window *window);
 // Where the pointer is, not how far it moved — for that, see
 // voe_platform_input_motion above.
 //
-// x AND y ARE THE WINDOW'S OWN PIXELS, ORIGIN TOP-LEFT, +x RIGHT AND +y DOWN,
+// x AND y ARE THE BUFFER'S PIXELS, ORIGIN TOP-LEFT, +x RIGHT AND +y DOWN,
 // the same space and the same unit voe_platform_size measures the client area
-// in. A pointer at the bottom-right corner reads one less than the size in both
-// axes. Windows reports whole pixels; Wayland reports fractions of one, and the
-// fraction is kept rather than rounded here, because rounding is a decision the
-// caller can make and cannot undo.
+// in. On a fractionally scaled Wayland output that is more pixels than the
+// logical size asked for in _new, and the compositor's logical position is
+// multiplied by the same scale to get here (ADR-0180); motion and the wheel
+// above are not positions and are not scaled. A pointer at the bottom-right
+// corner reads about one less than the size in both axes. Windows reports whole
+// pixels; Wayland reports fractions of one, and the fraction is kept rather than
+// rounded here, because rounding is a decision the caller can make and cannot
+// undo.
 //
 // over IS WHETHER THERE IS A POINTER TO POINT WITH, AND WHEN IT IS FALSE x AND y
 // ARE WHERE IT WAS LAST SEEN. A GUI has to tell "the pointer is at the edge" from

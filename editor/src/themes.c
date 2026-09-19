@@ -69,14 +69,6 @@ static bool is_theme_file(const voe_platform_folder_entry *entry)
 	       strcmp(entry->name + length - suffix, THEMES_SUFFIX) == 0;
 }
 
-static const voe_text_font *font_for(voe_text_typeface typeface,
-				     const voe_text_font *oxanium,
-				     const voe_text_font *pixel_operator)
-{
-	return typeface == VOE_TEXT_TYPEFACE_PIXEL_OPERATOR ? pixel_operator :
-							      oxanium;
-}
-
 // The one line of the remembered file without its newline, pushed into arena,
 // or NULL when there is no file or the line is empty.
 static const char *read_choice(const char *path, voe_base_arena *arena)
@@ -105,8 +97,7 @@ static const char *read_choice(const char *path, voe_base_arena *arena)
 // to destroy then.
 static bool derive_one(voe_editor_theme *entry, const char *file,
 		       const uint8_t *bytes, size_t size, voe_base_arena *arena,
-		       const voe_text_font *oxanium,
-		       const voe_text_font *pixel_operator)
+		       const voe_text_font *font)
 {
 	voe_theme theme;
 	size_t length = strlen(file);
@@ -121,9 +112,7 @@ static bool derive_one(voe_editor_theme *entry, const char *file,
 		.name = theme.name,
 		.file = name,
 		.theme = theme,
-		.palette = voe_ui_theme_derive(
-			&theme.inputs,
-			font_for(theme.typeface, oxanium, pixel_operator)),
+		.palette = voe_ui_theme_derive(&theme.inputs, font),
 		.bytes = bytes,
 		.size = size,
 		.arena = arena,
@@ -135,8 +124,7 @@ static bool derive_one(voe_editor_theme *entry, const char *file,
 // arena destroyed and the reason already reported, when it will not read.
 static bool read_one(voe_editor_theme *entry, const char *folder,
 		     const char *file, voe_base_arena *scratch,
-		     const voe_text_font *oxanium,
-		     const voe_text_font *pixel_operator)
+		     const voe_text_font *font)
 {
 	voe_base_arena *arena = voe_base_arena_new(THEMES_ONE_ARENA);
 	const char *path = voe_platform_path_join(scratch, folder, file);
@@ -144,8 +132,8 @@ static bool read_one(voe_editor_theme *entry, const char *folder,
 	size_t size;
 
 	bytes = voe_platform_file_read(path, arena, &size, NULL);
-	if (bytes == NULL || !derive_one(entry, file, bytes, size, arena,
-					 oxanium, pixel_operator)) {
+	if (bytes == NULL ||
+	    !derive_one(entry, file, bytes, size, arena, font)) {
 		voe_base_arena_destroy(arena);
 		return false;
 	}
@@ -163,8 +151,7 @@ static void forget_refused(voe_editor_themes *themes)
 }
 
 bool voe_editor_themes_load(voe_editor_themes *themes,
-			    const voe_text_font *oxanium,
-			    const voe_text_font *pixel_operator)
+			    const voe_text_font *font)
 {
 	voe_platform_folder_listing listing = { 0 };
 	voe_ui_theme_inputs defaults = voe_ui_theme_default_inputs();
@@ -178,14 +165,12 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 
 	VOE_BASE_ASSERT(themes != NULL && themes->arena == NULL,
 			"loading themes into a list that is not empty");
-	VOE_BASE_ASSERT(oxanium != NULL && pixel_operator != NULL,
-			"loading themes without both fonts");
+	VOE_BASE_ASSERT(font != NULL, "loading themes without a font");
 
 	themes->arena = voe_base_arena_new(THEMES_LIST_ARENA);
 	themes->remembered = NULL;
 	themes->chosen = 0;
-	themes->oxanium = oxanium;
-	themes->pixel_operator = pixel_operator;
+	themes->font = font;
 	themes->checked = voe_platform_clock_now();
 
 	settings = voe_platform_folder_settings(themes->arena);
@@ -217,14 +202,14 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		.theme = { .name = "Near black",
 			   .inputs = defaults,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
-		.palette = voe_ui_theme_derive(&defaults, oxanium),
+		.palette = voe_ui_theme_derive(&defaults, font),
 	};
 	themes->entries[1] = (voe_editor_theme){
 		.name = "Near white",
 		.theme = { .name = "Near white",
 			   .inputs = light,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
-		.palette = voe_ui_theme_derive(&light, oxanium),
+		.palette = voe_ui_theme_derive(&light, font),
 	};
 	themes->count = THEMES_BUILT_IN;
 	if (themes->remembered != NULL &&
@@ -243,8 +228,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		if (!remembered_refused)
 			voe_base_report_error_clear();
 		if (!read_one(&themes->entries[themes->count], folder,
-			      entry->name, themes->arena, oxanium,
-			      pixel_operator)) {
+			      entry->name, themes->arena, font)) {
 			remembered_refused = remembered_refused || remembered;
 			continue;
 		}
@@ -351,7 +335,7 @@ voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes
 	}
 	if (bytes == NULL ||
 	    !derive_one(&fresh, entry->file, bytes, size, arena,
-			themes->oxanium, themes->pixel_operator)) {
+			themes->font)) {
 		// Kept only to be compared with; a read that failed outright
 		// has no bytes and is tried again next second.
 		forget_refused(themes);

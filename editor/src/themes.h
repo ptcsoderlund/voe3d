@@ -8,7 +8,7 @@
 // named — and otherwise a file's name.
 //
 //     voe_editor_themes themes = { 0 };
-//     if (!voe_editor_themes_load(&themes, oxanium, pixel_operator))
+//     if (!voe_editor_themes_load(&themes, font))
 //             voe_editor_notice_from_report(&notice, themes.remembered);
 //     voe_ui_theme_set(ui, &voe_editor_themes_chosen(&themes)->palette);
 //     ... every frame:
@@ -64,8 +64,11 @@
 // a refusal — an editor saving by rename leaves that gap — and answers
 // UNCHANGED. Choosing another theme forgets the refused bytes.
 //
-// Constraints. The fonts are the caller's and must outlive every palette
-// derived with them. A palette is kept by pointer by ui (ui/widgets.h), so the
+// EVERY PALETTE IS DERIVED WITH THE ONE FONT, Oxanium, whatever typeface a
+// theme names (ADR-0185).
+//
+// Constraints. The font is the caller's and must outlive every palette
+// derived with it. A palette is kept by pointer by ui (ui/widgets.h), so the
 // list must outlive the interface context it is set on. The folder is listed
 // once, at load: a file added later appears after a restart, and only the
 // chosen file is ever re-read.
@@ -87,7 +90,7 @@ typedef struct {
 	// The file inside the themes folder, or NULL for a theme with no file.
 	const char *file;
 	voe_theme theme;
-	// Derived with whichever of the two fonts `theme.typeface` names.
+	// Derived with the list's one font, whatever `theme.typeface` names.
 	voe_ui_theme palette;
 	// The file's bytes it was read from, in `arena`; NULL and 0 for a
 	// theme with no file.
@@ -119,9 +122,8 @@ typedef struct {
 	const char *remembered;
 	// The themes folder's path, or NULL when there is no settings folder.
 	const char *folder;
-	// The two faces a palette is derived with, kept for re-reading.
-	const voe_text_font *oxanium;
-	const voe_text_font *pixel_operator;
+	// The one font every palette is derived with, kept for re-reading.
+	const voe_text_font *font;
 	// voe_platform_clock_now at the last look at the chosen file.
 	double checked;
 	// The chosen file's last refused bytes, in their own arena, or NULL
@@ -137,8 +139,7 @@ typedef struct {
 // making the folder when it is missing. False when a remembered file is gone
 // or refused, with Near black chosen instead; see this file's header.
 [[nodiscard]] bool voe_editor_themes_load(voe_editor_themes *themes,
-					  const voe_text_font *oxanium,
-					  const voe_text_font *pixel_operator);
+					  const voe_text_font *font);
 
 // The theme in force.
 const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes);

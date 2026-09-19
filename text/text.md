@@ -18,8 +18,8 @@ only `render`. Not layout onto a surface either: that is `ui`'s.
   material has to say are, why the sheet is a distance field and not a picture,
   which of the two creates is a startup operation and which lives inside a
   frame and why neither caches a string, why an enum and not a path or bytes
-  names a face and why both faces' licence notices travel with the files
-  (ADR-0167), and what this folder refuses by name — kerning included, and why.
+  names a face and why Oxanium's licence notice travels with the file
+  (ADR-0185), and what this folder refuses by name — kerning included, and why.
   On the metrics it says why there are two text paths and why a third would be
   wrong, that everything is in ems with +y up and who turns that round, why the
   box is a low-and-high pair while the sheet rectangle is a corner and a size,
@@ -28,5 +28,5 @@ only `render`. Not layout onto a surface either: that is `ui`'s.
 - `include/text/utf8.h` — one character at a time. Its header says why a caller
   placing characters itself has to walk a string with this and not with a byte
   loop, why it never stands still, and which three encodings it refuses.
-- `fonts/` — Oxanium Regular and Pixel Operator Regular, and the licence each
+- `fonts/` — Oxanium Regular and `OFL.txt`, the SIL Open Font License it
   travels under. Neither file is renamed and neither is modified.

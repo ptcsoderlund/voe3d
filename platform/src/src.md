@@ -56,9 +56,14 @@ header.
   platforms. No `#ifdef` in it and its header says why there must not be one.
 - `window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
   There is no X11 backend, and nothing in it draws — its header says why the
-  window is invisible until something else does, why input is in the same file,
+  window is invisible until something else does, why its size and pointer are
+  the buffer's pixels at the compositor's fractional scale, why input is in the same file,
   why the keymap is read in-house rather than through `xkbcommon`, and why
   AltGr is held like Shift rather than read from the compositor's modifiers.
+- `scale.h` — logical Wayland units to buffer pixels at a scale in 120ths, a
+  length rounded half away from zero and a position not rounded. OS-free like
+  `input.h`, so it is built on both platforms and tested without a compositor.
+- `scale.c` — its implementation, in 64-bit integers for the length.
 - `window_win32.c` — the Windows window, its keyboard and its `WM_CHAR` text,
   the mouse as a raw input device for look and as ordinary messages for position
   and buttons. Its header says why Control without Alt drops everything

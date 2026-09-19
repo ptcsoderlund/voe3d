@@ -18,7 +18,7 @@
 //     contrast_strength=1.25
 //     surface_separation=0.8
 //     mode=light
-//     font=pixel_operator
+//     font=oxanium
 //     text_size=4.5
 //
 // The section name has no blanks in it (the parser refuses one). `accent` is
@@ -27,9 +27,11 @@
 // this. `contrast_strength` and `surface_separation` are numbers within
 // VOE_UI_THEME_SCALAR_MIN..MAX, the very constants ui clamps to, so the two
 // folders cannot disagree about range. `mode` is `light` or `dark`. These four
-// are required. `font` (`oxanium` or `pixel_operator`) and `text_size` (a
-// number above nought, millimetres per em) are optional: absent, they are
-// Oxanium and voe_ui_theme_default_inputs()'s text size.
+// are required. `font` and `text_size` (a number above nought, millimetres
+// per em) are optional: absent, they are Oxanium and
+// voe_ui_theme_default_inputs()'s text size. `font` may name anything and
+// always reads as Oxanium, the one face the engine carries, with no report
+// (ADR-0185).
 //
 // THE NAME A PERSON READS IS THE SECTION'S, AND THE IDENTITY IS THE FILE NAME
 // (ADR-0172). A display name is the author's to change and two files may claim
@@ -48,7 +50,7 @@
 //   - a required key missing — the section's header line;
 //   - a key this schema does not know — that key's line;
 //   - a value that will not convert (not `#RRGGBB`, not a number, not `light`
-//     or `dark`, not a known font, a text size not above nought) — its line;
+//     or `dark`, a text size not above nought) — its line;
 //   - a scalar outside VOE_UI_THEME_SCALAR_MIN..MAX — its line.
 //
 // Constraints. The strings — `name` among them — are pushed on `arena` and

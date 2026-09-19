@@ -39,8 +39,12 @@
 
 typedef struct voe_platform_window voe_platform_window;
 
-// The client area, in pixels — the part you draw into, never including whatever
-// decoration the window system may have put around it.
+// The client area, in the buffer's pixels — the part you draw into, never
+// including whatever decoration the window system may have put around it. On a
+// fractionally scaled Wayland output those pixels are more than the logical size
+// asked for in _new (1.25 turns 1536x864 into 1920x1080), because the window is
+// drawn at the output's scale rather than stretched by the compositor
+// (ADR-0180); elsewhere the two are the same.
 typedef struct {
 	int width;
 	int height;

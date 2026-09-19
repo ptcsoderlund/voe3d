@@ -24,9 +24,9 @@
 // opening the editor.
 //
 // IT DRAWS IN THE THEME REMEMBERED IN `<settings>/voe3d/theme` (themes.h).
-// Both faces are created, Oxanium and Pixel Operator (ADR-0167), the themes
-// folder is read into a list whose every palette is derived with the face its
-// file names, and the chosen palette and its font are set on the interface. A
+// The editor makes one font, Oxanium (ADR-0185), the themes folder is read
+// into a list whose every palette is derived with it, whatever face a file
+// names, and the chosen palette and its font are set on the interface. A
 // remembered theme that is gone or refused draws Near black instead and puts
 // the reason, naming the file, in session.notice — unless a last project's
 // failure already put one there. Every frame, before the systems run,
@@ -98,7 +98,7 @@
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // opens the device with no window at all (voe_app_new_headless), builds the
-// same world, fonts, themes, interface and scene, runs the same loop body,
+// same world, font, themes, interface and scene, runs the same loop body,
 // writes the frame to `path` through voe_app_capture_png and returns. `--size <W>x<H>`
 // says how big that picture is and defaults to the size the window would have
 // opened at; it means nothing without `--capture`, so it is refused there
@@ -166,7 +166,7 @@
 #include <string.h>
 
 // The block size of the one arena everything lives in — the app struct, the
-// world, the fonts, the interface context and every frame's tree. It is a block
+// world, the font, the interface context and every frame's tree. It is a block
 // size and not a limit; the arena asks the operating system for another when it
 // runs out.
 #define EDITOR_ARENA (4u * 1024u * 1024u)
@@ -352,10 +352,9 @@ int main(int argc, char *argv[])
 	// material every shape wears. Uploaded once, at startup, and read every
 	// frame by voe_3d_shape_system_run.
 	voe_3d_shapes shapes;
-	// Both faces the editor carries (ADR-0167); a theme names one of them,
-	// and themes.h derives each palette with whichever it names.
+	// The one font the editor carries, Oxanium (ADR-0185); themes.h
+	// derives every palette with it.
 	voe_text_font *oxanium;
-	voe_text_font *pixel_operator;
 	// The two themes with no file, every one in the themes folder, and
 	// the one in force (themes.h). It outlives `ui`, which keeps the palette.
 	voe_editor_themes themes = { 0 };
@@ -505,12 +504,8 @@ int main(int argc, char *argv[])
 
 	oxanium = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena,
 				    &error);
-	pixel_operator = oxanium == NULL ?
-				 NULL :
-				 voe_text_font_new(VOE_TEXT_TYPEFACE_PIXEL_OPERATOR,
-						   gpu, arena, &error);
-	if (pixel_operator == NULL) {
-		VOE_BASE_ERROR("editor", "the editor could not build its fonts: %s",
+	if (oxanium == NULL) {
+		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
 			       voe_base_error_string(error));
 		status = 1;
 		goto stop;
@@ -521,7 +516,7 @@ int main(int argc, char *argv[])
 	// as a failed open does. A last project's own notice, set above, is
 	// the one left standing when both failed — it says more about what is
 	// on screen.
-	if (!voe_editor_themes_load(&themes, oxanium, pixel_operator) &&
+	if (!voe_editor_themes_load(&themes, oxanium) &&
 	    session.notice.text[0] == '\0')
 		voe_editor_notice_from_report(&session.notice,
 					      themes.remembered);

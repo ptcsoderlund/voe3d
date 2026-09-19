@@ -28,7 +28,10 @@ lets them run under `ctest` on a machine with nothing on the screen.
   drawn after two element draws is still drawn right, that a solid and a glyph in
   one frame are one draw, that two ranges of the one buffer land where their own
   two matrices say, that a range past what was submitted is refused with the
-  frame left intact, and that a screen-filling surface's corners come out
+  frame left intact, that a stroke thinner than a pixel keeps a pixel in every
+  column while one lying on pixel boundaries keeps exactly its width
+  (`thin_stroke_keeps_a_pixel`, `aligned_stroke_keeps_its_width`), and that a
+  screen-filling surface's corners come out
   strictly inside the near clip boundary rather than on it. Its header says why
   the arrangement is deliberately asymmetrical, why the draw count is counted rather than assumed, which of the
   claims has no picture of its own, why the sheet is hand-made rather than a

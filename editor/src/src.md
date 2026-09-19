@@ -8,7 +8,7 @@ carries it out.
   argument, the last one remembered or an untitled scene names before the
   device does, opens the window and the device through `voe_app_new` — or the
   device alone through `voe_app_new_headless` when a picture was asked for —
-  makes the arena, both fonts, the themes, the interface context in the
+  makes the arena, the one font, Oxanium, the themes, the interface context in the
   chosen theme and the default tree, sets a good save of the chosen theme's
   file on the context and puts a refused one's report in the session's notice,
   uploads the built-in shapes, and runs the loop until a close goes ahead or the
@@ -53,7 +53,7 @@ carries it out.
   the bytes and not a timestamp (ADR-0172), and what a refused save leaves
   behind.
 - `themes.c` — the folder listed and made, each file read and derived with the
-  face it names, the remembered file read and written as its one line, and the
+  one font, whatever face it names, the remembered file read and written as its one line, and the
   chosen file's once-a-second re-read.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
