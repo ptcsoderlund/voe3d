@@ -3,9 +3,9 @@
 Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
 mouse, a number box you drag sideways or click and type into to change a
-value, a single-line text field, an image, a scroll area that remembers its offset, a swatch and a colour picker. Not drawing — what
-comes out is element records and the caller submits them — and not input
-either: the pointer and the keyboard are values it is handed. Where the surface
+value, a single-line text field, an image, a scroll area that remembers its
+offset, a swatch and a colour picker. Not drawing — what comes out is element
+records and the caller submits them — and not input either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's. It also turns an
 authored theme — one colour, two scalars, a mode and a text size — into the
 palette a widget draws with (`include/ui/theme.h`); reading a theme file into
@@ -83,12 +83,11 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   takes a value and a rate instead, why what comes back is a value and not a
   distance and what that buys typing into one, how a click inside the dead
   zone opens it for typing, what a commit accepts and refuses and what it
-  shows while it is open (ADR-0192). On the
-  field it says that the context holds the focused field's text so a caller
-  keeps no copy of an edit, how the focus arrives selected, commits and
-  cancels, and where Tab takes it among fields and number boxes, why it composes its own label rather than
-  taking one in, why
-  the caret is measured from that label, why the edited text comes back as a
+  shows while it is open (ADR-0192). On the field it says that the context
+  holds the focused field's text so a caller keeps no copy of an edit, how the
+  focus arrives selected, commits and cancels, and where Tab takes it among
+  fields and number boxes, why it composes its own label rather than taking one
+  in, why the caret is measured from that label, why the edited text comes back as a
   value rather than the caller's own buffer being written into, that where the
   typed bytes came from is not this folder's business, and what a field costs
   in nodes and in element records. On the image it says what it is for, why it

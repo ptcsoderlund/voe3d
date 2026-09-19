@@ -17,9 +17,8 @@ and the folder that owns a component's meaning is the folder that registers it.
   an entity and its row are built, what a removal does to row order, why iterating
   is handed the arrays rather than an accessor, why a type is described or
   runtime-only and NULL is refused, and why a description is stored and never
-  read. On the
-  replace intent — the one a whole row is written through — it says why the entity
-  is at offset zero and the row's offset is the declaring folder's to give, why it
+  read. On the replace intent — the one a whole row is written through — it
+  says why the entity is at offset zero and the row's offset is the declaring folder's to give, why it
   is its own call rather than a parameter to registration, and why a type without
   one is shown and not edited. It also says who writes a row's values and who
   adds and removes rows (0190), and holds each type's default row and the one

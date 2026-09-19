@@ -56,9 +56,8 @@ lets them run under `ctest` on a machine with nothing on the screen.
   to it, and a target nothing has drawn into still reading. Its header says which
   wrong implementation each picture catches. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding
-  and the front-face constant agree about which way round that is, and that a
+  and the front-face constant agree about which way round that is, that a
   texture arrives the right way up, and that an object record's colour tints
-  what is drawn. Holds its own cube, its own camera and its
-  own sun, and drives the same public calls `3d` does. Its header says why the
+  what is drawn. Holds its own cube, its own camera and its own sun, and drives the same public calls `3d` does. Its header says why the
   sun is turned round for the mirrored case. Headless, so it runs under `ctest`
   with no window anywhere.

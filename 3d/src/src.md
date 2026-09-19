@@ -40,8 +40,8 @@ The work is in the two systems — `shape_system.c` once at startup and
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
-- `draw_system.c` — the camera, the sun, two matrices and a colour per object, the solid pass
-  in table order and the blended one furthest first, on each side of the
+- `draw_system.c` — the camera, the sun, two matrices and a colour per object,
+  the solid pass in table order and the blended one furthest first, on each side of the
   overlay's depth clear, over both tables.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.

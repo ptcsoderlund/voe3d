@@ -120,18 +120,17 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
   submitted this frame is a count `main.c` reads, a typed number or name going
-  the same way as a drag; with an entity selected,
-  Duplicate and Delete buttons head it, every section but the identity's has a
-  Remove button, Add component lists the described types it lacks, and a
-  colour is a swatch whose button opens the colour picker. Its
-  header says why runtime-only types are not shown, how a heading is made from a
+  the same way as a drag; with an entity selected, Duplicate and Delete buttons
+  head it, every section but the identity's has a Remove button, Add component
+  lists the described types it lacks, and a colour is a swatch whose button
+  opens the colour picker. Its header says why runtime-only types are not shown, how a heading is made from a
   key, and why the controls and every label's text have to outlive the call
   that drew them.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
   described component types driven by base/describe.h alone, each section's
   heading, Remove and "Needs" line, a wrapping row per described field, a text
-  field for a CHAR array such as the name, a swatch for a colour, the three angles shown and never
-  stored, the replace intent a dragged or typed control becomes, and the Add
+  field for a CHAR array such as the name, a swatch for a colour, the three
+  angles shown and never stored, the replace intent a dragged or typed control becomes, and the Add
   component list.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
@@ -141,14 +140,14 @@ carries it out.
   millimetre, and their targets.
 - `scene.h` — the current project's world, the selection in it, the rows the
   Scene panel drew, its Add menu, Delete and Duplicate on the selection and
-  the structural changes and refusals made this frame, what the Inspector drew this frame,
-  and what the colour picker is open on. Its header says why
+  the structural changes and refusals made this frame, what the Inspector drew
+  this frame, and what the colour picker is open on. Its header says why
   building a project's entities is not this file's job, why the selection is
   the editor's and not the dock tree's, and why those rows outlive the call
   that drew them.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the
-  colour picker, and the one question asked of the Scene panel's
-  rows and Add menu after the frame has ended; nothing in it draws or lays out.
+  colour picker, and the one question asked of the Scene panel's rows and Add
+  menu after the frame has ended; nothing in it draws or lays out.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.

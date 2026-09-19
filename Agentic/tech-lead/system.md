@@ -8,19 +8,19 @@ is a decision, not a card. The engine's standing rules, numbered as code cites t
 
 - **base** — memory as arenas, containers, strings, the two asserts, the error codes, the report call and the description of a struct's fields. Depends on nothing. Open `base/base.md`.
 - **math** — vectors and matrices spelled the way Slang spells them, pure data with support functions; knows no graphics API. Depends on nothing. Open `math/math.md`.
-- **ecs** — entities, components as tables, intent queues. On base. Open `ecs/ecs.md`.
+- **ecs** — entities, components as tables, intent queues, and the structural queue that adds and removes rows and destroys entities once a frame; every described type registers a default row. On base. Open `ecs/ecs.md`.
 - **platform** — window, input, typed text and the Wayland keymap, files, folders, paths, time. The only OS-aware folder; Wayland and Win32 backends as equals, and a Wayland window draws at the compositor's fractional scale with its size and pointer in buffer pixels. On base. Open `platform/platform.md`.
 - **scene** — transform, camera, light and identity as components with their systems. On ecs, math, base. Open `scene/scene.md`.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser. Never recurses over a file. On platform, math, base. Open `assets/assets.md`.
 - **authoring** — scene and project text read and written, world ↔ scene file; a game does not build it. On scene, ecs, assets, math, base. Open `authoring/authoring.md`.
 - **render** — the GPU layer and the only folder that names Vulkan: device, memory, resources by id, pipelines, targets, passes, present. Headers vendored in `render/vulkan/`, loader opened by name, every call through one resolved function table. On platform, math, base. Open `render/render.md`.
 - **text** — a glyph atlas as a three-channel distance field and one mesh per text block; Oxanium embedded, the one face, named by an enum (ADR-0185). On render, math, base. Open `text/text.md`.
-- **ui** — immediate-mode GUI in millimetres: flexbox-like layout, panels, buttons, number boxes, text fields, scroll areas, one draw from an element buffer; a theme's palette derived in OKLab from five authored values, the nearest theme in force winning. On render, text, math, base. Open `ui/ui.md`.
+- **ui** — immediate-mode GUI in millimetres: flexbox-like layout, panels, buttons, number boxes dragged or typed into, text fields sharing one keyboard focus, scroll areas, a swatch and a colour picker, one draw from an element buffer; a theme's palette derived in OKLab from five authored values, the nearest theme in force winning. On render, text, math, base. Open `ui/ui.md`.
 - **theme** — one `.theme` file's bytes read into `ui`'s authored inputs, a typeface and a display name, or refused with the line named; opens no file and derives nothing. On ui, text, assets, math, base, and render for its test's device only. Open `theme/theme.md`.
-- **3d** — the 3D renderer: scene → draws → a render target, meshes, materials, built-in shapes. On render, scene, ecs, assets, math, base. Open `3d/3d.md`.
+- **3d** — the 3D renderer: scene → draws → a render target, meshes, materials, built-in shapes (cube, capsule, cylinder) each in a described linear colour. On render, scene, ecs, assets, math, base. Open `3d/3d.md`.
 - **sprite** — a sprite is a plane in the world and hands back a material. On 3d, render, math, base. Open `sprite/sprite.md`.
 - **app** — parts a program calls in its own frame loop: the frame, capture to a PNG, a windowless start. On 3d, render, assets, platform, scene, ecs, math, base. Open `app/app.md`.
-- **editor** — the program a person opens to author a scene: top bar, Scene list, scene views, Inspector, file browser, projects opened and saved, themes chosen in Preferences and re-read live, `--capture`. A leaf; nothing names it. Open `editor/editor.md`.
+- **editor** — the program a person opens to author a scene: top bar, Scene list with Add, scene views, an Inspector that types values, picks colours, adds and removes components and duplicates and deletes entities, file browser, projects opened and saved, themes chosen in Preferences and re-read live, `--capture`. A leaf; nothing names it. Open `editor/editor.md`.
 - **dev** — the program that shows what the engine can do; a leaf on every folder but editor and authoring. Open `dev/dev.md`.
 - **testing** — the check macros a test links as `voe::testing`; not a library and not in the dependency map. Open `testing/testing.md`.
 
@@ -43,13 +43,17 @@ Every record 0001–0167 in `history/decisions/` stands unless one says it is su
 - 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place the keymap names.
 - 0170 — A theme is read in `theme`, derived in `ui`, and the nearest one wins.
 - 0171 — The palette is derived in OKLab from one colour and two numbers, and dark mode clamps chroma.
-- 0172 — A theme is one file in a themes folder, and a program remembers which by its file name.
+- 0172, 0178 — A theme is one file in a themes folder, remembered by its file name; Near black and Near white are built in, the light one remembered as `near_white`.
 - 0173 — Every folder holding code carries `<folder>.md` as an index; `src/` and `tests/` list their own files.
-- 0175 — A card that creates a folder registers it in `cmake/voe.cmake` and the root `CMakeLists.txt`.
-- 0176 — `theme`'s row names `render`, for its test's headless device.
+- 0175, 0176 — A card that creates a folder registers it in `cmake/voe.cmake` and the root `CMakeLists.txt`; `theme`'s row names `render`, for its test's headless device.
 - 0177 — To see what was drawn, render to a PNG; the planner names this on cards that change what is drawn.
-- 0178 — Two built-in themes, Near black and Near white, the light one remembered as `near_white`.
 - 0180 — A Wayland window draws at the compositor's fractional scale, and its pixels are the buffer's.
-- 0182 — Editor text keeps scaling with the window and keeps hard edges; no stroke may vanish.
-- 0184 — The glyph cutoff sits half a screen pixel out, less one byte step of the field; amends 0183.
+- 0182, 0184 — Editor text keeps scaling with the window and keeps hard edges; the glyph cutoff sits half a screen pixel out, less one byte step, so no stroke vanishes.
 - 0185 — Oxanium is the only font; a theme naming any other gets it, and the editor offers no font choice.
+- 0186, 0187, 0188 — Work moves toward a coin-collecting capsule game; its logic is the project's own C, and Play cooks the scene on screen and starts it as a separate program.
+- 0189 — An entity is only a number and starts at the origin; a material is an instance of a shader, and until then a shape has only a colour.
+- 0190 — The world owns which rows exist, through `ecs`'s structural queue applied once a frame; a system owns their values. Amends rule 3.
+- 0191 — A shape's colour is a described linear colour drawn through its object record; capsule and cylinder are built-in kinds.
+- 0192 — `ui` holds one keyboard focus for fields and typed number boxes; the colour picker is a `ui` panel the caller places.
+- 0193 — The editor changes structure through the queue; new ids are max+1 and names like "Cube 2"; the Inspector shows described components only.
+- 0194 — Colour carries no meaning in an editor's interface: a theme has one hue, authored as `hue=`; replaces the accent of 0171 and 0172.

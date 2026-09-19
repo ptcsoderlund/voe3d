@@ -2,22 +2,23 @@
 
 The program a person opens to author a scene. Today it opens a window on a top
 bar — New, Open, Save, Preferences, the project's name and a notice — above
-three columns: `Scene` on the left, two scene views stacked in the middle, and `Inspector` on
-the right. The left one lists the authored entities of the project it opens on
-under an Add button, whose Entity, Cube, Capsule and Cylinder add one through
-the world's structural queue and select it, and a click on one selects it; each view draws the world from its own camera,
-moved by a middle-button drag in it, lit by whichever light the world holds;
-the right one lists what the selected entity is made of under Duplicate and
-Delete buttons, each part but its identity with a Remove button and an Add
-component list below them, and lets a number in it be dragged or clicked and
-typed into and the name be typed, Tab moving between them, and a colour be
-picked from its swatch in a picker beside the column, live, which is what
+three columns: `Scene` on the left, two scene views stacked in the middle, and
+`Inspector` on the right.
+
+`Scene` lists the authored entities of the project under an Add button, whose
+Entity, Cube, Capsule and Cylinder add one through the world's structural queue
+and select it; a click on a row selects it. Each view draws the world from its
+own camera, moved by a middle-button drag in it, lit by whichever light the
+world holds. `Inspector` lists what the selected entity is made of under
+Duplicate and Delete buttons, each part but its identity with a Remove button,
+and an Add component list below them. A number in it can be dragged, or clicked
+and typed into, the name can be typed, and Tab moves between them; a colour is
+picked live from its swatch in a picker beside the column. Each of these edits
 marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
-component does. The Delete key and
-Ctrl+D delete and duplicate the selected entity too, except while the browser
-shows or a field holds the keyboard. Each column that is
-not a scene view clips what is on it and scrolls it with the wheel or its
-scrollbar, and the Inspector's field rows fold onto further lines when the
+component does. The Delete key and Ctrl+D delete and duplicate the selected
+entity too, except while the browser shows or a field holds the keyboard. Each
+column that is not a scene view clips what is on it and scrolls it with the
+wheel or its scrollbar, and the Inspector's field rows fold onto further lines when the
 column is too narrow for them. `voe_editor [<folder>]` opens folder, or the
 last project remembered when there is none, or an untitled cube and light when
 there is neither — see `src/project.h` and `src/last_project.h`. New, Open and
@@ -31,9 +32,9 @@ It draws in a theme: Near black or Near white, the two with no file, or the
 `*.theme` file in `<settings>/voe3d/themes/` named by `<settings>/voe3d/theme`
 — see `src/themes.h`. A remembered theme that is gone or refused draws Near
 black and says why in the bar. The selected row in `Scene` is drawn in the
-theme's accent. Preferences lists every theme — each row drawn in its own theme, the
-one in force marked — and Choose puts one in force and remembers it; Close or
-Escape hides it. While something is being typed into, Escape only cancels
+theme's accent. Preferences lists every theme — each row drawn in its own
+theme, the one in force marked — and Choose puts one in force and remembers it;
+Close or Escape hides it. While something is being typed into, Escape only cancels
 that; otherwise, while the colour picker is open, it only closes the picker.
 
 Open shows the editor's own file browser — an anchored panel over the dock,

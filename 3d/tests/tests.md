@@ -33,6 +33,6 @@ card, and says so below.
   entity exactly one mesh and material and a second run adds nothing, that an
   entity without a shape is untouched, that an unknown kind gets nothing, that
   each kind gets its own geometry, that a removed shape's mesh and material are
-  dropped while an imported mesh is kept, and that the capsule and cylinder are unit-
-  normalled, the right size and wound outward. The table and geometry half needs
+  dropped while an imported mesh is kept, and that the capsule's and cylinder's
+  normals are unit length, and that both are the right size and wound outward. The table and geometry half needs
   no graphics card; the upload half skips without one.
