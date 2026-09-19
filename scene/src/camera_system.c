@@ -72,17 +72,24 @@ static const voe_base_struct_description *camera_description(void)
 
 void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity)
 {
+	voe_ecs_type type;
+
 	VOE_BASE_ASSERT(world != NULL, "registering cameras in no world");
 
-	(void)voe_ecs_component_register(world, &voe_scene_camera_key,
-					 sizeof(voe_scene_camera), capacity,
-					 camera_description());
+	type = voe_ecs_component_register(world, &voe_scene_camera_key,
+					  sizeof(voe_scene_camera), capacity,
+					  camera_description());
 	(void)voe_ecs_intent_register(world, &placement_key,
 				      sizeof(voe_scene_camera_placement),
 				      capacity);
 	(void)voe_ecs_intent_register(world, &motion_key,
 				      sizeof(voe_scene_camera_motion),
 				      capacity);
+	voe_ecs_component_default_set(
+		world, type,
+		&(voe_scene_camera){ .fov_y = 1.0471976f,
+				     .near_plane = 0.1f,
+				     .far_plane = 1000.0f });
 }
 
 bool voe_scene_camera_add(voe_ecs_world *world, voe_ecs_entity entity,

@@ -39,8 +39,9 @@
 
 #include <stdint.h>
 
-// Registers the table and the intent queue. Call it once per world, before
-// anything adds a light. capacity is how many lights the world may hold and
+// Registers the table, the intent queue and the default row: white light of
+// strength one, straight down. The default row is what "add at default" gives
+// (0190). Call it once per world, before anything adds a light. capacity is how many lights the world may hold and
 // also how many intents may be waiting at once.
 //
 // A WORLD THAT IS DRAWN NEEDS THIS EVEN IF IT HOLDS NO SUN, because the draw

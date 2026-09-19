@@ -429,6 +429,29 @@ static void the_world_hands_back_the_cameras_field_list(voe_base_arena *arena)
 		check_description(found);
 }
 
+// What "add at default" gives (ADR-0190): at the origin looking down -Z, 60° of
+// field of view, planes at 0.1 and 1000.
+static void the_default_is_at_the_origin_with_sixty_degrees(
+	voe_base_arena *arena)
+{
+	voe_ecs_entity eye;
+	voe_ecs_world *world = world_of(arena, &eye);
+	const voe_scene_camera *row = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_camera_key));
+
+	VOE_TEST_CHECK(row != NULL);
+	if (row == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(row->eye.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->eye.y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->eye.z, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->yaw, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->pitch, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->fov_y, 1.0471976f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->near_plane, 0.1f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->far_plane, 1000.0f, 0.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
@@ -445,6 +468,7 @@ int main(void)
 	fast_is_faster_by_exactly_the_multiplier(arena);
 	asking_for_nothing_moves_nothing(arena);
 	an_intent_for_a_destroyed_camera_is_dropped(arena);
+	the_default_is_at_the_origin_with_sixty_degrees(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

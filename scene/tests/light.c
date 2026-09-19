@@ -260,6 +260,26 @@ static void the_world_hands_back_the_lights_field_list(voe_base_arena *arena)
 		check_description(found);
 }
 
+// What "add at default" gives (ADR-0190): white light of strength one, going
+// straight down.
+static void the_default_is_white_and_straight_down(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	const voe_scene_light *row = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_light_key));
+
+	VOE_TEST_CHECK(row != NULL);
+	if (row == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(row->direction.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->direction.y, -1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->direction.z, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->colour.x, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->colour.y, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->colour.z, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->intensity, 1.0f, 0.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -269,6 +289,7 @@ int main(void)
 	the_world_hands_back_the_lights_field_list(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
+	the_default_is_white_and_straight_down(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

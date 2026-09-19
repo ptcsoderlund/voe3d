@@ -46,7 +46,9 @@
 
 #include <stdint.h>
 
-// Registers the table and both intent queues. capacity is how many cameras the
+// Registers the table, both intent queues and the default row: at the origin,
+// looking down -Z, 60° of field of view, planes at 0.1 and 1000. The default row
+// is what "add at default" gives (0190). capacity is how many cameras the
 // world may hold, and how many of each intent may be waiting.
 void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity);
 
