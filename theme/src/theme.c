@@ -131,19 +131,10 @@ static bool convert(enum key which, const voe_assets_sectioned_key *key,
 			       key->line, value);
 		return false;
 	case KEY_FONT:
-		if (strcmp(value, "oxanium") == 0) {
-			theme->typeface = VOE_TEXT_TYPEFACE_OXANIUM;
-			return true;
-		}
-		if (strcmp(value, "pixel_operator") == 0) {
-			theme->typeface = VOE_TEXT_TYPEFACE_PIXEL_OPERATOR;
-			return true;
-		}
-		VOE_BASE_ERROR("theme",
-			       "line %u: font '%s' is not oxanium or "
-			       "pixel_operator",
-			       key->line, value);
-		return false;
+		// Any name reads as Oxanium, the one face the engine carries
+		// (ADR-0185); nothing is reported.
+		theme->typeface = VOE_TEXT_TYPEFACE_OXANIUM;
+		return true;
 	case KEY_TEXT_SIZE:
 		if (to_number(value, &theme->inputs.text_size) &&
 		    theme->inputs.text_size > 0.0f)

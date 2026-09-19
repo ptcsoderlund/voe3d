@@ -1,6 +1,6 @@
 // voe_theme_read's tests: a good file's every value, the fallbacks when `font`
-// and `text_size` are absent, every refusal the header lists with the line the
-// kept error names, and 006's criterion 10 — a light theme's text read here,
+// and `text_size` are absent, any `font` reading as Oxanium, every refusal
+// the header lists with the line the kept error names, and 006's criterion 10 — a light theme's text read here,
 // derived by `ui` on a real font, deciding the colours a SURFACE panel, a
 // label and a button emit, with no editor anywhere.
 //
@@ -53,7 +53,7 @@ static void a_good_file_gives_every_value(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT((int)theme.inputs.mode,
 			   (int)VOE_UI_THEME_MODE_LIGHT);
 	VOE_TEST_CHECK_INT((int)theme.typeface,
-			   (int)VOE_TEXT_TYPEFACE_PIXEL_OPERATOR);
+			   (int)VOE_TEXT_TYPEFACE_OXANIUM);
 	VOE_TEST_CHECK_FLOAT(theme.inputs.text_size, 4.5f, 0.0001f);
 }
 
@@ -97,6 +97,25 @@ static void refused_at(const char *text, const char *line,
 	"surface_separation=1\n"     \
 	"mode=dark\n"
 
+// Any `font` value, in an otherwise good file, reads as Oxanium and reports
+// nothing (ADR-0185).
+static void any_font_reads_as_oxanium(voe_base_arena *arena)
+{
+	const char *const files[] = {
+		"[One]\n" GOOD_KEYS "font=pixel_operator\n",
+		"[One]\n" GOOD_KEYS "font=comic_sans\n",
+	};
+
+	for (size_t i = 0; i < sizeof files / sizeof files[0]; i++) {
+		voe_theme theme;
+
+		VOE_TEST_CHECK(read_text(files[i], arena, &theme));
+		VOE_TEST_CHECK_INT((int)theme.typeface,
+				   (int)VOE_TEXT_TYPEFACE_OXANIUM);
+		VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+	}
+}
+
 static void every_refusal_names_its_line(voe_base_arena *arena)
 {
 	fprintf(stderr, "-- the voe theme lines that follow are this test's "
@@ -123,7 +142,6 @@ static void every_refusal_names_its_line(voe_base_arena *arena)
 	refused_at("[One]\naccent=#112233\ncontrast_strength=1\n"
 		   "surface_separation=1\nmode=dusk\n",
 		   "line 5:", arena);
-	refused_at("[One]\n" GOOD_KEYS "font=comic_sans\n", "line 6:", arena);
 	refused_at("[One]\n" GOOD_KEYS "text_size=0\n", "line 6:", arena);
 	refused_at("[One]\n" GOOD_KEYS "text_size=big\n", "line 6:", arena);
 	// Out of range at either end.
@@ -248,6 +266,7 @@ int main(void)
 
 	a_good_file_gives_every_value(arena);
 	absent_font_and_text_size_fall_back(arena);
+	any_font_reads_as_oxanium(arena);
 	every_refusal_names_its_line(arena);
 	a_read_theme_colours_a_panel_a_label_and_a_button(arena);
 
