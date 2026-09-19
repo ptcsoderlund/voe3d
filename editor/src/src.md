@@ -5,29 +5,28 @@ and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
 - `main.c` — reads the command line, opens whichever project the folder
-  argument, the last one remembered or an untitled scene names before the
-  device does, opens the window and the device through `voe_app_new` — or the
-  device alone through `voe_app_new_headless` when a picture was asked for —
-  makes the arena, the one font, Oxanium, the themes, the interface context in the
-  chosen theme and the default tree, sets a good save of the chosen theme's
-  file on the context and puts a refused one's report in the session's notice,
-  uploads the built-in shapes, and runs the loop until a close goes ahead or the
-  picture is written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
+  argument, the last one remembered or an untitled scene names before the device
+  does, opens the window and the device through `voe_app_new` — or the device
+  alone through `voe_app_new_headless` when a picture was asked for — makes the
+  arena, the one font, Oxanium, the themes, the interface context in the chosen
+  theme and the default tree, sets a good save of the chosen theme's file on the
+  context and puts a refused one's report in the session's notice, uploads the
+  built-in shapes, and runs the loop until a close goes ahead or the picture is
+  written. Ctrl+N, Ctrl+O and Ctrl+S and a window close all become a
   `voe_editor_session_do` call, and a refused close takes the window's own back.
-  While the browser shows, the three shortcuts fire nothing and a
-  middle-button drag moves no view's camera; Escape is read here too and
-  handed to the interface as the browser's own Cancel, and hides Preferences
-  while the browser does not show. Backspace, Enter and
-  `voe_platform_input_text` are read every frame, regardless of the browser,
-  and handed to the interface as this frame's keyboard (task 14) — `ui` acts
-  on them only for whichever field is focused. Its header says why the
-  `while` is this file's while the parts in it are `app`'s (ADR-0135), why the
-  one division that turns the mouse's pixels into the surface's millimetres is
-  here and nowhere else (ADR-0141 point 4), what says how far a wheel notch
-  moves anything, what a frame's passes are and in what order they run
-  (ADR-0148), where the light every view is shown with comes from, what each
-  argument does, when the last project is written and when it is not, and why
-  a capture draws two frames before it writes.
+  While the browser shows, the three shortcuts fire nothing and a middle-button
+  drag moves no view's camera; Escape is read here too and handed to the
+  interface as the browser's own Cancel, and hides Preferences while the browser
+  does not show. Backspace, Enter and `voe_platform_input_text` are read every
+  frame, regardless of the browser, and handed to the interface as this frame's
+  keyboard (task 14) — `ui` acts on them only for whichever field is focused.
+  Its header says why the `while` is this file's while the parts in it are
+  `app`'s (ADR-0135), why the one division that turns the mouse's pixels into
+  the surface's millimetres is here and nowhere else (ADR-0141 point 4), what
+  says how far a wheel notch moves anything, what a frame's passes are and in
+  what order they run (ADR-0148), where the light every view is shown with comes
+  from, what each argument does, when the last project is written and when it is
+  not, and why a capture draws two frames before it writes.
 - `project.h` — the project being worked on: its own arena, the world in it
   (every component type a project may hold registered the same way whether the
   scene is untitled or read off disk), the kept sections it was read with, its
@@ -53,8 +52,8 @@ carries it out.
   the bytes and not a timestamp (ADR-0172), and what a refused save leaves
   behind.
 - `themes.c` — the folder listed and made, each file read and derived with the
-  one font, whatever face it names, the remembered file read and written as its one line, and the
-  chosen file's once-a-second re-read.
+  one font, whatever face it names, the remembered file read and written as its
+  one line, and the chosen file's once-a-second re-read.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.
@@ -72,10 +71,10 @@ carries it out.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save,
-  Preferences, the project's name and whether it is unsaved, then the
-  session's notice. Its header says why it hands back which button fired rather than carrying a
-  command out itself, and why its buttons are recorded and read afterwards
-  exactly as the Scene panel's rows are.
+  Preferences, the project's name and whether it is unsaved, then the session's
+  notice. Its header says why it hands back which button fired rather than
+  carrying a command out itself, and why its buttons are recorded and read
+  afterwards exactly as the Scene panel's rows are.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
@@ -104,9 +103,10 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed:
   pixels per millimetre from the window's height over a 135 mm surface, the top
   bar above each root's dock tree, the browser or Preferences over it when one
-  shows, and one draw command per root. Its header says why the one question it asks — what was clicked — has to be
-  asked from in there, why the tree is walked inside the bar's column, and why
-  whether the browser was showing is captured once per root's frame.
+  shows, and one draw command per root. Its header says why the one question it
+  asks — what was clicked — has to be asked from in there, why the tree is
+  walked inside the bar's column, and why whether the browser was showing is
+  captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
   the one read of the frame's clicks that carries out the top bar's, the
   browser's and Preferences' commands.

@@ -9,7 +9,7 @@ is a decision, not a card. The engine's standing rules, numbered as code cites t
 - **base** — memory as arenas, containers, strings, the two asserts, the error codes, the report call and the description of a struct's fields. Depends on nothing. Open `base/base.md`.
 - **math** — vectors and matrices spelled the way Slang spells them, pure data with support functions; knows no graphics API. Depends on nothing. Open `math/math.md`.
 - **ecs** — entities, components as tables, intent queues. On base. Open `ecs/ecs.md`.
-- **platform** — window, input, typed text and the Wayland keymap, files, folders, paths, time. The only OS-aware folder; Wayland and Win32 backends as equals. On base. Open `platform/platform.md`.
+- **platform** — window, input, typed text and the Wayland keymap, files, folders, paths, time. The only OS-aware folder; Wayland and Win32 backends as equals, and a Wayland window draws at the compositor's fractional scale with its size and pointer in buffer pixels. On base. Open `platform/platform.md`.
 - **scene** — transform, camera, light and identity as components with their systems. On ecs, math, base. Open `scene/scene.md`.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser. Never recurses over a file. On platform, math, base. Open `assets/assets.md`.
 - **authoring** — scene and project text read and written, world ↔ scene file; a game does not build it. On scene, ecs, assets, math, base. Open `authoring/authoring.md`.
@@ -49,4 +49,7 @@ Every record 0001–0167 in `history/decisions/` stands unless one says it is su
 - 0176 — `theme`'s row names `render`, for its test's headless device.
 - 0177 — To see what was drawn, render to a PNG; the planner names this on cards that change what is drawn.
 - 0178 — Two built-in themes, Near black and Near white, the light one remembered as `near_white`.
+- 0180 — A Wayland window draws at the compositor's fractional scale, and its pixels are the buffer's.
+- 0182 — Editor text keeps scaling with the window and keeps hard edges; no stroke may vanish.
+- 0184 — The glyph cutoff sits half a screen pixel out, less one byte step of the field; amends 0183.
 - 0185 — Oxanium is the only font; a theme naming any other gets it, and the editor offers no font choice.

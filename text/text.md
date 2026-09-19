@@ -28,5 +28,5 @@ only `render`. Not layout onto a surface either: that is `ui`'s.
 - `include/text/utf8.h` — one character at a time. Its header says why a caller
   placing characters itself has to walk a string with this and not with a byte
   loop, why it never stands still, and which three encodings it refuses.
-- `fonts/` — Oxanium Regular and `OFL.txt`, the SIL Open Font License it
+- `fonts` — Oxanium Regular and `OFL.txt`, the SIL Open Font License it
   travels under. Neither file is renamed and neither is modified.

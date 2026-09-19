@@ -57,9 +57,10 @@ header.
 - `window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
   There is no X11 backend, and nothing in it draws — its header says why the
   window is invisible until something else does, why its size and pointer are
-  the buffer's pixels at the compositor's fractional scale, why input is in the same file,
-  why the keymap is read in-house rather than through `xkbcommon`, and why
-  AltGr is held like Shift rather than read from the compositor's modifiers.
+  the buffer's pixels at the compositor's fractional scale, why input is in the
+  same file, why the keymap is read in-house rather than through `xkbcommon`,
+  and why AltGr is held like Shift rather than read from the compositor's
+  modifiers.
 - `scale.h` — logical Wayland units to buffer pixels at a scale in 120ths, a
   length rounded half away from zero and a position not rounded. OS-free like
   `input.h`, so it is built on both platforms and tested without a compositor.
