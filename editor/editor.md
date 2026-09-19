@@ -9,7 +9,8 @@ the world's structural queue and select it, and a click on one selects it; each 
 moved by a middle-button drag in it, lit by whichever light the world holds;
 the right one lists what the selected entity is made of under Duplicate and
 Delete buttons, each part but its identity with a Remove button and an Add
-component list below them, and lets a number in it be dragged, which is what
+component list below them, and lets a number in it be dragged or clicked and
+typed into and the name be typed, Tab moving between them, which is what
 marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
 component does. The Delete key and
 Ctrl+D delete and duplicate the selected entity too, except while the browser
@@ -31,7 +32,8 @@ It draws in a theme: Near black or Near white, the two with no file, or the
 black and says why in the bar. The selected row in `Scene` is drawn in the
 theme's accent. Preferences lists every theme — each row drawn in its own theme, the
 one in force marked — and Choose puts one in force and remembers it; Close or
-Escape hides it.
+Escape hides it. While something is being typed into, Escape only cancels
+that.
 
 Open shows the editor's own file browser — an anchored panel over the dock,
 below the bar — to choose a project's folder from; a folder marked "— project"

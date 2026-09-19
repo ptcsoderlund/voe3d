@@ -30,7 +30,14 @@
 // intent whose entity sits at offset zero, the field's bytes are overwritten,
 // and the intent is submitted for the owning system to drain. The editor never
 // calls voe_ecs_component_set — the whole point of rule 4 is that a tool which
-// knows nothing about a component cannot be the thing that writes it.
+// knows nothing about a component cannot be the thing that writes it. A number
+// typed into a box (ADR-0192) is the same `changed` a drag is and goes the same
+// way, so a rotation's angle, a whole number's rounding and a read-only label
+// behave alike for both. A CHAR array (rank 1) is a `ui` text field, which is
+// how the name is edited: on `committed` with text that differs from the row,
+// the text is copied into the row's bytes, truncated to leave room for its
+// terminating zero, and submitted the same way. Tab walks the fields and boxes
+// in the order they are drawn — the name, then each number.
 //
 // A COMPONENT WITH NO REPLACE INTENT IS SHOWN AND NOT EDITED, which is what
 // ecs/component.h says such a type is for. Its fields are labels, because the
@@ -104,6 +111,9 @@ typedef struct {
 	// control writes.
 	size_t offset;
 	voe_base_field_kind writes;
+	// Bytes the field takes, for a CHAR field's text box: what its text is
+	// read back into and truncated to. Nought for every other kind.
+	size_t size;
 	// Which of a rotation's three shown angles this is — 0, 1 or 2 for the
 	// world's X, Y and Z — and the angle in degrees it was showing when it
 	// was drawn. The edit is the difference between the two, about that

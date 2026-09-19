@@ -20,9 +20,11 @@ carries it out.
   While the browser shows, the three shortcuts fire nothing and a middle-button
   drag moves no view's camera; Escape is read here too and handed to the
   interface as the browser's own Cancel, and hides Preferences while the browser
-  does not show. Backspace, Enter and `voe_platform_input_text` are read every
-  frame, regardless of the browser, and handed to the interface as this frame's
-  keyboard (task 14) — `ui` acts on them only for whichever field is focused.
+  does not show — but while a field or number box held the keyboard at the last
+  frame's end, Escape only cancels that typing. Escape, Backspace, Enter, Tab
+  and `voe_platform_input_text` are read every frame, regardless of the browser,
+  and handed to the interface as this frame's keyboard — `ui` acts on them only
+  for whichever field or number box is focused.
   Its header says why the `while` is this file's while the parts in it are
   `app`'s (ADR-0135), why the one division that turns the mouse's pixels into
   the surface's millimetres is here and nowhere else (ADR-0141 point 4), what
@@ -115,7 +117,8 @@ carries it out.
   browser's and Preferences' commands.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
-  submitted this frame is a count `main.c` reads; with an entity selected,
+  submitted this frame is a count `main.c` reads, a typed number or name going
+  the same way as a drag; with an entity selected,
   Duplicate and Delete buttons head it, every section but the identity's has a
   Remove button, and Add component lists the described types it lacks. Its
   header says why runtime-only types are not shown, how a heading is made from a
@@ -123,9 +126,10 @@ carries it out.
   that drew them.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
   described component types driven by base/describe.h alone, each section's
-  heading, Remove and "Needs" line, a wrapping row per described field, the
-  three angles shown and never stored, the replace intent a moved control
-  becomes, and the Add component list.
+  heading, Remove and "Needs" line, a wrapping row per described field, a text
+  field for a CHAR array such as the name, the three angles shown and never
+  stored, the replace intent a dragged or typed control becomes, and the Add
+  component list.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
   world's, why the picture's size lags the layout by a frame, and why a view

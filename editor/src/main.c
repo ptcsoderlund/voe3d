@@ -51,19 +51,21 @@
 // THE BAR'S PREFERENCES SHOWS preferences.h'S PANEL IN THE SAME PLACE, and
 // it suppresses nothing: the shortcuts and the drag go on as ever. Escape
 // hides it when the browser is not showing; while the browser shows, Escape
-// is the browser's.
+// is the browser's. WHILE voe_ui_typing SAYS A FIELD OR NUMBER BOX HELD THE
+// KEYBOARD AT THE LAST FRAME'S END, ESCAPE IS `ui`'s ALONE: it cancels the
+// typing and neither cancels the browser nor hides Preferences that frame.
 //
 // DELETE AND CTRL+D DELETE AND DUPLICATE THE SELECTED ENTITY (scene.h), on
 // their down edge, and neither fires while the browser shows or while
 // voe_ui_typing says a field holds the keyboard.
 //
-// BACKSPACE AND ENTER ARE THE SAME SHAPE OF EDGE, FOR SAVE MODE'S NAME BOX
-// (task 14). Neither is this file's to act on: both, with whatever
-// voe_platform_input_text read since the last poll, are read every frame
-// regardless of whether the browser shows and handed to the interface as
-// this frame's voe_ui_keyboard (dock.h, interface.c) — `ui` acts on them only
-// for whichever field is focused, which is nothing outside the browser's
-// SAVE mode today.
+// BACKSPACE, ENTER AND TAB ARE THE SAME SHAPE OF EDGE, FOR WHATEVER FIELD OR
+// NUMBER BOX HOLDS THE KEYBOARD — SAVE mode's name box, the Inspector's name
+// and its numbers. None is this file's to act on: all three and Escape, with
+// whatever voe_platform_input_text read since the last poll, are read every
+// frame regardless of whether the browser shows and handed to the interface
+// as this frame's voe_ui_keyboard (dock.h, interface.c) — `ui` acts on them
+// only for whichever widget is focused.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
@@ -346,6 +348,8 @@ int main(int argc, char *argv[])
 	// repeating key waits on a later typing feature (spec's Defaults).
 	bool backspace_was_down = false;
 	bool enter_was_down = false;
+	// Last frame's Tab, the same shape: `ui` moves the focus on it.
+	bool tab_was_down = false;
 	// Shown by Open, once its unsaved-changes refusal is past; hidden by
 	// its own Cancel, Escape, or a folder it opened successfully
 	// (session.h). Kept across the whole program's run, never one
@@ -556,11 +560,17 @@ int main(int argc, char *argv[])
 		bool escape = false;
 		bool backspace = false;
 		bool enter = false;
-		// This frame's Escape, Backspace and Enter edges, handed to the
-		// interface below — set once each has been read, further down.
+		bool tab = false;
+		// This frame's Escape, Backspace, Enter and Tab edges, handed to
+		// the interface below — set once each has been read, further
+		// down.
 		bool escape_fired;
 		bool backspace_fired;
 		bool enter_fired;
+		bool tab_fired;
+		// Whether a field or number box held the keyboard at the last
+		// frame's end, when this frame's Escape is `ui`'s alone.
+		bool typing;
 		// This frame's Delete and Ctrl+D edges, carried out after the
 		// interface has drawn — see where they are read.
 		bool delete_fired;
@@ -671,6 +681,8 @@ int main(int argc, char *argv[])
 				window, VOE_PLATFORM_KEY_BACKSPACE);
 			enter = voe_platform_input_key_down(
 				window, VOE_PLATFORM_KEY_ENTER);
+			tab = voe_platform_input_key_down(window,
+							  VOE_PLATFORM_KEY_TAB);
 		}
 
 		// CTRL+N, CTRL+O AND CTRL+S DO WHAT THEIR BUTTON DOES, on the
@@ -735,24 +747,27 @@ int main(int argc, char *argv[])
 			duplicate_was_down = duplicate_down;
 		}
 
-		// THIS FRAME'S ESCAPE, BACKSPACE AND ENTER EDGES, HANDED TO THE
-		// INTERFACE BELOW — the browser's own Cancel (browser.h) and,
-		// for the latter two, its name field's own editing and Enter
-		// (task 14), and nothing else this program reads any of the
-		// three for; a capture has no window, so all three stay false
-		// and none of them ever fires there either. NEITHER BACKSPACE
-		// NOR ENTER REPEATS WHILE HELD, for the reason the local
-		// variables above already say.
+		// THIS FRAME'S ESCAPE, BACKSPACE, ENTER AND TAB EDGES, HANDED TO
+		// THE INTERFACE BELOW — all four as `ui`'s keyboard for whichever
+		// field or number box is focused, and Escape besides as the
+		// browser's own Cancel (browser.h) when nobody is typing; a
+		// capture has no window, so all four stay false and none of them
+		// ever fires there either. NONE REPEATS WHILE HELD, for the
+		// reason the local variables above already say.
 		escape_fired = escape && !escape_was_down;
 		escape_was_down = escape;
+		typing = voe_ui_typing(ui);
 		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
-		// Preferences, which it does nothing else to.
-		if (escape_fired && !browser.showing)
+		// Preferences, which it does nothing else to. Neither while a
+		// person is typing: then it cancels that and nothing more.
+		if (escape_fired && !browser.showing && !typing)
 			voe_editor_preferences_hide(&preferences);
 		backspace_fired = backspace && !backspace_was_down;
 		backspace_was_down = backspace;
 		enter_fired = enter && !enter_was_down;
 		enter_was_down = enter;
+		tab_fired = tab && !tab_was_down;
+		tab_was_down = tab;
 
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
@@ -764,13 +779,15 @@ int main(int argc, char *argv[])
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
 		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
-		// reads this for whichever field is focused, the browser's
-		// name box today, and nothing here decides which one that is.
+		// reads this for whichever field or number box is focused, and
+		// nothing here decides which one that is.
 		roots[0].keyboard = (voe_ui_keyboard){
 			.text = text.bytes,
 			.size = text.size,
 			.backspace = backspace_fired,
 			.enter = enter_fired,
+			.escape = escape_fired,
+			.tab = tab_fired,
 		};
 
 		// The middle button is the views' and the left is the
@@ -832,7 +849,8 @@ int main(int argc, char *argv[])
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &views, &session, &browser,
-				&preferences, &themes, escape_fired);
+				&preferences, &themes,
+				escape_fired && !typing);
 			// Only when the Inspector's own buttons changed nothing
 			// structural this frame: two changes before the queue is
 			// applied would be given one id (entities.h).

@@ -545,7 +545,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 		      const uint8_t *row)
 {
 	const uint8_t *bytes = row + field->offset;
-	uint32_t boxes = lanes(field->kind);
+	bool text_box = field->kind == VOE_BASE_FIELD_CHAR && field->rank == 1;
+	uint32_t boxes = text_box ? 1 : lanes(field->kind);
 
 	if (!editable || field->read_only || boxes == 0 ||
 	    !room(inspector, boxes)) {
@@ -556,6 +557,29 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 		voe_ui_label(ui, field->name);
 		voe_ui_label(ui, value_text(inspector->arena, field, bytes));
 		voe_ui_end(ui);
+		return;
+	}
+
+	if (text_box) {
+		voe_ui_node node;
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = ROW_GAP,
+					     .wrap = true });
+		voe_ui_label(ui, field->name);
+		node = voe_ui_field(ui, field->name, 0,
+				    chars(inspector->arena, field->size, bytes),
+				    (voe_ui_sizing){
+					    .along = { VOE_UI_SIZE_GROW, 1.0f } });
+		voe_ui_end(ui);
+
+		record(inspector, (voe_editor_inspector_control){
+					  .node = node,
+					  .type = type,
+					  .offset = field->offset,
+					  .writes = VOE_BASE_FIELD_CHAR,
+					  .size = field->size });
 		return;
 	}
 
@@ -916,6 +940,40 @@ static void apply(voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_ASSERT(false, "a control writing a kind no control is drawn for");
 }
 
+// A text field's commit, as the row's CHAR bytes: the text truncated to leave
+// its terminating zero, the rest zeroed, submitted only when it differs from
+// what the row holds now. True when an intent was submitted.
+static bool typed(voe_ecs_world *world, voe_ecs_entity entity,
+		  const voe_editor_inspector_control *control,
+		  voe_ui_field_result result)
+{
+	const uint8_t *row = voe_ecs_component_get(world, control->type, entity);
+	uint8_t value[VOE_EDITOR_INSPECTOR_INTENT] = { 0 };
+	const uint8_t *end;
+	size_t length;
+
+	if (!result.committed || row == NULL || control->size == 0)
+		return false;
+
+	VOE_BASE_ASSERT(control->size <= sizeof value,
+			"a text field wider than VOE_EDITOR_INSPECTOR_INTENT");
+
+	length = strlen(result.text);
+	if (length > control->size - 1)
+		length = control->size - 1;
+	memcpy(value, result.text, length);
+
+	// The row's own text ends at its first zero or at its last byte.
+	end = memchr(row + control->offset, 0, control->size);
+	if ((end != NULL ? (size_t)(end - (row + control->offset)) :
+			   control->size) == length &&
+	    memcmp(row + control->offset, value, length) == 0)
+		return false;
+
+	submit(world, entity, control, value, control->size);
+	return true;
+}
+
 void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 				     const voe_ui_context *ui,
 				     voe_ecs_world *world)
@@ -938,6 +996,13 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 		// to report and not this file's to fail on.
 		if (control->node == VOE_UI_NODE_NONE)
 			continue;
+
+		if (control->writes == VOE_BASE_FIELD_CHAR) {
+			if (typed(world, inspector->entity, control,
+				  voe_ui_field_action(ui, control->node)))
+				inspector->replaced++;
+			continue;
+		}
 
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
 			if (voe_ui_button_action(ui, control->node).fired) {
