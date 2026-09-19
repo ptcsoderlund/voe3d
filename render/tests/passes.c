@@ -147,6 +147,7 @@ static voe_render_object wearing(voe_render_shading shading)
 		.world = voe_math_float4x4_identity(),
 		.normal = voe_math_float4x4_identity(),
 		.shading = shading.index,
+		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 	};
 }
 

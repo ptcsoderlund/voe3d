@@ -199,6 +199,7 @@ static voe_render_object object_of(const voe_scene_transform *transform,
 	// the transform table and nothing here changes.
 	object.normal = voe_3d_normal_matrix(object.world);
 	object.shading = material->shading.index;
+	object.colour = (voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	return object;
 }

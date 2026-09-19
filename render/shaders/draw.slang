@@ -213,9 +213,11 @@ Sampler2D voe_render_textures[64];
 
 // One drawn object. Matches voe_render_object in render/device.h field for
 // field, padding included: the two matrices fill the first hundred and
-// twenty-eight bytes and the four uints after them fill to a hundred and
-// forty-four, so every layout rule a structured buffer might be given puts every
-// member in the same place.
+// twenty-eight bytes, the four uints after them fill to a hundred and
+// forty-four and the colour ends it at a hundred and sixty, so every layout rule
+// a structured buffer might be given puts every member in the same place. The
+// colour is linear and multiplies the shading record's base colour factor,
+// alpha included.
 //
 // THE NORMAL MATRIX IS A SECOND MATRIX AND NOT A LUXURY. Under a non-uniform
 // scale the world matrix tilts a normal off the surface it belongs to, and what
@@ -235,6 +237,7 @@ struct voe_render_object {
 	uint reserved0;
 	uint reserved1;
 	uint reserved2;
+	float4 colour;
 };
 
 // Set 0, binding 2: this frame's records, one per draw. Read by both stages —
@@ -416,8 +419,11 @@ float voe_render_median(float3 field)
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
-	uint index = voe_render_objects[voe_render_draw_current.object].shading;
-	voe_render_shading shading = voe_render_shadings[index];
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_shading shading = voe_render_shadings[object.shading];
+	// The record's factor tinted by the object's colour: every use of the
+	// factor below reads this one.
+	float4 factor = shading.base_colour * object.colour;
 	voe_render_light sun = voe_render_frame.light;
 
 	// EVERY SAMPLE HAPPENS BEFORE ANY BRANCH, AND THAT IS DELIBERATE. A
@@ -489,9 +495,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// its alpha channel is not read at all. The factor's own alpha still
 	// applies, so a tint may fade text the way it fades anything else.
 	float4 base = shading.base_colour_distance_field != 0 ?
-			      float4(shading.base_colour.rgb,
-				     shading.base_colour.a * field_alpha) :
-			      shading.base_colour * sheet;
+			      float4(factor.rgb, factor.a * field_alpha) :
+			      factor * sheet;
 
 	float roughness = saturate(shading.roughness * orm.g);
 	float metallic = saturate(shading.metallic * orm.b);

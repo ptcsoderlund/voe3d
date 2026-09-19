@@ -26,7 +26,8 @@
 //                     voe_render_pass_camera camera = { .view = view, .light = sun };
 //                     if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
 //                             voe_render_frame_draw(gpu, cube, (voe_render_object){
-//                                     .world = matrix, .shading = shading.index });
+//                                     .world = matrix, .shading = shading.index,
+//                                     .colour = { 1, 1, 1, 1 } });
 //                             voe_render_pass_end(gpu);
 //                     }
 //                     if (!voe_render_frame_end(gpu))
@@ -528,9 +529,15 @@ typedef struct {
 	float reserved;
 } voe_render_light;
 
-// One drawn object's record: the two matrices it is drawn with and the shading
-// record it wears. `shading` is the index half of a voe_render_shading id; the
-// shader reads the record it names.
+// One drawn object's record: the two matrices it is drawn with, the shading
+// record it wears and the colour it is tinted by. `shading` is the index half of
+// a voe_render_shading id; the shader reads the record it names.
+//
+// `colour` IS LINEAR AND MULTIPLIES THE SHADING RECORD'S BASE COLOUR FACTOR,
+// ALPHA INCLUDED. (1, 1, 1, 1) leaves the record as it is. A zeroed one draws
+// black, so every call site sets it. It lives here and not in the shading record
+// because this record is written per draw and a shading record never changes
+// (ADR-0191).
 //
 // THE NORMAL MATRIX IS NOT THE WORLD MATRIX AND THE DIFFERENCE IS VISIBLE. A
 // normal is not carried by a transform the way a point is: under a non-uniform
@@ -549,6 +556,7 @@ typedef struct {
 	voe_math_float4x4 normal;
 	uint32_t shading;
 	uint32_t reserved[3];
+	voe_math_float4 colour;
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second
