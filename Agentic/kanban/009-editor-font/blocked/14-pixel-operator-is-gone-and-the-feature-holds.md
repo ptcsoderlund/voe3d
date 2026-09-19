@@ -24,3 +24,6 @@ For the human, with `./build/debug/editor/voe_editor` and `feature.md`'s `## How
 4. Put a theme file with `font=pixel_operator` in `~/.config/voe3d/themes/` and choose it: it draws in
    Oxanium, with no notice.
 6. `./build/debug/dev/voe_dev` draws its text in Oxanium.
+
+## Blocked
+The `.gitattributes` change is made, the grep prints only `theme/tests/theme.c:44,105`, the capture exits 0 and shows every panel in Oxanium, and `checks.sh --all` gives FINDINGS: 0. But `checks.sh --folder .` cannot pass for the repository root: it tries to build target `voe_.`, flags `.gitattributes` as outside `./`, and reads `README.md` as the root's table of contents (20 findings the card does not cover). Separately, `git diff --stat main -- dev/` is not empty, because dev/ changed in features 006 and 008 (merged into this branch before 009); 009 itself never touched dev/, which still asks for `VOE_TEXT_TYPEFACE_OXANIUM`. Unblock by letting `checks.sh` handle folder `.` (or naming this card's folder differently) and by restating the dev criterion as "no 009 commit touches dev/" (`git log 8487cfe~1..HEAD -- dev/` is empty).

@@ -12,7 +12,3 @@
 *.png	binary
 *.glb	binary
 *.ttf	binary
-
-# Third-party licence texts are stored exactly as their author shipped them, so
-# a checksum still matches after a checkout.
-text/fonts/PixelOperator-LICENSE.txt	binary
