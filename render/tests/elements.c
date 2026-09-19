@@ -1,5 +1,5 @@
 // The element path: many rectangles from many small records, and a letter among
-// them, all in one draw command. Thirteen claims, each of them one a wrong
+// them, all in one draw command. Fifteen claims, each of them one a wrong
 // implementation would get wrong quietly.
 //
 // IT READS THE PICTURE BACK, because nothing about this path can be checked any
@@ -61,6 +61,13 @@
 // texel centre rather than a claim worth making. The regions counted are well
 // inside and well outside it, which is where the answer is exact.
 //
+// AND THE CUTOFF IS HELD TO ITS TWO PROMISES WITH BAR SHEETS OF THEIR OWN
+// (ADR-0183): a stroke half a pixel tall lying across a pixel boundary keeps a
+// pixel in every column, and a stroke whose edges lie on pixel boundaries keeps
+// exactly its width. Each bar's field is written and rounded to bytes as
+// text/src/raster.c writes an atlas, because the second promise is decided
+// within a byte of the cutoff and a hand-picked rounding could keep it falsely.
+//
 // AND A GLYPH THAT NAMED NO SHEET DRAWS A SOLID RECTANGLE, ASSERTED SO IT
 // CANNOT CHANGE QUIETLY. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one
 // white pixel, so such a record medians to white, thresholds to one and comes
@@ -113,6 +120,7 @@
 
 #include <testing/test.h>
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -911,6 +919,106 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 			   SIDE * SIDE);
 }
 
+// A bar sheet: a horizontal stroke `half_width` texels either side of the
+// sheet's middle row line, its field written as text/src/raster.c writes one —
+// 0.5 plus the signed distance over twice the spread, clamped and rounded to a
+// byte — so that the cutoff meets the numbers a real atlas hands it. Uploaded
+// DATA and FIELD as the corner sheet is; the caller destroys it.
+#define BAR_SPREAD 4.0f
+#define BAR_MAX_BYTES (32 * 16 * 4)
+
+static bool bar_sheet(voe_render_device *device, int width, int height,
+		      float half_width, voe_render_texture *out)
+{
+	static unsigned char texels[BAR_MAX_BYTES];
+	voe_base_error error = VOE_BASE_OK;
+	const float centre = height / 2.0f;
+
+	assert(width * height * 4 <= BAR_MAX_BYTES);
+	assert(half_width > 0.0f);
+	for (int y = 0; y < height; y++) {
+		float from_centre = (y + 0.5f) - centre;
+		float value = 0.5f + (half_width - (from_centre < 0.0f ?
+						    -from_centre : from_centre)) /
+					     (2.0f * BAR_SPREAD);
+
+		value = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+		for (int x = 0; x < width; x++) {
+			unsigned char *at = texels + (y * width + x) * 4;
+
+			at[0] = at[1] = at[2] =
+				(unsigned char)(value * 255.0f + 0.5f);
+			at[3] = 255;
+		}
+	}
+	return voe_render_texture_create(device, VOE_RENDER_TEXTURE_DATA,
+					 VOE_RENDER_SAMPLING_FIELD,
+					 (uint32_t)width, (uint32_t)height,
+					 texels, out, &error);
+}
+
+// A stroke thinner than a pixel, lying across a pixel boundary, keeps a pixel
+// (ADR-0183). A bar two texels tall at four texels to a pixel is half a pixel
+// tall, and its centre sits exactly on the line between rows 7 and 8, so the
+// nearest pixel centres are a quarter of a pixel outside it on both sides: at
+// the field's half nothing at all is drawn, and the letter loses the limb.
+static void thin_stroke_keeps_a_pixel(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	voe_render_texture bar;
+	// 32 by 16 texels onto 8 by 4 pixels: four texels a pixel both ways,
+	// and the sheet's middle row line lands at pixel row 6 + 2.
+	const int left = 4;
+	const int width = 8;
+
+	VOE_TEST_CHECK(bar_sheet(device, 32, 16, 1.0f, &bar));
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device)) {
+		voe_render_texture_destroy(device, bar);
+		return;
+	}
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(left, 6, width, 4, GREEN, bar.index, SHEET_WHOLE)));
+	VOE_TEST_CHECK(draw_everything(device));
+	VOE_TEST_CHECK(close_frame(device));
+	read_back(device, frame, scene->readback.buffer);
+
+	for (int x = left; x < left + width; x++)
+		VOE_TEST_CHECK(count_in(scene->pixels, x, 0, x + 1, SIDE,
+					IS_GREEN) >= 1);
+	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
+}
+
+// A stroke whose edges lie on pixel boundaries keeps its true width (ADR-0183):
+// eight texels tall at one texel a pixel, rows 4 to 11. The nearest outside
+// pixel centres are exactly half a pixel out, and the cutoff sits under half a
+// pixel out, so they stay paper — eight rows, not nine or ten.
+static void aligned_stroke_keeps_its_width(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	voe_render_texture bar;
+
+	VOE_TEST_CHECK(bar_sheet(device, 8, 16, 4.0f, &bar));
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device)) {
+		voe_render_texture_destroy(device, bar);
+		return;
+	}
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(4, 0, 8, SIDE, GREEN, bar.index, SHEET_WHOLE)));
+	VOE_TEST_CHECK(draw_everything(device));
+	VOE_TEST_CHECK(close_frame(device));
+	read_back(device, frame, scene->readback.buffer);
+
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 0, HALF + 1, SIDE,
+				    IS_GREEN), 8);
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 4, HALF + 1, 12,
+				    IS_GREEN), 8);
+	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
+}
+
 // Nothing submitted records no draw command, which is not a refusal: an
 // interface with nothing in it this frame is not a caller that has gone wrong.
 static void an_empty_frame_draws_nothing(struct scene *scene)
@@ -1404,6 +1512,8 @@ int main(void)
 		a_glyph_is_clipped_like_a_solid(&scene);
 		a_glyph_with_no_sheet_draws_a_solid_rectangle(&scene);
 		paint_order_holds_across_kinds(&scene);
+		thin_stroke_keeps_a_pixel(&scene);
+		aligned_stroke_keeps_its_width(&scene);
 		an_empty_frame_draws_nothing(&scene);
 	} else {
 		VOE_TEST_CHECK(scene.pixels != NULL);
