@@ -366,13 +366,16 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 }
 
 // WHAT IS ON THE INSPECTOR IS ONE CALL AND NOT A SECOND SCENE PANEL. It is
-// handed the world and the selection and nothing else, because what it lists is
-// the world's own component types and not anything this folder knows the name of
-// — see inspector.h.
+// handed the world, the selection and the identity's type and nothing else,
+// because what it lists is the world's own component types and not anything this
+// folder knows the name of — see inspector.h. The identity is the one it is told
+// of, because the Scene list is built from it and so it is never removable.
 static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 {
-	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
-				  voe_editor_scene_selected(scene));
+	voe_editor_inspector_draw(
+		ui, &scene->inspector, scene->world,
+		voe_editor_scene_selected(scene),
+		voe_ecs_component_type(scene->world, &voe_scene_identity_key));
 }
 
 // ONE PICTURE, THE WHOLE OF THE VIEW'S TEXTURE, GROWING TO FILL THE PANEL. The

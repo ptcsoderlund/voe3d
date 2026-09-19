@@ -173,8 +173,20 @@
 // row, and each button and its label. 470 + 5 = 475 nodes. AND NINETEEN
 // ELEMENTS: each button's border and fill, four, and the letters of
 // "Duplicate" and "Delete", 9 + 6 = 15. 3688 + 19 = 3707 elements.
-#define VOE_EDITOR_INTERFACE_NODES 475
-#define VOE_EDITOR_INTERFACE_ELEMENTS 3707
+//
+// THE INSPECTOR'S REMOVE, NEEDS AND ADD COMPONENT (inspector.h) ADD FIFTY
+// NODES. Each of the eight sections gains a row round its heading, a Remove
+// button and its label, and a "Needs" label, four apiece, thirty-two; Add
+// component is a button and a label, two; and its choices, one per type the
+// entity lacks and so at most eight, a button and a label each, sixteen.
+// 475 + 50 = 525 nodes. AND FIVE HUNDRED AND EIGHTEEN ELEMENTS: each section's
+// Remove border and fill, two, "Remove", six, and "Needs", five, beside
+// twenty-four generous for the needed heading, thirty-seven apiece, 296; Add
+// component's border and fill and its twelve letters, fourteen; each choice's
+// border and fill and twenty-four generous for its heading, twenty-six apiece,
+// 208. 3707 + 296 + 14 + 208 = 4225 elements.
+#define VOE_EDITOR_INTERFACE_NODES 525
+#define VOE_EDITOR_INTERFACE_ELEMENTS 4225
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and

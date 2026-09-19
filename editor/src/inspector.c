@@ -33,6 +33,7 @@
 // the scroll area is what reaches it.
 #include "inspector.h"
 
+#include "entities.h"
 #include "scene.h"
 
 #include <base/assert.h>
@@ -43,6 +44,7 @@
 
 #include <ui/widgets.h>
 
+#include <ctype.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdarg.h>
@@ -129,6 +131,26 @@ static const char *chars(voe_base_arena *arena, size_t size, const uint8_t *byte
 	out = voe_base_arena_push(arena, length + 1);
 	memcpy(out, bytes, length);
 	out[length] = 0;
+
+	return out;
+}
+
+// A type's heading: its key name's last `_` word, first letter capitalised, in
+// the frame's arena (ADR-0193).
+static const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
+			   voe_ecs_type type)
+{
+	const char *name = voe_ecs_component_key(world, type)->name;
+	const char *last = strrchr(name, '_');
+	size_t length;
+	char *out;
+
+	last = last != NULL ? last + 1 : name;
+	length = strlen(last);
+	out = voe_base_arena_push(arena, length + 1);
+	memcpy(out, last, length + 1);
+	if (length > 0)
+		out[0] = (char)toupper((unsigned char)out[0]);
 
 	return out;
 }
@@ -588,17 +610,20 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	voe_ui_end(ui);
 }
 
-// One component: its key name, and a row per described field. A panel and not a
-// column because the key is what makes every widget beneath it unique — two
-// components with a field of the same name would otherwise be one widget
-// sharing one highlight (ui/widgets.h).
+// One component: its heading with a Remove button beside it — none for the
+// identity — the line saying what it needs when the entity lacks that, and a row
+// per described field. A panel and not a column because the key is what makes
+// every widget beneath it unique — two components with a field of the same name
+// would otherwise be one widget sharing one highlight (ui/widgets.h).
 static void component_panel(voe_ui_context *ui,
 			    voe_editor_inspector *inspector,
 			    voe_ecs_world *world, uint32_t index,
-			    voe_ecs_type type, const uint8_t *row)
+			    voe_ecs_type type, bool removable,
+			    const uint8_t *row)
 {
 	const voe_base_struct_description *description;
 	bool editable = voe_ecs_component_replace(world, type).set;
+	voe_ecs_type needed;
 
 	voe_ui_panel_begin(ui, "component", index, VOE_UI_SURFACE_RAISED,
 			   (voe_ui_container){
@@ -607,7 +632,27 @@ static void component_panel(voe_ui_context *ui,
 				   .pad = { COMPONENT_PAD, COMPONENT_PAD,
 					    COMPONENT_PAD, COMPONENT_PAD } });
 
-	voe_ui_label(ui, voe_ecs_component_key(world, type)->name);
+	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						 .gap = ROW_GAP,
+						 .wrap = true });
+	voe_ui_label(ui, heading(inspector->arena, world, type));
+	if (removable &&
+	    inspector->remove_count < VOE_EDITOR_INSPECTOR_SECTIONS) {
+		voe_ui_node node = voe_ui_button_begin(ui, "remove", 0);
+
+		voe_ui_label(ui, "Remove");
+		voe_ui_end(ui);
+		inspector->removes[inspector->remove_count++] =
+			(voe_editor_inspector_type_button){ .node = node,
+							    .type = type };
+	}
+	voe_ui_end(ui);
+
+	if (voe_ecs_component_needs(world, type, &needed) &&
+	    voe_ecs_component_get(world, needed, inspector->entity) == NULL)
+		voe_ui_label(ui, text(inspector->arena, "Needs %s",
+				      heading(inspector->arena, world,
+					      needed)));
 
 	description = voe_ecs_component_description(world, type);
 	if (description != NULL)
@@ -616,6 +661,39 @@ static void component_panel(voe_ui_context *ui,
 				  &description->fields[i], row);
 
 	voe_ui_end(ui);
+}
+
+// Add component, and while it is choosing one button per described type the
+// entity has no row of, each headed as its section would be.
+static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
+			  voe_ecs_world *world)
+{
+	uint32_t types = voe_ecs_component_type_count(world);
+
+	inspector->add_component = voe_ui_button_begin(ui, "add component", 0);
+	voe_ui_label(ui, "Add component");
+	voe_ui_end(ui);
+
+	if (!inspector->choosing)
+		return;
+
+	for (uint32_t i = 0; i < types; i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+		voe_ui_node node;
+
+		if (voe_ecs_component_runtime_only(world, type) ||
+		    voe_ecs_component_get(world, type, inspector->entity) !=
+			    NULL ||
+		    inspector->choice_count == VOE_EDITOR_INSPECTOR_SECTIONS)
+			continue;
+
+		node = voe_ui_button_begin(ui, "component choice", i);
+		voe_ui_label(ui, heading(inspector->arena, world, type));
+		voe_ui_end(ui);
+		inspector->choices[inspector->choice_count++] =
+			(voe_editor_inspector_type_button){ .node = node,
+							    .type = type };
+	}
 }
 
 // ----------------------------------------------------------- the surface
@@ -632,11 +710,15 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->entity = (voe_ecs_entity){ 0 };
 	inspector->duplicate = VOE_UI_NODE_NONE;
 	inspector->remove = VOE_UI_NODE_NONE;
+	inspector->remove_count = 0;
+	inspector->add_component = VOE_UI_NODE_NONE;
+	inspector->choice_count = 0;
 }
 
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
-			       voe_ecs_world *world, voe_ecs_entity selected)
+			       voe_ecs_world *world, voe_ecs_entity selected,
+			       voe_ecs_type identity)
 {
 	uint32_t types;
 
@@ -663,18 +745,22 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	voe_ui_end(ui);
 
 	// THE WALK, AND THE WHOLE OF WHAT THIS PANEL KNOWS ABOUT COMPONENTS.
-	// Every type the world holds, asked whether this entity has a row of it.
+	// Every described type the world holds, asked whether this entity has
+	// a row of it.
 	types = voe_ecs_component_type_count(world);
 	for (uint32_t i = 0; i < types; i++) {
 		voe_ecs_type type = voe_ecs_component_type_at(world, i);
 		const void *row = voe_ecs_component_get(world, type, selected);
 
-		if (row == NULL)
+		if (row == NULL || voe_ecs_component_runtime_only(world, type))
 			continue;
 
 		component_panel(ui, inspector, world, i, type,
+				type.value != identity.value,
 				(const uint8_t *)row);
 	}
+
+	add_component(ui, inspector, world);
 }
 
 // ------------------------------------------------------------- the edit
@@ -871,20 +957,74 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 	}
 }
 
-void voe_editor_inspector_buttons_read(const voe_editor_inspector *inspector,
-				       const voe_ui_context *ui,
-				       struct voe_editor_scene *scene)
+// What the pointer did to a recorded button, or nothing for one not drawn or
+// past a refused frame's node budget, which the controls above skip too.
+static voe_ui_action action_of(const voe_ui_context *ui, voe_ui_node node)
 {
+	if (node == VOE_UI_NODE_NONE)
+		return (voe_ui_action){ 0 };
+
+	return voe_ui_button_action(ui, node);
+}
+
+// One structural change's result, counted the way Delete and Duplicate count
+// theirs (scene.h).
+static void counted(struct voe_editor_scene *scene, bool done)
+{
+	if (done)
+		scene->structural++;
+	else
+		scene->full = true;
+}
+
+void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
+				       const voe_ui_context *ui,
+				       struct voe_editor_scene *scene,
+				       bool down)
+{
+	bool pressed = down && !inspector->pointer_was_down;
+	bool on_menu;
+
 	VOE_BASE_ASSERT(inspector != NULL, "reading the buttons of no inspector");
 	VOE_BASE_ASSERT(ui != NULL, "reading buttons out of no interface");
 	VOE_BASE_ASSERT(scene != NULL, "carrying out a button on no scene");
 
-	// Skipped when not drawn, or past a refused frame's node budget, as
-	// the controls above are.
-	if (inspector->duplicate != VOE_UI_NODE_NONE &&
-	    voe_ui_button_action(ui, inspector->duplicate).fired)
+	inspector->pointer_was_down = down;
+
+	if (action_of(ui, inspector->duplicate).fired)
 		voe_editor_scene_duplicate(scene);
-	if (inspector->remove != VOE_UI_NODE_NONE &&
-	    voe_ui_button_action(ui, inspector->remove).fired)
+	if (action_of(ui, inspector->remove).fired)
 		voe_editor_scene_delete(scene);
+
+	// A press that armed Add component or a choice is the list's own; any
+	// other hides it, on the press and not the release — the Add menu's
+	// rule (scene.h).
+	on_menu = action_of(ui, inspector->add_component).held;
+	for (uint32_t i = 0; i < inspector->choice_count; i++)
+		on_menu = on_menu ||
+			  action_of(ui, inspector->choices[i].node).held;
+	if (pressed && !on_menu)
+		inspector->choosing = false;
+	if (action_of(ui, inspector->add_component).fired)
+		inspector->choosing = !inspector->choosing;
+
+	// The entity the buttons were drawn for, when it is no longer alive,
+	// has nothing to give or take.
+	if (!voe_ecs_entity_alive(scene->world, inspector->entity))
+		return;
+
+	for (uint32_t i = 0; i < inspector->remove_count; i++)
+		if (action_of(ui, inspector->removes[i].node).fired)
+			counted(scene, voe_editor_entities_component_remove(
+					       scene->world, inspector->entity,
+					       inspector->removes[i].type));
+
+	for (uint32_t i = 0; i < inspector->choice_count; i++) {
+		if (!action_of(ui, inspector->choices[i].node).fired)
+			continue;
+		inspector->choosing = false;
+		counted(scene, voe_editor_entities_component_add(
+				       scene->world, inspector->entity,
+				       inspector->choices[i].type));
+	}
 }

@@ -6,10 +6,24 @@
 //
 // IT NAMES NOTHING AND THAT IS THE WHOLE CLAIM. `voe_ecs_component_type_count`
 // and `_type_at` are the list, `voe_ecs_component_get` says whether the entity
-// has one, `voe_ecs_component_key` is the heading and
-// `voe_ecs_component_description` is the fields. A component with no description
-// is its heading and nothing else, which is the honest answer rather than an
-// empty panel: the entity has one, and this build cannot see inside it.
+// has one, `voe_ecs_component_key` is the heading — its last `_` word,
+// capitalised, so `voe_3d_shape` reads "Shape" — and
+// `voe_ecs_component_description` is the fields. A type registered runtime-only
+// is the engine's own (a mesh, a material) and is not shown at all (ADR-0193). A
+// described component whose description this build compiled out is its heading
+// and nothing else, which is the honest answer rather than an empty panel: the
+// entity has one, and this build cannot see inside it.
+//
+// WHICH ROWS AN ENTITY HOLDS IS CHANGED HERE TOO, THROUGH THE QUEUE (ADR-0190,
+// 0193). Every section has a Remove button except the identity's, which is what
+// the Scene list is built from and so is handed in as a type by dock.c rather
+// than named here. Below the sections, Add component shows one button per
+// described type the entity does not have; a second click, a choice or a press
+// anywhere else hides them again. A section whose type needs another
+// (`voe_ecs_component_needs`) the entity lacks says "Needs <Heading>". Both go to
+// entities.h after the frame, and each success counts one in the scene's
+// `structural`, a refusal setting its `full` — Delete's and Duplicate's two
+// fields (scene.h).
 //
 // AN EDIT IS A REPLACE INTENT AND NEVER A WRITE (ADR-0134 point 4). A control
 // that moved does not touch the table: the row is read, copied into a zeroed
@@ -53,6 +67,7 @@
 
 #include <ui/layout.h>
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -68,6 +83,12 @@
 // and its rewind, and nothing that small is worth an arena; a registration
 // wider than this asserts, which is the program's own sizing being wrong.
 #define VOE_EDITOR_INSPECTOR_INTENT 256
+
+// How many Remove buttons, and how many Add component choices, one frame may
+// record — each is one per component type, and a project's world is made with
+// room for eight (project.c). A type past it gets no button; nothing a person
+// does can make one.
+#define VOE_EDITOR_INSPECTOR_SECTIONS 8
 
 // One control the panel drew, and everything the read needs to turn what the
 // pointer did to it back into bytes in a component's row.
@@ -92,6 +113,13 @@ typedef struct {
 	double shown;
 } voe_editor_inspector_control;
 
+// A button that acts on one component type: a section's Remove, or one of Add
+// component's choices.
+typedef struct {
+	voe_ui_node node;
+	voe_ecs_type type;
+} voe_editor_inspector_type_button;
+
 // What the Inspector panel drew this frame. Zeroed is a panel that has drawn
 // nothing yet, which is what it is before the first frame.
 typedef struct {
@@ -115,6 +143,21 @@ typedef struct {
 	// VOE_UI_NODE_NONE when they were not.
 	voe_ui_node duplicate;
 	voe_ui_node remove;
+	// Each section's Remove button as drawn this frame, the identity's
+	// having none.
+	voe_editor_inspector_type_button
+		removes[VOE_EDITOR_INSPECTOR_SECTIONS];
+	uint32_t remove_count;
+	// Add component and, while `choosing`, one choice per described type
+	// the entity lacks. VOE_UI_NODE_NONE and nought when not drawn.
+	voe_ui_node add_component;
+	voe_editor_inspector_type_button
+		choices[VOE_EDITOR_INSPECTOR_SECTIONS];
+	uint32_t choice_count;
+	// Whether the choices show. Kept across frames, as is last frame's
+	// primary button, which finds the press that hides them.
+	bool choosing;
+	bool pointer_was_down;
 } voe_editor_inspector;
 
 struct voe_editor_scene;
@@ -128,9 +171,12 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is
 // not alive — including nothing selected at all — is one line saying so.
+// `identity` is the type the Scene list is built from, whose section has no
+// Remove button.
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
-			       voe_ecs_world *world, voe_ecs_entity selected);
+			       voe_ecs_world *world, voe_ecs_entity selected,
+			       voe_ecs_type identity);
 
 // Turns whatever the pointer did to this frame's controls into replace intents.
 // Called after voe_ui_frame_end and before the frame's arena is rewound, which
@@ -140,9 +186,14 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 				     voe_ecs_world *world);
 
 // Carries out whichever of Duplicate and Delete fired this frame, through
-// voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`. Called in the
-// same window as voe_editor_inspector_edits_read and before the Scene panel's
-// clicks can move the selection the buttons were drawn for.
-void voe_editor_inspector_buttons_read(const voe_editor_inspector *inspector,
+// voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`, and
+// whichever Remove or Add component choice did, through entities.h on the
+// entity they were drawn for — counting one in scene->structural, or setting
+// scene->full when refused. Add component toggles the choices, and a press on
+// none of those buttons hides them; `down` is the pointer's primary button this
+// frame. Called in the same window as voe_editor_inspector_edits_read and before
+// the Scene panel's clicks can move the selection the buttons were drawn for.
+void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
-				       struct voe_editor_scene *scene);
+				       struct voe_editor_scene *scene,
+				       bool down);

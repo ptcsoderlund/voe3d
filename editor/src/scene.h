@@ -48,7 +48,8 @@
 // are one call each and not two copies. Delete clears the selection and
 // Duplicate selects the copy; each success counts one in `structural`, and a
 // full world or queue sets `full`, which main.c turns into "The scene is
-// full." Both are zeroed with the rows, every frame, which is why main.c
+// full." The Inspector's Remove and Add component count and refuse into the
+// same two fields (inspector.h). Both are zeroed with the rows, every frame, which is why main.c
 // calls these after the interface has drawn and not before.
 #pragma once
 
@@ -95,11 +96,12 @@ typedef struct voe_editor_scene {
 	bool adding;
 	// Last frame's primary button, so a press is found as an edge.
 	bool pointer_was_down;
-	// How many structural changes the panel made this frame. Zeroed with
+	// How many structural changes this panel and the Inspector's buttons
+	// made this frame. Zeroed with
 	// the rows, every frame.
 	uint32_t structural;
-	// Whether a Delete or Duplicate was refused this frame because the
-	// world or its queue is full. Zeroed with the rows, every frame.
+	// Whether a Delete, Duplicate, Remove or Add component was refused
+	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
 	bool full;
 	// What the Inspector panel drew this frame, and the arena its labels
 	// were formatted into. Opened and read by interface.c, filled in by

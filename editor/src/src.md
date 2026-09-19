@@ -116,11 +116,16 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
   submitted this frame is a count `main.c` reads; with an entity selected,
-  Duplicate and Delete buttons head it. Its header says why the
-  controls and every label's text have to outlive the call that drew them.
+  Duplicate and Delete buttons head it, every section but the identity's has a
+  Remove button, and Add component lists the described types it lacks. Its
+  header says why runtime-only types are not shown, how a heading is made from a
+  key, and why the controls and every label's text have to outlive the call
+  that drew them.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
-  component types driven by base/describe.h alone, a wrapping row per described field, the three angles
-  shown and never stored, and the replace intent a moved control becomes.
+  described component types driven by base/describe.h alone, each section's
+  heading, Remove and "Needs" line, a wrapping row per described field, the
+  three angles shown and never stored, the replace intent a moved control
+  becomes, and the Add component list.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
   world's, why the picture's size lags the layout by a frame, and why a view
