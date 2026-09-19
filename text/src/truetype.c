@@ -37,7 +37,8 @@
 // glyf's composite-component flags. This reader refuses the absence of the one
 // that says the arguments are an offset, and the two transforms it does not
 // implement — independent x/y scale and a full 2x2 matrix; see the header. A
-// uniform COMPONENT_HAVE_SCALE is read, not refused — Pixel Operator needs it.
+// uniform COMPONENT_HAVE_SCALE is read, not refused — a font may scale a
+// component rather than draw a second copy of it.
 #define COMPONENT_ARGS_ARE_WORDS 0x0001
 #define COMPONENT_ARGS_ARE_XY 0x0002
 #define COMPONENT_HAVE_SCALE 0x0008
@@ -47,7 +48,7 @@
 
 // A component's uniform scale is F2Dot14: a signed 16-bit fixed-point number
 // with 14 fractional bits, so 16384 is 1.0 and the sign flips a component,
-// which is exactly what turns `!` into `¡` in Pixel Operator.
+// so a scale of −1 mirrors one — how a font can draw `¡` as an upturned `!`.
 #define COMPONENT_SCALE_ONE 16384.0f
 
 struct reader {

@@ -57,17 +57,15 @@
 // reads as a heads-up display. There is no screen-space path here and a "just
 // for debug" one is what that rule exists to prevent.
 //
-// TWO FACES ARE IN THE BINARY AND A FONT NAMES WHICH ONE IT IS (ADR-0167).
-// text/fonts/ holds Oxanium Regular and Pixel Operator Regular, and `#embed`
-// puts both in the executable, so there is no path, no file I/O and no way for
-// either to be missing — the same mechanism the compiled shaders use. A
-// voe_text_typeface is not a path or a caller's bytes: it is a lookup into a set
-// the binary always carries, which is what lets a theme file name a font
-// without ever failing at a file's mercy. Oxanium's licence is the SIL Open
-// Font License and Pixel Operator's is the CC0 1.0 Universal dedication; both
-// permit embedding, and both notices travel unmodified beside their fonts —
-// text/fonts/OFL.txt and text/fonts/PixelOperator-LICENSE.txt — so anything
-// shipping this engine ships both.
+// ONE FACE IS IN THE BINARY, OXANIUM, AND A FONT STILL NAMES IT (ADR-0185).
+// text/fonts/ holds Oxanium Regular, and `#embed` puts it in the executable, so
+// there is no path, no file I/O and no way for it to be missing — the same
+// mechanism the compiled shaders use. A voe_text_typeface is not a path or a
+// caller's bytes: it is a lookup into a set the binary always carries, which is
+// what lets a theme file name a font without ever failing at a file's mercy.
+// Oxanium's licence is the SIL Open Font License, which permits embedding, and
+// its notice, text/fonts/OFL.txt, travels unmodified beside it — so anything
+// shipping this engine ships it.
 //
 // ---- WHAT IT DOES NOT DO, EACH BY NAME ----
 //
@@ -94,10 +92,8 @@
 // is a much larger piece of work and nothing has asked for it.
 //
 // ONE WEIGHT, ONE FONT, NO FALLBACK. A voe_text_font is one face at one weight:
-// there is no bold, no italic, and no reaching for the other embedded face
-// mid-string. A character its own face does not carry is drawn as that face's
-// own missing-glyph box rather than looked for in the other one — a caller that
-// wants both draws two fonts and two blocks.
+// there is no bold and no italic. A character the face does not carry is drawn
+// as its own missing-glyph box rather than looked for anywhere else.
 #pragma once
 
 #include <base/arena.h>
@@ -111,13 +107,12 @@
 // names.
 typedef struct voe_text_font voe_text_font;
 
-// Which of the two embedded faces a font draws from (ADR-0167). An enum and
-// not a path or a caller's bytes: the set is exactly what the binary carries,
-// so naming one can never fail at a file's mercy — which is what lets a theme
-// file name a font. Neither face is a fallback for the other.
+// Which embedded face a font draws from. An enum and not a path or a caller's
+// bytes: the set is exactly the one face the binary carries, Oxanium, so naming
+// it can never fail at a file's mercy and callers still name the face they
+// make. A theme naming any other font gets Oxanium (ADR-0185).
 typedef enum {
 	VOE_TEXT_TYPEFACE_OXANIUM,
-	VOE_TEXT_TYPEFACE_PIXEL_OPERATOR,
 } voe_text_typeface;
 
 // One string, ready to draw.
@@ -140,8 +135,8 @@ typedef struct {
 // THE ATLAS IS BUILT HERE AND NOWHERE ELSE, WHICH IS WHY THIS IS A CALL AND NOT
 // SOMETHING THE DEVICE DOES. A program that draws no text never calls this and
 // pays nothing; a program that draws a hundred strings in one face calls it
-// once and they all sample the one texture. A program drawing two faces calls
-// it twice and pays for two atlases — nothing shares a sheet between faces.
+// once and they all sample the one texture. A program making two fonts calls
+// it twice and pays for two atlases — nothing shares a sheet between fonts.
 //
 // NULL on failure. UNSUPPORTED and MALFORMED come from the reader and mean it is
 // wrong rather than the font is — the bytes are in the binary and are the same
