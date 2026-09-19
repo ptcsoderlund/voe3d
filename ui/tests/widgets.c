@@ -2003,7 +2003,7 @@ static void unfocused_hands_back_the_callers_own_pointer(
 	struct field_frame f;
 	voe_ui_field_result r;
 
-	f = build_field(ui, arena, OUTSIDE_FIELD, true, true, hello, NO_KEYS);
+	build_field(ui, arena, OUTSIDE_FIELD, true, true, hello, NO_KEYS);
 	f = build_field(ui, arena, OUTSIDE_FIELD, false, false, hello, NO_KEYS);
 	r = voe_ui_field_action(ui, f.f);
 	VOE_TEST_CHECK(!r.focused);
@@ -2353,7 +2353,7 @@ static void a_refused_enter_stays_open_and_escape_closes(
 	uint32_t before;
 
 	open_n(ui, arena);
-	f = build_numbers(ui, arena, ON_N, false, typing("abc"));
+	build_numbers(ui, arena, ON_N, false, typing("abc"));
 	before = voe_ui_element_count(ui);
 	f = build_numbers(ui, arena, ON_N, false, enter);
 	r = voe_ui_number_action(ui, f.n);
