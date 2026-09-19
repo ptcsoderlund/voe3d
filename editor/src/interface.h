@@ -161,18 +161,8 @@
 // the theme's name, thirty-four apiece, 544; "(in force)", nine, its space
 // drawing nothing; Close, two and five — 564 against the browser's 1504. Its
 // one scroll area is the one the browser would have used.
-//
-// PREFERENCES' FONT GROUP (preferences.h, ADR-0179) IS RAISED BY ALL THE SAME,
-// so the budget names every part of the panel whatever it is set beside. It
-// adds SIXTEEN NODES: three rows, each a panel, a row, the name label and
-// Choose as a button and a label, five apiece, fifteen; and its own
-// "(in force)" label, one. 460 + 16 = 476 nodes. And SIXTY-NINE ELEMENTS:
-// each row's panel and Choose button, four, and "Choose", six, ten apiece,
-// thirty; the names, exactly — "Theme's own" ten, its space drawing nothing,
-// "Pixel Operator" thirteen, "Oxanium" seven — thirty; "(in force)", nine.
-// 3650 + 69 = 3719 elements.
-#define VOE_EDITOR_INTERFACE_NODES 476
-#define VOE_EDITOR_INTERFACE_ELEMENTS 3719
+#define VOE_EDITOR_INTERFACE_NODES 460
+#define VOE_EDITOR_INTERFACE_ELEMENTS 3650
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -252,9 +242,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 // read beside the top bar's, which stays live. The bar's Preferences shows
 // it; Choose puts `themes`' entry in force through voe_editor_themes_choose
 // and sets that palette and its font on `ui`, saying in the session's notice
-// when it could not be remembered; a font row's Choose does the same through
-// voe_editor_themes_font_choose, and touches the session no further — it is
-// not an unsaved change and disarms nothing; Close hides it.
+// when it could not be remembered; Close hides it.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,

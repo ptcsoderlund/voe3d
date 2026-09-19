@@ -8,7 +8,7 @@ carries it out.
   argument, the last one remembered or an untitled scene names before the
   device does, opens the window and the device through `voe_app_new` — or the
   device alone through `voe_app_new_headless` when a picture was asked for —
-  makes the arena, both fonts, the themes, the interface context in the
+  makes the arena, the one font, Oxanium, the themes, the interface context in the
   chosen theme and the default tree, sets a good save of the chosen theme's
   file on the context and puts a refused one's report in the session's notice,
   uploads the built-in shapes, and runs the loop until a close goes ahead or the
@@ -47,17 +47,13 @@ carries it out.
   one per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena
   of its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
   empty line, `near_white` or a file's name, whose file is
-  read again once a second and its palette replaced when a save reads; the
-  built-ins are in Pixel Operator, and a font override remembered in
-  `<settings>/voe3d/font` is applied to a copy of the chosen palette, the one
-  the interface is set with. Its
+  read again once a second and its palette replaced when a save reads. Its
   header says why each theme's arena is its own, what a file that will not
   read leaves behind, when loading answers false, why the live check compares
   the bytes and not a timestamp (ADR-0172), and what a refused save leaves
-  behind, and why the override leaves the entries alone.
+  behind.
 - `themes.c` — the folder listed and made, each file read and derived with the
-  face it names, the two remembered files read and written as one line each,
-  the palette in force refreshed, and the
+  one font, whatever face it names, the remembered file read and written as its one line, and the
   chosen file's once-a-second re-read.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
@@ -83,12 +79,9 @@ carries it out.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
-  button, the one in force marked, then the font group — the theme's own,
-  Pixel Operator and Oxanium, each with a Choose button, the one in use
-  marked — and Close, as an anchored panel over the dock. Its header says why
-  each theme row is drawn in its own theme, why the font rows are drawn in
-  the theme in force, why Choose is carried out elsewhere, and how many
-  themes it lists.
+  button, the one in force marked, and Close, as an anchored panel over the
+  dock. Its header says why each row is drawn in its own theme, why Choose is
+  carried out elsewhere, and how many themes it lists.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
@@ -116,7 +109,7 @@ carries it out.
   whether the browser was showing is captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
   the one read of the frame's clicks that carries out the top bar's, the
-  browser's and Preferences' commands, a font choice among them.
+  browser's and Preferences' commands.
 - `inspector.h` — what the selected entity is made of, and the controls that
   change it; an edit is a replace intent and never a write, and how many were
   submitted this frame is a count `main.c` reads. Its header says why the

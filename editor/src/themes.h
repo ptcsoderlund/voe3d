@@ -1,34 +1,21 @@
 // The themes the editor has and the one in force (ADR-0170, ADR-0172,
-// ADR-0178, ADR-0179). The list's first two entries have no file: entry 0 is
-// `Near black` — ui's default inputs, Pixel Operator — and entry 1 is `Near
-// white` — the same inputs in the light mode. After them comes one entry per `*.theme` file
+// ADR-0178). The list's first two entries have no file: entry 0 is `Near
+// black` — ui's default inputs, Oxanium — and entry 1 is `Near white` — the
+// same inputs in the light mode. After them comes one entry per `*.theme` file
 // in `<settings>/voe3d/themes/`, in the order the folder lists them. The one
 // chosen is remembered in `<settings>/voe3d/theme` as one line: empty or absent
 // for Near black, `near_white` for Near white — which no `*.theme` file can be
 // named — and otherwise a file's name.
 //
 //     voe_editor_themes themes = { 0 };
-//     if (!voe_editor_themes_load(&themes, oxanium, pixel_operator))
+//     if (!voe_editor_themes_load(&themes, font))
 //             voe_editor_notice_from_report(&notice, themes.remembered);
-//     voe_ui_font_set(ui, voe_editor_themes_palette(&themes)->font);
-//     voe_ui_theme_set(ui, voe_editor_themes_palette(&themes));
+//     voe_ui_theme_set(ui, &voe_editor_themes_chosen(&themes)->palette);
 //     ... every frame:
 //     if (voe_editor_themes_check(&themes) == VOE_EDITOR_THEMES_REFUSED)
 //             voe_editor_notice_from_report(&notice, themes.remembered);
 //     ...
 //     voe_editor_themes_destroy(&themes);
-//
-// THE FONT OVERRIDE (ADR-0179) is one of three choices — the theme's own
-// face, Pixel Operator or Oxanium — remembered in `<settings>/voe3d/font` as
-// one line: empty or absent for the theme's own, `pixel_operator` or
-// `oxanium`. Any other line, or a file that will not read, is the theme's own
-// and is not reported, nor does it change what loading answers. The entries
-// are not changed by it: each Preferences row is pushed in its own entry's
-// palette and must show its theme's own font. Instead `in_force` is a copy of
-// the chosen entry's palette with `.font` replaced by the override's face,
-// refreshed whenever the chosen theme, its re-read palette or the override
-// changes, and voe_editor_themes_palette is what the interface is set with.
-// ui keeps `in_force` by pointer, so `themes` must not move once it is set.
 //
 // EVERY THEME READ FROM A FILE HAS AN ARENA OF ITS OWN. A file that refuses is
 // dropped by destroying the one arena its bytes and strings went into, and a
@@ -77,8 +64,11 @@
 // a refusal — an editor saving by rename leaves that gap — and answers
 // UNCHANGED. Choosing another theme forgets the refused bytes.
 //
-// Constraints. The fonts are the caller's and must outlive every palette
-// derived with them. A palette is kept by pointer by ui (ui/widgets.h), so the
+// EVERY PALETTE IS DERIVED WITH THE ONE FONT, Oxanium, whatever typeface a
+// theme names (ADR-0185).
+//
+// Constraints. The font is the caller's and must outlive every palette
+// derived with it. A palette is kept by pointer by ui (ui/widgets.h), so the
 // list must outlive the interface context it is set on. The folder is listed
 // once, at load: a file added later appears after a restart, and only the
 // chosen file is ever re-read.
@@ -100,7 +90,7 @@ typedef struct {
 	// The file inside the themes folder, or NULL for a theme with no file.
 	const char *file;
 	voe_theme theme;
-	// Derived with whichever of the two fonts `theme.typeface` names.
+	// Derived with the list's one font, whatever `theme.typeface` names.
 	voe_ui_theme palette;
 	// The file's bytes it was read from, in `arena`; NULL and 0 for a
 	// theme with no file.
@@ -121,33 +111,19 @@ typedef enum {
 	VOE_EDITOR_THEMES_REFUSED,
 } voe_editor_themes_check_result;
 
-// Which face the interface draws in, whatever the chosen theme names.
-typedef enum {
-	// The chosen theme's own face.
-	VOE_EDITOR_FONT_THEME,
-	VOE_EDITOR_FONT_PIXEL_OPERATOR,
-	VOE_EDITOR_FONT_OXANIUM,
-} voe_editor_font_choice;
-
 typedef struct {
 	voe_editor_theme *entries;
 	uint32_t count;
 	// Index into entries of the theme in force.
 	uint32_t chosen;
-	// The font override, remembered in `<settings>/voe3d/font`.
-	voe_editor_font_choice font_choice;
-	// The chosen entry's palette with `.font` replaced by the override's
-	// face; what voe_editor_themes_palette hands out and ui keeps.
-	voe_ui_theme in_force;
 	// The file name `<settings>/voe3d/theme` holds, or NULL when it holds
 	// none or `near_white` — kept even when it could not be loaded, so it
 	// can be named.
 	const char *remembered;
 	// The themes folder's path, or NULL when there is no settings folder.
 	const char *folder;
-	// The two faces a palette is derived with, kept for re-reading.
-	const voe_text_font *oxanium;
-	const voe_text_font *pixel_operator;
+	// The one font every palette is derived with, kept for re-reading.
+	const voe_text_font *font;
 	// voe_platform_clock_now at the last look at the chosen file.
 	double checked;
 	// The chosen file's last refused bytes, in their own arena, or NULL
@@ -163,15 +139,10 @@ typedef struct {
 // making the folder when it is missing. False when a remembered file is gone
 // or refused, with Near black chosen instead; see this file's header.
 [[nodiscard]] bool voe_editor_themes_load(voe_editor_themes *themes,
-					  const voe_text_font *oxanium,
-					  const voe_text_font *pixel_operator);
+					  const voe_text_font *font);
 
 // The theme in force.
 const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes);
-
-// The palette the interface is set with: the chosen theme's with the font
-// override applied. Its address is the same for the life of `themes`.
-const voe_ui_theme *voe_editor_themes_palette(const voe_editor_themes *themes);
 
 // Puts entry `index` in force and remembers its file name, `near_white` for
 // entry 1, or an empty line for entry 0. False when the remembered file could not be written —
@@ -179,12 +150,6 @@ const voe_ui_theme *voe_editor_themes_palette(const voe_editor_themes *themes);
 // settings folder — and the theme is in force either way.
 [[nodiscard]] bool voe_editor_themes_choose(voe_editor_themes *themes,
 					    uint32_t index);
-
-// Puts the font override `choice` in force and remembers it as an empty line,
-// `pixel_operator` or `oxanium`, the way voe_editor_themes_choose remembers a
-// theme. False only when the write fails; the choice is in force either way.
-[[nodiscard]] bool voe_editor_themes_font_choose(voe_editor_themes *themes,
-						 voe_editor_font_choice choice);
 
 // Once a second, re-reads the chosen theme's file and replaces its palette
 // when the bytes changed and read; see this file's header.

@@ -21,15 +21,11 @@ exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 
 It draws in a theme: Near black or Near white, the two with no file, or the
 `*.theme` file in `<settings>/voe3d/themes/` named by `<settings>/voe3d/theme`
-— see `src/themes.h`. The two built-ins are in Pixel Operator, and a font
-override — the theme's own, Pixel Operator or Oxanium — is remembered in
-`<settings>/voe3d/font` and applied to whichever theme is in force. A remembered theme that is gone or refused draws Near
+— see `src/themes.h`. A remembered theme that is gone or refused draws Near
 black and says why in the bar. The selected row in `Scene` is drawn in the
 theme's accent. Preferences lists every theme — each row drawn in its own theme, the
-one in force marked — and Choose puts one in force and remembers it. Beside
-them it offers the font — the theme's own, Pixel Operator or Oxanium, the one
-in use marked — whose Choose redraws every panel in it at once and remembers
-it, without counting as an unsaved change. Close or Escape hides it.
+one in force marked — and Choose puts one in force and remembers it; Close or
+Escape hides it.
 
 Open shows the editor's own file browser — an anchored panel over the dock,
 below the bar — to choose a project's folder from; a folder marked "— project"
