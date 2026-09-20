@@ -60,6 +60,15 @@ carries it out.
 - `themes.c` — the folder listed and made, each file read and derived with the
   one font, whatever face it names, the remembered file read and written as its
   one line, and the chosen file's once-a-second re-read.
+- `theme_scalars.h` — a person's contrast and surface separation remembered per
+  theme at `<settings>/voe3d/theme_scalars`, one line per adjusted theme
+  (ADR-0197). Its header says the line's shape, why the identity is the tail of
+  it, what the identities are, why a line that does not parse or is out of
+  range is skipped without a report, and why lines for themes not listed right
+  now are kept and written back.
+- `theme_scalars.c` — that file read line by line as two numbers and the name
+  after them, a theme's numbers set or forgotten in the list, and every line
+  written back by making the two folders above it as needed.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.
