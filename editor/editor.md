@@ -13,9 +13,12 @@ world holds. `Inspector` lists what the selected entity is made of under
 Duplicate and Delete buttons, each part but its identity with a Remove button,
 and an Add component list below them. A number in it can be dragged, or clicked
 and typed into, the name can be typed, and Tab moves between them; a colour is
-picked live from its swatch in a picker beside the column. Each of these edits
-marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
-component does. The Delete key and Ctrl+D delete and duplicate the selected
+picked live from its swatch in a picker beside the column, and a value with a
+named set of its own — a shape's kind among them — is a dropdown showing the
+name it holds, whose list opens under it and closes on Escape, on a press
+elsewhere or on a choice, and a choice is an edit like any other (ADR-0195).
+Each of these edits marks the project unsaved, as an add, a duplicate, a
+delete, a Remove or an Add component does. The Delete key and Ctrl+D delete and duplicate the selected
 entity too, except while the browser shows or a field holds the keyboard. Each
 column that is not a scene view clips what is on it and scrolls it with the
 wheel or its scrollbar, and the Inspector's field rows fold onto further lines

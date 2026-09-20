@@ -209,8 +209,20 @@
 // typing (ADR-0192), a caret and up to VOE_UI_FIELD_CAPACITY (256) characters
 // of whatever was typed, 257, one at a time because one thing holds the
 // keyboard. 4935 + 46 + 257 = 5238 elements.
-#define VOE_EDITOR_INTERFACE_NODES 547
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5238
+//
+// THE OPEN DROPDOWN (interface.c) ADDS THIRTY-FOUR NODES: the anchored column
+// this file puts round it, one; its panel, one; and up to
+// VOE_EDITOR_DROPDOWN_ROWS (scene.h, 16) rows, each a choice button and the
+// label composed into it, thirty-two. 547 + 34 = 581. AND FOUR HUNDRED AND
+// EIGHTEEN ELEMENTS: the panel's border and fill, two; each row's border and
+// fill, thirty-two; and twenty-four generous for each row's name, this file
+// naming none of them and neither `base` nor the declaring folder putting a
+// length on one, 384. 5238 + 418 = 5656. It is never drawn beside the colour
+// picker, because opening either closes the other (scene.h), and it is counted
+// on top all the same. VOE_EDITOR_INTERFACE_SCROLLS is unchanged, the list not
+// scrolling.
+#define VOE_EDITOR_INTERFACE_NODES 581
+#define VOE_EDITOR_INTERFACE_ELEMENTS 5656
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -297,6 +309,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // — either of those closes it. What it changes is submitted at once as the
 // row's replace intent and counted in `scene->inspector.replaced`; a press
 // outside it closes it. See interface.c.
+//
+// AND SO IS THE OPEN DROPDOWN (scene.h), hanging from the control that opened
+// it, while it shows — never beside the picker, because opening either closes
+// the other. A row chosen on it is submitted at once as that row's replace
+// intent and counted the same way; `escape` closes it, as does a press outside
+// its rectangle. See interface.c.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
