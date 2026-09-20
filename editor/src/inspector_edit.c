@@ -23,6 +23,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <math/float2.h>
 #include <math/float3.h>
 #include <math/quat.h>
 
@@ -304,10 +305,19 @@ static void counted(struct voe_editor_scene *scene, bool done)
 		scene->full = true;
 }
 
+// Whether `at` is on `rect`, the two comparisons per axis a press-outside test
+// is.
+static bool contains(voe_ui_rect rect, voe_math_float2 at)
+{
+	return at.x >= rect.min.x && at.y >= rect.min.y &&
+	       at.x < rect.min.x + rect.size.x &&
+	       at.y < rect.min.y + rect.size.y;
+}
+
 void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
 				       struct voe_editor_scene *scene,
-				       bool down)
+				       bool down, voe_math_float2 at)
 {
 	bool pressed = down && !inspector->pointer_was_down;
 	bool on_menu;
@@ -417,14 +427,21 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 		}
 	}
 
-	// A PRESS ON NEITHER THE LIST'S ROWS NOR A DROPDOWN CONTROL CLOSES THE
-	// LIST — the same press edge the Add component choices are hidden on,
-	// and read the same way. So does a frame in which it was open and drew
-	// no rows: its field was not on the panel at all, nothing being
+	// A PRESS OUTSIDE THE LIST'S OUTLINE CLOSES IT — the same press edge
+	// the Add component choices are hidden on, and read the same way.
+	// Everything inside what can be seen of the list's panel is the
+	// list's: its rows and a dropdown control answer for themselves, and
+	// the gaps between the rows, the padding at its edges and the
+	// scrollbar of a capped one are in there too and leave it open
+	// (ADR-0199). So does a frame in which it was open and drew no rows
+	// close it: its field was not on the panel at all, nothing being
 	// selected, another entity being selected, or the component having
 	// gone.
 	if (inspector->dropdown.open) {
-		bool on_list = false;
+		bool on_list = inspector->list != VOE_UI_NODE_NONE &&
+			       contains(voe_ui_node_visible(ui,
+							    inspector->list),
+					at);
 
 		for (uint32_t i = 0; i < inspector->row_count; i++)
 			on_list = on_list ||

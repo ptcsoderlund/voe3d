@@ -260,7 +260,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_editor_scene_picker_close(scene);
 		}
 		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
-						  root->pointer.down);
+						  root->pointer.down,
+						  root->pointer.at);
 		if (!voe_editor_scene_clicks_read(scene, ui,
 						  root->pointer.down))
 			voe_editor_notice_set(&session->notice,
