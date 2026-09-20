@@ -25,9 +25,9 @@ The work is in the two systems — `shape_system.c` once at startup and
   call and the reads.
 - `shape_system.c` — the one upload of the three shapes' geometry, the white
   material every shape wears and the selection outline's unlit one, the intent's
-  submit and drain, the run that gives
-  them to a shape that has neither yet and re-points the mesh of a shape whose
-  kind changed, and the removal of both once the shape is gone.
+  submit and drain, the run that gives them to a shape that has neither yet and
+  re-points the mesh of a shape whose kind changed, and the removal of both once
+  the shape is gone.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and each surface's edges found by
   welding its vertices by position and walking its triangles twice.
