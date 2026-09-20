@@ -29,8 +29,10 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   pages and stands in front of a button — and that one area too many refuses the
   frame.
 - `theme.c` — that OKLab round-trips, that both modes are legible at both ends
-  of both scalars, that each input moves what it names and nothing else, and
-  that dark mode clamps the accent's chroma harder than light.
+  of both scalars and the inverted pair with them, that every role shares the
+  authored hue and a grey hue leaves no chroma anywhere, that each input moves
+  what it names and nothing else, and that dark mode clamps the hue's chroma
+  harder than light.
 - `widgets.c` — that a duplicate key refuses the frame and the same name under
   two panels is two widgets, that a known tree is emitted as a known list with
   every border and fill in order and two images in call order among them, that a

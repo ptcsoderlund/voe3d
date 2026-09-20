@@ -1,11 +1,22 @@
 // The derivation. See include/ui/theme.h for what every field means and why
 // nothing here can fail.
 //
-// EVERY ROLE BUT THE ACCENT IS GREY — a = b = 0 in OKLab — which is what keeps
-// the interface monochrome plus one accent (ADR-0097) rather than every
-// surface picking up a tint of the accent's hue nobody asked for. grey_rgba
-// below is the one place that is true, and every surface, border and text
-// role goes through it.
+// EVERY ROLE CARRIES THE ONE AUTHORED HUE AND THEY DIFFER ONLY IN LIGHTNESS
+// (ADR-0194). `inputs->hue` is read for its OKLab a and b alone — its own
+// lightness is thrown away — and those two, chroma-clamped once for `mode`,
+// are handed to every role below. hue_rgba is the one place that happens, and
+// every surface, border, text role and the inverse pair goes through it.
+//
+// CHROMA SHRINKS PER ROLE ONLY WHERE THE GAMUT MAKES IT. A lightness near
+// either end of the scale has little room for chroma, and voe_ui_oklab_to_linear
+// CLAMPS rather than failing (see oklab.h), so asking for more than the gamut
+// holds would silently bend the hue instead of dimming it. hue_rgba therefore
+// scales a and b by the largest factor that survives a round trip through
+// linear, found by twelve steps of bisection — the hue angle is untouched, so
+// the shrinking can only cost saturation, never the shared hue this whole
+// file exists to keep. Twelve steps is a thousandth of the factor, well under
+// what an eye or a test can see; a closed-form gamut boundary would be faster
+// and is not worth a second approximation of the same curve here.
 //
 // THE LADDER FROM `ground` TO `control_hovered` IS FIVE EQUAL STEPS OF
 // surface_separation, ALL IN THE SAME DIRECTION: away from whichever extreme
@@ -76,18 +87,23 @@
 #define BORDER_STEP_BASE 0.14f
 #define BORDER_FLOOR 0.05f
 
-// The accent's chroma ceiling, per mode (ADR-0097's bench figures, kept by
-// ADR-0171): a saturated colour fringes on a dark ground well before it does
-// on a light one, so the dark ceiling is under half the light one.
-#define ACCENT_CHROMA_MAX_DARK 0.10f
-#define ACCENT_CHROMA_MAX_LIGHT 0.22f
+// The hue's chroma ceiling, per mode (ADR-0097's bench figures, kept by
+// ADR-0171 and by ADR-0194 for the one hue): a saturated colour fringes on a
+// dark ground well before it does on a light one, so the dark ceiling is under
+// half the light one.
+#define HUE_CHROMA_MAX_DARK 0.10f
+#define HUE_CHROMA_MAX_LIGHT 0.22f
 
-// Which ink goes on the accent: near-black above this lightness, near-white
-// at or below it, so the ink is always the end of the scale furthest from the
-// accent's own lightness.
-#define ACCENT_INK_SPLIT_L 0.6f
-#define INK_DARK_L 0.08f
-#define INK_LIGHT_L 0.97f
+// A chroma at or under this is no colour at all — a grey the author wrote as
+// #808080 or as a value a hair off it — and is taken as exactly zero so that a
+// grey theme is bit-for-bit grey in every role.
+#define CHROMA_NONE 1e-4f
+
+// How close a round trip through linear has to land for hue_rgba to call a
+// colour in gamut, and how many times it halves the interval looking for the
+// largest factor that does.
+#define IN_GAMUT_TOLERANCE 1e-3f
+#define GAMUT_BISECTION_STEPS 12
 
 static float clampf(float v, float lo, float hi)
 {
@@ -108,9 +124,37 @@ static voe_math_float4 rgba_from_linear(voe_math_float3 linear)
 	return (voe_math_float4){ linear.x, linear.y, linear.z, 1.0f };
 }
 
-static voe_math_float4 grey_rgba(float l)
+// Whether a monitor can actually show `lab`: voe_ui_oklab_to_linear clamps
+// into 0..1 per channel, so a colour outside the gamut comes back as a
+// different colour, and converting that back is how this file sees it happen.
+static bool in_gamut(voe_ui_oklab lab)
 {
-	return rgba_from_linear(voe_ui_oklab_to_linear((voe_ui_oklab){ l, 0.0f, 0.0f }));
+	voe_ui_oklab back = voe_ui_oklab_from_linear(voe_ui_oklab_to_linear(lab));
+
+	return fabsf(back.l - lab.l) < IN_GAMUT_TOLERANCE &&
+	       fabsf(back.a - lab.a) < IN_GAMUT_TOLERANCE &&
+	       fabsf(back.b - lab.b) < IN_GAMUT_TOLERANCE;
+}
+
+// One role: the lightness `l`, in the theme's hue, at as much of the hue's
+// chroma (`a`, `b`) as that lightness can hold. See this file's header for why
+// the factor is found by bisection and why shrinking it cannot move the hue.
+static voe_math_float4 hue_rgba(float l, float a, float b)
+{
+	// a = b = 0 is grey, which is in gamut at every lightness, so the low
+	// end of the interval is known good before the first step.
+	float lo = 0.0f;
+	float hi = 1.0f;
+
+	for (int step = 0; step < GAMUT_BISECTION_STEPS; step++) {
+		float mid = 0.5f * (lo + hi);
+
+		if (in_gamut((voe_ui_oklab){ l, a * mid, b * mid }))
+			lo = mid;
+		else
+			hi = mid;
+	}
+	return rgba_from_linear(voe_ui_oklab_to_linear((voe_ui_oklab){ l, a * lo, b * lo }));
 }
 
 // One text or border lightness: `ground_l` plus the bigger of the scaled step
@@ -131,6 +175,9 @@ static float role_lightness(float ground_l, float base_step, float floor_step,
 voe_ui_theme_inputs voe_ui_theme_default_inputs(void)
 {
 	return (voe_ui_theme_inputs){
+		// #808080: a grey, so the built-in Near black and Near white
+		// have no chroma in any role (ADR-0194).
+		.hue = (voe_math_float3){ 0.502f, 0.502f, 0.502f },
 		.accent = (voe_math_float3){ 0.30f, 0.55f, 0.95f },
 		.contrast_strength = 1.0f,
 		.surface_separation = 1.0f,
@@ -170,31 +217,43 @@ voe_ui_theme voe_ui_theme_derive(const voe_ui_theme_inputs *inputs,
 	float border_l = role_lightness(ground_l, BORDER_STEP_BASE, BORDER_FLOOR,
 					contrast, direction);
 
-	voe_ui_oklab accent_lab = voe_ui_oklab_from_srgb(inputs->accent);
-	float max_chroma = dark ? ACCENT_CHROMA_MAX_DARK : ACCENT_CHROMA_MAX_LIGHT;
-	float chroma = sqrtf(accent_lab.a * accent_lab.a + accent_lab.b * accent_lab.b);
+	// The hue's two chroma axes, clamped for the mode. Its lightness is
+	// read and thrown away: a role's lightness is the ladder's, never the
+	// authored colour's.
+	voe_ui_oklab hue_lab = voe_ui_oklab_from_srgb(inputs->hue);
+	float max_chroma = dark ? HUE_CHROMA_MAX_DARK : HUE_CHROMA_MAX_LIGHT;
+	float chroma = sqrtf(hue_lab.a * hue_lab.a + hue_lab.b * hue_lab.b);
+	float a = hue_lab.a;
+	float b = hue_lab.b;
 
-	if (chroma > max_chroma && chroma > 0.0f) {
-		float scale = max_chroma / chroma;
-
-		accent_lab.a *= scale;
-		accent_lab.b *= scale;
+	if (chroma <= CHROMA_NONE) {
+		a = 0.0f;
+		b = 0.0f;
+	} else if (chroma > max_chroma) {
+		a *= max_chroma / chroma;
+		b *= max_chroma / chroma;
 	}
 
-	float ink_l = accent_lab.l > ACCENT_INK_SPLIT_L ? INK_DARK_L : INK_LIGHT_L;
+	// `inverse` is the text_primary lightness and `inverse_ink` the
+	// ground's, which is what makes a held or selected control as legible
+	// as ordinary text on the ground (ADR-0196).
+	voe_math_float4 inverse = hue_rgba(text_primary_l, a, b);
+	voe_math_float4 inverse_ink = hue_rgba(ground_l, a, b);
 
 	return (voe_ui_theme){
-		.ground = grey_rgba(ground_l),
-		.surface = grey_rgba(surface_l),
-		.surface_raised = grey_rgba(raised_l),
-		.border = grey_rgba(border_l),
-		.control = grey_rgba(control_l),
-		.control_hovered = grey_rgba(control_hovered_l),
-		.text_primary = grey_rgba(text_primary_l),
-		.text_secondary = grey_rgba(text_secondary_l),
-		.text_disabled = grey_rgba(text_disabled_l),
-		.accent = rgba_from_linear(voe_ui_oklab_to_linear(accent_lab)),
-		.accent_ink = grey_rgba(ink_l),
+		.ground = hue_rgba(ground_l, a, b),
+		.surface = hue_rgba(surface_l, a, b),
+		.surface_raised = hue_rgba(raised_l, a, b),
+		.border = hue_rgba(border_l, a, b),
+		.control = hue_rgba(control_l, a, b),
+		.control_hovered = hue_rgba(control_hovered_l, a, b),
+		.text_primary = hue_rgba(text_primary_l, a, b),
+		.text_secondary = hue_rgba(text_secondary_l, a, b),
+		.text_disabled = hue_rgba(text_disabled_l, a, b),
+		.inverse = inverse,
+		.inverse_ink = inverse_ink,
+		.accent = inverse,
+		.accent_ink = inverse_ink,
 		.font = font,
 		.text_size = inputs->text_size,
 	};

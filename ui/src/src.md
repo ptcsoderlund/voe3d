@@ -40,9 +40,11 @@ offers the others written at its end.
   bars over its content against the pointer and into the records, and every way
   an offset moves — a thumb dragged, a track pressed, the pointer's scroll
   passed outward.
-- `theme.c` — the derivation: every role grey but the accent, the ground,
+- `theme.c` — the derivation: every role in the one authored hue, differing
+  only in lightness and shrinking chroma where the gamut makes it, the ground,
   surface, raised and control ladder in equal steps of `surface_separation`,
-  and text and the border stepped from `ground` until they clear their surface.
+  text and the border stepped from `ground` until they clear their surface, and
+  the inverse pair a held, dragged or selected control is drawn in.
 - `widgets.c` — what a node means and the records that come out, and everything
   every widget shares: the hashed keys, the theme in force, the pointer and the
   keyboard as they are handed in, the frame's two boundaries, the walk that
