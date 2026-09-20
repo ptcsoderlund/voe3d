@@ -224,28 +224,14 @@ void voe_editor_scene_dropdown_close(voe_editor_scene *scene)
 	scene->dropdown.open = false;
 }
 
-bool voe_editor_scene_dropdown_showing(voe_editor_scene *scene,
-				       uint32_t *value)
+void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
+				     float top)
 {
-	const uint8_t *row;
-
-	VOE_BASE_ASSERT(scene != NULL, "asking after the dropdown of no scene");
-	VOE_BASE_ASSERT(value != NULL,
-			"asking the dropdown's value with nowhere to put it");
+	VOE_BASE_ASSERT(scene != NULL, "placing the dropdown of no scene");
 
 	if (!scene->dropdown.open)
-		return false;
+		return;
 
-	row = voe_editor_scene_is_selected(scene, scene->dropdown.entity)
-		      ? voe_ecs_component_get(scene->world,
-					      scene->dropdown.type,
-					      scene->dropdown.entity)
-		      : NULL;
-	if (row == NULL) {
-		scene->dropdown.open = false;
-		return false;
-	}
-
-	memcpy(value, row + scene->dropdown.offset, sizeof *value);
-	return true;
+	scene->dropdown.left = left;
+	scene->dropdown.top = top;
 }

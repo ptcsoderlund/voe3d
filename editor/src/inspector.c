@@ -434,7 +434,7 @@ static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
 // column it is anchored to — see the header on why it is this panel's and not
 // the editor's. Nothing is drawn unless the list is open on a field of an
 // entity this frame drew, and the value in force is read out of that entity's
-// row, the way scene.c's voe_editor_scene_dropdown_showing reads it.
+// row.
 static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 			  voe_ecs_world *world)
 {

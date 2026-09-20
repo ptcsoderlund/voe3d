@@ -66,12 +66,15 @@
 // struct forgets its controls every frame. Its shape is inspector.h's, because
 // the panel that draws the list and reads its rows is the Inspector's; what is
 // here is the one that is open, kept across frames (ADR-0195). It is opened by
-// the Inspector (inspector_edit.h) and closed by interface.c on Escape or a
-// press outside it, and here, on the next ask, when its entity is gone, no
-// longer selected or without the row. Closing chooses nothing: every choice was
-// submitted as it was made. And only one of it and the colour picker is ever
-// open, because opening either closes the other — so one popup shows at a time
-// and Escape means one thing.
+// the Inspector (inspector_edit.h) and closed by interface.c on Escape and by
+// inspector_edit.c on a choice, on a press outside it and on the first frame
+// its field is not on the panel. Where it sits is measured by that same file
+// and set through `voe_editor_scene_dropdown_place` every frame it is open,
+// because an overlay follows its widget rather than remembering where it
+// opened (ADR-0199). Closing chooses nothing: every choice was submitted as it
+// was made. And only one of it and the colour picker is ever open, because
+// opening either closes the other — so one popup shows at a time and Escape
+// means one thing.
 #pragma once
 
 #include "inspector.h"
@@ -222,8 +225,11 @@ void voe_editor_scene_dropdown_open(voe_editor_scene *scene,
 // Closes the dropdown. The value stays whatever it last became.
 void voe_editor_scene_dropdown_close(voe_editor_scene *scene);
 
-// Whether the list shows this frame, and the value in its row when it does.
-// Closes it first when its entity is not alive, is no longer the selection or
-// no longer has the row.
-[[nodiscard]] bool
-voe_editor_scene_dropdown_showing(voe_editor_scene *scene, uint32_t *value);
+// Moves the open list to `left`, `top` — millimetres inside the Inspector's
+// content column (inspector.h). An overlay is positioned from the widget it
+// opened from, every frame it is open and never once when it opened
+// (ADR-0199), and the panel is the only thing that knows where its button
+// sits; so inspector_edit.h measures it and this is where it lands. Does
+// nothing while the list is closed.
+void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
+				     float top);
