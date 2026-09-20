@@ -26,8 +26,8 @@ The work is in the two systems — `shape_system.c` once at startup and
   call and the reads.
 - `shape_system.c` — the one upload of the three shapes' geometry and the white
   material every shape wears, the intent's submit and drain, the run that gives
-  them to a shape that has neither yet, and the removal of both once the shape
-  is gone.
+  them to a shape that has neither yet and re-points the mesh of a shape whose
+  kind changed, and the removal of both once the shape is gone.
 - `cube.h` — the built-in cube's vertices and indices as the one file that uses
   them sees them, internal to this folder.
 - `cube.c` — those twenty-four vertices and thirty-six indices written out by
