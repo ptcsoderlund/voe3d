@@ -45,6 +45,15 @@
 // what the picker changes comes back through
 // voe_editor_inspector_colour_submit, the same replace intent and the same
 // count in `replaced` a dragged number is.
+//
+// A NAMED FIELD IS A DROPDOWN (ADR-0195, 0198). A field whose description
+// carries names is shown by the name of the value it holds and not by its
+// number, inside a button when the type has a replace intent and the field is
+// not read-only and as a plain label otherwise, for the same reason a read-only
+// number is a label. A value no entry names is shown as the number it is, which
+// is what an older build seeing a newer file's kind shows. The button only opens
+// the list, the choice arriving later through
+// voe_editor_inspector_named_submit.
 #pragma once
 
 #include <base/arena.h>
@@ -104,6 +113,11 @@ typedef struct {
 	// kind.
 	uint32_t axis;
 	double shown;
+	// The value names of a named field (base/describe.h), NULL for every
+	// other control. Set, this control is the dropdown's closed button and
+	// writes nothing itself: a fired one opens the list
+	// (inspector_edit.h), and `writes` is the UINT32 the chosen value is.
+	const voe_base_field_names *names;
 } voe_editor_inspector_control;
 
 // A button that acts on one component type: a section's Remove, or one of Add

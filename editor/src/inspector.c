@@ -164,15 +164,20 @@ static void rotation_rows(voe_ui_context *ui, voe_editor_inspector *inspector,
 // One field: its name, then whatever it gets. A label when the description says
 // read-only, when the kind has no control, or when the component has no intent
 // to replace a row through — see the header on why a dead control is worse than
-// a number.
+// a number. `description` is the walk's, for the names a field's values may have.
 static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 		      voe_ecs_type type, bool editable,
+		      const voe_base_struct_description *description,
 		      const voe_base_field_description *field,
 		      const uint8_t *row)
 {
 	const uint8_t *bytes = row + field->offset;
 	bool text_box = field->kind == VOE_BASE_FIELD_CHAR && field->rank == 1;
 	bool colour = field->kind == VOE_BASE_FIELD_COLOUR;
+	const voe_base_field_names *names =
+		field->kind == VOE_BASE_FIELD_UINT32 && field->rank == 0
+			? voe_base_names_find(description, field->name)
+			: NULL;
 	uint32_t boxes = text_box || colour ? 1 : lanes(field->kind);
 	bool shown_only = !editable || field->read_only || boxes == 0 ||
 			  !room(inspector, boxes);
@@ -206,6 +211,42 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 						  .type = type,
 						  .offset = field->offset,
 						  .writes = VOE_BASE_FIELD_COLOUR });
+		return;
+	}
+
+	// A NAMED FIELD IS A DROPDOWN AND NEVER A NUMBER (ADR-0198): the name
+	// of the value it holds, in a button that only opens the list once the
+	// frame has ended when it can be replaced, and a label when it cannot.
+	// A value no entry names is the number it is.
+	if (names != NULL) {
+		voe_ui_node node = VOE_UI_NODE_NONE;
+		uint64_t value = whole_unsigned(field->kind, bytes);
+		const char *shown =
+			value < names->value_count &&
+					names->values[value] != NULL
+				? text(inspector->arena, "%s",
+				       names->values[value])
+				: value_text(inspector->arena, field, bytes);
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = ROW_GAP,
+					     .wrap = true });
+		voe_ui_label(ui, field->name);
+		if (!shown_only)
+			node = voe_ui_button_begin(ui, field->name, 0);
+		voe_ui_label(ui, shown);
+		if (!shown_only)
+			voe_ui_end(ui);
+		voe_ui_end(ui);
+
+		if (!shown_only)
+			record(inspector, (voe_editor_inspector_control){
+						  .node = node,
+						  .type = type,
+						  .offset = field->offset,
+						  .writes = VOE_BASE_FIELD_UINT32,
+						  .names = names });
 		return;
 	}
 
@@ -341,7 +382,7 @@ static void component_panel(voe_ui_context *ui,
 	description = voe_ecs_component_description(world, type);
 	if (description != NULL)
 		for (uint32_t i = 0; i < description->field_count; i++)
-			field_row(ui, inspector, type, editable,
+			field_row(ui, inspector, type, editable, description,
 				  &description->fields[i], row);
 
 	voe_ui_end(ui);
