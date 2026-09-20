@@ -42,7 +42,12 @@
 // open, because an overlay is positioned from the widget it belongs to each
 // frame and never once when it opened (ADR-0199). That arithmetic is the
 // button's rectangle less the Inspector's content column's, so it is in that
-// column's space and says nothing about how far the panel is scrolled. scene.h
+// column's space and says nothing about how far the panel is scrolled. Which
+// side it opens on and how tall its rows may be are worked out in the same
+// step and from the same frame's rectangles: below its button when the whole
+// list fits in what is left of the panel's scroll area, above it when it does
+// not but fits there, and on the roomier side capped and scrolling when it
+// fits neither (ADR-0200). scene.h
 // holds this struct, so it is named here by its tag and not by including it.
 #pragma once
 

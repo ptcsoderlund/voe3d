@@ -225,7 +225,7 @@ void voe_editor_scene_dropdown_close(voe_editor_scene *scene)
 }
 
 void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
-				     float top)
+				     float top, float height)
 {
 	VOE_BASE_ASSERT(scene != NULL, "placing the dropdown of no scene");
 
@@ -234,4 +234,5 @@ void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
 
 	scene->dropdown.left = left;
 	scene->dropdown.top = top;
+	scene->dropdown.height = height;
 }

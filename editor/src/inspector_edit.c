@@ -446,12 +446,22 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	// under its button however far the panel has gone. The live dropdown,
 	// so a list opened just above is placed on the frame it opened. No
 	// control of its own is no placement.
+	//
+	// WHICH SIDE IT OPENS ON AND HOW TALL ITS ROWS MAY BE ARE DECIDED HERE
+	// TOO, EVERY FRAME (ADR-0200): below the button when the whole list
+	// fits in what is left of the panel's scroll area, above it when it
+	// does not but fits there, and on the roomier side capped and
+	// scrolling when it fits neither. The default is today's answer —
+	// below, uncapped — which is also what a frame that drew no list gets,
+	// the frame the button fired on.
 	if (scene->dropdown.open && inspector->content != VOE_UI_NODE_NONE) {
 		for (uint32_t i = 0; i < inspector->control_count; i++) {
 			const voe_editor_inspector_control *control =
 				&inspector->controls[i];
 			voe_ui_rect b;
 			voe_ui_rect c;
+			float top;
+			float cap = 0.0f;
 
 			if (control->names == NULL ||
 			    control->node == VOE_UI_NODE_NONE ||
@@ -461,10 +471,54 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 
 			b = voe_ui_node_rect(ui, control->node);
 			c = voe_ui_node_rect(ui, inspector->content);
+			top = b.min.y + b.size.y;
+
+			if (inspector->list != VOE_UI_NODE_NONE &&
+			    inspector->area != VOE_UI_NODE_NONE) {
+				voe_ui_rect w =
+					voe_ui_node_visible(ui, inspector->area);
+				voe_ui_rect p =
+					voe_ui_node_rect(ui, inspector->list);
+				voe_ui_rect r = voe_ui_node_rect(
+					ui, inspector->list_rows);
+				// The panel's own padding and border round its
+				// rows, whether or not the rows are capped.
+				float chrome = p.size.y - r.size.y;
+				// What the whole list would be, uncapped: what
+				// the rows wanted, which voe_ui_node_measured
+				// reports even while they are capped
+				// (ui/layout.h).
+				float want =
+					chrome +
+					voe_ui_node_measured(
+						ui, inspector->list_rows)
+						.y;
+				float below = w.min.y + w.size.y -
+					      (b.min.y + b.size.y);
+				float above = b.min.y - w.min.y;
+
+				if (want <= below) {
+					// below, as it is today
+				} else if (want <= above) {
+					top = b.min.y - want;
+				} else {
+					float room = below >= above ? below
+								    : above;
+
+					cap = room - chrome;
+					// A panel with almost no room either
+					// way still shows a value to pick and
+					// scroll from.
+					if (cap < b.size.y)
+						cap = b.size.y;
+					if (below < above)
+						top = b.min.y - (cap + chrome);
+				}
+			}
+
 			voe_editor_scene_dropdown_place(scene,
 							b.min.x - c.min.x,
-							b.min.y + b.size.y -
-								c.min.y);
+							top - c.min.y, cap);
 		}
 	}
 

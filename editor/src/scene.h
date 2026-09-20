@@ -71,7 +71,12 @@
 // its field is not on the panel. Where it sits is measured by that same file
 // and set through `voe_editor_scene_dropdown_place` every frame it is open,
 // because an overlay follows its widget rather than remembering where it
-// opened (ADR-0199). Closing chooses nothing: every choice was submitted as it
+// opened (ADR-0199). How it fits is decided there and then too: the list opens
+// below its button when it fits there, above it when it does not but fits
+// there, and on the roomier side capped and scrolling when it fits neither
+// (ADR-0200) — so it is never drawn with values that cannot be reached, and a
+// list that opened downward flips when the panel scrolls its button toward the
+// bottom edge. Closing chooses nothing: every choice was submitted as it
 // was made. And only one of it and the colour picker is ever open, because
 // opening either closes the other — so one popup shows at a time and Escape
 // means one thing.
@@ -226,10 +231,13 @@ void voe_editor_scene_dropdown_open(voe_editor_scene *scene,
 void voe_editor_scene_dropdown_close(voe_editor_scene *scene);
 
 // Moves the open list to `left`, `top` — millimetres inside the Inspector's
-// content column (inspector.h). An overlay is positioned from the widget it
-// opened from, every frame it is open and never once when it opened
+// content column (inspector.h) — and caps its rows to `height`, how tall they
+// may be, nought for as tall as they come. An overlay is positioned from the
+// widget it opened from, every frame it is open and never once when it opened
 // (ADR-0199), and the panel is the only thing that knows where its button
-// sits; so inspector_edit.h measures it and this is where it lands. Does
-// nothing while the list is closed.
+// sits; so inspector_edit.h measures it and this is where it lands. All three
+// are worked out afresh there every frame the list is open, because an overlay
+// is placed where it fits and the fit changes as the panel scrolls (ADR-0200).
+// Does nothing while the list is closed.
 void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
-				     float top);
+				     float top, float height);
