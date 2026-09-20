@@ -31,8 +31,19 @@
 // every other control and read after the frame by
 // voe_editor_inspector_buttons_read, which calls the same scene.h function the
 // Delete key and Ctrl+D call. A fired dropdown control is read there too and
-// writes nothing itself: it opens the list through scene.h. scene.h holds this
-// struct, so it is named here by its tag and not by including it.
+// writes nothing itself: it opens the list through scene.h. So is the open list
+// itself, every frame it is open. A row of it that fired is submitted at once as
+// the field's value, the way the picker's colour is, and closes the list; a
+// press that is on neither those rows nor a dropdown control closes it, on the
+// press and not the release; and a frame in which it was open and drew no rows
+// closes it too, that being the frame its field left the panel — nothing
+// selected, another entity selected, or the component gone. Where it sits is
+// measured from its button's rectangle and set through scene.h every frame it is
+// open, because an overlay is positioned from the widget it belongs to each
+// frame and never once when it opened (ADR-0199). That arithmetic is the
+// button's rectangle less the Inspector's content column's, so it is in that
+// column's space and says nothing about how far the panel is scrolled. scene.h
+// holds this struct, so it is named here by its tag and not by including it.
 #pragma once
 
 #include "inspector.h"
@@ -82,7 +93,7 @@ void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
 
 // Submits `value` as the replace intent of `type`'s row on `entity`, the
 // uint32_t at `offset`, and counts one in `replaced`. The open list's choice,
-// read by interface.c in the same window as the edits; what it submits is the
+// read by voe_editor_inspector_buttons_read above off the rows this frame drew; what it submits is the
 // index into the field's names, because entry `i` names value `i` (ADR-0198). An
 // entity no longer alive, or without the row, submits and counts nothing past
 // the check.

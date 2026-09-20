@@ -316,7 +316,21 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	VOE_BASE_ASSERT(ui != NULL, "reading buttons out of no interface");
 	VOE_BASE_ASSERT(scene != NULL, "carrying out a button on no scene");
 
-	inspector->pointer_was_down = down;
+	// A ROW OF THE OPEN LIST IS THE FIELD'S NEW VALUE AND CLOSES THE LIST,
+	// at most one of them firing. It is submitted on this frame's copy of
+	// the dropdown and never on the live one, for the reason
+	// inspector->entity is read instead of the selection: the choice
+	// belongs to the list as it was drawn.
+	for (uint32_t i = 0; i < inspector->row_count; i++) {
+		if (!action_of(ui, inspector->rows[i].node).fired)
+			continue;
+		voe_editor_inspector_named_submit(inspector, scene->world,
+						  inspector->dropdown.entity,
+						  inspector->dropdown.type,
+						  inspector->dropdown.offset,
+						  inspector->rows[i].value);
+		voe_editor_scene_dropdown_close(scene);
+	}
 
 	if (action_of(ui, inspector->duplicate).fired)
 		voe_editor_scene_duplicate(scene);
@@ -336,70 +350,125 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 		inspector->choosing = !inspector->choosing;
 
 	// The entity the buttons were drawn for, when it is no longer alive,
-	// has nothing to give or take.
-	if (!voe_ecs_entity_alive(scene->world, inspector->entity))
-		return;
+	// has nothing to give or take. It guards these four rather than
+	// returning, because a list left open on it is still closed and placed
+	// below — that is the frame in which its field went off the panel.
+	if (voe_ecs_entity_alive(scene->world, inspector->entity)) {
+		// A fired swatch opens the picker on its row's colour, beside
+		// the column: Duplicate, the first thing drawn, starts at its
+		// left edge.
+		for (uint32_t i = 0; i < inspector->control_count; i++) {
+			const voe_editor_inspector_control *control =
+				&inspector->controls[i];
 
-	// A fired swatch opens the picker on its row's colour, beside the
-	// column: Duplicate, the first thing drawn, starts at its left edge.
-	for (uint32_t i = 0; i < inspector->control_count; i++) {
-		const voe_editor_inspector_control *control =
-			&inspector->controls[i];
+			if (control->writes != VOE_BASE_FIELD_COLOUR ||
+			    !action_of(ui, control->node).fired)
+				continue;
+			voe_editor_scene_picker_open(
+				scene,
+				(voe_editor_picking){
+					.entity = inspector->entity,
+					.type = control->type,
+					.offset = control->offset,
+					.left = inspector->duplicate !=
+							VOE_UI_NODE_NONE
+							? voe_ui_node_rect(
+								  ui,
+								  inspector->duplicate)
+								  .min.x
+							: 0.0f });
+		}
 
-		if (control->writes != VOE_BASE_FIELD_COLOUR ||
-		    !action_of(ui, control->node).fired)
-			continue;
-		voe_editor_scene_picker_open(
-			scene,
-			(voe_editor_picking){
-				.entity = inspector->entity,
-				.type = control->type,
-				.offset = control->offset,
-				.left = inspector->duplicate != VOE_UI_NODE_NONE
-						? voe_ui_node_rect(
-							  ui, inspector->duplicate)
-							  .min.x
-						: 0.0f });
-	}
+		// A fired dropdown opens its list instead of writing anything.
+		// Where it hangs is nought here and measured at the end of
+		// this function, on this very frame, so it is drawn under its
+		// button from the first frame it shows.
+		for (uint32_t i = 0; i < inspector->control_count; i++) {
+			const voe_editor_inspector_control *control =
+				&inspector->controls[i];
 
-	// A fired dropdown opens its list instead of writing anything, hanging
-	// from the button that opened it: its own left edge, just under its
-	// bottom. The rectangle answers in this window only (ui/layout.h).
-	for (uint32_t i = 0; i < inspector->control_count; i++) {
-		const voe_editor_inspector_control *control =
-			&inspector->controls[i];
-		voe_ui_rect where;
+			if (control->names == NULL ||
+			    !action_of(ui, control->node).fired)
+				continue;
 
-		if (control->names == NULL ||
-		    !action_of(ui, control->node).fired)
-			continue;
+			voe_editor_scene_dropdown_open(
+				scene,
+				(voe_editor_dropdown){
+					.entity = inspector->entity,
+					.type = control->type,
+					.offset = control->offset,
+					.names = control->names });
+		}
 
-		where = voe_ui_node_rect(ui, control->node);
-		voe_editor_scene_dropdown_open(
-			scene,
-			(voe_editor_dropdown){ .entity = inspector->entity,
-					       .type = control->type,
-					       .offset = control->offset,
-					       .names = control->names,
-					       .left = where.min.x,
-					       .top = where.min.y +
-						      where.size.y });
-	}
+		for (uint32_t i = 0; i < inspector->remove_count; i++)
+			if (action_of(ui, inspector->removes[i].node).fired)
+				counted(scene,
+					voe_editor_entities_component_remove(
+						scene->world, inspector->entity,
+						inspector->removes[i].type));
 
-	for (uint32_t i = 0; i < inspector->remove_count; i++)
-		if (action_of(ui, inspector->removes[i].node).fired)
-			counted(scene, voe_editor_entities_component_remove(
+		for (uint32_t i = 0; i < inspector->choice_count; i++) {
+			if (!action_of(ui, inspector->choices[i].node).fired)
+				continue;
+			inspector->choosing = false;
+			counted(scene, voe_editor_entities_component_add(
 					       scene->world, inspector->entity,
-					       inspector->removes[i].type));
-
-	for (uint32_t i = 0; i < inspector->choice_count; i++) {
-		if (!action_of(ui, inspector->choices[i].node).fired)
-			continue;
-		inspector->choosing = false;
-		counted(scene, voe_editor_entities_component_add(
-				       scene->world, inspector->entity,
-				       inspector->choices[i].type));
+					       inspector->choices[i].type));
+		}
 	}
+
+	// A PRESS ON NEITHER THE LIST'S ROWS NOR A DROPDOWN CONTROL CLOSES THE
+	// LIST — the same press edge the Add component choices are hidden on,
+	// and read the same way. So does a frame in which it was open and drew
+	// no rows: its field was not on the panel at all, nothing being
+	// selected, another entity being selected, or the component having
+	// gone.
+	if (inspector->dropdown.open) {
+		bool on_list = false;
+
+		for (uint32_t i = 0; i < inspector->row_count; i++)
+			on_list = on_list ||
+				  action_of(ui, inspector->rows[i].node).held;
+		for (uint32_t i = 0; i < inspector->control_count; i++)
+			on_list = on_list ||
+				  (inspector->controls[i].names != NULL &&
+				   action_of(ui, inspector->controls[i].node)
+					   .held);
+		if (inspector->row_count == 0 || (pressed && !on_list))
+			voe_editor_scene_dropdown_close(scene);
+	}
+
+	// WHERE THE OPEN LIST SITS IS MEASURED EVERY FRAME IT IS OPEN AND
+	// NEVER ONCE WHEN IT OPENED (ADR-0199): its button's left edge and
+	// just under its bottom, both taken in the Inspector's content
+	// column's space. Button and column are moved by the same scroll
+	// offset, so this pair says nothing about scrolling and the list stays
+	// under its button however far the panel has gone. The live dropdown,
+	// so a list opened just above is placed on the frame it opened. No
+	// control of its own is no placement.
+	if (scene->dropdown.open && inspector->content != VOE_UI_NODE_NONE) {
+		for (uint32_t i = 0; i < inspector->control_count; i++) {
+			const voe_editor_inspector_control *control =
+				&inspector->controls[i];
+			voe_ui_rect b;
+			voe_ui_rect c;
+
+			if (control->names == NULL ||
+			    control->node == VOE_UI_NODE_NONE ||
+			    control->type.value != scene->dropdown.type.value ||
+			    control->offset != scene->dropdown.offset)
+				continue;
+
+			b = voe_ui_node_rect(ui, control->node);
+			c = voe_ui_node_rect(ui, inspector->content);
+			voe_editor_scene_dropdown_place(scene,
+							b.min.x - c.min.x,
+							b.min.y + b.size.y -
+								c.min.y);
+		}
+	}
+
+	inspector->pointer_was_down = down;
 }
 
 void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
