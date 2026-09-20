@@ -57,6 +57,15 @@
 // the `voe_editor_dropdown` below, whose shape is this file's because this panel
 // is what draws the list and reads what was picked from it, and scene.h holds
 // the one that is open and says who may open and close it.
+//
+// THE OPEN LIST IS DRAWN ON THIS PANEL AND NOT OVER IT (ADR-0199). An overlay
+// belongs to the widget it opened from, so the list is an anchored child of this
+// panel's own content column and is scrolled and clipped with it: when the
+// button scrolls out of the panel the list goes with it instead of floating over
+// the editor. It is emitted after every section because submission order is
+// paint order (ui/layout.h), and a list emitted beside its button would be
+// painted over by the rows below it. Its offset is in that column's space, so
+// scrolling changes neither of the two numbers.
 #pragma once
 
 #include <base/arena.h>
@@ -107,8 +116,12 @@ typedef struct {
 	// table of the declaring folder's own, static and so outliving every
 	// frame.
 	const voe_base_field_names *names;
-	// Where the control that opened it sat on the surface, in millimetres:
-	// the list is anchored to that left edge, just under that bottom.
+	// Where the list's top-left corner goes, in millimetres from the
+	// top-left of this panel's content column (`content` below) and not
+	// from the surface. The column and the button the list hangs from are
+	// moved by the same scroll offset, so this pair does not change as the
+	// panel scrolls; what it is measured from is the button's rectangle,
+	// every frame the list is open (ADR-0199, inspector_edit.h).
 	float left;
 	float top;
 } voe_editor_dropdown;
@@ -151,6 +164,13 @@ typedef struct {
 	voe_ecs_type type;
 } voe_editor_inspector_type_button;
 
+// One row of the open list as this panel drew it: the choice button, and the
+// value it names.
+typedef struct {
+	voe_ui_node node;
+	uint32_t value;
+} voe_editor_dropdown_row;
+
 // What the Inspector panel drew this frame. Zeroed is a panel that has drawn
 // nothing yet, which is what it is before the first frame.
 typedef struct {
@@ -189,13 +209,27 @@ typedef struct {
 	// primary button, which finds the press that hides them.
 	bool choosing;
 	bool pointer_was_down;
+	// What the open list is open on, as it stood when this frame began.
+	// Copied out of scene.h's by voe_editor_inspector_frame_begin, so that
+	// the panel draws from one value all frame and the read that follows
+	// sees the same one; zeroed is a closed list.
+	voe_editor_dropdown dropdown;
+	// The one column everything this panel draws sits in, and the thing the
+	// open list is anchored to. VOE_UI_NODE_NONE when nothing was drawn.
+	voe_ui_node content;
+	// The open list's rows as drawn this frame, kept for the read for the
+	// reason every other control here is.
+	voe_editor_dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];
+	uint32_t row_count;
 } voe_editor_inspector;
 
 // Forgets last frame's controls and takes this frame's arena. Called between
 // voe_ui_frame_begin and the walk, because the nodes and the text below both
 // name things that live in that arena and last frame's have gone.
+// `dropdown` is what the open list is open on, NULL saying a closed one.
 void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
-				      voe_base_arena *arena);
+				      voe_base_arena *arena,
+				      const voe_editor_dropdown *dropdown);
 
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is

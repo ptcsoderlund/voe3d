@@ -60,6 +60,15 @@
 #define COMPONENT_GAP 1.5f
 #define ROW_GAP 2.0f
 
+// Round the open list's rows and between them. Millimetres.
+#define LIST_PAD 1.0f
+
+// Between the sections of the content column. It is the gap dock.c's scroll
+// area gives a panel's children (its PANEL_GAP): that column is the one child
+// the area holds now, so the space between the sections is this column's to
+// declare. Millimetres.
+#define CONTENT_GAP 2.0f
+
 // What one millimetre of horizontal drag is worth, by what the control writes.
 // A real number moves in hundredths, a whole number in halves — so a millimetre
 // is not quite a step and the dead zone still decides whether the drag began —
@@ -421,15 +430,75 @@ static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
 	}
 }
 
+// The open list, hanging from the button that opened it inside the content
+// column it is anchored to — see the header on why it is this panel's and not
+// the editor's. Nothing is drawn unless the list is open on a field of an
+// entity this frame drew, and the value in force is read out of that entity's
+// row, the way scene.c's voe_editor_scene_dropdown_showing reads it.
+static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
+			  voe_ecs_world *world)
+{
+	const voe_editor_dropdown *dropdown = &inspector->dropdown;
+	const uint8_t *row;
+	uint32_t value;
+
+	if (!dropdown->open || dropdown->names == NULL ||
+	    dropdown->entity.index != inspector->entity.index ||
+	    dropdown->entity.generation != inspector->entity.generation)
+		return;
+
+	row = voe_ecs_component_get(world, dropdown->type, dropdown->entity);
+	if (row == NULL)
+		return;
+	memcpy(&value, row + dropdown->offset, sizeof value);
+
+	// The column round it only carries the anchor, the list being a panel
+	// of its own. One row per value the names name, and no row for a value
+	// they leave unnamed; the value in force is marked by inversion and
+	// nothing else (ADR-0194, ADR-0196).
+	voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .anchor = { .anchored = true,
+					.x = { VOE_UI_ACROSS_START,
+					       dropdown->left },
+					.y = { VOE_UI_ACROSS_START,
+					       dropdown->top } } });
+	voe_ui_panel_begin(ui, "list", 0, VOE_UI_SURFACE_RAISED,
+			   (voe_ui_container){
+				   .across = VOE_UI_ACROSS_FILL,
+				   .gap = LIST_PAD,
+				   .pad = { LIST_PAD, LIST_PAD, LIST_PAD,
+					    LIST_PAD } });
+	for (uint32_t i = 0; i < dropdown->names->value_count &&
+			     inspector->row_count < VOE_EDITOR_DROPDOWN_ROWS;
+	     i++) {
+		if (dropdown->names->values[i] == NULL)
+			continue;
+		inspector->rows[inspector->row_count].node =
+			voe_ui_choice_begin(ui, "kind", i, i == value);
+		inspector->rows[inspector->row_count].value = i;
+		inspector->row_count++;
+		voe_ui_label(ui, dropdown->names->values[i]);
+		voe_ui_end(ui);
+	}
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+}
+
 // ----------------------------------------------------------- the surface
 
 void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
-				      voe_base_arena *arena)
+				      voe_base_arena *arena,
+				      const voe_editor_dropdown *dropdown)
 {
 	VOE_BASE_ASSERT(inspector != NULL, "opening a frame on no inspector");
 	VOE_BASE_ASSERT(arena != NULL, "an inspector frame with no arena");
 
 	inspector->arena = arena;
+	inspector->dropdown = dropdown != NULL ? *dropdown
+					       : (voe_editor_dropdown){ 0 };
+	inspector->content = VOE_UI_NODE_NONE;
+	inspector->row_count = 0;
 	inspector->control_count = 0;
 	inspector->replaced = 0;
 	inspector->entity = (voe_ecs_entity){ 0 };
@@ -460,6 +529,14 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		return;
 	}
 
+	// EVERYTHING BELOW SITS IN ONE COLUMN, which is what the open list is
+	// anchored to and what the scroll area scrolls and clips — see the
+	// header. The gap between the sections is this column's now that the
+	// area holds only it.
+	inspector->content = voe_ui_column_begin(
+		ui, (voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
+					.gap = CONTENT_GAP });
+
 	voe_ui_row_begin(ui, (voe_ui_container){ .gap = COMPONENT_GAP });
 	inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
 	voe_ui_label(ui, "Duplicate");
@@ -486,4 +563,10 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	}
 
 	add_component(ui, inspector, world);
+	// AFTER EVERY SECTION, because submission order is paint order
+	// (ui/layout.h) and a list emitted beside its button would be painted
+	// over by the rows below it.
+	dropdown_list(ui, inspector, world);
+
+	voe_ui_end(ui);
 }

@@ -31,15 +31,10 @@
 // again rather than being closed behind. The browser and Preferences cover the
 // same area, and either showing closes it.
 //
-// AND THE OPEN DROPDOWN IS DRAWN AND READ HERE, FOR THE PICKER'S REASON AND IN
-// ITS SHAPE. While scene.h's `dropdown` names the selected entity and that
-// entity still has the row, the list hangs from the control that opened it: an
-// anchored panel of one choice row per value the field's names name, the value
-// in force marked by inversion and nothing else (ADR-0194, ADR-0196). A row
-// that fires is submitted at once through inspector_edit.h's
-// voe_editor_inspector_named_submit and closes the list; Escape closes it, and
-// so does a primary-button press outside its rectangle. It is read after the
-// Inspector's buttons for the reason the picker is.
+// THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
+// FILE'S. It is drawn inside that panel so that it moves and disappears with the
+// button it hangs from (ADR-0199), and the only thing this file still does to it
+// is close it on Escape.
 #include "interface.h"
 
 #include "browser.h"
@@ -58,15 +53,6 @@
 
 // Between the picker and the Inspector column, and below the bar. Millimetres.
 #define PICKER_GAP 1.0f
-
-// Round the open list's rows and between them. Millimetres.
-#define DROPDOWN_PAD 1.0f
-
-// One row the open list drew: the choice button, and the value it names.
-struct dropdown_row {
-	voe_ui_node node;
-	uint32_t value;
-};
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
 					 const voe_ui_theme *theme)
@@ -157,29 +143,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_picking picked;
 		voe_ui_node picker = VOE_UI_NODE_NONE;
 		bool picking;
-		// The open dropdown, the same way: the value its row holds, the
-		// target as it was when drawn, its panel and the rows it put on
-		// it.
-		uint32_t value = 0;
-		voe_editor_dropdown dropped;
-		voe_ui_node list = VOE_UI_NODE_NONE;
-		struct dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];
-		uint32_t row_count = 0;
-		bool dropping;
-		// This frame's primary-button press, found as an edge against
-		// what the Scene panel remembers of last frame's (scene.h),
-		// which nothing has touched yet: the list's press-outside close
-		// is ui/colour.h's `outside` in all but where it is worked out.
-		bool pressed = root->pointer.down && !scene->pointer_was_down;
 
 		if (browsing || preferring)
 			voe_editor_scene_picker_close(scene);
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
+		// The open list is the Inspector's own (inspector.h); closing
+		// it on Escape is all this file does to it.
 		if (escape)
 			voe_editor_scene_dropdown_close(scene);
-		dropping = voe_editor_scene_dropdown_showing(scene, &value);
-		dropped = scene->dropdown;
 
 		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
 		if (browsing || preferring)
@@ -199,7 +171,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The inspector formats every label it draws into this arena
 		// and hands back its controls through nodes out of this frame,
 		// so it is opened here beside the frame and not inside the walk.
-		voe_editor_inspector_frame_begin(&scene->inspector, arena);
+		voe_editor_inspector_frame_begin(&scene->inspector, arena,
+						 &scene->dropdown);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
 		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first
@@ -256,43 +229,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						      colour);
 			voe_ui_end(ui);
 		}
-		// Hanging from the control that opened it — its own left edge,
-		// just under its bottom (scene.h) — with the column round it
-		// only carrying the anchor, the list being a panel of its own.
-		// One row per value the names name, and no row for a value they
-		// leave unnamed.
-		if (dropping) {
-			voe_ui_column_begin(
-				ui,
-				(voe_ui_container){
-					.anchor = { .anchored = true,
-						    .x = { VOE_UI_ACROSS_START,
-							   dropped.left },
-						    .y = { VOE_UI_ACROSS_START,
-							   dropped.top } } });
-			list = voe_ui_panel_begin(
-				ui, "list", 0, VOE_UI_SURFACE_RAISED,
-				(voe_ui_container){
-					.across = VOE_UI_ACROSS_FILL,
-					.gap = DROPDOWN_PAD,
-					.pad = { DROPDOWN_PAD, DROPDOWN_PAD,
-						 DROPDOWN_PAD, DROPDOWN_PAD } });
-			for (uint32_t v = 0;
-			     v < dropped.names->value_count &&
-			     row_count < VOE_EDITOR_DROPDOWN_ROWS;
-			     v++) {
-				if (dropped.names->values[v] == NULL)
-					continue;
-				rows[row_count].node = voe_ui_choice_begin(
-					ui, "kind", v, v == value);
-				rows[row_count].value = v;
-				row_count++;
-				voe_ui_label(ui, dropped.names->values[v]);
-				voe_ui_end(ui);
-			}
-			voe_ui_end(ui);
-			voe_ui_end(ui);
-		}
 		voe_ui_end(ui);
 
 		if (!voe_ui_frame_end(ui)) {
@@ -325,32 +261,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		}
 		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
 						  root->pointer.down);
-		// AFTER THE BUTTONS, SO A DROPDOWN THAT FIRED THIS FRAME OPENS
-		// ITS LIST rather than being closed by its own press — the
-		// picker's read above is ordered the same way and for the same
-		// reason. A chosen row goes in as the row's replace intent at
-		// once, and the list is done with.
-		if (list != VOE_UI_NODE_NONE) {
-			voe_ui_rect where = voe_ui_node_rect(ui, list);
-			voe_math_float2 at = root->pointer.at;
-
-			for (uint32_t r = 0; r < row_count; r++) {
-				if (!voe_ui_button_action(ui, rows[r].node)
-					     .fired)
-					continue;
-				voe_editor_inspector_named_submit(
-					&scene->inspector, scene->world,
-					dropped.entity, dropped.type,
-					dropped.offset, rows[r].value);
-				voe_editor_scene_dropdown_close(scene);
-			}
-			if (pressed &&
-			    !(at.x >= where.min.x &&
-			      at.x < where.min.x + where.size.x &&
-			      at.y >= where.min.y &&
-			      at.y < where.min.y + where.size.y))
-				voe_editor_scene_dropdown_close(scene);
-		}
 		if (!voe_editor_scene_clicks_read(scene, ui,
 						  root->pointer.down))
 			voe_editor_notice_set(&session->notice,
