@@ -72,7 +72,16 @@
 // (ADR-0199). The area that clips the list is handed in by dock.c through
 // voe_editor_inspector_area_set, because where the list fits is measured
 // against that rectangle and this panel never sees the container it is drawn
-// inside.
+// inside. The rows sit in a scroll area of their own inside the list's panel,
+// at their natural height while the dropdown's `height` is nought and capped to
+// it when it is not, so the wheel over a capped list moves the rows within it
+// and the list keeps its size and its place (ADR-0200). What the rows wanted is
+// read back from that area with voe_ui_node_measured even while it is capped
+// (ui/layout.h), which is what lets the read decide whether they would have
+// fitted. And what the rows cannot take of a wheel gesture passes outward to
+// the panel's own area behind them, as it does between any two nested areas
+// (ui/widgets.h): the panel scrolls, the button moves, and the list follows it
+// — which is why that is not a hole in ADR-0200 but the same rule twice.
 #pragma once
 
 #include <base/arena.h>
@@ -131,6 +140,14 @@ typedef struct {
 	// every frame the list is open (ADR-0199, inspector_edit.h).
 	float left;
 	float top;
+	// How tall the list's rows may be, in millimetres, or nought
+	// for as tall as they come. Set only when the list fits neither
+	// below the button nor above it: it is then capped to the room
+	// on the roomier side and scrolls inside itself, so the last
+	// value is still reachable (ADR-0200, inspector_edit.h). It is
+	// the rows' own height and not the panel's — the panel is that
+	// much plus its own padding and border.
+	float height;
 } voe_editor_dropdown;
 
 // One control the panel drew, and everything the read needs to turn what the
@@ -231,6 +248,13 @@ typedef struct {
 	// (ADR-0199), so what is left of the area is exactly what can
 	// be seen of anything drawn in it, however far it is scrolled.
 	voe_ui_node area;
+	// The open list's panel and the area its rows sit in, as drawn
+	// this frame, VOE_UI_NODE_NONE when no list was drawn. Kept for
+	// the read, which measures the rows against the room the panel
+	// leaves (inspector_edit.h) and asks whether a press landed
+	// inside the outline.
+	voe_ui_node list;
+	voe_ui_node list_rows;
 	// The open list's rows as drawn this frame, kept for the read for the
 	// reason every other control here is.
 	voe_editor_dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];

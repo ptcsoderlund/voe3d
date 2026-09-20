@@ -63,6 +63,12 @@
 // Round the open list's rows and between them. Millimetres.
 #define LIST_PAD 1.0f
 
+// The thickness a Y scrollbar lies over the content with — the right padding
+// ui's own example gives such an area (ui/widgets.h, THE SCROLL AREA). Kept off
+// the rows only while the list is capped, since that is the only time a bar
+// shows. Millimetres.
+#define LIST_BAR 3.5f
+
 // Between the sections of the content column. It is the gap dock.c's scroll
 // area gives a panel's children (its PANEL_GAP): that column is the one child
 // the area holds now, so the space between the sections is this column's to
@@ -439,6 +445,8 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 			  voe_ecs_world *world)
 {
 	const voe_editor_dropdown *dropdown = &inspector->dropdown;
+	const float h = dropdown->height;
+	const bool capped = h > 0.0f;
 	const uint8_t *row;
 	uint32_t value;
 
@@ -463,13 +471,26 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 					       dropdown->left },
 					.y = { VOE_UI_ACROSS_START,
 					       dropdown->top } } });
-	voe_ui_panel_begin(ui, "list", 0, VOE_UI_SURFACE_RAISED,
-			   (voe_ui_container){
-				   .across = VOE_UI_ACROSS_FILL,
-				   .gap = LIST_PAD,
-				   .pad = { LIST_PAD, LIST_PAD, LIST_PAD,
-					    LIST_PAD },
-				   .blocks_pointer = true });
+	inspector->list = voe_ui_panel_begin(
+		ui, "list", 0, VOE_UI_SURFACE_RAISED,
+		(voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
+				    .pad = { LIST_PAD, LIST_PAD, LIST_PAD,
+					     LIST_PAD },
+				    .blocks_pointer = true });
+	// The rows scroll inside the panel, so a list that had to be capped
+	// still reaches its last value (ADR-0200). A NATURAL height is the rows
+	// as tall as they come, which is every list nobody has capped.
+	inspector->list_rows = voe_ui_scroll_begin(
+		ui, "kinds", 0,
+		(voe_ui_container){
+			.size = { .along = capped
+					   ? (voe_ui_size){ VOE_UI_SIZE_FIXED,
+							    h }
+					   : (voe_ui_size){ 0 } },
+			.across = VOE_UI_ACROSS_FILL,
+			.gap = LIST_PAD,
+			.pad = { .right = capped ? LIST_BAR : 0.0f } },
+		(voe_ui_scroll_axes){ .y = true });
 	for (uint32_t i = 0; i < dropdown->names->value_count &&
 			     inspector->row_count < VOE_EDITOR_DROPDOWN_ROWS;
 	     i++) {
@@ -482,6 +503,7 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 		voe_ui_label(ui, dropdown->names->values[i]);
 		voe_ui_end(ui);
 	}
+	voe_ui_end(ui);
 	voe_ui_end(ui);
 	voe_ui_end(ui);
 }
@@ -500,6 +522,8 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 					       : (voe_editor_dropdown){ 0 };
 	inspector->content = VOE_UI_NODE_NONE;
 	inspector->area = VOE_UI_NODE_NONE;
+	inspector->list = VOE_UI_NODE_NONE;
+	inspector->list_rows = VOE_UI_NODE_NONE;
 	inspector->row_count = 0;
 	inspector->control_count = 0;
 	inspector->replaced = 0;

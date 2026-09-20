@@ -210,24 +210,28 @@
 // of whatever was typed, 257, one at a time because one thing holds the
 // keyboard. 4935 + 46 + 257 = 5238 elements.
 //
-// THE OPEN DROPDOWN (inspector.c) ADDS THIRTY-FIVE NODES. It is drawn inside
+// THE OPEN DROPDOWN (inspector.c) ADDS THIRTY-SIX NODES. It is drawn inside
 // the Inspector's own scroll area and clipped by it rather than over the rest
 // of the editor, an overlay belonging to the widget it opened from (ADR-0199).
-// Thirty-four are the list: the anchored column round it, one; its panel, one;
-// and up to VOE_EDITOR_DROPDOWN_ROWS (inspector.h, 16) rows, each a choice
-// button and the label composed into it, thirty-two. The thirty-fifth is the
-// content column inspector.c opens round everything that panel draws, which is
-// what the list is anchored to. 547 + 34 + 1 = 582. AND FOUR HUNDRED AND
-// EIGHTEEN ELEMENTS: the panel's border and fill, two; each row's border and
-// fill, thirty-two; and twenty-four generous for each row's name, this file
-// naming none of them and neither `base` nor the declaring folder putting a
-// length on one, 384 — a column drawing none of its own. 5238 + 418 = 5656. It
-// is never drawn beside the colour picker, because opening either closes the
-// other (scene.h), and it is counted on top all the same.
-// VOE_EDITOR_INTERFACE_SCROLLS is unchanged, the list not scrolling.
-#define VOE_EDITOR_INTERFACE_NODES 582
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5656
-#define VOE_EDITOR_INTERFACE_SCROLLS 3
+// Thirty-five are the list: the anchored column round it, one; its panel, one;
+// the scroll area its rows sit in, one; and up to VOE_EDITOR_DROPDOWN_ROWS
+// (inspector.h, 16) rows, each a choice button and the label composed into it,
+// thirty-two. The thirty-sixth is the content column inspector.c opens round
+// everything that panel draws, which is what the list is anchored to.
+// 547 + 35 + 1 = 583. AND FOUR HUNDRED AND TWENTY ELEMENTS: the panel's border
+// and fill, two; each row's border and fill, thirty-two; twenty-four generous
+// for each row's name, this file naming none of them and neither `base` nor the
+// declaring folder putting a length on one, 384 — a column drawing none of its
+// own; and the rows' area a track and a thumb on Y alone, two, which is what
+// the browser's own area is already counted at in this file. 5238 + 420 = 5658.
+// It is never drawn beside the colour picker, because opening either closes the
+// other (scene.h), and it is counted on top all the same. AND ONE MORE SCROLL
+// AREA, the rows', on top of the dock's two and the browser's one, counted on
+// top all the same for the reason the picker's nodes are:
+// VOE_EDITOR_INTERFACE_SCROLLS is four.
+#define VOE_EDITOR_INTERFACE_NODES 583
+#define VOE_EDITOR_INTERFACE_ELEMENTS 5658
+#define VOE_EDITOR_INTERFACE_SCROLLS 4
 
 // Makes the context the interface is built in, once, drawing in `theme` and
 // with the font that theme was derived with — ui measures and draws every
