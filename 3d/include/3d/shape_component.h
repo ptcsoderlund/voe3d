@@ -15,11 +15,14 @@
 // open. A path to a model is a different question — D-259 — and is not what
 // this answers.
 //
-// KIND IS READ-ONLY. It is set once, at creation, by the code that knows what
-// it is making; nothing in this engine edits a shape's kind afterwards, so the
-// inspector shows it and offers no way to change it, the same reason an
-// identity's id is read-only (scene/identity_component.h). The shape's intent
-// carries a whole row, and its drain puts kind back to the entity's own.
+// KIND IS CHOSEN FROM ITS THREE NAMES (ADR-0195). A tool shows it as a dropdown
+// of voe_3d_shape_kind_names, and a chosen kind reaches the row through the
+// shape's intent the way a colour does (3d/shape_system.h), so the entity draws
+// that kind from the next run on. The names are indexed by the kind's own number,
+// which is why entry nought is NULL: nought is no kind, and a value a tool has no
+// name for is shown as the number it is. A kind read off a file that this build
+// does not know is still drawn as nothing with a warning rather than refused,
+// because a file may be newer than the build.
 //
 // COLOUR IS EDITED, THROUGH THE SHAPE'S INTENT (3d/shape_system.h), and is
 // linear RGB, each channel 0 to 1 (ADR-0191): the same numbers every shader
@@ -56,11 +59,18 @@
 // The colour a shape has until someone gives it another, linear.
 #define VOE_3D_SHAPE_GREY ((voe_math_float3){ 0.7f, 0.7f, 0.7f })
 
+// The name of each kind, indexed by the kind's own number; NULL for nought,
+// which is no kind.
+extern const char *const voe_3d_shape_kind_names[4];
+
 #define VOE_3D_SHAPE_FIELDS(F, F_READ_ONLY) \
-	F_READ_ONLY(uint32_t, kind, UINT32)     \
+	F(uint32_t, kind, UINT32)           \
 	F(voe_math_float3, colour, COLOUR)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_3d_shape, VOE_3D_SHAPE_FIELDS)
+#define VOE_3D_SHAPE_NAMES(N) N(kind, voe_3d_shape_kind_names)
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_3d_shape, VOE_3D_SHAPE_FIELDS,
+			       VOE_3D_SHAPE_NAMES)
 
 // The key this component is registered against. Its address is its identity.
 extern const struct voe_ecs_key voe_3d_shape_key;

@@ -27,8 +27,9 @@ card, and says so below.
 - `draw_system.c` — that the one entity a frame hides is not drawn and that every
   other one still is, in both tables and both layers, and that a red shaped cube
   reads red at the picture's centre. Skips without a graphics card.
-- `shape.c` — that kind is described and read-only and colour a described
-  colour, that the default row is a grey cube needing a transform, that an
+- `shape.c` — that kind is described, editable and named by its three kinds and
+  colour a described colour with no names, that the default row is a grey cube
+  needing a transform, that an
   intent lands with kind put back and colour clamped, that a run gives a shaped
   entity exactly one mesh and material and a second run adds nothing, that an
   entity without a shape is untouched, that an unknown kind gets nothing, that

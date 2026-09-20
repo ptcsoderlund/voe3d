@@ -1,6 +1,7 @@
 // The shape component and the system that turns it into a mesh and a
-// material: that kind is described and read-only and colour is a described
-// colour, that the default row is a grey cube and a shape needs a transform,
+// material: that kind is described, editable and named by its three kinds and
+// colour is a described colour with no names, that the default row is a grey
+// cube and a shape needs a transform,
 // that the intent lands with kind put back and colour clamped, that a run gives
 // a shaped entity exactly one mesh and material and a second run adds nothing,
 // that an entity without a shape is untouched, that an unknown kind gets
@@ -126,12 +127,13 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK_INT(actual->read_only, read_only);
 }
 
-// Kind, read-only — nothing edits a shape's kind after creation — then colour,
-// an editable colour: see 3d/shape_component.h.
+// Kind, editable and named by its three kinds, then colour, an editable colour
+// with no names: see 3d/shape_component.h.
 static void the_description_is_kind_then_colour(void)
 {
 	const voe_base_struct_description *description =
 		voe_3d_shape_description();
+	const voe_base_field_names *kinds;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_shape") == 0);
 	VOE_TEST_CHECK_INT(description->field_count, 2);
@@ -139,9 +141,22 @@ static void the_description_is_kind_then_colour(void)
 		return;
 
 	check_field(&description->fields[0], "kind", VOE_BASE_FIELD_UINT32,
-		    offsetof(voe_3d_shape, kind), 1, true);
+		    offsetof(voe_3d_shape, kind), 1, false);
 	check_field(&description->fields[1], "colour", VOE_BASE_FIELD_COLOUR,
 		    offsetof(voe_3d_shape, colour), 1, false);
+
+	VOE_TEST_CHECK_INT(description->names_count, 1);
+	kinds = voe_base_names_find(description, "kind");
+	VOE_TEST_CHECK(kinds != NULL);
+	if (kinds != NULL) {
+		VOE_TEST_CHECK_INT(kinds->value_count, 4);
+		VOE_TEST_CHECK(kinds->values[0] == NULL);
+		VOE_TEST_CHECK(strcmp(kinds->values[VOE_3D_SHAPE_CUBE],
+				      "Cube") == 0);
+		VOE_TEST_CHECK(strcmp(kinds->values[VOE_3D_SHAPE_CYLINDER],
+				      "Cylinder") == 0);
+	}
+	VOE_TEST_CHECK(voe_base_names_find(description, "colour") == NULL);
 }
 
 // The default row is a grey cube, a shape needs a transform, and the intent is
