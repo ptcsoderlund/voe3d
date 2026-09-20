@@ -625,6 +625,50 @@ static void push_glyph(voe_ui_context *ui, uint32_t node,
 			 });
 }
 
+// The nearest button or number box above `node`, or VOE_UI_NODE_NONE: the
+// control a label inside one is drawn by. The walk stops at the first of the
+// two, a label belonging to the control it was composed into and not to
+// whatever that control sits in.
+static uint32_t control_above(const voe_ui_context *ui, uint32_t node)
+{
+	for (uint32_t at = ui->nodes[node].parent; at != VOE_UI_NODE_NONE;
+	     at = ui->nodes[at].parent) {
+		enum voe_ui_widget kind = ui->widgets[at].kind;
+
+		if (kind == VOE_UI_WIDGET_BUTTON ||
+		    kind == VOE_UI_WIDGET_NUMBER)
+			return at;
+	}
+
+	return VOE_UI_NODE_NONE;
+}
+
+// The ink of a label's letters: the one its role asks for, and `inverse_ink`
+// over that wherever the label is drawn inverted (ADR-0196) — inside a
+// control that is held, dragged or selected, or as the selected text of a
+// field or an open number box, which field.c has already pushed `inverse`
+// behind.
+//
+// THE CONTROL DECIDES THE INK AND NOT THE CALLER, WHATEVER ROLE WAS ASKED
+// FOR, because a caller composing a button cannot know on that frame whether
+// it is about to be held. The role still decides everything else, so a
+// secondary label goes back to reading as one the moment the press ends.
+static voe_math_float4 label_ink(const voe_ui_context *ui, uint32_t node)
+{
+	const struct voe_ui_widget_record *w = &ui->widgets[node];
+	uint32_t control = control_above(ui, node);
+
+	if ((control != VOE_UI_NODE_NONE &&
+	     voe_ui_control_inverted(ui, control)) ||
+	    voe_ui_label_selected(ui, node))
+		return w->theme->inverse_ink;
+
+	return w->text_role == VOE_UI_TEXT_ROLE_ACCENT ? w->theme->accent
+	       : w->text_role == VOE_UI_TEXT_ROLE_SECONDARY
+		       ? w->theme->text_secondary
+		       : w->theme->text_primary;
+}
+
 // One record per character that draws, in reading order. A space advances the
 // pen and costs nothing, which on this path is a whole element of the frame's
 // capacity saved for every one of them.
@@ -637,11 +681,7 @@ static void push_label(voe_ui_context *ui, uint32_t node)
 	// context.h on why the theme is copied onto the node rather than
 	// looked up again.
 	float em = w->theme->text_size;
-	voe_math_float4 ink = w->text_role == VOE_UI_TEXT_ROLE_ACCENT
-				      ? w->theme->accent
-			      : w->text_role == VOE_UI_TEXT_ROLE_SECONDARY
-				      ? w->theme->text_secondary
-				      : w->theme->text_primary;
+	voe_math_float4 ink = label_ink(ui, node);
 	float line = voe_text_font_line_height(ui->font) * em;
 	float pen = rect.min.x;
 	// The slack under the last line: the descender and the line gap, which

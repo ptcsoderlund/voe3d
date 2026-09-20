@@ -247,6 +247,12 @@ struct voe_ui_node_record {
 	uint32_t first_child;
 	uint32_t last_child;
 	uint32_t next_sibling;
+	// The container this node was made inside, VOE_UI_NODE_NONE on the
+	// root. The one link that runs upwards, written when the node is
+	// pushed: emission is a flat walk in paint order with no stack of its
+	// own, and a label there has to be able to ask what it sits inside —
+	// see widgets.c on the ink of a label in an inverted control.
+	uint32_t parent;
 
 	bool leaf;
 	// A container's direction. Unused on a leaf.
@@ -591,13 +597,16 @@ void voe_ui_number_emit(voe_ui_context *ui, uint32_t node);
 // What field.c offers widgets.c and button.c: the focus dropped when its widget
 // was not called and moved by a press, both from button.c's resolve; this
 // frame's editing, run after that and before emission; the buffer seeded with a
-// number box's value, for one opened by Tab; and the records of a field, of a
+// number box's value, for one opened by Tab; whether a label is the selected
+// text of a field or of an open number box, which is what widgets.c inks in
+// `inverse_ink` over the `inverse` behind it; and the records of a field, of a
 // number box open for typing, and of the caret after a label's own glyphs.
 void voe_ui_field_forget(voe_ui_context *ui);
 bool voe_ui_field_press(voe_ui_context *ui, const struct voe_ui_hit *hit,
 			uint64_t hovered);
 void voe_ui_field_edit(voe_ui_context *ui);
 void voe_ui_number_seed(voe_ui_context *ui, uint64_t key, double value);
+bool voe_ui_label_selected(const voe_ui_context *ui, uint32_t label);
 void voe_ui_field_emit(voe_ui_context *ui, uint32_t node);
 void voe_ui_number_open_emit(voe_ui_context *ui, uint32_t node);
 void voe_ui_caret_emit(voe_ui_context *ui, uint32_t label);

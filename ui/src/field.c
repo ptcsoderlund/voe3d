@@ -466,24 +466,29 @@ void voe_ui_field_edit(voe_ui_context *ui)
 		ui->focus = ui->widgets[typeable_after(ui, field)].key;
 }
 
-// A field's own four states. Held still beats everything, a press in
-// progress being what a person is doing right now; focused beats hovered and
-// normal, a field being focused being worth seeing whether or not the
-// pointer still happens to be over it.
+// A field's own three states. Focused beats hovered and normal, a field being
+// focused being worth seeing whether or not the pointer still happens to be
+// over it.
 //
-// DEVIATION: ADR-0171 names control, control_hovered and the accent, and no
-// fourth role for a field's own "focused" state — nothing before this theme
-// existed asked for one. Read narrowly as surface_raised, a surface already
-// meant to read as sitting above its neighbour, because the alternative of
-// reusing control_hovered would make a focused, unhovered field look exactly
-// like one the pointer merely sits over, losing the distinction the field's
-// four states had before this task.
+// A HELD FIELD IS NOT A FOURTH: the press that holds one decides its focus
+// outright in the same frame — see this file's header — so a held field is
+// always a focused field and `focused` is the state a press shows. Inversion
+// is not that fourth colour either, because what a field inverts is the text
+// selected over its fill (ADR-0196) and a press landing in a field already
+// focused restores no selection, which would leave text_primary letters on an
+// `inverse` fill.
+//
+// DEVIATION: ADR-0171 names control and control_hovered and no role for a
+// field's own "focused" state — nothing before this theme existed asked for
+// one. Read narrowly as surface_raised, a surface already meant to read as
+// sitting above its neighbour, because the alternative of reusing
+// control_hovered would make a focused, unhovered field look exactly like one
+// the pointer merely sits over, losing the distinction the field's states had
+// before this task.
 static voe_math_float4 field_colour(const voe_ui_context *ui, uint32_t node)
 {
 	const struct voe_ui_widget_record *w = &ui->widgets[node];
 
-	if (ui->held_set && ui->held == w->key)
-		return w->theme->accent;
 	if (ui->focus_set && ui->focus == w->key)
 		return w->theme->surface_raised;
 	if (ui->hovered_set && ui->hovered == w->key)
@@ -519,14 +524,34 @@ static uint32_t label_owner(const voe_ui_context *ui, uint32_t label)
 	return VOE_UI_NODE_NONE;
 }
 
-// THE WHOLE TEXT SELECTED IS THE ACCENT BEHIND IT: `label`'s own rectangle,
-// pushed before that label's glyphs are, and only while the context holds this
-// widget's text with all of it selected.
+// Whether the whole of this field's or open number box's text is selected
+// right now: the context holds its text and nothing typed has replaced the
+// selection since it arrived — see context.h on field_holding and
+// field_selected.
+static bool selection_shown(const voe_ui_context *ui, uint32_t node)
+{
+	return ui->field_holding && ui->field_selected &&
+	       ui->field_owner == ui->widgets[node].key;
+}
+
+// THE WHOLE TEXT SELECTED IS DRAWN INVERTED (ADR-0196), AND THIS IS THE HALF
+// BEHIND IT: `inverse` over `label`'s own rectangle, pushed before that
+// label's glyphs are. The other half is the letters, which widgets.c inks in
+// `inverse_ink` when it asks voe_ui_label_selected about the same label.
 static void push_selection(voe_ui_context *ui, uint32_t node, uint32_t label)
 {
-	if (ui->field_holding && ui->field_selected &&
-	    ui->field_owner == ui->widgets[node].key)
-		voe_ui_push_rect(ui, label, ui->widgets[node].theme->accent);
+	if (selection_shown(ui, node))
+		voe_ui_push_rect(ui, label, ui->widgets[node].theme->inverse);
+}
+
+// Whether `label` is the composed label of a field or of an open number box
+// whose whole text is selected, which is what makes its letters `inverse_ink`
+// — the ink that reads on the `inverse` push_selection put behind them.
+bool voe_ui_label_selected(const voe_ui_context *ui, uint32_t label)
+{
+	uint32_t owner = label_owner(ui, label);
+
+	return owner != VOE_UI_NODE_NONE && selection_shown(ui, owner);
 }
 
 // A field: its fill in the state's colour, and the selection over its composed

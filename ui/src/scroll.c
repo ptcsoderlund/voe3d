@@ -364,8 +364,9 @@ static void push_solid_within(voe_ui_context *ui, voe_ui_rect bounds,
 
 // One of an area's bars, track and then thumb, clipped to the area's visible
 // rectangle. The track is `ground`, the thumb a button's own three states —
-// control, control_hovered, and the accent while held. Held beats hovered, as
-// it does on a button.
+// control, control_hovered, and `inverse` while held, the thumb being dragged
+// drawn inverted as any other held control is (ADR-0196). Held beats hovered,
+// as it does on a button.
 static void push_scrollbar(voe_ui_context *ui, uint32_t area, bool y)
 {
 	const struct voe_ui_scroll_area *a = &ui->scroll_areas[area];
@@ -379,7 +380,7 @@ static void push_scrollbar(voe_ui_context *ui, uint32_t area, bool y)
 		return;
 
 	if (ui->held_set && ui->held_thumb == which && ui->held == a->key)
-		thumb = theme->accent;
+		thumb = theme->inverse;
 	else if (ui->hovered_thumb == which && ui->hovered_thumb_area == area)
 		thumb = theme->control_hovered;
 

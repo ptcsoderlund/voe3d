@@ -721,7 +721,7 @@ typedef struct {
 // comes back false.
 //
 // ITS BAR'S COLOURS ARE THEME ROLES — the track on `ground`, the thumb on
-// control, control_hovered or the accent while held — read from the nearest
+// control, control_hovered or `inverse` while held — read from the nearest
 // theme in force at this call; needing none is not an option, since a bar may
 // show later in the very frame that opened the area.
 //
