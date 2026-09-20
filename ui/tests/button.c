@@ -28,6 +28,12 @@
 // has a different right answer. Getting the third wrong is the common bug and it
 // looks like an unreliable button rather than like a rule.
 //
+// A CONTAINER MAY TAKE THE POINTER, and the cases in the middle of this file
+// are what that comes to: nothing painted under a blocker is hovered or fired
+// through it, not even where the blocker holds nothing but padding, while the
+// button the blocker itself holds is hit as it always was and a blocker clipped
+// out of sight stops nothing (ADR-0199).
+//
 // A CLIP IS WHAT CAN BE SEEN AND SO WHAT CAN BE HIT, since spec 001. A button
 // half clipped emits a record clipped to its visible half and answers the pointer
 // only there; one wholly clipped emits nothing. What a drag makes of the same
@@ -78,6 +84,9 @@
 struct frame {
 	voe_ui_node a;
 	voe_ui_node b;
+	// The button a blocker holds, and VOE_UI_NODE_NONE in every tree
+	// below that has no blocker in it.
+	voe_ui_node inner;
 	bool ok;
 };
 
@@ -100,7 +109,8 @@ static struct frame build(voe_ui_context *ui, voe_base_arena *arena,
 			  voe_math_float2 at, bool over, bool down,
 			  uint32_t buttons)
 {
-	struct frame f = { VOE_UI_NODE_NONE, VOE_UI_NODE_NONE, false };
+	struct frame f = { VOE_UI_NODE_NONE, VOE_UI_NODE_NONE,
+			   VOE_UI_NODE_NONE, false };
 
 	voe_ui_frame_begin(ui, arena);
 	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = at,
@@ -316,7 +326,8 @@ static void a_button_that_stops_being_called_is_let_go(voe_ui_context *ui,
 static struct frame build_clipped(voe_ui_context *ui, voe_base_arena *arena,
 				  voe_math_float2 at, bool down)
 {
-	struct frame f = { VOE_UI_NODE_NONE, VOE_UI_NODE_NONE, false };
+	struct frame f = { VOE_UI_NODE_NONE, VOE_UI_NODE_NONE,
+			   VOE_UI_NODE_NONE, false };
 
 	voe_ui_frame_begin(ui, arena);
 	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = at,
@@ -401,6 +412,157 @@ static void a_pointer_over_the_clipped_half_hovers_nothing(
 
 	// Let go, so the next case starts with the button up.
 	(void)build_clipped(ui, arena, (voe_math_float2){ 18.0f, 7.0f }, false);
+}
+
+// ---- A CONTAINER THAT TAKES THE POINTER ----
+
+// The two buttons of `build` again, in the same column, with a blocker
+// anchored over the lower one:
+//
+//   panel      pad 4, gap 3, at the origin
+//     button "a"    25 x 15 at (4, 4)
+//     button "b"    25 x 15 at (4, 22)
+//     blocker       anchored, blocks_pointer, FIXED 25 x 15 at (4, 22),
+//                   pad 14 on the left and 2.5 on the other three
+//       button "in"   pad 2.5 round a 3 x 3 box  ->  8 x 8 at (18, 24.5)
+//
+// The blocker covers "b" exactly. Its wide left padding is what makes IN_B —
+// a point inside the covered button — land inside the blocker and on nothing
+// the blocker holds, which is the gap a cursor must not fall through.
+#define BLOCKER_LEFT 14.0f
+#define INNER_BOX 3.0f
+
+// A point on the blocker's own button, which is painted after it.
+#define IN_INNER ((voe_math_float2){ 22.0f, 28.0f })
+
+// One frame of that tree. `clipped` wraps the blocker in an anchored container
+// of no size at all that clips both axes, so the blocker keeps the rectangle
+// it had and loses every millimetre of the part that can be seen.
+static struct frame build_blocked(voe_ui_context *ui, voe_base_arena *arena,
+				  voe_math_float2 at, bool down, bool clipped)
+{
+	struct frame f = { VOE_UI_NODE_NONE, VOE_UI_NODE_NONE,
+			   VOE_UI_NODE_NONE, false };
+	voe_ui_anchor over_b = { .anchored = true,
+				 .y = { VOE_UI_ACROSS_START, B_Y - 4.0f } };
+	voe_ui_anchor corner = { .anchored = true };
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = at,
+						 .over = true,
+						 .down = down });
+
+	voe_ui_panel_begin(ui, "panel", 0, VOE_UI_SURFACE_SURFACE,
+			   (voe_ui_container){ .gap = 3.0f,
+					       .pad = pad_all(4.0f) });
+	f.a = voe_ui_button_begin(ui, "a", 0);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	f.b = voe_ui_button_begin(ui, "b", 0);
+	voe_ui_box(ui, (voe_math_float2){ BOX_WIDE, BOX_HIGH },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+
+	if (clipped)
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .size = { { VOE_UI_SIZE_FIXED,
+							 0.0f },
+						       { VOE_UI_SIZE_FIXED,
+							 0.0f } },
+					     .anchor = over_b,
+					     .overflow = { VOE_UI_OVERFLOW_CLIP,
+							   VOE_UI_OVERFLOW_CLIP } });
+
+	voe_ui_row_begin(ui, (voe_ui_container){
+				     .size = { { VOE_UI_SIZE_FIXED,
+						 BUTTON_WIDE },
+					       { VOE_UI_SIZE_FIXED,
+						 BUTTON_HIGH } },
+				     .pad = { BLOCKER_LEFT, 2.5f, 2.5f, 2.5f },
+				     .anchor = clipped ? corner : over_b,
+				     .blocks_pointer = true });
+	f.inner = voe_ui_button_begin(ui, "in", 0);
+	voe_ui_box(ui, (voe_math_float2){ INNER_BOX, INNER_BOX },
+		   (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	if (clipped)
+		voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	f.ok = voe_ui_frame_end(ui);
+	return f;
+}
+
+// THE GAP IS THE BLOCKER'S. The pointer is inside the covered button and
+// inside the blocker's padding, on none of its children: it hovers neither,
+// and a press and a release there fire nothing.
+static void a_pointer_in_a_blockers_gap_hovers_nothing(voe_ui_context *ui,
+						       voe_base_arena *arena)
+{
+	struct frame f = build_blocked(ui, arena, IN_B, false, false);
+
+	VOE_TEST_CHECK(f.ok);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.b).hovered);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.inner).hovered);
+
+	f = build_blocked(ui, arena, IN_B, true, false);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.b).held);
+
+	f = build_blocked(ui, arena, IN_B, false, false);
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, f.b).fired);
+}
+
+// And the blocker's own button wins the pointer back, being painted after it.
+static void a_button_inside_a_blocker_is_still_hit(voe_ui_context *ui,
+						   voe_base_arena *arena)
+{
+	struct frame f = build_blocked(ui, arena, IN_INNER, false, false);
+
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.inner).hovered);
+
+	f = build_blocked(ui, arena, IN_INNER, true, false);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.inner).held);
+
+	f = build_blocked(ui, arena, IN_INNER, false, false);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.inner).fired);
+}
+
+// A blocker clears what is under IT and nothing else: the upper button is
+// outside its rectangle and answers the pointer as it does in a tree with no
+// blocker in it at all.
+static void a_pointer_beside_a_blocker_hovers_what_it_is_over(
+	voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct frame f = build_blocked(ui, arena, IN_A, false, false);
+
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.a).hovered);
+
+	f = build_blocked(ui, arena, IN_A, true, false);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.a).held);
+
+	f = build_blocked(ui, arena, IN_A, false, false);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.a).fired);
+}
+
+// IT IS THE VISIBLE RECTANGLE THAT BLOCKS, the same rule that decides what can
+// be hit at all: the same tree with the blocker clipped away stops nothing, so
+// the covered button is hovered and fired again.
+static void a_blocker_clipped_away_blocks_nothing(voe_ui_context *ui,
+						  voe_base_arena *arena)
+{
+	struct frame f = build_blocked(ui, arena, IN_B, false, true);
+
+	VOE_TEST_CHECK(f.ok);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.b).hovered);
+
+	f = build_blocked(ui, arena, IN_B, true, true);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.b).held);
+
+	f = build_blocked(ui, arena, IN_B, false, true);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, f.b).fired);
 }
 
 // ---- STATE DRAWN INVERTED, WHICH NEEDS A FONT ----
@@ -634,6 +796,10 @@ int main(void)
 	a_button_that_stops_being_called_is_let_go(ui, arena);
 	a_half_clipped_button_emits_its_visible_half(ui, arena);
 	a_pointer_over_the_clipped_half_hovers_nothing(ui, arena);
+	a_pointer_in_a_blockers_gap_hovers_nothing(ui, arena);
+	a_button_inside_a_blocker_is_still_hit(ui, arena);
+	a_pointer_beside_a_blocker_hovers_what_it_is_over(ui, arena);
+	a_blocker_clipped_away_blocks_nothing(ui, arena);
 
 	the_inverted_states(arena);
 

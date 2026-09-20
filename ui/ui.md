@@ -54,7 +54,10 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   Y rather than the flow's two words, which way its offset moves it, that it
   is measured against its parent's content box and paints over its in-flow
   siblings, the trap that a fit-to-children parent holding only anchored
-  children has no natural size at all, and what the measured size is for.
+  children has no natural size at all, that a container may be declared to take
+  the pointer — nothing painted under it is hovered or pressed through it, its
+  own children still are, and it is its visible rectangle that blocks — and what
+  the measured size is for.
 - `include/ui/slider.h` — the slider (`voe_ui_slider`, `voe_ui_slider_action`,
   `voe_ui_slider_result`, `VOE_UI_SLIDER_HEIGHT`, `VOE_UI_SLIDER_THUMB`): a
   track of a given width with a thumb at the value's place in a range. Its
