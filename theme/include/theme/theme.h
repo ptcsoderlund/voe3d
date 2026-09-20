@@ -14,15 +14,16 @@
 // THE FILE'S SHAPE IS EXACTLY ONE SECTION (ADR-0172):
 //
 //     [HarbourLight]
-//     accent="#2B7FD4"
+//     hue="#D4A02B"
 //     contrast_strength=1.25
 //     surface_separation=0.8
 //     mode=light
 //     font=oxanium
 //     text_size=4.5
 //
-// The section name has no blanks in it (the parser refuses one). `accent` is
-// `#RRGGBB`, quoted or not (the parser strips the quotes), kept as
+// The section name has no blanks in it (the parser refuses one). `hue` is the
+// one colour the whole palette is tinted with, its lightness ignored
+// (ADR-0194): `#RRGGBB`, quoted or not (the parser strips the quotes), kept as
 // the authored sRGB in 0..1 per channel — the derivation converts it, not
 // this. `contrast_strength` and `surface_separation` are numbers within
 // VOE_UI_THEME_SCALAR_MIN..MAX, the very constants ui clamps to, so the two
@@ -31,7 +32,8 @@
 // per em) are optional: absent, they are Oxanium and
 // voe_ui_theme_default_inputs()'s text size. `font` may name anything and
 // always reads as Oxanium, the one face the engine carries, with no report
-// (ADR-0185).
+// (ADR-0185). `accent` is not read any more and has no alias: a file that
+// still names it is refused at that line as any unknown key is (ADR-0194).
 //
 // THE NAME A PERSON READS IS THE SECTION'S, AND THE IDENTITY IS THE FILE NAME
 // (ADR-0172). A display name is the author's to change and two files may claim
