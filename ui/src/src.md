@@ -8,7 +8,8 @@ The seam runs by pass. `layout.c` knows rectangles and nothing about identity or
 input; `widgets.c` knows keys, themes, the frame and records and asks `layout.c`
 for every number it needs; `button.c`, `field.c` and `scroll.c` are the widgets
 with a gesture of their own, built out of what `widgets.c` offers; `colour.c`
-builds its widgets out of those and answers them at the frame's end; and
+builds its widgets out of those and answers them at the frame's end;
+`slider.c` is composed from the public calls alone; and
 `context.h` is the one struct they all share, with the entry points each of them
 offers the others written at its end.
 
@@ -19,11 +20,11 @@ offers the others written at its end.
 - `colour.c` — the swatch and the colour picker: HSV of sRGB, the hue each
   picker remembers under its key, a press or drag in the square or strip and a
   hex commit turned into a colour at the frame's end, and the cells and markers.
-- `context.h` — the node and the one context the two source files share, each
-  field owned by one half or the other: the capacities, the tree, the pointer
-  and the keyboard, the drag in progress and what is held and focused, and the
-  theme stack each node copies its theme from once, at the call that made it,
-  and colour.c's pickers with the entry points it and widgets.c offer each other.
+- `context.h` — the node and the one context every file here shares, each
+  field owned by one of them: the capacities, the tree, the pointer and the
+  keyboard, the drag in progress and what is held and focused, the theme stack
+  each node copies its theme from once, at the call that made it, and
+  `colour.c`'s pickers, with the entry points each file offers the others.
 - `field.c` — the single-line text field and the one keyboard focus: where a
   press takes it, Tab order, what this frame's keys type, commit and cancel,
   typing into an open number box, and the caret, the selection and the text they

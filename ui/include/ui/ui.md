@@ -16,5 +16,5 @@ The public headers, one entry each; the fuller account of all five stays on
   derived from them, the default inputs and the derivation, which cannot fail.
 - `widgets.h` — the theme set on the context or pushed over a subtree, the
   panel, the label, the button, the choice, the number box, the text field,
-  the image and the scroll area, the pointer and the keyboard they are given, and this
-  frame's element records read back.
+  the image and the scroll area, the pointer and the keyboard they are given,
+  and this frame's element records read back.

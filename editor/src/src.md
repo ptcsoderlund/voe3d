@@ -55,11 +55,11 @@ carries it out.
   read again once a second and its palette replaced when a save reads. Every
   entry also carries the two scalars it is drawn with — the theme's own until
   `theme_scalars.h`'s file or a slider replaces them — and can be adjusted,
-  reset and written back. Its
-  header says why each theme's arena is its own, what a file that will not
-  read leaves behind, when loading answers false, why the live check compares
-  the bytes and not a timestamp (ADR-0172), what a refused save leaves
-  behind, and that the theme file is never written (ADR-0197).
+  reset and written back. Its header says why each theme's arena is its own,
+  what a file that will not read leaves behind, when loading answers false,
+  why the live check compares the bytes and not a timestamp (ADR-0172), what
+  a refused save leaves behind, and that the theme file is never written
+  (ADR-0197).
 - `themes.c` — the folder listed and made, each file read and derived with the
   one font, whatever face it names, the remembered file read and written as its
   one line, the chosen file's once-a-second re-read, and every palette derived
@@ -99,7 +99,7 @@ carries it out.
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
   button, the one in force marked, a slider for each of that theme's two
-  contrast scalars with a Reset button, and Close, as an anchored panel over
+  scalars with a Reset button, and Close, as an anchored panel over
   the dock. Its header says why each row is drawn in its own theme, why Choose
   is carried out elsewhere, what the two sliders belong to, and how many themes
   it lists.
@@ -139,15 +139,15 @@ carries it out.
   the same way as a drag; with an entity selected, Duplicate and Delete buttons
   head it, every section but the identity's has a Remove button, Add component
   lists the described types it lacks, and a colour is a swatch whose button
-  opens the colour picker. Its header says why runtime-only types are not shown, how a heading is made from a
-  key, and why the controls and every label's text have to outlive the call
-  that drew them.
+  opens the colour picker. Its header says why runtime-only types are not
+  shown, how a heading is made from a key, and why the controls and every
+  label's text have to outlive the call that drew them.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
   described component types driven by base/describe.h alone, each section's
   heading, Remove and "Needs" line, a wrapping row per described field, a text
   field for a CHAR array such as the name, a swatch for a colour, the three
-  angles shown and never stored, the replace intent a dragged or typed control becomes, and the Add
-  component list.
+  angles shown and never stored, the replace intent a dragged or typed control
+  becomes, and the Add component list.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
   world's, why the picture's size lags the layout by a frame, and why a view

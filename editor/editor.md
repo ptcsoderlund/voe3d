@@ -18,13 +18,13 @@ marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
 component does. The Delete key and Ctrl+D delete and duplicate the selected
 entity too, except while the browser shows or a field holds the keyboard. Each
 column that is not a scene view clips what is on it and scrolls it with the
-wheel or its scrollbar, and the Inspector's field rows fold onto further lines when the
-column is too narrow for them. `voe_editor [<folder>]` opens folder, or the
-last project remembered when there is none, or an untitled cube and light when
-there is neither — see `src/project.h` and `src/last_project.h`. New, Open and
-Save — the buttons and Ctrl+N, Ctrl+O and Ctrl+S alike — go through
-`src/session.h`, which refuses New, Open and closing the window once while
-there are unsaved changes and goes ahead the second time. It can also be
+wheel or its scrollbar, and the Inspector's field rows fold onto further lines
+when the column is too narrow for them. `voe_editor [<folder>]` opens folder,
+or the last project remembered when there is none, or an untitled cube and
+light when there is neither — see `src/project.h` and `src/last_project.h`.
+New, Open and Save — the buttons and Ctrl+N, Ctrl+O and Ctrl+S alike — go
+through `src/session.h`, which refuses New, Open and closing the window once
+while there are unsaved changes and goes ahead the second time. It can also be
 started to draw one frame with no window at all, write it to a PNG file and
 exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
 
@@ -33,7 +33,7 @@ It draws in a theme: Near black or Near white, the two with no file, or the
 — see `src/themes.h`. A remembered theme that is gone or refused draws Near
 black and says why in the bar. The selected row in `Scene` is drawn inverted,
 as anything held or pressed is, because no colour in the editor means anything
-(ADR-0194): a theme file authors its one hue as `hue=`, and one still saying
+(ADR-0194). A theme file authors its one hue as `hue=`, and one still saying
 `accent=` is refused with its line named. Preferences lists every theme — each
 row drawn in its own theme, the one in force marked — and Choose puts one in
 force and remembers it; it also shows contrast and surface separation for the

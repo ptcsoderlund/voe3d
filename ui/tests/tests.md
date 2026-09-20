@@ -10,7 +10,7 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   a half-clipped button and a number box scrolled away mid-drag, that half a
   millimetre inside the dead zone is no drag at all, and that a held button, a
   number box being dragged and a selected choice draw `inverse` with the label
-  on them in `inverse_ink` while a hovered one stays control_hovered.
+  on them in `inverse_ink` while a hovered one stays `control_hovered`.
 - `colour.c` — that a swatch is one record of its colour, a press at the
   square's top-right with hue nought is red, `#FFC800` and `ffc800` are taken,
   `#12` is refused leaving the colour, a press outside says so, and a colour
