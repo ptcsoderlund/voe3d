@@ -1,7 +1,10 @@
 // The themes folder read into a list, `<settings>/voe3d/theme` read and
-// written as its one line, and the chosen file re-read once a second. See the
-// header for the contract.
+// written as its one line, the chosen file re-read once a second, and each
+// entry drawn with the two scalars remembered for it. See the header for the
+// contract.
 #include "themes.h"
+
+#include "theme_scalars.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -25,6 +28,10 @@
 // What the remembered file holds for Near white, the one theme with no file
 // that is not the default (ADR-0178). No `*.theme` file can have this name.
 #define THEMES_NEAR_WHITE "near_white"
+
+// What theme_scalars.h's file names the two themes with no file by (ADR-0197).
+#define THEMES_IDENTITY_NEAR_BLACK "near_black"
+#define THEMES_IDENTITY_NEAR_WHITE THEMES_NEAR_WHITE
 
 // How many themes with no file start the list: Near black, then Near white.
 #define THEMES_BUILT_IN 2u
@@ -111,7 +118,10 @@ static bool derive_one(voe_editor_theme *entry, const char *file,
 	*entry = (voe_editor_theme){
 		.name = theme.name,
 		.file = name,
+		.identity = name,
 		.theme = theme,
+		.contrast_strength = theme.inputs.contrast_strength,
+		.surface_separation = theme.inputs.surface_separation,
 		.palette = voe_ui_theme_derive(&theme.inputs, font),
 		.bytes = bytes,
 		.size = size,
@@ -150,6 +160,45 @@ static void forget_refused(voe_editor_themes *themes)
 	themes->refused_size = 0;
 }
 
+// Into the one range both scalars are kept in (ui/theme.h). Written the long
+// way round so that a NaN — which no comparison with a bound is true of —
+// lands on the minimum instead of passing through.
+static float scalar_clamp(float value)
+{
+	if (!(value > VOE_UI_THEME_SCALAR_MIN))
+		return VOE_UI_THEME_SCALAR_MIN;
+	return value < VOE_UI_THEME_SCALAR_MAX ? value :
+						 VOE_UI_THEME_SCALAR_MAX;
+}
+
+// Derives `entry`'s palette from its inputs with the two scalars in force,
+// where it stands: the address ui keeps does not move.
+static void derive_in_force(voe_editor_theme *entry, const voe_text_font *font)
+{
+	voe_ui_theme_inputs inputs = entry->theme.inputs;
+
+	inputs.contrast_strength = entry->contrast_strength;
+	inputs.surface_separation = entry->surface_separation;
+	entry->palette = voe_ui_theme_derive(&inputs, font);
+}
+
+// Puts the pair remembered for `entry`'s theme in force and derives it again
+// (ADR-0197). Nothing remembered leaves the theme's own two, and the palette
+// already derived with them, where they are.
+static void apply_remembered(voe_editor_themes *themes,
+			     voe_editor_theme *entry)
+{
+	const voe_editor_theme_scalars_line *line =
+		voe_editor_theme_scalars_find(&themes->scalars,
+					      entry->identity);
+
+	if (line == NULL)
+		return;
+	entry->contrast_strength = line->contrast_strength;
+	entry->surface_separation = line->surface_separation;
+	derive_in_force(entry, themes->font);
+}
+
 bool voe_editor_themes_load(voe_editor_themes *themes,
 			    const voe_text_font *font)
 {
@@ -172,6 +221,8 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 	themes->chosen = 0;
 	themes->font = font;
 	themes->checked = voe_platform_clock_now();
+	themes->scalars_unwritten = false;
+	voe_editor_theme_scalars_read(&themes->scalars, themes->arena);
 
 	settings = voe_platform_folder_settings(themes->arena);
 	if (settings != NULL) {
@@ -199,19 +250,27 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		sizeof(voe_editor_theme) * (listing.count + THEMES_BUILT_IN));
 	themes->entries[0] = (voe_editor_theme){
 		.name = "Near black",
+		.identity = THEMES_IDENTITY_NEAR_BLACK,
 		.theme = { .name = "Near black",
 			   .inputs = defaults,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
+		.contrast_strength = defaults.contrast_strength,
+		.surface_separation = defaults.surface_separation,
 		.palette = voe_ui_theme_derive(&defaults, font),
 	};
 	themes->entries[1] = (voe_editor_theme){
 		.name = "Near white",
+		.identity = THEMES_IDENTITY_NEAR_WHITE,
 		.theme = { .name = "Near white",
 			   .inputs = light,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
+		.contrast_strength = light.contrast_strength,
+		.surface_separation = light.surface_separation,
 		.palette = voe_ui_theme_derive(&light, font),
 	};
 	themes->count = THEMES_BUILT_IN;
+	apply_remembered(themes, &themes->entries[0]);
+	apply_remembered(themes, &themes->entries[1]);
 	if (themes->remembered != NULL &&
 	    strcmp(themes->remembered, THEMES_NEAR_WHITE) == 0) {
 		themes->chosen = 1;
@@ -232,6 +291,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 			remembered_refused = remembered_refused || remembered;
 			continue;
 		}
+		apply_remembered(themes, &themes->entries[themes->count]);
 		if (remembered)
 			themes->chosen = themes->count;
 		themes->count++;
@@ -354,7 +414,53 @@ voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes
 	*entry = fresh;
 	// The remembered name may have pointed into the arena just destroyed.
 	themes->remembered = entry->file;
+	apply_remembered(themes, entry);
 	return VOE_EDITOR_THEMES_CHANGED;
+}
+
+void voe_editor_themes_adjust(voe_editor_themes *themes, uint32_t index,
+			      float contrast, float separation)
+{
+	voe_editor_theme *entry;
+
+	VOE_BASE_ASSERT(themes != NULL && index < themes->count,
+			"adjusting a theme the list does not have");
+
+	entry = &themes->entries[index];
+	entry->contrast_strength = scalar_clamp(contrast);
+	entry->surface_separation = scalar_clamp(separation);
+	derive_in_force(entry, themes->font);
+	voe_editor_theme_scalars_set(&themes->scalars, themes->arena,
+				     entry->identity, entry->contrast_strength,
+				     entry->surface_separation);
+	themes->scalars_unwritten = true;
+}
+
+void voe_editor_themes_reset(voe_editor_themes *themes, uint32_t index)
+{
+	voe_editor_theme *entry;
+
+	VOE_BASE_ASSERT(themes != NULL && index < themes->count,
+			"resetting a theme the list does not have");
+
+	entry = &themes->entries[index];
+	entry->contrast_strength = entry->theme.inputs.contrast_strength;
+	entry->surface_separation = entry->theme.inputs.surface_separation;
+	derive_in_force(entry, themes->font);
+	voe_editor_theme_scalars_forget(&themes->scalars, entry->identity);
+	themes->scalars_unwritten = true;
+}
+
+bool voe_editor_themes_scalars_write(voe_editor_themes *themes)
+{
+	VOE_BASE_ASSERT(themes != NULL, "writing no list's slider values");
+
+	if (!themes->scalars_unwritten)
+		return true;
+	if (!voe_editor_theme_scalars_write(&themes->scalars))
+		return false;
+	themes->scalars_unwritten = false;
+	return true;
 }
 
 void voe_editor_themes_destroy(voe_editor_themes *themes)
