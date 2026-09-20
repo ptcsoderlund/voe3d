@@ -34,3 +34,17 @@ stands in front of it; a middle-button drag that starts over a shape orbiting th
 about what is selected; the outline following the selected shape as its kind, colour and position are edited;
 the outline staying clearly visible, grey or the theme's own hue and never a colour of its own, in Near white
 and in one more theme; and a click in a view behind the open file browser selecting nothing.
+
+## Blocked
+`checks.sh --all` cannot reach 0 from inside this folder: it finds that `3d/include/3d/3d.md` lists neither
+`outline.h` nor `shape_geometry.h`, the two headers cards 01 and 03 added, and adding those two lines here is
+itself a finding — `checks.sh --folder editor` answers "3d/include/3d/3d.md: changed outside the card's folder
+editor/". A card in `3d` that puts the two entries on that table of contents unblocks the coder's half; the
+wording tried was "the built-in shapes' triangles, and the edges of each surface with the two normals that meet
+along them, as the CPU sees them" and "one entity's silhouette, seen from one camera, as the quads a selection
+outline is drawn from".
+
+The nine steps themselves are a person's to see at a running window, which a coder does not drive, so none of
+them is reported as held here. A project for the walk is ready — five shapes of three kinds, two of them behind
+others from each view's angle, plus a light — and it opens and draws: `voe_editor <folder>` on a folder holding
+the `project.voe3d` and `main.scene` written for this card, which the report names.
