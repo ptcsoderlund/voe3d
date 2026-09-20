@@ -188,7 +188,7 @@
 //
 // A FIELD COSTS TWO NODES — itself and the label it composes — and up to one
 // element record per letter that draws, plus its own background, while it
-// is focused one caret, and while its whole text is selected one accent
+// is focused one caret, and while its whole text is selected one `inverse`
 // rectangle behind the letters: no more than a label put inside a button already
 // costs. NO BORDER, LIKE THE NUMBER BOX: its background is a theme role and it
 // needs the nearest theme in force, but two records are a panel's and a
@@ -397,13 +397,16 @@ voe_ui_node voe_ui_label(voe_ui_context *ui, const char *text);
 // go: nothing happens. Press it, drag off it, drag BACK on and let go: it fires,
 // because cancelling is what leaving does and coming back undoes it.
 //
-// ITS THREE STATES ARE THEME ROLES, the pressed one on the accent
-// (ADR-0171): control at rest, control_hovered under the pointer, and accent
-// while held — there is no fourth role for "pressed", the accent standing in
-// for it. LIKE A PANEL IT DRAWS A HAIRLINE BORDER, two element records and not
-// one, and needs the nearest theme in force exactly as a panel with a surface
-// does; opening one with nowhere to find a theme is the caller's bug and
-// asserts.
+// ITS THREE STATES ARE THEME ROLES, THE HELD ONE INVERTED (ADR-0194,
+// ADR-0196): control at rest, control_hovered under the pointer, and `inverse`
+// while held — no role is set apart by colour to stand in for "pressed", and a
+// label inside a button drawn inverted draws in `inverse_ink` whatever role it
+// asked for, so the caller composes a plain label and the button decides its
+// ink. LIKE A PANEL IT DRAWS A HAIRLINE BORDER, two element records and not
+// one — held, that border is `inverse` as well, so the whole button is one
+// block — and needs the nearest theme in force exactly as a panel with a
+// surface does; opening one with nowhere to find a theme is the caller's bug
+// and asserts.
 //
 // Closed by voe_ui_end, like any other container.
 voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
@@ -427,6 +430,28 @@ typedef struct {
 
 voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 				   voe_ui_node button);
+
+// A button that is one of a list — the chosen row, the mode in use — marked by
+// inversion while `selected` (ADR-0194), and an ordinary button when it is
+// not. Everything else is the button's: the same key from `name` and `index`,
+// the same press, the same release, and voe_ui_button_action reads what the
+// pointer did to it.
+//
+//     voe_ui_node row = voe_ui_choice_begin(ui, "row", i, i == chosen);
+//     voe_ui_label(ui, names[i]);
+//     voe_ui_end(ui);
+//     if (voe_ui_button_action(ui, row).fired)
+//             chosen = i;
+//
+// SELECTED IT IS DRAWN AS A HELD BUTTON IS — `inverse` behind, `inverse_ink`
+// for the label composed into it — and being hovered while it is neither held
+// nor selected is still control_hovered. Which of them is selected is the
+// caller's to remember; this folder keeps nothing between frames but what is
+// held and what is focused.
+//
+// Closed by voe_ui_end, like any other container.
+voe_ui_node voe_ui_choice_begin(voe_ui_context *ui, const char *name,
+				uint32_t index, bool selected);
 
 // ---------------------------------------------------------- the number box
 
@@ -470,10 +495,11 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 // same call answering the same way: a typed entry has no distance to report
 // and every caller is already written to take a value.
 //
-// ITS COLOURS ARE THE SAME THEME ROLES A BUTTON'S ARE — control, control_hovered
-// and, while held, the accent — read from the nearest theme in force, and it
-// needs one for the same reason a button does. UNLIKE A PANEL AND A BUTTON IT
-// DRAWS NO BORDER: one element record, as before this task.
+// ITS COLOURS ARE THE SAME THEME ROLES A BUTTON'S ARE — control,
+// control_hovered and, while it is being dragged, `inverse` with the label
+// composed into it in `inverse_ink` — read from the nearest theme in force,
+// and it needs one for the same reason a button does. UNLIKE A PANEL AND A
+// BUTTON IT DRAWS NO BORDER: one element record, as before this task.
 //
 // A PRESS AND A RELEASE INSIDE VOE_UI_NUMBER_DEAD_ZONE OPENS IT FOR TYPING
 // (ADR-0192), and a drag never does. It takes the keyboard focus a field
@@ -603,9 +629,10 @@ void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);
 // ARRIVES. From then until the focus leaves the context holds the text,
 // VOE_UI_FIELD_CAPACITY bytes of it, and the field shows that. The focus
 // arrives — by a press inside, voe_ui_field_focus or Tab — with the whole
-// text selected, drawn with the theme's accent behind it: the first typed
-// text replaces it, Backspace empties it, and after that typing appends and
-// Backspace removes the last code point.
+// text selected, drawn inverted: the theme's `inverse` behind it and its
+// letters in `inverse_ink`. The first typed text replaces it, Backspace
+// empties it, and after that typing appends and Backspace removes the last
+// code point.
 //
 // ENTER, TAB OR A PRESS ELSEWHERE COMMITS, AND ESCAPE CANCELS — see
 // voe_ui_field_result. TAB MOVES THE FOCUS to the next field or number box

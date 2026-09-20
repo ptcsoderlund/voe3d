@@ -230,6 +230,10 @@ struct voe_ui_widget_record {
 	// number rather than the caller's.
 	bool open;
 	bool refused;
+	// A choice's own: made selected by its caller, and so drawn inverted
+	// however the pointer is placed — see voe_ui_choice_begin. False on
+	// everything else, a plain button included.
+	bool selected;
 	// A swatch's and a picker's linear colour as handed in, and a picker
 	// square's or strip's HSV, hue a fraction of a turn. colour.c's; zero
 	// on everything else.
@@ -574,10 +578,13 @@ void voe_ui_push_bordered(voe_ui_context *ui, uint32_t node,
 
 // What button.c offers widgets.c: what the pointer comes to on every widget,
 // run from frame_end before anything is emitted; the caller's own content of a
-// number box open for typing, which is neither drawn nor hit; and the records
-// of a button and of a number box.
+// number box open for typing, which is neither drawn nor hit; whether a
+// control is drawn inverted, which is what a label inside one takes its ink
+// from as well as what the control fills with; and the records of a button and
+// of a number box.
 void voe_ui_pointer_resolve(voe_ui_context *ui, bool laid_out);
 bool voe_ui_number_hidden(const voe_ui_context *ui, uint32_t node);
+bool voe_ui_control_inverted(const voe_ui_context *ui, uint32_t node);
 void voe_ui_button_emit(voe_ui_context *ui, uint32_t node);
 void voe_ui_number_emit(voe_ui_context *ui, uint32_t node);
 

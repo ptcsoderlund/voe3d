@@ -12,10 +12,10 @@ builds its widgets out of those and answers them at the frame's end; and
 `context.h` is the one struct they all share, with the entry points each of them
 offers the others written at its end.
 
-- `button.c` — the button and the number box: how each is built, what the
-  pointer comes to on any widget — the hit test, what a press arms, what a
-  release fires and the drag between them — and the fill, the border and the
-  colour by state they draw.
+- `button.c` — the button, the choice and the number box: how each is built,
+  what the pointer comes to on any widget — the hit test, what a press arms,
+  what a release fires and the drag between them — and the fill and the border
+  by state they draw, inverted while one is held, dragged or selected.
 - `colour.c` — the swatch and the colour picker: HSV of sRGB, the hue each
   picker remembers under its key, a press or drag in the square or strip and a
   hex commit turned into a colour at the frame's end, and the cells and markers.

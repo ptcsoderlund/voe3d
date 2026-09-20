@@ -64,7 +64,8 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   range this folder clamps to.
 - `include/ui/widgets.h` — the theme mechanism (`voe_ui_theme_set`,
   `voe_ui_theme_push`, `voe_ui_theme_pop`), the panel (`voe_ui_surface`), the
-  label (`voe_ui_text_role`, `voe_ui_label_role`), the button, the number box,
+  label (`voe_ui_text_role`, `voe_ui_label_role`), the button, the choice
+  (`voe_ui_choice_begin`, one of a list marked by inversion), the number box,
   a single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
   `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`) and the
   one keyboard focus this folder holds its text for (`voe_ui_typing`), the

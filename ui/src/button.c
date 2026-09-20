@@ -1,4 +1,5 @@
-// The button and the number box, and what the pointer comes to on any widget:
+// The button, the choice and the number box, and what the pointer comes to on
+// any widget:
 // the hit test, the press that arms one, the release that fires it, and the
 // drag between them. See include/ui/widgets.h for the promises; widgets.c makes
 // the keys, the frame and the records these are built out of, and context.h
@@ -116,6 +117,20 @@ voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
 		ui->widgets[node].keyed = true;
 		ui->widgets[node].theme = theme;
 	}
+
+	return node;
+}
+
+// A CHOICE IS A BUTTON WITH A FLAG, and this is the whole of it: the key, the
+// press, the release and the answer are the button's, and `selected` only
+// changes what is drawn — see voe_ui_control_inverted.
+voe_ui_node voe_ui_choice_begin(voe_ui_context *ui, const char *name,
+				uint32_t index, bool selected)
+{
+	voe_ui_node node = voe_ui_button_begin(ui, name, index);
+
+	if (node != VOE_UI_NODE_NONE)
+		ui->widgets[node].selected = selected;
 
 	return node;
 }
@@ -399,32 +414,59 @@ void voe_ui_pointer_resolve(voe_ui_context *ui, bool laid_out)
 	ui->was_down = ui->pointer.down;
 }
 
+// Whether this control is drawn inverted: a button held this frame, a number
+// box being dragged, or a choice its caller made selected. State is marked by
+// inversion and by nothing set apart in colour (ADR-0194, ADR-0196), so this
+// one question answers for the fill, for the border and for the ink of every
+// label inside — which is why widgets.c asks it too, rather than each of them
+// spelling the three cases out again.
+//
+// HELD BEATS HOVERED, because a button being pressed is what a person is doing
+// and hovering is only where the pointer happens to be. A button held with the
+// pointer dragged off it stays inverted, which is what says the press is still
+// live and can still be completed by coming back.
+//
+// A NUMBER BOX IS INVERTED FOR THE WHOLE OF ITS DRAG, dead zone included: the
+// gesture began at the press and the person has not let go, and a box that
+// went back to rest a millimetre in would flicker under a slow hand. Open for
+// typing it is held by nothing and draws as a field does — see field.c.
+bool voe_ui_control_inverted(const voe_ui_context *ui, uint32_t node)
+{
+	const struct voe_ui_widget_record *w = &ui->widgets[node];
+
+	if (w->kind != VOE_UI_WIDGET_BUTTON && w->kind != VOE_UI_WIDGET_NUMBER)
+		return false;
+
+	return w->selected || (ui->held_set && ui->held == w->key);
+}
+
 // The three states, for a button and for a number box alike — control at
-// rest, control_hovered under the pointer, accent while held (ADR-0171: a
-// pressed control is the accent and there is no fourth role for it). They
-// look the same on purpose — see BUTTON_PAD.
+// rest, control_hovered under the pointer, and `inverse` where the control is
+// inverted. They look the same on purpose — see BUTTON_PAD.
 static voe_math_float4 state_colour(const voe_ui_context *ui, uint32_t node)
 {
 	const struct voe_ui_widget_record *w = &ui->widgets[node];
 
-	// Held beats hovered, because a button being pressed is what a person
-	// is doing and hovering is only where the pointer happens to be. A
-	// button held with the pointer dragged off it stays in its held colour,
-	// which is what says the press is still live and can still be
-	// completed by coming back.
-	if (ui->held_set && ui->held == w->key)
-		return w->theme->accent;
+	if (voe_ui_control_inverted(ui, node))
+		return w->theme->inverse;
 	if (ui->hovered_set && ui->hovered == w->key)
 		return w->theme->control_hovered;
 	return w->theme->control;
 }
 
 // A button is a fill in the state's colour inside the hairline border ADR-0171
-// asks for, two element records where a plain fill is one.
+// asks for, two element records where a plain fill is one — and INVERTED IT IS
+// ONE BLOCK OF `inverse`, its border included, because a rim in the border
+// role around an inverted fill draws a line where the eye should see the
+// control turn over.
 void voe_ui_button_emit(voe_ui_context *ui, uint32_t node)
 {
-	voe_ui_push_bordered(ui, node, state_colour(ui, node),
-			     ui->widgets[node].theme->border);
+	voe_math_float4 fill = state_colour(ui, node);
+	voe_math_float4 border = voe_ui_control_inverted(ui, node)
+					 ? fill
+					 : ui->widgets[node].theme->border;
+
+	voe_ui_push_bordered(ui, node, fill, border);
 }
 
 // A number box is one fill, borderless — and OPEN FOR TYPING IT DRAWS AS A
