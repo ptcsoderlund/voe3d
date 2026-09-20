@@ -31,6 +31,11 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   when it has to, whose thumb is as long and as far as the offset says, is
   `inverse` while it is held and the control at rest, drags, pages and stands
   in front of a button — and that one area too many refuses the frame.
+- `slider.c` — that the thumb is against the track's left edge at the range's
+  bottom, against its right edge at the top and halfway between at the middle,
+  that a sideways drag past the dead zone moves the value by the distance times
+  the range over the width, that a drag past either end answers exactly that
+  end, and that a frame nobody touched hands the value straight back.
 - `theme.c` — that OKLab round-trips, that both modes are legible at both ends
   of both scalars and the inverted pair with them, that every role shares the
   authored hue and a grey hue leaves no chroma anywhere, that each input moves

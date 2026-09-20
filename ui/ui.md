@@ -4,7 +4,7 @@ Nested rows and columns of boxes in millimetres, a rectangle for every one of
 them, and the first widgets on top: a panel, a label, a button that answers the
 mouse, a number box you drag sideways or click and type into to change a
 value, a single-line text field, an image, a scroll area that remembers its
-offset, a swatch and a colour picker. Not drawing — what comes out is element
+offset, a swatch, a colour picker and a slider. Not drawing — what comes out is element
 records and the caller submits them — and not input either: the pointer and the keyboard are values it is handed. Where the surface
 sits in the world is one matrix and it is the caller's. It also turns an
 authored theme — one colour, two scalars, a mode and a text size — into the
@@ -54,6 +54,14 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   is measured against its parent's content box and paints over its in-flow
   siblings, the trap that a fit-to-children parent holding only anchored
   children has no natural size at all, and what the measured size is for.
+- `include/ui/slider.h` — the slider (`voe_ui_slider`, `voe_ui_slider_action`,
+  `voe_ui_slider_result`, `VOE_UI_SLIDER_HEIGHT`, `VOE_UI_SLIDER_THUMB`): a
+  track of a given width with a thumb at the value's place in a range. Its
+  header says that it IS a number box and has no widget kind of its own, so a
+  drag across it changes the value, a click opens it for typing and it draws
+  inverted while it is dragged, that the range is applied on the way out and
+  never on the way in and why the clamp counts as a change, and what it costs
+  in nodes and element records.
 - `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
   `voe_ui_theme` (the derived palette of roles), `voe_ui_theme_default_inputs`
   and `voe_ui_theme_derive`. Its header says why the one authored `hue` stays
