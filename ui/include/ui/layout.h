@@ -265,6 +265,23 @@
 // AN ANCHORED CHILD IS A CONTAINER LIKE ANY OTHER and holds rows, columns and
 // further anchored children, to any depth.
 //
+// A CONTAINER MAY TAKE THE POINTER, AND AN OVERLAY IS WHY IT CAN. A container
+// declared `blocks_pointer` stops the pointer at its own VISIBLE rectangle:
+// nothing painted before it — which is everything it is drawn over — is
+// hovered, armed, pressed or fired through it, while its own children, painted
+// after it, answer the pointer exactly as they always did. That is what makes
+// an open overlay solid (ADR-0199): the gaps between a list's rows and the
+// padding at its edges belong to the list, so a cursor resting between two rows
+// cannot light up the field the list covers. It is the visible rectangle and
+// not the node's own, so a blocker its clipping ancestors cut in half blocks
+// only the half that is left and one wholly clipped blocks nothing — the same
+// rule that already decides what can be hit at all. It says nothing about the
+// wheel: voe_ui_pointer.scroll still starts at the innermost scroll area under
+// the pointer, wherever a blocker is. And this header declares the field and
+// never reads it — layout carries it as it carries `wrap`, and what it means is
+// the hit test's, which is why the rule above is stated here and enforced in
+// one place beside the hit test.
+//
 // ---- WHAT IT WANTED, BESIDE WHERE IT WENT ----
 //
 // voe_ui_node_rect says where a node came to sit. voe_ui_node_measured says what
@@ -477,6 +494,11 @@ typedef struct {
 	// Millimetres, positive showing content further right or down, on CLIP
 	// axes only — non-zero on a VISIBLE axis asserts. Clamped by layout.
 	voe_math_float2 scroll;
+	// Whether the pointer stops at this container. False — which is
+	// what a container that never mentions it is — and the pointer
+	// reaches whatever is painted underneath, as it always did. See
+	// A CONTAINER MAY TAKE THE POINTER at the top of this header.
+	bool blocks_pointer;
 } voe_ui_container;
 
 // A node in the tree being built: an index into it, valid until the next

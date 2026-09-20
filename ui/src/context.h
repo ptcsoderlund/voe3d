@@ -275,6 +275,12 @@ struct voe_ui_node_record {
 	// nought on a leaf.
 	voe_ui_overflow overflow;
 	voe_math_float2 scroll;
+	// Whether the pointer stops at this container, as the caller
+	// declared it (ui/layout.h). layout.c writes it and never reads
+	// it: what it means is button.c's hit test, exactly as `wrap`
+	// means something only to the sweeps. False on a leaf, which
+	// takes a sizing and not a container.
+	bool blocks_pointer;
 
 	// Which line of its parent's run this node landed on, counted from
 	// nought. Written by the arrange along the parent's flow, and nought —
