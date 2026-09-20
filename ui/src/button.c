@@ -22,6 +22,19 @@
 // THE LAST WIDGET IN PAINT ORDER WINS THE POINTER, because the last one painted
 // is the one in front. The loop does not stop at the first hit for that reason.
 //
+// AND A CONTAINER THAT TAKES THE POINTER CLEARS WHAT IS BEHIND IT. A container
+// declared `blocks_pointer` (ui/layout.h) is not a widget and is never itself
+// hit — it is a hole in paint order: reaching it throws away whatever was hit
+// under it, so an open overlay is solid over its whole outline and the cursor
+// cannot fall through the gaps between its rows onto the fields it covers
+// (ADR-0199). Its own children are painted after it and win the pointer back,
+// which is how the rows of that list are still clickable. It is tested against
+// the visible rectangle for the same reason every widget is, so a blocker its
+// scroll area clipped away blocks nothing. And it is here rather than in four
+// places because hover, the press that arms, the release that fires, the focus
+// a press moves and the bar a press grabs are all this one hit: clearing it
+// once is all of them.
+//
 // AND IT TESTS WHAT CAN BE SEEN, NOT WHERE THE WIDGET IS. The rectangle compared
 // is voe_ui_node_visible, so the part of a button a clipping container cut away
 // is not there for the pointer either: a widget scrolled out of sight cannot be
@@ -236,6 +249,13 @@ static struct voe_ui_hit hit_test(const voe_ui_context *ui)
 	// front, and that is the one the pointer is on.
 	for (uint32_t at = 0; at < ui->count; at++) {
 		uint32_t node = voe_ui_paint_order(ui, at);
+
+		// A hole in paint order: everything painted under this
+		// container has just lost the pointer, and everything after it
+		// — its own children among them — goes on winning it.
+		if (ui->nodes[node].blocks_pointer &&
+		    voe_ui_inside(ui->nodes[node].visible, ui->pointer.at))
+			hit = (struct voe_ui_hit){ 0 };
 
 		if (takes_the_pointer(ui->widgets[node].kind) &&
 		    !voe_ui_number_hidden(ui, node) &&

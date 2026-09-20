@@ -1132,6 +1132,7 @@ static voe_ui_node container_begin(voe_ui_context *ui,
 	n->wrap = container.wrap;
 	n->overflow = container.overflow;
 	n->scroll = container.scroll;
+	n->blocks_pointer = container.blocks_pointer;
 
 	ui->open[ui->depth++] = index;
 

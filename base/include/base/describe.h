@@ -30,6 +30,20 @@
 // runs the same with it and without it; the mark is the declaring folder's to
 // write, on the line beside the field.
 //
+// NAMES ARE A NOTE TO A TOOL, EXACTLY AS READ-ONLY IS. A struct may carry, beside
+// its fields, a small table saying what one field's values are called:
+// VOE_BASE_DESCRIBE_STRUCT_NAMED(struct, field_list, names_list), where a names
+// list invokes its one parameter once per named field with the field's name and an
+// array of names — #define VOE_3D_SHAPE_NAMES(N) N(kind, voe_3d_shape_kind_names).
+// Entry i names value i, and a NULL entry is a value with no name, so a set
+// numbered from one leaves its first entry NULL and a tool shows that value as the
+// number it is. THE FIELD'S KIND DOES NOT CHANGE: a named field is the UINT32 it
+// already was, and the scene text it is written to is unchanged. The names array
+// belongs to the declaring folder and is extern there, so a build without
+// descriptions carries no copy of it. What a tool does with the names — a dropdown
+// of the named values — is the tool's business and not this folder's (ADR-0195,
+// ADR-0198).
+//
 // THE DECLARING FOLDER SUPPLIES THE C TYPE AND BASE SUPPLIES THE KIND. A kind is
 // a word in the list below and a size in bytes; base never maps it onto a type,
 // which is what lets it describe a maths vector or an entity while including
@@ -82,6 +96,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 typedef enum {
 	VOE_BASE_FIELD_INT8,
@@ -129,12 +144,40 @@ typedef struct {
 	bool read_only;
 } voe_base_field_description;
 
+// What one field's values are called, for a tool to show instead of the number.
+typedef struct {
+	// The field these names belong to, as it is spelled in the struct.
+	const char *field;
+	// values[i] is the name of value i, NULL for a value this list does not
+	// name.
+	const char *const *values;
+	uint32_t value_count;
+} voe_base_field_names;
+
 typedef struct {
 	const char *name;
 	// In declaration order, which is layout order.
 	const voe_base_field_description *fields;
 	uint32_t field_count;
+	// One row per named field, or NULL and 0 for a struct described without
+	// names — which is every struct that does not ask for them.
+	const voe_base_field_names *names;
+	uint32_t names_count;
 } voe_base_struct_description;
+
+// The names for `field`, or NULL when it has none. A handful of rows at most, so
+// a scan and a strcmp.
+static inline const voe_base_field_names *
+voe_base_names_find(const voe_base_struct_description *description,
+		    const char *field)
+{
+	if (!description || !description->names || !field)
+		return NULL;
+	for (uint32_t i = 0; i < description->names_count; i++)
+		if (strcmp(description->names[i].field, field) == 0)
+			return &description->names[i];
+	return NULL;
+}
 
 // The size of one element of each kind, in bytes. Pasted onto a kind's name by
 // the macros below.
@@ -173,6 +216,16 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 			   VOE_BASE_DESCRIBE_MEMBER_)                         \
 	} struct_name;                                                        \
 	VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                     \
+	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
+
+// The same struct, the same checks and the same field table, plus the table that
+// names one or more fields' values.
+#define VOE_BASE_DESCRIBE_STRUCT_NAMED(struct_name, field_list, names_list)   \
+	typedef struct {                                                      \
+		field_list(VOE_BASE_DESCRIBE_MEMBER_,                         \
+			   VOE_BASE_DESCRIBE_MEMBER_)                         \
+	} struct_name;                                                        \
+	VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)   \
 	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
 
 // Everything from here down is the expansion, and not for use on its own.
@@ -278,8 +331,44 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 		return &description;                                          \
 	}
 
+// The count is the names array's own declared bound, so it is never a number
+// written twice.
+#define VOE_BASE_DESCRIBE_NAMES_ROW_(field_, values_)                        \
+	{                                                                     \
+		.field = #field_,                                             \
+		.values = (values_),                                          \
+		.value_count = (uint32_t)(sizeof(values_) /                   \
+					  sizeof((values_)[0])),              \
+	},
+
+// Its own table macro rather than the plain one with an empty names list: an
+// empty initializer for a zero-length array is the GNU extension that
+// -Wpedantic -Werror refuses.
+#define VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)   \
+	static inline const voe_base_struct_description *                     \
+		struct_name##_description(void)                               \
+	{                                                                     \
+		typedef struct_name voe_base_describe_self_;                  \
+		static const voe_base_field_description rows[] = {            \
+			field_list(VOE_BASE_DESCRIBE_ROW_,                    \
+				   VOE_BASE_DESCRIBE_ROW_READ_ONLY_)          \
+		};                                                            \
+		static const voe_base_field_names named[] = {                 \
+			names_list(VOE_BASE_DESCRIBE_NAMES_ROW_)              \
+		};                                                            \
+		static const voe_base_struct_description description = {      \
+			.name = #struct_name,                                 \
+			.fields = rows,                                       \
+			.field_count = sizeof(rows) / sizeof(rows[0]),        \
+			.names = named,                                       \
+			.names_count = sizeof(named) / sizeof(named[0]),      \
+		};                                                            \
+		return &description;                                          \
+	}
+
 #else
 
 #define VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)
+#define VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)
 
 #endif

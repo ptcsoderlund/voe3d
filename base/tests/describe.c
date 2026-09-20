@@ -22,6 +22,11 @@
 // second described struct below repeats the same claim on a field that is both
 // read-only and an array (`deep`), so a shape does not lose the mark.
 //
+// A NAMED FIELD IS A ROW BESIDE THE FIELDS AND A FIELD THAT DID NOT CHANGE.
+// `dial` below names its one field's values through the NAMED macro, with a NULL
+// first entry, so the two claims under test are that the names come back as they
+// went in and that a struct described the plain way has no names at all.
+//
 // THE SWITCH IS TURNED ON HERE, WHATEVER THE BUILD SAID. A build that has not
 // asked for descriptions has no table, and check.cmake builds that way, so a test
 // that followed the build would test nothing on the one run that gates a card.
@@ -122,6 +127,16 @@ typedef struct {
 
 VOE_BASE_DESCRIBE_STRUCT(tinted, TINTED_FIELDS)
 
+// A field whose values have names. Value 0 is left unnamed, as a set numbered
+// from one leaves its first entry, and a declaring folder would put this array in
+// its own .c and declare it extern.
+static const char *const dial_mode_names[] = { NULL, "One", "Two" };
+
+#define DIAL_FIELDS(F, F_READ_ONLY) F(uint32_t, mode, UINT32)
+#define DIAL_NAMES(N) N(mode, dial_mode_names)
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED(dial, DIAL_FIELDS, DIAL_NAMES)
+
 static void check_name(const char *actual, const char *expected)
 {
 	VOE_TEST_CHECK(strcmp(actual, expected) == 0);
@@ -213,6 +228,28 @@ int main(void)
 		return voe_test_result();
 	check_field(&tinted_desc->fields[0], "tint", VOE_BASE_FIELD_COLOUR,
 		    offsetof(tinted, tint), 12, 1, 0, no_dims, false);
+
+	const voe_base_struct_description *dial_desc = dial_description();
+	VOE_TEST_CHECK_INT(dial_desc->names_count, 1);
+	check_field(&dial_desc->fields[0], "mode", VOE_BASE_FIELD_UINT32,
+		    offsetof(dial, mode), 4, 1, 0, no_dims, false);
+
+	const voe_base_field_names *mode_names =
+		voe_base_names_find(dial_desc, "mode");
+	VOE_TEST_CHECK(mode_names != NULL);
+	if (mode_names) {
+		check_name(mode_names->field, "mode");
+		VOE_TEST_CHECK_INT(mode_names->value_count, 3);
+		VOE_TEST_CHECK(mode_names->values[0] == NULL);
+		check_name(mode_names->values[1], "One");
+	}
+	VOE_TEST_CHECK(voe_base_names_find(dial_desc, "absent") == NULL);
+
+	// A struct described the way every struct is described today carries no
+	// names, and asking for one of its own fields answers NULL.
+	VOE_TEST_CHECK(thing_desc->names == NULL);
+	VOE_TEST_CHECK_INT(thing_desc->names_count, 0);
+	VOE_TEST_CHECK(voe_base_names_find(thing_desc, "flags") == NULL);
 
 	return voe_test_result();
 }

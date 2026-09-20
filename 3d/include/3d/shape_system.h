@@ -30,17 +30,38 @@
 // THE INTENT CARRIES THE WHOLE ROW, as the transform's does
 // (scene/transform_system.h), and is the shape's replace (ecs/component.h). The
 // run drains it first. An intent naming a dead entity or one with no shape is
-// dropped, silently. Kind is read-only, so the drain puts it back to the
-// entity's own; each colour channel is clamped to 0..1, a NaN to 0. Both
-// corrections are reported the way an unknown kind is, below.
+// dropped, silently. A new kind lands as the colour does when it is one of the
+// three built-in ones (3d/shape_component.h), because a kind is chosen from
+// their names (0195, 0198); a kind that is none of the three is put back to the
+// entity's own and reported as a corrected intent. Each colour channel is
+// clamped to 0..1, a NaN to 0. Both corrections are reported the way an unknown
+// kind is, below.
 //
 // voe_3d_shape_system_run GIVES A MESH AND A MATERIAL TO EVERY SHAPED ENTITY
 // THAT HAS NEITHER YET, through 3d's own creation calls — voe_3d_mesh_add and
 // voe_3d_material_add — never by writing those tables directly. An entity that
-// already has a mesh is left alone: this is what makes the run idempotent, and
-// it is also what leaves an entity's mesh alone after a call site has pointed it
-// at different geometry on purpose (there is no such call site yet, but the rule
-// is the shape's and not an accident of a game having none).
+// already has a mesh is given no second one: this is what makes the run
+// idempotent, and it is also what leaves an entity that a call site has pointed
+// at geometry of its own alone (there is no such call site yet, but the rule is
+// the shape's and not an accident of a game having none).
+//
+// A KIND THAT CHANGED RE-POINTS THE ENTITY'S MESH (0195, 0198): after that, a
+// shaped entity whose mesh is on one of the three shapes' geometries and not on
+// the one its kind names is pointed at the kind's, through
+// voe_3d_mesh_set_geometry. IT IS A RE-POINT AND NOT A MESH DROPPED AND REBUILT
+// because there is nothing to free and nothing to queue: both geometries are
+// ranges in the same pools the upload filled, and the material is the one white
+// one every kind wears. So THE NEW KIND IS ON THE SCREEN THE SAME FRAME THE RUN
+// HAPPENS, no frame late — unlike a removed shape, whose mesh waits for the next
+// voe_ecs_structure_apply.
+//
+// THE PASS IS OVER THE SHAPE TABLE EVERY RUN AND REMEMBERS NOTHING — it compares
+// the kind against the geometry the mesh is on rather than against a kind it
+// kept from last time. That is what keeps the run idempotent, and it means a row
+// a scene file wrote is corrected too, not only one an intent changed. A MESH ON
+// GEOMETRY NONE OF THE THREE SHAPES OWNS IS AN IMPORTED MODEL'S AND IS NEVER
+// TOUCHED, the same promise as leaving an entity that already has a mesh alone,
+// and so is a row whose kind names no geometry at all.
 //
 // THE WORLD MUST HAVE MESH AND MATERIAL REGISTERED BEFORE THIS RUNS — the same
 // requirement voe_3d_mesh_add and voe_3d_material_add already have — and a table
@@ -104,8 +125,8 @@ typedef struct {
 					voe_3d_shapes *out,
 					voe_base_error *error);
 
-// Change this entity's shape to the submitter's row. Kind is put back; see the
-// header.
+// Change this entity's shape to the submitter's row. A kind none of the three
+// built-in ones is put back; see the header.
 typedef struct {
 	voe_ecs_entity entity;
 	voe_3d_shape shape;
@@ -117,8 +138,10 @@ typedef struct {
 				       voe_3d_shape_intent intent);
 
 // Drains the shape's intents, gives a mesh and a material, both in the world
-// layer, to every shape row whose entity has no mesh yet, and queues the
-// removal of the mesh and material of every entity whose shape is gone. See the
-// header for what an unknown kind does, why the world must already have mesh
-// and material registered, and why it needs a structural queue.
+// layer, to every shape row whose entity has no mesh yet, re-points the mesh of
+// every shape whose kind names another of the three geometries than the one it
+// is on, and queues the removal of the mesh and material of every entity whose
+// shape is gone. See the header for what an unknown kind does, why the world
+// must already have mesh and material registered, and why it needs a structural
+// queue.
 void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes);

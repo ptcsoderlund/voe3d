@@ -27,7 +27,8 @@ an operating system.
   asks one: how many, the average, the worst. Its header says why it is a period
   and not a sliding window, and why `worst` presumes a direction.
 - `include/base/describe.h` — a struct written once as the list of its fields,
-  and the table that says what each one is and where it lives. Its header says
-  why the declaring folder supplies the type, what the build refuses, what the
-  switch leaves out, and what marking a field read-only does and does not mean.
+  and the table that says what each one is and where it lives, with a field's
+  values optionally named for a tool. Its header says why the declaring folder
+  supplies the type, what the build refuses, what the switch leaves out, and
+  what marking a field read-only or naming its values does and does not mean.
 - `include/base/version.h` — the placeholder that proves the folder builds.

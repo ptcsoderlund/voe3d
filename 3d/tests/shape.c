@@ -1,7 +1,9 @@
 // The shape component and the system that turns it into a mesh and a
-// material: that kind is described and read-only and colour is a described
-// colour, that the default row is a grey cube and a shape needs a transform,
-// that the intent lands with kind put back and colour clamped, that a run gives
+// material: that kind is described, editable and named by its three kinds and
+// colour is a described colour with no names, that the default row is a grey
+// cube and a shape needs a transform,
+// that the intent's new kind lands and re-points the mesh while an unknown one
+// is put back and a colour clamped, that a run gives
 // a shaped entity exactly one mesh and material and a second run adds nothing,
 // that an entity without a shape is untouched, that an unknown kind gets
 // nothing, that each kind gets its own geometry, that a removed shape's mesh
@@ -126,12 +128,13 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK_INT(actual->read_only, read_only);
 }
 
-// Kind, read-only — nothing edits a shape's kind after creation — then colour,
-// an editable colour: see 3d/shape_component.h.
+// Kind, editable and named by its three kinds, then colour, an editable colour
+// with no names: see 3d/shape_component.h.
 static void the_description_is_kind_then_colour(void)
 {
 	const voe_base_struct_description *description =
 		voe_3d_shape_description();
+	const voe_base_field_names *kinds;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_shape") == 0);
 	VOE_TEST_CHECK_INT(description->field_count, 2);
@@ -139,9 +142,22 @@ static void the_description_is_kind_then_colour(void)
 		return;
 
 	check_field(&description->fields[0], "kind", VOE_BASE_FIELD_UINT32,
-		    offsetof(voe_3d_shape, kind), 1, true);
+		    offsetof(voe_3d_shape, kind), 1, false);
 	check_field(&description->fields[1], "colour", VOE_BASE_FIELD_COLOUR,
 		    offsetof(voe_3d_shape, colour), 1, false);
+
+	VOE_TEST_CHECK_INT(description->names_count, 1);
+	kinds = voe_base_names_find(description, "kind");
+	VOE_TEST_CHECK(kinds != NULL);
+	if (kinds != NULL) {
+		VOE_TEST_CHECK_INT(kinds->value_count, 4);
+		VOE_TEST_CHECK(kinds->values[0] == NULL);
+		VOE_TEST_CHECK(strcmp(kinds->values[VOE_3D_SHAPE_CUBE],
+				      "Cube") == 0);
+		VOE_TEST_CHECK(strcmp(kinds->values[VOE_3D_SHAPE_CYLINDER],
+				      "Cylinder") == 0);
+	}
+	VOE_TEST_CHECK(voe_base_names_find(description, "colour") == NULL);
 }
 
 // The default row is a grey cube, a shape needs a transform, and the intent is
@@ -174,10 +190,11 @@ static void the_default_row_and_the_needs(voe_base_arena *arena)
 			   (long long)sizeof(voe_3d_shape_intent));
 }
 
-// An intent lands with kind put back to the entity's own and its colour
-// applied; a colour out of range lands clamped; an intent for an entity with no
-// shape changes nothing.
-static void an_intent_lands_with_kind_kept_and_colour_clamped(
+// An intent naming a kind that is none of the three lands with kind put back to
+// the entity's own and its colour applied; a colour out of range lands clamped;
+// an intent for an entity with no shape changes nothing. A new kind that is one
+// of the three is an_intents_new_kind_re_points_the_mesh's.
+static void an_intent_lands_with_an_unknown_kind_put_back(
 	voe_base_arena *arena)
 {
 	voe_ecs_world *world = a_world(arena);
@@ -191,7 +208,7 @@ static void an_intent_lands_with_kind_kept_and_colour_clamped(
 	VOE_TEST_CHECK(voe_3d_shape_submit(
 		world, (voe_3d_shape_intent){
 			       .entity = cube,
-			       .shape = { .kind = VOE_3D_SHAPE_CYLINDER,
+			       .shape = { .kind = UNKNOWN_KIND,
 					  .colour = { 0.1f, 0.2f, 0.3f } } }));
 	VOE_TEST_CHECK(voe_3d_shape_submit(
 		world, (voe_3d_shape_intent){
@@ -472,6 +489,71 @@ static void the_capsule_and_cylinder_are_built_right(void)
 // size it from, the material voe_3d_shapes_upload writes, and a run that puts
 // a capsule and a cylinder on the geometries it made for them.
 //
+// An intent naming another kind lands and re-points the mesh a run already
+// gave: the entity is drawn with the new kind's geometry, and its material, its
+// layer and its colour are the ones it had. A kind that is none of the three
+// leaves both the row's kind and the mesh's geometry as they are. Geometries are
+// compared the way each_kind_gets_its_own_geometry compares them.
+static void an_intents_new_kind_re_points_the_mesh(const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity cube = shaped(world, VOE_3D_SHAPE_CUBE);
+	const voe_3d_shape *row;
+	const voe_3d_mesh *mesh;
+	const voe_3d_material *material;
+
+	voe_3d_shape_system_run(world, shapes);
+	VOE_TEST_CHECK(has_geometry(world, cube, shapes->cube));
+
+	VOE_TEST_CHECK(voe_3d_shape_submit(
+		world, (voe_3d_shape_intent){
+			       .entity = cube,
+			       .shape = { .kind = VOE_3D_SHAPE_CYLINDER,
+					  .colour = VOE_3D_SHAPE_GREY } }));
+	voe_3d_shape_system_run(world, shapes);
+
+	row = voe_3d_shape_get(world, cube);
+	VOE_TEST_CHECK(row != NULL);
+	if (row != NULL) {
+		VOE_TEST_CHECK_INT(row->kind, VOE_3D_SHAPE_CYLINDER);
+		VOE_TEST_CHECK_FLOAT(row->colour.x, 0.7f, 1e-6f);
+		VOE_TEST_CHECK_FLOAT(row->colour.y, 0.7f, 1e-6f);
+		VOE_TEST_CHECK_FLOAT(row->colour.z, 0.7f, 1e-6f);
+	}
+	VOE_TEST_CHECK(has_geometry(world, cube, shapes->cylinder));
+	mesh = voe_3d_mesh_get(world, cube);
+	VOE_TEST_CHECK(mesh != NULL);
+	if (mesh != NULL)
+		VOE_TEST_CHECK_INT(mesh->layer, VOE_3D_LAYER_WORLD);
+	material = voe_3d_material_get(world, cube);
+	VOE_TEST_CHECK(material != NULL);
+	if (material != NULL) {
+		VOE_TEST_CHECK_INT(material->shading.index,
+				   shapes->material.shading.index);
+		VOE_TEST_CHECK_INT(material->shading.generation,
+				   shapes->material.shading.generation);
+	}
+
+	VOE_TEST_CHECK(voe_3d_shape_submit(
+		world, (voe_3d_shape_intent){
+			       .entity = cube,
+			       .shape = { .kind = UNKNOWN_KIND,
+					  .colour = VOE_3D_SHAPE_GREY } }));
+	voe_3d_shape_system_run(world, shapes);
+
+	row = voe_3d_shape_get(world, cube);
+	VOE_TEST_CHECK(row != NULL);
+	if (row != NULL)
+		VOE_TEST_CHECK_INT(row->kind, VOE_3D_SHAPE_CYLINDER);
+	VOE_TEST_CHECK(has_geometry(world, cube, shapes->cylinder));
+
+	// A run with nothing corrected closes the report's run.
+	voe_3d_shape_system_run(world, shapes);
+
+	voe_base_arena_destroy(arena);
+}
+
 // IT NEEDS A GRAPHICS CARD, and skips with a reason without one, for the
 // reason 3d/tests/material.c gives at length: a build box with no Vulkan is
 // the box and not this engine.
@@ -514,6 +596,7 @@ static void the_upload_makes_three_shapes_and_a_white_material(void)
 		VOE_TEST_CHECK(has_geometry(world, capsule, shapes.capsule));
 		VOE_TEST_CHECK(has_geometry(world, cylinder, shapes.cylinder));
 	}
+	an_intents_new_kind_re_points_the_mesh(&shapes);
 	VOE_TEST_CHECK_FLOAT(shapes.material.base_colour.x, 1.0f, 1e-6f);
 	VOE_TEST_CHECK_FLOAT(shapes.material.base_colour.y, 1.0f, 1e-6f);
 	VOE_TEST_CHECK_FLOAT(shapes.material.base_colour.z, 1.0f, 1e-6f);
@@ -533,7 +616,7 @@ int main(void)
 	the_description_is_kind_then_colour();
 	the_type_is_described_and_not_runtime_only(arena);
 	the_default_row_and_the_needs(arena);
-	an_intent_lands_with_kind_kept_and_colour_clamped(arena);
+	an_intent_lands_with_an_unknown_kind_put_back(arena);
 	a_run_gives_a_shaped_entity_one_mesh_and_material(arena);
 	an_entity_without_a_shape_is_untouched(arena);
 	an_unknown_kind_gets_nothing(arena);

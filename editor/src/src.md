@@ -121,7 +121,9 @@ carries it out.
   pointer lives in this folder, and why root zero is the window.
 - `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, giving
   every child a fixed size in millimetres, a one-millimetre gap at each seam
-  where a splitter would go, and the row the tree is wrapped in.
+  where a splitter would go, the row the tree is wrapped in, and the scroll
+  area it opens for the Inspector's leaf handed to that panel, for the open list
+  to fit itself into.
 - `interface.h` — the screen-filling surface, made in the theme it is handed:
   pixels per millimetre from the window's height over a 135 mm surface, the top
   bar above each root's dock tree, the browser or Preferences over it when one
@@ -132,22 +134,57 @@ carries it out.
   captured once per root's frame.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
   the one read of the frame's clicks that carries out the top bar's, the
-  browser's and Preferences' commands and the colour picker's changes.
-- `inspector.h` — what the selected entity is made of, and the controls that
-  change it; an edit is a replace intent and never a write, and how many were
-  submitted this frame is a count `main.c` reads, a typed number or name going
-  the same way as a drag; with an entity selected, Duplicate and Delete buttons
-  head it, every section but the identity's has a Remove button, Add component
-  lists the described types it lacks, and a colour is a swatch whose button
-  opens the colour picker. Its header says why runtime-only types are not
-  shown, how a heading is made from a key, and why the controls and every
-  label's text have to outlive the call that drew them.
+  browser's and Preferences' commands and the colour picker's changes, handing
+  the buttons' read the pointer's place as well as its button. The open
+  dropdown is the Inspector's own: all this file does to it is close it on
+  Escape.
+- `inspector.h` — what the selected entity is made of, the controls that change
+  it, and the struct one frame of them is recorded in; with an entity selected,
+  Duplicate and Delete buttons head it, every section but the identity's has a
+  Remove button, Add component lists the described types it lacks, and a colour
+  is a swatch whose button opens the colour picker. It holds the shape of the
+  open dropdown, because this panel is what draws the list and reads what was
+  picked from it. Its header says why runtime-only types are not shown, how a
+  heading is made from a key, why the controls and every label's text have
+  to outlive the call that drew them, and why the open list is an anchored child
+  of this panel's own content column rather than an overlay over the editor
+  (ADR-0199). The open list's rows sit in a scroll area of their own, at their
+  natural height or capped to the room the panel leaves, and the panel is told
+  which area clips it (ADR-0200).
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
   described component types driven by base/describe.h alone, each section's
   heading, Remove and "Needs" line, a wrapping row per described field, a text
   field for a CHAR array such as the name, a swatch for a colour, the three
-  angles shown and never stored, the replace intent a dragged or typed control
-  becomes, and the Add component list.
+  angles shown and never stored, the record each control leaves behind for the
+  read, the Add component list, and the open list drawn after every section, in
+  the content column's own space, hanging from the button that opened it, its
+  rows in a scroll area of their own at their natural height or capped to the
+  room the panel leaves.
+- `inspector_edit.h` — the three calls that turn what the pointer did to the
+  Inspector's controls into replace intents and into scene.h's Duplicate,
+  Delete, Remove and Add component. Its header says why an edit is a replace
+  intent and never a write, why a component with no replace intent is shown and
+  not edited, why all of it happens once the frame has ended, why the list's
+  side and its cap are worked out from the button's rectangle and the clipping
+  area's every frame it is open, and why only a press outside its outline closes
+  it (ADR-0200).
+- `inspector_edit.c` — a dragged or typed number narrowed to what its control
+  writes and submitted as the component's replace intent, a rotation's edit as
+  the difference about a world axis, a committed text field as the row's CHAR
+  bytes, and the fired Duplicate, Delete, Remove, Add component choice and
+  swatch, the picker's colour among them, and the open list's side and cap
+  measured from the button's rectangle and the area that clips it, a press
+  outside its outline being the only one that closes it.
+- `inspector_value.h` — what a field's bytes say: a kind and an offset in, a
+  number, three shown angles or the one string a label is given out. Its header
+  says why nothing in it draws or writes, that it is the Inspector's shared
+  arithmetic, why every string it formats goes in the frame's arena, and why the
+  three angles are shown and never stored.
+- `inspector_value.c` — a number read out of a field's bytes whatever its width,
+  a whole number as the double a box drags, the Z-Y-X decomposition of a
+  rotation and the world axis and name of one of its three rows, a type's
+  heading from its key, a field as one string, and how many boxes a kind is
+  worth.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
   world's, why the picture's size lags the layout by a frame, and why a view
@@ -157,13 +194,20 @@ carries it out.
 - `scene.h` — the current project's world, the selection in it, the rows the
   Scene panel drew, its Add menu, Delete and Duplicate on the selection and
   the structural changes and refusals made this frame, what the Inspector drew
-  this frame, and what the colour picker is open on. Its header says why
-  building a project's entities is not this file's job, why the selection is
-  the editor's and not the dock tree's, and why those rows outlive the call
-  that drew them.
+  this frame, and what the colour picker and the open dropdown are open on —
+  the dropdown's shape being inspector.h's, whose place and how tall its rows
+  may be are set through one call and which no longer answers a showing
+  question. Its header says why
+  building a project's entities is not this file's job, why the selection is the
+  editor's and not the dock tree's, why those rows outlive the call that drew
+  them, why only one of the two popups is ever open, and who closes the open
+  list and measures where it sits.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the
-  colour picker, and the one question asked of the Scene panel's rows and Add
-  menu after the frame has ended; nothing in it draws or lays out.
+  colour picker and the dropdown, each closing the other, the open list moved to
+  where the Inspector measured it and capped to the height it measured there,
+  and the one question asked of the Scene
+  panel's rows and Add menu after the frame has ended; nothing in it draws or
+  lays out.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.

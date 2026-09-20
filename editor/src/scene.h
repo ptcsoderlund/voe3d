@@ -60,6 +60,26 @@
 // main.c on Escape, and here, on the next ask, when its entity is gone, no longer
 // selected or without the row. Closing changes no colour: every change was
 // already submitted as it happened.
+//
+// THE OPEN DROPDOWN'S TARGET IS HERE TOO, IN `dropdown`, for the picker's
+// reason: it outlives the frame the control fired in and the Inspector's own
+// struct forgets its controls every frame. Its shape is inspector.h's, because
+// the panel that draws the list and reads its rows is the Inspector's; what is
+// here is the one that is open, kept across frames (ADR-0195). It is opened by
+// the Inspector (inspector_edit.h) and closed by interface.c on Escape and by
+// inspector_edit.c on a choice, on a press outside it and on the first frame
+// its field is not on the panel. Where it sits is measured by that same file
+// and set through `voe_editor_scene_dropdown_place` every frame it is open,
+// because an overlay follows its widget rather than remembering where it
+// opened (ADR-0199). How it fits is decided there and then too: the list opens
+// below its button when it fits there, above it when it does not but fits
+// there, and on the roomier side capped and scrolling when it fits neither
+// (ADR-0200) — so it is never drawn with values that cannot be reached, and a
+// list that opened downward flips when the panel scrolls its button toward the
+// bottom edge. Closing chooses nothing: every choice was submitted as it
+// was made. And only one of it and the colour picker is ever open, because
+// opening either closes the other — so one popup shows at a time and Escape
+// means one thing.
 #pragma once
 
 #include "inspector.h"
@@ -133,6 +153,8 @@ typedef struct voe_editor_scene {
 	voe_editor_inspector inspector;
 	// The colour picker's target, kept across frames.
 	voe_editor_picking picking;
+	// The open dropdown's target, kept across frames.
+	voe_editor_dropdown dropdown;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -186,7 +208,8 @@ void voe_editor_scene_delete(voe_editor_scene *scene);
 // when the world or the queue is full.
 void voe_editor_scene_duplicate(voe_editor_scene *scene);
 
-// Opens the picker on `picking`, replacing whatever it was open on.
+// Opens the picker on `picking`, replacing whatever it was open on, and closes
+// the dropdown.
 void voe_editor_scene_picker_open(voe_editor_scene *scene,
 				  voe_editor_picking picking);
 
@@ -198,3 +221,23 @@ void voe_editor_scene_picker_close(voe_editor_scene *scene);
 // no longer has the row — a change of selection is what closes it.
 [[nodiscard]] bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 						   voe_math_float3 *colour);
+
+// Opens the dropdown on `dropdown`, replacing whatever it was open on, and
+// closes the picker.
+void voe_editor_scene_dropdown_open(voe_editor_scene *scene,
+				    voe_editor_dropdown dropdown);
+
+// Closes the dropdown. The value stays whatever it last became.
+void voe_editor_scene_dropdown_close(voe_editor_scene *scene);
+
+// Moves the open list to `left`, `top` — millimetres inside the Inspector's
+// content column (inspector.h) — and caps its rows to `height`, how tall they
+// may be, nought for as tall as they come. An overlay is positioned from the
+// widget it opened from, every frame it is open and never once when it opened
+// (ADR-0199), and the panel is the only thing that knows where its button
+// sits; so inspector_edit.h measures it and this is where it lands. All three
+// are worked out afresh there every frame the list is open, because an overlay
+// is placed where it fits and the fit changes as the panel scrolls (ADR-0200).
+// Does nothing while the list is closed.
+void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
+				     float top, float height);

@@ -209,9 +209,29 @@
 // typing (ADR-0192), a caret and up to VOE_UI_FIELD_CAPACITY (256) characters
 // of whatever was typed, 257, one at a time because one thing holds the
 // keyboard. 4935 + 46 + 257 = 5238 elements.
-#define VOE_EDITOR_INTERFACE_NODES 547
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5238
-#define VOE_EDITOR_INTERFACE_SCROLLS 3
+//
+// THE OPEN DROPDOWN (inspector.c) ADDS THIRTY-SIX NODES. It is drawn inside
+// the Inspector's own scroll area and clipped by it rather than over the rest
+// of the editor, an overlay belonging to the widget it opened from (ADR-0199).
+// Thirty-five are the list: the anchored column round it, one; its panel, one;
+// the scroll area its rows sit in, one; and up to VOE_EDITOR_DROPDOWN_ROWS
+// (inspector.h, 16) rows, each a choice button and the label composed into it,
+// thirty-two. The thirty-sixth is the content column inspector.c opens round
+// everything that panel draws, which is what the list is anchored to.
+// 547 + 35 + 1 = 583. AND FOUR HUNDRED AND TWENTY ELEMENTS: the panel's border
+// and fill, two; each row's border and fill, thirty-two; twenty-four generous
+// for each row's name, this file naming none of them and neither `base` nor the
+// declaring folder putting a length on one, 384 — a column drawing none of its
+// own; and the rows' area a track and a thumb on Y alone, two, which is what
+// the browser's own area is already counted at in this file. 5238 + 420 = 5658.
+// It is never drawn beside the colour picker, because opening either closes the
+// other (scene.h), and it is counted on top all the same. AND ONE MORE SCROLL
+// AREA, the rows', on top of the dock's two and the browser's one, counted on
+// top all the same for the reason the picker's nodes are:
+// VOE_EDITOR_INTERFACE_SCROLLS is four.
+#define VOE_EDITOR_INTERFACE_NODES 583
+#define VOE_EDITOR_INTERFACE_ELEMENTS 5658
+#define VOE_EDITOR_INTERFACE_SCROLLS 4
 
 // Makes the context the interface is built in, once, drawing in `theme` and
 // with the font that theme was derived with — ui measures and draws every
@@ -297,6 +317,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // — either of those closes it. What it changes is submitted at once as the
 // row's replace intent and counted in `scene->inspector.replaced`; a press
 // outside it closes it. See interface.c.
+//
+// AND SO IS THE OPEN DROPDOWN (scene.h), hanging from the control that opened
+// it, while it shows — never beside the picker, because opening either closes
+// the other. A row chosen on it is submitted at once as that row's replace
+// intent and counted the same way; `escape` closes it, as does a press outside
+// its rectangle. See interface.c.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,

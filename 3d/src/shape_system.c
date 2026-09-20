@@ -1,6 +1,7 @@
 // The built-in shapes: uploading the geometry and material every shape wears,
 // the shape's intent and its drain, the run that gives a mesh and a material to
-// a shape that has neither yet, and the removal of both once the shape is gone.
+// a shape that has neither yet, re-points the mesh of a shape whose kind
+// changed, and removes both once the shape is gone.
 //
 // THE RUNS AND THE COUNTS ARE FILE-SCOPE STATICS AND THEREFORE PER PROCESS, the
 // same trade scene/identity_system.c makes and explains: two worlds in one
@@ -120,10 +121,17 @@ static float clamped(float channel)
 	return fminf(fmaxf(channel, 0.0f), 1.0f);
 }
 
+// Whether a kind is one of the three the shapes hold.
+static bool built_in(uint32_t kind)
+{
+	return kind == VOE_3D_SHAPE_CUBE || kind == VOE_3D_SHAPE_CAPSULE ||
+	       kind == VOE_3D_SHAPE_CYLINDER;
+}
+
 // Applies every waiting intent in submission order and empties the queue, with
-// kind put back and the colour clamped. A correction is reported like an
-// unknown kind: the first of a run named, the rest counted, the count said once
-// a drain corrects nothing.
+// a kind none of the three built-in ones put back and the colour clamped. A
+// correction is reported like an unknown kind: the first of a run named, the
+// rest counted, the count said once a drain corrects nothing.
 static void drain(voe_ecs_world *world, voe_ecs_type type)
 {
 	voe_ecs_intent queue = voe_ecs_component_replace(world, type).intent;
@@ -139,7 +147,8 @@ static void drain(voe_ecs_world *world, voe_ecs_type type)
 		if (own == NULL)
 			continue;
 
-		row.kind = own->kind;
+		if (!built_in(row.kind))
+			row.kind = own->kind;
 		row.colour = (voe_math_float3){ clamped(row.colour.x),
 						clamped(row.colour.y),
 						clamped(row.colour.z) };
@@ -187,6 +196,23 @@ static void drain(voe_ecs_world *world, voe_ecs_type type)
 	voe_ecs_intent_clear(world, queue);
 }
 
+// Whether two geometry ids name the same range.
+static bool same_geometry(voe_render_geometry a, voe_render_geometry b)
+{
+	return a.index == b.index && a.generation == b.generation;
+}
+
+// The geometry a kind is drawn with, or NULL when the kind names none — the one
+// place the three-way choice is written.
+static const voe_render_geometry *geometry_of(uint32_t kind,
+					      const voe_3d_shapes *shapes)
+{
+	return kind == VOE_3D_SHAPE_CUBE	    ? &shapes->cube :
+	       kind == VOE_3D_SHAPE_CAPSULE	    ? &shapes->capsule :
+	       kind == VOE_3D_SHAPE_CYLINDER ? &shapes->cylinder :
+					       NULL;
+}
+
 // Whether a mesh is on one of the shapes' geometries.
 static bool on_a_shape(const voe_3d_mesh *mesh, const voe_3d_shapes *shapes)
 {
@@ -194,10 +220,33 @@ static bool on_a_shape(const voe_3d_mesh *mesh, const voe_3d_shapes *shapes)
 					    shapes->cylinder };
 
 	for (uint32_t i = 0; i < sizeof all / sizeof all[0]; i++)
-		if (mesh->geometry.index == all[i].index &&
-		    mesh->geometry.generation == all[i].generation)
+		if (same_geometry(mesh->geometry, all[i]))
 			return true;
 	return false;
+}
+
+// Points the mesh of every shaped entity whose mesh is on one of the shapes'
+// geometries and not on the one its kind names at the kind's — see the header.
+// A mesh on any other geometry is an imported model's and is left alone, as is
+// a row whose kind names no geometry.
+static void re_point(voe_ecs_world *world, const voe_3d_shape *rows,
+		     const voe_ecs_entity *entities, uint32_t count,
+		     const voe_3d_shapes *shapes)
+{
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_render_geometry *geometry =
+			geometry_of(rows[i].kind, shapes);
+		const voe_3d_mesh *mesh = voe_3d_mesh_get(world, entities[i]);
+
+		if (geometry == NULL || mesh == NULL ||
+		    !on_a_shape(mesh, shapes) ||
+		    same_geometry(mesh->geometry, *geometry))
+			continue;
+
+		VOE_BASE_ASSERT(
+			voe_3d_mesh_set_geometry(world, entities[i], *geometry),
+			"a shape's mesh was read and then refused a geometry in the same run");
+	}
 }
 
 // Queues the removal of the mesh and the material of every entity that is
@@ -254,10 +303,7 @@ void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes)
 
 	for (uint32_t i = 0; i < count; i++) {
 		const voe_render_geometry *geometry =
-			rows[i].kind == VOE_3D_SHAPE_CUBE     ? &shapes->cube :
-			rows[i].kind == VOE_3D_SHAPE_CAPSULE  ? &shapes->capsule :
-			rows[i].kind == VOE_3D_SHAPE_CYLINDER ? &shapes->cylinder :
-								NULL;
+			geometry_of(rows[i].kind, shapes);
 
 		if (voe_3d_mesh_get(world, entities[i]) != NULL)
 			continue;
@@ -290,6 +336,7 @@ void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes)
 		}
 	}
 
+	re_point(world, rows, entities, count, shapes);
 	drop_orphans(world, type, shapes);
 
 	if (unknown > 0) {

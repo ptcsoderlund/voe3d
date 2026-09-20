@@ -25,26 +25,6 @@
 // `structural`, a refusal setting its `full` — Delete's and Duplicate's two
 // fields (scene.h).
 //
-// AN EDIT IS A REPLACE INTENT AND NEVER A WRITE (ADR-0134 point 4). A control
-// that moved does not touch the table: the row is read, copied into a zeroed
-// intent whose entity sits at offset zero, the field's bytes are overwritten,
-// and the intent is submitted for the owning system to drain. The editor never
-// calls voe_ecs_component_set — the whole point of rule 4 is that a tool which
-// knows nothing about a component cannot be the thing that writes it. A number
-// typed into a box (ADR-0192) is the same `changed` a drag is and goes the same
-// way, so a rotation's angle, a whole number's rounding and a read-only label
-// behave alike for both. A CHAR array (rank 1) is a `ui` text field, which is
-// how the name is edited: on `committed` with text that differs from the row,
-// the text is copied into the row's bytes, truncated to leave room for its
-// terminating zero, and submitted the same way. Tab walks the fields and boxes
-// in the order they are drawn — the name, then each number.
-//
-// A COMPONENT WITH NO REPLACE INTENT IS SHOWN AND NOT EDITED, which is what
-// ecs/component.h says such a type is for. Its fields are labels, because the
-// alternative is a box that drags and changes nothing — and a control that lies
-// is worse than a number a person can read and not touch. A field marked
-// read-only is a label for the same reason (ADR-0139 point 2), whatever its kind.
-//
 // THE CONTROLS OUTLIVE THE CALL THAT DREW THEM, WHICH IS WHY THIS IS A STRUCT.
 // A `ui` widget answers what the pointer did to it only after voe_ui_frame_end
 // (ui/widgets.h) and the panel returned long before that — the same reason the
@@ -66,11 +46,42 @@
 // voe_editor_inspector_colour_submit, the same replace intent and the same
 // count in `replaced` a dragged number is.
 //
-// DUPLICATE AND DELETE HEAD THE PANEL WHEN AN ENTITY IS SELECTED, recorded like
-// every other control and read after the frame by
-// voe_editor_inspector_buttons_read, which calls the same scene.h function the
-// Delete key and Ctrl+D call. scene.h holds this struct, so it is named here by
-// its tag and not by including it.
+// A NAMED FIELD IS A DROPDOWN (ADR-0195, 0198). A field whose description
+// carries names is shown by the name of the value it holds and not by its
+// number, inside a button when the type has a replace intent and the field is
+// not read-only and as a plain label otherwise, for the same reason a read-only
+// number is a label. A value no entry names is shown as the number it is, which
+// is what an older build seeing a newer file's kind shows. The button only opens
+// the list, the choice arriving later through
+// voe_editor_inspector_named_submit. What a fired button opens the list on is
+// the `voe_editor_dropdown` below, whose shape is this file's because this panel
+// is what draws the list and reads what was picked from it, and scene.h holds
+// the one that is open and says who may open and close it.
+//
+// THE OPEN LIST IS DRAWN ON THIS PANEL AND NOT OVER IT (ADR-0199). An overlay
+// belongs to the widget it opened from, so the list is an anchored child of this
+// panel's own content column and is scrolled and clipped with it: when the
+// button scrolls out of the panel the list goes with it instead of floating over
+// the editor. It is emitted after every section because submission order is
+// paint order (ui/layout.h), and a list emitted beside its button would be
+// painted over by the rows below it. Its offset is in that column's space, so
+// scrolling changes neither of the two numbers. Its panel takes the pointer
+// (ui/layout.h), so everything inside its outline is the list's: the gaps
+// between the rows and the padding at its edges belong to it, and no field,
+// button, swatch or number box it covers hovers, highlights or fires through it
+// (ADR-0199). The area that clips the list is handed in by dock.c through
+// voe_editor_inspector_area_set, because where the list fits is measured
+// against that rectangle and this panel never sees the container it is drawn
+// inside. The rows sit in a scroll area of their own inside the list's panel,
+// at their natural height while the dropdown's `height` is nought and capped to
+// it when it is not, so the wheel over a capped list moves the rows within it
+// and the list keeps its size and its place (ADR-0200). What the rows wanted is
+// read back from that area with voe_ui_node_measured even while it is capped
+// (ui/layout.h), which is what lets the read decide whether they would have
+// fitted. And what the rows cannot take of a wheel gesture passes outward to
+// the panel's own area behind them, as it does between any two nested areas
+// (ui/widgets.h): the panel scrolls, the button moves, and the list follows it
+// — which is why that is not a hole in ADR-0200 but the same rule twice.
 #pragma once
 
 #include <base/arena.h>
@@ -106,6 +117,39 @@
 // does can make one.
 #define VOE_EDITOR_INSPECTOR_SECTIONS 8
 
+// How many of a named field's values the open list shows. A further one gets no
+// row; the shapes' three are what there is today.
+#define VOE_EDITOR_DROPDOWN_ROWS 16
+
+// What the open dropdown chooses among. Zeroed is a closed one.
+typedef struct {
+	bool open;
+	voe_ecs_entity entity;
+	voe_ecs_type type;
+	// Bytes from the start of the row to the field's uint32_t.
+	size_t offset;
+	// The field's value names (base/describe.h): entry i names value i. A
+	// table of the declaring folder's own, static and so outliving every
+	// frame.
+	const voe_base_field_names *names;
+	// Where the list's top-left corner goes, in millimetres from the
+	// top-left of this panel's content column (`content` below) and not
+	// from the surface. The column and the button the list hangs from are
+	// moved by the same scroll offset, so this pair does not change as the
+	// panel scrolls; what it is measured from is the button's rectangle,
+	// every frame the list is open (ADR-0199, inspector_edit.h).
+	float left;
+	float top;
+	// How tall the list's rows may be, in millimetres, or nought
+	// for as tall as they come. Set only when the list fits neither
+	// below the button nor above it: it is then capped to the room
+	// on the roomier side and scrolls inside itself, so the last
+	// value is still reachable (ADR-0200, inspector_edit.h). It is
+	// the rows' own height and not the panel's — the panel is that
+	// much plus its own padding and border.
+	float height;
+} voe_editor_dropdown;
+
 // One control the panel drew, and everything the read needs to turn what the
 // pointer did to it back into bytes in a component's row.
 //
@@ -130,6 +174,11 @@ typedef struct {
 	// kind.
 	uint32_t axis;
 	double shown;
+	// The value names of a named field (base/describe.h), NULL for every
+	// other control. Set, this control is the dropdown's closed button and
+	// writes nothing itself: a fired one opens the list
+	// (inspector_edit.h), and `writes` is the UINT32 the chosen value is.
+	const voe_base_field_names *names;
 } voe_editor_inspector_control;
 
 // A button that acts on one component type: a section's Remove, or one of Add
@@ -138,6 +187,13 @@ typedef struct {
 	voe_ui_node node;
 	voe_ecs_type type;
 } voe_editor_inspector_type_button;
+
+// One row of the open list as this panel drew it: the choice button, and the
+// value it names.
+typedef struct {
+	voe_ui_node node;
+	uint32_t value;
+} voe_editor_dropdown_row;
 
 // What the Inspector panel drew this frame. Zeroed is a panel that has drawn
 // nothing yet, which is what it is before the first frame.
@@ -177,15 +233,50 @@ typedef struct {
 	// primary button, which finds the press that hides them.
 	bool choosing;
 	bool pointer_was_down;
+	// What the open list is open on, as it stood when this frame began.
+	// Copied out of scene.h's by voe_editor_inspector_frame_begin, so that
+	// the panel draws from one value all frame and the read that follows
+	// sees the same one; zeroed is a closed list.
+	voe_editor_dropdown dropdown;
+	// The one column everything this panel draws sits in, and the thing the
+	// open list is anchored to. VOE_UI_NODE_NONE when nothing was drawn.
+	voe_ui_node content;
+	// The scroll area this panel's contents were drawn inside, as
+	// dock.c handed it over this frame, and VOE_UI_NODE_NONE when
+	// nobody did. voe_ui_node_visible of it is the room the open
+	// list has to fit in: that area is what clips the list
+	// (ADR-0199), so what is left of the area is exactly what can
+	// be seen of anything drawn in it, however far it is scrolled.
+	voe_ui_node area;
+	// The open list's panel and the area its rows sit in, as drawn
+	// this frame, VOE_UI_NODE_NONE when no list was drawn. Kept for
+	// the read, which measures the rows against the room the panel
+	// leaves (inspector_edit.h) and asks whether a press landed
+	// inside the outline.
+	voe_ui_node list;
+	voe_ui_node list_rows;
+	// The open list's rows as drawn this frame, kept for the read for the
+	// reason every other control here is.
+	voe_editor_dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];
+	uint32_t row_count;
 } voe_editor_inspector;
-
-struct voe_editor_scene;
 
 // Forgets last frame's controls and takes this frame's arena. Called between
 // voe_ui_frame_begin and the walk, because the nodes and the text below both
 // name things that live in that arena and last frame's have gone.
+// `dropdown` is what the open list is open on, NULL saying a closed one.
 void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
-				      voe_base_arena *arena);
+				      voe_base_arena *arena,
+				      const voe_editor_dropdown *dropdown);
+
+// Hands over the scroll area this panel's contents are about to be drawn
+// inside, for the open list to measure its room against (ADR-0200). Called
+// between voe_ui_frame_begin and voe_editor_inspector_draw by whoever opened
+// that area, which is dock.c's walk; the node is this frame's, like every other
+// one on the struct, and a panel drawn inside nothing that clips hands over
+// VOE_UI_NODE_NONE.
+void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
+				   voe_ui_node area);
 
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is
@@ -196,33 +287,3 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       voe_ecs_type identity);
-
-// Turns whatever the pointer did to this frame's controls into replace intents.
-// Called after voe_ui_frame_end and before the frame's arena is rewound, which
-// is the one window in which a widget will answer (ui/widgets.h).
-void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
-				     const voe_ui_context *ui,
-				     voe_ecs_world *world);
-
-// Carries out whichever of Duplicate and Delete fired this frame, through
-// voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`, and
-// whichever Remove or Add component choice did, through entities.h on the
-// entity they were drawn for, and opens the picker on whichever swatch did — counting one in scene->structural, or setting
-// scene->full when refused. Add component toggles the choices, and a press on
-// none of those buttons hides them; `down` is the pointer's primary button this
-// frame. Called in the same window as voe_editor_inspector_edits_read and before
-// the Scene panel's clicks can move the selection the buttons were drawn for.
-void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
-				       const voe_ui_context *ui,
-				       struct voe_editor_scene *scene,
-				       bool down);
-
-// Submits `colour` as the replace intent of `type`'s row on `entity`, its three
-// floats at `offset`, and counts one in `replaced`. The picker's change, read
-// by interface.c in the same window as the edits. An entity no longer alive, or
-// without the row, submits and counts nothing past the check.
-void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
-					voe_ecs_world *world,
-					voe_ecs_entity entity,
-					voe_ecs_type type, size_t offset,
-					voe_math_float3 colour);

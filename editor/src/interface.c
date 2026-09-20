@@ -30,10 +30,16 @@
 // swatch that fires in the frame an outside press closed the picker opens it
 // again rather than being closed behind. The browser and Preferences cover the
 // same area, and either showing closes it.
+//
+// THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
+// FILE'S. It is drawn inside that panel so that it moves and disappears with the
+// button it hangs from (ADR-0199), and the only thing this file still does to it
+// is close it on Escape.
 #include "interface.h"
 
 #include "browser.h"
 #include "inspector.h"
+#include "inspector_edit.h"
 #include "notice.h"
 #include "preferences.h"
 #include "project.h"
@@ -142,6 +148,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_scene_picker_close(scene);
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
+		// The open list is the Inspector's own (inspector.h); closing
+		// it on Escape is all this file does to it.
+		if (escape)
+			voe_editor_scene_dropdown_close(scene);
 
 		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
 		if (browsing || preferring)
@@ -161,7 +171,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The inspector formats every label it draws into this arena
 		// and hands back its controls through nodes out of this frame,
 		// so it is opened here beside the frame and not inside the walk.
-		voe_editor_inspector_frame_begin(&scene->inspector, arena);
+		voe_editor_inspector_frame_begin(&scene->inspector, arena,
+						 &scene->dropdown);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
 		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first
@@ -249,7 +260,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_editor_scene_picker_close(scene);
 		}
 		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
-						  root->pointer.down);
+						  root->pointer.down,
+						  root->pointer.at);
 		if (!voe_editor_scene_clicks_read(scene, ui,
 						  root->pointer.down))
 			voe_editor_notice_set(&session->notice,

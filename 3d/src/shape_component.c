@@ -13,6 +13,10 @@
 
 const struct voe_ecs_key voe_3d_shape_key = { "voe_3d_shape" };
 
+// In the kinds' own order: the index is the kind, so nought is no kind.
+const char *const voe_3d_shape_kind_names[4] = { NULL, "Cube", "Capsule",
+						 "Cylinder" };
+
 static const struct voe_ecs_key shape_intent_key = { "voe_3d_shape_intent" };
 
 static const voe_base_struct_description *shape_description(void)

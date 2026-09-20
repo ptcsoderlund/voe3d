@@ -1,5 +1,5 @@
-// The selection, the colour picker's target, and the rows the Scene panel
-// drew. See the header for why building a project's entities is not this
+// The selection, the colour picker's and the open dropdown's targets, and the
+// rows the Scene panel drew. See the header for why building a project's entities is not this
 // file's job, and why the rows outlive the call that drew them.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
@@ -171,6 +171,7 @@ void voe_editor_scene_picker_open(voe_editor_scene *scene,
 
 	picking.open = true;
 	scene->picking = picking;
+	scene->dropdown.open = false;
 }
 
 void voe_editor_scene_picker_close(voe_editor_scene *scene)
@@ -204,4 +205,34 @@ bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 
 	memcpy(colour, row + scene->picking.offset, sizeof *colour);
 	return true;
+}
+
+void voe_editor_scene_dropdown_open(voe_editor_scene *scene,
+				    voe_editor_dropdown dropdown)
+{
+	VOE_BASE_ASSERT(scene != NULL, "opening a dropdown on no scene");
+
+	dropdown.open = true;
+	scene->dropdown = dropdown;
+	scene->picking.open = false;
+}
+
+void voe_editor_scene_dropdown_close(voe_editor_scene *scene)
+{
+	VOE_BASE_ASSERT(scene != NULL, "closing the dropdown of no scene");
+
+	scene->dropdown.open = false;
+}
+
+void voe_editor_scene_dropdown_place(voe_editor_scene *scene, float left,
+				     float top, float height)
+{
+	VOE_BASE_ASSERT(scene != NULL, "placing the dropdown of no scene");
+
+	if (!scene->dropdown.open)
+		return;
+
+	scene->dropdown.left = left;
+	scene->dropdown.top = top;
+	scene->dropdown.height = height;
 }
