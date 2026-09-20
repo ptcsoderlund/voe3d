@@ -148,6 +148,16 @@ carries it out.
   field for a CHAR array such as the name, a swatch for a colour, the three
   angles shown and never stored, the replace intent a dragged or typed control
   becomes, and the Add component list.
+- `inspector_value.h` — what a field's bytes say: a kind and an offset in, a
+  number, three shown angles or the one string a label is given out. Its header
+  says why nothing in it draws or writes, that it is the Inspector's shared
+  arithmetic, why every string it formats goes in the frame's arena, and why the
+  three angles are shown and never stored.
+- `inspector_value.c` — a number read out of a field's bytes whatever its width,
+  a whole number as the double a box drags, the Z-Y-X decomposition of a
+  rotation and the world axis and name of one of its three rows, a type's
+  heading from its key, a field as one string, and how many boxes a kind is
+  worth.
 - `view.h` — a scene view: its camera, its target and the middle-button drag.
   Its header says why the camera is not an entity, why the light is the
   world's, why the picture's size lags the layout by a frame, and why a view
