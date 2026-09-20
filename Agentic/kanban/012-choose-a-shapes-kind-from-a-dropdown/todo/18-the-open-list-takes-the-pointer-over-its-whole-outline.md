@@ -16,14 +16,13 @@ is what the Inspector's scroll area has left of it. Nothing else in the function
 `editor/src/inspector.h`: the paragraph THE OPEN LIST IS DRAWN ON THIS PANEL AND NOT OVER IT gains what is now
 also true of it. Its panel takes the pointer (ui/layout.h), so everything inside its outline is the list's: the
 gaps between the rows and the padding at its edges belong to it, and no field, button, swatch or number box it
-covers hovers, highlights or fires through it (ADR-0199). And the consequence worth writing down rather than
-rediscovering: a press that lands in that padding reaches no widget at all, so it is the press on nothing that
-closes the list (inspector_edit.h) — it closes the list and disturbs nothing underneath, which is what a click
-inside an overlay is for.
+covers hovers, highlights or fires through it (ADR-0199). What closes an open list is written down in
+inspector_edit.h and stays there; do not add a sentence about it here.
 
 ## Done when
-The coder: `checks.sh --folder editor` exits 0, `cmake --build --preset debug` builds the whole tree, and
-`checks.sh --all` exits 0. This is the last card of 012, and that one command is the whole-suite proof.
+The coder: `checks.sh --folder editor` exits 0 and `cmake --build --preset debug` builds the whole tree. Cards
+19 to 23 follow this one, for the bug that the open list runs off the bottom of the panel; card 23 carries the
+whole-suite proof.
 
 The human, at a running `voe_editor` on a project — the bug's own steps first: select an entity with a Shape,
 open the kind dropdown where it covers other fields, and move the cursor slowly down the list from Cube to
