@@ -27,6 +27,7 @@
 
 #include <base/arena.h>
 #include <math/float2.h>
+#include <math/float4.h>
 
 #include <testing/test.h>
 
@@ -335,6 +336,42 @@ static void the_thumb_is_as_long_and_as_far_as_the_offset_says(
 	check_thumb(ui, 21.0f);
 }
 
+// The colour of the thumb record — the second of the bar's two, the track
+// being the first.
+static void check_thumb_colour(voe_ui_context *ui, voe_math_float4 want)
+{
+	voe_render_element thumb;
+
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 2);
+	if (voe_ui_element_count(ui) != 2)
+		return;
+
+	thumb = voe_ui_element(ui, 1);
+	VOE_TEST_CHECK_FLOAT(thumb.colour.x, want.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(thumb.colour.y, want.y, 0.001f);
+	VOE_TEST_CHECK_FLOAT(thumb.colour.z, want.z, 0.001f);
+}
+
+// A HELD THUMB IS DRAWN INVERTED (ADR-0196), as every other held control is.
+// Pressed on the thumb, which stands at the top of the track, and kept down:
+// `inverse`. Let go with the pointer clear of the bar: the control it is at
+// rest, which is what makes the first check a state and not the only colour a
+// thumb has.
+static void a_held_thumb_is_inverted(voe_base_arena *arena)
+{
+	voe_ui_context *ui = scroll_context(arena, 4);
+
+	(void)build_area(ui, arena, pointer_at(ON_BAR_X, 4.0f, false, 0.0f),
+			 100.0f, false);
+	(void)build_area(ui, arena, pointer_at(ON_BAR_X, 4.0f, true, 0.0f),
+			 100.0f, false);
+	check_thumb_colour(ui, TEST_THEME.inverse);
+
+	(void)build_area(ui, arena, pointer_at(OFF_BAR_X, 4.0f, false, 0.0f),
+			 100.0f, false);
+	check_thumb_colour(ui, TEST_THEME.control);
+}
+
 // Pressed on the thumb and moved 3 mm down: 3 x 100 / 30 is 10 of offset.
 static void dragging_the_thumb_moves_the_offset(voe_base_arena *arena)
 {
@@ -444,6 +481,7 @@ int main(void)
 	a_nested_area_passes_on_what_it_cannot_take(arena);
 	content_that_fits_has_no_bar(arena);
 	the_thumb_is_as_long_and_as_far_as_the_offset_says(arena);
+	a_held_thumb_is_inverted(arena);
 	dragging_the_thumb_moves_the_offset(arena);
 	pressing_the_track_pages_once(arena);
 	a_thumb_hides_the_button_beneath_it(arena);

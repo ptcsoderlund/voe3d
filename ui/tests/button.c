@@ -8,9 +8,18 @@
 // is the property the whole design is arranged around: the pointer is a value
 // handed in (ADR-0093), so a drag is three calls in a row and not a mouse. A
 // button is composed rather than given a string and a number box draws its
-// value only once it is open for typing, so nothing here touches a font, opens
+// value only once it is open for typing, so none of them touches a font, opens
 // a window, asks a compositor for anything or names `platform`. Typing into a
 // number box does need one and is `ui/tests/field.c`.
+//
+// STATE IS DRAWN INVERTED (ADR-0196), and the cases at the end of this file are
+// where that is pinned down: a held button, a number box being dragged and a
+// selected choice each draw a fill of `inverse` with the label on it in
+// `inverse_ink`, while merely hovered stays the control_hovered step it was.
+// Those cases put a label on a control and so measure a string, which needs a
+// real font and so a device — a headless one, with no window and no compositor,
+// and a skip naming what did not run where there is no driver at all
+// (ADR-0106).
 //
 // ---- WHY THE CLICK CASES ARE THE ONES THAT MATTER ----
 //
@@ -36,8 +45,13 @@
 
 #include <base/arena.h>
 #include <math/float2.h>
+#include <math/float4.h>
+#include <render/device.h>
+#include <text/font.h>
 
 #include <testing/test.h>
+
+#include <stdio.h>
 
 #define SCRATCH 65536
 
@@ -734,6 +748,208 @@ static void movement_inside_the_dead_zone_changes_nothing(
 	VOE_TEST_CHECK(!voe_ui_number_action(ui, f.n).held);
 }
 
+// ---- STATE DRAWN INVERTED, WHICH NEEDS A FONT ----
+
+// The three controls the cases below are built from, each round the same
+// one-letter label.
+enum control { CONTROL_BUTTON, CONTROL_NUMBER, CONTROL_CHOICE };
+
+// One of the three at the origin of a bare column, which emits nothing itself,
+// so every record of the frame is the control's: its border where it has one,
+// its fill, and then the label's letters. All three are 2.5 of padding round a
+// label taller and wider than nothing, so the pointer a millimetre in from the
+// origin is inside whichever was built.
+static voe_ui_node build_labelled(voe_ui_context *ui, voe_base_arena *arena,
+				  enum control kind, bool selected, float x,
+				  bool over, bool down)
+{
+	voe_ui_node n;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = { x, 1.0f },
+						 .over = over,
+						 .down = down });
+
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	if (kind == CONTROL_NUMBER)
+		n = voe_ui_number_begin(ui, "n", 0, START, PER_MM);
+	else if (kind == CONTROL_CHOICE)
+		n = voe_ui_choice_begin(ui, "c", 0, selected);
+	else
+		n = voe_ui_button_begin(ui, "a", 0);
+	voe_ui_label(ui, "A");
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	return n;
+}
+
+// Alpha is not compared: every record here is opaque.
+static void check_colour(voe_math_float4 got, voe_math_float4 want)
+{
+	VOE_TEST_CHECK_FLOAT(got.x, want.x, 0.001f);
+	VOE_TEST_CHECK_FLOAT(got.y, want.y, 0.001f);
+	VOE_TEST_CHECK_FLOAT(got.z, want.z, 0.001f);
+}
+
+// The control's fill and the ink of every letter on it. A button and a choice
+// are a border and then the fill inside it; a number box is one borderless
+// fill; the label's letters follow either.
+static void check_control(voe_ui_context *ui, enum control kind,
+			  voe_math_float4 fill, voe_math_float4 ink)
+{
+	uint32_t at = kind == CONTROL_NUMBER ? 0u : 1u;
+	uint32_t glyphs = 0;
+
+	VOE_TEST_CHECK(voe_ui_element_count(ui) > at);
+	if (voe_ui_element_count(ui) <= at)
+		return;
+
+	check_colour(voe_ui_element(ui, at).colour, fill);
+
+	for (uint32_t i = at + 1; i < voe_ui_element_count(ui); i++) {
+		voe_render_element e = voe_ui_element(ui, i);
+
+		if (e.kind != VOE_RENDER_ELEMENT_GLYPH)
+			continue;
+		glyphs++;
+		check_colour(e.colour, ink);
+	}
+
+	// The letters are real: a label that measured to nothing would leave
+	// every ink check above unrun.
+	VOE_TEST_CHECK(glyphs > 0);
+}
+
+// A HELD BUTTON IS DRAWN INVERTED, LABEL AND ALL (ADR-0196): the fill is
+// `inverse` and the letters on it `inverse_ink`, which the caller's plain
+// label never asked for and the button decided.
+static void a_held_button_is_inverted(voe_ui_context *ui,
+				      voe_base_arena *arena)
+{
+	voe_ui_node b = build_labelled(ui, arena, CONTROL_BUTTON, false, 1.0f,
+				       true, false);
+
+	// Up first, so the press below is an edge.
+	VOE_TEST_CHECK(!voe_ui_button_action(ui, b).held);
+
+	b = build_labelled(ui, arena, CONTROL_BUTTON, false, 1.0f, true, true);
+	VOE_TEST_CHECK(voe_ui_button_action(ui, b).held);
+	check_control(ui, CONTROL_BUTTON, TEST_THEME.inverse,
+		      TEST_THEME.inverse_ink);
+
+	// Let go, so the next case starts with the pointer up.
+	(void)build_labelled(ui, arena, CONTROL_BUTTON, false, 1.0f, true,
+			     false);
+}
+
+// A number box being dragged is the same state: pressed at 1 and dragged to
+// 11, nine millimetres past the dead zone, so it is moving the value and drawn
+// inverted while it does.
+static void a_dragged_number_box_is_inverted(voe_ui_context *ui,
+					     voe_base_arena *arena)
+{
+	voe_ui_node n = build_labelled(ui, arena, CONTROL_NUMBER, false, 1.0f,
+				       true, false);
+
+	VOE_TEST_CHECK(!voe_ui_number_action(ui, n).held);
+
+	(void)build_labelled(ui, arena, CONTROL_NUMBER, false, 1.0f, true,
+			     true);
+	n = build_labelled(ui, arena, CONTROL_NUMBER, false, 11.0f, true, true);
+	VOE_TEST_CHECK(voe_ui_number_action(ui, n).changed);
+	check_control(ui, CONTROL_NUMBER, TEST_THEME.inverse,
+		      TEST_THEME.inverse_ink);
+
+	// Let go far outside the dead zone, which ends the drag without
+	// opening the box for typing.
+	(void)build_labelled(ui, arena, CONTROL_NUMBER, false, 11.0f, true,
+			     false);
+}
+
+// A SELECTED CHOICE IS DRAWN AS A HELD BUTTON IS, with no pointer on it at
+// all, and being neither selected nor held it is the ordinary control — and
+// control_hovered under the pointer, which inversion does not swallow.
+static void a_selected_choice_is_inverted(voe_ui_context *ui,
+					  voe_base_arena *arena)
+{
+	(void)build_labelled(ui, arena, CONTROL_CHOICE, true, 1.0f, false,
+			     false);
+	check_control(ui, CONTROL_CHOICE, TEST_THEME.inverse,
+		      TEST_THEME.inverse_ink);
+
+	(void)build_labelled(ui, arena, CONTROL_CHOICE, false, 1.0f, false,
+			     false);
+	check_control(ui, CONTROL_CHOICE, TEST_THEME.control,
+		      TEST_THEME.text_primary);
+
+	(void)build_labelled(ui, arena, CONTROL_CHOICE, false, 1.0f, true,
+			     false);
+	check_control(ui, CONTROL_CHOICE, TEST_THEME.control_hovered,
+		      TEST_THEME.text_primary);
+}
+
+// The device and the font the three cases above need, and the skip that stands
+// in for them where there is no driver.
+static void the_inverted_states(voe_base_arena *arena)
+{
+	voe_platform_size size = { 64, 64 };
+	// Nothing here draws anything. The device exists so that a font can
+	// upload its atlas, which is a texture and not a pool — so these are
+	// the smallest numbers a device will open with and not an estimate of
+	// anything.
+	voe_render_capacities capacities = {
+		.vertices = 4,
+		.indices = 6,
+		.geometries = 1,
+		.objects = 1,
+		.shadings = 1,
+		.passes = 1,
+	};
+	voe_render_device *device;
+	voe_text_font *font;
+	voe_ui_context *ui;
+	voe_base_error error = VOE_BASE_OK;
+
+	device = voe_render_device_new_headless(arena, size, capacities,
+						&error);
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED) {
+			// ADR-0106: a skip names what went unchecked, not only
+			// why it did.
+			printf("skip: no graphics driver — the held-button, "
+			       "dragged-number-box and selected-choice "
+			       "inversion checks did not run\n");
+			return;
+		}
+		VOE_TEST_CHECK(device != NULL);
+		return;
+	}
+
+	// Oxanium: nothing here cares which face, so the engine's default.
+	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, device, arena,
+				 &error);
+	if (font == NULL) {
+		VOE_TEST_CHECK(font != NULL);
+		voe_render_device_destroy(device);
+		return;
+	}
+
+	ui = voe_ui_context_new(arena, (voe_ui_capacities){ .nodes = 16,
+							    .elements = 64 });
+	voe_ui_font_set(ui, font);
+	voe_ui_theme_set(ui, &TEST_THEME);
+
+	a_held_button_is_inverted(ui, arena);
+	a_dragged_number_box_is_inverted(ui, arena);
+	a_selected_choice_is_inverted(ui, arena);
+
+	voe_text_font_destroy(font);
+	voe_render_device_destroy(device);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -764,6 +980,8 @@ int main(void)
 	a_half_clipped_button_emits_its_visible_half(ui, arena);
 	a_pointer_over_the_clipped_half_hovers_nothing(ui, arena);
 	a_number_box_scrolled_away_mid_drag_keeps_dragging(ui, arena);
+
+	the_inverted_states(arena);
 
 	// A context of its own for the dead zone, thrown away with the box it
 	// leaves open still open — see the case itself.

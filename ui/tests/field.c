@@ -20,6 +20,11 @@
 // bytes, which is what lets a caller write the answer back every frame with no
 // cost on the frames that changed nothing.
 //
+// THE SELECTED TEXT IS DRAWN INVERTED (ADR-0196), and that is one record of
+// `inverse` behind the letters and the letters themselves in `inverse_ink`, so
+// both halves of the pair are checked together: either one alone is text that
+// cannot be read.
+//
 // A NUMBER BOX IS OPENED BY A CLICK AND NEVER BY A DRAG, and once it is open it
 // is a field: a typed number is taken on Enter, an unchanged text changes
 // nothing, a refused one stays open until Escape, and Tab commits and opens the
@@ -41,11 +46,13 @@
 
 #include <base/arena.h>
 #include <math/float2.h>
+#include <math/float4.h>
 #include <render/device.h>
 #include <text/font.h>
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -395,6 +402,55 @@ static void backspace_on_a_newly_focused_field_empties_it(
 	r = voe_ui_field_action(ui, f.f);
 	VOE_TEST_CHECK(r.changed);
 	VOE_TEST_CHECK(strcmp(r.text, "") == 0);
+}
+
+// Two colours are the same role, to the tolerance every other check here uses.
+// Alpha is not compared: every record below is opaque.
+static bool same_colour(voe_math_float4 a, voe_math_float4 b)
+{
+	return fabsf(a.x - b.x) < 0.001f && fabsf(a.y - b.y) < 0.001f &&
+	       fabsf(a.z - b.z) < 0.001f;
+}
+
+// THE WHOLE TEXT SELECTED IS DRAWN INVERTED (ADR-0196). A field just focused
+// arrives selected, so that frame carries one record of `inverse` behind the
+// letters and every letter of "hi" in `inverse_ink`. The panel's border and
+// fill and the field's own fill are the other records before them.
+//
+// ONLY THE RECORDS BEFORE THE FIRST LETTER ARE COUNTED, because `inverse` is a
+// fill AT text_primary's lightness and in the same hue, so the caret — drawn in
+// text_primary after the letters — is the very same colour and counting the
+// whole list would find two.
+static void a_selected_text_is_inverted(voe_ui_context *ui,
+					voe_base_arena *arena)
+{
+	uint32_t count;
+	uint32_t glyphs = 0;
+	uint32_t first_glyph;
+	uint32_t behind = 0;
+
+	focus_field(ui, arena, "hi");
+	count = voe_ui_element_count(ui);
+	first_glyph = count;
+
+	for (uint32_t i = 0; i < count; i++) {
+		voe_render_element e = voe_ui_element(ui, i);
+
+		if (e.kind != VOE_RENDER_ELEMENT_GLYPH)
+			continue;
+		if (glyphs == 0)
+			first_glyph = i;
+		glyphs++;
+		VOE_TEST_CHECK(same_colour(e.colour, TEST_THEME.inverse_ink));
+	}
+
+	for (uint32_t i = 0; i < first_glyph; i++)
+		if (same_colour(voe_ui_element(ui, i).colour,
+				TEST_THEME.inverse))
+			behind++;
+
+	VOE_TEST_CHECK_INT((int)glyphs, 2);
+	VOE_TEST_CHECK_INT((int)behind, 1);
 }
 
 // Escape cancels: the focus drops, `text` is the caller's own that frame,
@@ -852,6 +908,7 @@ static int the_field(voe_base_arena *arena)
 	unfocused_hands_back_the_callers_own_pointer(ui, arena);
 	typing_into_a_newly_focused_field_replaces_its_text(ui, arena);
 	backspace_on_a_newly_focused_field_empties_it(ui, arena);
+	a_selected_text_is_inverted(ui, arena);
 	escape_cancels_and_the_callers_text_stands(ui, arena);
 	enter_and_a_press_elsewhere_commit_the_typed_text(ui, arena);
 	tab_moves_the_focus_to_the_next_field_and_wraps(ui, arena);
