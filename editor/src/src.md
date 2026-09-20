@@ -137,9 +137,11 @@ carries it out.
   it, and the struct one frame of them is recorded in; with an entity selected,
   Duplicate and Delete buttons head it, every section but the identity's has a
   Remove button, Add component lists the described types it lacks, and a colour
-  is a swatch whose button opens the colour picker. Its header says why
-  runtime-only types are not shown, how a heading is made from a key, and why
-  the controls and every label's text have to outlive the call that drew them.
+  is a swatch whose button opens the colour picker. It holds the shape of the
+  open dropdown, because this panel is what draws the list and reads what was
+  picked from it. Its header says why runtime-only types are not shown, how a
+  heading is made from a key, and why the controls and every label's text have
+  to outlive the call that drew them.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
   described component types driven by base/describe.h alone, each section's
   heading, Remove and "Needs" line, a wrapping row per described field, a text
@@ -175,10 +177,11 @@ carries it out.
 - `scene.h` — the current project's world, the selection in it, the rows the
   Scene panel drew, its Add menu, Delete and Duplicate on the selection and
   the structural changes and refusals made this frame, what the Inspector drew
-  this frame, and what the colour picker and the open dropdown are open on. Its
-  header says why building a project's entities is not this file's job, why the
-  selection is the editor's and not the dock tree's, why those rows outlive the
-  call that drew them, and why only one of the two popups is ever open.
+  this frame, and what the colour picker and the open dropdown are open on —
+  the dropdown's shape being inspector.h's. Its header says why building a
+  project's entities is not this file's job, why the selection is the editor's
+  and not the dock tree's, why those rows outlive the call that drew them, and
+  why only one of the two popups is ever open.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the
   colour picker and the dropdown, each closing the other, and the one question
   asked of the Scene panel's rows and Add menu after the frame has ended;

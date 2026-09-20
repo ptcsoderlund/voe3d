@@ -53,7 +53,10 @@
 // number is a label. A value no entry names is shown as the number it is, which
 // is what an older build seeing a newer file's kind shows. The button only opens
 // the list, the choice arriving later through
-// voe_editor_inspector_named_submit.
+// voe_editor_inspector_named_submit. What a fired button opens the list on is
+// the `voe_editor_dropdown` below, whose shape is this file's because this panel
+// is what draws the list and reads what was picked from it, and scene.h holds
+// the one that is open and says who may open and close it.
 #pragma once
 
 #include <base/arena.h>
@@ -88,6 +91,27 @@
 // room for eight (project.c). A type past it gets no button; nothing a person
 // does can make one.
 #define VOE_EDITOR_INSPECTOR_SECTIONS 8
+
+// How many of a named field's values the open list shows. A further one gets no
+// row; the shapes' three are what there is today.
+#define VOE_EDITOR_DROPDOWN_ROWS 16
+
+// What the open dropdown chooses among. Zeroed is a closed one.
+typedef struct {
+	bool open;
+	voe_ecs_entity entity;
+	voe_ecs_type type;
+	// Bytes from the start of the row to the field's uint32_t.
+	size_t offset;
+	// The field's value names (base/describe.h): entry i names value i. A
+	// table of the declaring folder's own, static and so outliving every
+	// frame.
+	const voe_base_field_names *names;
+	// Where the control that opened it sat on the surface, in millimetres:
+	// the list is anchored to that left edge, just under that bottom.
+	float left;
+	float top;
+} voe_editor_dropdown;
 
 // One control the panel drew, and everything the read needs to turn what the
 // pointer did to it back into bytes in a component's row.

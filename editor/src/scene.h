@@ -63,20 +63,18 @@
 //
 // THE OPEN DROPDOWN'S TARGET IS HERE TOO, IN `dropdown`, for the picker's
 // reason: it outlives the frame the control fired in and the Inspector's own
-// struct forgets its controls every frame. It names an entity, a component
-// type, the field's offset in the row and the names the field's values have
-// (base/describe.h), never a component (ADR-0195). It is opened by the
-// Inspector (inspector_edit.h) and closed by interface.c on Escape or a press
-// outside it, and here, on the next ask, when its entity is gone, no longer
-// selected or without the row. Closing chooses nothing: every choice was
+// struct forgets its controls every frame. Its shape is inspector.h's, because
+// the panel that draws the list and reads its rows is the Inspector's; what is
+// here is the one that is open, kept across frames (ADR-0195). It is opened by
+// the Inspector (inspector_edit.h) and closed by interface.c on Escape or a
+// press outside it, and here, on the next ask, when its entity is gone, no
+// longer selected or without the row. Closing chooses nothing: every choice was
 // submitted as it was made. And only one of it and the colour picker is ever
 // open, because opening either closes the other — so one popup shows at a time
 // and Escape means one thing.
 #pragma once
 
 #include "inspector.h"
-
-#include <base/describe.h>
 
 #include <ecs/world.h>
 #include <math/float3.h>
@@ -107,27 +105,6 @@ typedef struct {
 	// end just short of it.
 	float left;
 } voe_editor_picking;
-
-// How many of a named field's values the open list shows. A further one gets no
-// row; the shapes' three are what there is today.
-#define VOE_EDITOR_DROPDOWN_ROWS 16
-
-// What the open dropdown chooses among. Zeroed is a closed one.
-typedef struct {
-	bool open;
-	voe_ecs_entity entity;
-	voe_ecs_type type;
-	// Bytes from the start of the row to the field's uint32_t.
-	size_t offset;
-	// The field's value names (base/describe.h): entry i names value i. A
-	// table of the declaring folder's own, static and so outliving every
-	// frame.
-	const voe_base_field_names *names;
-	// Where the control that opened it sat on the surface, in millimetres:
-	// the list is anchored to that left edge, just under that bottom.
-	float left;
-	float top;
-} voe_editor_dropdown;
 
 // One row the Scene panel drew: the button, and the entity it names.
 typedef struct {
