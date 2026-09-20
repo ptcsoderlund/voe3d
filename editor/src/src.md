@@ -98,11 +98,13 @@ carries it out.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
-  button, the one in force marked, and Close, as an anchored panel over the
-  dock. Its header says why each row is drawn in its own theme, why Choose is
-  carried out elsewhere, and how many themes it lists.
+  button, the one in force marked, a slider for each of that theme's two
+  contrast scalars with a Reset button, and Close, as an anchored panel over
+  the dock. Its header says why each row is drawn in its own theme, why Choose
+  is carried out elsewhere, what the two sliders belong to, and how many themes
+  it lists.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
-  buttons afterwards.
+  buttons and sliders afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
   anchored panel over the dock, its own arena for the current folder and its
   rows, and in SAVE mode a name row with a focused `ui` field and a Make folder

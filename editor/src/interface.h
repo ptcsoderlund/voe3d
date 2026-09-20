@@ -195,8 +195,22 @@
 // is counted on top, as the card asked. A colour field's swatch is a button and
 // one solid element, inside the three nodes and eighteen elements a control
 // is already counted at above.
-#define VOE_EDITOR_INTERFACE_NODES 532
-#define VOE_EDITOR_INTERFACE_ELEMENTS 4935
+//
+// PREFERENCES' TWO SLIDERS AND RESET (preferences.h, task 14) ARE COUNTED ON
+// TOP ALL THE SAME, as the picker above is: FIFTEEN NODES — the column under
+// the list, one; a row per scalar, two; each scalar's name label, two; each
+// slider, three of its own (ui/slider.h), six; each value label, two; and
+// Reset as a button and a label, two. 532 + 15 = 547 nodes. AND THREE HUNDRED
+// AND THREE ELEMENTS: "Contrast", eight, and "Surface separation", seventeen,
+// its one space drawing nothing; each slider's three, the number box's fill
+// and the thumb's border and surface, six; each value label's four characters,
+// the whole range printing as `%.2f` of one digit, eight; Reset's border and
+// fill and its five letters, seven — 46; and, while one slider is open for
+// typing (ADR-0192), a caret and up to VOE_UI_FIELD_CAPACITY (256) characters
+// of whatever was typed, 257, one at a time because one thing holds the
+// keyboard. 4935 + 46 + 257 = 5238 elements.
+#define VOE_EDITOR_INTERFACE_NODES 547
+#define VOE_EDITOR_INTERFACE_ELEMENTS 5238
 #define VOE_EDITOR_INTERFACE_SCROLLS 3
 
 // Makes the context the interface is built in, once, drawing in `theme` and
