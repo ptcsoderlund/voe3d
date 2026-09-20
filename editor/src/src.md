@@ -133,21 +133,29 @@ carries it out.
 - `interface.c` — one `ui` frame per root, submitted into the open frame, and
   the one read of the frame's clicks that carries out the top bar's, the
   browser's and Preferences' commands and the colour picker's changes.
-- `inspector.h` — what the selected entity is made of, and the controls that
-  change it; an edit is a replace intent and never a write, and how many were
-  submitted this frame is a count `main.c` reads, a typed number or name going
-  the same way as a drag; with an entity selected, Duplicate and Delete buttons
-  head it, every section but the identity's has a Remove button, Add component
-  lists the described types it lacks, and a colour is a swatch whose button
-  opens the colour picker. Its header says why runtime-only types are not
-  shown, how a heading is made from a key, and why the controls and every
-  label's text have to outlive the call that drew them.
+- `inspector.h` — what the selected entity is made of, the controls that change
+  it, and the struct one frame of them is recorded in; with an entity selected,
+  Duplicate and Delete buttons head it, every section but the identity's has a
+  Remove button, Add component lists the described types it lacks, and a colour
+  is a swatch whose button opens the colour picker. Its header says why
+  runtime-only types are not shown, how a heading is made from a key, and why
+  the controls and every label's text have to outlive the call that drew them.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's
   described component types driven by base/describe.h alone, each section's
   heading, Remove and "Needs" line, a wrapping row per described field, a text
   field for a CHAR array such as the name, a swatch for a colour, the three
-  angles shown and never stored, the replace intent a dragged or typed control
-  becomes, and the Add component list.
+  angles shown and never stored, the record each control leaves behind for the
+  read, and the Add component list.
+- `inspector_edit.h` — the three calls that turn what the pointer did to the
+  Inspector's controls into replace intents and into scene.h's Duplicate,
+  Delete, Remove and Add component. Its header says why an edit is a replace
+  intent and never a write, why a component with no replace intent is shown and
+  not edited, and why all of it happens once the frame has ended.
+- `inspector_edit.c` — a dragged or typed number narrowed to what its control
+  writes and submitted as the component's replace intent, a rotation's edit as
+  the difference about a world axis, a committed text field as the row's CHAR
+  bytes, and the fired Duplicate, Delete, Remove, Add component choice and
+  swatch, the picker's colour among them.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a
   number, three shown angles or the one string a label is given out. Its header
   says why nothing in it draws or writes, that it is the Inspector's shared

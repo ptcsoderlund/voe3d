@@ -34,6 +34,7 @@
 
 #include "browser.h"
 #include "inspector.h"
+#include "inspector_edit.h"
 #include "notice.h"
 #include "preferences.h"
 #include "project.h"
