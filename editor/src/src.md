@@ -207,6 +207,14 @@ carries it out.
   to where the Inspector measured it and capped to the height it measured
   there, and the one question asked of the Scene panel's rows and Add menu
   after the frame has ended; nothing in it draws or lays out.
+- `pick.h` — a left click in a scene view selects the frontmost entity under the
+  pointer, and a click on nothing clears the selection; the ray and what it
+  meets are `3d`'s (ADR-0202). Its header says why the middle button is never
+  read here, what `blocked` is for a caller, why a press and not a release
+  selects, and why a click over no view leaves the selection alone while a click
+  in a view that meets nothing clears it.
+- `pick.c` — the press edge, the view the pointer is over, the ray through that
+  view's picture, and the selection set from whatever it met.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
