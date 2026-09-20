@@ -1,9 +1,8 @@
 # src
 
 `3d`'s implementation: one file per public header, plus the built-in shapes'
-geometry.
-Nothing here is included from outside the folder — `include/3d/` is the whole
-public surface.
+geometry. Nothing here is included from outside the folder — `include/3d/` is
+the whole public surface.
 
 The component files are alike on purpose: each owns one table, registers it with
 `ecs`, and hands out a create, its reads and at most one write after creation.
@@ -41,7 +40,7 @@ The work is in the two systems — `shape_system.c` once at startup and
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera, the sun, two matrices and a colour per object,
-  the solid pass in table order and the blended one furthest first, on each side of the
-  overlay's depth clear, over both tables.
+  the solid pass in table order and the blended one furthest first, on each
+  side of the overlay's depth clear, over both tables.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.

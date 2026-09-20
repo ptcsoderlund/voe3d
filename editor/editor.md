@@ -19,15 +19,15 @@ name it holds, whose list opens where it fits — under the button, above it whe
 there is no room under, and capped to the room and scrolling inside itself when
 there is room for it on neither side, so the last value can always be reached
 and picked (ADR-0200) — and closes on Escape, on a press elsewhere or on a
-choice, and a choice is an edit like any other (ADR-0195).
-Each of these edits marks the project unsaved, as an add, a duplicate, a
-delete, a Remove or an Add component does. The Delete key and Ctrl+D delete and duplicate the selected
+choice, and a choice is an edit like any other (ADR-0195). Each of these edits
+marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
+component does. The Delete key and Ctrl+D delete and duplicate the selected
 entity too, except while the browser shows or a field holds the keyboard. Each
 column that is not a scene view clips what is on it and scrolls it with the
 wheel or its scrollbar, and the Inspector's field rows fold onto further lines
-when the column is too narrow for them. `voe_editor [<folder>]` opens folder,
-or the last project remembered when there is none, or an untitled cube and
-light when there is neither — see `src/project.h` and `src/last_project.h`.
+when the column is too narrow for them. `voe_editor [<folder>]` opens that
+folder, or the last project remembered when there is none, or an untitled cube
+and light when there is neither — see `src/project.h` and `src/last_project.h`.
 New, Open and Save — the buttons and Ctrl+N, Ctrl+O and Ctrl+S alike — go
 through `src/session.h`, which refuses New, Open and closing the window once
 while there are unsaved changes and goes ahead the second time. It can also be

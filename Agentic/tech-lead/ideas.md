@@ -34,4 +34,5 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   that game actually needed.
 - **Rotate and scale gizmos**, and a toggle for the move gizmo to follow the entity's own axes rather than the
   world's (left out of 015 on purpose, 2026-09-19).
-- A developer picks the graphics card from code, and a finished game lets the player pick one in its settings — both later, once 0201's automatic choice is in and proven.
+- **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
+  settings — both later, once 0201's automatic choice is in and proven.

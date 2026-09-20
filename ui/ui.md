@@ -79,10 +79,10 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
 - `include/ui/widgets.h` — the theme mechanism (`voe_ui_theme_set`,
   `voe_ui_theme_push`, `voe_ui_theme_pop`), the panel (`voe_ui_surface`), the
   label (`voe_ui_text_role`, `voe_ui_label_role`), the button, the choice
-  (`voe_ui_choice_begin`, one of a list marked by inversion), the number box,
-  a single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
-  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`) and the
-  one keyboard focus this folder holds its text for (`voe_ui_typing`), the
+  (`voe_ui_choice_begin`, one of a list marked by inversion), the number box, a
+  single-line text field (`voe_ui_field`, `voe_ui_field_focus`,
+  `voe_ui_field_action`, `voe_ui_field_result`, `VOE_UI_FIELD_CAPACITY`) and
+  the one keyboard focus this folder holds its text for (`voe_ui_typing`), the
   image and the scroll area (`voe_ui_scroll_begin`, `voe_ui_scroll_axes`), the
   pointer and the keyboard (`voe_ui_keyboard`, `voe_ui_keyboard_set`) they are
   given, and this frame's element records read back. Its header says why the
@@ -91,24 +91,23 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   number, what two widgets sharing one does, why a button is composed rather
   than handed a string, why a NONE panel emits nothing, why a panel's and a
   button's hairline border is two element records and not one, why a widget
-  reads the theme in force at the call that makes it and not again at
-  emission, why an unmatched push refuses the frame while an unmatched pop
-  asserts, and how the theme's `text_size` composes with the surface's own
-  scale. On the number box it says why this folder knows no field kinds and
-  takes a value and a rate instead, why what comes back is a value and not a
-  distance and what that buys typing into one, how a click inside the dead
-  zone opens it for typing, what a commit accepts and refuses and what it
-  shows while it is open (ADR-0192). On the field it says that the context
-  holds the focused field's text so a caller keeps no copy of an edit, how the
-  focus arrives selected, commits and cancels, and where Tab takes it among
-  fields and number boxes, why it composes its own label rather than taking one
-  in, why the caret is measured from that label, why the edited text comes
-  back as a value rather than the caller's own buffer being written into, that
-  where the typed bytes came from is not this folder's business, and what a
-  field costs in nodes and in element records. On the image it says what it is
-  for, why it
-  is sized as a box is, that it is one element, and that the texture's
-  lifetime is the caller's. On the scroll area it says why the offset is
-  remembered there and not in layout, that an area not called forgets, how a
-  scroll passes outward, why it arrives in millimetres and lands next frame,
-  and that the bar lies over the content.
+  reads the theme in force at the call that makes it and not again at emission,
+  why an unmatched push refuses the frame while an unmatched pop asserts, and
+  how the theme's `text_size` composes with the surface's own scale. On the
+  number box it says why this folder knows no field kinds and takes a value and
+  a rate instead, why what comes back is a value and not a distance and what
+  that buys typing into one, how a click inside the dead zone opens it for
+  typing, what a commit accepts and refuses and what it shows while it is open
+  (ADR-0192). On the field it says that the context holds the focused field's
+  text so a caller keeps no copy of an edit, how the focus arrives selected,
+  commits and cancels, and where Tab takes it among fields and number boxes,
+  why it composes its own label rather than taking one in, why the caret is
+  measured from that label, why the edited text comes back as a value rather
+  than the caller's own buffer being written into, that where the typed bytes
+  came from is not this folder's business, and what a field costs in nodes and
+  in element records. On the image it says what it is for, why it is sized as a
+  box is, that it is one element, and that the texture's lifetime is the
+  caller's. On the scroll area it says why the offset is remembered there and
+  not in layout, that an area not called forgets, how a scroll passes outward,
+  why it arrives in millimetres and lands next frame, and that the bar lies
+  over the content.

@@ -48,18 +48,17 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `themes.h` — Near black and Near white, the two themes with no file, then
-  one per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena
-  of its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
-  empty line, `near_white` or a file's name, whose file is
-  read again once a second and its palette replaced when a save reads. Every
-  entry also carries the two scalars it is drawn with — the theme's own until
-  `theme_scalars.h`'s file or a slider replaces them — and can be adjusted,
-  reset and written back. Its header says why each theme's arena is its own,
-  what a file that will not read leaves behind, when loading answers false,
-  why the live check compares the bytes and not a timestamp (ADR-0172), what
-  a refused save leaves behind, and that the theme file is never written
-  (ADR-0197).
+- `themes.h` — Near black and Near white, the two themes with no file, then one
+  per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena of
+  its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
+  empty line, `near_white` or a file's name, whose file is read again once a
+  second and its palette replaced when a save reads. Every entry also carries
+  the two scalars it is drawn with — the theme's own until `theme_scalars.h`'s
+  file or a slider replaces them — and can be adjusted, reset and written back.
+  Its header says why each theme's arena is its own, what a file that will not
+  read leaves behind, when loading answers false, why the live check compares
+  the bytes and not a timestamp (ADR-0172), what a refused save leaves behind,
+  and that the theme file is never written (ADR-0197).
 - `themes.c` — the folder listed and made, each file read and derived with the
   one font, whatever face it names, the remembered file read and written as its
   one line, the chosen file's once-a-second re-read, and every palette derived
@@ -99,10 +98,9 @@ carries it out.
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
   button, the one in force marked, a slider for each of that theme's two
-  scalars with a Reset button, and Close, as an anchored panel over
-  the dock. Its header says why each row is drawn in its own theme, why Choose
-  is carried out elsewhere, what the two sliders belong to, and how many themes
-  it lists.
+  scalars with a Reset button, and Close, as an anchored panel over the dock.
+  Its header says why each row is drawn in its own theme, why Choose is carried
+  out elsewhere, what the two sliders belong to, and how many themes it lists.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
@@ -192,22 +190,20 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
 - `scene.h` — the current project's world, the selection in it, the rows the
-  Scene panel drew, its Add menu, Delete and Duplicate on the selection and
-  the structural changes and refusals made this frame, what the Inspector drew
-  this frame, and what the colour picker and the open dropdown are open on —
-  the dropdown's shape being inspector.h's, whose place and how tall its rows
-  may be are set through one call and which no longer answers a showing
-  question. Its header says why
-  building a project's entities is not this file's job, why the selection is the
-  editor's and not the dock tree's, why those rows outlive the call that drew
-  them, why only one of the two popups is ever open, and who closes the open
-  list and measures where it sits.
+  Scene panel drew, its Add menu, Delete and Duplicate on the selection and the
+  structural changes and refusals made this frame, what the Inspector drew this
+  frame, and what the colour picker and the open dropdown are open on — the
+  dropdown's shape being inspector.h's, whose place and how tall its rows may
+  be are set through one call. Its header says why building a project's
+  entities is not this file's job, why the selection is the editor's and not
+  the dock tree's, why those rows outlive the call that drew them, why only one
+  of the two popups is ever open, and who closes the open list and measures
+  where it sits.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the
-  colour picker and the dropdown, each closing the other, the open list moved to
-  where the Inspector measured it and capped to the height it measured there,
-  and the one question asked of the Scene
-  panel's rows and Add menu after the frame has ended; nothing in it draws or
-  lays out.
+  colour picker and the dropdown, each closing the other, the open list moved
+  to where the Inspector measured it and capped to the height it measured
+  there, and the one question asked of the Scene panel's rows and Add menu
+  after the frame has ended; nothing in it draws or lays out.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.

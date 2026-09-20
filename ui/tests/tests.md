@@ -5,12 +5,13 @@ found by the build and registered nowhere. None needs a window system, and
 only the cases that measure a string take a headless device — everything else
 this folder computes is arithmetic checked against numbers worked out by hand.
 
-- `button.c` — that a press and a release in every order a hand can produce give
-  the right answer, that a half-clipped button is drawn and answers the pointer
-  only where it is seen, that a container declared to take the pointer clears
-  what is painted under it while its own button is hit as ever, and that a held
-  button, a number box being dragged and a selected choice draw `inverse` with the label on them in `inverse_ink` while a
-  hovered one stays `control_hovered`; the module under it is `ui/src/button.c`.
+- `button.c` — that a press and a release in every order a hand can produce
+  give the right answer, that a half-clipped button is drawn and answers the
+  pointer only where it is seen, that a container declared to take the pointer
+  clears what is painted under it while its own button is hit as ever, and that
+  a held button, a number box being dragged and a selected choice draw
+  `inverse` with the label on them in `inverse_ink` while a hovered one stays
+  `control_hovered`; the module under it is `ui/src/button.c`.
 - `colour.c` — that a swatch is one record of its colour, a press at the
   square's top-right with hue nought is red, `#FFC800` and `ffc800` are taken,
   `#12` is refused leaving the colour, a press outside says so, and a colour
