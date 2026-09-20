@@ -23,6 +23,14 @@
 // which is nothing a picture should be sized by. The loop asks the tree
 // (voe_editor_dock_shows_view) before it opens a pass.
 //
+// WHERE A CLICK LANDS IS LAST FRAME'S RECTANGLE, FOR THE SAME REASON THE
+// PICTURE'S SIZE IS. A picture's rectangle comes out of `ui` only after the
+// frame it was laid out in, so a click is read against the rectangle the dock
+// walk recorded last frame — exactly what the middle-button drag is already
+// measured against. The aspect ratio the ray is built with is the picture's own
+// `width` and `height`, which is what it was actually drawn with, and not the
+// rectangle's; see voe_editor_views_under.
+//
 // THE LIGHT IS THE OPPOSITE: THE WORLD'S AND NEVER THE VIEW'S OWN. Every view
 // is lit the same way, by whichever light the world holds — an authored entity,
 // selectable, editable and saved, the way `Cube` is (scene.h) — so a view keeps
@@ -118,6 +126,16 @@ voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
 // captures nothing.
 void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 			   bool middle, bool shift, bool control);
+
+// Which view the pointer is over and where in that view's picture, in the
+// picture's own pixels — x right, y down from its top-left corner, which is
+// what voe_3d_pick_ray takes. False when the pointer is over no view, and the
+// two out-parameters are untouched then. `pointer` is in the root surface's
+// millimetres, the same place the drag is handed.
+[[nodiscard]] bool voe_editor_views_under(const voe_editor_views *views,
+					  voe_math_float2 pointer,
+					  uint32_t *view,
+					  voe_math_float2 *point);
 
 // Forgets every picture's node. Called before the dock walk, because last
 // frame's nodes named last frame's tree.

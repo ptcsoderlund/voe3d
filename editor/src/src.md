@@ -183,10 +183,12 @@ carries it out.
   rotation and the world axis and name of one of its three rows, a type's
   heading from its key, a field as one string, and how many boxes a kind is
   worth.
-- `view.h` — a scene view: its camera, its target and the middle-button drag.
+- `view.h` — a scene view: its camera, its target and the middle-button drag,
+  and which view a pointer is over and where in that view's picture it lands.
   Its header says why the camera is not an entity, why the light is the
-  world's, why the picture's size lags the layout by a frame, and why a view
-  whose leaf is not in the tree is not drawn.
+  world's, why the picture's size lags the layout by a frame, why a click is
+  read against last frame's rectangle for the same reason, and why a view whose
+  leaf is not in the tree is not drawn.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
 - `scene.h` — the current project's world, the selection in it — moved by the
