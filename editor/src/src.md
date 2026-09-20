@@ -175,13 +175,14 @@ carries it out.
 - `scene.h` — the current project's world, the selection in it, the rows the
   Scene panel drew, its Add menu, Delete and Duplicate on the selection and
   the structural changes and refusals made this frame, what the Inspector drew
-  this frame, and what the colour picker is open on. Its header says why
-  building a project's entities is not this file's job, why the selection is
-  the editor's and not the dock tree's, and why those rows outlive the call
-  that drew them.
+  this frame, and what the colour picker and the open dropdown are open on. Its
+  header says why building a project's entities is not this file's job, why the
+  selection is the editor's and not the dock tree's, why those rows outlive the
+  call that drew them, and why only one of the two popups is ever open.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the
-  colour picker, and the one question asked of the Scene panel's rows and Add
-  menu after the frame has ended; nothing in it draws or lays out.
+  colour picker and the dropdown, each closing the other, and the one question
+  asked of the Scene panel's rows and Add menu after the frame has ended;
+  nothing in it draws or lays out.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
