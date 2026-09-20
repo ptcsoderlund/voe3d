@@ -468,7 +468,8 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 				   .across = VOE_UI_ACROSS_FILL,
 				   .gap = LIST_PAD,
 				   .pad = { LIST_PAD, LIST_PAD, LIST_PAD,
-					    LIST_PAD } });
+					    LIST_PAD },
+				   .blocks_pointer = true });
 	for (uint32_t i = 0; i < dropdown->names->value_count &&
 			     inspector->row_count < VOE_EDITOR_DROPDOWN_ROWS;
 	     i++) {

@@ -65,7 +65,11 @@
 // the editor. It is emitted after every section because submission order is
 // paint order (ui/layout.h), and a list emitted beside its button would be
 // painted over by the rows below it. Its offset is in that column's space, so
-// scrolling changes neither of the two numbers.
+// scrolling changes neither of the two numbers. Its panel takes the pointer
+// (ui/layout.h), so everything inside its outline is the list's: the gaps
+// between the rows and the padding at its edges belong to it, and no field,
+// button, swatch or number box it covers hovers, highlights or fires through it
+// (ADR-0199).
 #pragma once
 
 #include <base/arena.h>
