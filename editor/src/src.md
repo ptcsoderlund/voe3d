@@ -189,8 +189,9 @@ carries it out.
   whose leaf is not in the tree is not drawn.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
-- `scene.h` — the current project's world, the selection in it, the rows the
-  Scene panel drew, its Add menu, Delete and Duplicate on the selection and the
+- `scene.h` — the current project's world, the selection in it — moved by the
+  Scene panel's rows and by a click in a view — the rows the Scene panel drew,
+  its Add menu, Delete and Duplicate on the selection and the
   structural changes and refusals made this frame, what the Inspector drew this
   frame, and what the colour picker and the open dropdown are open on — the
   dropdown's shape being inspector.h's, whose place and how tall its rows may
