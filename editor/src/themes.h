@@ -67,12 +67,25 @@
 // EVERY PALETTE IS DERIVED WITH THE ONE FONT, Oxanium, whatever typeface a
 // theme names (ADR-0185).
 //
+// WHAT A PERSON SET IS REMEMBERED PER THEME, NOT IN THE THEME FILE
+// (ADR-0197). Every entry carries the two scalars it is drawn with, and its
+// palette is derived with those and not with the pair in `theme.inputs`: the
+// theme's own until a line in theme_scalars.h's file, or a call to
+// voe_editor_themes_adjust, replaces them. A remembered pair replaces the
+// file's own two at load and at every live re-read, so an edit to the file
+// changes everything but the two a person has set by hand;
+// voe_editor_themes_reset puts the file's own two back and drops its line.
+// THE THEME FILE IS NEVER WRITTEN — Near black and Near white have none, and
+// what one person adjusts is not an edit to a document anyone may share.
+//
 // Constraints. The font is the caller's and must outlive every palette
 // derived with it. A palette is kept by pointer by ui (ui/widgets.h), so the
 // list must outlive the interface context it is set on. The folder is listed
 // once, at load: a file added later appears after a restart, and only the
 // chosen file is ever re-read.
 #pragma once
+
+#include "theme_scalars.h"
 
 #include <base/arena.h>
 #include <text/font.h>
@@ -89,8 +102,16 @@ typedef struct {
 	const char *name;
 	// The file inside the themes folder, or NULL for a theme with no file.
 	const char *file;
+	// Which theme this is in theme_scalars.h's file: the file's name, or
+	// `near_black` and `near_white` for entries 0 and 1 (ADR-0197).
+	const char *identity;
 	voe_theme theme;
-	// Derived with the list's one font, whatever `theme.typeface` names.
+	// The two scalars in force: the theme's own, from `theme.inputs`,
+	// until a remembered line or a slider replaces them.
+	float contrast_strength;
+	float surface_separation;
+	// Derived with the list's one font, whatever `theme.typeface` names,
+	// and with the two scalars above.
 	voe_ui_theme palette;
 	// The file's bytes it was read from, in `arena`; NULL and 0 for a
 	// theme with no file.
@@ -131,7 +152,13 @@ typedef struct {
 	voe_base_arena *refused;
 	const uint8_t *refused_bytes;
 	size_t refused_size;
-	// The list's own memory: entries, `remembered` and `folder`.
+	// What a person set, per theme, read at load and written back by
+	// voe_editor_themes_scalars_write. Its identities live in `arena`.
+	voe_editor_theme_scalars scalars;
+	// An adjust or a reset the file has not been written with yet.
+	bool scalars_unwritten;
+	// The list's own memory: entries, `remembered`, `folder` and the
+	// remembered scalars.
 	voe_base_arena *arena;
 } voe_editor_themes;
 
@@ -150,6 +177,22 @@ const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes
 // settings folder — and the theme is in force either way.
 [[nodiscard]] bool voe_editor_themes_choose(voe_editor_themes *themes,
 					    uint32_t index);
+
+// Puts contrast and separation in force on entry `index`, both clamped into
+// VOE_UI_THEME_SCALAR_MIN..MAX, derives that entry's palette again where it
+// stands — the address ui keeps does not move — and remembers the pair for
+// that theme, to be written by voe_editor_themes_scalars_write.
+void voe_editor_themes_adjust(voe_editor_themes *themes, uint32_t index,
+			      float contrast, float separation);
+
+// Puts entry `index`'s own two scalars back, derives its palette again the
+// same way, and drops its remembered line.
+void voe_editor_themes_reset(voe_editor_themes *themes, uint32_t index);
+
+// Writes theme_scalars.h's file when an adjust or a reset is unwritten.
+// False only when that write failed, reported at the site; nothing to write
+// is true.
+[[nodiscard]] bool voe_editor_themes_scalars_write(voe_editor_themes *themes);
 
 // Once a second, re-reads the chosen theme's file and replaces its palette
 // when the bytes changed and read; see this file's header.

@@ -1,6 +1,7 @@
 // voe_theme_read's tests: a good file's every value, the fallbacks when `font`
 // and `text_size` are absent, any `font` reading as Oxanium, every refusal
-// the header lists with the line the kept error names, and 006's criterion 10 — a light theme's text read here,
+// the header lists with the line the kept error names, an `accent` line refused
+// at its own line (ADR-0194), and 006's criterion 10 — a light theme's text read here,
 // derived by `ui` on a real font, deciding the colours a SURFACE panel, a
 // label and a button emit, with no editor anywhere.
 //
@@ -37,7 +38,7 @@ static void a_good_file_gives_every_value(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(read_text("// a comment first\n"
 				 "[HarbourLight]\n"
-				 "accent=\"#FF8000\"\n"
+				 "hue=\"#FF8000\"\n"
 				 "contrast_strength=1.25\n"
 				 "surface_separation=0.5\n"
 				 "mode=light\n"
@@ -45,9 +46,9 @@ static void a_good_file_gives_every_value(voe_base_arena *arena)
 				 "text_size=4.5\n",
 				 arena, &theme));
 	VOE_TEST_CHECK(strcmp(theme.name, "HarbourLight") == 0);
-	VOE_TEST_CHECK_FLOAT(theme.inputs.accent.x, 1.0f, 0.0001f);
-	VOE_TEST_CHECK_FLOAT(theme.inputs.accent.y, 128.0f / 255.0f, 0.0001f);
-	VOE_TEST_CHECK_FLOAT(theme.inputs.accent.z, 0.0f, 0.0001f);
+	VOE_TEST_CHECK_FLOAT(theme.inputs.hue.x, 1.0f, 0.0001f);
+	VOE_TEST_CHECK_FLOAT(theme.inputs.hue.y, 128.0f / 255.0f, 0.0001f);
+	VOE_TEST_CHECK_FLOAT(theme.inputs.hue.z, 0.0f, 0.0001f);
 	VOE_TEST_CHECK_FLOAT(theme.inputs.contrast_strength, 1.25f, 0.0001f);
 	VOE_TEST_CHECK_FLOAT(theme.inputs.surface_separation, 0.5f, 0.0001f);
 	VOE_TEST_CHECK_INT((int)theme.inputs.mode,
@@ -62,7 +63,7 @@ static void absent_font_and_text_size_fall_back(voe_base_arena *arena)
 	voe_theme theme;
 
 	VOE_TEST_CHECK(read_text("[Night]\n"
-				 "accent=#2b7fd4\n"
+				 "hue=#2b7fd4\n"
 				 "contrast_strength=1\n"
 				 "surface_separation=3\n"
 				 "mode=dark\n",
@@ -91,10 +92,10 @@ static void refused_at(const char *text, const char *line,
 }
 
 // The four required keys, then whatever the case adds.
-#define GOOD_KEYS                    \
-	"accent=#112233\n"           \
-	"contrast_strength=1\n"      \
-	"surface_separation=1\n"     \
+#define GOOD_KEYS                \
+	"hue=#112233\n"          \
+	"contrast_strength=1\n"  \
+	"surface_separation=1\n" \
 	"mode=dark\n"
 
 // Any `font` value, in an otherwise good file, reads as Oxanium and reports
@@ -125,32 +126,47 @@ static void every_refusal_names_its_line(voe_base_arena *arena)
 	refused_at("[One]\n" GOOD_KEYS "[Two]\n" GOOD_KEYS, "line 6:", arena);
 	// A missing key names the section's line.
 	refused_at("\n\n[One]\n"
-		   "accent=#112233\n"
+		   "hue=#112233\n"
 		   "contrast_strength=1\n"
 		   "mode=dark\n",
 		   "line 3:", arena);
 	refused_at("[One]\n" GOOD_KEYS "colour=red\n", "line 6:", arena);
-	refused_at("[One]\naccent=#11223\ncontrast_strength=1\n"
+	refused_at("[One]\nhue=#11223\ncontrast_strength=1\n"
 		   "surface_separation=1\nmode=dark\n",
 		   "line 2:", arena);
-	refused_at("[One]\naccent=#11223g\ncontrast_strength=1\n"
+	refused_at("[One]\nhue=#11223g\ncontrast_strength=1\n"
 		   "surface_separation=1\nmode=dark\n",
 		   "line 2:", arena);
-	refused_at("[One]\naccent=#112233\ncontrast_strength=1x\n"
+	refused_at("[One]\nhue=#112233\ncontrast_strength=1x\n"
 		   "surface_separation=1\nmode=dark\n",
 		   "line 3:", arena);
-	refused_at("[One]\naccent=#112233\ncontrast_strength=1\n"
+	refused_at("[One]\nhue=#112233\ncontrast_strength=1\n"
 		   "surface_separation=1\nmode=dusk\n",
 		   "line 5:", arena);
 	refused_at("[One]\n" GOOD_KEYS "text_size=0\n", "line 6:", arena);
 	refused_at("[One]\n" GOOD_KEYS "text_size=big\n", "line 6:", arena);
 	// Out of range at either end.
-	refused_at("[One]\naccent=#112233\ncontrast_strength=0.1\n"
+	refused_at("[One]\nhue=#112233\ncontrast_strength=0.1\n"
 		   "surface_separation=1\nmode=dark\n",
 		   "line 3:", arena);
-	refused_at("[One]\naccent=#112233\ncontrast_strength=1\n"
+	refused_at("[One]\nhue=#112233\ncontrast_strength=1\n"
 		   "surface_separation=3.5\nmode=dark\n",
 		   "line 4:", arena);
+}
+
+// `accent` is a key this schema does not know any more, with no alias
+// (ADR-0194): a file that still authors its colour that way is refused at that
+// line.
+static void an_accent_line_is_refused(voe_base_arena *arena)
+{
+	fprintf(stderr, "-- the voe theme line that follows is this test's "
+			"own --\n");
+	refused_at("[One]\n"
+		   "accent=\"#D4A02B\"\n"
+		   "contrast_strength=1\n"
+		   "surface_separation=1\n"
+		   "mode=dark\n",
+		   "line 2:", arena);
 }
 
 // Criterion 10. A light theme read from text, derived on a real font, set on a
@@ -181,7 +197,7 @@ static void a_read_theme_colours_a_panel_a_label_and_a_button(
 	voe_ui_theme_inputs defaults = voe_ui_theme_default_inputs();
 
 	VOE_TEST_CHECK(read_text("[Paper]\n"
-				 "accent=#2B7FD4\n"
+				 "hue=#2B7FD4\n"
 				 "contrast_strength=1\n"
 				 "surface_separation=1\n"
 				 "mode=light\n",
@@ -268,6 +284,7 @@ int main(void)
 	absent_font_and_text_size_fall_back(arena);
 	any_font_reads_as_oxanium(arena);
 	every_refusal_names_its_line(arena);
+	an_accent_line_is_refused(arena);
 	a_read_theme_colours_a_panel_a_label_and_a_button(arena);
 
 	voe_base_arena_destroy(arena);

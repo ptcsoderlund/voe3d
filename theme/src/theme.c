@@ -19,7 +19,7 @@
 
 // The keys this schema knows, in the order the header lists them.
 enum key {
-	KEY_ACCENT,
+	KEY_HUE,
 	KEY_CONTRAST_STRENGTH,
 	KEY_SURFACE_SEPARATION,
 	KEY_MODE,
@@ -29,8 +29,8 @@ enum key {
 };
 
 static const char *const KEY_NAMES[KEY_COUNT] = {
-	"accent", "contrast_strength", "surface_separation",
-	"mode",	  "font",	       "text_size",
+	"hue",	"contrast_strength", "surface_separation",
+	"mode", "font",		     "text_size",
 };
 
 // The first four are required; `font` and `text_size` fall back.
@@ -64,7 +64,7 @@ static int hex_digit(char c)
 }
 
 // `#RRGGBB` exactly, into sRGB 0..1 per channel.
-static bool to_accent(const char *text, voe_math_float3 *out)
+static bool to_hue(const char *text, voe_math_float3 *out)
 {
 	float channel[3];
 
@@ -107,10 +107,10 @@ static bool convert(enum key which, const voe_assets_sectioned_key *key,
 	const char *value = key->value;
 
 	switch (which) {
-	case KEY_ACCENT:
-		if (to_accent(value, &theme->inputs.accent))
+	case KEY_HUE:
+		if (to_hue(value, &theme->inputs.hue))
 			return true;
-		VOE_BASE_ERROR("theme", "line %u: accent '%s' is not #RRGGBB",
+		VOE_BASE_ERROR("theme", "line %u: hue '%s' is not #RRGGBB",
 			       key->line, value);
 		return false;
 	case KEY_CONTRAST_STRENGTH:

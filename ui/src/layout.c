@@ -271,10 +271,13 @@ static uint32_t node_push(voe_ui_context *ui)
 	n->first_child = VOE_UI_NODE_NONE;
 	n->last_child = VOE_UI_NODE_NONE;
 	n->next_sibling = VOE_UI_NODE_NONE;
+	n->parent = VOE_UI_NODE_NONE;
 
 	if (ui->depth > 0) {
 		struct voe_ui_node_record *parent =
 			&ui->nodes[ui->open[ui->depth - 1]];
+
+		n->parent = ui->open[ui->depth - 1];
 
 		if (parent->last_child == VOE_UI_NODE_NONE)
 			parent->first_child = index;

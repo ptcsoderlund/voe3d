@@ -5,6 +5,11 @@
 
 #include <base/assert.h>
 
+#include <ui/slider.h>
+#include <ui/theme.h>
+
+#include <stdio.h>
+
 // The same plate, padding and gaps browser.c's panel uses, so the two
 // floating panels read as one kind of thing. Millimetres.
 #define PREFERENCES_PAD 3.0f
@@ -12,6 +17,10 @@
 
 // What the row of the theme in force ends in.
 #define IN_FORCE_MARK "(in force)"
+
+// How wide a scalar's track is, in millimetres: wide enough that the whole
+// range is a comfortable drag, narrow enough to sit in a panel this wide.
+#define PREFERENCES_SLIDER_WIDE 60.0f
 
 void voe_editor_preferences_show(voe_editor_preferences *preferences)
 {
@@ -91,6 +100,54 @@ void voe_editor_preferences_draw(voe_ui_context *ui,
 	}
 	voe_ui_end(ui); // scroll area
 
+	// The theme in force's own two scalars, under the list: a row each of
+	// the scalar's name, its slider and where it stands, then Reset. The
+	// two numbers are formatted into the struct because a label's text is
+	// read after this call (the header).
+	{
+		const voe_editor_theme *chosen =
+			voe_editor_themes_chosen(themes);
+
+		voe_ui_column_begin(ui,
+				    (voe_ui_container){
+					    .across = VOE_UI_ACROSS_FILL,
+					    .gap = PREFERENCES_GAP });
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = PREFERENCES_GAP });
+		voe_ui_label(ui, "Contrast");
+		preferences->contrast_slider = voe_ui_slider(
+			ui, "contrast", 0, chosen->contrast_strength,
+			VOE_UI_THEME_SCALAR_MIN, VOE_UI_THEME_SCALAR_MAX,
+			PREFERENCES_SLIDER_WIDE);
+		snprintf(preferences->contrast_text,
+			 sizeof preferences->contrast_text, "%.2f",
+			 (double)chosen->contrast_strength);
+		voe_ui_label(ui, preferences->contrast_text);
+		voe_ui_end(ui); // contrast row
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = PREFERENCES_GAP });
+		voe_ui_label(ui, "Surface separation");
+		preferences->separation_slider = voe_ui_slider(
+			ui, "separation", 0, chosen->surface_separation,
+			VOE_UI_THEME_SCALAR_MIN, VOE_UI_THEME_SCALAR_MAX,
+			PREFERENCES_SLIDER_WIDE);
+		snprintf(preferences->separation_text,
+			 sizeof preferences->separation_text, "%.2f",
+			 (double)chosen->surface_separation);
+		voe_ui_label(ui, preferences->separation_text);
+		voe_ui_end(ui); // separation row
+
+		preferences->reset_button = voe_ui_button_begin(ui, "reset", 0);
+		voe_ui_label(ui, "Reset");
+		voe_ui_end(ui); // reset button
+
+		voe_ui_end(ui); // scalars column
+	}
+
 	// In a row of its own so it keeps its natural width, as browser.c's
 	// Cancel does.
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
@@ -113,22 +170,45 @@ voe_editor_preferences_clicks_read(const voe_ui_context *ui,
 
 	// A refused frame hands back VOE_UI_NODE_NONE past the node budget,
 	// and those are skipped, exactly as topbar.c's are.
+	voe_ui_slider_result contrast = { 0 };
+	voe_ui_slider_result separation = { 0 };
+	voe_editor_preferences_result result = {
+		.action = VOE_EDITOR_PREFERENCES_NONE
+	};
+
+	if (preferences->contrast_slider != VOE_UI_NODE_NONE)
+		contrast = voe_ui_slider_action(ui,
+						preferences->contrast_slider,
+						VOE_UI_THEME_SCALAR_MIN,
+						VOE_UI_THEME_SCALAR_MAX);
+	if (preferences->separation_slider != VOE_UI_NODE_NONE)
+		separation = voe_ui_slider_action(ui,
+						  preferences->separation_slider,
+						  VOE_UI_THEME_SCALAR_MIN,
+						  VOE_UI_THEME_SCALAR_MAX);
+	result.contrast = (float)contrast.value;
+	result.separation = (float)separation.value;
+	result.sliding = contrast.held || separation.held;
+
 	for (uint32_t i = 0; i < preferences->row_count; i++)
 		if (preferences->choose_buttons[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, preferences->choose_buttons[i])
-			    .fired)
-			return (voe_editor_preferences_result){
-				.action = VOE_EDITOR_PREFERENCES_CHOOSE,
-				.index = i
-			};
+			    .fired) {
+			result.action = VOE_EDITOR_PREFERENCES_CHOOSE;
+			result.index = i;
+			return result;
+		}
 
+	// Choose and Close win over a slider that moved in the same frame, and
+	// so does Reset: a click said what to do with the scalars outright.
 	if (preferences->close_button != VOE_UI_NODE_NONE &&
 	    voe_ui_button_action(ui, preferences->close_button).fired)
-		return (voe_editor_preferences_result){
-			.action = VOE_EDITOR_PREFERENCES_CLOSE
-		};
+		result.action = VOE_EDITOR_PREFERENCES_CLOSE;
+	else if (preferences->reset_button != VOE_UI_NODE_NONE &&
+		 voe_ui_button_action(ui, preferences->reset_button).fired)
+		result.action = VOE_EDITOR_PREFERENCES_RESET;
+	else if (contrast.changed || separation.changed)
+		result.action = VOE_EDITOR_PREFERENCES_ADJUST;
 
-	return (voe_editor_preferences_result){
-		.action = VOE_EDITOR_PREFERENCES_NONE
-	};
+	return result;
 }

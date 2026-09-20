@@ -52,14 +52,28 @@ carries it out.
   one per `*.theme` file in `<settings>/voe3d/themes/`, each file's in an arena
   of its own, and the one chosen, remembered in `<settings>/voe3d/theme` as an
   empty line, `near_white` or a file's name, whose file is
-  read again once a second and its palette replaced when a save reads. Its
+  read again once a second and its palette replaced when a save reads. Every
+  entry also carries the two scalars it is drawn with — the theme's own until
+  `theme_scalars.h`'s file or a slider replaces them — and can be adjusted,
+  reset and written back. Its
   header says why each theme's arena is its own, what a file that will not
   read leaves behind, when loading answers false, why the live check compares
-  the bytes and not a timestamp (ADR-0172), and what a refused save leaves
-  behind.
+  the bytes and not a timestamp (ADR-0172), what a refused save leaves
+  behind, and that the theme file is never written (ADR-0197).
 - `themes.c` — the folder listed and made, each file read and derived with the
   one font, whatever face it names, the remembered file read and written as its
-  one line, and the chosen file's once-a-second re-read.
+  one line, the chosen file's once-a-second re-read, and every palette derived
+  with the pair remembered for that theme in `theme_scalars` when there is one
+  and the file's own two otherwise.
+- `theme_scalars.h` — a person's contrast and surface separation remembered per
+  theme at `<settings>/voe3d/theme_scalars`, one line per adjusted theme
+  (ADR-0197). Its header says the line's shape, why the identity is the tail of
+  it, what the identities are, why a line that does not parse or is out of
+  range is skipped without a report, and why lines for themes not listed right
+  now are kept and written back.
+- `theme_scalars.c` — that file read line by line as two numbers and the name
+  after them, a theme's numbers set or forgotten in the list, and every line
+  written back by making the two folders above it as needed.
 - `notice.h` — one line long enough to explain why a project failed to open or
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.
@@ -84,11 +98,13 @@ carries it out.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose
-  button, the one in force marked, and Close, as an anchored panel over the
-  dock. Its header says why each row is drawn in its own theme, why Choose is
-  carried out elsewhere, and how many themes it lists.
+  button, the one in force marked, a slider for each of that theme's two
+  contrast scalars with a Reset button, and Close, as an anchored panel over
+  the dock. Its header says why each row is drawn in its own theme, why Choose
+  is carried out elsewhere, what the two sliders belong to, and how many themes
+  it lists.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
-  buttons afterwards.
+  buttons and sliders afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an
   anchored panel over the dock, its own arena for the current folder and its
   rows, and in SAVE mode a name row with a focused `ui` field and a Make folder

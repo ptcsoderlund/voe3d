@@ -1,16 +1,18 @@
-// The context and the tree it holds, which is the one piece of state the two
-// halves of this folder share. Internal: nothing outside `ui` sees any of it.
+// The context and the tree it holds, which is the one piece of state the files
+// of this folder share. Internal: nothing outside `ui` sees any of it.
 //
 // THERE IS ONE CONTEXT AND NOT TWO, AND THAT IS WHY THIS FILE EXISTS. layout.c
-// builds the tree and arranges it; widgets.c decides what a node means, what the
-// pointer is doing to it and what element records come out of it. Both are the
+// builds the tree and arranges it; widgets.c and the widget files beside it —
+// button.c, field.c, scroll.c — decide what a node means, what the pointer is
+// doing to it and what element records come out of it. Both are the
 // same frame — a widget IS a node, its rectangle IS the one layout worked out —
 // so splitting the state in two would mean keeping two of them in step, which is
 // the bug this avoids by not having the second one.
 //
 // WHICH HALF OWNS WHICH FIELD IS WRITTEN DOWN BELOW AND IS NOT A SUGGESTION. The
 // tree and the frame belong to layout.c; everything from `font` down belongs to
-// widgets.c, but for the pickers at the end, which are colour.c's — and colour.c
+// the widget side, which is widgets.c and the three files beside it, but for the
+// pickers at the end, which are colour.c's — and colour.c
 // fills in the widget record of a node it makes, as every widget call does.
 // Nothing else is written across the line, and the entry points each file
 // offers another are at the bottom of this file; widgets.c's to layout.c are — one at creation, for the
@@ -100,6 +102,42 @@ enum voe_ui_bar {
 	VOE_UI_BAR_Y,
 };
 
+// Inside every edge of a button, in millimetres. Its size is otherwise entirely
+// its label's, so this is the whole of what makes a button bigger than the word
+// in it. The same on all four sides, which is what a button wants and what the
+// four numbers make explicit rather than assume.
+//
+// A NUMBER BOX AND A FIELD USE IT TOO, because both are meant to look like a
+// button — a thing you put the pointer on and press. Here rather than in one of
+// them because button.c and field.c must pad alike for that to hold.
+#define BUTTON_PAD                                                             \
+	((voe_ui_pad){ 2.5f, 2.5f, 2.5f, 2.5f })
+
+// What the pointer is on, the last in paint order winning. button.c works it
+// out for the widgets and asks scroll.c for the bars, and hands it to field.c
+// and scroll.c to answer the press with.
+enum voe_ui_hit_kind {
+	VOE_UI_HIT_NOTHING = 0,
+	VOE_UI_HIT_WIDGET,
+	VOE_UI_HIT_THUMB,
+	VOE_UI_HIT_TRACK,
+};
+
+struct voe_ui_hit {
+	enum voe_ui_hit_kind kind;
+	// A widget's.
+	uint64_t key;
+	bool number;
+	// Whether the widget hit is a field, which is what a press focuses —
+	// see voe_ui_field_press.
+	bool field;
+	// A bar's: its area, which of the two, and for a track which way the
+	// thumb is from the pointer, -1 or +1.
+	uint32_t area;
+	enum voe_ui_bar bar;
+	float towards;
+};
+
 // One slot of the theme push stack: a struct wrapping the one pointer, and
 // not a `const voe_ui_theme **`, which rule 6 forbids (one level of
 // dereference — see authoring/src/scene_read.c's `cursor` for the same move).
@@ -156,7 +194,7 @@ struct voe_ui_widget_record {
 	// A plain container's `kind` stays VOE_UI_WIDGET_NONE and its `theme`
 	// is never asked for, so recording one there would say nothing new.
 	const voe_ui_theme *theme;
-	// A label's colour role: NORMAL or ACCENT. Meaningless on everything
+	// A label's colour role: NORMAL or SECONDARY. Meaningless on everything
 	// else.
 	voe_ui_text_role text_role;
 	// A number box's value as the caller handed it in this frame, and what
@@ -176,7 +214,7 @@ struct voe_ui_widget_record {
 	// the string a second time to ask the same question.
 	float baseline;
 	enum voe_ui_widget kind;
-	// What this frame did to a field, written by field_edit and read back
+	// What this frame did to a field, written by field.c and read back
 	// by voe_ui_field_action: an edit changed its text, Enter arrived while
 	// it was focused, focus left it keeping its text, or Escape dropped
 	// it. Per node rather than one set in the context, because a press
@@ -192,6 +230,10 @@ struct voe_ui_widget_record {
 	// number rather than the caller's.
 	bool open;
 	bool refused;
+	// A choice's own: made selected by its caller, and so drawn inverted
+	// however the pointer is placed — see voe_ui_choice_begin. False on
+	// everything else, a plain button included.
+	bool selected;
 	// A swatch's and a picker's linear colour as handed in, and a picker
 	// square's or strip's HSV, hue a fraction of a turn. colour.c's; zero
 	// on everything else.
@@ -205,6 +247,12 @@ struct voe_ui_node_record {
 	uint32_t first_child;
 	uint32_t last_child;
 	uint32_t next_sibling;
+	// The container this node was made inside, VOE_UI_NODE_NONE on the
+	// root. The one link that runs upwards, written when the node is
+	// pushed: emission is a flat walk in paint order with no stack of its
+	// own, and a label there has to be able to ask what it sits inside —
+	// see widgets.c on the ink of a label in an inverted control.
+	uint32_t parent;
 
 	bool leaf;
 	// A container's direction. Unused on a leaf.
@@ -386,7 +434,7 @@ struct voe_ui_context {
 	//
 	// The first three survive between frames, as `held` does, because a
 	// drag is one gesture across many of them. The last two are this
-	// frame's answer and are worked out afresh in resolve.
+	// frame's answer and are worked out afresh in button.c's resolve.
 	//
 	// Where the press happened, which the dead zone is measured from —
 	// against the PRESS and never against last frame, so that a hand that
@@ -448,7 +496,7 @@ struct voe_ui_context {
 	voe_math_float2 thumb_press_at;
 	float thumb_press_offset;
 	// This frame's hovered thumb, by index into `scroll_areas`, for its
-	// colour. Worked out afresh in resolve.
+	// colour. Worked out afresh in button.c's resolve.
 	enum voe_ui_bar hovered_thumb;
 	uint32_t hovered_thumb_area;
 	// A press on a track this frame: which area, which bar, and towards
@@ -494,10 +542,10 @@ uint32_t voe_ui_paint_order(const voe_ui_context *ui, uint32_t position);
 voe_ui_rect voe_ui_limit(const voe_ui_context *ui, uint32_t node,
 			 voe_ui_rect rect);
 
-// widgets.c's part of creating the context, called from voe_ui_context_new and
-// from nowhere else: the scroll table, out of the context's own arena because it
-// outlives every frame. There is no deinit; rewinding that arena frees it with
-// the context.
+// The widget side's part of creating the context, called from
+// voe_ui_context_new and from nowhere else: the scroll table, out of the
+// context's own arena because it outlives every frame. There is no deinit;
+// rewinding that arena frees it with the context.
 void voe_ui_widgets_init(voe_ui_context *ui, voe_base_arena *arena);
 
 // The two frame boundaries, called from layout.c's voe_ui_frame_begin and
@@ -513,17 +561,70 @@ void voe_ui_widgets_init(voe_ui_context *ui, voe_base_arena *arena);
 void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out);
 
-// What widgets.c offers colour.c: a key claimed for a call site exactly as
-// every widget's is, the theme in force, and a solid record over `at` clipped
-// by `node`'s clipping ancestors.
+// What widgets.c offers button.c, field.c, scroll.c and colour.c, which is
+// everything every widget is made of: a key claimed for a call site, whether a
+// key was claimed this frame, the theme in force, whether a point is in a
+// rectangle, and the records — one element as it stands, a rectangle in the
+// shape a record's `bounds` and `clip` are, a solid over `at` or
+// over `node`'s own rectangle clipped by `node`'s clipping ancestors, and the
+// hairline border with a fill inside it.
 uint64_t voe_ui_widget_claim(voe_ui_context *ui, const char *name,
 			     uint32_t index);
+bool voe_ui_key_taken(voe_ui_context *ui, uint64_t key);
 const voe_ui_theme *voe_ui_theme_current(const voe_ui_context *ui);
+bool voe_ui_inside(voe_ui_rect rect, voe_math_float2 at);
+void voe_ui_push_element(voe_ui_context *ui, voe_render_element element);
+voe_math_float4 voe_ui_bounds_of(voe_ui_rect rect);
 void voe_ui_push_solid(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
 		       voe_math_float4 colour);
+void voe_ui_push_rect(voe_ui_context *ui, uint32_t node,
+		      voe_math_float4 colour);
+void voe_ui_push_bordered(voe_ui_context *ui, uint32_t node,
+			  voe_math_float4 fill, voe_math_float4 border);
+
+// What button.c offers widgets.c: what the pointer comes to on every widget,
+// run from frame_end before anything is emitted; the caller's own content of a
+// number box open for typing, which is neither drawn nor hit; whether a
+// control is drawn inverted, which is what a label inside one takes its ink
+// from as well as what the control fills with; and the records of a button and
+// of a number box.
+void voe_ui_pointer_resolve(voe_ui_context *ui, bool laid_out);
+bool voe_ui_number_hidden(const voe_ui_context *ui, uint32_t node);
+bool voe_ui_control_inverted(const voe_ui_context *ui, uint32_t node);
+void voe_ui_button_emit(voe_ui_context *ui, uint32_t node);
+void voe_ui_number_emit(voe_ui_context *ui, uint32_t node);
+
+// What field.c offers widgets.c and button.c: the focus dropped when its widget
+// was not called and moved by a press, both from button.c's resolve; this
+// frame's editing, run after that and before emission; the buffer seeded with a
+// number box's value, for one opened by Tab; whether a label is the selected
+// text of a field or of an open number box, which is what widgets.c inks in
+// `inverse_ink` over the `inverse` behind it; and the records of a field, of a
+// number box open for typing, and of the caret after a label's own glyphs.
+void voe_ui_field_forget(voe_ui_context *ui);
+bool voe_ui_field_press(voe_ui_context *ui, const struct voe_ui_hit *hit,
+			uint64_t hovered);
+void voe_ui_field_edit(voe_ui_context *ui);
+void voe_ui_number_seed(voe_ui_context *ui, uint64_t key, double value);
+bool voe_ui_label_selected(const voe_ui_context *ui, uint32_t label);
+void voe_ui_field_emit(voe_ui_context *ui, uint32_t node);
+void voe_ui_number_open_emit(voe_ui_context *ui, uint32_t node);
+void voe_ui_caret_emit(voe_ui_context *ui, uint32_t label);
+
+// What scroll.c offers widgets.c and button.c: the table, made with the context
+// and rewritten at every frame's end; the bars at one paint position, against
+// the pointer and into the records; what a press on one does; and every move
+// applied to the table once it is written.
+void voe_ui_scrolls_init(voe_ui_context *ui, voe_base_arena *arena);
+void voe_ui_scroll_hit(const voe_ui_context *ui, uint32_t at,
+		       struct voe_ui_hit *hit);
+void voe_ui_scroll_press(voe_ui_context *ui, const struct voe_ui_hit *hit);
+void voe_ui_scroll_emit(voe_ui_context *ui, uint32_t at);
+void voe_ui_scrolls_remember(voe_ui_context *ui, bool laid_out);
+void voe_ui_scrolls_move(voe_ui_context *ui);
 
 // What colour.c offers widgets.c: its frame's start, its frame's end — run
-// after field_edit, so a hex commit is settled, and before emission — with
+// after the field's edit, so a hex commit is settled, and before emission — with
 // whether the primary button went down this frame, and the records of a
 // swatch, a square or a strip.
 void voe_ui_colour_frame_begin(voe_ui_context *ui);

@@ -1,11 +1,11 @@
 // A theme: the handful of values a person authors, and the palette of roles a
 // widget actually draws with. Splitting the two is the whole point of this
-// file (ADR-0097, ADR-0170, ADR-0171) — a theme file or a game names four
-// things and a size, and everything a panel, a label or a button needs comes
-// out the other end already worked out.
+// file (ADR-0097, ADR-0170, ADR-0171) — a theme file or a game names one
+// colour, two numbers, a mode and a size, and everything a panel, a label or a
+// button needs comes out the other end already worked out.
 //
 //     voe_ui_theme_inputs inputs = voe_ui_theme_default_inputs();
-//     inputs.accent = (voe_math_float3){ 0.2f, 0.6f, 0.9f };
+//     inputs.hue = (voe_math_float3){ 0.83f, 0.63f, 0.17f };   // an amber editor
 //     voe_ui_theme theme = voe_ui_theme_derive(&inputs, font);
 //     voe_ui_theme_set(ui, &theme);                 // task 4
 //
@@ -17,16 +17,23 @@
 // may fill in voe_ui_theme_inputs itself and call voe_ui_theme_derive directly.
 //
 // THE DERIVATION RUNS IN OKLAB AND NOTHING HERE IS ARITHMETIC ON sRGB
-// CHANNELS (ADR-0171). `accent` is authored sRGB exactly as a person or a file
+// CHANNELS (ADR-0171). `hue` is authored sRGB exactly as a person or a file
 // wrote it — this struct does not convert it — and every voe_ui_theme field is
 // LINEAR, ready for an element record, because the conversion is the
 // derivation's first and last step and nowhere else. The OKLab conversion
 // itself lives in ui/src/oklab.h, internal to this folder, and moves to `math`
 // the day a second folder needs it (ADR-0170).
 //
-// ONE COLOUR AND TWO NUMBERS ARE ENOUGH BECAUSE HUE IS NEVER ROTATED. Every
-// role but the accent is a step of LIGHTNESS ALONE — zero chroma, so the
-// interface stays the monochrome-plus-one-accent look ADR-0097 asked for —
+// ONE HUE IN EVERY ROLE, AND ROLES DIFFER ONLY IN LIGHTNESS (ADR-0194). The
+// interface is monochrome in the sense of a green-screen or amber terminal:
+// `hue` is the one colour a theme authors, its own lightness is ignored, and
+// every role carries that hue at the same chroma — shrunk only where a role's
+// lightness would take it out of the sRGB gamut, which is the one thing
+// allowed to make two roles differ by anything but lightness. No role is set
+// apart by colour, so nothing said in this interface is said in a way that is
+// lost to a person who cannot tell two colours apart or who authored a
+// different hue. A GREY `hue` GIVES A PALETTE WITH NO CHROMA AT ALL — what the
+// built-in Near black and Near white are. Roles are steps of LIGHTNESS alone,
 // and `contrast_strength` and `surface_separation` only ever move how big that
 // step is. `mode` decides which way the steps run: dark surfaces lighten as
 // they rise off the ground and light ones darken, and text moves further from
@@ -38,19 +45,24 @@
 // contrast_strength of nought would still hand back legible text rather than
 // none.
 //
-// THE ACCENT'S CHROMA IS CLAMPED HARDER IN DARK MODE THAN IN LIGHT (ADR-0097,
-// ADR-0171): a saturated colour that is comfortable on a light ground fringes
-// on a dark one, so VOE_UI_THEME_ACCENT_CHROMA_MAX_DARK is under half of
-// VOE_UI_THEME_ACCENT_CHROMA_MAX_LIGHT. Only chroma moves; the accent's own
-// hue and lightness are exactly what the derivation found in the authored
-// colour.
+// STATE IS SHOWN BY INVERSION AND NEVER BY A COLOUR (ADR-0194, ADR-0196). A
+// held button, a number box being dragged, a held scrollbar thumb and a
+// selected row are drawn in `inverse` — a fill at `text_primary`'s lightness —
+// with whatever text goes on them in `inverse_ink`, at `ground`'s. That pair
+// is legible by construction rather than by a second calculation: it is the
+// text-on-ground contrast this derivation already keeps, the two swapped
+// round. Hovered stays a rung of the surface ladder.
+//
+// THE HUE'S CHROMA IS CLAMPED HARDER IN DARK MODE THAN IN LIGHT (ADR-0097,
+// ADR-0171, kept by ADR-0194): a saturated colour that is comfortable on a
+// light ground fringes on a dark one, so the dark ceiling in ui/src/theme.c is
+// under half the light one. Only chroma moves; the hue angle every role comes
+// out at is exactly the one the derivation found in the authored colour.
 //
 // THE ROLES ARE WHAT THE WIDGETS DRAW WITH AND NO MORE (ADR-0171, rule 10):
 // three surfaces to sit a panel on, a hairline border, a control and its
-// hovered state, three text lightnesses, the accent, and the ink that goes on
-// it. A pressed control and a dragged number box are the accent itself
-// (task 4) rather than a fourth control colour — there is no role for a state
-// nothing here asks for.
+// hovered state, three text lightnesses, and the inverse pair state is drawn
+// in. There is no role for a state nothing here asks for.
 //
 // A NULL FONT IS ALLOWED HERE. voe_ui_theme_derive only copies the pointer
 // into the palette it returns; nothing in this file measures a string, so
@@ -84,15 +96,18 @@ typedef enum {
 #define VOE_UI_THEME_SCALAR_MIN 0.25f
 #define VOE_UI_THEME_SCALAR_MAX 3.0f
 
-// The five things a person authors, and nothing else (ADR-0097). This is
-// exactly what a `.theme` file says, in the units it says them in: `accent` is
-// SRGB, NOT LINEAR, because that is what a person picks with a colour wheel
-// and what a file writes as `#RRGGBB` — the derivation converts it, once, on
-// the way to voe_ui_theme, so this struct is never touched by that
+// The five things a person authors, and nothing else (ADR-0097, ADR-0194).
+// This is exactly what a `.theme` file says, in the units it says them in:
+// `hue` is SRGB, NOT LINEAR, because that is what a person picks with a colour
+// wheel and what a file writes as `#RRGGBB` — the derivation converts it,
+// once, on the way to voe_ui_theme, so this struct is never touched by that
 // conversion and stays a faithful copy of what was authored.
 typedef struct {
-	// 0..1 per channel, sRGB-encoded.
-	voe_math_float3 accent;
+	// The one colour this theme is in, 0..1 per channel, sRGB-encoded. Its
+	// LIGHTNESS IS IGNORED — only its hue and chroma are read, and they
+	// tint every role below (see this file's header). A grey gives a
+	// palette with no chroma at all.
+	voe_math_float3 hue;
 	// How far every text role and the border step from `ground`. 1.0 is the
 	// reference; see VOE_UI_THEME_SCALAR_MIN/MAX.
 	float contrast_strength;
@@ -128,8 +143,8 @@ typedef struct {
 	// scrollbar's track.
 	voe_math_float4 control;
 	// The same control while the pointer is over it. A control being
-	// pressed, or a number box being dragged, is the accent instead
-	// (task 4) — there is no third control colour.
+	// pressed, or a number box being dragged, is drawn in `inverse`
+	// instead (ADR-0196) — there is no third control colour.
 	voe_math_float4 control_hovered;
 	// Ordinary text.
 	voe_math_float4 text_primary;
@@ -138,14 +153,13 @@ typedef struct {
 	voe_math_float4 text_secondary;
 	// The dimmest of the three, for a disabled control's label.
 	voe_math_float4 text_disabled;
-	// The one authored colour, converted to linear and chroma-clamped for
-	// `mode` (see this file's header). What a selection, a pressed control
-	// and a dragged number box are drawn in.
-	voe_math_float4 accent;
-	// The text or icon colour that goes ON the accent — chosen for contrast
-	// against it and nothing else, so it is always legible whatever the
-	// accent's own lightness is.
-	voe_math_float4 accent_ink;
+	// The fill a held, dragged or selected control is drawn in: the
+	// palette's `text_primary` lightness, so it reads as the interface
+	// turned inside out (ADR-0196).
+	voe_math_float4 inverse;
+	// The text that goes on `inverse`, at `ground`'s lightness — the
+	// text-on-ground contrast this derivation already keeps, swapped round.
+	voe_math_float4 inverse_ink;
 	// The font this theme draws with (ADR-0167), and how big an em is on
 	// this surface. NULL is allowed — see this file's header — and is what
 	// a theme derived with no font in hand carries until a caller sets one.
@@ -153,7 +167,8 @@ typedef struct {
 	float text_size;
 } voe_ui_theme;
 
-// The built-in theme's inputs: near-black, a blue accent, the reference
+// The built-in theme's inputs: near-black, a grey `hue` (#808080, so Near
+// black and Near white are pure grey), the reference
 // scalars, and the editor's present text size (4 millimetres per em) so that
 // criterion 1 is a look the sponsor can compare against today's interface.
 // Its font is the caller's to set on the voe_ui_theme this derives — this

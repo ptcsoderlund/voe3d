@@ -42,7 +42,7 @@ typedef struct {
 } voe_ui_oklab;
 
 // `srgb` is 0..1 per channel, sRGB-encoded, exactly as a person picks it and
-// as voe_ui_theme_inputs.accent is authored. Never fails: every sRGB triple in
+// as voe_ui_theme_inputs.hue is authored. Never fails: every sRGB triple in
 // range is a real colour, so there is nothing here to clamp on the way in.
 voe_ui_oklab voe_ui_oklab_from_srgb(voe_math_float3 srgb);
 
