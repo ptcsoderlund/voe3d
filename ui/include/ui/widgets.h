@@ -353,11 +353,12 @@ voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
 			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container);
 
-// Which of the theme's text colours a label draws in: text_primary, the
-// accent, or text_secondary — the one a number box says "not a number" in.
+// The two text lightnesses a label may ask for: text_primary, or
+// text_secondary — the one a number box says "not a number" in. There is no
+// role here for the ink of a label on an inverted control: that is the
+// control's own doing, whatever role the label asked for (ADR-0196).
 typedef enum {
 	VOE_UI_TEXT_ROLE_NORMAL = 0,
-	VOE_UI_TEXT_ROLE_ACCENT,
 	VOE_UI_TEXT_ROLE_SECONDARY,
 } voe_ui_text_role;
 

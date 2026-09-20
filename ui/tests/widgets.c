@@ -641,30 +641,6 @@ static void a_wholly_clipped_label_emits_nothing(voe_ui_context *ui,
 			   2);
 }
 
-// A LABEL IN ACCENT DRAWS IN THE ACCENT (ADR-0171's role list, task 4's
-// voe_ui_text_role), rather than the ordinary text_primary voe_ui_label
-// itself draws in.
-static void a_label_in_accent_draws_the_accent(voe_ui_context *ui,
-					       voe_base_arena *arena)
-{
-	voe_ui_frame_begin(ui, arena);
-	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
-	voe_ui_label_role(ui, "A", VOE_UI_TEXT_ROLE_ACCENT);
-	voe_ui_end(ui);
-	VOE_TEST_CHECK(voe_ui_frame_end(ui));
-
-	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 1);
-	if (voe_ui_element_count(ui) != 1)
-		return;
-
-	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 0).colour.x, TEST_THEME.accent.x,
-			     0.001f);
-	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 0).colour.y, TEST_THEME.accent.y,
-			     0.001f);
-	VOE_TEST_CHECK_FLOAT(voe_ui_element(ui, 0).colour.z, TEST_THEME.accent.z,
-			     0.001f);
-}
-
 // The device and the font this one case needs, and the skip that stands in for
 // them where there is no driver.
 static int the_theme_size(voe_base_arena *arena)
@@ -720,7 +696,6 @@ static int the_theme_size(voe_base_arena *arena)
 	a_bigger_theme_grows_the_row_and_not_the_gaps(ui, arena);
 	a_label_emits_its_letters_after_the_panel(ui, arena);
 	a_wholly_clipped_label_emits_nothing(ui, arena);
-	a_label_in_accent_draws_the_accent(ui, arena);
 
 	voe_text_font_destroy(font);
 	voe_render_device_destroy(device);

@@ -663,8 +663,7 @@ static voe_math_float4 label_ink(const voe_ui_context *ui, uint32_t node)
 	    voe_ui_label_selected(ui, node))
 		return w->theme->inverse_ink;
 
-	return w->text_role == VOE_UI_TEXT_ROLE_ACCENT ? w->theme->accent
-	       : w->text_role == VOE_UI_TEXT_ROLE_SECONDARY
+	return w->text_role == VOE_UI_TEXT_ROLE_SECONDARY
 		       ? w->theme->text_secondary
 		       : w->theme->text_primary;
 }

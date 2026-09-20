@@ -194,7 +194,7 @@ struct voe_ui_widget_record {
 	// A plain container's `kind` stays VOE_UI_WIDGET_NONE and its `theme`
 	// is never asked for, so recording one there would say nothing new.
 	const voe_ui_theme *theme;
-	// A label's colour role: NORMAL or ACCENT. Meaningless on everything
+	// A label's colour role: NORMAL or SECONDARY. Meaningless on everything
 	// else.
 	voe_ui_text_role text_role;
 	// A number box's value as the caller handed it in this frame, and what
