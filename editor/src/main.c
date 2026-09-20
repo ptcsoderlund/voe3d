@@ -105,6 +105,9 @@
 // this file reads out of the world (view.h) rather than with
 // voe_3d_draw_system_frame, which reads a camera out of the world too and this
 // world's camera is never there — a view's is the editor's own.
+// Each view's pass also outlines whatever is selected, in the theme's own
+// lightness, drawn after everything else in that pass so it shows through
+// whatever stands in front of it (ADR-0203, 3d/draw_system.h).
 //
 // THE LIGHT IS THE WORLD'S FIRST LIGHT ROW, OR ZERO INTENSITY WHEN IT HAS NONE.
 // Every view is lit the same way, once a frame, by whichever light `Light` (or
@@ -216,6 +219,14 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
+// How thick the selection's outline is drawn, in the surface's millimetres.
+// HOW WIDE THAT LINE IS IS THIS PROGRAM'S TO CHOOSE, the same as a notch's
+// worth: `3d` takes a width in pixels, everything this file sizes is in the
+// surface's millimetres, and `pixels_per_millimetre` is the one multiplication
+// between them — so the outline is the same thickness on a screen of any
+// density (ADR-0180).
+#define VOE_EDITOR_OUTLINE_MILLIMETRES 0.4f
+
 // WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
 // 3d/shape_system.h — which is what makes the geometry numbers its constants
 // and `shadings` a one. `objects` is per frame: every drawn entity is one
@@ -227,8 +238,10 @@
 // views. `passes`
 // is a pass per view and the interface's, and `targets` a target per view —
 // both from the room for views, not the two in use, so a third view is a leaf
-// and not a capacity. The three transient numbers stay nought; see
-// render/include/render/device.h.
+// and not a capacity. The three transient numbers are what the selection
+// outline's quads are copied into: one outline per view's pass, sized the way
+// `passes` and `targets` are, from the room for views and not the two in use
+// (ADR-0203, 3d/outline.h).
 #define EDITOR_CAPACITIES                                                     \
 	(voe_render_capacities)                                               \
 	{                                                                     \
@@ -239,7 +252,13 @@
 			   VOE_EDITOR_VIEWS,                                   \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
-		.passes = VOE_EDITOR_VIEWS + 1, .targets = VOE_EDITOR_VIEWS    \
+		.passes = VOE_EDITOR_VIEWS + 1,                                \
+		.targets = VOE_EDITOR_VIEWS,                                   \
+		.transient_vertices = VOE_3D_OUTLINE_VERTICES *                \
+				      VOE_EDITOR_VIEWS,                        \
+		.transient_indices = VOE_3D_OUTLINE_INDICES *                  \
+				     VOE_EDITOR_VIEWS,                         \
+		.transient_geometries = VOE_EDITOR_VIEWS                       \
 	}
 
 // One line at startup saying whether a field description reached the binary,
@@ -296,6 +315,27 @@ static voe_render_light world_light(const voe_ecs_world *world)
 	return (voe_render_light){ .direction = row->direction,
 				   .colour = row->colour,
 				   .intensity = row->intensity };
+}
+
+// The colour every view's selection outline is drawn in: the lighter of the
+// palette's `inverse` and `inverse_ink`, by relative luminance on the linear
+// numbers the palette already holds (ui/theme.h). A scene view's background is
+// the engine's near-black clear colour whatever the theme is, so the dark half
+// of a light theme's inverse pair would be an outline nobody can see. Both
+// roles carry the theme's one hue and neither is a colour of its own, so taking
+// the lighter keeps ADR-0194's rule and keeps the outline visible in every
+// theme (ADR-0203).
+static voe_math_float3 outline_colour(const voe_ui_theme *palette)
+{
+	voe_math_float4 fill = palette->inverse;
+	voe_math_float4 ink = palette->inverse_ink;
+	float fill_luminance =
+		0.2126f * fill.x + 0.7152f * fill.y + 0.0722f * fill.z;
+	float ink_luminance =
+		0.2126f * ink.x + 0.7152f * ink.y + 0.0722f * ink.z;
+	voe_math_float4 lighter = fill_luminance >= ink_luminance ? fill : ink;
+
+	return (voe_math_float3){ lighter.x, lighter.y, lighter.z };
 }
 
 // One line, on stderr, and the return code that goes with it. Every way of
@@ -874,8 +914,22 @@ int main(int argc, char *argv[])
 				break;
 			voe_3d_draw_system_run(
 				session.project->world, gpu, arena,
-				(voe_3d_frame){ .view = camera.view,
-						.light = camera.light });
+				(voe_3d_frame){
+					.view = camera.view,
+					.light = camera.light,
+					.outlined = {
+						.entity = voe_editor_scene_selected(
+							&scene),
+						.geometries = &geometries,
+						.material = shapes.outline,
+						.colour = outline_colour(
+							&voe_editor_themes_chosen(
+								 &themes)
+								 ->palette),
+						.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+							  pixels_per_millimetre,
+						.size = { (int)view->width,
+							  (int)view->height } } });
 			voe_render_pass_end(gpu);
 		}
 
