@@ -41,6 +41,10 @@ The work is in the two systems — `shape_system.c` once at startup and
 - `cylinder.h` — the built-in cylinder's counts and its builder, internal to
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
+- `pick.c` — the pixel's ray out of the two matrices inverted once, and the walk
+  over the shape table that carries it into each shape's own space and tests the
+  kind's triangles, with the triangle test written out once and its derivation in
+  a comment.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each

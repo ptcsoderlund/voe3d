@@ -33,6 +33,12 @@ card, and says so below.
   unit-length normals and whose cube has twelve folds and six face diagonals, and
   that every triangle of every kind is wound counter-clockwise seen from outside.
   Needs no graphics card.
+- `pick.c` — the distance to a cube through the picture's centre, the ray that
+  meets nothing, the nearer of two in either order, a cube found at the pixel its
+  own centre projects to, a shape with no transform that is never answered, and —
+  drawn — that a pixel the cube covers picks that cube, which is the check that
+  the ray and the picture agree about which way is up. The arithmetic half needs
+  no graphics card; the drawn half skips without one.
 - `shape.c` — that kind is described, editable and named by its three names, and
   colour a described colour with no names, that the default row is a grey cube
   needing a transform, that an intent's new kind lands and re-points the mesh
