@@ -259,6 +259,13 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 		if (control->writes == VOE_BASE_FIELD_COLOUR)
 			continue;
 
+		// A named field's control is that same kind of button: it opens
+		// the list and the choice comes back through
+		// voe_editor_inspector_named_submit. Asking a button what a
+		// number box did asserts (ui/widgets.h).
+		if (control->names != NULL)
+			continue;
+
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
 			if (voe_ui_button_action(ui, control->node).fired) {
 				apply(world, inspector->entity, control, 0.0);
@@ -355,6 +362,30 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 						: 0.0f });
 	}
 
+	// A fired dropdown opens its list instead of writing anything, hanging
+	// from the button that opened it: its own left edge, just under its
+	// bottom. The rectangle answers in this window only (ui/layout.h).
+	for (uint32_t i = 0; i < inspector->control_count; i++) {
+		const voe_editor_inspector_control *control =
+			&inspector->controls[i];
+		voe_ui_rect where;
+
+		if (control->names == NULL ||
+		    !action_of(ui, control->node).fired)
+			continue;
+
+		where = voe_ui_node_rect(ui, control->node);
+		voe_editor_scene_dropdown_open(
+			scene,
+			(voe_editor_dropdown){ .entity = inspector->entity,
+					       .type = control->type,
+					       .offset = control->offset,
+					       .names = control->names,
+					       .left = where.min.x,
+					       .top = where.min.y +
+						      where.size.y });
+	}
+
 	for (uint32_t i = 0; i < inspector->remove_count; i++)
 		if (action_of(ui, inspector->removes[i].node).fired)
 			counted(scene, voe_editor_entities_component_remove(
@@ -391,5 +422,28 @@ void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
 		return;
 
 	submit(world, entity, &control, &colour, sizeof colour);
+	inspector->replaced++;
+}
+
+void voe_editor_inspector_named_submit(voe_editor_inspector *inspector,
+				       voe_ecs_world *world,
+				       voe_ecs_entity entity,
+				       voe_ecs_type type, size_t offset,
+				       uint32_t value)
+{
+	voe_editor_inspector_control control = {
+		.type = type,
+		.offset = offset,
+		.writes = VOE_BASE_FIELD_UINT32
+	};
+
+	VOE_BASE_ASSERT(inspector != NULL, "a choice submitted by no inspector");
+	VOE_BASE_ASSERT(world != NULL, "a choice submitted into no world");
+
+	if (!voe_ecs_entity_alive(world, entity) ||
+	    voe_ecs_component_get(world, type, entity) == NULL)
+		return;
+
+	submit(world, entity, &control, &value, sizeof value);
 	inspector->replaced++;
 }

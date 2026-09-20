@@ -30,8 +30,9 @@
 // DUPLICATE AND DELETE HEAD THE PANEL WHEN AN ENTITY IS SELECTED, recorded like
 // every other control and read after the frame by
 // voe_editor_inspector_buttons_read, which calls the same scene.h function the
-// Delete key and Ctrl+D call. scene.h holds this struct, so it is named here by
-// its tag and not by including it.
+// Delete key and Ctrl+D call. A fired dropdown control is read there too and
+// writes nothing itself: it opens the list through scene.h. scene.h holds this
+// struct, so it is named here by its tag and not by including it.
 #pragma once
 
 #include "inspector.h"
@@ -45,6 +46,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 struct voe_editor_scene;
 
@@ -77,3 +79,15 @@ void voe_editor_inspector_colour_submit(voe_editor_inspector *inspector,
 					voe_ecs_entity entity,
 					voe_ecs_type type, size_t offset,
 					voe_math_float3 colour);
+
+// Submits `value` as the replace intent of `type`'s row on `entity`, the
+// uint32_t at `offset`, and counts one in `replaced`. The open list's choice,
+// read by interface.c in the same window as the edits; what it submits is the
+// index into the field's names, because entry `i` names value `i` (ADR-0198). An
+// entity no longer alive, or without the row, submits and counts nothing past
+// the check.
+void voe_editor_inspector_named_submit(voe_editor_inspector *inspector,
+				       voe_ecs_world *world,
+				       voe_ecs_entity entity,
+				       voe_ecs_type type, size_t offset,
+				       uint32_t value);
