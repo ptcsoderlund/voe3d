@@ -154,13 +154,20 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		// is: the area is inside that panel, so its key is already
 		// distinct from every other leaf's, and the view keeps two
 		// leaves of one kind apart the day there are two.
-		voe_ui_scroll_begin(
+		voe_ui_node area = voe_ui_scroll_begin(
 			ui, panel_key(node->panel), node->view,
 			(voe_ui_container){
 				.size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
 				.across = VOE_UI_ACROSS_FILL,
 				.gap = PANEL_GAP },
 			(voe_ui_scroll_axes){ .x = true, .y = true });
+
+		// The Inspector's open list is drawn inside this area and
+		// clipped by it, so this is the rectangle it fits itself into
+		// (ADR-0200, inspector.h).
+		if (node->panel == VOE_EDITOR_PANEL_INSPECTOR)
+			voe_editor_inspector_area_set(&scene->inspector, area);
+
 		voe_editor_panel_draw(ui, node->panel, node->view, scene,
 				      views);
 		voe_ui_end(ui);

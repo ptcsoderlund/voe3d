@@ -499,6 +499,7 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->dropdown = dropdown != NULL ? *dropdown
 					       : (voe_editor_dropdown){ 0 };
 	inspector->content = VOE_UI_NODE_NONE;
+	inspector->area = VOE_UI_NODE_NONE;
 	inspector->row_count = 0;
 	inspector->control_count = 0;
 	inspector->replaced = 0;
@@ -508,6 +509,14 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->remove_count = 0;
 	inspector->add_component = VOE_UI_NODE_NONE;
 	inspector->choice_count = 0;
+}
+
+void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
+				   voe_ui_node area)
+{
+	VOE_BASE_ASSERT(inspector != NULL, "handing an area to no inspector");
+
+	inspector->area = area;
 }
 
 void voe_editor_inspector_draw(voe_ui_context *ui,

@@ -69,7 +69,10 @@
 // (ui/layout.h), so everything inside its outline is the list's: the gaps
 // between the rows and the padding at its edges belong to it, and no field,
 // button, swatch or number box it covers hovers, highlights or fires through it
-// (ADR-0199).
+// (ADR-0199). The area that clips the list is handed in by dock.c through
+// voe_editor_inspector_area_set, because where the list fits is measured
+// against that rectangle and this panel never sees the container it is drawn
+// inside.
 #pragma once
 
 #include <base/arena.h>
@@ -221,6 +224,13 @@ typedef struct {
 	// The one column everything this panel draws sits in, and the thing the
 	// open list is anchored to. VOE_UI_NODE_NONE when nothing was drawn.
 	voe_ui_node content;
+	// The scroll area this panel's contents were drawn inside, as
+	// dock.c handed it over this frame, and VOE_UI_NODE_NONE when
+	// nobody did. voe_ui_node_visible of it is the room the open
+	// list has to fit in: that area is what clips the list
+	// (ADR-0199), so what is left of the area is exactly what can
+	// be seen of anything drawn in it, however far it is scrolled.
+	voe_ui_node area;
 	// The open list's rows as drawn this frame, kept for the read for the
 	// reason every other control here is.
 	voe_editor_dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];
@@ -234,6 +244,15 @@ typedef struct {
 void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 				      voe_base_arena *arena,
 				      const voe_editor_dropdown *dropdown);
+
+// Hands over the scroll area this panel's contents are about to be drawn
+// inside, for the open list to measure its room against (ADR-0200). Called
+// between voe_ui_frame_begin and voe_editor_inspector_draw by whoever opened
+// that area, which is dock.c's walk; the node is this frame's, like every other
+// one on the struct, and a panel drawn inside nothing that clips hands over
+// VOE_UI_NODE_NONE.
+void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
+				   voe_ui_node area);
 
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is
