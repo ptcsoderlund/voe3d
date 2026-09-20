@@ -22,10 +22,11 @@
 // THE CAPACITY CONSTANTS BELOW ARE WHAT A DEVICE MUST HAVE ROOM FOR before
 // voe_3d_shapes_upload is called on it — the vertices, indices, geometries and
 // shadings the cube, the capsule and the cylinder cost together, one geometry
-// each and one shading between them. A program that draws shapes sizes its
-// voe_render_capacities from these. They are written out as numbers so a
-// reader sees the cost; 3d/src/shape_system.c asserts at compile time that each
-// is the sum of the three shapes' own counts.
+// each, one shading between them and a second for the selection outline's unlit
+// record (0203). A program that draws shapes sizes its voe_render_capacities
+// from these. They are written out as numbers so a reader sees the cost;
+// 3d/src/shape_system.c asserts at compile time that the vertices, the indices
+// and the geometries are the sum of the three shapes' own counts.
 //
 // THE INTENT CARRIES THE WHOLE ROW, as the transform's does
 // (scene/transform_system.h), and is the shape's replace (ecs/component.h). The
@@ -103,24 +104,34 @@
 #define VOE_3D_SHAPES_VERTICES 750
 #define VOE_3D_SHAPES_INDICES 3492
 #define VOE_3D_SHAPES_GEOMETRIES 3
-#define VOE_3D_SHAPES_SHADINGS 1
+#define VOE_3D_SHAPES_SHADINGS 2
 
-// The GPU side of every built-in shape: one geometry per kind and the one white
-// material every shape uses. A program keeps one of these for as long as it
-// runs the shape system.
+// The GPU side of every built-in shape: one geometry per kind, the one white
+// material every shape uses and the outline's unlit record. A program keeps one
+// of these for as long as it runs the shape system.
 typedef struct {
 	voe_render_geometry cube;
 	voe_render_geometry capsule;
 	voe_render_geometry cylinder;
 	voe_3d_material material;
+
+	// The record the selection outline's quads wear (0203): white, opaque
+	// and UNLIT, so the colour in the drawn object's record is the whole of
+	// what they are — ADR-0191's rule for a shape's colour, applied to a
+	// line, and the reason the sun cannot change an outline's colour as the
+	// camera moves. Nothing in this folder puts it on an entity: it is
+	// handed to a pass through voe_3d_frame.
+	voe_3d_material outline;
 } voe_3d_shapes;
 
 // Creates the cube's, the capsule's and the cylinder's geometry, in that order,
-// and uploads the shapes' one material — opaque, white (1, 1, 1), metallic 0,
-// roughness 0.6, lit. White because a shape's own colour is multiplied in
-// through its drawn object's record (ADR-0191). False when the device
-// has no room, which is the one way this fails (see voe_render_geometry_create
-// and voe_3d_material_upload, both of which it calls).
+// and uploads two records, in the order it makes them: the shapes' own material
+// — opaque, white (1, 1, 1), metallic 0, roughness 0.6, lit — and then the
+// outline's, white and opaque too, metallic 0, roughness 1 and unlit. White
+// because a shape's own colour is multiplied in through its drawn object's
+// record (ADR-0191). False when the device has no room, which is the one way
+// this fails (see voe_render_geometry_create and voe_3d_material_upload, both
+// of which it calls).
 [[nodiscard]] bool voe_3d_shapes_upload(voe_render_device *device,
 					voe_3d_shapes *out,
 					voe_base_error *error);

@@ -183,14 +183,17 @@ carries it out.
   rotation and the world axis and name of one of its three rows, a type's
   heading from its key, a field as one string, and how many boxes a kind is
   worth.
-- `view.h` — a scene view: its camera, its target and the middle-button drag.
+- `view.h` — a scene view: its camera, its target and the middle-button drag,
+  and which view a pointer is over and where in that view's picture it lands.
   Its header says why the camera is not an entity, why the light is the
-  world's, why the picture's size lags the layout by a frame, and why a view
-  whose leaf is not in the tree is not drawn.
+  world's, why the picture's size lags the layout by a frame, why a click is
+  read against last frame's rectangle for the same reason, and why a view whose
+  leaf is not in the tree is not drawn.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, and their targets.
-- `scene.h` — the current project's world, the selection in it, the rows the
-  Scene panel drew, its Add menu, Delete and Duplicate on the selection and the
+- `scene.h` — the current project's world, the selection in it — moved by the
+  Scene panel's rows and by a click in a view — the rows the Scene panel drew,
+  its Add menu, Delete and Duplicate on the selection and the
   structural changes and refusals made this frame, what the Inspector drew this
   frame, and what the colour picker and the open dropdown are open on — the
   dropdown's shape being inspector.h's, whose place and how tall its rows may
@@ -204,6 +207,14 @@ carries it out.
   to where the Inspector measured it and capped to the height it measured
   there, and the one question asked of the Scene panel's rows and Add menu
   after the frame has ended; nothing in it draws or lays out.
+- `pick.h` — a left click in a scene view selects the frontmost entity under the
+  pointer, and a click on nothing clears the selection; the ray and what it
+  meets are `3d`'s (ADR-0202). Its header says why the middle button is never
+  read here, what `blocked` is for a caller, why a press and not a release
+  selects, and why a click over no view leaves the selection alone while a click
+  in a view that meets nothing clears it.
+- `pick.c` — the press edge, the view the pointer is over, the ray through that
+  view's picture, and the selection set from whatever it met.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.

@@ -29,6 +29,17 @@ voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene)
 	return scene->selected;
 }
 
+void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(scene != NULL, "selecting in no scene");
+	VOE_BASE_ASSERT(scene->world != NULL,
+			"selecting in a scene with no world");
+
+	scene->selected = voe_ecs_entity_alive(scene->world, entity)
+				  ? entity
+				  : (voe_ecs_entity){ 0 };
+}
+
 bool voe_editor_scene_is_selected(const voe_editor_scene *scene,
 				  voe_ecs_entity entity)
 {

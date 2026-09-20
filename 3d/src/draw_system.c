@@ -80,10 +80,12 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/normal_matrix.h>
+#include <3d/outline.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
 #include <3d/shape_component.h>
 #include <base/assert.h>
+#include <base/error.h>
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
@@ -361,8 +363,11 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.view.reserved = 0.0f;
 	frame.light = the_sun(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
-	// saying nothing — see the header.
+	// saying nothing — see the header. The same for the outline: a zeroed
+	// record outlines nothing, so a caller that never sets either field gets
+	// the picture it would have got before they existed.
 	frame.hidden = (voe_ecs_entity){ 0 };
+	frame.outlined = (voe_3d_outlined){ 0 };
 
 	return frame;
 }
@@ -436,6 +441,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	struct group overlay_blended = { 0 };
 	voe_ecs_type shapes = { 0 };
 	bool has_shapes;
+	// Whether the depth buffer has been emptied yet, which the overlay does
+	// and the outline needs.
+	bool cleared = false;
 
 	VOE_BASE_ASSERT(world != NULL, "drawing no world");
 	VOE_BASE_ASSERT(device != NULL, "drawing to no device");
@@ -587,12 +595,57 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// AN EMPTY OVERLAY CLEARS NOTHING. A full-screen depth clear is real work
 	// and a world with nothing above it should not pay for one; with both
 	// groups empty the clear has nothing to make room for, and the depth
-	// image is thrown away at the end of the frame either way.
+	// image is thrown away at the end of the frame either way. An outline
+	// wants the same empty buffer and asks for the clear itself below when
+	// the overlay did not.
 	if (overlay_solid.count > 0 || overlay_blended.count > 0) {
 		voe_render_frame_clear_depth(device);
+		cleared = true;
 
 		(void)draw_group(device, &overlay_solid);
 		(void)draw_group(device, &overlay_blended);
+	}
+
+	// THE OUTLINE IS THE LAST THING IN THE FRAME, WHICH IS WHAT MAKES IT SHOW
+	// THROUGH. It goes after the overlay's own groups and after the depth
+	// clear, so nothing already drawn can be in front of it — while the
+	// entity it belongs to was drawn where it really is, in its own layer,
+	// untouched. A world with nothing above it has not cleared depth at that
+	// point, so this clears it: the clear is what the outline is drawn
+	// against, and it is made once either way. See the header and ADR-0203.
+	//
+	// A REFUSED TRANSIENT RANGE DRAWS NO OUTLINE AND NOTHING ELSE CHANGES.
+	// render has already said so on stderr, and the rest of the frame is
+	// drawn, ended and presented — the same rule every other draw in here
+	// follows.
+	if (voe_ecs_entity_alive(world, frame.outlined.entity)) {
+		voe_3d_outline_mesh outline;
+		voe_render_geometry quads;
+		voe_base_error error = VOE_BASE_OK;
+
+		if (voe_3d_outline_quads(world, frame.outlined, view, arena,
+					 &outline) &&
+		    voe_render_geometry_create_transient(
+			    device, outline.vertices, outline.vertex_count,
+			    outline.indices, outline.index_count, &quads,
+			    &error)) {
+			// The quads are already in world space (3d/outline.h),
+			// so both matrices are the identity; the record is the
+			// caller's unlit one and the colour the caller's, which
+			// is the whole of what the outline looks like.
+			voe_render_object object = {
+				.world = voe_math_float4x4_identity(),
+				.normal = voe_math_float4x4_identity(),
+				.shading = frame.outlined.material.shading.index,
+				.colour = { frame.outlined.colour.x,
+					    frame.outlined.colour.y,
+					    frame.outlined.colour.z, 1.0f },
+			};
+
+			if (!cleared)
+				voe_render_frame_clear_depth(device);
+			(void)voe_render_frame_draw(device, quads, object);
+		}
 	}
 
 	// Everything above is this frame's, and the caller's arena is handed

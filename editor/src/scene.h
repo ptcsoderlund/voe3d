@@ -14,7 +14,11 @@
 // beside the roots in main.c, and a panel reads it; voe_editor_dock_tree does
 // not know it exists and never will. Where a panel sits and what is selected in
 // it are two unrelated facts, and a tree that held a selection would be a
-// layout a person could not save without saving what they had clicked.
+// layout a person could not save without saving what they had clicked. A row
+// in the Scene panel moves it (voe_editor_scene_clicks_read) and so does a
+// left click in a scene view (pick.h), which moves it through
+// voe_editor_scene_select — one field with one meaning whichever of the two
+// was clicked, and one Inspector showing it.
 //
 // AN ENTITY THAT NO LONGER EXISTS IS NO SELECTION. The id is kept as it was
 // clicked and tested against the world every time it is read, so a destroyed
@@ -160,6 +164,12 @@ typedef struct voe_editor_scene {
 // Which entity is selected, or a zeroed one when nothing is — including when
 // what was selected has since been destroyed.
 voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene);
+
+// Selects this entity, or clears the selection when it is zeroed or no longer
+// alive. The same selection a row in `Scene` moves (voe_editor_scene_clicks_read)
+// and the same one the Inspector shows: there is one, and this is how anything
+// that is not the Scene panel moves it.
+void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity);
 
 // Whether this is the selected entity. False for a zeroed `entity` and false
 // for one that is not alive, so a caller comparing table rows needs no checks of

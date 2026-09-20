@@ -9,7 +9,12 @@ three columns: `Scene` on the left, two scene views stacked in the middle, and
 Entity, Cube, Capsule and Cylinder add one through the world's structural queue
 and select it; a click on a row selects it. Each view draws the world from its
 own camera, moved by a middle-button drag in it, lit by whichever light the
-world holds. `Inspector` lists what the selected entity is made of under
+world holds; a left click in one selects the frontmost entity under the pointer
+and a click on empty space clears the selection, neither of which happens while
+the browser or Preferences shows. The selected entity is drawn in both views
+with a thin outline round its silhouette, in the theme's own lightness and
+never a colour of its own (ADR-0194), and it shows even when something stands
+in front of it. `Inspector` lists what the selected entity is made of under
 Duplicate and Delete buttons, each part but its identity with a Remove button,
 and an Add component list below them. A number in it can be dragged, or clicked
 and typed into, the name can be typed, and Tab moves between them; a colour is

@@ -27,6 +27,28 @@ card, and says so below.
 - `draw_system.c` — that the one entity a frame hides is not drawn and that every
   other one still is, in both tables and both layers, and that a red shaped cube
   reads red at the picture's centre. Skips without a graphics card.
+- `shape_geometry.c` — that the CPU store answers for the three kinds and nothing
+  else, that it holds each kind's own triangles with the cube's pointed straight
+  at its constants, that every kind is a closed surface whose edges carry
+  unit-length normals and whose cube has twelve folds and six face diagonals, and
+  that every triangle of every kind is wound counter-clockwise seen from outside.
+  Needs no graphics card.
+- `pick.c` — the distance to a cube through the picture's centre, the ray that
+  meets nothing, the nearer of two in either order, a cube found at the pixel its
+  own centre projects to, a shape with no transform that is never answered, and —
+  drawn — that a pixel the cube covers picks that cube, which is the check that
+  the ray and the picture agree about which way is up. The arithmetic half needs
+  no graphics card; the drawn half skips without one.
+- `outline.c` — that a cube seen square on has four silhouette edges and one
+  turned forty-five degrees six, that every corner of the quads is outside the
+  face it hugs and none far from it, that twice as far away is twice as wide in
+  metres and that the width is the pixels it was asked for, that every triangle
+  faces the eye, that a capsule gives many edges and never more than the cap, and
+  that a zeroed entity, a shape with no transform, a transform with no shape, an
+  unknown kind and no store are each answered false with the answer left
+  untouched, and — drawn — that the outline of a cube another cube hides
+  entirely is drawn where that near cube is, which is what showing through means.
+  The arithmetic half needs no graphics card; the drawn half skips without one.
 - `shape.c` — that kind is described, editable and named by its three names, and
   colour a described colour with no names, that the default row is a grey cube
   needing a transform, that an intent's new kind lands and re-points the mesh
@@ -36,5 +58,7 @@ card, and says so below.
   nothing, that each kind gets its own geometry, that a removed shape's mesh
   and material are dropped while an imported mesh is kept, and that the
   capsule's and cylinder's normals are unit length, and that both are the right
-  size and wound outward. The table and geometry half needs no graphics card;
-  the upload half skips without one.
+  size and wound outward, and that the upload hands back both records — the
+  shapes' lit white one and the outline's unlit one, on a shading of its own.
+  The table and geometry half needs no graphics card; the upload half skips
+  without one.

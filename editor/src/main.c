@@ -85,7 +85,9 @@
 // of its own, because the day a panel is a quad standing in the world that
 // conversion is a ray against the quad — a different sum, in a different file,
 // and only a call site can know which of the two it wants. The views' drag is
-// handed the same millimetres, for the same reason. THE WHEEL IS THE SAME SHAPE
+// handed the same millimetres, for the same reason, and so is the left press
+// over a view that picks what is under it through pick.h; the middle button
+// still moves the camera and selects nothing. THE WHEEL IS THE SAME SHAPE
 // OF DECISION: `platform` counts notches, `ui` takes a length in millimetres,
 // and WHEEL_MILLIMETRES between them is this program saying how far a notch
 // moves anything.
@@ -103,6 +105,9 @@
 // this file reads out of the world (view.h) rather than with
 // voe_3d_draw_system_frame, which reads a camera out of the world too and this
 // world's camera is never there — a view's is the editor's own.
+// Each view's pass also outlines whatever is selected, in the theme's own
+// lightness, drawn after everything else in that pass so it shows through
+// whatever stands in front of it (ADR-0203, 3d/draw_system.h).
 //
 // THE LIGHT IS THE WORLD'S FIRST LIGHT ROW, OR ZERO INTENSITY WHEN IT HAS NONE.
 // Every view is lit the same way, once a frame, by whichever light `Light` (or
@@ -144,6 +149,7 @@
 #include "preferences.h"
 #include "last_project.h"
 #include "notice.h"
+#include "pick.h"
 #include "project.h"
 #include "scene.h"
 #include "session.h"
@@ -151,6 +157,7 @@
 #include "view.h"
 
 #include <3d/draw_system.h>
+#include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
 
 #include <app/app.h>
@@ -212,27 +219,46 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
+// How thick the selection's outline is drawn, in the surface's millimetres.
+// HOW WIDE THAT LINE IS IS THIS PROGRAM'S TO CHOOSE, the same as a notch's
+// worth: `3d` takes a width in pixels, everything this file sizes is in the
+// surface's millimetres, and `pixels_per_millimetre` is the one multiplication
+// between them — so the outline is the same thickness on a screen of any
+// density (ADR-0180).
+#define VOE_EDITOR_OUTLINE_MILLIMETRES 0.4f
+
 // WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
 // 3d/shape_system.h — which is what makes the geometry numbers its constants
 // and `shadings` a one. `objects` is per frame: every drawn entity is one
 // object in every view's pass, so it is the room for drawn entities
 // (VOE_EDITOR_PROJECT_MAX_DRAWN, project.h's — every project's world is
 // registered with that much room for a mesh and a material, so a device that
-// draws one is sized from the same number) times the room for views. `passes`
+// draws one is sized from the same number), one more for the selected entity's
+// outline, which is drawn into every view's pass too, times the room for
+// views. `passes`
 // is a pass per view and the interface's, and `targets` a target per view —
 // both from the room for views, not the two in use, so a third view is a leaf
-// and not a capacity. The three transient numbers stay nought; see
-// render/include/render/device.h.
+// and not a capacity. The three transient numbers are what the selection
+// outline's quads are copied into: one outline per view's pass, sized the way
+// `passes` and `targets` are, from the room for views and not the two in use
+// (ADR-0203, 3d/outline.h).
 #define EDITOR_CAPACITIES                                                     \
 	(voe_render_capacities)                                               \
 	{                                                                     \
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = VOE_EDITOR_PROJECT_MAX_DRAWN * VOE_EDITOR_VIEWS,    \
+		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 1) *                \
+			   VOE_EDITOR_VIEWS,                                   \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
-		.passes = VOE_EDITOR_VIEWS + 1, .targets = VOE_EDITOR_VIEWS    \
+		.passes = VOE_EDITOR_VIEWS + 1,                                \
+		.targets = VOE_EDITOR_VIEWS,                                   \
+		.transient_vertices = VOE_3D_OUTLINE_VERTICES *                \
+				      VOE_EDITOR_VIEWS,                        \
+		.transient_indices = VOE_3D_OUTLINE_INDICES *                  \
+				     VOE_EDITOR_VIEWS,                         \
+		.transient_geometries = VOE_EDITOR_VIEWS                       \
 	}
 
 // One line at startup saying whether a field description reached the binary,
@@ -289,6 +315,27 @@ static voe_render_light world_light(const voe_ecs_world *world)
 	return (voe_render_light){ .direction = row->direction,
 				   .colour = row->colour,
 				   .intensity = row->intensity };
+}
+
+// The colour every view's selection outline is drawn in: the lighter of the
+// palette's `inverse` and `inverse_ink`, by relative luminance on the linear
+// numbers the palette already holds (ui/theme.h). A scene view's background is
+// the engine's near-black clear colour whatever the theme is, so the dark half
+// of a light theme's inverse pair would be an outline nobody can see. Both
+// roles carry the theme's one hue and neither is a colour of its own, so taking
+// the lighter keeps ADR-0194's rule and keeps the outline visible in every
+// theme (ADR-0203).
+static voe_math_float3 outline_colour(const voe_ui_theme *palette)
+{
+	voe_math_float4 fill = palette->inverse;
+	voe_math_float4 ink = palette->inverse_ink;
+	float fill_luminance =
+		0.2126f * fill.x + 0.7152f * fill.y + 0.0722f * fill.z;
+	float ink_luminance =
+		0.2126f * ink.x + 0.7152f * ink.y + 0.0722f * ink.z;
+	voe_math_float4 lighter = fill_luminance >= ink_luminance ? fill : ink;
+
+	return (voe_math_float3){ lighter.x, lighter.y, lighter.z };
 }
 
 // One line, on stderr, and the return code that goes with it. Every way of
@@ -389,6 +436,13 @@ int main(int argc, char *argv[])
 	// Beside the scene and not in it: a view's camera is the editor's and
 	// never the world's (view.h).
 	voe_editor_views views = { 0 };
+	// The left press in a view that moves the selection (pick.h), beside
+	// the drag it shares the pointer with.
+	voe_editor_pick pick = { 0 };
+	// The built-in shapes' CPU side: the triangles a pick ray is cast
+	// against, built once into the kept arena because the store outlives
+	// every frame (3d/shape_geometry.h).
+	voe_3d_shape_geometries geometries;
 	int status = 0;
 
 	// THE COMMAND LINE IS READ BEFORE ANYTHING IS OPENED, so a mistyped
@@ -516,6 +570,11 @@ int main(int argc, char *argv[])
 		status = 1;
 		goto stop;
 	}
+
+	// The same three kinds on the CPU, for the ray a click is cast as
+	// (pick.h). No device in it, and the kept arena because the store is
+	// read for as long as the editor runs.
+	voe_3d_shape_geometries_create(arena, &geometries);
 
 	// project.world lives in project's own arena, not this program's — see
 	// project.h on why every project owns its own world. NEW replaces it
@@ -812,6 +871,14 @@ int main(int argc, char *argv[])
 				      middle && !browser.showing, shift,
 				      control);
 
+		// The left half of the same division: a press over a view picks
+		// what is under it, unless a panel over the views has the press
+		// instead (pick.h).
+		voe_editor_pick_read(&pick, &scene, &views, &geometries,
+				     roots[0].pointer.at, left && pointer.over,
+				     browser.showing || preferences.showing ||
+					     scene.picking.open);
+
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
 		// size it is shown at — last frame's rectangle, see view.h.
@@ -847,8 +914,22 @@ int main(int argc, char *argv[])
 				break;
 			voe_3d_draw_system_run(
 				session.project->world, gpu, arena,
-				(voe_3d_frame){ .view = camera.view,
-						.light = camera.light });
+				(voe_3d_frame){
+					.view = camera.view,
+					.light = camera.light,
+					.outlined = {
+						.entity = voe_editor_scene_selected(
+							&scene),
+						.geometries = &geometries,
+						.material = shapes.outline,
+						.colour = outline_colour(
+							&voe_editor_themes_chosen(
+								 &themes)
+								 ->palette),
+						.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+							  pixels_per_millimetre,
+						.size = { (int)view->width,
+							  (int)view->height } } });
 			voe_render_pass_end(gpu);
 		}
 

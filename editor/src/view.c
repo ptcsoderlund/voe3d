@@ -221,6 +221,35 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 	views->pointer = pointer;
 }
 
+bool voe_editor_views_under(const voe_editor_views *views,
+			    voe_math_float2 pointer, uint32_t *view,
+			    voe_math_float2 *point)
+{
+	VOE_BASE_ASSERT(views != NULL, "asking no views what is under a pointer");
+	VOE_BASE_ASSERT(view != NULL, "nowhere to put the view a pointer is over");
+	VOE_BASE_ASSERT(point != NULL, "nowhere to put the place in the picture");
+
+	uint32_t found = view_under(views, pointer);
+	if (found == VOE_EDITOR_VIEW_NONE)
+		return false;
+
+	// The picture is drawn `width` by `height` pixels and shown stretched
+	// over the whole rectangle, so the fraction across the rectangle is the
+	// fraction across the picture. contains() answered true, so the
+	// rectangle has room in both directions and neither division is by
+	// nought.
+	const voe_editor_view *over = &views->views[found];
+	*view = found;
+	*point = (voe_math_float2){
+		.x = (pointer.x - over->rect.min.x) / over->rect.size.x *
+		     (float)over->width,
+		.y = (pointer.y - over->rect.min.y) / over->rect.size.y *
+		     (float)over->height,
+	};
+
+	return true;
+}
+
 void voe_editor_views_images_clear(voe_editor_views *views)
 {
 	VOE_BASE_ASSERT(views != NULL, "clearing the pictures of no views");
