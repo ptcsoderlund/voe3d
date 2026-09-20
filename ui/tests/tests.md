@@ -6,11 +6,10 @@ only the cases that measure a string take a headless device — everything else
 this folder computes is arithmetic checked against numbers worked out by hand.
 
 - `button.c` — that a press and a release in every order a hand can produce give
-  the right answer, and so do a sideways drag, a fine one, a drag past the edge,
-  a half-clipped button and a number box scrolled away mid-drag, that half a
-  millimetre inside the dead zone is no drag at all, and that a held button, a
-  number box being dragged and a selected choice draw `inverse` with the label
-  on them in `inverse_ink` while a hovered one stays `control_hovered`.
+  the right answer, that a half-clipped button is drawn and answers the pointer
+  only where it is seen, and that a held button, a number box being dragged and a
+  selected choice draw `inverse` with the label on them in `inverse_ink` while a
+  hovered one stays `control_hovered`; the module under it is `ui/src/button.c`.
 - `colour.c` — that a swatch is one record of its colour, a press at the
   square's top-right with hue nought is red, `#FFC800` and `ffc800` are taken,
   `#12` is refused leaving the colour, a press outside says so, and a colour
@@ -26,6 +25,11 @@ this folder computes is arithmetic checked against numbers worked out by hand.
 - `layout.c` — that the rectangles are the ones worked out by hand, one case per
   decision that could have gone the other way, wraps, clips, clamped scroll
   offsets and paint order among them.
+- `number.c` — that a sideways drag on a number box moves the value, a fine one
+  moves it a tenth as far, a drag past the edge goes on moving it, half a
+  millimetre inside the dead zone moves nothing and a box scrolled away mid-drag
+  keeps dragging; the module under it is `ui/src/button.c` too, the one module
+  two programs cover.
 - `scroll.c` — that a scroll area remembers its offset and clamps it, forgets it
   when it is not called, passes outward what it cannot take, and draws a bar only
   when it has to, whose thumb is as long and as far as the offset says, is
