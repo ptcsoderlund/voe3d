@@ -1,7 +1,8 @@
-// The built-in shapes: uploading the geometry and material every shape wears,
-// the shape's intent and its drain, the run that gives a mesh and a material to
-// a shape that has neither yet, re-points the mesh of a shape whose kind
-// changed, and removes both once the shape is gone.
+// The built-in shapes: uploading the geometry and material every shape wears
+// and the selection outline's unlit record, the shape's intent and its drain,
+// the run that gives a mesh and a material to a shape that has neither yet,
+// re-points the mesh of a shape whose kind changed, and removes both once the
+// shape is gone.
 //
 // THE RUNS AND THE COUNTS ARE FILE-SCOPE STATICS AND THEREFORE PER PROCESS, the
 // same trade scene/identity_system.c makes and explains: two worlds in one
@@ -33,9 +34,12 @@
 
 // The material every shape wears: opaque, lit and white, so that the shape's
 // own colour, multiplied in through the drawn object's record, is the colour
-// on screen (ADR-0191).
+// on screen (ADR-0191). The outline's record is white the same way and for the
+// same reason, and unlit so that a flat line the sun shades cannot change
+// colour as the camera moves (0203).
 #define WHITE 1.0f
 #define ROUGHNESS 0.6f
+#define OUTLINE_ROUGHNESS 1.0f
 
 static_assert(VOE_3D_SHAPES_VERTICES == VOE_3D_CUBE_VERTICES +
 					VOE_3D_CAPSULE_VERTICES +
@@ -70,6 +74,13 @@ bool voe_3d_shapes_upload(voe_render_device *device, voe_3d_shapes *out,
 		.roughness = ROUGHNESS,
 		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
 	};
+	voe_3d_material outline = {
+		.base_colour = { WHITE, WHITE, WHITE, 1.0f },
+		.metallic = 0.0f,
+		.roughness = OUTLINE_ROUGHNESS,
+		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
+		.unlit = true,
+	};
 
 	VOE_BASE_ASSERT(device != NULL, "uploading shapes to no device");
 	VOE_BASE_ASSERT(out != NULL, "uploading shapes into nothing");
@@ -95,11 +106,14 @@ bool voe_3d_shapes_upload(voe_render_device *device, voe_3d_shapes *out,
 		return false;
 	if (!voe_3d_material_upload(device, &material, error))
 		return false;
+	if (!voe_3d_material_upload(device, &outline, error))
+		return false;
 
 	*out = (voe_3d_shapes){ .cube = cube,
 				.capsule = capsule,
 				.cylinder = cylinder,
-				.material = material };
+				.material = material,
+				.outline = outline };
 	return true;
 }
 

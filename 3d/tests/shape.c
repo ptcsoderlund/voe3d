@@ -486,8 +486,9 @@ static void the_capsule_and_cylinder_are_built_right(void)
 }
 
 // The GPU half: a device sized exactly from the constants a program is told to
-// size it from, the material voe_3d_shapes_upload writes, and a run that puts
-// a capsule and a cylinder on the geometries it made for them.
+// size it from, the two records voe_3d_shapes_upload writes — the shapes' lit
+// white one and the outline's unlit one, each its own shading — and a run that
+// puts a capsule and a cylinder on the geometries it made for them.
 //
 // An intent naming another kind lands and re-points the mesh a run already
 // gave: the entity is drawn with the new kind's geometry, and its material, its
@@ -604,6 +605,11 @@ static void the_upload_makes_three_shapes_and_a_white_material(void)
 	VOE_TEST_CHECK_FLOAT(shapes.material.roughness, 0.6f, 1e-6f);
 	VOE_TEST_CHECK_INT(shapes.material.alpha_mode, VOE_RENDER_ALPHA_OPAQUE);
 	VOE_TEST_CHECK(!shapes.material.unlit);
+	VOE_TEST_CHECK(shapes.outline.shading.index !=
+			       shapes.material.shading.index ||
+		       shapes.outline.shading.generation !=
+			       shapes.material.shading.generation);
+	VOE_TEST_CHECK(shapes.outline.unlit);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);

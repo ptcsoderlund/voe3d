@@ -56,5 +56,7 @@ card, and says so below.
   nothing, that each kind gets its own geometry, that a removed shape's mesh
   and material are dropped while an imported mesh is kept, and that the
   capsule's and cylinder's normals are unit length, and that both are the right
-  size and wound outward. The table and geometry half needs no graphics card;
-  the upload half skips without one.
+  size and wound outward, and that the upload hands back both records — the
+  shapes' lit white one and the outline's unlit one, on a shading of its own.
+  The table and geometry half needs no graphics card; the upload half skips
+  without one.
