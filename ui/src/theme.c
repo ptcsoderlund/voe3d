@@ -178,7 +178,6 @@ voe_ui_theme_inputs voe_ui_theme_default_inputs(void)
 		// #808080: a grey, so the built-in Near black and Near white
 		// have no chroma in any role (ADR-0194).
 		.hue = (voe_math_float3){ 0.502f, 0.502f, 0.502f },
-		.accent = (voe_math_float3){ 0.30f, 0.55f, 0.95f },
 		.contrast_strength = 1.0f,
 		.surface_separation = 1.0f,
 		.mode = VOE_UI_THEME_MODE_DARK,
@@ -252,8 +251,6 @@ voe_ui_theme voe_ui_theme_derive(const voe_ui_theme_inputs *inputs,
 		.text_disabled = hue_rgba(text_disabled_l, a, b),
 		.inverse = inverse,
 		.inverse_ink = inverse_ink,
-		.accent = inverse,
-		.accent_ink = inverse_ink,
 		.font = font,
 		.text_size = inputs->text_size,
 	};

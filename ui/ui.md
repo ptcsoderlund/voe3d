@@ -56,10 +56,12 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   children has no natural size at all, and what the measured size is for.
 - `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
   `voe_ui_theme` (the derived palette of roles), `voe_ui_theme_default_inputs`
-  and `voe_ui_theme_derive`. Its header says why `accent` stays sRGB in the
-  inputs and is linear in every derived role, why the derivation runs in OKLab
-  and cannot fail, why a NULL font is allowed, why the accent's chroma is
-  clamped harder in dark mode than in light, and why
+  and `voe_ui_theme_derive`. Its header says why the one authored `hue` stays
+  sRGB in the inputs and is linear in every derived role, why every role
+  carries that hue and roles differ only in lightness, why a held, dragged or
+  selected control is drawn in `inverse` with its text in `inverse_ink`, why
+  the derivation runs in OKLab and cannot fail, why a NULL font is allowed,
+  why the hue's chroma is clamped harder in dark mode than in light, and why
   `VOE_UI_THEME_SCALAR_MIN`/`MAX` are public — `theme` has to refuse the same
   range this folder clamps to.
 - `include/ui/widgets.h` — the theme mechanism (`voe_ui_theme_set`,

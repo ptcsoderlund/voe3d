@@ -108,8 +108,6 @@ typedef struct {
 	// tint every role below (see this file's header). A grey gives a
 	// palette with no chroma at all.
 	voe_math_float3 hue;
-	// Unread; removed by card 10.
-	voe_math_float3 accent;
 	// How far every text role and the border step from `ground`. 1.0 is the
 	// reference; see VOE_UI_THEME_SCALAR_MIN/MAX.
 	float contrast_strength;
@@ -145,8 +143,8 @@ typedef struct {
 	// scrollbar's track.
 	voe_math_float4 control;
 	// The same control while the pointer is over it. A control being
-	// pressed, or a number box being dragged, is the accent instead
-	// (task 4) — there is no third control colour.
+	// pressed, or a number box being dragged, is drawn in `inverse`
+	// instead (ADR-0196) — there is no third control colour.
 	voe_math_float4 control_hovered;
 	// Ordinary text.
 	voe_math_float4 text_primary;
@@ -162,10 +160,6 @@ typedef struct {
 	// The text that goes on `inverse`, at `ground`'s lightness — the
 	// text-on-ground contrast this derivation already keeps, swapped round.
 	voe_math_float4 inverse_ink;
-	// Equal to `inverse`; removed by card 10.
-	voe_math_float4 accent;
-	// Equal to `inverse_ink`; removed by card 10.
-	voe_math_float4 accent_ink;
 	// The font this theme draws with (ADR-0167), and how big an em is on
 	// this surface. NULL is allowed — see this file's header — and is what
 	// a theme derived with no font in hand carries until a caller sets one.

@@ -24,8 +24,8 @@
 //     would catch the reference drifting back to `surface`.
 //   - THE DARK/LIGHT CHROMA ASYMMETRY, pinned to the two figures ADR-0097's
 //     bench found and ADR-0171 turned into a rule: a saturated hue keeps
-//     less chroma in dark mode than in light, measured on `surface` now that
-//     there is no accent role to measure it on.
+//     less chroma in dark mode than in light, measured on `surface`, which
+//     carries the hue's chroma as every role does.
 //
 // NEEDS NO GRAPHICS CARD. voe_ui_theme_derive only copies a font pointer
 // through, never dereferences it, so every case here passes NULL and the
