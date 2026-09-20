@@ -30,3 +30,10 @@ same marks; that file with `accent=` instead drawing on and showing a notice nam
 both sliders moving text and surfaces as they are dragged and staying readable at either end; the theme and
 both sliders as they were left after a restart with `amber.theme` unchanged on disk; and Near black showing
 its own slider values, which Reset puts back.
+
+## Blocked
+The `## Change` is done and `checks.sh --folder editor` is `FINDINGS: 0`, but `checks.sh --all` exits 1
+on `ui/include/ui/ui.md: does not list `slider.h``, a defect left by card 11 (a4e63f6) in another
+folder, so this card's `## Done when` cannot be reached from `editor`. One `- `slider.h` — sentence `
+entry added to `ui/include/ui/ui.md` in a `ui` card unblocks it; the human walk through
+`feature.md`'s `## How to test` was not seen either, since it needs a person at the running editor.

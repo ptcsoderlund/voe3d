@@ -33,9 +33,14 @@ It draws in a theme: Near black or Near white, the two with no file, or the
 — see `src/themes.h`. A remembered theme that is gone or refused draws Near
 black and says why in the bar. The selected row in `Scene` is drawn inverted,
 as anything held or pressed is, because no colour in the editor means anything
-(ADR-0194). Preferences lists every theme — each row drawn in its own
-theme, the one in force marked — and Choose puts one in force and remembers it;
-Close or Escape hides it. While something is being typed into, Escape only cancels
+(ADR-0194): a theme file authors its one hue as `hue=`, and one still saying
+`accent=` is refused with its line named. Preferences lists every theme — each
+row drawn in its own theme, the one in force marked — and Choose puts one in
+force and remembers it; it also shows contrast and surface separation for the
+theme in force, and dragging either changes the whole editor as it moves. What
+is set that way is remembered per theme in `<settings>/voe3d/theme_scalars` and
+never in the theme file, and Reset puts that theme's own two back. Close or
+Escape hides it. While something is being typed into, Escape only cancels
 that; otherwise, while the colour picker is open, it only closes the picker.
 
 Open shows the editor's own file browser — an anchored panel over the dock,

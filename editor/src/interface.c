@@ -283,6 +283,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// PREFERENCES, WHEN IT WAS DRAWN. A theme chosen here is set on
 		// the context after this frame's records were built, so it
 		// restyles the next frame (ui/widgets.h's voe_ui_theme_set).
+		// The two sliders move the theme in force as they are dragged —
+		// its palette is derived again where it stands, so the next frame
+		// draws with it and nothing is set here — and what they are left
+		// at is remembered per theme when the drag ends (ADR-0197).
 		if (preferring) {
 			voe_editor_preferences_result result =
 				voe_editor_preferences_clicks_read(ui,
@@ -300,9 +304,23 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_ui_font_set(ui, chosen->palette.font);
 				voe_ui_theme_set(ui, &chosen->palette);
 			} else if (result.action ==
+				   VOE_EDITOR_PREFERENCES_ADJUST) {
+				voe_editor_themes_adjust(themes, themes->chosen,
+							 result.contrast,
+							 result.separation);
+			} else if (result.action ==
+				   VOE_EDITOR_PREFERENCES_RESET) {
+				voe_editor_themes_reset(themes, themes->chosen);
+			} else if (result.action ==
 				   VOE_EDITOR_PREFERENCES_CLOSE) {
 				voe_editor_preferences_hide(preferences);
 			}
+
+			if (!result.sliding &&
+			    !voe_editor_themes_scalars_write(themes))
+				voe_editor_notice_set(
+					&session->notice,
+					"the slider values could not be remembered");
 		}
 
 		// The range this root fills, read either side of its own
