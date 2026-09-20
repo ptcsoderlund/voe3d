@@ -97,6 +97,29 @@
 // both unlit and in the overlay, and those are two decisions that happen to
 // agree.
 //
+// A PASS MAY OUTLINE ONE ENTITY, AND IT IS DRAWN AFTER EVERYTHING ELSE
+// (ADR-0203). Last means after the overlay's own two groups, and therefore after
+// the depth clear — and where there is no overlay to clear for, the outline
+// clears: it meets an empty depth buffer either way, and nothing already drawn
+// can cover it, which is the whole of what makes it show through a thing
+// standing in front of the entity. The entity itself is not moved, not redrawn
+// and not touched — it is drawn where it really is, in its own layer, by the
+// rules above, and the silhouette is a separate set of quads around it.
+//
+// THE QUADS COME FROM voe_3d_outline_quads AND GO INTO THIS FRAME'S TRANSIENT
+// POOL. So a program that outlines anything sizes its voe_render_capacities'
+// three transient numbers from VOE_3D_OUTLINE_VERTICES and
+// VOE_3D_OUTLINE_INDICES, and counts one more object per pass — the outline is
+// one more draw and one more record. The record the quads wear is the caller's
+// unlit one (voe_3d_shapes' `outline`) and the colour is the caller's too:
+// whose theme an outline is drawn in is the editor's business and not this
+// folder's.
+//
+// A REFUSED TRANSIENT RANGE DRAWS NO OUTLINE AND LEAVES THE FRAME ALONE. A
+// transient pool too small for this silhouette is a capacity chosen too small:
+// render says so on stderr and this draws nothing, exactly as every other
+// refused draw in here stops its own group and no more.
+//
 // THE SORT IS PER OBJECT AND NOT PER TRIANGLE. One key per entity: the
 // view-space depth of its origin. Two see-through things that interpenetrate,
 // and a long thin one seen end-on, come out wrong, and that is the trade taken
@@ -174,6 +197,7 @@
 // anything.
 #pragma once
 
+#include <3d/outline.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 #include <render/device.h>
@@ -192,14 +216,22 @@ typedef struct {
 	// case is the surface showing this pass's own target and there is one of
 	// those per target (ADR-0158, and the paragraph above).
 	voe_ecs_entity hidden;
+	// The one entity this pass draws a silhouette around, zeroed for none —
+	// a zeroed entity is never a live one for the same reason `hidden`'s is,
+	// so a caller that never sets this loses nothing. It is one entity and
+	// not a list for the same reason `hidden` is one: what is outlined is
+	// what is selected, there is one selection per view, and a set of them
+	// is a larger decision made when something needs it (rule 10).
+	voe_3d_outlined outlined;
 } voe_3d_frame;
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. `hidden` comes back zeroed — hiding something is the
-// caller's choice and it sets the field on the answer. Asserts on a world
-// without exactly one camera and one light — see the header.
+// matrix is never read. `hidden` and `outlined` both come back zeroed — hiding
+// something and outlining something are the caller's choice and it sets the
+// field on the answer. Asserts on a world without exactly one camera and one
+// light — see the header.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size);
 
@@ -208,7 +240,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // the pass that is open, with `frame` the answer voe_3d_draw_system_frame gave
 // for it — the same camera the pass was opened with. `frame.hidden`, when it
 // names a live entity, is the one thing left out, of either table and either
-// layer. Calling it with no pass open is the caller's bug and asserts.
+// layer, and `frame.outlined`, when it names one, is outlined after everything
+// else is drawn. Calling it with no pass open is the caller's bug and asserts.
 //
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
 // RETURNS NOTHING. A draw the device refuses — more objects than it was made
@@ -216,8 +249,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // frame to be ended and presented as usual; the device having stopped answering
 // is _begin's and _end's to report, and both return false when it has.
 //
-// `arena` is scratch for this frame's sorts and the groups they order, and
-// nothing survives the call: it is rewound to the mark this took on the way in,
-// on every path out.
+// `arena` is scratch for this frame's sorts, the groups they order and the
+// outline's quads, and nothing survives the call: it is rewound to the mark
+// this took on the way in, on every path out.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame);

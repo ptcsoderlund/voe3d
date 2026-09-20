@@ -46,7 +46,9 @@ card, and says so below.
   faces the eye, that a capsule gives many edges and never more than the cap, and
   that a zeroed entity, a shape with no transform, a transform with no shape, an
   unknown kind and no store are each answered false with the answer left
-  untouched. Needs no graphics card.
+  untouched, and — drawn — that the outline of a cube another cube hides
+  entirely is drawn where that near cube is, which is what showing through means.
+  The arithmetic half needs no graphics card; the drawn half skips without one.
 - `shape.c` — that kind is described, editable and named by its three names, and
   colour a described colour with no names, that the default row is a grey cube
   needing a transform, that an intent's new kind lands and re-points the mesh
