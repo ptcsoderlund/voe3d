@@ -347,15 +347,13 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 	entities = voe_scene_identity_entities(scene->world);
 
 	for (uint32_t i = 0; i < count; i++) {
-		voe_ui_node row = voe_ui_button_begin(ui, "entity", i);
+		// A selection is drawn inverted, as anything held or pressed
+		// is (ADR-0194), so the row is a choice and its label plain.
+		voe_ui_node row = voe_ui_choice_begin(
+			ui, "entity", i,
+			voe_editor_scene_is_selected(scene, entities[i]));
 
-		// The selected row's name is in the theme's accent, which is
-		// what a selection is drawn in (ui/theme.h).
-		voe_ui_label_role(ui, rows[i].name,
-				  voe_editor_scene_is_selected(scene,
-							       entities[i]) ?
-					  VOE_UI_TEXT_ROLE_ACCENT :
-					  VOE_UI_TEXT_ROLE_NORMAL);
+		voe_ui_label(ui, rows[i].name);
 		voe_ui_end(ui);
 
 		// The click is answered after voe_ui_frame_end and this
