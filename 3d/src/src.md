@@ -45,6 +45,10 @@ The work is in the two systems — `shape_system.c` once at startup and
   over the shape table that carries it into each shape's own space and tests the
   kind's triangles, with the triangle test written out once and its derivation in
   a comment.
+- `outline.c` — the walk over one shape's edges that keeps the ones the eye is on
+  two sides of, and the quad each of them becomes: the world matrix once, a half
+  width per vertex from that vertex's own depth, the outward direction taken from
+  the triangle the eye is in front of, and each triangle wound to face the eye.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each

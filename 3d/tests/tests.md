@@ -39,6 +39,14 @@ card, and says so below.
   drawn — that a pixel the cube covers picks that cube, which is the check that
   the ray and the picture agree about which way is up. The arithmetic half needs
   no graphics card; the drawn half skips without one.
+- `outline.c` — that a cube seen square on has four silhouette edges and one
+  turned forty-five degrees six, that every corner of the quads is outside the
+  face it hugs and none far from it, that twice as far away is twice as wide in
+  metres and that the width is the pixels it was asked for, that every triangle
+  faces the eye, that a capsule gives many edges and never more than the cap, and
+  that a zeroed entity, a shape with no transform, a transform with no shape, an
+  unknown kind and no store are each answered false with the answer left
+  untouched. Needs no graphics card.
 - `shape.c` — that kind is described, editable and named by its three names, and
   colour a described colour with no names, that the default row is a grey cube
   needing a transform, that an intent's new kind lands and re-points the mesh
