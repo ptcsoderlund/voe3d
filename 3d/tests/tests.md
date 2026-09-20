@@ -27,6 +27,12 @@ card, and says so below.
 - `draw_system.c` — that the one entity a frame hides is not drawn and that every
   other one still is, in both tables and both layers, and that a red shaped cube
   reads red at the picture's centre. Skips without a graphics card.
+- `shape_geometry.c` — that the CPU store answers for the three kinds and nothing
+  else, that it holds each kind's own triangles with the cube's pointed straight
+  at its constants, that every kind is a closed surface whose edges carry
+  unit-length normals and whose cube has twelve folds and six face diagonals, and
+  that every triangle of every kind is wound counter-clockwise seen from outside.
+  Needs no graphics card.
 - `shape.c` — that kind is described, editable and named by its three names, and
   colour a described colour with no names, that the default row is a grey cube
   needing a transform, that an intent's new kind lands and re-points the mesh
