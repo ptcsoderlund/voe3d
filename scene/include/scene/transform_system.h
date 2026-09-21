@@ -24,14 +24,6 @@
 // built rather than in the middle of a frame. The importer uses this and so does
 // any call site placing something by hand.
 //
-// AN INTENT NAMING A DESTROYED ENTITY, OR ONE WITH NO TRANSFORM, IS DROPPED,
-// SILENTLY AND ON PURPOSE. An entity dying between a submit and the drain is
-// ordinary — it is what a queue costs — and it is not the submitter's mistake.
-// The drain asks for the current row before it settles anything, so a dropped
-// intent is never reported: there is no last valid row to keep, and a line about
-// an entity that no longer exists would be noise in front of the lines that
-// matter.
-//
 // NEITHER CALL BELOW CHECKS THE ROTATION, AND THE DRAIN CHECKS EVERY ONE. There
 // is no assert here to match the identity's: a rotation that has drifted is
 // ordinary arithmetic rather than a caller's bug, the importer hands these
@@ -94,4 +86,12 @@ typedef struct {
 
 // Settles every waiting intent, applies it in submission order, and empties the
 // queue.
+//
+// AN INTENT NAMING A DESTROYED ENTITY, OR ONE WITH NO TRANSFORM, IS DROPPED,
+// SILENTLY AND ON PURPOSE. An entity dying between a submit and the drain is
+// ordinary — it is what a queue costs — and it is not the submitter's mistake.
+// The drain asks for the current row before it settles anything, so a dropped
+// intent is never reported: there is no last valid row to keep, and a line about
+// an entity that no longer exists would be noise in front of the lines that
+// matter.
 void voe_scene_transform_system_run(voe_ecs_world *world);

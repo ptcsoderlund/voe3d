@@ -24,6 +24,19 @@
 // nothing but that path; a write touches nothing but that path and the
 // `.partial` sibling described below, which never outlives the call.
 //
+// A NULL path or arena, or a NULL out_count on a read, or NULL bytes or a
+// count of zero on a write, is the caller's bug and aborts (rule 13). An
+// empty file is not something this engine has ever wanted to write, and the
+// call that produced no bytes is the bug worth catching — reading one back is
+// a different question, answered at voe_platform_file_read.
+#pragma once
+
+#include <base/arena.h>
+#include <base/error.h>
+
+#include <stddef.h>
+#include <stdint.h>
+
 // READING. voe_platform_file_read pushes the whole file into arena and adds
 // one more byte past the last one, set to NUL for a caller that wants to
 // treat the result as a C string; *out_count is the file's own length and
@@ -40,10 +53,21 @@
 // length said it would. Which one it was is the category; what exactly
 // happened is written to stderr at the site through base/report.h.
 //
+// Reads the whole file at path into arena, NUL-terminated past the last
+// byte, which *out_count does not count. NULL on failure, with the category
+// in error when error is not NULL and the real reason already reported.
+[[nodiscard]] const uint8_t *voe_platform_file_read(const char *path,
+						     voe_base_arena *arena,
+						     size_t *out_count,
+						     voe_base_error *error);
+
 // voe_platform_file_exists is true only for a path that is a regular file —
 // false for a folder, a symlink to nothing, and anything not there. It is
 // yes/no and cannot fail: nothing about a missing path is worth reporting.
 //
+// True only for a path that is a regular file.
+bool voe_platform_file_exists(const char *path);
+
 // WRITING. voe_platform_file_write is atomic: it writes every byte to a
 // sibling named `<path>.partial`, flushes that file to the disk (`fsync` /
 // `FlushFileBuffers`), closes it, and only then renames it over path
@@ -66,30 +90,6 @@
 // happened — errno, GetLastError — is written to stderr at the site through
 // base/report.h, because a category cannot carry "no space left on device".
 //
-// A NULL path or arena, or a NULL out_count on a read, or NULL bytes or a
-// count of zero on a write, is the caller's bug and aborts (rule 13). An
-// empty file is not something this engine has ever wanted to write, and the
-// call that produced no bytes is the bug worth catching — reading one back is
-// a different question, answered above.
-#pragma once
-
-#include <base/arena.h>
-#include <base/error.h>
-
-#include <stddef.h>
-#include <stdint.h>
-
-// Reads the whole file at path into arena, NUL-terminated past the last
-// byte, which *out_count does not count. NULL on failure, with the category
-// in error when error is not NULL and the real reason already reported.
-[[nodiscard]] const uint8_t *voe_platform_file_read(const char *path,
-						     voe_base_arena *arena,
-						     size_t *out_count,
-						     voe_base_error *error);
-
-// True only for a path that is a regular file.
-bool voe_platform_file_exists(const char *path);
-
 // Writes count bytes to path, replacing what is there and creating it if it
 // is not, by writing a sibling and renaming it over path — see above. Returns
 // false on failure, with the category in error when error is not NULL and

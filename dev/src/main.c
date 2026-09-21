@@ -1,558 +1,53 @@
 // voe_dev — the one program a person runs to see what the engine can currently
-// do. Today it opens a window holding a world: two cubes placed by hand, a
-// model read out of a `.glb` file, two see-through quads standing either side of
-// them, a lettered sign above them, a line of writing locked to the camera, a
-// screen off to the left showing a second camera's view of the same world, one
-// sun going round it all, and a camera that either orbits them or is
-// flown. There is one of these and it always shows the
-// current state, so what is here now is expected to be deleted rather than kept
-// behind a flag when the next thing lands.
+// do: a window holding a world of cubes, a model read out of a `.glb` file,
+// see-through quads, a dozen sprites off a sheet built in code, writing, element
+// panels, a plate and ticks mapped onto the window, an interface with a heading,
+// two buttons and three number boxes answering the mouse, a screen off to the
+// left showing a second camera's view, one sun going round it all, and a camera
+// that either orbits or is flown. There is one of these and it always shows the current state, so
+// what is here now is deleted rather than kept behind a flag when the next thing
+// lands. What each exhibit is and fails like stands above what builds it.
 //
-// IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING. What is here is which key
-// means which direction, where a placeholder cube stands, and the loop that runs
-// the systems in order. Anything in it that starts to look worth keeping belongs
-// in a folder, with a test — the moment it is worth testing it is in the wrong
-// place.
-//
-// THE CLOCK IS REAL NOW AND CARD 020 IS WHAT MADE IT ONE. Every frame is stepped
-// by however long the last one actually took, and not by a nominal sixtieth of a
-// second — so the orbit takes the number of seconds it says it does on a display
-// of any refresh rate. Since card 052 the reading and the subtraction are
-// voe_app_frame_open's: it hands back both numbers, the interval that happened
-// and that interval clamped, and this file reports the first and steps the scene
-// by the second. MAX_FRAME_SECONDS is the ceiling it is handed, and nothing
-// clamps what is reported.
-//
-// AND IT PRINTS WHAT IT MEASURED. Four numbers every couple of seconds, each an
-// average and a worst over exactly that period: the frame, this program's own
-// work, the draw, and the graphics card's own clock. say_what_is_measured() is
-// the legend and it is printed once at startup, because a number whose meaning
-// is ambiguous is worse than no number. P switches between the two present
-// modes, which is the measurement the frame-pacing decision is waiting on.
-//
-// AND SINCE CARD 028 IT DRAWS THEM TOO. The same numbers stand in the top-left
-// of the view as the period's running averages, rebuilt every frame as a text
-// block through voe_text_block_create_transient and never cached: a readout that
-// remembered its string until it changed would, the day its invalidation missed,
-// show yesterday's numbers and look exactly like a frozen program. The console
-// block stays, because a period's worst is a different, still-useful thing.
+// IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING: which key means which
+// direction, where a placeholder cube stands, and the loop that runs the systems
+// in order. Anything that starts to look worth keeping belongs in a folder, with
+// a test — the moment it is worth testing it is in the wrong place.
 //
 // THE LOOP OWNS THE FRAME (ADR-0098), AND SINCE CARD 052 ITS PARTS COME FROM
 // `app` (ADR-0135). voe_app_frame_open opens the frame, voe_app_draw_open and
-// voe_app_draw_close bracket the draw, and the phases between them run in a
-// fixed order: open; build what changes this frame, which is the readout and the
-// two panels' records; a pass onto the monitor's target with the monitor's
-// camera, walked and closed; a pass onto the window with the world's camera,
-// walked and closed; close, which presents. Building comes after the open
-// because geometry that lives one frame can only be built once the frame's slot
-// is known, and before both passes because both of them walk the same world —
-// something built after the first pass would be missing from that pass and stale
-// in it the frame after. An open that says there is nothing to draw into — a
-// window with no area, a swapchain that has just gone stale — skips all of it;
-// that case is the loop's and not the draw system's.
+// voe_app_draw_close bracket the draw, and between them, in a fixed order: build
+// what changes this frame (the readout and the two panels' records); a pass onto
+// the monitor's target with the monitor's camera; a pass onto the window with
+// the world's camera; close, which presents. Building comes after the open
+// because one-frame geometry needs the frame's slot, and before both passes
+// because both walk the same world. An open that says there is nothing to draw
+// into — no area, a stale swapchain — skips all of it; that case is the loop's
+// and not the draw system's.
 //
 // THE MONITOR'S PASS IS FIRST BECAUSE THE WINDOW'S PASS SHOWS WHAT IT DREW. A
 // target written after it has been read in the same frame would put last frame's
-// picture on the screen, and reading and writing one image in one pass is what
-// `hidden` exists to prevent — see src/monitor.h.
+// picture on the screen — see src/monitor.h.
 //
-// WHAT `app` DOES NOT DO IS THE POINT OF IT. There is no loop, no callback and
-// no function pointer in that folder: the `while` below is this file's, and so
-// is the order the systems run in, what is submitted in the gap between two of
-// them, which key means what, the present mode and the readout. What was
-// factored out is the handful of lines every program would write the same way
-// and one of them would write subtly wrong.
+// WHAT `app` DOES NOT DO IS THE POINT OF IT. No loop, no callback and no
+// function pointer: the `while` below is this file's, and so are the systems'
+// order, what is submitted between them, the keys, the present mode and the
+// readout. Only the lines every program would write the same way were factored.
 //
-// THREE THINGS LIVE HERE THAT WILL NOT LIVE HERE LONG, and each of them is a
-// call site's business only until the folder that owns it exists:
+// THREE THINGS LIVE HERE THAT WILL NOT LIVE HERE LONG — the camera path, the
+// spin and the sun's path — each a call site's business only until the folder
+// that owns it exists; each says why where it is submitted.
 //
-//   - THE CAMERA PATH. The orbit is a function of that clock and it submits a
-//     camera placement every frame. It is a demonstration and not a feature:
-//     what a camera does about being moved is `scene`'s, and where a camera
-//     should be is whatever is driving it.
-//   - THE SPIN. The turning cube is a transform intent submitted every frame.
-//     Same reasoning: how a transform is written is `scene`'s, what turns and
-//     how fast is a scene's own, and there is no scene file yet.
-//   - THE SUN'S PATH. The light circles the scene on the same clock, as a light
-//     intent every frame, for one reason: a still light is a light nobody can
-//     tell from a wrong one. A scene will say where its sun is the day there is
-//     a scene file.
+// NOT ONE #ifdef. If this file needs to know its operating system, platform/,
+// render/device.h or 3d's headers have a hole, and that is the finding.
 //
-// NOT ONE #ifdef. If this file ever needs to know which operating system it is
-// on, the API in platform/window.h, platform/input.h, render/device.h or 3d's
-// headers has a hole and that is the finding, not a reason to reach for the
-// preprocessor.
+// It prints a line whenever something changes — the window's size, who draws
+// its frame, whether the camera is flown, whether the pointer is locked — one
+// per model at startup, timings every couple of seconds, and exits zero on close.
 //
-// ---- WHAT IT SHOULD LOOK LIKE ----
-//
-// A flat blue-green background with three lit things in it, from left to right:
-//
-//   - A cube standing still at the origin, which is where the camera looks.
-//   - A squashed cube turning on a tilted axis, just to its right.
-//   - A figure standing on nothing: `dev/src/textured_primitives_human.glb`,
-//     three primitives out of Blender sharing one material — a body, a bar of
-//     arms and a spherical head, about two metres tall, standing with its feet
-//     at y = 0 rather than centred like the cubes.
-//
-// And two see-through squares, one warm and one cool, standing a metre and a
-// half either side of the cubes.
-//
-// Then three smaller squares — one solid purple, one see-through green, one
-// see-through orange — standing inside the turning cube and never hidden by it,
-// however far round the orbit goes. Those are the overlay.
-//
-// Above all of it, three lines of writing on nothing — a sign in the world,
-// lettered on both faces — and across the bottom of the view, one line of it
-// that stays where it is however the camera moves and that nothing gets in front
-// of.
-//
-// AND OFF TO THE LEFT, A SCREEN SHOWING THIS SAME WORLD FROM SOMEWHERE ELSE. A
-// square standing on nothing, turned towards the middle of the scene, holding a
-// second camera's picture: the cubes and the figure from high up and in front,
-// lit by the same sun at the same instant, with the turning cube turning in it
-// and the sun crossing it. It is a target drawn into once a frame and worn as an
-// ordinary texture by an ordinary quad — see src/monitor.h. The world's own
-// camera orbits and the second one does not, so what is on the screen holds
-// still while everything around it swings.
-//
-// IT IS ONE-SIDED, SO HALF OF EVERY LAP IT IS NOT THERE. A screen has a back,
-// and the back of this one is culled; the alternative would show the picture
-// mirrored, which is the one thing this program's whole cast of lettered objects
-// exists to make a person suspicious of.
-//
-// AND IT IS MISSING FROM ITS OWN PICTURE, WHICH IS THE POINT. The pass that
-// fills the target leaves the screen out (ADR-0158) — so there is no screen
-// inside the screen, and no hall of mirrors, and no image being read while it is
-// written.
-//
-// And in the top-left of the view, lines of numbers that change as you watch:
-// the frame rate, the four timings — the same ones the console prints — the
-// pointer, and what the last frame cost in draw commands and element records.
-// Laid out again every frame.
-//
-// THE DRAWS LINE IS A PERIOD METRIC LIKE THE FOUR ABOVE IT, average and worst
-// over the same window, and the element records beside it are the last
-// completed frame's. It is built before anything is drawn, so the one frame
-// after each console block has no sample yet and shows the previous period's;
-// a program that has completed no frame at all says "no frame yet" rather than
-// showing a nought that reads as a claim.
-//
-// AND THE PAIR ON IT IS ADR-0092'S CLAIM RATHER THAN A NUMBER STANDING FOR IT.
-// Ninety-odd element records against thirty-odd draw commands is what "many
-// small things in one draw" means; watch the records climb while the commands
-// hold still. The count includes the draw that put this readout on screen,
-// which is why counting the things you can see gives one fewer.
-//
-// AND IT COUNTS BOTH PASSES, WHICH IS WHY IT IS ABOUT TWICE WHAT IS ON SCREEN.
-// The monitor walks the same world into its own target before the window's pass
-// runs, so nearly everything visible is drawn twice a frame. The console line
-// printed once at startup says how many of the frame's commands the window's own
-// walk was, which is the half that matches what a person can count.
-//
-// THE WORST COLUMN IS THE POINT OF MAKING IT A METRIC. In this demo the scene
-// is identical every frame, so the average and the worst are both the same
-// number and the column looks like decoration. The day anything varies what is
-// drawn — culling, streaming, an interface that grows — the worst frame in the
-// period is the number that matters and the average is the one that hides it.
-//
-// And three surfaces of elements, which are two different kinds of thing:
-//
-//   - THE EXHIBIT, a panel standing in the world behind the cubes: forty
-//     coloured rectangles and two lines of writing, all of it one draw command.
-//     It is an object in metres, so the cubes and the figure pass in front of it
-//     as the camera goes round, and it is seen from behind — writing and all —
-//     for half of every lap.
-//   - THE BADGE, a small violet panel in the overlay, sitting in the turning
-//     cube. Nothing ever covers it, which is what the overlay layer means; it
-//     still keeps a real position in metres and is still seen in perspective.
-//   - THE PLATE AND THE ROW OF TICKS in the top-left corner, which is not a
-//     panel at all: it is mapped straight onto the window and has no position.
-//     Drag the window narrow and it is the only thing that changes — the same
-//     rectangles at the same size, with the far ticks off the right edge. See
-//     src/surface.h for why that is the decision working.
-//
-// ---- THE TWO SEE-THROUGH QUADS, AND WHAT THEY ARE FOR ----
-//
-// THE CUBES ARE VISIBLE THROUGH THEM AND TINTED BY THEM. That is the whole claim
-// of the blended pass: half of what a quad covers is the quad's colour and half
-// is whatever was behind it. A quad that hides what is behind it is a blend that
-// is not happening; a quad that has gone dark is the opaque path forcing alpha
-// to one where it should not, or a colour premultiplied twice.
-//
-// AND WHICH OF THE TWO IS ON TOP CHANGES AS THE CAMERA GOES ROUND, WHICH IS THE
-// SORT. They stand at +z and −z either side of the cubes, so the camera is
-// behind one of them for half its lap and behind the other for the other half,
-// and the nearer one's colour has to be the one on top of the overlap every
-// time. If it is right from one side and wrong from the other, the sort's sign
-// is backwards — that is the failure 3d/tests/depth_sort.c exists to catch
-// before it gets here, and this is what it looks like when it does.
-//
-// ---- THE TWO STRINGS, AND WHAT EACH OF THEM IS FOR ----
-//
-// THE SIGN STANDS IN THE WORLD AND THE LINE IS LOCKED TO THE CAMERA, which are
-// the two placements text has. The sign is three lines of Oxanium above the
-// cubes and it is part of the scene: it turns with the orbit, it is read at an
-// angle for most of a lap, and something in front of it hides it. The line sits
-// a metre in front of the eye and stays where it is on screen however the camera
-// moves — and it is still an object in the world, placed by a transform intent
-// every frame. There is no screen-space path in this engine and there is not
-// going to be one, so a heads-up display is a quad in front of the camera.
-//
-// AND THE LINE IS IN THE OVERLAY, SO NOTHING COVERS IT. Fly into a cube and the
-// writing stays readable on top of it, which it did not before card 024: at one
-// metre in front of the eye it went inside anything you walked into. The sign
-// stays in the world and is still hidden by whatever gets between it and the
-// camera, and having both is the point — the layer is a property of a drawable
-// and not a switch the program is in.
-//
-// THE TEXT DOES NOT CHANGE AS THE SUN GOES ROUND, AND THAT IS THE UNLIT FLAG.
-// The cubes brighten and darken through the lap; the writing keeps exactly the
-// colour its material asks for, because an unlit material skips the whole
-// shading model. Writing that dims when the sun crosses it is the flag missing,
-// and it is the failure this is here to make obvious.
-//
-// AND IT IS BLENDED, SO A GLYPH IS A SHAPE AND NOT A BOX. Each letter is a quad
-// whose alpha the shader works out from the sheet's distance field; a square of
-// background round every letter is the alpha mode wrong, and text noticeably
-// paler than the tint it asks for is a colour multiplied by its coverage twice.
-//
-// AND IT IS SHARP AT EVERY SIZE, WHICH IS WHAT THE SIGN IS FOR. Fly up to the
-// sign until one letter fills the screen: its edges stay clean and its corners
-// stay square. Fly away and it fades rather than crawling. Soft edges close up
-// mean the material forgot base_colour_distance_field or the sheet was uploaded
-// smooth; rounded corners mean the three channels came out of the sheet the
-// same, which is the colouring in text/src/raster.c having gone wrong.
-//
-// THE HEADS-UP LINE SITS ON A DARK PANEL, AND THAT IS ABOUT CONTRAST AND NOT
-// ABOUT SHARPNESS. Pale blue over teal is a small enough difference in luminance
-// that a one-pixel edge still reads as soft, which sends anyone looking at it
-// hunting for a blur that is not there. The panel takes that question off the
-// table: the edge is the same width over it, and what still looks soft on it is
-// soft. See HUD_PANEL_R.
-//
-// AND THERE IS NO ANTIALIASING ANYWHERE IN THE PICTURE, WHICH IS THE ENGINE'S
-// RULE AND NOT A GAP. Letters have hard edges, textures show their texels close
-// up and shimmer at a distance, and polygon silhouettes are stair-stepped. Every
-// one of those is intended. What to look for instead is that the edges are in
-// the RIGHT PLACE: a letter walked up to has straight sides and square corners
-// rather than blocks, which is the distance field doing its job under a hard
-// cut. Blocks would mean the sheet had become a picture of coverage again.
-//
-// TEXT A LONG WAY OFF BREAKS INTO SPECKS AND THEY MOVE. Expected, and the direct
-// cost of the rule above; the sign at the top of the scene is where to see it.
-//
-// THE ACCENTED CHARACTERS ARE THE READER'S TEST. `Å`, `Ö`, `é`, `ü`, `å` and `Ç`
-// are composite glyphs — references to other glyphs with an offset — and a
-// reader that handles only simple outlines draws them as blanks while an English
-// string looks perfect. If they are missing, that is the bug.
-//
-// THE COUNTERS ARE HOLES. The middles of `O`, `D`, `e`, `a`, `o`, `ö` and `å`
-// are the background and not the letter. Filled in solid is the fill rule: see
-// text/tests/raster.c, which is where that should have been caught.
-//
-// THEY ARE THE ONLY THINGS IN THE SCENE DRAWN IN THE SECOND PASS ALONGSIDE THE
-// QUADS. Everything else is opaque and goes through the ordinary draw in table
-// order; see 3d/draw_system.h.
-//
-// The two placeholder cubes wear WRITING — the still one the app icon, the
-// turning one the wordmark — so every face says which way up and which way
-// round it is, and a mirrored or upside-down face is unreadable rather than
-// merely wrong. The figure wears its own albedo map, which is the thing to look
-// at for whether a real exporter's texture coordinates arrive intact.
-//
-// IT IS LIT BY ONE SUN AND THE SUN GOES ROUND. One directional light, circling
-// the scene once every SUN_SECONDS, so the bright side of everything moves and
-// the far side of everything is black — there is no ambient light and no bounce,
-// so an unlit face really is nothing. The figure's ORM map is read now:
-// occlusion, roughness and metalness out of one picture, which is why it does
-// not look like plastic in the way the cubes do.
-//
-// THE TURNING CUBE IS SQUASHED, AND THAT IS THE NORMAL MATRIX ON SCREEN. Its
-// scale is not the same on all three axes (CUBE_SCALE_*), which is the one case
-// where transforming a normal by the world matrix is visibly wrong: the shading
-// would slide across the faces as it turned instead of staying stuck to them.
-// 3d/tests/normal_matrix.c is the automated half; this is the half a person can
-// see.
-//
-// NOTHING IS TONE MAPPED, SO THE BRIGHT SIDE CAN CLIP. A highlight that goes
-// flat white is expected and is on the later list, not a mistake in the shading.
-//
-// It prints a line whenever something changes — the window's size, who is
-// drawing its frame, whether the camera is being flown, whether the pointer is
-// locked — one line per model at startup for what it cost, a block of timings
-// every couple of seconds, and exits zero when the window is closed.
-//
-// TAB FLIES IT AND TAB HANDS IT BACK, AND BOTH STATES ARE WORTH LOOKING AT.
-// There are two things to check here and they need different cameras: whether
-// the rendering is right, which wants a camera nobody is touching, and whether
-// the input is right, which wants a hand on it. Tab switches, Escape hands the
-// camera back and closes the window when the camera is already back, and the
-// orbit is what the program starts in.
-//
-// ---- ORBITING: THREE MOTIONS, AND ALL THREE HAVE TO BE THERE ----
-//
-// This is the thing to look at for the rendering, and the reason there are
-// several objects rather than one:
-//
-//   - The camera orbits, once every twelve seconds or so. What says so is
-//     parallax: the objects pass in front of and behind one another, which is
-//     the only thing a moving camera can do and a rotating object cannot.
-//   - One cube stands still, in the middle of the frame, and stays there. Its
-//     faces turn because the camera goes round it. It never drifts, never
-//     changes size and never leaves the centre — the camera looks straight at
-//     it, from wherever it is.
-//   - The other cube spins, three times as fast as the camera orbits, about a
-//     tilted axis so that it cannot be mistaken for a second orbit.
-//   - The model does neither: it sits where its file and one transform intent
-//     put it.
-//
-// WHAT IS WRONG IF IT LOOKS WRONG. Each failure has its own shape:
-//
-//   - Nothing on screen, or a cube inside out — the depth test or the winding.
-//     render/tests/offscreen.c is the automated form of that one.
-//   - A quad hiding what is behind it rather than tinting it — the blend state,
-//     or the material's mode arriving as opaque.
-//   - The overlap of the two quads showing the far one's colour on top, from
-//     some camera angles and not others — the sort's sign.
-//   - An opaque surface gone dark — the alpha mode, and it looks like a lighting
-//     regression rather than an alpha one. See render/shaders/draw.slang.
-//   - Writing that brightens and dims as the sun goes round — the material's
-//     `unlit` flag never reached the shading record.
-//   - THE READOUT'S NUMBERS FROZEN WHILE THE CONSOLE BLOCKS KEEP COMING — the
-//     transient path. Either the block is not being rebuilt each frame, or a
-//     stale id is being drawn and refused on stderr every frame. There is no
-//     cache anywhere that could make them merely slow to update, so frozen is
-//     always a bug and never a saving.
-//   - The readout's left edge jumping sideways as a number gains a digit — it
-//     is being centred on its width. It is meant to be left-aligned, which is
-//     why its placement asks nothing about its size.
-//   - THE HEADS-UP LINE DISAPPEARING WHEN YOU FLY INTO SOMETHING — the layer.
-//     Either the line is not in the overlay or the depth clear between the two
-//     is not happening, and both look identical from here.
-//   - Everything on top of everything, or the sign no longer hidden by what is
-//     in front of it — the opposite failure, and the worse one: the layer has
-//     become a switch the whole frame is in rather than a property of one
-//     drawable. The sign and the cubes are what to check, not the line.
-//   - THE PANEL OF RECTANGLES IN THE BOTTOM-RIGHT (card 030). Forty of them, in
-//     one draw command, and the console says so once. Three things in it are
-//     worth a look: the orange bar at its top is forty millimetres of rectangle
-//     clipped to twenty, so half of it is missing on purpose; the row of six
-//     bars below it is one colour at six alphas and has to read as a smooth
-//     ramp, because a shader that forgot to premultiply leaves the faintest one
-//     still obvious and one that did it twice makes the row vanish too early;
-//     and the thirty-two squares below that are thirty-two different colours,
-//     which is the thing one draw of one shading record could not be.
-//   - The exhibit upside down, or the badge's orange corner mark at the bottom
-//     — the element surface's Y. It runs down from the surface's top-left
-//     corner, and the negation that makes that true is in
-//     voe_render_element_surface_matrix. Nothing here negates anything.
-//   - THE EXHIBIT VISIBLE THROUGH A CUBE THAT IS IN FRONT OF IT — the panel has
-//     stopped being sorted with the see-through meshes and is being drawn after
-//     everything, which is the one thing card 032 exists to prevent. The badge
-//     is the opposite case and is meant to be visible through everything: it is
-//     in the overlay, on the far side of the depth clear.
-//   - The exhibit or the badge stretched, or changing size, when the window is
-//     dragged narrow — a bug. Both are objects in metres and the window only
-//     changes the camera's aspect. The surface that does answer to the window is
-//     the plate and ticks in the top-left corner, and what it does is hold fewer
-//     millimetres rather than narrower ones: the ticks keep their size and
-//     spacing and the far ones fall off the right edge. See src/surface.h.
-//   - The world's picture gone and only the overlay left — the depth clear
-//     cleared colour as well. Only the depth aspect may be named; see
-//     render/src/frame.c.
-//   - THE PROGRAM STOPPING AT AN ASSERT NAMING A DRAW WHOSE SHADING RECORD
-//     NAMES THE OPEN PASS'S TARGET TEXTURE — the monitor's `hidden` is not
-//     reaching the walk, so the pass filling the target is drawing the screen
-//     that shows it. It is a debug check (render/device.h): a release build
-//     draws it, and what a person sees is whatever the driver felt like doing
-//     with an image being read and written at once. See src/monitor.h.
-//   - The screen darkening and going black as the sun crosses it — its material
-//     is not unlit, so what is on it is the picture times a lambert term rather
-//     than the picture.
-//   - The screen holding one still picture, or noise, or the background colour —
-//     nothing drew into its target this frame. A target nobody draws into keeps
-//     whatever its frame slot last held, which is a picture several frames old
-//     and then never changes; the monitor's pass is not being opened, or it was
-//     opened onto the wrong target.
-//   - The screen showing a screen showing a screen — `hidden` is naming the
-//     wrong entity, and in a release build that is what the undefined read
-//     happens to look like on a card that keeps the previous contents.
-//   - The screen's picture stretched or squashed — it is square, drawn square
-//     and shown on a square quad, so every one of those three has to agree; the
-//     aspect ratio in src/monitor.c is the target's own and never the window's.
-//   - The three quads inside the turning cube showing the far one's colour on
-//     top of the near one's — the sort, inside the overlay, which is the same
-//     sort and the same sign as the world's pair. It swaps twice a lap, so a
-//     backwards sign is right for half of it.
-//   - The solid overlay quad not hiding the see-through one behind it — the
-//     overlay's solid group is not writing depth, or the depth clear is
-//     happening after it rather than before.
-//   - The two lit overlay quads not changing as the sun goes round, or the
-//     unlit one changing — the layer has picked up a meaning about lighting
-//     that it must not have. It decides order and nothing else.
-//   - A square of background round every letter — the text material's alpha mode
-//     arriving as opaque, which is the same failure as the quad above wearing a
-//     different shape.
-//   - Writing noticeably paler than the tint it asks for — a colour multiplied
-//     by its coverage twice, which is the atlas having been premultiplied when
-//     the shader is what does that. See text/src/font.c.
-//   - Letters soft or blurry as the camera closes on the sign — the material's
-//     base_colour_distance_field not set, or the sheet uploaded as colour or
-//     sampled smooth. All three look the same and text/src/font.c is where the
-//     three are decided together.
-//   - Corners on `V`, `A` and the flat terminals coming out rounded — the sheet
-//     is a distance field but its three channels agree, so the median has
-//     nothing to reconstruct. That is the edge colouring, and
-//     text/tests/raster.c is the automated form of it.
-//   - Accented characters missing while an English string is perfect — composite
-//     glyphs, and text/tests/truetype.c is the automated form.
-//   - The middles of `O`, `e` and `a` filled in solid — the fill rule.
-//     text/tests/raster.c is the automated form of that one.
-//   - The sign missing for half the lap — one of its two faces did not get
-//     built. A text block is one face, and the pair of entities is what makes it
-//     a sign rather than a decal.
-//   - A box where a character should be — the character is outside the range the
-//     atlas covers, and that box is the font's own missing-glyph glyph. Correct,
-//     and a reason to change the string rather than the folder.
-//   - Everything drifting or growing — the projection or the aspect ratio.
-//   - The picture upside down — the one Y flip went the wrong way or happened
-//     twice. Every word on every cube is upright when it is right, and the app
-//     icon's yellow "3D" badge is in its BOTTOM-RIGHT corner.
-//   - WRITING THAT READS BACKWARDS — a mirror, and this is the failure worth
-//     staring at. A model can come out mirrored from a transposed rotation or a
-//     coordinate conversion nobody should have added, and a mirrored cube looks
-//     completely normal until you try to read it. 3d/tests/import.c is the
-//     automated form.
-//   - The still cube not still, or not centred — the model matrix or the
-//     look-at. scene/tests/transform.c and scene/tests/camera.c check both on
-//     the CPU, so this should have failed before it got here.
-//   - A model missing while the cubes are there — that import failed and said so
-//     on stderr, or the world ran out of room for it. Each model is tried on its
-//     own, so one of them can be missing without the other.
-//   - The figure's texture smeared or in the wrong place while the cubes read
-//     properly — a real exporter's texture coordinates, which nothing in this
-//     repository generated. That is what having a file nobody here wrote is for.
-//   - THE WORDMARK SQUEEZED ON THE TURNING CUBE'S NARROW FACES IS CORRECT, and
-//     so is it reading almost undistorted on the two wide ones: the picture is
-//     4800 by 2000 and those faces are CUBE_SCALE_X by CUBE_SCALE_Y, which is
-//     nearly the same shape. A wordmark that looked the same on all six faces of
-//     a cube that is not a cube would be the bug.
-//   - EVERYTHING BLACK — the sun is pointing away from everything, its intensity
-//     is nought, or the light never reached the shader. The background is
-//     cleared and not lit, so a black scene on a coloured background is a
-//     lighting failure and a black window is not.
-//   - Everything pale and washed out, or muddy and too dark — a colour space.
-//     One of the two sRGB halves (the texture format and the target format) is
-//     doing its job without the other; see render/src/texture.c.
-//   - The shading sliding across the squashed cube as it turns rather than
-//     staying on its faces — the normal matrix, and the one thing that cube is
-//     there to show.
-//   - The bright side of the still cube not moving as the sun goes round — the
-//     light intent is not landing, or the light system is not being run.
-//
-// ---- FLYING: W A S D, Q E, SPACE, CTRL, SHIFT, AND THE MOUSE ----
-//
-// Tab, then: W and S forwards and back along where the camera is looking, A and
-// D left and right, E or Space up and Q or Ctrl down — straight up and down
-// whatever the camera is looking at — Shift to go four times as fast, and the
-// mouse to look around. Tab again or Escape to give it back, and Escape once
-// more to close the window. E and Q are there so that the whole of flying is
-// reachable from the left hand alone.
-//
-// P is the one key that is not about the camera: it switches the present mode,
-// in either camera state, and is nowhere near the movement keys for that reason.
-//
-// WHAT IS WRONG IF IT FEELS WRONG, AND EACH OF THESE IS A DIFFERENT MISTAKE:
-//
-//   - The view jumps the moment Tab is pressed — the handover. The orbit stops
-//     submitting placements and the keyboard starts submitting motions, and
-//     because a placement applies before a motion in the same run, the camera
-//     simply continues from where the orbit left it. A jump means one of those
-//     two is submitting when it should not be.
-//   - The mouse turns the wrong way, or up looks down — a sign in
-//     scene/src/camera_system.c.
-//   - Looking straight up or straight down and everything vanishes — the pitch
-//     clamp. Try to look further up than you can; it should simply stop.
-//   - Strafing while looking at the floor sinks into it — right is being taken
-//     from the camera's own frame rather than kept horizontal.
-//   - A diagonal is faster than a straight line — the movement direction is not
-//     being normalized. Hold W, then hold W and D, and the speed should not
-//     change.
-//   - The camera keeps flying with nobody touching anything — a held key that
-//     was never released. This is the one to look for after alt-tabbing away
-//     with W down.
-//
-// WHAT THERE IS TO TRY:
-//
-//   - Alt-tab away while holding W, and come back. It must not still be flying
-//     when focus is gone, and it must not need a fresh press of W to notice it
-//     is still held on the way back.
-//   - Look around, a lot, in one direction. It should not slow down, drift or
-//     stick — mouse look with no pointer lock walks the cursor out of the window
-//     and stops, which is what the `locked` line is for.
-//   - Watch the `locked` line. Asking to fly asks for the pointer; a compositor
-//     may say no, and then mouse look works only while the cursor happens to be
-//     over the window. That is not a failure and nothing here treats it as one.
-//   - Resize it. A `size` line should follow, the background should still reach
-//     every corner, and the cubes should stay cubes rather than stretching — a
-//     wider window shows more of the scene, it does not squash it.
-//   - Toggle the frame off and on. On KWin: right-click the titlebar ->
-//     More Actions -> No Borders, or Alt+F3. A `size` line follows and a
-//     `decorated` line does not, which is the measured answer and not a gap.
-//   - Minimise it. Nothing should happen and nothing should crash: a window with
-//     no area has no frame to draw and the frame is skipped. The scene does not
-//     advance while it is away, because the step below is inside that same test
-//     — and the timing blocks keep coming, at thousands of frames a second,
-//     which is the loop with nothing in it to wait for.
-//   - WATCH THE TIMING BLOCKS, AND WATCH THEM MOVE. On fifo, `frame` should sit
-//     within a few tenths of a millisecond of the display's refresh interval —
-//     16.7 ms at sixty hertz — and the reciprocal printed beside it should be
-//     the refresh rate. `draw` should be nearly all of it and `update` almost
-//     none: the program is waiting for the display, which is what fifo means.
-//     Then make something happen: drag the window bigger and `gpu` should go up
-//     with the pixel count, minimise it and the rate should go through the roof.
-//     A number that never moves is a number that is not being measured.
-//   - READ THE SAME NUMBERS OFF THE SCREEN. The readout shows the period's
-//     running averages, so it settles over the first few hundred milliseconds
-//     after each console block and should then agree with the block that
-//     follows, to within the averaging. Watch a few periods go by: it resets
-//     with every block, and the frame rate moves the moment the window is
-//     resized or minimised and restored. The `gpu` line must not flash `no
-//     measurement` at the reset — it holds the last period's average for the
-//     one frame the new period has no sample yet. If it does flash, the
-//     three-case fallback in build_the_readout has been collapsed to two.
-//
-//   - WATCH THE `mouse` LINE OF THE READOUT (card 029). It is the pointer's
-//     position in the window's own pixels and the three buttons, live. Move
-//     the pointer to each corner: top-left should read close to 0 0 and
-//     bottom-right one less than the `size` line in both numbers, with neither
-//     overshooting nor inverting — a swapped or mirrored axis is a backend
-//     mistake. Press the buttons: the dots become L, M and R. Hold one and drag
-//     out of the window: the numbers go negative or past the size and keep
-//     following, which is the drag both window systems promise. Move the
-//     pointer off the window with nothing held and the line says `away`.
-//     Press Tab to fly and it says `locked`: the camera has the pointer and
-//     there is nothing at its position to point at, as include/platform/input.h
-//     says. Tab back and move, and the numbers are live again.
-//   - PRESS P AND COMPARE. It asks for fifo, and the `present` word on every
-//     block says which is actually in force — a machine that has no mailbox was
-//     already saying fifo and will go on saying it, and that is an answer.
-//     What to look for is `frame` dropping onto the display's refresh interval
-//     and the rate pinned to the refresh rate, in exchange for not drawing
-//     frames nobody ever sees. Press it again to come back.
-//   - Hold the window still and read the `worst` column. It should be close to
-//     the average. A worst several times the average is stutter, and stutter is
-//     the thing a person actually notices — which is why it is printed at all.
-//   - Close it. It should print `closed` and exit zero.
-//
-// IT WILL SPIN A CORE WHILE IT IS OPEN, AND ON MAILBOX IT WILL SPIN THE GRAPHICS
-// CARD TOO. Mailbox is what this program asks for as soon as its device is open —
-// the engine itself opens on fifo — so it runs as fast as the card and the
-// program between them allow, drawing many frames for every one anybody sees. P
-// is how to stop it doing that: fifo waits
-// for the display, so a visible window then costs one frame's worth of work per
-// refresh. Either way a minimised one presents nothing and _poll returns
-// immediately, because platform has no way to wait yet.
+// TAB FLIES IT AND TAB HANDS IT BACK, AND BOTH STATES ARE WORTH LOOKING AT:
+// whether the rendering is right wants a camera nobody touches, whether the
+// input is right wants a hand on it. Escape hands the camera back, and closes
+// the window when it is already back; the orbit is what the program starts in.
 #include "cubes.h"
 #include "elements.h"
 #include "interface.h"
@@ -642,6 +137,15 @@
 // The longest step the scene is ever advanced by, in seconds, however long the
 // frame actually took.
 //
+// THE CLOCK IS REAL NOW AND CARD 020 IS WHAT MADE IT ONE. Every frame is stepped
+// by however long the last one actually took, and not by a nominal sixtieth of a
+// second — so the orbit takes the number of seconds it says it does on a display
+// of any refresh rate. Since card 052 the reading and the subtraction are
+// voe_app_frame_open's: it hands back both numbers, the interval that happened
+// and that interval clamped, and this file reports the first and steps the scene
+// by the second. MAX_FRAME_SECONDS is the ceiling it is handed, and nothing
+// clamps what is reported.
+//
 // IT IS A CLAMP ON THE SCENE AND NOT ON THE MEASUREMENT. The numbers reported
 // below are what the clock said, always; this is only what the orbit, the spin
 // and the sun are stepped by. Without it, a frame that took two seconds — the
@@ -670,7 +174,7 @@
 #define FAR_PLANE 100.0f
 
 // The orbit: how far out, how high, and how long a lap takes. Three motions that
-// can each be told apart — see the header.
+// can each be told apart — see orbit().
 //
 // THE RADIUS IS WHATEVER FITS WHAT IS IN THE SCENE, and the scene is about six
 // metres across. It has grown twice for that reason and shrank once, when the
@@ -693,7 +197,14 @@
 // The turning cube's scale, and the three numbers are different on purpose: a
 // non-uniform scale is the only case where a normal matrix and a world matrix
 // disagree, so this is what makes that difference something a person can look
-// at. See the header.
+// at.
+//
+// THE TURNING CUBE IS SQUASHED, AND THAT IS THE NORMAL MATRIX ON SCREEN. Its
+// scale is not the same on all three axes (CUBE_SCALE_*), which is the one case
+// where transforming a normal by the world matrix is visibly wrong: the shading
+// would slide across the faces as it turned instead of staying stuck to them.
+// 3d/tests/normal_matrix.c is the automated half; this is the half a person can
+// see.
 #define CUBE_SCALE_X 1.4f
 #define CUBE_SCALE_Y 0.6f
 #define CUBE_SCALE_Z 1.0f
@@ -734,6 +245,22 @@
 #define OVERLAY_QUAD_Z 0.22f
 
 // The two element panels: how big each one is in the world, and where it stands.
+//
+// And three surfaces of elements, which are two different kinds of thing:
+//
+//   - THE EXHIBIT, a panel standing in the world behind the cubes: forty
+//     coloured rectangles and two lines of writing, all of it one draw command.
+//     It is an object in metres, so the cubes and the figure pass in front of it
+//     as the camera goes round, and it is seen from behind — writing and all —
+//     for half of every lap.
+//   - THE BADGE, a small violet panel in the overlay, sitting in the turning
+//     cube. Nothing ever covers it, which is what the overlay layer means; it
+//     still keeps a real position in metres and is still seen in perspective.
+//   - THE PLATE AND THE ROW OF TICKS in the top-left corner, which is not a
+//     panel at all: it is mapped straight onto the window and has no position.
+//     Drag the window narrow and it is the only thing that changes — the same
+//     rectangles at the same size, with the far ticks off the right edge. See
+//     src/surface.h for why that is the decision working.
 //
 // A MILLIMETRE IS A MILLIMETRE AND THE SCALE IS WHAT MAKES THEM BIG ENOUGH TO
 // LOOK AT. The exhibit is authored 240 by 135 mm, which is 0.24 by 0.135 metres
@@ -939,6 +466,47 @@ static const uint8_t HUMAN_GLB[] = {
 // OPPOSITE KEYS HELD TOGETHER CANCEL, WHICH IS WHAT ADDING AND SUBTRACTING GIVES
 // FOR FREE. W and S together is nought and not "whichever was pressed last",
 // which needs an order this file does not keep.
+//
+// ---- FLYING: W A S D, Q E, SPACE, CTRL, SHIFT, AND THE MOUSE ----
+//
+// Tab, then: W and S forwards and back along where the camera is looking, A and
+// D left and right, E or Space up and Q or Ctrl down — straight up and down
+// whatever the camera is looking at — Shift to go four times as fast, and the
+// mouse to look around. Tab again or Escape to give it back, and Escape once
+// more to close the window. E and Q are there so that the whole of flying is
+// reachable from the left hand alone.
+//
+// WHAT IS WRONG IF IT FEELS WRONG, AND EACH OF THESE IS A DIFFERENT MISTAKE:
+//
+//   - The view jumps the moment Tab is pressed — the handover. The orbit stops
+//     submitting placements and the keyboard starts submitting motions, and
+//     because a placement applies before a motion in the same run, the camera
+//     simply continues from where the orbit left it. A jump means one of those
+//     two is submitting when it should not be.
+//   - The mouse turns the wrong way, or up looks down — a sign in
+//     scene/src/camera_system.c.
+//   - Looking straight up or straight down and everything vanishes — the pitch
+//     clamp. Try to look further up than you can; it should simply stop.
+//   - Strafing while looking at the floor sinks into it — right is being taken
+//     from the camera's own frame rather than kept horizontal.
+//   - A diagonal is faster than a straight line — the movement direction is not
+//     being normalized. Hold W, then hold W and D, and the speed should not
+//     change.
+//   - The camera keeps flying with nobody touching anything — a held key that
+//     was never released. This is the one to look for after alt-tabbing away
+//     with W down.
+//
+// What there is to try:
+//
+//   - Alt-tab away while holding W, and come back. It must not still be flying
+//     when focus is gone, and it must not need a fresh press of W to notice it
+//     is still held on the way back.
+//   - Look around, a lot, in one direction. It should not slow down, drift or
+//     stick — mouse look with no pointer lock walks the cursor out of the window
+//     and stops, which is what the `locked` line is for.
+//   - Watch the `locked` line. Asking to fly asks for the pointer; a compositor
+//     may say no, and then mouse look works only while the cursor happens to be
+//     over the window. That is not a failure and nothing here treats it as one.
 static voe_scene_camera_motion camera_motion(voe_platform_window *window,
 					     voe_ecs_entity eye, float seconds)
 {
@@ -980,6 +548,26 @@ static voe_scene_camera_motion camera_motion(voe_platform_window *window,
 // Where the orbit is at this many seconds in, as a placement: an eye and the two
 // angles that look at the origin from it.
 //
+// THE CAMERA PATH. The orbit is a function of the loop's clock and it submits a
+// camera placement every frame. It is a demonstration and not a feature: what a
+// camera does about being moved is `scene`'s, and where a camera should be is
+// whatever is driving it.
+//
+// This is the thing to look at for the rendering, and the reason there are
+// several objects rather than one:
+//
+//   - The camera orbits, once every twelve seconds or so. What says so is
+//     parallax: the objects pass in front of and behind one another, which is
+//     the only thing a moving camera can do and a rotating object cannot.
+//   - One cube stands still, in the middle of the frame, and stays there. Its
+//     faces turn because the camera goes round it. It never drifts, never
+//     changes size and never leaves the centre — the camera looks straight at
+//     it, from wherever it is.
+//   - The other cube spins, three times as fast as the camera orbits, about a
+//     tilted axis so that it cannot be mistaken for a second orbit.
+//   - The model does neither: it sits where its file and one transform intent
+//     put it.
+//
 // THE ANGLES ARE WORKED OUT HERE AND NOT LEFT TO THE CAMERA, because a placement
 // is an absolute answer and the camera's job is to hold it, not to guess what it
 // was aimed at. It is also what makes the handover to flying seamless: the last
@@ -1005,6 +593,21 @@ static voe_scene_camera_placement orbit(voe_ecs_entity eye, float seconds)
 
 // Where the sun is pointing at this many seconds in, as an intent.
 //
+// THE SUN'S PATH. The light circles the scene on the same clock, as a light
+// intent every frame, for one reason: a still light is a light nobody can tell
+// from a wrong one. A scene will say where its sun is the day there is a scene
+// file.
+//
+// IT IS LIT BY ONE SUN AND THE SUN GOES ROUND. One directional light, circling
+// the scene once every SUN_SECONDS, so the bright side of everything moves and
+// the far side of everything is black — there is no ambient light and no bounce,
+// so an unlit face really is nothing. The figure's ORM map is read now:
+// occlusion, roughness and metalness out of one picture, which is why it does
+// not look like plastic in the way the cubes do.
+//
+// NOTHING IS TONE MAPPED, SO THE BRIGHT SIDE CAN CLIP. A highlight that goes
+// flat white is expected and is on the later list, not a mistake in the shading.
+//
 // IT CIRCLES ON THE HORIZONTAL PLANE AND LEANS DOWNWARDS. The x and z components
 // go round with the clock and the y component is fixed, so the light comes from
 // a different side of the scene every few seconds and always from above. The
@@ -1015,6 +618,15 @@ static voe_scene_camera_placement orbit(voe_ecs_entity eye, float seconds)
 // numbers on purpose: if the sun went round with the camera, every surface would
 // keep the same brightness and the whole thing would look like shading stuck to
 // the screen — which is one of the failures this program exists to show.
+//
+// What is wrong if it looks wrong:
+//
+//   - EVERYTHING BLACK — the sun is pointing away from everything, its intensity
+//     is nought, or the light never reached the shader. The background is
+//     cleared and not lit, so a black scene on a coloured background is a
+//     lighting failure and a black window is not.
+//   - The bright side of the still cube not moving as the sun goes round — the
+//     light intent is not landing, or the light system is not being run.
 static voe_scene_light_intent sunlight(voe_ecs_entity sun, float seconds)
 {
 	float angle = seconds * TURN / SUN_SECONDS;
@@ -1035,7 +647,7 @@ static voe_scene_light_intent sunlight(voe_ecs_entity sun, float seconds)
 //
 // IT NAMES ITS LAYER RATHER THAN LETTING A ZEROED STRUCT PICK ONE. World is
 // nought, so this line changes nothing and is here because every drawable in
-// this file says which layer it is in — see the header on the two placements and
+// this file says which layer it is in — see add_text on the two placements and
 // why neither is the normal case.
 static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
 		     voe_3d_material material, voe_math_float3 position,
@@ -1066,6 +678,12 @@ static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
 // is what keeps "nothing is read from disk at run time" true. The decoded pixels
 // are scratch — `render` has taken its own copy by the time the upload returns —
 // so the arena goes back on every path out, the failing ones included.
+//
+// What is wrong if it looks wrong:
+//
+//   - Everything pale and washed out, or muddy and too dark — a colour space.
+//     One of the two sRGB halves (the texture format and the target format) is
+//     doing its job without the other; see render/src/texture.c.
 static bool textured_material(voe_render_device *gpu, voe_base_arena *arena,
 			      const uint8_t *png, size_t size,
 			      voe_3d_material *out, voe_base_error *error)
@@ -1108,6 +726,43 @@ static bool textured_material(voe_render_device *gpu, voe_base_arena *arena,
 
 // The two placeholder cubes: their geometry into the pools, a picture each into
 // a texture slot, a shading record each, and two entities.
+//
+// A flat blue-green background with three lit things in it, from left to right:
+// these two cubes and the figure add_a_model reads in.
+//
+//   - A cube standing still at the origin, which is where the camera looks.
+//   - A squashed cube turning on a tilted axis, just to its right.
+//
+// The two placeholder cubes wear WRITING — the still one the app icon, the
+// turning one the wordmark — so every face says which way up and which way
+// round it is, and a mirrored or upside-down face is unreadable rather than
+// merely wrong.
+//
+// What is wrong if it looks wrong:
+//
+//   - Nothing on screen, or a cube inside out — the depth test or the winding.
+//     render/tests/offscreen.c is the automated form of that one.
+//   - An opaque surface gone dark — the alpha mode, and it looks like a lighting
+//     regression rather than an alpha one. See render/shaders/draw.slang.
+//   - The picture upside down — the one Y flip went the wrong way or happened
+//     twice. Every word on every cube is upright when it is right, and the app
+//     icon's yellow "3D" badge is in its BOTTOM-RIGHT corner.
+//   - WRITING THAT READS BACKWARDS — a mirror, and this is the failure worth
+//     staring at. A model can come out mirrored from a transposed rotation or a
+//     coordinate conversion nobody should have added, and a mirrored cube looks
+//     completely normal until you try to read it. 3d/tests/import.c is the
+//     automated form.
+//   - The still cube not still, or not centred — the model matrix or the
+//     look-at. scene/tests/transform.c and scene/tests/camera.c check both on
+//     the CPU, so this should have failed before it got here.
+//   - THE WORDMARK SQUEEZED ON THE TURNING CUBE'S NARROW FACES IS CORRECT, and
+//     so is it reading almost undistorted on the two wide ones: the picture is
+//     4800 by 2000 and those faces are CUBE_SCALE_X by CUBE_SCALE_Y, which is
+//     nearly the same shape. A wordmark that looked the same on all six faces of
+//     a cube that is not a cube would be the bug.
+//   - The shading sliding across the squashed cube as it turns rather than
+//     staying on its faces — the normal matrix, and the one thing that cube is
+//     there to show.
 static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 			  voe_base_arena *arena, voe_ecs_entity *turning,
 			  voe_base_error *error)
@@ -1136,7 +791,7 @@ static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 	// twenty-four vertices; what differs is a texture id in a shading
 	// record, so this is also the smallest demonstration in the program
 	// that one mesh can be worn two ways. The second one is squashed, which
-	// is what makes the normal matrix visible — see the header.
+	// is what makes the normal matrix visible — see CUBE_SCALE_X.
 	return add_cube(world, geometry, icon,
 			(voe_math_float3){ 0.0f, 0.0f, 0.0f },
 			(voe_math_float3){ 1.0f, 1.0f, 1.0f }, &still) &&
@@ -1196,6 +851,33 @@ static voe_scene_transform quad_at(voe_math_float3 position, float size)
 // name — the two rows here are the whole of a drawable surface. The range is
 // left at nought and is written every frame by the loop; until the first frame
 // writes one, a count of nought draws nothing and is not an error.
+//
+// What is wrong if it looks wrong:
+//
+//   - THE PANEL OF RECTANGLES IN THE BOTTOM-RIGHT (card 030). Forty of them, in
+//     one draw command, and the console says so once. Three things in it are
+//     worth a look: the orange bar at its top is forty millimetres of rectangle
+//     clipped to twenty, so half of it is missing on purpose; the row of six
+//     bars below it is one colour at six alphas and has to read as a smooth
+//     ramp, because a shader that forgot to premultiply leaves the faintest one
+//     still obvious and one that did it twice makes the row vanish too early;
+//     and the thirty-two squares below that are thirty-two different colours,
+//     which is the thing one draw of one shading record could not be.
+//   - The exhibit upside down, or the badge's orange corner mark at the bottom
+//     — the element surface's Y. It runs down from the surface's top-left
+//     corner, and the negation that makes that true is in
+//     voe_render_element_surface_matrix. Nothing here negates anything.
+//   - THE EXHIBIT VISIBLE THROUGH A CUBE THAT IS IN FRONT OF IT — the panel has
+//     stopped being sorted with the see-through meshes and is being drawn after
+//     everything, which is the one thing card 032 exists to prevent. The badge
+//     is the opposite case and is meant to be visible through everything: it is
+//     in the overlay, on the far side of the depth clear.
+//   - The exhibit or the badge stretched, or changing size, when the window is
+//     dragged narrow — a bug. Both are objects in metres and the window only
+//     changes the camera's aspect. The surface that does answer to the window is
+//     the plate and ticks in the top-left corner, and what it does is hold fewer
+//     millimetres rather than narrower ones: the ticks keep their size and
+//     spacing and the far ones fall off the right edge. See src/surface.h.
 static bool add_panel(voe_ecs_world *world, voe_math_float3 position,
 		      float scale, voe_math_float2 millimetres,
 		      voe_3d_layer layer, voe_ecs_entity *out)
@@ -1254,6 +936,27 @@ static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
 // either side of the cubes in the world, and three more standing inside the
 // turning cube in the overlay.
 //
+// And two see-through squares, one warm and one cool, standing a metre and a
+// half either side of the cubes.
+//
+// Then three smaller squares — one solid purple, one see-through green, one
+// see-through orange — standing inside the turning cube and never hidden by it,
+// however far round the orbit goes. Those are the overlay.
+//
+// THE CUBES ARE VISIBLE THROUGH THEM AND TINTED BY THEM. That is the whole claim
+// of the blended pass: half of what a quad covers is the quad's colour and half
+// is whatever was behind it. A quad that hides what is behind it is a blend that
+// is not happening; a quad that has gone dark is the opaque path forcing alpha
+// to one where it should not, or a colour premultiplied twice.
+//
+// AND WHICH OF THE TWO IS ON TOP CHANGES AS THE CAMERA GOES ROUND, WHICH IS THE
+// SORT. They stand at +z and −z either side of the cubes, so the camera is
+// behind one of them for half its lap and behind the other for the other half,
+// and the nearer one's colour has to be the one on top of the overlap every
+// time. If it is right from one side and wrong from the other, the sort's sign
+// is backwards — that is the failure 3d/tests/depth_sort.c exists to catch
+// before it gets here, and this is what it looks like when it does.
+//
 // A MATERIAL EACH AND NOT ONE BETWEEN THEM, unlike the cubes. They have to be
 // different colours or there is no way to tell from the picture which one ended
 // up on top, and a material is where a colour lives.
@@ -1288,6 +991,23 @@ static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
 // the sun goes round; the unlit one keeps exactly the colour its material asks
 // for. An overlay that quietly stopped lighting things would look like a
 // reasonable convenience and it is the one this arrangement is here to catch.
+//
+// What is wrong if it looks wrong:
+//
+//   - A quad hiding what is behind it rather than tinting it — the blend state,
+//     or the material's mode arriving as opaque.
+//   - The overlap of the two quads showing the far one's colour on top, from
+//     some camera angles and not others — the sort's sign.
+//   - The three quads inside the turning cube showing the far one's colour on
+//     top of the near one's — the sort, inside the overlay, which is the same
+//     sort and the same sign as the world's pair. It swaps twice a lap, so a
+//     backwards sign is right for half of it.
+//   - The solid overlay quad not hiding the see-through one behind it — the
+//     overlay's solid group is not writing depth, or the depth clear is
+//     happening after it rather than before.
+//   - The two lit overlay quads not changing as the sun goes round, or the
+//     unlit one changing — the layer has picked up a meaning about lighting
+//     that it must not have. It decides order and nothing else.
 static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 			  voe_render_geometry *quad, voe_base_error *error)
 {
@@ -1351,6 +1071,76 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 // One text block, one entity: the mesh the font built, an unlit blended material
 // wearing the atlas, and the transform it is placed with.
 //
+// Above all of it, three lines of writing on nothing — a sign in the world,
+// lettered on both faces — and across the bottom of the view, one line of it
+// that stays where it is however the camera moves and that nothing gets in front
+// of.
+//
+// THE SIGN STANDS IN THE WORLD AND THE LINE IS LOCKED TO THE CAMERA, which are
+// the two placements text has. The sign is three lines of Oxanium above the
+// cubes and it is part of the scene: it turns with the orbit, it is read at an
+// angle for most of a lap, and something in front of it hides it. The line sits
+// a metre in front of the eye and stays where it is on screen however the camera
+// moves — and it is still an object in the world, placed by a transform intent
+// every frame. There is no screen-space path in this engine and there is not
+// going to be one, so a heads-up display is a quad in front of the camera.
+//
+// AND THE LINE IS IN THE OVERLAY, SO NOTHING COVERS IT. Fly into a cube and the
+// writing stays readable on top of it, which it did not before card 024: at one
+// metre in front of the eye it went inside anything you walked into. The sign
+// stays in the world and is still hidden by whatever gets between it and the
+// camera, and having both is the point — the layer is a property of a drawable
+// and not a switch the program is in.
+//
+// THE TEXT DOES NOT CHANGE AS THE SUN GOES ROUND, AND THAT IS THE UNLIT FLAG.
+// The cubes brighten and darken through the lap; the writing keeps exactly the
+// colour its material asks for, because an unlit material skips the whole
+// shading model. Writing that dims when the sun crosses it is the flag missing,
+// and it is the failure this is here to make obvious.
+//
+// AND IT IS BLENDED, SO A GLYPH IS A SHAPE AND NOT A BOX. Each letter is a quad
+// whose alpha the shader works out from the sheet's distance field; a square of
+// background round every letter is the alpha mode wrong, and text noticeably
+// paler than the tint it asks for is a colour multiplied by its coverage twice.
+//
+// AND IT IS SHARP AT EVERY SIZE, WHICH IS WHAT THE SIGN IS FOR. Fly up to the
+// sign until one letter fills the screen: its edges stay clean and its corners
+// stay square. Fly away and it fades rather than crawling. Soft edges close up
+// mean the material forgot base_colour_distance_field or the sheet was uploaded
+// smooth; rounded corners mean the three channels came out of the sheet the
+// same, which is the colouring in text/src/raster.c having gone wrong.
+//
+// THE HEADS-UP LINE SITS ON A DARK PANEL, AND THAT IS ABOUT CONTRAST AND NOT
+// ABOUT SHARPNESS. Pale blue over teal is a small enough difference in luminance
+// that a one-pixel edge still reads as soft, which sends anyone looking at it
+// hunting for a blur that is not there. The panel takes that question off the
+// table: the edge is the same width over it, and what still looks soft on it is
+// soft. See HUD_PANEL_R.
+//
+// AND THERE IS NO ANTIALIASING ANYWHERE IN THE PICTURE, WHICH IS THE ENGINE'S
+// RULE AND NOT A GAP. Letters have hard edges, textures show their texels close
+// up and shimmer at a distance, and polygon silhouettes are stair-stepped. Every
+// one of those is intended. What to look for instead is that the edges are in
+// the RIGHT PLACE: a letter walked up to has straight sides and square corners
+// rather than blocks, which is the distance field doing its job under a hard
+// cut. Blocks would mean the sheet had become a picture of coverage again.
+//
+// TEXT A LONG WAY OFF BREAKS INTO SPECKS AND THEY MOVE. Expected, and the direct
+// cost of the rule above; the sign at the top of the scene is where to see it.
+//
+// THE ACCENTED CHARACTERS ARE THE READER'S TEST. `Å`, `Ö`, `é`, `ü`, `å` and `Ç`
+// are composite glyphs — references to other glyphs with an offset — and a
+// reader that handles only simple outlines draws them as blanks while an English
+// string looks perfect. If they are missing, that is the bug.
+//
+// THE COUNTERS ARE HOLES. The middles of `O`, `D`, `e`, `a`, `o`, `ö` and `å`
+// are the background and not the letter. Filled in solid is the fill rule: see
+// text/tests/raster.c, which is where that should have been caught.
+//
+// THEY ARE THE ONLY THINGS IN THE SCENE DRAWN IN THE SECOND PASS ALONGSIDE THE
+// QUADS. Everything else is opaque and goes through the ordinary draw in table
+// order; see 3d/draw_system.h.
+//
 // THE FIVE THINGS A TEXT MATERIAL HAS TO SAY, and each of them is visible if it
 // is missing. The atlas as the base colour texture, or there is nothing to see.
 // The tint as the base colour factor, which for an unlit material is exactly the
@@ -1368,7 +1158,43 @@ static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 // of this program's strings wear the same material and they are in different
 // layers: the sign is part of the scene and the heads-up line is above it. Unlit
 // and overlay travel together here by coincidence and not by rule — see the
-// header.
+// two placements above.
+//
+// What is wrong if it looks wrong:
+//
+//   - Writing that brightens and dims as the sun goes round — the material's
+//     `unlit` flag never reached the shading record.
+//   - THE HEADS-UP LINE DISAPPEARING WHEN YOU FLY INTO SOMETHING — the layer.
+//     Either the line is not in the overlay or the depth clear between the two
+//     is not happening, and both look identical from here.
+//   - Everything on top of everything, or the sign no longer hidden by what is
+//     in front of it — the opposite failure, and the worse one: the layer has
+//     become a switch the whole frame is in rather than a property of one
+//     drawable. The sign and the cubes are what to check, not the line.
+//   - A square of background round every letter — the text material's alpha mode
+//     arriving as opaque, which is the same failure as the quad above wearing a
+//     different shape.
+//   - Writing noticeably paler than the tint it asks for — a colour multiplied
+//     by its coverage twice, which is the atlas having been premultiplied when
+//     the shader is what does that. See text/src/font.c.
+//   - Letters soft or blurry as the camera closes on the sign — the material's
+//     base_colour_distance_field not set, or the sheet uploaded as colour or
+//     sampled smooth. All three look the same and text/src/font.c is where the
+//     three are decided together.
+//   - Corners on `V`, `A` and the flat terminals coming out rounded — the sheet
+//     is a distance field but its three channels agree, so the median has
+//     nothing to reconstruct. That is the edge colouring, and
+//     text/tests/raster.c is the automated form of it.
+//   - Accented characters missing while an English string is perfect — composite
+//     glyphs, and text/tests/truetype.c is the automated form.
+//   - The middles of `O`, `e` and `a` filled in solid — the fill rule.
+//     text/tests/raster.c is the automated form of that one.
+//   - The sign missing for half the lap — one of its two faces did not get
+//     built. A text block is one face, and the pair of entities is what makes it
+//     a sign rather than a decal.
+//   - A box where a character should be — the character is outside the range the
+//     atlas covers, and that box is the font's own missing-glyph glyph. Correct,
+//     and a reason to change the string rather than the folder.
 static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 		     const voe_text_font *font, voe_text_block block,
 		     voe_math_float4 tint, voe_scene_transform transform,
@@ -1688,11 +1514,28 @@ static voe_scene_transform_intent behind_the_line(const voe_ecs_world *world,
 
 // One model, then one transform intent per entity to move the whole thing aside.
 //
+// A figure standing on nothing: `dev/src/textured_primitives_human.glb`, three
+// primitives out of Blender sharing one material — a body, a bar of arms and a
+// spherical head, about two metres tall, standing with its feet at y = 0 rather
+// than centred like the cubes.
+//
+// The figure wears its own albedo map, which is the thing to look at for
+// whether a real exporter's texture coordinates arrive intact.
+//
 // EVERY ENTITY HAS TO BE MOVED AND NOT JUST THE FIRST, WHICH IS THE FLATTENING
 // SHOWING THROUGH. There is no parent component: the import composed the file's
 // tree into world transforms, so moving a model means moving each of the things
 // it turned into. The card that adds a hierarchy is the card that makes this one
 // intent.
+//
+// What is wrong if it looks wrong:
+//
+//   - A model missing while the cubes are there — that import failed and said so
+//     on stderr, or the world ran out of room for it. Each model is tried on its
+//     own, so one of them can be missing without the other.
+//   - The figure's texture smeared or in the wrong place while the cubes read
+//     properly — a real exporter's texture coordinates, which nothing in this
+//     repository generated. That is what having a file nobody here wrote is for.
 static bool add_a_model(voe_ecs_world *world, voe_render_device *gpu,
 			voe_base_arena *arena, const char *name,
 			const uint8_t *bytes, size_t size, float offset_x,
@@ -1751,6 +1594,13 @@ static bool add_a_model(voe_ecs_world *world, voe_render_device *gpu,
 // period ends. One struct because they are gathered together, reported together
 // and reset together, and four loose pairs at the top of main() would be twelve
 // variables to keep in step.
+//
+// AND IT PRINTS WHAT IT MEASURED. Four numbers every couple of seconds, each an
+// average and a worst over exactly that period: the frame, this program's own
+// work, the draw, and the graphics card's own clock. say_what_is_measured() is
+// the legend and it is printed once at startup, because a number whose meaning
+// is ambiguous is worse than no number. P switches between the two present
+// modes, which is the measurement the frame-pacing decision is waiting on.
 //
 // EACH ONE BRACKETS EXACTLY ONE THING AND THE NAMES BELOW ARE THE WHOLE POINT. A
 // single "frame time" would hide which of the four is the one that got longer,
@@ -1863,6 +1713,43 @@ static void say_what_is_measured(void)
 // laid out through the transient path and put on the readout entity. Called
 // between _begin and the draw system, which is the only place it can be called.
 //
+// AND SINCE CARD 028 IT DRAWS THEM TOO. The same numbers stand in the top-left
+// of the view as the period's running averages, rebuilt every frame as a text
+// block through voe_text_block_create_transient and never cached: a readout that
+// remembered its string until it changed would, the day its invalidation missed,
+// show yesterday's numbers and look exactly like a frozen program. The console
+// block stays, because a period's worst is a different, still-useful thing.
+//
+// And in the top-left of the view, lines of numbers that change as you watch:
+// the frame rate, the four timings — the same ones the console prints — the
+// pointer, and what the last frame cost in draw commands and element records.
+// Laid out again every frame.
+//
+// THE DRAWS LINE IS A PERIOD METRIC LIKE THE FOUR ABOVE IT, average and worst
+// over the same window, and the element records beside it are the last
+// completed frame's. It is built before anything is drawn, so the one frame
+// after each console block has no sample yet and shows the previous period's;
+// a program that has completed no frame at all says "no frame yet" rather than
+// showing a nought that reads as a claim.
+//
+// AND THE PAIR ON IT IS ADR-0092'S CLAIM RATHER THAN A NUMBER STANDING FOR IT.
+// Ninety-odd element records against thirty-odd draw commands is what "many
+// small things in one draw" means; watch the records climb while the commands
+// hold still. The count includes the draw that put this readout on screen,
+// which is why counting the things you can see gives one fewer.
+//
+// AND IT COUNTS BOTH PASSES, WHICH IS WHY IT IS ABOUT TWICE WHAT IS ON SCREEN.
+// The monitor walks the same world into its own target before the window's pass
+// runs, so nearly everything visible is drawn twice a frame. The console line
+// printed once at startup says how many of the frame's commands the window's own
+// walk was, which is the half that matches what a person can count.
+//
+// THE WORST COLUMN IS THE POINT OF MAKING IT A METRIC. In this demo the scene
+// is identical every frame, so the average and the worst are both the same
+// number and the column looks like decoration. The day anything varies what is
+// drawn — culling, streaming, an interface that grows — the worst frame in the
+// period is the number that matters and the average is the one that hides it.
+//
 // THE NUMBERS ARE THE RUNNING AVERAGES OF THE CURRENT PERIOD. The console block
 // prints a period's average and worst once the period is over; this prints the
 // average so far, every frame, so it settles over the first few hundred
@@ -1881,6 +1768,41 @@ static void say_what_is_measured(void)
 //
 // `glyphs` comes back as how many characters were laid out, so that what the
 // readout actually consumed can be printed once beside what was asked for.
+//
+// What is wrong if it looks wrong:
+//
+//   - THE READOUT'S NUMBERS FROZEN WHILE THE CONSOLE BLOCKS KEEP COMING — the
+//     transient path. Either the block is not being rebuilt each frame, or a
+//     stale id is being drawn and refused on stderr every frame. There is no
+//     cache anywhere that could make them merely slow to update, so frozen is
+//     always a bug and never a saving.
+//   - The readout's left edge jumping sideways as a number gains a digit — it
+//     is being centred on its width. It is meant to be left-aligned, which is
+//     why its placement asks nothing about its size.
+//
+// What there is to try:
+//
+//   - READ THE SAME NUMBERS OFF THE SCREEN. The readout shows the period's
+//     running averages, so it settles over the first few hundred milliseconds
+//     after each console block and should then agree with the block that
+//     follows, to within the averaging. Watch a few periods go by: it resets
+//     with every block, and the frame rate moves the moment the window is
+//     resized or minimised and restored. The `gpu` line must not flash `no
+//     measurement` at the reset — it holds the last period's average for the
+//     one frame the new period has no sample yet. If it does flash, the
+//     three-case fallback in build_the_readout has been collapsed to two.
+//   - WATCH THE `mouse` LINE OF THE READOUT (card 029). It is the pointer's
+//     position in the window's own pixels and the three buttons, live. Move
+//     the pointer to each corner: top-left should read close to 0 0 and
+//     bottom-right one less than the `size` line in both numbers, with neither
+//     overshooting nor inverting — a swapped or mirrored axis is a backend
+//     mistake. Press the buttons: the dots become L, M and R. Hold one and drag
+//     out of the window: the numbers go negative or past the size and keep
+//     following, which is the drag both window systems promise. Move the
+//     pointer off the window with nothing held and the line says `away`.
+//     Press Tab to fly and it says `locked`: the camera has the pointer and
+//     there is nothing at its position to point at, as include/platform/input.h
+//     says. Tab back and move, and the numbers are live again.
 static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 			      const voe_text_font *font, voe_base_arena *arena,
 			      voe_ecs_entity readout, voe_platform_window *window,
@@ -2014,6 +1936,20 @@ static bool build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 // THE GPU LINE IS ABSENT RATHER THAN NOUGHT WHEN THERE IS NO MEASUREMENT. A card
 // that cannot write timestamps would otherwise report a graphics card that takes
 // no time at all, which is the most misleading thing this could print.
+//
+// What there is to try:
+//
+//   - WATCH THE TIMING BLOCKS, AND WATCH THEM MOVE. On fifo, `frame` should sit
+//     within a few tenths of a millisecond of the display's refresh interval —
+//     16.7 ms at sixty hertz — and the reciprocal printed beside it should be
+//     the refresh rate. `draw` should be nearly all of it and `update` almost
+//     none: the program is waiting for the display, which is what fifo means.
+//     Then make something happen: drag the window bigger and `gpu` should go up
+//     with the pixel count, minimise it and the rate should go through the roof.
+//     A number that never moves is a number that is not being measured.
+//   - Hold the window still and read the `worst` column. It should be close to
+//     the average. A worst several times the average is stutter, and stutter is
+//     the thing a person actually notices — which is why it is printed at all.
 static void report(struct timing *timing, double seconds,
 		   voe_render_present present)
 {
@@ -2064,6 +2000,65 @@ static void report(struct timing *timing, double seconds,
 	voe_base_samples_reset(&timing->draws);
 }
 
+// P is the one key that is not about the camera: it switches the present mode,
+// in either camera state, and is nowhere near the movement keys for that reason.
+//
+// What is wrong if it looks wrong:
+//
+//   - The world's picture gone and only the overlay left — the depth clear
+//     cleared colour as well. Only the depth aspect may be named; see
+//     render/src/frame.c.
+//   - THE PROGRAM STOPPING AT AN ASSERT NAMING A DRAW WHOSE SHADING RECORD
+//     NAMES THE OPEN PASS'S TARGET TEXTURE — the monitor's `hidden` is not
+//     reaching the walk, so the pass filling the target is drawing the screen
+//     that shows it. It is a debug check (render/device.h): a release build
+//     draws it, and what a person sees is whatever the driver felt like doing
+//     with an image being read and written at once. See src/monitor.h.
+//   - The screen darkening and going black as the sun crosses it — its material
+//     is not unlit, so what is on it is the picture times a lambert term rather
+//     than the picture.
+//   - The screen holding one still picture, or noise, or the background colour —
+//     nothing drew into its target this frame. A target nobody draws into keeps
+//     whatever its frame slot last held, which is a picture several frames old
+//     and then never changes; the monitor's pass is not being opened, or it was
+//     opened onto the wrong target.
+//   - The screen showing a screen showing a screen — `hidden` is naming the
+//     wrong entity, and in a release build that is what the undefined read
+//     happens to look like on a card that keeps the previous contents.
+//   - The screen's picture stretched or squashed — it is square, drawn square
+//     and shown on a square quad, so every one of those three has to agree; the
+//     aspect ratio in src/monitor.c is the target's own and never the window's.
+//   - Everything drifting or growing — the projection or the aspect ratio.
+//
+// What there is to try:
+//
+//   - Resize it. A `size` line should follow, the background should still reach
+//     every corner, and the cubes should stay cubes rather than stretching — a
+//     wider window shows more of the scene, it does not squash it.
+//   - Toggle the frame off and on. On KWin: right-click the titlebar ->
+//     More Actions -> No Borders, or Alt+F3. A `size` line follows and a
+//     `decorated` line does not, which is the measured answer and not a gap.
+//   - Minimise it. Nothing should happen and nothing should crash: a window with
+//     no area has no frame to draw and the frame is skipped. The scene does not
+//     advance while it is away, because the step below is inside that same test
+//     — and the timing blocks keep coming, at thousands of frames a second,
+//     which is the loop with nothing in it to wait for.
+//   - PRESS P AND COMPARE. It asks for fifo, and the `present` word on every
+//     block says which is actually in force — a machine that has no mailbox was
+//     already saying fifo and will go on saying it, and that is an answer.
+//     What to look for is `frame` dropping onto the display's refresh interval
+//     and the rate pinned to the refresh rate, in exchange for not drawing
+//     frames nobody ever sees. Press it again to come back.
+//   - Close it. It should print `closed` and exit zero.
+//
+// IT WILL SPIN A CORE WHILE IT IS OPEN, AND ON MAILBOX IT WILL SPIN THE GRAPHICS
+// CARD TOO. Mailbox is what this program asks for as soon as its device is open —
+// the engine itself opens on fifo — so it runs as fast as the card and the
+// program between them allow, drawing many frames for every one anybody sees. P
+// is how to stop it doing that: fifo waits
+// for the display, so a visible window then costs one frame's worth of work per
+// refresh. Either way a minimised one presents nothing and _poll returns
+// immediately, because platform has no way to wait yet.
 int main(void)
 {
 	// The window and the device, opened together by `app` and reached
@@ -2327,6 +2322,26 @@ int main(void)
 	// above just built and its picture is that world seen from somewhere
 	// else. Making a target waits for the card, so it happens here and never
 	// in the loop — see src/monitor.h.
+	//
+	// AND OFF TO THE LEFT, A SCREEN SHOWING THIS SAME WORLD FROM SOMEWHERE
+	// ELSE. A square standing on nothing, turned towards the middle of the
+	// scene, holding a second camera's picture: the cubes and the figure
+	// from high up and in front, lit by the same sun at the same instant,
+	// with the turning cube turning in it and the sun crossing it. It is a
+	// target drawn into once a frame and worn as an ordinary texture by an
+	// ordinary quad — see src/monitor.h. The world's own camera orbits and
+	// the second one does not, so what is on the screen holds still while
+	// everything around it swings.
+	//
+	// IT IS ONE-SIDED, SO HALF OF EVERY LAP IT IS NOT THERE. A screen has a
+	// back, and the back of this one is culled; the alternative would show
+	// the picture mirrored, which is the one thing this program's whole
+	// cast of lettered objects exists to make a person suspicious of.
+	//
+	// AND IT IS MISSING FROM ITS OWN PICTURE, WHICH IS THE POINT. The pass
+	// that fills the target leaves the screen out (ADR-0158) — so there is
+	// no screen inside the screen, and no hall of mirrors, and no image
+	// being read while it is written.
 	if (!voe_dev_monitor_create(&monitor, world, gpu, &error)) {
 		VOE_BASE_ERROR("dev", "could not build the monitor: %s",
 			       voe_base_error_string(error));
@@ -2505,6 +2520,12 @@ int main(void)
 						     sunlight(sun, seconds));
 
 			// The turning cube, as an intent like everything else.
+			//
+			// THE SPIN. The turning cube is a transform intent
+			// submitted every frame. Same reasoning as orbit's: how
+			// a transform is written is `scene`'s, what turns and
+			// how fast is a scene's own, and there is no scene file
+			// yet.
 			spinning = voe_scene_transform_get(world, turning);
 			if (spinning != NULL) {
 				voe_scene_transform moved = *spinning;

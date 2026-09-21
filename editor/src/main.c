@@ -29,21 +29,14 @@
 // is below that read — the three commands through session.h, Delete and Ctrl+D
 // through scene.h, Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y through undo.h, whose step
 // is taken at the top of the next frame, before the structural queue is
-// applied. ESCAPE'S ORDER IS THIS FILE'S, out of the free edge that read
-// leaves: the picker closes first and goes no further, otherwise it is the
-// browser's Cancel or Preferences' Close. It, Backspace, Enter, Tab and the
-// text read since the last poll are the interface's besides (dock.h, keys.h).
+// applied. Escape's order is this file's (at the picker's close below).
+// Escape, Backspace, Enter, Tab and the text read since the last poll are the
+// interface's besides (dock.h, keys.h).
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has:
 // the window's size, the capacities, the loop and the one division that turns
 // the mouse's pixels into the surface's millimetres. THE PARTS IN THE LOOP ARE
 // `app`'S (ADR-0135): a frame is opened, and a draw is bracketed, by it.
-//
-// THE POINTER'S DIVISION LIVES HERE AND NOWHERE ELSE (ADR-0141 point 4),
-// because the day a panel is a quad standing in the world that conversion is a
-// ray against the quad — a different sum, in a different file, and only a call
-// site can know which it wants. The interface, the views' drag and pick.h get
-// the same millimetres; the wheel is WHEEL_MILLIMETRES below.
 //
 // A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
 // is drawn into its own target with its own camera first; the window's pass
@@ -51,12 +44,6 @@
 // and shows each view's picture on its panel. The world goes through
 // voe_3d_draw_system_run with the view's camera and light (view.h), and each
 // pass outlines what is selected last (ADR-0203).
-//
-// A GIZMO DRAG IS ONE MORE READER OF THE POINTER (gizmo.h, ADR-0205). The
-// middle button is the views'; the left is asked of the gizmo first and of
-// picking second, so a press on an arrow moves the entity and selects nothing.
-// One drag is one undo step without anything counted here: the held button
-// keeps `at_rest` false for every frame of it, so undo.h settles on the release.
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // (options.h) opens the device with no window at all (voe_app_new_headless),
@@ -277,6 +264,12 @@ int main(int argc, char *argv[])
 	// The left press in a view that moves the selection (pick.h), beside
 	// the drag it shares the pointer with.
 	voe_editor_pick pick = { 0 };
+	// A GIZMO DRAG IS ONE MORE READER OF THE POINTER (gizmo.h, ADR-0205).
+	// The middle button is the views'; the left is asked of the gizmo first
+	// and of picking second, so a press on an arrow moves the entity and
+	// selects nothing. One drag is one undo step without anything counted
+	// here: the held button keeps `at_rest` false for every frame of it, so
+	// undo.h settles on the release.
 	// The left press on an arrow of the selected entity's move gizmo
 	// (gizmo.h), asked before `pick` every frame.
 	voe_editor_gizmo gizmo = { 0 };
@@ -605,8 +598,11 @@ int main(int argc, char *argv[])
 		step_back = shortcuts.undo;
 		step_forward = shortcuts.redo;
 
+		// ESCAPE'S ORDER IS THIS FILE'S, out of the free edge that read
+		// leaves: the picker closes first and goes no further,
+		// otherwise it is the browser's Cancel or Preferences' Close.
 		// THE PICKER TAKES ESCAPE WHEN NOBODY IS TYPING, the edge going
-		// no further then (the header's order).
+		// no further then.
 		escape_free = shortcuts.escape_free;
 		if (escape_free && scene.picking.open) {
 			voe_editor_scene_picker_close(&scene);
@@ -618,6 +614,12 @@ int main(int argc, char *argv[])
 		if (escape_free && !browser.showing)
 			voe_editor_preferences_hide(&preferences);
 
+		// THE POINTER'S DIVISION LIVES HERE AND NOWHERE ELSE (ADR-0141
+		// point 4), because the day a panel is a quad standing in the
+		// world that conversion is a ray against the quad — a different
+		// sum, in a different file, and only a call site can know which
+		// it wants. The interface, the views' drag and pick.h get the
+		// same millimetres; the wheel is WHEEL_MILLIMETRES below.
 		roots[0].pointer = (voe_ui_pointer){
 			.at = { pointer.x / pixels_per_millimetre,
 				pointer.y / pixels_per_millimetre },

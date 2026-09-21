@@ -45,25 +45,6 @@
 // There is no coverage anywhere in this file and no picture of a letter at any
 // size, which is what makes one sheet serve every size.
 //
-// IT GOES UP AS VOE_RENDER_TEXTURE_DATA AND ASKS FOR VOE_RENDER_SAMPLING_FIELD.
-// DATA, because distances are numbers: uploaded as colour, the sRGB decode would
-// bend every one of them towards zero and put every edge in the font slightly in
-// the wrong place — uniformly and everywhere, which reads as the spread being
-// wrong rather than as a format mistake.
-//
-// FIELD IS THE ONE FILTERED SAMPLER IN THE ENGINE AND THIS SHEET IS THE ONLY
-// THING THAT ASKS FOR IT. It addresses CLAMP_TO_EDGE, because a sheet is not
-// tiled and a coordinate a hair outside a glyph's box must not wrap to the far
-// side of the atlas; that part it shares with SHARP, which is what this sheet
-// used to ask for. What it adds is a linear filter, and the reason it is not
-// the antialiasing card 026 swept out is that a distance is not a colour:
-// interpolating between two colours blurs a picture, interpolating between two
-// distances says where the outline runs between the two texel centres. Point
-// sampled, the field is a plateau per texel and its crossing can only land on a
-// texel boundary — which is one side of an O coming out a texel thicker than
-// the other, at every size. Nothing about the edge is softer for it: the reader
-// thresholds the median and a threshold keeps only the sign.
-//
 // NOTHING IS PREMULTIPLIED HERE AND NOTHING MAY BE. The shader's last act is
 // `colour.rgb *= colour.a` (render/shaders/draw.slang), and it does that once,
 // to an alpha this sheet did not supply. There is nothing in the sheet to
@@ -344,6 +325,24 @@ static bool add_glyph(const voe_text_truetype *ttf, uint16_t index,
 	return ok;
 }
 
+// IT GOES UP AS VOE_RENDER_TEXTURE_DATA AND ASKS FOR VOE_RENDER_SAMPLING_FIELD.
+// DATA, because distances are numbers: uploaded as colour, the sRGB decode would
+// bend every one of them towards zero and put every edge in the font slightly in
+// the wrong place — uniformly and everywhere, which reads as the spread being
+// wrong rather than as a format mistake.
+//
+// FIELD IS THE ONE FILTERED SAMPLER IN THE ENGINE AND THIS SHEET IS THE ONLY
+// THING THAT ASKS FOR IT. It addresses CLAMP_TO_EDGE, because a sheet is not
+// tiled and a coordinate a hair outside a glyph's box must not wrap to the far
+// side of the atlas; that part it shares with SHARP, which is what this sheet
+// used to ask for. What it adds is a linear filter, and the reason it is not
+// the antialiasing card 026 swept out is that a distance is not a colour:
+// interpolating between two colours blurs a picture, interpolating between two
+// distances says where the outline runs between the two texel centres. Point
+// sampled, the field is a plateau per texel and its crossing can only land on a
+// texel boundary — which is one side of an O coming out a texel thicker than
+// the other, at every size. Nothing about the edge is softer for it: the reader
+// thresholds the median and a threshold keeps only the sign.
 voe_text_font *voe_text_font_new(voe_text_typeface typeface,
 				 voe_render_device *device,
 				 voe_base_arena *arena, voe_base_error *error)

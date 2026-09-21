@@ -6,35 +6,6 @@
 // recorded inside a rendering block is the draws and the one clear below that is
 // not a load operation.
 //
-// THAT ONE IS voe_render_frame_clear_depth. Card 024 added it: a caller that
-// wants a group of objects to be in front of everything it has already drawn
-// clears depth between the two, inside the pass's rendering block. It is the only
-// command in this file recorded between draws that is not itself a draw, and its
-// own comment says why it is not a second rendering block.
-//
-// A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
-// _begin records nothing that draws; _pass_begin opens the block, writes the
-// pass's camera into its own block of the slot's uniform buffer and binds the set
-// at that block's offset; _pass_end ends the block. The first pass onto the
-// window in a frame clears colour and depth and moves both images out of
-// UNDEFINED; every later one loads both, and needs no barrier because nothing
-// between two passes moves either image out of its attachment layout. That is
-// also why depth is stored: a later pass loads it. The colour image leaves its
-// attachment layout once, at _end, on its way to the blit.
-//
-// A PASS ONTO A TARGET OF THE CALLER'S OWN FOLLOWS THE SAME CLEAR RULE. It draws
-// into this frame slot's pair of that target, at that target's size, which is
-// what device->pass_extent carries to everything that used to read the window's
-// resolution inside a pass. Its colour image is in GENERAL for its whole life, as
-// an attachment and as the picture any descriptor set shows, so the one barrier
-// is the clearing pass's out of UNDEFINED and _pass_end records none. A target no
-// pass opens this frame is not touched at all: nothing clears it at _end the way
-// the window is, so it keeps what its slot's image held.
-//
-// A FRAME WITH NO PASS ONTO THE WINDOW STILL CLEARS IT. _end records an empty
-// rendering block with the clear load operations when no pass has, so the image
-// presented is the clear colour and not whatever the slot held last lap.
-//
 // THREE CALLS AND NOT ONE, BECAUSE THE CALLER IS WHAT KNOWS WHAT TO DRAW. Until
 // card 018 this was a single function and the scene was two cubes inside this
 // folder; now `3d` walks its tables between the begin and the end, and render
@@ -52,48 +23,11 @@
 // token handed to the caller would be a second place for that to live and a
 // second thing to get wrong.
 //
-// TWO OF THOSE ARE RESET HERE AND WRITTEN ELSEWHERE. element.c is what submits
-// an element and what draws them, because that path has no mesh, no pool and no
-// object record in it; _begin puts both counters back to nought because _begin
-// is what the fence has made this slot's buffers safe at. A third pipeline
-// therefore exists that this file never binds — see device->bound, which is
-// compared and not switched on, so an element draw leaving its own pipeline
-// bound simply makes the next mesh draw rebind.
-//
-// TWO PAIRS OF GEOMETRY POOLS CAN BE DRAWN FROM AND ONLY ONE PAIR IS BOUND AT A
-// TIME. The static pair is bound as a pass opens, because that is what a pass's
-// first draws come out of; a range in this slot's transient pair (card
-// 028) needs the other pair bound, and draw_with rebinds when — and only when —
-// the pool a range is in differs from the pair last bound. It is tracked exactly
-// as the pipeline is: a run of draws out of one pair costs one bind, and neither
-// pair is ever bound per draw. Forgetting the rebind draws one object wearing
-// another's shape out of the wrong buffer, which is the failure to look for.
-//
-// THE TRANSIENT RESET HAPPENS HERE, AFTER THE FENCE, AND THAT ORDER IS THE WHOLE
-// OF ITS SAFETY. voe_render_geometry_frame_reset empties this slot's transient
-// pools and makes every transient id from last frame stale; it runs once the
-// slot's fence says the card has finished with the slot, because the memory it
-// empties is what the card was reading. See geometry.c for what the reset does.
-//
-// THERE ARE TWO DRAW CALLS AND THEY DIFFER IN ONE ARGUMENT. _draw goes through
-// the solid pipeline, _draw_blended through the one that tests depth without
-// writing it and blends premultiplied; both are draw_with() below. This file
-// does not sort and does not know how to: the order the blended draws arrive in
-// is the order they are recorded in, and getting that order right is
-// voe_3d_draw_system_run's.
-//
 // THE CLOCK IS GONE FROM THIS FILE AND SO IS THE CAMERA. Both were here while
 // render owned the scene: a frame counted a nominal frame's worth of seconds and
 // stepped a camera by what the caller said the person did. The camera is
 // `scene`'s now and the clock is the frame loop's, so what arrives here is two
 // matrices that somebody else already worked out.
-//
-// THE CAMERA AND THE SUN ARE ONE BLOCK PER PASS IN ONE BUFFER, AND _pass_begin IS
-// WHERE THEY LAND. The pass's number picks the block, and the same number times
-// device->pass_stride is the dynamic offset the set is bound with, so the shader
-// reads the block of the pass it is drawn in. A pass with no camera writes a
-// zeroed block that nothing reads. See struct voe_render_frame_block in
-// device_internal.h.
 //
 // NOTHING HERE DRAWS INTO A SWAPCHAIN IMAGE. The scene goes into images the
 // engine owns (target.c) and the swapchain image is written once, by a blit, as
@@ -101,78 +35,16 @@
 // render resolution different from the window's, and an editor viewport all need
 // in order to exist at all.
 //
-// THE COPY IS A BLIT AND THAT IS A STARTING POINT. vkCmdBlitImage is one call
-// and it scales, which is everything this needs. A full-screen quad becomes
-// necessary the moment anything wants to run a shader between the target and the
-// screen — tone mapping first — and that is the card that replaces this.
-//
-// THE ONE Y FLIP IN THIS ENGINE IS voe_render_frame_viewport BELOW. Vulkan's
-// clip space has +Y pointing down the screen and this engine has +Y up, and the
-// whole of the reconciliation is a negative viewport height there. Never a
-// negated row in a projection matrix — voe_3d_projection deliberately does not
-// have one — and never both: flipping twice looks exactly like flipping none
-// until something is culled, and then it is a bug nobody can see. The front-face
-// constant that goes with this flip is set on the pipeline in device.c, and the
-// pair of them is proven by render/tests/offscreen.c.
-//
-// DEPTH RUNS BACKWARDS AND THE CLEAR IS THE HALF OF IT THAT LIVES HERE. The
-// buffer is cleared to VOE_RENDER_DEPTH_CLEAR, which is 0, which is this
-// engine's far plane; the comparison is GREATER, set on the pipeline in device.c;
-// and the near plane is at 1.0, which comes out of the projection matrix in `3d`.
-// Three files, one convention, and clearing to 1 instead — the habit from every
-// tutorial — leaves a depth test that rejects everything. Both clears in this
-// file read that one constant, and the number never leaves this folder: no
-// caller supplies it and none is told it.
-//
-// THE DEPTH IMAGE IS STORED AND NEVER COPIED. Its storeOp is STORE because a
-// later pass onto the same target in the same frame loads it — that is what lets
-// something drawn in the first pass hide something drawn in the second. Nothing
-// reads it after the frame: it is rebuilt from the clear on the next.
-//
-// TWO INDICES RUN THROUGH THIS FILE AND THEY ARE NOT INTERCHANGEABLE. A frame
-// slot counts how far ahead the CPU is allowed to run and is bounded by
-// VOE_RENDER_FRAMES_IN_FLIGHT; a swapchain image index is whatever the driver
-// hands back from an acquire and is bounded by the image count it chose. They
-// are often both 2 or 3 and that means nothing. Each array is reached through one
-// accessor below and each accessor asserts its own bound.
-//
-// THE FENCE WAIT IS FOR THE FRAME VOE_RENDER_FRAMES_IN_FLIGHT AGO, NOT THE LAST
-// ONE, AND THAT GAP IS THE WHOLE OF THE OVERLAP. Waiting on this slot's fence
-// leaves every frame submitted since it still running on the GPU. What that
-// fence makes safe is this slot's own command buffer, its own acquire semaphore,
-// its own target, its own uniform buffer, its own object buffer and its own
-// element buffer, and nothing else.
-//
 // THE TWO SEMAPHORE KINDS HAVE DIFFERENT LIFETIMES. The acquire semaphore is per
 // slot, guarded by the fence beside it. The rendering-finished semaphore is per
 // swapchain image, because present is what waits on it and present hands back no
 // fence to say when it stopped. Flattening the two is a race the validation
 // layers do not reliably catch.
 //
-// THE ACQUIRE IS WAITED ON AT THE BLIT AND NOT BEFORE. The first thing a frame
-// does to a swapchain image is a transfer, not a colour write, and the scene
-// does not touch that image at all — so drawing the target can start while the
-// presentation engine is still finished with the image, and only the copy has to
-// wait.
-//
 // A HEADLESS DEVICE RUNS EVERY LINE OF THIS EXCEPT THE THREE THAT NEED A WINDOW:
 // there is nothing to acquire, nothing to blit into and nothing to present, so
 // _end submits and returns. That is what lets a test drive the same recording
 // path the window does and then read the target itself.
-//
-// THE CARD'S OWN CLOCK IS READ HERE AND IT IS READ ONE LAP LATE. Two timestamps
-// are written into this slot's query pool, at the top and the bottom of the
-// command buffer, and they are read at the top of the next frame that lands on
-// this slot — which is the first moment the fence says the card has finished
-// writing them. Reading them any sooner means waiting for the GPU, and a program
-// that waits for the GPU in order to time the GPU is timing something else. See
-// read_gpu_time below and voe_render_frame_gpu_time.
-//
-// A SWAPCHAIN GOES STALE AND THAT IS ORDINARY. Out-of-date means the surface
-// changed under us and the swapchain has to be built again; suboptimal means it
-// still works but no longer matches. Both are answered by rebuilding, neither is
-// an error to report, and both happen for real on a compositor that resizes the
-// client area when the titlebar goes away.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -208,6 +80,13 @@
 // index does. Both asserts are the same mistake read from either end: a slot is
 // not an image index and an image index is not a slot, and with arrays this
 // short a swap lands in range as often as not.
+//
+// TWO INDICES RUN THROUGH THIS FILE AND THEY ARE NOT INTERCHANGEABLE. A frame
+// slot counts how far ahead the CPU is allowed to run and is bounded by
+// VOE_RENDER_FRAMES_IN_FLIGHT; a swapchain image index is whatever the driver
+// hands back from an acquire and is bounded by the image count it chose. They
+// are often both 2 or 3 and that means nothing. Each array is reached through one
+// accessor, frame_at or image_at, and each accessor asserts its own bound.
 static struct voe_render_frame *frame_at(voe_render_device *device, uint32_t slot)
 {
 	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT,
@@ -244,6 +123,15 @@ struct voe_render_frame *voe_render_frame_open(voe_render_device *device)
 // or this slot's transient pair. One function for both so that the rendering's
 // opening bind and draw_with's rebind cannot bind them differently, and so that
 // `bound_transient` is set in the one place the binding happens.
+//
+// TWO PAIRS OF GEOMETRY POOLS CAN BE DRAWN FROM AND ONLY ONE PAIR IS BOUND AT A
+// TIME. The static pair is bound as a pass opens, because that is what a pass's
+// first draws come out of; a range in this slot's transient pair (card
+// 028) needs the other pair bound, and draw_with rebinds when — and only when —
+// the pool a range is in differs from the pair last bound. It is tracked exactly
+// as the pipeline is: a run of draws out of one pair costs one bind, and neither
+// pair is ever bound per draw. Forgetting the rebind draws one object wearing
+// another's shape out of the wrong buffer, which is the failure to look for.
 static void bind_pools(voe_render_device *device,
 		       const struct voe_render_frame *frame, bool transient)
 {
@@ -262,6 +150,14 @@ static void bind_pools(voe_render_device *device,
 	device->bound_transient = transient;
 }
 
+// THE ONE Y FLIP IN THIS ENGINE IS voe_render_frame_viewport. Vulkan's
+// clip space has +Y pointing down the screen and this engine has +Y up, and the
+// whole of the reconciliation is a negative viewport height there. Never a
+// negated row in a projection matrix — voe_3d_projection deliberately does not
+// have one — and never both: flipping twice looks exactly like flipping none
+// until something is culled, and then it is a bug nobody can see. The front-face
+// constant that goes with this flip is set on the pipeline in device.c, and the
+// pair of them is proven by render/tests/offscreen.c.
 VkViewport voe_render_frame_viewport(VkExtent2D extent)
 {
 	// y at the bottom and a negative height: the flip, and the only one.
@@ -310,6 +206,14 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // on paper. Adding one whole counter back is the only reading of it that is
 // right; the alternative is a negative duration, which voe_base_samples asserts
 // on and rightly.
+//
+// THE CARD'S OWN CLOCK IS READ HERE AND IT IS READ ONE LAP LATE. Two timestamps
+// are written into this slot's query pool, at the top and the bottom of the
+// command buffer, and they are read at the top of the next frame that lands on
+// this slot — which is the first moment the fence says the card has finished
+// writing them. Reading them any sooner means waiting for the GPU, and a program
+// that waits for the GPU in order to time the GPU is timing something else. See
+// voe_render_frame_gpu_time.
 static void read_gpu_time(voe_render_device *device,
 			  const struct voe_render_frame *frame)
 {
@@ -367,6 +271,20 @@ static void read_gpu_time(voe_render_device *device,
 // GENERAL is the one layout that is valid for both, so the image never changes
 // layout after target.c settled it and loading it needs no barrier either. See
 // target.c for why one layout rather than a barrier each way.
+//
+// DEPTH RUNS BACKWARDS AND THE CLEAR IS THE HALF OF IT THAT LIVES HERE. The
+// buffer is cleared to VOE_RENDER_DEPTH_CLEAR, which is 0, which is this
+// engine's far plane; the comparison is GREATER, set on the pipeline in device.c;
+// and the near plane is at 1.0, which comes out of the projection matrix in `3d`.
+// Three files, one convention, and clearing to 1 instead — the habit from every
+// tutorial — leaves a depth test that rejects everything. Both clears in this
+// file read that one constant, and the number never leaves this folder: no
+// caller supplies it and none is told it.
+//
+// THE DEPTH IMAGE IS STORED AND NEVER COPIED. Its storeOp is STORE because a
+// later pass onto the same target in the same frame loads it — that is what lets
+// something drawn in the first pass hide something drawn in the second. Nothing
+// reads it after the frame: it is rebuilt from the clear on the next.
 static void open_rendering(VkCommandBuffer commands,
 			   const struct voe_render_target *images,
 			   VkExtent2D extent, bool clear, bool own)
@@ -503,6 +421,11 @@ static void ready_for_copy(const struct voe_render_frame *frame)
 // The target onto the screen, and the whole of what the swapchain image is for.
 // The two extents are the same number today and the blit still reads both, so
 // that the day the target stops being the window's size this needs no edit.
+//
+// THE COPY IS A BLIT AND THAT IS A STARTING POINT. vkCmdBlitImage is one call
+// and it scales, which is everything this needs. A full-screen quad becomes
+// necessary the moment anything wants to run a shader between the target and the
+// screen — tone mapping first — and that is the card that replaces this.
 static void blit_to_screen(voe_render_device *device,
 			   const struct voe_render_frame *frame,
 			   const struct voe_render_image *image)
@@ -572,6 +495,12 @@ static void blit_to_screen(voe_render_device *device,
 // signals the image's rendering-finished one, and signals the slot's fence. A
 // headless device has neither semaphore and waits for and signals nothing but
 // the fence.
+//
+// THE ACQUIRE IS WAITED ON AT THE BLIT AND NOT BEFORE. The first thing a frame
+// does to a swapchain image is a transfer, not a colour write, and the scene
+// does not touch that image at all — so drawing the target can start while the
+// presentation engine is still finished with the image, and only the copy has to
+// wait.
 static bool submit(voe_render_device *device,
 		   const struct voe_render_frame *frame,
 		   const struct voe_render_image *image)
@@ -623,6 +552,12 @@ static bool submit(voe_render_device *device,
 // lands. Order matters only in that a target that cannot be made is a device
 // that cannot draw, and there is no point building a swapchain for it. On a
 // headless device the second call does nothing.
+//
+// A SWAPCHAIN GOES STALE AND THAT IS ORDINARY. Out-of-date means the surface
+// changed under us and the swapchain has to be built again; suboptimal means it
+// still works but no longer matches. Both are answered by rebuilding, neither is
+// an error to report, and both happen for real on a compositor that resizes the
+// client area when the titlebar goes away.
 static bool rebuild(voe_render_device *device, voe_platform_size size)
 {
 	if (!voe_render_target_build(device, size))
@@ -630,6 +565,27 @@ static bool rebuild(voe_render_device *device, voe_platform_size size)
 	return voe_render_swapchain_build(device, size);
 }
 
+// device->element_count AND device->draw_commands ARE RESET HERE AND WRITTEN
+// ELSEWHERE. element.c is what submits
+// an element and what draws them, because that path has no mesh, no pool and no
+// object record in it; _begin puts both counters back to nought because _begin
+// is what the fence has made this slot's buffers safe at. A third pipeline
+// therefore exists that this file never binds — see device->bound, which is
+// compared and not switched on, so an element draw leaving its own pipeline
+// bound simply makes the next mesh draw rebind.
+//
+// THE TRANSIENT RESET HAPPENS HERE, AFTER THE FENCE, AND THAT ORDER IS THE WHOLE
+// OF ITS SAFETY. voe_render_geometry_frame_reset empties this slot's transient
+// pools and makes every transient id from last frame stale; it runs once the
+// slot's fence says the card has finished with the slot, because the memory it
+// empties is what the card was reading. See geometry.c for what the reset does.
+//
+// THE FENCE WAIT IS FOR THE FRAME VOE_RENDER_FRAMES_IN_FLIGHT AGO, NOT THE LAST
+// ONE, AND THAT GAP IS THE WHOLE OF THE OVERLAP. Waiting on this slot's fence
+// leaves every frame submitted since it still running on the GPU. What that
+// fence makes safe is this slot's own command buffer, its own acquire semaphore,
+// its own target, its own uniform buffer, its own object buffer and its own
+// element buffer, and nothing else.
 bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 			    bool *drawing)
 {
@@ -765,6 +721,31 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	return true;
 }
 
+// A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
+// _begin records nothing that draws; _pass_begin opens the block, writes the
+// pass's camera into its own block of the slot's uniform buffer and binds the set
+// at that block's offset; _pass_end ends the block. The first pass onto the
+// window in a frame clears colour and depth and moves both images out of
+// UNDEFINED; every later one loads both, and needs no barrier because nothing
+// between two passes moves either image out of its attachment layout. That is
+// also why depth is stored: a later pass loads it. The colour image leaves its
+// attachment layout once, at _end, on its way to the blit.
+//
+// A PASS ONTO A TARGET OF THE CALLER'S OWN FOLLOWS THE SAME CLEAR RULE. It draws
+// into this frame slot's pair of that target, at that target's size, which is
+// what device->pass_extent carries to everything that used to read the window's
+// resolution inside a pass. Its colour image is in GENERAL for its whole life, as
+// an attachment and as the picture any descriptor set shows, so the one barrier
+// is the clearing pass's out of UNDEFINED and _pass_end records none. A target no
+// pass opens this frame is not touched at all: nothing clears it at _end the way
+// the window is, so it keeps what its slot's image held.
+//
+// THE CAMERA AND THE SUN ARE ONE BLOCK PER PASS IN ONE BUFFER, AND _pass_begin IS
+// WHERE THEY LAND. The pass's number picks the block, and the same number times
+// device->pass_stride is the dynamic offset the set is bound with, so the shader
+// reads the block of the pass it is drawn in. A pass with no camera writes a
+// zeroed block that nothing reads. See struct voe_render_frame_block in
+// device_internal.h.
 bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			   const voe_render_pass_camera *camera)
 {
@@ -985,6 +966,12 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 	return true;
 }
 
+// THERE ARE TWO DRAW CALLS AND THEY DIFFER IN ONE ARGUMENT. _draw goes through
+// the solid pipeline, _draw_blended through the one that tests depth without
+// writing it and blends premultiplied; both are draw_with() above. This file
+// does not sort and does not know how to: the order the blended draws arrive in
+// is the order they are recorded in, and getting that order right is
+// voe_3d_draw_system_run's.
 bool voe_render_frame_draw(voe_render_device *device,
 			   voe_render_geometry geometry,
 			   voe_render_object object)
@@ -1025,6 +1012,12 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 // attachment here would throw away the world's picture, which is the one way
 // this call can be badly wrong, and VOE_RENDER_DEPTH_CLEAR is read from the same
 // constant open_rendering reads so the two cannot drift apart.
+//
+// THAT ONE IS voe_render_frame_clear_depth. Card 024 added it: a caller that
+// wants a group of objects to be in front of everything it has already drawn
+// clears depth between the two, inside the pass's rendering block. It is the only
+// command in this file recorded between draws that is not itself a draw, and its
+// own comment says why it is not a second rendering block.
 void voe_render_frame_clear_depth(voe_render_device *device)
 {
 	VkClearAttachment attachment = {
@@ -1064,6 +1057,9 @@ uint32_t voe_render_frame_draw_count(const voe_render_device *device)
 	return device->draw_commands;
 }
 
+// A FRAME WITH NO PASS ONTO THE WINDOW STILL CLEARS IT. _end records an empty
+// rendering block with the clear load operations when no pass has, so the image
+// presented is the clear colour and not whatever the slot held last lap.
 bool voe_render_frame_end(voe_render_device *device)
 {
 	struct voe_render_frame *frame;

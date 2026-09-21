@@ -41,35 +41,6 @@
 // breaks MOVES its children out to the right without resizing them, a FILL child
 // included — the reading the principal chose when the card asked.
 //
-// AND TWO WRAPPING CASES SINCE SPEC 001, ONE PER AXIS, THAT KEEP THE MEASURED
-// SIZE HONEST. A wrap is decided in `arrange`, which is after the `measure` that
-// fed the wrapping container's ancestors, so every one of them would otherwise
-// keep the pre-wrap number and a clipping ancestor would scroll into range that
-// is not there. wrap_revises_every_ancestor is a wrapping row, whose X the
-// ancestors have wrong, and wrap_column_revises_every_ancestor a wrapping
-// column, whose X and Y they both have wrong; each asserts the ancestors'
-// measure, the offset coming back to nought, and where that leaves the boxes.
-//
-// AND THE OVERFLOW CASES SINCE SPEC 001: a clip narrows the visible rectangle
-// and never the rectangle, nested clips intersect while a VISIBLE axis narrows
-// nothing, an anchored child is clipped like any other, and an offset is clamped
-// by layout — past the end, below nought, and with nothing to scroll — and moves
-// anchored children with the in-flow ones. The one worth knowing before reading
-// it is the wrapping column, whose X offset can only be clamped once it has
-// broken in the Y pass. The assert on an offset along a VISIBLE axis is not
-// here: an assert aborts and voe::testing cannot catch one.
-//
-// AND TWO THAT ARE ABOUT THE MACHINERY RATHER THAN THE ARITHMETIC: a frame that
-// wants more nodes than the context has is refused and the next frame is fine,
-// and the same tree built twice on one context gives the same answer, which is
-// what "nothing is kept between frames" means when it is a claim with evidence.
-//
-// ONE CASE REACHES INTO src/, AND ONLY ONE. Paint order is a claim about an
-// ORDER and no rectangle can show it, so arrange_order asserts
-// voe_ui_paint_order itself — which is this folder's own internal header and not
-// a sibling's. Card 034 emits in that order, so it is worth a test that would
-// notice it changing.
-//
 // Needs no graphics card and no window system: this folder draws nothing and
 // names nothing that talks to a machine.
 #include <ui/layout.h>
@@ -645,6 +616,11 @@ static void nesting(voe_ui_context *ui, voe_base_arena *frames)
 
 // ------------------------------------------------------------- capacity
 
+// AND TWO THAT ARE ABOUT THE MACHINERY RATHER THAN THE ARITHMETIC: a frame that
+// wants more nodes than the context has is refused and the next frame is fine,
+// and the same tree built twice on one context gives the same answer, which is
+// what "nothing is kept between frames" means when it is a claim with evidence.
+//
 // A frame that wants more nodes than the context was made with is refused, not
 // fatal: the calls that did not fit hand back VOE_UI_NODE_NONE, frame_end says
 // false, and the frame after it lays out as if nothing had happened. A refused
@@ -1204,6 +1180,12 @@ static void anchored_in_lopsided_padding(voe_ui_context *ui,
 
 // -------------------------------------------------------- arrange order
 
+// ONE CASE REACHES INTO src/, AND ONLY ONE. Paint order is a claim about an
+// ORDER and no rectangle can show it, so arrange_order asserts
+// voe_ui_paint_order itself — which is this folder's own internal header and not
+// a sibling's. Card 034 emits in that order, so it is worth a test that would
+// notice it changing.
+//
 // THE PAINT-ORDER CLAIM, ASSERTED AS AN ORDER AND NOT AS RECTANGLES, because
 // card 034 emits in it and rectangles cannot show it. A parent still comes
 // before all of its children; a parent's in-flow children come before its
@@ -1816,6 +1798,15 @@ static void wrap_nesting(voe_ui_context *ui, voe_base_arena *frames)
 	voe_base_arena_rewind(frames, mark);
 }
 
+// AND TWO WRAPPING CASES SINCE SPEC 001, ONE PER AXIS, THAT KEEP THE MEASURED
+// SIZE HONEST. A wrap is decided in `arrange`, which is after the `measure` that
+// fed the wrapping container's ancestors, so every one of them would otherwise
+// keep the pre-wrap number and a clipping ancestor would scroll into range that
+// is not there. wrap_revises_every_ancestor is a wrapping row, whose X the
+// ancestors have wrong, and wrap_column_revises_every_ancestor a wrapping
+// column, whose X and Y they both have wrong; each asserts the ancestors'
+// measure, the offset coming back to nought, and where that leaves the boxes.
+//
 // A WRAP REVISES EVERY ANCESTOR'S MEASURE AND NOT ONLY THE WRAPPER'S OWN. A
 // wrapping row of four boxes 20 by 5, inside a column filled to 50, inside a
 // column fixed at 50 by 30 that clips: the row breaks into two lines of two and
@@ -1940,6 +1931,15 @@ static void wrap_column_revises_every_ancestor(voe_ui_context *ui,
 
 // ------------------------------------------------------------- overflow
 
+// AND THE OVERFLOW CASES SINCE SPEC 001: a clip narrows the visible rectangle
+// and never the rectangle, nested clips intersect while a VISIBLE axis narrows
+// nothing, an anchored child is clipped like any other, and an offset is clamped
+// by layout — past the end, below nought, and with nothing to scroll — and moves
+// anchored children with the in-flow ones. The one worth knowing before reading
+// it is the wrapping column, whose X offset can only be clamped once it has
+// broken in the Y pass. The assert on an offset along a VISIBLE axis is not
+// here: an assert aborts and voe::testing cannot catch one.
+//
 // A CLIP NARROWS WHAT IS SEEN AND NOT WHERE ANYTHING IS. A row 50 by 20 clipping
 // X holds a box 70 wide: the box's rectangle is still 70, its visible rectangle
 // is 50, and the row's own visible rectangle is the whole of it — nothing above

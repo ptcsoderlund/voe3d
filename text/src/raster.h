@@ -20,9 +20,6 @@
 // contours overlap — and the counters in `o`, `e`, `a`, `p`, `B` and `8` fill in
 // solid. It is visible in the first word rendered.
 //
-// COVERAGE IS ONE BYTE PER PIXEL AND IT IS NOT A COLOUR. 0 is outside the shape
-// and 255 is entirely inside it; what the caller does with that is the caller's.
-//
 // ---- AND THE FIELD, WHICH IS THE HARDER HALF ----
 //
 // THREE DISTANCES AND NOT ONE, BECAUSE ONE ROUNDS OFF EVERY CORNER. A single
@@ -44,24 +41,6 @@
 // texel, the field is wrong rather than clever and the texel is replaced by the
 // plain signed distance; that is the one place the two halves of this file meet.
 //
-// THE SPREAD IS HOW FAR OUT THE FIELD IS ENCODED AND IT COSTS PADDING. Distances
-// are stored as a byte per channel over the range plus or minus
-// VOE_TEXT_FIELD_SPREAD texels, so a caller has to leave at least that much
-// blank around each glyph or two glyphs' fields run into one another.
-//
-// THE ANTI-ALIASING IS SUB-SCANLINES IN Y AND EXACT SPANS IN X. Each row of
-// pixels is sampled at VOE_TEXT_RASTER_SAMPLES evenly spaced heights; along each
-// of those the spans that are inside the shape are added to the row with their
-// fractional ends counted as fractions. So a vertical edge is exact and a
-// horizontal one is quantised to one part in VOE_TEXT_RASTER_SAMPLES, which is
-// the trade this makes and the reason that number is not smaller.
-//
-// CURVES ARE FLATTENED TO LINES AND VOE_TEXT_RASTER_TOLERANCE IS HOW STRAIGHT
-// THAT HAS TO BE. `glyf` outlines are quadratic Béziers; each is split into as
-// many equal pieces as it takes for the chord to sit within the tolerance of the
-// curve, in the pixels the caller is rasterising into rather than in font units,
-// so a big glyph gets more pieces than a small one for free.
-//
 // THE Y FLIP IS HERE AND IT IS THE ONLY ONE IN THIS FOLDER. Font units are Y-up
 // from the baseline and a bitmap's rows go down the image, so this file negates
 // y exactly once, where the outline is turned into bitmap coordinates. The
@@ -78,16 +57,34 @@
 
 // How many heights each row of pixels is sampled at. Eight is where a curved
 // stem stops showing steps at the sizes text/src/font.c rasterises at.
+//
+// THE ANTI-ALIASING IS SUB-SCANLINES IN Y AND EXACT SPANS IN X. Each row of
+// pixels is sampled at VOE_TEXT_RASTER_SAMPLES evenly spaced heights; along each
+// of those the spans that are inside the shape are added to the row with their
+// fractional ends counted as fractions. So a vertical edge is exact and a
+// horizontal one is quantised to one part in VOE_TEXT_RASTER_SAMPLES, which is
+// the trade this makes and the reason that number is not smaller.
 #define VOE_TEXT_RASTER_SAMPLES 8
 
 // How far a flattened curve may sit from the curve it replaces, in pixels. A
 // tenth of a pixel is below what the coverage above can represent, so the
 // flattening is not what limits the quality.
+//
+// CURVES ARE FLATTENED TO LINES AND VOE_TEXT_RASTER_TOLERANCE IS HOW STRAIGHT
+// THAT HAS TO BE. `glyf` outlines are quadratic Béziers; each is split into as
+// many equal pieces as it takes for the chord to sit within the tolerance of the
+// curve, in the pixels the caller is rasterising into rather than in font units,
+// so a big glyph gets more pieces than a small one for free.
 #define VOE_TEXT_RASTER_TOLERANCE 0.1f
 
 // How far out from the outline the field is encoded, in texels. A byte per
 // channel spans plus or minus this, so 0 is that far outside, 255 is that far
 // inside and 128 is the outline itself.
+//
+// THE SPREAD IS HOW FAR OUT THE FIELD IS ENCODED AND IT COSTS PADDING. Distances
+// are stored as a byte per channel over the range plus or minus
+// VOE_TEXT_FIELD_SPREAD texels, so a caller has to leave at least that much
+// blank around each glyph or two glyphs' fields run into one another.
 //
 // FOUR, AND IT IS A TRADE BETWEEN TWO THINGS AND NOT A QUALITY SETTING. It has
 // to be wide enough that a reader minifying the text still finds a gradient to
@@ -133,6 +130,9 @@
 //
 // `arena` is scratch: the flattened segments and one row of accumulated coverage
 // come out of it, and it may be rewound the moment this returns.
+//
+// COVERAGE IS ONE BYTE PER PIXEL AND IT IS NOT A COLOUR. 0 is outside the shape
+// and 255 is entirely inside it; what the caller does with that is the caller's.
 void voe_text_raster_fill(const voe_text_truetype_outline *outline, float scale,
 			  voe_math_float2 origin, uint8_t *coverage,
 			  uint16_t width, uint16_t height,

@@ -7,103 +7,6 @@
 // the corners the wrong way round, a clip test comparing the wrong pair of
 // numbers and a blend that multiplied twice all leave the bookkeeping perfect.
 //
-// ONE DRAW COMMAND IS COUNTED AND NOT ASSUMED. voe_render_frame_draw_count is
-// what the whole path exists to make true, so the test that draws four
-// rectangles of four colours asserts that the frame held exactly one draw. A
-// picture alone would look the same whether it took one draw or forty.
-//
-// Y RUNS DOWN AND THAT IS THE CLAIM WITH THE MOST WAYS TO BE ACCIDENTALLY
-// RIGHT. Element space puts nought at the top; the engine's one Y flip puts +1
-// in clip space at the top of the screen, so the negation in
-// voe_render_element_transform is what reconciles them. A second flip, or none,
-// leaves a picture that is upside down — which a symmetrical arrangement of
-// rectangles would hide entirely. So the arrangement here is deliberately not
-// symmetrical: three quadrants of three colours and the fourth left as the
-// clear.
-//
-// THE CLIP RECTANGLE IS THE ONE FIELD WITH NO CALLER YET. An element covering
-// the whole surface, clipped to its top half, has to come out as the top half
-// and nothing else — untested surface being worse than absent surface.
-//
-// ORDER IS PAINT ORDER, PROVEN BOTH WAYS ROUND. Two opaque elements over the
-// whole surface, submitted in each order, and the second one submitted is what
-// is seen. Asserting only one order would pass on an implementation that drew
-// them in reverse.
-//
-// A MESH DRAWN AFTER AN ELEMENT DRAW IS STILL DRAWN RIGHT, WHICH IS THE CLAIM
-// WITH NO PICTURE OF ITS OWN. The element pipeline shares the mesh pipelines'
-// layout precisely so that the descriptor set frame.c binds once as a pass
-// opens survives an element draw; two layouts differing in their push
-// constant ranges would be incompatible and would disturb that set for
-// everything drawn afterwards. The bound vertex and index buffers have to
-// survive it too. So one test draws a mesh, then elements, then a mesh again,
-// and all three have to land — and the failure it guards against shows up on
-// the mesh drawn last, which no amount of looking at the elements would find.
-//
-// A LETTER AND A FILL ARE ONE DRAW COMMAND, WHICH IS WHAT THE GLYPH KIND EXISTS
-// TO SAY. A solid and a glyph in one frame, and the frame holds one draw. That
-// is the headline claim and it is the assert, not the picture, that proves it —
-// two kinds drawn correctly in two draws would look identical.
-//
-// THE SHEET IS A HAND-MADE FIELD AND NOT A FONT, because this folder does not
-// depend on `text` and must not learn to. Four texels square, its bottom-right
-// quarter the inside of the shape and the rest the outside, uploaded as DATA
-// with FIELD sampling exactly as an atlas is. That is enough to say everything
-// a letter would: where the interior is, where the paper is, and — because the
-// pattern is in a corner rather than a stripe — which way round both axes of
-// the sheet rectangle go. A sheet read mirrored in u or flipped in v puts the
-// drawn quarter somewhere else and every count below fails.
-//
-// THE COUNTS SKIP THE BAND WHERE THE FIELD CROSSES. FIELD sampling is linear by
-// design (see voe_render_sampling), so between the outside texels and the
-// inside ones there is a strip where the interpolated value is passing through
-// a half and which side of the threshold a pixel lands on is arithmetic on a
-// texel centre rather than a claim worth making. The regions counted are well
-// inside and well outside it, which is where the answer is exact.
-//
-// AND THE CUTOFF IS HELD TO ITS TWO PROMISES WITH BAR SHEETS OF THEIR OWN
-// (ADR-0183): a stroke half a pixel tall lying across a pixel boundary keeps a
-// pixel in every column, and a stroke whose edges lie on pixel boundaries keeps
-// exactly its width. Each bar's field is written and rounded to bytes as
-// text/src/raster.c writes an atlas, because the second promise is decided
-// within a byte of the cutoff and a hand-picked rounding could keep it falsely.
-//
-// AND A GLYPH THAT NAMED NO SHEET DRAWS A SOLID RECTANGLE, ASSERTED SO IT
-// CANNOT CHANGE QUIETLY. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one
-// white pixel, so such a record medians to white, thresholds to one and comes
-// out as a plausible-looking rectangle rather than as anything that fails. It
-// is the worst failure on this path to find by looking, so it is the one with a
-// test naming it.
-//
-// AND THE BLEND IS PREMULTIPLIED, WHICH IS THE FAILURE THAT LOOKS LIKE A COLOUR
-// SOMEBODY CHOSE. A half-alpha green over an opaque red is half of each: the
-// green channel comes out around 188, which is the sRGB encoding of a half.
-// Forgetting the multiply in the shader leaves it at 255 and doing it twice
-// leaves it near 137, so one number separates all three.
-//
-// A DRAW TAKES A RANGE, AND THE WAY TO GET THAT WRONG IS TO IGNORE IT. One
-// buffer holds every surface a frame draws, so two surfaces are two ranges and
-// two matrices out of the one buffer. The test that proves it puts the same two
-// rectangles in both ranges and moves only the matrix: an implementation that
-// drew from the start of the buffer every time would put the first range's
-// colours where the second range's belong, and would otherwise look perfect.
-//
-// AND A RANGE THAT RUNS PAST WHAT WAS SUBMITTED IS REFUSED RATHER THAN
-// ASSERTED, because a component holding last frame's range is how it is reached
-// and that must cost one surface rather than the program. The frame carries on
-// and the elements that were submitted still draw.
-//
-// AND THE SCREEN-FILLING SURFACE STOPS SHORT OF THE NEAR CLIP BOUNDARY, WHICH IS
-// THE ONE CLAIM NO PICTURE FROM THIS MACHINE COULD MAKE. Standing exactly on the
-// boundary is valid by the specification and drew perfectly on the software
-// rasteriser this repository checks on, and a real driver threw the whole
-// surface away — so the assert is arithmetic on the matrix, z strictly less than
-// w, and there is nothing to render. See bug 001 and ADR-0111.
-//
-// ONE MILLIMETRE IS ONE PIXEL HERE, on purpose: the surface is handed the
-// target's size in millimetres, so every count below is exact rather than a
-// threshold and a rectangle's edges land on pixel boundaries.
-//
 // It includes render's internal header by relative path, as tests/pools.c and
 // tests/transient.c do: reading a target back is not something the engine does
 // and must not become part of its surface so that a test can see it.
@@ -199,6 +102,15 @@ static voe_render_element solid(float x, float y, float w, float h,
 // median is that number, and the bottom-right two-by-two the inside of the
 // shape. The alpha channel is opaque and is not read, exactly as a real atlas's
 // is not.
+//
+// THE SHEET IS A HAND-MADE FIELD AND NOT A FONT, because this folder does not
+// depend on `text` and must not learn to. Four texels square, its bottom-right
+// quarter the inside of the shape and the rest the outside, uploaded as DATA
+// with FIELD sampling exactly as an atlas is. That is enough to say everything
+// a letter would: where the interior is, where the paper is, and — because the
+// pattern is in a corner rather than a stripe — which way round both axes of
+// the sheet rectangle go. A sheet read mirrored in u or flipped in v puts the
+// drawn quarter somewhere else and every count below fails.
 #define FIELD_SIDE 4
 #define FIELD_BYTES (FIELD_SIDE * FIELD_SIDE * 4)
 
@@ -305,6 +217,10 @@ static voe_render_object shifted(float shift, voe_render_shading shading)
 }
 
 // The surface is the whole target and one millimetre is one pixel.
+//
+// ONE MILLIMETRE IS ONE PIXEL HERE, on purpose: the surface is handed the
+// target's size in millimetres, so every count below is exact rather than a
+// threshold and a rectangle's edges land on pixel boundaries.
 static voe_math_float4x4 whole_target(void)
 {
 	return voe_render_element_transform((voe_math_float2){ SIDE, SIDE });
@@ -483,6 +399,20 @@ static bool close_frame(voe_render_device *device)
 //
 // RED IS TOP-LEFT IN ELEMENT SPACE AND HAS TO BE TOP-LEFT IN THE PICTURE, which
 // is the whole of the Y-direction claim: element y = 0 is the top.
+//
+// ONE DRAW COMMAND IS COUNTED AND NOT ASSUMED. voe_render_frame_draw_count is
+// what the whole path exists to make true, so the test that draws four
+// rectangles of four colours asserts that the frame held exactly one draw. A
+// picture alone would look the same whether it took one draw or forty.
+//
+// Y RUNS DOWN AND THAT IS THE CLAIM WITH THE MOST WAYS TO BE ACCIDENTALLY
+// RIGHT. Element space puts nought at the top; the engine's one Y flip puts +1
+// in clip space at the top of the screen, so the negation in
+// voe_render_element_transform is what reconciles them. A second flip, or none,
+// leaves a picture that is upside down — which a symmetrical arrangement of
+// rectangles would hide entirely. So the arrangement here is deliberately not
+// symmetrical: three quadrants of three colours and the fourth left as the
+// clear.
 static void four_colours_in_one_draw(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -540,6 +470,10 @@ static void four_colours_in_one_draw(struct scene *scene)
 // half has to come out as the clear — a clip test that compared the wrong pair
 // of numbers, or one the fragment stage never ran, leaves the whole surface
 // filled and every other check in this file still passing.
+//
+// THE CLIP RECTANGLE IS THE ONE FIELD WITH NO CALLER YET. An element covering
+// the whole surface, clipped to its top half, has to come out as the top half
+// and nothing else — untested surface being worse than absent surface.
 static void the_clip_rectangle_clips(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -571,6 +505,11 @@ static void the_clip_rectangle_clips(struct scene *scene)
 // Two opaque elements over the whole surface, and the second one submitted is
 // what is seen. Both ways round, because one order alone passes on an
 // implementation that draws them backwards.
+//
+// ORDER IS PAINT ORDER, PROVEN BOTH WAYS ROUND. Two opaque elements over the
+// whole surface, submitted in each order, and the second one submitted is what
+// is seen. Asserting only one order would pass on an implementation that drew
+// them in reverse.
 static void order_is_paint_order(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -611,6 +550,12 @@ static void order_is_paint_order(struct scene *scene)
 // encodes that as about 188. A shader that never multiplied by alpha would leave
 // the green at 255 and one that multiplied twice would leave it near 137, so a
 // window around 188 tells all three apart and nothing else has to be exact.
+//
+// AND THE BLEND IS PREMULTIPLIED, WHICH IS THE FAILURE THAT LOOKS LIKE A COLOUR
+// SOMEBODY CHOSE. A half-alpha green over an opaque red is half of each: the
+// green channel comes out around 188, which is the sRGB encoding of a half.
+// Forgetting the multiply in the shader leaves it at 255 and doing it twice
+// leaves it near 137, so one number separates all three.
 static void the_blend_is_premultiplied(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -700,6 +645,16 @@ static void overrunning_is_refused_and_the_next_frame_is_fine(struct scene *scen
 // so the mesh that follows has had the push constant overwritten twice — and a
 // pipeline that pushed once for several draws, or a mesh that read a stale push,
 // is exactly what two of them turns from a possibility into a case.
+//
+// A MESH DRAWN AFTER AN ELEMENT DRAW IS STILL DRAWN RIGHT, WHICH IS THE CLAIM
+// WITH NO PICTURE OF ITS OWN. The element pipeline shares the mesh pipelines'
+// layout precisely so that the descriptor set frame.c binds once as a pass
+// opens survives an element draw; two layouts differing in their push
+// constant ranges would be incompatible and would disturb that set for
+// everything drawn afterwards. The bound vertex and index buffers have to
+// survive it too. So one test draws a mesh, then elements, then a mesh again,
+// and all three have to land — and the failure it guards against shows up on
+// the mesh drawn last, which no amount of looking at the elements would find.
 static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -751,6 +706,11 @@ static void a_mesh_after_an_element_draw_is_still_right(struct scene *scene)
 // A solid in the top-left quadrant and a glyph in the bottom-right, and the
 // frame holds exactly one draw. The picture is checked as well, because a draw
 // count of one over a frame that drew nothing would also be one.
+//
+// A LETTER AND A FILL ARE ONE DRAW COMMAND, WHICH IS WHAT THE GLYPH KIND EXISTS
+// TO SAY. A solid and a glyph in one frame, and the frame holds one draw. That
+// is the headline claim and it is the assert, not the picture, that proves it —
+// two kinds drawn correctly in two draws would look identical.
 static void a_solid_and_a_glyph_are_one_draw(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -794,13 +754,20 @@ static void a_solid_and_a_glyph_are_one_draw(struct scene *scene)
 // IT IS ALSO THE ONE TEST THAT SAYS WHICH WAY ROUND THE SHEET RECTANGLE GOES.
 // Read mirrored in u the drawn quarter is on the left; read flipped in v it is
 // at the top. Both fail here and neither would fail on a stripe.
+//
+// THE COUNTS SKIP THE BAND WHERE THE FIELD CROSSES. FIELD sampling is linear by
+// design (see voe_render_sampling), so between the outside texels and the
+// inside ones there is a strip where the interpolated value is passing through
+// a half and which side of the threshold a pixel lands on is arithmetic on a
+// texel centre rather than a claim worth making. The regions counted are well
+// inside and well outside it, which is where the answer is exact.
 static void a_glyph_reads_the_sheet(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
 	const struct voe_render_frame *frame;
 	const unsigned char *image;
 	// Well inside the sheet's inner quarter and well outside it, skipping
-	// the band where the linear field crosses the threshold. See the header.
+	// the band where the linear field crosses the threshold. See above.
 	const int low = 6;
 	const int high = 10;
 	const int corner = low * low;
@@ -864,6 +831,13 @@ static void a_glyph_is_clipped_like_a_solid(struct scene *scene)
 // forgot its texture index draws a plausible rectangle rather than anything
 // wrong, so what the empty id does is written down in voe_render_element and
 // asserted here, and changing it means changing this line on purpose.
+//
+// AND A GLYPH THAT NAMED NO SHEET DRAWS A SOLID RECTANGLE, ASSERTED SO IT
+// CANNOT CHANGE QUIETLY. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one
+// white pixel, so such a record medians to white, thresholds to one and comes
+// out as a plausible-looking rectangle rather than as anything that fails. It
+// is the worst failure on this path to find by looking, so it is the one with a
+// test naming it.
 static void a_glyph_with_no_sheet_draws_a_solid_rectangle(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -925,6 +899,13 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 // 0.5 plus the signed distance over twice the spread, clamped and rounded to a
 // byte — so that the cutoff meets the numbers a real atlas hands it. Uploaded
 // DATA and FIELD as the corner sheet is; the caller destroys it.
+//
+// AND THE CUTOFF IS HELD TO ITS TWO PROMISES WITH BAR SHEETS OF THEIR OWN
+// (ADR-0183): a stroke half a pixel tall lying across a pixel boundary keeps a
+// pixel in every column, and a stroke whose edges lie on pixel boundaries keeps
+// exactly its width. Each bar's field is written and rounded to bytes as
+// text/src/raster.c writes an atlas, because the second promise is decided
+// within a byte of the cutoff and a hand-picked rounding could keep it falsely.
 #define BAR_SPREAD 4.0f
 #define BAR_MAX_BYTES (32 * 16 * 4)
 
@@ -1071,6 +1052,13 @@ static void no_element_room_is_a_refusal(voe_base_arena *arena)
 // so the second range lands in the bottom half — and a draw that ignored `first`
 // would put the first range's red and blue down there instead of the second
 // range's green, which every count below catches.
+//
+// A DRAW TAKES A RANGE, AND THE WAY TO GET THAT WRONG IS TO IGNORE IT. One
+// buffer holds every surface a frame draws, so two surfaces are two ranges and
+// two matrices out of the one buffer. The test that proves it puts the same two
+// rectangles in both ranges and moves only the matrix: an implementation that
+// drew from the start of the buffer every time would put the first range's
+// colours where the second range's belong, and would otherwise look perfect.
 static void two_ranges_two_matrices_two_draws(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -1134,6 +1122,11 @@ static void two_ranges_two_matrices_two_draws(struct scene *scene)
 // and the buffer is empty at the top of every frame, so a program that skipped
 // a surface's rebuild for one frame arrives here — that costs one surface and
 // must not cost the program.
+//
+// AND A RANGE THAT RUNS PAST WHAT WAS SUBMITTED IS REFUSED RATHER THAN
+// ASSERTED, because a component holding last frame's range is how it is reached
+// and that must cost one surface rather than the program. The frame carries on
+// and the elements that were submitted still draw.
 static void a_range_past_what_was_submitted_is_refused(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
@@ -1359,6 +1352,13 @@ static void strictly_inside_the_near_plane(const char *corner,
 //
 // STRICTLY LESS, NOT LESS-OR-EQUAL. Writing <= here would pass against the
 // constant that caused bug 001 and would pin nothing at all.
+//
+// AND THE SCREEN-FILLING SURFACE STOPS SHORT OF THE NEAR CLIP BOUNDARY, WHICH IS
+// THE ONE CLAIM NO PICTURE FROM THIS MACHINE COULD MAKE. Standing exactly on the
+// boundary is valid by the specification and drew perfectly on the software
+// rasteriser this repository checks on, and a real driver threw the whole
+// surface away — so the assert is arithmetic on the matrix, z strictly less than
+// w, and there is nothing to render. See bug 001 and ADR-0111.
 static void the_surface_stops_short_of_the_near_clip_boundary(void)
 {
 	// A 240 by 135 mm surface, the shape a window's worth of millimetres

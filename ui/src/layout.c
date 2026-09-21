@@ -14,45 +14,6 @@
 // the two passes speak, and a container that does not wrap leaves every child on
 // line nought, which is a single run and exactly the arithmetic there was before.
 //
-// A WRAP IS DECIDED IN arrange, SO THE measure THAT FED ITS ANCESTORS HAS
-// ALREADY RUN, and every one of them keeps the pre-wrap number. A row breaks
-// while arranging X, after measure(X) told its parent it was one line long; a
-// column breaks while arranging Y and revises both of its own axes there, after
-// measure(Y) and measure(X) had both been believed. So there is a corrective
-// sweep, remeasure, between the two passes and the clip: it measures each axis
-// again — reading the `line` numbers the arrangement wrote — and re-clamps every
-// container's offset against the number that comes out.
-//
-// IT REVISES MEASURES AND NEVER RECTANGLES, the root's included. The width a
-// container wrapped at is the width it was arranged to, and re-arranging X from
-// the revised measure could break the lines differently and want measuring
-// again; that iteration is the one thing the axis order exists to rule out. So
-// a NATURAL-width ancestor keeps its pre-wrap rectangle and now measures less
-// than it, which is the true statement and the one voe_ui_node_measured exists
-// to make.
-//
-// IT RE-CLAMPS AND SHIFTS, because an offset clamped against range that is not
-// there is an offset the person cannot undo: the content sits away from the
-// corner with nothing to scroll it back by, and the bar over it is drawn on
-// slack the content does not need. Parents first, as arrange goes, so that a
-// parent's shift carries its descendants and a nested area's own re-clamp adds
-// to it. A container whose offset did not move is not touched, and a tree with
-// no wrapping container in it comes out of remeasure to the bit as it went in —
-// nothing between the passes changed a leaf's content, so the arithmetic is the
-// same arithmetic.
-//
-// A WRAPPING COLUMN'S OWN REVISIT, below, IS THIS SAME MOVE MADE EARLY, so the
-// sweep finds nothing left to do on the column itself and everything left to do
-// above it.
-//
-// A WRAPPING COLUMN IS THE ONE PLACE A PASS REVISITS THE OTHER AXIS. Its length
-// is Y, so it breaks in the Y pass, after its children were placed on X as one
-// line; breaking then moves each child and its whole subtree across to its line,
-// and never resizes one, because a width that waited on a height is what the
-// order rules out. A subtree is consecutive in the array, so the move is a flat
-// loop — but a node under several wrapping columns is moved once for each, which
-// is the one sweep here that is not strictly linear in the node count.
-//
 // SO THERE IS NEITHER RECURSION NOR AN EXPLICIT STACK IN ANY PASS, and the
 // question the card asked does not arise: the depth of the tree is not on the C
 // stack at all, and no nesting limit is needed. The truetype composite walk had
@@ -60,89 +21,6 @@
 // the program's own calls, and the array it is built in already holds the order
 // both passes want. The one stack in this file is the list of containers begun
 // and not yet ended, which is the building phase and not a pass.
-//
-// THERE IS A THIRD PASS SINCE CARD 041 AND IT IS FLAT FOR THE SAME REASON.
-// Anchored children paint after their in-flow siblings, so paint order is no
-// longer the array's order and has to be worked out — but a pre-order array
-// gives it in three linear sweeps and no stack: count each node's subtree
-// backwards, which is the width of the slot that subtree needs; sweep forwards
-// handing each node's children their slots inside its own, the in-flow ones
-// before the anchored ones; and invert what that wrote. See paint_order.
-//
-// A NODE'S NATURAL SIZE IS WRITTEN BY ITS PARENT, NOT BY ITSELF, because what
-// `along` means to a node is a question about its parent's direction. So each
-// node measures its own content into `content_natural`, in the panel's axes, and
-// the parent turns that into `natural` by reading the node's declaration against
-// its own flow. The root has no parent and is measured against its own flow.
-//
-// A GROW CHILD CONTRIBUTES NOTHING ALONG THE FLOW TO ITS CONTAINER'S NATURAL
-// SIZE, and its content across. That is the circular question this card had to
-// answer — grow means share what is left, natural means what the content needs,
-// and a container whose natural size depended on a share of itself would need
-// iterating. Contributing nothing keeps natural size well defined in one pass,
-// it is what flexbox settles on with a zero basis, and it means a grow spacer in
-// a natural panel collapses to nothing, which is what a spacer should do when
-// there is nothing to fill. The two alternatives were measuring a grow child's
-// content anyway, which costs a second measure and blurs what grow means, and
-// refusing grow inside a natural container, which is too strict for a panel that
-// fits its children and has one spacer in it.
-//
-// GAPS ARE COUNTED FOR EVERY CHILD, GROW ONES INCLUDED. The gap is a property of
-// the run and not of a child's size, so a natural row of two boxes and a
-// collapsed spacer between them is still two gaps wide.
-//
-// AN ANCHORED CHILD IS NOT IN THE RUN AT ALL, WHICH IS A STRONGER STATEMENT THAN
-// A GROW CHILD'S. A grow child contributes nothing to the natural size but is
-// still a member of the run and still earns a gap beside it; an anchored child
-// is skipped by both passes' arithmetic entirely — no gap, no share, no
-// contribution — and is placed afterwards against its parent's CONTENT BOX,
-// which is the padded rectangle and not the outer one. So a line's `count`, the
-// children of that line still in the run, is what every piece of run arithmetic
-// here is written against, and the total child count is not kept at all. The
-// consequence
-// worth saying out loud is that a fit-to-children container holding only
-// anchored children measures to its padding and nothing more.
-//
-// AN ANCHORED CHILD'S TWO AXES ARE THE PANEL'S OWN X AND Y, NEVER ITS PARENT'S
-// FLOW, and that is why measure_natural is called with `false` for one — the
-// mapping that reads `size.along` as X and `size.across` as Y. A child out of
-// the flow has no flow, and an anchor that changed which edge it meant when its
-// parent turned from a row into a column is the defect this folder's vocabulary
-// exists to avoid. The padding is four numbers for the same reason.
-//
-// NOTHING IN THIS FILE FLIPS A Y AND NOTHING IN IT SUBTRACTS ONE. The space runs
-// down from the panel's top-left corner, so a container's children accumulate
-// away from its own corner on both axes and the two are the same arithmetic with
-// the components swapped — which is why `axis` and `axis_set` are the whole of
-// the direction handling and why each arrange has one expression for a child's
-// corner rather than two. A reader who knows this engine will expect a
-// flip here, because the world is +Y up; the surface being laid out is a flat
-// thing's own parameter space and voe_render_element's header is where the one
-// sign that reconciles the two is written down. Putting a second one here is the
-// way this file goes wrong, and it would pass a symmetrical test.
-//
-// PADDING IS SUBTRACTED IN ONE PLACE, inner_min and inner_size, AND ADDED IN
-// ONE PLACE, measured_set. Counting it twice is the classic off-by-pad and the
-// only guard against it is that there is one line each way. Four numbers give it
-// four ways to happen, so both directions go through pad_axis and pad_near and
-// neither names a side of the struct: a pass asks for the two sides on an axis,
-// or for the near side of one, and never for `left` as such.
-//
-// A CLIP AND AN OFFSET ARE THE LAST THINGS ADDED, AND NEITHER IS A NEW PASS.
-// The offset is clamped inside arrange, at the one moment a container's measure
-// and its rectangle on an axis are both known and its children are not yet
-// placed — which is where its children's start is worked out, so moving them is
-// a subtraction from that start and nothing else. Their descendants follow for
-// free, being placed from their parent's rectangle later in the same sweep. The
-// one exception is the one above: a wrapping column only knows its width's
-// measure once it breaks in the Y pass, so it clamps X again there and moves
-// what it had placed, rather than show an offset clamped against one line.
-//
-// THE CLIP IS A FOURTH FLAT SWEEP, forwards and after both axes: a parent's
-// limit is known before its children's, so each child's limit is its parent's,
-// narrowed to the parent's visible rectangle on the axes the parent clips. It
-// narrows only what is seen; no rectangle moves for it, so nothing that measures
-// or arranges reads it.
 //
 // THE TREE AND THE CONTEXT ARE DECLARED IN src/context.h AND NOT HERE, because
 // widgets.c is the other half of the same frame and reads the same rectangles.
@@ -161,6 +39,17 @@
 // The two axes are the panel's, and `y` in this file always means "this axis is
 // Y". A row flows along X, a column along Y, so a container's along axis is Y
 // exactly when it is not a row.
+//
+// NOTHING IN THIS FILE FLIPS A Y AND NOTHING IN IT SUBTRACTS ONE. The space runs
+// down from the panel's top-left corner, so a container's children accumulate
+// away from its own corner on both axes and the two are the same arithmetic with
+// the components swapped — which is why `axis` and `axis_set` are the whole of
+// the direction handling and why each arrange has one expression for a child's
+// corner rather than two. A reader who knows this engine will expect a
+// flip here, because the world is +Y up; the surface being laid out is a flat
+// thing's own parameter space and voe_render_element's header is where the one
+// sign that reconciles the two is written down. Putting a second one here is the
+// way this file goes wrong, and it would pass a symmetrical test.
 static float axis(voe_math_float2 v, bool y)
 {
 	return y ? v.y : v.x;
@@ -177,6 +66,13 @@ static void axis_set(voe_math_float2 *v, bool y, float value)
 // The two sides of the padding on one axis, added, and the near side of it on
 // its own. Padding is named by absolute side and both passes want it by axis, so
 // these two are the only readers of the four fields.
+//
+// PADDING IS SUBTRACTED IN ONE PLACE, inner_min and inner_size, AND ADDED IN
+// ONE PLACE, measured_set. Counting it twice is the classic off-by-pad and the
+// only guard against it is that there is one line each way. Four numbers give it
+// four ways to happen, so both directions go through pad_axis and pad_near and
+// neither names a side of the struct: a pass asks for the two sides on an axis,
+// or for the near side of one, and never for `left` as such.
 static float pad_axis(voe_ui_pad pad, bool y)
 {
 	return y ? pad.top + pad.bottom : pad.left + pad.right;
@@ -306,6 +202,12 @@ static float declared(voe_ui_size size, float natural)
 
 // One axis of it. `y_along` is the parent's flow and `y` the axis being
 // measured, so the declaration read is `along` exactly when the two agree.
+//
+// A NODE'S NATURAL SIZE IS WRITTEN BY ITS PARENT, NOT BY ITSELF, because what
+// `along` means to a node is a question about its parent's direction. So each
+// node measures its own content into `content_natural`, in the panel's axes, and
+// the parent turns that into `natural` by reading the node's declaration against
+// its own flow. The root has no parent and is measured against its own flow.
 static void measure_natural(struct voe_ui_node_record *n, bool y_along, bool y)
 {
 	voe_ui_size size = y == y_along ? n->size.along : n->size.across;
@@ -314,6 +216,18 @@ static void measure_natural(struct voe_ui_node_record *n, bool y_along, bool y)
 }
 
 // The first child at or after `child` that is in the run, or VOE_UI_NODE_NONE.
+//
+// AN ANCHORED CHILD IS NOT IN THE RUN AT ALL, WHICH IS A STRONGER STATEMENT THAN
+// A GROW CHILD'S. A grow child contributes nothing to the natural size but is
+// still a member of the run and still earns a gap beside it; an anchored child
+// is skipped by both passes' arithmetic entirely — no gap, no share, no
+// contribution — and is placed afterwards against its parent's CONTENT BOX,
+// which is the padded rectangle and not the outer one. So a line's `count`, the
+// children of that line still in the run, is what every piece of run arithmetic
+// here is written against, and the total child count is not kept at all. The
+// consequence
+// worth saying out loud is that a fit-to-children container holding only
+// anchored children measures to its padding and nothing more.
 static uint32_t in_flow(const struct voe_ui_node_record *nodes, uint32_t child)
 {
 	while (child != VOE_UI_NODE_NONE && nodes[child].anchor.anchored)
@@ -370,6 +284,22 @@ static bool line_read(const struct voe_ui_node_record *nodes, uint32_t first,
 // `across` set, across it: every line's thickness and the gaps between them.
 // Neither counts the padding. With one line these are the sum and the largest,
 // which is all they were before a run could wrap.
+//
+// A GROW CHILD CONTRIBUTES NOTHING ALONG THE FLOW TO ITS CONTAINER'S NATURAL
+// SIZE, and its content across. That is the circular question this card had to
+// answer — grow means share what is left, natural means what the content needs,
+// and a container whose natural size depended on a share of itself would need
+// iterating. Contributing nothing keeps natural size well defined in one pass,
+// it is what flexbox settles on with a zero basis, and it means a grow spacer in
+// a natural panel collapses to nothing, which is what a spacer should do when
+// there is nothing to fill. The two alternatives were measuring a grow child's
+// content anyway, which costs a second measure and blurs what grow means, and
+// refusing grow inside a natural container, which is too strict for a panel that
+// fits its children and has one spacer in it.
+//
+// GAPS ARE COUNTED FOR EVERY CHILD, GROW ONES INCLUDED. The gap is a property of
+// the run and not of a child's size, so a natural row of two boxes and a
+// collapsed spacer between them is still two gaps wide.
 static float run_extent(const struct voe_ui_node_record *nodes,
 			const struct voe_ui_node_record *c, bool across)
 {
@@ -448,6 +378,16 @@ static float along_size(const struct voe_ui_node_record *n, bool y, float share)
 // begin asserts, so this is nought there too and needs no case of its own — and
 // a container that never scrolls places its children at `start - 0`, which is
 // `start` to the bit.
+//
+// A CLIP AND AN OFFSET ARE THE LAST THINGS ADDED, AND NEITHER IS A NEW PASS.
+// The offset is clamped inside arrange, at the one moment a container's measure
+// and its rectangle on an axis are both known and its children are not yet
+// placed — which is where its children's start is worked out, so moving them is
+// a subtraction from that start and nothing else. Their descendants follow for
+// free, being placed from their parent's rectangle later in the same sweep. The
+// one exception is the one above: a wrapping column only knows its width's
+// measure once it breaks in the Y pass, so it clamps X again there and moves
+// what it had placed, rather than show an offset clamped against one line.
 static float scroll_clamp(struct voe_ui_node_record *c, bool y)
 {
 	float range = axis(c->content_natural, y) - axis(c->rect.size, y);
@@ -466,6 +406,13 @@ static float scroll_clamp(struct voe_ui_node_record *c, bool y)
 // which axis it is, and it is the panel's own X or Y and never the parent's
 // flow: a child out of the flow has no flow, so `size.along` is read as X and
 // `size.across` as Y, matching the two anchors beside them.
+//
+// AN ANCHORED CHILD'S TWO AXES ARE THE PANEL'S OWN X AND Y, NEVER ITS PARENT'S
+// FLOW, and that is why measure_natural is called with `false` for one — the
+// mapping that reads `size.along` as X and `size.across` as Y. A child out of
+// the flow has no flow, and an anchor that changed which edge it meant when its
+// parent turned from a row into a column is the defect this folder's vocabulary
+// exists to avoid. The padding is four numbers for the same reason.
 static void anchor_axis(struct voe_ui_node_record *n, voe_ui_anchor_axis a,
 			bool y, float inner_min, float inner_size)
 {
@@ -638,6 +585,14 @@ static void arrange_line(struct voe_ui_node_record *nodes,
 
 // Moves a node and everything inside it along one axis. A subtree is that many
 // consecutive entries of the pre-order array, so this is a flat loop too.
+//
+// A WRAPPING COLUMN IS THE ONE PLACE A PASS REVISITS THE OTHER AXIS. Its length
+// is Y, so it breaks in the Y pass, after its children were placed on X as one
+// line; breaking then moves each child and its whole subtree across to its line,
+// and never resizes one, because a width that waited on a height is what the
+// order rules out. A subtree is consecutive in the array, so the move is a flat
+// loop — but a node under several wrapping columns is moved once for each, which
+// is the one sweep here that is not strictly linear in the node count.
 static void shift_subtree(struct voe_ui_node_record *nodes, uint32_t node,
 			  bool y, float by)
 {
@@ -852,9 +807,8 @@ static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
 }
 
 // One axis measured again, now that every wrap has been decided, and every
-// container's offset re-clamped against what came out. See this file's header
-// for why a wrapping container's ancestors need it and why nothing is resized
-// or re-arranged here.
+// container's offset re-clamped against what came out. Below is why a wrapping
+// container's ancestors need it and why nothing is resized or re-arranged here.
 //
 // measure reads the `line` numbers arrange wrote, so a wrapping container comes
 // out at its longest line and its lines' thicknesses rather than at the one run
@@ -863,6 +817,37 @@ static void arrange(struct voe_ui_node_record *nodes, uint32_t count,
 // container's offset, its children — anchored and in flow alike — move by the
 // difference, which is the shift arrange_along already makes for a wrapping
 // column's across axis.
+//
+// A WRAP IS DECIDED IN arrange, SO THE measure THAT FED ITS ANCESTORS HAS
+// ALREADY RUN, and every one of them keeps the pre-wrap number. A row breaks
+// while arranging X, after measure(X) told its parent it was one line long; a
+// column breaks while arranging Y and revises both of its own axes there, after
+// measure(Y) and measure(X) had both been believed. So there is a corrective
+// sweep, remeasure, between the two passes and the clip: it measures each axis
+// again — reading the `line` numbers the arrangement wrote — and re-clamps every
+// container's offset against the number that comes out.
+//
+// IT REVISES MEASURES AND NEVER RECTANGLES, the root's included. The width a
+// container wrapped at is the width it was arranged to, and re-arranging X from
+// the revised measure could break the lines differently and want measuring
+// again; that iteration is the one thing the axis order exists to rule out. So
+// a NATURAL-width ancestor keeps its pre-wrap rectangle and now measures less
+// than it, which is the true statement and the one voe_ui_node_measured exists
+// to make.
+//
+// IT RE-CLAMPS AND SHIFTS, because an offset clamped against range that is not
+// there is an offset the person cannot undo: the content sits away from the
+// corner with nothing to scroll it back by, and the bar over it is drawn on
+// slack the content does not need. Parents first, as arrange goes, so that a
+// parent's shift carries its descendants and a nested area's own re-clamp adds
+// to it. A container whose offset did not move is not touched, and a tree with
+// no wrapping container in it comes out of remeasure to the bit as it went in —
+// nothing between the passes changed a leaf's content, so the arithmetic is the
+// same arithmetic.
+//
+// A WRAPPING COLUMN'S OWN REVISIT, below, IS THIS SAME MOVE MADE EARLY, so the
+// sweep finds nothing left to do on the column itself and everything left to do
+// above it.
 static void remeasure(voe_ui_context *ui, bool axis_y)
 {
 	struct voe_ui_node_record *nodes = ui->nodes;
@@ -893,6 +878,14 @@ static void remeasure(voe_ui_context *ui, bool axis_y)
 // Hands every child of `parent` whose anchoring matches `anchored` its slot in
 // paint order, the first at `at`, and answers where the next run would begin.
 // Call order among them is the sibling list's order, which is call order.
+//
+// THERE IS A THIRD PASS SINCE CARD 041 AND IT IS FLAT FOR THE SAME REASON.
+// Anchored children paint after their in-flow siblings, so paint order is no
+// longer the array's order and has to be worked out — but a pre-order array
+// gives it in three linear sweeps and no stack: count each node's subtree
+// backwards, which is the width of the slot that subtree needs; sweep forwards
+// handing each node's children their slots inside its own, the in-flow ones
+// before the anchored ones; and invert what that wrote. See paint_order, below.
 static uint32_t paint_run(struct voe_ui_node_record *nodes, uint32_t parent,
 			  bool anchored, uint32_t at)
 {
@@ -1003,6 +996,12 @@ static void limit_hand_down(const struct voe_ui_node_record *c,
 // rectangle is already inside its own limit, so handing it down on a clipping
 // axis is the intersection of every clip above, and nested clips need nothing
 // more.
+//
+// THE CLIP IS A FOURTH FLAT SWEEP, forwards and after both axes: a parent's
+// limit is known before its children's, so each child's limit is its parent's,
+// narrowed to the parent's visible rectangle on the axes the parent clips. It
+// narrows only what is seen; no rectangle moves for it, so nothing that measures
+// or arranges reads it.
 static void clip(voe_ui_context *ui)
 {
 	struct voe_ui_node_record *nodes = ui->nodes;

@@ -45,43 +45,6 @@
 // what the picker changes comes back through
 // voe_editor_inspector_colour_submit, the same replace intent and the same
 // count in `replaced` a dragged number is.
-//
-// A NAMED FIELD IS A DROPDOWN (ADR-0195, 0198). A field whose description
-// carries names is shown by the name of the value it holds and not by its
-// number, inside a button when the type has a replace intent and the field is
-// not read-only and as a plain label otherwise, for the same reason a read-only
-// number is a label. A value no entry names is shown as the number it is, which
-// is what an older build seeing a newer file's kind shows. The button only opens
-// the list, the choice arriving later through
-// voe_editor_inspector_named_submit. What a fired button opens the list on is
-// the `voe_editor_dropdown` below, whose shape is this file's because this panel
-// is what draws the list and reads what was picked from it, and scene.h holds
-// the one that is open and says who may open and close it.
-//
-// THE OPEN LIST IS DRAWN ON THIS PANEL AND NOT OVER IT (ADR-0199). An overlay
-// belongs to the widget it opened from, so the list is an anchored child of this
-// panel's own content column and is scrolled and clipped with it: when the
-// button scrolls out of the panel the list goes with it instead of floating over
-// the editor. It is emitted after every section because submission order is
-// paint order (ui/layout.h), and a list emitted beside its button would be
-// painted over by the rows below it. Its offset is in that column's space, so
-// scrolling changes neither of the two numbers. Its panel takes the pointer
-// (ui/layout.h), so everything inside its outline is the list's: the gaps
-// between the rows and the padding at its edges belong to it, and no field,
-// button, swatch or number box it covers hovers, highlights or fires through it
-// (ADR-0199). The area that clips the list is handed in by dock.c through
-// voe_editor_inspector_area_set, because where the list fits is measured
-// against that rectangle and this panel never sees the container it is drawn
-// inside. The rows sit in a scroll area of their own inside the list's panel,
-// at their natural height while the dropdown's `height` is nought and capped to
-// it when it is not, so the wheel over a capped list moves the rows within it
-// and the list keeps its size and its place (ADR-0200). What the rows wanted is
-// read back from that area with voe_ui_node_measured even while it is capped
-// (ui/layout.h), which is what lets the read decide whether they would have
-// fitted. And what the rows cannot take of a wheel gesture passes outward to
-// the panel's own area behind them, as it does between any two nested areas
-// (ui/widgets.h): the panel scrolls, the button moves, and the list follows it
-// — which is why that is not a hole in ADR-0200 but the same rule twice.
 #pragma once
 
 #include <base/arena.h>
@@ -121,6 +84,43 @@
 // row; the shapes' three are what there is today.
 #define VOE_EDITOR_DROPDOWN_ROWS 16
 
+// A NAMED FIELD IS A DROPDOWN (ADR-0195, 0198). A field whose description
+// carries names is shown by the name of the value it holds and not by its
+// number, inside a button when the type has a replace intent and the field is
+// not read-only and as a plain label otherwise, for the same reason a read-only
+// number is a label. A value no entry names is shown as the number it is, which
+// is what an older build seeing a newer file's kind shows. The button only opens
+// the list, the choice arriving later through
+// voe_editor_inspector_named_submit. What a fired button opens the list on is
+// the `voe_editor_dropdown` below, whose shape is this file's because this panel
+// is what draws the list and reads what was picked from it, and scene.h holds
+// the one that is open and says who may open and close it.
+//
+// THE OPEN LIST IS DRAWN ON THIS PANEL AND NOT OVER IT (ADR-0199). An overlay
+// belongs to the widget it opened from, so the list is an anchored child of this
+// panel's own content column and is scrolled and clipped with it: when the
+// button scrolls out of the panel the list goes with it instead of floating over
+// the editor. It is emitted after every section because submission order is
+// paint order (ui/layout.h), and a list emitted beside its button would be
+// painted over by the rows below it. Its offset is in that column's space, so
+// scrolling changes neither of the two numbers. Its panel takes the pointer
+// (ui/layout.h), so everything inside its outline is the list's: the gaps
+// between the rows and the padding at its edges belong to it, and no field,
+// button, swatch or number box it covers hovers, highlights or fires through it
+// (ADR-0199). The area that clips the list is handed in by dock.c through
+// voe_editor_inspector_area_set, because where the list fits is measured
+// against that rectangle and this panel never sees the container it is drawn
+// inside. The rows sit in a scroll area of their own inside the list's panel,
+// at their natural height while the dropdown's `height` is nought and capped to
+// it when it is not, so the wheel over a capped list moves the rows within it
+// and the list keeps its size and its place (ADR-0200). What the rows wanted is
+// read back from that area with voe_ui_node_measured even while it is capped
+// (ui/layout.h), which is what lets the read decide whether they would have
+// fitted. And what the rows cannot take of a wheel gesture passes outward to
+// the panel's own area behind them, as it does between any two nested areas
+// (ui/widgets.h): the panel scrolls, the button moves, and the list follows it
+// — which is why that is not a hole in ADR-0200 but the same rule twice.
+//
 // What the open dropdown chooses among. Zeroed is a closed one.
 typedef struct {
 	bool open;

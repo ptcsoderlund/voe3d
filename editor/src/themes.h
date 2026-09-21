@@ -29,41 +29,6 @@
 // shorter list and nothing more; the two themes with no file are always
 // there, so the list is never empty.
 //
-// voe_editor_themes_load ANSWERS FALSE ONLY FOR THE REMEMBERED THEME. A
-// remembered file that is gone or refused falls back to Near black, and the
-// false return is how the caller learns it should say so. The load clears
-// base/report.h's kept error itself, so that afterwards the first kept error is
-// that file's own refusal — or nothing, for a file that is gone — and a caller
-// hands `remembered` to voe_editor_notice_from_report to name it. A folder
-// that cannot be listed or made, or no settings folder at all, is not a
-// failure: the list is the two themes with no file alone.
-//
-// voe_editor_themes_choose WRITES THE REMEMBERED FILE the way last_project.h
-// writes its own, making `<settings>` and `<settings>/voe3d` as needed.
-//
-// voe_editor_themes_check IS LIVE EDITING (ADR-0172). Called every frame, it
-// does something at most once a second by voe_platform_clock_now: the chosen
-// theme's file — that file only, and nothing for a theme with no file — is
-// read again and its bytes compared with the last ones seen. THE COMPARISON
-// IS THE BYTES AND NOT A TIMESTAMP because a modification time lies across a copy or a
-// checkout, and would be an API `platform` does not have, for a file of a few
-// hundred bytes that costs nothing to read once a second. Changed bytes are
-// read and derived into a fresh arena; on success the entry's palette is
-// replaced where it stands — the address ui keeps is the same — and the old
-// arena destroyed, and the answer is CHANGED so the caller sets it (and its
-// font) on the context.
-//
-// A REFUSAL LEAVES THE DRAWING PALETTE AND ITS ARENA UNTOUCHED. The entry
-// still holds the last good theme; the refused bytes are kept in an arena of
-// their own only so the same mistake is not read, reported and answered again
-// every second — the next check compares against them, and a save that
-// differs from them is read again. The answer is REFUSED, once per distinct
-// mistake, with base/report.h cleared first so its first kept error is the
-// reader's line and what is wrong, and the caller names the file
-// (voe_editor_notice_from_report). A file that is not there at a check is not
-// a refusal — an editor saving by rename leaves that gap — and answers
-// UNCHANGED. Choosing another theme forgets the refused bytes.
-//
 // EVERY PALETTE IS DERIVED WITH THE ONE FONT, Oxanium, whatever typeface a
 // theme names (ADR-0185).
 //
@@ -162,15 +127,27 @@ typedef struct {
 	voe_base_arena *arena;
 } voe_editor_themes;
 
+// voe_editor_themes_load ANSWERS FALSE ONLY FOR THE REMEMBERED THEME. A
+// remembered file that is gone or refused falls back to Near black, and the
+// false return is how the caller learns it should say so. The load clears
+// base/report.h's kept error itself, so that afterwards the first kept error is
+// that file's own refusal — or nothing, for a file that is gone — and a caller
+// hands `remembered` to voe_editor_notice_from_report to name it. A folder
+// that cannot be listed or made, or no settings folder at all, is not a
+// failure: the list is the two themes with no file alone.
+//
 // Fills an empty `themes` from the themes folder and the remembered choice,
 // making the folder when it is missing. False when a remembered file is gone
-// or refused, with Near black chosen instead; see this file's header.
+// or refused, with Near black chosen instead.
 [[nodiscard]] bool voe_editor_themes_load(voe_editor_themes *themes,
 					  const voe_text_font *font);
 
 // The theme in force.
 const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes);
 
+// voe_editor_themes_choose WRITES THE REMEMBERED FILE the way last_project.h
+// writes its own, making `<settings>` and `<settings>/voe3d` as needed.
+//
 // Puts entry `index` in force and remembers its file name, `near_white` for
 // entry 1, or an empty line for entry 0. False when the remembered file could not be written —
 // reported at the site by platform, or not at all when the machine has no
@@ -194,8 +171,31 @@ void voe_editor_themes_reset(voe_editor_themes *themes, uint32_t index);
 // is true.
 [[nodiscard]] bool voe_editor_themes_scalars_write(voe_editor_themes *themes);
 
+// voe_editor_themes_check IS LIVE EDITING (ADR-0172). Called every frame, it
+// does something at most once a second by voe_platform_clock_now: the chosen
+// theme's file — that file only, and nothing for a theme with no file — is
+// read again and its bytes compared with the last ones seen. THE COMPARISON
+// IS THE BYTES AND NOT A TIMESTAMP because a modification time lies across a copy or a
+// checkout, and would be an API `platform` does not have, for a file of a few
+// hundred bytes that costs nothing to read once a second. Changed bytes are
+// read and derived into a fresh arena; on success the entry's palette is
+// replaced where it stands — the address ui keeps is the same — and the old
+// arena destroyed, and the answer is CHANGED so the caller sets it (and its
+// font) on the context.
+//
+// A REFUSAL LEAVES THE DRAWING PALETTE AND ITS ARENA UNTOUCHED. The entry
+// still holds the last good theme; the refused bytes are kept in an arena of
+// their own only so the same mistake is not read, reported and answered again
+// every second — the next check compares against them, and a save that
+// differs from them is read again. The answer is REFUSED, once per distinct
+// mistake, with base/report.h cleared first so its first kept error is the
+// reader's line and what is wrong, and the caller names the file
+// (voe_editor_notice_from_report). A file that is not there at a check is not
+// a refusal — an editor saving by rename leaves that gap — and answers
+// UNCHANGED. Choosing another theme forgets the refused bytes.
+//
 // Once a second, re-reads the chosen theme's file and replaces its palette
-// when the bytes changed and read; see this file's header.
+// when the bytes changed and read.
 voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes);
 
 // Frees every theme's arena and the list's own. `themes` is empty afterwards.

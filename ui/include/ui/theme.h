@@ -45,36 +45,11 @@
 // contrast_strength of nought would still hand back legible text rather than
 // none.
 //
-// STATE IS SHOWN BY INVERSION AND NEVER BY A COLOUR (ADR-0194, ADR-0196). A
-// held button, a number box being dragged, a held scrollbar thumb and a
-// selected row are drawn in `inverse` — a fill at `text_primary`'s lightness —
-// with whatever text goes on them in `inverse_ink`, at `ground`'s. That pair
-// is legible by construction rather than by a second calculation: it is the
-// text-on-ground contrast this derivation already keeps, the two swapped
-// round. Hovered stays a rung of the surface ladder.
-//
 // THE HUE'S CHROMA IS CLAMPED HARDER IN DARK MODE THAN IN LIGHT (ADR-0097,
 // ADR-0171, kept by ADR-0194): a saturated colour that is comfortable on a
 // light ground fringes on a dark one, so the dark ceiling in ui/src/theme.c is
 // under half the light one. Only chroma moves; the hue angle every role comes
 // out at is exactly the one the derivation found in the authored colour.
-//
-// THE ROLES ARE WHAT THE WIDGETS DRAW WITH AND NO MORE (ADR-0171, rule 10):
-// three surfaces to sit a panel on, a hairline border, a control and its
-// hovered state, three text lightnesses, and the inverse pair state is drawn
-// in. There is no role for a state nothing here asks for.
-//
-// A NULL FONT IS ALLOWED HERE. voe_ui_theme_derive only copies the pointer
-// into the palette it returns; nothing in this file measures a string, so
-// nothing here needs the font to exist. A widget that goes on to measure a
-// label against a NULL font asserts there (task 4), not in this derivation.
-//
-// VOE_UI_THEME_SCALAR_MIN AND _MAX ARE PART OF THE PUBLIC SURFACE ON PURPOSE:
-// the derivation clamps `contrast_strength` and `surface_separation` into this
-// range defensively, but `theme` (the folder that reads a theme file) has to
-// refuse an authored value outside it before this code ever sees it, and it
-// can only do that by naming the same range. One pair of constants, so the
-// two folders can never disagree about what "in range" means.
 #pragma once
 
 #include <math/float3.h>
@@ -89,6 +64,13 @@ typedef enum {
 	VOE_UI_THEME_MODE_LIGHT,
 } voe_ui_theme_mode;
 
+// VOE_UI_THEME_SCALAR_MIN AND _MAX ARE PART OF THE PUBLIC SURFACE ON PURPOSE:
+// the derivation clamps `contrast_strength` and `surface_separation` into this
+// range defensively, but `theme` (the folder that reads a theme file) has to
+// refuse an authored value outside it before this code ever sees it, and it
+// can only do that by naming the same range. One pair of constants, so the
+// two folders can never disagree about what "in range" means.
+//
 // Every `contrast_strength` and every `surface_separation` is clamped into
 // this range, in here and in `theme` alike. 1.0 sits in the middle of it and
 // is the reference look every ADR describes; going outside it either flattens
@@ -123,6 +105,11 @@ typedef struct {
 	float text_size;
 } voe_ui_theme_inputs;
 
+// THE ROLES ARE WHAT THE WIDGETS DRAW WITH AND NO MORE (ADR-0171, rule 10):
+// three surfaces to sit a panel on, a hairline border, a control and its
+// hovered state, three text lightnesses, and the inverse pair state is drawn
+// in. There is no role for a state nothing here asks for.
+//
 // The derived palette: what a widget actually draws with. Every colour is
 // LINEAR RGBA, fully opaque (alpha 1) — there is no role here for
 // transparency, which is a widget's own concern (task 4's NONE surface, for
@@ -153,6 +140,15 @@ typedef struct {
 	voe_math_float4 text_secondary;
 	// The dimmest of the three, for a disabled control's label.
 	voe_math_float4 text_disabled;
+	// STATE IS SHOWN BY INVERSION AND NEVER BY A COLOUR (ADR-0194,
+	// ADR-0196). A held button, a number box being dragged, a held scrollbar
+	// thumb and a selected row are drawn in `inverse` — a fill at
+	// `text_primary`'s lightness — with whatever text goes on them in
+	// `inverse_ink`, at `ground`'s. That pair is legible by construction
+	// rather than by a second calculation: it is the text-on-ground contrast
+	// this derivation already keeps, the two swapped round. Hovered stays a
+	// rung of the surface ladder.
+	//
 	// The fill a held, dragged or selected control is drawn in: the
 	// palette's `text_primary` lightness, so it reads as the interface
 	// turned inside out (ADR-0196).
@@ -161,7 +157,7 @@ typedef struct {
 	// text-on-ground contrast this derivation already keeps, swapped round.
 	voe_math_float4 inverse_ink;
 	// The font this theme draws with (ADR-0167), and how big an em is on
-	// this surface. NULL is allowed — see this file's header — and is what
+	// this surface. NULL is allowed — see voe_ui_theme_derive — and is what
 	// a theme derived with no font in hand carries until a caller sets one.
 	const voe_text_font *font;
 	float text_size;
@@ -175,9 +171,14 @@ typedef struct {
 // struct alone says nothing about a typeface.
 voe_ui_theme_inputs voe_ui_theme_default_inputs(void);
 
+// A NULL FONT IS ALLOWED HERE. voe_ui_theme_derive only copies the pointer
+// into the palette it returns; nothing in this file measures a string, so
+// nothing here needs the font to exist. A widget that goes on to measure a
+// label against a NULL font asserts there (task 4), not in this derivation.
+//
 // Works out the palette. `inputs` is read once and never kept; `font` is
 // copied by pointer into the result and must outlive it, exactly as
-// voe_ui_font_set already requires — and may be NULL, per this file's header.
+// voe_ui_font_set already requires — and may be NULL, as said above.
 //
 // NEVER FAILS. contrast_strength and surface_separation are clamped into
 // VOE_UI_THEME_SCALAR_MIN..MAX before anything is derived from them, so there

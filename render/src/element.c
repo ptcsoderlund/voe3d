@@ -16,16 +16,18 @@
 // CPU spends per rectangle is one eighty-byte struct assignment instead of four
 // voe_render_vertex and six indices, and it triangulates nothing.
 //
-// AND THE WHOLE FRAME'S WORTH IS ONE DRAW COMMAND. The colour is in the record
-// rather than in a shading record, so every rectangle may differ without
-// breaking the draw — which is the thing the mesh path cannot do, where one
-// draw means one shading record and therefore one colour. See
-// voe_render_frame_draw_count, which is how a caller reads that rather than
-// believing it.
+// AND THE WHOLE FRAME'S WORTH IS ONE INSTANCED DRAW COMMAND. The colour is in the
+// record rather than in a shading record, so every rectangle may differ without
+// breaking the draw — which the two mesh pipelines cannot do: they draw out of the
+// pools one thing per draw, and one draw means one shading record and therefore
+// one colour. See voe_render_frame_draw_count, which is how a caller reads that
+// rather than believing it.
 //
 // IT IS NOT A USER INTERFACE PATH AND NOTHING IN HERE IS NAMED AS IF IT WERE. An
 // interface is the first caller; debug lines and sprites want the same shape and
-// would come through the same two calls.
+// would come through the same two calls. A rectangle and a letter are the same
+// record and the same draw command: an element that reads its coverage out of a
+// distance-field sheet is a glyph, and nothing about it is a text system.
 //
 // THE BUFFERS ARE NOT HERE. One mapped record buffer per frame slot is a thing
 // the shader reads, so it is built and torn down with the rest of them in
@@ -42,11 +44,10 @@
 // a pass opens. One layout is one fewer invariant to hold. See the range
 // in device.c and the note in shaders/elements.slang.
 //
-// IT DIFFERS FROM THE OTHER TWO PIPELINES IN FOUR THINGS AND NOT IN ONE. No
-// vertex input state at all, a triangle strip rather than a list, nothing
-// culled, and its own shader module. That is why it is not a third `blended`
-// argument to create_pipeline in device.c — there would be nothing left of the
-// shared description.
+// IT DIFFERS FROM THE OTHER TWO PIPELINES IN FOUR THINGS AND NOT IN ONE. No vertex
+// input state at all, a triangle strip rather than a list, nothing culled, and its
+// own shader module. That is why it is not a third `blended` argument to
+// create_pipeline in device.c — there would be nothing left of the shared description.
 //
 // BLENDED, DEPTH TEST ON, DEPTH WRITE OFF, exactly as the blended mesh pipeline
 // is and for the same two reasons: an element behind an opaque object is still

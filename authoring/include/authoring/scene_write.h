@@ -34,6 +34,34 @@
 // sit in a table, which a removal changes (ecs/component.h), or on the order types
 // were registered in, which a program's startup decides.
 //
+// EVERY REFUSAL OR WARNING NAMING A FIELD INSIDE AN ARRAY NAMES THE ELEMENT'S
+// INDEX TOO, PER LEVEL IT SITS UNDER — `tags[1]`, `grid[1][0]` — built as the
+// nesting is walked.
+//
+// THE NUMBERS ARE FORMATTED BY THE C LIBRARY IN THE "C" LOCALE. A program that
+// calls setlocale for LC_NUMERIC would get commas; nothing in the engine does.
+#pragma once
+
+#include <authoring/scene_read.h>
+#include <base/arena.h>
+#include <ecs/world.h>
+
+#include <stddef.h>
+
+// The text a write hands back: `text` is NUL-terminated for convenience, and
+// `size` its length without the NUL.
+typedef struct voe_authoring_text {
+	const char *text;
+	size_t size;
+} voe_authoring_text;
+
+// Writes the world's authored entities, and the sections in `kept` — NULL for
+// none — as scene text into `arena`. `kept` is read and not kept. On success
+// `*out` holds the text. On failure it returns false, reports why, and leaves
+// `*out` untouched. The arena also holds this call's working memory, beside
+// the text; what is pushed — on success or failure — is the caller's to
+// rewind, as with every reader in assets.
+//
 // A VALUE IS WRITTEN BY ITS FIELD'S KIND AND SHAPE (ADR-0154):
 //
 //   - integers in decimal, BOOL as `true` or `false` (any non-zero byte is true);
@@ -57,13 +85,6 @@
 //     entities, because a reference to something that will not be in the file is
 //     a link the save is about to lose.
 //
-// EVERY REFUSAL OR WARNING NAMING A FIELD INSIDE AN ARRAY NAMES THE ELEMENT'S
-// INDEX TOO, PER LEVEL IT SITS UNDER — `tags[1]`, `grid[1][0]` — built as the
-// nesting is walked.
-//
-// THE NUMBERS ARE FORMATTED BY THE C LIBRARY IN THE "C" LOCALE. A program that
-// calls setlocale for LC_NUMERIC would get commas; nothing in the engine does.
-//
 // IT REFUSES, RATHER THAN WRITING A FILE THAT CANNOT BE READ BACK AS WHAT WAS
 // SAVED, ON:
 //
@@ -78,27 +99,6 @@
 //
 // Every refusal is reported through base/report.h naming the entity, the
 // component and the field.
-#pragma once
-
-#include <authoring/scene_read.h>
-#include <base/arena.h>
-#include <ecs/world.h>
-
-#include <stddef.h>
-
-// The text a write hands back: `text` is NUL-terminated for convenience, and
-// `size` its length without the NUL.
-typedef struct voe_authoring_text {
-	const char *text;
-	size_t size;
-} voe_authoring_text;
-
-// Writes the world's authored entities, and the sections in `kept` — NULL for
-// none — as scene text into `arena`. `kept` is read and not kept. On success
-// `*out` holds the text. On failure it returns false, reports why, and leaves
-// `*out` untouched. The arena also holds this call's working memory, beside
-// the text; what is pushed — on success or failure — is the caller's to
-// rewind, as with every reader in assets.
 [[nodiscard]] bool voe_authoring_scene_write(const voe_ecs_world *world,
 					     const voe_authoring_kept *kept,
 					     voe_base_arena *arena,

@@ -19,25 +19,6 @@
 // for the card to go idle and may not be called while a frame is being drawn.
 // Called once, into a value the program keeps for as long as it runs shapes.
 //
-// THE CAPACITY CONSTANTS BELOW ARE WHAT A DEVICE MUST HAVE ROOM FOR before
-// voe_3d_shapes_upload is called on it — the vertices, indices, geometries and
-// shadings the cube, the capsule and the cylinder cost together, one geometry
-// each, one shading between them and a second for the selection outline's unlit
-// record (0203). A program that draws shapes sizes its voe_render_capacities
-// from these. They are written out as numbers so a reader sees the cost;
-// 3d/src/shape_system.c asserts at compile time that the vertices, the indices
-// and the geometries are the sum of the three shapes' own counts.
-//
-// THE INTENT CARRIES THE WHOLE ROW, as the transform's does
-// (scene/transform_system.h), and is the shape's replace (ecs/component.h). The
-// run drains it first. An intent naming a dead entity or one with no shape is
-// dropped, silently. A new kind lands as the colour does when it is one of the
-// three built-in ones (3d/shape_component.h), because a kind is chosen from
-// their names (0195, 0198); a kind that is none of the three is put back to the
-// entity's own and reported as a corrected intent. Each colour channel is
-// clamped to 0..1, a NaN to 0. Both corrections are reported the way an unknown
-// kind is, below.
-//
 // voe_3d_shape_system_run GIVES A MESH AND A MATERIAL TO EVERY SHAPED ENTITY
 // THAT HAS NEITHER YET, through 3d's own creation calls — voe_3d_mesh_add and
 // voe_3d_material_add — never by writing those tables directly. An entity that
@@ -45,24 +26,6 @@
 // idempotent, and it is also what leaves an entity that a call site has pointed
 // at geometry of its own alone (there is no such call site yet, but the rule is
 // the shape's and not an accident of a game having none).
-//
-// A KIND THAT CHANGED RE-POINTS THE ENTITY'S MESH (0195, 0198): after that, a
-// shaped entity whose mesh is on one of the three shapes' geometries and not on
-// the one its kind names is pointed at the kind's, through
-// voe_3d_mesh_set_geometry. IT IS A RE-POINT AND NOT A MESH DROPPED AND REBUILT
-// because there is nothing to free and nothing to queue: both geometries are
-// ranges in the same pools the upload filled, and the material is the one white
-// one every kind wears. So THE NEW KIND IS ON THE SCREEN THE SAME FRAME THE RUN
-// HAPPENS, no frame late — unlike a removed shape, whose mesh waits for the next
-// voe_ecs_structure_apply.
-//
-// THE PASS IS OVER THE SHAPE TABLE EVERY RUN AND REMEMBERS NOTHING — it compares
-// the kind against the geometry the mesh is on rather than against a kind it
-// kept from last time. That is what keeps the run idempotent, and it means a row
-// a scene file wrote is corrected too, not only one an intent changed. A MESH ON
-// GEOMETRY NONE OF THE THREE SHAPES OWNS IS AN IMPORTED MODEL'S AND IS NEVER
-// TOUCHED, the same promise as leaving an entity that already has a mesh alone,
-// and so is a row whose kind names no geometry at all.
 //
 // THE WORLD MUST HAVE MESH AND MATERIAL REGISTERED BEFORE THIS RUNS — the same
 // requirement voe_3d_mesh_add and voe_3d_material_add already have — and a table
@@ -80,14 +43,6 @@
 // voe_ecs_structure_apply, and until then the mesh is drawn with no shape to
 // give it a colour (3d/draw_system.h). An imported mesh is on other geometry
 // and is never touched.
-//
-// AN UNKNOWN KIND DRAWS NOTHING AND IS A WARNING, EDGE-TRIGGERED LIKE THE SCENE'S
-// OTHER DRAINS (see scene/identity_system.c): the first entity found with an
-// unknown kind in a run is named on stderr, further ones in the same run add to
-// a count, and the count is reported once the run that had any ends. A build
-// newer than the file it opened should not print one warning per unknown shape
-// in a scene that has many. A corrected intent is reported the same way, with a
-// run and a count of its own.
 #pragma once
 
 #include <3d/material_component.h>
@@ -99,8 +54,14 @@
 
 #include <render/device.h>
 
-// The vertices, indices, geometries and shadings the three shapes cost — see
-// the header.
+// THE CAPACITY CONSTANTS BELOW ARE WHAT A DEVICE MUST HAVE ROOM FOR before
+// voe_3d_shapes_upload is called on it — the vertices, indices, geometries and
+// shadings the cube, the capsule and the cylinder cost together, one geometry
+// each, one shading between them and a second for the selection outline's unlit
+// record (0203). A program that draws shapes sizes its voe_render_capacities
+// from these. They are written out as numbers so a reader sees the cost;
+// 3d/src/shape_system.c asserts at compile time that the vertices, the indices
+// and the geometries are the sum of the three shapes' own counts.
 #define VOE_3D_SHAPES_VERTICES 750
 #define VOE_3D_SHAPES_INDICES 3492
 #define VOE_3D_SHAPES_GEOMETRIES 3
@@ -136,8 +97,17 @@ typedef struct {
 					voe_3d_shapes *out,
 					voe_base_error *error);
 
-// Change this entity's shape to the submitter's row. A kind none of the three
-// built-in ones is put back; see the header.
+// Change this entity's shape to the submitter's row.
+//
+// THE INTENT CARRIES THE WHOLE ROW, as the transform's does
+// (scene/transform_system.h), and is the shape's replace (ecs/component.h). The
+// run drains it first. An intent naming a dead entity or one with no shape is
+// dropped, silently. A new kind lands as the colour does when it is one of the
+// three built-in ones (3d/shape_component.h), because a kind is chosen from
+// their names (0195, 0198); a kind that is none of the three is put back to the
+// entity's own and reported as a corrected intent. Each colour channel is
+// clamped to 0..1, a NaN to 0. Both corrections are reported the way an unknown
+// kind is, below.
 typedef struct {
 	voe_ecs_entity entity;
 	voe_3d_shape shape;
@@ -152,7 +122,32 @@ typedef struct {
 // layer, to every shape row whose entity has no mesh yet, re-points the mesh of
 // every shape whose kind names another of the three geometries than the one it
 // is on, and queues the removal of the mesh and material of every entity whose
-// shape is gone. See the header for what an unknown kind does, why the world
-// must already have mesh and material registered, and why it needs a structural
-// queue.
+// shape is gone. See the header for why the world must already have mesh and
+// material registered, and why it needs a structural queue.
+//
+// A KIND THAT CHANGED RE-POINTS THE ENTITY'S MESH (0195, 0198): after that, a
+// shaped entity whose mesh is on one of the three shapes' geometries and not on
+// the one its kind names is pointed at the kind's, through
+// voe_3d_mesh_set_geometry. IT IS A RE-POINT AND NOT A MESH DROPPED AND REBUILT
+// because there is nothing to free and nothing to queue: both geometries are
+// ranges in the same pools the upload filled, and the material is the one white
+// one every kind wears. So THE NEW KIND IS ON THE SCREEN THE SAME FRAME THE RUN
+// HAPPENS, no frame late — unlike a removed shape, whose mesh waits for the next
+// voe_ecs_structure_apply.
+//
+// THE PASS IS OVER THE SHAPE TABLE EVERY RUN AND REMEMBERS NOTHING — it compares
+// the kind against the geometry the mesh is on rather than against a kind it
+// kept from last time. That is what keeps the run idempotent, and it means a row
+// a scene file wrote is corrected too, not only one an intent changed. A MESH ON
+// GEOMETRY NONE OF THE THREE SHAPES OWNS IS AN IMPORTED MODEL'S AND IS NEVER
+// TOUCHED, the same promise as leaving an entity that already has a mesh alone,
+// and so is a row whose kind names no geometry at all.
+//
+// AN UNKNOWN KIND DRAWS NOTHING AND IS A WARNING, EDGE-TRIGGERED LIKE THE SCENE'S
+// OTHER DRAINS (see scene/identity_system.c): the first entity found with an
+// unknown kind in a run is named on stderr, further ones in the same run add to
+// a count, and the count is reported once the run that had any ends. A build
+// newer than the file it opened should not print one warning per unknown shape
+// in a scene that has many. A corrected intent is reported the same way, with a
+// run and a count of its own.
 void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes);

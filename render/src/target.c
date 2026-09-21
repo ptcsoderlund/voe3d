@@ -2,7 +2,8 @@
 // frame slot. This is what the engine renders to; the swapchain image is only
 // where the colour half is copied at the very end, and nothing in this engine
 // draws into one any more. See device_internal.h for why the split between this
-// file and swapchain.c is where it is.
+// file and swapchain.c is where it is. The colour format is what encodes sRGB on
+// the way out (device.h says why), so no file in this folder holds a gamma constant.
 //
 // WHY THERE IS AN IMAGE OF OUR OWN AT ALL. Drawing straight into the acquired
 // swapchain image works, and it is what this folder did once. What it makes
@@ -26,19 +27,6 @@
 // unlike the colour image it is written, tested against, and thrown away inside
 // one frame.
 //
-// D32_SFLOAT AND NOTHING ELSE, BECAUSE DEPTH RUNS BACKWARDS HERE. The near plane
-// is at 1.0 and the far plane at 0.0, so the distance is bunched near zero,
-// which is exactly where a float has its precision and where a normalised
-// integer format has least. VOE_RENDER_DEPTH_FORMAT says the same thing; the
-// format is required of every Vulkan implementation as a depth attachment, so
-// there is nothing to query and nothing to fall back to.
-//
-// ONE ALLOCATION PER IMAGE, AND THAT DOES NOT SCALE. A driver is allowed to
-// refuse after a few thousand vkAllocateMemory calls and each one is expensive,
-// so an engine that makes many images sub-allocates out of a few large blocks.
-// This engine makes four. The allocator is a card of its own and writing it now
-// would be writing it against nothing.
-//
 // AND IT HOLDS THE TARGETS OF A CALLER'S OWN (ADR-0148), which are the same pair
 // made again: one colour and one depth image per frame slot, in the window's
 // formats, at a size of their own. What differs is that the colour image is also
@@ -50,32 +38,6 @@
 // texture table, so no new binding, set or shader change was needed: the
 // descriptor write reads the frame slot it is writing and names that slot's
 // image for a target's texture. See voe_render_texture_write_descriptors.
-//
-// A TARGET'S COLOUR IMAGE IS IN GENERAL FOR ITS WHOLE LIFE, and the descriptor
-// sets say so. It is put there as soon as it is made — before anything has drawn
-// into it, which is why its picture is undefined and not its layout — and never
-// moves again: frame.c attaches it in GENERAL and every set samples it in GENERAL.
-//
-// ONE LAYOUT AND NOT A BARRIER EACH WAY, BECAUSE A TARGET'S OWN DESCRIPTOR IS
-// BOUND IN THE PASS THAT DRAWS INTO IT. The set a pass binds holds the whole
-// texture table, the target's slot included, and both shaders index that table
-// with a number read out of a record. The validation layers cannot tell which
-// numbers a draw will read, so they check every element of the array against the
-// image's layout at every draw: resting in SHADER_READ_ONLY_OPTIMAL and moved into
-// COLOR_ATTACHMENT_OPTIMAL for the pass, the target's own element disagreed with
-// its image on every draw into it, though nothing read it. That was measured on
-// the first version of this file, not supposed. GENERAL is valid for both uses,
-// so there is no disagreement to report — and what it may cost on a driver that
-// does better with the specialised layouts is the price of that silence.
-//
-// WHAT GENERAL DOES NOT MAKE LEGAL IS A PICTURE READING ITSELF. A draw that
-// actually samples the target it is drawing into is a feedback loop Vulkan leaves
-// undefined, and the layers stay quiet about it here too; that is what the debug
-// asserts in frame.c and element.c are for.
-//
-// A RESIZE IS APPLIED AT THE TOP OF A FRAME AND IT WAITS FOR THE CARD. Every
-// slot's images are thrown away together, for the reason the window's are: a
-// fence says one slot is finished and says nothing about the others.
 //
 // AND IT HOLDS THE WAY BACK (ADR-0156). voe_render_target_read, at the bottom,
 // copies one target's finished picture into a caller's arena as RGBA8 with
@@ -121,6 +83,12 @@ uint32_t voe_render_memory_type(const voe_render_device *device, uint32_t mask,
 // this and not two that drift apart. `what` appears only in the messages, and
 // it is there because "vkCreateImage failed" without it does not say which of
 // the two images a person should be looking at.
+//
+// ONE ALLOCATION PER IMAGE, AND THAT DOES NOT SCALE. A driver is allowed to
+// refuse after a few thousand vkAllocateMemory calls and each one is expensive,
+// so an engine that makes many images sub-allocates out of a few large blocks.
+// This engine makes four. The allocator is a card of its own and writing it now
+// would be writing it against nothing.
 static bool build_image(voe_render_device *device,
 			struct voe_render_allocated_image *out,
 			VkExtent2D extent, VkFormat format,
@@ -219,6 +187,12 @@ static bool build_image(voe_render_device *device,
 	return true;
 }
 
+// D32_SFLOAT AND NOTHING ELSE, BECAUSE DEPTH RUNS BACKWARDS HERE. The near plane
+// is at 1.0 and the far plane at 0.0, so the distance is bunched near zero,
+// which is exactly where a float has its precision and where a normalised
+// integer format has least. VOE_RENDER_DEPTH_FORMAT says the same thing; the
+// format is required of every Vulkan implementation as a depth attachment, so
+// there is nothing to query and nothing to fall back to.
 static bool build_one(voe_render_device *device,
 		      struct voe_render_target *target, VkExtent2D extent)
 {
@@ -384,6 +358,28 @@ struct voe_render_target_slot *voe_render_target_at(voe_render_device *device,
 // happen. The
 // same one-shot shape as copy_into_image in texture.c, and the same blunt masks
 // for the reason that file's transition gives: nothing else is on the queue.
+//
+// A TARGET'S COLOUR IMAGE IS IN GENERAL FOR ITS WHOLE LIFE, and the descriptor
+// sets say so. It is put there as soon as it is made — before anything has drawn
+// into it, which is why its picture is undefined and not its layout — and never
+// moves again: frame.c attaches it in GENERAL and every set samples it in GENERAL.
+//
+// ONE LAYOUT AND NOT A BARRIER EACH WAY, BECAUSE A TARGET'S OWN DESCRIPTOR IS
+// BOUND IN THE PASS THAT DRAWS INTO IT. The set a pass binds holds the whole
+// texture table, the target's slot included, and both shaders index that table
+// with a number read out of a record. The validation layers cannot tell which
+// numbers a draw will read, so they check every element of the array against the
+// image's layout at every draw: resting in SHADER_READ_ONLY_OPTIMAL and moved into
+// COLOR_ATTACHMENT_OPTIMAL for the pass, the target's own element disagreed with
+// its image on every draw into it, though nothing read it. That was measured on
+// the first version of this file, not supposed. GENERAL is valid for both uses,
+// so there is no disagreement to report — and what it may cost on a driver that
+// does better with the specialised layouts is the price of that silence.
+//
+// WHAT GENERAL DOES NOT MAKE LEGAL IS A PICTURE READING ITSELF. A draw that
+// actually samples the target it is drawing into is a feedback loop Vulkan leaves
+// undefined, and the layers stay quiet about it here too; that is what the debug
+// asserts in frame.c and element.c are for.
 static bool settle(voe_render_device *device,
 		   const struct voe_render_target_slot *target)
 {
@@ -604,6 +600,9 @@ void voe_render_target_resize(voe_render_device *device,
 	slot->wanted = (VkExtent2D){ width, height };
 }
 
+// A RESIZE IS APPLIED AT THE TOP OF A FRAME AND IT WAITS FOR THE CARD. Every
+// slot's images are thrown away together, for the reason the window's are: a
+// fence says one slot is finished and says nothing about the others.
 bool voe_render_targets_apply_resizes(voe_render_device *device)
 {
 	bool idle = false;

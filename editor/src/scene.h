@@ -46,44 +46,6 @@
 // clicks are read with the pointer's button, this file keeping last frame's to
 // find the press. A choice made is an entity added, selected, and counted in
 // `structural`, which main.c reads to mark the project unsaved.
-//
-// DELETE AND DUPLICATE ACT ON THE SELECTION, and are this file's so that the
-// Delete key and Ctrl+D (main.c) and the Inspector's two buttons (inspector.c)
-// are one call each and not two copies. Delete clears the selection and
-// Duplicate selects the copy; each success counts one in `structural`, and a
-// full world or queue sets `full`, which main.c turns into "The scene is
-// full." The Inspector's Remove and Add component count and refuse into the
-// same two fields (inspector.h). Both are zeroed with the rows, every frame, which is why main.c
-// calls these after the interface has drawn and not before.
-//
-// THE COLOUR PICKER'S TARGET IS HERE TOO, IN `picking`, because it outlives the
-// frame the Inspector's swatch fired in and the Inspector's own struct forgets
-// its controls every frame. It names an entity, a component type and the
-// colour's offset in the row, never a component. It is opened by the Inspector
-// (inspector.h) and closed by interface.c on a press outside the picker, by
-// main.c on Escape, and here, on the next ask, when its entity is gone, no longer
-// selected or without the row. Closing changes no colour: every change was
-// already submitted as it happened.
-//
-// THE OPEN DROPDOWN'S TARGET IS HERE TOO, IN `dropdown`, for the picker's
-// reason: it outlives the frame the control fired in and the Inspector's own
-// struct forgets its controls every frame. Its shape is inspector.h's, because
-// the panel that draws the list and reads its rows is the Inspector's; what is
-// here is the one that is open, kept across frames (ADR-0195). It is opened by
-// the Inspector (inspector_edit.h) and closed by interface.c on Escape and by
-// inspector_edit.c on a choice, on a press outside it and on the first frame
-// its field is not on the panel. Where it sits is measured by that same file
-// and set through `voe_editor_scene_dropdown_place` every frame it is open,
-// because an overlay follows its widget rather than remembering where it
-// opened (ADR-0199). How it fits is decided there and then too: the list opens
-// below its button when it fits there, above it when it does not but fits
-// there, and on the roomier side capped and scrolling when it fits neither
-// (ADR-0200) — so it is never drawn with values that cannot be reached, and a
-// list that opened downward flips when the panel scrolls its button toward the
-// bottom edge. Closing chooses nothing: every choice was submitted as it
-// was made. And only one of it and the colour picker is ever open, because
-// opening either closes the other — so one popup shows at a time and Escape
-// means one thing.
 #pragma once
 
 #include "inspector.h"
@@ -155,8 +117,40 @@ typedef struct voe_editor_scene {
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.
 	voe_editor_inspector inspector;
+	// THE COLOUR PICKER'S TARGET IS HERE TOO, IN `picking`, because it
+	// outlives the frame the Inspector's swatch fired in and the
+	// Inspector's own struct forgets its controls every frame. It names an
+	// entity, a component type and the colour's offset in the row, never a
+	// component. It is opened by the Inspector (inspector.h) and closed by
+	// interface.c on a press outside the picker, by main.c on Escape, and
+	// here, on the next ask, when its entity is gone, no longer selected or
+	// without the row. Closing changes no colour: every change was already
+	// submitted as it happened.
+	//
 	// The colour picker's target, kept across frames.
 	voe_editor_picking picking;
+	// THE OPEN DROPDOWN'S TARGET IS HERE TOO, IN `dropdown`, for the
+	// picker's reason: it outlives the frame the control fired in and the
+	// Inspector's own struct forgets its controls every frame. Its shape is
+	// inspector.h's, because the panel that draws the list and reads its
+	// rows is the Inspector's; what is here is the one that is open, kept
+	// across frames (ADR-0195). It is opened by the Inspector
+	// (inspector_edit.h) and closed by interface.c on Escape and by
+	// inspector_edit.c on a choice, on a press outside it and on the first
+	// frame its field is not on the panel. Where it sits is measured by
+	// that same file and set through `voe_editor_scene_dropdown_place`
+	// every frame it is open, because an overlay follows its widget rather
+	// than remembering where it opened (ADR-0199). How it fits is decided
+	// there and then too: the list opens below its button when it fits
+	// there, above it when it does not but fits there, and on the roomier
+	// side capped and scrolling when it fits neither (ADR-0200) — so it is
+	// never drawn with values that cannot be reached, and a list that
+	// opened downward flips when the panel scrolls its button toward the
+	// bottom edge. Closing chooses nothing: every choice was submitted as
+	// it was made. And only one of it and the colour picker is ever open,
+	// because opening either closes the other — so one popup shows at a
+	// time and Escape means one thing.
+	//
 	// The open dropdown's target, kept across frames.
 	voe_editor_dropdown dropdown;
 } voe_editor_scene;
@@ -208,6 +202,15 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 						const voe_ui_context *ui,
 						bool down);
 
+// DELETE AND DUPLICATE ACT ON THE SELECTION, and are this file's so that the
+// Delete key and Ctrl+D (main.c) and the Inspector's two buttons (inspector.c)
+// are one call each and not two copies. Delete clears the selection and
+// Duplicate selects the copy; each success counts one in `structural`, and a
+// full world or queue sets `full`, which main.c turns into "The scene is full."
+// The Inspector's Remove and Add component count and refuse into the same two
+// fields (inspector.h). Both are zeroed with the rows, every frame, which is
+// why main.c calls these after the interface has drawn and not before.
+//
 // Queues the selected entity's destruction and clears the selection. Nothing
 // selected does nothing. Counts one in `structural`, or sets `full` when the
 // queue is full.

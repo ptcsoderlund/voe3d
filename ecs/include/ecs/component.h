@@ -28,11 +28,6 @@
 // per slot per type is cheaper to reason about than a hash. A sparse set would
 // swap that memory for a second indirection, and nothing has needed to yet.
 //
-// REMOVING SWAPS THE LAST ROW INTO THE HOLE, so row order is not insertion order
-// and does not survive a removal. Anything that depends on the order rows come
-// out in is depending on a thing this table does not promise; what it does
-// promise is that every live row is visited exactly once.
-//
 // A COMPONENT IS READ BY ANYONE AND WRITTEN BY ONE. Everything here that reads
 // is const, and everything that writes is meant to be called from inside the
 // module that owns the type — which is why the typed wrapper a folder exposes
@@ -51,31 +46,24 @@
 // public does not widen them: calling it on an entity somebody else made is
 // still writing their data.
 //
-// A DESCRIBED TYPE HAS A DEFAULT ROW, SET BY THE FOLDER THAT DECLARES IT, the way
-// its replace intent is. "Add at default" is a structural add with those bytes;
-// the world copies them once and hands them back, and never reads them.
-//
-// AND IT MAY NAME ONE TYPE ITS ROWS NEED (0193): a shape does nothing without a
-// transform on the same entity. Stored and handed back like the rest, never read
-// by ecs, never enforced — a tool shows it; nothing here refuses an add over it.
-//
 // A STALE ENTITY IS REFUSED RATHER THAN ANSWERED. Every function here checks the
 // generation, so an id from a destroyed entity gets NULL or false and never the
 // row of whatever now lives in that slot.
-//
-// THE WORLD LISTS ITS TYPES, AND WHAT AN ENTITY IS MADE OF IS THE CALLER'S LOOP.
-// Types are enumerated in registration order, and an entity's makeup is found by
-// asking every one of them for a row:
-//
-//     for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
-//             voe_ecs_type type = voe_ecs_component_type_at(world, i);
-//             if (voe_ecs_component_get(world, type, entity) != NULL)
-//                     ...          // voe_ecs_component_key and _description
-//     }
-//
-// There is no per-entity set of types to keep in step: the direct index above is
-// already the answer, one load per type.
-//
+#pragma once
+
+#include <base/describe.h>
+#include <ecs/intent.h>
+#include <ecs/world.h>
+
+#include <stddef.h>
+#include <stdint.h>
+
+// A registered component type. Passed by value; means nothing outside the world
+// that handed it out.
+typedef struct {
+	uint32_t value;
+} voe_ecs_type;
+
 // A TYPE IS DESCRIBED OR RUNTIME-ONLY, AND A REGISTRATION SAYS WHICH. A described
 // type carries the struct description its folder wrote (base/describe.h), and its
 // fields are what a scene saves (ADR-0149, ADR-0150). A runtime-only type carries
@@ -100,15 +88,69 @@
 //             return &voe_ecs_description_compiled_out;
 //     #endif
 //
+// The two markers a registration passes instead of a description. Compared by
+// address; their contents are an empty description and nothing reads them.
+//
+// runtime_only: the type is not authored data and is never saved.
+// description_compiled_out: the type is described, in a build that compiled the
+// descriptions out.
+extern const voe_base_struct_description voe_ecs_runtime_only;
+extern const voe_base_struct_description voe_ecs_description_compiled_out;
+
+// Registering twice with the same key, registering more types than the world was
+// made for, a size of zero or a capacity of zero are all the caller's bugs and
+// assert. Nothing about a registration comes out of a file. `description` is the
+// type's description or one of the two markers above, and never NULL — the
+// paragraphs above them say why.
+[[gnu::nonnull(5)]]
+voe_ecs_type voe_ecs_component_register(
+	voe_ecs_world *world, const struct voe_ecs_key *key, size_t size,
+	uint32_t capacity, const voe_base_struct_description *description);
+
+// THE WORLD LISTS ITS TYPES, AND WHAT AN ENTITY IS MADE OF IS THE CALLER'S LOOP.
+// Types are enumerated in registration order, and an entity's makeup is found by
+// asking every one of them for a row:
+//
+//     for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+//             voe_ecs_type type = voe_ecs_component_type_at(world, i);
+//             if (voe_ecs_component_get(world, type, entity) != NULL)
+//                     ...          // voe_ecs_component_key and _description
+//     }
+//
+// There is no per-entity set of types to keep in step: the direct index in the
+// header is already the answer, one load per type.
+//
+// How many types have been registered. The types are 0 to count, in the order
+// they were registered.
+uint32_t voe_ecs_component_type_count(const voe_ecs_world *world);
+
+// The type registered `index`-th. An index at or past the count asserts.
+voe_ecs_type voe_ecs_component_type_at(const voe_ecs_world *world,
+				       uint32_t index);
+
+// The key the type was registered against — its name is what a caller shows.
+const struct voe_ecs_key *voe_ecs_component_key(const voe_ecs_world *world,
+						voe_ecs_type type);
+
 // A DESCRIPTION IS STORED AND NEVER READ. The world hands the pointer back — it
 // does not know what a field is — and hands back NULL for either marker, which are
 // compared by address and have nothing in them. The pointer must outlive the
 // world, which a description's static table always does.
 //
-// AND SO IS THE INTENT THAT REPLACES A ROW, FOR THE SAME REASON. A folder may
-// name the intent a whole row of its component is written through, and the world
-// hands that back beside the description — it never reads a queued value and
-// never applies one. That is still the owning system's, exactly as rule 4 says:
+// The description the type was registered with, or NULL when it was registered
+// with either marker.
+const voe_base_struct_description *
+voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type);
+
+// True for a type registered with voe_ecs_runtime_only, and only for that: a
+// described type is false whether or not this build compiled its description in.
+[[nodiscard]] bool voe_ecs_component_runtime_only(const voe_ecs_world *world,
+						  voe_ecs_type type);
+
+// THE INTENT THAT REPLACES A ROW IS STORED AND NEVER READ, LIKE A DESCRIPTION.
+// A folder may name the intent a whole row of its component is written through,
+// and the world hands that back beside the description — it never reads a queued
+// value and never applies one. That is still the owning system's, exactly as rule 4 says:
 //
 //     typedef struct {
 //             voe_ecs_entity entity;              // at offset zero, always
@@ -135,62 +177,7 @@
 // component before it registers the intent that writes it, so the intent type
 // does not exist yet at the moment of registration; and a component that is never
 // edited says nothing rather than passing a zero nobody can tell from a real one.
-#pragma once
-
-#include <base/describe.h>
-#include <ecs/intent.h>
-#include <ecs/world.h>
-
-#include <stddef.h>
-#include <stdint.h>
-
-// A registered component type. Passed by value; means nothing outside the world
-// that handed it out.
-typedef struct {
-	uint32_t value;
-} voe_ecs_type;
-
-// The two markers a registration passes instead of a description. Compared by
-// address; their contents are an empty description and nothing reads them.
 //
-// runtime_only: the type is not authored data and is never saved.
-// description_compiled_out: the type is described, in a build that compiled the
-// descriptions out.
-extern const voe_base_struct_description voe_ecs_runtime_only;
-extern const voe_base_struct_description voe_ecs_description_compiled_out;
-
-// Registering twice with the same key, registering more types than the world was
-// made for, a size of zero or a capacity of zero are all the caller's bugs and
-// assert. Nothing about a registration comes out of a file. `description` is the
-// type's description or one of the two markers above, and never NULL — see the
-// header on why.
-[[gnu::nonnull(5)]]
-voe_ecs_type voe_ecs_component_register(
-	voe_ecs_world *world, const struct voe_ecs_key *key, size_t size,
-	uint32_t capacity, const voe_base_struct_description *description);
-
-// How many types have been registered. The types are 0 to count, in the order
-// they were registered.
-uint32_t voe_ecs_component_type_count(const voe_ecs_world *world);
-
-// The type registered `index`-th. An index at or past the count asserts.
-voe_ecs_type voe_ecs_component_type_at(const voe_ecs_world *world,
-				       uint32_t index);
-
-// The key the type was registered against — its name is what a caller shows.
-const struct voe_ecs_key *voe_ecs_component_key(const voe_ecs_world *world,
-						voe_ecs_type type);
-
-// The description the type was registered with, or NULL when it was registered
-// with either marker.
-const voe_base_struct_description *
-voe_ecs_component_description(const voe_ecs_world *world, voe_ecs_type type);
-
-// True for a type registered with voe_ecs_runtime_only, and only for that: a
-// described type is false whether or not this build compiled its description in.
-[[nodiscard]] bool voe_ecs_component_runtime_only(const voe_ecs_world *world,
-						  voe_ecs_type type);
-
 // Names the intent a whole row of this type is replaced through, and says where
 // in that intent's value the row sits — `offsetof` of the row's field, given by
 // the folder that declared both. Once per type: a second call is the caller's bug
@@ -214,6 +201,10 @@ typedef struct {
 voe_ecs_replace voe_ecs_component_replace(const voe_ecs_world *world,
 					  voe_ecs_type type);
 
+// A DESCRIBED TYPE HAS A DEFAULT ROW, SET BY THE FOLDER THAT DECLARES IT, the way
+// its replace intent is. "Add at default" is a structural add with those bytes;
+// the world copies them once and hands them back, and never reads them.
+//
 // Copies `row` — the type's registered size — as the type's default, into
 // memory the world pushes for it. Once per type: a second call asserts.
 void voe_ecs_component_default_set(voe_ecs_world *world, voe_ecs_type type,
@@ -223,6 +214,11 @@ void voe_ecs_component_default_set(voe_ecs_world *world, voe_ecs_type type,
 const void *voe_ecs_component_default(const voe_ecs_world *world,
 				      voe_ecs_type type);
 
+// A DESCRIBED TYPE MAY ALSO NAME ONE TYPE ITS ROWS NEED (0193): a shape does
+// nothing without a transform on the same entity. Stored and handed back like the
+// rest, never read by ecs, never enforced — a tool shows it; nothing here refuses
+// an add over it.
+//
 // Says rows of `type` do nothing without a row of `needed` on the same entity.
 // Once per type: a second call asserts.
 void voe_ecs_component_needs_set(voe_ecs_world *world, voe_ecs_type type,
@@ -260,6 +256,11 @@ voe_ecs_type voe_ecs_component_type(const voe_ecs_world *world,
 const void *voe_ecs_component_get(const voe_ecs_world *world, voe_ecs_type type,
 				  voe_ecs_entity entity);
 
+// REMOVING SWAPS THE LAST ROW INTO THE HOLE, so row order is not insertion order
+// and does not survive a removal. Anything that depends on the order rows come
+// out in is depending on a thing this table does not promise; what it does
+// promise is that every live row is visited exactly once.
+//
 // True when there was one to remove.
 bool voe_ecs_component_remove(voe_ecs_world *world, voe_ecs_type type,
 			      voe_ecs_entity entity);

@@ -50,25 +50,6 @@
 // record's own bounds, bit for bit. A record with nothing left on either axis is
 // not pushed at all and costs no capacity: a long list scrolled away is not
 // hundreds of records drawing nothing.
-//
-// ---- IDENTITY, AND WHY IT IS A HASHED PATH ----
-//
-// A key is the enclosing keyed widget's key mixed with the name and the index at
-// the call site, hashed with FNV-1a. Not a call-site line number: a line number
-// is the same for every iteration of a loop, so a list of buttons would be one
-// button, which shows up as the whole list highlighting together and reads as a
-// drawing bug rather than a naming one. The parent is found by walking the open
-// containers outwards, so a plain row or column between two panels changes
-// nothing — only widgets that can hold state are on the path, which is what
-// makes a key stable while the SHAPE of the tree is, rather than while its every
-// node is.
-//
-// FNV-1a AND NOT SOMETHING STRONGER, because the failure this guards against is
-// two call sites written with the same name, not an adversary choosing strings.
-// A duplicate is caught outright by the set below rather than tolerated, so the
-// hash only has to spread; and a chance collision between two DIFFERENT paths is
-// one in two to the sixty-four, which would be reported as a duplicate and
-// looked at, not silently shared.
 #include "context.h"
 
 #include <base/assert.h>
@@ -100,6 +81,24 @@ static const voe_math_float4 IMAGE_AS_IT_IS = { 1.0f, 1.0f, 1.0f, 1.0f };
 // a layout fact about this folder's widgets and not a colour at all.
 #define HAIRLINE_WIDE 0.3f
 
+// ---- IDENTITY, AND WHY IT IS A HASHED PATH ----
+//
+// A key is the enclosing keyed widget's key mixed with the name and the index at
+// the call site, hashed with FNV-1a. Not a call-site line number: a line number
+// is the same for every iteration of a loop, so a list of buttons would be one
+// button, which shows up as the whole list highlighting together and reads as a
+// drawing bug rather than a naming one. The parent is found by walking the open
+// containers outwards, so a plain row or column between two panels changes
+// nothing — only widgets that can hold state are on the path, which is what
+// makes a key stable while the SHAPE of the tree is, rather than while its every
+// node is.
+//
+// FNV-1a AND NOT SOMETHING STRONGER, because the failure this guards against is
+// two call sites written with the same name, not an adversary choosing strings.
+// A duplicate is caught outright by the set below rather than tolerated, so the
+// hash only has to spread; and a chance collision between two DIFFERENT paths is
+// one in two to the sixty-four, which would be reported as a duplicate and
+// looked at, not silently shared.
 #define FNV_BASIS 0xcbf29ce484222325u
 #define FNV_PRIME 0x00000100000001b3u
 

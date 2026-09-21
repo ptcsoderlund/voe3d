@@ -42,124 +42,6 @@
 // function below exists because a line in `3d` calls it, and a gap in this API
 // is filled here rather than reached around.
 //
-// EVERYTHING IS NAMED BY A GENERATIONAL ID AND THE INDEX HALF IS THE NUMBER THE
-// SHADER USES (ADR-0018). A texture id indexes the array the fragment stage
-// samples; a shading id indexes the record buffer it reads. There is no table
-// between a caller's id and the GPU's view of it, so there is nothing that can
-// fall out of step — and a component that holds one of these holds two integers
-// rather than a Vulkan handle, which is what lets it be written out as text,
-// copied, sorted and read by a thread that may not touch Vulkan.
-//
-// GEOMETRY LIVES IN TWO SHARED POOLS AND A MESH IS A RANGE IN THEM. One vertex
-// pool and one index pool, created with the device, appended to by
-// voe_render_geometry_create and NEVER FREED — there is no _destroy for one on
-// purpose, because nothing in the engine unloads anything yet and a free list
-// arrives with the card that does. That layout is also what lets many objects be
-// drawn from one buffer later, with one indirect call instead of one call each.
-//
-// AND THERE ARE TWO LIFETIMES OF GEOMETRY, WHICH THE ID DOES NOT TELL APART.
-// voe_render_geometry_create is the startup one above: uploaded once, kept for
-// ever. voe_render_geometry_create_transient is the other: built inside a frame,
-// drawn in that frame, gone at the end of it. Both hand back a voe_render_geometry
-// and both go through the same two draw calls, so what holds one never has to
-// know which kind it holds — a transient id used a frame late is simply refused,
-// by the same generation check that refuses any other stale id.
-//
-// PER-OBJECT DATA GOES INTO ONE BUFFER PER FRAME SLOT, ONE RECORD PER DRAW. The
-// world matrix, the matrix its normals want and which shading record to use are
-// written by _draw as it records, and the shader reads its record by object
-// number. Card 014's push constant for the model matrix is gone; the only push
-// constant left is the object number itself.
-//
-// IT DRAWS TO AN IMAGE OF ITS OWN AND COPIES THAT TO THE WINDOW. The frame is
-// cleared and drawn into an offscreen colour target and putting that on screen
-// is a separate last step — which is what any post process, a render resolution
-// the window is not, and an editor viewport all need in order to be possible at
-// all.
-//
-// THERE IS A DEPTH BUFFER BEHIND THESE CALLS, ONE PER FRAME SLOT. This engine's
-// depth runs backwards — near at 1.0, far at 0.0 — and nothing outside this
-// folder has to know that. Opaque and cutout draws may therefore be issued in
-// any order without changing the image.
-//
-// BLENDED DRAWS ARE THE EXCEPTION AND THEY ARE A SECOND CALL. voe_render_frame_draw
-// writes depth; voe_render_frame_draw_blended tests it and does not write it,
-// and blends what it draws over what is already there. Depth writes being off is
-// what makes the order the caller issues them in load-bearing: this folder does
-// not sort anything and cannot, because it does not know where anything is. The
-// caller draws every opaque and cutout object first and then its blended ones
-// furthest first — see voe_3d_draw_system_run, which is the one caller.
-//
-// THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
-// OUTPUTS PREMULTIPLIED COLOUR. A fragment's rgb is already multiplied by its
-// own alpha by the time it leaves a shader, and the blend is therefore
-// source-one, destination-one-minus-source-alpha for colour and alpha both.
-// Nothing enforces this — there is no validation layer for it and no test that
-// can see it — so the next shader author reading this sentence is the whole
-// mechanism. shaders/draw.slang says the same thing at the site that does the
-// multiply.
-//
-// AND THERE IS A THIRD PIPELINE THAT DRAWS NO MESHES AT ALL. Everything above
-// is one draw per thing drawn, out of the geometry pools. voe_render_element is
-// the other shape: the caller writes one small record per rectangle, the vertex
-// shader builds the four corners from its own vertex index, and every rectangle
-// in the frame is drawn by ONE instanced draw — no vertex buffer, no index
-// buffer and no shading record on that path. It is what makes a whole user
-// interface one draw call, and it is not a user interface type: debug lines and
-// sprites want the same "many small things, one draw" shape. See
-// voe_render_frame_submit_element.
-//
-// SIZE IS PASSED IN, EVERY FRAME, AND IT IS THE WINDOW'S ANSWER. This folder
-// never asks a window how big it is: `platform` owns that truth and the caller
-// already has it. A window that has changed size is not an event here — the size
-// simply differs from the one the targets were built at, and the next frame
-// rebuilds them.
-//
-// THE CAMERA IS TWO MATRICES AND WHERE THE EYE IS. Where the camera is, how fast
-// it moves and what a mouse does to it are `scene`'s; how a field of view
-// becomes a projection is `3d`'s, because the reversed depth and the clip-space
-// conventions are this folder's business and `3d` is the folder allowed to know
-// both. What arrives here is the answer. The eye is beside the matrices because
-// a specular highlight is a function of where the surface is being looked from,
-// and digging it back out of the inverse of the view matrix in a shader would be
-// arithmetic to recover a number the caller already had.
-//
-// ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
-// sun: a direction, a colour and a strength, the same for every draw in the
-// pass. There is no light list and no second light — many lights is a later
-// card and it is the card that decides how they are gathered — and there is no
-// shadow: nothing here tests whether anything is in the way.
-//
-// A FRAME IS A SEQUENCE OF PASSES, AND THE CAMERA BELONGS TO THE PASS (ADR-0148).
-// voe_render_frame_begin opens the frame — the slot, the swapchain image, the
-// recording — and draws nothing; every draw happens inside a pass, opened onto a
-// target with voe_render_pass_begin and closed with _pass_end. The camera moved
-// off the frame because one frame may want to look at the world more than once —
-// two views of one scene, a picture drawn for somewhere other than the window —
-// and a camera fixed for the whole frame makes every one of those impossible. A
-// pass draws into the window's target, VOE_RENDER_TARGET_WINDOW, or into a target
-// of the caller's own made with voe_render_target_create.
-//
-// THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
-// draws only elements — an interface filling the window — has no eye and no sun,
-// and inventing a zeroed pair for it would be a camera that means nothing held in
-// a buffer the shader reads. The mesh draws and the depth clear assert on a pass
-// with no camera; the element draw does not need one.
-//
-// THE WINDOW'S TARGET IS CLEARED BY THE FIRST PASS ONTO IT IN A FRAME AND LOADED
-// BY EVERY LATER ONE, colour and depth both. So a second pass draws over the
-// first and is hidden by whatever the first drew nearer — which is what makes two
-// passes onto one target a sequence and not two separate pictures. A frame that
-// opens no pass onto the window still presents the clear colour.
-//
-// PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
-// and so does a _frame_end.
-//
-// ELEMENT SUBMISSION IS FRAME-WIDE AND ELEMENT DRAWING IS PER PASS. The records
-// go into one buffer that belongs to the frame, not to any pass, so a range read
-// with voe_render_frame_elements_submitted may be drawn in whichever pass wants
-// it — submitted before the first pass opens, or inside another one.
-//
 // EVERY COLOUR THAT CROSSES THIS BOUNDARY IS LINEAR, AND sRGB LIVES AT THE TWO
 // ENDS. A picture full of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and
 // the hardware decodes it on every read; the frame is drawn in linear light and
@@ -169,13 +51,6 @@
 // to write it down. A picture that holds numbers rather than colour —
 // metalness, roughness, occlusion, a normal map — is uploaded as
 // VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
-//
-// NOTHING IS TONE MAPPED, SO BRIGHT VALUES CLIP. A light strong enough to push a
-// surface past one is clamped by the target's format and the highlight goes
-// flat white. That is expected and it is not a bug to work around at a call
-// site by keeping intensities low; the card that maps a high-dynamic-range
-// target down to a screen is the card that fixes it, and card 013's offscreen
-// target is what makes it possible.
 #pragma once
 
 #include <base/arena.h>
@@ -262,6 +137,14 @@ typedef struct {
 } voe_render_vertex;
 
 // A range in the shared pools: some vertices and the indices that walk them.
+//
+// EVERYTHING IS NAMED BY A GENERATIONAL ID AND THE INDEX HALF IS THE NUMBER THE
+// SHADER USES (ADR-0018). A texture id indexes the array the fragment stage
+// samples; a shading id indexes the record buffer it reads. There is no table
+// between a caller's id and the GPU's view of it, so there is nothing that can
+// fall out of step — and a component that holds one of these holds two integers
+// rather than a Vulkan handle, which is what lets it be written out as text,
+// copied, sorted and read by a thread that may not touch Vulkan.
 typedef struct {
 	uint32_t index;
 	uint32_t generation;
@@ -500,6 +383,15 @@ typedef struct {
 // Padded like the two records below and asserted on in render/src/descriptors.c,
 // because it shares a buffer with the light and the shader reads both out of one
 // block.
+//
+// THE CAMERA IS TWO MATRICES AND WHERE THE EYE IS. Where the camera is, how fast
+// it moves and what a mouse does to it are `scene`'s; how a field of view
+// becomes a projection is `3d`'s, because the reversed depth and the clip-space
+// conventions are this folder's business and `3d` is the folder allowed to know
+// both. What arrives here is the answer. The eye is beside the matrices because
+// a specular highlight is a function of where the surface is being looked from,
+// and digging it back out of the inverse of the view matrix in a shader would be
+// arithmetic to recover a number the caller already had.
 typedef struct {
 	voe_math_float4x4 view;
 	voe_math_float4x4 projection;
@@ -522,6 +414,19 @@ typedef struct {
 // there is no exposure and no tone mapping in this engine yet. A light of no
 // intensity leaves every surface black, which is what a frame given a zeroed one
 // looks like.
+//
+// ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
+// sun: a direction, a colour and a strength, the same for every draw in the
+// pass. There is no light list and no second light — many lights is a later
+// card and it is the card that decides how they are gathered — and there is no
+// shadow: nothing here tests whether anything is in the way.
+//
+// NOTHING IS TONE MAPPED, SO BRIGHT VALUES CLIP. A light strong enough to push a
+// surface past one is clamped by the target's format and the highlight goes
+// flat white. That is expected and it is not a bug to work around at a call
+// site by keeping intensities low; the card that maps a high-dynamic-range
+// target down to a screen is the card that fixes it, and card 013's offscreen
+// target is what makes it possible.
 typedef struct {
 	voe_math_float3 direction;
 	float intensity;
@@ -551,6 +456,12 @@ typedef struct {
 //
 // Padded for the same reason voe_render_shading_values is, and asserted on in
 // render/src/descriptors.c.
+//
+// PER-OBJECT DATA GOES INTO ONE BUFFER PER FRAME SLOT, ONE RECORD PER DRAW. The
+// world matrix, the matrix its normals want and which shading record to use are
+// written by _draw as it records, and the shader reads its record by object
+// number. Card 014's push constant for the model matrix is gone; the only push
+// constant left is the object number itself.
 typedef struct {
 	voe_math_float4x4 world;
 	voe_math_float4x4 normal;
@@ -642,6 +553,16 @@ typedef enum {
 // lands on the boundary a buffer layout rule would have put it on. The padding
 // is written as separate scalars where it follows a single word, because a uint3
 // would be realigned and three uints are not.
+//
+// AND THERE IS A THIRD PIPELINE THAT DRAWS NO MESHES AT ALL. Everything above
+// is one draw per thing drawn, out of the geometry pools. voe_render_element is
+// the other shape: the caller writes one small record per rectangle, the vertex
+// shader builds the four corners from its own vertex index, and every rectangle
+// in the frame is drawn by ONE instanced draw — no vertex buffer, no index
+// buffer and no shading record on that path. It is what makes a whole user
+// interface one draw call, and it is not a user interface type: debug lines and
+// sprites want the same "many small things, one draw" shape. See
+// voe_render_frame_submit_element.
 typedef struct {
 	// Where the rectangle is: `xy` its top-left corner and `zw` its width
 	// and height, in millimetres. A width or height of nothing draws
@@ -768,6 +689,21 @@ void voe_render_device_destroy(voe_render_device *device);
 // Geometry built while drawing is the other call, below, and a different
 // mechanism: it never waits and never stages, because what it writes lives one
 // frame.
+//
+// GEOMETRY LIVES IN TWO SHARED POOLS AND A MESH IS A RANGE IN THEM. One vertex
+// pool and one index pool, created with the device, appended to by
+// voe_render_geometry_create and NEVER FREED — there is no _destroy for one on
+// purpose, because nothing in the engine unloads anything yet and a free list
+// arrives with the card that does. That layout is also what lets many objects be
+// drawn from one buffer later, with one indirect call instead of one call each.
+//
+// AND THERE ARE TWO LIFETIMES OF GEOMETRY, WHICH THE ID DOES NOT TELL APART.
+// voe_render_geometry_create is the startup one above: uploaded once, kept for
+// ever. voe_render_geometry_create_transient is the other: built inside a frame,
+// drawn in that frame, gone at the end of it. Both hand back a voe_render_geometry
+// and both go through the same two draw calls, so what holds one never has to
+// know which kind it holds — a transient id used a frame late is simply refused,
+// by the same generation check that refuses any other stale id.
 [[nodiscard]] bool voe_render_geometry_create(voe_render_device *device,
 					      const voe_render_vertex *vertices,
 					      uint32_t vertex_count,
@@ -873,6 +809,28 @@ bool voe_render_texture_destroy(voe_render_device *device,
 //
 // False means this device cannot draw any more and the program should stop
 // asking. Everything a frame can hit that a retry fixes is handled here.
+//
+// IT DRAWS TO AN IMAGE OF ITS OWN AND COPIES THAT TO THE WINDOW. The frame is
+// cleared and drawn into an offscreen colour target and putting that on screen
+// is a separate last step — which is what any post process, a render resolution
+// the window is not, and an editor viewport all need in order to be possible at
+// all.
+//
+// SIZE IS PASSED IN, EVERY FRAME, AND IT IS THE WINDOW'S ANSWER. This folder
+// never asks a window how big it is: `platform` owns that truth and the caller
+// already has it. A window that has changed size is not an event here — the size
+// simply differs from the one the targets were built at, and the next frame
+// rebuilds them.
+//
+// A FRAME IS A SEQUENCE OF PASSES, AND THE CAMERA BELONGS TO THE PASS (ADR-0148).
+// voe_render_frame_begin opens the frame — the slot, the swapchain image, the
+// recording — and draws nothing; every draw happens inside a pass, opened onto a
+// target with voe_render_pass_begin and closed with _pass_end. The camera moved
+// off the frame because one frame may want to look at the world more than once —
+// two views of one scene, a picture drawn for somewhere other than the window —
+// and a camera fixed for the whole frame makes every one of those impossible. A
+// pass draws into the window's target, VOE_RENDER_TARGET_WINDOW, or into a target
+// of the caller's own made with voe_render_target_create.
 [[nodiscard]] bool voe_render_frame_begin(voe_render_device *device,
 					  voe_platform_size size, bool *drawing);
 
@@ -975,7 +933,7 @@ typedef struct {
 // ROW ZERO IS THE TOP ONE, which is what PNG, Vulkan and glTF already agree on.
 //
 // STRAIGHT ALPHA, NOT PREMULTIPLIED. The colour target holds premultiplied
-// colour (see the top of this file) and PNG holds straight, so each channel is
+// colour (see voe_render_frame_draw_blended) and PNG holds straight, so each channel is
 // divided by its alpha here, at the one place that knows which convention the
 // image is in. A pixel whose alpha is 0 comes back as transparent black rather
 // than as a division by nothing. The clear colour is opaque, so in practice
@@ -1020,7 +978,7 @@ typedef struct {
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
-// that draws only elements; see the top of this file. The target's colour and
+// that draws only elements; see below. The target's colour and
 // depth are cleared if this is the first pass onto it this frame and loaded
 // otherwise. The camera is copied and the caller's is its own again the moment
 // this returns. The viewport and the scissor are the target's own size, the
@@ -1034,6 +992,21 @@ typedef struct {
 // Calling this outside a frame whose `drawing` came back true, with a pass
 // already open, or with a target id that names no target, is the caller's bug
 // and asserts.
+//
+// THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
+// draws only elements — an interface filling the window — has no eye and no sun,
+// and inventing a zeroed pair for it would be a camera that means nothing held in
+// a buffer the shader reads. The mesh draws and the depth clear assert on a pass
+// with no camera; the element draw does not need one.
+//
+// THE WINDOW'S TARGET IS CLEARED BY THE FIRST PASS ONTO IT IN A FRAME AND LOADED
+// BY EVERY LATER ONE, colour and depth both. So a second pass draws over the
+// first and is hidden by whatever the first drew nearer — which is what makes two
+// passes onto one target a sequence and not two separate pictures. A frame that
+// opens no pass onto the window still presents the clear colour.
+//
+// PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
+// and so does a _frame_end.
 [[nodiscard]] bool voe_render_pass_begin(voe_render_device *device,
 					 voe_render_target target,
 					 const voe_render_pass_camera *camera);
@@ -1058,6 +1031,19 @@ void voe_render_pass_end(voe_render_device *device);
 //
 // Calling this with no pass open, or in a pass opened with no camera, is the
 // caller's bug and asserts.
+//
+// THERE IS A DEPTH BUFFER BEHIND THESE CALLS, ONE PER FRAME SLOT. This engine's
+// depth runs backwards — near at 1.0, far at 0.0 — and nothing outside this
+// folder has to know that. Opaque and cutout draws may therefore be issued in
+// any order without changing the image.
+//
+// BLENDED DRAWS ARE THE EXCEPTION AND THEY ARE A SECOND CALL. voe_render_frame_draw
+// writes depth; voe_render_frame_draw_blended tests it and does not write it,
+// and blends what it draws over what is already there. Depth writes being off is
+// what makes the order the caller issues them in load-bearing: this folder does
+// not sort anything and cannot, because it does not know where anything is. The
+// caller draws every opaque and cutout object first and then its blended ones
+// furthest first — see voe_3d_draw_system_run, which is the one caller.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
@@ -1077,6 +1063,15 @@ void voe_render_pass_end(voe_render_device *device);
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
 // asserts.
+//
+// THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
+// OUTPUTS PREMULTIPLIED COLOUR. A fragment's rgb is already multiplied by its
+// own alpha by the time it leaves a shader, and the blend is therefore
+// source-one, destination-one-minus-source-alpha for colour and alpha both.
+// Nothing enforces this — there is no validation layer for it and no test that
+// can see it — so the next shader author reading this sentence is the whole
+// mechanism. shaders/draw.slang says the same thing at the site that does the
+// multiply.
 [[nodiscard]] bool voe_render_frame_draw_blended(voe_render_device *device,
 						 voe_render_geometry geometry,
 						 voe_render_object object);
@@ -1152,6 +1147,11 @@ voe_render_frame_draw_count(const voe_render_device *device);
 //
 // Calling this without a _begin that set `drawing`, or after _end, is the
 // caller's bug and asserts.
+//
+// ELEMENT SUBMISSION IS FRAME-WIDE AND ELEMENT DRAWING IS PER PASS. The records
+// go into one buffer that belongs to the frame, not to any pass, so a range read
+// with voe_render_frame_elements_submitted may be drawn in whichever pass wants
+// it — submitted before the first pass opens, or inside another one.
 [[nodiscard]] bool voe_render_frame_submit_element(voe_render_device *device,
 						   voe_render_element element);
 

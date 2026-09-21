@@ -38,21 +38,6 @@
 // depth clear and not a different way of drawing. A quad's corner goes through
 // the world matrix once, here, and is a world position from then on.
 //
-// THE WIDTH IS WORKED OUT PER VERTEX FROM THAT VERTEX'S OWN DEPTH, which is
-// what keeps the line the same thickness far away as near. A metre at depth `d`
-// covers `projection.m[1][1] * height / (2 * d)` pixels, so the half width that
-// covers `pixels` pixels is `d * pixels / (projection.m[1][1] * height)` — the
-// projection's second diagonal being one over the tangent of half the vertical
-// field of view (3d/projection.h). Per vertex and not per edge, because an edge
-// running away from the eye is nearer at one end than at the other and a single
-// width would taper wrongly.
-//
-// THE QUADS ARE EXTENDED HALF A WIDTH PAST EACH END. Two quads meeting at a
-// corner of the silhouette are two rectangles at an angle, and rectangles that
-// stopped exactly at the shared corner would leave a notch in it the width of
-// the line. Half a width at each end fills that corner for any angle a
-// silhouette makes.
-//
 // THEY ARE WOUND TO FACE THE EYE AND CARRY NORMALS POINTING AT IT. The draw
 // pipeline culls back faces (render/device.h), so a quad wound the other way
 // would be a hole in the outline that appears and disappears as the object
@@ -61,12 +46,6 @@
 // record the quads wear is unlit and nothing reads them, because a zeroed normal
 // means something of its own to the shader (render/device.h) and a vertex is
 // cheaper to fill correctly than to explain.
-//
-// VOE_3D_OUTLINE_EDGES IS A CAP AND NOT AN ASSERT. A capsule is about fifteen
-// hundred edges and a mesh read from a file has no measured number at all; a
-// shape nobody has measured must not be able to fill one frame's transient pool
-// and have the frame refused. Past the cap the outline is missing a few edges,
-// which is a line with a gap in it, and everything else in the frame is drawn.
 //
 // EVERYTHING IT HANDS BACK IS THE CALLER'S ARENA'S (rule 11) and dies with it:
 // a frame arena rewound at the top of the next frame, which is exactly how long
@@ -82,6 +61,12 @@
 
 #include <render/device.h>
 
+// VOE_3D_OUTLINE_EDGES IS A CAP AND NOT AN ASSERT. A capsule is about fifteen
+// hundred edges and a mesh read from a file has no measured number at all; a
+// shape nobody has measured must not be able to fill one frame's transient pool
+// and have the frame refused. Past the cap the outline is missing a few edges,
+// which is a line with a gap in it, and everything else in the frame is drawn.
+//
 // The most edges one outline is built from, and the vertices and indices that
 // many edges come to. A program sizes voe_render_capacities' three transient
 // numbers from these: four vertices and six indices per edge, one transient
@@ -118,6 +103,21 @@ typedef struct {
 	uint32_t index_count;
 } voe_3d_outline_mesh;
 
+// THE WIDTH IS WORKED OUT PER VERTEX FROM THAT VERTEX'S OWN DEPTH, which is
+// what keeps the line the same thickness far away as near. A metre at depth `d`
+// covers `projection.m[1][1] * height / (2 * d)` pixels, so the half width that
+// covers `pixels` pixels is `d * pixels / (projection.m[1][1] * height)` — the
+// projection's second diagonal being one over the tangent of half the vertical
+// field of view (3d/projection.h). Per vertex and not per edge, because an edge
+// running away from the eye is nearer at one end than at the other and a single
+// width would taper wrongly.
+//
+// THE QUADS ARE EXTENDED HALF A WIDTH PAST EACH END. Two quads meeting at a
+// corner of the silhouette are two rectangles at an angle, and rectangles that
+// stopped exactly at the shared corner would leave a notch in it the width of
+// the line. Half a width at each end fills that corner for any angle a
+// silhouette makes.
+//
 // Builds `outlined`'s silhouette as seen through `view` into `arena` and fills
 // `out`.
 //
