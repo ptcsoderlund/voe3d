@@ -1,6 +1,9 @@
 // Opening the Vulkan loader and filling the table. See loader.h for why the
 // table exists and what the rules on it are.
 //
+// There is no abstraction over Vulkan here or anywhere in this folder: there is
+// one graphics API and there will not be a second.
+//
 // Three passes, in this order, because each one needs the thing the previous one
 // made:
 //

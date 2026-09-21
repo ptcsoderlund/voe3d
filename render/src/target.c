@@ -2,7 +2,8 @@
 // frame slot. This is what the engine renders to; the swapchain image is only
 // where the colour half is copied at the very end, and nothing in this engine
 // draws into one any more. See device_internal.h for why the split between this
-// file and swapchain.c is where it is.
+// file and swapchain.c is where it is. The colour format is what encodes sRGB on
+// the way out (device.h says why), so no file in this folder holds a gamma constant.
 //
 // WHY THERE IS AN IMAGE OF OUR OWN AT ALL. Drawing straight into the acquired
 // swapchain image works, and it is what this folder did once. What it makes
