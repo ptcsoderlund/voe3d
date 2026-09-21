@@ -8,16 +8,14 @@ space is.
 - `include` — the public headers, in `include/scene/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
-- `include/scene/transform_component.h` — position, rotation, scale, written as a
-  described field list, and the matrix they become. Its header says why there is
-  no parent, why the matrix is not stored, in which order the three are composed,
-  and what the drain settles before it writes one — the two bounds a rotation is
-  held to are named here.
+- `include/scene/transform_component.h` — position, rotation, scale as a
+  described field list, and the matrix they become. The file says why there is
+  no parent, why the matrix is not stored, in which order the three compose, what
+  the drain settles, and a rotation's two bounds.
 - `include/scene/transform_system.h` — the intent that moves one, registered as
-  the component's replace, and the direct call that creates one. Its header says
-  why the intent carries the whole transform, why creation is not one, why
-  neither call checks a rotation and the drain checks every one, and why the
-  report's state is per process.
+  the component's replace, and the call that creates one. Its header says
+  why the intent is the whole transform, why creation is not one, why the drain
+  alone checks a rotation, and why the report is per process.
 - `include/scene/camera_component.h` — eye, yaw, pitch, field of view and the two
   planes, written as a described field list, and the view matrix. Its header says why the projection is not built
   here and why orientation is two angles.
@@ -25,9 +23,9 @@ space is.
   relative. Its header says why there are two, in which order they apply, and
   which of the numbers a caller passes are the mouse's own.
 - `include/scene/identity_component.h` — a 64-bit id and a 64-byte name on the
-  entities a person authored, the id marked read-only. Its header says why the
+  entities a person authored, the id read-only. Its header says why the
   component's presence is the whole of what "authored" means, why the id is
-  unique within a file and not within a world, and what its drain corrects.
+  unique within a file, not a world, and what its drain corrects.
 - `include/scene/identity_system.h` — the intent that renames one, and the
   direct call that creates one. Its header says why creation is not an intent,
   which of the two checks is an assert and which a correction, and why the
