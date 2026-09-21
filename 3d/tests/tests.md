@@ -20,8 +20,9 @@ again, or to find where a claim that has started failing is written down.
   Skips without a graphics card.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that the one entity a frame hides is not drawn and that every
-  other one still is, in both tables and both layers, and that a red shaped cube
-  reads red at the picture's centre. Skips without a graphics card.
+  other one still is, in both tables and both layers, that a red shaped cube
+  reads red at the picture's centre, and that a gizmo standing in a cube is read
+  where the cube alone would be. Skips without a graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, and that every kind is a closed surface wound counter-clockwise seen from
   outside. Needs no graphics card.

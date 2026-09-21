@@ -46,6 +46,7 @@ is included from outside the folder — `include/3d/` is the whole public surfac
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each
-  side of the overlay's depth clear, over both tables.
+  side of the overlay's depth clear, over both tables, then the outline and the
+  move gizmo behind a clear each.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.
