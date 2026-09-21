@@ -199,6 +199,10 @@ static voe_platform_key key_of(WPARAM virtual_key)
 		return VOE_PLATFORM_KEY_ENTER;
 	case VK_DELETE:
 		return VOE_PLATFORM_KEY_DELETE;
+	case 'Z':
+		return VOE_PLATFORM_KEY_Z;
+	case 'Y':
+		return VOE_PLATFORM_KEY_Y;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}
@@ -291,6 +295,8 @@ static void focus_gained(voe_platform_window *window)
 		[VOE_PLATFORM_KEY_BACKSPACE] = VK_BACK,
 		[VOE_PLATFORM_KEY_ENTER] = VK_RETURN,
 		[VOE_PLATFORM_KEY_DELETE] = VK_DELETE,
+		[VOE_PLATFORM_KEY_Z] = 'Z',
+		[VOE_PLATFORM_KEY_Y] = 'Y',
 	};
 
 	for (int key = 0; key < VOE_PLATFORM_KEY_COUNT; key++)
