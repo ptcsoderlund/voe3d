@@ -26,7 +26,12 @@ there is room for it on neither side, so the last value can always be reached
 and picked (ADR-0200) — and closes on Escape, on a press elsewhere or on a
 choice, and a choice is an edit like any other (ADR-0195). Each of these edits
 marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
-component does. The Delete key and Ctrl+D delete and duplicate the selected
+component does, and every one of them can be undone with Ctrl+Z and redone with
+Ctrl+Shift+Z or Ctrl+Y, newest first, one drag, one typed commit or one visit to
+the colour picker at a time; a new change made after undoing throws away what
+could have been redone, selecting something is not a change, the history
+survives Save, and New or Open starts an empty one. Neither shortcut does
+anything while a field holds the keyboard or the browser shows. The Delete key and Ctrl+D delete and duplicate the selected
 entity too, except while the browser shows or a field holds the keyboard. Each
 column that is not a scene view clips what is on it and scrolls it with the
 wheel or its scrollbar, and the Inspector's field rows fold onto further lines

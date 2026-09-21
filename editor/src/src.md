@@ -42,9 +42,9 @@ carries it out.
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
   base/report.h's first kept error.
-- `session.h` — the project being worked on, its notice and the one armed command that makes closing
-  the window, New and Open each refuse once while there are unsaved changes and go ahead the second
-  time.
+- `session.h` — the project being worked on, its notice, the flag that says a different project is in
+  place, and the one armed command that makes closing the window, New and Open each refuse once while
+  there are unsaved changes and go ahead the second time.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the

@@ -57,6 +57,14 @@
 // Inspector's name and its numbers. Every edge in that list, and every
 // shortcut's above it, is keys.h's to find.
 //
+// CTRL+Z UNDOES AND CTRL+SHIFT+Z OR CTRL+Y REDOES, and neither fires while the
+// browser shows or a field holds the keyboard, as Delete and Ctrl+D do not, nor
+// while a drag, a picker or an open list is in the middle of something — the
+// same rest a step is recorded at (undo.h). The edge is read where those two
+// are; the step itself is taken at the top of the next frame, before the
+// structural queue is applied and the systems run. What a step is, and what
+// empties the line when another project is opened or made, are undo.h's.
+//
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has.
 // What is here is the window's size, the capacities, the loop and the one
 // division that turns the mouse's pixels into the surface's millimetres;
@@ -116,6 +124,7 @@
 #include "scene.h"
 #include "session.h"
 #include "themes.h"
+#include "undo.h"
 #include "view.h"
 
 #include <3d/draw_system.h>
@@ -303,6 +312,16 @@ int main(int argc, char *argv[])
 	// The left press in a view that moves the selection (pick.h), beside
 	// the drag it shares the pointer with.
 	voe_editor_pick pick = { 0 };
+	// The line of scene texts Ctrl+Z steps back through, made out of
+	// `arena` below (undo.h). Beside the scene and the views because the
+	// history is the editor's and never the world's.
+	voe_editor_undo undo = { 0 };
+	// This frame's undo and redo edges, acted on at the top of the next
+	// frame, and whether the editor was at rest when they were read — the
+	// same rest a step is recorded at (undo.h).
+	bool step_back = false;
+	bool step_forward = false;
+	bool at_rest = false;
 	// The built-in shapes' CPU side: the triangles a pick ray is cast
 	// against, built once into the kept arena because the store outlives
 	// every frame (3d/shape_geometry.h).
@@ -366,6 +385,7 @@ int main(int argc, char *argv[])
 			session.project->folder);
 
 	arena = voe_base_arena_new(EDITOR_ARENA);
+	voe_editor_undo_create(&undo, arena);
 
 	settings = (voe_app_settings){ .width = options.wide,
 				       .height = options.high,
@@ -500,6 +520,24 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		// A DIFFERENT PROJECT EMPTIES THE HISTORY, AND OTHERWISE LAST
+		// FRAME'S CTRL+Z OR CTRL+Y IS TAKEN HERE — before the queue is
+		// applied and the systems run, so the rows a step puts back are
+		// given their meshes before anything draws them (undo.h). A
+		// step that went somewhere leaves the project unsaved, which an
+		// undone project still is, and is never itself an edit to
+		// record. Both edges are spent whether one fired or not.
+		if (session.replaced) {
+			session.replaced = false;
+			voe_editor_undo_forget(&undo);
+		} else if ((step_back || step_forward) &&
+			   voe_editor_undo_take(&undo, session.project, &scene,
+						&session.notice, step_forward)) {
+			voe_editor_session_edited(&session);
+		}
+		step_back = false;
+		step_forward = false;
+
 		// Which rows exist changes here and nowhere else in the frame
 		// (ADR-0193, ecs/structure.h), before any system below reads a
 		// table, so a row queued last frame is there for every one of
@@ -514,6 +552,13 @@ int main(int argc, char *argv[])
 		// fresh shape its mesh and material the first frame it exists
 		// (3d/shape_system.h).
 		voe_3d_shape_system_run(session.project->world, &shapes);
+
+		// THE STEP LAST FRAME'S EDIT SETTLES INTO, once the world holds
+		// it: an edit reaches it through an intent or the structural
+		// queue, so nothing above this line has it yet. Does nothing on
+		// a frame with no edit to settle or one the editor was not at
+		// rest on (undo.h).
+		voe_editor_undo_settle(&undo, session.project, arena, at_rest);
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
@@ -601,6 +646,25 @@ int main(int argc, char *argv[])
 			duplicate_fired = control &&
 					  keyboard.pressed[VOE_PLATFORM_KEY_D] &&
 					  !quiet;
+
+			// CTRL+Z AND CTRL+SHIFT+Z OR CTRL+Y ARE THE SAME
+			// SHAPE OF EDGE AGAIN, and beyond `quiet` they ask
+			// for the rest a step is recorded at (undo.h): no
+			// drag, no picker and no open list in the middle of
+			// something. The step itself is taken at the top of
+			// the next frame.
+			at_rest = !left && !voe_ui_typing(ui) &&
+				  !browser.showing && !scene.picking.open &&
+				  !scene.dropdown.open;
+			step_back = control && !shift &&
+				    keyboard.pressed[VOE_PLATFORM_KEY_Z] &&
+				    !quiet && at_rest;
+			step_forward =
+				control &&
+				((shift &&
+				  keyboard.pressed[VOE_PLATFORM_KEY_Z]) ||
+				 keyboard.pressed[VOE_PLATFORM_KEY_Y]) &&
+				!quiet && at_rest;
 		}
 
 		// THIS FRAME'S ESCAPE EDGE, HANDED TO THE INTERFACE BELOW as
@@ -746,8 +810,10 @@ int main(int argc, char *argv[])
 			// And so is an entity the Add menu, Delete or Duplicate
 			// queued (scene.h).
 			if (scene.inspector.replaced > 0 ||
-			    scene.structural > 0)
+			    scene.structural > 0) {
 				voe_editor_session_edited(&session);
+				voe_editor_undo_edited(&undo);
+			}
 			voe_render_pass_end(gpu);
 		}
 

@@ -73,6 +73,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		fresh = voe_editor_project_new_untitled();
 		voe_editor_project_destroy(session->project);
 		session->project = fresh;
+		session->replaced = true;
 		scene->world = fresh->world;
 		scene->selected = (voe_ecs_entity){ 0 };
 		return false;
@@ -160,6 +161,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 
 			voe_editor_project_destroy(session->project);
 			session->project = opened;
+			session->replaced = true;
 			scene->world = opened->world;
 			scene->selected = (voe_ecs_entity){ 0 };
 

@@ -44,6 +44,14 @@
 // "anything else done" the header above describes, for the one kind of change
 // that never goes through voe_editor_session_do at all. A view's camera drag
 // calls nothing here, because moving a camera does not change the project.
+//
+// `replaced` IS A FLAG AND NOT A RETURN VALUE. A different project lands in
+// session->project in two places — NEW in voe_editor_session_do and the
+// browser's Confirm in OPEN mode in voe_editor_session_browser_do — which are
+// two calls, one of them made from interface.c, where a return value would
+// have to be carried back through a drawing call that has nothing to do with
+// it. The loop is the only thing that needs to hear about it, so it reads the
+// flag and clears it (main.c empties the undo history on it).
 #pragma once
 
 #include "browser.h"
@@ -69,6 +77,9 @@ typedef struct {
 	voe_editor_project *project;
 	voe_editor_notice notice;
 	voe_editor_command armed;
+	// A different project is in session->project, set by whichever call
+	// put it there and cleared by whoever acts on it.
+	bool replaced;
 } voe_editor_session;
 
 // Carries out command, or refuses it once — see the header above. `scene` is
