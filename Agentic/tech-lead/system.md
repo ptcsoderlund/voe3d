@@ -56,4 +56,4 @@ rules are decision 0168.
 - 0202, 0203 — A click picks by a ray cast against the shapes' triangles; the outline is quads.
 - 0204 — Undo is a line of whole-scene texts; a step is what an edit settles into, read back whole.
 - 0205, 0206, 0207 — The move gizmo is `3d`'s, its drag the editor's; state is lightness and size.
-- 0208, 0209 — 015 closes on its folders and its walk; 016 clears the caps, then `--all` again.
+- 0208–0211 — 015 closes on its walk; 016 moves comments only, and a page's opening says what for.
