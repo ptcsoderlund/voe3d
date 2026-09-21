@@ -23,78 +23,6 @@
 // comes through. What the handlers fill is src/input.h, which is the half that
 // is not Windows' and is shared with Wayland.
 //
-// A KEY IS STILL A PLACE AND NOT A LETTER, AND WM_CHAR ANSWERS A DIFFERENT
-// QUESTION FROM WM_KEYDOWN'S — BUT THIS FILE NOW READS BOTH. WM_KEYDOWN carries
-// a virtual key, a position on the keyboard, and that is still all key_of and
-// key_set ever look at. WM_CHAR carries what the active layout says that
-// keystroke types, already resolved by TranslateMessage — no keymap of our own
-// to read here, unlike Wayland — and it is what fills
-// voe_platform_input_text (ADR-0161). TranslateMessage was already called in
-// the pump for the message loop's own sake; the WM_CHAR it synthesises is no
-// longer left to fall through to DefWindowProcW.
-//
-// WM_CHAR CARRIES ONE UTF-16 CODE UNIT AT A TIME, SO A CHARACTER PAST THE BASIC
-// MULTILINGUAL PLANE ARRIVES AS A SURROGATE PAIR ACROSS TWO MESSAGES. The high
-// half is held on the window until the low half arrives and the pair is joined
-// into one code point; a high half with no low half following — the sequence
-// interrupted by a key that is not text — is simply replaced rather than joined
-// into whatever comes next.
-//
-// EVERYTHING IS DROPPED WHILE CONTROL IS HELD WITHOUT ALT, SO A SHORTCUT DOES
-// NOT ALSO TYPE. AltGr types, because Windows reports it as Control+Alt held
-// together and that is indistinguishable here from the two held separately —
-// so Control+Alt is let through on purpose, and it is also what makes an AltGr
-// character in a language that needs one continue to work once this engine
-// reads its keysym.
-//
-// WM_SYSKEYDOWN IS HANDLED ALONGSIDE WM_KEYDOWN AND MUST NOT BE SWALLOWED.
-// Windows sends the SYS form for a key pressed while Alt is held, and for F10.
-// The engine wants to know the key moved either way, so both are recorded — but
-// the SYS pair then falls through to DefWindowProcW rather than returning zero,
-// because that is what opens the window menu on Alt and closes the window on
-// Alt+F4. A handler that returned zero here would take Alt+F4 away and it would
-// not be obvious why.
-//
-// MOUSE LOOK IS RAW INPUT AND NOT WM_MOUSEMOVE. WM_MOUSEMOVE reports where the
-// cursor is in the client area, which stops at the edge of the window; a camera
-// needs how far the mouse moved, which does not. WM_INPUT reports the device's
-// own relative counts and keeps reporting them when the cursor is against a
-// screen edge, which is the whole reason it is registered for.
-//
-// THE POINTER'S POSITION IS WM_MOUSEMOVE, AND IT IS THE OTHER QUESTION. The
-// message carries client coordinates: whole pixels, origin at the client area's
-// top-left, +x right and +y down, the same space WM_SIZE measures the client
-// area in — so a pointer and voe_platform_size agree without arithmetic. The two
-// halves of lparam are signed, and are read as signed, because a captured
-// pointer goes negative. This process declares no DPI awareness, so on a scaled
-// display Windows virtualises both numbers by the same factor and they still
-// agree with each other and with the swapchain. The button messages carry the
-// same coordinates and are recorded the same way, so a press with no movement
-// before it still knows where it landed.
-//
-// A BUTTON HELD TAKES THE CAPTURE, SO THAT THE RELEASE ARRIVES WHEREVER THE
-// POINTER IS BY THEN. Without SetCapture, a press inside the window and a release
-// outside it is a release Windows delivers to whoever is under the cursor, and
-// the button here would read down for ever. Capture sends every mouse message to
-// this window until it is given back, positions outside the client area
-// included, which is what a drag past the edge wants and what Wayland does on
-// its own. It is released when the last button goes up; WM_CAPTURECHANGED is the
-// one place that reacts to losing it, whether by that release or by Windows
-// taking it away, so a capture stolen mid-drag lifts the buttons the same way a
-// lost focus lifts the keys.
-//
-// WM_MOUSELEAVE IS ASKED FOR, BECAUSE WINDOWS DOES NOT SEND IT UNASKED.
-// TrackMouseEvent arms one notification and then forgets, so it is re-armed on
-// the first movement inside after each one arrives. A leave with a button held
-// is ignored — the drag is still on and the capture is what decides — and the
-// release recomputes whether the pointer is still over the client area from
-// where it was when the last button came up.
-//
-// THERE IS NO CS_DBLCLKS ON THE CLASS, AND THAT IS ON PURPOSE. With it Windows
-// turns the second press of a double-click into a WM_xBUTTONDBLCLK and the
-// down message never arrives; without it every press is a plain down, which is
-// what a level-state API wants. What a double-click means is a caller's.
-//
 // THE LOCK IS A CLIP AND A HIDE, AND THERE IS NOTHING TO NEGOTIATE. Unlike
 // Wayland, nothing here can refuse: ClipCursor confines the cursor to the client
 // rectangle and ShowCursor hides it, so the flag src/input.h keeps is set from
@@ -134,6 +62,13 @@ struct voe_platform_window {
 	bool lock_wanted;
 	bool focused;
 
+	// WM_MOUSELEAVE IS ASKED FOR, BECAUSE WINDOWS DOES NOT SEND IT UNASKED.
+	// TrackMouseEvent arms one notification and then forgets, so it is re-armed on
+	// the first movement inside after each one arrives. A leave with a button held
+	// is ignored — the drag is still on and the capture is what decides — and the
+	// release recomputes whether the pointer is still over the client area from
+	// where it was when the last button came up.
+	//
 	// A WM_MOUSELEAVE has been asked for and has not yet arrived. It is a
 	// one-shot, so this says whether to ask again on the next movement.
 	bool tracking_leave;
@@ -216,9 +151,31 @@ static void key_set(voe_platform_window *window, WPARAM virtual_key, bool down)
 		window->input.keys[key] = down;
 }
 
-// A WM_CHAR message, which carries one UTF-16 code unit in wparam. See the
-// header for why Control without Alt drops everything and why AltGr — Control
-// and Alt together — still types.
+// A WM_CHAR message, which carries one UTF-16 code unit in wparam.
+//
+// A KEY IS STILL A PLACE AND NOT A LETTER, AND WM_CHAR ANSWERS A DIFFERENT
+// QUESTION FROM WM_KEYDOWN'S — BUT THIS FILE NOW READS BOTH. WM_KEYDOWN carries
+// a virtual key, a position on the keyboard, and that is still all key_of and
+// key_set ever look at. WM_CHAR carries what the active layout says that
+// keystroke types, already resolved by TranslateMessage — no keymap of our own
+// to read here, unlike Wayland — and it is what fills
+// voe_platform_input_text (ADR-0161). TranslateMessage was already called in
+// the pump for the message loop's own sake; the WM_CHAR it synthesises is no
+// longer left to fall through to DefWindowProcW.
+//
+// WM_CHAR CARRIES ONE UTF-16 CODE UNIT AT A TIME, SO A CHARACTER PAST THE BASIC
+// MULTILINGUAL PLANE ARRIVES AS A SURROGATE PAIR ACROSS TWO MESSAGES. The high
+// half is held on the window until the low half arrives and the pair is joined
+// into one code point; a high half with no low half following — the sequence
+// interrupted by a key that is not text — is simply replaced rather than joined
+// into whatever comes next.
+//
+// EVERYTHING IS DROPPED WHILE CONTROL IS HELD WITHOUT ALT, SO A SHORTCUT DOES
+// NOT ALSO TYPE. AltGr types, because Windows reports it as Control+Alt held
+// together and that is indistinguishable here from the two held separately —
+// so Control+Alt is let through on purpose, and it is also what makes an AltGr
+// character in a language that needs one continue to work once this engine
+// reads its keysym.
 //
 // VK_MENU AND NOT window->input's OWN KEYS, BECAUSE ALT IS NOT ONE OF THEM.
 // Nothing else in this engine reads Alt, so it has never earned a line in
@@ -359,6 +316,12 @@ static void apply_lock(voe_platform_window *window)
 	window->input.pointer_locked = wanted;
 }
 
+// MOUSE LOOK IS RAW INPUT AND NOT WM_MOUSEMOVE. WM_MOUSEMOVE reports where the
+// cursor is in the client area, which stops at the edge of the window; a camera
+// needs how far the mouse moved, which does not. WM_INPUT reports the device's
+// own relative counts and keeps reporting them when the cursor is against a
+// screen edge, which is the whole reason it is registered for.
+//
 // One WM_INPUT message, which may carry several mouse movements. Only the mouse
 // is registered for, so nothing here checks which device it was.
 //
@@ -406,6 +369,17 @@ static bool pointer_inside(const voe_platform_window *window)
 	       window->input.pointer_y < (float)window->height;
 }
 
+// THE POINTER'S POSITION IS WM_MOUSEMOVE, AND IT IS THE OTHER QUESTION. The
+// message carries client coordinates: whole pixels, origin at the client area's
+// top-left, +x right and +y down, the same space WM_SIZE measures the client
+// area in — so a pointer and voe_platform_size agree without arithmetic. The two
+// halves of lparam are signed, and are read as signed, because a captured
+// pointer goes negative. This process declares no DPI awareness, so on a scaled
+// display Windows virtualises both numbers by the same factor and they still
+// agree with each other and with the swapchain. The button messages carry the
+// same coordinates and are recorded the same way, so a press with no movement
+// before it still knows where it landed.
+//
 // Where the mouse messages say the pointer is. Read as two signed shorts and
 // not through LOWORD alone, which is unsigned and would turn a captured pointer
 // one pixel left of the window into a position sixty-five thousand pixels to the
@@ -439,6 +413,17 @@ static bool any_button_down(const voe_platform_window *window)
 	return false;
 }
 
+// A BUTTON HELD TAKES THE CAPTURE, SO THAT THE RELEASE ARRIVES WHEREVER THE
+// POINTER IS BY THEN. Without SetCapture, a press inside the window and a release
+// outside it is a release Windows delivers to whoever is under the cursor, and
+// the button here would read down for ever. Capture sends every mouse message to
+// this window until it is given back, positions outside the client area
+// included, which is what a drag past the edge wants and what Wayland does on
+// its own. It is released when the last button goes up; WM_CAPTURECHANGED is the
+// one place that reacts to losing it, whether by that release or by Windows
+// taking it away, so a capture stolen mid-drag lifts the buttons the same way a
+// lost focus lifts the keys.
+//
 // A button message: the position it carries, the button's new state, and the
 // capture that goes with a held button. ReleaseCapture sends WM_CAPTURECHANGED
 // synchronously, so the recomputation of whether the pointer is still over the
@@ -498,7 +483,15 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 		handle_char(window, wparam);
 		return 0;
 	// Recorded and then handed on, so that Alt and Alt+F4 still do what
-	// Windows means them to do. See the header.
+	// Windows means them to do.
+	//
+	// WM_SYSKEYDOWN IS HANDLED ALONGSIDE WM_KEYDOWN AND MUST NOT BE SWALLOWED.
+	// Windows sends the SYS form for a key pressed while Alt is held, and for F10.
+	// The engine wants to know the key moved either way, so both are recorded — but
+	// the SYS pair then falls through to DefWindowProcW rather than returning zero,
+	// because that is what opens the window menu on Alt and closes the window on
+	// Alt+F4. A handler that returned zero here would take Alt+F4 away and it would
+	// not be obvious why.
 	case WM_SYSKEYDOWN:
 		key_set(window, wparam, true);
 		return DefWindowProcW(hwnd, message, wparam, lparam);
@@ -516,7 +509,7 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	case WM_MOUSELEAVE:
 		window->tracking_leave = false;
 		// With a button held the capture has the pointer and the drag
-		// is still on; the release decides. See the header.
+		// is still on; the release decides. See tracking_leave.
 		if (!any_button_down(window))
 			voe_platform_input_pointer_lost(&window->input);
 		return 0;
@@ -575,6 +568,11 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	}
 }
 
+// THERE IS NO CS_DBLCLKS ON THE CLASS, AND THAT IS ON PURPOSE. With it Windows
+// turns the second press of a double-click into a WM_xBUTTONDBLCLK and the
+// down message never arrives; without it every press is a plain down, which is
+// what a level-state API wants. What a double-click means is a caller's.
+//
 // Registering a class that is already registered fails with
 // ERROR_CLASS_ALREADY_EXISTS, which is the second window opening and not a
 // failure.

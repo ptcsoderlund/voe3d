@@ -14,19 +14,6 @@
 // pointer and a NULL one is a crash rather than a no-op. Binding low is what
 // keeps the slots this file leaves NULL unreachable.
 //
-// DECORATIONS ARE ASKED FOR, NOT ASSUMED. xdg-decoration is how a client says it
-// would rather the compositor drew the frame, and the compositor answers with
-// the mode it actually chose — which may not be the one asked for. Three
-// outcomes, and all three are normal: the manager is absent from the registry
-// (GNOME's Mutter does not offer the protocol), the manager is there and answers
-// client-side, or it answers server-side and a real titlebar appears.
-//
-// Only the last of those gets a frame. The other two leave the window bare, and
-// bare is not an error: nothing here warns, nothing here fails, and nothing here
-// draws a titlebar of its own. Drawing one needs pointer input and somewhere to
-// draw, neither of which exists yet. Move and resize a bare window with the
-// compositor's own shortcuts.
-//
 // NOTHING HERE PUTS A PIXEL ON THE SCREEN, AND THAT IS WHY THE WINDOW IS NOT
 // VISIBLE UNTIL SOMETHING ELSE DOES. A Wayland surface with no buffer ever
 // attached is not mapped at all: it exists, it has a size, it answers configure,
@@ -41,10 +28,6 @@
 // no error anywhere, which is a long afternoon for whoever meets it without
 // having read this.
 //
-// A compositor that goes away mid-run sets should_close, because there is no
-// other way out: _poll cannot report anything and the caller is in a loop. That
-// is a papering-over, not a design, and it is written up on card 004.
-//
 // INPUT IS HERE AND NOT IN A FILE OF ITS OWN, BECAUSE IT ARRIVES DOWN THIS
 // SOCKET. A keyboard and a pointer are wl_seat's, wl_seat comes off the same
 // registry as the compositor, and every event reaches us through the same
@@ -53,78 +36,6 @@
 // struct, with a second name. So the listeners are here and what they fill is
 // src/input.h, which is the half that is not Wayland's and is shared with
 // Windows.
-//
-// THE SEAT IS BOUND AT VERSION 1 LIKE EVERYTHING ELSE, AND THAT IS WHAT MAKES
-// THE NULL LISTENER SLOTS BELOW SAFE. wl_seat gained name at 2, wl_pointer
-// gained frame and the axis detail at 5, wl_keyboard gained repeat_info at 4.
-// None of them is bound high enough to send any of that, so those slots stay
-// NULL and libwayland never calls through them. Binding higher without filling
-// them in is a crash, not a warning.
-//
-// A KEY IS A PLACE AND NOT A LETTER, AND THAT STAYS TRUE EVEN THOUGH THIS FILE
-// NOW READS TEXT TOO. wl_keyboard.key carries the evdev scancode of the key
-// that moved — KEY_W is the key where W sits on a US keyboard whatever the
-// layout says it types — and <linux/input-event-codes.h> is where those numbers
-// are written down; that is still what fills the keys array. What has changed
-// is the keymap event, which used to be closed unread: it is now mapped into
-// this process and handed to src/keymap.h's in-house reader (ADR-0161), not to
-// xkbcommon — a dependency rule 5 has never asked for and D-245 closed without.
-// The file descriptor is mmapped read-only and private, read, then unmapped and
-// closed every time, because a leaked descriptor per keymap change is still a
-// leak whether or not the map is kept.
-//
-// AltGr IS ONE OF THOSE PLACES TOO (ADR-0169), NOT A MODIFIER READ OFF THE
-// COMPOSITOR. The keymap reader flags whichever evdev code its own text names
-// as the level-three shift, and this file holds that flag exactly the way it
-// already holds Shift — set and cleared by key in keyboard_key, restored on
-// refocus from the codes keyboard_enter is handed, and dropped in
-// keyboard_leave with everything else focus takes. A press then picks one of
-// the keymap's four levels by which of Shift and AltGr are held, the same
-// question key already answers for every other key.
-//
-// A KEYMAP THE READER REFUSES IS REPORTED ONCE, NOT ON EVERY KEY. The keymap
-// event fires once at startup and again only when the layout changes, so there
-// is nothing to spam here regardless — but the flag exists to say so on
-// purpose rather than by accident, and a window whose keymap could not be read
-// still opens, still closes and still reads keys as places; typing a character
-// is the only thing it has lost.
-//
-// MOUSE LOOK NEEDS TWO MORE PROTOCOLS AND NEITHER IS OPTIONAL FOR IT.
-// wl_pointer.motion reports where the pointer is inside the surface, which stops
-// at the edge; a camera needs how far the mouse moved, which does not.
-// zwp_relative_pointer_v1 is that number, and zwp_pointer_constraints_v1 is what
-// stops the cursor walking out of the window while it is being read. Both are
-// vendored beside xdg-shell in protocol/, both are bound at version 1, and both
-// are optional in exactly the way the decoration manager is: a compositor that
-// offers neither leaves a window whose keyboard works and whose mouse look does
-// not, and that is not an error anywhere in here.
-//
-// THE POINTER'S POSITION AND BUTTONS NEED NOTHING EXTRA, BECAUSE THEY ARE WHAT A
-// VERSION 1 wl_pointer SENDS. enter and motion carry surface-local coordinates as
-// wl_fixed_t — 24.8 fixed point, so fractions of a unit are real and are kept —
-// with the origin at the surface's top-left, +x right and +y down. A surface unit
-// is a logical unit, not a pixel of ours, and is turned into one here — see
-// the next paragraph. button carries an evdev code, BTN_LEFT and
-// its neighbours from the same header the scancodes come from. While the pointer
-// is locked, the compositor sends no motion at all — the position underneath
-// simply stops — which is one of the reasons include/platform/input.h says a
-// locked pointer is not over the window.
-//
-// THE BUFFER IS DRAWN AT THE COMPOSITOR'S FRACTIONAL SCALE, AND ITS PIXELS ARE
-// THE ONES CALLERS SEE (ADR-0180). The configure hands over a logical size, and
-// on an output scaled by 1.25 a buffer that size is stretched by the compositor
-// with a smoothing filter — every edge goes soft. So wp_fractional_scale_v1's
-// preferred_scale is kept (in 120ths, 120 until it says otherwise), the logical
-// size is kept beside it, and voe_platform_window_size answers the logical size
-// times the scale through src/scale.h; the swapchain builds its buffer at that
-// size, and wp_viewport's destination, set to the logical size whenever either
-// number changes, tells the compositor to show it at the logical size without
-// resampling. Pointer positions go through the same scale on enter and motion,
-// so they and voe_platform_size still measure one space; relative motion and the
-// wheel are not positions and are not scaled. wl_surface_set_buffer_scale is
-// never called: an integer cannot say 1.25. Both protocols are optional and
-// bound at version 1 — with either one missing the scale stays 120 and every
-// number here is the logical one, exactly as before.
 //
 // NOTHING HERE TOUCHES THE CURSOR IMAGE, AND THAT IS A LIMIT RATHER THAN AN
 // OVERSIGHT. A locked pointer is frozen by the compositor and stays visible,
@@ -207,19 +118,51 @@ struct voe_platform_window {
 	int wanted_width;
 	int wanted_height;
 
+	// THE BUFFER IS DRAWN AT THE COMPOSITOR'S FRACTIONAL SCALE, AND ITS PIXELS ARE
+	// THE ONES CALLERS SEE (ADR-0180). The configure hands over a logical size, and
+	// on an output scaled by 1.25 a buffer that size is stretched by the compositor
+	// with a smoothing filter — every edge goes soft. So wp_fractional_scale_v1's
+	// preferred_scale is kept (in 120ths, 120 until it says otherwise), the logical
+	// size is kept beside it, and voe_platform_window_size answers the logical size
+	// times the scale through src/scale.h; the swapchain builds its buffer at that
+	// size, and wp_viewport's destination, set to the logical size whenever either
+	// number changes, tells the compositor to show it at the logical size without
+	// resampling. Pointer positions go through the same scale on enter and motion,
+	// so they and voe_platform_size still measure one space; relative motion and the
+	// wheel are not positions and are not scaled. wl_surface_set_buffer_scale is
+	// never called: an integer cannot say 1.25. Both protocols are optional and
+	// bound at version 1 — with either one missing the scale stays 120 and every
+	// number here is the logical one, exactly as before.
+	//
 	// The preferred scale in 120ths, and whether the viewport's destination
-	// is behind the logical size or the scale — see the file's header.
+	// is behind the logical size or the scale.
 	uint32_t scale;
 	bool viewport_stale;
 	uint32_t decoration_mode;
 	bool configured;
 	bool should_close;
 
+	// A KEYMAP THE READER REFUSES IS REPORTED ONCE, NOT ON EVERY KEY. The keymap
+	// event fires once at startup and again only when the layout changes, so there
+	// is nothing to spam here regardless — but the flag exists to say so on
+	// purpose rather than by accident, and a window whose keymap could not be read
+	// still opens, still closes and still reads keys as places; typing a character
+	// is the only thing it has lost.
+	//
 	// What the compositor's keymap says each evdev code types, and whether
 	// a broken one has already been reported — see keyboard_keymap.
 	voe_platform_keymap keymap;
 	bool keymap_reported;
 
+	// AltGr IS ONE OF THOSE PLACES TOO (ADR-0169), NOT A MODIFIER READ OFF THE
+	// COMPOSITOR. The keymap reader flags whichever evdev code its own text names
+	// as the level-three shift, and this file holds that flag exactly the way it
+	// already holds Shift — set and cleared by key in keyboard_key, restored on
+	// refocus from the codes keyboard_enter is handed, and dropped in
+	// keyboard_leave with everything else focus takes. A press then picks one of
+	// the keymap's four levels by which of Shift and AltGr are held, the same
+	// question key already answers for every other key.
+	//
 	// Whether the key the keymap names as level-three shift (ADR-0169) is
 	// currently held. Kept beside the keymap rather than in the shared
 	// input state below because AltGr is not one of the twelve keys
@@ -268,7 +211,7 @@ static void registry_global(void *data, struct wl_registry *registry,
 		window->seat = wl_registry_bind(registry, name,
 						&wl_seat_interface, 1);
 	// These two are genuinely optional and mouse look is what is lost
-	// without them. Nothing warns: see the header.
+	// without them. Nothing warns: see relative_pointer_motion.
 	else if (strcmp(interface, zwp_relative_pointer_manager_v1_interface.name) == 0)
 		window->relative_pointers = wl_registry_bind(registry, name,
 			&zwp_relative_pointer_manager_v1_interface, 1);
@@ -349,6 +292,19 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 	.wm_capabilities = NULL,
 };
 
+// DECORATIONS ARE ASKED FOR, NOT ASSUMED. xdg-decoration is how a client says it
+// would rather the compositor drew the frame, and the compositor answers with
+// the mode it actually chose — which may not be the one asked for. Three
+// outcomes, and all three are normal: the manager is absent from the registry
+// (GNOME's Mutter does not offer the protocol), the manager is there and answers
+// client-side, or it answers server-side and a real titlebar appears.
+//
+// Only the last of those gets a frame. The other two leave the window bare, and
+// bare is not an error: nothing here warns, nothing here fails, and nothing here
+// draws a titlebar of its own. Drawing one needs pointer input and somewhere to
+// draw, neither of which exists yet. Move and resize a bare window with the
+// compositor's own shortcuts.
+//
 // The compositor's answer. It arrives when the decoration object is created and
 // again on every change of state — measured on KWin: one at startup, one when
 // "No Borders" takes the frame away, one when it puts it back. All three said
@@ -468,6 +424,18 @@ static void key_set(voe_platform_window *window, uint32_t scancode, bool down)
 		window->altgr_held = down;
 }
 
+// A KEY IS A PLACE AND NOT A LETTER, AND THAT STAYS TRUE EVEN THOUGH THIS FILE
+// NOW READS TEXT TOO. wl_keyboard.key carries the evdev scancode of the key
+// that moved — KEY_W is the key where W sits on a US keyboard whatever the
+// layout says it types — and <linux/input-event-codes.h> is where those numbers
+// are written down; that is still what fills the keys array. What has changed
+// is the keymap event, which used to be closed unread: it is now mapped into
+// this process and handed to src/keymap.h's in-house reader (ADR-0161), not to
+// xkbcommon — a dependency rule 5 has never asked for and D-245 closed without.
+// The file descriptor is mmapped read-only and private, read, then unmapped and
+// closed every time, because a leaked descriptor per keymap change is still a
+// leak whether or not the map is kept.
+//
 // The keymap: mapped read-only and private into this process, handed whole to
 // src/keymap.h's reader, then unmapped and closed — every time, whether the
 // read succeeds or not, because the descriptor and the mapping are owed back
@@ -604,6 +572,13 @@ static void keyboard_modifiers(void *data, struct wl_keyboard *keyboard,
 	(void)group;
 }
 
+// THE SEAT IS BOUND AT VERSION 1 LIKE EVERYTHING ELSE, AND THAT IS WHAT MAKES
+// THE NULL LISTENER SLOTS BELOW SAFE. wl_seat gained name at 2, wl_pointer
+// gained frame and the axis detail at 5, wl_keyboard gained repeat_info at 4.
+// None of them is bound high enough to send any of that, so those slots stay
+// NULL and libwayland never calls through them. Binding higher without filling
+// them in is a crash, not a warning.
+//
 // repeat_info is version 4 and wl_seat is bound at 1, so that slot stays NULL.
 static const struct wl_keyboard_listener keyboard_listener = {
 	.keymap = keyboard_keymap,
@@ -614,6 +589,17 @@ static const struct wl_keyboard_listener keyboard_listener = {
 	.repeat_info = NULL,
 };
 
+// THE POINTER'S POSITION AND BUTTONS NEED NOTHING EXTRA, BECAUSE THEY ARE WHAT A
+// VERSION 1 wl_pointer SENDS. enter and motion carry surface-local coordinates as
+// wl_fixed_t — 24.8 fixed point, so fractions of a unit are real and are kept —
+// with the origin at the surface's top-left, +x right and +y down. A surface unit
+// is a logical unit, not a pixel of ours, and is turned into one here — see
+// scale in voe_platform_window. button carries an evdev code, BTN_LEFT and
+// its neighbours from the same header the scancodes come from. While the pointer
+// is locked, the compositor sends no motion at all — the position underneath
+// simply stops — which is one of the reasons include/platform/input.h says a
+// locked pointer is not over the window.
+//
 // The five events a version 1 wl_pointer sends. Four of them are the pointer's
 // position and buttons and are recorded straight into src/input.h; axis is the
 // wheel, turned into notches first — see pointer_axis.
@@ -759,6 +745,16 @@ static const struct wl_pointer_listener pointer_listener = {
 	.axis_relative_direction = NULL,
 };
 
+// MOUSE LOOK NEEDS TWO MORE PROTOCOLS AND NEITHER IS OPTIONAL FOR IT.
+// wl_pointer.motion reports where the pointer is inside the surface, which stops
+// at the edge; a camera needs how far the mouse moved, which does not.
+// zwp_relative_pointer_v1 is that number, and zwp_pointer_constraints_v1 is what
+// stops the cursor walking out of the window while it is being read. Both are
+// vendored beside xdg-shell in protocol/, both are bound at version 1, and both
+// are optional in exactly the way the decoration manager is: a compositor that
+// offers neither leaves a window whose keyboard works and whose mouse look does
+// not, and that is not an error anywhere in here.
+//
 // How far the mouse moved, summed until the next poll takes it.
 //
 // THE ACCELERATED PAIR IS THE ONE READ AND THE UNACCELERATED PAIR IS IGNORED, ON
@@ -1199,6 +1195,9 @@ static void pump(voe_platform_window *window)
 	wl_display_dispatch_pending(window->display);
 }
 
+// A compositor that goes away mid-run sets should_close, because there is no
+// other way out: _poll cannot report anything and the caller is in a loop. That
+// is a papering-over, not a design, and it is written up on card 004.
 void voe_platform_window_poll(voe_platform_window *window)
 {
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "polling a NULL window");
