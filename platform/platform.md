@@ -14,13 +14,13 @@ file, and listing, making or finding a folder.
   close the user just asked for.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the wheel in
   notches, typed UTF-8 text, the pointer's position and buttons, and the lock.
-  Its header says why all of it is polled state and not a queue of events, and
+  The file says why all of it is polled state and not a queue of events, and
   why a key is a place rather than a letter.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   waiting is a different question this folder cannot answer yet.
 - `include/platform/file.h` — reading a whole file into an arena, testing whether a
-  path is a regular file, and writing a whole file in one call. Its header says
+  path is a regular file, and writing a whole file in one call. The file says
   which failure means what, and how a write is made atomic by a `.partial`
   sibling and a rename.
 - `include/platform/folder.h` — listing a folder's entries into an arena, making

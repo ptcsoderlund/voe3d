@@ -33,6 +33,21 @@
 // editor recording input across many frames still has no answer here; the card
 // that brings one is the card that revisits this.
 //
+// THE MOUSE IS TWO DIFFERENT QUESTIONS AND BOTH ARE ANSWERED BELOW. A camera
+// asks how far the mouse moved, which is voe_platform_input_motion and keeps
+// arriving while the pointer is locked; a GUI asks where the pointer is and
+// which buttons are down, which is voe_platform_input_pointer and
+// voe_platform_input_button_down. They are not two views of one number: a locked
+// pointer moves the camera without ever changing position, and a pointer walked
+// across the window changes position by exactly what the motion says only when
+// nothing is accelerated or clipped. Reach for motion to turn something and for
+// the pointer to point at something, and never derive one from the other.
+#pragma once
+
+#include <stdint.h>
+
+typedef struct voe_platform_window voe_platform_window;
+
 // A KEY IS A PLACE ON THE KEYBOARD, NOT A LETTER. VOE_PLATFORM_KEY_W is the key
 // where W is on a US layout and it stays that key on every other layout, because
 // what a movement key means is where the finger goes and not which character
@@ -50,45 +65,6 @@
 // undo and redo commands (spec 014) read them. Delete arrived the same way and
 // is not a movement key either: the editor's Delete command (spec 010) reads it.
 //
-// THE MOUSE IS TWO DIFFERENT QUESTIONS AND BOTH ARE ANSWERED BELOW. A camera
-// asks how far the mouse moved, which is voe_platform_input_motion and keeps
-// arriving while the pointer is locked; a GUI asks where the pointer is and
-// which buttons are down, which is voe_platform_input_pointer and
-// voe_platform_input_button_down. They are not two views of one number: a locked
-// pointer moves the camera without ever changing position, and a pointer walked
-// across the window changes position by exactly what the motion says only when
-// nothing is accelerated or clipped. Reach for motion to turn something and for
-// the pointer to point at something, and never derive one from the other.
-//
-// BUTTONS ARE LEVEL, NOT EDGE, THE SAME AS KEYS. voe_platform_input_button_down
-// says whether a button is held now, and a caller that wants "went down this
-// frame" or "was released over the thing it was pressed on" compares against what
-// it read last frame — two bools at the call site, exactly as the Tab toggle in
-// dev/src/main.c already does for a key. It is the caller's because the caller
-// is the one that knows what a click is: a GUI's click is a release over the
-// same widget the press landed on, which this folder cannot know about, and a
-// second, edge-shaped API beside the level one would be the second API the
-// paragraph above says this folder must not grow.
-//
-// THE WHEEL IS COUNTED IN NOTCHES, AND WHAT A NOTCH MOVES IS THE PROGRAM'S
-// (ADR-0153 point 10). voe_platform_input_wheel is how far the wheel turned, on
-// both axes, as a count of detents: one click of an ordinary wheel is 1, and a
-// device that reports fractions — a touchpad, a free-spinning wheel — reads as
-// fractions. +x shows content further right and +y further down, which is the
-// wheel turned towards the person; the two window systems report opposite signs
-// and each backend turns its own into this one. It drains exactly as motion
-// does: summed until the next poll, zeroed at the top of it. How many lines,
-// pixels or millimetres a notch scrolls is decided by whoever reads it, and
-// nothing here smooths or accelerates it. Windows counts notches exactly;
-// Wayland at the version this folder binds sends a length per notch that
-// differs between compositors — src/window_wayland.c says which, and what fixes
-// it.
-#pragma once
-
-#include <stdint.h>
-
-typedef struct voe_platform_window voe_platform_window;
-
 // Every key this engine reads, and the length of the state each backend keeps.
 // VOE_PLATFORM_KEY_COUNT is the count and never a key; asking for it asserts.
 //
@@ -182,6 +158,20 @@ typedef struct {
 // that is not looking around wants.
 voe_platform_motion voe_platform_input_motion(voe_platform_window *window);
 
+// THE WHEEL IS COUNTED IN NOTCHES, AND WHAT A NOTCH MOVES IS THE PROGRAM'S
+// (ADR-0153 point 10). voe_platform_input_wheel is how far the wheel turned, on
+// both axes, as a count of detents: one click of an ordinary wheel is 1, and a
+// device that reports fractions — a touchpad, a free-spinning wheel — reads as
+// fractions. +x shows content further right and +y further down, which is the
+// wheel turned towards the person; the two window systems report opposite signs
+// and each backend turns its own into this one. It drains exactly as motion
+// does: summed until the next poll, zeroed at the top of it. How many lines,
+// pixels or millimetres a notch scrolls is decided by whoever reads it, and
+// nothing here smooths or accelerates it. Windows counts notches exactly;
+// Wayland at the version this folder binds sends a length per notch that
+// differs between compositors — src/window_wayland.c says which, and what fixes
+// it.
+//
 // Wheel turn accumulated since the previous voe_platform_window_poll, in
 // notches. +x shows content further right, +y further down — the wheel turned
 // towards the person. Fractional where the device reports fractions.
@@ -253,6 +243,16 @@ typedef enum {
 	VOE_PLATFORM_BUTTON_COUNT
 } voe_platform_button;
 
+// BUTTONS ARE LEVEL, NOT EDGE, THE SAME AS KEYS. voe_platform_input_button_down
+// says whether a button is held now, and a caller that wants "went down this
+// frame" or "was released over the thing it was pressed on" compares against what
+// it read last frame — two bools at the call site, exactly as the Tab toggle in
+// dev/src/main.c already does for a key. It is the caller's because the caller
+// is the one that knows what a click is: a GUI's click is a release over the
+// same widget the press landed on, which this folder cannot know about, and a
+// second, edge-shaped API beside the level one would be the second API the
+// file header says this folder must not grow.
+//
 // True while the button is held. It goes up, without a release ever arriving,
 // when the pointer leaves the window with the button still down — a compositor
 // that broke a drag, a capture Windows took away — because the release is then
