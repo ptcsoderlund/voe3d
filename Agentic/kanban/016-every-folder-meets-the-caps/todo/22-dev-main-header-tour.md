@@ -16,5 +16,5 @@ where they are, in the header. Read only around each function you place text abo
 `dev/src/src.md`'s `main.c` entry changes only if it points at the header for text that moved.
 
 ## Done when
-`bash ~/.claude/skills/checks/scripts/checks.sh --folder dev` prints exactly one FINDING line, `dev/src/main.c`'s header cap, at 300 lines or fewer; its
+`bash ~/.claude/skills/checks/scripts/checks.sh --folder dev` prints exactly 2 FINDING lines, `dev/src/main.c`'s header cap, at 300 lines or fewer, and `dev/dev.md`'s opening, untouched by this card; its
 product check passes; and 0210's token check prints nothing.
