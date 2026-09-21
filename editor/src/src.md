@@ -11,6 +11,10 @@ carries it out.
   each against last frame's, which is where every key edge in the program is found.
 - `keys.c` — the one read of every key, once a frame, and the levels it
   remembers to find the next frame's edges against.
+- `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
+  once out of keys.h's frame and the guards the caller holds, with acting on one left to the caller.
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete and Ctrl+D, the rest
+  a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line: the folder to open, `--capture`'s path and
   `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
