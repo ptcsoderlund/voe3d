@@ -1,5 +1,5 @@
 // Scene text, read into a world (ADR-0149, ADR-0152) — the other half of
-// authoring/scene_write.h, whose header says what the text looks like.
+// authoring/scene_write.h, which says what the text looks like.
 //
 //     voe_authoring_kept kept;
 //
@@ -22,17 +22,6 @@
 // every value and every section's `[N]` is checked first, with the world untouched;
 // a file that is wrong anywhere is refused, reported with its line number, and
 // creates nothing.
-//
-// A WORLD THAT RUNS OUT OF ROOM PART-WAY THROUGH CREATING IS LEFT HALF-LOADED.
-// Running out is the world's capacity, which no amount of reading the file could
-// have predicted, and there is no remove to undo with. It returns false, and the
-// world must be discarded — rewind or destroy the arena it lives in.
-//
-// A LOADED VALUE IS NOT SETTLED BY ANY DRAIN. The rows go in as the file spells
-// them, and what a system corrects on the way through an intent — an identity's
-// name with no terminating zero, say — is not applied here. The reader refuses
-// what it can check on its own: a string that leaves no room for its zero, a
-// control character, a float with no finite value.
 //
 // WHAT IT READS, AND WHAT IT KEEPS WITHOUT READING:
 //
@@ -57,19 +46,13 @@
 // the section does not mention starts from that field's bytes in the type's
 // default row (voe_ecs_component_default), or zero when the type has none, and
 // is a warning — so a scene saved before spec 010 opens its shapes grey, not
-// black; a key naming no field is
-// ignored and a warning. A CHAR VALUE'S quotes are the sectioned reader's to
-// strip (assets/sectioned.h), so `name = Cube` reads the same as `name = "Cube"`
+// black; a key naming no field is ignored and a warning. A CHAR VALUE'S quotes
+// are the sectioned reader's to strip (assets/sectioned.h), so `name = Cube`
+// reads the same as `name = "Cube"`
 // — for a field of rank 1, one string. A field with more dimensions is an array
 // of strings, and there the sectioned reader has left the text exactly as the
 // file spelled it — an array is not one whole value to it — so this reader
 // strips each string's own quotes and undoes its own `\"` and `\\` escapes.
-//
-// THE KEPT SECTIONS LIVE IN `arena` AND MUST OUTLIVE THE SAVE THAT WRITES THEM
-// BACK. A section naming a type this program never registered is some other
-// program's component; it is kept as its lines of text, handed to
-// voe_authoring_scene_write, and written back where it was, so a file survives a
-// trip through a program that does not know everything in it.
 #pragma once
 
 #include <base/arena.h>
@@ -79,6 +62,12 @@
 #include <stdint.h>
 
 // One section read and not understood.
+//
+// THE KEPT SECTIONS LIVE IN `arena` AND MUST OUTLIVE THE SAVE THAT WRITES THEM
+// BACK. A section naming a type this program never registered is some other
+// program's component; it is kept as its lines of text, handed to
+// voe_authoring_scene_write, and written back where it was, so a file survives a
+// trip through a program that does not know everything in it.
 typedef struct {
 	// The N of `[N.<key name>]`.
 	uint64_t id;
@@ -101,9 +90,20 @@ typedef struct {
 // Reads `size` bytes of scene text into `world`, which must hold no entity with an
 // identity. True with every entity and row created and `*out_kept` set. False,
 // reported, with `*out_kept` untouched: the world is untouched too when the text
-// was refused, and half-loaded when the world ran out of room — see the header.
+// was refused, and half-loaded when the world ran out of room — see below.
 // The arena holds the kept sections and this call's working memory, beside each
 // other; what is pushed is the caller's to rewind, as with every reader in assets.
+//
+// A WORLD THAT RUNS OUT OF ROOM PART-WAY THROUGH CREATING IS LEFT HALF-LOADED.
+// Running out is the world's capacity, which no amount of reading the file could
+// have predicted, and there is no remove to undo with. It returns false, and the
+// world must be discarded — rewind or destroy the arena it lives in.
+//
+// A LOADED VALUE IS NOT SETTLED BY ANY DRAIN. The rows go in as the file spells
+// them, and what a system corrects on the way through an intent — an identity's
+// name with no terminating zero, say — is not applied here. The reader refuses
+// what it can check on its own: a string that leaves no room for its zero, a
+// control character, a float with no finite value.
 [[nodiscard]] bool voe_authoring_scene_read(const char *text, size_t size,
 					    voe_ecs_world *world,
 					    voe_base_arena *arena,
