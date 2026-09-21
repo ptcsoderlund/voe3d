@@ -1,8 +1,10 @@
-// The gizmo's size, the ray tests behind each handle and the point a drag is
-// measured from — see the header for why one module answers all three, what "in
-// front of the eye" means and why a refused grab is not a failure.
+// The gizmo's size, the ray tests behind each handle, the point a drag is
+// measured from and the triangles all of it is drawn as — see the header for why
+// one module answers them all, why a handle is a camera-facing quad and why the
+// marked one is a mesh of its own.
 #include <3d/gizmo.h>
 
+#include <base/arena.h>
 #include <base/assert.h>
 
 #include <math/float3.h>
@@ -20,6 +22,32 @@
 // nothing and the point would jump metres between two frames. Directions are
 // unit length, so this is the sine of about a twentieth of a degree.
 #define PARALLEL 1e-3f
+
+// A cross product this short is an arrow pointed so nearly at the eye, or a
+// label seen so nearly along the world's up, that the direction across it cannot
+// be worked out: normalising it would assert (math/float3.h) and the answer
+// would jump between two frames.
+#define DEGENERATE 1e-6f
+
+// The three letters, as strokes in the label's own square: x across and y up,
+// each from -1 to 1. X is two crossed strokes, Y a fork over a stem and Z two
+// bars with a diagonal between them (ADR-0206).
+static const uint32_t LETTER_STROKES[3] = { 2, 3, 3 };
+static_assert(2 + 3 + 3 == VOE_3D_GIZMO_LABEL_STROKES,
+	      "the letters below cost what the header says they do");
+static const float LETTER[3][3][4] = {
+	{ { -1.0f, -1.0f, 1.0f, 1.0f }, { -1.0f, 1.0f, 1.0f, -1.0f } },
+	{ { -1.0f, 1.0f, 0.0f, 0.0f },
+	  { 1.0f, 1.0f, 0.0f, 0.0f },
+	  { 0.0f, 0.0f, 0.0f, -1.0f } },
+	{ { -1.0f, 1.0f, 1.0f, 1.0f },
+	  { 1.0f, 1.0f, -1.0f, -1.0f },
+	  { -1.0f, -1.0f, 1.0f, -1.0f } },
+};
+
+// How wide a letter is beside how tall, which is what keeps an X from reading as
+// a cross and a Z from reading as an S.
+#define LETTER_HALF_WIDTH 0.35f
 
 // The world's three axes, in the order the handles name them. A plane handle
 // `p` counting from VOE_3D_GIZMO_XY lies in axes p and (p + 1) % 3 and is
@@ -43,6 +71,34 @@ static voe_math_float3 out_from(voe_3d_gizmo gizmo, int axis, float along)
 {
 	return voe_math_float3_add(gizmo.origin,
 				   voe_math_float3_scale(AXES[axis], along));
+}
+
+// The point `along_first` metres along one of a plane's two axes and
+// `along_second` along the other, from the gizmo's origin.
+static voe_math_float3 corner(voe_3d_gizmo gizmo, voe_math_float3 first,
+			      voe_math_float3 second, float along_first,
+			      float along_second)
+{
+	return voe_math_float3_add(
+		gizmo.origin,
+		voe_math_float3_add(
+			voe_math_float3_scale(first, along_first),
+			voe_math_float3_scale(second, along_second)));
+}
+
+// A point of a letter's own square, `x` across the label and `y` up it, both
+// from -1 to 1: the three letters are written once in that square and placed by
+// this.
+static voe_math_float3 in_label(voe_math_float3 centre, voe_math_float3 right,
+				voe_math_float3 up, float height, float x,
+				float y)
+{
+	return voe_math_float3_add(
+		centre,
+		voe_math_float3_add(
+			voe_math_float3_scale(
+				right, x * height * LETTER_HALF_WIDTH),
+			voe_math_float3_scale(up, y * 0.5f * height)));
 }
 
 // Where `ray` meets the plane through `point` with unit normal `normal`, as a
@@ -228,5 +284,258 @@ bool voe_3d_gizmo_grab(voe_3d_gizmo gizmo, voe_3d_gizmo_handle handle,
 		return false;
 	*out = voe_math_float3_add(ray.origin,
 				   voe_math_float3_scale(ray.direction, at));
+	return true;
+}
+
+// One mesh under construction: its two arrays, each of the whole gizmo's size
+// because a marked handle is a few vertices and one bound is fewer numbers than
+// two, and how much of them is used so far.
+struct build {
+	voe_render_vertex *vertices;
+	uint32_t *indices;
+	uint32_t vertex_count;
+	uint32_t index_count;
+};
+
+// One corner, with its normal the direction from it to the eye.
+static voe_render_vertex facing(voe_math_float3 position, voe_math_float3 eye)
+{
+	return (voe_render_vertex){
+		.position = position,
+		.normal = voe_math_float3_normalize(
+			voe_math_float3_sub(eye, position)),
+		.uv = { 0.0f, 0.0f },
+	};
+}
+
+// Three corners already pushed, wound to face the eye: the pipeline culls back
+// faces, so the last two are swapped when the triangle would face away.
+static void wind(struct build *mesh, uint32_t a, uint32_t b, uint32_t c,
+		 voe_math_float3 eye)
+{
+	voe_math_float3 corner = mesh->vertices[a].position;
+	voe_math_float3 normal = voe_math_float3_cross(
+		voe_math_float3_sub(mesh->vertices[b].position, corner),
+		voe_math_float3_sub(mesh->vertices[c].position, corner));
+
+	VOE_BASE_ASSERT(mesh->index_count + 3 <= VOE_3D_GIZMO_INDICES,
+			"more indices than a gizmo has");
+	VOE_BASE_ASSERT(a < mesh->vertex_count && b < mesh->vertex_count &&
+				c < mesh->vertex_count,
+			"a triangle of corners nobody pushed");
+	if (voe_math_float3_dot(normal, voe_math_float3_sub(eye, corner)) <
+	    0.0f) {
+		uint32_t swap = b;
+
+		b = c;
+		c = swap;
+	}
+	mesh->indices[mesh->index_count++] = a;
+	mesh->indices[mesh->index_count++] = b;
+	mesh->indices[mesh->index_count++] = c;
+}
+
+// The quad from `from` to `to`, widened by `half_width` to each side along
+// `across`. A shaft and a label stroke are both this.
+static void add_quad(struct build *mesh, voe_math_float3 from,
+		     voe_math_float3 to, voe_math_float3 across,
+		     float half_width, voe_math_float3 eye)
+{
+	voe_math_float3 offset = voe_math_float3_scale(across, half_width);
+	uint32_t v = mesh->vertex_count;
+
+	VOE_BASE_ASSERT(mesh->vertex_count + 4 <= VOE_3D_GIZMO_VERTICES,
+			"more vertices than a gizmo has");
+	VOE_BASE_ASSERT(half_width > 0.0f, "a quad of no width");
+	mesh->vertices[v + 0] = facing(voe_math_float3_sub(from, offset), eye);
+	mesh->vertices[v + 1] = facing(voe_math_float3_add(from, offset), eye);
+	mesh->vertices[v + 2] = facing(voe_math_float3_sub(to, offset), eye);
+	mesh->vertices[v + 3] = facing(voe_math_float3_add(to, offset), eye);
+	mesh->vertex_count += 4;
+	wind(mesh, v + 0, v + 1, v + 2, eye);
+	wind(mesh, v + 1, v + 3, v + 2, eye);
+}
+
+// The triangle of those three corners, which is an arrowhead and nothing else.
+static void add_triangle(struct build *mesh, voe_math_float3 a,
+			 voe_math_float3 b, voe_math_float3 c,
+			 voe_math_float3 eye)
+{
+	uint32_t v = mesh->vertex_count;
+
+	VOE_BASE_ASSERT(mesh->vertex_count + 3 <= VOE_3D_GIZMO_VERTICES,
+			"more vertices than a gizmo has");
+	VOE_BASE_ASSERT(mesh->vertices != NULL, "a triangle built nowhere");
+	mesh->vertices[v + 0] = facing(a, eye);
+	mesh->vertices[v + 1] = facing(b, eye);
+	mesh->vertices[v + 2] = facing(c, eye);
+	mesh->vertex_count += 3;
+	wind(mesh, v + 0, v + 1, v + 2, eye);
+}
+
+// The unit an arrow is widened along: perpendicular to the axis and to the
+// direction from the middle of the shaft to the eye, so the arrow keeps its face
+// to the person. An arrow pointed almost at the eye leaves that cross product at
+// nearly nothing, and a perpendicular to the axis is taken instead — a sliver
+// rather than nothing at all.
+static voe_math_float3 across_axis(voe_3d_gizmo gizmo, int axis)
+{
+	voe_math_float3 to_eye = voe_math_float3_sub(
+		gizmo.eye, out_from(gizmo, axis, 0.5f * gizmo.shaft));
+	voe_math_float3 across = voe_math_float3_cross(AXES[axis], to_eye);
+
+	VOE_BASE_ASSERT(axis >= 0 && axis < 3, "an axis of no world");
+	VOE_BASE_ASSERT(gizmo.shaft > 0.0f, "an arrow of no length");
+	if (voe_math_float3_length(across) < DEGENERATE)
+		return AXES[(axis + 1) % 3];
+	return voe_math_float3_normalize(across);
+}
+
+// One arrow: the shaft's quad from the origin to the shaft's end, and the head's
+// triangle from there to the point, both in the one plane that faces the eye.
+// `step` widens the two without lengthening either, which is what marking is.
+static void add_axis(struct build *mesh, voe_3d_gizmo gizmo, int axis,
+		     float step)
+{
+	voe_math_float3 across = across_axis(gizmo, axis);
+	voe_math_float3 end = out_from(gizmo, axis, gizmo.shaft);
+	voe_math_float3 point = out_from(
+		gizmo, axis, gizmo.shaft * (1.0f + VOE_3D_GIZMO_HEAD_LENGTH));
+	voe_math_float3 half = voe_math_float3_scale(
+		across, gizmo.shaft * VOE_3D_GIZMO_HEAD_HALF_WIDTH * step);
+
+	VOE_BASE_ASSERT(step > 0.0f, "an arrow of no width");
+	VOE_BASE_ASSERT(mesh != NULL, "an arrow built nowhere");
+	add_quad(mesh, gizmo.origin, end, across,
+		 gizmo.shaft * VOE_3D_GIZMO_LINE_HALF_WIDTH * step, gizmo.eye);
+	add_triangle(mesh, voe_math_float3_sub(end, half),
+		     voe_math_float3_add(end, half), point, gizmo.eye);
+}
+
+// One plane square: the patch of the plane itself between the near corner and
+// the far one on both of its axes, as two triangles wound from whichever side
+// the eye is on. `step` grows it about its own centre, so a marked square still
+// covers the middle it covered.
+static void add_square(struct build *mesh, voe_3d_gizmo gizmo, int plane,
+		       float step)
+{
+	float near_corner = gizmo.shaft * VOE_3D_GIZMO_PLANE_NEAR;
+	float side = gizmo.shaft * VOE_3D_GIZMO_PLANE_SIDE;
+	float low = near_corner + 0.5f * side * (1.0f - step);
+	float high = near_corner + 0.5f * side * (1.0f + step);
+	voe_math_float3 first = AXES[plane];
+	voe_math_float3 second = AXES[(plane + 1) % 3];
+	uint32_t v = mesh->vertex_count;
+
+	VOE_BASE_ASSERT(plane >= 0 && plane < 3, "a plane of no world");
+	VOE_BASE_ASSERT(mesh->vertex_count + 4 <= VOE_3D_GIZMO_VERTICES,
+			"more vertices than a gizmo has");
+	mesh->vertices[v + 0] = facing(corner(gizmo, first, second, low, low),
+				       gizmo.eye);
+	mesh->vertices[v + 1] = facing(corner(gizmo, first, second, high, low),
+				       gizmo.eye);
+	mesh->vertices[v + 2] = facing(corner(gizmo, first, second, high, high),
+				       gizmo.eye);
+	mesh->vertices[v + 3] = facing(corner(gizmo, first, second, low, high),
+				       gizmo.eye);
+	mesh->vertex_count += 4;
+	wind(mesh, v + 0, v + 1, v + 2, gizmo.eye);
+	wind(mesh, v + 0, v + 2, v + 3, gizmo.eye);
+}
+
+// One label, past the point of its arrow: its strokes drawn in the plane facing
+// the eye, upright against the world's up where there is one to be upright
+// against. Each stroke is the quad a shaft is, widened in that same plane.
+static void add_label(struct build *mesh, voe_3d_gizmo gizmo, int axis)
+{
+	float height = gizmo.shaft * VOE_3D_GIZMO_LABEL_HEIGHT;
+	voe_math_float3 centre = out_from(
+		gizmo, axis,
+		gizmo.shaft * (1.0f + VOE_3D_GIZMO_HEAD_LENGTH) + height);
+	voe_math_float3 to_eye = voe_math_float3_sub(gizmo.eye, centre);
+	voe_math_float3 forward = voe_math_float3_normalize(to_eye);
+	voe_math_float3 right = voe_math_float3_cross(AXES[1], forward);
+	voe_math_float3 up;
+	uint32_t stroke;
+
+	VOE_BASE_ASSERT(axis >= 0 && axis < 3, "a label of no axis");
+	VOE_BASE_ASSERT(LETTER_STROKES[axis] <= 3, "a letter of too many strokes");
+	right = voe_math_float3_length(right) < DEGENERATE ?
+			AXES[0] :
+			voe_math_float3_normalize(right);
+	up = voe_math_float3_cross(forward, right);
+	for (stroke = 0; stroke < LETTER_STROKES[axis]; stroke++) {
+		const float *ends = LETTER[axis][stroke];
+		voe_math_float3 from = in_label(centre, right, up, height,
+						ends[0], ends[1]);
+		voe_math_float3 to = in_label(centre, right, up, height, ends[2],
+					      ends[3]);
+
+		add_quad(mesh, from, to,
+			 voe_math_float3_normalize(voe_math_float3_cross(
+				 voe_math_float3_sub(to, from), forward)),
+			 gizmo.shaft * VOE_3D_GIZMO_LINE_HALF_WIDTH,
+			 gizmo.eye);
+	}
+}
+
+// What one build has come to, as the mesh the caller was promised.
+static voe_3d_gizmo_mesh mesh_of(struct build mesh)
+{
+	VOE_BASE_ASSERT(mesh.vertex_count <= VOE_3D_GIZMO_VERTICES,
+			"a mesh of more vertices than a gizmo has");
+	VOE_BASE_ASSERT(mesh.index_count <= VOE_3D_GIZMO_INDICES,
+			"a mesh of more indices than a gizmo has");
+	return (voe_3d_gizmo_mesh){
+		.vertices = mesh.vertices,
+		.vertex_count = mesh.vertex_count,
+		.indices = mesh.indices,
+		.index_count = mesh.index_count,
+	};
+}
+
+bool voe_3d_gizmo_quads(voe_3d_gizmo gizmo, voe_3d_gizmo_handle marked,
+			voe_base_arena *arena, voe_3d_gizmo_mesh *plain,
+			voe_3d_gizmo_mesh *marked_out)
+{
+	struct build at_rest = { 0 };
+	struct build under = { 0 };
+	int handle;
+
+	VOE_BASE_ASSERT(arena != NULL, "a gizmo built with no arena");
+	VOE_BASE_ASSERT(plain != NULL && marked_out != NULL,
+			"a gizmo built into nothing");
+	VOE_BASE_ASSERT(marked <= VOE_3D_GIZMO_ZX, "a handle of no gizmo");
+	VOE_BASE_ASSERT(gizmo.shaft >= 0.0f, "a gizmo of negative size");
+	if (gizmo.shaft <= 0.0f)
+		return false;
+
+	at_rest.vertices = voe_base_arena_push(
+		arena, sizeof *at_rest.vertices * VOE_3D_GIZMO_VERTICES);
+	at_rest.indices = voe_base_arena_push(
+		arena, sizeof *at_rest.indices * VOE_3D_GIZMO_INDICES);
+	under.vertices = voe_base_arena_push(
+		arena, sizeof *under.vertices * VOE_3D_GIZMO_VERTICES);
+	under.indices = voe_base_arena_push(
+		arena, sizeof *under.indices * VOE_3D_GIZMO_INDICES);
+
+	for (handle = 0; handle < 6; handle++) {
+		bool is_marked = marked == (voe_3d_gizmo_handle)(
+						   VOE_3D_GIZMO_X + handle);
+		struct build *mesh = is_marked ? &under : &at_rest;
+		float step = is_marked ? VOE_3D_GIZMO_MARKED_STEP : 1.0f;
+
+		if (handle < 3)
+			add_axis(mesh, gizmo, handle, step);
+		else
+			add_square(mesh, gizmo, handle - 3, step);
+	}
+	// The labels say which arrow is which, which is as true of the marked
+	// one as of the other two, so they are all in the mesh at rest.
+	for (handle = 0; handle < 3; handle++)
+		add_label(&at_rest, gizmo, handle);
+
+	*plain = mesh_of(at_rest);
+	*marked_out = mesh_of(under);
 	return true;
 }

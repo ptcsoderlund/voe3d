@@ -1,11 +1,11 @@
-// The move gizmo's arithmetic: how big it is, which handle a ray meets and
-// where on that handle a drag starts.
+// The move gizmo's arithmetic: how big it is, which handle a ray meets, where on
+// that handle a drag starts, and the triangles it is drawn as.
 //
 // NONE OF IT NEEDS A GRAPHICS CARD, AND THAT IS THE POINT OF THE MODULE. A
 // gizmo is one position, one camera and six handles of plain geometry
-// (3d/gizmo.h), so every claim here is a ray in and a number out on a build box
-// with no Vulkan. What a person sees of it — the triangles and the pass that
-// draws them — is checked where those are written.
+// (3d/gizmo.h), so every claim here is a ray or an eye in and numbers out on a
+// build box with no Vulkan — the triangles included, which are counted and
+// measured here and drawn where the pass that draws them is written.
 //
 // The gizmo below stands away from the world's origin on purpose: an axis test
 // that passes for a gizmo at (0, 0, 0) can be one that forgot the origin
@@ -13,6 +13,8 @@
 #include <3d/gizmo.h>
 #include <3d/pick.h>
 #include <3d/projection.h>
+
+#include <base/arena.h>
 
 #include <math/float3.h>
 
@@ -33,6 +35,9 @@
 // Where the gizmo stands, and far enough from everything that a ray aimed five
 // metres away starts outside it.
 #define REACH 5.0f
+
+// Enough for the four arrays one build pushes, many times over.
+#define SCRATCH (1024 * 1024)
 
 static const voe_math_float3 WHERE = { 1.0f, 2.0f, 3.0f };
 
@@ -219,8 +224,158 @@ static void a_ray_in_a_plane_is_refused(void)
 	VOE_TEST_CHECK_FLOAT(untouched.z, 9.0f, 0.0f);
 }
 
+
+// A gizmo of the usual size seen from `eye`.
+static voe_3d_gizmo seen_from(voe_math_float3 eye)
+{
+	return (voe_3d_gizmo){ .origin = WHERE, .eye = eye, .shaft = SHAFT };
+}
+
+// What one handle costs: an arrow is a shaft quad and a head triangle, a square
+// is one quad.
+static uint32_t vertices_of(voe_3d_gizmo_handle handle)
+{
+	return handle <= VOE_3D_GIZMO_Z ? 4 + 3 : 4;
+}
+
+// The two meshes together are the two constants and never more, whichever handle
+// is marked and when none is — which is what a program sizes its transient pools
+// from.
+static void the_two_meshes_fit_the_constants(voe_base_arena *arena)
+{
+	voe_3d_gizmo gizmo = seen_from((voe_math_float3){ 4.0f, 6.0f, 9.0f });
+	int marked;
+
+	for (marked = VOE_3D_GIZMO_NONE; marked <= VOE_3D_GIZMO_ZX; marked++) {
+		voe_3d_gizmo_mesh plain = { 0 };
+		voe_3d_gizmo_mesh under = { 0 };
+
+		VOE_TEST_CHECK(voe_3d_gizmo_quads(gizmo,
+						  (voe_3d_gizmo_handle)marked,
+						  arena, &plain, &under));
+		VOE_TEST_CHECK(plain.vertex_count + under.vertex_count <=
+			       VOE_3D_GIZMO_VERTICES);
+		VOE_TEST_CHECK(plain.index_count + under.index_count <=
+			       VOE_3D_GIZMO_INDICES);
+		VOE_TEST_CHECK(plain.vertex_count > 0);
+	}
+}
+
+// Every triangle of both meshes faces the eye, because the pipeline culls back
+// faces: the normal worked out from its own three corners points at the eye and
+// not away from it. The eyes below stand on both sides of all three planes, so
+// every square is checked from either side of itself.
+static void every_triangle_faces_the_eye(voe_base_arena *arena)
+{
+	const voe_math_float3 EYES[2] = { { 5.0f, 7.0f, 11.0f },
+					  { -4.0f, -8.0f, -6.0f } };
+	int which;
+
+	for (which = 0; which < 2; which++) {
+		voe_3d_gizmo gizmo = seen_from(EYES[which]);
+		voe_3d_gizmo_mesh mesh[2] = { { 0 }, { 0 } };
+		int side;
+
+		VOE_TEST_CHECK(voe_3d_gizmo_quads(gizmo, VOE_3D_GIZMO_Y, arena,
+						  &mesh[0], &mesh[1]));
+		for (side = 0; side < 2; side++)
+			for (uint32_t i = 0; i + 2 < mesh[side].index_count;
+			     i += 3) {
+				const voe_render_vertex *v =
+					mesh[side].vertices;
+				const uint32_t *at = &mesh[side].indices[i];
+				voe_math_float3 a = v[at[0]].position;
+				voe_math_float3 normal = voe_math_float3_cross(
+					voe_math_float3_sub(v[at[1]].position,
+							    a),
+					voe_math_float3_sub(v[at[2]].position,
+							    a));
+
+				VOE_TEST_CHECK(
+					voe_math_float3_dot(
+						normal,
+						voe_math_float3_sub(gizmo.eye,
+								    a)) > 0.0f);
+			}
+	}
+}
+
+// Marking a handle takes that handle's triangles out of the plain mesh and puts
+// that many into the marked one — the same triangles at other widths, which is
+// why nothing is gained or lost. Marking nothing leaves an empty mesh.
+static void marking_moves_one_handle_across(voe_base_arena *arena)
+{
+	voe_3d_gizmo gizmo = seen_from((voe_math_float3){ 4.0f, 6.0f, 9.0f });
+	voe_3d_gizmo_mesh at_rest = { 0 };
+	voe_3d_gizmo_mesh empty = { 0 };
+	int marked;
+
+	VOE_TEST_CHECK(voe_3d_gizmo_quads(gizmo, VOE_3D_GIZMO_NONE, arena,
+					  &at_rest, &empty));
+	VOE_TEST_CHECK_INT(empty.vertex_count, 0);
+	VOE_TEST_CHECK_INT(empty.index_count, 0);
+
+	for (marked = VOE_3D_GIZMO_X; marked <= VOE_3D_GIZMO_ZX; marked++) {
+		voe_3d_gizmo_mesh plain = { 0 };
+		voe_3d_gizmo_mesh under = { 0 };
+
+		VOE_TEST_CHECK(voe_3d_gizmo_quads(gizmo,
+						  (voe_3d_gizmo_handle)marked,
+						  arena, &plain, &under));
+		VOE_TEST_CHECK_INT(under.vertex_count,
+				   vertices_of((voe_3d_gizmo_handle)marked));
+		VOE_TEST_CHECK_INT(at_rest.vertex_count - plain.vertex_count,
+				   under.vertex_count);
+		VOE_TEST_CHECK_INT(at_rest.index_count - plain.index_count,
+				   under.index_count);
+	}
+}
+
+// However the eye is placed there are the same triangles: one down an axis, one
+// off in the corner, and one so nearly along an arrow that the direction across
+// that arrow has to be taken from somewhere else.
+static void the_count_is_the_same_from_anywhere(voe_base_arena *arena)
+{
+	const voe_math_float3 EYES[4] = { { 1.0f, 2.0f, 13.0f },
+					  { 11.0f, 2.0f, 3.0f },
+					  { 1.0f, 12.0f, 3.0f },
+					  { -6.0f, -3.0f, -7.0f } };
+	uint32_t indices = 0;
+	int which;
+
+	for (which = 0; which < 4; which++) {
+		voe_3d_gizmo_mesh plain = { 0 };
+		voe_3d_gizmo_mesh under = { 0 };
+
+		VOE_TEST_CHECK(voe_3d_gizmo_quads(seen_from(EYES[which]),
+						  VOE_3D_GIZMO_XY, arena,
+						  &plain, &under));
+		if (which == 0)
+			indices = plain.index_count + under.index_count;
+		VOE_TEST_CHECK_INT(plain.index_count + under.index_count,
+				   (int)indices);
+	}
+	VOE_TEST_CHECK_INT((int)indices, VOE_3D_GIZMO_INDICES);
+}
+
+// A gizmo of no size is built from nothing and leaves both meshes as they were.
+static void no_shaft_builds_nothing(voe_base_arena *arena)
+{
+	voe_3d_gizmo gizmo = seen_from((voe_math_float3){ 4.0f, 6.0f, 9.0f });
+	voe_3d_gizmo_mesh plain = { .vertex_count = 9 };
+	voe_3d_gizmo_mesh under = { .vertex_count = 9 };
+
+	gizmo.shaft = 0.0f;
+	VOE_TEST_CHECK(!voe_3d_gizmo_quads(gizmo, VOE_3D_GIZMO_NONE, arena,
+					   &plain, &under));
+	VOE_TEST_CHECK_INT(plain.vertex_count, 9);
+	VOE_TEST_CHECK_INT(under.vertex_count, 9);
+}
+
 int main(void)
 {
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+
 	each_arrow_is_hit_across_its_middle();
 	each_square_is_hit_through_its_middle();
 	empty_space_hits_nothing();
@@ -228,5 +383,12 @@ int main(void)
 	an_axis_grab_keeps_the_other_two();
 	a_plane_grab_keeps_its_normal();
 	a_ray_in_a_plane_is_refused();
+	the_two_meshes_fit_the_constants(arena);
+	every_triangle_faces_the_eye(arena);
+	marking_moves_one_handle_across(arena);
+	the_count_is_the_same_from_anywhere(arena);
+	no_shaft_builds_nothing(arena);
+
+	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }
