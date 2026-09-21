@@ -52,6 +52,12 @@
 // voe_3d_draw_system_run with the view's camera and light (view.h), and each
 // pass outlines what is selected last (ADR-0203).
 //
+// A GIZMO DRAG IS ONE MORE READER OF THE POINTER (gizmo.h, ADR-0205). The
+// middle button is the views'; the left is asked of the gizmo first and of
+// picking second, so a press on an arrow moves the entity and selects nothing.
+// One drag is one undo step without anything counted here: the held button
+// keeps `at_rest` false for every frame of it, so undo.h settles on the release.
+//
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // (options.h) opens the device with no window at all (voe_app_new_headless),
 // builds the same world, font, themes, interface and scene, runs the loop body
@@ -60,6 +66,7 @@
 // `app`'s to tie together (ADR-0157). EVERY READ OF THE WINDOW IS GUARDED.
 #include "browser.h"
 #include "dock.h"
+#include "gizmo.h"
 #include "interface.h"
 #include "keys.h"
 #include "preferences.h"
@@ -145,6 +152,12 @@
 // density (ADR-0180).
 #define VOE_EDITOR_OUTLINE_MILLIMETRES 0.4f
 
+// How long one arrow's shaft of the move gizmo is drawn, in the surface's
+// millimetres, for the outline's reason: a size on the surface times
+// `pixels_per_millimetre` is a size in pixels, so the gizmo is one size on a
+// screen of any density — and what is hit is what is drawn (gizmo.h).
+#define VOE_EDITOR_GIZMO_MILLIMETRES 12.0f
+
 // WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
 // 3d/shape_system.h — which is what makes the geometry numbers its constants
 // and `shadings` a one. `objects` is per frame: every drawn entity is one
@@ -152,31 +165,35 @@
 // (VOE_EDITOR_PROJECT_MAX_DRAWN, project.h's — every project's world is
 // registered with that much room for a mesh and a material, so a device that
 // draws one is sized from the same number), one more for the selected entity's
-// outline, which is drawn into every view's pass too, times the room for
-// views. `passes`
+// outline, which is drawn into every view's pass too, and two more for the
+// gizmo's handles at rest and its marked one, times the room for views. `passes`
 // is a pass per view and the interface's, and `targets` a target per view —
 // both from the room for views, not the two in use, so a third view is a leaf
 // and not a capacity. The three transient numbers are what the selection
 // outline's quads are copied into: one outline per view's pass, sized the way
 // `passes` and `targets` are, from the room for views and not the two in use
-// (ADR-0203, 3d/outline.h).
+// (ADR-0203, 3d/outline.h). The move gizmo's quads go there too: one gizmo per
+// view's pass, two ranges and two draws, sized from the room for views the
+// same way (ADR-0205, 3d/draw_system.h).
 #define EDITOR_CAPACITIES                                                     \
 	(voe_render_capacities)                                               \
 	{                                                                     \
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 1) *                \
+		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 3) *                \
 			   VOE_EDITOR_VIEWS,                                   \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 1,                                \
 		.targets = VOE_EDITOR_VIEWS,                                   \
-		.transient_vertices = VOE_3D_OUTLINE_VERTICES *                \
+		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
+				       VOE_3D_GIZMO_VERTICES) *                \
 				      VOE_EDITOR_VIEWS,                        \
-		.transient_indices = VOE_3D_OUTLINE_INDICES *                  \
+		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
+				      VOE_3D_GIZMO_INDICES) *                  \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = VOE_EDITOR_VIEWS                       \
+		.transient_geometries = 3 * VOE_EDITOR_VIEWS                   \
 	}
 
 // One line at startup saying whether a field description reached the binary,
@@ -260,6 +277,9 @@ int main(int argc, char *argv[])
 	// The left press in a view that moves the selection (pick.h), beside
 	// the drag it shares the pointer with.
 	voe_editor_pick pick = { 0 };
+	// The left press on an arrow of the selected entity's move gizmo
+	// (gizmo.h), asked before `pick` every frame.
+	voe_editor_gizmo gizmo = { 0 };
 	// The line of scene texts Ctrl+Z steps back through, made out of
 	// `arena` below (undo.h). Beside the scene and the views because the
 	// history is the editor's and never the world's.
@@ -628,13 +648,24 @@ int main(int argc, char *argv[])
 				      middle && !browser.showing, shift,
 				      control);
 
-		// The left half of the same division: a press over a view picks
-		// what is under it, unless a panel over the views has the press
-		// instead (pick.h).
+		// The left half of the same division: a press on an arrow of
+		// the selected entity's gizmo drags it (gizmo.h), unless a panel
+		// over the views has the press instead.
+		voe_editor_gizmo_read(&gizmo, &scene, &views,
+				      VOE_EDITOR_GIZMO_MILLIMETRES *
+					      pixels_per_millimetre,
+				      roots[0].pointer.at, left && pointer.over,
+				      browser.showing || preferences.showing ||
+					      scene.picking.open);
+
+		// Then a press over a view picks what is under it (pick.h). A
+		// press the gizmo took is not a press that selects, and the
+		// order is the point: the gizmo is asked first.
 		voe_editor_pick_read(&pick, &scene, &views, &geometries,
 				     roots[0].pointer.at, left && pointer.over,
 				     browser.showing || preferences.showing ||
-					     scene.picking.open);
+					     scene.picking.open ||
+					     voe_editor_gizmo_taking(&gizmo));
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
@@ -686,6 +717,26 @@ int main(int argc, char *argv[])
 						.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 							  pixels_per_millimetre,
 						.size = { (int)view->width,
+							  (int)view->height } },
+					.gizmo = {
+						.entity = voe_editor_scene_selected(
+							&scene),
+						.material = shapes.outline,
+						.colour = voe_editor_view_gizmo_colour(
+							&voe_editor_themes_chosen(
+								 &themes)
+								 ->palette,
+							false),
+						.marked_colour = voe_editor_view_gizmo_colour(
+							&voe_editor_themes_chosen(
+								 &themes)
+								 ->palette,
+							true),
+						.marked = voe_editor_gizmo_marked(
+							&gizmo, v),
+						.pixels = VOE_EDITOR_GIZMO_MILLIMETRES *
+							  pixels_per_millimetre,
+						.size = { (int)view->width,
 							  (int)view->height } } });
 			voe_render_pass_end(gpu);
 		}
@@ -718,9 +769,11 @@ int main(int argc, char *argv[])
 			// session.h has no case for it; this is the other half
 			// of what marks the project unsaved (session.h).
 			// And so is an entity the Add menu, Delete or Duplicate
-			// queued (scene.h).
+			// queued (scene.h), and a gizmo move: an edit no menu
+			// asked for, the same half as an Inspector number
+			// dragged (gizmo.h).
 			if (scene.inspector.replaced > 0 ||
-			    scene.structural > 0) {
+			    scene.structural > 0 || gizmo.moved > 0) {
 				voe_editor_session_edited(&session);
 				voe_editor_undo_edited(&undo);
 			}
