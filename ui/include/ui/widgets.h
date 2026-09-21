@@ -39,168 +39,6 @@
 // window anything, and its tests run with no window system at all — the pointer
 // being a value is what makes every case below testable, drag included.
 //
-// ---- WHY THE ANSWER ARRIVES AFTER voe_ui_frame_end AND NOT AT THE CALL ----
-//
-// A widget call hands back a voe_ui_node and says nothing about what the pointer
-// is doing, because at the moment of the call NOTHING HAS A RECTANGLE YET — see
-// layout.h on why nothing is laid out until the frame ends. So the hit test
-// happens inside voe_ui_frame_end, against the rectangles arrange has just
-// worked out, and voe_ui_button_action reads the result out afterwards.
-//
-// The alternative is what most immediate-mode interfaces do: answer at the call
-// site from last frame's geometry. That is a click tested against where the
-// button WAS, which is wrong exactly when it matters — the frame a panel opened,
-// a row reflowed, or a label grew. This way a click is always tested against the
-// arrangement the person was looking at.
-//
-// ---- IDENTITY ----
-//
-// A WIDGET IS NAMED BY ITS PATH AND NOT BY ITS PLACE. Every panel and every
-// button takes a `name` and an `index`, and its key is the enclosing panel's key
-// mixed with both. A named widget passes its name and nought; a widget in a loop
-// passes one name and the loop counter. The key is stable while the shape of the
-// tree is, which is all immediate mode needs: the same calls in the same order
-// name the same widgets next frame, and a button that moves because a row above
-// it grew is still the same button.
-//
-// IT IS NOT __LINE__, AND THAT IS THE WHOLE REASON `index` EXISTS. A line number
-// is identical for every iteration of a loop, so every button in a list would be
-// one button — which reads as the list sharing a highlight, not as a bug in
-// naming.
-//
-// TWO WIDGETS WITH THE SAME KEY REFUSE THE FRAME. They do not quietly share
-// state, which is the failure this scheme exists to prevent and the one that is
-// almost impossible to see: the second button lights up when the first is
-// hovered and nothing anywhere says why. So the duplicate is caught at the call
-// that made it, named on stderr with its name and index, and voe_ui_frame_end
-// comes back false — the same refusal channel a frame that wanted too many nodes
-// uses, for the same reason: it is the caller's mistake, it is reported once,
-// and the next frame lays out normally.
-//
-// ---- THE THEME ----
-//
-// EVERY WIDGET DRAWS FROM THE NEAREST THEME IN FORCE (ADR-0170). voe_ui_theme_set
-// gives the context the one it falls back to, the caller's memory and outliving
-// the context exactly as the font does; voe_ui_theme_push/voe_ui_theme_pop put
-// another in force for a subtree, nested to any depth. A widget reads whichever
-// is in force AT THE CALL THAT MAKES IT, once, and keeps it — a push and a pop
-// either side of a call already made does not repaint it, because the frame is
-// built forwards and a widget's colours are already decided the moment it exists.
-// A widget with no theme anywhere in force is the caller's bug and asserts,
-// exactly as a label with no font does.
-//
-// A LABEL'S NATURAL SIZE IS WHAT THE FONT MEASURES, TIMES THE THEME'S OWN
-// `text_size` OVER ONE EM, AND THE MULTIPLICATION HAPPENS WHERE THE STRING IS
-// MEASURED. So the number layout sees is already the right size and everything
-// downstream is ordinary layout: a bigger theme takes more room and the row
-// grows around it, while gaps and padding — which are millimetres the caller
-// wrote — do not move. `text_size` IS THE ONE PLACE A TEXT SIZE IS SAID
-// (voe_ui_text_scale_set is gone for exactly this reason): a caller wanting a
-// bigger interface authors a bigger theme rather than scaling on top of one.
-//
-// IT IS NOT A SECOND SCALE AND THERE IS NO SECOND SPACE. The surface has one
-// scale, and it is the caller's (ADR-0104): pixels per millimetre, applied to
-// the whole surface, outside this folder entirely. `text_size` is millimetres
-// INSIDE those millimetres, on one kind of content, and the two compose by the
-// caller's own division happening before either of them is in the picture —
-// there is never a conversion between them to get wrong.
-//
-// ---- THE SCROLL AREA ----
-//
-// THE OFFSET IS REMEMBERED HERE AND NOT IN LAYOUT, because remembering needs an
-// identity and layout has none (layout.h, OVERFLOW). A scroll area is keyed like
-// a panel; its offset lives in a table in the context under that key,
-// `capacities.scrolls` long, and is handed to layout as the container's `scroll`
-// every frame. What is stored after layout is the offset layout USED, clamped, so
-// a remembered offset is always one the content allowed.
-//
-// AN AREA THAT IS NOT CALLED IN A FRAME IS FORGOTTEN AT THAT FRAME'S END, and
-// comes back at nought. That is transient state on purpose (ADR-0153): an area
-// that stops being called at all — a panel closed, a tab switched away — comes
-// back at the top, and nothing here is saved anywhere. An area that IS called
-// every frame keeps its offset through anything its content does, however much
-// that content changes: what brings a shorter inspector back to the top of its
-// content is the clamp, which layout runs against the content's own measure,
-// and not this table forgetting.
-//
-// A SCROLL ARRIVES AS A LENGTH IN MILLIMETRES, NEVER AS WHEEL NOTCHES. How long a
-// notch is belongs to the program; a thumbstick or a hand produces a length just
-// as well, so nothing in this folder is shaped like a mouse. The pointer's
-// `scroll` starts at the innermost scroll area under the pointer. THE AREA TAKES
-// WHAT ITS CLAMP ALLOWS, ON EACH AXIS IT SCROLLS, AND PASSES THE REST OUTWARD to
-// the next scroll area around it, and so on; what nobody can take is dropped. An
-// area at the end of a nested list therefore hands the rest of a gesture to the
-// panel it sits in, and an axis an area does not scroll passes through it whole.
-//
-// A SCROLL LANDS IN THE NEXT FRAME'S LAYOUT, not this one's. It is worked out
-// inside voe_ui_frame_end, after the hit test and against this frame's
-// rectangles, because those are the rectangles the person saw: moving content
-// mid-frame would hit test a wheel, a thumb or a click against an arrangement
-// nobody was looking at. The price is one frame between the gesture and the
-// movement.
-//
-// THE SCROLLBAR IS DRAWN OVER THE CONTENT AND TAKES NO LAYOUT SPACE, so a bar
-// appearing never re-wraps what is under it. It sits inside the area's rectangle
-// along the far edge — right for Y, bottom for X — only on an axis that scrolls
-// and has something to scroll, after the area's children in paint order and in
-// front of them for the pointer. Content that must stay clear of it is padded:
-// give the area a right or bottom padding of the bar's thickness.
-//
-// ITS THUMB IS DRAGGED AND ITS TRACK IS PAGED. Pressing the thumb holds it and the
-// offset follows the pointer along the track — a gesture that carries on off the
-// bar and off the surface, as a number box's does. A press on the track outside
-// the thumb moves one arranged length towards the pointer, once per press, and
-// holds nothing.
-//
-// ---- WHAT IS NOT HERE ----
-//
-// TYPING EXISTS FOR THE FIELD AND THE NUMBER BOX AND FOR NOTHING ELSE,
-// THROUGH ONE KEYBOARD FOCUS THAT THIS FOLDER HOLDS (ADR-0192). At most one
-// of them has it; a number box takes it by a click — see
-// voe_ui_number_begin. THE FIELD ITSELF HAS NO SELECTION BUT THE WHOLE TEXT
-// THE FOCUS ARRIVES WITH, NO CLIPBOARD, NO MOVING THE CARET AND NO MULTIPLE
-// LINES: what it does is replace that selection, append at the end, delete
-// from the end, and hand back what came of that. A caret that can be moved,
-// a range that can be cut, and a second line are later work built on top of
-// this one.
-//
-// WHILE A FIELD IS FOCUSED ITS TEXT LIVES IN THE CONTEXT AND NOT WITH THE
-// CALLER. It is copied from the caller's `text` when the focus arrives, and
-// that `text` is not read again until the focus leaves — so a caller keeps
-// no copy of an edit, and Escape can put the caller's own text back without
-// the caller having saved it. Enter, Tab or a press elsewhere commits;
-// Escape cancels; Tab moves the focus to the next field or number box made
-// in the frame. voe_ui_typing says whether either held the focus when the
-// last frame ended, so a program can keep its own shortcuts from a person
-// typing.
-//
-// THE FIELD IS GIVEN ITS TEXT AS A VALUE AND COMPOSES ITS OWN LABEL, RATHER
-// THAN TAKING ONE IN AS A BUTTON DOES, because the caret is measured from
-// that label's own rectangle: a label a caller composed in could be anything,
-// and the field would be guessing where its box ended. WHAT COMES BACK IS THE
-// EDITED TEXT AND NOT THE CALLER'S OWN BUFFER WRITTEN INTO, for the same
-// reason a number box hands back a value and not a distance — a field cannot
-// see how the caller's text is owned, so the honest answer is a value the
-// caller may store however it likes. And WHERE THE TYPED BYTES CAME FROM IS
-// NOT THIS FOLDER'S BUSINESS: a keymap read in `platform`, an IME, anything
-// else that turns a key into UTF-8 all produce the same voe_ui_keyboard, and
-// this folder decodes nothing about the device behind it.
-//
-// A FIELD COSTS TWO NODES — itself and the label it composes — and up to one
-// element record per letter that draws, plus its own background, while it
-// is focused one caret, and while its whole text is selected one `inverse`
-// rectangle behind the letters: no more than a label put inside a button already
-// costs. NO BORDER, LIKE THE NUMBER BOX: its background is a theme role and it
-// needs the nearest theme in force, but two records are a panel's and a
-// button's, not this one's.
-//
-// No scrolling by a program and no scrolling to a node yet: both wait on a
-// focus that reaches a scroll area, which this one does not — a field's
-// focus is its own. No dragging the content itself, no smooth scrolling, and
-// no offset saved beyond the context. No checkbox and no slider: a number box
-// has no track, no ends and no range, which is what makes it the one that
-// fits a field of unknown extent.
-//
 // WHAT IS HERE INSTEAD OF A CLIP OF ITS OWN: every record is clipped to what its
 // node's clipping ancestors leave — a panel, a button or an image to its
 // voe_ui_node_visible — and a record with nothing left is not emitted and takes
@@ -237,6 +75,16 @@ void voe_ui_font_set(voe_ui_context *ui, const voe_text_font *font);
 // frame; a widget already emitted this frame keeps the colours it was given,
 // because it read them at the call that made it and not at emission. NULL is
 // the caller's bug and asserts, as a NULL font does at voe_ui_font_set.
+//
+// EVERY WIDGET DRAWS FROM THE NEAREST THEME IN FORCE (ADR-0170). voe_ui_theme_set
+// gives the context the one it falls back to, the caller's memory and outliving
+// the context exactly as the font does; voe_ui_theme_push/voe_ui_theme_pop put
+// another in force for a subtree, nested to any depth. A widget reads whichever
+// is in force AT THE CALL THAT MAKES IT, once, and keeps it — a push and a pop
+// either side of a call already made does not repaint it, because the frame is
+// built forwards and a widget's colours are already decided the moment it exists.
+// A widget with no theme anywhere in force is the caller's bug and asserts,
+// exactly as a label with no font does.
 void voe_ui_theme_set(voe_ui_context *ui, const voe_ui_theme *theme);
 
 // Puts `theme` in force for every widget made until the matching
@@ -299,8 +147,8 @@ typedef struct {
 	// Millimetres scrolled this frame, positive showing content further
 	// right or further down. The caller turns its wheel's notches into a
 	// length; this folder never sees a notch. Taken by the innermost scroll
-	// area under `at`, and only while `over` — see THE SCROLL AREA at the top
-	// of this header. Nought is no scroll.
+	// area under `at`, and only while `over` — see voe_ui_scroll_begin.
+	// Nought is no scroll.
 	voe_math_float2 scroll;
 } voe_ui_pointer;
 
@@ -349,6 +197,28 @@ typedef enum {
 // does.
 //
 // Closed by voe_ui_end, like any other container.
+//
+// A WIDGET IS NAMED BY ITS PATH AND NOT BY ITS PLACE. Every panel and every
+// button takes a `name` and an `index`, and its key is the enclosing panel's key
+// mixed with both. A named widget passes its name and nought; a widget in a loop
+// passes one name and the loop counter. The key is stable while the shape of the
+// tree is, which is all immediate mode needs: the same calls in the same order
+// name the same widgets next frame, and a button that moves because a row above
+// it grew is still the same button.
+//
+// IT IS NOT __LINE__, AND THAT IS THE WHOLE REASON `index` EXISTS. A line number
+// is identical for every iteration of a loop, so every button in a list would be
+// one button — which reads as the list sharing a highlight, not as a bug in
+// naming.
+//
+// TWO WIDGETS WITH THE SAME KEY REFUSE THE FRAME. They do not quietly share
+// state, which is the failure this scheme exists to prevent and the one that is
+// almost impossible to see: the second button lights up when the first is
+// hovered and nothing anywhere says why. So the duplicate is caught at the call
+// that made it, named on stderr with its name and index, and voe_ui_frame_end
+// comes back false — the same refusal channel a frame that wanted too many nodes
+// uses, for the same reason: it is the caller's mistake, it is reported once,
+// and the next frame lays out normally.
 voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
 			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container);
@@ -372,6 +242,22 @@ typedef enum {
 // NEEDS A FONT AND A THEME, the nearest of each in force: the font to measure
 // and draw the string, the theme for `text_size` and for `role`'s colour.
 // Either missing is the caller's bug and asserts.
+//
+// A LABEL'S NATURAL SIZE IS WHAT THE FONT MEASURES, TIMES THE THEME'S OWN
+// `text_size` OVER ONE EM, AND THE MULTIPLICATION HAPPENS WHERE THE STRING IS
+// MEASURED. So the number layout sees is already the right size and everything
+// downstream is ordinary layout: a bigger theme takes more room and the row
+// grows around it, while gaps and padding — which are millimetres the caller
+// wrote — do not move. `text_size` IS THE ONE PLACE A TEXT SIZE IS SAID
+// (voe_ui_text_scale_set is gone for exactly this reason): a caller wanting a
+// bigger interface authors a bigger theme rather than scaling on top of one.
+//
+// IT IS NOT A SECOND SCALE AND THERE IS NO SECOND SPACE. The surface has one
+// scale, and it is the caller's (ADR-0104): pixels per millimetre, applied to
+// the whole surface, outside this folder entirely. `text_size` is millimetres
+// INSIDE those millimetres, on one kind of content, and the two compose by the
+// caller's own division happening before either of them is in the picture —
+// there is never a conversion between them to get wrong.
 voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
 			      voe_ui_text_role role);
 
@@ -416,6 +302,18 @@ voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
 // What the pointer did to one button. Read after voe_ui_frame_end, through the
 // node the button call handed back; reading it before, or through a node that is
 // not a button, is the caller's bug and asserts.
+//
+// A widget call hands back a voe_ui_node and says nothing about what the pointer
+// is doing, because at the moment of the call NOTHING HAS A RECTANGLE YET — see
+// layout.h on why nothing is laid out until the frame ends. So the hit test
+// happens inside voe_ui_frame_end, against the rectangles arrange has just
+// worked out, and voe_ui_button_action reads the result out afterwards.
+//
+// The alternative is what most immediate-mode interfaces do: answer at the call
+// site from last frame's geometry. That is a click tested against where the
+// button WAS, which is wrong exactly when it matters — the frame a panel opened,
+// a row reflowed, or a label grew. This way a click is always tested against the
+// arrangement the person was looking at.
 typedef struct {
 	// The pointer is over it and nothing in front of it took the pointer
 	// first. False while the pointer is elsewhere, even mid-drag.
@@ -522,6 +420,10 @@ voe_ui_node voe_ui_choice_begin(voe_ui_context *ui, const char *name,
 // alike, in call order.
 //
 // Closed by voe_ui_end, like any other container.
+//
+// No checkbox here, and the slider is ui/slider.h's: a number box has no
+// track, no ends and no range, which is what makes it the one that fits a
+// field of unknown extent.
 voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 				uint32_t index, double value,
 				double per_millimetre);
@@ -639,6 +541,46 @@ void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);
 // voe_ui_field_result. TAB MOVES THE FOCUS to the next field or number box
 // made after this one in the frame, wrapping to the first; that one is
 // seeded and selected the next frame.
+//
+// TYPING EXISTS FOR THE FIELD AND THE NUMBER BOX AND FOR NOTHING ELSE,
+// THROUGH ONE KEYBOARD FOCUS THAT THIS FOLDER HOLDS (ADR-0192). At most one
+// of them has it; a number box takes it by a click — see
+// voe_ui_number_begin. THE FIELD ITSELF HAS NO SELECTION BUT THE WHOLE TEXT
+// THE FOCUS ARRIVES WITH, NO CLIPBOARD, NO MOVING THE CARET AND NO MULTIPLE
+// LINES: what it does is replace that selection, append at the end, delete
+// from the end, and hand back what came of that. A caret that can be moved,
+// a range that can be cut, and a second line are later work built on top of
+// this one.
+//
+// WHILE A FIELD IS FOCUSED ITS TEXT LIVES IN THE CONTEXT AND NOT WITH THE
+// CALLER. It is copied from the caller's `text` when the focus arrives, and
+// that `text` is not read again until the focus leaves — so a caller keeps
+// no copy of an edit, and Escape can put the caller's own text back without
+// the caller having saved it. Enter, Tab or a press elsewhere commits;
+// Escape cancels; Tab moves the focus to the next field or number box made
+// in the frame. voe_ui_typing says whether either held the focus when the
+// last frame ended, so a program can keep its own shortcuts from a person
+// typing.
+//
+// THE FIELD IS GIVEN ITS TEXT AS A VALUE AND COMPOSES ITS OWN LABEL, RATHER
+// THAN TAKING ONE IN AS A BUTTON DOES, because the caret is measured from
+// that label's own rectangle: a label a caller composed in could be anything,
+// and the field would be guessing where its box ended. WHAT COMES BACK IS THE
+// EDITED TEXT AND NOT THE CALLER'S OWN BUFFER WRITTEN INTO, for the same
+// reason a number box hands back a value and not a distance — a field cannot
+// see how the caller's text is owned, so the honest answer is a value the
+// caller may store however it likes. And WHERE THE TYPED BYTES CAME FROM IS
+// NOT THIS FOLDER'S BUSINESS: a keymap read in `platform`, an IME, anything
+// else that turns a key into UTF-8 all produce the same voe_ui_keyboard, and
+// this folder decodes nothing about the device behind it.
+//
+// A FIELD COSTS TWO NODES — itself and the label it composes — and up to one
+// element record per letter that draws, plus its own background, while it
+// is focused one caret, and while its whole text is selected one `inverse`
+// rectangle behind the letters: no more than a label put inside a button already
+// costs. NO BORDER, LIKE THE NUMBER BOX: its background is a theme role and it
+// needs the nearest theme in force, but two records are a panel's and a
+// button's, not this one's.
 voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
 			 const char *text, voe_ui_sizing sizing);
 
@@ -727,6 +669,56 @@ typedef struct {
 // show later in the very frame that opened the area.
 //
 // Closed by voe_ui_end, like any other container.
+//
+// THE OFFSET IS REMEMBERED HERE AND NOT IN LAYOUT, because remembering needs an
+// identity and layout has none (layout.h, OVERFLOW). A scroll area is keyed like
+// a panel; its offset lives in a table in the context under that key,
+// `capacities.scrolls` long, and is handed to layout as the container's `scroll`
+// every frame. What is stored after layout is the offset layout USED, clamped, so
+// a remembered offset is always one the content allowed.
+//
+// AN AREA THAT IS NOT CALLED IN A FRAME IS FORGOTTEN AT THAT FRAME'S END, and
+// comes back at nought. That is transient state on purpose (ADR-0153): an area
+// that stops being called at all — a panel closed, a tab switched away — comes
+// back at the top, and nothing here is saved anywhere. An area that IS called
+// every frame keeps its offset through anything its content does, however much
+// that content changes: what brings a shorter inspector back to the top of its
+// content is the clamp, which layout runs against the content's own measure,
+// and not this table forgetting.
+//
+// A SCROLL ARRIVES AS A LENGTH IN MILLIMETRES, NEVER AS WHEEL NOTCHES. How long a
+// notch is belongs to the program; a thumbstick or a hand produces a length just
+// as well, so nothing in this folder is shaped like a mouse. The pointer's
+// `scroll` starts at the innermost scroll area under the pointer. THE AREA TAKES
+// WHAT ITS CLAMP ALLOWS, ON EACH AXIS IT SCROLLS, AND PASSES THE REST OUTWARD to
+// the next scroll area around it, and so on; what nobody can take is dropped. An
+// area at the end of a nested list therefore hands the rest of a gesture to the
+// panel it sits in, and an axis an area does not scroll passes through it whole.
+//
+// A SCROLL LANDS IN THE NEXT FRAME'S LAYOUT, not this one's. It is worked out
+// inside voe_ui_frame_end, after the hit test and against this frame's
+// rectangles, because those are the rectangles the person saw: moving content
+// mid-frame would hit test a wheel, a thumb or a click against an arrangement
+// nobody was looking at. The price is one frame between the gesture and the
+// movement.
+//
+// THE SCROLLBAR IS DRAWN OVER THE CONTENT AND TAKES NO LAYOUT SPACE, so a bar
+// appearing never re-wraps what is under it. It sits inside the area's rectangle
+// along the far edge — right for Y, bottom for X — only on an axis that scrolls
+// and has something to scroll, after the area's children in paint order and in
+// front of them for the pointer. Content that must stay clear of it is padded:
+// give the area a right or bottom padding of the bar's thickness.
+//
+// ITS THUMB IS DRAGGED AND ITS TRACK IS PAGED. Pressing the thumb holds it and the
+// offset follows the pointer along the track — a gesture that carries on off the
+// bar and off the surface, as a number box's does. A press on the track outside
+// the thumb moves one arranged length towards the pointer, once per press, and
+// holds nothing.
+//
+// No scrolling by a program and no scrolling to a node yet: both wait on a
+// focus that reaches a scroll area, which this one does not — a field's
+// focus is its own. No dragging the content itself, no smooth scrolling, and
+// no offset saved beyond the context.
 voe_ui_node voe_ui_scroll_begin(voe_ui_context *ui, const char *name,
 				uint32_t index, voe_ui_container container,
 				voe_ui_scroll_axes axes);
