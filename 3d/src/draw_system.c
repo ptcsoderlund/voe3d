@@ -7,70 +7,6 @@
 // that ever measures slow it is a later card with a number attached, and nothing
 // above this line changes.
 //
-// THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
-// NOTHING. Every panel is held back and sorted, and the only draws issued during
-// a walk are the world's solid meshes — which nothing later can get in front of,
-// because the depth buffer resolves them per pixel and the clear has not
-// happened yet. So the panels could be walked first and the picture would be
-// identical.
-//
-// THE FRAME'S HIDDEN ENTITY IS TESTED FIRST IN BOTH WALKS, AHEAD OF THE COMPONENT
-// LOOKUPS AND OF EVERY SORT. It is two integers compared against the row's owner,
-// which is why it goes in front of the lookups rather than in with the other
-// skips: a row that is not going to be drawn does not read the components it
-// would have been drawn with, and it reaches no group — no matrix, no depth key,
-// no sort slot. That ordering is the only cost of the field to a frame that
-// hides nothing. See the header and ADR-0158 for why there is one such entity
-// and not a list.
-//
-// THE CAMERA AND THE SUN ARE READ THE SAME WAY AND BOTH ARE REQUIRED. Row zero
-// of each table, because there is exactly one of each — see the header for why
-// more than one is a mistake rather than a choice, and why a world with no sun
-// asserts here rather than drawing something black.
-//
-// A DRAW THAT IS REFUSED STOPS ITS GROUP BUT NOT THE FRAME. Running out of room
-// for objects means the device was made for fewer than this scene has; the loop
-// still ends and presents the frame, so a person sees most of the scene and a
-// line on stderr rather than a black window — which is also why this returns
-// nothing: there is no answer here the loop should act on. The alternative —
-// abandoning the recording — would leave the slot's fence unsignalled.
-//
-// THE CAMERA IS WORKED OUT IN voe_3d_draw_system_frame AND NOWHERE ELSE. The
-// loop needs it for the pass and this system needs its view for the sort, so
-// the one function computes it and the loop carries the answer to both. Nothing
-// in _run reads the camera table.
-//
-// THE LATER GROUPS ARE BUILT ON THE WAY THROUGH THE FIRST ONE AND NOT BY MORE
-// WALKS. An entity that cannot be drawn where it is found has its record and its
-// geometry set aside as the mesh table is walked, together with the depth to sort
-// on where its group sorts, so the two lookups it costs happen once. What is set
-// aside is the record itself rather than the row, because a later pass would
-// otherwise look the same two components up again.
-//
-// THERE ARE FOUR GROUPS AND ONLY ONE OF THEM CAN BE DRAWN AS IT IS FOUND. The
-// layer says which side of the depth clear an object is on and the alpha mode
-// says which pass it is in on that side, and the two are independent — so the
-// walk classifies into world-solid, world-blended, overlay-solid and
-// overlay-blended, and issues the first of those immediately. Nothing that comes
-// later can get in front of a world-solid object: the depth buffer resolves it
-// per pixel, and the clear has not happened yet.
-//
-// THE OVERLAY HAS A SOLID GROUP FROM THE START AND THAT WAS A CHOICE. Text is
-// blended, so the overlay's blended group is what the first user of this needs
-// and the solid one could have waited. It is here because the layer and the alpha
-// mode are separate axes: leaving the solid group out would mean an opaque
-// drawable marked overlay drew in the world instead, silently and correctly
-// enough to look like nothing was wrong. It costs one branch in a walk that is
-// already happening.
-//
-// EACH GROUP'S SCRATCH IS SIZED BY THE WHOLE OF BOTH TABLES AND NOT BY WHAT
-// LANDS IN IT. Which group a drawable is in is not known until both walks have
-// finished, so the bound for each of them is every mesh and every panel there
-// is; it is an arena, it is rewound at the end of the frame, and counting first
-// would be a second walk to save memory that is given back a millisecond later.
-// The overlay's solid group is the one exception and is sized by the meshes
-// alone: a panel is blended and cannot land in it.
-//
 // THE DEPTH CLEAR IS render'S CALL AND `3d` LEARNS NOTHING FROM MAKING IT. It
 // takes no value: the number depth is cleared to lives in `render` beside the
 // convention it belongs to, and this folder neither supplies it nor is told it.
@@ -122,8 +58,9 @@ static bool is_the_same_entity(voe_ecs_entity a, voe_ecs_entity b)
 // render's geometry pools plus the record it is shaded with; a panel draw is a
 // range of this frame's element buffer plus the one matrix that puts those
 // elements where the panel is. They go into the same groups, through the same
-// sort, in one order — see draw_group, and see the header for why a separate
-// pass for panels would be a bug rather than a simplification.
+// sort, in one order — see draw_group, and see voe_3d_draw_system_run in
+// 3d/draw_system.h for why a separate pass for panels would be a bug rather
+// than a simplification.
 //
 // A UNION AND NOT BOTH SETS OF FIELDS, because an entry is a hundred and forty
 // bytes of matrices either way and every group is sized for every drawable in
@@ -232,13 +169,21 @@ static voe_render_object object_of(const voe_scene_transform *transform,
 	return object;
 }
 
-// Room in the arena for one group, sized for the whole mesh table — see the
-// header for why that bound and not a measured one. A sorted group gets the two
+// Room in the arena for one group, sized for the whole mesh table — see below
+// for why that bound and not a measured one. A sorted group gets the two
 // arrays the sort works in; an unsorted one has nothing to sort and gets neither.
 //
 // A TABLE WITH NOTHING IN IT PUSHES NOTHING. voe_base_arena_push asserts on a
 // size of nought (base/arena.h), so an empty group is the zeroed struct and the
 // fill and the draw below both do nothing with it.
+//
+// EACH GROUP'S SCRATCH IS SIZED BY THE WHOLE OF BOTH TABLES AND NOT BY WHAT
+// LANDS IN IT. Which group a drawable is in is not known until both walks have
+// finished, so the bound for each of them is every mesh and every panel there
+// is; it is an arena, it is rewound at the end of the frame, and counting first
+// would be a second walk to save memory that is given back a millisecond later.
+// The overlay's solid group is the one exception and is sized by the meshes
+// alone: a panel is blended and cannot land in it.
 static struct group group_new(voe_base_arena *arena, uint32_t capacity,
 			      bool sorted)
 {
@@ -334,6 +279,11 @@ static bool draw_group(voe_render_device *device, const struct group *group)
 	return true;
 }
 
+// THE CAMERA AND THE SUN ARE READ THE SAME WAY AND BOTH ARE REQUIRED. Row zero
+// of each table, because there is exactly one of each — see
+// voe_3d_draw_system_frame in 3d/draw_system.h for why more than one is a
+// mistake rather than a choice, and why a world with no sun asserts here rather
+// than drawing something black.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size)
 {
@@ -364,10 +314,10 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.view.reserved = 0.0f;
 	frame.light = the_sun(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
-	// saying nothing — see the header. The same for the outline and the
-	// gizmo: a zeroed record outlines nothing and stands no gizmo, so a
-	// caller that never sets one of these fields gets the picture it would
-	// have got before they existed.
+	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
+	// outline and the gizmo: a zeroed record outlines nothing and stands no
+	// gizmo, so a caller that never sets one of these fields gets the
+	// picture it would have got before they existed.
 	frame.hidden = (voe_ecs_entity){ 0 };
 	frame.outlined = (voe_3d_outlined){ 0 };
 	frame.gizmo = (voe_3d_gizmoed){ 0 };
@@ -455,6 +405,51 @@ static void draw_gizmo_mesh(voe_render_device *device, voe_3d_gizmo_mesh mesh,
 		(void)voe_render_frame_draw(device, quads, object);
 }
 
+// THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
+// NOTHING. Every panel is held back and sorted, and the only draws issued during
+// a walk are the world's solid meshes — which nothing later can get in front of,
+// because the depth buffer resolves them per pixel and the clear has not
+// happened yet. So the panels could be walked first and the picture would be
+// identical.
+//
+// THE FRAME'S HIDDEN ENTITY IS TESTED FIRST IN BOTH WALKS, AHEAD OF THE COMPONENT
+// LOOKUPS AND OF EVERY SORT. It is two integers compared against the row's owner,
+// which is why it goes in front of the lookups rather than in with the other
+// skips: a row that is not going to be drawn does not read the components it
+// would have been drawn with, and it reaches no group — no matrix, no depth key,
+// no sort slot. That ordering is the only cost of the field to a frame that
+// hides nothing. See `hidden` in 3d/draw_system.h and ADR-0158 for why there is
+// one such entity and not a list.
+//
+// THE LATER GROUPS ARE BUILT ON THE WAY THROUGH THE FIRST ONE AND NOT BY MORE
+// WALKS. An entity that cannot be drawn where it is found has its record and its
+// geometry set aside as the mesh table is walked, together with the depth to sort
+// on where its group sorts, so the two lookups it costs happen once. What is set
+// aside is the record itself rather than the row, because a later pass would
+// otherwise look the same two components up again.
+//
+// THERE ARE FOUR GROUPS AND ONLY ONE OF THEM CAN BE DRAWN AS IT IS FOUND. The
+// layer says which side of the depth clear an object is on and the alpha mode
+// says which pass it is in on that side, and the two are independent — so the
+// walk classifies into world-solid, world-blended, overlay-solid and
+// overlay-blended, and issues the first of those immediately. Nothing that comes
+// later can get in front of a world-solid object: the depth buffer resolves it
+// per pixel, and the clear has not happened yet.
+//
+// THE OVERLAY HAS A SOLID GROUP FROM THE START AND THAT WAS A CHOICE. Text is
+// blended, so the overlay's blended group is what the first user of this needs
+// and the solid one could have waited. It is here because the layer and the alpha
+// mode are separate axes: leaving the solid group out would mean an opaque
+// drawable marked overlay drew in the world instead, silently and correctly
+// enough to look like nothing was wrong. It costs one branch in a walk that is
+// already happening.
+//
+// A DRAW THAT IS REFUSED STOPS ITS GROUP BUT NOT THE FRAME. Running out of room
+// for objects means the device was made for fewer than this scene has; the loop
+// still ends and presents the frame, so a person sees most of the scene and a
+// line on stderr rather than a black window — which is also why this returns
+// nothing: there is no answer here the loop should act on. The alternative —
+// abandoning the recording — would leave the slot's fence unsignalled.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame)
 {
@@ -511,7 +506,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// Every drawable there is, meshes and panels together, because which
 	// group a thing lands in is not known until both walks have finished —
-	// the same bound the header explains, over one more table.
+	// the same bound group_new explains, over one more table.
 	world_blended = group_new(arena, count + panel_count, true);
 	overlay_solid = group_new(arena, count, false);
 	overlay_blended = group_new(arena, count + panel_count, true);
@@ -650,7 +645,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// entity it belongs to was drawn where it really is, in its own layer,
 	// untouched. A world with nothing above it has not cleared depth at that
 	// point, so this clears it: the clear is what the outline is drawn
-	// against, and it is made once either way. See the header and ADR-0203.
+	// against, and it is made once either way. See `outlined` in
+	// 3d/draw_system.h and ADR-0203.
 	//
 	// A REFUSED TRANSIENT RANGE DRAWS NO OUTLINE AND NOTHING ELSE CHANGES.
 	// render has already said so on stderr, and the rest of the frame is
