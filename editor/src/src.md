@@ -103,6 +103,12 @@ carries it out.
   click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
+- `undo.h` — the line of scene texts a step is taken from: an edit marked, a
+  settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
+  a neighbouring one back into the project's world (ADR-0204).
+- `undo.c` — the states pushed once, the compare a settled edit makes against
+  the state the world is, the throwing away of what could have been redone, and
+  the selection re-found by its authored id after a step.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
