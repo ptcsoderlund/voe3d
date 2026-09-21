@@ -28,6 +28,7 @@
 #include <base/error.h>
 #include <base/report.h>
 
+#include <ecs/structure.h>
 #include <ecs/world.h>
 
 #include <math/float3.h>
@@ -45,9 +46,10 @@
 #include <stdint.h>
 #include <string.h>
 
-// The project's own arena, and the scratch a save's text is built in. Block
-// sizes, not limits.
+// The project's own arena, the arena a scene read owns (project.h) and the
+// scratch a save's text is built in. Block sizes, not limits.
 #define PROJECT_ARENA (4u * 1024u * 1024u)
+#define PROJECT_SCENE_ARENA (1u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
 
 // What a project's world may hold. Seven component types, four of them with
@@ -186,7 +188,9 @@ voe_editor_project *voe_editor_project_new_untitled(void)
 	voe_base_arena *arena = voe_base_arena_new(PROJECT_ARENA);
 	voe_editor_project *project = voe_base_arena_push(arena, sizeof *project);
 
-	*project = (voe_editor_project){ .arena = arena };
+	*project = (voe_editor_project){
+		.arena = arena, .scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
+	};
 	project->world = world_new(arena);
 	build_untitled(project->world);
 
@@ -258,16 +262,20 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 	}
 
 	project = voe_base_arena_push(arena, sizeof *project);
-	*project = (voe_editor_project){ .arena = arena };
+	*project = (voe_editor_project){
+		.arena = arena, .scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
+	};
 	project->world = world_new(arena);
 
 	voe_base_report_error_clear();
 	if (!voe_authoring_scene_read((const char *)scene_bytes, scene_size,
-				      project->world, arena, &kept)) {
+				      project->world, project->scene_arena,
+				      &kept)) {
 		// A world too small to hold the file is the same failure, and
 		// reported the same way (authoring/scene_read.h) — there is
 		// nothing more to add here.
 		voe_editor_notice_from_report(why, scene_path);
+		voe_base_arena_destroy(project->scene_arena);
 		voe_base_arena_destroy(arena);
 		return NULL;
 	}
@@ -328,8 +336,7 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	scene_path = voe_platform_path_join(scratch, target, SCENE_FILE);
 
 	voe_base_report_error_clear();
-	if (!voe_authoring_scene_write(project->world, &project->kept,
-				       scratch, &scene)) {
+	if (!voe_editor_project_scene_text(project, scratch, &scene)) {
 		voe_editor_notice_from_report(why, scene_path);
 		voe_base_arena_destroy(scratch);
 		return false;
@@ -368,6 +375,56 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	return true;
 }
 
+bool voe_editor_project_scene_text(const voe_editor_project *project,
+				   voe_base_arena *arena,
+				   voe_authoring_text *out)
+{
+	VOE_BASE_ASSERT(project != NULL, "asking no project for its scene text");
+	VOE_BASE_ASSERT(arena != NULL, "writing a project's scene text nowhere");
+	VOE_BASE_ASSERT(out != NULL, "writing a project's scene text with nowhere to put it");
+
+	return voe_authoring_scene_write(project->world, &project->kept, arena,
+					 out);
+}
+
+bool voe_editor_project_scene_set(voe_editor_project *project, const char *text,
+				  size_t size, voe_editor_notice *why)
+{
+	const voe_ecs_entity *authored;
+	uint32_t count;
+	uint32_t i;
+	voe_authoring_kept kept;
+
+	VOE_BASE_ASSERT(project != NULL, "setting no project's scene");
+	VOE_BASE_ASSERT(text != NULL, "setting a project's scene to no text");
+	VOE_BASE_ASSERT(why != NULL,
+			"setting a project's scene with nowhere to say why");
+
+	// EVERY AUTHORED ENTITY GOES, AND THE QUEUE IS APPLIED BEFORE THE READ,
+	// because authoring/scene_read.h reads into a world with nothing
+	// authored in it. An entity the engine made for itself has no identity
+	// and is not one of these.
+	authored = voe_scene_identity_entities(project->world);
+	count = voe_scene_identity_count(project->world);
+	for (i = 0; i < count; i++)
+		VOE_BASE_ASSERT(
+			voe_ecs_structure_destroy(project->world, authored[i]),
+			"a project's structural queue is too small to empty its own world");
+	voe_ecs_structure_apply(project->world);
+
+	voe_base_arena_clear(project->scene_arena);
+
+	voe_base_report_error_clear();
+	if (!voe_authoring_scene_read(text, size, project->world,
+				      project->scene_arena, &kept)) {
+		voe_editor_notice_from_report(why, "the scene");
+		return false;
+	}
+
+	project->kept = kept;
+	return true;
+}
+
 const char *voe_editor_project_name(const voe_editor_project *project)
 {
 	VOE_BASE_ASSERT(project != NULL, "asking the name of no project");
@@ -381,5 +438,6 @@ void voe_editor_project_destroy(voe_editor_project *project)
 {
 	VOE_BASE_ASSERT(project != NULL, "destroying no project");
 
+	voe_base_arena_destroy(project->scene_arena);
 	voe_base_arena_destroy(project->arena);
 }

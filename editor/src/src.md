@@ -15,9 +15,11 @@ carries it out.
   `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its own arena, the world in it, the kept sections it
-  was read with, its absolute folder and whether it has unsaved changes (ADR-0164).
-- `project.c` — opening, making and saving a project, the one `world_new` every
+- `project.h` — the project being worked on: its own arena, the arena a scene read owns, the world
+  in it, the kept sections it was read with, its absolute folder and whether it has unsaved changes
+  (ADR-0164), and its scene handed out as text or read back in from one.
+- `project.c` — opening, making and saving a project, the scene written out as
+  text and a text read back into the same world, the one `world_new` every
   world is built by, and the untitled scene's cube and light, which are this
   file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
