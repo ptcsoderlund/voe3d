@@ -21,7 +21,7 @@ rules are decision 0168.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, selection outlines.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — parts a program calls in its frame loop: the frame, capture to a PNG, a headless start.
-- **editor** — authoring a scene: top bar, Scene list, views, Inspector, files, Preferences. A leaf.
+- **editor** — authoring a scene: top bar, Scene list, views, Inspector, undo, files, Preferences.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -46,8 +46,7 @@ rules are decision 0168.
 - 0174, 0175, 0176 — 006's cards merged back; a new folder registers itself; `theme` sees `render`.
 - 0177 — To see what was drawn, render to a PNG; named on cards that change what is drawn.
 - 0180, 0181 — A Wayland window draws at the compositor's fractional scale, in buffer pixels.
-- 0182, 0183, 0184 — Editor text keeps scaling and hard edges; the cutoff sits half a pixel out.
-- 0185 — Oxanium is the only font; a theme naming another gets it, and there is no font choice.
+- 0182–0185 — Editor text keeps scaling and hard edges, the cutoff half a pixel out; Oxanium alone.
 - 0186, 0187, 0188 — Toward a coin game in the project's own C; Play cooks the scene as it is.
 - 0189, 0191 — An entity is only a number; a shape has a described linear colour until materials.
 - 0190 — The world owns which rows exist, through `ecs`'s structural queue; a system their values.
@@ -58,3 +57,4 @@ rules are decision 0168.
 - 0199, 0200 — An overlay belongs to its widget, swallows the cursor, takes the side that fits.
 - 0201 — The engine takes the fastest card — never software silently — and says which it took.
 - 0202, 0203 — A click picks by a ray cast against the shapes' triangles; the outline is quads.
+- 0204 — Undo is a line of whole-scene texts; a step is what an edit settles into, read back whole.
