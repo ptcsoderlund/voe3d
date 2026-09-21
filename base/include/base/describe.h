@@ -24,26 +24,6 @@
 // differs is the field's row, which says read_only for a field listed through
 // F_READ_ONLY.
 //
-// READ-ONLY IS A NOTE TO A TOOL AND NOTHING MORE. It says that an editor shows
-// the field and does not offer to change it — an authored id being the case it
-// was written for. It is not const, it does not bind the code, and the program
-// runs the same with it and without it; the mark is the declaring folder's to
-// write, on the line beside the field.
-//
-// NAMES ARE A NOTE TO A TOOL, EXACTLY AS READ-ONLY IS. A struct may carry, beside
-// its fields, a small table saying what one field's values are called:
-// VOE_BASE_DESCRIBE_STRUCT_NAMED(struct, field_list, names_list), where a names
-// list invokes its one parameter once per named field with the field's name and an
-// array of names — #define VOE_3D_SHAPE_NAMES(N) N(kind, voe_3d_shape_kind_names).
-// Entry i names value i, and a NULL entry is a value with no name, so a set
-// numbered from one leaves its first entry NULL and a tool shows that value as the
-// number it is. THE FIELD'S KIND DOES NOT CHANGE: a named field is the UINT32 it
-// already was, and the scene text it is written to is unchanged. The names array
-// belongs to the declaring folder and is extern there, so a build without
-// descriptions carries no copy of it. What a tool does with the names — a dropdown
-// of the named values — is the tool's business and not this folder's (ADR-0195,
-// ADR-0198).
-//
 // THE DECLARING FOLDER SUPPLIES THE C TYPE AND BASE SUPPLIES THE KIND. A kind is
 // a word in the list below and a size in bytes; base never maps it onto a type,
 // which is what lets it describe a maths vector or an entity while including
@@ -63,26 +43,6 @@
 // F(char[32], name, CHAR) could not have told the macro whether it held one
 // string of 32 bytes or 32 strings of one, which is why that spelling is gone in
 // favour of F(char, name, CHAR, 32).
-//
-// THE BUILD REFUSES A KIND THAT DOES NOT MATCH ITS TYPE. Every field is a
-// static_assert of one element's size against the kind's — sizeof(typeof(type))
-// exactly equal to the kind's size, for every kind, array or not — so FLOAT3 on a
-// float2 does not compile. The check is by size and nothing more — a uint32_t
-// called FLOAT32 is four bytes either way and passes. ENUM means a plain C enum,
-// which is int-sized; one given a narrower underlying type fails. A DIMENSION OF
-// 0 FAILS TOO: a zero-size array member is a GNU extension, and voe_module()
-// always builds with -Wpedantic -Werror, which turns that extension into a hard
-// error. AN EIGHTH DIMENSION FAILS AS WELL, though not as cleanly: past seven,
-// VOE_BASE_FIELD_RANK_'s counting reads one of the extra dimensions back as the
-// rank, so the dispatch below still finds a real ARRAYn/DIMSn macro rather than
-// an undefined one — and calls it with more arguments than it takes, which is
-// "too many arguments provided to function-like macro invocation", still a
-// build failure.
-//
-// COLOUR IS THREE FLOATS, LINEAR RGB, EACH 0 TO 1, LAID OUT AND SPELLED AS
-// FLOAT3. It is 12 bytes like FLOAT3 and is written and read in scene text the
-// same way; it exists so a tool can show the field as a swatch without naming
-// the component, the way QUAT lets it show three angles (ADR-0191).
 //
 // VOE_BASE_DESCRIPTIONS IS THE SWITCH, AND IT IS OFF UNLESS A BUILD ASKS. Define
 // it to 1 — on the command line, or before the first #include in a file — and the
@@ -115,6 +75,10 @@ typedef enum {
 	VOE_BASE_FIELD_FLOAT4,
 	VOE_BASE_FIELD_QUAT,
 	VOE_BASE_FIELD_FLOAT4X4,
+	// COLOUR IS THREE FLOATS, LINEAR RGB, EACH 0 TO 1, LAID OUT AND SPELLED AS
+	// FLOAT3. It is 12 bytes like FLOAT3 and is written and read in scene text the
+	// same way; it exists so a tool can show the field as a swatch without naming
+	// the component, the way QUAT lets it show three angles (ADR-0191).
 	VOE_BASE_FIELD_COLOUR,
 	VOE_BASE_FIELD_ENUM,
 	VOE_BASE_FIELD_CHAR,
@@ -139,6 +103,12 @@ typedef struct {
 	uint32_t rank;
 	// Outermost first, as C writes them; the entries past `rank` are 0.
 	uint32_t dims[VOE_BASE_FIELD_RANK_MAX];
+	// READ-ONLY IS A NOTE TO A TOOL AND NOTHING MORE. It says that an editor shows
+	// the field and does not offer to change it — an authored id being the case it
+	// was written for. It is not const, it does not bind the code, and the program
+	// runs the same with it and without it; the mark is the declaring folder's to
+	// write, on the line beside the field.
+	//
 	// True for a field listed through F_READ_ONLY: a tool shows it and does
 	// not edit it. Nothing in the struct or the program depends on it.
 	bool read_only;
@@ -210,6 +180,20 @@ static_assert(sizeof(bool) == VOE_BASE_FIELD_SIZE_BOOL, "bool is not 1 byte");
 static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 	      "a plain enum is not 4 bytes");
 
+// THE BUILD REFUSES A KIND THAT DOES NOT MATCH ITS TYPE. Every field is a
+// static_assert of one element's size against the kind's — sizeof(typeof(type))
+// exactly equal to the kind's size, for every kind, array or not — so FLOAT3 on a
+// float2 does not compile. The check is by size and nothing more — a uint32_t
+// called FLOAT32 is four bytes either way and passes. ENUM means a plain C enum,
+// which is int-sized; one given a narrower underlying type fails. A DIMENSION OF
+// 0 FAILS TOO: a zero-size array member is a GNU extension, and voe_module()
+// always builds with -Wpedantic -Werror, which turns that extension into a hard
+// error. AN EIGHTH DIMENSION FAILS AS WELL, though not as cleanly: past seven,
+// VOE_BASE_FIELD_RANK_'s counting reads one of the extra dimensions back as the
+// rank, so the dispatch below still finds a real ARRAYn/DIMSn macro rather than
+// an undefined one — and calls it with more arguments than it takes, which is
+// "too many arguments provided to function-like macro invocation", still a
+// build failure.
 #define VOE_BASE_DESCRIBE_STRUCT(struct_name, field_list)                     \
 	typedef struct {                                                      \
 		field_list(VOE_BASE_DESCRIBE_MEMBER_,                         \
@@ -218,6 +202,20 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 	VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                     \
 	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
 
+// NAMES ARE A NOTE TO A TOOL, EXACTLY AS READ-ONLY IS. A struct may carry, beside
+// its fields, a small table saying what one field's values are called:
+// VOE_BASE_DESCRIBE_STRUCT_NAMED(struct, field_list, names_list), where a names
+// list invokes its one parameter once per named field with the field's name and an
+// array of names — #define VOE_3D_SHAPE_NAMES(N) N(kind, voe_3d_shape_kind_names).
+// Entry i names value i, and a NULL entry is a value with no name, so a set
+// numbered from one leaves its first entry NULL and a tool shows that value as the
+// number it is. THE FIELD'S KIND DOES NOT CHANGE: a named field is the UINT32 it
+// already was, and the scene text it is written to is unchanged. The names array
+// belongs to the declaring folder and is extern there, so a build without
+// descriptions carries no copy of it. What a tool does with the names — a dropdown
+// of the named values — is the tool's business and not this folder's (ADR-0195,
+// ADR-0198).
+//
 // The same struct, the same checks and the same field table, plus the table that
 // names one or more fields' values.
 #define VOE_BASE_DESCRIBE_STRUCT_NAMED(struct_name, field_list, names_list)   \

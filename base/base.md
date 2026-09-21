@@ -19,16 +19,12 @@ an operating system.
 - `include/base/report.h` — the one call a recoverable problem is reported
   through, at a warning or an error, and the first error's message kept per
   thread since the last clear (ADR-0160) so a caller can read it back. Its
-  header says what a report is for, the four things a writer gets wrong: the
-  module, the newline, the file and line that are kept but not printed, and the
-  length a line is cut at — and what is kept, why the first, why per thread,
-  and when to clear.
+  header says what a writer gets wrong and when to clear.
 - `include/base/samples.h` — a run of measurements, and the three things anything
   asks one: how many, the average, the worst. Its header says why it is a period
   and not a sliding window, and why `worst` presumes a direction.
 - `include/base/describe.h` — a struct written once as the list of its fields,
   and the table that says what each one is and where it lives, with a field's
   values optionally named for a tool. Its header says why the declaring folder
-  supplies the type, what the build refuses, what the switch leaves out, and
-  what marking a field read-only or naming its values does and does not mean.
+  supplies the type and what the switch leaves out.
 - `include/base/version.h` — the placeholder that proves the folder builds.
