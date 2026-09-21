@@ -31,6 +31,8 @@ again, or to find where a claim that has started failing is written down.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
   and winding, and — drawn — that a hidden cube's outline shows through. The arithmetic half needs
   no graphics card; the drawn half skips without one.
+- `gizmo.c` — a ray across each arrow and through each square, the space that meets nothing, the
+  shaft doubling with the distance, and the two grabs and the one refusal. Needs no graphics card.
 - `shape.c` — the shape table's description, default row, intents and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
