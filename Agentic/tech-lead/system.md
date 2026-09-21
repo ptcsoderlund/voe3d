@@ -18,10 +18,10 @@ rules are decision 0168.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene → draws → a render target: meshes, shapes, picking, selection outlines.
+- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, the move gizmo.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — parts a program calls in its frame loop: the frame, capture to a PNG, a headless start.
-- **editor** — authoring a scene: top bar, Scene list, views, Inspector, undo, files, Preferences.
+- **editor** — authoring a scene: top bar, Scene list, views, gizmo, Inspector, undo, files, Preferences.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -45,16 +45,15 @@ rules are decision 0168.
 - 0170, 0171, 0172, 0178 — A theme is read in `theme`, derived in `ui` in OKLab; the nearest wins.
 - 0174, 0175, 0176 — 006's cards merged back; a new folder registers itself; `theme` sees `render`.
 - 0177 — To see what was drawn, render to a PNG; named on cards that change what is drawn.
-- 0180, 0181 — A Wayland window draws at the compositor's fractional scale, in buffer pixels.
-- 0182–0185 — Editor text keeps scaling and hard edges, the cutoff half a pixel out; Oxanium alone.
+- 0180–0185 — Wayland draws at fractional scale; editor text scales, hard-edged, Oxanium alone.
 - 0186, 0187, 0188 — Toward a coin game in the project's own C; Play cooks the scene as it is.
-- 0189, 0191 — An entity is only a number; a shape has a described linear colour until materials.
-- 0190 — The world owns which rows exist, through `ecs`'s structural queue; a system their values.
-- 0192 — `ui` holds one keyboard focus; the colour picker is a `ui` panel the caller places.
+- 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
 - 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
 - 0197 — Slider values are remembered per theme in one settings file; a theme file is never written.
-- 0199, 0200 — An overlay belongs to its widget, swallows the cursor, takes the side that fits.
+- 0192, 0199, 0200 — `ui` holds one focus; an overlay belongs to its widget and fits.
 - 0201 — The engine takes the fastest card — never software silently — and says which it took.
 - 0202, 0203 — A click picks by a ray cast against the shapes' triangles; the outline is quads.
 - 0204 — Undo is a line of whole-scene texts; a step is what an edit settles into, read back whole.
+- 0205, 0206, 0207 — The move gizmo is `3d`'s, its drag the editor's; state is lightness and size.
+- 0208, 0209 — 015 closes on its folders and its walk; 016 clears the caps, then `--all` again.
