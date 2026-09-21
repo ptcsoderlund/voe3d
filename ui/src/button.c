@@ -10,38 +10,6 @@
 // field.c for what a press does to the focus and scroll.c for what it does to a
 // thumb rather than either of them deciding that edge a second time.
 //
-// ---- THE HIT TEST IS AFTER ARRANGE, AND THAT IS THE WHOLE OF WHY ----
-//
-// It runs inside voe_ui_frame_end, once the rectangles exist. The tempting
-// alternative — answer at the widget call, from where the button was last frame
-// — is wrong exactly when it matters: the frame a panel opened, a row reflowed,
-// or a label grew is the frame a person clicks on something that has moved. See
-// widgets.h for what that costs the caller, which is that the answer is read
-// after frame_end rather than returned by the call.
-//
-// THE LAST WIDGET IN PAINT ORDER WINS THE POINTER, because the last one painted
-// is the one in front. The loop does not stop at the first hit for that reason.
-//
-// AND A CONTAINER THAT TAKES THE POINTER CLEARS WHAT IS BEHIND IT. A container
-// declared `blocks_pointer` (ui/layout.h) is not a widget and is never itself
-// hit — it is a hole in paint order: reaching it throws away whatever was hit
-// under it, so an open overlay is solid over its whole outline and the cursor
-// cannot fall through the gaps between its rows onto the fields it covers
-// (ADR-0199). Its own children are painted after it and win the pointer back,
-// which is how the rows of that list are still clickable. It is tested against
-// the visible rectangle for the same reason every widget is, so a blocker its
-// scroll area clipped away blocks nothing. And it is here rather than in four
-// places because hover, the press that arms, the release that fires, the focus
-// a press moves and the bar a press grabs are all this one hit: clearing it
-// once is all of them.
-//
-// AND IT TESTS WHAT CAN BE SEEN, NOT WHERE THE WIDGET IS. The rectangle compared
-// is voe_ui_node_visible, so the part of a button a clipping container cut away
-// is not there for the pointer either: a widget scrolled out of sight cannot be
-// hovered, armed or pressed (ADR-0153). A gesture already under way is keyed and
-// not hit tested, so it carries on when its widget is clipped away, exactly as
-// it carries on past the surface's edge.
-//
 // ---- WHAT THE TWO IDS DO, INCLUDING THE AWKWARD CASES ----
 //
 // `hovered` is worked out afresh every frame and remembers nothing. `held` is
@@ -68,29 +36,6 @@
 //   - A REFUSED FRAME HOLDS NOTHING. It has no rectangles, so it cannot honestly
 //     say anything is hovered; carrying yesterday's answer through would be
 //     state nobody wrote.
-//
-// ---- AND WHAT A DRAG ADDS TO THEM, WHICH IS FOUR FIELDS AND NO TABLE ----
-//
-// A number box is armed and let go by every one of the rules above, unchanged —
-// it is a button as far as the press is concerned. What it adds is that the
-// frames BETWEEN the press and the release mean something, and that is the whole
-// of the difference.
-//
-// ONE GESTURE AT A TIME IS WHY THERE IS NO SECOND TABLE. Only one widget can be
-// held, so only one can be being dragged; the press position, last frame's
-// position and whether the dead zone has been crossed are about that one widget
-// and there is nothing to key them by. They sit beside `held` in the context and
-// are written when it is armed.
-//
-// THE CHANGE IS WORKED OUT IN MILLIMETRES HERE AND TURNED INTO THE CALLER'S UNIT
-// IN voe_ui_number_action, because `per_millimetre` belongs to the node and this
-// pass has a key rather than a node in its hand. It is also the honest split:
-// what happened is a distance, and what it is worth is the caller's business.
-//
-// A NUMBER BOX NEVER FIRES, and that is enforced where the release is handled
-// rather than left to the reader. Its click opens it for typing instead
-// (ADR-0192): a release inside the dead zone, over the box, that no drag has
-// crossed out of, gives it the focus a field has — see field.c.
 #include "context.h"
 
 #include <base/assert.h>
@@ -241,6 +186,37 @@ bool voe_ui_number_hidden(const voe_ui_context *ui, uint32_t node)
 	       node < open + ui->nodes[open].subtree;
 }
 
+// ---- THE HIT TEST IS AFTER ARRANGE, AND THAT IS THE WHOLE OF WHY ----
+//
+// It runs inside voe_ui_frame_end, once the rectangles exist. The tempting
+// alternative — answer at the widget call, from where the button was last frame
+// — is wrong exactly when it matters: the frame a panel opened, a row reflowed,
+// or a label grew is the frame a person clicks on something that has moved. See
+// widgets.h for what that costs the caller, which is that the answer is read
+// after frame_end rather than returned by the call.
+//
+// THE LAST WIDGET IN PAINT ORDER WINS THE POINTER, because the last one painted
+// is the one in front. The loop does not stop at the first hit for that reason.
+//
+// AND A CONTAINER THAT TAKES THE POINTER CLEARS WHAT IS BEHIND IT. A container
+// declared `blocks_pointer` (ui/layout.h) is not a widget and is never itself
+// hit — it is a hole in paint order: reaching it throws away whatever was hit
+// under it, so an open overlay is solid over its whole outline and the cursor
+// cannot fall through the gaps between its rows onto the fields it covers
+// (ADR-0199). Its own children are painted after it and win the pointer back,
+// which is how the rows of that list are still clickable. It is tested against
+// the visible rectangle for the same reason every widget is, so a blocker its
+// scroll area clipped away blocks nothing. And it is here rather than in four
+// places because hover, the press that arms, the release that fires, the focus
+// a press moves and the bar a press grabs are all this one hit: clearing it
+// once is all of them.
+//
+// AND IT TESTS WHAT CAN BE SEEN, NOT WHERE THE WIDGET IS. The rectangle compared
+// is voe_ui_node_visible, so the part of a button a clipping container cut away
+// is not there for the pointer either: a widget scrolled out of sight cannot be
+// hovered, armed or pressed (ADR-0153). A gesture already under way is keyed and
+// not hit tested, so it carries on when its widget is clipped away, exactly as
+// it carries on past the surface's edge.
 static struct voe_ui_hit hit_test(const voe_ui_context *ui)
 {
 	struct voe_ui_hit hit = { 0 };
@@ -274,6 +250,24 @@ static struct voe_ui_hit hit_test(const voe_ui_context *ui)
 	return hit;
 }
 
+// ---- AND WHAT A DRAG ADDS TO THEM, WHICH IS FOUR FIELDS AND NO TABLE ----
+//
+// A number box is armed and let go by every one of the header's rules, unchanged —
+// it is a button as far as the press is concerned. What it adds is that the
+// frames BETWEEN the press and the release mean something, and that is the whole
+// of the difference.
+//
+// ONE GESTURE AT A TIME IS WHY THERE IS NO SECOND TABLE. Only one widget can be
+// held, so only one can be being dragged; the press position, last frame's
+// position and whether the dead zone has been crossed are about that one widget
+// and there is nothing to key them by. They sit beside `held` in the context and
+// are written when it is armed.
+//
+// THE CHANGE IS WORKED OUT IN MILLIMETRES HERE AND TURNED INTO THE CALLER'S UNIT
+// IN voe_ui_number_action, because `per_millimetre` belongs to the node and this
+// pass has a key rather than a node in its hand. It is also the honest split:
+// what happened is a distance, and what it is worth is the caller's business.
+//
 // This frame's movement of the held number box, in millimetres.
 //
 // THE DEAD ZONE IS MEASURED FROM THE PRESS AND THE DRAG FROM LAST FRAME, and
@@ -316,11 +310,16 @@ static void number_drag(voe_ui_context *ui)
 	ui->number_moved = change != 0.0f;
 }
 
+// A NUMBER BOX NEVER FIRES, and that is enforced where the release is handled
+// rather than left to the reader. Its click opens it for typing instead
+// (ADR-0192): a release inside the dead zone, over the box, that no drag has
+// crossed out of, gives it the focus a field has — see field.c.
+//
 // What the pointer came to this frame, for every widget and every bar: what is
 // hovered, what a press arms, what a release fires, and what a drag moved. Run
 // from widgets.c's frame_end, after arrange and before anything is emitted,
 // which is the only order in which a hit test is against this frame's
-// rectangles — see the header above and context.h.
+// rectangles — see hit_test and context.h.
 void voe_ui_pointer_resolve(voe_ui_context *ui, bool laid_out)
 {
 	struct voe_ui_hit hit = { 0 };
