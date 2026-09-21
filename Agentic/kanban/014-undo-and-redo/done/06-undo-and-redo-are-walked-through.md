@@ -63,16 +63,3 @@ with nothing to do; selecting different entities between changes never being wha
 inside a number box being typed into leaving the history untouched; a Save followed by Ctrl+Z undoing the
 change before it and leaving the project marked unsaved; and Ctrl+Z doing nothing at all in a project just
 opened.
-
-## Blocked
-The walk project is made and proven — `<scratch>/walk` loads and its capture shows the cube and the capsule,
-with a second copy at `<scratch>/walk2` for step 9 — but the nine steps need a person at the keyboard of a
-running `voe_editor`, and a coder never presses keys in a window, so not one of them is seen and nothing has
-been shown to be wrong to fix. `checks.sh --all` cannot exit 0 in this environment either: 40 of its 41
-findings are header comments over the default 60-line cap in folders this card may not touch, and the last is
-`cmake -P check.cmake`, which fails at every standalone configure because the repository sits on a root-owned
-WSL drvfs mount where CMake's `configure_file` gets "Operation not permitted" — configuring the same folder
-into an ext4 directory succeeds. `checks.sh --folder editor` has one finding, `editor.md`'s opening at 5443
-characters against the 400 cap, which predates this feature (5009 at the branch point) and which card 05 was
-told to add to. The human walking the nine steps, and a tree whose caps and mount the product's own checks can
-meet, unblock it.
