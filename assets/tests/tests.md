@@ -14,12 +14,9 @@ belongs to.
   byte to 200 kB, at the longest match and the farthest distance the format has.
   Its header says why a round trip alone would pass with the matcher switched off
   and what the size checks do about it.
-- `png.c` — real files from a real encoder, one filter per row, against the
-  three failures card 017 named — truncated, wrong magic, absurd declared size —
-  plus a corrupt CRC and the two variants that are refused rather than broken;
-  then the writer, round-tripped through the reader with its signature and IHDR
-  read by hand. Its header says why reading its own output is not the whole
-  proof.
+- `png.c` — real files from a real encoder, one filter per row, the three failures card 017 named
+  plus a corrupt CRC and the two variants refused rather than broken, then the writer round-tripped
+  through the reader. Its header says why reading its own output is not the whole proof.
 - `png_data.inc` — those files, as bytes.
 - `json.c` — a document read back as its values, and every shape of broken
   input a tolerant reader would let past.

@@ -5,30 +5,18 @@ that module's promises from outside. None of them needs a window or a display.
 
 - `clock.c` — that the clock moves and never goes backwards. Its header says
   why nothing in it measures a duration against a duration.
-- `file.c` — that the bytes written come back byte for byte on both sides of the
-  API, that a shorter file replaces a longer one, that an empty file reads as
-  zero bytes, that a missing path or a folder fails a read as UNAVAILABLE, that
-  no `.partial` sibling outlives a successful write, and that writing to a path
-  that is itself a folder fails the rename as REFUSED without touching the
-  folder. Reads and writes with stdio as the oracle on purpose.
-- `folder.c` — that a listing is sorted by byte order with folder and hidden
-  answered correctly, that an empty folder lists zero, that a missing folder
-  fails a listing as UNAVAILABLE, that creating over an existing name is REFUSED
-  and under a missing parent UNAVAILABLE, and that the settings folder honours
-  `XDG_CONFIG_HOME` on Linux.
-- `input.c` — that a poll drains the mouse's motion, wheel and typed text and
-  keeps held keys and the pointer, that losing focus releases every key and its
-  typed text and nothing else, that losing the pointer releases every button and
-  keeps its last position, that a code point past capacity is dropped whole, and
-  that a control code point types nothing.
-- `keymap.c` — a hand-written keymap text checked key by key: an ordinary key,
-  one with a type statement beside its `symbols[Group1]`, a digit and its
-  shifted punctuation, a key with one level, a dead key that types nothing, a
-  `U`-named code point, an alias, and that text with no `xkb_symbols` block is
-  refused. A second text, copied from a real compositor's own spelling, checks
-  `0x` keysym values, a Group index written `1`, an unindexed `type=`, AltGr as
-  the keysym `0xfe03` on two keys, the `0x0100xxxx` Unicode form, a key with no
-  resolved code, and that a keymap resolving to nothing is refused too.
+- `file.c` — that the bytes written come back byte for byte on both sides of the API, that a shorter
+  file replaces a longer one, that a missing path or a folder fails a read as UNAVAILABLE, that no
+  `.partial` sibling outlives a successful write, and that a write onto a folder is REFUSED.
+- `folder.c` — that a listing is sorted by byte order with folder and hidden answered correctly,
+  that a missing folder fails as UNAVAILABLE, that creating over an existing name is REFUSED, and
+  that the settings folder honours `XDG_CONFIG_HOME` on Linux.
+- `input.c` — that a poll drains the mouse's motion, wheel and typed text and keeps held keys and
+  the pointer, that losing focus releases every key and losing the pointer every button, and that a
+  code point past capacity or a control code types nothing.
+- `keymap.c` — a hand-written keymap text checked key by key, and a second copied from a real
+  compositor's own spelling, for both keysym spellings, the levels, AltGr, aliases, dead keys and
+  the two refusals.
 - `scale.c` — that 120 is the identity, that 150 turns 1536×864 into 1920×1080
   and 100.5 into 125.625, that a length at 180 rounds 1 up to 2, and that zero
   stays zero.

@@ -1,14 +1,7 @@
 # src
 
-`3d`'s implementation: one file per public header, plus the built-in shapes'
-geometry. Nothing here is included from outside the folder — `include/3d/` is
-the whole public surface.
-
-The component files are alike on purpose: each owns one table, registers it with
-`ecs`, and hands out a create, its reads and at most one write after creation.
-The work is in the two systems — `shape_system.c` once at startup and
-`draw_system.c` once a frame — and in `import.c`, the one file that names
-`assets`, `scene` and `render` in the same breath.
+`3d`'s implementation: one file per public header, plus the built-in shapes' geometry. Nothing here
+is included from outside the folder — `include/3d/` is the whole public surface.
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
   the whole thing.
@@ -23,11 +16,9 @@ The work is in the two systems — `shape_system.c` once at startup and
 - `shape_component.c` — the shape table: its key, its registration as described
   with its default row, its need of a transform and its intent, its creation
   call and the reads.
-- `shape_system.c` — the one upload of the three shapes' geometry, the white
-  material every shape wears and the selection outline's unlit one, the intent's
-  submit and drain, the run that gives them to a shape that has neither yet and
-  re-points the mesh of a shape whose kind changed, and the removal of both once
-  the shape is gone.
+- `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
+  wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
+  repoints a changed kind and drops both once the shape is gone.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and each surface's edges found by
   welding its vertices by position and walking its triangles twice.
@@ -46,10 +37,8 @@ The work is in the two systems — `shape_system.c` once at startup and
   over the shape table that carries it into each shape's own space and tests the
   kind's triangles, with the triangle test written out once and its derivation in
   a comment.
-- `outline.c` — the walk over one shape's edges that keeps the ones the eye is on
-  two sides of, and the quad each of them becomes: the world matrix once, a half
-  width per vertex from that vertex's own depth, the outward direction taken from
-  the triangle the eye is in front of, and each triangle wound to face the eye.
+- `outline.c` — the walk over one shape's edges that keeps the ones the eye is on two sides of, and
+  the quad each of them becomes, a half width per vertex from that vertex's own depth.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each

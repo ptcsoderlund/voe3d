@@ -1,13 +1,8 @@
 # src
 
-`text`'s implementation: the file format read, the outlines turned into pixels,
-and the string measured and laid out. Nothing here is included from outside the
-folder — `include/text/` is the whole public surface.
-
-The seam runs by stage. `truetype.*` knows the byte layout of a `.ttf` and
-nothing about pixels; `raster.*` knows about pixels and nothing about files; and
-`font.c` is the only file where the two meet and where this folder's three scales
-and three Y axes are reconciled.
+`text`'s implementation: the file format read, the outlines turned into pixels, and the string
+measured and laid out. Nothing here is included from outside the folder — `include/text/` is the
+whole public surface.
 
 - `truetype.h` — the file format's own surface: which seven tables are read, why
   format 4 is the only character map, why the composite walk is an explicit

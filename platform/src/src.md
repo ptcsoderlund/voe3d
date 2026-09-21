@@ -37,36 +37,23 @@ header.
 - `library_wayland.c` — dlopen and dlsym. Its header says why the name says
   wayland.
 - `library_win32.c` — LoadLibraryA and GetProcAddress.
-- `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an
-  AltGr flag per code, built from resolved XKB v1 text, internal to this folder
-  and built on both platforms because it includes no OS header. Its header says
-  which two blocks it reads, which two spellings of a key's symbols it reads,
-  how a keysym as a number differs from one as a name, what makes a key AltGr,
-  what it does not read, and when it refuses a keymap outright.
+- `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an AltGr flag per code,
+  built from resolved XKB v1 text, internal to this folder and built on both platforms because it
+  includes no OS header.
 - `keymap.c` — its implementation: one lexer and a small parsing function per
   level of the format's fixed nesting, none of them calling itself. Its header
   says why a brace counter stands in for recursion here, and why a key body is
   read by its statements rather than by its first `[`.
-- `input.h` — the input state both backends fill and neither reads, the two
-  functions each of them defines over its own window, the three clears both of
-  them call, and the one shared function that turns a code point into the typed
-  text buffer's UTF-8. Its header says why the public functions are written
-  once.
+- `input.h` — the input state both backends fill and neither reads, the two functions each of them
+  defines over its own window, the three clears both of them call, and the one shared function that
+  turns a code point into UTF-8.
 - `input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
-- `window_wayland.c` — the Linux window, and its seat, keyboard and pointer.
-  There is no X11 backend, and nothing in it draws — its header says why the
-  window is invisible until something else does, why its size and pointer are
-  the buffer's pixels at the compositor's fractional scale, why input is in the
-  same file, why the keymap is read in-house rather than through `xkbcommon`,
-  and why AltGr is held like Shift rather than read from the compositor's
-  modifiers.
+- `window_wayland.c` — the Linux window, and its seat, keyboard and pointer; there is no X11
+  backend, and nothing in it draws.
 - `scale.h` — logical Wayland units to buffer pixels at a scale in 120ths, a
   length rounded half away from zero and a position not rounded. OS-free like
   `input.h`, so it is built on both platforms and tested without a compositor.
 - `scale.c` — its implementation, in 64-bit integers for the length.
-- `window_win32.c` — the Windows window, its keyboard and its `WM_CHAR` text,
-  the mouse as a raw input device for look and as ordinary messages for position
-  and buttons. Its header says why Control without Alt drops everything
-  `WM_CHAR` sends, why AltGr still types, why a held button takes the capture,
-  and why `WM_MOUSELEAVE` has to be asked for.
+- `window_win32.c` — the Windows window, its keyboard and its `WM_CHAR` text, the mouse as a raw
+  input device for look and as ordinary messages for position and buttons.

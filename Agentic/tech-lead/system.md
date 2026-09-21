@@ -1,58 +1,60 @@
 # System
 
-The map of VOE3D, a real-time 3D engine in C23 on Vulkan 1.3 with its editor and dev program in the same tree.
-Every code folder is a standalone CMake project — `include/<folder>/`, `src/`, `tests/`, a four-line
-`CMakeLists.txt` — built as `voe_<folder>` and linked as `voe::<folder>`. Dependencies point down this list and
-never back up; `cmake/voe.cmake` holds the allowed edges and refuses any other, so a change that needs a new edge
-is a decision, not a card. The engine's standing rules, numbered as code cites them, are decision 0168.
+The map of VOE3D, a real-time 3D engine in C23 on Vulkan 1.3, its editor and dev program in one
+tree. Every code folder is a standalone CMake project — `include/<folder>/`, `src/`, `tests/`, a
+four-line `CMakeLists.txt` — built as `voe_<folder>`, linked as `voe::<folder>`, mapped by
+`<folder>/<folder>.md`. Dependencies point down this list and never back up; `cmake/voe.cmake`
+holds the allowed edges, so a change needing a new edge is a decision, not a card. The standing
+rules are decision 0168.
 
-- **base** — memory as arenas, containers, strings, the two asserts, the error codes, the report call and the description of a struct's fields, whose values a table beside them may name. Depends on nothing. Open `base/base.md`.
-- **math** — vectors and matrices spelled the way Slang spells them, pure data with support functions; knows no graphics API. Depends on nothing. Open `math/math.md`.
-- **ecs** — entities, components as tables, intent queues, and the structural queue that adds and removes rows and destroys entities once a frame; every described type registers a default row. On base. Open `ecs/ecs.md`.
-- **platform** — window, input, typed text and the Wayland keymap, files, folders, paths, time. The only OS-aware folder; Wayland and Win32 backends as equals, and a Wayland window draws at the compositor's fractional scale with its size and pointer in buffer pixels. On base. Open `platform/platform.md`.
-- **scene** — transform, camera, light and identity as components with their systems. On ecs, math, base. Open `scene/scene.md`.
-- **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser. Never recurses over a file. On platform, math, base. Open `assets/assets.md`.
-- **authoring** — scene and project text read and written, world ↔ scene file; a game does not build it. On scene, ecs, assets, math, base. Open `authoring/authoring.md`.
-- **render** — the GPU layer and the only folder that names Vulkan: device, memory, resources by id, pipelines, targets, passes, present. Headers vendored in `render/vulkan/`, loader opened by name, every call through one resolved function table. On platform, math, base. Open `render/render.md`.
-- **text** — a glyph atlas as a three-channel distance field and one mesh per text block; Oxanium embedded, the one face, named by an enum (ADR-0185). On render, math, base. Open `text/text.md`.
-- **ui** — immediate-mode GUI in millimetres: flexbox-like layout, panels, buttons, number boxes dragged or typed into, text fields sharing one keyboard focus, scroll areas, a swatch, a colour picker, a slider and a container that takes the pointer from whatever it paints over, one draw from an element buffer; a theme's palette derived in OKLab from five authored values, every role in the one hue and state drawn inverted, the nearest theme in force winning. On render, text, math, base. Open `ui/ui.md`.
-- **theme** — one `.theme` file's bytes read into `ui`'s authored inputs, its colour authored as `hue=`, a typeface and a display name, or refused with the line named; opens no file and derives nothing. On ui, text, assets, math, base, and render for its test's device only. Open `theme/theme.md`.
-- **3d** — the 3D renderer: scene → draws → a render target, meshes, materials, built-in shapes (cube, capsule, cylinder), each named for a tool and in a described linear colour, their triangles and edges kept on the CPU as well, so a ray says which entity is under a pixel and a selected one's silhouette becomes an outline. On render, scene, ecs, assets, math, base. Open `3d/3d.md`.
-- **sprite** — a sprite is a plane in the world and hands back a material. On 3d, render, math, base. Open `sprite/sprite.md`.
-- **app** — parts a program calls in its own frame loop: the frame, capture to a PNG, a windowless start. On 3d, render, assets, platform, scene, ecs, math, base. Open `app/app.md`.
-- **editor** — the program a person opens to author a scene: top bar, Scene list with Add, scene views where a click selects the entity under the pointer and the selected one is drawn with an outline, an Inspector that types values, picks colours, chooses a named value from a dropdown that fits itself to the room it has, adds and removes components and duplicates and deletes entities, file browser, projects opened and saved, themes chosen in Preferences and re-read live with two sliders for their contrast and surface separation, `--capture`. A leaf; nothing names it. Open `editor/editor.md`.
-- **dev** — the program that shows what the engine can do; a leaf on every folder but editor and authoring. Open `dev/dev.md`.
-- **testing** — the check macros a test links as `voe::testing`; not a library and not in the dependency map. Open `testing/testing.md`.
+- **base** — arenas, containers, strings, the two asserts, error codes, described structs.
+- **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
+- **ecs** — entities, component tables, intent queues, a structural queue applied once a frame.
+- **platform** — the one OS-aware folder: window, input, typed text, keymap, files, time.
+- **scene** — transform, camera, light and identity as components with their systems.
+- **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
+- **authoring** — scene and project text read and written; a game does not build it.
+- **render** — the GPU layer and the only folder that names Vulkan: devices, resources, passes.
+- **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
+- **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
+- **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
+- **3d** — scene → draws → a render target: meshes, shapes, picking, selection outlines.
+- **sprite** — a sprite is a plane in the world and hands back a material.
+- **app** — parts a program calls in its frame loop: the frame, capture to a PNG, a headless start.
+- **editor** — authoring a scene: top bar, Scene list, views, Inspector, files, Preferences. A leaf.
+- **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
+- **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
 ## Decisions in force
 
-Every record 0001–0167 in `history/decisions/` stands unless one says it is superseded; these are the ones a card leans on most, and 0168 digests them.
+0001–0167 stand in `history/decisions/`; 0168 on are indexed in `decisions/decisions.md`.
 
-- 0168 — The Agentic workflow replaces specs, and the engine's rules are one digest. Name it on every card.
-- 0001, 0008 — One repository of self-contained CMake folders, statically linked; no runtime plugin boundary.
+- 0168 — The Agentic workflow replaces specs; the engine's rules are one digest. On every card.
+- 0001, 0008 — One repository of self-contained CMake folders, statically linked; no plugin.
 - 0005, 0026, 0047 — Clang only, as the GNU-driver `clang` on both platforms, floor 19.
-- 0021, 0023 — Tools are installed by the programmer, dependencies fetched by the build; write it ourselves.
-- 0004, 0028, 0042, 0031 — No CI; `cmake -P check.cmake` is the verification, analyser as step 7, tests as plain C under CTest.
-- 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module; intent is a datatype; no system calls a system.
-- 0022, 0121, 0135, 0151 — The folder map above; the editor and dev are leaves; `app` is parts a program calls; `authoring` is not built by a game.
-- 0014, 0029, 0032, 0034, 0041 — Naming carries the namespace and the `voe_` prefix; memory is arenas; implement on demand; recoverable failure is a returned value.
-- 0033, 0035 — Right-handed +Y up −Z forward, column vectors, row-major storage, reversed depth, one Y flip in the viewport; `math` speaks Slang.
-- 0040, 0046, 0015 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
-- 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a task.
-- 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place the keymap names.
-- 0170, 0171, 0172, 0178 — A theme is read in `theme`, derived in `ui` in OKLab from one colour and two numbers with dark mode clamping chroma, and the nearest one wins; a theme is one file in a themes folder, remembered by its file name, with Near black and Near white built in and the light one remembered as `near_white`.
-- 0120, 0133, 0173 — A folder `.md` is a present-tense map that delegates its subfolders; every folder holding code carries one, and `src/` and `tests/` list their own files.
-- 0175, 0176 — A card that creates a folder registers it in `cmake/voe.cmake` and the root `CMakeLists.txt`; `theme`'s row names `render`, for its test's headless device.
-- 0177 — To see what was drawn, render to a PNG; the planner names this on cards that change what is drawn.
-- 0180 — A Wayland window draws at the compositor's fractional scale, and its pixels are the buffer's.
-- 0182, 0184, 0185 — Editor text keeps scaling with the window and keeps hard edges, the glyph cutoff half a screen pixel out less one byte step so no stroke vanishes; Oxanium is the only font, a theme naming any other gets it, and the editor offers no font choice.
-- 0186, 0187, 0188 — Work moves toward a coin-collecting capsule game; its logic is the project's own C, and Play cooks the scene on screen and starts it as a separate program.
-- 0189, 0191 — An entity is only a number and starts at the origin; a material is an instance of a shader, and until then a shape has only a described linear colour drawn through its object record; capsule and cylinder are built-in kinds.
-- 0190 — The world owns which rows exist, through `ecs`'s structural queue applied once a frame; a system owns their values. Amends rule 3.
-- 0192 — `ui` holds one keyboard focus for fields and typed number boxes; the colour picker is a `ui` panel the caller places.
-- 0193, 0195 — The editor changes structure through the queue; new ids are max+1 and names like "Cube 2"; the Inspector shows described components only, and a named-list field such as a shape's kind as a dropdown.
-- 0194, 0196 — Colour carries no meaning in an editor's interface: a theme has one hue, authored as `hue=`, roles differ only in lightness, and what is held, dragged or selected is drawn in the palette's `inverse` with its text in `inverse_ink`; a slider is a number box with a thumb. Replaces the accent of 0171 and 0172.
-- 0197 — The editor remembers a person's contrast and surface separation per theme in `<settings>/voe3d/theme_scalars`, written when a drag ends and on Reset; a theme file is never written.
-- 0198, 0199, 0200 — A described field's values are named in a table beside its fields and a named field is shown as a dropdown; an overlay is placed from its widget every frame, clipped by that widget's panel, opaque to the cursor over its whole outline, on the side that fits and scrolling inside itself when neither side does.
-- 0201 — The engine takes the fastest card it can find — discrete over integrated over software, never software silently — and says on startup which it took.
-- 0202, 0203 — A click in a scene view picks by a ray cast on the CPU against the built-in shapes' own triangles, kept beside the ones the card holds; the entity it names is marked by its silhouette, built every frame as quads a fixed number of pixels wide and drawn in the overlay layer, in the lighter of the palette's two inverse roles.
+- 0021, 0023 — Tools installed by the programmer, dependencies fetched by the build.
+- 0004, 0028, 0031, 0042 — No CI; `cmake -P check.cmake` verifies; tests are plain C under CTest.
+- 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module.
+- 0014, 0029, 0032, 0034, 0041 — Naming carries the namespace; memory is arenas; failure is a value.
+- 0022, 0121, 0135, 0151 — The folder map above; editor and dev are leaves; a game omits authoring.
+- 0033, 0035 — Right-handed +Y up −Z forward, reversed depth, one Y flip; `math` speaks Slang.
+- 0015, 0040, 0046 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
+- 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a card.
+- 0120, 0133, 0173 — Every code folder carries a `.md`; `src/` and `tests/` list their own files.
+- 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place.
+- 0170, 0171, 0172, 0178 — A theme is read in `theme`, derived in `ui` in OKLab; the nearest wins.
+- 0174, 0175, 0176 — 006's cards merged back; a new folder registers itself; `theme` sees `render`.
+- 0177 — To see what was drawn, render to a PNG; named on cards that change what is drawn.
+- 0180, 0181 — A Wayland window draws at the compositor's fractional scale, in buffer pixels.
+- 0182, 0183, 0184 — Editor text keeps scaling and hard edges; the cutoff sits half a pixel out.
+- 0185 — Oxanium is the only font; a theme naming another gets it, and there is no font choice.
+- 0186, 0187, 0188 — Toward a coin game in the project's own C; Play cooks the scene as it is.
+- 0189, 0191 — An entity is only a number; a shape has a described linear colour until materials.
+- 0190 — The world owns which rows exist, through `ecs`'s structural queue; a system their values.
+- 0192 — `ui` holds one keyboard focus; the colour picker is a `ui` panel the caller places.
+- 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
+- 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
+- 0197 — Slider values are remembered per theme in one settings file; a theme file is never written.
+- 0199, 0200 — An overlay belongs to its widget, swallows the cursor, takes the side that fits.
+- 0201 — The engine takes the fastest card — never software silently — and says which it took.
+- 0202, 0203 — A click picks by a ray cast against the shapes' triangles; the outline is quads.
