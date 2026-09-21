@@ -35,13 +35,6 @@
 // (ADR-0185). `accent` is not read any more and has no alias: a file that
 // still names it is refused at that line as any unknown key is (ADR-0194).
 //
-// THE NAME A PERSON READS IS THE SECTION'S, AND THE IDENTITY IS THE FILE NAME
-// (ADR-0172). A display name is the author's to change and two files may claim
-// the same one, so a program remembers a theme by the file it came from; the
-// section name is only what a list of themes shows. That is also why this
-// reader opens no file and never learns the file's name: the caller hands it
-// bytes, keeps the name, and adds it to the refusal it shows a person.
-//
 // A FILE IS REFUSED WHOLE: false, `out` untouched, and one VOE_BASE_ERROR
 // ("theme") naming the line and what is wrong, which a program reads back with
 // voe_base_report_error_first(). The refusals, each at the line given:
@@ -73,6 +66,14 @@
 typedef struct {
 	// The section's name, NUL-terminated, in the arena the reader was
 	// handed. For showing to a person; not an identity.
+	//
+	// THE NAME A PERSON READS IS THE SECTION'S, AND THE IDENTITY IS THE FILE
+	// NAME (ADR-0172). A display name is the author's to change and two files
+	// may claim the same one, so a program remembers a theme by the file it
+	// came from; the section name is only what a list of themes shows. That is
+	// also why this reader opens no file and never learns the file's name: the
+	// caller hands it bytes, keeps the name, and adds it to the refusal it
+	// shows a person.
 	const char *name;
 	voe_ui_theme_inputs inputs;
 	voe_text_typeface typeface;
