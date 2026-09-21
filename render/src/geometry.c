@@ -27,27 +27,6 @@
 // total and otherwise treats every slot alike, which is why that function did
 // not change when the second kind arrived.
 //
-// THE TRANSIENT RESET IS THE STALENESS CHECK FIRING ON A SCHEDULE. At the top of
-// every frame, voe_render_geometry_frame_reset makes every live transient slot
-// not live and moves its generation on, so every transient id handed out last
-// frame names nothing from then on — refused by the same generation comparison
-// that refuses any stale id, with no second mechanism. Only the live slots move,
-// which keeps the generation counter to one step per range per frame.
-//
-// THE GENERATION CAN WRAP AND NOTHING HERE HANDLES IT. A uint32_t moves on once
-// per frame per transient range in use; at sixty frames a second that is over
-// two years before a slot comes round to a generation it has handed out before,
-// at which point an id kept for two years would name a live range. Noted, not
-// handled: the fix is a wider counter and it is not worth a branch in every
-// create today.
-//
-// THE TRANSIENT POOLS NEED NO BARRIER AND NO WAIT, AND ONE APPEARING HERE WOULD
-// BE THE BUG. They are per frame slot, so what a create writes into is memory
-// the card finished reading two frames ago — which the fence at the top of
-// voe_render_frame_begin has already waited for before the reset empties them.
-// That is the same fact that makes the object buffer in the same slot safe to
-// overwrite, and it is the only synchronisation story in this file.
-//
 // THE INDICES ARE STORED AS THE CALLER NUMBERED THEM, FROM ZERO. What shifts
 // them into a pool is vkCmdDrawIndexed's vertexOffset, which frame.c passes from
 // the slot. Rewriting a mesh's indices on the way in would work equally well
@@ -222,6 +201,19 @@ void voe_render_geometry_shutdown(voe_render_device *device)
 	device->geometries = NULL;
 }
 
+// THE TRANSIENT RESET IS THE STALENESS CHECK FIRING ON A SCHEDULE. At the top of
+// every frame, voe_render_geometry_frame_reset makes every live transient slot
+// not live and moves its generation on, so every transient id handed out last
+// frame names nothing from then on — refused by the same generation comparison
+// that refuses any stale id, with no second mechanism. Only the live slots move,
+// which keeps the generation counter to one step per range per frame.
+//
+// THE GENERATION CAN WRAP AND NOTHING HERE HANDLES IT. A uint32_t moves on once
+// per frame per transient range in use; at sixty frames a second that is over
+// two years before a slot comes round to a generation it has handed out before,
+// at which point an id kept for two years would name a live range. Noted, not
+// handled: the fix is a wider counter and it is not worth a branch in every
+// create today.
 void voe_render_geometry_frame_reset(voe_render_device *device,
 				     struct voe_render_frame *frame)
 {
@@ -355,6 +347,12 @@ bool voe_render_geometry_create(voe_render_device *device,
 	return true;
 }
 
+// THE TRANSIENT POOLS NEED NO BARRIER AND NO WAIT, AND ONE APPEARING HERE WOULD
+// BE THE BUG. They are per frame slot, so what a create writes into is memory
+// the card finished reading two frames ago — which the fence at the top of
+// voe_render_frame_begin has already waited for before the reset empties them.
+// That is the same fact that makes the object buffer in the same slot safe to
+// overwrite, and it is the only synchronisation story in geometry.c.
 bool voe_render_geometry_create_transient(voe_render_device *device,
 					  const voe_render_vertex *vertices,
 					  uint32_t vertex_count,
