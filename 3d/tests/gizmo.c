@@ -18,8 +18,6 @@
 
 #include <math/float3.h>
 
-#include <platform/window.h>
-
 #include <render/device.h>
 
 #include <scene/camera_component.h>

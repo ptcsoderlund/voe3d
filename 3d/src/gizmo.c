@@ -2,6 +2,11 @@
 // measured from and the triangles all of it is drawn as — see the header for why
 // one module answers them all, why a handle is a camera-facing quad and why the
 // marked one is a mesh of its own.
+//
+// An arrow is tested as the segment out to its head's far end and a square as
+// its patch of plane; a drag is measured from the closest point on an axis or
+// where the ray meets a plane; the meshes are shafts, heads, squares and label
+// strokes.
 #include <3d/gizmo.h>
 
 #include <base/arena.h>

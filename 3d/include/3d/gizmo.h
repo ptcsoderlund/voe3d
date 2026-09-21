@@ -22,65 +22,10 @@
 // Splitting the two is how a gizmo comes to be half a centimetre off the thing
 // you can grab (ADR-0205).
 //
-// THE SIZE IS WORKED OUT ONCE, FROM THE ORIGIN'S DEPTH. An outline's width is
-// per vertex, because an edge running away from the eye is nearer at one end
-// than at the other and one width would taper wrongly (3d/outline.h). A gizmo is
-// one object that has to stay one shape: an arrow sized from its own tip's depth
-// would make a different gizmo of every angle, and the handle a person aimed at
-// would not be the one the ray meets. So the origin's depth sizes all of it.
-//
-// THE HANDLES ARE CAMERA-FACING QUADS AND NOT SOLID CONES. An arrow is a flat
-// quad widened across its axis towards the eye, with one triangle on the end of
-// it for a point: one size, one set of triangles, and every arrow as readable
-// from one angle as from another, because each turns to keep its face to the
-// person. A cylinder and a cone would be a few hundred triangles that have to be
-// lit to read as round, in a pass that draws one unlit white record (ADR-0205),
-// and the arrow pointed at the eye would still be a disc. Where an axis and the
-// direction to the eye are nearly parallel the width is taken across any
-// perpendicular to the axis, so that arrow is a sliver and never nothing.
-//
-// THE PLANE SQUARES ARE THE ONE PART THAT DOES NOT FACE THE EYE. A square that
-// turned to face the person would stop saying which plane it moves the thing in,
-// which is the whole of what it is for. It lies in its own plane and is wound
-// from whichever side of that plane the eye is on, so it is never culled away.
-//
-// A LABEL IS STROKES AND NOT A `text` BLOCK (ADR-0206): camera-facing quads at
-// the tip of each arrow, two crossed for X, three for Y and three for Z, built
-// by this call out of this shaft. A block of text is a mesh and a texture
-// wearing a distance-field material, which is another transient range, another
-// material and a second record kind per axis for a pass that draws one. The
-// letters are a second cue and not reading matter.
-//
-// THE MARKED HANDLE IS A SECOND MESH AND NOT A SECOND COLOUR. A drawn object's
-// colour is one record per draw (ADR-0191), so the one handle under the pointer
-// is a draw of its own: it comes out in `marked_out` and out of `plain`, at the
-// marked step's widths and at its own lengths, so it covers the same reach it is
-// hit over. Two meshes, two transient ranges and two draws, which is what
-// ADR-0205 counted.
-//
 // THE AXES ARE THE WORLD'S. X, Y and Z here are the world's directions, and a
 // gizmo that turns with the entity it moves is a later card — it is these three
 // directions that become an entity's own when it comes, and nothing else here
 // changes.
-//
-// THE HANDLES ARE TESTED BY DISTANCE AND NOT IN ORDER. A plane square stands
-// between the two arrows that bound it and overlaps them on the picture, so
-// which handle a person meant is which one is in front of the other from where
-// they are looking. Nearest along the ray wins; a fixed order would answer with
-// whichever was written first, which is right from one side and wrong from the
-// other.
-//
-// "IN FRONT OF THE EYE" IS THE RAY'S OWN PARAMETER BEING POSITIVE. A pick ray
-// starts on the near plane and runs away from the eye (3d/pick.h), so a handle
-// whose closest approach is at a negative parameter is behind the person: that
-// is what a gizmo behind the camera is, and it is met by nothing rather than
-// grabbed through the back of their head.
-//
-// A REFUSED GRAB IS AN ORDINARY FRAME AND NOT A FAILURE. A ray lying in the
-// square's plane, or running along the axis, has no one point on it to measure a
-// drag from; the grab says false, writes nothing, and the caller keeps the
-// position it had until the next frame. That is a pointer at a glancing angle,
-// which happens, and there is nothing to report.
 #pragma once
 
 #include <3d/pick.h>
@@ -88,8 +33,6 @@
 #include <base/arena.h>
 
 #include <math/float3.h>
-
-#include <platform/window.h>
 
 #include <render/device.h>
 
@@ -161,6 +104,13 @@ typedef struct {
 // so a gizmo at the eye itself is a very large gizmo and not a division by
 // nought. `size.height` is what the size is worked out against, because the
 // projection's field of view is the vertical one (3d/outline.h).
+//
+// THE SIZE IS WORKED OUT ONCE, FROM THE ORIGIN'S DEPTH. An outline's width is
+// per vertex, because an edge running away from the eye is nearer at one end
+// than at the other and one width would taper wrongly (3d/outline.h). A gizmo is
+// one object that has to stay one shape: an arrow sized from its own tip's depth
+// would make a different gizmo of every angle, and the handle a person aimed at
+// would not be the one the ray meets. So the origin's depth sizes all of it.
 voe_3d_gizmo voe_3d_gizmo_at(voe_math_float3 origin, voe_render_view view,
 			     voe_platform_size size, float pixels);
 
@@ -171,6 +121,19 @@ voe_3d_gizmo voe_3d_gizmo_at(voe_math_float3 origin, voe_render_view view,
 //
 // VOE_3D_GIZMO_NONE when it meets none of them, when the gizmo is behind the eye
 // and when the shaft is nought.
+//
+// THE HANDLES ARE TESTED BY DISTANCE AND NOT IN ORDER. A plane square stands
+// between the two arrows that bound it and overlaps them on the picture, so
+// which handle a person meant is which one is in front of the other from where
+// they are looking. Nearest along the ray wins; a fixed order would answer with
+// whichever was written first, which is right from one side and wrong from the
+// other.
+//
+// "IN FRONT OF THE EYE" IS THE RAY'S OWN PARAMETER BEING POSITIVE. A pick ray
+// starts on the near plane and runs away from the eye (3d/pick.h), so a handle
+// whose closest approach is at a negative parameter is behind the person: that
+// is what a gizmo behind the camera is, and it is met by nothing rather than
+// grabbed through the back of their head.
 voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo gizmo, voe_3d_ray ray);
 
 // Where on `handle` this ray lands, in world metres: for an axis, the point of
@@ -181,6 +144,12 @@ voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo gizmo, voe_3d_ray ray);
 // False, with `*out` untouched, for VOE_3D_GIZMO_NONE and for a ray too nearly
 // along the axis or in the plane to name one point — an ordinary frame the
 // caller answers by keeping the position it had.
+//
+// A REFUSED GRAB IS AN ORDINARY FRAME AND NOT A FAILURE. A ray lying in the
+// square's plane, or running along the axis, has no one point on it to measure a
+// drag from; the grab says false, writes nothing, and the caller keeps the
+// position it had until the next frame. That is a pointer at a glancing angle,
+// which happens, and there is nothing to report.
 [[nodiscard]] bool voe_3d_gizmo_grab(voe_3d_gizmo gizmo,
 				     voe_3d_gizmo_handle handle,
 				     voe_3d_ray ray, voe_math_float3 *out);
@@ -206,6 +175,35 @@ typedef struct {
 // 11) and die with it.
 //
 // False, with both untouched, for a gizmo of no shaft.
+//
+// THE HANDLES ARE CAMERA-FACING QUADS AND NOT SOLID CONES. An arrow is a flat
+// quad widened across its axis towards the eye, with one triangle on the end of
+// it for a point: one size, one set of triangles, and every arrow as readable
+// from one angle as from another, because each turns to keep its face to the
+// person. A cylinder and a cone would be a few hundred triangles that have to be
+// lit to read as round, in a pass that draws one unlit white record (ADR-0205),
+// and the arrow pointed at the eye would still be a disc. Where an axis and the
+// direction to the eye are nearly parallel the width is taken across any
+// perpendicular to the axis, so that arrow is a sliver and never nothing.
+//
+// THE PLANE SQUARES ARE THE ONE PART THAT DOES NOT FACE THE EYE. A square that
+// turned to face the person would stop saying which plane it moves the thing in,
+// which is the whole of what it is for. It lies in its own plane and is wound
+// from whichever side of that plane the eye is on, so it is never culled away.
+//
+// A LABEL IS STROKES AND NOT A `text` BLOCK (ADR-0206): camera-facing quads at
+// the tip of each arrow, two crossed for X, three for Y and three for Z, built
+// by this call out of this shaft. A block of text is a mesh and a texture
+// wearing a distance-field material, which is another transient range, another
+// material and a second record kind per axis for a pass that draws one. The
+// letters are a second cue and not reading matter.
+//
+// THE MARKED HANDLE IS A SECOND MESH AND NOT A SECOND COLOUR. A drawn object's
+// colour is one record per draw (ADR-0191), so the one handle under the pointer
+// is a draw of its own: it comes out in `marked_out` and out of `plain`, at the
+// marked step's widths and at its own lengths, so it covers the same reach it is
+// hit over. Two meshes, two transient ranges and two draws, which is what
+// ADR-0205 counted.
 [[nodiscard]] bool voe_3d_gizmo_quads(voe_3d_gizmo gizmo,
 				      voe_3d_gizmo_handle marked,
 				      voe_base_arena *arena,
