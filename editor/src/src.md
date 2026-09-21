@@ -92,11 +92,11 @@ carries it out.
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
 - `view.h` — a scene view: its camera, its target and the middle-button drag, which view a pointer
-  is over and where in that view's picture it lands, and the light and the outline colour a view is
-  drawn with.
+  is over and where in that view's picture it lands, and the light, the outline colour and the
+  gizmo's colour a view is drawn with.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, their targets, the world's first light row and the lighter half
-  of the theme's inverse pair the selection is outlined in.
+  of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add menu, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
@@ -107,6 +107,10 @@ carries it out.
   click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
+- `gizmo.h` — what the primary button does to the selected entity's move gizmo: the handle under
+  the pointer, a press that grabs one, and the drag that submits the entity's new position.
+- `gizmo.c` — the hover, the grab and the drag, each against a gizmo built from the view's own
+  camera, measured from the press position and submitted as a whole transform.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
   settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
   a neighbouring one back into the project's world (ADR-0204).

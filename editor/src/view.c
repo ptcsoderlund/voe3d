@@ -1,6 +1,6 @@
 // The views: their cameras, their targets and the middle-button drag, and the
-// light and the outline colour a view is drawn with. See the header for why the
-// camera is not an entity, why the light is the world's and not the views' to
+// light, the outline colour and the gizmo's colour a view is drawn with. See
+// the header for why the camera is not an entity, why the light is the world's and not the views' to
 // hold, why the picture lags the layout by a frame, and why a view nobody shows
 // is not drawn.
 //
@@ -160,6 +160,22 @@ voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette)
 	voe_math_float4 lighter = fill_luminance >= ink_luminance ? fill : ink;
 
 	return (voe_math_float3){ lighter.x, lighter.y, lighter.z };
+}
+
+// What a handle at rest is dimmed to: a bit over half the marked colour's
+// linear value, which reads as clearly darker than the marked handle beside it
+// while staying well above the near-black ground a view is cleared to.
+#define VOE_EDITOR_VIEW_GIZMO_REST 0.55f
+
+voe_math_float3 voe_editor_view_gizmo_colour(const voe_ui_theme *palette,
+					     bool marked)
+{
+	VOE_BASE_ASSERT(palette != NULL, "a gizmo colour out of no palette");
+
+	voe_math_float3 colour = voe_editor_view_outline_colour(palette);
+	return marked ? colour :
+			voe_math_float3_scale(colour,
+					      VOE_EDITOR_VIEW_GIZMO_REST);
 }
 
 voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
