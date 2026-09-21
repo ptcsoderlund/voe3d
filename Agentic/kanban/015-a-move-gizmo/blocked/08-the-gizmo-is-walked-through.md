@@ -62,3 +62,10 @@ same size on screen orbited close and far; an arrow marked one way hovered and a
 lightness; a drag marking the project unsaved and one Ctrl+Z putting the cube back where that drag began; a
 click off the handles clearing the selection and the gizmo with it, and a click on the capsule bringing it
 there; and a middle-drag begun on a handle orbiting the camera while the cube stays where it is.
+
+## Blocked
+The walk project loads and its capture shows both shapes, but `checks.sh --all` fails in the 3d folder:
+`3d/include/3d/gizmo.h` and `3d/tests/gizmo.c` include `platform/window.h` while `3d` does not DEPENDS on
+`platform` (plus 3d's gizmo.h header over 60 lines, `3d.md` not listing it, and many pre-existing header-cap
+findings across ui, render, platform, editor and others). A 3d card that drops the platform include (or adds
+the dependency) and cleans those findings unblocks it; the human's nine-step walk has not been run.
