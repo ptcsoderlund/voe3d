@@ -6,14 +6,6 @@
 // none of them means anything alone. CLAUDE.md says flipping twice looks exactly
 // like flipping none until something is culled; this is the test that notices.
 //
-// HOW A BACK FACE GETS IN FRONT OF THE RASTERISER WITHOUT A SECOND SHADER. The
-// viewport is dynamic state, so the same cube drawn through the mirror of the
-// engine's viewport has every face wound the other way round in framebuffer
-// space: every face the engine would draw is culled and every face it would cull
-// is drawn. That leaves the pipeline — the thing actually under test — untouched,
-// and it means the front-facing half of this test runs the engine's own viewport
-// function rather than a copy of it.
-//
 // THE CUBE IS THIS FILE'S OWN NOW, AND THAT IS WHAT CARD 018 CHANGED. It used to
 // be render/src/cube.c's, drawn by a function that knew what the scene was; the
 // scene left this folder with that card, so the geometry, the camera and the
@@ -21,41 +13,11 @@
 // What is under test is therefore exactly what ships: the pools, the object
 // records, the pipeline and the frame.
 //
-// IT HAS ITS OWN SUN NOW, AND IT IS TURNED ROUND FOR THE SECOND CASE. Card 019
-// lights everything, and a surface facing away from the one light in the world
-// is black — which would make every colour claim below read a black pixel and
-// call it red, because "which channel is largest" has no answer for three zeroes.
-// The mirrored case is looking at the far faces of the cube, whose normals point
-// the opposite way to the near ones, so it gets the opposite sun. Each case
-// therefore lights the faces it can actually see, and a light that failed to
-// reach the shader at all fails the counts below rather than moving a centroid.
-//
 // AND THE MATERIAL IS THE PLAINEST ONE THAT KEEPS THE PICTURE'S COLOURS: no
 // metalness, fully rough. A metal has no diffuse response and reflects its own
 // colour in a narrow lobe, so a fully metallic cube is nearly black except where
 // the highlight is — a perfectly good picture and a useless one to ask "is red
 // above blue" of. What is under test here is geometry, not shading.
-//
-// IT USED TO BE A TRIANGLE AND THE CLAIM USED TO BE "NOTHING WAS DRAWN". A
-// single triangle mirrored is culled entirely, so the old test could ask for an
-// image identical to the clear. A cube mirrored is not empty — it is the same
-// cube seen from the inside — so that claim could not survive the geometry
-// changing and was replaced by the ones below rather than weakened.
-//
-// AND A THIRD IMAGE SAYS THE OBJECT RECORD'S COLOUR REACHES THE PICTURE. The
-// same cube, wearing a second shading record that is plain white and unlit, drawn
-// with an object colour of (1, 0, 0, 1). Unlit so that no light and no specular
-// white moves the numbers: what reaches the target is the factor times the
-// object's colour and nothing else, so the centre reads red with green and blue
-// near nothing. A colour that never reached the shader reads white.
-//
-// AND THE DEPTH TEST IS CHECKED BY THE CUBE BEING THERE AT ALL. Depth runs
-// backwards here: cleared to 0, compared GREATER. Both of the ways to get that
-// wrong reject every fragment rather than sorting them wrongly — LESS against a
-// clear of 0, or GREATER against a clear of 1 — so an inverted depth test does
-// not draw a confusing picture, it draws nothing. drawn_pixels() below is what
-// says so, and it is the automated half of the card's "flip the comparison on
-// purpose and confirm it looks wrong".
 //
 // IT RUNS HEADLESS AND THAT IS WHY IT CAN BE A TEST AT ALL. Drawing into an
 // offscreen image needs no window, no compositor and no surface, so this runs
@@ -231,6 +193,14 @@ static uint32_t dominant(const unsigned char *pixel)
 // The mirror of voe_render_frame_viewport: y at the top and a positive height,
 // which is what the engine would have if it did not flip. Written out rather
 // than derived, so that it stays the mirror even if the real one changes shape.
+//
+// HOW A BACK FACE GETS IN FRONT OF THE RASTERISER WITHOUT A SECOND SHADER. The
+// viewport is dynamic state, so the same cube drawn through the mirror of the
+// engine's viewport has every face wound the other way round in framebuffer
+// space: every face the engine would draw is culled and every face it would cull
+// is drawn. That leaves the pipeline — the thing actually under test — untouched,
+// and it means the front-facing half of this test runs the engine's own viewport
+// function rather than a copy of it.
 static VkViewport mirrored_viewport(VkExtent2D extent)
 {
 	VkViewport viewport = {
@@ -292,6 +262,15 @@ static voe_render_view the_camera(VkExtent2D extent)
 // case sees — and the mirrored case takes the opposite, which lights the three
 // the far side of the cube shows it. A white light of one, because what is being
 // measured is which channel is largest and any positive strength keeps that.
+//
+// IT HAS ITS OWN SUN NOW, AND IT IS TURNED ROUND FOR THE SECOND CASE. Card 019
+// lights everything, and a surface facing away from the one light in the world
+// is black — which would make every colour claim below read a black pixel and
+// call it red, because "which channel is largest" has no answer for three zeroes.
+// The mirrored case is looking at the far faces of the cube, whose normals point
+// the opposite way to the near ones, so it gets the opposite sun. Each case
+// therefore lights the faces it can actually see, and a light that failed to
+// reach the shader at all fails the counts below rather than moving a centroid.
 static voe_render_light the_sun(bool mirrored)
 {
 	// A third each, normalized: the light system does this for a world's
@@ -488,7 +467,15 @@ static bool mean_less(uint64_t a_sum, uint64_t a_count, uint64_t b_sum,
 
 // How many pixels of an image are something other than the colour it was cleared
 // to. What it is really measuring is that anything was drawn at all, which is
-// what an inverted depth test takes away — see the note at the top.
+// what an inverted depth test takes away.
+//
+// AND THE DEPTH TEST IS CHECKED BY THE CUBE BEING THERE AT ALL. Depth runs
+// backwards here: cleared to 0, compared GREATER. Both of the ways to get that
+// wrong reject every fragment rather than sorting them wrongly — LESS against a
+// clear of 0, or GREATER against a clear of 1 — so an inverted depth test does
+// not draw a confusing picture, it draws nothing. drawn_pixels() below is what
+// says so, and it is the automated half of the card's "flip the comparison on
+// purpose and confirm it looks wrong".
 static int drawn_pixels(const unsigned char *image, const unsigned char *clear)
 {
 	int count = 0;
@@ -502,6 +489,11 @@ static int drawn_pixels(const unsigned char *image, const unsigned char *clear)
 	return count;
 }
 
+// IT USED TO BE A TRIANGLE AND THE CLAIM USED TO BE "NOTHING WAS DRAWN". A
+// single triangle mirrored is culled entirely, so the old test could ask for an
+// image identical to the clear. A cube mirrored is not empty — it is the same
+// cube seen from the inside — so that claim could not survive the geometry
+// changing and was replaced by the ones below rather than weakened.
 static void check_the_pictures(const unsigned char *pixels)
 {
 	// A corner of the front image, which is outside the cube whichever way
@@ -580,6 +572,13 @@ static void check_the_pictures(const unsigned char *pixels)
 // The white unlit cube drawn with an object colour of red: its centre is red
 // with green and blue near nothing. Near and not exactly, so a driver's rounding
 // on the way into an sRGB target is no failure.
+//
+// AND A THIRD IMAGE SAYS THE OBJECT RECORD'S COLOUR REACHES THE PICTURE. The
+// same cube, wearing a second shading record that is plain white and unlit, drawn
+// with an object colour of (1, 0, 0, 1). Unlit so that no light and no specular
+// white moves the numbers: what reaches the target is the factor times the
+// object's colour and nothing else, so the centre reads red with green and blue
+// near nothing. A colour that never reached the shader reads white.
 static void check_the_tint(const unsigned char *pixels)
 {
 	const unsigned char *centre = pixel_at(pixels + TINTED_OFFSET, SIDE / 2,
@@ -601,7 +600,7 @@ int main(void)
 	voe_render_texture texture = { 0 };
 	voe_render_shading shading = { 0 };
 	voe_render_shading plain = { 0 };
-	// White, unlit and untextured, for the tint case: see the header.
+	// White, unlit and untextured, for the tint case: see check_the_tint.
 	voe_render_shading_values white = {
 		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 		.roughness = 1.0f,
