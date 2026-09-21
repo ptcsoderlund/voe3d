@@ -17,7 +17,7 @@ finished game's settings, are later work and deliberately not part of this.
 On this machine Vulkan enumerates the Intel integrated chip as device 0, the RTX 4070 as device 1,
 and llvmpipe as device 2. Anything that takes the first device, or the first device that supports the
 surface, lands on the Intel chip — which is also the chip the whole desktop is drawn on, so the
-engine and the compositor fight over it. That fight is what 016 was written for. Taking the first
+engine and the compositor fight over it. That fight is what 017 was written for. Taking the first
 device is also one bad driver ordering away from rendering the editor on the CPU without anyone
 noticing.
 
