@@ -1089,8 +1089,10 @@ void voe_render_pass_end(voe_render_device *device);
 // THIS IS THE WHOLE OF WHAT A LAYER IS, AND IT IS ONE CALL RATHER THAN A SECOND
 // PASS. The caller draws a group, clears depth, and draws the next group; the
 // pass still has exactly one rendering block and there is nothing here to tear
-// down or resume. See voe_3d_draw_system_run, which is the one caller, and
-// which calls this once between the world and the overlay.
+// down or resume. See voe_3d_draw_system_run, which is still the one caller,
+// and which calls this once between the world and the overlay and again before
+// the gizmo it draws last — each clear one more group in front of everything
+// before it.
 //
 // IT TAKES NO CLEAR VALUE AND WILL NOT BE GIVEN ONE. Depth runs backwards in
 // this engine — far is 0, near is 1.0, the test is GREATER — and that number
