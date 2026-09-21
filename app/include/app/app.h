@@ -47,44 +47,12 @@
 // everything a program wants to do inside one, and every program would then be
 // shaped by this file instead of by itself.
 //
-// THERE ARE TWO STARTUPS AND ONE LOOP (ADR-0157). voe_app_new opens a window and
-// a device onto it; voe_app_new_headless opens the device alone, at the size the
-// settings name, and every line of the loop above is then unchanged — which is
-// the point, because a frame drawn with no display has to be the frame a person
-// would have seen rather than the output of a second path kept in step by hand.
-// What differs is only what there is to ask: voe_app_window is NULL, so a
-// program that may be started either way guards its input reads with it and
-// reads zeroed input when there is none, and voe_app_frame_open polls nothing,
-// reports the settings' size every frame, and is never `closing` and never
-// `minimised` — so a headless loop has to stop itself, because nothing will ever
-// tell it to. The clock ticks either way.
-//
-// AND WHAT WAS DRAWN COMES BACK OUT AS A FILE. voe_app_capture_png is the one
-// call for it, over render's readback, assets' encoder and platform's file
-// write; it is called between frames and never inside one. It is the only thing
-// in this folder that is not part of a frame, and it is here because it is the
-// three folders a program would otherwise have to name itself.
-//
 // SO A LONG LIST OF THINGS IS NOT HERE AND IS NOT COMING. The order systems run
 // in, a world and what is registered in it, any arena beyond the two handed to
 // _new, the timing readout, what a key is bound to, and which present mode the
 // device opens on — all the program's. _new requests no present mode at all:
 // the device opens on FIFO and a program that wants otherwise asks render
 // itself (ADR-0131).
-//
-// THE TWO ARENAS ARE DIFFERENT AND BOTH ARE THE CALLER'S. `arena` holds this
-// struct and has to outlive it. `scratch` is startup's working memory, handed
-// straight to render, and nothing is kept out of it — rewind or destroy it as
-// soon as _new returns.
-//
-// WHAT IS RETURNED AND WHAT ASSERTS follows the engine's rule: a window that
-// will not open, a GPU that stops answering and a file that will not be written
-// are the world's doing and come back as NULL or false, for the program to
-// decide about. A NULL app or a `longest_step` at or below zero is the program's
-// own bug and asserts, and so is each startup's own missing piece — a NULL title
-// to voe_app_new, which has a window to put one on, and a width or height at or
-// below zero to voe_app_new_headless, where the size is the whole of what gets
-// drawn. voe_app_new_headless needs no title and takes a NULL one.
 #pragma once
 
 #include <app/clock.h>
@@ -107,6 +75,32 @@ typedef struct {
 	double longest_step;
 } voe_app_settings;
 
+// THERE ARE TWO STARTUPS AND ONE LOOP (ADR-0157). voe_app_new opens a window and
+// a device onto it; voe_app_new_headless opens the device alone, at the size the
+// settings name, and every line of the loop above is then unchanged — which is
+// the point, because a frame drawn with no display has to be the frame a person
+// would have seen rather than the output of a second path kept in step by hand.
+// What differs is only what there is to ask: voe_app_window is NULL, so a
+// program that may be started either way guards its input reads with it and
+// reads zeroed input when there is none, and voe_app_frame_open polls nothing,
+// reports the settings' size every frame, and is never `closing` and never
+// `minimised` — so a headless loop has to stop itself, because nothing will ever
+// tell it to. The clock ticks either way.
+//
+// THE TWO ARENAS ARE DIFFERENT AND BOTH ARE THE CALLER'S. `arena` holds this
+// struct and has to outlive it. `scratch` is startup's working memory, handed
+// straight to render, and nothing is kept out of it — rewind or destroy it as
+// soon as _new returns.
+//
+// WHAT IS RETURNED AND WHAT ASSERTS follows the engine's rule: a window that
+// will not open, a GPU that stops answering and a file that will not be written
+// are the world's doing and come back as NULL or false, for the program to
+// decide about. A NULL app or a `longest_step` at or below zero is the program's
+// own bug and asserts, and so is each startup's own missing piece — a NULL title
+// to voe_app_new, which has a window to put one on, and a width or height at or
+// below zero to voe_app_new_headless, where the size is the whole of what gets
+// drawn. voe_app_new_headless needs no title and takes a NULL one.
+//
 // Opens the window, then the device onto it. NULL if either refused, with a line
 // on stderr saying which; `error` may be NULL.
 //
@@ -201,6 +195,12 @@ voe_app_frame voe_app_frame_open(voe_app *app);
 // folders' work — render's readback, assets' encoder, platform's file — in the
 // one call a program that wants a picture of what it drew actually means
 // (ADR-0157).
+//
+// AND WHAT WAS DRAWN COMES BACK OUT AS A FILE. voe_app_capture_png is the one
+// call for it, over render's readback, assets' encoder and platform's file
+// write; it is called between frames and never inside one. It is the only thing
+// in this folder that is not part of a frame, and it is here because it is the
+// three folders a program would otherwise have to name itself.
 //
 // BETWEEN FRAMES AND NEVER INSIDE ONE. The readback waits for the card to go
 // idle, so this belongs after voe_app_draw_close and not between a pass's begin
