@@ -26,38 +26,10 @@ over a subtree (`voe_ui_theme_set`, `voe_ui_theme_push`/`voe_ui_theme_pop`).
   field in a panel the caller places. Its header says why it is placed by the
   caller and not a popup, why the gradients are cells, how the hue survives a
   grey, and what it costs in nodes and element records.
-- `include/ui/layout.h` — the context and its `voe_ui_capacities` of nodes,
-  element records and scroll areas, the frame, and rows and columns and boxes
-  between its begin and its end, any of which may clip what reaches past it
-  and offset the content it holds (`voe_ui_overflow`,
-  `voe_ui_container.scroll`), with a rectangle, the visible part of that
-  rectangle, the offset layout settled on and a measured size read back
-  through a handle (`voe_ui_node_visible`, `voe_ui_node_scroll`). Its header
-  says why nothing is laid out until the frame ends and why that is what makes
-  the first frame right, why a call returns a handle and not a size, why
-  nothing survives a frame, that the space is millimetres with Y down from the
-  panel's top-left corner because that is the space an element record is
-  already in, why that is not a departure from the world being Y-up, that a
-  column runs from the top down so it reads in call order, that START is left
-  and top on either axis, which of the three sizings may be used where, that a
-  child's own fixed size across the flow beats the container's FILL, that
-  overflow is reported rather than shrunk unless a container asks to clip it,
-  per absolute axis and nested clips intersecting, that a clip narrows what is
-  seen and never where anything is, that a scroll offset moves a clipping
-  container's content and layout clamps it while remembering none of it, and
-  the three ways a frame can be refused. It says that X is laid out for the
-  whole tree before Y and that nothing may need a height to know a width, and
-  how a container that asks to wrap breaks its run into lines — and why a
-  wrapping column overflows to the right instead of widening. It also says why
-  padding is four numbers named by absolute side, why there is no margin and
-  what to do instead, what an anchored child is and why its two axes are X and
-  Y rather than the flow's two words, which way its offset moves it, that it
-  is measured against its parent's content box and paints over its in-flow
-  siblings, the trap that a fit-to-children parent holding only anchored
-  children has no natural size at all, that a container may be declared to take
-  the pointer — nothing painted under it is hovered or pressed through it, its
-  own children still are, and it is its visible rectangle that blocks — and what
-  the measured size is for.
+- `include/ui/layout.h` — the context, the frame, and rows, columns and boxes
+  in millimetres with Y down: their sizing, padding, wrapping, anchoring,
+  clipping and scroll offsets, and each node's rectangle, visible part and
+  measured size read back after the frame ends; the file says why.
 - `include/ui/slider.h` — the slider (`voe_ui_slider`, `voe_ui_slider_action`,
   `voe_ui_slider_result`, `VOE_UI_SLIDER_HEIGHT`, `VOE_UI_SLIDER_THUMB`): a
   track of a given width with a thumb at the value's place in a range. Its

@@ -31,34 +31,13 @@
 // takes the same context and the same frame, its widgets ARE rows and columns
 // and boxes, and a widget's rectangle is one of these. So the two headers are
 // not two systems: this is the arrangement and that is what the arrangement is
-// of. Every rule below binds a widget the same way it binds a box.
+// of. Every rule in this file binds a widget the same way it binds a box.
 //
-// NOTHING IS LAID OUT UNTIL voe_ui_frame_end, AND THAT IS THE LOAD-BEARING
-// DECISION. An immediate-mode call cannot know how big a row is until the row's
-// children have been called, which is why immediate-mode windows are famous for
-// jumping on their first frame. So the calls between frame_begin and frame_end
-// build a tree and lay out nothing; frame_end measures it bottom-up and arranges
-// it top-down, and every size is right on the first frame.
-//
-// IT DOES THAT ONE AXIS AT A TIME: X FOR THE WHOLE TREE, THEN Y FOR THE WHOLE
-// TREE. Every width is settled before any height is worked out, which is what
-// lets a row that wraps be as tall as its lines — it knows its width by the time
-// its height is asked. The rule that falls out, and binds everything added here
-// later: NOTHING MAY NEED A HEIGHT TO KNOW A WIDTH.
-//
-// WHICH IS WHY A CALL RETURNS A HANDLE AND NOT A SIZE. The size does not exist
-// yet. A begin or a box call hands back a voe_ui_node — an index into this
-// frame's tree — and the rectangle is read through it with voe_ui_node_rect
-// after frame_end has returned.
-//
-// AND WHY NOTHING SURVIVES A FRAME. The tree lives in the arena handed to
-// frame_begin and is gone when the caller rewinds it. Rebuilding it every frame
-// is a few hundred bytes and a couple of sweeps; keeping it would be a cache
-// with an invalidation problem, which is how an interface comes to show
-// yesterday's arrangement. Handles from last frame name this frame's nodes, so
-// do not keep one across a frame_begin.
-//
-// ---- THE SPACE ----
+// voe_ui_frame_end LAYS OUT ONE AXIS AT A TIME: X FOR THE WHOLE TREE, THEN Y
+// FOR THE WHOLE TREE. Every width is settled before any height is worked out,
+// which is what lets a row that wraps be as tall as its lines — it knows its
+// width by the time its height is asked. The rule that falls out, and binds
+// everything added here later: NOTHING MAY NEED A HEIGHT TO KNOW A WIDTH.
 //
 // MILLIMETRES, TWO DIMENSIONS, X RIGHT, Y DOWN, ORIGIN AT THE PANEL'S TOP-LEFT
 // CORNER. That is voe_render_element's space exactly — see its header in
@@ -66,230 +45,11 @@
 // rectangle out of here IS an element's `bounds`, its min the xy and its size
 // the zw, with no arithmetic in between.
 //
-// THE WORLD IS STILL +Y UP AND THIS IS NOT A DEPARTURE FROM IT. The engine's
-// axes describe the world a panel stands in, in metres, the right way up; what
-// is fixed here is the parameter space of one flat surface, which the world's
-// handedness never described. There is still exactly one Y flip in this engine
-// and it is in the viewport, and the element path's sign lives in
-// voe_render_element_transform — nothing in this folder negates anything.
-//
-// A COLUMN LAYS ITS CHILDREN FROM THE TOP DOWN AND Y INCREASES AS IT GOES — the
-// first child called has the SMALLEST Y — so a column reads in call order, which
-// is what everyone expects. The rule the rest of it falls out of is this: START
-// is left and top, END is right and bottom, on either axis and in a row and a
-// column alike. So a row runs rightwards from the left edge and a column runs
-// downwards from the top edge, and `across` in a row counts START as the top.
-//
-// ---- THE VOCABULARY ----
-//
 // `along` is the direction the container flows and `across` is the other one.
 // A row flows along X and a column along Y, and the direction is in the call:
 // there is no direction setting, and no borrowed layout vocabulary anywhere on
 // this page. Along a row and across a row mean what they say, in a row and in a
 // column alike, and that is the whole of the naming.
-//
-// A CHILD IS ONE OF THREE THINGS ALONG THE FLOW: natural, fixed or grow. One
-// number, never three: there is no shrink and no basis. Across the flow it is
-// natural or fixed, and the container's `across` decides where it sits or
-// whether it is stretched.
-//
-// OVERFLOW IS NOT SHRUNK. Children that do not fit keep their true sizes and
-// stick out past their container's rectangle, and the rectangles reported say
-// so. Shrinking would be a third number on every child. A container may wrap
-// instead, or clip, and nothing that does not ask to — see `wrap` and OVERFLOW
-// below.
-//
-// ---- OVERFLOW: CLIP, AND AN OFFSET ----
-//
-// OVERFLOW IS VISIBLE UNLESS A CONTAINER ASKS, PER AXIS, NAMED X AND Y. VISIBLE
-// is today: children stick out. CLIP on an axis limits every descendant to the
-// container's WHOLE rectangle on that axis — padding inside the clip, as CSS
-// clips at the padding box — and nested clips intersect. The axes are absolute
-// for the reason padding and anchors are: a clip is about the container's own
-// box and not its flow. The root may clip; it is a container like any other.
-//
-// A CLIP NARROWS WHAT IS SEEN AND NEVER WHERE ANYTHING IS. voe_ui_node_rect still
-// reports the true rectangle; voe_ui_node_visible reports what is left of it,
-// which is what widgets.h draws and hit tests. AN ANCHORED CHILD IS CLIPPED LIKE
-// ANY OTHER (ADR-0153): a dropdown that must escape its parent's clip is not
-// decided yet.
-//
-// `scroll` MOVES A CONTAINER'S CONTENT, ON CLIP AXES ONLY: every child, in flow
-// and anchored, is placed at minus the offset, and its descendants follow. A
-// non-zero offset on a VISIBLE axis is the caller's bug and asserts. LAYOUT
-// CLAMPS IT to between nought and measured less arranged on that axis, because
-// layout is the one place both are known before the children are placed — so
-// content that shrinks is never shown scrolled past its end, not even for a
-// frame — and voe_ui_node_scroll reports the offset it used. The container's own
-// measured size does not move with it.
-//
-// AND LAYOUT REMEMBERS NONE OF IT. The offset is a value handed in every frame,
-// like a size. Remembering how far a person scrolled needs an identity, and
-// identity is widgets.h's: that is voe_ui_scroll_begin's job, keyed like any
-// widget, and never this page's. A plain container is handed its offset by its
-// caller. An anchored child that must stay put while content scrolls is anchored
-// to a parent that does not scroll.
-//
-// ---- A RUN THAT WRAPS ----
-//
-// A CONTAINER WITH `wrap` SET PUTS CHILDREN THAT DO NOT FIT ONTO FURTHER LINES,
-// along its flow: a row's lines stack downwards and a column's rightwards. It is
-// opt-in and nothing else changes: a container that does not ask lays out as it
-// always did, and one that asks and fits is exactly that same layout.
-//
-// A LINE BREAKS BEFORE THE CHILD THAT WOULD TAKE IT PAST THE INNER LENGTH,
-// counting each child's natural length and a gap before every child but a
-// line's first. THE FIRST CHILD ON A LINE NEVER BREAKS, so a child longer than
-// the whole line has that line to itself, at its full size, sticking out.
-//
-// EACH LINE IS A RUN OF ITS OWN ALONG THE FLOW: grow children share what THAT
-// line leaves, and `along` distributes within that line. Across the flow a line
-// is as thick as its thickest child, lines stack from the start with `gap`
-// between them, and space left over across the container is shared equally
-// between the lines, each growing by the same amount; `across` then places each
-// child within its line, FILL stretching to the line. One line is the inner size
-// across, which is today's answer.
-//
-// A NATURAL LENGTH ALONG THE FLOW IS ONE LINE LONG, so such a container never
-// wraps, and that is not an error. Wrapping needs a length from outside: fixed,
-// grow, or stretched by a parent's FILL.
-//
-// A WRAPPING ROW IS AS TALL AS ITS LINES, which is why X runs first. A WRAPPING
-// COLUMN DOES NOT WIDEN AS IT WRAPS: its width was settled as one line before its
-// height was known, so the extra lines it breaks into sit to the right of its
-// rectangle, outside it, and move its children without resizing them — a FILL
-// child keeps the one-line width it was given. Give such a column the width its
-// lines need, or put it where overflowing to the right is wanted.
-//
-// Anchored children take no part in lines, exactly as they take no part in a
-// run.
-//
-// ---- SPACE INSIDE AN EDGE, AND THE ONE THIS FOLDER REFUSES ----
-//
-// PADDING IS FOUR NUMBERS AND THEY ARE NAMED BY ABSOLUTE SIDE: left, top, right,
-// bottom, millimetres, inside every edge of a container. They are deliberately
-// NOT named by the flow — there is no `along_start` on this page — because
-// flow-relative padding changes which edge it means the day a row becomes a
-// column, and putting the direction in the call rather than in a setting was the
-// whole point of the vocabulary above. `pad.top` is the top in a row and in a
-// column alike, and it is the top of the space this header has already fixed:
-// Y down from the panel's top-left corner.
-//
-// AND THERE IS NO MARGIN. A child carries no outer spacing of its own, on any
-// axis, and there will not be one. This is a refusal and not an omission: with
-// both, two sources of space meet between every pair of children and the system
-// has to say whether they add or collapse — CSS collapses them, and it is the
-// most-complained-about rule in layout. With padding only there is exactly one
-// source of space between two children, which is the container's `gap`, and one
-// inside an edge, which is its `pad`, and neither interacts with anything.
-//
-// SO DO THIS INSTEAD, because somebody will want one: a single child that needs
-// space of its own is wrapped in a container with padding, and that container IS
-// that child's margin. An unusual gap between one pair of children is a
-// fixed-size box put between them as a spacer.
-//
-// ---- A CHILD THAT LEAVES THE FLOW ----
-//
-// AN ANCHORED CHILD IS NOT IN THE ROW OR THE COLUMN AT ALL, and that — not a new
-// kind of alignment — is the whole of what anchoring is. Its parent's run
-// neither reserves space for it nor counts it in its own size; it is pinned to
-// its parent's edges by its own two anchors instead. What it buys is a child
-// OVER its siblings — a floating panel, a badge, a corner inspector — which is
-// the one thing the flow cannot express, since snapping to both sides is already
-// `across: FILL` and right-alignment is already a grow spacer.
-//
-// IT IS SPELLED AS A FIELD ON THE CONTAINER — voe_ui_container.anchor — and a
-// zeroed one is an ordinary child in the flow, so nothing that does not ask for
-// anchoring pays anything for it and no second set of begin calls exists. A
-// panel is anchored by the very call that opens it.
-//
-// ITS TWO AXES ARE X AND Y AND NOT `along` AND `across`, because a child that is
-// out of the flow has no flow for those two words to be relative to — and for
-// the same reason the padding above is absolute. An anchor that changed which
-// edge it meant when its parent turned from a row into a column would be that
-// defect a second time. `anchor.x` is the horizontal one in a row and in a
-// column alike.
-//
-// ITS ALIGNMENT IS voe_ui_across: THE SAME FOUR VALUES, MEANING THE SAME FOUR
-// THINGS. START is the near edge — left on X, top on Y — END is the far one,
-// CENTER is the middle, and FILL is both edges at once. Four values on each of
-// two axes is sixteen combinations, and that is the point: between them they
-// hold all nine of the corner, edge-middle and centre positions, every stretch
-// case, and the margins. The enum keeps the name it already has rather than
-// gaining a twin with the same four values in it, because one idea spelled two
-// ways is the thing worth avoiding.
-//
-// THE OFFSET IS ONE NUMBER PER AXIS AND A POSITIVE ONE ALWAYS MOVES THE CHILD
-// INWARD. At START it is the gap from the near edge, at END the gap from the far
-// edge, at CENTER a displacement in the positive direction — rightwards or
-// downwards — and at FILL an inset taken off BOTH edges, so the derived size is
-// the parent's content box less twice it. A negative offset therefore moves a
-// child outward, and nothing stops one landing wholly outside its parent: this
-// folder reports true rectangles and clips only where a container asked to, so
-// a mistyped offset draws a panel somewhere surprising rather than being
-// quietly corrected.
-//
-// A CHILD'S OWN FIXED SIZE BEATS FILL HERE TOO, AND IT IS THE SAME RULE, not a
-// second answer to one question: the more specific statement wins, the child
-// keeps the size it named, and it sits at the START of that axis — exactly what
-// VOE_UI_ACROSS_FILL already promises a child in a row.
-//
-// AN ANCHORED CHILD'S `size` IS READ ABSOLUTELY, to match its anchors:
-// `size.along` is its size on X and `size.across` is its size on Y, in the same
-// order as anchor.x and anchor.y and as the two components of a float2. In the
-// flow those two fields are relative to the parent's direction; out of it there
-// is no direction, so they are not.
-//
-// GROW IS MEANINGLESS FOR AN ANCHORED CHILD. There is no run and no leftover to
-// share, so asking for it is the caller's bug and asserts.
-//
-// IT CONTRIBUTES NOTHING TO ITS PARENT'S NATURAL SIZE, exactly as a grow child
-// contributes nothing along the flow. AND HERE IS THE TRAP THAT FOLLOWS, said
-// once so that it is a surprise once rather than a bug forever: a
-// fit-to-children container holding ONLY anchored children has no natural size
-// at all, and comes out at nothing but its own padding. That is the same trap
-// CSS has, and it is the honest consequence of a floating badge not being
-// allowed to inflate the thing it floats over.
-//
-// ANCHORS ARE MEASURED AGAINST THE PARENT'S CONTENT BOX, INSIDE ITS PADDING. It
-// is the classic ambiguity in every system that has anchors and both answers are
-// defensible; this one is decided, so a child anchored to END on X in a
-// container with a right padding of 6 stops 6 short of that container's edge.
-//
-// ANCHORED CHILDREN ARE ARRANGED AFTER THEIR IN-FLOW SIBLINGS, AND AMONG
-// THEMSELVES IN CALL ORDER. Submission order is paint order on the element path,
-// so an anchored panel PAINTS OVER the siblings it floats above, which is what
-// a floating panel is for. A parent still comes before every one of its
-// children, so a panel's background is still behind its own contents.
-//
-// AN ANCHORED CHILD IS A CONTAINER LIKE ANY OTHER and holds rows, columns and
-// further anchored children, to any depth.
-//
-// A CONTAINER MAY TAKE THE POINTER, AND AN OVERLAY IS WHY IT CAN. A container
-// declared `blocks_pointer` stops the pointer at its own VISIBLE rectangle:
-// nothing painted before it — which is everything it is drawn over — is
-// hovered, armed, pressed or fired through it, while its own children, painted
-// after it, answer the pointer exactly as they always did. That is what makes
-// an open overlay solid (ADR-0199): the gaps between a list's rows and the
-// padding at its edges belong to the list, so a cursor resting between two rows
-// cannot light up the field the list covers. It is the visible rectangle and
-// not the node's own, so a blocker its clipping ancestors cut in half blocks
-// only the half that is left and one wholly clipped blocks nothing — the same
-// rule that already decides what can be hit at all. It says nothing about the
-// wheel: voe_ui_pointer.scroll still starts at the innermost scroll area under
-// the pointer, wherever a blocker is. And this header declares the field and
-// never reads it — layout carries it as it carries `wrap`, and what it means is
-// the hit test's, which is why the rule above is stated here and enforced in
-// one place beside the hit test.
-//
-// ---- WHAT IT WANTED, BESIDE WHERE IT WENT ----
-//
-// voe_ui_node_rect says where a node came to sit. voe_ui_node_measured says what
-// the measure pass computed its content to be, and THE WHOLE POINT IS THE
-// COMPARISON BETWEEN THE TWO: a container whose measured size along the flow
-// exceeds its arranged size holds content that did not fit, and that subtraction
-// is what a scroll area acts on. There is no overflowed() predicate here,
-// because it would have to choose a tolerance nobody has asked for yet.
 #pragma once
 
 #include <base/arena.h>
@@ -335,6 +95,13 @@ typedef struct {
 // panel's top-left corner. So `min` is the rectangle's own top-left corner and
 // min + size is its bottom-right — which is the shape voe_render_element.bounds
 // is in, deliberately.
+//
+// THE WORLD IS STILL +Y UP AND THIS IS NOT A DEPARTURE FROM IT. The engine's
+// axes describe the world a panel stands in, in metres, the right way up; what
+// is fixed here is the parameter space of one flat surface, which the world's
+// handedness never described. There is still exactly one Y flip in this engine
+// and it is in the viewport, and the element path's sign lives in
+// voe_render_element_transform — nothing in this folder negates anything.
 typedef struct {
 	voe_math_float2 min;
 	voe_math_float2 size;
@@ -345,6 +112,11 @@ typedef struct {
 // NATURAL is the default and it is what a zeroed voe_ui_sizing means: a box's
 // natural size is the content it declared, and a container's is what its
 // children came to.
+//
+// A CHILD IS ONE OF THREE THINGS ALONG THE FLOW: natural, fixed or grow. One
+// number, never three: there is no shrink and no basis. Across the flow it is
+// natural or fixed, and the container's `across` decides where it sits or
+// whether it is stretched.
 typedef enum {
 	// Measured. `value` is unused and must be nought.
 	VOE_UI_SIZE_NATURAL = 0,
@@ -374,6 +146,13 @@ typedef struct {
 
 // How the run of children is placed along the flow, when there is space left
 // over. START is left in a row and top in a column.
+//
+// A COLUMN LAYS ITS CHILDREN FROM THE TOP DOWN AND Y INCREASES AS IT GOES — the
+// first child called has the SMALLEST Y — so a column reads in call order, which
+// is what everyone expects. The rule the rest of it falls out of is this: START
+// is left and top, END is right and bottom, on either axis and in a row and a
+// column alike. So a row runs rightwards from the left edge and a column runs
+// downwards from the top edge, and `across` in a row counts START as the top.
 typedef enum {
 	VOE_UI_ALONG_START = 0,
 	VOE_UI_ALONG_CENTER,
@@ -402,16 +181,29 @@ typedef enum {
 	VOE_UI_ACROSS_FILL,
 } voe_ui_across;
 
-// THESE FOUR ALSO NAME AN ANCHORED CHILD'S ALIGNMENT ON EACH OF ITS TWO AXES,
-// meaning the same four things there: START the near edge, END the far one,
-// CENTER the middle, FILL both edges at once. One enum and not two, because two
-// spellings of one idea is what a reader has to learn twice.
+// AN ANCHORED CHILD'S ALIGNMENT IS voe_ui_across: THE SAME FOUR VALUES, MEANING
+// THE SAME FOUR THINGS. START is the near edge — left on X, top on Y — END is the far one,
+// CENTER is the middle, and FILL is both edges at once. Four values on each of
+// two axes is sixteen combinations, and that is the point: between them they
+// hold all nine of the corner, edge-middle and centre positions, every stretch
+// case, and the margins. The enum keeps the name it already has rather than
+// gaining a twin with the same four values in it, because one idea spelled two
+// ways is the thing worth avoiding.
 //
-// `offset` is millimetres and a positive one always moves the child INWARD: the
-// gap from the near edge at START, the gap from the far edge at END, a
-// displacement rightwards or downwards at CENTER, and an inset off BOTH edges at
-// FILL. A negative one moves it outward, and out of its parent if it is large
-// enough, which is allowed.
+// THE OFFSET IS ONE NUMBER PER AXIS AND A POSITIVE ONE ALWAYS MOVES THE CHILD
+// INWARD. At START it is the gap from the near edge, at END the gap from the far
+// edge, at CENTER a displacement in the positive direction — rightwards or
+// downwards — and at FILL an inset taken off BOTH edges, so the derived size is
+// the parent's content box less twice it. A negative offset therefore moves a
+// child outward, and nothing stops one landing wholly outside its parent: this
+// folder reports true rectangles and clips only where a container asked to, so
+// a mistyped offset draws a panel somewhere surprising rather than being
+// quietly corrected.
+//
+// A CHILD'S OWN FIXED SIZE BEATS FILL HERE TOO, AND IT IS THE SAME RULE, not a
+// second answer to one question: the more specific statement wins, the child
+// keeps the size it named, and it sits at the START of that axis — exactly what
+// VOE_UI_ACROSS_FILL already promises a child in a row.
 typedef struct {
 	voe_ui_across align;
 	float offset;
@@ -421,8 +213,57 @@ typedef struct {
 //
 // `anchored` IS THE WHOLE SWITCH, and a zeroed voe_ui_anchor is a child in the
 // flow — so a container that says nothing about anchoring is an ordinary one.
-// The axes are X and Y and not `along` and `across`, because a child out of the
-// flow has no flow to be relative to; see the top of this header.
+//
+// AN ANCHORED CHILD IS NOT IN THE ROW OR THE COLUMN AT ALL, and that — not a new
+// kind of alignment — is the whole of what anchoring is. Its parent's run
+// neither reserves space for it nor counts it in its own size; it is pinned to
+// its parent's edges by its own two anchors instead. What it buys is a child
+// OVER its siblings — a floating panel, a badge, a corner inspector — which is
+// the one thing the flow cannot express, since snapping to both sides is already
+// `across: FILL` and right-alignment is already a grow spacer.
+//
+// IT IS SPELLED AS A FIELD ON THE CONTAINER — voe_ui_container.anchor — and a
+// zeroed one is an ordinary child in the flow, so nothing that does not ask for
+// anchoring pays anything for it and no second set of begin calls exists. A
+// panel is anchored by the very call that opens it.
+//
+// ITS TWO AXES ARE X AND Y AND NOT `along` AND `across`, because a child that is
+// out of the flow has no flow for those two words to be relative to — and for
+// the same reason voe_ui_pad is absolute. An anchor that changed which
+// edge it meant when its parent turned from a row into a column would be that
+// defect a second time. `anchor.x` is the horizontal one in a row and in a
+// column alike.
+//
+// AN ANCHORED CHILD'S `size` IS READ ABSOLUTELY, to match its anchors:
+// `size.along` is its size on X and `size.across` is its size on Y, in the same
+// order as anchor.x and anchor.y and as the two components of a float2. In the
+// flow those two fields are relative to the parent's direction; out of it there
+// is no direction, so they are not.
+//
+// GROW IS MEANINGLESS FOR AN ANCHORED CHILD. There is no run and no leftover to
+// share, so asking for it is the caller's bug and asserts.
+//
+// IT CONTRIBUTES NOTHING TO ITS PARENT'S NATURAL SIZE, exactly as a grow child
+// contributes nothing along the flow. AND HERE IS THE TRAP THAT FOLLOWS, said
+// once so that it is a surprise once rather than a bug forever: a
+// fit-to-children container holding ONLY anchored children has no natural size
+// at all, and comes out at nothing but its own padding. That is the same trap
+// CSS has, and it is the honest consequence of a floating badge not being
+// allowed to inflate the thing it floats over.
+//
+// ANCHORS ARE MEASURED AGAINST THE PARENT'S CONTENT BOX, INSIDE ITS PADDING. It
+// is the classic ambiguity in every system that has anchors and both answers are
+// defensible; this one is decided, so a child anchored to END on X in a
+// container with a right padding of 6 stops 6 short of that container's edge.
+//
+// ANCHORED CHILDREN ARE ARRANGED AFTER THEIR IN-FLOW SIBLINGS, AND AMONG
+// THEMSELVES IN CALL ORDER. Submission order is paint order on the element path,
+// so an anchored panel PAINTS OVER the siblings it floats above, which is what
+// a floating panel is for. A parent still comes before every one of its
+// children, so a panel's background is still behind its own contents.
+//
+// AN ANCHORED CHILD IS A CONTAINER LIKE ANY OTHER and holds rows, columns and
+// further anchored children, to any depth.
 typedef struct {
 	bool anchored;
 	voe_ui_anchor_axis x;
@@ -432,10 +273,31 @@ typedef struct {
 // Space inside a container's four edges, in millimetres.
 //
 // NAMED BY ABSOLUTE SIDE AND NEVER BY THE FLOW, so `top` is the top in a row and
-// in a column alike; the reason is at the top of this header, and so is the
-// reason there is no margin to go with it. The order is left, top, right,
-// bottom — the two X sides then the two Y sides, near edge before far — so that
-// a positional initialiser reads in the same order as a rectangle's min and max.
+// in a column alike. The order is left, top, right, bottom — the two X sides
+// then the two Y sides, near edge before far — so that a positional initialiser
+// reads in the same order as a rectangle's min and max.
+//
+// PADDING IS FOUR NUMBERS AND THEY ARE NAMED BY ABSOLUTE SIDE: left, top, right,
+// bottom, millimetres, inside every edge of a container. They are deliberately
+// NOT named by the flow — there is no `along_start` on this page — because
+// flow-relative padding changes which edge it means the day a row becomes a
+// column, and putting the direction in the call rather than in a setting was the
+// whole point of the vocabulary at the top of this file. `pad.top` is the top in
+// a row and in a column alike, and it is the top of the space the top of this
+// file fixes: Y down from the panel's top-left corner.
+//
+// AND THERE IS NO MARGIN. A child carries no outer spacing of its own, on any
+// axis, and there will not be one. This is a refusal and not an omission: with
+// both, two sources of space meet between every pair of children and the system
+// has to say whether they add or collapse — CSS collapses them, and it is the
+// most-complained-about rule in layout. With padding only there is exactly one
+// source of space between two children, which is the container's `gap`, and one
+// inside an edge, which is its `pad`, and neither interacts with anything.
+//
+// SO DO THIS INSTEAD, because somebody will want one: a single child that needs
+// space of its own is wrapped in a container with padding, and that container IS
+// that child's margin. An unusual gap between one pair of children is a
+// fixed-size box put between them as a spacer.
 typedef struct {
 	float left;
 	float top;
@@ -444,7 +306,20 @@ typedef struct {
 } voe_ui_pad;
 
 // What a container does with descendants that reach past its rectangle, on one
-// axis. See OVERFLOW at the top of this header.
+// axis.
+//
+// OVERFLOW IS NOT SHRUNK. Children that do not fit keep their true sizes and
+// stick out past their container's rectangle, and the rectangles reported say
+// so. Shrinking would be a third number on every child. A container may wrap
+// instead, or clip, and nothing that does not ask to — see `wrap` on
+// voe_ui_container and the clip below.
+//
+// OVERFLOW IS VISIBLE UNLESS A CONTAINER ASKS, PER AXIS, NAMED X AND Y. VISIBLE
+// is today: children stick out. CLIP on an axis limits every descendant to the
+// container's WHOLE rectangle on that axis — padding inside the clip, as CSS
+// clips at the padding box — and nested clips intersect. The axes are absolute
+// for the reason padding and anchors are: a clip is about the container's own
+// box and not its flow. The root may clip; it is a container like any other.
 typedef enum {
 	// Today: children stick out.
 	VOE_UI_OVERFLOW_VISIBLE = 0,
@@ -469,7 +344,7 @@ typedef struct {
 // axis, and what is being said about the axis is the field.
 //
 // `gap` is one number between children; `pad` is four, one inside each edge.
-// Both are millimetres, and there is no margin — see the top of this header for
+// Both are millimetres, and there is no margin — see voe_ui_pad for
 // why that is a refusal rather than a gap in the model.
 //
 // `anchor` takes this container OUT of its parent's run and pins it to its
@@ -485,25 +360,100 @@ typedef struct {
 	float gap;
 	voe_ui_pad pad;
 	voe_ui_anchor anchor;
-	// Nought is one line, as a run always was. See A RUN THAT WRAPS at the
-	// top of this header.
+	// Nought is one line, as a run always was.
+	//
+	// A CONTAINER WITH `wrap` SET PUTS CHILDREN THAT DO NOT FIT ONTO
+	// FURTHER LINES, along its flow: a row's lines stack downwards and a
+	// column's rightwards. It is opt-in and nothing else changes: a
+	// container that does not ask lays out as it always did, and one that
+	// asks and fits is exactly that same layout.
+	//
+	// A LINE BREAKS BEFORE THE CHILD THAT WOULD TAKE IT PAST THE INNER
+	// LENGTH, counting each child's natural length and a gap before every
+	// child but a line's first. THE FIRST CHILD ON A LINE NEVER BREAKS, so
+	// a child longer than the whole line has that line to itself, at its
+	// full size, sticking out.
+	//
+	// EACH LINE IS A RUN OF ITS OWN ALONG THE FLOW: grow children share
+	// what THAT line leaves, and `along` distributes within that line.
+	// Across the flow a line is as thick as its thickest child, lines stack
+	// from the start with `gap` between them, and space left over across
+	// the container is shared equally between the lines, each growing by
+	// the same amount; `across` then places each child within its line,
+	// FILL stretching to the line. One line is the inner size across, which
+	// is today's answer.
+	//
+	// A NATURAL LENGTH ALONG THE FLOW IS ONE LINE LONG, so such a container
+	// never wraps, and that is not an error. Wrapping needs a length from
+	// outside: fixed, grow, or stretched by a parent's FILL.
+	//
+	// A WRAPPING ROW IS AS TALL AS ITS LINES, which is why X runs first. A
+	// WRAPPING COLUMN DOES NOT WIDEN AS IT WRAPS: its width was settled as
+	// one line before its height was known, so the extra lines it breaks
+	// into sit to the right of its rectangle, outside it, and move its
+	// children without resizing them — a FILL child keeps the one-line
+	// width it was given. Give such a column the width its lines need, or
+	// put it where overflowing to the right is wanted.
+	//
+	// Anchored children take no part in lines, exactly as they take no part
+	// in a run.
 	bool wrap;
 	// Nought is VISIBLE on both axes, as a container always was. See
-	// OVERFLOW at the top of this header.
+	// See voe_ui_overflow_kind.
 	voe_ui_overflow overflow;
 	// Millimetres, positive showing content further right or down, on CLIP
 	// axes only — non-zero on a VISIBLE axis asserts. Clamped by layout.
 	voe_math_float2 scroll;
-	// Whether the pointer stops at this container. False — which is
-	// what a container that never mentions it is — and the pointer
-	// reaches whatever is painted underneath, as it always did. See
-	// A CONTAINER MAY TAKE THE POINTER at the top of this header.
+	//
+	// `scroll` MOVES A CONTAINER'S CONTENT, ON CLIP AXES ONLY: every child, in flow
+	// and anchored, is placed at minus the offset, and its descendants follow. A
+	// non-zero offset on a VISIBLE axis is the caller's bug and asserts. LAYOUT
+	// CLAMPS IT to between nought and measured less arranged on that axis, because
+	// layout is the one place both are known before the children are placed — so
+	// content that shrinks is never shown scrolled past its end, not even for a
+	// frame — and voe_ui_node_scroll reports the offset it used. The container's own
+	// measured size does not move with it.
+	//
+	// AND LAYOUT REMEMBERS NONE OF IT. The offset is a value handed in every frame,
+	// like a size. Remembering how far a person scrolled needs an identity, and
+	// identity is widgets.h's: that is voe_ui_scroll_begin's job, keyed like any
+	// widget, and never this page's. A plain container is handed its offset by its
+	// caller. An anchored child that must stay put while content scrolls is anchored
+	// to a parent that does not scroll.
+	// Whether the pointer stops at this container. False — which is what a
+	// container that never mentions it is — and the pointer reaches
+	// whatever is painted underneath, as it always did.
+	//
+	// A CONTAINER MAY TAKE THE POINTER, AND AN OVERLAY IS WHY IT CAN. A
+	// container declared `blocks_pointer` stops the pointer at its own
+	// VISIBLE rectangle: nothing painted before it — which is everything it
+	// is drawn over — is hovered, armed, pressed or fired through it, while
+	// its own children, painted after it, answer the pointer exactly as
+	// they always did. That is what makes an open overlay solid (ADR-0199):
+	// the gaps between a list's rows and the padding at its edges belong to
+	// the list, so a cursor resting between two rows cannot light up the
+	// field the list covers. It is the visible rectangle and not the node's
+	// own, so a blocker its clipping ancestors cut in half blocks only the
+	// half that is left and one wholly clipped blocks nothing — the same
+	// rule that already decides what can be hit at all. It says nothing
+	// about the wheel: voe_ui_pointer.scroll still starts at the innermost
+	// scroll area under the pointer, wherever a blocker is. And this header
+	// declares the field and never reads it — layout carries it as it
+	// carries `wrap`, and what it means is the hit test's, which is why the
+	// rule above is stated here and enforced in one place beside the hit
+	// test.
 	bool blocks_pointer;
 } voe_ui_container;
 
 // A node in the tree being built: an index into it, valid until the next
 // voe_ui_frame_begin. An index and not a pointer, so that nothing here hands
 // out a pointer into an arena the caller is about to rewind.
+//
+// A CALL RETURNS A HANDLE AND NOT A SIZE, BECAUSE NOTHING IS LAID OUT UNTIL
+// voe_ui_frame_end. The size does not exist
+// yet. A begin or a box call hands back a voe_ui_node — an index into this
+// frame's tree — and the rectangle is read through it with voe_ui_node_rect
+// after frame_end has returned.
 typedef uint32_t voe_ui_node;
 
 // What a call that could not fit another node hands back. The frame carries on
@@ -545,12 +495,26 @@ voe_ui_context *voe_ui_context_new(voe_base_arena *arena,
 //
 // The first call after this must be voe_ui_row_begin or voe_ui_column_begin and
 // that container is the root. There is one root per frame.
+//
+// NOTHING SURVIVES A FRAME. The tree lives in the arena handed to
+// frame_begin and is gone when the caller rewinds it. Rebuilding it every frame
+// is a few hundred bytes and a couple of sweeps; keeping it would be a cache
+// with an invalidation problem, which is how an interface comes to show
+// yesterday's arrangement. Handles from last frame name this frame's nodes, so
+// do not keep one across a frame_begin.
 void voe_ui_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 
 // Measures the tree and arranges it, and after this the rectangles are readable.
 // The root sits with its `min` at the origin, at the size its own declaration
 // came to: fixed is a panel of a known size whose children grow into it, natural
 // is a panel that fits its children.
+//
+// NOTHING IS LAID OUT UNTIL voe_ui_frame_end, AND THAT IS THE LOAD-BEARING
+// DECISION. An immediate-mode call cannot know how big a row is until the row's
+// children have been called, which is why immediate-mode windows are famous for
+// jumping on their first frame. So the calls between frame_begin and frame_end
+// build a tree and lay out nothing; frame_end measures it bottom-up and arranges
+// it top-down, and every size is right on the first frame.
 //
 // FALSE WHEN THE FRAME WANTED MORE THAN THE CONTEXT WAS CREATED WITH, and there
 // are four ways to want that: more nodes, more element records, more scroll
@@ -637,10 +601,12 @@ voe_ui_rect voe_ui_node_rect(const voe_ui_context *ui, voe_ui_node node);
 // FIXED container's is what its children came to rather than the size it was
 // told to be — which is exactly the case that says something overflowed.
 //
-// THE COMPARISON IS THE POINT AND THE CALLER MAKES IT: measured along the flow
-// greater than arranged along the flow means the content did not fit. There is
-// no predicate here to do the subtraction, because one would have to pick a
-// tolerance nobody has asked for.
+// voe_ui_node_rect says where a node came to sit. voe_ui_node_measured says what
+// the measure pass computed its content to be, and THE WHOLE POINT IS THE
+// COMPARISON BETWEEN THE TWO: a container whose measured size along the flow
+// exceeds its arranged size holds content that did not fit, and that subtraction
+// is what a scroll area acts on. There is no overflowed() predicate here,
+// because it would have to choose a tolerance nobody has asked for yet.
 //
 // Readable in the same window as voe_ui_node_rect and refused in the same three
 // ways: before the frame has ended, through VOE_UI_NODE_NONE, or through a node
@@ -654,6 +620,12 @@ voe_math_float2 voe_ui_node_measured(const voe_ui_context *ui,
 //
 // Readable in the same window as voe_ui_node_rect and refused in the same three
 // ways.
+//
+// A CLIP NARROWS WHAT IS SEEN AND NEVER WHERE ANYTHING IS. voe_ui_node_rect still
+// reports the true rectangle; voe_ui_node_visible reports what is left of it,
+// which is what widgets.h draws and hit tests. AN ANCHORED CHILD IS CLIPPED LIKE
+// ANY OTHER (ADR-0153): a dropdown that must escape its parent's clip is not
+// decided yet.
 voe_ui_rect voe_ui_node_visible(const voe_ui_context *ui, voe_ui_node node);
 
 // The offset layout used for a container, after clamping: nought on a VISIBLE
