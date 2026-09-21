@@ -5,8 +5,8 @@ and every other code file is a `.h` saying what it owns and why beside the `.c`
 that carries it out. The pictures and the model it embeds sit here too.
 
 - `main.c` — opens a window and a device, builds a world, reads the model into it, and runs the
-  systems and the draw every frame until it closes. Its header is the list of things to look at in
-  both camera modes, what each of them fails like, and what the readout's numbers mean.
+  systems and the draw every frame until it closes. Its header gives the loop's order and what fails
+  in each camera mode; each exhibit's paragraph stands above the function that builds it.
 - `monitor.h` — the second camera's picture: a target, a camera that is not an entity, and the
   screen standing in the world that wears the target's texture.
 - `monitor.c` — that target, that camera, the screen's one face and the
