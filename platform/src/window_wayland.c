@@ -443,6 +443,10 @@ static voe_platform_key key_of(uint32_t scancode)
 		return VOE_PLATFORM_KEY_ENTER;
 	case KEY_DELETE:
 		return VOE_PLATFORM_KEY_DELETE;
+	case KEY_Z:
+		return VOE_PLATFORM_KEY_Z;
+	case KEY_Y:
+		return VOE_PLATFORM_KEY_Y;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}

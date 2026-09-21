@@ -1,7 +1,8 @@
-// The views: their cameras, their targets and the middle-button drag. See the
-// header for why the camera is not an entity, why the light is not the views'
-// to hold, why the picture lags the layout by a frame, and why a view nobody
-// shows is not drawn.
+// The views: their cameras, their targets and the middle-button drag, and the
+// light and the outline colour a view is drawn with. See the header for why the
+// camera is not an entity, why the light is the world's and not the views' to
+// hold, why the picture lags the layout by a frame, and why a view nobody shows
+// is not drawn.
 //
 // THE ORBIT OWNS THE EYE. A view's yaw, pitch, focus and distance are what the
 // drag changes, and the eye is always put back at the focus minus the distance
@@ -12,6 +13,8 @@
 #include <base/assert.h>
 
 #include <3d/projection.h>
+
+#include <scene/light_component.h>
 
 #include <math.h>
 
@@ -125,6 +128,38 @@ void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 	voe_render_target_resize(gpu, view->target, width, height);
 	view->width = width;
 	view->height = height;
+}
+
+voe_render_light voe_editor_view_light(const voe_ecs_world *world)
+{
+	const voe_scene_light *row;
+
+	VOE_BASE_ASSERT(world != NULL, "the light of no world");
+
+	if (voe_scene_light_count(world) == 0)
+		return (voe_render_light){ 0 };
+
+	row = &voe_scene_light_rows(world)[0];
+	VOE_BASE_ASSERT(row != NULL, "a light count with no rows behind it");
+
+	return (voe_render_light){ .direction = row->direction,
+				   .colour = row->colour,
+				   .intensity = row->intensity };
+}
+
+voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette)
+{
+	VOE_BASE_ASSERT(palette != NULL, "an outline colour out of no palette");
+
+	voe_math_float4 fill = palette->inverse;
+	voe_math_float4 ink = palette->inverse_ink;
+	float fill_luminance =
+		0.2126f * fill.x + 0.7152f * fill.y + 0.0722f * fill.z;
+	float ink_luminance =
+		0.2126f * ink.x + 0.7152f * ink.y + 0.0722f * ink.z;
+	voe_math_float4 lighter = fill_luminance >= ink_luminance ? fill : ink;
+
+	return (voe_math_float3){ lighter.x, lighter.y, lighter.z };
 }
 
 voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,

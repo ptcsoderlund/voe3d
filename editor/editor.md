@@ -1,76 +1,10 @@
 # editor
 
-The program a person opens to author a scene. Today it opens a window on a top
-bar — New, Open, Save, Preferences, the project's name and a notice — above
-three columns: `Scene` on the left, two scene views stacked in the middle, and
-`Inspector` on the right.
-
-`Scene` lists the authored entities of the project under an Add button, whose
-Entity, Cube, Capsule and Cylinder add one through the world's structural queue
-and select it; a click on a row selects it. Each view draws the world from its
-own camera, moved by a middle-button drag in it, lit by whichever light the
-world holds; a left click in one selects the frontmost entity under the pointer
-and a click on empty space clears the selection, neither of which happens while
-the browser or Preferences shows. The selected entity is drawn in both views
-with a thin outline round its silhouette, in the theme's own lightness and
-never a colour of its own (ADR-0194), and it shows even when something stands
-in front of it. `Inspector` lists what the selected entity is made of under
-Duplicate and Delete buttons, each part but its identity with a Remove button,
-and an Add component list below them. A number in it can be dragged, or clicked
-and typed into, the name can be typed, and Tab moves between them; a colour is
-picked live from its swatch in a picker beside the column, and a value with a
-named set of its own — a shape's kind among them — is a dropdown showing the
-name it holds, whose list opens where it fits — under the button, above it when
-there is no room under, and capped to the room and scrolling inside itself when
-there is room for it on neither side, so the last value can always be reached
-and picked (ADR-0200) — and closes on Escape, on a press elsewhere or on a
-choice, and a choice is an edit like any other (ADR-0195). Each of these edits
-marks the project unsaved, as an add, a duplicate, a delete, a Remove or an Add
-component does. The Delete key and Ctrl+D delete and duplicate the selected
-entity too, except while the browser shows or a field holds the keyboard. Each
-column that is not a scene view clips what is on it and scrolls it with the
-wheel or its scrollbar, and the Inspector's field rows fold onto further lines
-when the column is too narrow for them. `voe_editor [<folder>]` opens that
-folder, or the last project remembered when there is none, or an untitled cube
-and light when there is neither — see `src/project.h` and `src/last_project.h`.
-New, Open and Save — the buttons and Ctrl+N, Ctrl+O and Ctrl+S alike — go
-through `src/session.h`, which refuses New, Open and closing the window once
-while there are unsaved changes and goes ahead the second time. It can also be
-started to draw one frame with no window at all, write it to a PNG file and
-exit — `--capture <path>`, with `--size <W>x<H>` saying how big.
-
-It draws in a theme: Near black or Near white, the two with no file, or the
-`*.theme` file in `<settings>/voe3d/themes/` named by `<settings>/voe3d/theme`
-— see `src/themes.h`. A remembered theme that is gone or refused draws Near
-black and says why in the bar. The selected row in `Scene` is drawn inverted,
-as anything held or pressed is, because no colour in the editor means anything
-(ADR-0194). A theme file authors its one hue as `hue=`, and one still saying
-`accent=` is refused with its line named. Preferences lists every theme — each
-row drawn in its own theme, the one in force marked — and Choose puts one in
-force and remembers it; it also shows contrast and surface separation for the
-theme in force, and dragging either changes the whole editor as it moves. What
-is set that way is remembered per theme in `<settings>/voe3d/theme_scalars` and
-never in the theme file, and Reset puts that theme's own two back. Close or
-Escape hides it. While something is being typed into, Escape only cancels
-that; otherwise, while the colour picker is open, it only closes the picker.
-
-Open shows the editor's own file browser — an anchored panel over the dock,
-below the bar — to choose a project's folder from; a folder marked "— project"
-already holds one. Confirming it replaces the project on success, or leaves
-the browser open with a notice on failure. Save on an untitled project shows
-the same browser in SAVE mode instead, with a name box and a Make folder
-button beside the confirm button, now "Save here": typing a name and either
-pressing Enter in the box or clicking Make folder makes that folder and opens
-it, and Save here writes `project.voe3d` and the scene into whichever folder
-the browser is in, refusing one that is not empty. While the browser shows,
-the top bar's clicks and the three shortcuts do nothing, and a scene view's
-camera does not move; Escape or Cancel dismisses it without changing
-anything.
-
-It is a leaf and it stays one, exactly as `dev` is: it names whatever it needs
-and nothing names it (ADR-0121). No engine folder gains anything for the
-editor's sake — a gap in one of them is a card in that folder, never a
-reach-around from here.
+The program a person opens to author a scene, and the same program run with
+`--capture` to write one frame to a PNG with no window at all. It is a leaf
+and it stays one, exactly as `dev` is: it names whatever it needs and nothing
+names it (ADR-0121). No engine folder gains anything for the editor's sake —
+a gap in one of them is a card in that folder, never a reach-around from here.
 
 - `src` — the implementation: the loop, the project and its session, the
   themes, the top bar, the browser, Preferences, the dock and the three

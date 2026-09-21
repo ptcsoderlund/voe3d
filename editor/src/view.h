@@ -40,6 +40,8 @@
 
 #include <base/error.h>
 
+#include <ecs/world.h>
+
 #include <math/float2.h>
 #include <math/float3.h>
 
@@ -48,6 +50,7 @@
 #include <scene/camera_component.h>
 
 #include <ui/layout.h>
+#include <ui/theme.h>
 
 #include <stdint.h>
 
@@ -110,6 +113,26 @@ typedef struct {
 // voe_render_frame_begin that draws it.
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 			 float pixels_per_millimetre);
+
+// The light every view is shown with: the world's first light row, or a light
+// of zero intensity — every surface black — when the world holds none. Every
+// view is lit the same way, once a frame, by whichever light `Light` (or
+// whatever a saved project called it) carries; a world with none — nothing to
+// see by, rather than a crash — is what a broken or half-built scene draws as.
+// `render` does not normalize the direction (render/device.h) but
+// voe_scene_light_add and the light system already have, so the row's is copied
+// straight across.
+voe_render_light voe_editor_view_light(const voe_ecs_world *world);
+
+// The colour every view's selection outline is drawn in: the lighter of the
+// palette's `inverse` and `inverse_ink`, by relative luminance on the linear
+// numbers the palette already holds (ui/theme.h). A scene view's background is
+// the engine's near-black clear colour whatever the theme is, so the dark half
+// of a light theme's inverse pair would be an outline nobody can see. Both
+// roles carry the theme's one hue and neither is a colour of its own, so taking
+// the lighter keeps ADR-0194's rule and keeps the outline visible in every
+// theme (ADR-0203).
+voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette);
 
 // The camera and `light` the view's pass is opened with, the aspect ratio from
 // the view's own size. `light` is the caller's to find — the world's first

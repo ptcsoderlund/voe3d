@@ -7,9 +7,19 @@ carries it out.
 - `main.c` — reads the command line, opens a project, the window and the device, makes the arena,
   the one font, the themes and the interface, uploads the built-in shapes, and runs the loop until a
   close goes ahead or the picture is written.
-- `project.h` — the project being worked on: its own arena, the world in it, the kept sections it
-  was read with, its absolute folder and whether it has unsaved changes (ADR-0164).
-- `project.c` — opening, making and saving a project, the one `world_new` every
+- `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
+  each against last frame's, which is where every key edge in the program is found.
+- `keys.c` — the one read of every key, once a frame, and the levels it
+  remembers to find the next frame's edges against.
+- `options.h` — the command line: the folder to open, `--capture`'s path and
+  `--size`'s picture, or one usage line on stderr.
+- `options.c` — the argument list walked once, the size parsed as two runs of
+  digits with an `x` between, and the one usage line every mistake ends at.
+- `project.h` — the project being worked on: its own arena, the arena a scene read owns, the world
+  in it, the kept sections it was read with, its absolute folder and whether it has unsaved changes
+  (ADR-0164), and its scene handed out as text or read back in from one.
+- `project.c` — opening, making and saving a project, the scene written out as
+  text and a text read back into the same world, the one `world_new` every
   world is built by, and the untitled scene's cube and light, which are this
   file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
@@ -32,9 +42,9 @@ carries it out.
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
   base/report.h's first kept error.
-- `session.h` — the project being worked on, its notice and the one armed command that makes closing
-  the window, New and Open each refuse once while there are unsaved changes and go ahead the second
-  time.
+- `session.h` — the project being worked on, its notice, the flag that says a different project is in
+  place, and the one armed command that makes closing the window, New and Open each refuse once while
+  there are unsaved changes and go ahead the second time.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
@@ -77,10 +87,12 @@ carries it out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
-- `view.h` — a scene view: its camera, its target and the middle-button drag, and which view a
-  pointer is over and where in that view's picture it lands.
+- `view.h` — a scene view: its camera, its target and the middle-button drag, which view a pointer
+  is over and where in that view's picture it lands, and the light and the outline colour a view is
+  drawn with.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
-  millimetre, and their targets.
+  millimetre, their targets, the world's first light row and the lighter half
+  of the theme's inverse pair the selection is outlined in.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add menu, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
@@ -91,6 +103,12 @@ carries it out.
   click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
+- `undo.h` — the line of scene texts a step is taken from: an edit marked, a
+  settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
+  a neighbouring one back into the project's world (ADR-0204).
+- `undo.c` — the states pushed once, the compare a settled edit makes against
+  the state the world is, the throwing away of what could have been redone, and
+  the selection re-found by its authored id after a step.
 - `entities.h` — adding, duplicating and deleting entities and giving or taking
   their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
