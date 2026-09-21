@@ -77,6 +77,7 @@
 // See render/include/render/device.h.
 #include <3d/depth_sort.h>
 #include <3d/draw_system.h>
+#include <3d/gizmo.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/normal_matrix.h>
@@ -363,11 +364,13 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.view.reserved = 0.0f;
 	frame.light = the_sun(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
-	// saying nothing — see the header. The same for the outline: a zeroed
-	// record outlines nothing, so a caller that never sets either field gets
-	// the picture it would have got before they existed.
+	// saying nothing — see the header. The same for the outline and the
+	// gizmo: a zeroed record outlines nothing and stands no gizmo, so a
+	// caller that never sets one of these fields gets the picture it would
+	// have got before they existed.
 	frame.hidden = (voe_ecs_entity){ 0 };
 	frame.outlined = (voe_3d_outlined){ 0 };
+	frame.gizmo = (voe_3d_gizmoed){ 0 };
 
 	return frame;
 }
@@ -415,6 +418,41 @@ static voe_math_float4x4 panel_transform(voe_math_float4x4 clip,
 static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
 {
 	return panel.first <= submitted && panel.count <= submitted - panel.first;
+}
+
+// One of the gizmo's two meshes, as this frame's geometry and one draw. An
+// empty mesh is no draw at all, which is what a gizmo with nothing marked hands
+// back for its marked one.
+//
+// The quads are already in world metres (3d/gizmo.h), so both matrices are the
+// identity exactly as the outline's are; the record is the caller's unlit one
+// and the colour the caller's, which is the whole of what a handle looks like.
+// A refused transient range draws nothing and changes nothing else — render has
+// already said so on stderr.
+static void draw_gizmo_mesh(voe_render_device *device, voe_3d_gizmo_mesh mesh,
+			    voe_3d_material material, voe_math_float3 colour)
+{
+	voe_render_geometry quads;
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_object object = {
+		.world = voe_math_float4x4_identity(),
+		.normal = voe_math_float4x4_identity(),
+		.shading = material.shading.index,
+		.colour = { colour.x, colour.y, colour.z, 1.0f },
+	};
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a gizmo to no device");
+	VOE_BASE_ASSERT(mesh.index_count == 0 ||
+				(mesh.vertices != NULL && mesh.indices != NULL),
+			"a gizmo mesh of triangles with no arrays behind it");
+
+	if (mesh.index_count == 0)
+		return;
+	if (voe_render_geometry_create_transient(device, mesh.vertices,
+						 mesh.vertex_count,
+						 mesh.indices, mesh.index_count,
+						 &quads, &error))
+		(void)voe_render_frame_draw(device, quads, object);
 }
 
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
@@ -645,6 +683,39 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			if (!cleared)
 				voe_render_frame_clear_depth(device);
 			(void)voe_render_frame_draw(device, quads, object);
+		}
+	}
+
+	// AND THE GIZMO IS AFTER EVEN THE OUTLINE, BEHIND A CLEAR OF ITS OWN.
+	// The outline is in the same depth buffer and cuts across an arrow that
+	// stands in front of it, so the gizmo is given an empty buffer too:
+	// that second clear is the whole of what puts it in front of everything
+	// in the picture, and it still occludes itself. Two draws, because the
+	// marked handle is a colour of its own (ADR-0205).
+	if (voe_ecs_entity_alive(world, frame.gizmo.entity)) {
+		const voe_scene_transform *transform =
+			voe_scene_transform_get(world, frame.gizmo.entity);
+		voe_3d_gizmo gizmo;
+		voe_3d_gizmo_mesh plain;
+		voe_3d_gizmo_mesh marked;
+
+		// An entity with nowhere to be has nowhere to stand a gizmo,
+		// which is skipped rather than guessed at — the same rule a
+		// mesh with no transform is drawn by.
+		if (transform != NULL) {
+			voe_render_frame_clear_depth(device);
+			gizmo = voe_3d_gizmo_at(transform->position, view,
+						frame.gizmo.size,
+						frame.gizmo.pixels);
+			if (voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena,
+					       &plain, &marked)) {
+				draw_gizmo_mesh(device, plain,
+						frame.gizmo.material,
+						frame.gizmo.colour);
+				draw_gizmo_mesh(device, marked,
+						frame.gizmo.material,
+						frame.gizmo.marked_colour);
+			}
 		}
 	}
 

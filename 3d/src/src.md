@@ -39,9 +39,13 @@ is included from outside the folder — `include/3d/` is the whole public surfac
   a comment.
 - `outline.c` — the walk over one shape's edges that keeps the ones the eye is on two sides of, and
   the quad each of them becomes, a half width per vertex from that vertex's own depth.
+- `gizmo.c` — the shaft that covers the same pixels at any distance, the ray against each handle
+  nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
+  all drawn as.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each
-  side of the overlay's depth clear, over both tables.
+  side of the overlay's depth clear, over both tables, then the outline and the
+  move gizmo behind a clear each.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.

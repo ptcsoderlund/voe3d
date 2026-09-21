@@ -134,6 +134,15 @@ voe_render_light voe_editor_view_light(const voe_ecs_world *world);
 // theme (ADR-0203).
 voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette);
 
+// The colour a gizmo handle is drawn in (ADR-0207): the outline's colour as it
+// stands for a `marked` handle — hovered or held — and that colour multiplied
+// by VOE_EDITOR_VIEW_GIZMO_REST for a handle at rest. Multiplying a linear
+// colour is a lightness step on the theme's one hue rather than a new role, and
+// the outline's colour is the one already known to show on a view's near-black
+// ground in every theme, so both states stay visible and differ by lightness.
+voe_math_float3 voe_editor_view_gizmo_colour(const voe_ui_theme *palette,
+					     bool marked);
+
 // The camera and `light` the view's pass is opened with, the aspect ratio from
 // the view's own size. `light` is the caller's to find — the world's first
 // light row, or a light of zero intensity when the world has none — because a

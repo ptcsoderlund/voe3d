@@ -120,6 +120,33 @@
 // render says so on stderr and this draws nothing, exactly as every other
 // refused draw in here stops its own group and no more.
 //
+// A PASS MAY DRAW ONE MOVE GIZMO, AND IT IS THE LAST THING OF ALL (ADR-0205).
+// It goes after the outline and behind a second depth clear of its own: the
+// outline is in the same depth buffer and would otherwise cut across an arrow
+// standing in front of it. So the gizmo meets an empty depth buffer too, and
+// nothing already drawn can be in front of any part of it — which is what makes
+// every handle aimable at wherever the thing it moves happens to be.
+//
+// IT IS ONE ENTITY AND NOT A LIST, for the reason `outlined` is one: a gizmo
+// stands on what is selected, there is one selection per view, and a set of
+// them is a larger decision made when something needs it (rule 10). A zeroed
+// entity, a dead one and one with no transform each draw nothing, which is what
+// no selection looks like — so a caller that never sets the field loses nothing.
+//
+// THE TWO COLOURS AND THE MARKED HANDLE ARE THE CALLER'S. Which handle is under
+// the pointer or held is the editor's question (ADR-0205), and whose theme a
+// gizmo wears is the editor's business exactly as an outline's colour is: this
+// draws the handles at rest in `colour` and the marked one in `marked_colour`,
+// and knows nothing else about either.
+//
+// THE QUADS COME FROM voe_3d_gizmo_quads AND GO INTO THIS FRAME'S TRANSIENT
+// POOL. A program that draws a gizmo sizes its voe_render_capacities' transient
+// vertices and indices from VOE_3D_GIZMO_VERTICES and VOE_3D_GIZMO_INDICES, and
+// counts two more transient ranges and two more objects per pass — the handles
+// at rest and the marked one are two draws, because a drawn object's colour is
+// one record per draw (ADR-0191). A refused transient range draws no gizmo and
+// leaves the rest of the frame alone, as the outline's does.
+//
 // THE SORT IS PER OBJECT AND NOT PER TRIANGLE. One key per entity: the
 // view-space depth of its origin. Two see-through things that interpenetrate,
 // and a long thin one seen end-on, come out wrong, and that is the trade taken
@@ -197,10 +224,39 @@
 // anything.
 #pragma once
 
+#include <3d/gizmo.h>
 #include <3d/outline.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 #include <render/device.h>
+
+// The move gizmo a pass draws, after everything else and behind a clear of its
+// own (ADR-0205). Where it stands, what it wears and how big it is on the
+// picture; the triangles themselves are voe_3d_gizmo_quads'.
+typedef struct {
+	// Where the gizmo stands: the entity whose transform it is on, zeroed
+	// for none. A zeroed entity is never a live one, a dead one and one
+	// with no transform draw nothing, and all three are what no selection
+	// looks like.
+	voe_ecs_entity entity;
+	// The unlit record the quads wear — voe_3d_shapes' outline material,
+	// the same one the silhouette above wears.
+	voe_3d_material material;
+	// The handles at rest, linear, and the whole of what they look like
+	// because the record is unlit (ADR-0205).
+	voe_math_float3 colour;
+	// The one handle under the pointer or held, in its own colour because
+	// a drawn object's colour is one record per draw (ADR-0191).
+	voe_math_float3 marked_colour;
+	// Which handle that is, VOE_3D_GIZMO_NONE for none. The editor's
+	// question, answered with voe_3d_gizmo_hit.
+	voe_3d_gizmo_handle marked;
+	// How many pixels one arrow's shaft covers, at any distance.
+	float pixels;
+	// The size of that picture, in pixels — the height is what the size is
+	// worked out against, as the outline's width is.
+	voe_platform_size size;
+} voe_3d_gizmoed;
 
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
@@ -223,14 +279,19 @@ typedef struct {
 	// what is selected, there is one selection per view, and a set of them
 	// is a larger decision made when something needs it (rule 10).
 	voe_3d_outlined outlined;
+	// The one entity this pass stands a move gizmo on, zeroed for none —
+	// one entity and not a list for the same reason `outlined` is one, and
+	// drawn last of all behind a clear of its own (ADR-0205, and the
+	// paragraph above).
+	voe_3d_gizmoed gizmo;
 } voe_3d_frame;
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. `hidden` and `outlined` both come back zeroed — hiding
-// something and outlining something are the caller's choice and it sets the
-// field on the answer. Asserts on a world without exactly one camera and one
+// matrix is never read. `hidden`, `outlined` and `gizmo` all come back zeroed —
+// hiding something, outlining something and standing a gizmo on something are
+// the caller's choice and it sets the field on the answer. Asserts on a world without exactly one camera and one
 // light — see the header.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size);
@@ -241,7 +302,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // for it — the same camera the pass was opened with. `frame.hidden`, when it
 // names a live entity, is the one thing left out, of either table and either
 // layer, and `frame.outlined`, when it names one, is outlined after everything
-// else is drawn. Calling it with no pass open is the caller's bug and asserts.
+// else is drawn — and `frame.gizmo`, when it names one with a transform, is the
+// move gizmo drawn after that. Calling it with no pass open is the caller's bug
+// and asserts.
 //
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
 // RETURNS NOTHING. A draw the device refuses — more objects than it was made
@@ -250,7 +313,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // is _begin's and _end's to report, and both return false when it has.
 //
 // `arena` is scratch for this frame's sorts, the groups they order and the
-// outline's quads, and nothing survives the call: it is rewound to the mark
+// outline's and the gizmo's quads, and nothing survives the call: it is rewound to the mark
 // this took on the way in, on every path out.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame);

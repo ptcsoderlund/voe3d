@@ -1,4 +1,4 @@
-# 016 — The editor leaves the rest of the machine alone
+# 017 — The editor leaves the rest of the machine alone
 
 ## What
 The editor never takes more of the machine than the picture needs, and never disturbs the desktop it
