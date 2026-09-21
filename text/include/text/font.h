@@ -22,51 +22,6 @@
 // folder has no third answer in it and adding one is how a folder ends up with
 // three ways to draw the same letter that disagree at the edges.
 //
-// ONE TEXT BLOCK IS ONE OBJECT: ONE MESH, ONE MATERIAL, ONE DRAW. Not one per
-// glyph. That is the load-bearing rule of this folder — it is what keeps a
-// sentence from becoming a hundred blended objects with a hundred sort keys, and
-// it is why a block is a geometry id and not a list of anything.
-//
-// THE MATERIAL IS THE CALLER'S TO BUILD, AND IT IS UNLIT AND BLENDED. This
-// folder makes a mesh and a texture; what wears them is a `3d` material, and
-// this folder may not name `3d`. The five things it must say are the atlas as
-// the base colour texture, the tint as the base colour factor,
-// VOE_RENDER_ALPHA_BLENDED as the alpha mode, `unlit` set, and the base colour
-// texture declared a distance field. Text is not lit by the sun: a letter that
-// goes dark as a light moves round is a material that forgot the fourth. And a
-// material that forgot the fifth draws every glyph as a solid rectangle, because
-// the sheet is numbers and reading it as a picture is reading nonsense.
-//
-// A TEXT BLOCK HAS TWO LIFETIMES AND TWO CALLS, AND THE LAYOUT IS THE SAME
-// UNDERNEATH BOTH. voe_text_block_create is a startup operation: it goes through
-// voe_render_geometry_create, which waits for the graphics card to go idle and
-// appends to a pool with no destroy, so a label that never changes costs exactly
-// one upload and is then drawn for the life of the program for nothing. That is
-// its cache, and it is the only cache text has. voe_text_block_create_transient
-// lives inside a frame: it goes through voe_render_geometry_create_transient, so
-// the block is valid until that frame ends and is then gone, and text that
-// changes — a readout, a label being edited — is laid out again every frame from
-// the current string. Nothing here remembers a string, hashes one or asks
-// whether it changed: a cache that misses an invalidation draws yesterday's text,
-// which looks exactly like a program that has frozen. Rebuilding a few thousand
-// glyphs a frame is a tenth of a millisecond and is the cost this design chose.
-//
-// EVERYTHING IS IN THE WORLD, IN THREE DIMENSIONS. A block is quads at z = 0
-// facing +Z, in metres, and where it goes is a transform like anything else's:
-// standing in the scene, or placed in front of the camera every frame so it
-// reads as a heads-up display. There is no screen-space path here and a "just
-// for debug" one is what that rule exists to prevent.
-//
-// ONE FACE IS IN THE BINARY, OXANIUM, AND A FONT STILL NAMES IT (ADR-0185).
-// text/fonts/ holds Oxanium Regular, and `#embed` puts it in the executable, so
-// there is no path, no file I/O and no way for it to be missing — the same
-// mechanism the compiled shaders use. A voe_text_typeface is not a path or a
-// caller's bytes: it is a lookup into a set the binary always carries, which is
-// what lets a theme file name a font without ever failing at a file's mercy.
-// Oxanium's licence is the SIL Open Font License, which permits embedding, and
-// its notice, text/fonts/OFL.txt, travels unmodified beside it — so anything
-// shipping this engine ships it.
-//
 // ---- WHAT IT DOES NOT DO, EACH BY NAME ----
 //
 // NO KERNING, BECAUSE THIS FONT HAS NONE TO READ. Kerning here would mean the
@@ -111,6 +66,16 @@ typedef struct voe_text_font voe_text_font;
 // bytes: the set is exactly the one face the binary carries, Oxanium, so naming
 // it can never fail at a file's mercy and callers still name the face they
 // make. A theme naming any other font gets Oxanium (ADR-0185).
+//
+// ONE FACE IS IN THE BINARY, OXANIUM, AND A FONT STILL NAMES IT (ADR-0185).
+// text/fonts/ holds Oxanium Regular, and `#embed` puts it in the executable, so
+// there is no path, no file I/O and no way for it to be missing — the same
+// mechanism the compiled shaders use. A voe_text_typeface is not a path or a
+// caller's bytes: it is a lookup into a set the binary always carries, which is
+// what lets a theme file name a font without ever failing at a file's mercy.
+// Oxanium's licence is the SIL Open Font License, which permits embedding, and
+// its notice, text/fonts/OFL.txt, travels unmodified beside it — so anything
+// shipping this engine ships it.
 typedef enum {
 	VOE_TEXT_TYPEFACE_OXANIUM,
 } voe_text_typeface;
@@ -122,6 +87,17 @@ typedef enum {
 // has most of itself in +x and +y, with the descenders of the first line below
 // zero. `size` is how far it reaches: the widest line's advance, and the height
 // from the top of the first line to the bottom of the last.
+//
+// EVERYTHING IS IN THE WORLD, IN THREE DIMENSIONS. A block is quads at z = 0
+// facing +Z, in metres, and where it goes is a transform like anything else's:
+// standing in the scene, or placed in front of the camera every frame so it
+// reads as a heads-up display. There is no screen-space path here and a "just
+// for debug" one is what that rule exists to prevent.
+//
+// ONE TEXT BLOCK IS ONE OBJECT: ONE MESH, ONE MATERIAL, ONE DRAW. Not one per
+// glyph. That is the load-bearing rule of this folder — it is what keeps a
+// sentence from becoming a hundred blended objects with a hundred sort keys, and
+// it is why a block is a geometry id and not a list of anything.
 typedef struct {
 	voe_render_geometry geometry;
 	voe_math_float2 size;
@@ -150,6 +126,16 @@ typedef struct {
 void voe_text_font_destroy(voe_text_font *font);
 
 // The sheet, which is what a text material's base colour texture is.
+//
+// THE MATERIAL IS THE CALLER'S TO BUILD, AND IT IS UNLIT AND BLENDED. This
+// folder makes a mesh and a texture; what wears them is a `3d` material, and
+// this folder may not name `3d`. The five things it must say are the atlas as
+// the base colour texture, the tint as the base colour factor,
+// VOE_RENDER_ALPHA_BLENDED as the alpha mode, `unlit` set, and the base colour
+// texture declared a distance field. Text is not lit by the sun: a letter that
+// goes dark as a light moves round is a material that forgot the fourth. And a
+// material that forgot the fifth draws every glyph as a solid rectangle, because
+// the sheet is numbers and reading it as a picture is reading nonsense.
 //
 // IT IS NOT A PICTURE OF THE LETTERS. Each texel holds three signed distances to
 // the nearest outline, in its first three channels; the fourth is opaque and is
@@ -276,6 +262,20 @@ typedef struct {
 voe_text_measure voe_text_font_measure(const voe_text_font *font,
 				       const char *utf8);
 
+// A TEXT BLOCK HAS TWO LIFETIMES AND TWO CALLS, AND THE LAYOUT IS THE SAME
+// UNDERNEATH BOTH. voe_text_block_create is a startup operation: it goes through
+// voe_render_geometry_create, which waits for the graphics card to go idle and
+// appends to a pool with no destroy, so a label that never changes costs exactly
+// one upload and is then drawn for the life of the program for nothing. That is
+// its cache, and it is the only cache text has. voe_text_block_create_transient
+// lives inside a frame: it goes through voe_render_geometry_create_transient, so
+// the block is valid until that frame ends and is then gone, and text that
+// changes — a readout, a label being edited — is laid out again every frame from
+// the current string. Nothing here remembers a string, hashes one or asks
+// whether it changed: a cache that misses an invalidation draws yesterday's text,
+// which looks exactly like a program that has frozen. Rebuilding a few thousand
+// glyphs a frame is a tenth of a millisecond and is the cost this design chose.
+//
 // Lays the string out and uploads it as one mesh. `em` is how many metres one em
 // is, which is the one place a font's units become the world's; a capital letter
 // comes out around seven tenths of it.
