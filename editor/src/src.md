@@ -7,6 +7,14 @@ carries it out.
 - `main.c` — reads the command line, opens a project, the window and the device, makes the arena,
   the one font, the themes and the interface, uploads the built-in shapes, and runs the loop until a
   close goes ahead or the picture is written.
+- `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
+  each against last frame's, which is where every key edge in the program is found.
+- `keys.c` — the one read of every key, once a frame, and the levels it
+  remembers to find the next frame's edges against.
+- `options.h` — the command line: the folder to open, `--capture`'s path and
+  `--size`'s picture, or one usage line on stderr.
+- `options.c` — the argument list walked once, the size parsed as two runs of
+  digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its own arena, the world in it, the kept sections it
   was read with, its absolute folder and whether it has unsaved changes (ADR-0164).
 - `project.c` — opening, making and saving a project, the one `world_new` every
@@ -77,10 +85,12 @@ carries it out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
-- `view.h` — a scene view: its camera, its target and the middle-button drag, and which view a
-  pointer is over and where in that view's picture it lands.
+- `view.h` — a scene view: its camera, its target and the middle-button drag, which view a pointer
+  is over and where in that view's picture it lands, and the light and the outline colour a view is
+  drawn with.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
-  millimetre, and their targets.
+  millimetre, their targets, the world's first light row and the lighter half
+  of the theme's inverse pair the selection is outlined in.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add menu, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
