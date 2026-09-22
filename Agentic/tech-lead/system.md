@@ -33,7 +33,7 @@ rules are decision 0168.
 - 0001, 0008 — One repository of self-contained CMake folders, statically linked; no plugin.
 - 0005, 0026, 0047 — Clang only, as the GNU-driver `clang` on both platforms, floor 19.
 - 0021, 0023 — Tools installed by the programmer, dependencies fetched by the build.
-- 0004, 0028, 0031, 0042 — No CI; `cmake -P check.cmake` verifies; tests are plain C under CTest.
+- 0004, 0028, 0031, 0042, 0213 — No CI; the Checks run in the tree; tests are plain C under CTest.
 - 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module.
 - 0014, 0029, 0032, 0034, 0041 — Naming carries the namespace; memory is arenas; failure is a value.
 - 0022, 0121, 0135, 0151 — The folder map above; editor and dev are leaves; a game omits authoring.
@@ -45,7 +45,7 @@ rules are decision 0168.
 - 0170, 0171, 0172, 0178 — A theme is read in `theme`, derived in `ui` in OKLab; the nearest wins.
 - 0174, 0175, 0176 — 006's cards merged back; a new folder registers itself; `theme` sees `render`.
 - 0177 — To see what was drawn, render to a PNG; named on cards that change what is drawn.
-- 0180–0185 — Wayland draws at fractional scale; editor text scales, hard-edged, Oxanium alone.
+- 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
 - 0186, 0187, 0188 — Toward a coin game in the project's own C; Play cooks the scene as it is.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
