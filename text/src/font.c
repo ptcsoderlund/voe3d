@@ -110,6 +110,12 @@ static const uint8_t OXANIUM_TTF[] = {
 // put. Everything above that is sharp at any size, so there is nothing bought
 // by going higher and a megabyte to be paid for it.
 //
+// render/shaders/elements.slang holds VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS,
+// the thinnest stroke the sheet holds in texels at this em, and its glyph
+// cutoff dilates a stroke only until that many texels reach a pixel and a
+// quarter on screen (ADR-0212). Changing this number, or the face, changes
+// that one.
+//
 // THE OLD ARGUMENT FOR FORTY IS GONE, NOT MERELY OUTVOTED, AND IT IS WORTH
 // SAYING WHY. It ran: a sheet stored finer than the screen is minified, a
 // minified texture is read out of the mipmap chain, and a blend between two
