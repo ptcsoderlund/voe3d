@@ -14,7 +14,7 @@ readout, key bindings and the present mode are all the program's.
 - `include/app/app.h` — the whole public surface: the two startups, frame open,
   draw open and close, a capture, and the window and device to reach past them.
   Its header shows the loop a program writes and why this folder owns none; the
-  file says what each call reports.
+  file says what each call reports and when a frame waits.
 - `include/app/clock.h` — the interval between two frames, as a value. Its
   header says why it takes the reading rather than making one, why `elapsed` and
   `step` are separate numbers and what confusing them costs, and what the first

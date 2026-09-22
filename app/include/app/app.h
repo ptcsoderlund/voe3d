@@ -168,13 +168,20 @@ typedef struct {
 	bool closing;
 } voe_app_frame;
 
-// Reads the clock, ticks it, polls the window, and reports what the window then
-// says. Once at the top of the loop.
+// Waits as the window's state asks, reads the clock, ticks it, polls the window,
+// and reports what the window then says. Once at the top of the loop.
 //
 // THE POLL IS IN HERE AND IT IS THE ONLY ONE THERE IS. platform has no second
 // poll and no event queue, so a loop that does not call this gets a window that
-// never closes and a keyboard that never moves. It does not wait, so a loop with
-// nothing else in it spins a core.
+// never closes and a keyboard that never moves.
+//
+// IT WAITS WHEN NOBODY IS LOOKING (ADR-0215). Focused, it does not wait: the
+// present paces the loop. Visible but not focused, it waits until a quarter
+// second has passed since the previous frame opened, ending early on any event,
+// so a click back is drawn at once. Hidden, it waits with no timeout until the
+// window is shown again. A request to close always ends a wait. The step after a
+// long wait is clamped by `longest_step`, as any stall is. A headless app never
+// waits.
 voe_app_frame voe_app_frame_open(voe_app *app);
 
 // Opens the recording. It draws nothing and has no camera: every draw is inside a
