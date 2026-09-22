@@ -8,11 +8,14 @@
 // responding, so xdg_wm_base's listener is not optional even though nothing here
 // wants the event.
 //
-// Every global is bound at version 1. Only version 1 of each is used, and a
-// listener slot for an event the bound version never sends stays NULL — which
-// matters, because libwayland calls straight through a listener's function
-// pointer and a NULL one is a crash rather than a no-op. Binding low is what
-// keeps the slots left NULL here and in seat_wayland.c unreachable.
+// Every global but the shell is bound at version 1, and a listener slot for an
+// event the bound version never sends stays NULL — which matters, because
+// libwayland calls straight through a listener's function pointer and a NULL
+// one is a crash rather than a no-op. Binding low is what keeps the slots left
+// NULL here and in seat_wayland.c unreachable. xdg_wm_base is bound at up to
+// version 6, because 6 is where the toplevel says it is suspended — hidden —
+// which is how a window knows to stop drawing (ADR-0215); every toplevel slot a
+// version up to 6 can send has a function.
 //
 // NOTHING HERE PUTS A PIXEL ON THE SCREEN, AND THAT IS WHY THE WINDOW IS NOT
 // VISIBLE UNTIL SOMETHING ELSE DOES. A Wayland surface with no buffer ever
@@ -72,14 +75,14 @@ static void registry_global(void *data, struct wl_registry *registry,
 {
 	voe_platform_window *window = data;
 
-	(void)version;
-
 	if (strcmp(interface, wl_compositor_interface.name) == 0)
 		window->compositor = wl_registry_bind(registry, name,
 						      &wl_compositor_interface, 1);
-	else if (strcmp(interface, xdg_wm_base_interface.name) == 0)
+	else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+		window->shell_version = version < 6 ? version : 6;
 		window->wm_base = wl_registry_bind(registry, name,
-						   &xdg_wm_base_interface, 1);
+			&xdg_wm_base_interface, window->shell_version);
+	}
 	// Optional, and absent on a compositor that draws no frames. Everything
 	// downstream checks for NULL rather than assuming it arrived.
 	else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0)
@@ -142,19 +145,29 @@ static const struct xdg_surface_listener surface_listener = {
 };
 
 // A width or height of zero means "you choose", which is what arrives when the
-// window first opens, so the size asked for at _new is kept in that case.
+// window first opens, so the size asked for at _new is kept in that case. The
+// states are the whole set every time, so a state not listed is off.
 static void toplevel_configure(void *data, struct xdg_toplevel *toplevel,
 			       int32_t width, int32_t height,
 			       struct wl_array *states)
 {
 	voe_platform_window *window = data;
+	const uint32_t *state;
 
 	(void)toplevel;
-	(void)states;
 
 	if (width > 0 && height > 0) {
 		window->wanted_width = width;
 		window->wanted_height = height;
+	}
+
+	window->wanted_focused = false;
+	window->wanted_suspended = false;
+	wl_array_for_each(state, states) {
+		if (*state == XDG_TOPLEVEL_STATE_ACTIVATED)
+			window->wanted_focused = true;
+		else if (*state == XDG_TOPLEVEL_STATE_SUSPENDED)
+			window->wanted_suspended = true;
 	}
 }
 
@@ -166,13 +179,30 @@ static void toplevel_close(void *data, struct xdg_toplevel *toplevel)
 	window->should_close = true;
 }
 
-// configure_bounds and wm_capabilities are version 4 and 5 events. xdg_wm_base is
-// bound at version 1, so they never arrive and these slots stay NULL.
+// Version 4 and 5 events, which arrive now that the shell is bound higher.
+// Nothing here wants either; they exist so the slot is not NULL.
+static void toplevel_configure_bounds(void *data, struct xdg_toplevel *toplevel,
+				      int32_t width, int32_t height)
+{
+	(void)data;
+	(void)toplevel;
+	(void)width;
+	(void)height;
+}
+
+static void toplevel_wm_capabilities(void *data, struct xdg_toplevel *toplevel,
+				     struct wl_array *capabilities)
+{
+	(void)data;
+	(void)toplevel;
+	(void)capabilities;
+}
+
 static const struct xdg_toplevel_listener toplevel_listener = {
 	.configure = toplevel_configure,
 	.close = toplevel_close,
-	.configure_bounds = NULL,
-	.wm_capabilities = NULL,
+	.configure_bounds = toplevel_configure_bounds,
+	.wm_capabilities = toplevel_wm_capabilities,
 };
 
 // DECORATIONS ARE ASKED FOR, NOT ASSUMED. xdg-decoration is how a client says it
@@ -308,6 +338,8 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	window->wanted_width = width;
 	window->wanted_height = height;
 	window->scale = 120;
+	window->focused = true;
+	window->wanted_focused = true;
 
 	// No compositor, no WAYLAND_DISPLAY, no session: recoverable, and the
 	// reason this function returns a pointer that can be NULL.
@@ -468,6 +500,57 @@ void voe_platform_window_poll(voe_platform_window *window)
 		window->viewport_stale = true;
 	}
 	viewport_update(window);
+
+	window->focused = window->wanted_focused;
+	window->suspended = window->wanted_suspended;
+}
+
+// Blocks on the socket the way pump looks at it, with a timeout. Anything
+// already queued is dispatched instead of waited for, and a dead connection
+// returns at once: _poll folds it into should_close.
+void voe_platform_window_wait(voe_platform_window *window, double seconds)
+{
+	struct pollfd waiting = {
+		.fd = wl_display_get_fd(window->display),
+		.events = POLLIN,
+	};
+	int dispatched = 0;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "waiting on a NULL window");
+
+	if (wl_display_get_error(window->display) != 0)
+		return;
+
+	while (wl_display_prepare_read(window->display) != 0) {
+		int count = wl_display_dispatch_pending(window->display);
+
+		if (count < 0)
+			return;
+		dispatched += count;
+	}
+
+	wl_display_flush(window->display);
+
+	if (dispatched == 0 &&
+	    poll(&waiting, 1, seconds < 0.0 ? -1 : (int)(seconds * 1000.0)) > 0 &&
+	    (waiting.revents & POLLIN))
+		wl_display_read_events(window->display);
+	else
+		wl_display_cancel_read(window->display);
+}
+
+bool voe_platform_window_focused(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	return window->focused;
+}
+
+bool voe_platform_window_visible(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	return !window->suspended;
 }
 
 bool voe_platform_window_should_close(voe_platform_window *window)

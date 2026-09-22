@@ -26,8 +26,8 @@
 // should be timing a thousand of them.
 //
 // NO ONE CALLS A SLEEP AND THIS HEADER OFFERS NONE. Waiting is not the same
-// question as measuring, and the folder has no way to wait yet — see
-// voe_platform_window_poll, which returns immediately for the same reason.
+// question as measuring, and the wait is on the window, not here — see
+// voe_platform_window_wait, which wakes on the window's events as well as time.
 #pragma once
 
 double voe_platform_clock_now(void);

@@ -30,9 +30,17 @@
 // forgets this one gets a window that never closes and a keyboard that never
 // moves.
 //
-// _poll returns immediately whether or not anything happened. It is not a wait,
-// and platform has no way to wait yet, so a loop with nothing else in it will
-// spin a core.
+// _poll returns immediately whether or not anything happened. It is not a wait;
+// _wait is, and it is how a loop costs nothing between frames: it blocks until
+// the window's connection has an event or the seconds pass, reads what arrived
+// and folds nothing — the next _poll does that, as ever.
+//
+// _focused and _visible change only at _poll, and both answer true before the
+// first configure. On Wayland focused is the toplevel's activated state and
+// visible is the absence of suspended; a compositor older than xdg-shell 6
+// never says suspended, so its window is always visible. On Windows focused is
+// activation and visible is not minimised; a window on another virtual desktop
+// is not detected (ADR-0215).
 #pragma once
 
 #include <stdint.h>
@@ -74,6 +82,12 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 void voe_platform_window_destroy(voe_platform_window *window);
 
 void voe_platform_window_poll(voe_platform_window *window);
+// A negative seconds waits with no timeout.
+void voe_platform_window_wait(voe_platform_window *window, double seconds);
+// The window is the one the person is working in.
+bool voe_platform_window_focused(voe_platform_window *window);
+// Any of the window can be on screen.
+bool voe_platform_window_visible(voe_platform_window *window);
 bool voe_platform_window_should_close(voe_platform_window *window);
 voe_platform_size voe_platform_window_size(voe_platform_window *window);
 voe_platform_native voe_platform_window_native(voe_platform_window *window);

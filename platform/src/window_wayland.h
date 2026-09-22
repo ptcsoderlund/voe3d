@@ -80,6 +80,15 @@ struct voe_platform_window {
 	bool configured;
 	bool should_close;
 
+	// The xdg_wm_base version bound, and the toplevel's activated and
+	// suspended states: the wanted_ pair is what the last configure said,
+	// the other what _poll folded in and _focused and _visible answer.
+	uint32_t shell_version;
+	bool focused;
+	bool suspended;
+	bool wanted_focused;
+	bool wanted_suspended;
+
 	// A KEYMAP THE READER REFUSES IS REPORTED ONCE, NOT ON EVERY KEY. The keymap
 	// event fires once at startup and again only when the layout changes, so there
 	// is nothing to spam here regardless — but the flag exists to say so on
