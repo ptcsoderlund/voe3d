@@ -44,6 +44,15 @@ that carries it out. The pictures and the model it embeds sit here too.
 - `facing.h` — the transforms that turn the heads-up line, its panel and the readout to the camera,
   and who calls them each frame.
 - `facing.c` — the camera's frame and the three placements built from it.
+- `motion.h` — how the eye and the sun move each frame: the keys flying reads, where the orbit is at
+  a given second and where the sun points at one. Its header says why all three are here and why the
+  turning cube's spin is not.
+- `motion.c` — those three answers and the numbers behind them: the bindings and what is wrong if
+  flying feels wrong, the orbit's radius, height and lap, and the sun's lap, height and intensity.
+- `readout.h` — what the loop measures: the samples the frame is timed with, the reporting interval,
+  the readout's em, and the three calls that print the legend, lay the readout out and print a block.
+- `readout.c` — the block's wording and the readout's seven lines, with why a line shows the last
+  period's number for the one frame a new period has none of its own.
 - `model.h` — the model exhibit: the embedded `.glb` and the call that reads it in and moves it.
 - `model.c` — that import, the intents that move it aside, and what is wrong if it looks wrong.
 - `shrink.h` — a decoded picture halved until neither side is longer than
