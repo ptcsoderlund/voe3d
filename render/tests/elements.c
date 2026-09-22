@@ -900,10 +900,11 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 // byte — so that the cutoff meets the numbers a real atlas hands it. Uploaded
 // DATA and FIELD as the corner sheet is; the caller destroys it.
 //
-// AND THE CUTOFF IS HELD TO ITS TWO PROMISES WITH BAR SHEETS OF THEIR OWN
-// (ADR-0183): a stroke half a pixel tall lying across a pixel boundary keeps a
-// pixel in every column, and a stroke whose edges lie on pixel boundaries keeps
-// exactly its width. Each bar's field is written and rounded to bytes as
+// AND THE CUTOFF IS HELD TO ITS THREE PROMISES WITH BAR SHEETS OF THEIR OWN
+// (ADR-0183, ADR-0212): a stroke half a pixel tall lying across a pixel boundary
+// keeps a pixel in every column, a stroke whose edges lie on pixel boundaries
+// keeps exactly its width, and a stroke already wider than a pixel gains no row
+// wherever it falls. Each bar's field is written and rounded to bytes as
 // text/src/raster.c writes an atlas, because the second promise is decided
 // within a byte of the cutoff and a hand-picked rounding could keep it falsely.
 #define BAR_SPREAD 4.0f
@@ -999,6 +1000,41 @@ static void aligned_stroke_keeps_its_width(struct scene *scene)
 				    IS_GREEN), 8);
 	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 4, HALF + 1, 12,
 				    IS_GREEN), 8);
+	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
+}
+
+// A stroke already wider than a pixel gains no row (ADR-0212): four texels tall
+// at one texel a pixel, its centre a quarter of a pixel above a pixel centre, so
+// the true outline lands between pixel centres and nothing on the grid decides
+// it. Pixel centres sit 0.25, 0.75, 1.25 and 1.75 pixels inside the outline and
+// 2.25 and 2.75 outside it; filtered and rounded to bytes those read about
+// 0.686, 0.655, 0.592 and 0.530 inside and 0.470 and 0.408 outside, and at one
+// texel a pixel the cutoff is the half exactly — four rows. With ADR-0184's
+// fixed half a pixel the cutoff was about 0.441 and the 0.470 row came in too,
+// which is the fifth row this claim refuses.
+static void a_wide_stroke_gains_no_row(struct scene *scene)
+{
+	voe_render_device *device = scene->device;
+	const struct voe_render_frame *frame;
+	voe_render_texture bar;
+
+	VOE_TEST_CHECK(bar_sheet(device, SIDE, SIDE, 2.0f, &bar));
+	frame = voe_render_frame_current(device);
+	if (!open_frame(device)) {
+		voe_render_texture_destroy(device, bar);
+		return;
+	}
+	VOE_TEST_CHECK(voe_render_frame_submit_element(
+		device, glyph(0, -0.25f, SIDE, SIDE, GREEN, bar.index,
+			      SHEET_WHOLE)));
+	VOE_TEST_CHECK(draw_everything(device));
+	VOE_TEST_CHECK(close_frame(device));
+	read_back(device, frame, scene->readback.buffer);
+
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 0, HALF + 1, SIDE,
+				    IS_GREEN), 4);
+	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 6, HALF + 1, 10,
+				    IS_GREEN), 4);
 	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
 }
 
@@ -1516,6 +1552,7 @@ int main(void)
 		paint_order_holds_across_kinds(&scene);
 		thin_stroke_keeps_a_pixel(&scene);
 		aligned_stroke_keeps_its_width(&scene);
+		a_wide_stroke_gains_no_row(&scene);
 		an_empty_frame_draws_nothing(&scene);
 	} else {
 		VOE_TEST_CHECK(scene.pixels != NULL);

@@ -14,7 +14,7 @@ by reading the offscreen colour image back.
   without corrupting the frame. Headless.
 - `elements.c` — rectangles and letters from records: the colours, the clip rectangle, paint order
   both ways round, the blend, the capacity refused, the two matrices, the near clip boundary and the
-  stroke widths. Five of its claims need no graphics card. Headless.
+  stroke widths, thin, aligned and wide. Five of its claims need no graphics card. Headless.
 - `matrix.c` — that slangc really was given `-matrix-layout-row-major`, checked by making a shader
   report a known matrix back. Its header says which two claims are not in it and where they live
   instead.
