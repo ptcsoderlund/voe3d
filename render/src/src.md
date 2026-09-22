@@ -16,9 +16,16 @@ which file to open — what each one owns, and where the seams between them run.
   `vulkan_win32.h` expects `windows.h` to have made. Its header says why each.
 - `device_internal.h` — the struct the files below share, where the split
   between them runs, and the constants the whole folder reads.
-- `device.c` — starting up: the instance, the surface, the graphics card, the logical device, and
-  the two mesh pipelines with their depth and blend state; everything that happens once, plus the
-  headless device the tests run on.
+- `device.c` — starting up, and the one place its order is: the surface, the logical device, the
+  format, timing, present modes, frame objects and close-down, plus the headless device the tests
+  run on.
+- `startup.h` — the startup steps that live beside device.c, and why open_device calls them in the
+  order it does.
+- `instance.c` — the Vulkan instance, its extensions, and the validation layer and messenger in a
+  debug build that has them.
+- `card.c` — choosing the graphics card, and the `render` line that says which one.
+- `pipeline.c` — the two mesh pipelines with their embedded shader, depth and blend state, and the
+  layout every pipeline shares.
 - `descriptors.c` — everything the shader reads and the one layout that describes it: five bindings,
   one set, one camera buffer holding a block per pass, one object buffer and one element buffer per
   frame slot.
