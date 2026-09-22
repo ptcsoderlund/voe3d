@@ -31,14 +31,20 @@
 // moves.
 //
 // _poll returns immediately whether or not anything happened. It is not a wait;
-// _wait is, and it is how a loop costs nothing between frames: it blocks until
-// the window's connection has an event or the seconds pass, reads what arrived
-// and folds nothing — the next _poll does that, as ever.
+// _wait is, and its seconds are a ceiling and never a guarantee. The call
+// returns the moment anything at all arrives on the window's connection, and
+// that traffic — a compositor's bookkeeping, a swapchain's buffer releases —
+// says nothing about what a program cares about. A caller that wants a deadline
+// loops around _wait and _poll and asks a clock whether the time has passed
+// (ADR-0216). The wait itself reads what arrived and folds nothing — the next
+// _poll does that, as ever.
 //
 // _focused and _visible change only at _poll, and both answer true before the
 // first configure. On Wayland focused is the toplevel's activated state and
 // visible is the absence of suspended; a compositor older than xdg-shell 6
-// never says suspended, so its window is always visible. On Windows focused is
+// never says suspended, so its window is always visible — and that compositor
+// is warned about at open, so the always-visible window is a known fact rather
+// than a guess. On Windows focused is
 // activation and visible is not minimised; a window on another virtual desktop
 // is not detected (ADR-0215).
 #pragma once

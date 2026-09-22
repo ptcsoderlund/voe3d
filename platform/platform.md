@@ -11,7 +11,7 @@ file, and listing, making or finding a folder.
 - `include/platform/window.h` — the window API. Opening can fail and returns
   NULL; `_poll` folds events into state; `_close_refuse` takes back a close;
   `_focused` and `_visible` say whether the person is in it and can see it, and
-  `_wait` blocks until an event or a timeout.
+  `_wait` blocks for at most the timeout it is given.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the wheel in
   notches, typed UTF-8 text, the pointer's position and buttons, and the lock.
   The file says why all of it is polled state and not a queue of events, and

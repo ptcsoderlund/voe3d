@@ -45,6 +45,7 @@
 #include "scale.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include "fractional-scale-v1-client-protocol.h"
 #include "pointer-constraints-unstable-v1-client-protocol.h"
@@ -357,6 +358,15 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 		return open_failed(window);
 	xdg_wm_base_add_listener(window->wm_base, &wm_base_listener, window);
 
+	// Below 6 the toplevel has no suspended state, so no compositor of that
+	// age can ever tell this window it is hidden. Said once, here, because
+	// the alternative is a person guessing at why a window that is plainly
+	// covered goes on calling itself visible.
+	if (window->shell_version < 6)
+		VOE_BASE_WARNING("platform",
+				 "the compositor's xdg_wm_base is version %u, below the 6 that says suspended: this window can never report itself hidden, so it always reads visible and a program that paces on visibility falls back to the unfocused heartbeat",
+				 window->shell_version);
+
 	// A seat that never arrived is a window with no keyboard and no mouse,
 	// which opens and closes and draws exactly as it would have. Nothing
 	// here fails on it and nothing warns — the same standing the decoration
@@ -505,9 +515,13 @@ void voe_platform_window_poll(voe_platform_window *window)
 	window->suspended = window->wanted_suspended;
 }
 
-// Blocks on the socket the way pump looks at it, with a timeout. Anything
-// already queued is dispatched instead of waited for, and a dead connection
-// returns at once: _poll folds it into should_close.
+// Blocks on the socket the way pump looks at it, with a timeout that is a
+// ceiling and nothing more. It returns on anything at all: a dead connection,
+// anything already queued — the dispatched == 0 test, which skips the poll
+// outright — or the first byte the compositor happens to send. That is allowed
+// and expected (ADR-0216); judging which traffic a program cares about is not
+// this folder's to do, so a caller that wants a deadline loops around this call
+// and _poll and asks a clock. The wait folds nothing: _poll does.
 void voe_platform_window_wait(voe_platform_window *window, double seconds)
 {
 	struct pollfd waiting = {
