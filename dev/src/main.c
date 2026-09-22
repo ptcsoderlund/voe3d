@@ -137,24 +137,25 @@
 //   - Minimise it. Nothing should happen and nothing should crash: a window with
 //     no area has no frame to draw and the frame is skipped. The scene does not
 //     advance while it is away, because the step below is inside that same test
-//     — and the timing blocks keep coming, at thousands of frames a second,
-//     which is the loop with nothing in it to wait for.
-//   - PRESS P AND COMPARE. It asks for fifo, and the `present` word on every
-//     block says which is actually in force — a machine that has no mailbox was
-//     already saying fifo and will go on saying it, and that is an answer.
-//     What to look for is `frame` dropping onto the display's refresh interval
-//     and the rate pinned to the refresh rate, in exchange for not drawing
-//     frames nobody ever sees. Press it again to come back.
+//     — and the timing blocks stop, because a frame on a hidden window waits
+//     for it to be shown again (0215).
+//   - PRESS P AND COMPARE. It asks for mailbox — the uncapped rate, which is a
+//     thing to measure and not the way this program runs (0215) — and the
+//     `present` word on every block says which is actually in force: a machine
+//     that has no mailbox goes on saying fifo, and that is an answer. What to
+//     look for is `frame` coming off the display's refresh interval and the
+//     rate climbing above it, in exchange for drawing frames nobody ever sees.
+//     Press it again to come back.
 //   - Close it. It should print `closed` and exit zero.
 //
-// IT WILL SPIN A CORE WHILE IT IS OPEN, AND ON MAILBOX IT WILL SPIN THE GRAPHICS
-// CARD TOO. Mailbox is what this program asks for as soon as its device is open —
-// the engine itself opens on fifo — so it runs as fast as the card and the
-// program between them allow, drawing many frames for every one anybody sees. P
-// is how to stop it doing that: fifo waits
-// for the display, so a visible window then costs one frame's worth of work per
-// refresh. Either way a minimised one presents nothing and _poll returns
-// immediately, because platform has no way to wait yet.
+// IT OPENS IN STEP WITH THE DISPLAY AND COSTS ONE FRAME'S WORK PER REFRESH
+// (0215). Nothing here asks for a present mode, so the device's own fifo stands
+// and a focused window waits for the display; out of focus it drops to a few
+// frames a second and hidden it draws nothing at all, which is
+// voe_app_frame_open's doing and not this loop's. P is how to leave that:
+// mailbox runs as fast as the card and the program between them allow, spinning
+// a core and the graphics card too, and that rate is what P is pressed to
+// measure.
 int main(void)
 {
 	// Everything startup built and everything the loop writes back into it,
@@ -200,7 +201,8 @@ int main(void)
 	// down it would do both, one frame after the other.
 	bool escape_was_down = false;
 	// Last frame's P, for the same reason. Which mode is asked for is the
-	// program's and startup made the first request with it.
+	// program's; startup asks for nothing, so it begins on the device's fifo
+	// (0215) and the first press is the one that asks for mailbox.
 	//
 	// What is actually in force is the device's answer and is asked for
 	// rather than remembered: a surface with no mailbox leaves that true and
@@ -332,7 +334,10 @@ int main(void)
 		escape_was_down = escape_down;
 
 		// P asks for the other present mode, on the press and not while
-		// held, exactly as Tab does. What the device does about it is
+		// held, exactly as Tab does. It starts from fifo, so the first
+		// press asks for mailbox: a person pressing it is asking to
+		// measure the uncapped rate (0215), which is not how this
+		// program runs. What the device does about it is
 		// asked for below rather than assumed: a surface with no mailbox
 		// stays on fifo however often this is pressed, and that is a
 		// measurement of the machine rather than a failure.

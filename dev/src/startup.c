@@ -215,7 +215,6 @@ bool voe_dev_start(struct voe_dev_program *program)
 	// refusals below never reach is NULL and the teardown after a false
 	// return has nothing to test.
 	*program = (struct voe_dev_program){ 0 };
-	program->mailbox_wanted = true;
 
 	// The world and everything read into it live here, and it is destroyed
 	// at the end: the world is the arena's, which is what rule 11 asks for.
@@ -245,15 +244,6 @@ bool voe_dev_start(struct voe_dev_program *program)
 
 	program->window = voe_app_window(program->app);
 	program->gpu = voe_app_device(program->app);
-
-	// Mailbox, asked for rather than inherited: a device opens on fifo, and
-	// `app` asks for no mode at all, so this is the program's own request. It
-	// is the call P makes and the variable P flips, so what was asked for at
-	// startup and what the first press takes back cannot disagree.
-	voe_render_present_set(program->gpu,
-			       program->mailbox_wanted ?
-				       VOE_RENDER_PRESENT_MAILBOX :
-				       VOE_RENDER_PRESENT_FIFO);
 
 	program->world = voe_ecs_world_new(program->arena, limits);
 
@@ -388,10 +378,10 @@ bool voe_dev_start(struct voe_dev_program *program)
 	printf("opened     %dx%d\n", program->size.width, program->size.height);
 	printf("decorated  %s\n", program->decorated ? "yes" : "no");
 	printf("camera     orbit — Tab to fly, Escape to hand back or close\n");
-	// Fifo here, whatever was asked for above: the swapchain the device
-	// opened with is already built on fifo, and the request is acted on at
-	// the top of the first frame. Every block from then on says what is in
-	// force.
+	// Fifo, because nothing here asks for anything else: the device opens on
+	// it and dev opens in step with the display like the editor (0215). P is
+	// what asks for mailbox from here — see main.c. Every block from then on
+	// says what is in force.
 	present = voe_render_present_get(program->gpu);
 	printf("present    %s\n",
 	       present == VOE_RENDER_PRESENT_MAILBOX ? "mailbox" : "fifo");

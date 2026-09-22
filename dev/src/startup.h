@@ -91,10 +91,11 @@ struct voe_dev_program {
 	// How big the heads-up line came out, which is what the transforms
 	// placing it and the panel behind it are worked out from.
 	voe_math_float2 hud_size;
-	// The present mode this program is asking for. It starts true because
-	// the request at startup is made with it, so the first press of P asks
-	// for fifo rather than for what is already happening. What is in force
-	// is the device's answer and is asked for rather than remembered.
+	// The present mode this program is asking for. It starts false and
+	// startup asks for nothing, so dev opens on the device's own fifo, in
+	// step with the display like the editor (0215), and the first press of P
+	// is what asks for mailbox. What is in force is the device's answer and
+	// is asked for rather than remembered.
 	bool mailbox_wanted;
 	// What the loop measures, and when the first reporting period started.
 	// Every sample in it is the loop's; only that one reading is taken here.

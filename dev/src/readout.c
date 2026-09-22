@@ -277,7 +277,8 @@ bool voe_dev_build_the_readout(voe_ecs_world *world, voe_render_device *gpu,
 //     the refresh rate. `draw` should be nearly all of it and `update` almost
 //     none: the program is waiting for the display, which is what fifo means.
 //     Then make something happen: drag the window bigger and `gpu` should go up
-//     with the pixel count, minimise it and the rate should go through the roof.
+//     with the pixel count, minimise it and the blocks should stop until it is
+//     shown again (0215).
 //     A number that never moves is a number that is not being measured.
 //   - Hold the window still and read the `worst` column. It should be close to
 //     the average. A worst several times the average is stutter, and stutter is
