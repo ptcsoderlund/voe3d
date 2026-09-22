@@ -49,8 +49,12 @@ header.
   turns a code point into UTF-8.
 - `input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
-- `window_wayland.c` — the Linux window, and its seat, keyboard and pointer; there is no X11
-  backend, and nothing in it draws.
+- `window_wayland.h` — the Linux window's struct, shared by the two files below and seen by
+  nothing outside this folder, and the two functions that cross between them.
+- `window_wayland.c` — the Linux window: registry, shell, decoration, fractional scale, open,
+  close and poll; there is no X11 backend, and nothing in it draws.
+- `seat_wayland.c` — the Linux window's seat: keyboard, pointer, relative motion and the lock.
+  Its header says why it is a file of its own and why the cursor image is untouched.
 - `scale.h` — logical Wayland units to buffer pixels at a scale in 120ths, a
   length rounded half away from zero and a position not rounded. OS-free like
   `input.h`, so it is built on both platforms and tested without a compositor.
