@@ -1,0 +1,38 @@
+// The transforms that turn an exhibit to the camera: the heads-up line, the
+// dark panel behind it and the readout, each a transform intent square to the
+// camera and a fixed distance in front of it.
+//
+// ITS OWN FILE BECAUSE IT IS GEOMETRY AND NOT AN EXHIBIT. The three things it
+// places are text.h's; this file only answers where they stand this frame,
+// from where the camera is and how big the window is.
+//
+// main.c CALLS ALL THREE EVERY FRAME, BETWEEN THE CAMERA SYSTEM AND THE
+// TRANSFORM SYSTEM, and submits what they return. They read the camera after it
+// has moved, and the transforms drain after they are submitted; main.c says at
+// length why one frame behind is a whole mouse movement out.
+#pragma once
+
+#include <ecs/world.h>
+#include <math/float2.h>
+#include <platform/window.h>
+#include <scene/transform_system.h>
+
+// The heads-up line: in front of the eye, square to it, centred across it on
+// its width `size.x`, a little below the middle.
+voe_scene_transform_intent voe_dev_facing_the_camera(const voe_ecs_world *world,
+						     voe_ecs_entity eye,
+						     voe_ecs_entity text,
+						     voe_math_float2 size);
+
+// The readout: square to the camera in the top-left corner of a window `size`
+// pixels big, left-aligned, for writing `em` metres to the em.
+voe_scene_transform_intent voe_dev_top_left_of_the_view(
+	const voe_ecs_world *world, voe_ecs_entity eye, voe_ecs_entity readout,
+	voe_platform_size size, float em);
+
+// The panel behind the heads-up line: a shade further than it, around the
+// line's box of `size` and a margin larger.
+voe_scene_transform_intent voe_dev_behind_the_line(const voe_ecs_world *world,
+						   voe_ecs_entity eye,
+						   voe_ecs_entity quad,
+						   voe_math_float2 size);

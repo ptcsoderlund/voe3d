@@ -5,6 +5,9 @@ and registered nowhere. A reader is here to find which file already makes a clai
 again. A test marked *headless* runs on the headless device — no window, no compositor — and checks
 by reading the offscreen colour image back.
 
+- `card.c` — which graphics card is taken, on made-up facts with no card: the discrete over the
+  integrated wherever listed, the next one down when the fastest cannot present, a software
+  rasteriser alone, the larger memory, and a card without 1.3 or a drawing queue never.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
 - `pools.c` — two meshes and two ranges, a texture id that stops naming
   anything when it is destroyed, and a full pool as a returned failure. Its

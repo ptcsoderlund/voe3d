@@ -4,9 +4,14 @@
 and every other code file is a `.h` saying what it owns and why beside the `.c`
 that carries it out. The pictures and the model it embeds sit here too.
 
-- `main.c` — opens a window and a device, builds a world, reads the model into it, and runs the
-  systems and the draw every frame until it closes. Its header gives the loop's order; each exhibit's
-  paragraph, what fails and what to try stand above the function that builds or drives it.
+- `main.c` — the loop: every frame it takes the keys, moves the eye and the sun, runs the systems
+  in order and draws the world twice, until the window closes. Its header gives that order, and what
+  is wrong if the picture looks wrong and what there is to try stand above `main()`.
+- `startup.h` — the program's state: one member per thing the loop reads, written before the first
+  frame and by the loop, and read nowhere else.
+- `startup.c` — everything built before that frame, in the order it has to happen in: the arenas,
+  the window and the device, the world and its components, every exhibit, the model and the monitor,
+  with the numbers they are made with.
 - `monitor.h` — the second camera's picture: a target, a camera that is not an entity, and the
   screen standing in the world that wears the target's texture.
 - `monitor.c` — that target, that camera, the screen's one face and the
@@ -29,13 +34,32 @@ that carries it out. The pictures and the model it embeds sit here too.
   billboarding is here and not in the engine.
 - `sprites.c` — the sheet's pixels, where each sprite stands and the two rotations that turn them
   towards the camera.
-- `cubes.h` — the two placeholder cubes' geometry. Its header says why data
-  may live at a call site and why there are twenty-four vertices.
-- `cubes.c` — those vertices and indices.
-- `quad.h` — the see-through quads' geometry. Its header says why it is two
-  faces in the same place, and why that is a double-sided mesh rather than a
-  double-sided material.
-- `quad.c` — those vertices and indices.
+- `cubes.h` — the two placeholder cubes as an exhibit: their geometry and the call that builds
+  them. Its header says why data may live at a call site and why there are twenty-four vertices.
+- `cubes.c` — those vertices and indices, the two pictures they wear, and the two entities, with
+  what is wrong if they look wrong.
+- `quad.h` — the see-through quads as an exhibit: their geometry, and the calls that build a quad,
+  a panel and all five. Its header says why it is two faces in the same place.
+- `quad.c` — those vertices and indices, and the two quads in the world and three in the overlay,
+  with what each is for and what is wrong if it looks wrong.
+- `text.h` — the writing exhibit: the font, the sign in the world, the heads-up line on its panel
+  and the readout's entity.
+- `text.c` — those strings and materials, the two placements text has, and what is wrong if the
+  writing looks wrong.
+- `facing.h` — the transforms that turn the heads-up line, its panel and the readout to the camera,
+  and who calls them each frame.
+- `facing.c` — the camera's frame and the three placements built from it.
+- `motion.h` — how the eye and the sun move each frame: the keys flying reads, where the orbit is at
+  a given second and where the sun points at one. Its header says why all three are here and why the
+  turning cube's spin is not.
+- `motion.c` — those three answers and the numbers behind them: the bindings and what is wrong if
+  flying feels wrong, the orbit's radius, height and lap, and the sun's lap, height and intensity.
+- `readout.h` — what the loop measures: the samples the frame is timed with, the reporting interval,
+  the readout's em, and the three calls that print the legend, lay the readout out and print a block.
+- `readout.c` — the block's wording and the readout's seven lines, with why a line shows the last
+  period's number for the one frame a new period has none of its own.
+- `model.h` — the model exhibit: the embedded `.glb` and the call that reads it in and moves it.
+- `model.c` — that import, the intents that move it aside, and what is wrong if it looks wrong.
 - `shrink.h` — a decoded picture halved until neither side is longer than
   1920, `dev`'s own and not a rule about textures. Its header says why this is
   not mipmapping and cannot be, what it buys in numbers, and what it does not

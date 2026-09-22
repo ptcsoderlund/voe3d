@@ -62,6 +62,13 @@ struct voe_platform_window {
 	bool lock_wanted;
 	bool focused;
 
+	// What voe_platform_window_focused and _visible answer: the window is
+	// the active one (WM_ACTIVATE), and it is not minimised (IsIconic, read
+	// at _poll). Keyboard focus above is the lock's; activation is the
+	// person's. A window on another virtual desktop is not detected (0215).
+	bool active;
+	bool visible;
+
 	// WM_MOUSELEAVE IS ASKED FOR, BECAUSE WINDOWS DOES NOT SEND IT UNASKED.
 	// TrackMouseEvent arms one notification and then forgets, so it is re-armed on
 	// the first movement inside after each one arrives. A leave with a button held
@@ -546,6 +553,11 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	case WM_CAPTURECHANGED:
 		capture_lost(window);
 		return 0;
+	// Passed on: DefWindowProcW is what gives an activated window the
+	// keyboard focus.
+	case WM_ACTIVATE:
+		window->active = LOWORD(wparam) != WA_INACTIVE;
+		return DefWindowProcW(hwnd, message, wparam, lparam);
 	case WM_SETFOCUS:
 		window->focused = true;
 		focus_gained(window);
@@ -617,6 +629,8 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	window->instance = GetModuleHandleW(NULL);
 	window->width = width;
 	window->height = height;
+	window->active = true;
+	window->visible = true;
 
 	if (!class_ready(window->instance)) {
 		free(window);
@@ -721,6 +735,34 @@ void voe_platform_window_poll(voe_platform_window *window)
 		TranslateMessage(&message);
 		DispatchMessageW(&message);
 	}
+
+	window->visible = !IsIconic(window->hwnd);
+}
+
+// Wakes on anything queued for this thread, including what arrived before the
+// call and was not yet read; nothing is removed, the next _poll does that.
+void voe_platform_window_wait(voe_platform_window *window, double seconds)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "waiting on a NULL window");
+
+	MsgWaitForMultipleObjectsEx(0, NULL,
+				    seconds < 0.0 ? INFINITE
+						  : (DWORD)(seconds * 1000.0),
+				    QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+}
+
+bool voe_platform_window_focused(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	return window->active;
+}
+
+bool voe_platform_window_visible(voe_platform_window *window)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window");
+
+	return window->visible;
 }
 
 bool voe_platform_window_should_close(voe_platform_window *window)

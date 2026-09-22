@@ -4,6 +4,8 @@
 // easy to get wrong.
 #include <app/app.h>
 
+#include "pace.h"
+
 #include <assets/image.h>
 #include <base/assert.h>
 #include <base/report.h>
@@ -23,6 +25,9 @@ struct voe_app {
 	// Settings' ceiling, kept because every tick needs it and a program that
 	// had to pass it back every frame could pass a different one by mistake.
 	double longest_step;
+	// The clock reading at which the previous frame opened: the pace's
+	// heartbeat is measured from it.
+	double last_open;
 };
 
 static void report(voe_base_error *error, voe_base_error code)
@@ -143,16 +148,49 @@ voe_render_device *voe_app_device(voe_app *app)
 	return app->device;
 }
 
+// The loop, not the wait, is what enforces the heartbeat: a wait may return at
+// once, so each turn reads the window and the clock again and asks the step
+// (ADR-0216). The poll after each wait is what makes those answers current, so
+// regaining focus, being shown and a close request each end the wait early by
+// turning the next step into a draw.
+// The loop has no count on it by design: every wait it asks for is the rest of
+// a quarter second that the clock is spending, and a hidden window is bounded
+// by being shown or asked to close.
+static void wait_for_pace(voe_app *app)
+{
+	voe_platform_window *window = app->window;
+	voe_app_pace_step step;
+
+	VOE_BASE_ASSERT(window != NULL, "a headless app is never paced");
+	VOE_BASE_ASSERT(app->last_open >= 0.0, "a clock reading is not negative");
+
+	for (;;) {
+		step = voe_app_pace_next(voe_platform_window_focused(window),
+					 voe_platform_window_visible(window),
+					 voe_platform_window_should_close(window),
+					 voe_platform_clock_now(),
+					 app->last_open);
+		if (step.kind == VOE_APP_PACE_DRAW)
+			return;
+		voe_platform_window_wait(window, step.seconds);
+		voe_platform_window_poll(window);
+	}
+}
+
 voe_app_frame voe_app_frame_open(voe_app *app)
 {
 	voe_app_frame frame = { 0 };
 
 	VOE_BASE_ASSERT(app != NULL, "no app to open a frame on");
 
+	if (app->window != NULL)
+		wait_for_pace(app);
+
 	// The reading is taken before the poll so that the interval covers the
 	// whole of the previous frame, the poll included.
 	frame.tick = voe_app_clock_tick(&app->clock, voe_platform_clock_now(),
 					app->longest_step);
+	app->last_open = frame.tick.now;
 
 	// No window to poll and nothing to ask: the size is the one the settings
 	// named, nothing minimises it and nothing will ever close it. The clock
