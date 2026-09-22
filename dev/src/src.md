@@ -4,9 +4,14 @@
 and every other code file is a `.h` saying what it owns and why beside the `.c`
 that carries it out. The pictures and the model it embeds sit here too.
 
-- `main.c` — opens a window and a device, builds a world, reads the model into it, and runs the
-  systems and the draw every frame until it closes. Its header gives the loop's order; each exhibit's
-  paragraph, what fails and what to try stand above the function that builds or drives it.
+- `main.c` — the loop: every frame it takes the keys, moves the eye and the sun, runs the systems
+  in order and draws the world twice, until the window closes. Its header gives that order, and what
+  is wrong if the picture looks wrong and what there is to try stand above `main()`.
+- `startup.h` — the program's state: one member per thing the loop reads, written before the first
+  frame and by the loop, and read nowhere else.
+- `startup.c` — everything built before that frame, in the order it has to happen in: the arenas,
+  the window and the device, the world and its components, every exhibit, the model and the monitor,
+  with the numbers they are made with.
 - `monitor.h` — the second camera's picture: a target, a camera that is not an entity, and the
   screen standing in the world that wears the target's texture.
 - `monitor.c` — that target, that camera, the screen's one face and the
