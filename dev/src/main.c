@@ -6,7 +6,8 @@
 // left showing a second camera's view, one sun going round it all, and a camera
 // that either orbits or is flown. There is one of these and it always shows the current state, so
 // what is here now is deleted rather than kept behind a flag when the next thing
-// lands. What each exhibit is and fails like stands above what builds it.
+// lands. What each exhibit is and fails like stands above what builds it: here,
+// or in the file named for it — cubes.c, quad.c, text.c, model.c, sprites.c.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING: which key means which
 // direction, where a placeholder cube stands, and the loop that runs the systems
@@ -50,20 +51,20 @@
 // the window when it is already back; the orbit is what the program starts in.
 #include "cubes.h"
 #include "elements.h"
+#include "facing.h"
 #include "interface.h"
+#include "model.h"
 #include "monitor.h"
 #include "surface.h"
 #include "quad.h"
-#include "shrink.h"
 #include "sprites.h"
+#include "text.h"
 
 #include <3d/draw_system.h>
-#include <3d/import.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
 #include <app/app.h>
-#include <assets/image.h>
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/error.h>
@@ -186,63 +187,11 @@
 #define ORBIT_HEIGHT 1.8f
 #define ORBIT_SECONDS 12.0f
 
-// Where the two placeholder cubes stand, and how fast the second one turns about
-// its tilted axis.
-#define CUBES_APART 1.6f
+// How fast the turning cube turns about its tilted axis.
 #define SPIN_SECONDS 4.0f
 #define SPIN_AXIS_X 1.0f
 #define SPIN_AXIS_Y 1.0f
 #define SPIN_AXIS_Z 0.0f
-
-// The turning cube's scale, and the three numbers are different on purpose: a
-// non-uniform scale is the only case where a normal matrix and a world matrix
-// disagree, so this is what makes that difference something a person can look
-// at.
-//
-// THE TURNING CUBE IS SQUASHED, AND THAT IS THE NORMAL MATRIX ON SCREEN. Its
-// scale is not the same on all three axes (CUBE_SCALE_*), which is the one case
-// where transforming a normal by the world matrix is visibly wrong: the shading
-// would slide across the faces as it turned instead of staying stuck to them.
-// 3d/tests/normal_matrix.c is the automated half; this is the half a person can
-// see.
-#define CUBE_SCALE_X 1.4f
-#define CUBE_SCALE_Y 0.6f
-#define CUBE_SCALE_Z 1.0f
-
-// The two see-through quads: how far either side of the cubes they stand, how
-// big they are, how see-through, and what colour each one is.
-//
-// THEY ARE ON OPPOSITE SIDES OF THE SCENE BECAUSE THAT IS WHAT MAKES THE SORT
-// SOMETHING A PERSON CAN SEE. The camera orbits, so which of the two is nearer
-// swaps twice a lap; a sort with its sign the wrong way round is right for half
-// the lap and wrong for the other half, and two quads at one depth would not
-// show it. The offset in x and y is so that they overlap partly rather than
-// exactly — the overlap is where the near one's colour has to be the one on top.
-#define QUAD_Z 1.6f
-#define QUAD_X 0.8f
-#define QUAD_Y 0.4f
-#define QUAD_SIZE 2.2f
-
-// Half see-through, which is where a mistake in the blend is most visible: fully
-// transparent hides a wrong colour and nearly opaque hides a wrong order.
-#define QUAD_ALPHA 0.5f
-
-// The three quads in the overlay: how big they are and how far either side of
-// the middle one the other two stand. They are put at the turning cube, so these
-// are the numbers that decide whether they are inside it.
-//
-// SMALL ENOUGH TO FIT INSIDE THE TURNING CUBE ACROSS. That cube is CUBE_SCALE_X
-// by CUBE_SCALE_Y by CUBE_SCALE_Z and it spins, so a quad noticeably narrower
-// than the smallest of those is enclosed by it from every angle — which is what
-// makes "nothing in the world covers it" something a person can watch rather
-// than take on trust. They stick out above and below, and that is fine: the
-// claim is about the part that is inside.
-//
-// AND FAR ENOUGH APART TO OVERLAP RATHER THAN COINCIDE. Two quads at one depth
-// would show nothing about the order they were drawn in. This is the same reason
-// QUAD_Z is not nought, at a smaller scale.
-#define OVERLAY_QUAD_SIZE 0.5f
-#define OVERLAY_QUAD_Z 0.22f
 
 // The two element panels: how big each one is in the world, and where it stands.
 //
@@ -289,96 +238,13 @@
 #define BADGE_Y 0.35f
 #define BADGE_Z 0.0f
 
-// The two strings, and the two placements the card asks to see: one standing in
-// the world and one locked to the camera.
-//
-// THE SIGN IS TWO ENTITIES SHARING ONE MESH, BACK TO BACK. A text block is four
-// vertices and six indices per glyph — one face — and the engine culls back
-// faces, so a single sign vanishes for half of the camera's lap. Two entities
-// with the same geometry, one of them turned half a turn about Y, is a sign
-// lettered on both sides; it costs one more transform and one more draw and
-// nothing else. That is a double-sided *arrangement* and not a double-sided
-// material, the same distinction dev/src/quad.h already makes about the quads.
-//
-// IT HAS AN ACCENTED CHARACTER IN IT ON PURPOSE. Most accented characters are
-// composite glyphs — references to other glyphs with an offset — and a reader
-// that handles only simple outlines draws them as blanks while looking perfectly
-// correct on an English string. If the `å` is missing, that is the bug and
-// text/tests/truetype.c is where it should have been caught.
-#define SIGN_TEXT "VOE3D\nunlit · blended · Oxanium\nÅNGSTRÖMÄ · éüåäöÇ"
-#define SIGN_EM 0.30f
-#define SIGN_HEIGHT 3.4f
-
-// The heads-up line: how far in front of the eye it sits, how big it is, and how
-// far below the middle of the view. It is placed by a transform intent every
-// frame, from where the camera actually is, which is the whole of what "locked
-// to the camera" means here — there is no screen-space path and there is not
-// going to be one.
-//
-// NEITHER STRING HOLDS A CHARACTER OUTSIDE LATIN-1, AND THAT IS DELIBERATE. The
-// atlas covers the space to U+00FF; anything else is drawn as the font's
-// missing-glyph box, which is right and looks exactly like a bug. An em dash
-// stood here until it did.
-#define HUD_TEXT "locked to the camera · Tab to fly"
-#define HUD_EM 0.055f
-#define HUD_DISTANCE 1.0f
-#define HUD_DROP 0.36f
-
-// What the two are tinted. The base colour factor of an unlit material is
-// exactly what comes out, because nothing multiplies it by a light — so these
-// are the colours on screen and not a starting point for one.
-#define SIGN_TINT_R 1.0f
-#define SIGN_TINT_G 0.86f
-#define SIGN_TINT_B 0.45f
-// The dark panel behind the heads-up line, and what it is for.
-//
-// IT IS A READING AID AND IT IS NOT PART OF THE ENGINE'S ANSWER TO ANYTHING. The
-// line is pale blue over whatever the scene happens to put behind it, and over
-// the teal background the two are close enough in luminance that a perfectly
-// sharp edge still reads as soft — which is a question about contrast and not
-// about the glyphs. A dark, opaque panel behind it settles that by making the
-// contrast the largest it can be: what still looks soft on this is soft, and
-// what does not was never soft.
-//
-// OPAQUE AND IN THE OVERLAY, WHICH IS WHY IT DOES NOT NEED SORTING. The overlay
-// draws its solid group first and writes depth, then its blended group tests
-// against it — so a panel pushed a little further from the eye than the line is
-// behind it by depth and not by luck. It is the same arrangement the solid
-// overlay quad already proves; see add_the_quads.
-//
-// THERE IS NO KEY TO TURN IT OFF, AND THAT IS `platform`'s DOING RATHER THAN A
-// CHOICE. Every key voe_platform_key names is already bound — P is the present
-// mode and Tab is the camera — so a toggle would mean adding one, which is
-// another folder. It costs the strip of scene directly behind the line, which is
-// background in every frame this program draws.
-#define HUD_PANEL_R 0.04f
-#define HUD_PANEL_G 0.05f
-#define HUD_PANEL_B 0.06f
-
-// How far past the line's own box the panel reaches, in ems of the line. Enough
-// to read as a plate the writing sits on rather than as a box cropping it.
-#define HUD_PANEL_MARGIN 0.5f
-
-// How much further from the eye the panel is than the line. Small, because the
-// two have to stay square to each other, and any positive number at all is
-// enough for the depth test — this is not a sorting nudge, it is the whole
-// distance between two planes that are parallel.
-#define HUD_PANEL_BEHIND 0.01f
-
-#define HUD_TINT_R 0.75f
-#define HUD_TINT_G 0.92f
-#define HUD_TINT_B 1.0f
-
 // The readout: the same distance in front of the eye as the heads-up line,
 // smaller than it, and snapped into the top-left corner of the view. Where the
 // corner is in metres at that distance follows from the camera's field of view
-// and the window's aspect ratio — see top_left_of_the_view — so it stays in the
-// corner when the window is resized. The margin keeps it off the edge, in ems of
-// its own size, and the first baseline sits one em below the top so the tallest
-// glyph clears it. The string it holds is formatted into a buffer this long,
-// which is well over the seven short lines it now holds.
+// and the window's aspect ratio — see src/facing.h — so it stays in the corner
+// when the window is resized. The string it holds is formatted into a buffer
+// this long, which is well over the seven short lines it now holds.
 #define READOUT_EM 0.040f
-#define READOUT_MARGIN_EMS 0.5f
 #define READOUT_CHARS 192
 
 // The sun: how long a lap takes, how high it sits, and how strong it is.
@@ -409,55 +275,6 @@
 // the cubes' way, and it moves it the way anything moves anything: by
 // submitting a transform intent.
 #define HUMAN_X 3.5f
-
-// The two pictures on the placeholder cubes, embedded at build time. One each,
-// which is a change from the "F" both of them used to share.
-//
-// THEY ARE WRITING, WHICH IS WHAT THE "F" WAS FOR AND IS WHY SWAPPING THEM COSTS
-// NOTHING. A checker board looks right upside down and looks right mirrored, and
-// both are mistakes this engine can make; a word does not. VOE3D read backwards
-// is obvious across the room, and the icon's yellow "3D" badge sits in ONE
-// corner, so which corner is which is still a thing the picture says rather than
-// a thing to take on trust. What went with the old texture is only the four
-// coloured corner blocks, and the writing says the same thing.
-//
-// THE WIDE ONE GOES ON THE WIDE CUBE AND THE SQUARE ONE ON THE CUBE THAT IS NOT
-// SQUASHED, which is worth doing rather than pretty. The logo is 4800 by 2000
-// and the turning cube's front face is CUBE_SCALE_X by CUBE_SCALE_Y, which is
-// nearly the same ratio — so the wordmark reads almost undistorted on the two
-// faces that matter, and is visibly squeezed on the four that are a different
-// shape. That is the texture coordinates doing exactly what they should, and a
-// picture that came out square on a face that is not would be the bug.
-static const uint8_t LOGO_PNG[] = {
-#embed "logo.png"
-};
-
-static const uint8_t APP_ICON_PNG[] = {
-#embed "app icon light.png"
-};
-
-// The model, embedded the same way as the pictures and for the same reason:
-// `platform` has no file API yet, so nothing here opens a file. The card that
-// gives it one is the card that makes this path.
-//
-// IT CAME OUT OF BLENDER, WHICH IS THE POINT OF IT. Everything else
-// here was built by this repository and agrees with this repository by
-// construction; this is a file a real exporter wrote, with three primitives
-// sharing one material, an albedo map and an ORM map, both a thousand pixels
-// square. What it is really testing is that the reader survives a file nobody
-// here wrote.
-//
-// BOTH ITS MAPS SHOW NOW. The albedo map is the texture coordinates' half and
-// the ORM map — occlusion, roughness and metalness in the red, green and blue
-// channels of one picture — is the shading's: card 019 lit the engine and reads
-// all three of those channels. Its own export wires that picture into glTF's
-// metallic-roughness slot and its normal slot rather than its occlusion slot, so
-// the occlusion channel of it is not read as occlusion; that is the file's
-// arrangement and assets/include/assets/model.h says why it is taken at its
-// word.
-static const uint8_t HUMAN_GLB[] = {
-#embed "textured_primitives_human.glb"
-};
 
 // The bindings, and the only thing in this file that decides anything. Which key
 // means forward is a call site's business — the engine's job is to know what
@@ -640,954 +457,6 @@ static voe_scene_light_intent sunlight(voe_ecs_entity sun, float seconds)
 	};
 
 	return intent;
-}
-
-// One cube, one entity: geometry it shares with its neighbour, a material it
-// shares with its neighbour, a transform of its own, and the world layer.
-//
-// IT NAMES ITS LAYER RATHER THAN LETTING A ZEROED STRUCT PICK ONE. World is
-// nought, so this line changes nothing and is here because every drawable in
-// this file says which layer it is in — see add_text on the two placements and
-// why neither is the normal case.
-static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
-		     voe_3d_material material, voe_math_float3 position,
-		     voe_math_float3 scale, voe_ecs_entity *out)
-{
-	voe_scene_transform transform = {
-		.position = position,
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = scale,
-	};
-
-	if (!voe_ecs_entity_create(world, out))
-		return false;
-	if (!voe_scene_transform_add(world, *out, transform))
-		return false;
-	if (!voe_3d_mesh_add(world, *out,
-			     (voe_3d_mesh){ .geometry = geometry,
-					    .layer = VOE_3D_LAYER_WORLD }))
-		return false;
-	return voe_3d_material_add(world, *out, material);
-}
-
-// One embedded picture into a texture slot, and the shading record that wears
-// it. Both cubes want the same material but for the picture, so the material is
-// built here once and the caller says which bytes.
-//
-// THE PICTURE ARRIVES THE WAY THE SHADERS DO: `#embed`ded at build time, which
-// is what keeps "nothing is read from disk at run time" true. The decoded pixels
-// are scratch — `render` has taken its own copy by the time the upload returns —
-// so the arena goes back on every path out, the failing ones included.
-//
-// What is wrong if it looks wrong:
-//
-//   - Everything pale and washed out, or muddy and too dark — a colour space.
-//     One of the two sRGB halves (the texture format and the target format) is
-//     doing its job without the other; see render/src/texture.c.
-static bool textured_material(voe_render_device *gpu, voe_base_arena *arena,
-			      const uint8_t *png, size_t size,
-			      voe_3d_material *out, voe_base_error *error)
-{
-	voe_render_texture texture = { 0 };
-	voe_assets_image picture;
-	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
-	bool ok;
-
-	*out = (voe_3d_material){
-		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
-		.metallic = 0.0f,
-		.roughness = 0.8f,
-	};
-
-	ok = voe_assets_png_decode(png, size, arena, &picture, error);
-	// AND THEN HALVED UNTIL IT IS A SENSIBLE SIZE, WHICH IS dev's OWN DOING
-	// AND NOT THE ENGINE'S. The two pictures here are far bigger than any
-	// face they land on, and this engine samples one level with no mip
-	// chain, so the level the file happened to ship is the level that gets
-	// sampled. src/shrink.h is the whole argument, including why this is
-	// not mipmapping and what it does not fix.
-	if (ok)
-		voe_dev_image_shrink(&picture, VOE_DEV_SHRINK_LONG_SIDE);
-	// A colour, so it goes up in the sRGB format and the hardware decodes it
-	// before the shading multiplies by it. An ORM map would be the other kind
-	// — see voe_render_texture_kind.
-	if (ok)
-		ok = voe_render_texture_create(gpu, VOE_RENDER_TEXTURE_COLOUR,
-					       VOE_RENDER_SAMPLING_SMOOTH,
-					       picture.width, picture.height,
-					       picture.pixels, &texture, error);
-	voe_base_arena_rewind(arena, mark);
-	if (!ok)
-		return false;
-
-	out->base_colour_texture = texture;
-	return voe_3d_material_upload(gpu, out, error);
-}
-
-// The two placeholder cubes: their geometry into the pools, a picture each into
-// a texture slot, a shading record each, and two entities.
-//
-// A flat blue-green background with three lit things in it, from left to right:
-// these two cubes and the figure add_a_model reads in.
-//
-//   - A cube standing still at the origin, which is where the camera looks.
-//   - A squashed cube turning on a tilted axis, just to its right.
-//
-// The two placeholder cubes wear WRITING — the still one the app icon, the
-// turning one the wordmark — so every face says which way up and which way
-// round it is, and a mirrored or upside-down face is unreadable rather than
-// merely wrong.
-//
-// What is wrong if it looks wrong:
-//
-//   - Nothing on screen, or a cube inside out — the depth test or the winding.
-//     render/tests/offscreen.c is the automated form of that one.
-//   - An opaque surface gone dark — the alpha mode, and it looks like a lighting
-//     regression rather than an alpha one. See render/shaders/draw.slang.
-//   - The picture upside down — the one Y flip went the wrong way or happened
-//     twice. Every word on every cube is upright when it is right, and the app
-//     icon's yellow "3D" badge is in its BOTTOM-RIGHT corner.
-//   - WRITING THAT READS BACKWARDS — a mirror, and this is the failure worth
-//     staring at. A model can come out mirrored from a transposed rotation or a
-//     coordinate conversion nobody should have added, and a mirrored cube looks
-//     completely normal until you try to read it. 3d/tests/import.c is the
-//     automated form.
-//   - The still cube not still, or not centred — the model matrix or the
-//     look-at. scene/tests/transform.c and scene/tests/camera.c check both on
-//     the CPU, so this should have failed before it got here.
-//   - THE WORDMARK SQUEEZED ON THE TURNING CUBE'S NARROW FACES IS CORRECT, and
-//     so is it reading almost undistorted on the two wide ones: the picture is
-//     4800 by 2000 and those faces are CUBE_SCALE_X by CUBE_SCALE_Y, which is
-//     nearly the same shape. A wordmark that looked the same on all six faces of
-//     a cube that is not a cube would be the bug.
-//   - The shading sliding across the squashed cube as it turns rather than
-//     staying on its faces — the normal matrix, and the one thing that cube is
-//     there to show.
-static bool add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
-			  voe_base_arena *arena, voe_ecs_entity *turning,
-			  voe_base_error *error)
-{
-	voe_render_geometry geometry = { 0 };
-	voe_3d_material icon;
-	voe_3d_material logo;
-	voe_ecs_entity still = { 0 };
-
-	if (!voe_render_geometry_create(gpu, voe_dev_cube_vertices,
-					VOE_DEV_CUBE_VERTEX_COUNT,
-					voe_dev_cube_indices,
-					VOE_DEV_CUBE_INDEX_COUNT, &geometry,
-					error))
-		return false;
-
-	if (!textured_material(gpu, arena, APP_ICON_PNG, sizeof APP_ICON_PNG,
-			       &icon, error))
-		return false;
-	if (!textured_material(gpu, arena, LOGO_PNG, sizeof LOGO_PNG, &logo,
-			       error))
-		return false;
-
-	// ONE GEOMETRY, TWO SHADING RECORDS, TWO ENTITIES, AND THE PAIR IS WORTH
-	// MORE THAN THE ONE RECORD IT REPLACED. Both cubes are the same
-	// twenty-four vertices; what differs is a texture id in a shading
-	// record, so this is also the smallest demonstration in the program
-	// that one mesh can be worn two ways. The second one is squashed, which
-	// is what makes the normal matrix visible — see CUBE_SCALE_X.
-	return add_cube(world, geometry, icon,
-			(voe_math_float3){ 0.0f, 0.0f, 0.0f },
-			(voe_math_float3){ 1.0f, 1.0f, 1.0f }, &still) &&
-	       add_cube(world, geometry, logo,
-			(voe_math_float3){ CUBES_APART, 0.0f, 0.0f },
-			(voe_math_float3){ CUBE_SCALE_X, CUBE_SCALE_Y,
-					   CUBE_SCALE_Z },
-			turning);
-}
-
-// The material a quad wears. The three things that differ between the five of
-// them are all here; everything else is the same for all of them.
-//
-// THE COLOUR IS NOT PREMULTIPLIED HERE. A material's base colour is an ordinary
-// colour with an alpha beside it; the shader multiplies at the very end, which
-// is where the engine's premultiplied contract is applied. See
-// render/shaders/draw.slang.
-//
-// FULLY ROUGH AND NOT METALLIC, so what is seen through a see-through one is the
-// blend and not a highlight. A metal has no diffuse response, which would make
-// most of the quad nearly black and the blend impossible to judge.
-static voe_3d_material quad_material(voe_math_float4 colour,
-				     voe_render_alpha_mode alpha_mode,
-				     bool unlit)
-{
-	voe_3d_material material = {
-		.base_colour = colour,
-		.metallic = 0.0f,
-		.roughness = 1.0f,
-		.alpha_mode = alpha_mode,
-		.alpha_cutoff = 0.5f,
-		.unlit = unlit,
-	};
-
-	return material;
-}
-
-// Where one quad stands and how big it is. They are all square and all upright,
-// so a position and one number is the whole of a quad's transform.
-static voe_scene_transform quad_at(voe_math_float3 position, float size)
-{
-	voe_scene_transform transform = {
-		.position = position,
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { size, size, 1.0f },
-	};
-
-	return transform;
-}
-
-// One panel, one entity: a transform saying where the surface stands and how big
-// it is, and a panel component saying how big the surface is in its own
-// millimetres and which layer it is drawn in.
-//
-// NO MATERIAL AND NO MESH, WHICH IS THE SHAPE WORTH NOTICING. An element carries
-// its own colour, so there is no shading record to point at and no geometry to
-// name — the two rows here are the whole of a drawable surface. The range is
-// left at nought and is written every frame by the loop; until the first frame
-// writes one, a count of nought draws nothing and is not an error.
-//
-// What is wrong if it looks wrong:
-//
-//   - THE PANEL OF RECTANGLES IN THE BOTTOM-RIGHT (card 030). Forty of them, in
-//     one draw command, and the console says so once. Three things in it are
-//     worth a look: the orange bar at its top is forty millimetres of rectangle
-//     clipped to twenty, so half of it is missing on purpose; the row of six
-//     bars below it is one colour at six alphas and has to read as a smooth
-//     ramp, because a shader that forgot to premultiply leaves the faintest one
-//     still obvious and one that did it twice makes the row vanish too early;
-//     and the thirty-two squares below that are thirty-two different colours,
-//     which is the thing one draw of one shading record could not be.
-//   - The exhibit upside down, or the badge's orange corner mark at the bottom
-//     — the element surface's Y. It runs down from the surface's top-left
-//     corner, and the negation that makes that true is in
-//     voe_render_element_surface_matrix. Nothing here negates anything.
-//   - THE EXHIBIT VISIBLE THROUGH A CUBE THAT IS IN FRONT OF IT — the panel has
-//     stopped being sorted with the see-through meshes and is being drawn after
-//     everything, which is the one thing card 032 exists to prevent. The badge
-//     is the opposite case and is meant to be visible through everything: it is
-//     in the overlay, on the far side of the depth clear.
-//   - The exhibit or the badge stretched, or changing size, when the window is
-//     dragged narrow — a bug. Both are objects in metres and the window only
-//     changes the camera's aspect. The surface that does answer to the window is
-//     the plate and ticks in the top-left corner, and what it does is hold fewer
-//     millimetres rather than narrower ones: the ticks keep their size and
-//     spacing and the far ones fall off the right edge. See src/surface.h.
-static bool add_panel(voe_ecs_world *world, voe_math_float3 position,
-		      float scale, voe_math_float2 millimetres,
-		      voe_3d_layer layer, voe_ecs_entity *out)
-{
-	voe_ecs_entity entity = { 0 };
-	voe_scene_transform transform = {
-		.position = position,
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { scale, scale, scale },
-	};
-
-	if (!voe_ecs_entity_create(world, &entity))
-		return false;
-	if (!voe_scene_transform_add(world, entity, transform))
-		return false;
-	if (!voe_3d_panel_add(world, entity,
-			      (voe_3d_panel){ .size = millimetres,
-					      .layer = layer }))
-		return false;
-
-	*out = entity;
-	return true;
-}
-
-// One quad, one entity: geometry it shares with every other quad, a material of
-// its own because the colour differs, a transform of its own, and the layer it
-// is drawn in.
-static bool add_quad(voe_ecs_world *world, voe_render_device *gpu,
-		     voe_render_geometry geometry, voe_3d_material material,
-		     voe_scene_transform transform, voe_3d_layer layer,
-		     voe_ecs_entity *out, voe_base_error *error)
-{
-	voe_ecs_entity entity = { 0 };
-
-	if (!voe_3d_material_upload(gpu, &material, error))
-		return false;
-	if (!voe_ecs_entity_create(world, &entity))
-		return false;
-	if (!voe_scene_transform_add(world, entity, transform))
-		return false;
-	if (!voe_3d_mesh_add(world, entity,
-			     (voe_3d_mesh){ .geometry = geometry,
-					    .layer = layer }))
-		return false;
-	if (!voe_3d_material_add(world, entity, material))
-		return false;
-
-	// Every quad but the panel is placed once and never moved again, so the
-	// entity is of no use to them. `out` may be NULL for those.
-	if (out != NULL)
-		*out = entity;
-	return true;
-}
-
-// The five quads: one square of geometry into the pools, two entities standing
-// either side of the cubes in the world, and three more standing inside the
-// turning cube in the overlay.
-//
-// And two see-through squares, one warm and one cool, standing a metre and a
-// half either side of the cubes.
-//
-// Then three smaller squares — one solid purple, one see-through green, one
-// see-through orange — standing inside the turning cube and never hidden by it,
-// however far round the orbit goes. Those are the overlay.
-//
-// THE CUBES ARE VISIBLE THROUGH THEM AND TINTED BY THEM. That is the whole claim
-// of the blended pass: half of what a quad covers is the quad's colour and half
-// is whatever was behind it. A quad that hides what is behind it is a blend that
-// is not happening; a quad that has gone dark is the opaque path forcing alpha
-// to one where it should not, or a colour premultiplied twice.
-//
-// AND WHICH OF THE TWO IS ON TOP CHANGES AS THE CAMERA GOES ROUND, WHICH IS THE
-// SORT. They stand at +z and −z either side of the cubes, so the camera is
-// behind one of them for half its lap and behind the other for the other half,
-// and the nearer one's colour has to be the one on top of the overlap every
-// time. If it is right from one side and wrong from the other, the sort's sign
-// is backwards — that is the failure 3d/tests/depth_sort.c exists to catch
-// before it gets here, and this is what it looks like when it does.
-//
-// A MATERIAL EACH AND NOT ONE BETWEEN THEM, unlike the cubes. They have to be
-// different colours or there is no way to tell from the picture which one ended
-// up on top, and a material is where a colour lives.
-//
-// ---- THE TWO IN THE WORLD ----
-//
-// The warm one nearer +Z and the cool one nearer −Z, so that whichever the
-// camera is behind is the one whose colour is on top of the other. They are
-// added in this order deliberately: the table order is warm then cool for the
-// whole run, so a frame that looks right from one side and wrong from the other
-// is the sort and nothing else.
-//
-// ---- THE THREE IN THE OVERLAY, AND WHAT EACH ONE IS FOR ----
-//
-// THEY STAND INSIDE THE TURNING CUBE, WHICH IS THE POINT. The squashed cube is
-// solid and it is right there around them, so every one of these would be hidden
-// for most of a lap if the layer were not working. They keep real positions in
-// metres and are seen through the same camera as everything else — this is
-// "always on top", not screen space, and there is no orthographic projection
-// anywhere in this engine.
-//
-// AND THEY STILL OCCLUDE EACH OTHER, WHICH IS THE HALF THAT A LAYER MADE OF A
-// DISABLED DEPTH TEST WOULD GET WRONG. The two see-through ones stand at +Z and
-// −Z of the solid one exactly as the world's pair straddles the cubes, so which
-// of them is nearer swaps twice a lap and the nearer one's colour has to be the
-// one on top of the overlap — the same diagnostic, one layer up. The solid one
-// between them writes depth like any other solid thing, so it hides whichever of
-// the two is behind it and is tinted by whichever is in front.
-//
-// ONE OF THEM IS LIT AND ONE IS NOT, AND THAT IS A SEPARATE AXIS ON PURPOSE. The
-// layer decides order and never lighting. The lit pair brighten and darken as
-// the sun goes round; the unlit one keeps exactly the colour its material asks
-// for. An overlay that quietly stopped lighting things would look like a
-// reasonable convenience and it is the one this arrangement is here to catch.
-//
-// What is wrong if it looks wrong:
-//
-//   - A quad hiding what is behind it rather than tinting it — the blend state,
-//     or the material's mode arriving as opaque.
-//   - The overlap of the two quads showing the far one's colour on top, from
-//     some camera angles and not others — the sort's sign.
-//   - The three quads inside the turning cube showing the far one's colour on
-//     top of the near one's — the sort, inside the overlay, which is the same
-//     sort and the same sign as the world's pair. It swaps twice a lap, so a
-//     backwards sign is right for half of it.
-//   - The solid overlay quad not hiding the see-through one behind it — the
-//     overlay's solid group is not writing depth, or the depth clear is
-//     happening after it rather than before.
-//   - The two lit overlay quads not changing as the sun goes round, or the
-//     unlit one changing — the layer has picked up a meaning about lighting
-//     that it must not have. It decides order and nothing else.
-static bool add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
-			  voe_render_geometry *quad, voe_base_error *error)
-{
-	voe_render_geometry geometry = { 0 };
-	voe_math_float4 warm = { 0.9f, 0.25f, 0.15f, QUAD_ALPHA };
-	voe_math_float4 cool = { 0.15f, 0.35f, 0.9f, QUAD_ALPHA };
-	voe_math_float4 over_lit = { 0.25f, 0.9f, 0.4f, QUAD_ALPHA };
-	voe_math_float4 over_unlit = { 0.95f, 0.55f, 0.1f, QUAD_ALPHA };
-	voe_math_float4 over_solid = { 0.55f, 0.2f, 0.75f, 1.0f };
-	voe_math_float3 middle = { CUBES_APART, 0.0f, 0.0f };
-
-	if (!voe_render_geometry_create(gpu, voe_dev_quad_vertices,
-					VOE_DEV_QUAD_VERTEX_COUNT,
-					voe_dev_quad_indices,
-					VOE_DEV_QUAD_INDEX_COUNT, &geometry,
-					error))
-		return false;
-
-	// The one square every quad in this program wears, the heads-up panel
-	// included. One upload and one id; what differs between them is a
-	// material and a transform.
-	*quad = geometry;
-
-	if (!add_quad(world, gpu, geometry,
-		      quad_material(warm, VOE_RENDER_ALPHA_BLENDED, false),
-		      quad_at((voe_math_float3){ QUAD_X, QUAD_Y, QUAD_Z },
-			      QUAD_SIZE),
-		      VOE_3D_LAYER_WORLD, NULL, error))
-		return false;
-	if (!add_quad(world, gpu, geometry,
-		      quad_material(cool, VOE_RENDER_ALPHA_BLENDED, false),
-		      quad_at((voe_math_float3){ QUAD_X, QUAD_Y, -QUAD_Z },
-			      QUAD_SIZE),
-		      VOE_3D_LAYER_WORLD, NULL, error))
-		return false;
-
-	// The solid one first, so that the two see-through ones are not merely
-	// being drawn in an order that happens to look right: it writes depth
-	// before either of them is issued, and both of them test against it.
-	if (!add_quad(world, gpu, geometry,
-		      quad_material(over_solid, VOE_RENDER_ALPHA_OPAQUE, false),
-		      quad_at(middle, OVERLAY_QUAD_SIZE), VOE_3D_LAYER_OVERLAY,
-		      NULL, error))
-		return false;
-	if (!add_quad(world, gpu, geometry,
-		      quad_material(over_lit, VOE_RENDER_ALPHA_BLENDED, false),
-		      quad_at((voe_math_float3){ middle.x, middle.y,
-						 OVERLAY_QUAD_Z },
-			      OVERLAY_QUAD_SIZE),
-		      VOE_3D_LAYER_OVERLAY, NULL, error))
-		return false;
-	return add_quad(world, gpu, geometry,
-			quad_material(over_unlit, VOE_RENDER_ALPHA_BLENDED,
-				      true),
-			quad_at((voe_math_float3){ middle.x, middle.y,
-						   -OVERLAY_QUAD_Z },
-				OVERLAY_QUAD_SIZE),
-			VOE_3D_LAYER_OVERLAY, NULL, error);
-}
-
-// One text block, one entity: the mesh the font built, an unlit blended material
-// wearing the atlas, and the transform it is placed with.
-//
-// Above all of it, three lines of writing on nothing — a sign in the world,
-// lettered on both faces — and across the bottom of the view, one line of it
-// that stays where it is however the camera moves and that nothing gets in front
-// of.
-//
-// THE SIGN STANDS IN THE WORLD AND THE LINE IS LOCKED TO THE CAMERA, which are
-// the two placements text has. The sign is three lines of Oxanium above the
-// cubes and it is part of the scene: it turns with the orbit, it is read at an
-// angle for most of a lap, and something in front of it hides it. The line sits
-// a metre in front of the eye and stays where it is on screen however the camera
-// moves — and it is still an object in the world, placed by a transform intent
-// every frame. There is no screen-space path in this engine and there is not
-// going to be one, so a heads-up display is a quad in front of the camera.
-//
-// AND THE LINE IS IN THE OVERLAY, SO NOTHING COVERS IT. Fly into a cube and the
-// writing stays readable on top of it, which it did not before card 024: at one
-// metre in front of the eye it went inside anything you walked into. The sign
-// stays in the world and is still hidden by whatever gets between it and the
-// camera, and having both is the point — the layer is a property of a drawable
-// and not a switch the program is in.
-//
-// THE TEXT DOES NOT CHANGE AS THE SUN GOES ROUND, AND THAT IS THE UNLIT FLAG.
-// The cubes brighten and darken through the lap; the writing keeps exactly the
-// colour its material asks for, because an unlit material skips the whole
-// shading model. Writing that dims when the sun crosses it is the flag missing,
-// and it is the failure this is here to make obvious.
-//
-// AND IT IS BLENDED, SO A GLYPH IS A SHAPE AND NOT A BOX. Each letter is a quad
-// whose alpha the shader works out from the sheet's distance field; a square of
-// background round every letter is the alpha mode wrong, and text noticeably
-// paler than the tint it asks for is a colour multiplied by its coverage twice.
-//
-// AND IT IS SHARP AT EVERY SIZE, WHICH IS WHAT THE SIGN IS FOR. Fly up to the
-// sign until one letter fills the screen: its edges stay clean and its corners
-// stay square. Fly away and it fades rather than crawling. Soft edges close up
-// mean the material forgot base_colour_distance_field or the sheet was uploaded
-// smooth; rounded corners mean the three channels came out of the sheet the
-// same, which is the colouring in text/src/raster.c having gone wrong.
-//
-// THE HEADS-UP LINE SITS ON A DARK PANEL, AND THAT IS ABOUT CONTRAST AND NOT
-// ABOUT SHARPNESS. Pale blue over teal is a small enough difference in luminance
-// that a one-pixel edge still reads as soft, which sends anyone looking at it
-// hunting for a blur that is not there. The panel takes that question off the
-// table: the edge is the same width over it, and what still looks soft on it is
-// soft. See HUD_PANEL_R.
-//
-// AND THERE IS NO ANTIALIASING ANYWHERE IN THE PICTURE, WHICH IS THE ENGINE'S
-// RULE AND NOT A GAP. Letters have hard edges, textures show their texels close
-// up and shimmer at a distance, and polygon silhouettes are stair-stepped. Every
-// one of those is intended. What to look for instead is that the edges are in
-// the RIGHT PLACE: a letter walked up to has straight sides and square corners
-// rather than blocks, which is the distance field doing its job under a hard
-// cut. Blocks would mean the sheet had become a picture of coverage again.
-//
-// TEXT A LONG WAY OFF BREAKS INTO SPECKS AND THEY MOVE. Expected, and the direct
-// cost of the rule above; the sign at the top of the scene is where to see it.
-//
-// THE ACCENTED CHARACTERS ARE THE READER'S TEST. `Å`, `Ö`, `é`, `ü`, `å` and `Ç`
-// are composite glyphs — references to other glyphs with an offset — and a
-// reader that handles only simple outlines draws them as blanks while an English
-// string looks perfect. If they are missing, that is the bug.
-//
-// THE COUNTERS ARE HOLES. The middles of `O`, `D`, `e`, `a`, `o`, `ö` and `å`
-// are the background and not the letter. Filled in solid is the fill rule: see
-// text/tests/raster.c, which is where that should have been caught.
-//
-// THEY ARE THE ONLY THINGS IN THE SCENE DRAWN IN THE SECOND PASS ALONGSIDE THE
-// QUADS. Everything else is opaque and goes through the ordinary draw in table
-// order; see 3d/draw_system.h.
-//
-// THE FIVE THINGS A TEXT MATERIAL HAS TO SAY, and each of them is visible if it
-// is missing. The atlas as the base colour texture, or there is nothing to see.
-// The tint as the base colour factor, which for an unlit material is exactly the
-// colour on screen. `unlit`, or the letters darken and brighten as the sun goes
-// round — text lit by a sun is the failure this flag exists to prevent. BLENDED,
-// or every glyph arrives in a square of its own background. And
-// `base_colour_distance_field`, or the sheet is read as a picture and every
-// glyph is a solid rectangle.
-//
-// AND THE TINT IS NOT PREMULTIPLIED HERE. It is an ordinary colour with an alpha
-// beside it; the shader multiplies at the very end. See dev's other blended
-// thing, add_quad, which says the same in the same words.
-//
-// THE LAYER IS THE CALLER'S AND IT IS NOT A FIFTH THING THE MATERIAL SAYS. Both
-// of this program's strings wear the same material and they are in different
-// layers: the sign is part of the scene and the heads-up line is above it. Unlit
-// and overlay travel together here by coincidence and not by rule — see the
-// two placements above.
-//
-// What is wrong if it looks wrong:
-//
-//   - Writing that brightens and dims as the sun goes round — the material's
-//     `unlit` flag never reached the shading record.
-//   - THE HEADS-UP LINE DISAPPEARING WHEN YOU FLY INTO SOMETHING — the layer.
-//     Either the line is not in the overlay or the depth clear between the two
-//     is not happening, and both look identical from here.
-//   - Everything on top of everything, or the sign no longer hidden by what is
-//     in front of it — the opposite failure, and the worse one: the layer has
-//     become a switch the whole frame is in rather than a property of one
-//     drawable. The sign and the cubes are what to check, not the line.
-//   - A square of background round every letter — the text material's alpha mode
-//     arriving as opaque, which is the same failure as the quad above wearing a
-//     different shape.
-//   - Writing noticeably paler than the tint it asks for — a colour multiplied
-//     by its coverage twice, which is the atlas having been premultiplied when
-//     the shader is what does that. See text/src/font.c.
-//   - Letters soft or blurry as the camera closes on the sign — the material's
-//     base_colour_distance_field not set, or the sheet uploaded as colour or
-//     sampled smooth. All three look the same and text/src/font.c is where the
-//     three are decided together.
-//   - Corners on `V`, `A` and the flat terminals coming out rounded — the sheet
-//     is a distance field but its three channels agree, so the median has
-//     nothing to reconstruct. That is the edge colouring, and
-//     text/tests/raster.c is the automated form of it.
-//   - Accented characters missing while an English string is perfect — composite
-//     glyphs, and text/tests/truetype.c is the automated form.
-//   - The middles of `O`, `e` and `a` filled in solid — the fill rule.
-//     text/tests/raster.c is the automated form of that one.
-//   - The sign missing for half the lap — one of its two faces did not get
-//     built. A text block is one face, and the pair of entities is what makes it
-//     a sign rather than a decal.
-//   - A box where a character should be — the character is outside the range the
-//     atlas covers, and that box is the font's own missing-glyph glyph. Correct,
-//     and a reason to change the string rather than the folder.
-static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
-		     const voe_text_font *font, voe_text_block block,
-		     voe_math_float4 tint, voe_scene_transform transform,
-		     voe_3d_layer layer, voe_ecs_entity *out,
-		     voe_base_error *error)
-{
-	voe_ecs_entity entity = { 0 };
-	voe_3d_material material = {
-		.base_colour = tint,
-		.metallic = 0.0f,
-		.roughness = 1.0f,
-		.alpha_mode = VOE_RENDER_ALPHA_BLENDED,
-		.alpha_cutoff = 0.5f,
-		.unlit = true,
-		.base_colour_texture = voe_text_font_atlas(font),
-		// The atlas is a distance field and not a picture. Without this
-		// the shader multiplies the tint by three distances and reads
-		// the sheet's alpha, which is opaque everywhere: solid coloured
-		// rectangles where the writing should be.
-		.base_colour_distance_field = true,
-	};
-
-	if (!voe_3d_material_upload(gpu, &material, error))
-		return false;
-	if (!voe_ecs_entity_create(world, &entity))
-		return false;
-	if (!voe_scene_transform_add(world, entity, transform))
-		return false;
-	if (!voe_3d_mesh_add(world, entity,
-			     (voe_3d_mesh){ .geometry = block.geometry,
-					    .layer = layer }))
-		return false;
-	if (!voe_3d_material_add(world, entity, material))
-		return false;
-
-	*out = entity;
-	return true;
-}
-
-// The font, and the four text entities it is drawn into: the sign's two faces,
-// the line locked to the camera, and the readout, which gets its geometry every
-// frame rather than here.
-//
-// THE FONT IS MADE HERE AND NOT AT STARTUP, which is the difference between a
-// program that draws text and one that does not. Nothing in `render` builds an
-// atlas; this call is what builds it, once, and a program that never makes one
-// never pays for it. It is what this call returns, rather than a second
-// out-parameter, because rule 6 allows one level of dereference and the font
-// is made inside this function and handed straight back.
-//
-// THE SIGN IS CENTRED ON ITS OWN WIDTH. A block's origin is the left end of its
-// first baseline, so a sign that was not shifted would hang off to one side of
-// whatever it is standing on.
-[[nodiscard]] static voe_text_font *add_the_text(voe_ecs_world *world,
-						 voe_render_device *gpu,
-						 voe_base_arena *arena,
-						 voe_render_geometry quad,
-						 voe_ecs_entity *hud,
-						 voe_ecs_entity *panel,
-						 voe_ecs_entity *readout,
-						 voe_math_float2 *hud_size,
-						 voe_base_error *error)
-{
-	voe_text_block sign;
-	voe_text_block line;
-	voe_math_float4 sign_tint = { SIGN_TINT_R, SIGN_TINT_G, SIGN_TINT_B,
-				      1.0f };
-	voe_math_float4 hud_tint = { HUD_TINT_R, HUD_TINT_G, HUD_TINT_B, 1.0f };
-	voe_scene_transform front;
-	voe_scene_transform back;
-	voe_ecs_entity unused = { 0 };
-	voe_text_font *font;
-
-	// Oxanium, which is dev's face and stays so — 005's own criterion 7
-	// keeps the dev program on it while the editor is free to name either.
-	font = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena, error);
-	if (font == NULL)
-		return NULL;
-
-	if (!voe_text_block_create(font, gpu, arena, SIGN_TEXT, SIGN_EM, &sign,
-				   error))
-		return NULL;
-	if (!voe_text_block_create(font, gpu, arena, HUD_TEXT, HUD_EM, &line,
-				   error))
-		return NULL;
-
-	front = (voe_scene_transform){
-		.position = { -sign.size.x * 0.5f, SIGN_HEIGHT, 0.0f },
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { 1.0f, 1.0f, 1.0f },
-	};
-	// The same mesh, turned half a turn about Y and shifted the other way,
-	// so that its left end lands where the front face's right end is and the
-	// two sit exactly back to back.
-	back = (voe_scene_transform){
-		.position = { sign.size.x * 0.5f, SIGN_HEIGHT, 0.0f },
-		.rotation = voe_math_quat_from_axis_angle(
-			(voe_math_float3){ 0.0f, 1.0f, 0.0f }, TURN * 0.5f),
-		.scale = { 1.0f, 1.0f, 1.0f },
-	};
-
-	// The sign is in the world, so that walking something in front of it
-	// still hides it. That is half of what the two placements are for.
-	if (!add_text(world, gpu, font, sign, sign_tint, front,
-		      VOE_3D_LAYER_WORLD, &unused, error))
-		return NULL;
-	if (!add_text(world, gpu, font, sign, sign_tint, back,
-		      VOE_3D_LAYER_WORLD, &unused, error))
-		return NULL;
-
-	// The heads-up line starts wherever; the loop places it every frame from
-	// where the camera actually is, and its width is what centres it there.
-	//
-	// AND IT IS IN THE OVERLAY, WHICH IS THE OTHER HALF. A line of writing
-	// that tells you what the keys do is no use at the moment you fly into
-	// something, and until card 024 that is exactly when it disappeared. It
-	// is still an ordinary object in the world with a position in metres —
-	// what changed is when it is drawn, not where it is.
-	// The panel first, so that the solid thing exists before the blended
-	// thing that sits on it. Order of creation decides nothing here — the
-	// draw system sorts by layer and alpha mode — but reading it in this
-	// order is how the picture is built.
-	if (!add_quad(world, gpu, quad, quad_material((voe_math_float4){
-					     HUD_PANEL_R, HUD_PANEL_G,
-					     HUD_PANEL_B, 1.0f },
-				     VOE_RENDER_ALPHA_OPAQUE, true),
-		      quad_at((voe_math_float3){ 0.0f, 0.0f, 0.0f }, 1.0f),
-		      VOE_3D_LAYER_OVERLAY, panel, error))
-		return NULL;
-
-	*hud_size = line.size;
-	if (!add_text(world, gpu, font, line, hud_tint, front,
-		      VOE_3D_LAYER_OVERLAY, hud, error))
-		return NULL;
-
-	// The readout: an entity wearing the text material and, for now, no
-	// geometry. The block it draws is built inside every frame and put on
-	// it with voe_3d_mesh_set_geometry, so a zeroed id — which names
-	// nothing — is exactly right until the first frame opens, and nothing
-	// draws it before then. Same material, same layer and, until the loop
-	// places it, the same transform as the line.
-	if (!add_text(world, gpu, font, (voe_text_block){ 0 }, hud_tint, front,
-		      VOE_3D_LAYER_OVERLAY, readout, error))
-		return NULL;
-
-	return font;
-}
-
-// The camera's frame, for placing things that travel with it: where the eye is,
-// which way it looks, which way is right and up across the view, and the
-// rotation that stands a quad square to it. The three things locked to the
-// camera below are all placed from one of these.
-//
-// THE ROTATION IS THE CAMERA'S TWO ANGLES, COMPOSED IN THAT ORDER. Yaw about Y
-// and then pitch about X, which is the same composition voe_scene_camera_view
-// builds its basis from; _mul reads right to left, so the pitch is the one
-// applied first. Swap them and the line rolls as the camera looks up.
-struct view_basis {
-	voe_math_float3 eye;
-	voe_math_float3 forward;
-	voe_math_float3 right;
-	voe_math_float3 up;
-	voe_math_quat rotation;
-	// How far the view reaches above its centre, per metre of distance in
-	// front of the eye: the tangent of half the vertical field of view.
-	// Times the aspect ratio for how far it reaches to the side. It is what
-	// lets something be put in a corner of the view rather than near one.
-	float half_height;
-};
-
-static struct view_basis basis_of(const voe_ecs_world *world,
-				  voe_ecs_entity eye)
-{
-	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
-	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
-	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
-	struct view_basis basis;
-
-	basis.eye = camera->eye;
-	basis.forward = voe_scene_camera_forward(*camera);
-	basis.right = voe_math_float3_normalize(
-		voe_math_float3_cross(basis.forward, UP));
-	basis.up = voe_math_float3_cross(basis.right, basis.forward);
-	basis.rotation = voe_math_quat_mul(
-		voe_math_quat_from_axis_angle(UP, camera->yaw),
-		voe_math_quat_from_axis_angle(SIDE, camera->pitch));
-	basis.half_height = tanf(camera->fov_y * 0.5f);
-	return basis;
-}
-
-// A transform standing square to the camera at `at`, with the scale given.
-static voe_scene_transform_intent square_to_the_camera(
-	const struct view_basis *basis, voe_ecs_entity entity,
-	voe_math_float3 at, voe_math_float3 scale)
-{
-	return (voe_scene_transform_intent){
-		.entity = entity,
-		.transform = {
-			.position = at,
-			.rotation = basis->rotation,
-			.scale = scale,
-		},
-	};
-}
-
-// Where the heads-up line goes this frame: in front of the eye, square to it,
-// centred across it and a little below the middle.
-//
-// IT IS AN ORDINARY TRANSFORM IN THE WORLD AND THAT IS THE POINT. There is no
-// screen-space path in this engine and a "just for debug" one is exactly what
-// that rule exists to prevent, so a heads-up display is a quad standing in front
-// of the camera and moved with it.
-//
-// WHAT STOPS A CUBE GETTING IN FRONT OF IT IS THE LAYER AND NOT THIS FUNCTION.
-// Standing a metre from the eye used to mean flying into anything put that thing
-// in front of the writing; the line is in the overlay now, so it is drawn after
-// the world's depth is thrown away. This function still only decides where the
-// line is, and it would put it in exactly the same place if it were in the world
-// — those are two separate answers to two separate questions and neither one
-// implies the other.
-static voe_scene_transform_intent facing_the_camera(const voe_ecs_world *world,
-						    voe_ecs_entity eye,
-						    voe_ecs_entity text,
-						    voe_math_float2 size)
-{
-	struct view_basis basis = basis_of(world, eye);
-	voe_math_float3 at = voe_math_float3_add(
-		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
-
-	at = voe_math_float3_add(
-		at, voe_math_float3_scale(basis.right, -size.x * 0.5f));
-	at = voe_math_float3_add(at, voe_math_float3_scale(basis.up, -HUD_DROP));
-
-	return square_to_the_camera(&basis, text, at,
-				    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
-}
-
-// Where the readout goes this frame: square to the camera like the line, in the
-// top-left corner of the view, a margin in from both edges.
-//
-// THE CORNER IS WORKED OUT FROM THE FIELD OF VIEW AND THE ASPECT RATIO. At a
-// metre in front of the eye the view reaches tan(fov/2) metres up and that times
-// the aspect ratio to the side, so the corner is a point on the same plane the
-// line stands on and the readout is pinned to the edge of the window, whatever
-// size the window is. This is still an ordinary transform in the world: a
-// resize moves the corner and the next frame's intent follows it.
-//
-// IT IS LEFT-ALIGNED AND NOT CENTRED, BECAUSE ITS WIDTH CHANGES. A block's
-// origin is the left end of its first baseline, so holding that point still
-// holds the left edge still while the digits change; centring on the width, as
-// the line does, would shift the whole readout sideways every time a number
-// gained a digit.
-//
-// AND THAT IS WHAT LETS IT BE PLACED HERE AT ALL. The block is built inside the
-// frame, after the transform system has run, so a placement that wanted its size
-// would be a frame late. This one asks only where the camera is and how big the
-// window is.
-static voe_scene_transform_intent top_left_of_the_view(
-	const voe_ecs_world *world, voe_ecs_entity eye, voe_ecs_entity readout,
-	voe_platform_size size)
-{
-	struct view_basis basis = basis_of(world, eye);
-	// A window with no area has no corner; one is as good as any other
-	// then, because nothing is about to be drawn.
-	float aspect = size.width > 0 && size.height > 0 ?
-			       (float)size.width / (float)size.height :
-			       1.0f;
-	float half_height = basis.half_height * HUD_DISTANCE;
-	float half_width = half_height * aspect;
-	float margin = READOUT_EM * READOUT_MARGIN_EMS;
-	voe_math_float3 at = voe_math_float3_add(
-		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
-
-	at = voe_math_float3_add(
-		at, voe_math_float3_scale(basis.right, -(half_width - margin)));
-	at = voe_math_float3_add(
-		at, voe_math_float3_scale(basis.up, half_height - margin -
-							    READOUT_EM));
-
-	return square_to_the_camera(&basis, readout, at,
-				    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
-}
-
-// Where the panel behind the heads-up line goes this frame: the same plane as the
-// line, a shade further from the eye, centred on the line's own box and a margin
-// larger than it.
-//
-// IT SHARES THE LINE'S ROTATION AND NOT ITS POSITION. The line's origin is the
-// left end of its first baseline, so a panel placed there would hang off to one
-// side and sit too low; it is moved right by half the width and up by a quarter
-// of the height, which puts it around the band the glyphs actually occupy rather
-// than around the line box. A quarter and not a half because a line box is
-// mostly above its baseline.
-//
-// THE SCALE IS NOT UNIFORM, WHICH IS WHY THIS DOES NOT USE quad_at. A line of
-// writing is wide and short and the quad it sits on has to be the same shape.
-static voe_scene_transform_intent behind_the_line(const voe_ecs_world *world,
-						  voe_ecs_entity eye,
-						  voe_ecs_entity quad,
-						  voe_math_float2 size)
-{
-	struct view_basis basis = basis_of(world, eye);
-	float margin = size.y * HUD_PANEL_MARGIN;
-	voe_math_float3 at = voe_math_float3_add(
-		basis.eye, voe_math_float3_scale(basis.forward,
-						 HUD_DISTANCE + HUD_PANEL_BEHIND));
-
-	at = voe_math_float3_add(at, voe_math_float3_scale(basis.up, -HUD_DROP));
-	at = voe_math_float3_add(at,
-				 voe_math_float3_scale(basis.up, size.y * 0.25f));
-
-	return square_to_the_camera(&basis, quad, at,
-				    (voe_math_float3){ size.x + margin * 2.0f,
-						       size.y + margin * 2.0f,
-						       1.0f });
-}
-
-// One model, then one transform intent per entity to move the whole thing aside.
-//
-// A figure standing on nothing: `dev/src/textured_primitives_human.glb`, three
-// primitives out of Blender sharing one material — a body, a bar of arms and a
-// spherical head, about two metres tall, standing with its feet at y = 0 rather
-// than centred like the cubes.
-//
-// The figure wears its own albedo map, which is the thing to look at for
-// whether a real exporter's texture coordinates arrive intact.
-//
-// EVERY ENTITY HAS TO BE MOVED AND NOT JUST THE FIRST, WHICH IS THE FLATTENING
-// SHOWING THROUGH. There is no parent component: the import composed the file's
-// tree into world transforms, so moving a model means moving each of the things
-// it turned into. The card that adds a hierarchy is the card that makes this one
-// intent.
-//
-// What is wrong if it looks wrong:
-//
-//   - A model missing while the cubes are there — that import failed and said so
-//     on stderr, or the world ran out of room for it. Each model is tried on its
-//     own, so one of them can be missing without the other.
-//   - The figure's texture smeared or in the wrong place while the cubes read
-//     properly — a real exporter's texture coordinates, which nothing in this
-//     repository generated. That is what having a file nobody here wrote is for.
-static bool add_a_model(voe_ecs_world *world, voe_render_device *gpu,
-			voe_base_arena *arena, const char *name,
-			const uint8_t *bytes, size_t size, float offset_x,
-			voe_base_error *error)
-{
-	voe_3d_import imported = { 0 };
-	// Everything the import builds on the way through — the parsed model,
-	// the decoded picture, the JSON, the list of entities — is scratch: the
-	// GPU has taken its own copy of the uploads and the components hold the
-	// ids, so none of it is read after this function returns. It is a few
-	// megabytes and this is the mark that gives them back.
-	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
-
-	if (!voe_3d_import_glb(world, gpu, arena, bytes, size, &imported,
-			       error)) {
-		voe_base_arena_rewind(arena, mark);
-		return false;
-	}
-
-	for (uint32_t i = 0; i < imported.entity_count; i++) {
-		const voe_scene_transform *placed =
-			voe_scene_transform_get(world, imported.entities[i]);
-		voe_scene_transform moved;
-
-		if (placed == NULL)
-			continue;
-
-		// Read, change, submit: an intent carries the whole transform,
-		// so a submitter reads the current one first. Reading is
-		// anybody's; writing is the transform system's.
-		moved = *placed;
-		moved.position.x += offset_x;
-		if (!voe_scene_transform_submit(
-			    world, (voe_scene_transform_intent){
-					   .entity = imported.entities[i],
-					   .transform = moved })) {
-			voe_base_arena_rewind(arena, mark);
-			return false;
-		}
-	}
-
-	// Textures and not pictures: a picture wanted as both a colour and a data
-	// map is uploaded twice, so the two numbers are not always the same. See
-	// 3d/import.h.
-	printf("model      %-9s %u entities, %u meshes, %u materials, %u textures\n",
-	       name, imported.entity_count, imported.geometry_count,
-	       imported.material_count, imported.texture_count);
-
-	// The intents carry the transforms by value, so nothing above is read
-	// again and the whole import's working memory goes back here.
-	voe_base_arena_rewind(arena, mark);
-	return true;
 }
 
 // The four numbers the loop measures, and the clock reading that says when a
@@ -2258,13 +1127,13 @@ int main(void)
 		goto stop;
 	}
 
-	if (!add_the_cubes(world, gpu, arena, &turning, &error)) {
+	if (!voe_dev_add_the_cubes(world, gpu, arena, &turning, &error)) {
 		VOE_BASE_ERROR("dev", "could not build the two cubes: %s",
 			       voe_base_error_string(error));
 		goto stop;
 	}
 
-	if (!add_the_quads(world, gpu, &quad, &error)) {
+	if (!voe_dev_add_the_quads(world, gpu, &quad, &error)) {
 		VOE_BASE_ERROR("dev", "could not build the two see-through quads: %s",
 			       voe_base_error_string(error));
 		goto stop;
@@ -2279,8 +1148,8 @@ int main(void)
 	// The font and the three text entities. Not optional the way a model is:
 	// there is one font, it is in the binary, and a failure here is a bug in
 	// the reader rather than a file somebody could not open.
-	font = add_the_text(world, gpu, arena, quad, &hud, &panel, &readout,
-			    &hud_size, &error);
+	font = voe_dev_add_the_text(world, gpu, arena, quad, &hud, &panel,
+				    &readout, &hud_size, &error);
 	if (font == NULL) {
 		VOE_BASE_ERROR("dev", "could not build the text: %s",
 			       voe_base_error_string(error));
@@ -2294,17 +1163,17 @@ int main(void)
 
 	// The two panels. Nothing is on them yet: what a panel holds is a range
 	// of the frame that is open, and no frame is open until the loop starts.
-	if (!add_panel(world,
-		       (voe_math_float3){ EXHIBIT_X, EXHIBIT_Y, EXHIBIT_Z },
-		       EXHIBIT_SCALE,
-		       (voe_math_float2){ VOE_DEV_ELEMENTS_PANEL_WIDE,
-					  VOE_DEV_ELEMENTS_PANEL_HIGH },
-		       VOE_3D_LAYER_WORLD, &exhibit_panel) ||
-	    !add_panel(world, (voe_math_float3){ BADGE_X, BADGE_Y, BADGE_Z },
-		       BADGE_SCALE,
-		       (voe_math_float2){ VOE_DEV_BADGE_WIDE,
-					  VOE_DEV_BADGE_HIGH },
-		       VOE_3D_LAYER_OVERLAY, &badge_panel)) {
+	if (!voe_dev_add_panel(
+		    world, (voe_math_float3){ EXHIBIT_X, EXHIBIT_Y, EXHIBIT_Z },
+		    EXHIBIT_SCALE,
+		    (voe_math_float2){ VOE_DEV_ELEMENTS_PANEL_WIDE,
+				       VOE_DEV_ELEMENTS_PANEL_HIGH },
+		    VOE_3D_LAYER_WORLD, &exhibit_panel) ||
+	    !voe_dev_add_panel(
+		    world, (voe_math_float3){ BADGE_X, BADGE_Y, BADGE_Z },
+		    BADGE_SCALE,
+		    (voe_math_float2){ VOE_DEV_BADGE_WIDE, VOE_DEV_BADGE_HIGH },
+		    VOE_3D_LAYER_OVERLAY, &badge_panel)) {
 		VOE_BASE_ERROR("dev", "could not build the two element panels");
 		goto stop;
 	}
@@ -2313,8 +1182,9 @@ int main(void)
 	// stopping the program: the cubes are what says the renderer works, and
 	// a person looking at a window is better served by seeing them and a
 	// message than by seeing nothing.
-	if (!add_a_model(world, gpu, arena, "human", HUMAN_GLB,
-			 sizeof(HUMAN_GLB), HUMAN_X, &error))
+	if (!voe_dev_add_a_model(world, gpu, arena, "human",
+				 voe_dev_human_glb, voe_dev_human_glb_size,
+				 HUMAN_X, &error))
 		VOE_BASE_ERROR("dev", "could not read the human model: %s",
 			       voe_base_error_string(error));
 
@@ -2566,16 +1436,19 @@ int main(void)
 		// those frames are the ones a person sees. Drawing faster makes
 		// it worse rather than better.
 		(void)voe_scene_transform_submit(
-			world, facing_the_camera(world, eye, hud, hud_size));
+			world,
+			voe_dev_facing_the_camera(world, eye, hud, hud_size));
 		// The panel travels with the line, one frame behind it in
 		// exactly the same way and for exactly the same reason.
 		(void)voe_scene_transform_submit(
-			world, behind_the_line(world, eye, panel, hud_size));
+			world,
+			voe_dev_behind_the_line(world, eye, panel, hud_size));
 		// And the readout, placed from the camera alone — its geometry
 		// does not exist yet and its placement does not need it.
 		(void)voe_scene_transform_submit(
 			world,
-			top_left_of_the_view(world, eye, readout, now_size));
+			voe_dev_top_left_of_the_view(world, eye, readout,
+						     now_size, READOUT_EM));
 		// And the two sprites that turn towards the camera, in this
 		// same gap and for this same reason. The engine does not
 		// billboard, so this is a call site turning them itself — see

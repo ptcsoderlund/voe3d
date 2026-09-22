@@ -29,13 +29,23 @@ that carries it out. The pictures and the model it embeds sit here too.
   billboarding is here and not in the engine.
 - `sprites.c` — the sheet's pixels, where each sprite stands and the two rotations that turn them
   towards the camera.
-- `cubes.h` — the two placeholder cubes' geometry. Its header says why data
-  may live at a call site and why there are twenty-four vertices.
-- `cubes.c` — those vertices and indices.
-- `quad.h` — the see-through quads' geometry. Its header says why it is two
-  faces in the same place, and why that is a double-sided mesh rather than a
-  double-sided material.
-- `quad.c` — those vertices and indices.
+- `cubes.h` — the two placeholder cubes as an exhibit: their geometry and the call that builds
+  them. Its header says why data may live at a call site and why there are twenty-four vertices.
+- `cubes.c` — those vertices and indices, the two pictures they wear, and the two entities, with
+  what is wrong if they look wrong.
+- `quad.h` — the see-through quads as an exhibit: their geometry, and the calls that build a quad,
+  a panel and all five. Its header says why it is two faces in the same place.
+- `quad.c` — those vertices and indices, and the two quads in the world and three in the overlay,
+  with what each is for and what is wrong if it looks wrong.
+- `text.h` — the writing exhibit: the font, the sign in the world, the heads-up line on its panel
+  and the readout's entity.
+- `text.c` — those strings and materials, the two placements text has, and what is wrong if the
+  writing looks wrong.
+- `facing.h` — the transforms that turn the heads-up line, its panel and the readout to the camera,
+  and who calls them each frame.
+- `facing.c` — the camera's frame and the three placements built from it.
+- `model.h` — the model exhibit: the embedded `.glb` and the call that reads it in and moves it.
+- `model.c` — that import, the intents that move it aside, and what is wrong if it looks wrong.
 - `shrink.h` — a decoded picture halved until neither side is longer than
   1920, `dev`'s own and not a rule about textures. Its header says why this is
   not mipmapping and cannot be, what it buys in numbers, and what it does not
