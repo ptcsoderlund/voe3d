@@ -650,7 +650,6 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	if (!voe_render_swapchain_build(device, size))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
-	voe_render_card_say(device);
 	return device;
 }
 

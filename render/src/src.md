@@ -19,11 +19,12 @@ which file to open — what each one owns, and where the seams between them run.
 - `device.c` — starting up, and the one place its order is: the surface, the logical device, the
   format, timing, present modes, frame objects and close-down, plus the headless device the tests
   run on.
-- `startup.h` — the startup steps that live beside device.c, and why open_device calls them in the
-  order it does.
+- `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
+  order it does, and the card facts and ranking a test can call with no card.
 - `instance.c` — the Vulkan instance, its extensions, and the validation layer and messenger in a
   debug build that has them.
-- `card.c` — choosing the graphics card, and the `render` line that says which one.
+- `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
+  that says which and why.
 - `pipeline.c` — the two mesh pipelines with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
 - `descriptors.c` — everything the shader reads and the one layout that describes it: five bindings,

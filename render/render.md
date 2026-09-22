@@ -9,7 +9,7 @@ shading records, three pipelines and a frame — nothing above them.
 - `src/` — the implementation behind that header: the loader and the two window
   backends, startup, the pools, the three pipelines and the frame. See
   `src/src.md`.
-- `tests/` — eight programs, most of them headless, that check what reached the
+- `tests/` — nine programs, most of them headless, that check what reached the
   picture rather than what the bookkeeping said. See `tests/tests.md`.
 - `shaders/` — the three Slang shaders, compiled and embedded at build time. See
   `shaders/shaders.md`.

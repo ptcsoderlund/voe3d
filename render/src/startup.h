@@ -1,6 +1,7 @@
 // The steps of startup that live beside device.c: create the instance, choose
-// the graphics card, say which card, create the two mesh pipelines. Internal to
+// the graphics card and say which, create the two mesh pipelines. Internal to
 // render; device.c's open_device is the only caller of each, once per device.
+// voe_render_card_rank is also called by tests/card.c, which needs no card.
 //
 // OPEN_DEVICE IS STILL THE ONE PLACE THE ORDER IS. These are in files of their
 // own because device.c had grown past reading, not because they are independent:
@@ -11,8 +12,7 @@
 // voe_render_descriptors_build, because their layout names the descriptor set
 // layout it makes — built first, they would name a null handle. The element
 // pipeline (element.c) comes after the pipelines, because it shares the layout
-// the solid one creates. The card is named last, once the device is whole, so
-// the line is printed only for a device that opened.
+// the solid one creates.
 //
 // Each returns false after printing one line of why; open_device turns that
 // into the category a caller sees.
@@ -32,14 +32,25 @@
 [[nodiscard]] bool voe_render_instance_create(voe_render_device *device,
 					      voe_base_arena *arena);
 
-// Fills device->physical and device->queue_family. Needs device->surface unless
-// the device is headless.
+// What the ranking knows of one card, gathered by card.c from the driver.
+typedef struct {
+	VkPhysicalDeviceType kind;
+	uint64_t memory;      // bytes in the largest DEVICE_LOCAL heap
+	bool vulkan_1_3;
+	bool draws;           // a queue family with graphics
+	bool presents;        // that family can present (ignored headless)
+} voe_render_card_facts;
+
+// The index of the chosen card by 0214's ranking, or UINT32_MAX when none
+// qualifies. *fastest is the best-ranked card that has Vulkan 1.3 and draws,
+// presenting or not, so a caller can tell it fell back; UINT32_MAX if none.
+uint32_t voe_render_card_rank(const voe_render_card_facts *cards, uint32_t count,
+			      bool headless, uint32_t *fastest);
+
+// Fills device->physical and device->queue_family and prints the one `render`
+// line saying which card and why. Needs device->surface unless headless.
 [[nodiscard]] bool voe_render_card_choose(voe_render_device *device,
 					  voe_base_arena *arena);
-
-// Prints the one `render` line: the card's name, its Vulkan version and the
-// queue family in use.
-void voe_render_card_say(voe_render_device *device);
 
 // Fills device->pipeline, device->pipeline_blended and device->layout.
 [[nodiscard]] bool voe_render_pipelines_create(voe_render_device *device);
