@@ -10,18 +10,18 @@ rules are decision 0168.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
 - **ecs** — entities, component tables, intent queues, a structural queue applied once a frame.
-- **platform** — the one OS-aware folder: window, input, typed text, keymap, files, time.
+- **platform** — the one OS-aware folder: window, focus, wait, input, typing, keymap, files, time.
 - **scene** — transform, camera, light and identity as components with their systems.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
 - **authoring** — scene and project text read and written; a game does not build it.
-- **render** — the GPU layer and the only folder that names Vulkan: devices, resources, passes.
+- **render** — the GPU layer and the only folder that names Vulkan: the card, resources, passes.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, the move gizmo.
 - **sprite** — a sprite is a plane in the world and hands back a material.
-- **app** — parts a program calls in its frame loop: the frame, capture to a PNG, a headless start.
-- **editor** — authoring a scene: top bar, Scene list, views, gizmo, Inspector, undo, files, Preferences.
+- **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
+- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, undo, files, Preferences.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -52,8 +52,9 @@ rules are decision 0168.
 - 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
 - 0197 — Slider values are remembered per theme in one settings file; a theme file is never written.
 - 0192, 0199, 0200 — `ui` holds one focus; an overlay belongs to its widget and fits.
-- 0201 — The engine takes the fastest card — never software silently — and says which it took.
+- 0201, 0214 — The fastest card is the best kind then the largest memory; one line says which.
 - 0202, 0203 — A click picks by a ray cast against the shapes' triangles; the outline is quads.
 - 0204 — Undo is a line of whole-scene texts; a step is what an edit settles into, read back whole.
 - 0205, 0206, 0207 — The move gizmo is `3d`'s, its drag the editor's; state is lightness and size.
 - 0208–0211 — 015 closes on its walk; 016 moves comments only, and a page's opening says what for.
+- 0215, 0216 — Unfocused, a window draws four frames a second; hidden, none; the clock keeps it.
