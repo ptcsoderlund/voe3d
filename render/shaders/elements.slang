@@ -92,20 +92,31 @@
 // that can produce a partly covered pixel. Softening the edge here would put
 // back the thing that was deliberately removed.
 //
-// BUT THE CUT IS NOT AT THE FIELD'S HALF: IT SITS HALF A SCREEN PIXEL OUTSIDE
-// THE OUTLINE, LESS ONE BYTE STEP OF THE FIELD (ADR-0182, ADR-0183, ADR-0184).
-// A pixel is inside when its centre is within that distance of the letter, so a
-// thin stroke keeps a pixel even when it falls between two pixel centres; at the
-// half alone such a stroke lost every pixel and the letter lost a limb. At four
-// texels per pixel, where strokes are thin, the distance is just under half a
-// pixel; it only shrinks when text is magnified, where every stroke is several
-// pixels wide. Less than half because an outline lying exactly on pixel boundaries has
+// BUT THE CUT IS NOT AT THE FIELD'S HALF: IT SITS OUTSIDE THE OUTLINE BY ONLY
+// AS FAR AS A THIN STROKE NEEDS, LESS ONE BYTE STEP OF THE FIELD (ADR-0182,
+// ADR-0183, ADR-0184, ADR-0212). A pixel is inside when its centre is within
+// that distance of the letter, so a thin stroke keeps a pixel even when it falls
+// between two pixel centres; at the half alone such a stroke lost every pixel
+// and the letter lost a limb. A stroke can only lose all of them when it is
+// under a pixel across, so the move is spent where it is needed: the face's
+// thinnest stroke is two sheet texels, which is 2 / texels_per_pixel screen
+// pixels, and the cut moves out only far enough to bring that to a pixel and a
+// quarter. At about one texel per pixel, which is the editor on an ordinary
+// display, the thinnest stroke is already two pixels and the cut does not move
+// at all, so the letters keep the face's weight; past about 1.6 texels per pixel
+// it grows — 0.375 pixel at four, where bug 03's strokes vanished, and the whole
+// half from eight on. (ADR-0212's prose says 0.47 at four; its formula, which is
+// what this follows and what render/tests/elements.c measures, gives 0.375.)
+// A pixel and a quarter rather than one is the margin for the byte-step guard,
+// for step counting a centre exactly on the moved edge as inside, and for the
+// constant being the face's stem rather than this fragment's stroke.
+// Less one byte step because an outline lying exactly on pixel boundaries has
 // its nearest outside centre exactly half a pixel away, and the sheet stores
 // bytes: a rounded texel can read up to half a byte step high, so the guard is a
 // whole byte step in field, not a fraction of a pixel, which would fail at some
 // magnification. Such text keeps its true width at every scale and does not gain
-// a row; text that does not line up is at most one pixel wider, which bug 01 of
-// 009 accepts.
+// a row; where the cut does move, text that does not line up is at most one
+// pixel wider, which bug 01 of 009 accepts.
 // voe_render_element_cutoff turns the distance into a field value, and
 // draw.slang's world text keeps the half.
 //
@@ -194,20 +205,36 @@ static const uint VOE_RENDER_ELEMENT_IMAGE = 2;
 // one, change the other.
 static const float VOE_RENDER_ELEMENT_FIELD_SPREAD = 4.0;
 
+// The thinnest stroke the sheet holds, in sheet texels, at text/src/font.c's
+// ATLAS_EM of thirty-two texels to the em: Oxanium Regular's stem is about
+// 0.08 em, two and a half texels, and the field cannot hold a feature under
+// about one and a half. It is copied because render cannot include text, and it
+// moves with ATLAS_EM and with the face.
+static const float VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS = 2.0;
+
 // The field value at and above which a glyph's pixel counts as inside: the
-// half, moved half a screen pixel outward less one byte step of the field
-// (ADR-0183, ADR-0184). `texels_per_pixel` is how many sheet texels one screen
-// pixel spans along each axis; the larger is taken, so a squeezed axis never
-// under-dilates. The byte step keeps an outline on pixel boundaries from gaining
-// a row when a rounded texel reads half a step high. Clamped to at most the half
-// so the cut never erodes past the outline, and to at least a five-hundred-and-
-// twelfth so that a texel encoded as nought — far outside everything — is never
-// inside, however small the text gets.
+// half, moved outward by as far as a thin stroke needs and no farther, less one
+// byte step of the field (ADR-0183, ADR-0184, ADR-0212). `texels_per_pixel` is
+// how many sheet texels one screen pixel spans along each axis; the larger is
+// taken, so a squeezed axis never under-dilates. The face's thinnest stroke is
+// VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS across, so it spans that many texels
+// divided by that larger number in screen pixels, and the dilation is what
+// brings it to a pixel and a quarter: nought once the stroke is that wide
+// already, which is text at about one texel per pixel, and at most the half a
+// pixel ADR-0184 spent at every size. The byte step keeps an outline on pixel
+// boundaries from gaining a row when a rounded texel reads half a step high.
+// Clamped to at most the half so the cut never erodes past the outline, and to
+// at least a five-hundred-and-twelfth so that a texel encoded as nought — far
+// outside everything — is never inside, however small the text gets.
 float voe_render_element_cutoff(float2 texels_per_pixel)
 {
-	float field_per_pixel = max(texels_per_pixel.x, texels_per_pixel.y)
+	float texels = max(texels_per_pixel.x, texels_per_pixel.y);
+	float field_per_pixel = texels
 		/ (2.0 * VOE_RENDER_ELEMENT_FIELD_SPREAD);
-	return clamp(0.5 - 0.5 * field_per_pixel + 1.0 / 255.0,
+	float thin_stroke_pixels =
+		VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS / texels;
+	float dilation = clamp(0.5 * (1.25 - thin_stroke_pixels), 0.0, 0.5);
+	return clamp(0.5 - dilation * field_per_pixel + 1.0 / 255.0,
 		     1.0 / 512.0, 0.5);
 }
 
@@ -341,8 +368,8 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 			NonUniformResourceIndex(vertex.sheet_texture)]
 			.SampleLevel(vertex.sheet_at, 0.0).rgb;
 
-		// A hard cut half a pixel less a byte step outside the outline, not
-		// draw.slang's half: see the header. The derivative was taken
+		// A hard cut as far outside the outline as a thin stroke needs,
+		// less a byte step, not draw.slang's half: see the header. The derivative was taken
 		// above; here it only becomes texels by the sheet's size.
 		// Inside or outside, and nothing in between.
 		uint sheet_width;
