@@ -148,29 +148,31 @@ voe_render_device *voe_app_device(voe_app *app)
 	return app->device;
 }
 
-// Out of focus, one wait for the rest of the heartbeat; hidden, waits with no
-// timeout until shown or closing. Either ends early on any event, and the poll
-// after each wait is what makes the next focused/visible answer current.
-// The hidden loop has no count on it by design: it is bounded by the window
-// being shown or asked to close, both of which are events that end the wait.
+// The loop, not the wait, is what enforces the heartbeat: a wait may return at
+// once, so each turn reads the window and the clock again and asks the step
+// (ADR-0216). The poll after each wait is what makes those answers current, so
+// regaining focus, being shown and a close request each end the wait early by
+// turning the next step into a draw.
+// The loop has no count on it by design: every wait it asks for is the rest of
+// a quarter second that the clock is spending, and a hidden window is bounded
+// by being shown or asked to close.
 static void wait_for_pace(voe_app *app)
 {
 	voe_platform_window *window = app->window;
-	double wait;
+	voe_app_pace_step step;
 
 	VOE_BASE_ASSERT(window != NULL, "a headless app is never paced");
 	VOE_BASE_ASSERT(app->last_open >= 0.0, "a clock reading is not negative");
 
-	wait = voe_app_pace_wait(voe_platform_window_focused(window),
-				 voe_platform_window_visible(window),
-				 voe_platform_clock_now(), app->last_open);
-	if (wait > 0.0) {
-		voe_platform_window_wait(window, wait);
-		voe_platform_window_poll(window);
-	}
-	while (!voe_platform_window_visible(window) &&
-	       !voe_platform_window_should_close(window)) {
-		voe_platform_window_wait(window, -1.0);
+	for (;;) {
+		step = voe_app_pace_next(voe_platform_window_focused(window),
+					 voe_platform_window_visible(window),
+					 voe_platform_window_should_close(window),
+					 voe_platform_clock_now(),
+					 app->last_open);
+		if (step.kind == VOE_APP_PACE_DRAW)
+			return;
+		voe_platform_window_wait(window, step.seconds);
 		voe_platform_window_poll(window);
 	}
 }

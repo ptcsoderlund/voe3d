@@ -176,12 +176,13 @@ typedef struct {
 // never closes and a keyboard that never moves.
 //
 // IT WAITS WHEN NOBODY IS LOOKING (ADR-0215). Focused, it does not wait: the
-// present paces the loop. Visible but not focused, it waits until a quarter
-// second has passed since the previous frame opened, ending early on any event,
-// so a click back is drawn at once. Hidden, it waits with no timeout until the
-// window is shown again. A request to close always ends a wait. The step after a
-// long wait is clamped by `longest_step`, as any stall is. A headless app never
-// waits.
+// present paces the loop. Visible but not focused, it repeats the wait until
+// the clock says a quarter second has passed since the previous frame opened —
+// a wait may return at any moment, so the clock and not the event decides when
+// the heartbeat is over (ADR-0216). Hidden, it waits with no timeout. What ends
+// a heartbeat early is regaining focus, being shown again or a request to
+// close. The step after a long wait is clamped by `longest_step`, as any stall
+// is. A headless app never waits.
 voe_app_frame voe_app_frame_open(voe_app *app);
 
 // Opens the recording. It draws nothing and has no camera: every draw is inside a
