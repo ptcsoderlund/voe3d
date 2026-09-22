@@ -97,8 +97,9 @@
 // what stops it being made larger for free.
 //
 // render/shaders/elements.slang holds a copy, VOE_RENDER_ELEMENT_FIELD_SPREAD,
-// from which its glyph cutoff measures half a screen pixel less one byte step
-// of the field (ADR-0183, ADR-0184); change both or neither.
+// from which its glyph cutoff measures out only as far as a thin stroke needs,
+// less one byte step of the field (ADR-0183, ADR-0184, ADR-0212); change both
+// or neither.
 #define VOE_TEXT_FIELD_SPREAD 4.0f
 
 // How sharp a turn between two edges of the outline has to be before they are
