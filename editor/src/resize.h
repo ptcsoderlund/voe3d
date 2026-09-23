@@ -1,5 +1,6 @@
-// The borders a person drags to size the panels (ADR-0226): every seam of a
-// split that holds a side panel, and the top bar's lower edge. Each frame
+// The borders a person drags to size the panels (ADR-0226): every split's
+// seam, the side panels' and the two scene views' (ADR-0228), and the top
+// bar's lower edge. Each frame
 // voe_editor_resize_frame says whether the pointer is the borders' and which
 // shape it takes, writes a drag into the tree or the bar, and says when a
 // drag or a double-click ended so the caller can remember the sizes.
@@ -17,8 +18,8 @@
 //
 // THE DOUBLE-CLICK IS TIMED HERE (ADR-0226): `platform` reports levels, not
 // clicks, so two presses on one border within VOE_EDITOR_RESIZE_DOUBLE on
-// the caller's clock put that size back to the default tree's (the bar's to
-// fitting its content).
+// the caller's clock put that size back to the default tree's: the views to
+// an even split (ADR-0228), the bar to fitting its content.
 //
 // Constraints: a zeroed struct remembers a press on node 0 at the clock's
 // origin, which a monotonic clock started with the machine never comes within
@@ -38,7 +39,7 @@
 // Seconds within which a second press on one border is a double-click.
 #define VOE_EDITOR_RESIZE_DOUBLE 0.4
 
-// A border is a held split's node index, VOE_EDITOR_DOCK_NODES for the top
+// A border is any split's node index, VOE_EDITOR_DOCK_NODES for the top
 // bar's lower edge, or UINT32_MAX for none. `held` is the border being
 // dragged, `grab` the pointer's offset from its edge at the press along the
 // border's axis, `pressed` and `pressed_at` the last press's border and
@@ -61,8 +62,8 @@ typedef struct {
 
 // One frame of the borders against `root`'s pointer. `allowed` false while a
 // panel shows over the dock: nothing is hovered and no drag starts. `now` is
-// seconds on a monotonic clock. Writes a held split's `length` in `root` or
-// `bar->wanted`, within the bounds a layout keeps.
+// seconds on a monotonic clock. Writes a split's edge in `root` through
+// voe_editor_dock_split_set or `bar->wanted`, within the bounds a layout keeps.
 voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 						 voe_editor_dock_root *root,
 						 voe_editor_topbar *bar,

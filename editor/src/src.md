@@ -77,7 +77,7 @@ carries it out.
 - `dock.c` — the arrangement, with a held length or the views' share clamped to what each side
   needs, the walk from it to one frame of `ui` calls with a one-millimetre gap at each seam, a
   split's edge and the held panels' lengths and the views' share read and set, the Inspector's scroll area, and the camera preview in each scene view's corner.
-- `resize.h` — the borders a person drags to size the panels: each held split's seam and the top
+- `resize.h` — the borders a person drags to size the panels: each side panel's seam, the views' border and the top
   bar's lower edge, hit-tested before `ui`, the pointer's shape over them, and a double-click that
   sets one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
