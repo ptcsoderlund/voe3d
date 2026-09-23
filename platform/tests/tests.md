@@ -11,10 +11,9 @@ that module's promises from outside. None of them needs a window or a display.
 - `folder.c` — that a listing is sorted by byte order with folder and hidden answered correctly,
   that a missing folder fails as UNAVAILABLE, that creating over an existing name is REFUSED, and
   that the settings folder honours `XDG_CONFIG_HOME` on Linux.
-- `input.c` — that a poll drains the mouse's motion, wheel and typed text and keeps held keys and
-  the pointer, that losing focus releases every key and losing the pointer every button, and that a
-  code point past capacity or a control code types nothing, and that the pointer's shape survives
-  a poll and both losses.
+- `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;
+  focus loss releases keys, pointer loss buttons; an overflowing or control code point types
+  nothing; the pointer's shape survives a poll and both losses.
 - `keymap.c` — a hand-written keymap text checked key by key, and a second copied from a real
   compositor's own spelling, for both keysym spellings, the levels, AltGr, aliases, dead keys and
   the two refusals.
