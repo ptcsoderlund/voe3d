@@ -21,7 +21,7 @@ rules are decision 0168.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, camera marker.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, undo, sizes, files.
+- **editor** — authoring: top bar, Scene list, views to fly, gizmo, Inspector, undo, sizes, files.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
