@@ -14,13 +14,15 @@
 // sees what Choose would give them while the rest of the panel stays in the
 // theme in force (ADR-0170's "the nearest one wins").
 //
-// THE TWO SLIDERS BELONG TO THE THEME IN FORCE, not to the row under the
-// pointer: they show that theme's contrast and surface separation, and moving
-// one moves the whole editor as it is dragged, because the palette every panel
-// here is drawn from is derived again where it stands (themes.h). Their range
-// is VOE_UI_THEME_SCALAR_MIN..MAX, the range the derivation clamps into, so
-// text stays readable at either end, and Reset puts the theme's own two back —
-// the ones its file was authored with (ADR-0197).
+// THE THREE SLIDERS BELONG TO THE THEME IN FORCE, not to the row under the
+// pointer: they show that theme's contrast, surface separation and text size,
+// and moving one moves the whole editor as it is dragged, because the palette
+// every panel here is drawn from is derived again where it stands (themes.h).
+// The first two range over VOE_UI_THEME_SCALAR_MIN..MAX, the range the
+// derivation clamps into, so text stays readable at either end; text size
+// over VOE_EDITOR_TEXT_SCALE_MIN..MAX, shown as a whole percentage (`%.0f%%`
+// of the scale times 100). Reset puts back all three — the theme's own, the
+// ones its file was authored with (ADR-0197, ADR-0224).
 //
 // THIS FILE CARRIES OUT NO COMMAND OF ITS OWN, exactly as topbar.h's and
 // browser.h's buttons do not: a `ui` widget answers only after
@@ -55,16 +57,19 @@ typedef struct {
 	voe_ui_node choose_buttons[VOE_EDITOR_PREFERENCES_ROWS];
 	uint32_t row_count;
 	voe_ui_node close_button;
-	// The theme in force's two scalars, and the button that puts the
-	// theme's own two back.
+	// The theme in force's three scalars, and the button that puts the
+	// theme's own three back.
 	voe_ui_node contrast_slider;
 	voe_ui_node separation_slider;
+	voe_ui_node text_size_slider;
 	voe_ui_node reset_button;
-	// The two value labels' text, `%.2f` of what each slider stands at.
+	// The value labels' text: `%.2f` of where contrast and separation
+	// stand, and text size as a whole percentage.
 	// Kept here because a label's text is drawn after the call that made
 	// it, so it must outlive that call (ui/widgets.h).
 	char contrast_text[16];
 	char separation_text[16];
+	char text_size_text[16];
 } voe_editor_preferences;
 
 void voe_editor_preferences_show(voe_editor_preferences *preferences);
@@ -72,8 +77,8 @@ void voe_editor_preferences_hide(voe_editor_preferences *preferences);
 
 // Draws the panel filling top..size.y of `size`'s width, the area below the
 // bar, over the dock: a scroll area of one row per theme, the theme in force's
-// two sliders with Reset under it, then Close. Records every button and slider
-// into preferences, and formats the two value labels into its buffers.
+// three sliders with Reset under it, then Close. Records every button and
+// slider into preferences, and formats the three value labels into its buffers.
 // Asserts when it is not showing.
 void voe_editor_preferences_draw(voe_ui_context *ui,
 				 voe_editor_preferences *preferences,
@@ -84,8 +89,8 @@ typedef enum {
 	VOE_EDITOR_PREFERENCES_NONE,
 	VOE_EDITOR_PREFERENCES_CHOOSE,
 	VOE_EDITOR_PREFERENCES_CLOSE,
-	// Either slider moved this frame; `contrast` and `separation` are what
-	// the theme in force is to be adjusted to.
+	// Any of the three sliders moved this frame; `contrast`, `separation`
+	// and `text_scale` are what the theme in force is to be adjusted to.
 	VOE_EDITOR_PREFERENCES_ADJUST,
 	// Reset fired: the theme in force takes its own two back.
 	VOE_EDITOR_PREFERENCES_RESET,
@@ -95,13 +100,15 @@ typedef enum {
 typedef struct {
 	voe_editor_preferences_action action;
 	uint32_t index;
-	// Where the two sliders stand this frame, whatever the action is, both
-	// inside VOE_UI_THEME_SCALAR_MIN..MAX; nought each when the frame was
+	// Where the three sliders stand this frame, whatever the action is:
+	// the first two inside VOE_UI_THEME_SCALAR_MIN..MAX, `text_scale`
+	// inside VOE_EDITOR_TEXT_SCALE_MIN..MAX; nought each when the frame was
 	// refused and there were no sliders to read.
 	float contrast;
 	float separation;
-	// Either slider is held — the pointer went down on it and has not let
-	// go. The file of remembered values is written when this goes false.
+	float text_scale;
+	// Any of the three sliders is held — the pointer went down on it and
+	// has not let go. The file of remembered values is written when this goes false.
 	bool sliding;
 } voe_editor_preferences_result;
 

@@ -195,19 +195,20 @@
 // one solid element, inside the three nodes and eighteen elements a control
 // is already counted at above.
 //
-// PREFERENCES' TWO SLIDERS AND RESET (preferences.h, task 14) ARE COUNTED ON
-// TOP ALL THE SAME, as the picker above is: FIFTEEN NODES — the column under
-// the list, one; a row per scalar, two; each scalar's name label, two; each
-// slider, three of its own (ui/slider.h), six; each value label, two; and
-// Reset as a button and a label, two. 532 + 15 = 547 nodes. AND THREE HUNDRED
-// AND THREE ELEMENTS: "Contrast", eight, and "Surface separation", seventeen,
-// its one space drawing nothing; each slider's three, the number box's fill
-// and the thumb's border and surface, six; each value label's four characters,
-// the whole range printing as `%.2f` of one digit, eight; Reset's border and
-// fill and its five letters, seven — 46; and, while one slider is open for
-// typing (ADR-0192), a caret and up to VOE_UI_FIELD_CAPACITY (256) characters
-// of whatever was typed, 257, one at a time because one thing holds the
-// keyboard. 4935 + 46 + 257 = 5238 elements.
+// PREFERENCES' THREE SLIDERS AND RESET (preferences.h, task 14) ARE COUNTED
+// ON TOP ALL THE SAME, as the picker above is: TWENTY-ONE NODES — the column
+// under the list, one; a row per scalar, three; each scalar's name label,
+// three; each slider, three of its own (ui/slider.h), nine; each value label,
+// three; and Reset as a button and a label, two. 532 + 21 = 553 nodes. AND
+// THREE HUNDRED AND EIGHTEEN ELEMENTS: "Contrast", eight, "Surface
+// separation", seventeen, and "Text size", eight, each space drawing nothing;
+// each slider's three, the number box's fill and the thumb's border and
+// surface, nine; contrast's and separation's value labels' four characters,
+// the whole range printing as `%.2f` of one digit, eight, and text size's at
+// most four, "200%"; Reset's border and fill and its five letters, seven — 61;
+// and, while one slider is open for typing (ADR-0192), a caret and up to
+// VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed, 257, one at a
+// time because one thing holds the keyboard. 4935 + 61 + 257 = 5253 elements.
 //
 // THE OPEN DROPDOWN (inspector.c) ADDS THIRTY-SIX NODES. It is drawn inside
 // the Inspector's own scroll area and clipped by it rather than over the rest
@@ -217,19 +218,19 @@
 // (inspector.h, 16) rows, each a choice button and the label composed into it,
 // thirty-two. The thirty-sixth is the content column inspector.c opens round
 // everything that panel draws, which is what the list is anchored to.
-// 547 + 35 + 1 = 583. AND FOUR HUNDRED AND TWENTY ELEMENTS: the panel's border
+// 553 + 35 + 1 = 589. AND FOUR HUNDRED AND TWENTY ELEMENTS: the panel's border
 // and fill, two; each row's border and fill, thirty-two; twenty-four generous
 // for each row's name, this file naming none of them and neither `base` nor the
 // declaring folder putting a length on one, 384 — a column drawing none of its
 // own; and the rows' area a track and a thumb on Y alone, two, which is what
-// the browser's own area is already counted at in this file. 5238 + 420 = 5658.
+// the browser's own area is already counted at in this file. 5253 + 420 = 5673.
 // It is never drawn beside the colour picker, because opening either closes the
 // other (scene.h), and it is counted on top all the same. AND ONE MORE SCROLL
 // AREA, the rows', on top of the dock's two and the browser's one, counted on
 // top all the same for the reason the picker's nodes are:
 // VOE_EDITOR_INTERFACE_SCROLLS is four.
-#define VOE_EDITOR_INTERFACE_NODES 583
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5658
+#define VOE_EDITOR_INTERFACE_NODES 589
+#define VOE_EDITOR_INTERFACE_ELEMENTS 5673
 #define VOE_EDITOR_INTERFACE_SCROLLS 4
 
 // Makes the context the interface is built in, once, drawing in `theme` and

@@ -321,8 +321,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_editor_themes_adjust(themes, themes->chosen,
 							 result.contrast,
 							 result.separation,
-							 voe_editor_themes_chosen(themes)
-								 ->text_scale);
+							 result.text_scale);
 			} else if (result.action ==
 				   VOE_EDITOR_PREFERENCES_RESET) {
 				voe_editor_themes_reset(themes, themes->chosen);

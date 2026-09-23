@@ -57,7 +57,7 @@ carries it out.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
-  force marked, a slider for each of that theme's two scalars with a Reset button, and Close, as an
+  force marked, three sliders for that theme's contrast, separation and text size with a Reset button, and Close, as an
   anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
