@@ -1,4 +1,4 @@
-# 15 — The scene camera is walked through
+# 19 — The scene camera is walked through
 folder: editor
 decisions: 0168, 0177, 0218, 0222, 0223
 read: feature.md
@@ -18,7 +18,9 @@ camera, as a scene saved before this feature:
     intensity = 3
 
 Check it loads: `voe_editor <scratch>/walk --capture <scratch>/walk/frame.png --size 1280x720` writes one
-frame with no window (ADR-0177) and prints no capacity line on stderr. A capture presses nothing; it pins a
+frame with no window (ADR-0177) and prints no capacity line on stderr. (A run before cards 16–18 already
+wrote it cleanly and trimmed the `view.h` entry in `editor/src/src.md`; the `3d` index findings that
+stopped `checks.sh --all` are fixed by those cards.) A capture presses nothing; it pins a
 drawing fault, never passes the walk.
 
 Then the human walks `feature.md`'s nine steps at a running `voe_editor <scratch>/walk` (step 1 by New) and
@@ -39,10 +41,3 @@ and the picture follows; a typed rotation turns the lines and the picture, a typ
 narrows both; Delete, Ctrl+D and the Inspector offer no way to delete, duplicate or remove its camera; Add
 component on another entity offers no camera; undo and redo take back and restore the move and the rotation;
 a saved, closed and reopened project has the camera where it was left, aimed the same way.
-
-## Blocked
-The capture is written (1280x720 PNG, no capacity line on stderr) and `checks.sh --folder editor` is clean after
-trimming the `view.h` entry in `editor/src/src.md`, but `checks.sh --all` exits 1 on five findings in the `3d`
-folder: `3d/include/3d/3d.md` does not list `camera_marker.h`, and the `pick.c` and `draw_system.c` entries in
-`3d/src/src.md` and `3d/tests/tests.md` are over the 300-character cap. A card in `3d` that fixes those tables
-of contents unblocks this; the human walk of `feature.md`'s nine steps has not been seen.
