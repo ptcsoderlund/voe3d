@@ -55,6 +55,7 @@ void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 		&(voe_scene_light){ .direction = { 0.0f, -1.0f, 0.0f },
 				    .colour = { 1.0f, 1.0f, 1.0f },
 				    .intensity = 1.0f });
+	voe_ecs_component_menu_set(world, type, "Rendering / Light");
 }
 
 bool voe_scene_light_add(voe_ecs_world *world, voe_ecs_entity entity,

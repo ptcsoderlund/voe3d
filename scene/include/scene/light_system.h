@@ -32,6 +32,9 @@
 // AN INTENT NAMING A DESTROYED ENTITY IS DROPPED, SILENTLY AND ON PURPOSE. An
 // entity dying between a submit and the drain is ordinary — it is what a queue
 // costs — and it is not the submitter's mistake.
+//
+// IT SITS AT "Rendering / Light" IN ADD COMPONENT, a menu path registered with
+// the type (ecs/component.h, 0221), so the menu is never a list kept by hand.
 #pragma once
 
 #include <ecs/world.h>

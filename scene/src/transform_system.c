@@ -221,6 +221,7 @@ void voe_scene_transform_register(voe_ecs_world *world, uint32_t capacity)
 		world, type,
 		&(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 					.scale = { 1.0f, 1.0f, 1.0f } });
+	voe_ecs_component_menu_set(world, type, "Transform");
 }
 
 bool voe_scene_transform_add(voe_ecs_world *world, voe_ecs_entity entity,

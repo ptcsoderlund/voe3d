@@ -411,6 +411,7 @@ static void the_world_hands_back_the_cameras_field_list(voe_base_arena *arena)
 		runtime_only = voe_ecs_component_runtime_only(world, type);
 		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
 			       &voe_scene_camera_key);
+		VOE_TEST_CHECK(voe_ecs_component_menu(world, type) == NULL);
 	}
 
 	VOE_TEST_CHECK_INT(had, 1);
