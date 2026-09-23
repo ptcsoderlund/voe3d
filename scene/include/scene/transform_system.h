@@ -51,6 +51,9 @@
 // no identities — dev registers none — gets the index and generation instead,
 // and the drain finds that out by walking the world's component types rather
 // than by a lookup that would assert on the world most likely to be reported on.
+//
+// IT SITS AT "Transform" IN ADD COMPONENT, a menu path registered with the type
+// (ecs/component.h, 0221), so the menu is never a list kept by hand.
 #pragma once
 
 #include <ecs/world.h>

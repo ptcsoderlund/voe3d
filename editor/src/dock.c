@@ -56,6 +56,7 @@
 #include <math/float4.h>
 
 #include <scene/identity_component.h>
+#include <scene/transform_component.h>
 
 // Every leaf's own surface is the theme's ordinary SURFACE, the same role for
 // all of them. The two regions are told apart by the seam between them and by
@@ -319,16 +320,10 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 // the table, which outlives the frame — a name is 64 bytes in the component and
 // never a pointer.
 //
-// THE ADD BUTTON IS ABOVE THE LIST, AND ITS FOUR CHOICES UNDER IT WHILE THE
-// SCENE SAYS `adding`. Each is a button with a label, recorded on the scene to
-// be asked after the frame, as the rows are; what a choice makes is
-// entities.h's, and whether the choices show is scene.h's.
+// THE ADD ENTITY BUTTON IS ABOVE THE LIST, recorded on the scene to be asked
+// after the frame, as the rows are; what it makes is entities.h's (ADR-0217).
 static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 {
-	static const char *const choice_labels[VOE_EDITOR_SCENE_ADD_CHOICES] = {
-		"Entity", "Cube", "Capsule", "Cylinder"
-	};
-	voe_ui_node choices[VOE_EDITOR_SCENE_ADD_CHOICES];
 	const voe_scene_identity *rows;
 	const voe_ecs_entity *entities;
 	voe_ui_node add;
@@ -337,17 +332,9 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 	voe_ui_label(ui, "Scene");
 
 	add = voe_ui_button_begin(ui, "add", 0);
-	voe_ui_label(ui, "Add");
+	voe_ui_label(ui, "Add entity");
 	voe_ui_end(ui);
-
-	if (scene->adding)
-		for (uint32_t i = 0; i < VOE_EDITOR_SCENE_ADD_CHOICES; i++) {
-			choices[i] = voe_ui_button_begin(ui, "add_choice", i);
-			voe_ui_label(ui, choice_labels[i]);
-			voe_ui_end(ui);
-		}
-	voe_editor_scene_add_menu_record(scene, add,
-					 scene->adding ? choices : NULL);
+	voe_editor_scene_add_record(scene, add);
 
 	count = voe_scene_identity_count(scene->world);
 	rows = voe_scene_identity_rows(scene->world);
@@ -371,16 +358,21 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 }
 
 // WHAT IS ON THE INSPECTOR IS ONE CALL AND NOT A SECOND SCENE PANEL. It is
-// handed the world, the selection and the identity's type and nothing else,
+// handed the world, the selection and the types it keeps and nothing else,
 // because what it lists is the world's own component types and not anything this
-// folder knows the name of — see inspector.h. The identity is the one it is told
-// of, because the Scene list is built from it and so it is never removable.
+// folder knows the name of — see inspector.h. The identity and the transform are
+// the ones it is told of, never removable: the Scene list is built from the
+// first, and every entity has the second (ADR-0217).
 static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 {
-	voe_editor_inspector_draw(
-		ui, &scene->inspector, scene->world,
-		voe_editor_scene_selected(scene),
-		voe_ecs_component_type(scene->world, &voe_scene_identity_key));
+	const voe_ecs_type kept[] = {
+		voe_ecs_component_type(scene->world, &voe_scene_identity_key),
+		voe_ecs_component_type(scene->world, &voe_scene_transform_key),
+	};
+
+	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
+				  voe_editor_scene_selected(scene), kept,
+				  sizeof(kept) / sizeof(kept[0]));
 }
 
 // ONE PICTURE, THE WHOLE OF THE VIEW'S TEXTURE, GROWING TO FILL THE PANEL. The

@@ -324,7 +324,7 @@ bool voe_editor_themes_choose(voe_editor_themes *themes, uint32_t index)
 	bool ok = false;
 
 	VOE_BASE_ASSERT(themes != NULL && index < themes->count,
-			"choosing a theme the list does not have");
+			"picking a theme the list does not have");
 
 	if (index != themes->chosen)
 		forget_refused(themes);

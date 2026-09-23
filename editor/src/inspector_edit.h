@@ -48,8 +48,15 @@
 // overlay is placed where it fits each frame and never once when it opened
 // (ADR-0199). That arithmetic is the button's rectangle less the Inspector's
 // content column's, so it is in that column's space and says nothing about how
-// far the panel is scrolled. scene.h
-// holds this struct, so it is named here by its tag and not by including it.
+// far the panel is scrolled. It is voe_editor_inspector_overlay_place, and Add
+// component's list is placed by it too: that list opens and closes as the
+// open list does, and a fired type's row adds the type (inspector.h). A group
+// row opens its submenu, closing every group open at its level or deeper. A
+// submenu sits right of its list when its whole width fits before the right of
+// the area's visible rectangle, both in the surface's millimetres, else left of
+// it, and is then moved wholly inside that rectangle; its top is its row's,
+// fitted by the side-and-cap rule with the row as the widget (ADR-0221).
+// scene.h holds this struct, so it is named by its tag.
 #pragma once
 
 #include "inspector.h"
@@ -79,10 +86,14 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 // voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`, and
 // whichever Remove or Add component choice did, through entities.h on the
 // entity they were drawn for, and opens the picker on whichever swatch did — counting one in scene->structural, or setting
-// scene->full when refused. Add component toggles the choices, and a press on
-// none of those buttons hides them; `down` is the pointer's primary button this
-// frame and `at` is where the pointer is this frame, in the surface's
-// millimetres. It takes the place as well as the button because a press is only
+// scene->full when refused. Add component toggles its menu, and once it is open
+// only these close it (ADR-0221): a type row fired, which adds it and closes
+// all; another group row fired, which closes that level and deeper; a press
+// outside every open list's visible rectangle and the button; Escape, through
+// voe_editor_inspector_add_close; and a frame that drew another entity than the
+// one it opened for. `down` is the pointer's primary button this frame, a
+// level, and a press is its down edge against last frame's, never the level;
+// `at` is where the pointer is this frame, in the surface's millimetres. It takes the place as well as the button because a press is only
 // the press on nothing that closes the open list when it landed outside that
 // list. Called in the same window as voe_editor_inspector_edits_read and before
 // the Scene panel's clicks can move the selection the buttons were drawn for.
@@ -90,6 +101,18 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
 				       struct voe_editor_scene *scene,
 				       bool down, voe_math_float2 at);
+
+// Where a list hanging from `button` goes this frame, by the side-and-cap rule
+// above (ADR-0200): `list` is its panel and `rows` the area inside it as drawn
+// this frame, `list` VOE_UI_NODE_NONE for one not drawn yet, which goes below
+// uncapped. Needs this frame's content column.
+voe_editor_inspector_place
+voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
+				   const voe_ui_context *ui, voe_ui_node button,
+				   voe_ui_node list, voe_ui_node rows);
+
+// Closes Add component's list: Escape's, which interface.c reads.
+void voe_editor_inspector_add_close(voe_editor_inspector *inspector);
 
 // Submits `colour` as the replace intent of `type`'s row on `entity`, its three
 // floats at `offset`, and counts one in `replaced`. The picker's change, read

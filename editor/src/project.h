@@ -28,7 +28,7 @@
 // that step's own and not one left over from before it. A missing
 // project.voe3d is worded "is not a project" rather than repeating whatever
 // the operating system said about opening a file that is not there — that
-// wording is what a person choosing a folder in Open needs to hear. Every
+// wording is what a person picking a folder in Open needs to hear. Every
 // other failure — a malformed project.voe3d, a scene file that will not open,
 // a scene that voe_authoring_scene_read refuses, or a world too small to hold
 // it (the same failure, since scene_read reports it the same way) — keeps the

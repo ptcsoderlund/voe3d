@@ -80,12 +80,17 @@ carries it out.
   draws that list and reads what was picked from it.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's described component types,
   each section's heading, Remove and "Needs" line, a wrapping row per described field, the record
-  each control leaves behind, the Add component list, and the open list.
-- `inspector_edit.h` — the three calls that turn what the pointer did to the Inspector's controls
-  into replace intents and into scene.h's Duplicate, Delete, Remove and Add component.
+  each control leaves behind, the Add component button and its menu, and the open list.
+- `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
+  frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
+- `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
+  their parent, its entry appended in registration order, and one parent's children drawn as a list
+  the way the open dropdown's is.
+- `inspector_edit.h` — the calls that turn what the pointer did to the Inspector's controls into
+  replace intents and scene.h's commands, and the side-and-cap rule both open lists are placed by.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
-  bytes, the fired buttons, and the open list's side and cap.
+  bytes, the fired buttons, and Add component's lists and submenus opened, closed, placed and capped.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
   angles or the one string a label is given out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
@@ -98,7 +103,7 @@ carries it out.
   millimetre, their targets, the world's first light row and the lighter half
   of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
-  Add menu, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
+  Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the colour picker and the
   dropdown, the open list moved to where the Inspector measured it, and the one question asked of
@@ -117,8 +122,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — adding, duplicating and deleting entities and giving or taking
-  their components, all through the world's structural queue. Its header says
+- `entities.h` — Add entity (an identity and a transform, nothing else), duplicating and deleting
+  entities and giving or taking their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
 - `entities.c` — the new id and name, the queued rows, and the destroy that
   undoes a half-made entity.

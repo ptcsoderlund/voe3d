@@ -770,7 +770,7 @@ int main(int argc, char *argv[])
 			// Inspector is not New, Open, Save or Close, so
 			// session.h has no case for it; this is the other half
 			// of what marks the project unsaved (session.h).
-			// And so is an entity the Add menu, Delete or Duplicate
+			// And so is an entity Add entity, Delete or Duplicate
 			// queued (scene.h), and a gizmo move: an edit no menu
 			// asked for, the same half as an Inspector number
 			// dragged (gizmo.h).

@@ -13,15 +13,16 @@ space is.
   no parent, why the matrix is not stored, in which order the three compose, what
   the drain settles, and a rotation's two bounds.
 - `include/scene/transform_system.h` — the intent that moves one, registered as
-  the component's replace, and the call that creates one. Its header says
-  why the intent is the whole transform, why creation is not one, why the drain
-  alone checks a rotation, and why the report is per process.
+  the component's replace, and the call that creates one. Its header says why
+  the intent is whole, why creation is not one, why only the drain checks a
+  rotation, why the report is per process, and its menu path.
 - `include/scene/camera_component.h` — eye, yaw, pitch, field of view and the two
   planes, written as a described field list, and the view matrix. Its header says why the projection is not built
   here and why orientation is two angles.
 - `include/scene/camera_system.h` — the two camera intents, absolute and
   relative. Its header says why there are two, in which order they apply, and
-  which of the numbers a caller passes are the mouse's own.
+  which of the numbers a caller passes are the mouse's own, and why Add
+  component never offers one.
 - `include/scene/identity_component.h` — a 64-bit id and a 64-byte name on the
   entities a person authored, the id read-only. Its header says why the
   component's presence is the whole of what "authored" means, why the id is
@@ -35,4 +36,5 @@ space is.
   goes rather than where the sun is, and why a reader never has to normalize it.
 - `include/scene/light_system.h` — the intent that turns it, and the direct call
   that creates one. Its header says where the normalization happens and why a
-  world that is drawn needs this table even when it holds no sun.
+  world that is drawn needs this table even when it holds no sun, and where it
+  sits in Add component.

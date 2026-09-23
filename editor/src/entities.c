@@ -3,8 +3,6 @@
 // what a failure leaves behind.
 #include "entities.h"
 
-#include <3d/shape_component.h>
-
 #include <base/assert.h>
 
 #include <ecs/structure.h>
@@ -95,58 +93,28 @@ static bool queue_default(voe_ecs_world *world, voe_ecs_entity entity,
 	return voe_ecs_structure_add(world, type, entity, row);
 }
 
-bool voe_editor_entities_add(voe_ecs_world *world, voe_editor_add what,
-			     voe_ecs_entity *out)
+bool voe_editor_entities_add(voe_ecs_world *world, voe_ecs_entity *out)
 {
-	static const char *const bases[] = {
-		[VOE_EDITOR_ADD_ENTITY] = "Entity",
-		[VOE_EDITOR_ADD_CUBE] = "Cube",
-		[VOE_EDITOR_ADD_CAPSULE] = "Capsule",
-		[VOE_EDITOR_ADD_CYLINDER] = "Cylinder",
-	};
-	static const uint32_t kinds[] = {
-		[VOE_EDITOR_ADD_CUBE] = VOE_3D_SHAPE_CUBE,
-		[VOE_EDITOR_ADD_CAPSULE] = VOE_3D_SHAPE_CAPSULE,
-		[VOE_EDITOR_ADD_CYLINDER] = VOE_3D_SHAPE_CYLINDER,
-	};
+	static const char base[] = "Entity";
 	voe_scene_identity identity = { 0 };
 	voe_ecs_entity entity;
-	bool ok;
 
 	VOE_BASE_ASSERT(world != NULL, "adding an entity to no world");
 	VOE_BASE_ASSERT(out != NULL, "adding an entity with nowhere to put it");
-	VOE_BASE_ASSERT(what <= VOE_EDITOR_ADD_CYLINDER,
-			"adding something the Add menu does not offer");
 
 	identity.id = next_id(world);
-	free_name(world, bases[what], strlen(bases[what]), identity.name);
+	free_name(world, base, sizeof base - 1, identity.name);
 
 	if (!voe_ecs_entity_create(world, &entity))
 		return false;
 
-	ok = voe_ecs_structure_add(
-		world, voe_ecs_component_type(world, &voe_scene_identity_key),
-		entity, &identity);
-
-	if (ok && what != VOE_EDITOR_ADD_ENTITY) {
-		voe_ecs_type shape_type =
-			voe_ecs_component_type(world, &voe_3d_shape_key);
-		const voe_3d_shape *shape_default =
-			voe_ecs_component_default(world, shape_type);
-		voe_3d_shape shape;
-
-		VOE_BASE_ASSERT(shape_default != NULL,
-				"a world whose shape type has no default row");
-		shape = *shape_default;
-		shape.kind = kinds[what];
-
-		ok = queue_default(world, entity,
-				   voe_ecs_component_type(
-					   world, &voe_scene_transform_key)) &&
-		     voe_ecs_structure_add(world, shape_type, entity, &shape);
-	}
-
-	if (!ok) {
+	if (!voe_ecs_structure_add(
+		    world,
+		    voe_ecs_component_type(world, &voe_scene_identity_key),
+		    entity, &identity) ||
+	    !queue_default(world, entity,
+			   voe_ecs_component_type(world,
+						  &voe_scene_transform_key))) {
 		undo_create(world, entity);
 		return false;
 	}

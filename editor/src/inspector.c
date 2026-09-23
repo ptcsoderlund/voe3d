@@ -350,8 +350,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	voe_ui_end(ui);
 }
 
-// One component: its heading with a Remove button beside it — none for the
-// identity — the line saying what it needs when the entity lacks that, and a row
+// One component: its heading with a Remove button beside it — none for a
+// kept type — the line saying what it needs when the entity lacks that, and a row
 // per described field. A panel and not a column because the key is what makes
 // every widget beneath it unique — two components with a field of the same name
 // would otherwise be one widget sharing one highlight (ui/widgets.h).
@@ -403,36 +403,49 @@ static void component_panel(voe_ui_context *ui,
 	voe_ui_end(ui);
 }
 
-// Add component, and while it is choosing one button per described type the
-// entity has no row of, each headed as its section would be.
+// Add component's one button, and its menu built while the list is open on the
+// entity this frame draws.
 static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
 			  voe_ecs_world *world)
 {
-	uint32_t types = voe_ecs_component_type_count(world);
-
 	inspector->add_component = voe_ui_button_begin(ui, "add component", 0);
 	voe_ui_label(ui, "Add component");
 	voe_ui_end(ui);
 
-	if (!inspector->choosing)
-		return;
+	if (inspector->adding &&
+	    inspector->adding_for.index == inspector->entity.index &&
+	    inspector->adding_for.generation == inspector->entity.generation)
+		voe_editor_add_menu_build(&inspector->menu, world,
+					  inspector->entity);
+}
 
-	for (uint32_t i = 0; i < types; i++) {
-		voe_ecs_type type = voe_ecs_component_type_at(world, i);
-		voe_ui_node node;
+// Add component's lists: the top one under its button, then one per open
+// group beside its row. A level whose group is no longer a group under the
+// one open above it — the menu is rebuilt every frame — ends the drawing
+// there, so a submenu never shows another group's children.
+static void add_menu_lists(voe_ui_context *ui, voe_editor_inspector *inspector)
+{
+	uint32_t parent = VOE_EDITOR_ADD_MENU_TOP;
+	voe_editor_inspector_place at = inspector->adding_at;
 
-		if (voe_ecs_component_runtime_only(world, type) ||
-		    voe_ecs_component_get(world, type, inspector->entity) !=
-			    NULL ||
-		    inspector->choice_count == VOE_EDITOR_INSPECTOR_SECTIONS)
-			continue;
+	VOE_BASE_ASSERT(inspector->menu.count > 0, "drawing an empty menu");
+	VOE_BASE_ASSERT(inspector->open_count < VOE_EDITOR_ADD_MENU_DEPTH,
+			"more groups open than a path is deep");
 
-		node = voe_ui_button_begin(ui, "component choice", i);
-		voe_ui_label(ui, heading(inspector->arena, world, type));
-		voe_ui_end(ui);
-		inspector->choices[inspector->choice_count++] =
-			(voe_editor_inspector_type_button){ .node = node,
-							    .type = type };
+	for (uint32_t level = 0; level <= inspector->open_count; level++) {
+		if (level > 0) {
+			const uint32_t group = inspector->open_groups[level - 1];
+
+			if (group >= inspector->menu.count ||
+			    !inspector->menu.entries[group].group ||
+			    inspector->menu.entries[group].parent != parent)
+				return;
+			parent = group;
+			at = inspector->open_at[level - 1];
+		}
+		voe_editor_add_menu_draw(ui, inspector->arena, &inspector->menu,
+					 parent, at.left, at.top, at.height,
+					 &inspector->menu_lists[level]);
 	}
 }
 
@@ -532,7 +545,11 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->remove = VOE_UI_NODE_NONE;
 	inspector->remove_count = 0;
 	inspector->add_component = VOE_UI_NODE_NONE;
-	inspector->choice_count = 0;
+	inspector->menu.count = 0;
+	for (uint32_t i = 0; i < VOE_EDITOR_ADD_MENU_DEPTH; i++)
+		inspector->menu_lists[i] = (voe_editor_add_menu_list){
+			.panel = VOE_UI_NODE_NONE, .area = VOE_UI_NODE_NONE
+		};
 }
 
 void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
@@ -546,7 +563,7 @@ void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
-			       voe_ecs_type identity)
+			       const voe_ecs_type *kept, uint32_t kept_count)
 {
 	uint32_t types;
 
@@ -555,6 +572,8 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(inspector->arena != NULL,
 			"drawing an inspector before its frame was opened");
 	VOE_BASE_ASSERT(world != NULL, "drawing an inspector on no world");
+	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
+			"kept types counted but not handed in");
 
 	inspector->entity = selected;
 
@@ -587,12 +606,15 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	for (uint32_t i = 0; i < types; i++) {
 		voe_ecs_type type = voe_ecs_component_type_at(world, i);
 		const void *row = voe_ecs_component_get(world, type, selected);
+		bool removable = true;
 
 		if (row == NULL || voe_ecs_component_runtime_only(world, type))
 			continue;
 
-		component_panel(ui, inspector, world, i, type,
-				type.value != identity.value,
+		for (uint32_t k = 0; k < kept_count; k++)
+			removable = removable && type.value != kept[k].value;
+
+		component_panel(ui, inspector, world, i, type, removable,
 				(const uint8_t *)row);
 	}
 
@@ -601,6 +623,8 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	// (ui/layout.h) and a list emitted beside its button would be painted
 	// over by the rows below it.
 	dropdown_list(ui, inspector, world);
+	if (inspector->menu.count > 0)
+		add_menu_lists(ui, inspector);
 
 	voe_ui_end(ui);
 }

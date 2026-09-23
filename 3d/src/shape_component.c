@@ -49,6 +49,7 @@ void voe_3d_shape_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_needs_set(
 		world, type,
 		voe_ecs_component_type(world, &voe_scene_transform_key));
+	voe_ecs_component_menu_set(world, type, "Rendering / Shape");
 }
 
 bool voe_3d_shape_add(voe_ecs_world *world, voe_ecs_entity entity,

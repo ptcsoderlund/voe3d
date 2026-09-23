@@ -242,6 +242,8 @@ static void the_world_hands_back_the_lights_field_list(voe_base_arena *arena)
 		runtime_only = voe_ecs_component_runtime_only(world, type);
 		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
 			       &voe_scene_light_key);
+		VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
+				      "Rendering / Light") == 0);
 	}
 
 	VOE_TEST_CHECK_INT(had, 1);

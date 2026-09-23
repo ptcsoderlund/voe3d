@@ -216,7 +216,7 @@ voe_editor_browser_clicks_read(const voe_ui_context *ui,
 // voe_platform_folder_create(join(browser->folder, name)); a failure is a
 // notice from the report and browser is untouched; success clears
 // browser->name and enters the new folder (voe_editor_browser_enter),
-// exactly as choosing an existing row would. Asserts if browser has no
+// exactly as picking an existing row would. Asserts if browser has no
 // folder yet.
 void voe_editor_browser_make_folder(voe_editor_browser *browser,
 				    const char *name, voe_editor_notice *why);

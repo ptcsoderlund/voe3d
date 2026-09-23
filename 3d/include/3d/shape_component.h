@@ -39,6 +39,9 @@
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a build
 // that asks for descriptions also has voe_3d_shape_description(), and one that
 // does not has the same struct and nothing more.
+//
+// IT SITS AT "Rendering / Shape" IN ADD COMPONENT, a menu path registered with
+// the type (ecs/component.h, 0221), so the menu is never a list kept by hand.
 #pragma once
 
 #include <base/describe.h>

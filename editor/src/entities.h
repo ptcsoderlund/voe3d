@@ -1,11 +1,15 @@
 // What the editor does to which entities exist and which rows they hold: add
-// one from the Add menu, give one a component or take one away, delete one and
-// duplicate one. The Scene panel's Add calls voe_editor_entities_add; Delete,
-// Duplicate, Add component and Remove call the rest.
+// one with Add entity, give one a component or take one away, delete one and
+// duplicate one. The Scene panel's Add entity calls voe_editor_entities_add;
+// Delete, Duplicate, Add component and Remove call the rest.
 //
 //     voe_ecs_entity made;
-//     if (!voe_editor_entities_add(world, VOE_EDITOR_ADD_CUBE, &made))
+//     if (!voe_editor_entities_add(world, &made))
 //             ...                     // "The scene is full."
+//
+// AN ADD MAKES AN IDENTITY AND A TRANSFORM AND NOTHING ELSE (ADR-0217). There
+// is no shortcut that makes an entity with other components on it; everything
+// else comes from Add component afterwards.
 //
 // EVERYTHING GOES THROUGH THE STRUCTURAL QUEUE (ADR-0193, 0190). The entity is
 // made here with voe_ecs_entity_create, and every row it is given is a
@@ -17,8 +21,7 @@
 // A NEW ENTITY'S ID is one more than the largest identity id in the world, which
 // cannot collide with any id in the file (ADR-0193).
 //
-// ITS NAME is the base name — "Entity", "Cube", "Capsule" or "Cylinder" for an
-// add, and for a duplicate its source's name less a trailing " <number>" — when
+// ITS NAME is the base name — "Entity" for an add, and for a duplicate its source's name less a trailing " <number>" — when
 // no identity has that name, and otherwise "<base> N" for the lowest N from 2
 // that no identity has. A base too long to take the suffix in
 // VOE_SCENE_IDENTITY_NAME bytes is cut short to make room for it.
@@ -41,21 +44,11 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
-// What the Add menu makes: an entity with only an identity, or one of the three
-// shapes with an identity, a transform and a shape.
-typedef enum {
-	VOE_EDITOR_ADD_ENTITY,
-	VOE_EDITOR_ADD_CUBE,
-	VOE_EDITOR_ADD_CAPSULE,
-	VOE_EDITOR_ADD_CYLINDER
-} voe_editor_add;
-
-// Makes an entity and queues its rows at their defaults: an identity with a new
-// id and name, and for a shape the transform's default row and the shape's with
-// `kind` set. Writes the entity to `out`. False when the world or the queue is
+// Makes an entity and queues its two rows: an identity with a new id and the
+// name "Entity" by the rules above, and the transform's default row (the
+// origin). Writes the entity to `out`. False when the world or the queue is
 // full, and then nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_add(voe_ecs_world *world,
-					   voe_editor_add what,
 					   voe_ecs_entity *out);
 
 // Queues that type's default row onto the entity. False when the queue is full.

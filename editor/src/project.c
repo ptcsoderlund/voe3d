@@ -234,7 +234,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 					       &project_size, &error);
 	if (project_bytes == NULL) {
 		// WORDED AS "IS NOT A PROJECT" RATHER THAN THE OPEN'S OWN
-		// REASON — a person choosing a folder in Open, or one named on
+		// REASON — a person picking a folder in Open, or one named on
 		// the command line, needs to hear what the folder is not, not
 		// what the operating system called a missing file.
 		voe_editor_notice_set(why, "%s is not a project", project_path);

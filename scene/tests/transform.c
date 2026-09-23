@@ -498,6 +498,8 @@ static void the_world_hands_back_the_transforms_field_list(
 		runtime_only = voe_ecs_component_runtime_only(world, type);
 		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
 			       &voe_scene_transform_key);
+		VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
+				      "Transform") == 0);
 	}
 
 	VOE_TEST_CHECK_INT(had, 1);

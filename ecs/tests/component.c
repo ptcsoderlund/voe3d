@@ -523,6 +523,22 @@ static void a_need_comes_back_as_it_was_set(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_ecs_component_needs(world, types[1], &needed));
 }
 
+// The pointer, not a copy: the string is the declaring folder's.
+static void menu_path(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+	static const char path[] = "Rendering / Shape";
+
+	register_three(world, types);
+	VOE_TEST_CHECK(voe_ecs_component_menu(world, types[0]) == NULL);
+
+	voe_ecs_component_menu_set(world, types[0], path);
+
+	VOE_TEST_CHECK(voe_ecs_component_menu(world, types[0]) == path);
+	VOE_TEST_CHECK(voe_ecs_component_menu(world, types[1]) == NULL);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -540,6 +556,7 @@ int main(void)
 	a_row_is_edited_through_its_replace_intent(arena);
 	a_default_comes_back_as_it_was_set(arena);
 	a_need_comes_back_as_it_was_set(arena);
+	menu_path(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

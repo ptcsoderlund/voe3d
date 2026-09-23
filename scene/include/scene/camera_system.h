@@ -38,6 +38,10 @@
 // `fast` IS A MULTIPLIER'S WORTH AND THE MULTIPLIER IS THIS SYSTEM'S. What key
 // means "faster" is a binding and belongs at a call site; what faster does is
 // here.
+//
+// IT SETS NO MENU PATH, SO ADD COMPONENT NEVER OFFERS A CAMERA: a scene has
+// exactly one, made with it (0218), and a type without a path is not offered
+// (ecs/component.h, 0221).
 #pragma once
 
 #include <ecs/world.h>

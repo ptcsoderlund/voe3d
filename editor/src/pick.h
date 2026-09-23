@@ -6,7 +6,7 @@
 // THE MIDDLE BUTTON IS NEVER READ IN HERE. The middle button is the views'
 // camera and the left is the interface's, which is main.c's standing division
 // of the mouse, and an orbit must never change what is selected: a person
-// turning the camera about a scene is looking, not choosing. So this file reads
+// turning the camera about a scene is looking, not picking. So this file reads
 // one button, the primary one, and voe_editor_views_drag reads the other; the
 // two never compete for a press and neither has to undo the other.
 //
@@ -41,8 +41,7 @@
 
 // What picking remembers between frames.
 typedef struct {
-	// Last frame's primary button, so a press is found as an edge, exactly
-	// as voe_editor_scene's own pointer_was_down is.
+	// Last frame's primary button, so a press is found as an edge.
 	bool pointer_was_down;
 } voe_editor_pick;
 
