@@ -1,11 +1,10 @@
 // The entries Add component offers one entity, as a tree: groups and the types
-// under them. Built every frame from the world's types and drawn by the
-// Inspector; nothing in here draws.
+// under them. Built every frame from the world's types, and its top level drawn
+// as the Inspector's open list.
 //
-//     voe_editor_add_menu menu;
 //     voe_editor_add_menu_build(&menu, world, entity);
-//     for (uint32_t i = 0; i < menu.count; i++)
-//             ...     // menu.entries[i], its parent an index before i
+//     voe_editor_add_menu_draw(ui, arena, &menu, left, top, height, &list);
+//     ...     // after voe_ui_frame_end, list.rows[i] fired: entry list.rows[i].entry
 //
 // THE MENU IS BUILT FROM voe_ecs_component_menu (ecs/include/ecs/component.h),
 // the path each declaring folder registered, so the editor names no component
@@ -24,6 +23,13 @@
 // entries in registration order. A group exists only if it holds an offered
 // entry. A parent always sits before its children in the array.
 //
+// THE LIST IS DRAWN AS THE OPEN DROPDOWN'S IS (inspector.h, ADR-0199, 0200): an
+// anchored column at `left`, `top` in the Inspector's content column, emitted
+// after every section, a panel that takes the pointer, and its rows in a scroll
+// area capped to `height` when that is not nought. One row per entry whose
+// parent is VOE_EDITOR_ADD_MENU_TOP; a group's label is followed by " >", the
+// marker that it opens further, and opens nothing yet.
+//
 // CONSTRAINTS. A path is the program's own, never read from a file, so an empty
 // part, a path deeper than VOE_EDITOR_ADD_MENU_DEPTH, a part longer than
 // VOE_EDITOR_ADD_MENU_LABEL or more than VOE_EDITOR_ADD_MENU_ENTRIES entries
@@ -31,8 +37,12 @@
 // entry cap keeps cheap.
 #pragma once
 
+#include <base/arena.h>
+
 #include <ecs/component.h>
 #include <ecs/world.h>
+
+#include <ui/layout.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -59,7 +69,30 @@ typedef struct {
 	uint32_t count;
 } voe_editor_add_menu;
 
+// One drawn row of the list: its button, and the index of the entry it shows.
+typedef struct {
+	voe_ui_node node;
+	uint32_t entry;
+} voe_editor_add_menu_row;
+
+// The list as drawn this frame, for the read after voe_ui_frame_end. `panel` and
+// `area` are VOE_UI_NODE_NONE when no list was drawn.
+typedef struct {
+	voe_ui_node panel;
+	voe_ui_node area;
+	voe_editor_add_menu_row rows[VOE_EDITOR_ADD_MENU_ENTRIES];
+	uint32_t row_count;
+} voe_editor_add_menu_list;
+
 // Clears `menu` and fills it with what `entity` can be given.
 void voe_editor_add_menu_build(voe_editor_add_menu *menu,
 			       const voe_ecs_world *world,
 			       voe_ecs_entity entity);
+
+// Draws the top level of `menu` into `list`, which it clears first. A group's
+// label with its marker is formatted into `arena`, the frame's, because a label
+// is read at voe_ui_frame_end.
+void voe_editor_add_menu_draw(voe_ui_context *ui, voe_base_arena *arena,
+			      const voe_editor_add_menu *menu, float left,
+			      float top, float height,
+			      voe_editor_add_menu_list *list);

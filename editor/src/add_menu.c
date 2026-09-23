@@ -1,12 +1,24 @@
 // Add component's tree built from the world's types: each offered type's path
 // split into trimmed parts, each group part found or made under its parent,
-// and the entry appended last. See the header for what is offered and why.
+// and the entry appended last; and its top level drawn as a list the way
+// inspector.c's dropdown_list draws the open dropdown's. See the header for
+// what is offered and why.
 #include "add_menu.h"
+
+#include "inspector_value.h"
 
 #include <base/assert.h>
 
+#include <ui/widgets.h>
+
 #include <stddef.h>
 #include <string.h>
+
+// Round the list's rows and between them, and the right padding a capped list
+// keeps for its Y scrollbar: inspector.c's LIST_PAD and LIST_BAR, so the two
+// lists look alike. Millimetres.
+#define LIST_PAD 1.0f
+#define LIST_BAR 3.5f
 
 // Copies the trimmed part of `path` starting at `*at` into `label` and moves
 // `*at` past it and its `/`. True when that part was the last one.
@@ -120,4 +132,63 @@ void voe_editor_add_menu_build(voe_editor_add_menu *menu,
 	}
 	VOE_BASE_ASSERT(menu->count <= VOE_EDITOR_ADD_MENU_ENTRIES,
 			"Add component overran its entries");
+}
+
+// The column round the list only carries the anchor, the list being a panel of
+// its own; the rows scroll inside it so a capped list still reaches its last
+// entry (ADR-0200). A type's label is the menu's own, which the caller keeps
+// past voe_ui_frame_end; a group's, with its marker, is the arena's.
+void voe_editor_add_menu_draw(voe_ui_context *ui, voe_base_arena *arena,
+			      const voe_editor_add_menu *menu, float left,
+			      float top, float height,
+			      voe_editor_add_menu_list *list)
+{
+	const bool capped = height > 0.0f;
+
+	VOE_BASE_ASSERT(ui != NULL, "drawing Add component into no interface");
+	VOE_BASE_ASSERT(menu != NULL && list != NULL,
+			"drawing no Add component or into no list");
+
+	list->row_count = 0;
+	voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .anchor = { .anchored = true,
+					.x = { VOE_UI_ACROSS_START, left },
+					.y = { VOE_UI_ACROSS_START, top } } });
+	list->panel = voe_ui_panel_begin(
+		ui, "add menu", 0, VOE_UI_SURFACE_RAISED,
+		(voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
+				    .pad = { LIST_PAD, LIST_PAD, LIST_PAD,
+					     LIST_PAD },
+				    .blocks_pointer = true });
+	list->area = voe_ui_scroll_begin(
+		ui, "add menu rows", 0,
+		(voe_ui_container){
+			.size = { .along = capped
+					   ? (voe_ui_size){ VOE_UI_SIZE_FIXED,
+							    height }
+					   : (voe_ui_size){ 0 } },
+			.across = VOE_UI_ACROSS_FILL,
+			.gap = LIST_PAD,
+			.pad = { .right = capped ? LIST_BAR : 0.0f } },
+		(voe_ui_scroll_axes){ .y = true });
+	for (uint32_t i = 0; i < menu->count; i++) {
+		const voe_editor_add_menu_entry *entry = &menu->entries[i];
+
+		if (entry->parent != VOE_EDITOR_ADD_MENU_TOP)
+			continue;
+		list->rows[list->row_count++] = (voe_editor_add_menu_row){
+			.node = voe_ui_button_begin(ui, "add menu row", i),
+			.entry = i
+		};
+		voe_ui_label(ui, entry->group ? text(arena, "%s >",
+						     entry->label)
+					      : entry->label);
+		voe_ui_end(ui);
+	}
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	VOE_BASE_ASSERT(list->row_count <= menu->count,
+			"Add component drew more rows than it has entries");
 }

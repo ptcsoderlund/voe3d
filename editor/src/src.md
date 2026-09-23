@@ -80,16 +80,16 @@ carries it out.
   draws that list and reads what was picked from it.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's described component types,
   each section's heading, Remove and "Needs" line, a wrapping row per described field, the record
-  each control leaves behind, the Add component list, and the open list.
+  each control leaves behind, the Add component button and its menu, and the open list.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
-  frame from the types' registered menu paths, so the editor names no component (ADR-0217, 0221).
+  frame from the types' registered menu paths (ADR-0217, 0221), and its top level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
-  their parent, and its entry appended in registration order.
-- `inspector_edit.h` — the three calls that turn what the pointer did to the Inspector's controls
-  into replace intents and into scene.h's Duplicate, Delete, Remove and Add component.
+  their parent, its entry appended in registration order, and the list drawn as the open dropdown's is.
+- `inspector_edit.h` — the calls that turn what the pointer did to the Inspector's controls into
+  replace intents and scene.h's commands, and the side-and-cap rule both open lists are placed by.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
-  bytes, the fired buttons, and the open list's side and cap.
+  bytes, the fired buttons, Add component's list opened and closed, and the open lists' side and cap.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
   angles or the one string a label is given out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X

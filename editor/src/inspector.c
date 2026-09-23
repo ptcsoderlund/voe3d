@@ -403,37 +403,20 @@ static void component_panel(voe_ui_context *ui,
 	voe_ui_end(ui);
 }
 
-// Add component, and while it is choosing one button per described type the
-// entity has no row of, each headed as its section would be.
+// Add component's one button, and its menu built while the list is open on the
+// entity this frame draws.
 static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
 			  voe_ecs_world *world)
 {
-	uint32_t types = voe_ecs_component_type_count(world);
-
 	inspector->add_component = voe_ui_button_begin(ui, "add component", 0);
 	voe_ui_label(ui, "Add component");
 	voe_ui_end(ui);
 
-	if (!inspector->choosing)
-		return;
-
-	for (uint32_t i = 0; i < types; i++) {
-		voe_ecs_type type = voe_ecs_component_type_at(world, i);
-		voe_ui_node node;
-
-		if (voe_ecs_component_runtime_only(world, type) ||
-		    voe_ecs_component_get(world, type, inspector->entity) !=
-			    NULL ||
-		    inspector->choice_count == VOE_EDITOR_INSPECTOR_SECTIONS)
-			continue;
-
-		node = voe_ui_button_begin(ui, "component choice", i);
-		voe_ui_label(ui, heading(inspector->arena, world, type));
-		voe_ui_end(ui);
-		inspector->choices[inspector->choice_count++] =
-			(voe_editor_inspector_type_button){ .node = node,
-							    .type = type };
-	}
+	if (inspector->adding &&
+	    inspector->adding_for.index == inspector->entity.index &&
+	    inspector->adding_for.generation == inspector->entity.generation)
+		voe_editor_add_menu_build(&inspector->menu, world,
+					  inspector->entity);
 }
 
 // The open list, hanging from the button that opened it inside the content
@@ -532,7 +515,10 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->remove = VOE_UI_NODE_NONE;
 	inspector->remove_count = 0;
 	inspector->add_component = VOE_UI_NODE_NONE;
-	inspector->choice_count = 0;
+	inspector->menu.count = 0;
+	inspector->menu_list = (voe_editor_add_menu_list){
+		.panel = VOE_UI_NODE_NONE, .area = VOE_UI_NODE_NONE
+	};
 }
 
 void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
@@ -606,6 +592,12 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	// (ui/layout.h) and a list emitted beside its button would be painted
 	// over by the rows below it.
 	dropdown_list(ui, inspector, world);
+	if (inspector->menu.count > 0)
+		voe_editor_add_menu_draw(ui, inspector->arena, &inspector->menu,
+					 inspector->adding_at.left,
+					 inspector->adding_at.top,
+					 inspector->adding_at.height,
+					 &inspector->menu_list);
 
 	voe_ui_end(ui);
 }

@@ -48,7 +48,9 @@
 // overlay is placed where it fits each frame and never once when it opened
 // (ADR-0199). That arithmetic is the button's rectangle less the Inspector's
 // content column's, so it is in that column's space and says nothing about how
-// far the panel is scrolled. scene.h
+// far the panel is scrolled. It is voe_editor_inspector_overlay_place, and Add
+// component's list is placed by it too: that list opens and closes as the
+// open list does, and a fired type's row adds the type (inspector.h). scene.h
 // holds this struct, so it is named here by its tag and not by including it.
 #pragma once
 
@@ -79,8 +81,8 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 // voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`, and
 // whichever Remove or Add component choice did, through entities.h on the
 // entity they were drawn for, and opens the picker on whichever swatch did — counting one in scene->structural, or setting
-// scene->full when refused. Add component toggles the choices, and a press on
-// none of those buttons hides them; `down` is the pointer's primary button this
+// scene->full when refused. Add component toggles its list, which a press
+// outside it and its button closes; `down` is the pointer's primary button this
 // frame and `at` is where the pointer is this frame, in the surface's
 // millimetres. It takes the place as well as the button because a press is only
 // the press on nothing that closes the open list when it landed outside that
@@ -90,6 +92,18 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
 				       struct voe_editor_scene *scene,
 				       bool down, voe_math_float2 at);
+
+// Where a list hanging from `button` goes this frame, by the side-and-cap rule
+// above (ADR-0200): `list` is its panel and `rows` the area inside it as drawn
+// this frame, `list` VOE_UI_NODE_NONE for one not drawn yet, which goes below
+// uncapped. Needs this frame's content column.
+voe_editor_inspector_place
+voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
+				   const voe_ui_context *ui, voe_ui_node button,
+				   voe_ui_node list, voe_ui_node rows);
+
+// Closes Add component's list: Escape's, which interface.c reads.
+void voe_editor_inspector_add_close(voe_editor_inspector *inspector);
 
 // Submits `colour` as the replace intent of `type`'s row on `entity`, its three
 // floats at `offset`, and counts one in `replaced`. The picker's change, read

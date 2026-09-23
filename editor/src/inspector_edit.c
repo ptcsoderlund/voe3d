@@ -314,6 +314,71 @@ static bool contains(voe_ui_rect rect, voe_math_float2 at)
 	       at.y < rect.min.y + rect.size.y;
 }
 
+voe_editor_inspector_place
+voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
+				   const voe_ui_context *ui, voe_ui_node button,
+				   voe_ui_node list, voe_ui_node rows)
+{
+	voe_ui_rect b;
+	voe_ui_rect c;
+	float top;
+	float cap = 0.0f;
+
+	VOE_BASE_ASSERT(inspector != NULL && ui != NULL,
+			"placing a list on no inspector or interface");
+	VOE_BASE_ASSERT(button != VOE_UI_NODE_NONE &&
+				inspector->content != VOE_UI_NODE_NONE,
+			"placing a list under no button or in no column");
+
+	b = voe_ui_node_rect(ui, button);
+	c = voe_ui_node_rect(ui, inspector->content);
+	top = b.min.y + b.size.y;
+
+	if (list != VOE_UI_NODE_NONE && inspector->area != VOE_UI_NODE_NONE) {
+		voe_ui_rect w = voe_ui_node_visible(ui, inspector->area);
+		voe_ui_rect p = voe_ui_node_rect(ui, list);
+		voe_ui_rect r = voe_ui_node_rect(ui, rows);
+		// The panel's own padding and border round its rows, whether
+		// or not the rows are capped.
+		float chrome = p.size.y - r.size.y;
+		// What the whole list would be, uncapped: what the rows
+		// wanted, which voe_ui_node_measured reports even while they
+		// are capped (ui/layout.h).
+		float want = chrome + voe_ui_node_measured(ui, rows).y;
+		float below = w.min.y + w.size.y - (b.min.y + b.size.y);
+		float above = b.min.y - w.min.y;
+
+		if (want <= below) {
+			// below, as it is today
+		} else if (want <= above) {
+			top = b.min.y - want;
+		} else {
+			float room = below >= above ? below : above;
+
+			cap = room - chrome;
+			// A panel with almost no room either way still shows
+			// a row to pick and scroll from.
+			if (cap < b.size.y)
+				cap = b.size.y;
+			if (below < above)
+				top = b.min.y - (cap + chrome);
+		}
+	}
+
+	VOE_BASE_ASSERT(cap >= 0.0f, "a list capped to less than nothing");
+	return (voe_editor_inspector_place){ .left = b.min.x - c.min.x,
+					     .top = top - c.min.y,
+					     .height = cap };
+}
+
+void voe_editor_inspector_add_close(voe_editor_inspector *inspector)
+{
+	VOE_BASE_ASSERT(inspector != NULL, "closing Add component on nothing");
+
+	inspector->adding = false;
+	VOE_BASE_ASSERT(!inspector->adding, "Add component stayed open");
+}
+
 void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
 				       struct voe_editor_scene *scene,
@@ -347,16 +412,31 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	if (action_of(ui, inspector->remove).fired)
 		voe_editor_scene_delete(scene);
 
-	// A press that armed Add component or a choice is the list's own; any
-	// other hides it, on the press and not the release.
-	on_menu = action_of(ui, inspector->add_component).held;
-	for (uint32_t i = 0; i < inspector->choice_count; i++)
-		on_menu = on_menu ||
-			  action_of(ui, inspector->choices[i].node).held;
+	// ADD COMPONENT'S LIST CLOSES the way the open dropdown's does: on a
+	// frame that drew another entity than the one it opened for, and on a
+	// press outside its visible rectangle and its button, on the press and
+	// not the release. The button toggles it, and opening it closes the
+	// dropdown and the picker, only one overlay being open at a time.
+	if (inspector->adding &&
+	    (inspector->adding_for.index != inspector->entity.index ||
+	     inspector->adding_for.generation !=
+		     inspector->entity.generation))
+		inspector->adding = false;
+	on_menu = action_of(ui, inspector->add_component).held ||
+		  (inspector->menu_list.panel != VOE_UI_NODE_NONE &&
+		   contains(voe_ui_node_visible(ui, inspector->menu_list.panel),
+			    at));
 	if (pressed && !on_menu)
-		inspector->choosing = false;
-	if (action_of(ui, inspector->add_component).fired)
-		inspector->choosing = !inspector->choosing;
+		inspector->adding = false;
+	if (action_of(ui, inspector->add_component).fired) {
+		inspector->adding = !inspector->adding;
+		inspector->adding_for = inspector->entity;
+		inspector->adding_at = (voe_editor_inspector_place){ 0 };
+		if (inspector->adding) {
+			voe_editor_scene_dropdown_close(scene);
+			voe_editor_scene_picker_close(scene);
+		}
+	}
 
 	// The entity the buttons were drawn for, when it is no longer alive,
 	// has nothing to give or take. It guards these four rather than
@@ -416,18 +496,25 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 						scene->world, inspector->entity,
 						inspector->removes[i].type));
 
-		for (uint32_t i = 0; i < inspector->choice_count; i++) {
-			if (!action_of(ui, inspector->choices[i].node).fired)
+		// A type's row fired adds it and closes the list; a group's
+		// opens nothing yet.
+		for (uint32_t i = 0; i < inspector->menu_list.row_count; i++) {
+			const voe_editor_add_menu_row *row =
+				&inspector->menu_list.rows[i];
+			const voe_editor_add_menu_entry *entry =
+				&inspector->menu.entries[row->entry];
+
+			if (entry->group || !action_of(ui, row->node).fired)
 				continue;
-			inspector->choosing = false;
+			inspector->adding = false;
 			counted(scene, voe_editor_entities_component_add(
 					       scene->world, inspector->entity,
-					       inspector->choices[i].type));
+					       entry->type));
 		}
 	}
 
 	// A PRESS OUTSIDE THE LIST'S OUTLINE CLOSES IT — the same press edge
-	// the Add component choices are hidden on, and read the same way.
+	// Add component's list closes on, and read the same way.
 	// Everything inside what can be seen of the list's panel is the
 	// list's: its rows and a dropdown control answer for themselves, and
 	// the gaps between the rows, the padding at its edges and the
@@ -474,10 +561,7 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 		for (uint32_t i = 0; i < inspector->control_count; i++) {
 			const voe_editor_inspector_control *control =
 				&inspector->controls[i];
-			voe_ui_rect b;
-			voe_ui_rect c;
-			float top;
-			float cap = 0.0f;
+			voe_editor_inspector_place place;
 
 			if (control->names == NULL ||
 			    control->node == VOE_UI_NODE_NONE ||
@@ -485,58 +569,22 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 			    control->offset != scene->dropdown.offset)
 				continue;
 
-			b = voe_ui_node_rect(ui, control->node);
-			c = voe_ui_node_rect(ui, inspector->content);
-			top = b.min.y + b.size.y;
-
-			if (inspector->list != VOE_UI_NODE_NONE &&
-			    inspector->area != VOE_UI_NODE_NONE) {
-				voe_ui_rect w =
-					voe_ui_node_visible(ui, inspector->area);
-				voe_ui_rect p =
-					voe_ui_node_rect(ui, inspector->list);
-				voe_ui_rect r = voe_ui_node_rect(
-					ui, inspector->list_rows);
-				// The panel's own padding and border round its
-				// rows, whether or not the rows are capped.
-				float chrome = p.size.y - r.size.y;
-				// What the whole list would be, uncapped: what
-				// the rows wanted, which voe_ui_node_measured
-				// reports even while they are capped
-				// (ui/layout.h).
-				float want =
-					chrome +
-					voe_ui_node_measured(
-						ui, inspector->list_rows)
-						.y;
-				float below = w.min.y + w.size.y -
-					      (b.min.y + b.size.y);
-				float above = b.min.y - w.min.y;
-
-				if (want <= below) {
-					// below, as it is today
-				} else if (want <= above) {
-					top = b.min.y - want;
-				} else {
-					float room = below >= above ? below
-								    : above;
-
-					cap = room - chrome;
-					// A panel with almost no room either
-					// way still shows a value to pick and
-					// scroll from.
-					if (cap < b.size.y)
-						cap = b.size.y;
-					if (below < above)
-						top = b.min.y - (cap + chrome);
-				}
-			}
-
-			voe_editor_scene_dropdown_place(scene,
-							b.min.x - c.min.x,
-							top - c.min.y, cap);
+			place = voe_editor_inspector_overlay_place(
+				inspector, ui, control->node, inspector->list,
+				inspector->list_rows);
+			voe_editor_scene_dropdown_place(scene, place.left,
+							place.top,
+							place.height);
 		}
 	}
+
+	// Add component's list is placed by the same rule every frame it is
+	// open, under its one button.
+	if (inspector->adding && inspector->content != VOE_UI_NODE_NONE &&
+	    inspector->add_component != VOE_UI_NODE_NONE)
+		inspector->adding_at = voe_editor_inspector_overlay_place(
+			inspector, ui, inspector->add_component,
+			inspector->menu_list.panel, inspector->menu_list.area);
 
 	inspector->pointer_was_down = down;
 }

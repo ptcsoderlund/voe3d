@@ -18,9 +18,10 @@
 // 0193). Every section has a Remove button except the kept types', which dock.c
 // hands in: the identity, because the Scene list is built from it, and the
 // transform, because every entity has one (ADR-0217). This panel names neither.
-// Below the sections, Add component shows one button per
-// described type the entity does not have; a second click, a choice or a press
-// anywhere else hides them again. A section whose type needs another
+// Below the sections, Add component opens a list of the top level of
+// add_menu.h's tree, drawn and placed as the open dropdown's is; a second click,
+// a type picked, a press outside it, Escape or another entity drawn closes it.
+// A section whose type needs another
 // (`voe_ecs_component_needs`) the entity lacks says "Needs <Heading>". Both go to
 // entities.h after the frame, and each success counts one in the scene's
 // `structural`, a refusal setting its `full` — Delete's and Duplicate's two
@@ -51,6 +52,8 @@
 #include <base/arena.h>
 #include <base/describe.h>
 
+#include "add_menu.h"
+
 #include <ecs/component.h>
 #include <ecs/world.h>
 
@@ -75,9 +78,8 @@
 // wider than this asserts, which is the program's own sizing being wrong.
 #define VOE_EDITOR_INSPECTOR_INTENT 256
 
-// How many Remove buttons, and how many Add component choices, one frame may
-// record — each is one per component type, and a project's world is made with
-// room for eight (project.c). A type past it gets no button; nothing a person
+// How many Remove buttons one frame may record — one per component type, and a
+// project's world is made with room for eight (project.c). A type past it gets no button; nothing a person
 // does can make one.
 #define VOE_EDITOR_INSPECTOR_SECTIONS 8
 
@@ -182,12 +184,21 @@ typedef struct {
 	const voe_base_field_names *names;
 } voe_editor_inspector_control;
 
-// A button that acts on one component type: a section's Remove, or one of Add
-// component's choices.
+// A button that acts on one component type: a section's Remove.
 typedef struct {
 	voe_ui_node node;
 	voe_ecs_type type;
 } voe_editor_inspector_type_button;
+
+// Where an open list sits and how tall its rows may be, as
+// voe_editor_inspector_overlay_place (inspector_edit.h) works it out each frame:
+// millimetres from the top-left of the content column, and nought for rows as
+// tall as they come — the three numbers a voe_editor_dropdown carries.
+typedef struct {
+	float left;
+	float top;
+	float height;
+} voe_editor_inspector_place;
 
 // One row of the open list as this panel drew it: the choice button, and the
 // value it names.
@@ -224,16 +235,19 @@ typedef struct {
 	voe_editor_inspector_type_button
 		removes[VOE_EDITOR_INSPECTOR_SECTIONS];
 	uint32_t remove_count;
-	// Add component and, while `choosing`, one choice per described type
-	// the entity lacks. VOE_UI_NODE_NONE and nought when not drawn.
+	// Add component's button, VOE_UI_NODE_NONE when not drawn.
 	voe_ui_node add_component;
-	voe_editor_inspector_type_button
-		choices[VOE_EDITOR_INSPECTOR_SECTIONS];
-	uint32_t choice_count;
-	// Whether the choices show. Kept across frames, as is last frame's
-	// primary button, which finds the press that hides them.
-	bool choosing;
+	// Whether its list is open, the entity it opened for and where it
+	// sits, kept across frames, as is last frame's primary button, which
+	// finds the press that closes a list.
+	bool adding;
+	voe_ecs_entity adding_for;
+	voe_editor_inspector_place adding_at;
 	bool pointer_was_down;
+	// This frame's menu, built while the list is open on the drawn entity,
+	// and the list as drawn from it.
+	voe_editor_add_menu menu;
+	voe_editor_add_menu_list menu_list;
 	// What the open list is open on, as it stood when this frame began.
 	// Copied out of scene.h's by voe_editor_inspector_frame_begin, so that
 	// the panel draws from one value all frame and the read that follows

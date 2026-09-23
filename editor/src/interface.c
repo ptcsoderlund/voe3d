@@ -148,10 +148,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_scene_picker_close(scene);
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
-		// The open list is the Inspector's own (inspector.h); closing
-		// it on Escape is all this file does to it.
-		if (escape)
+		// The open list and Add component's are the Inspector's own
+		// (inspector.h); closing them on Escape is all this file does.
+		if (escape) {
 			voe_editor_scene_dropdown_close(scene);
+			voe_editor_inspector_add_close(&scene->inspector);
+		}
 
 		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
 		if (browsing || preferring)
