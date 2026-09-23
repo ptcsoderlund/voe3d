@@ -619,14 +619,16 @@ int main(int argc, char *argv[])
 			.tab = keyboard.pressed[VOE_PLATFORM_KEY_TAB],
 		};
 
-		// THE BORDERS ARE ASKED FIRST (resize.h): a seam is a gap `ui`
-		// draws nothing in. While they have the pointer, `ui` sees no
-		// pointer and pick and the gizmo no left button.
+		// THE BORDERS ARE ASKED FIRST (resize.h): a seam is a fill the
+		// walk draws, not a widget, so no widget answers for it. While
+		// they have the pointer, `ui` sees no pointer and pick and the
+		// gizmo no left button; the border they reach is drawn lit.
 		resized = voe_editor_resize_frame(
 			&resize, &roots[0], &bar,
 			!browser.showing && !preferences.showing &&
 				!scene.picking.open && !scene.dropdown.open,
 			voe_platform_clock_now());
+		roots[0].lit = resized.reached;
 		if (resized.taken) {
 			roots[0].pointer.over = false;
 			roots[0].pointer.down = false;

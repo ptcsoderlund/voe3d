@@ -20,8 +20,8 @@
 // `voe_editor_dock_arrange` says where every node and seam is without a `ui`
 // frame, so a border can be hit-tested before anything is drawn. The two scene
 // views divide by their split's `fraction`, the views' share (0228, 0229): a
-// share and not a length, so it holds as the window changes. Their seam is
-// drawn as a dark and a light stripe, so it shows over any picture (0230).
+// share and not a length, so it holds as the window changes. Every seam is
+// drawn in the border colour, and the lit one as two stripes (0231, 0232).
 //
 // NO FUNCTION POINTER LIVES IN THIS FOLDER. A leaf names a panel from the
 // enumeration below and `voe_editor_panel_draw` is one function with a `switch`
@@ -135,7 +135,9 @@ typedef struct {
 // window anything (ADR-0141 point 4). `keyboard` is handed to `ui` beside
 // `pointer` (interface.c), which is what lets the browser's own name field
 // (browser.h) be typed into without this folder or interface.c knowing a
-// field exists.
+// field exists. `lit` is the split whose seam is drawn lit this frame,
+// UINT32_MAX or any index that is not a split for none; the caller's to fill,
+// like `pointer` (resize.h's `reached`).
 //
 // ROOT ZERO IS THE WINDOW, AND A DETACHED PANEL WOULD BE A FURTHER ROOT. The
 // editor holds an array of them and the loop walks every one, so the shape is
@@ -152,6 +154,7 @@ typedef struct {
 	voe_math_float2 size;
 	voe_ui_pointer pointer;
 	voe_ui_keyboard keyboard;
+	uint32_t lit;
 } voe_editor_dock_root;
 
 // The tree the editor opens on: three columns — `Scene` held at SIDE_WIDE on
@@ -245,8 +248,8 @@ void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 // are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
 // folder reaching for a global.
 //
-// `palette` is the one in force, read only to draw the views' seam's two
-// stripes (0230); no panel is handed it.
+// `palette` is the one in force, read only for every seam's colours (0231,
+// 0232); no panel is handed it.
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,

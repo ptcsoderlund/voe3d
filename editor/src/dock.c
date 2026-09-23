@@ -9,14 +9,12 @@
 // number a drag writes, through resize.h, and voe_editor_dock_arrange is the
 // one division both the walk and a drag read.
 //
-// THE SEAM IS A GAP AND NOT A DRAWN DIVIDER. A millimetre is taken off the
-// split's length before it is divided, and neither child fills it, so two
-// panels read as two regions rather than as one. Nothing draws in it; the
-// arrangement's `seam` is the rectangle resize.h hit-tests for a border.
-// The views' seam is the exception, drawn as two stripes: both views clear to
-// near-black whatever the theme and a picture may match any one colour, so it
-// is `inverse_ink` beside `inverse`, legible by construction and on the
-// theme's one hue (0194, 0196, 0230).
+// A SEAM IS A MILLIMETRE NEITHER CHILD FILLS. It is taken off the split's
+// length before it is divided and drawn in the border colour, so it reads
+// like every other border; the reached one is drawn as the inverse pair,
+// `inverse_ink` beside `inverse`, which shows over any picture in any theme
+// (0194, 0196, 0231, 0232). The arrangement's `seam` is still the rectangle
+// resize.h hit-tests for a border.
 //
 // THE TREE IS WRAPPED IN A ROW OF ITS OWN, WHICH IS ONE NODE AND IS NOT
 // CEREMONY. `ui` needs a row or a column to hold a leaf's panel (see
@@ -245,39 +243,48 @@ void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
 	arrange_node(tree, tree->root, area, 0, out);
 }
 
-static uint32_t views_split(const voe_editor_dock_tree *tree);
-
-// The views' seam as two stripes, each half of it along the split and filling
-// across: the first view's side `inverse_ink`, the second's `inverse` (0230).
-static void views_seam(voe_ui_context *ui, voe_editor_dock_axis axis,
-		       const voe_ui_theme *palette)
+// A split's seam, SEAM along it and filling across. Not lit, one fill of
+// `border`; lit, two stripes each half of it: the first child's side
+// `inverse_ink`, the second's `inverse` (0231, 0232).
+static void seam_draw(voe_ui_context *ui, voe_editor_dock_axis axis,
+		      const voe_ui_theme *palette, bool lit)
 {
 	voe_ui_container box = {
 		.size = { .along = { VOE_UI_SIZE_FIXED, SEAM } },
 		.across = VOE_UI_ACROSS_FILL
 	};
 	voe_ui_sizing stripe = { .along = { VOE_UI_SIZE_FIXED, SEAM / 2.0f } };
+	voe_ui_sizing whole = { .along = { VOE_UI_SIZE_FIXED, SEAM } };
 	voe_math_float4 dark = palette->inverse_ink;
 	voe_math_float4 light = palette->inverse;
+	voe_math_float4 rest = palette->border;
+
+	VOE_BASE_ASSERT(ui != NULL, "drawing a seam into no interface");
+	VOE_BASE_ASSERT(palette != NULL, "drawing a seam with no palette");
 
 	if (axis == VOE_EDITOR_DOCK_ROW)
 		voe_ui_row_begin(ui, box);
 	else
 		voe_ui_column_begin(ui, box);
-	voe_ui_swatch(ui, (voe_math_float3){ dark.x, dark.y, dark.z }, stripe);
-	voe_ui_swatch(ui, (voe_math_float3){ light.x, light.y, light.z },
-		      stripe);
+	if (lit) {
+		voe_ui_swatch(ui, (voe_math_float3){ dark.x, dark.y, dark.z },
+			      stripe);
+		voe_ui_swatch(ui, (voe_math_float3){ light.x, light.y, light.z },
+			      stripe);
+	} else {
+		voe_ui_swatch(ui, (voe_math_float3){ rest.x, rest.y, rest.z },
+			      whole);
+	}
 	voe_ui_end(ui);
 }
 
 static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      const voe_editor_dock_arrangement *places,
 		      uint32_t index, voe_editor_dock_axis parent,
-		      voe_math_float2 size, uint32_t depth,
+		      voe_math_float2 size, uint32_t depth, uint32_t lit,
 		      const voe_ui_theme *palette, voe_editor_scene *scene,
 		      voe_editor_views *views)
 {
-	bool drawn_seam;
 	const voe_editor_dock_node *node;
 	voe_math_float2 head;
 	voe_math_float2 tail;
@@ -343,28 +350,23 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	// there is (see voe_editor_dock_arrange).
 	head = places->nodes[node->first].rect.size;
 	tail = places->nodes[node->second].rect.size;
-	// The views' seam is a box of the gap's size, so the lengths add up
-	// as they did with the gap.
-	drawn_seam = index == views_split(tree);
-
+	// The seam is a box of SEAM between them, so the lengths add up to the
+	// split's as the arrangement divided it.
 	if (node->axis == VOE_EDITOR_DOCK_ROW) {
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .size = sizing_in(parent, size),
-					     .across = VOE_UI_ACROSS_FILL,
-					     .gap = drawn_seam ? 0.0f : SEAM });
+					     .across = VOE_UI_ACROSS_FILL });
 	} else {
 		voe_ui_column_begin(ui, (voe_ui_container){
 						.size = sizing_in(parent, size),
-						.across = VOE_UI_ACROSS_FILL,
-						.gap = drawn_seam ? 0.0f : SEAM });
+						.across = VOE_UI_ACROSS_FILL });
 	}
 
 	walk_node(ui, tree, places, node->first, node->axis, head, depth + 1,
-		  palette, scene, views);
-	if (drawn_seam)
-		views_seam(ui, node->axis, palette);
+		  lit, palette, scene, views);
+	seam_draw(ui, node->axis, palette, index == lit);
 	walk_node(ui, tree, places, node->second, node->axis, tail, depth + 1,
-		  palette, scene, views);
+		  lit, palette, scene, views);
 	voe_ui_end(ui);
 }
 
@@ -594,7 +596,8 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 							 parent, root->size),
 						 .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, &places, root->tree.root,
-		  VOE_EDITOR_DOCK_ROW, root->size, 0, palette, scene, views);
+		  VOE_EDITOR_DOCK_ROW, root->size, 0, root->lit, palette, scene,
+		  views);
 	voe_ui_end(ui);
 }
 

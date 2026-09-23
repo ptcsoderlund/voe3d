@@ -7,10 +7,11 @@
 //
 //     voe_editor_resize resize = { .held = UINT32_MAX };   // at rest
 //
-// THE EDITOR'S OWN HIT TEST, ASKED BEFORE `ui`'S. A seam is a gap `ui` draws
-// nothing in, so no widget would ever answer for it; the band is found here
-// from voe_editor_dock_arrange, and while it is the pointer's the caller
-// hands `ui`, pick and the gizmo no pointer and no press.
+// THE EDITOR'S OWN HIT TEST, ASKED BEFORE `ui`'S. A seam is drawn by the
+// walk as a fill, not a widget, so no widget would ever answer for it; the
+// band is found here from voe_editor_dock_arrange, and while it is the
+// pointer's the caller hands `ui`, pick and the gizmo no pointer and no
+// press. `reached` is the seam the walk draws lit (ADR-0231, ADR-0232).
 //
 // A PRESS MUST START OVER A BORDER WITH THE BUTTON UP BEFORE IT. A drag begun
 // in a panel or a view that sweeps across a seam is that gesture's, not a
@@ -54,10 +55,14 @@ typedef struct {
 
 // The pointer's shape this frame, whether the borders took the pointer, and
 // whether a drag or a double-click ended, so the sizes are to be remembered.
+// `reached` is the split being dragged, else the one whose band the pointer
+// is in with a drag allowed and the button up, else UINT32_MAX (also for the
+// bar's edge).
 typedef struct {
 	voe_platform_cursor cursor;
 	bool taken;
 	bool ended;
+	uint32_t reached;
 } voe_editor_resize_result;
 
 // One frame of the borders against `root`'s pointer. `allowed` false while a

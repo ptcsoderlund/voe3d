@@ -172,8 +172,9 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 						 voe_editor_topbar *bar,
 						 bool allowed, double now)
 {
-	voe_editor_resize_result result = { .cursor =
-						    VOE_PLATFORM_CURSOR_ARROW };
+	voe_editor_resize_result result = {
+		.cursor = VOE_PLATFORM_CURSOR_ARROW, .reached = NO_BORDER
+	};
 	voe_editor_dock_arrangement places;
 	voe_ui_pointer pointer;
 	float high;
@@ -215,6 +216,8 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 		result.cursor = border_is_row(&root->tree, border) ?
 					VOE_PLATFORM_CURSOR_LEFT_RIGHT :
 					VOE_PLATFORM_CURSOR_UP_DOWN;
+		if (border != BAR_BORDER)
+			result.reached = border;
 	}
 	resize->was_down = pointer.down;
 	return result;
