@@ -10,7 +10,7 @@ rules are decision 0168.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
-- **platform** — the one OS-aware folder: window, focus, wait, input, typing, keymap, files, time.
+- **platform** — the one OS-aware folder: window, wait, input, pointer shape, keymap, files, clock.
 - **scene** — transform, a camera's lens, light and identity as components with their systems.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
 - **authoring** — scene and project text read and written; a game does not build it.
@@ -21,7 +21,7 @@ rules are decision 0168.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, camera marker.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **editor** — authoring: top bar, Scene list, views, camera preview, gizmo, Inspector, undo, files.
+- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, undo, panel sizes, files.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -48,12 +48,12 @@ rules are decision 0168.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
 - 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
-- 0197, 0219, 0220, 0224, 0225 — Sliders and a text scale per theme; layout fits; sizes are global.
+- 0197, 0219, 0220, 0224–0226, 0228 — Text scale by theme; layout fits; panels in mm, views a share.
 - 0192, 0199, 0200 — `ui` holds one focus; an overlay belongs to its widget and fits.
 - 0201, 0214 — The fastest card is the best kind then the largest memory; one line says which.
-- 0202–0204 — A click picks by a ray against the shapes' triangles; outline quads; undo is scene texts.
+- 0202–0204 — A click picks by a ray on the shapes' triangles; outline quads; undo is scene texts.
 - 0205, 0206, 0207 — The move gizmo is `3d`'s, its drag the editor's; state is lightness and size.
 - 0208–0211 — 015 closes on its walk; 016 moves comments only, and a page's opening says what for.
-- 0215, 0216 — Unfocused, a window draws four frames a second; hidden, none; the clock keeps it.
+- 0215, 0216, 0227 — Unfocused, four frames a second; hidden, none; a named pointer shape.
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
 - 0222, 0223 — Anything in 3D space is placed by its transform; the camera is a lens and a marker.
