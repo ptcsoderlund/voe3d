@@ -81,6 +81,10 @@ carries it out.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's described component types,
   each section's heading, Remove and "Needs" line, a wrapping row per described field, the record
   each control leaves behind, the Add component list, and the open list.
+- `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
+  frame from the types' registered menu paths, so the editor names no component (ADR-0217, 0221).
+- `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
+  their parent, and its entry appended in registration order.
 - `inspector_edit.h` — the three calls that turn what the pointer did to the Inspector's controls
   into replace intents and into scene.h's Duplicate, Delete, Remove and Add component.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
