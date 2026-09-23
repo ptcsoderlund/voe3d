@@ -96,7 +96,7 @@ carries it out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
-- `view.h` — a scene view: its camera, its target and the middle-button drag, which view a pointer
+- `view.h` — a scene view: its orbit's pose and lens, its target and the middle-button drag, which view a pointer
   is over and where in that view's picture it lands, and the light, the outline colour and the
   gizmo's colour a view is drawn with.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per

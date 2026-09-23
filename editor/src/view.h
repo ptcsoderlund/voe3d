@@ -5,10 +5,10 @@
 // THE CAMERA IS THE EDITOR'S AND NEVER AN ENTITY IN THE WORLD. A view's camera is
 // never authored and never saved (ADR-0125): it is where a person happens to be
 // looking from, not a thing in the scene, and an entity would put it in the
-// Scene list, in the Inspector and one day in the file. So it is a
-// voe_scene_camera value held in here, beside an orbit focus and a distance, and
-// the pass is handed a camera built from it — not voe_3d_draw_system_frame's,
-// which reads a camera out of the world.
+// Scene list, in the Inspector and one day in the file. So it is a pose — an
+// eye, a yaw and a pitch, beside an orbit focus and a distance — and a lens held
+// in here, turned into a render view by voe_3d_view the way the world's camera
+// is (0223), and not read out of the world by voe_3d_draw_system_frame.
 //
 // THE PICTURE'S SIZE LAGS THE LAYOUT BY ONE FRAME, AND CANNOT NOT. How big a
 // panel is comes out of `ui` at voe_ui_frame_end, and the interface is built in
@@ -63,10 +63,15 @@
 // What `captured` holds when no drag has a view.
 #define VOE_EDITOR_VIEW_NONE UINT32_MAX
 
-// One view. `camera.eye`, `camera.yaw` and `camera.pitch` are worked out from
-// the focus and the distance by the orbit and are never set on their own.
+// One view. `eye` is worked out from the focus, the distance, `yaw` and
+// `pitch` by the orbit and is never set on its own. Zero yaw looks down −Z,
+// positive yaw turns towards −X and positive pitch looks up; `lens` is what
+// every view sees with.
 typedef struct {
-	voe_scene_camera camera;
+	voe_math_float3 eye;
+	float yaw;
+	float pitch;
+	voe_scene_camera lens;
 	// The point the camera orbits about and looks at, in metres, and how far
 	// the eye stands from it. The distance is always above nought.
 	voe_math_float3 focus;

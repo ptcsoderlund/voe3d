@@ -16,6 +16,8 @@
 
 #include <scene/light_component.h>
 
+#include <math/quat.h>
+
 #include <math.h>
 
 // The drag's rates, per millimetre the pointer travels on the surface. Radians
@@ -56,12 +58,22 @@ static const struct {
 	{ 1.5707963f, -0.2f, 7.0f },
 };
 
+// The way the view looks: zero yaw down −Z, positive yaw towards −X, positive
+// pitch up — the forward of the pose voe_editor_view_pass_camera builds.
+static voe_math_float3 orbit_forward(const voe_editor_view *view)
+{
+	float level = cosf(view->pitch);
+
+	return (voe_math_float3){ -sinf(view->yaw) * level, sinf(view->pitch),
+				  -cosf(view->yaw) * level };
+}
+
 // The eye put back where the orbit says it is.
 static void orbit_place(voe_editor_view *view)
 {
-	voe_math_float3 forward = voe_scene_camera_forward(view->camera);
+	voe_math_float3 forward = orbit_forward(view);
 
-	view->camera.eye = voe_math_float3_sub(
+	view->eye = voe_math_float3_sub(
 		view->focus, voe_math_float3_scale(forward, view->distance));
 }
 
@@ -80,9 +92,9 @@ bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
 	for (uint32_t i = 0; i < views->count; i++) {
 		voe_editor_view *view = &views->views[i];
 
-		view->camera = (voe_scene_camera){
-			.yaw = first_cameras[i].yaw,
-			.pitch = first_cameras[i].pitch,
+		view->yaw = first_cameras[i].yaw;
+		view->pitch = first_cameras[i].pitch;
+		view->lens = (voe_scene_camera){
 			.fov_y = FIELD_OF_VIEW,
 			.near_plane = NEAR_PLANE,
 			.far_plane = FAR_PLANE,
@@ -185,14 +197,25 @@ voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
 	VOE_BASE_ASSERT(view->width > 0 && view->height > 0,
 			"a pass camera for a view with no size");
 
-	return (voe_render_pass_camera){
-		.view = { .view = voe_scene_camera_view(view->camera),
-			  .projection = voe_3d_projection(
-				  view->camera,
-				  (float)view->width / (float)view->height),
-			  .eye = view->camera.eye },
-		.light = light,
+	// Yaw about +Y and then pitch about the turned X: _mul reads right to
+	// left, so the pitch is applied first, about the eye's own X (0223).
+	voe_scene_transform pose = {
+		.position = view->eye,
+		.rotation = voe_math_quat_mul(
+			voe_math_quat_from_axis_angle(
+				(voe_math_float3){ 0.0f, 1.0f, 0.0f }, view->yaw),
+			voe_math_quat_from_axis_angle(
+				(voe_math_float3){ 1.0f, 0.0f, 0.0f },
+				view->pitch)),
+		.scale = { 1.0f, 1.0f, 1.0f },
 	};
+	voe_render_pass_camera camera = { .light = light };
+	bool sees = voe_3d_view(pose, view->lens,
+				(float)view->width / (float)view->height,
+				&camera.view);
+
+	VOE_BASE_ASSERT(sees, "an orbit whose pose sees nothing");
+	return camera;
 }
 
 static bool contains(voe_ui_rect rect, voe_math_float2 at)
@@ -228,10 +251,9 @@ static void drag_view(voe_editor_view *view, voe_math_float2 travel,
 		if (view->distance < CLOSEST)
 			view->distance = CLOSEST;
 	} else if (shift) {
-		voe_math_float3 forward =
-			voe_scene_camera_forward(view->camera);
-		voe_math_float3 right = { cosf(view->camera.yaw), 0.0f,
-					  -sinf(view->camera.yaw) };
+		voe_math_float3 forward = orbit_forward(view);
+		voe_math_float3 right = { cosf(view->yaw), 0.0f,
+					  -sinf(view->yaw) };
 		voe_math_float3 up = voe_math_float3_cross(right, forward);
 
 		view->focus = voe_math_float3_add(
@@ -243,12 +265,12 @@ static void drag_view(voe_editor_view *view, voe_math_float2 travel,
 			voe_math_float3_scale(
 				up, travel.y * PAN_METRES_PER_MILLIMETRE));
 	} else {
-		view->camera.yaw -= travel.x * ORBIT_RADIANS_PER_MILLIMETRE;
-		view->camera.pitch -= travel.y * ORBIT_RADIANS_PER_MILLIMETRE;
-		if (view->camera.pitch > PITCH_LIMIT)
-			view->camera.pitch = PITCH_LIMIT;
-		if (view->camera.pitch < -PITCH_LIMIT)
-			view->camera.pitch = -PITCH_LIMIT;
+		view->yaw -= travel.x * ORBIT_RADIANS_PER_MILLIMETRE;
+		view->pitch -= travel.y * ORBIT_RADIANS_PER_MILLIMETRE;
+		if (view->pitch > PITCH_LIMIT)
+			view->pitch = PITCH_LIMIT;
+		if (view->pitch < -PITCH_LIMIT)
+			view->pitch = -PITCH_LIMIT;
 	}
 
 	orbit_place(view);
