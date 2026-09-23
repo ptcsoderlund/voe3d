@@ -14,9 +14,9 @@ that carries it out. The pictures and the model it embeds sit here too.
   with the numbers they are made with.
 - `monitor.h` — the second camera's picture: a target, a pose and a lens that are not an entity,
   and the screen standing in the world that wears the target's texture.
-- `monitor.c` — that target, that pose and lens, the screen's one face and
-  the frame the monitor's pass is drawn with, its view from `voe_3d_view`. Its header says where the four
-  vertices came from and why (0, 0) is its top-left.
+- `monitor.c` — that target, that pose and lens, the screen's one face and the frame the monitor's
+  pass is drawn with, its view from `voe_3d_view`. Its header says where the four vertices came from
+  and why (0, 0) is its top-left.
 - `elements.h` — the two panels' content: the exhibit's forty rectangles and forty letters, and the
   badge's five, submitted every frame and each drawn by one command.
 - `elements.c` — those eighty elements in the order they are painted — the backing panel, the bars,
@@ -29,9 +29,9 @@ that carries it out. The pictures and the model it embeds sit here too.
   onto the window, and `VOE_DEV_UI_SCALE`, the only calibration this engine has.
 - `surface.c` — those rectangles and the one multiplication that turns the window's height into
   pixels per millimetre.
-- `sprites.h` — the sprite exhibit: the sheet, the twelve entities and the
-  two rotations that turn towards the camera, from this frame's flight. Its header says why the
-  billboarding is here and not in the engine.
+- `sprites.h` — the sprite exhibit: the sheet, the twelve entities and the two rotations that turn
+  towards the camera, from this frame's flight. Its header says why the billboarding is here and not
+  in the engine.
 - `sprites.c` — the sheet's pixels, where each sprite stands and the two rotations that turn them
   towards the camera.
 - `cubes.h` — the two placeholder cubes as an exhibit: their geometry and the call that builds
@@ -50,10 +50,11 @@ that carries it out. The pictures and the model it embeds sit here too.
   from the eye's pose this frame, and who calls them each frame.
 - `facing.c` — the eye's frame read from its pose and the three placements built from it.
 - `motion.h` — how the eye and the sun move each frame: the flight the keys fly, where the orbit is
-  at a given second, the pose a flight is seen from and where the sun points at one. Its header says why they are here and why the
-  turning cube's spin is not.
+  at a given second, the pose a flight is seen from and where the sun points at one. Its header says
+  why they are here and why the turning cube's spin is not.
 - `motion.c` — those answers and the numbers behind them: the bindings, speeds and pitch limit and
-  what is wrong if flying feels wrong, the orbit's radius, height and lap, and the sun's lap, height and intensity.
+  what is wrong if flying feels wrong, the orbit's radius, height and lap, and the sun's lap, height
+  and intensity.
 - `readout.h` — what the loop measures: the samples the frame is timed with, the reporting interval,
   the readout's em, and the three calls that print the legend, lay the readout out and print a block.
 - `readout.c` — the block's wording and the readout's seven lines, with why a line shows the last

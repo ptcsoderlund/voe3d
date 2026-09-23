@@ -11,17 +11,17 @@ rules are decision 0168.
 - **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
 - **platform** — the one OS-aware folder: window, focus, wait, input, typing, keymap, files, time.
-- **scene** — transform, camera, light and identity as components with their systems.
+- **scene** — transform, a camera's lens, light and identity as components with their systems.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
 - **authoring** — scene and project text read and written; a game does not build it.
 - **render** — the GPU layer and the only folder that names Vulkan: the card, resources, passes.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, the move gizmo.
+- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, camera marker.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, Add component, undo, files.
+- **editor** — authoring: top bar, Scene list, views, camera preview, gizmo, Inspector, undo, files.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -56,3 +56,4 @@ rules are decision 0168.
 - 0208–0211 — 015 closes on its walk; 016 moves comments only, and a page's opening says what for.
 - 0215, 0216 — Unfocused, a window draws four frames a second; hidden, none; the clock keeps it.
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
+- 0222, 0223 — Anything in 3D space is placed by its transform; the camera is a lens and a marker.

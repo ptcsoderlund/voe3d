@@ -1,7 +1,7 @@
 # src
 
-`3d`'s implementation: one file per public header, plus the built-in shapes' geometry. Nothing here
-is included from outside the folder — `include/3d/` is the whole public surface.
+`3d`'s implementation: one file per public header, plus the built-in shapes' geometry. Nothing
+here is included from outside the folder — `include/3d/` is the whole public surface.
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
   the whole thing, and the render view a pose and a lens become.
