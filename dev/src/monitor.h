@@ -12,8 +12,8 @@
 // THE CAMERA IS NOT AN ENTITY, AND IT MAY NOT BECOME ONE. A world drawn by
 // voe_3d_draw_system_frame has exactly one camera entity and asserts on two
 // (3d/draw_system.h) — a second camera means a second target and a second frame,
-// which is exactly what this is. So the camera is a voe_scene_camera value held
-// in here, the view and the projection are built from it, and the world's own
+// which is exactly what this is. So the camera is a pose and a lens held in
+// here, voe_3d_view builds the view from them, and the world's own
 // camera table is left holding the one eye the orbit flies. That is also what
 // editor/src/view.c does and for the same reason.
 //
@@ -59,6 +59,7 @@
 #include <ecs/world.h>
 #include <render/device.h>
 #include <scene/camera_component.h>
+#include <scene/transform_component.h>
 
 // How big the picture is, in pixels. Square, so the screen quad is square and
 // the aspect ratio is one — a picture whose shape did not match its surface's
@@ -76,7 +77,10 @@ typedef struct {
 	// wearing it is built from it and because a reader looking for where the
 	// two ends of this meet should find both in one struct.
 	voe_render_texture texture;
-	voe_scene_camera camera;
+	// Where the camera stands and what it sees through, built once from an
+	// eye and two angles with voe_dev_flight_pose.
+	voe_scene_transform pose;
+	voe_scene_camera lens;
 	// The quad standing in the world with that texture on it. It is what the
 	// monitor's own pass hides — see the header.
 	voe_ecs_entity screen;

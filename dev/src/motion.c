@@ -3,16 +3,36 @@
 //
 // EVERY NUMBER IN HERE IS A CALL SITE'S OPINION: which key means forward, how
 // wide the orbit is, how long a lap takes and how bright the sun is. What a
-// camera does about being moved is `scene`'s; this only asks.
+// camera does about being moved is the transform system's; this only asks.
+//
+// THE FLIGHT'S CONSTANTS ARE WHAT "FASTER" AND "MORE SENSITIVE" MEAN. They were
+// `scene`'s camera system's until the camera became a lens (0222) and moved
+// here unchanged, so flying feels exactly as it did.
+//
+// PITCH IS CLAMPED SHORT OF STRAIGHT UP, AND YAW IS WRAPPED AND PITCH IS NOT.
+// Past straight up the view flips over; a yaw that grows without bound loses
+// precision, and a clamped pitch cannot go round at all.
 #include "motion.h"
 
-#include <math/float3.h>
+#include <base/assert.h>
+#include <math/quat.h>
 #include <platform/input.h>
 
 #include <math.h>
 
 // A full turn, radians. main.c keeps its own for the turning cube's spin.
 #define TURN 6.2831853f
+
+// Metres a second, and what Shift multiplies it by.
+#define METRES_PER_SECOND 3.0f
+#define FAST_MULTIPLIER 4.0f
+
+// Radians per unit of whatever the window system calls a mouse delta. Small
+// because the numbers platform hands out are large.
+#define RADIANS_PER_UNIT 0.004f
+
+// Just under a right angle: 89 degrees in radians.
+#define PITCH_LIMIT 1.5533431f
 
 // The orbit: how far out, how high, and how long a lap takes. Three motions that
 // can each be told apart — see voe_dev_orbit().
@@ -68,13 +88,12 @@
 //
 // WHAT IS WRONG IF IT FEELS WRONG, AND EACH OF THESE IS A DIFFERENT MISTAKE:
 //
-//   - The view jumps the moment Tab is pressed — the handover. The orbit stops
-//     submitting placements and the keyboard starts submitting motions, and
-//     because a placement applies before a motion in the same run, the camera
-//     simply continues from where the orbit left it. A jump means one of those
-//     two is submitting when it should not be.
+//   - The view jumps the moment Tab is pressed — the handover. main.c stops
+//     orbiting its flight and starts flying it, so the hand starts from the
+//     last place the orbit reached. A jump means the flight was replaced
+//     rather than carried over.
 //   - The mouse turns the wrong way, or up looks down — a sign in
-//     scene/src/camera_system.c.
+//     voe_dev_fly below.
 //   - Looking straight up or straight down and everything vanishes — the pitch
 //     clamp. Try to look further up than you can; it should simply stop.
 //   - Strafing while looking at the floor sinks into it — right is being taken
@@ -97,52 +116,79 @@
 //   - Watch the `locked` line. Asking to fly asks for the pointer; a compositor
 //     may say no, and then mouse look works only while the cursor happens to be
 //     over the window. That is not a failure and nothing here treats it as one.
-voe_scene_camera_motion voe_dev_camera_motion(voe_platform_window *window,
-					      voe_ecs_entity eye,
-					      float seconds)
+//
+// FORWARD IS WHERE THE EYE LOOKS, RIGHT IS KEPT HORIZONTAL AND UP IS THE
+// WORLD'S: looking at the floor and asking to rise still rises.
+voe_dev_flight voe_dev_fly(voe_platform_window *window, voe_dev_flight flight,
+			   float seconds)
 {
-	voe_scene_camera_motion motion = {
-		.entity = eye,
-		.seconds = seconds,
-	};
+	float forward = 0.0f;
+	float right = 0.0f;
+	float up = 0.0f;
+	float speed = METRES_PER_SECOND;
+	float flat;
+	float length;
+	voe_math_float3 direction;
 	voe_platform_motion mouse;
 
+	VOE_BASE_ASSERT(window != NULL, "flying with no window's keys");
+	VOE_BASE_ASSERT(seconds >= 0.0f, "flying backwards through time");
+
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_W))
-		motion.forward += 1.0f;
+		forward += 1.0f;
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_S))
-		motion.forward -= 1.0f;
+		forward -= 1.0f;
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_D))
-		motion.right += 1.0f;
+		right += 1.0f;
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_A))
-		motion.right -= 1.0f;
+		right -= 1.0f;
 	// Space and E are the same instruction, and so are Ctrl and Q, which is
 	// why each pair is one test and not two. Two tests adding a step each
 	// would make Space and E held together a rise of two: normalizing later
 	// fixes the speed but not the direction.
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_SPACE) ||
 	    voe_platform_input_key_down(window, VOE_PLATFORM_KEY_E))
-		motion.up += 1.0f;
+		up += 1.0f;
 	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_CONTROL) ||
 	    voe_platform_input_key_down(window, VOE_PLATFORM_KEY_Q))
-		motion.up -= 1.0f;
+		up -= 1.0f;
+	if (voe_platform_input_key_down(window, VOE_PLATFORM_KEY_SHIFT))
+		speed *= FAST_MULTIPLIER;
 
-	motion.fast = voe_platform_input_key_down(window,
-						  VOE_PLATFORM_KEY_SHIFT);
-
+	// The mouse turns it. Both signs are subtractions: moving the mouse
+	// right turns right, which is a smaller yaw because a positive yaw turns
+	// left; moving it down looks down, and platform reports +y as down.
 	mouse = voe_platform_input_motion(window);
-	motion.look_x = mouse.x;
-	motion.look_y = mouse.y;
+	flight.yaw = fmodf(flight.yaw - mouse.x * RADIANS_PER_UNIT, TURN);
+	flight.pitch = fmaxf(-PITCH_LIMIT,
+			     fminf(PITCH_LIMIT,
+				   flight.pitch - mouse.y * RADIANS_PER_UNIT));
 
-	return motion;
+	flat = cosf(flight.pitch);
+	direction = (voe_math_float3){
+		-sinf(flight.yaw) * flat * forward + cosf(flight.yaw) * right,
+		sinf(flight.pitch) * forward + up,
+		-cosf(flight.yaw) * flat * forward - sinf(flight.yaw) * right,
+	};
+
+	// Normalized, so holding two keys is not faster than holding one — and
+	// guarded, because asking for nothing is the ordinary case.
+	length = voe_math_float3_length(direction);
+	if (length > 0.0f)
+		flight.eye = voe_math_float3_add(
+			flight.eye,
+			voe_math_float3_scale(direction,
+					      speed * seconds / length));
+	return flight;
 }
 
-// Where the orbit is at this many seconds in, as a placement: an eye and the two
-// angles that look at the origin from it.
+// Where the orbit is at this many seconds in: an eye and the two angles that
+// look at the origin from it.
 //
-// THE CAMERA PATH. The orbit is a function of the loop's clock and it submits a
-// camera placement every frame. It is a demonstration and not a feature: what a
-// camera does about being moved is `scene`'s, and where a camera should be is
-// whatever is driving it.
+// THE CAMERA PATH. The orbit is a function of the loop's clock, and main.c
+// submits its pose every frame. It is a demonstration and not a feature: how a
+// transform is written is `scene`'s, and where a camera should be is whatever
+// is driving it.
 //
 // This is the thing to look at for the rendering, and the reason there are
 // several objects rather than one:
@@ -159,19 +205,18 @@ voe_scene_camera_motion voe_dev_camera_motion(voe_platform_window *window,
 //   - The model does neither: it sits where its file and one transform intent
 //     put it.
 //
-// THE ANGLES ARE WORKED OUT HERE AND NOT LEFT TO THE CAMERA, because a placement
-// is an absolute answer and the camera's job is to hold it, not to guess what it
-// was aimed at. It is also what makes the handover to flying seamless: the last
-// placement the orbit submitted is exactly where the hand takes over from.
-voe_scene_camera_placement voe_dev_orbit(voe_ecs_entity eye, float seconds)
+// THE ANGLES ARE WORKED OUT HERE AND KEPT, because a flight is an absolute
+// answer and not a direction to guess the angles back out of. It is also what
+// makes the handover to flying seamless: the last flight the orbit answered is
+// exactly where the hand takes over from.
+voe_dev_flight voe_dev_orbit(float seconds)
 {
 	float angle = seconds * TURN / ORBIT_SECONDS;
 	voe_math_float3 position = { sinf(angle) * ORBIT_RADIUS, ORBIT_HEIGHT,
 				     cosf(angle) * ORBIT_RADIUS };
 	voe_math_float3 towards = voe_math_float3_normalize(
 		voe_math_float3_neg(position));
-	voe_scene_camera_placement placement = {
-		.entity = eye,
+	voe_dev_flight flight = {
 		.eye = position,
 		.pitch = asinf(towards.y),
 		// Zero yaw looks along -Z and a positive yaw turns towards -X,
@@ -179,7 +224,34 @@ voe_scene_camera_placement voe_dev_orbit(voe_ecs_entity eye, float seconds)
 		.yaw = atan2f(-towards.x, -towards.z),
 	};
 
-	return placement;
+	VOE_BASE_ASSERT(seconds >= 0.0f, "an orbit before the clock started");
+	VOE_BASE_ASSERT(isfinite(flight.yaw) && isfinite(flight.pitch),
+			"an orbit that looks nowhere");
+	return flight;
+}
+
+// The flight as a transform. _mul reads right to left, so the pitch is the one
+// applied first, about the eye's own X, and the yaw then turns the result about
+// +Y: yaw about +Y and then pitch about the turned X (0223). Swap them and the
+// view rolls as it looks up.
+voe_scene_transform voe_dev_flight_pose(voe_dev_flight flight)
+{
+	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
+	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
+	voe_scene_transform pose = {
+		.position = flight.eye,
+		.rotation = voe_math_quat_mul(
+			voe_math_quat_from_axis_angle(UP, flight.yaw),
+			voe_math_quat_from_axis_angle(SIDE, flight.pitch)),
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+
+	VOE_BASE_ASSERT(isfinite(flight.yaw) && isfinite(flight.pitch),
+			"a pose from angles that are not numbers");
+	VOE_BASE_ASSERT(fabsf(voe_math_quat_length(pose.rotation) - 1.0f) <
+				VOE_SCENE_TRANSFORM_ROTATION_TOLERANCE,
+			"a pose whose rotation is not one");
+	return pose;
 }
 
 // Where the sun is pointing at this many seconds in, as an intent.

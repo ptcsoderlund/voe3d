@@ -260,7 +260,11 @@ bool voe_dev_start(struct voe_dev_program *program)
 	// what a panel costs a call site.
 	voe_3d_panel_register(program->world, MAX_ENTITIES);
 
+	// The eye is placed like anything else, where the orbit starts, and its
+	// camera is only the lens it is seen through (0222).
 	if (!voe_ecs_entity_create(program->world, &program->eye) ||
+	    !voe_scene_transform_add(program->world, program->eye,
+				     voe_dev_flight_pose(voe_dev_orbit(0.0f))) ||
 	    !voe_scene_camera_add(program->world, program->eye, camera)) {
 		VOE_BASE_ERROR("dev", "could not make a camera");
 		return false;
