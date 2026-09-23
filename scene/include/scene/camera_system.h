@@ -1,43 +1,29 @@
-// The only way a camera moves: one of two intents, drained by this system.
+// The only way a camera's lens changes: an intent, drained by this system.
 //
-//     voe_scene_camera_register(world, 4);
-//     voe_scene_camera_add(world, eye_entity, (voe_scene_camera){ ... });
+//     voe_scene_transform_register(world, 4096);   // first: a camera needs one
+//     voe_scene_camera_register(world, 1);
+//     voe_scene_camera_add(world, entity, (voe_scene_camera){ ... });
 //
-//     // put it somewhere outright — a scripted path, a cut, a load:
-//     voe_scene_camera_place(world, (voe_scene_camera_placement){
-//             .entity = eye_entity, .eye = where, .yaw = y, .pitch = p });
-//
-//     // or move it by what a person did since the last frame:
-//     voe_scene_camera_move(world, (voe_scene_camera_motion){
-//             .entity = eye_entity, .forward = 1.0f, .look_x = dx,
-//             .seconds = dt });
+//     voe_scene_camera_submit(world, (voe_scene_camera_intent){
+//             .entity = entity, .camera = wider });
 //
 //     voe_scene_camera_system_run(world);
 //
-// TWO INTENTS, BECAUSE THERE ARE TWO DIFFERENT THINGS TO SAY. A placement is an
-// absolute answer and a motion is a relative one, and squeezing them into one
-// type would mean a field that is sometimes a position and sometimes a speed.
-// Within a queue, intents apply in submission order; between the two queues,
-// every placement applies before every motion in the same run. That order is
-// stated rather than discovered because it is the one a handover needs: put the
-// camera where the path had got to, then let the hand move it from there.
+// THE INTENT CARRIES THE WHOLE LENS AND NOT A DELTA, as the transform's carries
+// the whole transform. A submitter reads the current row, changes the field it
+// cares about and submits the result, so two submitters in one frame resolve as
+// last-writer-wins rather than by adding up in an order nobody chose. It is
+// registered as the component's replace intent (ecs/component.h), which is how
+// an inspector that knows nothing about this folder edits a lens.
 //
-// A MOTION IS A DIRECTION AND A DURATION, NOT A DISTANCE. forward, right and up
-// are -1 to 1 in the camera's own frame — except up, which is world up, so
-// looking at the floor and asking to go up still goes up. How fast that is is
-// this system's constant; how long the frame was is the caller's `seconds`,
-// because nothing in the engine can measure a frame yet and the frame loop is
-// the one place that knows what it assumed. A diagonal is not faster than a
-// straight line: the direction is normalized before the speed is applied.
+// A LENS THAT CANNOT PROJECT IS REFUSED AND THE ROW IS KEPT (0223): any number
+// not finite, a fov_y not inside (0, π), a near_plane not above nought, or a
+// far_plane not above the near one. The drain writes one `error:` line to stderr
+// naming the entity and the field, and the last valid row stays.
 //
-// look_x AND look_y ARE THE MOUSE'S OWN NUMBERS, UNSCALED. platform hands out a
-// delta whose scale is the window system's; turning that into an angle needs a
-// sensitivity, and the sensitivity belongs with the camera. +x is right and +y
-// is down, which is what platform reports.
-//
-// `fast` IS A MULTIPLIER'S WORTH AND THE MULTIPLIER IS THIS SYSTEM'S. What key
-// means "faster" is a binding and belongs at a call site; what faster does is
-// here.
+// A CAMERA NEEDS A TRANSFORM, registered as its needed type, and is moved only by
+// transform intents (0222): there is no camera intent that places or turns it,
+// and nothing here reads or writes where it is.
 //
 // IT SETS NO MENU PATH, SO ADD COMPONENT NEVER OFFERS A CAMERA: a scene has
 // exactly one, made with it (0218), and a type without a path is not offered
@@ -45,15 +31,16 @@
 #pragma once
 
 #include <ecs/world.h>
-#include <math/float3.h>
 #include <scene/camera_component.h>
 
 #include <stdint.h>
 
-// Registers the table, both intent queues and the default row: at the origin,
-// looking down -Z, 60° of field of view, planes at 0.1 and 1000. The default row
-// is what "add at default" gives (0190). capacity is how many cameras the
-// world may hold, and how many of each intent may be waiting.
+// Registers the table, its description, the intent queue, the intent as the
+// component's replace, the default row (60° of field of view, planes at 0.1 and
+// 1000) and the transform as the type a camera needs. The default row is what
+// "add at default" gives (0190). The transform must be registered first; that
+// asserts. capacity is how many cameras the world may hold, and how many intents
+// may be waiting.
 void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity);
 
 // False when the table is full or the entity is not alive.
@@ -61,32 +48,17 @@ void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity);
 					voe_ecs_entity entity,
 					voe_scene_camera camera);
 
-// Put the camera exactly here, looking exactly this way. The lens — field of
-// view and the two planes — is not touched.
+// Put this entity's lens where the submitter says.
 typedef struct {
 	voe_ecs_entity entity;
-	voe_math_float3 eye;
-	float yaw;
-	float pitch;
-} voe_scene_camera_placement;
+	voe_scene_camera camera;
+} voe_scene_camera_intent;
 
-// Move and turn it by what happened over `seconds`.
-typedef struct {
-	voe_ecs_entity entity;
-	float forward;
-	float right;
-	float up;
-	float look_x;
-	float look_y;
-	bool fast;
-	float seconds;
-} voe_scene_camera_motion;
+// False when the queue is full.
+[[nodiscard]] bool voe_scene_camera_submit(voe_ecs_world *world,
+					   voe_scene_camera_intent intent);
 
-// Both false only when their queue is full.
-[[nodiscard]] bool voe_scene_camera_place(voe_ecs_world *world,
-					  voe_scene_camera_placement placement);
-[[nodiscard]] bool voe_scene_camera_move(voe_ecs_world *world,
-					 voe_scene_camera_motion motion);
-
-// Applies every placement, then every motion, then empties both queues.
+// Applies every waiting intent in submission order, and empties the queue. An
+// intent naming a destroyed entity, or one with no camera, is dropped silently:
+// an entity dying between a submit and the drain is what a queue costs.
 void voe_scene_camera_system_run(voe_ecs_world *world);

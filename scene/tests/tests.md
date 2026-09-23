@@ -10,9 +10,9 @@ module's promises from outside. None of them needs a window or a graphics card.
   unterminated name arrives cut and a replaced id arrives put back, and that the
   field list a world hands back marks the id read-only. Its header says why half
   of it submits raw rather than through the typed call.
-- `camera.c` — the view matrix, every way of flying one that draws a plausible
-  picture while being wrong, and that the field list a world hands back is the
-  one the compiler laid out. Its header says where these came from.
+- `camera.c` — what registration tells a tool, that the view of a pose is its
+  inverse with roll kept and none when scaled to nothing, and that a whole-lens
+  intent applies a good lens and keeps the row over a bad one.
 - `light.c` — that a direction arrives unit length whichever of the two writes
   it came through, that an intent lands only when the system runs, and that the
   field list a world hands back is the one the compiler laid out. Its header

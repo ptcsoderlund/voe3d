@@ -1,65 +1,30 @@
 // The camera system: registration, creation, and the drain that is the only
-// thing in the engine that moves a camera.
+// thing in the engine that changes a lens.
 //
-// THE CONSTANTS BELOW ARE WHAT "FASTER", "FURTHER" AND "MORE SENSITIVE" MEAN.
-// They were cube.c's when the camera lived in render, and they are unchanged, so
-// flying feels exactly as it did. A card that makes any of them settable is the
-// card that decides where that setting lives; until then they are here, which is
-// the folder that owns what a camera does.
+// THE DRAIN REFUSES RATHER THAN CORRECTS. A lens has no nearest valid value the
+// way a drifted rotation has a unit one: a near plane of nought could become
+// anything above it, and guessing which would put a number in the row nobody
+// asked for. So a refused lens keeps the last valid row, and says so once, on
+// stderr, per intent.
 //
-// PLACEMENTS APPLY BEFORE MOTIONS, AND THAT ORDER IS WHY A HANDOVER DOES NOT
-// JUMP. A frame that ends a scripted path and starts a hand on the keys submits
-// a placement and a motion; applying the placement first means the hand starts
-// from where the path had reached, which is exactly the seam card 015's orbit
-// and card 016's keyboard needed and got with a special case at the time.
-//
-// PITCH IS CLAMPED SHORT OF STRAIGHT UP. At exactly straight up the up vector a
-// look-at needs stops meaning anything and the view matrix goes to pieces, so
-// the clamp is not a nicety.
-//
-// YAW IS WRAPPED AND PITCH IS NOT. Turning round and round is ordinary and a yaw
-// that grows without bound loses precision; a pitch cannot go round at all
-// because of the clamp above.
+// THE ENTITY IS NAMED BY ITS INDEX AND GENERATION. The transform's report looks
+// an identity up for a name; a camera is refused rarely enough, and by a person
+// typing into its one lens, that the number is enough to find it.
 #include <base/assert.h>
 #include <ecs/component.h>
 #include <ecs/intent.h>
 #include <scene/camera_system.h>
 
 #include <math.h>
+#include <stddef.h>
+#include <stdio.h>
 
-// A full turn, radians.
-#define TURN 6.2831853f
+// π as a float, the field of view's upper bound, which it may not reach.
+#define HALF_TURN 3.14159265f
 
-// Metres a second, and what `fast` multiplies it by.
-#define METRES_PER_SECOND 3.0f
-#define FAST_MULTIPLIER 4.0f
-
-// Radians per unit of whatever the window system calls a mouse delta. Small
-// because the numbers platform hands out are large.
-#define RADIANS_PER_UNIT 0.004f
-
-// Just under a right angle: 89 degrees in radians. Straight up is where a
-// look-at's up vector stops meaning anything.
-#define PITCH_LIMIT 1.5533431f
-
-static const struct voe_ecs_key placement_key = {
-	"voe_scene_camera_placement"
+static const struct voe_ecs_key camera_intent_key = {
+	"voe_scene_camera_intent"
 };
-static const struct voe_ecs_key motion_key = { "voe_scene_camera_motion" };
-
-// World up, and it is world up rather than the camera's on purpose: looking at
-// the floor and asking to rise still rises.
-static voe_math_float3 world_up(void)
-{
-	return (voe_math_float3){ 0.0f, 1.0f, 0.0f };
-}
-
-// The camera's own right, kept horizontal. Taking it from the camera's tilted
-// frame instead is what makes strafing while looking down sink into the floor.
-static voe_math_float3 camera_right(float yaw)
-{
-	return (voe_math_float3){ cosf(yaw), 0.0f, -sinf(yaw) };
-}
 
 static const voe_base_struct_description *camera_description(void)
 {
@@ -73,23 +38,27 @@ static const voe_base_struct_description *camera_description(void)
 void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity)
 {
 	voe_ecs_type type;
+	voe_ecs_type transform;
+	voe_ecs_intent intent;
 
 	VOE_BASE_ASSERT(world != NULL, "registering cameras in no world");
 
+	// Asserts when no transform was registered: a camera needs one.
+	transform = voe_ecs_component_type(world, &voe_scene_transform_key);
 	type = voe_ecs_component_register(world, &voe_scene_camera_key,
 					  sizeof(voe_scene_camera), capacity,
 					  camera_description());
-	(void)voe_ecs_intent_register(world, &placement_key,
-				      sizeof(voe_scene_camera_placement),
-				      capacity);
-	(void)voe_ecs_intent_register(world, &motion_key,
-				      sizeof(voe_scene_camera_motion),
-				      capacity);
+	intent = voe_ecs_intent_register(world, &camera_intent_key,
+					 sizeof(voe_scene_camera_intent),
+					 capacity);
+	voe_ecs_component_replace_set(world, type, intent,
+				      offsetof(voe_scene_camera_intent, camera));
 	voe_ecs_component_default_set(
 		world, type,
 		&(voe_scene_camera){ .fov_y = 1.0471976f,
 				     .near_plane = 0.1f,
 				     .far_plane = 1000.0f });
+	voe_ecs_component_needs_set(world, type, transform);
 }
 
 bool voe_scene_camera_add(voe_ecs_world *world, voe_ecs_entity entity,
@@ -108,123 +77,62 @@ bool voe_scene_camera_add(voe_ecs_world *world, voe_ecs_entity entity,
 		entity, &camera);
 }
 
-bool voe_scene_camera_place(voe_ecs_world *world,
-			    voe_scene_camera_placement placement)
+bool voe_scene_camera_submit(voe_ecs_world *world,
+			     voe_scene_camera_intent intent)
 {
-	VOE_BASE_DEBUG_ASSERT(world != NULL, "placing a camera in no world");
+	VOE_BASE_DEBUG_ASSERT(world != NULL, "submitting a lens to no world");
 
 	return voe_ecs_intent_submit(
-		world, voe_ecs_intent_type(world, &placement_key), &placement);
+		world, voe_ecs_intent_type(world, &camera_intent_key), &intent);
 }
 
-bool voe_scene_camera_move(voe_ecs_world *world, voe_scene_camera_motion motion)
+// The field that makes this lens unable to project, or NULL when it can. The
+// comparisons are written so a NaN fails each of them.
+static const char *refused_field(voe_scene_camera camera)
 {
-	VOE_BASE_DEBUG_ASSERT(world != NULL, "moving a camera in no world");
-	VOE_BASE_DEBUG_ASSERT(motion.seconds >= 0.0f,
-			      "moving a camera backwards through time");
-
-	return voe_ecs_intent_submit(
-		world, voe_ecs_intent_type(world, &motion_key), &motion);
-}
-
-static void apply_placement(voe_scene_camera *camera,
-			    const voe_scene_camera_placement *placement)
-{
-	camera->eye = placement->eye;
-	camera->yaw = placement->yaw;
-	camera->pitch = placement->pitch;
-}
-
-static void apply_motion(voe_scene_camera *camera,
-			 const voe_scene_camera_motion *motion)
-{
-	voe_math_float3 direction = { 0.0f, 0.0f, 0.0f };
-	float speed = METRES_PER_SECOND;
-	float length;
-
-	// The mouse turns it. Both signs are subtractions: moving the mouse
-	// right turns the camera right, which is a smaller yaw here because a
-	// positive yaw turns left; moving it down looks down, and platform
-	// reports +y as down.
-	camera->yaw -= motion->look_x * RADIANS_PER_UNIT;
-	camera->pitch -= motion->look_y * RADIANS_PER_UNIT;
-
-	camera->yaw = fmodf(camera->yaw, TURN);
-	camera->pitch = fmaxf(-PITCH_LIMIT, fminf(PITCH_LIMIT, camera->pitch));
-
-	direction = voe_math_float3_add(
-		direction,
-		voe_math_float3_scale(voe_scene_camera_forward(*camera),
-				      motion->forward));
-	direction = voe_math_float3_add(
-		direction, voe_math_float3_scale(camera_right(camera->yaw),
-						 motion->right));
-	direction = voe_math_float3_add(
-		direction, voe_math_float3_scale(world_up(), motion->up));
-
-	if (motion->fast)
-		speed *= FAST_MULTIPLIER;
-
-	// Normalized, so holding two keys is not faster than holding one — and
-	// guarded, because asking for nothing is the ordinary case and dividing
-	// by its length would be a division by zero.
-	length = voe_math_float3_length(direction);
-	if (length > 0.0f)
-		camera->eye = voe_math_float3_add(
-			camera->eye,
-			voe_math_float3_scale(direction,
-					      speed * motion->seconds / length));
+	if (!(isfinite(camera.fov_y) && camera.fov_y > 0.0f &&
+	      camera.fov_y < HALF_TURN))
+		return "fov_y";
+	if (!(isfinite(camera.near_plane) && camera.near_plane > 0.0f))
+		return "near_plane";
+	if (!(isfinite(camera.far_plane) &&
+	      camera.far_plane > camera.near_plane))
+		return "far_plane";
+	return NULL;
 }
 
 void voe_scene_camera_system_run(voe_ecs_world *world)
 {
 	voe_ecs_type type;
-	voe_ecs_intent placements;
-	voe_ecs_intent motions;
-	const voe_scene_camera_placement *placed;
-	const voe_scene_camera_motion *moved;
+	voe_ecs_intent intents;
+	const voe_scene_camera_intent *queue;
 	uint32_t count;
 
 	VOE_BASE_DEBUG_ASSERT(world != NULL, "running the camera system on no world");
 
 	type = voe_ecs_component_type(world, &voe_scene_camera_key);
-	placements = voe_ecs_intent_type(world, &placement_key);
-	motions = voe_ecs_intent_type(world, &motion_key);
+	intents = voe_ecs_intent_type(world, &camera_intent_key);
+	queue = voe_ecs_intent_queue(world, intents);
+	count = voe_ecs_intent_count(world, intents);
 
-	// Read, change, write back. The component is copied out rather than
-	// written through, because a table hands out const rows and the write is
-	// a set — which is also what makes an intent naming a destroyed entity
-	// fall out as a false the loop can ignore.
-	placed = voe_ecs_intent_queue(world, placements);
-	count = voe_ecs_intent_count(world, placements);
 	for (uint32_t i = 0; i < count; i++) {
-		const voe_scene_camera *row =
-			voe_ecs_component_get(world, type, placed[i].entity);
-		voe_scene_camera camera;
+		voe_ecs_entity entity = queue[i].entity;
+		const char *field;
 
-		if (row == NULL)
+		if (voe_ecs_component_get(world, type, entity) == NULL)
 			continue;
-		camera = *row;
-		apply_placement(&camera, &placed[i]);
-		(void)voe_ecs_component_set(world, type, placed[i].entity,
-					    &camera);
+		field = refused_field(queue[i].camera);
+		if (field != NULL) {
+			fprintf(stderr,
+				"error: camera %uv%u: %s refused, lens kept\n",
+				entity.index, entity.generation, field);
+			continue;
+		}
+		(void)voe_ecs_component_set(world, type, entity,
+					    &queue[i].camera);
 	}
 
-	moved = voe_ecs_intent_queue(world, motions);
-	count = voe_ecs_intent_count(world, motions);
-	for (uint32_t i = 0; i < count; i++) {
-		const voe_scene_camera *row =
-			voe_ecs_component_get(world, type, moved[i].entity);
-		voe_scene_camera camera;
-
-		if (row == NULL)
-			continue;
-		camera = *row;
-		apply_motion(&camera, &moved[i]);
-		(void)voe_ecs_component_set(world, type, moved[i].entity,
-					    &camera);
-	}
-
-	voe_ecs_intent_clear(world, placements);
-	voe_ecs_intent_clear(world, motions);
+	voe_ecs_intent_clear(world, intents);
+	VOE_BASE_DEBUG_ASSERT(voe_ecs_intent_count(world, intents) == 0,
+			      "a drained camera queue still holds intents");
 }

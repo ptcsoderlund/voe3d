@@ -16,13 +16,13 @@ space is.
   the component's replace, and the call that creates one. Its header says why
   the intent is whole, why creation is not one, why only the drain checks a
   rotation, why the report is per process, and its menu path.
-- `include/scene/camera_component.h` — eye, yaw, pitch, field of view and the two
-  planes, written as a described field list, and the view matrix. Its header says why the projection is not built
-  here and why orientation is two angles.
-- `include/scene/camera_system.h` — the two camera intents, absolute and
-  relative. Its header says why there are two, in which order they apply, and
-  which of the numbers a caller passes are the mouse's own, and why Add
-  component never offers one.
+- `include/scene/camera_component.h` — the lens only: field of view and the two
+  planes, as a described field list, and the view from a pose. Its header says
+  why the pose is the transform, why the view is the plain inverse, and why the
+  projection is not built here.
+- `include/scene/camera_system.h` — the whole-lens intent, registered as the
+  camera's replace, and the transform a camera needs. Its header says why the
+  intent is whole, what lens is refused, and why Add component never offers one.
 - `include/scene/identity_component.h` — a 64-bit id and a 64-byte name on the
   entities a person authored, the id read-only. Its header says why the
   component's presence is the whole of what "authored" means, why the id is
