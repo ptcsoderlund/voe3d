@@ -20,7 +20,8 @@
 // `voe_editor_dock_arrange` says where every node and seam is without a `ui`
 // frame, so a border can be hit-tested before anything is drawn. The two scene
 // views divide by their split's `fraction`, the views' share (0228, 0229): a
-// share and not a length, so it holds as the window changes.
+// share and not a length, so it holds as the window changes. Their seam is
+// drawn as a dark and a light stripe, so it shows over any picture (0230).
 //
 // NO FUNCTION POINTER LIVES IN THIS FOLDER. A leaf names a panel from the
 // enumeration below and `voe_editor_panel_draw` is one function with a `switch`
@@ -34,6 +35,7 @@
 
 #include <math/float2.h>
 #include <ui/layout.h>
+#include <ui/theme.h>
 #include <ui/widgets.h>
 
 #include <stdint.h>
@@ -242,9 +244,13 @@ void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 // voe_editor_panel_draw is called from inside the walk and a panel's contents
 // are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
 // folder reaching for a global.
+//
+// `palette` is the one in force, read only to draw the views' seam's two
+// stripes (0230); no panel is handed it.
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
-			  voe_editor_scene *scene, voe_editor_views *views);
+			  const voe_ui_theme *palette, voe_editor_scene *scene,
+			  voe_editor_views *views);
 
 // What is on one panel. One function, one `switch`, no table and no function
 // pointer; a panel's contents are ordinary `ui` calls and the tree above owns

@@ -199,6 +199,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       session->project->unsaved,
 				       session->notice.text);
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
+				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views);
 		// ANCHORED, SO ITS PLACE IN THIS CALL ORDER DOES NOT MATTER TO
 		// WHERE IT PAINTS (ui/layout.h) — it is called here, after the

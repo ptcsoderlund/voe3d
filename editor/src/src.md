@@ -72,7 +72,7 @@ carries it out.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree, whose splits hold a side panel's length in millimetres or the views' share,
-  the arrangement of every node and seam, the walk, and `voe_editor_panel_draw`, where the panels'
+  the arrangement of every node and seam (the views' in two stripes), the walk and `voe_editor_panel_draw`, where the panels'
   contents are; a root carries this frame's keyboard beside its pointer.
 - `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
   the walk to one frame of `ui` calls, the held lengths and share read and set, the Inspector's
