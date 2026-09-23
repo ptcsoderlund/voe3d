@@ -58,8 +58,8 @@ carries it out.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
-  force marked, three sliders for that theme's contrast, separation and text size with a Reset button, and Close, as an
-  anchored panel over the dock.
+  force marked, three sliders for that theme's contrast, separation and text size with a Reset
+  button, and Close, as an anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an anchored panel over the
