@@ -51,11 +51,12 @@
 // far the panel is scrolled. It is voe_editor_inspector_overlay_place, and Add
 // component's list is placed by it too: that list opens and closes as the
 // open list does, and a fired type's row adds the type (inspector.h). A group
-// row opens its submenu, closing every group open at its level or deeper; a
-// press closes the menu only outside every open list and the button. A submenu
-// sits right of its list, or left when the area has no room there, its top at
-// its row's top, fitted by the same side-and-cap rule with the row as the
-// widget (ADR-0221). scene.h holds this struct, so it is named by its tag.
+// row opens its submenu, closing every group open at its level or deeper. A
+// submenu sits right of its list when its whole width fits before the right of
+// the area's visible rectangle, both in the surface's millimetres, else left of
+// it, and is then moved wholly inside that rectangle; its top is its row's,
+// fitted by the side-and-cap rule with the row as the widget (ADR-0221).
+// scene.h holds this struct, so it is named by its tag.
 #pragma once
 
 #include "inspector.h"
@@ -85,10 +86,14 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 // voe_editor_scene_duplicate or voe_editor_scene_delete on `scene`, and
 // whichever Remove or Add component choice did, through entities.h on the
 // entity they were drawn for, and opens the picker on whichever swatch did — counting one in scene->structural, or setting
-// scene->full when refused. Add component toggles its list, which a press
-// outside it and its button closes; `down` is the pointer's primary button this
-// frame and `at` is where the pointer is this frame, in the surface's
-// millimetres. It takes the place as well as the button because a press is only
+// scene->full when refused. Add component toggles its menu, and once it is open
+// only these close it (ADR-0221): a type row fired, which adds it and closes
+// all; another group row fired, which closes that level and deeper; a press
+// outside every open list's visible rectangle and the button; Escape, through
+// voe_editor_inspector_add_close; and a frame that drew another entity than the
+// one it opened for. `down` is the pointer's primary button this frame, a
+// level, and a press is its down edge against last frame's, never the level;
+// `at` is where the pointer is this frame, in the surface's millimetres. It takes the place as well as the button because a press is only
 // the press on nothing that closes the open list when it landed outside that
 // list. Called in the same window as voe_editor_inspector_edits_read and before
 // the Scene panel's clicks can move the selection the buttons were drawn for.

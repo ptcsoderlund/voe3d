@@ -394,9 +394,16 @@ voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
 
 // Where a submenu goes this frame (ADR-0221): its left edge at the right edge
 // of `from`, the list it opened from, and its top at `row`'s top; its right
-// edge at `from`'s left edge instead when the panel's area has no room for it
-// on the right; and vertically side_and_cap with the row as the widget. `list`
-// VOE_UI_NODE_NONE, not drawn yet, goes to the right uncapped.
+// edge at `from`'s left edge instead when its whole width does not fit before
+// the right of the area's visible rectangle; and vertically side_and_cap with
+// the row as the widget. `list` VOE_UI_NODE_NONE, not drawn yet, goes to the
+// right uncapped.
+//
+// EITHER SIDE IS THEN MOVED WHOLLY INSIDE THAT RECTANGLE, over `from` if need
+// be. A narrow Inspector has no room on either side of a list that starts at
+// its left edge, and "else left" alone put the submenu wholly left of the area,
+// clipped to nothing: it showed for the one frame it was not yet measured and
+// then vanished, and a press on where it had been counted as outside.
 static voe_editor_inspector_place
 submenu_place(const voe_editor_inspector *inspector, const voe_ui_context *ui,
 	      voe_ui_node from, voe_ui_node row, voe_ui_node list,
@@ -424,6 +431,10 @@ submenu_place(const voe_editor_inspector *inspector, const voe_ui_context *ui,
 
 		if (left + width > w.min.x + w.size.x)
 			left = f.min.x - width;
+		if (left + width > w.min.x + w.size.x)
+			left = w.min.x + w.size.x - width;
+		if (left < w.min.x)
+			left = w.min.x;
 		fit = side_and_cap(ui, w, list, rows, r.min.y,
 				   r.min.y + r.size.y, r.size.y);
 	}
