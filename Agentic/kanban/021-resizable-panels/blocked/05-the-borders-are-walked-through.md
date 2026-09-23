@@ -20,3 +20,8 @@ left-right arrow over the Scene list's and the Inspector's borders and an up-dow
 each drag resizes its panel as it moves; the side panels stop at a usable width and the bar at its content;
 the two side panels dragged together leave the views room; a double-click puts one size back and leaves the
 others; after a restart, and on another project, the sizes are as left.
+
+## Blocked
+`checks.sh --all` still has one finding outside `editor`: `platform/tests/tests.md`'s `input.c` entry is
+322 characters against a cap of 300 (lengthened by card 01); the `editor/src/settings.c` finding is fixed
+here. A `platform` card trimming that entry unblocks it; the human's walk of `feature.md` has not been seen.

@@ -59,20 +59,27 @@ static size_t key_of(const char *line)
 	return KEY_COUNT;
 }
 
-// The whole file, NUL-terminated, pushed into scratch, and its folder in
-// *dir. NULL when there is no settings folder or no file; *dir is NULL only
-// when there is no settings folder.
-static char *file_text(voe_base_arena *scratch, const char **dir)
+// The file's folder, pushed into scratch; NULL when there is no settings
+// folder.
+static const char *settings_dir(voe_base_arena *scratch)
 {
 	const char *settings = voe_platform_folder_settings(scratch);
+
+	if (settings == NULL)
+		return NULL;
+	return voe_platform_path_join(scratch, settings, SETTINGS_FOLDER);
+}
+
+// The whole file in dir, NUL-terminated, pushed into scratch. NULL when dir
+// is NULL or there is no file.
+static char *file_text(voe_base_arena *scratch, const char *dir)
+{
 	const char *path;
 	size_t size;
 
-	*dir = NULL;
-	if (settings == NULL)
+	if (dir == NULL)
 		return NULL;
-	*dir = voe_platform_path_join(scratch, settings, SETTINGS_FOLDER);
-	path = voe_platform_path_join(scratch, *dir, SETTINGS_FILE);
+	path = voe_platform_path_join(scratch, dir, SETTINGS_FILE);
 	if (!voe_platform_file_exists(path))
 		return NULL;
 	return (char *)voe_platform_file_read(path, scratch, &size, NULL);
@@ -91,7 +98,8 @@ void voe_editor_settings_read(voe_editor_settings *settings)
 	VOE_BASE_ASSERT(settings != NULL, "reading settings into nothing");
 
 	scratch = voe_base_arena_new(SETTINGS_SCRATCH);
-	for (line = file_text(scratch, &dir); line != NULL && *line != '\0';
+	dir = settings_dir(scratch);
+	for (line = file_text(scratch, dir); line != NULL && *line != '\0';
 	     line = next) {
 		next = line + strcspn(line, "\n");
 		if (*next == '\n')
@@ -143,7 +151,8 @@ bool voe_editor_settings_write(const voe_editor_settings *settings)
 
 	copy = *settings;
 	scratch = voe_base_arena_new(SETTINGS_SCRATCH);
-	old = file_text(scratch, &dir);
+	dir = settings_dir(scratch);
+	old = file_text(scratch, dir);
 	// `<settings>` itself may be missing on a first write ever.
 	if (dir != NULL &&
 	    ensure_folder(voe_platform_folder_settings(scratch), scratch) &&
