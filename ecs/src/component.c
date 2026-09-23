@@ -1,7 +1,7 @@
 // The component tables: registration, the two directions between an entity and
 // its row, and what a removal does to the order. Also what a registration is
-// given afterwards and only hands back: the replace intent, the default row and
-// the type a type needs.
+// given afterwards and only hands back: the replace intent, the default row, the
+// type a type needs and the menu path.
 //
 // A ROW IS FOUND BY INDEXING TWICE AND NOT BY SEARCHING. row_of[entity.index] is
 // the row, and owners[row] is the entity — one load each way, no hashing and no
@@ -124,6 +124,7 @@ voe_ecs_type voe_ecs_component_register(
 	table->default_row = NULL;
 	table->needs = (voe_ecs_type){ 0 };
 	table->needs_set = false;
+	table->menu = NULL;
 
 	for (uint32_t i = 0; i < world->entity_capacity; i++)
 		table->row_of[i] = VOE_ECS_NO_ROW;
@@ -291,6 +292,25 @@ bool voe_ecs_component_needs(const voe_ecs_world *world, voe_ecs_type type,
 
 	*out = table->needs;
 	return true;
+}
+
+void voe_ecs_component_menu_set(voe_ecs_world *world, voe_ecs_type type,
+				const char *path)
+{
+	struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_ASSERT(path != NULL && path[0] != '\0',
+			"giving a component type an empty menu path");
+	VOE_BASE_ASSERT(table->menu == NULL,
+			"giving a component type a second menu path");
+
+	table->menu = path;
+}
+
+const char *voe_ecs_component_menu(const voe_ecs_world *world,
+				   voe_ecs_type type)
+{
+	return table_at(world, type)->menu;
 }
 
 bool voe_ecs_component_add(voe_ecs_world *world, voe_ecs_type type,

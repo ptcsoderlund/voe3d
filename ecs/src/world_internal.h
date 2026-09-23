@@ -51,10 +51,12 @@ struct voe_ecs_table {
 
 	// The type's default row, `size` bytes pushed when it is set, NULL until
 	// then. And the type its rows need beside them, stored and never read
-	// here; needs_set tells "none" from type zero.
+	// here; needs_set tells "none" from type zero. And where a tool offers
+	// the type, the declaring folder's string, NULL until set, never read.
 	unsigned char *default_row;
 	voe_ecs_type needs;
 	bool needs_set;
+	const char *menu;
 };
 
 // What a structural request asks for.

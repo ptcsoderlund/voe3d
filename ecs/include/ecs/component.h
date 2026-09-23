@@ -229,6 +229,20 @@ void voe_ecs_component_needs_set(voe_ecs_world *world, voe_ecs_type type,
 bool voe_ecs_component_needs(const voe_ecs_world *world, voe_ecs_type type,
 			     voe_ecs_type *out);
 
+// A DESCRIBED TYPE MAY ALSO HAVE A MENU PATH (0217, 0221): where a tool offers
+// the type, as parts split on `/` — "Rendering / Shape" is the entry "Shape" in
+// the group "Rendering". Stored and handed back like the rest; ecs never parses
+// or reads it. The string is the declaring folder's and must outlive the world.
+//
+// Sets the path of `type`. Once per type: a second call, or a NULL or empty
+// `path`, asserts.
+void voe_ecs_component_menu_set(voe_ecs_world *world, voe_ecs_type type,
+				const char *path);
+
+// The menu path, or NULL when none was set.
+const char *voe_ecs_component_menu(const voe_ecs_world *world,
+				   voe_ecs_type type);
+
 // The type registered against that key. Asserts if nothing was — a module asking
 // for its own type before it registered it is a bug in the order the program
 // starts up, not a thing to handle.
