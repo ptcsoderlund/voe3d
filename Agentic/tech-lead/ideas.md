@@ -33,6 +33,15 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
 - **Rotate and scale gizmos**, and a toggle for the move gizmo to follow the entity's own axes rather than the
-  world's (left out of 015 on purpose, 2026-09-19).
+  world's (left out of 015 on purpose, 2026-09-19). The sponsor would like the rotate gizmo drawn on top of the
+  move gizmo, both at once, in world space (2026-09-23); typing rotation in the Inspector does until then.
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
+- **An asset browser** where a project stores its assets and prefabs (sponsor, 2026-09-23). Not on 0186's road
+  until the coin game needs it; duplicating an entity covers twenty coins. Prefabs and a scene clone (above)
+  would land here when it comes.
+- **A view recorder**: something in the game that films from its own place and renders to a texture, for a
+  security camera on a screen or anything else that must film in game (sponsor, 2026-09-23). Not a second camera
+  (0218); builds on render to a texture (003).
+- **A UI scale** that grows panels, rows and everything with it, beside 0219's text size (sponsor, 2026-09-23).
+  Per-element overrides of a theme setting are the other half (0194).
