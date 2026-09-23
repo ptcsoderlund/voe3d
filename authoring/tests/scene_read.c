@@ -203,9 +203,6 @@ static const char *const canonical =
 	"[1]\n"
 	"name = \"Camera\"\n"
 	"[1.voe_scene_camera]\n"
-	"eye = [0, 2, 5]\n"
-	"yaw = 0\n"
-	"pitch = -0.25\n"
 	"fov_y = 1.25\n"
 	"near_plane = 0.1\n"
 	"far_plane = 100\n"
@@ -258,7 +255,7 @@ static void test_round_trip_text_first(void)
 
 	VOE_TEST_CHECK(reference != NULL && reference->target.index == floor.index &&
 		       reference->target.generation == floor.generation);
-	VOE_TEST_CHECK(camera != NULL && camera->pitch == -0.25f &&
+	VOE_TEST_CHECK(camera != NULL && camera->fov_y == 1.25f &&
 		       camera->far_plane == 100.0f);
 	VOE_TEST_CHECK(strcmp(voe_scene_identity_get(world, cube)->name,
 			      "Cube \"big\"") == 0);
@@ -349,10 +346,12 @@ static void test_round_trip_world_first(void)
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
+	VOE_TEST_CHECK(voe_scene_transform_add(first, eye, (voe_scene_transform){
+		.position = { 0.0f, 1.7f, 4.0f },
+		.rotation = { -0.09933467f, 0.04983342f, 0.0049667f, 0.99374009f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	}));
 	VOE_TEST_CHECK(voe_scene_camera_add(first, eye, (voe_scene_camera){
-		.eye = { 0.0f, 1.7f, 4.0f },
-		.yaw = 0.1f,
-		.pitch = -0.2f,
 		.fov_y = 1.0471976f,
 		.near_plane = 0.05f,
 		.far_plane = 1000.0f,
@@ -453,8 +452,14 @@ static void test_refusals(void)
 	CHECK_REFUSED(GOOD "[2]\nname = \"b\"\n[2.voe_scene_transform]\n"
 			   "position = [0, 1.2.3, 0]\nrotation = [0, 0, 0, 1]\n"
 			   "scale = [1, 1, 1]\n");
-	CHECK_REFUSED(GOOD "[2]\nname = \"b\"\n[2.voe_scene_camera]\nyaw = nan\n");
-	CHECK_REFUSED(GOOD "[2]\nname = \"b\"\n[2.voe_scene_camera]\nyaw = 1e39\n");
+	CHECK_REFUSED(GOOD "[2]\nname = \"b\"\n[2.voe_scene_camera]\nfov_y = nan\n"
+			   "[2.voe_scene_transform]\n"
+			   "position = [0, 0, 0]\nrotation = [0, 0, 0, 1]\n"
+			   "scale = [1, 1, 1]\n");
+	CHECK_REFUSED(GOOD "[2]\nname = \"b\"\n[2.voe_scene_camera]\nfov_y = 1e39\n"
+			   "[2.voe_scene_transform]\n"
+			   "position = [0, 0, 0]\nrotation = [0, 0, 0, 1]\n"
+			   "scale = [1, 1, 1]\n");
 	// bool = 1.
 	CHECK_REFUSED(GOOD "[2]\nname = \"b\"\n[2.test_sample]\nflag = 1\n");
 	// A vector with two numbers.
