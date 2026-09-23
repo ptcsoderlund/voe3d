@@ -39,3 +39,10 @@ and the picture follows; a typed rotation turns the lines and the picture, a typ
 narrows both; Delete, Ctrl+D and the Inspector offer no way to delete, duplicate or remove its camera; Add
 component on another entity offers no camera; undo and redo take back and restore the move and the rotation;
 a saved, closed and reopened project has the camera where it was left, aimed the same way.
+
+## Blocked
+The capture is written (1280x720 PNG, no capacity line on stderr) and `checks.sh --folder editor` is clean after
+trimming the `view.h` entry in `editor/src/src.md`, but `checks.sh --all` exits 1 on five findings in the `3d`
+folder: `3d/include/3d/3d.md` does not list `camera_marker.h`, and the `pick.c` and `draw_system.c` entries in
+`3d/src/src.md` and `3d/tests/tests.md` are over the 300-character cap. A card in `3d` that fixes those tables
+of contents unblocks this; the human walk of `feature.md`'s nine steps has not been seen.

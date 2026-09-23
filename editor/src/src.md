@@ -99,7 +99,7 @@ carries it out.
   boxes a kind is worth.
 - `view.h` — a scene view: its orbit's pose and lens, its target and the middle-button drag, which view a pointer
   is over and where in that view's picture it lands, the light, the outline colour and the gizmo's
-  colour a view is drawn with, and the 480×270 preview of what the world's camera sees.
+  colour a view is drawn with, the 480×270 preview of what the world's camera sees.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, their targets, the world's first light row and the lighter half
   of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
