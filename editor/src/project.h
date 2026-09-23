@@ -18,10 +18,10 @@
 // arena before the first read, so clearing this one is always right.
 //
 // THE WORLD'S REGISTRATIONS ARE THIS FILE'S, NOT main.c'S. Every project's
-// world holds the same seven component types with the same room — transform,
-// identity, light, shape, mesh, material, panel — whether it is the untitled
-// scene or one read off disk, so there is exactly one place that decides the
-// capacities and calls the seven _register functions.
+// world holds the same eight component types with the same room — transform,
+// identity, light, camera, shape, mesh, material, panel — whether it is the
+// untitled scene or one read off disk, so there is exactly one place that
+// decides the capacities and calls the eight _register functions.
 //
 // voe_editor_project_new_opened READS project.voe3d, THEN THE SCENE IT NAMES.
 // Each step clears base/report.h's kept error first, so a failure's notice is
@@ -86,13 +86,16 @@ typedef struct {
 	bool unsaved;
 } voe_editor_project;
 
-// The untitled scene: one cube and the light that shows it, in a fresh world,
-// with no folder. Cannot fail: nothing here uploads to a device or opens a
-// file, and the room the two entities need is this file's own to size.
+// The untitled scene: one cube, the light that shows it and the scene's one
+// camera, in a fresh world, with no folder. Cannot fail: nothing here uploads
+// to a device or opens a file, and the room the three entities need is this
+// file's own to size.
 voe_editor_project *voe_editor_project_new_untitled(void);
 
 // Opens the project at folder. NULL on failure, with why naming the file the
-// failing step was on and what was wrong with it — see the header above.
+// failing step was on and what was wrong with it — see the header above. A
+// scene with no camera (written before 0218) is given one, with an id above
+// every id it holds, and the project comes back marked unsaved.
 [[nodiscard]] voe_editor_project *voe_editor_project_new_opened(const char *folder,
 								 voe_editor_notice *why);
 
