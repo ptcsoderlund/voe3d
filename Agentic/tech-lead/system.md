@@ -48,8 +48,7 @@ rules are decision 0168.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
 - 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
-- 0197, 0219, 0220, 0224, 0225 — Sliders and a text scale per theme; layout fits content, the top bar
-  its last measure; panel sizes are global.
+- 0197, 0219, 0220, 0224, 0225 — Sliders and a text scale per theme; layout fits; sizes are global.
 - 0192, 0199, 0200 — `ui` holds one focus; an overlay belongs to its widget and fits.
 - 0201, 0214 — The fastest card is the best kind then the largest memory; one line says which.
 - 0202–0204 — A click picks by a ray against the shapes' triangles; outline quads; undo is scene texts.
