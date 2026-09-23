@@ -7,7 +7,9 @@
 // THE ORBIT OWNS THE EYE. A view's yaw, pitch, focus and distance are what the
 // drag changes, and the eye is always put back at the focus minus the distance
 // along the direction the camera looks — so the camera looks at its focus by
-// construction and nothing has to aim it.
+// construction and nothing has to aim it. That still holds while a view flies:
+// the fly turns about the eye by moving the focus to stay `distance` ahead, and
+// moves the eye and the focus together, then puts the eye back as the orbit does.
 #include "view.h"
 
 #include <base/assert.h>
@@ -27,6 +29,12 @@
 #define ORBIT_RADIANS_PER_MILLIMETRE 0.02f
 #define PAN_METRES_PER_MILLIMETRE 0.02f
 #define DOLLY_METRES_PER_MILLIMETRE 0.05f
+
+// The fly's rates (0233): radians per unit of the platform's pointer motion,
+// metres a second, and how many times that while `fast` is held.
+#define FLY_RADIANS_PER_UNIT 0.004f
+#define FLY_METRES_PER_SECOND 4.0f
+#define FLY_FAST 3.0f
 
 // How close a dolly may bring the eye to the focus. Above nought, because an eye
 // on its focus has no direction to look in.
@@ -84,7 +92,8 @@ bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
 	VOE_BASE_ASSERT(gpu != NULL, "creating views on no device");
 
 	*views = (voe_editor_views){ .count = VOE_EDITOR_VIEWS_IN_USE,
-				     .captured = VOE_EDITOR_VIEW_NONE };
+				     .captured = VOE_EDITOR_VIEW_NONE,
+				     .flying = VOE_EDITOR_VIEW_NONE };
 
 	for (uint32_t i = 0; i < VOE_EDITOR_VIEWS; i++)
 		views->views[i].image = VOE_UI_NODE_NONE;
@@ -285,7 +294,9 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 	VOE_BASE_ASSERT(views != NULL, "dragging no views");
 
 	if (middle && !views->middle_was_down)
-		views->captured = view_under(views, pointer);
+		views->captured = views->flying == VOE_EDITOR_VIEW_NONE ?
+					  view_under(views, pointer) :
+					  VOE_EDITOR_VIEW_NONE;
 	else if (middle && views->captured != VOE_EDITOR_VIEW_NONE)
 		drag_view(&views->views[views->captured],
 			  voe_math_float2_sub(pointer, views->pointer), shift,
@@ -295,6 +306,73 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 
 	views->middle_was_down = middle;
 	views->pointer = pointer;
+}
+
+// THE SIGNS of the fly. Moving the pointer right turns the view right, which is
+// yaw falling; moving it down looks down, which is pitch falling. The eye stays
+// and the focus is put `distance` ahead of it along the new look.
+static void fly_view(voe_editor_view *view, voe_math_float2 turn,
+		     voe_editor_fly_keys keys, float seconds)
+{
+	view->yaw -= turn.x * FLY_RADIANS_PER_UNIT;
+	view->pitch -= turn.y * FLY_RADIANS_PER_UNIT;
+	if (view->pitch > PITCH_LIMIT)
+		view->pitch = PITCH_LIMIT;
+	if (view->pitch < -PITCH_LIMIT)
+		view->pitch = -PITCH_LIMIT;
+
+	voe_math_float3 forward = orbit_forward(view);
+	voe_math_float3 right = { cosf(view->yaw), 0.0f, -sinf(view->yaw) };
+	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_math_float3 way = { 0.0f, 0.0f, 0.0f };
+
+	view->focus = voe_math_float3_add(
+		view->eye, voe_math_float3_scale(forward, view->distance));
+
+	way = voe_math_float3_add(
+		way, voe_math_float3_scale(forward, (float)keys.forward -
+							    (float)keys.back));
+	way = voe_math_float3_add(
+		way, voe_math_float3_scale(right, (float)keys.right -
+							  (float)keys.left));
+	way = voe_math_float3_add(
+		way, voe_math_float3_scale(up, (float)keys.up - (float)keys.down));
+
+	if (voe_math_float3_length(way) > 0.0f) {
+		voe_math_float3 step = voe_math_float3_scale(
+			voe_math_float3_normalize(way),
+			FLY_METRES_PER_SECOND * (keys.fast ? FLY_FAST : 1.0f) *
+				seconds);
+
+		view->eye = voe_math_float3_add(view->eye, step);
+		view->focus = voe_math_float3_add(view->focus, step);
+	}
+
+	orbit_place(view);
+}
+
+bool voe_editor_views_fly(voe_editor_views *views, voe_math_float2 pointer,
+			  bool right, voe_math_float2 turn,
+			  voe_editor_fly_keys keys, float seconds)
+{
+	VOE_BASE_ASSERT(views != NULL, "flying no views");
+	VOE_BASE_ASSERT(seconds >= 0.0f, "flying for a time before now");
+
+	if (right && !views->right_was_down)
+		views->flying = views->captured == VOE_EDITOR_VIEW_NONE ?
+					view_under(views, pointer) :
+					VOE_EDITOR_VIEW_NONE;
+	else if (!right)
+		views->flying = VOE_EDITOR_VIEW_NONE;
+
+	if (views->flying != VOE_EDITOR_VIEW_NONE)
+		fly_view(&views->views[views->flying], turn, keys, seconds);
+
+	views->right_was_down = right;
+	VOE_BASE_ASSERT(views->flying == VOE_EDITOR_VIEW_NONE ||
+				views->flying < views->count,
+			"flying a view that is not in use");
+	return views->flying != VOE_EDITOR_VIEW_NONE;
 }
 
 bool voe_editor_views_under(const voe_editor_views *views,
