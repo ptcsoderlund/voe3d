@@ -9,10 +9,12 @@
 // number a drag writes, through resize.h, and voe_editor_dock_arrange is the
 // one division both the walk and a drag read.
 //
-// THE SEAM IS A GAP AND NOT A DRAWN DIVIDER. A millimetre is taken off the
-// split's length before it is divided, and neither child fills it, so two
-// panels read as two regions rather than as one. Nothing draws in it; the
-// arrangement's `seam` is the rectangle resize.h hit-tests for a border.
+// A SEAM IS A MILLIMETRE NEITHER CHILD FILLS. It is taken off the split's
+// length before it is divided and drawn in the border colour, so it reads
+// like every other border; the reached one is drawn as the inverse pair,
+// `inverse_ink` beside `inverse`, which shows over any picture in any theme
+// (0194, 0196, 0231, 0232). The arrangement's `seam` is still the rectangle
+// resize.h hit-tests for a border.
 //
 // THE TREE IS WRAPPED IN A ROW OF ITS OWN, WHICH IS ONE NODE AND IS NOT
 // CEREMONY. `ui` needs a row or a column to hold a leaf's panel (see
@@ -62,6 +64,8 @@
 #include <scene/camera_component.h>
 #include <scene/identity_component.h>
 #include <scene/transform_component.h>
+
+#include <ui/colour.h>
 
 // Every leaf's own surface is the theme's ordinary SURFACE, the same role for
 // all of them. The two regions are told apart by the seam between them and by
@@ -145,6 +149,16 @@ static float need_along(const voe_editor_dock_tree *tree, uint32_t index,
 	return first + SEAM + second;
 }
 
+// `length` within a place's least..most, `most` winning so the other side's
+// room is kept, and never below nought.
+static float clamp_to_place(const voe_editor_dock_place *place, float length)
+{
+	VOE_BASE_ASSERT(place != NULL, "clamping to no place");
+	VOE_BASE_ASSERT(!isnan(length), "clamping a length that is not a number");
+
+	return fmaxf(fminf(fmaxf(length, place->least), place->most), 0.0f);
+}
+
 static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 			 voe_ui_rect rect, uint32_t depth,
 			 voe_editor_dock_arrangement *out)
@@ -156,7 +170,9 @@ static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 	bool row;
 	float along;
 	float share;
+	float wanted;
 	float first;
+	bool sized_first;
 
 	VOE_BASE_ASSERT(depth < VOE_EDITOR_DOCK_DEPTH,
 			"a dock tree deeper than VOE_EDITOR_DOCK_DEPTH — the child indices are a cycle, or this is not the shallow tree a dock is");
@@ -178,24 +194,24 @@ static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 	along = row ? rect.size.x : rect.size.y;
 	share = fmaxf(along - SEAM, 0.0f);
 
+	// The sized child is the held one, or the first when the split divides
+	// by `fraction`; its bounds are its own need and the rest less the other
+	// side's, so a scene view keeps VIEW_ROOM either side of the views' seam.
 	if (node->hold == VOE_EDITOR_DOCK_HOLD_FRACTION) {
 		VOE_BASE_ASSERT(node->fraction > 0.0 && node->fraction < 1.0,
 				"a dock split whose fraction is not between nought and one");
-		first = (float)((double)share * node->fraction);
+		wanted = (float)((double)share * node->fraction);
 	} else {
-		bool held_first = node->hold == VOE_EDITOR_DOCK_HOLD_FIRST;
-		uint32_t held = held_first ? node->first : node->second;
-		uint32_t other = held_first ? node->second : node->first;
-
-		place->least = need_along(tree, held, node->axis, depth + 1);
-		place->most = along - SEAM -
-			      need_along(tree, other, node->axis, depth + 1);
-		// `most` wins over `least`: the other side's room is kept.
-		place->shown = fmaxf(
-			fminf(fmaxf(node->length, place->least), place->most),
-			0.0f);
-		first = held_first ? place->shown : share - place->shown;
+		wanted = node->length;
 	}
+	sized_first = node->hold != VOE_EDITOR_DOCK_HOLD_SECOND;
+	place->least = need_along(tree, sized_first ? node->first : node->second,
+				  node->axis, depth + 1);
+	place->most = along - SEAM -
+		      need_along(tree, sized_first ? node->second : node->first,
+				 node->axis, depth + 1);
+	place->shown = clamp_to_place(place, wanted);
+	first = sized_first ? place->shown : share - place->shown;
 
 	place->seam = rect;
 	if (row) {
@@ -227,11 +243,47 @@ void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
 	arrange_node(tree, tree->root, area, 0, out);
 }
 
+// A split's seam, SEAM along it and filling across. Not lit, one fill of
+// `border`; lit, two stripes each half of it: the first child's side
+// `inverse_ink`, the second's `inverse` (0231, 0232).
+static void seam_draw(voe_ui_context *ui, voe_editor_dock_axis axis,
+		      const voe_ui_theme *palette, bool lit)
+{
+	voe_ui_container box = {
+		.size = { .along = { VOE_UI_SIZE_FIXED, SEAM } },
+		.across = VOE_UI_ACROSS_FILL
+	};
+	voe_ui_sizing stripe = { .along = { VOE_UI_SIZE_FIXED, SEAM / 2.0f } };
+	voe_ui_sizing whole = { .along = { VOE_UI_SIZE_FIXED, SEAM } };
+	voe_math_float4 dark = palette->inverse_ink;
+	voe_math_float4 light = palette->inverse;
+	voe_math_float4 rest = palette->border;
+
+	VOE_BASE_ASSERT(ui != NULL, "drawing a seam into no interface");
+	VOE_BASE_ASSERT(palette != NULL, "drawing a seam with no palette");
+
+	if (axis == VOE_EDITOR_DOCK_ROW)
+		voe_ui_row_begin(ui, box);
+	else
+		voe_ui_column_begin(ui, box);
+	if (lit) {
+		voe_ui_swatch(ui, (voe_math_float3){ dark.x, dark.y, dark.z },
+			      stripe);
+		voe_ui_swatch(ui, (voe_math_float3){ light.x, light.y, light.z },
+			      stripe);
+	} else {
+		voe_ui_swatch(ui, (voe_math_float3){ rest.x, rest.y, rest.z },
+			      whole);
+	}
+	voe_ui_end(ui);
+}
+
 static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      const voe_editor_dock_arrangement *places,
 		      uint32_t index, voe_editor_dock_axis parent,
-		      voe_math_float2 size, uint32_t depth,
-		      voe_editor_scene *scene, voe_editor_views *views)
+		      voe_math_float2 size, uint32_t depth, uint32_t lit,
+		      const voe_ui_theme *palette, voe_editor_scene *scene,
+		      voe_editor_views *views)
 {
 	const voe_editor_dock_node *node;
 	voe_math_float2 head;
@@ -298,23 +350,23 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	// there is (see voe_editor_dock_arrange).
 	head = places->nodes[node->first].rect.size;
 	tail = places->nodes[node->second].rect.size;
-
+	// The seam is a box of SEAM between them, so the lengths add up to the
+	// split's as the arrangement divided it.
 	if (node->axis == VOE_EDITOR_DOCK_ROW) {
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .size = sizing_in(parent, size),
-					     .across = VOE_UI_ACROSS_FILL,
-					     .gap = SEAM });
+					     .across = VOE_UI_ACROSS_FILL });
 	} else {
 		voe_ui_column_begin(ui, (voe_ui_container){
 						.size = sizing_in(parent, size),
-						.across = VOE_UI_ACROSS_FILL,
-						.gap = SEAM });
+						.across = VOE_UI_ACROSS_FILL });
 	}
 
 	walk_node(ui, tree, places, node->first, node->axis, head, depth + 1,
-		  scene, views);
+		  lit, palette, scene, views);
+	seam_draw(ui, node->axis, palette, index == lit);
 	walk_node(ui, tree, places, node->second, node->axis, tail, depth + 1,
-		  scene, views);
+		  lit, palette, scene, views);
 	voe_ui_end(ui);
 }
 
@@ -342,7 +394,8 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 	// THE TWO VIEWS ARE A COLUMN SPLIT AT A HALF, AND WHICH IS ON TOP IS THE
 	// `view` ON EACH LEAF. Swap the two numbers and the pictures change
 	// places, with nothing else in this folder touched — the edit a tree of
-	// data exists to make that small.
+	// data exists to make that small. Its `fraction` is the views' share,
+	// the number a person drags (0229).
 	tree.nodes[3] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
 						.axis = VOE_EDITOR_DOCK_COLUMN,
 						.fraction = 0.5,
@@ -433,9 +486,90 @@ void voe_editor_dock_panel_length_set(voe_editor_dock_tree *tree,
 		tree->nodes[split].length = length;
 }
 
+// The nearest a written `fraction` comes to nought or one, so a split set by
+// share never divides into a side of nothing and still passes arrange's assert.
+#define FRACTION_EDGE 0.001
+
+void voe_editor_dock_split_set(voe_editor_dock_tree *tree, uint32_t node,
+			       const voe_editor_dock_arrangement *arrangement,
+			       float length)
+{
+	const voe_editor_dock_place *place;
+	voe_editor_dock_node *split;
+	float divided;
+	float shown;
+
+	VOE_BASE_ASSERT(tree != NULL && arrangement != NULL,
+			"setting a split's edge in no tree or from no arrangement");
+	VOE_BASE_ASSERT(node < tree->count &&
+				tree->nodes[node].kind == VOE_EDITOR_DOCK_SPLIT,
+			"setting the edge of a node that is not a split in the tree");
+
+	split = &tree->nodes[node];
+	place = &arrangement->nodes[node];
+	shown = clamp_to_place(place, length);
+	if (split->hold != VOE_EDITOR_DOCK_HOLD_FRACTION) {
+		split->length = shown;
+		return;
+	}
+
+	// The divided length is what arrange_node divided: the node's own
+	// length less the seam. None of it, and there is no share to write.
+	divided = (split->axis == VOE_EDITOR_DOCK_ROW ? place->rect.size.x :
+							 place->rect.size.y) -
+		  SEAM;
+	if (divided <= 0.0f)
+		return;
+	split->fraction = fmin(fmax((double)shown / (double)divided,
+				    FRACTION_EDGE),
+			       1.0 - FRACTION_EDGE);
+}
+
+// The split whose two children are both scene-view leaves, or UINT32_MAX.
+static uint32_t views_split(const voe_editor_dock_tree *tree)
+{
+	for (uint32_t i = 0; i < tree->count; i++) {
+		const voe_editor_dock_node *node = &tree->nodes[i];
+
+		if (node->kind == VOE_EDITOR_DOCK_SPLIT &&
+		    node->first < tree->count && node->second < tree->count &&
+		    tree->nodes[node->first].kind == VOE_EDITOR_DOCK_LEAF &&
+		    tree->nodes[node->first].panel == VOE_EDITOR_PANEL_SCENE_VIEW &&
+		    tree->nodes[node->second].kind == VOE_EDITOR_DOCK_LEAF &&
+		    tree->nodes[node->second].panel == VOE_EDITOR_PANEL_SCENE_VIEW)
+			return i;
+	}
+
+	return UINT32_MAX;
+}
+
+double voe_editor_dock_view_share(const voe_editor_dock_tree *tree)
+{
+	uint32_t split;
+
+	VOE_BASE_ASSERT(tree != NULL, "asking no tree for the views' share");
+
+	split = views_split(tree);
+	return split == UINT32_MAX ? 0.5 : tree->nodes[split].fraction;
+}
+
+void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share)
+{
+	uint32_t split;
+
+	VOE_BASE_ASSERT(tree != NULL, "setting the views' share in no tree");
+	VOE_BASE_ASSERT(share > 0.0 && share < 1.0,
+			"a views' share that is not between nought and one");
+
+	split = views_split(tree);
+	if (split != UINT32_MAX)
+		tree->nodes[split].fraction = share;
+}
+
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
-			  voe_editor_scene *scene, voe_editor_views *views)
+			  const voe_ui_theme *palette, voe_editor_scene *scene,
+			  voe_editor_views *views)
 {
 	voe_editor_dock_arrangement places;
 
@@ -444,6 +578,7 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	VOE_BASE_ASSERT(root->tree.count > 0, "walking an empty dock tree");
 	VOE_BASE_ASSERT(root->size.x > 0.0f && root->size.y > 0.0f,
 			"walking a dock root onto a surface with no area");
+	VOE_BASE_ASSERT(palette != NULL, "walking a dock root with no palette");
 	VOE_BASE_ASSERT(scene != NULL, "walking a dock root with no scene");
 	VOE_BASE_ASSERT(views != NULL, "walking a dock root with no views");
 
@@ -461,7 +596,8 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 							 parent, root->size),
 						 .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, &places, root->tree.root,
-		  VOE_EDITOR_DOCK_ROW, root->size, 0, scene, views);
+		  VOE_EDITOR_DOCK_ROW, root->size, 0, root->lit, palette, scene,
+		  views);
 	voe_ui_end(ui);
 }
 

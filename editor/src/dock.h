@@ -5,8 +5,8 @@
 // function.
 //
 // AND THAT IS WORTH A TREE BEFORE ANYTHING CAN BE DRAGGED, WHICH IS THE THING A
-// READER ARRIVING TODAY WILL DOUBT. Nothing here is rearrangeable: no splitter,
-// no tab bar, no closing a panel, nothing saved. An interface laid out by call
+// READER ARRIVING TODAY WILL DOUBT. Nothing here is rearrangeable: no tab bar,
+// no moving or closing a panel; only a border's place. An interface laid out by call
 // order looks identical on screen and costs less to write. The difference is
 // what it takes to CHANGE it — with call order, a splitter has to rewrite the
 // function that draws the frame, which is the function every panel's contents
@@ -18,7 +18,10 @@
 // ONLY NUMBERS. A split may hold one child at a length in millimetres (0226);
 // `voe_editor_dock_panel_length_set` is the one write, and
 // `voe_editor_dock_arrange` says where every node and seam is without a `ui`
-// frame, so a border can be hit-tested before anything is drawn.
+// frame, so a border can be hit-tested before anything is drawn. The two scene
+// views divide by their split's `fraction`, the views' share (0228, 0229): a
+// share and not a length, so it holds as the window changes. Every seam is
+// drawn in the border colour, and the lit one as two stripes (0231, 0232).
 //
 // NO FUNCTION POINTER LIVES IN THIS FOLDER. A leaf names a panel from the
 // enumeration below and `voe_editor_panel_draw` is one function with a `switch`
@@ -32,6 +35,7 @@
 
 #include <math/float2.h>
 #include <ui/layout.h>
+#include <ui/theme.h>
 #include <ui/widgets.h>
 
 #include <stdint.h>
@@ -131,7 +135,9 @@ typedef struct {
 // window anything (ADR-0141 point 4). `keyboard` is handed to `ui` beside
 // `pointer` (interface.c), which is what lets the browser's own name field
 // (browser.h) be typed into without this folder or interface.c knowing a
-// field exists.
+// field exists. `lit` is the split whose seam is drawn lit this frame,
+// UINT32_MAX or any index that is not a split for none; the caller's to fill,
+// like `pointer` (resize.h's `reached`).
 //
 // ROOT ZERO IS THE WINDOW, AND A DETACHED PANEL WOULD BE A FURTHER ROOT. The
 // editor holds an array of them and the loop walks every one, so the shape is
@@ -148,12 +154,14 @@ typedef struct {
 	voe_math_float2 size;
 	voe_ui_pointer pointer;
 	voe_ui_keyboard keyboard;
+	uint32_t lit;
 } voe_editor_dock_root;
 
 // The tree the editor opens on: three columns — `Scene` held at SIDE_WIDE on
 // the left, `Inspector` held at SIDE_WIDE on the right, and the two scene views
-// stacked half and half taking the rest between them. Which view is on top is
-// one number on one leaf, which is what having a tree at all is for.
+// stacked taking the rest between them, the views' share starting at a half.
+// Which view is on top is one number on one leaf, which is what having a tree
+// at all is for.
 voe_editor_dock_tree voe_editor_dock_default(void);
 
 // Whether a leaf in `tree` shows view `view`. The loop asks before it draws a
@@ -161,9 +169,12 @@ voe_editor_dock_tree voe_editor_dock_default(void);
 bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view);
 
 // Where one node is, and for a split where its seam is. `rect` is the node's
-// own rectangle; `seam` is the gap between a split's two children. When the
-// split holds a child, `least` and `most` are the bounds a drag may write and
-// `shown` the length laid out; all three are nought otherwise.
+// own rectangle; `seam` is the gap between a split's two children. For every
+// split, `least` and `most` are the bounds a drag may write and `shown` the
+// length laid out, `most` winning and never below nought: the held child's
+// length, or for a FRACTION split the first child's — `fraction` of the divided
+// length, between its need and the divided length less the second's need. All
+// three are nought for a leaf.
 typedef struct {
 	voe_ui_rect rect;
 	voe_ui_rect seam;
@@ -192,6 +203,20 @@ float voe_editor_dock_panel_length(const voe_editor_dock_tree *tree,
 				   voe_editor_panel panel);
 void voe_editor_dock_panel_length_set(voe_editor_dock_tree *tree,
 				      voe_editor_panel panel, float length);
+
+// The one write of split `node`'s edge, `length` being what `shown` is in
+// `arrangement` (the tree's own, laid out this frame). It is clamped to the
+// place's least..most; a held split stores it as `length`, a FRACTION split as
+// its share of the divided length, kept strictly between nought and one.
+void voe_editor_dock_split_set(voe_editor_dock_tree *tree, uint32_t node,
+			       const voe_editor_dock_arrangement *arrangement,
+			       float length);
+
+// The views' share: the `fraction` of the split whose two children are both
+// scene views, and that share set (nought < `share` < one). A half, and
+// nothing written, when there is no such split.
+double voe_editor_dock_view_share(const voe_editor_dock_tree *tree);
+void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 
 // Emits `root`'s tree into `ui` as one row or column whose two children are
 // given fixed sizes in millimetres, on down to a leaf's panel with
@@ -222,9 +247,13 @@ void voe_editor_dock_panel_length_set(voe_editor_dock_tree *tree,
 // voe_editor_panel_draw is called from inside the walk and a panel's contents
 // are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
 // folder reaching for a global.
+//
+// `palette` is the one in force, read only for every seam's colours (0231,
+// 0232); no panel is handed it.
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
-			  voe_editor_scene *scene, voe_editor_views *views);
+			  const voe_ui_theme *palette, voe_editor_scene *scene,
+			  voe_editor_views *views);
 
 // What is on one panel. One function, one `switch`, no table and no function
 // pointer; a panel's contents are ordinary `ui` calls and the tree above owns

@@ -56,7 +56,7 @@ static bool band_holds(voe_ui_rect band, voe_math_float2 at)
 	       at.y >= band.min.y && at.y <= band.min.y + band.size.y;
 }
 
-// The border whose band holds `at`: a held split's seam widened by
+// The border whose band holds `at`: a split's seam widened by
 // VOE_EDITOR_RESIZE_REACH either side along its axis, then the bar's edge.
 static uint32_t border_under(const voe_editor_dock_root *root,
 			     const voe_editor_dock_arrangement *places,
@@ -72,8 +72,7 @@ static uint32_t border_under(const voe_editor_dock_root *root,
 		const voe_editor_dock_node *node = &root->tree.nodes[i];
 		voe_ui_rect band = places->nodes[i].seam;
 
-		if (node->kind != VOE_EDITOR_DOCK_SPLIT ||
-		    node->hold == VOE_EDITOR_DOCK_HOLD_FRACTION)
+		if (node->kind != VOE_EDITOR_DOCK_SPLIT)
 			continue;
 		if (node->axis == VOE_EDITOR_DOCK_ROW) {
 			band.min.x -= reach;
@@ -92,15 +91,16 @@ static uint32_t border_under(const voe_editor_dock_root *root,
 	return NO_BORDER;
 }
 
-// The border's edge moved to `edge`: a held split's `length` within the
-// arrangement's least..most (most winning), or the bar's `wanted` within its
-// least and a view's room above the surface's foot.
+// The border's edge moved to `edge`: the split's `shown` written through
+// voe_editor_dock_split_set (the second child's for HOLD_SECOND, the first's
+// otherwise), or the bar's `wanted` within its least and a view's room above
+// the surface's foot.
 static void border_drag(voe_editor_dock_root *root, voe_editor_topbar *bar,
 			const voe_editor_dock_arrangement *places,
 			uint32_t border, float edge)
 {
 	const voe_editor_dock_place *place;
-	voe_editor_dock_node *node;
+	const voe_editor_dock_node *node;
 	bool row;
 	float start;
 	float length;
@@ -119,27 +119,30 @@ static void border_drag(voe_editor_dock_root *root, voe_editor_topbar *bar,
 	place = &places->nodes[border];
 	row = node->axis == VOE_EDITOR_DOCK_ROW;
 	start = row ? place->rect.min.x : place->rect.min.y;
-	if (node->hold == VOE_EDITOR_DOCK_HOLD_FIRST)
+	if (node->hold != VOE_EDITOR_DOCK_HOLD_SECOND)
 		length = edge - start;
 	else
 		length = start + (row ? place->rect.size.x : place->rect.size.y) -
 			 edge - (row ? place->seam.size.x : place->seam.size.y);
-	node->length =
-		fmaxf(fminf(fmaxf(length, place->least), place->most), 0.0f);
+	voe_editor_dock_split_set(&root->tree, border, places, length);
 }
 
-// A double-click: the default tree's length for that node, the bar fitting.
+// A double-click: the default tree's length and fraction for that node (the
+// views back to half and half), the bar fitting.
 static void border_set_back(voe_editor_dock_root *root, voe_editor_topbar *bar,
 			    uint32_t border)
 {
+	const voe_editor_dock_tree fresh = voe_editor_dock_default();
+
 	VOE_BASE_ASSERT(root != NULL && bar != NULL, "setting back nothing");
 	VOE_BASE_ASSERT(border != NO_BORDER, "setting back no border");
 
-	if (border == BAR_BORDER)
+	if (border == BAR_BORDER) {
 		bar->wanted = 0.0f;
-	else
-		root->tree.nodes[border].length =
-			voe_editor_dock_default().nodes[border].length;
+		return;
+	}
+	root->tree.nodes[border].length = fresh.nodes[border].length;
+	root->tree.nodes[border].fraction = fresh.nodes[border].fraction;
 }
 
 // A press on the hovered border: the second within VOE_EDITOR_RESIZE_DOUBLE
@@ -169,8 +172,9 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 						 voe_editor_topbar *bar,
 						 bool allowed, double now)
 {
-	voe_editor_resize_result result = { .cursor =
-						    VOE_PLATFORM_CURSOR_ARROW };
+	voe_editor_resize_result result = {
+		.cursor = VOE_PLATFORM_CURSOR_ARROW, .reached = NO_BORDER
+	};
 	voe_editor_dock_arrangement places;
 	voe_ui_pointer pointer;
 	float high;
@@ -212,6 +216,8 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 		result.cursor = border_is_row(&root->tree, border) ?
 					VOE_PLATFORM_CURSOR_LEFT_RIGHT :
 					VOE_PLATFORM_CURSOR_UP_DOWN;
+		if (border != BAR_BORDER)
+			result.reached = border;
 	}
 	resize->was_down = pointer.down;
 	return result;
@@ -228,5 +234,6 @@ bool voe_editor_resize_remember(const voe_editor_dock_tree *tree,
 			tree, VOE_EDITOR_PANEL_SCENE),
 		.inspector_wide = voe_editor_dock_panel_length(
 			tree, VOE_EDITOR_PANEL_INSPECTOR),
-		.topbar_high = bar->wanted });
+		.topbar_high = bar->wanted,
+		.view_share = voe_editor_dock_view_share(tree) });
 }
