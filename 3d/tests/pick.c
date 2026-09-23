@@ -55,17 +55,39 @@
 #define DRAWN_WIDTH 160
 #define DRAWN_HEIGHT 120
 
+static voe_scene_transform at(float x, float y, float z)
+{
+	voe_scene_transform transform = {
+		.position = { x, y, z },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+
+	return transform;
+}
+
 // Five metres back along +Z, looking down -Z, sixty degrees vertically. A cube a
 // metre across at the origin (ADR-0191) therefore has its near face at z = 0.5,
 // four and a half metres away.
-static voe_scene_camera the_camera(void)
+static voe_scene_camera the_lens(void)
 {
 	return (voe_scene_camera){
-		.eye = { 0.0f, 0.0f, 5.0f },
 		.fov_y = 1.0471976f,
 		.near_plane = 0.1f,
 		.far_plane = 100.0f,
 	};
+}
+
+// That camera's view of a picture `size` big, through voe_3d_view as a pass
+// would be opened with it.
+static voe_render_view the_view(voe_platform_size size)
+{
+	voe_render_view view = { 0 };
+
+	VOE_TEST_CHECK(voe_3d_view(at(0.0f, 0.0f, 5.0f), the_lens(),
+				   (float)size.width / (float)size.height,
+				   &view));
+	return view;
 }
 
 static voe_ecs_world *a_world(voe_base_arena *arena)
@@ -92,17 +114,6 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	return world;
 }
 
-static voe_scene_transform at(float x, float y, float z)
-{
-	voe_scene_transform transform = {
-		.position = { x, y, z },
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { 1.0f, 1.0f, 1.0f },
-	};
-
-	return transform;
-}
-
 // A grey cube with a transform at (x, y, z).
 static voe_ecs_entity add_a_cube(voe_ecs_world *world, float x, float y,
 				 float z)
@@ -119,15 +130,13 @@ static voe_ecs_entity add_a_cube(voe_ecs_world *world, float x, float y,
 }
 
 // Where a world point lands in a picture `size` big, worked out here with the
-// same two matrices voe_3d_pick_ray builds — which is what makes the last case
-// below a round trip rather than a repetition.
-static voe_math_float2 pixel_of(voe_scene_camera camera, voe_platform_size size,
+// same two matrices voe_3d_pick_ray is handed — which is what makes the last
+// case below a round trip rather than a repetition.
+static voe_math_float2 pixel_of(voe_render_view view, voe_platform_size size,
 				voe_math_float3 point)
 {
-	voe_math_float4x4 clip_from_world = voe_math_float4x4_mul(
-		voe_3d_projection(camera,
-				  (float)size.width / (float)size.height),
-		voe_scene_camera_view(camera));
+	voe_math_float4x4 clip_from_world =
+		voe_math_float4x4_mul(view.projection, view.view);
 	voe_math_float4 clip = voe_math_float4x4_mul_float4(
 		clip_from_world,
 		(voe_math_float4){ point.x, point.y, point.z, 1.0f });
@@ -149,7 +158,7 @@ static void the_centre_ray_hits_a_cube_at_the_origin(
 	voe_platform_size size = { WIDTH, HEIGHT };
 	voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 	voe_3d_ray ray = voe_3d_pick_ray(
-		the_camera(), size,
+		the_view(size), size,
 		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
 	float distance = -1.0f;
 	voe_ecs_entity hit;
@@ -167,7 +176,7 @@ static void the_centre_ray_hits_a_cube_at_the_origin(
 	// nothing is hit, the answer is a zeroed entity — which is what clears a
 	// selection — and the distance is left exactly as it was.
 	distance = -1.0f;
-	ray = voe_3d_pick_ray(the_camera(), size,
+	ray = voe_3d_pick_ray(the_view(size), size,
 			      (voe_math_float2){ 0.0f, 0.0f });
 	hit = voe_3d_pick(world, geometries, ray, &distance);
 	VOE_TEST_CHECK_INT(hit.index, 0);
@@ -182,7 +191,7 @@ static void the_nearer_of_two_wins_in_either_order(
 {
 	voe_platform_size size = { WIDTH, HEIGHT };
 	voe_3d_ray ray = voe_3d_pick_ray(
-		the_camera(), size,
+		the_view(size), size,
 		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
 	float distance = -1.0f;
 	{
@@ -224,9 +233,9 @@ static void a_cube_off_centre_is_found_at_its_own_pixel(
 	voe_ecs_world *world = a_world(arena);
 	voe_platform_size size = { WIDTH, HEIGHT };
 	voe_ecs_entity cube = add_a_cube(world, 2.0f, 1.0f, 0.0f);
-	voe_math_float2 point = pixel_of(the_camera(), size,
+	voe_math_float2 point = pixel_of(the_view(size), size,
 					 (voe_math_float3){ 2.0f, 1.0f, 0.0f });
-	voe_3d_ray ray = voe_3d_pick_ray(the_camera(), size, point);
+	voe_3d_ray ray = voe_3d_pick_ray(the_view(size), size, point);
 	voe_ecs_entity homeless = { 0 };
 	voe_ecs_entity hit;
 
@@ -243,7 +252,7 @@ static void a_cube_off_centre_is_found_at_its_own_pixel(
 	{
 		voe_ecs_world *empty = a_world(arena);
 		voe_3d_ray centre = voe_3d_pick_ray(
-			the_camera(), size,
+			the_view(size), size,
 			(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
 
 		VOE_TEST_CHECK(voe_ecs_entity_create(empty, &homeless));
@@ -277,7 +286,6 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 	};
 	voe_render_device *device =
 		voe_render_device_new_headless(arena, size, capacities, &error);
-	voe_scene_camera camera = the_camera();
 	voe_3d_shapes shapes;
 	voe_ecs_world *world;
 	voe_ecs_entity eye = { 0 };
@@ -303,7 +311,9 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 
 	world = a_world(arena);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
-	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, camera));
+	VOE_TEST_CHECK(
+		voe_scene_transform_add(world, eye, at(0.0f, 0.0f, 5.0f)));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, the_lens()));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
@@ -356,7 +366,7 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 	if (found) {
 		voe_ecs_entity hit = voe_3d_pick(
 			world, geometries,
-			voe_3d_pick_ray(camera, size, covered), NULL);
+			voe_3d_pick_ray(frame.view, size, covered), NULL);
 
 		VOE_TEST_CHECK_INT(hit.index, cube.index);
 		VOE_TEST_CHECK_INT(hit.generation, cube.generation);
@@ -365,7 +375,7 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 	// And the corner the background was taken from picks nothing.
 	VOE_TEST_CHECK_INT(
 		voe_3d_pick(world, geometries,
-			    voe_3d_pick_ray(camera, size,
+			    voe_3d_pick_ray(frame.view, size,
 					    (voe_math_float2){ 0.0f, 0.0f }),
 			    NULL)
 			.generation,

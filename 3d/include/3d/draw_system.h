@@ -174,6 +174,11 @@ typedef struct {
 	// drawn last of all behind a clear of its own (ADR-0205, and
 	// voe_3d_gizmoed above).
 	voe_3d_gizmoed gizmo;
+	// TRUE WHEN THE CAMERA SEES NOTHING (0223): its transform has no
+	// inverse, a scale of nought on an axis, so voe_3d_view refused it and
+	// `view` is zeroed. _run draws no world for a blind frame. Zero means
+	// seen, so a frame a caller builds by hand keeps drawing.
+	bool blind;
 } voe_3d_frame;
 
 
@@ -188,7 +193,10 @@ typedef struct {
 // THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE THE PASS, AND HANDED BACK.
 // The pass needs the view and the light and this system needs the view again for
 // its sort, so voe_3d_draw_system_frame works both out from the tables and the
-// loop passes the result to each. Neither the camera nor the projection moves
+// loop passes the result to each. The camera is a lens and its pose is its
+// entity's transform (0222), which the camera needs and this asserts on; the two
+// become `view` through voe_3d_view (3d/projection.h), and a pose that sees
+// nothing sets `blind` instead. Neither the camera nor the projection moves
 // out of this folder for that: what the loop holds is an answer, not a way of
 // computing one. Nothing in _run reads the camera table.
 //

@@ -30,6 +30,9 @@
 // the shape's colour reaching the object's record (ADR-0191). It has a device
 // of its own, sized for the built-in shapes.
 //
+// ONE NEEDS NO CARD: a camera whose transform is scaled to nothing frames
+// `blind` (0223).
+//
 // AND ONE MORE READS IT FOR THE GIZMO (ADR-0205): a dark cube with a gizmo
 // standing in it, drawn twice — once with the gizmo and once with the field
 // zeroed. A pixel the arrow along +X covers, inside the rectangle the cube
@@ -119,19 +122,28 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 }
 
 // At the origin, looking along its own -Z, so a thing at a more negative z is
-// further away.
-static void add_a_camera(voe_ecs_world *world)
+// further away, with its transform scaled by `scale`.
+static void add_a_camera_scaled(voe_ecs_world *world, voe_math_float3 scale)
 {
 	voe_ecs_entity eye = { 0 };
-	voe_scene_camera camera = {
-		.eye = { 0.0f, 0.0f, 0.0f },
+	voe_scene_transform pose = {
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = scale,
+	};
+	voe_scene_camera lens = {
 		.fov_y = 1.0471976f,
 		.near_plane = 0.1f,
 		.far_plane = 100.0f,
 	};
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
-	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, eye, pose));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, lens));
+}
+
+static void add_a_camera(voe_ecs_world *world)
+{
+	add_a_camera_scaled(world, (voe_math_float3){ 1.0f, 1.0f, 1.0f });
 }
 
 static void add_the_sun(voe_ecs_world *world)
@@ -677,6 +689,29 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A camera whose transform is scaled to nothing on an axis sees nothing: the
+// frame says `blind` and its view is zeroed (0223). And a seen one does not.
+// No device: framing reads the tables alone.
+static void a_camera_scaled_to_nothing_frames_blind(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_ecs_world *seen = a_world(arena);
+	voe_ecs_world *flat = a_world(arena);
+	voe_3d_frame frame;
+
+	add_a_camera(seen);
+	add_the_sun(seen);
+	frame = voe_3d_draw_system_frame(seen, size);
+	VOE_TEST_CHECK(!frame.blind);
+
+	add_a_camera_scaled(flat, (voe_math_float3){ 1.0f, 1.0f, 0.0f });
+	add_the_sun(flat);
+	frame = voe_3d_draw_system_frame(flat, size);
+	VOE_TEST_CHECK(frame.blind);
+	VOE_TEST_CHECK_FLOAT(frame.view.projection.m[1][1], 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(frame.view.view.m[3][3], 0.0f, 0.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -685,6 +720,7 @@ int main(void)
 	voe_render_geometry mesh;
 	voe_base_error error = VOE_BASE_OK;
 
+	a_camera_scaled_to_nothing_frames_blind(arena);
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||

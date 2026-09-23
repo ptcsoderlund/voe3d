@@ -1,5 +1,6 @@
 // The projection matrix: that depth really runs backwards, that the aspect ratio
-// divides rather than multiplies, and that there is no Y flip in it.
+// divides rather than multiplies, and that there is no Y flip in it; and the
+// render view a pose and a lens become.
 //
 // ALL THREE OF THESE DRAW A PLAUSIBLE PICTURE WHEN THEY ARE WRONG, WHICH IS WHY
 // THEY ARE CHECKED ON THE CPU. Reversed depth the right way round and reversed
@@ -26,7 +27,6 @@
 static voe_scene_camera a_camera(void)
 {
 	voe_scene_camera camera = {
-		.eye = { 0.0f, 0.0f, 0.0f },
 		.fov_y = 1.0471976f,
 		.near_plane = NEAR_PLANE,
 		.far_plane = FAR_PLANE,
@@ -140,12 +140,55 @@ static void the_centre_stays_centred(void)
 	VOE_TEST_CHECK_FLOAT(clip.w, 5.0f, TOLERANCE);
 }
 
+// A pose at (0, 0, 5) sees from there: the eye is its position, the view is
+// scene's own and the projection the lens's.
+static void a_view_is_a_pose_and_a_lens(void)
+{
+	voe_scene_transform pose = { .position = { 0.0f, 0.0f, 5.0f },
+				     .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				     .scale = { 1.0f, 1.0f, 1.0f } };
+	voe_math_float4x4 expected_view;
+	voe_math_float4x4 expected_projection = voe_3d_projection(a_camera(), 2.0f);
+	voe_render_view view = { 0 };
+
+	VOE_TEST_CHECK(voe_scene_camera_view(pose, &expected_view));
+	VOE_TEST_CHECK(voe_3d_view(pose, a_camera(), 2.0f, &view));
+	VOE_TEST_CHECK_FLOAT(view.eye.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(view.eye.y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(view.eye.z, 5.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(view.reserved, 0.0f, 0.0f);
+	for (int row = 0; row < 4; row++) {
+		for (int column = 0; column < 4; column++) {
+			VOE_TEST_CHECK_FLOAT(view.view.m[row][column],
+					     expected_view.m[row][column], 0.0f);
+			VOE_TEST_CHECK_FLOAT(view.projection.m[row][column],
+					     expected_projection.m[row][column],
+					     0.0f);
+		}
+	}
+}
+
+// A pose scaled to nothing on an axis has no inverse and sees nothing; the
+// view it was handed is not touched.
+static void a_flattened_pose_sees_nothing(void)
+{
+	voe_scene_transform pose = { .position = { 0.0f, 0.0f, 5.0f },
+				     .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				     .scale = { 1.0f, 0.0f, 1.0f } };
+	voe_render_view view = { .eye = { 7.0f, 7.0f, 7.0f } };
+
+	VOE_TEST_CHECK(!voe_3d_view(pose, a_camera(), 1.0f, &view));
+	VOE_TEST_CHECK_FLOAT(view.eye.x, 7.0f, 0.0f);
+}
+
 int main(void)
 {
 	depth_runs_backwards();
 	the_aspect_ratio_divides();
 	nothing_here_flips_y();
 	the_centre_stays_centred();
+	a_view_is_a_pose_and_a_lens();
+	a_flattened_pose_sees_nothing();
 
 	return voe_test_result();
 }

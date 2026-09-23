@@ -288,7 +288,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size)
 {
 	voe_3d_frame frame;
-	voe_scene_camera camera;
+	voe_scene_camera lens;
+	const voe_scene_transform *pose;
 	// A window with no area has no aspect ratio. One is as good as any
 	// other then: _begin is about to say there is nothing to draw into and
 	// nothing reads the matrix, so this only keeps the division below away
@@ -304,14 +305,14 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	if (size.width > 0 && size.height > 0)
 		aspect = (float)size.width / (float)size.height;
 
-	camera = voe_scene_camera_rows(world)[0];
-	frame.view.view = voe_scene_camera_view(camera);
-	frame.view.projection = voe_3d_projection(camera, aspect);
-	// Where the eye is, for the half of the shading that depends on which
-	// direction a surface is being looked from. It is the camera's own
-	// number and not something recovered from the view matrix.
-	frame.view.eye = camera.eye;
-	frame.view.reserved = 0.0f;
+	lens = voe_scene_camera_rows(world)[0];
+	pose = voe_scene_transform_get(world, voe_scene_camera_entities(world)[0]);
+	VOE_BASE_ASSERT(pose != NULL,
+			"a camera with no transform — the camera needs one (0222)");
+	// A pose that sees nothing leaves `view` zeroed and says so: _run draws
+	// no world for it (0223).
+	frame.view = (voe_render_view){ 0 };
+	frame.blind = !voe_3d_view(*pose, lens, aspect, &frame.view);
 	frame.light = the_sun(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
@@ -486,6 +487,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// first draw — or not found at all, in a world with nothing in it.
 	VOE_BASE_DEBUG_ASSERT(voe_render_pass_is_open(device),
 			      "drawing the world with no pass open — the loop calls voe_render_pass_begin with the frame's camera first; see 3d/draw_system.h");
+	// A camera that sees nothing draws no world (3d/draw_system.h, `blind`).
+	if (frame.blind)
+		return;
 
 	has_shapes = shape_type(world, &shapes);
 	meshes = voe_3d_mesh_rows(world);

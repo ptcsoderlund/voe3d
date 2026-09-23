@@ -1,5 +1,14 @@
 // The projection matrix, and the only place in the engine where a field of view
-// becomes clip space.
+// becomes clip space; and the render view, where a pose and a lens become what
+// is drawn with.
+//
+// THE CAMERA IS THE LENS (0222). The camera component holds a field of view and
+// two planes; where it is and how it faces is its entity's transform.
+//
+// voe_3d_view IS THE ONE PLACE A POSE AND A LENS BECOME A voe_render_view (0223):
+// the value `render`'s pass, the outline, the gizmo and the pick are all handed.
+// The world's camera and an editor view's orbit both come through it, so they
+// cannot disagree about what a pose looks like.
 //
 // IT IS HERE AND NOT IN math OR IN scene, AND BOTH HALVES OF THAT ARE RULES.
 // `math` may not know about a graphics API (CLAUDE.md, Conventions), and `scene`
@@ -22,7 +31,9 @@
 #pragma once
 
 #include <math/float4x4.h>
+#include <render/device.h>
 #include <scene/camera_component.h>
+#include <scene/transform_component.h>
 
 // aspect is width over height of the target being drawn into, which is the
 // target's business and not the camera's — the same camera in a wider window
@@ -30,4 +41,11 @@
 //
 // A zero or negative aspect, or a camera whose planes are the wrong way round,
 // is the caller's bug and asserts: none of it can come out of a file.
-voe_math_float4x4 voe_3d_projection(voe_scene_camera camera, float aspect);
+voe_math_float4x4 voe_3d_projection(voe_scene_camera lens, float aspect);
+
+// The view of a camera at `pose` with `lens`: the view matrix from
+// voe_scene_camera_view(pose), the projection from voe_3d_projection(lens,
+// aspect), the eye at the pose's position and `reserved` nought. False, with
+// `out` untouched, when the pose sees nothing (its matrix has no inverse).
+[[nodiscard]] bool voe_3d_view(voe_scene_transform pose, voe_scene_camera lens,
+			       float aspect, voe_render_view *out);

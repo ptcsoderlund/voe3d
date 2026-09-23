@@ -4,8 +4,9 @@
 registered nowhere. A reader is here to find which file already makes a claim before making it
 again, or to find where a claim that has started failing is written down.
 
-- `projection.c` — reversed depth, the aspect ratio, and that nothing in the
-  projection flips Y. Needs no graphics card.
+- `projection.c` — reversed depth, the aspect ratio, that nothing in the
+  projection flips Y, and the view of a pose and a lens, a flattened pose seeing
+  nothing. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -19,7 +20,7 @@ again, or to find where a claim that has started failing is written down.
   shared picture, the mirrored model, and one frame drawn from what it made.
   Skips without a graphics card.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
-- `draw_system.c` — that the entity a frame hides is not drawn and every other
+- `draw_system.c` — that a camera scaled to nothing frames blind, that the entity a frame hides is not drawn and every other
   one is, in both tables and both layers, that a red shaped cube reads red at the
   picture's centre, and that a gizmo in a cube is read where the cube alone would
   be. Skips without a graphics card.

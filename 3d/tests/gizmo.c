@@ -74,22 +74,24 @@ static voe_math_float3 along(int axis, float metres)
 }
 
 // A camera `distance` metres in front of the world's origin, looking at it, and
-// the two matrices a pass would be opened with.
+// the two matrices a pass would be opened with, through voe_3d_view.
 static voe_render_view the_view(float distance)
 {
-	voe_scene_camera camera = {
-		.eye = { 0.0f, 0.0f, distance },
+	voe_scene_transform pose = {
+		.position = { 0.0f, 0.0f, distance },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_camera lens = {
 		.fov_y = 1.0471976f,
 		.near_plane = 0.1f,
 		.far_plane = 100.0f,
 	};
+	voe_render_view view = { 0 };
 
-	return (voe_render_view){
-		.view = voe_scene_camera_view(camera),
-		.projection = voe_3d_projection(camera,
-						(float)WIDTH / (float)HEIGHT),
-		.eye = camera.eye,
-	};
+	VOE_TEST_CHECK(voe_3d_view(pose, lens, (float)WIDTH / (float)HEIGHT,
+				   &view));
+	return view;
 }
 
 // A ray across the middle of each arrow meets that arrow and not its two

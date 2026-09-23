@@ -1,7 +1,6 @@
 // The pick ray and the walk that answers it — see the header for why this
 // question is answered here and against which table.
 #include <3d/pick.h>
-#include <3d/projection.h>
 #include <3d/shape_component.h>
 
 #include <base/assert.h>
@@ -84,7 +83,7 @@ static bool ray_hits_triangle(voe_3d_ray ray, voe_math_float3 a,
 	return true;
 }
 
-voe_3d_ray voe_3d_pick_ray(voe_scene_camera camera, voe_platform_size size,
+voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_platform_size size,
 			   voe_math_float2 point)
 {
 	float width = (float)size.width;
@@ -101,8 +100,7 @@ voe_3d_ray voe_3d_pick_ray(voe_scene_camera camera, voe_platform_size size,
 	// The two matrices the pass was opened with, inverted as one product:
 	// clip to world in a single multiply per point.
 	inverse = voe_math_float4x4_inverse(
-		voe_math_float4x4_mul(voe_3d_projection(camera, width / height),
-				      voe_scene_camera_view(camera)));
+		voe_math_float4x4_mul(view.projection, view.view));
 
 	x = 2.0f * (point.x + 0.5f) / width - 1.0f;
 	// THE ONE LINE THAT FLIPS Y, and the only one that may: the picture's y

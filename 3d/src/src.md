@@ -4,7 +4,7 @@
 is included from outside the folder — `include/3d/` is the whole public surface.
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
-  the whole thing.
+  the whole thing, and the render view a pose and a lens become.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,
@@ -33,7 +33,7 @@ is included from outside the folder — `include/3d/` is the whole public surfac
 - `cylinder.h` — the built-in cylinder's counts and its builder, internal to
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
-- `pick.c` — the pixel's ray out of the two matrices inverted once, and the walk
+- `pick.c` — the pixel's ray out of the view's two matrices inverted once, and the walk
   over the shape table that carries it into each shape's own space and tests the
   kind's triangles, with the triangle test written out once and its derivation in
   a comment.
@@ -43,7 +43,7 @@ is included from outside the folder — `include/3d/` is the whole public surfac
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
-- `draw_system.c` — the camera, the sun, two matrices and a colour per object,
+- `draw_system.c` — the camera's view from its transform and lens, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each
   side of the overlay's depth clear, over both tables, then the outline and the
   move gizmo behind a clear each.
