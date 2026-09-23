@@ -5,7 +5,7 @@
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
 // nodes because that is what a widget answers through, and it asks `ui` exactly
 // one question — what did the pointer do to this button — after the frame has
-// ended. What an Add choice makes, and what Delete and Duplicate queue, is
+// ended. What Add entity makes, and what Delete and Duplicate queue, is
 // entities.h's.
 #include "scene.h"
 
@@ -56,21 +56,15 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene)
 
 	scene->listed_count = 0;
 	scene->add = VOE_UI_NODE_NONE;
-	for (uint32_t i = 0; i < VOE_EDITOR_SCENE_ADD_CHOICES; i++)
-		scene->add_choices[i] = VOE_UI_NODE_NONE;
 	scene->structural = 0;
 	scene->full = false;
 }
 
-void voe_editor_scene_add_menu_record(voe_editor_scene *scene, voe_ui_node add,
-				      const voe_ui_node *choices)
+void voe_editor_scene_add_record(voe_editor_scene *scene, voe_ui_node add)
 {
-	VOE_BASE_ASSERT(scene != NULL, "recording the Add menu on no scene");
+	VOE_BASE_ASSERT(scene != NULL, "recording Add entity on no scene");
 
 	scene->add = add;
-	if (choices != NULL)
-		for (uint32_t i = 0; i < VOE_EDITOR_SCENE_ADD_CHOICES; i++)
-			scene->add_choices[i] = choices[i];
 }
 
 // What the pointer did to a recorded button, or nothing for one the frame had no
@@ -96,11 +90,9 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 }
 
 bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
-				  const voe_ui_context *ui, bool down)
+				  const voe_ui_context *ui)
 {
-	bool pressed = down && !scene->pointer_was_down;
-	bool on_menu;
-	bool added = true;
+	voe_ecs_entity made;
 
 	VOE_BASE_ASSERT(scene != NULL, "reading the clicks of no scene");
 	VOE_BASE_ASSERT(ui != NULL, "reading clicks out of no interface");
@@ -116,34 +108,13 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 			scene->selected = scene->listed[i].entity;
 	}
 
-	scene->pointer_was_down = down;
-
-	// A press that armed Add or a choice is the menu's own; any other hides
-	// the choices, on the press and not the release.
-	on_menu = action_of(ui, scene->add).held;
-	for (uint32_t i = 0; i < VOE_EDITOR_SCENE_ADD_CHOICES; i++)
-		on_menu = on_menu || action_of(ui, scene->add_choices[i]).held;
-	if (pressed && !on_menu)
-		scene->adding = false;
-
-	if (action_of(ui, scene->add).fired)
-		scene->adding = !scene->adding;
-
-	for (uint32_t i = 0; i < VOE_EDITOR_SCENE_ADD_CHOICES; i++) {
-		voe_ecs_entity made;
-
-		if (!action_of(ui, scene->add_choices[i]).fired)
-			continue;
-		scene->adding = false;
-		added = voe_editor_entities_add(scene->world, (voe_editor_add)i,
-						&made);
-		if (added) {
-			scene->selected = made;
-			scene->structural++;
-		}
-	}
-
-	return added;
+	if (!action_of(ui, scene->add).fired)
+		return true;
+	if (!voe_editor_entities_add(scene->world, &made))
+		return false;
+	scene->selected = made;
+	scene->structural++;
+	return true;
 }
 
 void voe_editor_scene_delete(voe_editor_scene *scene)

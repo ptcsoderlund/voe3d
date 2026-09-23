@@ -348,8 +348,7 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 		voe_editor_scene_delete(scene);
 
 	// A press that armed Add component or a choice is the list's own; any
-	// other hides it, on the press and not the release — the Add menu's
-	// rule (scene.h).
+	// other hides it, on the press and not the release.
 	on_menu = action_of(ui, inspector->add_component).held;
 	for (uint32_t i = 0; i < inspector->choice_count; i++)
 		on_menu = on_menu ||

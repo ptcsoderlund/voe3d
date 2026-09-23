@@ -162,12 +162,11 @@
 // drawing nothing; Close, two and five — 564 against the browser's 1504. Its
 // one scroll area is the one the browser would have used.
 //
-// THE SCENE PANEL'S ADD MENU (scene.h) ADDS TEN NODES: Add as a button and its
-// label, two; and, while it shows, Entity, Cube, Capsule and Cylinder as a
-// button and a label each, eight. 460 + 10 = 470 nodes. AND THIRTY-EIGHT
-// ELEMENTS: each of the five buttons' border and fill, ten; and the letters of
-// "Add", "Entity", "Cube", "Capsule" and "Cylinder", 3 + 6 + 4 + 7 + 8 = 28.
-// 3650 + 38 = 3688 elements.
+// THE SCENE PANEL'S ADD ENTITY (scene.h) KEEPS THE TEN NODES the four-choice
+// Add menu it replaced was given: it is a button and its label, two, and the
+// other eight are left spare. 460 + 10 = 470 nodes. AND THIRTY-EIGHT ELEMENTS,
+// of which its border and fill, two, and the letters of "Add entity", ten, are
+// used. 3650 + 38 = 3688 elements.
 //
 // THE INSPECTOR'S DUPLICATE AND DELETE ROW (inspector.h) ADDS FIVE NODES: the
 // row, and each button and its label. 470 + 5 = 475 nodes. AND NINETEEN

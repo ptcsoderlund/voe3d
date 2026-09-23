@@ -262,8 +262,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
 						  root->pointer.down,
 						  root->pointer.at);
-		if (!voe_editor_scene_clicks_read(scene, ui,
-						  root->pointer.down))
+		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
 		voe_editor_views_rects_read(views, ui);

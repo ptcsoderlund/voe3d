@@ -98,7 +98,7 @@ carries it out.
   millimetre, their targets, the world's first light row and the lighter half
   of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
-  Add menu, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
+  Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
 - `scene.c` — the selection, Delete and Duplicate, opening and closing the colour picker and the
   dropdown, the open list moved to where the Inspector measured it, and the one question asked of
@@ -117,8 +117,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — adding, duplicating and deleting entities and giving or taking
-  their components, all through the world's structural queue. Its header says
+- `entities.h` — Add entity (an identity and a transform, nothing else), duplicating and deleting
+  entities and giving or taking their components, all through the world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
 - `entities.c` — the new id and name, the queued rows, and the destroy that
   undoes a half-made entity.

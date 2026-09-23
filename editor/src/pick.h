@@ -41,8 +41,7 @@
 
 // What picking remembers between frames.
 typedef struct {
-	// Last frame's primary button, so a press is found as an edge, exactly
-	// as voe_editor_scene's own pointer_was_down is.
+	// Last frame's primary button, so a press is found as an edge.
 	bool pointer_was_down;
 } voe_editor_pick;
 
