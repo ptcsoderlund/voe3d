@@ -37,6 +37,11 @@
 // no light of its own and its pass is simply handed one; see
 // voe_editor_view_pass_camera.
 //
+// A VIEW IS MOVED TWO WAYS, ONE VIEW AT A TIME: the middle-button drag and the
+// right-button fly (0233). Each holds the view it started over until its button
+// comes up, and neither starts while the other holds one. Neither is written
+// anywhere — not to the world, not to undo, not to settings.
+//
 // THE PREVIEW IS WHAT THE WORLD'S CAMERA SEES, AT ONE FIXED SIZE (0223): a
 // 16:9 target of VOE_EDITOR_PREVIEW_WIDTH by _HEIGHT pixels, made beside the
 // views' and never resized, because the game window's aspect is not known to
@@ -75,7 +80,8 @@
 #define VOE_EDITOR_PREVIEW_HEIGHT 270
 
 // One view. `eye` is worked out from the focus, the distance, `yaw` and
-// `pitch` by the orbit and is never set on its own. Zero yaw looks down −Z,
+// `pitch` by the orbit and is never set on its own; the fly moves it only by
+// moving the focus with it, so the orbit's sum stays true. Zero yaw looks down −Z,
 // positive yaw turns towards −X and positive pitch looks up; `lens` is what
 // every view sees with.
 typedef struct {
@@ -102,15 +108,30 @@ typedef struct {
 	voe_ui_rect rect;
 } voe_editor_view;
 
-// Every view, and the middle-button drag. `captured` is the view the drag
-// started over; `pointer` is where the pointer was last frame, in the root
-// surface's millimetres, which is what a drag's travel is measured from.
+// The keys the fly moves by, each the level of whichever key the caller maps
+// to it: along the look, across it level, along world ±Y, and three times as fast.
+typedef struct {
+	bool forward;
+	bool back;
+	bool left;
+	bool right;
+	bool up;
+	bool down;
+	bool fast;
+} voe_editor_fly_keys;
+
+// Every view, the middle-button drag and the right-button fly. `captured` is
+// the view the drag started over; `pointer` is where the pointer was last frame,
+// in the root surface's millimetres, which is what a drag's travel is measured
+// from. `flying` is the view the fly started over, VOE_EDITOR_VIEW_NONE when none.
 typedef struct {
 	voe_editor_view views[VOE_EDITOR_VIEWS];
 	uint32_t count;
 	uint32_t captured;
 	bool middle_was_down;
 	voe_math_float2 pointer;
+	uint32_t flying;
+	bool right_was_down;
 
 	// The preview's target and its picture, and whether this frame drew it.
 	voe_render_target preview_target;
@@ -179,6 +200,16 @@ voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
 // captures nothing.
 void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 			   bool middle, bool shift, bool control);
+
+// The right-button fly, once per frame. The right button's down edge over a
+// view (as voe_editor_views_under reads it), while no middle drag holds a view,
+// makes that view the flying one until `right` goes up. While it flies, `turn`
+// — the pointer's motion in the platform's units, +x right, +y down — turns it
+// about its eye, and `keys` move it for `seconds`. `pointer` is in the root
+// surface's millimetres. Returns whether a view is flying after this call.
+bool voe_editor_views_fly(voe_editor_views *views, voe_math_float2 pointer,
+			  bool right, voe_math_float2 turn,
+			  voe_editor_fly_keys keys, float seconds);
 
 // Which view the pointer is over and where in that view's picture, in the
 // picture's own pixels — x right, y down from its top-left corner, which is

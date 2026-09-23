@@ -54,10 +54,15 @@ header.
 - `window_wayland.c` — the Linux window: registry, shell, decoration, fractional scale, cursor
   shape manager, open, close and poll; there is no X11 backend, and nothing in it draws.
 - `seat_wayland.c` — the Linux window's seat: keyboard, pointer, its shape by name, relative
-  motion and the lock. Its header says why it is a file of its own and why the cursor is never hidden.
+  motion and the lock. Its header says why it is a file of its own and when a locked pointer is hidden.
 - `scale.h` — logical Wayland units to buffer pixels at a scale in 120ths, a
   length rounded half away from zero and a position not rounded. OS-free like
   `input.h`, so it is built on both platforms and tested without a compositor.
 - `scale.c` — its implementation, in 64-bit integers for the length.
-- `window_win32.c` — the Windows window, its keyboard and its `WM_CHAR` text, the mouse as a raw
-  input device for look and as ordinary messages for position and buttons.
+- `window_win32.h` — the Windows window's struct, shared by the two files below and seen by
+  nothing outside this folder, and the seat functions the window procedure calls.
+- `window_win32.c` — the Windows window: its class, the window procedure, open, close, poll, wait
+  and the queries.
+- `seat_win32.c` — the Windows window's seat: the keyboard and its `WM_CHAR` text, the mouse as a
+  raw input device for look and as ordinary messages for position and buttons, its shape, and the
+  lock.

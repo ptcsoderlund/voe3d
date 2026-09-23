@@ -56,6 +56,11 @@ struct voe_platform_window {
 	struct zwp_locked_pointer_v1 *locked_pointer;
 	bool lock_wanted;
 
+	// The pointer is hidden because the lock is active and cursor-shape-v1
+	// can name the shape back. Set by the locked event, cleared exactly once
+	// by unlocked or lock_stop; while it is set cursor_apply hides, not shapes.
+	bool cursor_hidden;
+
 	// Logical sizes, as the configure sends them; _size scales them.
 	int width;
 	int height;

@@ -18,8 +18,10 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 	const bool control = keys->down[VOE_PLATFORM_KEY_CONTROL];
 	// Neither a command nor a step while the browser shows or while a field
 	// or number box holds the keyboard — a person typing is not also
-	// commanding (ui/widgets.h's voe_ui_typing).
-	const bool quiet = guards.browser_showing || guards.typing;
+	// commanding (ui/widgets.h's voe_ui_typing) — nor while a view flies,
+	// whose W, S, A, D, E and Q are the fly's (view.h).
+	const bool quiet = guards.browser_showing || guards.typing ||
+			   guards.flying;
 
 	// CTRL+N, CTRL+O AND CTRL+S DO WHAT THEIR BUTTON DOES, on the frame the
 	// letter goes down with Control already held — the letter's own edge,
@@ -30,11 +32,11 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 	// commands and shortcuts are ignored" (browser.h) — though keys.h
 	// tracks the edge either way.
 	out.new_project = control && keys->pressed[VOE_PLATFORM_KEY_N] &&
-			  !guards.browser_showing;
+			  !guards.browser_showing && !guards.flying;
 	out.open = control && keys->pressed[VOE_PLATFORM_KEY_O] &&
-		   !guards.browser_showing;
+		   !guards.browser_showing && !guards.flying;
 	out.save = control && keys->pressed[VOE_PLATFORM_KEY_S] &&
-		   !guards.browser_showing;
+		   !guards.browser_showing && !guards.flying;
 
 	// DELETE AND CTRL+D ARE THE SAME SHAPE OF EDGE, quiet while anybody is
 	// typing or the browser shows.
@@ -45,7 +47,7 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 	// and beyond `quiet` they ask for the rest a step is recorded at
 	// (undo.h): no drag, no picker and no open list in the middle of
 	// something.
-	out.at_rest = !guards.pointer_down && !guards.typing &&
+	out.at_rest = !guards.pointer_down && !guards.flying && !guards.typing &&
 		      !guards.browser_showing && !guards.picker_open &&
 		      !guards.dropdown_open;
 	out.undo = control && !shift && keys->pressed[VOE_PLATFORM_KEY_Z] &&
@@ -63,6 +65,9 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 	// else may spend is the one nobody is typing through.
 	out.escape_free = out.escape && !guards.typing;
 
+	VOE_BASE_ASSERT(!guards.flying || (!out.at_rest && !out.save &&
+					   !out.undo && !out.delete_entity),
+			"a flying view let a command through");
 	VOE_BASE_ASSERT(!out.escape_free || out.escape,
 			"a free Escape with no Escape edge behind it");
 	return out;
