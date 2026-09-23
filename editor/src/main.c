@@ -18,7 +18,8 @@
 // looked at again once a second at the top of the loop, in the one font the
 // editor makes, Oxanium (ADR-0185). A theme that is gone or refused draws Near
 // black and says why in session.notice, unless a failure already put one there.
-// The panels' sizes are the default tree's with settings.h's file read over them.
+// The panels' sizes and the views' share are the default tree's with
+// settings.h's file read over them.
 // Their borders are dragged through resize.h, asked before anything else reads the pointer.
 //
 // OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE BROWSER,
@@ -379,6 +380,7 @@ int main(int argc, char *argv[])
 			&roots[0].tree, VOE_EDITOR_PANEL_SCENE),
 		.inspector_wide = voe_editor_dock_panel_length(
 			&roots[0].tree, VOE_EDITOR_PANEL_INSPECTOR),
+		.view_share = voe_editor_dock_view_share(&roots[0].tree),
 	};
 	voe_editor_settings_read(&panel_sizes);
 	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_SCENE,
@@ -386,6 +388,7 @@ int main(int argc, char *argv[])
 	voe_editor_dock_panel_length_set(&roots[0].tree,
 					 VOE_EDITOR_PANEL_INSPECTOR,
 					 panel_sizes.inspector_wide);
+	voe_editor_dock_view_share_set(&roots[0].tree, panel_sizes.view_share);
 	bar.wanted = panel_sizes.topbar_high;
 
 	say_whether_descriptions_are_in();

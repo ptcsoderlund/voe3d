@@ -228,5 +228,6 @@ bool voe_editor_resize_remember(const voe_editor_dock_tree *tree,
 			tree, VOE_EDITOR_PANEL_SCENE),
 		.inspector_wide = voe_editor_dock_panel_length(
 			tree, VOE_EDITOR_PANEL_INSPECTOR),
-		.topbar_high = bar->wanted });
+		.topbar_high = bar->wanted,
+		.view_share = voe_editor_dock_view_share(tree) });
 }

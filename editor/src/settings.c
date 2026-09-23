@@ -29,21 +29,35 @@
 // The largest size a line may hold, in millimetres.
 #define SETTINGS_MOST 1000.0f
 
-// Room for the three lines this file writes: each key and any finite float
-// `%.3f` prints.
-#define SETTINGS_OWN_ROOM 192u
+// Room for the four lines this file writes: each key and any finite double
+// `%.3f` prints, which is under 330 characters.
+#define SETTINGS_OWN_ROOM (4u * 352u)
 
-// The three keys, in the order they are written.
+// The four keys, in the order they are written.
 static const char *const KEYS[] = { "scene_wide", "inspector_wide",
-				    "topbar_high" };
+				    "topbar_high", "view_share" };
 #define KEY_COUNT (sizeof KEYS / sizeof KEYS[0])
+#define KEY_TOPBAR 2u
+#define KEY_SHARE 3u
 
-// The field KEYS[key] names.
+// The size field KEYS[key] names; key is not KEY_SHARE.
 static float *field(voe_editor_settings *settings, size_t key)
 {
+	VOE_BASE_ASSERT(key < KEY_SHARE, "no size field for that key");
 	return key == 0 ? &settings->scene_wide :
 	       key == 1 ? &settings->inspector_wide :
 			  &settings->topbar_high;
+}
+
+// Whether value may be put in the field KEYS[key] names. Written the long way
+// round so a NaN, which no comparison is true of, is out of range like any
+// other bad number; the share's bounds keep out the infinities too.
+static bool in_range(size_t key, double value)
+{
+	if (key == KEY_SHARE)
+		return value > 0.0 && value < 1.0;
+	return value <= (double)SETTINGS_MOST &&
+	       (key == KEY_TOPBAR ? value >= 0.0 : value > 0.0);
 }
 
 // Which of KEYS line starts with as a whole word, or KEY_COUNT for none.
@@ -93,7 +107,7 @@ void voe_editor_settings_read(voe_editor_settings *settings)
 	char *next;
 	char *rest;
 	size_t key;
-	float value;
+	double value;
 
 	VOE_BASE_ASSERT(settings != NULL, "reading settings into nothing");
 
@@ -107,16 +121,16 @@ void voe_editor_settings_read(voe_editor_settings *settings)
 		key = key_of(line);
 		if (key == KEY_COUNT)
 			continue;
-		value = strtof(line + strlen(KEYS[key]), &rest);
+		value = strtod(line + strlen(KEYS[key]), &rest);
 		if (rest == line + strlen(KEYS[key]) ||
 		    rest[strspn(rest, " \t\r")] != '\0')
 			continue;
-		// Written the long way round so a NaN, which no comparison is
-		// true of, is out of range like any other bad number.
-		if (!(value <= SETTINGS_MOST) ||
-		    !(key == 2 ? value >= 0.0f : value > 0.0f))
+		if (!in_range(key, value))
 			continue;
-		*field(settings, key) = value;
+		if (key == KEY_SHARE)
+			settings->view_share = value;
+		else
+			*field(settings, key) = (float)value;
 	}
 	voe_base_arena_destroy(scratch);
 }
@@ -173,7 +187,10 @@ bool voe_editor_settings_write(const voe_editor_settings *settings)
 		for (key = 0; key < KEY_COUNT; key++)
 			used += (size_t)snprintf(text + used, capacity - used,
 						 "%s %.3f\n", KEYS[key],
-						 (double)*field(&copy, key));
+						 key == KEY_SHARE ?
+							 copy.view_share :
+							 (double)*field(&copy,
+									key));
 		ok = voe_platform_file_write(
 			voe_platform_path_join(scratch, dir, SETTINGS_FILE),
 			(const uint8_t *)text, used, NULL);

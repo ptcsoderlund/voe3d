@@ -31,8 +31,8 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `settings.h` — the Scene list's and the Inspector's widths and the top bar's height a person gave
-  them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
+- `settings.h` — the Scene list's and the Inspector's widths, the top bar's height and the views' share
+  a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in

@@ -68,7 +68,8 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 						 voe_editor_topbar *bar,
 						 bool allowed, double now);
 
-// The Scene list's and the Inspector's lengths in `tree` and the bar's
-// `wanted`, written through voe_editor_settings_write. False when that fails.
+// The Scene list's and the Inspector's lengths and the views' share in `tree`
+// and the bar's `wanted`, written through voe_editor_settings_write. False
+// when that fails.
 [[nodiscard]] bool voe_editor_resize_remember(const voe_editor_dock_tree *tree,
 					      const voe_editor_topbar *bar);
