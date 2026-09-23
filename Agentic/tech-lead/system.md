@@ -9,7 +9,7 @@ rules are decision 0168.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
-- **ecs** — entities, component tables, intent queues, a structural queue applied once a frame.
+- **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
 - **platform** — the one OS-aware folder: window, focus, wait, input, typing, keymap, files, time.
 - **scene** — transform, camera, light and identity as components with their systems.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
@@ -21,7 +21,7 @@ rules are decision 0168.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, the move gizmo.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, undo, files, Preferences.
+- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, Add component, undo, files.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -41,20 +41,18 @@ rules are decision 0168.
 - 0015, 0040, 0046 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
 - 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a card.
 - 0120, 0133, 0173 — Every code folder carries a `.md`; `src/` and `tests/` list their own files.
-- 0169 — A keysym is a number as often as a name, a key has four levels, and AltGr is a place.
-- 0170, 0171, 0172, 0178 — A theme is read in `theme`, derived in `ui` in OKLab; the nearest wins.
-- 0174, 0175, 0176 — 006's cards merged back; a new folder registers itself; `theme` sees `render`.
-- 0177 — To see what was drawn, render to a PNG; named on cards that change what is drawn.
+- 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
+- 0174–0177 — 006 merged back; a new folder registers itself; `theme` sees `render`; draws as PNGs.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
 - 0186, 0187, 0188 — Toward a coin game in the project's own C; Play cooks the scene as it is.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
 - 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
-- 0197 — Slider values are remembered per theme in one settings file; a theme file is never written.
+- 0197, 0219, 0220 — Sliders and text size per theme; layout fits content; panel sizes are global.
 - 0192, 0199, 0200 — `ui` holds one focus; an overlay belongs to its widget and fits.
 - 0201, 0214 — The fastest card is the best kind then the largest memory; one line says which.
-- 0202, 0203 — A click picks by a ray cast against the shapes' triangles; the outline is quads.
-- 0204 — Undo is a line of whole-scene texts; a step is what an edit settles into, read back whole.
+- 0202–0204 — A click picks by a ray against the shapes' triangles; outline quads; undo is scene texts.
 - 0205, 0206, 0207 — The move gizmo is `3d`'s, its drag the editor's; state is lightness and size.
 - 0208–0211 — 015 closes on its walk; 016 moves comments only, and a page's opening says what for.
 - 0215, 0216 — Unfocused, a window draws four frames a second; hidden, none; the clock keeps it.
+- 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.

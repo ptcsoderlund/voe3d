@@ -10,10 +10,10 @@ and the folder that owns a component's meaning is the folder that registers it.
 - `include/ecs/world.h` — the world, entity ids and the key a registration is
   made against. Its header says why an id has a generation in it, why the world
   lives in an arena and has no destroy, and why capacities are fixed.
-- `include/ecs/component.h` — one table per component type, and the types
-  a world holds with the key, description, replace intent, default
-  row, needed type and menu path; the two markers a registration passes instead of a
-  description. The file says why each is shaped as it is (0190, 0193).
+- `include/ecs/component.h` — one table per component type, and the types a
+  world holds with the key, description, replace intent, default row, needed
+  type and menu path; the two markers a registration passes instead of a
+  description. The file says why each is shaped as it is (0190, 0193, 0221).
 - `include/ecs/structure.h` — the world's structural queue: add a row with given
   bytes, remove a row, destroy an entity. Its header says who may submit, why the
   program applies it once a frame before its systems run, and why a request that
