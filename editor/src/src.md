@@ -67,11 +67,12 @@ carries it out.
   focused `ui` field and a Make folder button.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree, the walk, and `voe_editor_panel_draw`, which is where the panels' contents
-  are; a root carries this frame's keyboard beside its pointer.
-- `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, the one-millimetre gap at
-  each seam where a splitter would go, the scroll area it opens for the Inspector's leaf, and the
-  camera preview in each scene view's corner.
+- `dock.h` — the tree, whose splits may hold a side panel at a length in millimetres, the
+  arrangement that says where every node and seam is, the walk, and `voe_editor_panel_draw`, which
+  is where the panels' contents are; a root carries this frame's keyboard beside its pointer.
+- `dock.c` — the arrangement, with a held length clamped to what each side needs, the walk from it
+  to one frame of `ui` calls with a one-millimetre gap at each seam, the held panels' lengths read
+  and set, the Inspector's scroll area, and the camera preview in each scene view's corner.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
