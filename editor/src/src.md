@@ -90,8 +90,7 @@ carries it out.
   replace intents and scene.h's commands, and the side-and-cap rule both open lists are placed by.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
-  bytes, the fired buttons, Add component's lists and submenus opened and closed, and the open lists'
-  side and cap.
+  bytes, the fired buttons, and Add component's lists and submenus opened, closed, placed and capped.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
   angles or the one string a label is given out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
