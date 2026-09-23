@@ -31,6 +31,10 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
+- `settings.h` — the Scene list's and the Inspector's widths and the top bar's height a person gave
+  them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
+- `settings.c` — that file read line by line as a key and a number in range, and written back with
+  every other key's line kept, by making the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in
   `<settings>/voe3d/themes/`, the chosen one remembered in `<settings>/voe3d/theme` and re-read once
   a second, each carrying the two scalars and the text scale it is drawn with.
@@ -53,8 +57,8 @@ carries it out.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
-  project's name and whether it is unsaved, then the session's notice, as tall as its content
-  measured last frame.
+  project's name and whether it is unsaved, then the session's notice, at least as tall as its
+  content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in

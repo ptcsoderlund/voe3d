@@ -6,9 +6,11 @@
 // column with something drawn behind it (ui/widgets.h), and this bar's
 // contents run left to right — so the panel holds one row, stretched to its
 // full width at its natural height, and everything below is that row's
-// children. The panel is fixed at the height kept from last frame; the row is
+// children. The panel is fixed at voe_editor_topbar_high; the row is
 // not, so the panel's measure is what its content needs (ADR-0225).
 #include "topbar.h"
+
+#include "dock.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -44,8 +46,8 @@ static const char *unsaved_name(voe_base_arena *arena, const char *name)
 }
 
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
-			   voe_base_arena *arena, const char *name,
-			   bool unsaved, const char *notice)
+			   voe_base_arena *arena, float surface_high,
+			   const char *name, bool unsaved, const char *notice)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing no top bar into no interface");
 	VOE_BASE_ASSERT(bar != NULL,
@@ -59,7 +61,8 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 		ui, "topbar", 0, VOE_UI_SURFACE_SURFACE,
 		(voe_ui_container){
 			.size = { .along = { VOE_UI_SIZE_FIXED,
-					     voe_editor_topbar_high(bar) } },
+					     voe_editor_topbar_high(
+						     bar, surface_high) } },
 			.across = VOE_UI_ACROSS_FILL,
 			.pad = { BAR_PAD, BAR_PAD, BAR_PAD, BAR_PAD } });
 
@@ -92,7 +95,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	voe_ui_end(ui); // panel
 }
 
-float voe_editor_topbar_high(const voe_editor_topbar *bar)
+float voe_editor_topbar_least(const voe_editor_topbar *bar)
 {
 	float high;
 
@@ -102,6 +105,17 @@ float voe_editor_topbar_high(const voe_editor_topbar *bar)
 	VOE_BASE_ASSERT(high > 0.0f, "a top bar with no height");
 
 	return high;
+}
+
+float voe_editor_topbar_high(const voe_editor_topbar *bar, float surface_high)
+{
+	float high = voe_editor_topbar_least(bar);
+
+	if (bar->wanted > high)
+		high = bar->wanted;
+	if (high > surface_high - VOE_EDITOR_DOCK_VIEW_ROOM)
+		high = surface_high - VOE_EDITOR_DOCK_VIEW_ROOM;
+	return high > 0.0f ? high : 0.0f;
 }
 
 void voe_editor_topbar_measure(const voe_ui_context *ui,

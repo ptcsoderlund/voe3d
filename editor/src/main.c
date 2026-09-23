@@ -18,6 +18,7 @@
 // looked at again once a second at the top of the loop, in the one font the
 // editor makes, Oxanium (ADR-0185). A theme that is gone or refused draws Near
 // black and says why in session.notice, unless a failure already put one there.
+// The panels' sizes are the default tree's with settings.h's file read over them.
 //
 // OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE BROWSER,
 // which outlives every project. While it shows the middle-button drag moves no
@@ -63,6 +64,7 @@
 #include "project.h"
 #include "scene.h"
 #include "session.h"
+#include "settings.h"
 #include "shortcuts.h"
 #include "themes.h"
 #include "undo.h"
@@ -184,6 +186,8 @@ int main(int argc, char *argv[])
 	// while the browser is not showing (preferences.h).
 	voe_editor_preferences preferences = { 0 };
 	voe_app_settings settings;
+	// The panels' sizes the tree and the bar start at (settings.h).
+	voe_editor_settings panel_sizes;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
 	voe_app *app;
@@ -362,6 +366,21 @@ int main(int argc, char *argv[])
 	ui = voe_editor_interface_new(arena,
 				      &voe_editor_themes_chosen(&themes)->palette);
 	roots[0].tree = voe_editor_dock_default();
+	// The default tree's sizes, then whatever the person left (settings.h);
+	// a capture reads them too, as it reads the themes.
+	panel_sizes = (voe_editor_settings){
+		.scene_wide = voe_editor_dock_panel_length(
+			&roots[0].tree, VOE_EDITOR_PANEL_SCENE),
+		.inspector_wide = voe_editor_dock_panel_length(
+			&roots[0].tree, VOE_EDITOR_PANEL_INSPECTOR),
+	};
+	voe_editor_settings_read(&panel_sizes);
+	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_SCENE,
+					 panel_sizes.scene_wide);
+	voe_editor_dock_panel_length_set(&roots[0].tree,
+					 VOE_EDITOR_PANEL_INSPECTOR,
+					 panel_sizes.inspector_wide);
+	bar.wanted = panel_sizes.topbar_high;
 
 	say_whether_descriptions_are_in();
 	fflush(stdout);

@@ -2,12 +2,14 @@
 // Preferences, then the project's name and whether it is unsaved, then whatever notice the session
 // has to say.
 //
-// ITS HEIGHT IS WHAT ITS BUTTONS AND LABELS MEASURED LAST FRAME (ADR-0225). A
-// larger text size needs a taller bar, but dock.c divides a known height, so the
-// bar's has to be a number before the frame is built: voe_editor_topbar_measure
-// keeps what the panel's content measured, and voe_editor_topbar_high is the
-// height the next frame lays it out at. Where the bar sits, above the dock tree,
-// stretched to whatever width it is given, is interface.c's decision.
+// IT IS AT LEAST WHAT ITS BUTTONS AND LABELS MEASURED LAST FRAME (ADR-0225,
+// amended by ADR-0226). A larger text size needs a taller bar, but dock.c
+// divides a known height, so the bar's has to be a number before the frame is
+// built: voe_editor_topbar_measure keeps what the panel's content measured as
+// the least, `wanted` is the height the person made it, and
+// voe_editor_topbar_high is the larger, short enough to leave the dock a
+// view's room. Where the bar sits, above the dock tree, stretched to whatever
+// width it is given, is interface.c's decision.
 //
 // THE FOUR BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
 // ROWS ARE (scene.h). A `ui` widget answers what the pointer did to it only
@@ -35,7 +37,7 @@
 
 // The bar's panel and four buttons, recorded as they are drawn, and the height
 // it is laid out at. Zeroed is a bar that has drawn nothing yet; `high` nought
-// means VOE_EDITOR_TOPBAR_HIGH.
+// means VOE_EDITOR_TOPBAR_HIGH, `wanted` nought means fit the content.
 typedef struct {
 	voe_ui_node panel;
 	voe_ui_node new_button;
@@ -43,10 +45,17 @@ typedef struct {
 	voe_ui_node save_button;
 	voe_ui_node preferences_button;
 	float high;
+	float wanted;
 } voe_editor_topbar;
 
-// The height to lay the bar out at this frame, in millimetres.
-float voe_editor_topbar_high(const voe_editor_topbar *bar);
+// The height the content measured last frame, or VOE_EDITOR_TOPBAR_HIGH on the
+// first, in millimetres.
+float voe_editor_topbar_least(const voe_editor_topbar *bar);
+
+// The height to lay the bar out at this frame in a surface `surface_high` tall:
+// the larger of the least and `wanted`, at most `surface_high` less
+// VOE_EDITOR_DOCK_VIEW_ROOM, never below nought. Millimetres.
+float voe_editor_topbar_high(const voe_editor_topbar *bar, float surface_high);
 
 // Keeps what the panel's content measured as the next frame's height. Called
 // after voe_ui_frame_end, in the window voe_editor_topbar_clicks_read uses; a
@@ -58,10 +67,11 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
 // exactly as long as the row's labels are (ui/widgets.h). Records the
-// panel and the four buttons into `bar`, laid out at voe_editor_topbar_high(bar).
+// panel and the four buttons into `bar`, laid out at
+// voe_editor_topbar_high(bar, surface_high).
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
-			   voe_base_arena *arena, const char *name,
-			   bool unsaved, const char *notice);
+			   voe_base_arena *arena, float surface_high,
+			   const char *name, bool unsaved, const char *notice);
 
 // Which button fired this frame, or VOE_EDITOR_COMMAND_NONE when none did.
 // Called after voe_ui_frame_end and before the frame's arena is rewound — the

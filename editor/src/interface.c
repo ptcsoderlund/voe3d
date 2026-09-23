@@ -156,7 +156,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_inspector_add_close(&scene->inspector);
 		}
 
-		below_bar.size.y -= voe_editor_topbar_high(bar);
+		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
 		if (browsing || preferring)
 			below_bar.pointer.over = false;
 
@@ -194,7 +194,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					      .across = { VOE_UI_SIZE_FIXED,
 							  root->size.x } },
 				    .across = VOE_UI_ACROSS_FILL });
-		voe_editor_topbar_draw(ui, bar, arena,
+		voe_editor_topbar_draw(ui, bar, arena, root->size.y,
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text);
@@ -206,11 +206,13 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// dock's below it) is settled.
 		if (browsing)
 			voe_editor_browser_draw(ui, browser,
-						voe_editor_topbar_high(bar),
+						voe_editor_topbar_high(
+							bar, root->size.y),
 						below_bar.size);
 		if (preferring)
 			voe_editor_preferences_draw(ui, preferences, themes,
-						    voe_editor_topbar_high(bar),
+						    voe_editor_topbar_high(
+							    bar, root->size.y),
 						    below_bar.size);
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
@@ -226,7 +228,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 							       picked.left +
 							       PICKER_GAP },
 						.y = { VOE_UI_ACROSS_START,
-						       voe_editor_topbar_high(bar) +
+						       voe_editor_topbar_high(
+							       bar,
+							       root->size.y) +
 							       PICKER_GAP } } });
 			picker = voe_ui_colour_picker(ui, "colour picker", 0,
 						      colour);
