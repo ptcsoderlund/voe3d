@@ -1,9 +1,12 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, a pass begun on each one's target with its own camera, the world drawn
-// with the selection's outline and gizmo, and the pass ended.
+// with the selection's outline and gizmo and the scene camera's marker, and
+// the pass ended.
 #include "view_passes.h"
 
 #include <base/assert.h>
+
+#include <scene/camera_component.h>
 
 bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
@@ -20,6 +23,18 @@ bool voe_editor_view_passes_draw(
 	VOE_BASE_ASSERT(geometries != NULL && shapes != NULL &&
 				palette != NULL && gizmo != NULL,
 			"drawing views with no shapes, palette or gizmo");
+
+	// The world's camera, zeroed for none; outline-coloured while selected.
+	voe_ecs_entity camera_entity = { 0 };
+	if (voe_scene_camera_count(world) > 0)
+		camera_entity = voe_scene_camera_entities(world)[0];
+	voe_ecs_entity selected = voe_editor_scene_selected(scene);
+	bool camera_selected = camera_entity.generation != 0 &&
+			       camera_entity.index == selected.index &&
+			       camera_entity.generation == selected.generation;
+	voe_math_float3 marker_colour =
+		camera_selected ? voe_editor_view_outline_colour(palette)
+				: voe_editor_view_gizmo_colour(palette, false);
 
 	// A device made with a pass per view and one more does not refuse
 	// these; if it did, the caller still closes the frame and stops.
@@ -57,6 +72,14 @@ bool voe_editor_view_passes_draw(
 						palette, true),
 					.marked = voe_editor_gizmo_marked(gizmo, v),
 					.pixels = VOE_EDITOR_GIZMO_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
+				.marker = {
+					.entity = camera_entity,
+					.material = shapes->outline,
+					.colour = marker_colour,
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,
 						  (int)view->height } } });

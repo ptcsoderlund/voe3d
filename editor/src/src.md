@@ -103,9 +103,9 @@ carries it out.
   millimetre, their targets, the world's first light row and the lighter half
   of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view with the world, the
-  selection's outline and its gizmo, and the device capacities those passes need.
+  selection's outline, its gizmo and the camera's marker, and the device capacities those passes need.
 - `view_passes.c` — the shown views walked in order, each pass begun, drawn by `3d`'s draw system
-  and ended, stopping at the first refused pass.
+  with the world's camera marked, and ended, stopping at the first refused pass.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.

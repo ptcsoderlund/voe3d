@@ -1,8 +1,8 @@
 // What a frame draws into the scene views: a pass per view the dock tree
 // shows, each onto that view's own target with its own camera and the
 // world's light, the world drawn by voe_3d_draw_system_run with the
-// selection's outline (ADR-0203) and its move gizmo (ADR-0205), and the pass
-// ended. main.c calls it once a frame, between opening the draw and the
+// selection's outline (ADR-0203), its move gizmo (ADR-0205) and the scene
+// camera's marker (0223), and the pass ended. main.c calls it once a frame, between opening the draw and the
 // window's pass:
 //
 //     drawn = voe_editor_view_passes_draw(gpu, arena, world, &views, &tree,
@@ -23,15 +23,16 @@
 // registered with that much room for a mesh and a material, so a device that
 // draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
-// for the gizmo's handles at rest and its marked one, times the room for
-// views. `passes` is a pass per view and the interface's, and `targets` a
+// for the gizmo's handles at rest and its marked one, and one for the camera's
+// marker, times the room for views. `passes` is a pass per view and the interface's, and `targets` a
 // target per view — both from the room for views, not the two in use, so a
 // third view is a leaf and not a capacity. The three transient numbers are
 // what the selection outline's quads are copied into: one outline per view's
 // pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
 // The move gizmo's quads go there too: one gizmo per view's pass, two ranges
 // and two draws, sized from the room for views the same way (ADR-0205,
-// 3d/draw_system.h).
+// 3d/draw_system.h). So do the camera marker's: one marker per view's pass,
+// one range and one draw, sized the same way (0223, 3d/camera_marker.h).
 #pragma once
 
 #include "dock.h"
@@ -76,19 +77,21 @@
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 3) *                \
+		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 4) *                \
 			   VOE_EDITOR_VIEWS,                                   \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 1,                                \
 		.targets = VOE_EDITOR_VIEWS,                                   \
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
-				       VOE_3D_GIZMO_VERTICES) *                \
+				       VOE_3D_GIZMO_VERTICES +                 \
+				       VOE_3D_CAMERA_MARKER_VERTICES) *        \
 				      VOE_EDITOR_VIEWS,                        \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
-				      VOE_3D_GIZMO_INDICES) *                  \
+				      VOE_3D_GIZMO_INDICES +                   \
+				      VOE_3D_CAMERA_MARKER_INDICES) *          \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 3 * VOE_EDITOR_VIEWS                   \
+		.transient_geometries = 4 * VOE_EDITOR_VIEWS                   \
 	}
 
 // Draws every view `tree` shows, in order, and returns false at the first
