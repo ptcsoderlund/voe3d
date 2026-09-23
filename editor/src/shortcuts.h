@@ -35,13 +35,16 @@
 
 // The facts the caller holds while the keyboard is read. Each is named for
 // where the caller reads it: browser.showing, voe_ui_typing(ui),
-// scene.picking.open, scene.dropdown.open, and the primary button's level.
+// scene.picking.open, scene.dropdown.open, the primary button's level, and what
+// voe_editor_views_fly returned (view.h): a flying view keeps every key it reads,
+// so then no command fires and the editor is not at rest.
 typedef struct {
 	bool browser_showing;
 	bool typing;
 	bool picker_open;
 	bool dropdown_open;
 	bool pointer_down;
+	bool flying;
 } voe_editor_shortcuts_guards;
 
 // One frame's answer. Every flag is an edge, true for one frame per press.
@@ -49,7 +52,7 @@ typedef struct {
 	bool new_project, open, save;
 	bool delete_entity, duplicate;
 	bool undo, redo;
-	// No drag, no typing, no browser, no picker, no open list.
+	// No drag, no fly, no typing, no browser, no picker, no open list.
 	bool at_rest;
 	// The raw edge, handed to `ui` as this frame's keyboard, and that edge
 	// when nobody is typing.

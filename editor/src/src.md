@@ -5,14 +5,15 @@ and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
 - `main.c` — reads the command line, opens a project, the window and the device, makes the arena,
-  the one font, the themes and the interface, uploads the built-in shapes, and runs the loop until a
-  close goes ahead or the picture is written.
+  the one font, the themes and the interface, uploads the built-in shapes, and runs the loop, which
+  flies a view under the right button, until a close goes ahead or the picture is written.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
   each against last frame's, which is where every key edge in the program is found.
 - `keys.c` — the one read of every key, once a frame, and the levels it
   remembers to find the next frame's edges against.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
-  once out of keys.h's frame and the guards the caller holds, with acting on one left to the caller.
+  once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
+  with acting on one left to the caller.
 - `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete and Ctrl+D, the rest
   a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line: the folder to open, `--capture`'s path and
@@ -109,13 +110,12 @@ carries it out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
-- `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the right-button fly, the
-  view a pointer is over and where in that view's picture it lands, the light, the outline colour and
-  the gizmo's colour a view is drawn with, and the 480×270 preview of what the world's camera sees.
-- `view.c` — the views' orbit, which owns the eye, the drag's rates per millimetre, the right-button fly's
-  turn about the eye and its rates, their targets,
-  the world's first light row and the lighter half of the theme's inverse pair the selection is
-  outlined in, dimmed for a gizmo handle at rest.
+- `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the
+  right-button fly, the view a pointer is over and where in its picture, the colours a view is drawn
+  with, and the 480×270 preview of what the world's camera sees.
+- `view.c` — the views' orbit, which owns the eye, the drag's rates per millimetre, the fly's turn
+  about the eye and its rates, their targets, the world's first light row and the lighter half of the
+  theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view with the world, the
   selection's outline, its gizmo and the camera's marker, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views

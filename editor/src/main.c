@@ -34,11 +34,13 @@
 // is taken at the top of the next frame, before the structural queue is
 // applied. Escape's order is this file's (at the picker's close below).
 // Escape, Backspace, Enter, Tab and the text read since the last poll are the
-// interface's besides (dock.h, keys.h).
+// interface's besides (dock.h, keys.h). A flying view keeps every key it reads
+// from the interface and the shortcuts, and the pointer from both (view.h).
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has:
 // the window's size, the loop and the one division that turns
-// the mouse's pixels into the surface's millimetres. THE PARTS IN THE LOOP ARE
+// the mouse's pixels into the surface's millimetres. The left button is the
+// interface's; the middle and right are the views'. THE PARTS IN THE LOOP ARE
 // `app`'S (ADR-0135): a frame is opened, and a draw is bracketed, by it.
 //
 // A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
@@ -244,6 +246,9 @@ int main(int argc, char *argv[])
 	bool step_back = false;
 	bool step_forward = false;
 	bool at_rest = false;
+	// Whether a view flew last frame, so the pointer's lock is asked for
+	// only on the frame that changes (platform/input.h).
+	bool flew = false;
 	// The built-in shapes' CPU side: the triangles a pick ray is cast
 	// against, built once into the kept arena because the store outlives
 	// every frame (3d/shape_geometry.h).
@@ -404,6 +409,11 @@ int main(int argc, char *argv[])
 		voe_platform_text text = { 0 };
 		bool left = false;
 		bool middle = false;
+		bool right = false;
+		voe_platform_motion motion = { 0 };
+		// Whether a view flies this frame (view.h), read before the
+		// shortcuts so a flying view's keys command nothing.
+		bool flying;
 		// This frame's keyboard, read once below: every key's level and
 		// its down edge (keys.h).
 		voe_editor_keys_frame keyboard;
@@ -537,6 +547,9 @@ int main(int argc, char *argv[])
 				window, VOE_PLATFORM_BUTTON_LEFT);
 			middle = voe_platform_input_button_down(
 				window, VOE_PLATFORM_BUTTON_MIDDLE);
+			right = voe_platform_input_button_down(
+				window, VOE_PLATFORM_BUTTON_RIGHT);
+			motion = voe_platform_input_motion(window);
 		}
 		// Beside them, and the one read of the keyboard there is. It
 		// takes the window being NULL itself, so a capture reads a
@@ -544,6 +557,43 @@ int main(int argc, char *argv[])
 		voe_editor_keys_read(&keys, window, &keyboard);
 		shift = keyboard.down[VOE_PLATFORM_KEY_SHIFT];
 		control = keyboard.down[VOE_PLATFORM_KEY_CONTROL];
+
+		// THE POINTER'S DIVISION LIVES HERE AND NOWHERE ELSE (ADR-0141
+		// point 4), because the day a panel is a quad standing in the
+		// world that conversion is a ray against the quad — a different
+		// sum, in a different file, and only a call site can know which
+		// it wants. The interface, the views' drag and pick.h get the
+		// same millimetres; the wheel is WHEEL_MILLIMETRES below.
+		roots[0].pointer = (voe_ui_pointer){
+			.at = { pointer.x / pixels_per_millimetre,
+				pointer.y / pixels_per_millimetre },
+			.over = pointer.over,
+			.down = left,
+			.fine = shift,
+			.scroll = { wheel.x * WHEEL_MILLIMETRES,
+				    wheel.y * WHEEL_MILLIMETRES }
+		};
+
+		// THE RIGHT BUTTON FLIES THE VIEW IT WENT DOWN OVER (view.h),
+		// never while the browser shows, turned by the mouse's motion and
+		// moved by W, S, A, D, E and Q, Shift three times as fast. While it
+		// flies the pointer is locked and hidden, and put back where it
+		// was on the frame it stops.
+		flying = voe_editor_views_fly(
+			&views, roots[0].pointer.at, right && !browser.showing,
+			(voe_math_float2){ motion.x, motion.y },
+			(voe_editor_fly_keys){
+				.forward = keyboard.down[VOE_PLATFORM_KEY_W],
+				.back = keyboard.down[VOE_PLATFORM_KEY_S],
+				.left = keyboard.down[VOE_PLATFORM_KEY_A],
+				.right = keyboard.down[VOE_PLATFORM_KEY_D],
+				.up = keyboard.down[VOE_PLATFORM_KEY_E],
+				.down = keyboard.down[VOE_PLATFORM_KEY_Q],
+				.fast = shift },
+			(float)opened.tick.step);
+		if (flying != flew && window != NULL)
+			voe_platform_input_lock_pointer(window, flying);
+		flew = flying;
 
 		// WHICH EDGE MEANT WHICH COMMAND IS ANSWERED ONCE, HERE
 		// (shortcuts.h), out of the keyboard above and the guards this
@@ -555,7 +605,8 @@ int main(int argc, char *argv[])
 					   .typing = voe_ui_typing(ui),
 					   .picker_open = scene.picking.open,
 					   .dropdown_open = scene.dropdown.open,
-					   .pointer_down = left });
+					   .pointer_down = left,
+					   .flying = flying });
 
 		// Ctrl+N, Ctrl+O and Ctrl+S are the bar's three commands.
 		if (shortcuts.new_project)
@@ -592,32 +643,25 @@ int main(int argc, char *argv[])
 		if (escape_free && !browser.showing)
 			voe_editor_preferences_hide(&preferences);
 
-		// THE POINTER'S DIVISION LIVES HERE AND NOWHERE ELSE (ADR-0141
-		// point 4), because the day a panel is a quad standing in the
-		// world that conversion is a ray against the quad — a different
-		// sum, in a different file, and only a call site can know which
-		// it wants. The interface, the views' drag and pick.h get the
-		// same millimetres; the wheel is WHEEL_MILLIMETRES below.
-		roots[0].pointer = (voe_ui_pointer){
-			.at = { pointer.x / pixels_per_millimetre,
-				pointer.y / pixels_per_millimetre },
-			.over = pointer.over,
-			.down = left,
-			.fine = shift,
-			.scroll = { wheel.x * WHEEL_MILLIMETRES,
-				    wheel.y * WHEEL_MILLIMETRES }
-		};
 		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
 		// reads this for whichever field or number box is focused, and
 		// nothing here decides which one that is.
+		// A flying view keeps the keys it reads and the pointer: `ui`
+		// gets no text, no Backspace, Enter or Tab, and no pointer.
 		roots[0].keyboard = (voe_ui_keyboard){
-			.text = text.bytes,
-			.size = text.size,
-			.backspace = keyboard.pressed[VOE_PLATFORM_KEY_BACKSPACE],
-			.enter = keyboard.pressed[VOE_PLATFORM_KEY_ENTER],
+			.text = flying ? NULL : text.bytes,
+			.size = flying ? 0 : text.size,
+			.backspace = !flying &&
+				     keyboard.pressed[VOE_PLATFORM_KEY_BACKSPACE],
+			.enter = !flying && keyboard.pressed[VOE_PLATFORM_KEY_ENTER],
 			.escape = shortcuts.escape,
-			.tab = keyboard.pressed[VOE_PLATFORM_KEY_TAB],
+			.tab = !flying && keyboard.pressed[VOE_PLATFORM_KEY_TAB],
 		};
+		if (flying) {
+			roots[0].pointer.over = false;
+			roots[0].pointer.down = false;
+			left = false;
+		}
 
 		// THE BORDERS ARE ASKED FIRST (resize.h): a seam is a fill the
 		// walk draws, not a widget, so no widget answers for it. While
@@ -626,7 +670,8 @@ int main(int argc, char *argv[])
 		resized = voe_editor_resize_frame(
 			&resize, &roots[0], &bar,
 			!browser.showing && !preferences.showing &&
-				!scene.picking.open && !scene.dropdown.open,
+				!scene.picking.open && !scene.dropdown.open &&
+				!flying,
 			voe_platform_clock_now());
 		roots[0].lit = resized.reached;
 		if (resized.taken) {
