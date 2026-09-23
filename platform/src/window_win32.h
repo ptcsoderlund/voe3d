@@ -34,6 +34,10 @@ struct voe_platform_window {
 	bool lock_wanted;
 	bool focused;
 
+	// The cursor's screen position when the clip started, put back when
+	// it ends so the pointer shows where it was.
+	POINT lock_taken_at;
+
 	// What voe_platform_window_focused and _visible answer: the window is
 	// the active one (WM_ACTIVATE), and it is not minimised (IsIconic, read
 	// at _poll). Keyboard focus above is the lock's; activation is the

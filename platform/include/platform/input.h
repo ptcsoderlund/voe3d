@@ -214,7 +214,7 @@ voe_platform_wheel voe_platform_input_wheel(voe_platform_window *window);
 //     the lock took. The camera is reading motion; there is nothing here for a
 //     GUI to click on. True again the moment the lock is released: the
 //     position underneath is where the window system left the cursor — frozen
-//     on Wayland, clipped but tracked on Windows — and it is right again as
+//     on Wayland, put back where it was on Windows — and it is right again as
 //     soon as there is nothing hiding it.
 //   - THERE IS NO POINTER. A seat with no mouse on it, or one not yet reported.
 //
@@ -281,14 +281,13 @@ bool voe_platform_input_button_down(voe_platform_window *window,
 // simply walk out of the window while it does. That is a worse experience and it
 // is not a failure, which is why this returns nothing.
 //
-// WHAT HAPPENS TO THE ARROW DIFFERS BETWEEN THE TWO PLATFORMS, AND THAT IS
-// DELIBERATE RATHER THAN UNFINISHED. Windows hides the cursor and confines it to
-// the client area, because ShowCursor un-hides again and nothing has to be drawn.
-// Wayland freezes it where it stands and leaves it visible, because hiding it
-// there means handing the compositor a cursor image and this engine has none to
-// hand over — and a cursor hidden with no way back is worse than a cursor
-// sitting still. The card that owns a cursor image for hiding is the card that
-// makes these two agree; the pointer's shape is named below and needs no image.
+// BOTH PLATFORMS HIDE THE ARROW WHILE LOCKED AND SHOW IT WHERE IT WAS. Windows
+// hides and clips the cursor, and puts it back at the position it was taken
+// from. Wayland freezes it in place and hides it once the lock is active, and
+// names the shape back when it ends. The one exception: a Wayland compositor
+// without cursor-shape-v1 leaves it frozen and visible, because bringing it
+// back there would mean a cursor image this engine does not have — and a
+// cursor hidden with no way back is worse than one sitting still.
 void voe_platform_input_lock_pointer(voe_platform_window *window, bool lock);
 
 // Whether the pointer is locked right now, which is the window system's answer

@@ -13,9 +13,8 @@ file, and listing, making or finding a folder.
   `_focused` and `_visible` say whether the person is in it and can see it, and
   `_wait` blocks for at most the timeout it is given.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the wheel in
-  notches, typed UTF-8 text, the pointer's position, buttons and shape, and the lock.
-  The file says why all of it is polled state and not a queue of events, and
-  why a key is a place rather than a letter.
+  notches, typed UTF-8 text, the pointer's position, buttons and shape, and the lock, which hides the pointer.
+  Its header says why it is polled state and a key is a place.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   the wait is on the window.

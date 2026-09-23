@@ -16,14 +16,12 @@
 // THE POINTER'S SHAPE IS SET BY NAME through cursor-shape-v1, on enter and on a
 // change, and the compositor draws it; without the protocol it is left alone.
 //
-// NOTHING HERE HIDES THE CURSOR, AND THAT IS A LIMIT RATHER THAN AN
-// OVERSIGHT. A locked pointer is frozen by the compositor and stays visible,
-// because hiding it means calling wl_pointer_set_cursor with a surface, and a
-// surface needs a buffer with a cursor drawn in it — an image this engine does
-// not have. Passing NULL hides it with no way back, since restoring the arrow
-// would mean drawing an arrow. A frozen cursor is worse than a hidden one and
-// better than one that vanishes for good; include/platform/input.h says so, and
-// says which card fixes it.
+// A LOCKED POINTER IS HIDDEN ONLY WHEN CURSOR-SHAPE-V1 CAN BRING IT BACK BY
+// NAME. Once the lock is reported locked, wl_pointer_set_cursor is given no
+// surface; on unlock or release the shape is named again. Without the
+// protocol, restoring the arrow would mean drawing one, an image this engine
+// does not have, so the pointer stays frozen and visible. The lock freezes it
+// in place, so when it shows again it is where it was.
 //
 // Every listener slot left NULL here is unreachable because window_wayland.c
 // binds the seat and both pointer protocols at version 1; its header says why.
@@ -331,7 +329,8 @@ static void pointer_at(voe_platform_window *window, wl_fixed_t x, wl_fixed_t y)
 
 // The stored shape, by name, quoting the last enter's serial. Nothing while
 // the pointer is elsewhere or the compositor has no cursor-shape-v1: the next
-// enter applies whatever is stored then.
+// enter applies whatever is stored then. While the lock hides the pointer it
+// is hidden again instead, so an enter or a shape change mid-lock never shows it.
 static void cursor_apply(voe_platform_window *window)
 {
 	uint32_t shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
@@ -342,6 +341,11 @@ static void cursor_apply(voe_platform_window *window)
 
 	if (window->cursor_shape == NULL || !window->input.pointer_over)
 		return;
+	if (window->cursor_hidden) {
+		wl_pointer_set_cursor(window->pointer, window->pointer_serial,
+				      NULL, 0, 0);
+		return;
+	}
 	if (window->input.cursor == VOE_PLATFORM_CURSOR_LEFT_RIGHT)
 		shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
 	else if (window->input.cursor == VOE_PLATFORM_CURSOR_UP_DOWN)
@@ -522,6 +526,21 @@ static void locked_pointer_locked(void *data,
 
 	(void)locked;
 	window->input.pointer_locked = true;
+
+	// Hidden only when the shape can be named back; see the header.
+	if (window->cursor_shape != NULL) {
+		window->cursor_hidden = true;
+		cursor_apply(window);
+	}
+}
+
+// The shape back by name, once, if the lock hid the pointer.
+static void cursor_unhide(voe_platform_window *window)
+{
+	if (!window->cursor_hidden)
+		return;
+	window->cursor_hidden = false;
+	cursor_apply(window);
 }
 
 static void locked_pointer_unlocked(void *data,
@@ -531,6 +550,7 @@ static void locked_pointer_unlocked(void *data,
 
 	(void)locked;
 	window->input.pointer_locked = false;
+	cursor_unhide(window);
 }
 
 static const struct zwp_locked_pointer_v1_listener locked_pointer_listener = {
@@ -580,6 +600,7 @@ static void lock_stop(voe_platform_window *window)
 	zwp_locked_pointer_v1_destroy(window->locked_pointer);
 	window->locked_pointer = NULL;
 	window->input.pointer_locked = false;
+	cursor_unhide(window);
 }
 
 // The pointer, and the relative-motion object that hangs off it. Both come and

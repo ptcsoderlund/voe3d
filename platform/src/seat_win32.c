@@ -16,8 +16,9 @@
 // Wayland, nothing here can refuse: ClipCursor confines the cursor to the client
 // rectangle and ShowCursor hides it, so the flag src/input.h keeps is set from
 // what was asked for rather than from an answer. ShowCursor is a counter and not
-// a switch, which is what makes hiding reversible here and not on the other
-// platform — see include/platform/input.h, which says why the two differ.
+// a switch, so hiding is reversible. The lock gives the pointer back where it
+// was taken: the screen position is kept when the clip starts and put back
+// before the cursor is shown.
 #include "window_win32.h"
 
 #include <base/assert.h>
@@ -239,6 +240,9 @@ void voe_platform_seat_apply_lock(voe_platform_window *window)
 	}
 
 	if (wanted) {
+		// Where it was taken, so it is given back there rather than
+		// wherever raw motion pushed it against the clip.
+		GetCursorPos(&window->lock_taken_at);
 		clip_to_client(window);
 		ShowCursor(FALSE);
 	} else {
@@ -246,6 +250,7 @@ void voe_platform_seat_apply_lock(voe_platform_window *window)
 		// setting, so leaving it behind would confine the cursor for
 		// every other program on the machine.
 		ClipCursor(NULL);
+		SetCursorPos(window->lock_taken_at.x, window->lock_taken_at.y);
 		ShowCursor(TRUE);
 	}
 	window->input.pointer_locked = wanted;
