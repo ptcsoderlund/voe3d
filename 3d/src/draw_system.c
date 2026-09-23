@@ -11,6 +11,7 @@
 // takes no value: the number depth is cleared to lives in `render` beside the
 // convention it belongs to, and this folder neither supplies it nor is told it.
 // See render/include/render/device.h.
+#include <3d/camera_marker.h>
 #include <3d/depth_sort.h>
 #include <3d/draw_system.h>
 #include <3d/gizmo.h>
@@ -322,6 +323,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.hidden = (voe_ecs_entity){ 0 };
 	frame.outlined = (voe_3d_outlined){ 0 };
 	frame.gizmo = (voe_3d_gizmoed){ 0 };
+	frame.marker = (voe_3d_camera_marked){ 0 };
 
 	return frame;
 }
@@ -403,6 +405,46 @@ static void draw_gizmo_mesh(voe_render_device *device, voe_3d_gizmo_mesh mesh,
 						 mesh.vertex_count,
 						 mesh.indices, mesh.index_count,
 						 &quads, &error))
+		(void)voe_render_frame_draw(device, quads, object);
+}
+
+// The scene camera's marker as this frame's geometry and one draw, in world
+// metres like the outline's quads, so both matrices are the identity (0223).
+// A zeroed entity, a dead one, and one without a camera or a transform draw
+// nothing; so does a refused transient range, which render reports.
+static void draw_camera_marker(const voe_ecs_world *world,
+			       voe_render_device *device, voe_base_arena *arena,
+			       voe_render_view view,
+			       voe_3d_camera_marked marker)
+{
+	const voe_scene_camera *lens;
+	const voe_scene_transform *pose;
+	voe_3d_outline_mesh mesh;
+	voe_render_geometry quads;
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_object object = {
+		.world = voe_math_float4x4_identity(),
+		.normal = voe_math_float4x4_identity(),
+		.shading = marker.material.shading.index,
+		.colour = { marker.colour.x, marker.colour.y, marker.colour.z,
+			    1.0f },
+	};
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a camera marker to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a camera marker with no arena");
+
+	if (!voe_ecs_entity_alive(world, marker.entity))
+		return;
+	lens = voe_scene_camera_get(world, marker.entity);
+	pose = voe_scene_transform_get(world, marker.entity);
+	if (lens == NULL || pose == NULL)
+		return;
+	if (voe_3d_camera_marker_quads(*pose, *lens, view, marker.size,
+				       marker.pixels, arena, &mesh) &&
+	    voe_render_geometry_create_transient(device, mesh.vertices,
+						 mesh.vertex_count, mesh.indices,
+						 mesh.index_count, &quads,
+						 &error))
 		(void)voe_render_frame_draw(device, quads, object);
 }
 
@@ -620,7 +662,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// A refused draw in any group stops that group and not the frame, so
 	// every return value here is deliberately dropped: the loop still ends
-	// and presents the frame.
+	// and presents the frame. The camera marker is solid and in the world's
+	// depth (0223), so it goes with the solids, before the blended group.
+	draw_camera_marker(world, device, arena, view, frame.marker);
 	(void)draw_group(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,

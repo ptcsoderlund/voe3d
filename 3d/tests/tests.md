@@ -23,12 +23,14 @@ again, or to find where a claim that has started failing is written down.
 - `draw_system.c` — that a camera scaled to nothing frames blind, that the entity a frame hides is not drawn and every other
   one is, in both tables and both layers, that a red shaped cube reads red at the
   picture's centre, and that a gizmo in a cube is read where the cube alone would
-  be. Skips without a graphics card.
+  be, and that a marked camera is one more draw and a zeroed marker none. Skips
+  without a graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, and that every kind is a closed surface wound counter-clockwise seen from
   outside. Needs no graphics card.
 - `pick.c` — the distance to a cube through the picture's centre, the ray that meets nothing, the
-  nearer of two in either order, and — drawn — that a pixel the cube covers picks that cube. The
+  nearer of two in either order, a camera beating or losing to a cube, a ray through the
+  frustum picking nothing, and — drawn — that a pixel the cube covers picks that cube. The
   arithmetic half needs no graphics card; the drawn half skips without one.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
   and winding, and — drawn — that a hidden cube's outline shows through. The arithmetic half needs

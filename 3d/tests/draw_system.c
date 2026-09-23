@@ -712,6 +712,115 @@ static void a_camera_scaled_to_nothing_frames_blind(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT(frame.view.view.m[3][3], 0.0f, 0.0f);
 }
 
+// How many commands one frame of `world`, framed as `frame` with `marker` set
+// on it, comes to.
+static uint32_t draws_with_a_marker(voe_ecs_world *world,
+				    voe_render_device *device,
+				    voe_base_arena *arena, voe_3d_frame frame,
+				    voe_3d_camera_marked marker)
+{
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_render_pass_camera camera = { .view = frame.view,
+					  .light = frame.light };
+	bool drawing = false;
+	uint32_t drawn = 0;
+
+	VOE_TEST_CHECK_INT(frame.marker.entity.generation, 0);
+	frame.marker = marker;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (drawing) {
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			device, VOE_RENDER_TARGET_WINDOW, &camera));
+		voe_3d_draw_system_run(world, device, arena, frame);
+		drawn = voe_render_frame_draw_count(device);
+		voe_render_pass_end(device);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+	}
+	return drawn;
+}
+
+// A marker on a live camera is one more draw than none, and a marker on a
+// zeroed entity is the same as none (0223). The marked camera is a second one,
+// added after framing, because framing wants exactly one and _run reads no
+// camera table.
+static void a_marked_camera_is_one_more_draw(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	// The shapes' pools, one object for the cube and one for the marker,
+	// and one marker's worth of this frame's geometry (3d/draw_system.h).
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.transient_vertices = VOE_3D_CAMERA_MARKER_VERTICES,
+		.transient_indices = VOE_3D_CAMERA_MARKER_INDICES,
+		.transient_geometries = 1,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	voe_3d_shapes shapes;
+	voe_ecs_world *world;
+	voe_ecs_entity cube = { 0 };
+	voe_ecs_entity marked = { 0 };
+	voe_3d_frame frame;
+	voe_3d_camera_marked marker;
+	uint32_t without;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+
+	world = a_world(arena);
+	voe_3d_shape_register(world, 2);
+	add_a_camera(world);
+	add_the_sun(world);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(6.0f)));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, cube,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = VOE_3D_SHAPE_GREY }));
+	voe_3d_shape_system_run(world, &shapes);
+	frame = voe_3d_draw_system_frame(world, size);
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &marked));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, marked, at_depth(3.0f)));
+	VOE_TEST_CHECK(voe_scene_camera_add(
+		world, marked,
+		(voe_scene_camera){ .fov_y = 1.0471976f,
+				    .near_plane = 0.1f,
+				    .far_plane = 100.0f }));
+
+	marker = (voe_3d_camera_marked){
+		.entity = marked,
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+	without = draws_with_a_marker(world, device, arena, frame,
+				      (voe_3d_camera_marked){ 0 });
+	VOE_TEST_CHECK_INT(without, 1);
+	VOE_TEST_CHECK_INT(
+		draws_with_a_marker(world, device, arena, frame, marker),
+		without + 1);
+	marker.entity = (voe_ecs_entity){ 0 };
+	VOE_TEST_CHECK_INT(
+		draws_with_a_marker(world, device, arena, frame, marker),
+		without);
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -750,5 +859,6 @@ int main(void)
 
 	a_shaped_cube_draws_in_its_colour();
 	a_gizmo_shows_through_what_it_stands_in();
+	a_marked_camera_is_one_more_draw();
 	return voe_test_result();
 }

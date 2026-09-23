@@ -1,5 +1,6 @@
 // The pick ray and the walk that answers it — see the header for why this
 // question is answered here and against which table.
+#include <3d/camera_marker.h>
 #include <3d/pick.h>
 #include <3d/shape_component.h>
 
@@ -8,6 +9,9 @@
 #include <math/float4.h>
 #include <math/float4x4.h>
 
+#include <ecs/component.h>
+
+#include <scene/camera_component.h>
 #include <scene/transform_component.h>
 
 #include <stddef.h>
@@ -81,6 +85,21 @@ static bool ray_hits_triangle(voe_3d_ray ray, voe_math_float3 a,
 
 	*t = hit;
 	return true;
+}
+
+// Whether the world registered a camera store. A walk of the types rather than
+// voe_ecs_component_type, which asserts on a key nothing registered, as
+// draw_system.c's shape_type walks them; once per pick.
+static bool has_cameras(const voe_ecs_world *world)
+{
+	uint32_t count = voe_ecs_component_type_count(world);
+
+	for (uint32_t i = 0; i < count; i++)
+		if (voe_ecs_component_key(world,
+					  voe_ecs_component_type_at(world, i)) ==
+		    &voe_scene_camera_key)
+			return true;
+	return false;
 }
 
 voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_platform_size size,
@@ -171,6 +190,27 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 				continue;
 			nearest = t;
 			hit = entities[i];
+		}
+	}
+
+	// The cameras compete on the same distance: their box, never their
+	// frustum (0223, 3d/camera_marker.h).
+	if (has_cameras(world)) {
+		uint32_t cameras = voe_scene_camera_count(world);
+		const voe_ecs_entity *owners = voe_scene_camera_entities(world);
+
+		for (uint32_t i = 0; i < cameras; i++) {
+			const voe_scene_transform *pose =
+				voe_scene_transform_get(world, owners[i]);
+			float t;
+
+			if (pose == NULL ||
+			    !voe_3d_camera_marker_hit(*pose, ray, &t))
+				continue;
+			if (hit.generation != 0 && t >= nearest)
+				continue;
+			nearest = t;
+			hit = owners[i];
 		}
 	}
 

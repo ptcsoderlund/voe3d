@@ -14,12 +14,11 @@
 // that wants a click named calls this, the way it already calls
 // voe_3d_draw_system_frame to draw.
 //
-// IT WALKS THE SHAPE TABLE ALONE, AND THAT IS THE WHOLE OF WHAT A PROJECT DRAWS
-// TODAY (ADR-0202). A mesh and a material are runtime-only components
-// (3d/mesh_component.h, 3d/material_component.h), so no scene file holds one and
-// nothing in the editor imports a model: every entity a person can click on is a
-// shaped one. The mesh table's turn comes with the card that gives the editor an
-// import, against the triangles the importer read and kept the same way.
+// IT WALKS THE SHAPES AND THE CAMERAS (ADR-0202, 0223). A mesh is runtime-only
+// (3d/mesh_component.h), so every entity a person can click on is a shaped one
+// or a camera; the mesh table's turn comes with an editor import. A camera is
+// hit on its marker's box (3d/camera_marker.h), never its frustum lines, and
+// competes with the shapes on distance; a world with no camera store walks none.
 //
 // HOW A HIT IS MEASURED. The entity's world matrix is inverted once and carries
 // the ray into the shape's own space — the origin as a point, the direction as a

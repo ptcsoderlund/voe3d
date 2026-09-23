@@ -26,6 +26,7 @@
 #include <3d/shape_system.h>
 #include <base/arena.h>
 #include <base/error.h>
+#include <ecs/component.h>
 #include <ecs/world.h>
 #include <math/float2.h>
 #include <math/float4.h>
@@ -40,6 +41,7 @@
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stdio.h>
 
 // The three shapes' triangles and edges are a couple of hundred kilobytes
@@ -224,6 +226,74 @@ static void the_nearer_of_two_wins_in_either_order(
 	}
 }
 
+// A camera with the test lens and a transform at (x, y, z), looking down -Z.
+static voe_ecs_entity add_a_camera(voe_ecs_world *world, float x, float y,
+				   float z)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, at(x, y, z)));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, entity, the_lens()));
+	return entity;
+}
+
+// A camera competes with the shapes on distance (0223): in front of the cube
+// its box, 0.15 m deep, is met at 4.9 - 2.15; behind the cube it loses.
+static void a_camera_competes_with_the_cube_on_distance(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_3d_ray ray = voe_3d_pick_ray(
+		the_view(size), size,
+		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
+	float distance = -1.0f;
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity camera = add_a_camera(world, 0.0f, 0.0f, 2.0f);
+		voe_ecs_entity hit =
+			voe_3d_pick(world, geometries, ray, &distance);
+
+		(void)cube;
+		VOE_TEST_CHECK_INT(hit.index, camera.index);
+		VOE_TEST_CHECK_INT(hit.generation, camera.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.9f - 2.15f, 1e-3f);
+	}
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity camera = add_a_camera(world, 0.0f, 0.0f, -2.0f);
+		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity hit =
+			voe_3d_pick(world, geometries, ray, &distance);
+
+		(void)camera;
+		VOE_TEST_CHECK_INT(hit.index, cube.index);
+		VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+	}
+}
+
+// Only the box is hit (0223): a ray straight down -Z through the frustum's far
+// top-right corner, 1 m ahead at 60 degrees and 16:9, passes the box by and
+// picks nothing.
+static void a_ray_through_the_frustum_s_corner_picks_nothing(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_ecs_world *world = a_world(arena);
+	float up = tanf(the_lens().fov_y * 0.5f);
+	voe_3d_ray ray = {
+		.origin = { up * 16.0f / 9.0f, up, 5.0f },
+		.direction = { 0.0f, 0.0f, -1.0f },
+	};
+	float distance = -1.0f;
+	voe_ecs_entity hit;
+
+	(void)add_a_camera(world, 0.0f, 0.0f, 0.0f);
+	hit = voe_3d_pick(world, geometries, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.generation, 0);
+	VOE_TEST_CHECK_FLOAT(distance, -1.0f, 1e-6f);
+}
+
 // A cube away from the centre is answered by a ray through the pixel its own
 // centre projects to — and a shape with no transform is nowhere and is never
 // answered, even by a ray that passes through where it would be.
@@ -362,6 +432,13 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 		}
 	}
 
+	// The eye's own marker box holds every pick ray's origin, so it would
+	// answer every pixel (0223); an editor picks from its orbit, not from a
+	// camera in the world, so the eye's camera goes before the picks.
+	VOE_TEST_CHECK(voe_ecs_component_remove(
+		world, voe_ecs_component_type(world, &voe_scene_camera_key),
+		eye));
+
 	VOE_TEST_CHECK(found);
 	if (found) {
 		voe_ecs_entity hit = voe_3d_pick(
@@ -394,6 +471,8 @@ int main(void)
 	the_centre_ray_hits_a_cube_at_the_origin(arena, &geometries);
 	the_nearer_of_two_wins_in_either_order(arena, &geometries);
 	a_cube_off_centre_is_found_at_its_own_pixel(arena, &geometries);
+	a_camera_competes_with_the_cube_on_distance(arena, &geometries);
+	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);
 	a_pixel_the_cube_covers_picks_the_cube(arena, &geometries);
 
 	voe_base_arena_destroy(arena);

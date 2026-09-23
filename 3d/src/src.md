@@ -36,7 +36,7 @@ is included from outside the folder — `include/3d/` is the whole public surfac
 - `pick.c` — the pixel's ray out of the view's two matrices inverted once, and the walk
   over the shape table that carries it into each shape's own space and tests the
   kind's triangles, with the triangle test written out once and its derivation in
-  a comment.
+  a comment, then the cameras' marker boxes on the same distance.
 - `outline.c` — the walk over one shape's edges that keeps the ones the eye is on two sides of, and
   the quad each of them becomes, a half width per vertex from that vertex's own depth.
 - `camera_marker.c` — the marker's twenty edges in the camera's own space, their quads with
@@ -47,7 +47,8 @@ is included from outside the folder — `include/3d/` is the whole public surfac
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera's view from its transform and lens, the sun, two matrices and a colour per object,
   the solid pass in table order and the blended one furthest first, on each
-  side of the overlay's depth clear, over both tables, then the outline and the
+  side of the overlay's depth clear, over both tables, a camera marker with the
+  world's solids, then the outline and the
   move gizmo behind a clear each.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.
