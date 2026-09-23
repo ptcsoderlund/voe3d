@@ -419,6 +419,36 @@ static void add_component(voe_ui_context *ui, voe_editor_inspector *inspector,
 					  inspector->entity);
 }
 
+// Add component's lists: the top one under its button, then one per open
+// group beside its row. A level whose group is no longer a group under the
+// one open above it — the menu is rebuilt every frame — ends the drawing
+// there, so a submenu never shows another group's children.
+static void add_menu_lists(voe_ui_context *ui, voe_editor_inspector *inspector)
+{
+	uint32_t parent = VOE_EDITOR_ADD_MENU_TOP;
+	voe_editor_inspector_place at = inspector->adding_at;
+
+	VOE_BASE_ASSERT(inspector->menu.count > 0, "drawing an empty menu");
+	VOE_BASE_ASSERT(inspector->open_count < VOE_EDITOR_ADD_MENU_DEPTH,
+			"more groups open than a path is deep");
+
+	for (uint32_t level = 0; level <= inspector->open_count; level++) {
+		if (level > 0) {
+			const uint32_t group = inspector->open_groups[level - 1];
+
+			if (group >= inspector->menu.count ||
+			    !inspector->menu.entries[group].group ||
+			    inspector->menu.entries[group].parent != parent)
+				return;
+			parent = group;
+			at = inspector->open_at[level - 1];
+		}
+		voe_editor_add_menu_draw(ui, inspector->arena, &inspector->menu,
+					 parent, at.left, at.top, at.height,
+					 &inspector->menu_lists[level]);
+	}
+}
+
 // The open list, hanging from the button that opened it inside the content
 // column it is anchored to — see the header on why it is this panel's and not
 // the editor's. Nothing is drawn unless the list is open on a field of an
@@ -516,9 +546,10 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->remove_count = 0;
 	inspector->add_component = VOE_UI_NODE_NONE;
 	inspector->menu.count = 0;
-	inspector->menu_list = (voe_editor_add_menu_list){
-		.panel = VOE_UI_NODE_NONE, .area = VOE_UI_NODE_NONE
-	};
+	for (uint32_t i = 0; i < VOE_EDITOR_ADD_MENU_DEPTH; i++)
+		inspector->menu_lists[i] = (voe_editor_add_menu_list){
+			.panel = VOE_UI_NODE_NONE, .area = VOE_UI_NODE_NONE
+		};
 }
 
 void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
@@ -593,11 +624,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	// over by the rows below it.
 	dropdown_list(ui, inspector, world);
 	if (inspector->menu.count > 0)
-		voe_editor_add_menu_draw(ui, inspector->arena, &inspector->menu,
-					 inspector->adding_at.left,
-					 inspector->adding_at.top,
-					 inspector->adding_at.height,
-					 &inspector->menu_list);
+		add_menu_lists(ui, inspector);
 
 	voe_ui_end(ui);
 }

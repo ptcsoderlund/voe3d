@@ -50,8 +50,12 @@
 // content column's, so it is in that column's space and says nothing about how
 // far the panel is scrolled. It is voe_editor_inspector_overlay_place, and Add
 // component's list is placed by it too: that list opens and closes as the
-// open list does, and a fired type's row adds the type (inspector.h). scene.h
-// holds this struct, so it is named here by its tag and not by including it.
+// open list does, and a fired type's row adds the type (inspector.h). A group
+// row opens its submenu, closing every group open at its level or deeper; a
+// press closes the menu only outside every open list and the button. A submenu
+// sits right of its list, or left when the area has no room there, its top at
+// its row's top, fitted by the same side-and-cap rule with the row as the
+// widget (ADR-0221). scene.h holds this struct, so it is named by its tag.
 #pragma once
 
 #include "inspector.h"

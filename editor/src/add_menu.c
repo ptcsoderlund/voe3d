@@ -1,6 +1,6 @@
 // Add component's tree built from the world's types: each offered type's path
 // split into trimmed parts, each group part found or made under its parent,
-// and the entry appended last; and its top level drawn as a list the way
+// and the entry appended last; and one level drawn as a list the way
 // inspector.c's dropdown_list draws the open dropdown's. See the header for
 // what is offered and why.
 #include "add_menu.h"
@@ -138,9 +138,11 @@ void voe_editor_add_menu_build(voe_editor_add_menu *menu,
 // its own; the rows scroll inside it so a capped list still reaches its last
 // entry (ADR-0200). A type's label is the menu's own, which the caller keeps
 // past voe_ui_frame_end; a group's, with its marker, is the arena's.
+// Each list's panel and area are keyed by `parent`, so the lists of one frame
+// never share a node; a row is keyed by its entry, which sits in one list only.
 void voe_editor_add_menu_draw(voe_ui_context *ui, voe_base_arena *arena,
-			      const voe_editor_add_menu *menu, float left,
-			      float top, float height,
+			      const voe_editor_add_menu *menu, uint32_t parent,
+			      float left, float top, float height,
 			      voe_editor_add_menu_list *list)
 {
 	const bool capped = height > 0.0f;
@@ -156,13 +158,13 @@ void voe_editor_add_menu_draw(voe_ui_context *ui, voe_base_arena *arena,
 					.x = { VOE_UI_ACROSS_START, left },
 					.y = { VOE_UI_ACROSS_START, top } } });
 	list->panel = voe_ui_panel_begin(
-		ui, "add menu", 0, VOE_UI_SURFACE_RAISED,
+		ui, "add menu", parent, VOE_UI_SURFACE_RAISED,
 		(voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
 				    .pad = { LIST_PAD, LIST_PAD, LIST_PAD,
 					     LIST_PAD },
 				    .blocks_pointer = true });
 	list->area = voe_ui_scroll_begin(
-		ui, "add menu rows", 0,
+		ui, "add menu rows", parent,
 		(voe_ui_container){
 			.size = { .along = capped
 					   ? (voe_ui_size){ VOE_UI_SIZE_FIXED,
@@ -175,7 +177,7 @@ void voe_editor_add_menu_draw(voe_ui_context *ui, voe_base_arena *arena,
 	for (uint32_t i = 0; i < menu->count; i++) {
 		const voe_editor_add_menu_entry *entry = &menu->entries[i];
 
-		if (entry->parent != VOE_EDITOR_ADD_MENU_TOP)
+		if (entry->parent != parent)
 			continue;
 		list->rows[list->row_count++] = (voe_editor_add_menu_row){
 			.node = voe_ui_button_begin(ui, "add menu row", i),

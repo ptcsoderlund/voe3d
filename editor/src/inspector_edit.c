@@ -314,6 +314,56 @@ static bool contains(voe_ui_rect rect, voe_math_float2 at)
 	       at.y < rect.min.y + rect.size.y;
 }
 
+// A list's top edge and its rows' cap, in the surface's millimetres.
+typedef struct {
+	float top;
+	float cap;
+} list_fit;
+
+// The side-and-cap rule (ADR-0200) for the drawn `list` with its `rows` inside
+// visible room `w`: its top at `down` when the whole list fits below that,
+// else its bottom at `up` when it fits above, else on the roomier side capped,
+// never to fewer than `least` millimetres of rows. A dropdown's `down` is its
+// button's bottom and `up` its top; a submenu's are its row's top and bottom.
+static list_fit side_and_cap(const voe_ui_context *ui, voe_ui_rect w,
+			     voe_ui_node list, voe_ui_node rows, float down,
+			     float up, float least)
+{
+	voe_ui_rect p = voe_ui_node_rect(ui, list);
+	voe_ui_rect r = voe_ui_node_rect(ui, rows);
+	// The panel's own padding and border round its rows, whether or not
+	// the rows are capped.
+	float chrome = p.size.y - r.size.y;
+	// What the whole list would be, uncapped: what the rows wanted, which
+	// voe_ui_node_measured reports even while they are capped
+	// (ui/layout.h).
+	float want = chrome + voe_ui_node_measured(ui, rows).y;
+	float below = w.min.y + w.size.y - down;
+	float above = up - w.min.y;
+	list_fit fit = { .top = down, .cap = 0.0f };
+
+	VOE_BASE_ASSERT(list != VOE_UI_NODE_NONE && rows != VOE_UI_NODE_NONE,
+			"fitting a list that was not drawn");
+
+	if (want <= below) {
+		// below, the natural side
+	} else if (want <= above) {
+		fit.top = up - want;
+	} else {
+		float room = below >= above ? below : above;
+
+		fit.cap = room - chrome;
+		// A panel with almost no room either way still shows a row to
+		// pick and scroll from.
+		if (fit.cap < least)
+			fit.cap = least;
+		if (below < above)
+			fit.top = up - (fit.cap + chrome);
+	}
+	VOE_BASE_ASSERT(fit.cap >= 0.0f, "a list capped to less than nothing");
+	return fit;
+}
+
 voe_editor_inspector_place
 voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
 				   const voe_ui_context *ui, voe_ui_node button,
@@ -321,8 +371,7 @@ voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
 {
 	voe_ui_rect b;
 	voe_ui_rect c;
-	float top;
-	float cap = 0.0f;
+	list_fit fit;
 
 	VOE_BASE_ASSERT(inspector != NULL && ui != NULL,
 			"placing a list on no inspector or interface");
@@ -332,43 +381,89 @@ voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
 
 	b = voe_ui_node_rect(ui, button);
 	c = voe_ui_node_rect(ui, inspector->content);
-	top = b.min.y + b.size.y;
+	fit = (list_fit){ .top = b.min.y + b.size.y, .cap = 0.0f };
+	if (list != VOE_UI_NODE_NONE && inspector->area != VOE_UI_NODE_NONE)
+		fit = side_and_cap(ui, voe_ui_node_visible(ui, inspector->area),
+				   list, rows, b.min.y + b.size.y, b.min.y,
+				   b.size.y);
 
+	return (voe_editor_inspector_place){ .left = b.min.x - c.min.x,
+					     .top = fit.top - c.min.y,
+					     .height = fit.cap };
+}
+
+// Where a submenu goes this frame (ADR-0221): its left edge at the right edge
+// of `from`, the list it opened from, and its top at `row`'s top; its right
+// edge at `from`'s left edge instead when the panel's area has no room for it
+// on the right; and vertically side_and_cap with the row as the widget. `list`
+// VOE_UI_NODE_NONE, not drawn yet, goes to the right uncapped.
+static voe_editor_inspector_place
+submenu_place(const voe_editor_inspector *inspector, const voe_ui_context *ui,
+	      voe_ui_node from, voe_ui_node row, voe_ui_node list,
+	      voe_ui_node rows)
+{
+	voe_ui_rect f;
+	voe_ui_rect r;
+	voe_ui_rect c;
+	float left;
+	list_fit fit;
+
+	VOE_BASE_ASSERT(from != VOE_UI_NODE_NONE && row != VOE_UI_NODE_NONE,
+			"placing a submenu beside no list or row");
+	VOE_BASE_ASSERT(inspector->content != VOE_UI_NODE_NONE,
+			"placing a submenu in no column");
+
+	f = voe_ui_node_rect(ui, from);
+	r = voe_ui_node_rect(ui, row);
+	c = voe_ui_node_rect(ui, inspector->content);
+	left = f.min.x + f.size.x;
+	fit = (list_fit){ .top = r.min.y, .cap = 0.0f };
 	if (list != VOE_UI_NODE_NONE && inspector->area != VOE_UI_NODE_NONE) {
 		voe_ui_rect w = voe_ui_node_visible(ui, inspector->area);
-		voe_ui_rect p = voe_ui_node_rect(ui, list);
-		voe_ui_rect r = voe_ui_node_rect(ui, rows);
-		// The panel's own padding and border round its rows, whether
-		// or not the rows are capped.
-		float chrome = p.size.y - r.size.y;
-		// What the whole list would be, uncapped: what the rows
-		// wanted, which voe_ui_node_measured reports even while they
-		// are capped (ui/layout.h).
-		float want = chrome + voe_ui_node_measured(ui, rows).y;
-		float below = w.min.y + w.size.y - (b.min.y + b.size.y);
-		float above = b.min.y - w.min.y;
+		float width = voe_ui_node_rect(ui, list).size.x;
 
-		if (want <= below) {
-			// below, as it is today
-		} else if (want <= above) {
-			top = b.min.y - want;
-		} else {
-			float room = below >= above ? below : above;
-
-			cap = room - chrome;
-			// A panel with almost no room either way still shows
-			// a row to pick and scroll from.
-			if (cap < b.size.y)
-				cap = b.size.y;
-			if (below < above)
-				top = b.min.y - (cap + chrome);
-		}
+		if (left + width > w.min.x + w.size.x)
+			left = f.min.x - width;
+		fit = side_and_cap(ui, w, list, rows, r.min.y,
+				   r.min.y + r.size.y, r.size.y);
 	}
 
-	VOE_BASE_ASSERT(cap >= 0.0f, "a list capped to less than nothing");
-	return (voe_editor_inspector_place){ .left = b.min.x - c.min.x,
-					     .top = top - c.min.y,
-					     .height = cap };
+	return (voe_editor_inspector_place){ .left = left - c.min.x,
+					     .top = fit.top - c.min.y,
+					     .height = fit.cap };
+}
+
+// The button `list` drew for `entry`, VOE_UI_NODE_NONE when it drew none.
+static voe_ui_node row_of(const voe_editor_add_menu_list *list, uint32_t entry)
+{
+	VOE_BASE_ASSERT(list != NULL, "finding a row in no list");
+	VOE_BASE_ASSERT(list->row_count <= VOE_EDITOR_ADD_MENU_ENTRIES,
+			"a list with more rows than entries");
+
+	for (uint32_t i = 0; i < list->row_count; i++)
+		if (list->rows[i].entry == entry)
+			return list->rows[i].node;
+	return VOE_UI_NODE_NONE;
+}
+
+// Opens `group`, a row of the list at `level`, at that level, closing every
+// group open at it or deeper. The deeper lists drawn this frame showed other
+// groups, so they are forgotten: nothing measures or reads them again.
+static void group_open(voe_editor_inspector *inspector, uint32_t level,
+		       uint32_t group)
+{
+	VOE_BASE_ASSERT(level + 1 < VOE_EDITOR_ADD_MENU_DEPTH,
+			"a group at the deepest level of Add component");
+	VOE_BASE_ASSERT(inspector->menu.entries[group].group,
+			"opening an entry that is not a group");
+
+	inspector->open_groups[level] = group;
+	inspector->open_at[level] = (voe_editor_inspector_place){ 0 };
+	inspector->open_count = level + 1;
+	for (uint32_t k = level + 1; k < VOE_EDITOR_ADD_MENU_DEPTH; k++)
+		inspector->menu_lists[k] = (voe_editor_add_menu_list){
+			.panel = VOE_UI_NODE_NONE, .area = VOE_UI_NODE_NONE
+		};
 }
 
 void voe_editor_inspector_add_close(voe_editor_inspector *inspector)
@@ -422,16 +517,21 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	     inspector->adding_for.generation !=
 		     inspector->entity.generation))
 		inspector->adding = false;
-	on_menu = action_of(ui, inspector->add_component).held ||
-		  (inspector->menu_list.panel != VOE_UI_NODE_NONE &&
-		   contains(voe_ui_node_visible(ui, inspector->menu_list.panel),
-			    at));
+	on_menu = action_of(ui, inspector->add_component).held;
+	for (uint32_t level = 0; level < VOE_EDITOR_ADD_MENU_DEPTH; level++) {
+		const voe_ui_node panel = inspector->menu_lists[level].panel;
+
+		on_menu = on_menu || (panel != VOE_UI_NODE_NONE &&
+				      contains(voe_ui_node_visible(ui, panel),
+					       at));
+	}
 	if (pressed && !on_menu)
 		inspector->adding = false;
 	if (action_of(ui, inspector->add_component).fired) {
 		inspector->adding = !inspector->adding;
 		inspector->adding_for = inspector->entity;
 		inspector->adding_at = (voe_editor_inspector_place){ 0 };
+		inspector->open_count = 0;
 		if (inspector->adding) {
 			voe_editor_scene_dropdown_close(scene);
 			voe_editor_scene_picker_close(scene);
@@ -496,20 +596,32 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 						scene->world, inspector->entity,
 						inspector->removes[i].type));
 
-		// A type's row fired adds it and closes the list; a group's
-		// opens nothing yet.
-		for (uint32_t i = 0; i < inspector->menu_list.row_count; i++) {
-			const voe_editor_add_menu_row *row =
-				&inspector->menu_list.rows[i];
-			const voe_editor_add_menu_entry *entry =
-				&inspector->menu.entries[row->entry];
+		// A type's row fired, at any level, adds it and closes the
+		// whole menu; a group's opens its submenu at its level.
+		for (uint32_t level = 0; level < VOE_EDITOR_ADD_MENU_DEPTH;
+		     level++) {
+			const voe_editor_add_menu_list *list =
+				&inspector->menu_lists[level];
 
-			if (entry->group || !action_of(ui, row->node).fired)
-				continue;
-			inspector->adding = false;
-			counted(scene, voe_editor_entities_component_add(
-					       scene->world, inspector->entity,
-					       entry->type));
+			for (uint32_t i = 0; i < list->row_count; i++) {
+				const voe_editor_add_menu_row *row =
+					&list->rows[i];
+				const voe_editor_add_menu_entry *entry =
+					&inspector->menu.entries[row->entry];
+
+				if (!action_of(ui, row->node).fired)
+					continue;
+				if (entry->group) {
+					group_open(inspector, level,
+						   row->entry);
+					continue;
+				}
+				inspector->adding = false;
+				counted(scene,
+					voe_editor_entities_component_add(
+						scene->world, inspector->entity,
+						entry->type));
+			}
 		}
 	}
 
@@ -579,12 +691,30 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	}
 
 	// Add component's list is placed by the same rule every frame it is
-	// open, under its one button.
+	// open, under its one button, and each open group's submenu beside
+	// its row in the list above it, as far down as those were drawn.
 	if (inspector->adding && inspector->content != VOE_UI_NODE_NONE &&
-	    inspector->add_component != VOE_UI_NODE_NONE)
+	    inspector->add_component != VOE_UI_NODE_NONE) {
 		inspector->adding_at = voe_editor_inspector_overlay_place(
 			inspector, ui, inspector->add_component,
-			inspector->menu_list.panel, inspector->menu_list.area);
+			inspector->menu_lists[0].panel,
+			inspector->menu_lists[0].area);
+		for (uint32_t level = 1; level <= inspector->open_count;
+		     level++) {
+			const voe_editor_add_menu_list *from =
+				&inspector->menu_lists[level - 1];
+			const voe_ui_node row = row_of(
+				from, inspector->open_groups[level - 1]);
+
+			if (from->panel == VOE_UI_NODE_NONE ||
+			    row == VOE_UI_NODE_NONE)
+				break;
+			inspector->open_at[level - 1] = submenu_place(
+				inspector, ui, from->panel, row,
+				inspector->menu_lists[level].panel,
+				inspector->menu_lists[level].area);
+		}
+	}
 
 	inspector->pointer_was_down = down;
 }

@@ -19,8 +19,9 @@
 // hands in: the identity, because the Scene list is built from it, and the
 // transform, because every entity has one (ADR-0217). This panel names neither.
 // Below the sections, Add component opens a list of the top level of
-// add_menu.h's tree, drawn and placed as the open dropdown's is; a second click,
-// a type picked, a press outside it, Escape or another entity drawn closes it.
+// add_menu.h's tree, drawn and placed as the open dropdown's is, and a group
+// row opens its children beside it, to any depth; a second click, a type
+// picked, a press outside every list, Escape or another entity drawn closes it.
 // A section whose type needs another
 // (`voe_ecs_component_needs`) the entity lacks says "Needs <Heading>". Both go to
 // entities.h after the frame, and each success counts one in the scene's
@@ -244,10 +245,17 @@ typedef struct {
 	voe_ecs_entity adding_for;
 	voe_editor_inspector_place adding_at;
 	bool pointer_was_down;
+	// The open groups, kept across frames: the entry index of the group
+	// open at each level, `open_count` of them, and where each one's
+	// submenu sits. Level 0's group is a row of the top list.
+	uint32_t open_groups[VOE_EDITOR_ADD_MENU_DEPTH - 1];
+	voe_editor_inspector_place open_at[VOE_EDITOR_ADD_MENU_DEPTH - 1];
+	uint32_t open_count;
 	// This frame's menu, built while the list is open on the drawn entity,
-	// and the list as drawn from it.
+	// and the lists as drawn from it: the top one, then one per open
+	// group, a level whose group was not drawn left VOE_UI_NODE_NONE.
 	voe_editor_add_menu menu;
-	voe_editor_add_menu_list menu_list;
+	voe_editor_add_menu_list menu_lists[VOE_EDITOR_ADD_MENU_DEPTH];
 	// What the open list is open on, as it stood when this frame began.
 	// Copied out of scene.h's by voe_editor_inspector_frame_begin, so that
 	// the panel draws from one value all frame and the read that follows
