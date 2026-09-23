@@ -3,8 +3,10 @@
 //
 // THE ARITHMETIC HALF NEEDS NO GRAPHICS CARD. A ray is two matrices and a walk
 // over triangles the CPU already holds, so the distance to a cube, the ray that
-// meets nothing, the frontmost of two and the entities that are skipped are all
-// checkable on a build box with no Vulkan.
+// meets nothing, the frontmost of two in either order, a camera's box beating or
+// losing to a cube, a ray through the frustum and not the box picking nothing,
+// and the entities that are skipped are all checkable on a build box with no
+// Vulkan.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
 // MOST. The arithmetic half cannot catch a flipped Y: it works the pixel out the

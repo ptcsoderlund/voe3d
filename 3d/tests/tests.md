@@ -20,18 +20,15 @@ again, or to find where a claim that has started failing is written down.
   shared picture, the mirrored model, and one frame drawn from what it made.
   Skips without a graphics card.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
-- `draw_system.c` — that a camera scaled to nothing frames blind, that the entity a frame hides is not drawn and every other
-  one is, in both tables and both layers, that a red shaped cube reads red at the
-  picture's centre, and that a gizmo in a cube is read where the cube alone would
-  be, and that a marked camera is one more draw and a zeroed marker none. Skips
-  without a graphics card.
+- `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
+  frames blind, a red shape reads red, a gizmo shows through its cube and a camera marker is one
+  draw more. Skips without a graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, and that every kind is a closed surface wound counter-clockwise seen from
   outside. Needs no graphics card.
-- `pick.c` — the distance to a cube through the picture's centre, the ray that meets nothing, the
-  nearer of two in either order, a camera beating or losing to a cube, a ray through the
-  frustum picking nothing, and — drawn — that a pixel the cube covers picks that cube. The
-  arithmetic half needs no graphics card; the drawn half skips without one.
+- `pick.c` — that the pick ray meets the nearest cube or camera box at the right distance and
+  nothing where nothing is, and that a drawn pixel the cube covers picks it. The arithmetic half
+  needs no graphics card; the drawn half skips without one.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
   and winding, and — drawn — that a hidden cube's outline shows through. The arithmetic half needs
   no graphics card; the drawn half skips without one.

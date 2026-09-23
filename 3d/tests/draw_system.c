@@ -31,7 +31,7 @@
 // of its own, sized for the built-in shapes.
 //
 // ONE NEEDS NO CARD: a camera whose transform is scaled to nothing frames
-// `blind` (0223).
+// `blind` (0223). And a marked camera is one draw more, a zeroed marker none.
 //
 // AND ONE MORE READS IT FOR THE GIZMO (ADR-0205): a dark cube with a gizmo
 // standing in it, drawn twice — once with the gizmo and once with the field
