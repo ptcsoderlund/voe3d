@@ -33,9 +33,10 @@ carries it out.
   the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in
   `<settings>/voe3d/themes/`, the chosen one remembered in `<settings>/voe3d/theme` and re-read once
-  a second, each carrying the two scalars it is drawn with.
+  a second, each carrying the two scalars and the text scale it is drawn with.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
-  remembered file read and written as its one line, and the chosen file's once-a-second re-read.
+  remembered file read and written as its one line, the chosen file's once-a-second re-read, and
+  each theme derived at its own text scale.
 - `theme_scalars.h` — a person's contrast, surface separation and text scale remembered per
   theme at `<settings>/voe3d/theme_scalars`, one line per adjusted theme (ADR-0197, ADR-0224).
 - `theme_scalars.c` — that file read line by line as three numbers and the name

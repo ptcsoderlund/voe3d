@@ -33,13 +33,15 @@
 // theme names (ADR-0185).
 //
 // WHAT A PERSON SET IS REMEMBERED PER THEME, NOT IN THE THEME FILE
-// (ADR-0197). Every entry carries the two scalars it is drawn with, and its
-// palette is derived with those and not with the pair in `theme.inputs`: the
-// theme's own until a line in theme_scalars.h's file, or a call to
-// voe_editor_themes_adjust, replaces them. A remembered pair replaces the
-// file's own two at load and at every live re-read, so an edit to the file
-// changes everything but the two a person has set by hand;
-// voe_editor_themes_reset puts the file's own two back and drops its line.
+// (ADR-0197, ADR-0224). Every entry carries the two scalars and the text
+// scale it is drawn with, and its palette is derived with those: the pair
+// instead of the one in `theme.inputs`, and a text size of the theme's own
+// `text_size` times the scale. They are the theme's own two and 1.0 until a
+// line in theme_scalars.h's file, or a call to voe_editor_themes_adjust,
+// replaces them. A remembered line replaces them at load and at every live
+// re-read, so an edit to the file changes everything but what a person has
+// set by hand; voe_editor_themes_reset puts the file's own two and its own
+// `text_size` (scale 1.0) back and drops its line.
 // THE THEME FILE IS NEVER WRITTEN — Near black and Near white have none, and
 // what one person adjusts is not an edit to a document anyone may share.
 //
@@ -75,8 +77,11 @@ typedef struct {
 	// until a remembered line or a slider replaces them.
 	float contrast_strength;
 	float surface_separation;
+	// What the theme's own `text_size` is multiplied by: 1.0 until a
+	// remembered line or a slider replaces it.
+	float text_scale;
 	// Derived with the list's one font, whatever `theme.typeface` names,
-	// and with the two scalars above.
+	// and with the two scalars and the text scale above.
 	voe_ui_theme palette;
 	// The file's bytes it was read from, in `arena`; NULL and 0 for a
 	// theme with no file.
@@ -156,14 +161,16 @@ const voe_editor_theme *voe_editor_themes_chosen(const voe_editor_themes *themes
 					    uint32_t index);
 
 // Puts contrast and separation in force on entry `index`, both clamped into
-// VOE_UI_THEME_SCALAR_MIN..MAX, derives that entry's palette again where it
-// stands — the address ui keeps does not move — and remembers the pair for
+// VOE_UI_THEME_SCALAR_MIN..MAX, and the text scale, clamped into
+// VOE_EDITOR_TEXT_SCALE_MIN..MAX, derives that entry's palette again where it
+// stands — the address ui keeps does not move — and remembers all three for
 // that theme, to be written by voe_editor_themes_scalars_write.
 void voe_editor_themes_adjust(voe_editor_themes *themes, uint32_t index,
-			      float contrast, float separation);
+			      float contrast, float separation,
+			      float text_scale);
 
-// Puts entry `index`'s own two scalars back, derives its palette again the
-// same way, and drops its remembered line.
+// Puts entry `index`'s own two scalars and a text scale of 1.0 back, derives
+// its palette again the same way, and drops its remembered line.
 void voe_editor_themes_reset(voe_editor_themes *themes, uint32_t index);
 
 // Writes theme_scalars.h's file when an adjust or a reset is unwritten.
