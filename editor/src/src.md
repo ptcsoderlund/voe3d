@@ -71,12 +71,12 @@ carries it out.
   focused `ui` field and a Make folder button.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree, whose splits may hold a side panel at a length in millimetres, the
-  arrangement that says where every node and seam is, the walk, and `voe_editor_panel_draw`, which
+- `dock.h` — the tree, whose splits may hold a side panel at a length in millimetres and whose two
+  scene views divide by a share, the arrangement that says where every node and seam is, the walk, and `voe_editor_panel_draw`, which
   is where the panels' contents are; a root carries this frame's keyboard beside its pointer.
-- `dock.c` — the arrangement, with a held length clamped to what each side needs, the walk from it
-  to one frame of `ui` calls with a one-millimetre gap at each seam, the held panels' lengths read
-  and set, the Inspector's scroll area, and the camera preview in each scene view's corner.
+- `dock.c` — the arrangement, with a held length or the views' share clamped to what each side
+  needs, the walk from it to one frame of `ui` calls with a one-millimetre gap at each seam, a
+  split's edge and the held panels' lengths and the views' share read and set, the Inspector's scroll area, and the camera preview in each scene view's corner.
 - `resize.h` — the borders a person drags to size the panels: each held split's seam and the top
   bar's lower edge, hit-tested before `ui`, the pointer's shape over them, and a double-click that
   sets one size back (ADR-0226).
