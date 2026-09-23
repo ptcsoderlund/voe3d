@@ -11,6 +11,12 @@
 // takes no value: the number depth is cleared to lives in `render` beside the
 // convention it belongs to, and this folder neither supplies it nor is told it.
 // See render/include/render/device.h.
+//
+// Each object is drawn with two matrices and a colour. The solid pass runs in
+// table order and the blended one furthest first, on each side of the overlay's
+// depth clear, over both tables; the outline and the move gizmo each sit behind
+// a depth clear of their own.
+#include <3d/camera_marker.h>
 #include <3d/depth_sort.h>
 #include <3d/draw_system.h>
 #include <3d/gizmo.h>
@@ -288,7 +294,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size)
 {
 	voe_3d_frame frame;
-	voe_scene_camera camera;
+	voe_scene_camera lens;
+	const voe_scene_transform *pose;
 	// A window with no area has no aspect ratio. One is as good as any
 	// other then: _begin is about to say there is nothing to draw into and
 	// nothing reads the matrix, so this only keeps the division below away
@@ -304,14 +311,14 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	if (size.width > 0 && size.height > 0)
 		aspect = (float)size.width / (float)size.height;
 
-	camera = voe_scene_camera_rows(world)[0];
-	frame.view.view = voe_scene_camera_view(camera);
-	frame.view.projection = voe_3d_projection(camera, aspect);
-	// Where the eye is, for the half of the shading that depends on which
-	// direction a surface is being looked from. It is the camera's own
-	// number and not something recovered from the view matrix.
-	frame.view.eye = camera.eye;
-	frame.view.reserved = 0.0f;
+	lens = voe_scene_camera_rows(world)[0];
+	pose = voe_scene_transform_get(world, voe_scene_camera_entities(world)[0]);
+	VOE_BASE_ASSERT(pose != NULL,
+			"a camera with no transform — the camera needs one (0222)");
+	// A pose that sees nothing leaves `view` zeroed and says so: _run draws
+	// no world for it (0223).
+	frame.view = (voe_render_view){ 0 };
+	frame.blind = !voe_3d_view(*pose, lens, aspect, &frame.view);
 	frame.light = the_sun(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
@@ -321,6 +328,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.hidden = (voe_ecs_entity){ 0 };
 	frame.outlined = (voe_3d_outlined){ 0 };
 	frame.gizmo = (voe_3d_gizmoed){ 0 };
+	frame.marker = (voe_3d_camera_marked){ 0 };
 
 	return frame;
 }
@@ -405,6 +413,46 @@ static void draw_gizmo_mesh(voe_render_device *device, voe_3d_gizmo_mesh mesh,
 		(void)voe_render_frame_draw(device, quads, object);
 }
 
+// The scene camera's marker as this frame's geometry and one draw, in world
+// metres like the outline's quads, so both matrices are the identity (0223).
+// A zeroed entity, a dead one, and one without a camera or a transform draw
+// nothing; so does a refused transient range, which render reports.
+static void draw_camera_marker(const voe_ecs_world *world,
+			       voe_render_device *device, voe_base_arena *arena,
+			       voe_render_view view,
+			       voe_3d_camera_marked marker)
+{
+	const voe_scene_camera *lens;
+	const voe_scene_transform *pose;
+	voe_3d_outline_mesh mesh;
+	voe_render_geometry quads;
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_object object = {
+		.world = voe_math_float4x4_identity(),
+		.normal = voe_math_float4x4_identity(),
+		.shading = marker.material.shading.index,
+		.colour = { marker.colour.x, marker.colour.y, marker.colour.z,
+			    1.0f },
+	};
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a camera marker to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a camera marker with no arena");
+
+	if (!voe_ecs_entity_alive(world, marker.entity))
+		return;
+	lens = voe_scene_camera_get(world, marker.entity);
+	pose = voe_scene_transform_get(world, marker.entity);
+	if (lens == NULL || pose == NULL)
+		return;
+	if (voe_3d_camera_marker_quads(*pose, *lens, view, marker.size,
+				       marker.pixels, arena, &mesh) &&
+	    voe_render_geometry_create_transient(device, mesh.vertices,
+						 mesh.vertex_count, mesh.indices,
+						 mesh.index_count, &quads,
+						 &error))
+		(void)voe_render_frame_draw(device, quads, object);
+}
+
 // THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
 // NOTHING. Every panel is held back and sorted, and the only draws issued during
 // a walk are the world's solid meshes — which nothing later can get in front of,
@@ -486,6 +534,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// first draw — or not found at all, in a world with nothing in it.
 	VOE_BASE_DEBUG_ASSERT(voe_render_pass_is_open(device),
 			      "drawing the world with no pass open — the loop calls voe_render_pass_begin with the frame's camera first; see 3d/draw_system.h");
+	// A camera that sees nothing draws no world (3d/draw_system.h, `blind`).
+	if (frame.blind)
+		return;
 
 	has_shapes = shape_type(world, &shapes);
 	meshes = voe_3d_mesh_rows(world);
@@ -616,7 +667,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// A refused draw in any group stops that group and not the frame, so
 	// every return value here is deliberately dropped: the loop still ends
-	// and presents the frame.
+	// and presents the frame. The camera marker is solid and in the world's
+	// depth (0223), so it goes with the solids, before the blended group.
+	draw_camera_marker(world, device, arena, view, frame.marker);
 	(void)draw_group(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,

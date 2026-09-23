@@ -68,27 +68,34 @@
 // Five metres back along +Z, looking down -Z, sixty degrees vertically. A cube a
 // metre across at the origin (ADR-0191) has its near face at z = 0.5, four and a
 // half metres in front of the eye.
-static voe_scene_camera the_camera(void)
+static voe_scene_camera the_lens(void)
 {
 	return (voe_scene_camera){
-		.eye = { 0.0f, 0.0f, 5.0f },
 		.fov_y = 1.0471976f,
 		.near_plane = 0.1f,
 		.far_plane = 100.0f,
 	};
 }
 
-// The same two matrices the pass is opened with, and the eye beside them.
+static voe_scene_transform the_pose(void)
+{
+	return (voe_scene_transform){
+		.position = { 0.0f, 0.0f, 5.0f },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+}
+
+// The same two matrices the pass is opened with, and the eye beside them,
+// through voe_3d_view.
 static voe_render_view the_view(voe_platform_size size)
 {
-	voe_scene_camera camera = the_camera();
+	voe_render_view view = { 0 };
 
-	return (voe_render_view){
-		.view = voe_scene_camera_view(camera),
-		.projection = voe_3d_projection(
-			camera, (float)size.width / (float)size.height),
-		.eye = camera.eye,
-	};
+	VOE_TEST_CHECK(voe_3d_view(the_pose(), the_lens(),
+				   (float)size.width / (float)size.height,
+				   &view));
+	return view;
 }
 
 static voe_ecs_world *a_world(voe_base_arena *arena)
@@ -498,7 +505,8 @@ static void the_outline_is_drawn_through_what_hides_it(
 
 	world = a_world(arena);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
-	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, the_camera()));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, eye, the_pose()));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, the_lens()));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,

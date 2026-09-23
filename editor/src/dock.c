@@ -34,7 +34,9 @@
 // A SCENE VIEW'S PANEL HAS NO PADDING, AND ITS PICTURE IS ITS WHOLE CHILD. The
 // picture fills the panel edge to edge, so the rectangle the picture came to is
 // the panel's own and is what the view's target is sized by; padding would be a
-// frame of panel colour round a picture that already has an edge.
+// frame of panel colour round a picture that already has an edge. While the
+// camera preview is shown, the preview's picture sits over its bottom-right
+// corner at 30% of the view's width.
 //
 // EVERY LEAF THAT IS NOT A PICTURE IS A SCROLL AREA, AND THE PANEL AROUND IT IS
 // NOT (ADR-0153 point 11). The panel keeps the background, the size the walk
@@ -55,6 +57,7 @@
 
 #include <math/float4.h>
 
+#include <scene/camera_component.h>
 #include <scene/identity_component.h>
 #include <scene/transform_component.h>
 
@@ -362,12 +365,14 @@ static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
 // because what it lists is the world's own component types and not anything this
 // folder knows the name of — see inspector.h. The identity and the transform are
 // the ones it is told of, never removable: the Scene list is built from the
-// first, and every entity has the second (ADR-0217).
+// first, and every entity has the second (ADR-0217). The camera is the third:
+// the scene's one camera keeps its component (ADR-0218).
 static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 {
 	const voe_ecs_type kept[] = {
 		voe_ecs_component_type(scene->world, &voe_scene_identity_key),
 		voe_ecs_component_type(scene->world, &voe_scene_transform_key),
+		voe_ecs_component_type(scene->world, &voe_scene_camera_key),
 	};
 
 	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
@@ -379,6 +384,13 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 // panel stretches it across and it grows along, so its rectangle is the panel's;
 // the node is handed to the view to be asked where it sat once the frame has
 // ended, which is the size the view's target is drawn at next frame (view.h).
+//
+// The preview over it is sized from last frame's rectangle, as the view's own
+// target is, so a view that has not sat anywhere yet shows none; its node is not
+// kept, so a click on it is a click on the view (0223).
+#define PREVIEW_SHARE 0.3f
+#define PREVIEW_INSET 1.0f
+
 static void scene_view_panel(voe_ui_context *ui, uint32_t view,
 			     voe_editor_views *views)
 {
@@ -390,6 +402,30 @@ static void scene_view_panel(voe_ui_context *ui, uint32_t view,
 		(voe_math_float4){ 0.0f, 0.0f, 1.0f, 1.0f },
 		(voe_math_float2){ 0.0f, 0.0f },
 		(voe_ui_sizing){ .along = { VOE_UI_SIZE_GROW, 1.0f } });
+
+	float width = views->views[view].rect.size.x * PREVIEW_SHARE;
+
+	if (!views->preview_shown || width <= 0.0f)
+		return;
+
+	// Anchored, so it is out of the panel's run and paints after the view's
+	// picture; a row, because an anchor is a container's and not a leaf's.
+	voe_ui_row_begin(
+		ui, (voe_ui_container){
+			    .size = { .along = { VOE_UI_SIZE_FIXED, width },
+				      .across = { VOE_UI_SIZE_FIXED,
+						  width * VOE_EDITOR_PREVIEW_HEIGHT /
+							  VOE_EDITOR_PREVIEW_WIDTH } },
+			    .across = VOE_UI_ACROSS_FILL,
+			    .anchor = { .anchored = true,
+					.x = { VOE_UI_ACROSS_END, PREVIEW_INSET },
+					.y = { VOE_UI_ACROSS_END,
+					       PREVIEW_INSET } } });
+	voe_ui_image(ui, views->preview_texture,
+		     (voe_math_float4){ 0.0f, 0.0f, 1.0f, 1.0f },
+		     (voe_math_float2){ 0.0f, 0.0f },
+		     (voe_ui_sizing){ .along = { VOE_UI_SIZE_GROW, 1.0f } });
+	voe_ui_end(ui);
 }
 
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,

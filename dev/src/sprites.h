@@ -8,10 +8,12 @@
 //
 // THE ENGINE DOES NOT BILLBOARD (ADR-0080), so the turning towards the camera is
 // in here rather than behind an API. voe_dev_sprites_face is the whole of it:
-// two rotations built out of the camera's own yaw and pitch, one line apart, so
+// two rotations built out of the flight's own yaw and pitch, one line apart, so
 // that a person can see both what the difference is and that the engine had
 // nothing to do with it.
 #pragma once
+
+#include "motion.h"
 
 #include <base/arena.h>
 #include <base/error.h>
@@ -40,9 +42,8 @@ typedef struct {
 // This frame's rotation for both of the facing sprites, submitted as two
 // ordinary transform intents.
 //
-// CALLED BETWEEN THE CAMERA SYSTEM AND THE TRANSFORM SYSTEM, for the reason
-// main.c gives at length about the heads-up line: it is derived from where the
-// camera is, so it has to be worked out after the camera has moved and submitted
-// before the transforms drain.
-void voe_dev_sprites_face(voe_ecs_world *world, voe_ecs_entity eye,
+// CALLED BEFORE THE TRANSFORM SYSTEM, handed the flight main.c submits the
+// eye's pose from this frame, so the sprites turn with the eye and nothing lags
+// (0223).
+void voe_dev_sprites_face(voe_ecs_world *world, voe_dev_flight flight,
 			  const voe_dev_sprites *sprites);

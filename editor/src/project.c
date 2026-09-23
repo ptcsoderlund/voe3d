@@ -2,14 +2,16 @@
 // every failure destroys the arena it was building.
 //
 // EVERY WORLD IS BUILT THE SAME WAY, WHETHER UNTITLED OR READ OFF DISK:
-// world_new() registers the seven component types once, so an untitled
+// world_new() registers the eight component types once, so an untitled
 // project and an opened one can never end up with different room for the
 // same thing by two call sites drifting apart.
 //
-// THE UNTITLED SCENE'S TWO ENTITIES ARE BUILT HERE, NOT IN scene.c. scene.c is
+// THE UNTITLED SCENE'S THREE ENTITIES ARE BUILT HERE, NOT IN scene.c. scene.c is
 // the Scene panel's selection and the rows it drew; what a fresh project
 // starts holding is this file's decision, the same as what an opened one
-// holds is authoring/scene_read.h's.
+// holds is authoring/scene_read.h's. Every world ends up with exactly one
+// camera (0218): an untitled one is built with it, and an opened scene with
+// none is given one and marked unsaved.
 #include "project.h"
 
 #include "scene.h"
@@ -28,6 +30,7 @@
 #include <base/error.h>
 #include <base/report.h>
 
+#include <ecs/component.h>
 #include <ecs/structure.h>
 #include <ecs/world.h>
 
@@ -38,11 +41,14 @@
 #include <platform/folder.h>
 #include <platform/path.h>
 
+#include <scene/camera_component.h>
+#include <scene/camera_system.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -52,7 +58,7 @@
 #define PROJECT_SCENE_ARENA (1u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
 
-// What a project's world may hold. Seven component types, four of them with
+// What a project's world may hold. Eight component types, four of them with
 // an intent queue, and the entities are a number to author into rather than a
 // measurement of anything.
 #define MAX_ENTITIES 1024
@@ -77,6 +83,9 @@
 // as the room for an identity.
 #define MAX_LIGHTS MAX_IDENTITIES
 
+// A scene has exactly one camera (0218).
+#define MAX_CAMERAS 1
+
 // A mesh and a material each, one per drawn entity, and the room for a shape
 // is the same number: every shape the shape system finds becomes one. The
 // panel table is walked by the draw system whether anything has one or not
@@ -98,6 +107,10 @@
 #define LIGHT_Z (-0.6f)
 #define LIGHT_INTENSITY 3.14159265f
 
+// Where the scene camera is put: up and back from the origin, looking at it.
+#define CAMERA_Y 2.0f
+#define CAMERA_Z 6.0f
+
 // A fresh world with every component type a project may hold registered, and
 // nothing in it yet.
 static voe_ecs_world *world_new(voe_base_arena *arena)
@@ -112,6 +125,7 @@ static voe_ecs_world *world_new(voe_base_arena *arena)
 	voe_scene_transform_register(world, MAX_TRANSFORMS);
 	voe_scene_identity_register(world, MAX_IDENTITIES);
 	voe_scene_light_register(world, MAX_LIGHTS);
+	voe_scene_camera_register(world, MAX_CAMERAS);
 	voe_3d_mesh_register(world, VOE_EDITOR_PROJECT_MAX_DRAWN);
 	voe_3d_material_register(world, VOE_EDITOR_PROJECT_MAX_DRAWN);
 	voe_3d_panel_register(world, MAX_PANELS);
@@ -144,8 +158,33 @@ static voe_ecs_entity identified(voe_ecs_world *world, uint64_t id,
 	return entity;
 }
 
-// Builds the untitled scene's two entities — `Cube` and the `Light` that
-// shows it — into world. See project.h on why this is here and not scene.c.
+// Adds the scene's one camera (0218) as a `Camera` with this id: at
+// (0, CAMERA_Y, CAMERA_Z), yaw 0 and pitched down at the origin, scale one, and
+// the lens voe_scene_camera_register made the default rather than a second copy
+// of its numbers. With yaw 0 the pose is the pitch about X alone.
+static void add_camera(voe_ecs_world *world, uint64_t id)
+{
+	voe_ecs_entity camera = identified(world, id, "Camera");
+	const voe_scene_camera *lens = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_camera_key));
+
+	VOE_BASE_ASSERT(lens != NULL, "the camera has no default lens");
+	VOE_BASE_ASSERT(
+		voe_scene_transform_add(
+			world, camera,
+			(voe_scene_transform){
+				.position = { 0.0f, CAMERA_Y, CAMERA_Z },
+				.rotation = voe_math_quat_from_axis_angle(
+					(voe_math_float3){ 1.0f, 0.0f, 0.0f },
+					-atanf(CAMERA_Y / CAMERA_Z)),
+				.scale = { 1.0f, 1.0f, 1.0f } }),
+		"a project's transform table is too small for its camera");
+	VOE_BASE_ASSERT(voe_scene_camera_add(world, camera, *lens),
+			"a project's camera table is too small for its camera");
+}
+
+// Builds the untitled scene's three entities — `Cube`, the `Light` that
+// shows it and the `Camera` — into world. See project.h on why this is here and not scene.c.
 static void build_untitled(voe_ecs_world *world)
 {
 	voe_ecs_entity cube = identified(world, 1, "Cube");
@@ -179,8 +218,10 @@ static void build_untitled(voe_ecs_world *world)
 				.intensity = LIGHT_INTENSITY }),
 		"a project's light table is too small for its own untitled scene");
 
-	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 2,
-			"an untitled scene is not the two identities it is written to be");
+	add_camera(world, 3);
+
+	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 3,
+			"an untitled scene is not the three identities it is written to be");
 }
 
 voe_editor_project *voe_editor_project_new_untitled(void)
@@ -283,6 +324,22 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 	project->kept = kept;
 	project->folder = absolute;
 	project->unsaved = false;
+
+	// A SCENE WRITTEN BEFORE 0218 HAS NO CAMERA, so it is given one above
+	// every id it holds and shown as changed until it is saved.
+	if (voe_scene_camera_count(project->world) == 0) {
+		const voe_scene_identity *rows =
+			voe_scene_identity_rows(project->world);
+		uint32_t count = voe_scene_identity_count(project->world);
+		uint64_t largest = 0;
+		uint32_t i;
+
+		for (i = 0; i < count; i++)
+			if (rows[i].id > largest)
+				largest = rows[i].id;
+		add_camera(project->world, largest + 1);
+		project->unsaved = true;
+	}
 
 	return project;
 }

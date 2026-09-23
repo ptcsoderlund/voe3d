@@ -2,12 +2,13 @@
 // its panel and the readout stand this frame. See facing.h for who calls them
 // and when.
 //
-// ALL THREE ARE BUILT FROM ONE struct view_basis, the camera's own frame read
-// out of its component, so nothing here keeps state between frames.
+// ALL THREE ARE BUILT FROM ONE struct view_basis, the eye's own frame read out
+// of the pose they are handed, so nothing here keeps state between frames.
 #include "facing.h"
 
+#include <base/assert.h>
+#include <math/float4x4.h>
 #include <math/quat.h>
-#include <scene/camera_component.h>
 
 #include <math.h>
 
@@ -39,40 +40,33 @@
 // rotation that stands a quad square to it. The three things locked to the
 // camera below are all placed from one of these.
 //
-// THE ROTATION IS THE CAMERA'S TWO ANGLES, COMPOSED IN THAT ORDER. Yaw about Y
-// and then pitch about X, which is the same composition voe_scene_camera_view
-// builds its basis from; _mul reads right to left, so the pitch is the one
-// applied first. Swap them and the line rolls as the camera looks up.
+// THE DIRECTIONS ARE THE POSE MATRIX'S COLUMNS: +X is right, +Y is up and -Z is
+// where the eye looks, as the view built from the same pose has it. The rotation
+// is the pose's own, so a quad stood with it is square to the view whatever the
+// pose is, roll included.
 struct view_basis {
 	voe_math_float3 eye;
 	voe_math_float3 forward;
 	voe_math_float3 right;
 	voe_math_float3 up;
 	voe_math_quat rotation;
-	// How far the view reaches above its centre, per metre of distance in
-	// front of the eye: the tangent of half the vertical field of view.
-	// Times the aspect ratio for how far it reaches to the side. It is what
-	// lets something be put in a corner of the view rather than near one.
-	float half_height;
 };
 
-static struct view_basis basis_of(const voe_ecs_world *world,
-				  voe_ecs_entity eye)
+static struct view_basis basis_of(voe_scene_transform eye)
 {
-	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
-	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
-	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
-	struct view_basis basis;
+	const voe_math_float4x4 m = voe_scene_transform_matrix(eye);
+	struct view_basis basis = {
+		.eye = eye.position,
+		.forward = { -m.m[0][2], -m.m[1][2], -m.m[2][2] },
+		.right = { m.m[0][0], m.m[1][0], m.m[2][0] },
+		.up = { m.m[0][1], m.m[1][1], m.m[2][1] },
+		.rotation = eye.rotation,
+	};
 
-	basis.eye = camera->eye;
-	basis.forward = voe_scene_camera_forward(*camera);
-	basis.right = voe_math_float3_normalize(
-		voe_math_float3_cross(basis.forward, UP));
-	basis.up = voe_math_float3_cross(basis.right, basis.forward);
-	basis.rotation = voe_math_quat_mul(
-		voe_math_quat_from_axis_angle(UP, camera->yaw),
-		voe_math_quat_from_axis_angle(SIDE, camera->pitch));
-	basis.half_height = tanf(camera->fov_y * 0.5f);
+	VOE_BASE_ASSERT(voe_math_float3_length(basis.forward) > 0.0f,
+			"facing an eye scaled to nothing");
+	VOE_BASE_ASSERT(voe_math_float3_length(basis.right) > 0.0f,
+			"facing an eye scaled to nothing");
 	return basis;
 }
 
@@ -106,12 +100,11 @@ static voe_scene_transform_intent square_to_the_camera(
 // line is, and it would put it in exactly the same place if it were in the world
 // — those are two separate answers to two separate questions and neither one
 // implies the other.
-voe_scene_transform_intent voe_dev_facing_the_camera(const voe_ecs_world *world,
-						     voe_ecs_entity eye,
+voe_scene_transform_intent voe_dev_facing_the_camera(voe_scene_transform eye,
 						     voe_ecs_entity text,
 						     voe_math_float2 size)
 {
-	struct view_basis basis = basis_of(world, eye);
+	struct view_basis basis = basis_of(eye);
 	voe_math_float3 at = voe_math_float3_add(
 		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
 
@@ -144,16 +137,18 @@ voe_scene_transform_intent voe_dev_facing_the_camera(const voe_ecs_world *world,
 // would be a frame late. This one asks only where the camera is and how big the
 // window is.
 voe_scene_transform_intent voe_dev_top_left_of_the_view(
-	const voe_ecs_world *world, voe_ecs_entity eye, voe_ecs_entity readout,
+	voe_scene_transform eye, voe_scene_camera lens, voe_ecs_entity readout,
 	voe_platform_size size, float em)
 {
-	struct view_basis basis = basis_of(world, eye);
+	struct view_basis basis = basis_of(eye);
 	// A window with no area has no corner; one is as good as any other
 	// then, because nothing is about to be drawn.
 	float aspect = size.width > 0 && size.height > 0 ?
 			       (float)size.width / (float)size.height :
 			       1.0f;
-	float half_height = basis.half_height * HUD_DISTANCE;
+	// How far the view reaches above its centre at the line's distance:
+	// the tangent of half the vertical field of view, per metre.
+	float half_height = tanf(lens.fov_y * 0.5f) * HUD_DISTANCE;
 	float half_width = half_height * aspect;
 	float margin = em * READOUT_MARGIN_EMS;
 	voe_math_float3 at = voe_math_float3_add(
@@ -182,12 +177,11 @@ voe_scene_transform_intent voe_dev_top_left_of_the_view(
 //
 // THE SCALE IS NOT UNIFORM, WHICH IS WHY THIS DOES NOT USE voe_dev_quad_at (src/quad.c). A line of
 // writing is wide and short and the quad it sits on has to be the same shape.
-voe_scene_transform_intent voe_dev_behind_the_line(const voe_ecs_world *world,
-						   voe_ecs_entity eye,
+voe_scene_transform_intent voe_dev_behind_the_line(voe_scene_transform eye,
 						   voe_ecs_entity quad,
 						   voe_math_float2 size)
 {
-	struct view_basis basis = basis_of(world, eye);
+	struct view_basis basis = basis_of(eye);
 	float margin = size.y * HUD_PANEL_MARGIN;
 	voe_math_float3 at = voe_math_float3_add(
 		basis.eye, voe_math_float3_scale(basis.forward,

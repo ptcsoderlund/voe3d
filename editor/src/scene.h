@@ -196,12 +196,14 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 // why main.c calls these after the interface has drawn and not before.
 //
 // Queues the selected entity's destruction and clears the selection. Nothing
-// selected does nothing. Counts one in `structural`, or sets `full` when the
+// selected does nothing, and neither does the camera's entity: the scene's one
+// camera is never deleted (ADR-0218), from either caller. Counts one in `structural`, or sets `full` when the
 // queue is full.
 void voe_editor_scene_delete(voe_editor_scene *scene);
 
 // Queues a copy of the selected entity (entities.h) and selects the copy.
-// Nothing selected does nothing. Counts one in `structural`, or sets `full`
+// Nothing selected does nothing, and neither does the camera's entity: a copy
+// would be a second camera (ADR-0218), from either caller. Counts one in `structural`, or sets `full`
 // when the world or the queue is full.
 void voe_editor_scene_duplicate(voe_editor_scene *scene);
 

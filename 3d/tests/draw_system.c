@@ -30,6 +30,9 @@
 // the shape's colour reaching the object's record (ADR-0191). It has a device
 // of its own, sized for the built-in shapes.
 //
+// ONE NEEDS NO CARD: a camera whose transform is scaled to nothing frames
+// `blind` (0223). And a marked camera is one draw more, a zeroed marker none.
+//
 // AND ONE MORE READS IT FOR THE GIZMO (ADR-0205): a dark cube with a gizmo
 // standing in it, drawn twice — once with the gizmo and once with the field
 // zeroed. A pixel the arrow along +X covers, inside the rectangle the cube
@@ -119,19 +122,28 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 }
 
 // At the origin, looking along its own -Z, so a thing at a more negative z is
-// further away.
-static void add_a_camera(voe_ecs_world *world)
+// further away, with its transform scaled by `scale`.
+static void add_a_camera_scaled(voe_ecs_world *world, voe_math_float3 scale)
 {
 	voe_ecs_entity eye = { 0 };
-	voe_scene_camera camera = {
-		.eye = { 0.0f, 0.0f, 0.0f },
+	voe_scene_transform pose = {
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = scale,
+	};
+	voe_scene_camera lens = {
 		.fov_y = 1.0471976f,
 		.near_plane = 0.1f,
 		.far_plane = 100.0f,
 	};
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
-	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, eye, pose));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, lens));
+}
+
+static void add_a_camera(voe_ecs_world *world)
+{
+	add_a_camera_scaled(world, (voe_math_float3){ 1.0f, 1.0f, 1.0f });
 }
 
 static void add_the_sun(voe_ecs_world *world)
@@ -677,6 +689,138 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A camera whose transform is scaled to nothing on an axis sees nothing: the
+// frame says `blind` and its view is zeroed (0223). And a seen one does not.
+// No device: framing reads the tables alone.
+static void a_camera_scaled_to_nothing_frames_blind(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_ecs_world *seen = a_world(arena);
+	voe_ecs_world *flat = a_world(arena);
+	voe_3d_frame frame;
+
+	add_a_camera(seen);
+	add_the_sun(seen);
+	frame = voe_3d_draw_system_frame(seen, size);
+	VOE_TEST_CHECK(!frame.blind);
+
+	add_a_camera_scaled(flat, (voe_math_float3){ 1.0f, 1.0f, 0.0f });
+	add_the_sun(flat);
+	frame = voe_3d_draw_system_frame(flat, size);
+	VOE_TEST_CHECK(frame.blind);
+	VOE_TEST_CHECK_FLOAT(frame.view.projection.m[1][1], 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(frame.view.view.m[3][3], 0.0f, 0.0f);
+}
+
+// How many commands one frame of `world`, framed as `frame` with `marker` set
+// on it, comes to.
+static uint32_t draws_with_a_marker(voe_ecs_world *world,
+				    voe_render_device *device,
+				    voe_base_arena *arena, voe_3d_frame frame,
+				    voe_3d_camera_marked marker)
+{
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_render_pass_camera camera = { .view = frame.view,
+					  .light = frame.light };
+	bool drawing = false;
+	uint32_t drawn = 0;
+
+	VOE_TEST_CHECK_INT(frame.marker.entity.generation, 0);
+	frame.marker = marker;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (drawing) {
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			device, VOE_RENDER_TARGET_WINDOW, &camera));
+		voe_3d_draw_system_run(world, device, arena, frame);
+		drawn = voe_render_frame_draw_count(device);
+		voe_render_pass_end(device);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+	}
+	return drawn;
+}
+
+// A marker on a live camera is one more draw than none, and a marker on a
+// zeroed entity is the same as none (0223). The marked camera is a second one,
+// added after framing, because framing wants exactly one and _run reads no
+// camera table.
+static void a_marked_camera_is_one_more_draw(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	// The shapes' pools, one object for the cube and one for the marker,
+	// and one marker's worth of this frame's geometry (3d/draw_system.h).
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.transient_vertices = VOE_3D_CAMERA_MARKER_VERTICES,
+		.transient_indices = VOE_3D_CAMERA_MARKER_INDICES,
+		.transient_geometries = 1,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	voe_3d_shapes shapes;
+	voe_ecs_world *world;
+	voe_ecs_entity cube = { 0 };
+	voe_ecs_entity marked = { 0 };
+	voe_3d_frame frame;
+	voe_3d_camera_marked marker;
+	uint32_t without;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+
+	world = a_world(arena);
+	voe_3d_shape_register(world, 2);
+	add_a_camera(world);
+	add_the_sun(world);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(6.0f)));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, cube,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = VOE_3D_SHAPE_GREY }));
+	voe_3d_shape_system_run(world, &shapes);
+	frame = voe_3d_draw_system_frame(world, size);
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &marked));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, marked, at_depth(3.0f)));
+	VOE_TEST_CHECK(voe_scene_camera_add(
+		world, marked,
+		(voe_scene_camera){ .fov_y = 1.0471976f,
+				    .near_plane = 0.1f,
+				    .far_plane = 100.0f }));
+
+	marker = (voe_3d_camera_marked){
+		.entity = marked,
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+	without = draws_with_a_marker(world, device, arena, frame,
+				      (voe_3d_camera_marked){ 0 });
+	VOE_TEST_CHECK_INT(without, 1);
+	VOE_TEST_CHECK_INT(
+		draws_with_a_marker(world, device, arena, frame, marker),
+		without + 1);
+	marker.entity = (voe_ecs_entity){ 0 };
+	VOE_TEST_CHECK_INT(
+		draws_with_a_marker(world, device, arena, frame, marker),
+		without);
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -685,6 +829,7 @@ int main(void)
 	voe_render_geometry mesh;
 	voe_base_error error = VOE_BASE_OK;
 
+	a_camera_scaled_to_nothing_frames_blind(arena);
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
@@ -714,5 +859,6 @@ int main(void)
 
 	a_shaped_cube_draws_in_its_colour();
 	a_gizmo_shows_through_what_it_stands_in();
+	a_marked_camera_is_one_more_draw();
 	return voe_test_result();
 }

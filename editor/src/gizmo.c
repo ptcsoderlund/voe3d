@@ -21,11 +21,11 @@ static voe_3d_ray gizmo_in_view(const voe_editor_view *view,
 {
 	voe_platform_size size = { (int)view->width, (int)view->height };
 
-	*gizmo = voe_3d_gizmo_at(
-		origin,
-		voe_editor_view_pass_camera(view, (voe_render_light){ 0 }).view,
-		size, pixels);
-	return voe_3d_pick_ray(view->camera, size, point);
+	voe_render_view seen =
+		voe_editor_view_pass_camera(view, (voe_render_light){ 0 }).view;
+
+	*gizmo = voe_3d_gizmo_at(origin, seen, size, pixels);
+	return voe_3d_pick_ray(seen, size, point);
 }
 
 // One frame of a running drag in the captured view, wherever the pointer is

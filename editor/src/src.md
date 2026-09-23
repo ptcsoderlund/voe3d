@@ -24,8 +24,8 @@ carries it out.
   (ADR-0164), and its scene handed out as text or read back in from one.
 - `project.c` — opening, making and saving a project, the scene written out as
   text and a text read back into the same world, the one `world_new` every
-  world is built by, and the untitled scene's cube and light, which are this
-  file's decision and not `scene.c`'s.
+  world is built by, and the untitled scene's cube, light and camera, which are
+  this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
@@ -68,7 +68,8 @@ carries it out.
 - `dock.h` — the tree, the walk, and `voe_editor_panel_draw`, which is where the panels' contents
   are; a root carries this frame's keyboard beside its pointer.
 - `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, the one-millimetre gap at
-  each seam where a splitter would go, and the scroll area it opens for the Inspector's leaf.
+  each seam where a splitter would go, the scroll area it opens for the Inspector's leaf, and the
+  camera preview in each scene view's corner.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
@@ -96,16 +97,21 @@ carries it out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
-- `view.h` — a scene view: its camera, its target and the middle-button drag, which view a pointer
-  is over and where in that view's picture it lands, and the light, the outline colour and the
-  gizmo's colour a view is drawn with.
+- `view.h` — a scene view: its orbit's pose and lens, its target and the middle-button drag, which view a pointer
+  is over and where in that view's picture it lands, the light, the outline colour and the gizmo's
+  colour a view is drawn with, the 480×270 preview of what the world's camera sees.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, their targets, the world's first light row and the lighter half
   of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
+- `view_passes.h` — what a frame draws into the views: a pass per shown view with the world, the
+  selection's outline, its gizmo and the camera's marker, and the device capacities those passes need.
+- `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
+  walked in order, each pass begun, drawn by `3d`'s draw system with the world's camera marked, and
+  ended, stopping at the first refused pass.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
-- `scene.c` — the selection, Delete and Duplicate, opening and closing the colour picker and the
+- `scene.c` — the selection, Delete and Duplicate (both refuse the camera), opening and closing the colour picker and the
   dropdown, the open list moved to where the Inspector measured it, and the one question asked of
   the Scene panel's rows after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a

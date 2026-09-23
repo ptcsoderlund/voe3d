@@ -14,6 +14,8 @@
 // card turns a picture over (assets/include/assets/image.h).
 #include "monitor.h"
 
+#include "motion.h"
+
 #include <base/assert.h>
 
 #include <3d/material_component.h>
@@ -40,7 +42,7 @@
 // world's own camera flies a circle of radius ORBIT_RADIUS at ORBIT_HEIGHT and
 // never comes here, so the two pictures are never the same picture and the one
 // on the screen holds still while the one around it swings. Zero yaw looks along
-// -Z and a negative pitch looks down (scene/camera_component.h).
+// -Z and a negative pitch looks down (src/motion.h).
 //
 // AND IT STANDS CLOSE ENOUGH THAT THE WORLD FILLS THE PICTURE. A second camera
 // out where the orbit is leaves most of a 512-pixel square showing the clear
@@ -138,12 +140,13 @@ bool voe_dev_monitor_create(voe_dev_monitor *out, voe_ecs_world *world,
 	VOE_BASE_ASSERT(gpu != NULL, "a monitor on no device");
 
 	*out = (voe_dev_monitor){
-		.camera = { .eye = { EYE_X, EYE_Y, EYE_Z },
-			    .yaw = YAW,
-			    .pitch = PITCH,
-			    .fov_y = FIELD_OF_VIEW,
-			    .near_plane = NEAR_PLANE,
-			    .far_plane = FAR_PLANE },
+		.pose = voe_dev_flight_pose((voe_dev_flight){
+			.eye = { EYE_X, EYE_Y, EYE_Z },
+			.yaw = YAW,
+			.pitch = PITCH }),
+		.lens = { .fov_y = FIELD_OF_VIEW,
+			  .near_plane = NEAR_PLANE,
+			  .far_plane = FAR_PLANE },
 	};
 
 	transform.rotation = voe_math_quat_from_axis_angle(
@@ -182,17 +185,12 @@ bool voe_dev_monitor_create(voe_dev_monitor *out, voe_ecs_world *world,
 voe_3d_frame voe_dev_monitor_frame(const voe_dev_monitor *monitor,
 				   const voe_ecs_world *world)
 {
+	voe_3d_frame frame;
+
 	VOE_BASE_ASSERT(monitor != NULL, "a frame for no monitor");
 	VOE_BASE_ASSERT(world != NULL, "a monitor frame with no world");
 
-	// The aspect ratio is the target's own and not the window's: this
-	// picture is square whatever shape the window is dragged into, which is
-	// what keeps the screen from stretching when nothing about it moved.
-	return (voe_3d_frame){
-		.view = { .view = voe_scene_camera_view(monitor->camera),
-			  .projection = voe_3d_projection(monitor->camera,
-							  1.0f),
-			  .eye = monitor->camera.eye },
+	frame = (voe_3d_frame){
 		.light = the_sun(world),
 		// Not optional: the screen wears this target's texture, so the
 		// pass that fills the target must not draw it. ADR-0158, and
@@ -200,4 +198,13 @@ voe_3d_frame voe_dev_monitor_frame(const voe_dev_monitor *monitor,
 		// forgotten.
 		.hidden = monitor->screen,
 	};
+
+	// The aspect ratio is the target's own and not the window's: this
+	// picture is square whatever shape the window is dragged into, which is
+	// what keeps the screen from stretching when nothing about it moved.
+	// A pose of scale one always has an inverse, so blind never happens;
+	// it is set rather than assumed because the answer is there to read.
+	frame.blind = !voe_3d_view(monitor->pose, monitor->lens, 1.0f,
+				   &frame.view);
+	return frame;
 }

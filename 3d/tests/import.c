@@ -98,15 +98,20 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 static void add_a_camera(voe_ecs_world *world)
 {
 	voe_ecs_entity eye = { 0 };
-	voe_scene_camera camera = {
-		.eye = { 0.0f, 2.0f, 6.0f },
+	voe_scene_transform pose = {
+		.position = { 0.0f, 2.0f, 6.0f },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_camera lens = {
 		.fov_y = 1.0471976f,
 		.near_plane = 0.1f,
 		.far_plane = 100.0f,
 	};
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
-	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, eye, pose));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, lens));
 }
 
 // One sun, because the draw system needs exactly one. Straight down and white:

@@ -5,10 +5,10 @@
 // THE CAMERA IS THE EDITOR'S AND NEVER AN ENTITY IN THE WORLD. A view's camera is
 // never authored and never saved (ADR-0125): it is where a person happens to be
 // looking from, not a thing in the scene, and an entity would put it in the
-// Scene list, in the Inspector and one day in the file. So it is a
-// voe_scene_camera value held in here, beside an orbit focus and a distance, and
-// the pass is handed a camera built from it — not voe_3d_draw_system_frame's,
-// which reads a camera out of the world.
+// Scene list, in the Inspector and one day in the file. So it is a pose — an
+// eye, a yaw and a pitch, beside an orbit focus and a distance — and a lens held
+// in here, turned into a render view by voe_3d_view the way the world's camera
+// is (0223), and not read out of the world by voe_3d_draw_system_frame.
 //
 // THE PICTURE'S SIZE LAGS THE LAYOUT BY ONE FRAME, AND CANNOT NOT. How big a
 // panel is comes out of `ui` at voe_ui_frame_end, and the interface is built in
@@ -36,6 +36,13 @@
 // selectable, editable and saved, the way `Cube` is (scene.h) — so a view keeps
 // no light of its own and its pass is simply handed one; see
 // voe_editor_view_pass_camera.
+//
+// THE PREVIEW IS WHAT THE WORLD'S CAMERA SEES, AT ONE FIXED SIZE (0223): a
+// 16:9 target of VOE_EDITOR_PREVIEW_WIDTH by _HEIGHT pixels, made beside the
+// views' and never resized, because the game window's aspect is not known to
+// the editor and the marker's frustum is drawn at the same 16:9. Nothing but
+// voe_editor_view_passes_preview draws into it, and only while the selected
+// entity has a camera; `preview_shown` is that frame's answer.
 #pragma once
 
 #include <base/error.h>
@@ -63,10 +70,19 @@
 // What `captured` holds when no drag has a view.
 #define VOE_EDITOR_VIEW_NONE UINT32_MAX
 
-// One view. `camera.eye`, `camera.yaw` and `camera.pitch` are worked out from
-// the focus and the distance by the orbit and are never set on their own.
+// The preview's size in pixels, named once (0223).
+#define VOE_EDITOR_PREVIEW_WIDTH 480
+#define VOE_EDITOR_PREVIEW_HEIGHT 270
+
+// One view. `eye` is worked out from the focus, the distance, `yaw` and
+// `pitch` by the orbit and is never set on its own. Zero yaw looks down −Z,
+// positive yaw turns towards −X and positive pitch looks up; `lens` is what
+// every view sees with.
 typedef struct {
-	voe_scene_camera camera;
+	voe_math_float3 eye;
+	float yaw;
+	float pitch;
+	voe_scene_camera lens;
 	// The point the camera orbits about and looks at, in metres, and how far
 	// the eye stands from it. The distance is always above nought.
 	voe_math_float3 focus;
@@ -95,11 +111,16 @@ typedef struct {
 	uint32_t captured;
 	bool middle_was_down;
 	voe_math_float2 pointer;
+
+	// The preview's target and its picture, and whether this frame drew it.
+	voe_render_target preview_target;
+	voe_render_texture preview_texture;
+	bool preview_shown;
 } voe_editor_views;
 
 // Sets every view in use to its initial camera — view 0 from the front and
 // above, view 1 from the side, both looking at the origin — and makes each one a
-// target. A startup operation, because making a target is.
+// target, then the preview's. A startup operation, because making a target is.
 //
 // False when `render` refused a target, which has already said why on stderr.
 [[nodiscard]] bool voe_editor_views_create(voe_editor_views *views,

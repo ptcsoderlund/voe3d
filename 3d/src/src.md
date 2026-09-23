@@ -4,7 +4,7 @@
 is included from outside the folder — `include/3d/` is the whole public surface.
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
-  the whole thing.
+  the whole thing, and the render view a pose and a lens become.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,
@@ -33,19 +33,17 @@ is included from outside the folder — `include/3d/` is the whole public surfac
 - `cylinder.h` — the built-in cylinder's counts and its builder, internal to
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
-- `pick.c` — the pixel's ray out of the two matrices inverted once, and the walk
-  over the shape table that carries it into each shape's own space and tests the
-  kind's triangles, with the triangle test written out once and its derivation in
-  a comment.
+- `pick.c` — the pixel's ray from the view's two matrices inverted, and the walk that
+  tests it against each shape's triangles, then the cameras' marker boxes.
 - `outline.c` — the walk over one shape's edges that keeps the ones the eye is on two sides of, and
   the quad each of them becomes, a half width per vertex from that vertex's own depth.
+- `camera_marker.c` — the marker's twenty edges in the camera's own space, their quads with
+  outline.c's width and winding mirrored, and the slab test against the box.
 - `gizmo.c` — the shaft that covers the same pixels at any distance, the ray against each handle
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
-- `draw_system.c` — the camera, the sun, two matrices and a colour per object,
-  the solid pass in table order and the blended one furthest first, on each
-  side of the overlay's depth clear, over both tables, then the outline and the
-  move gizmo behind a clear each.
+- `draw_system.c` — the camera's view and the sun, the solid pass and the blended one furthest
+  first, a camera marker with the world's solids, then the outline and the move gizmo.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.

@@ -65,7 +65,6 @@
 #include <base/assert.h>
 #include <math/float3.h>
 #include <math/quat.h>
-#include <scene/camera_component.h>
 #include <scene/transform_system.h>
 #include <sprite/quad.h>
 #include <sprite/sheet.h>
@@ -414,21 +413,21 @@ bool voe_dev_sprites_add(voe_ecs_world *world, voe_render_device *gpu,
 // to the eye, so it never foreshortens and its feet come off the ground. Neither
 // is right in general, which is why the engine picks neither.
 //
-// THE CAMERA'S OWN yaw AND pitch, AND NO TRIGONOMETRY HERE. `scene` already
+// THE FLIGHT'S OWN yaw AND pitch, AND NO TRIGONOMETRY HERE. The flight already
 // holds the two angles the camera is aimed with; a program that worked them back
-// out of a forward vector would be undoing arithmetic that was never done.
-void voe_dev_sprites_face(voe_ecs_world *world, voe_ecs_entity eye,
+// out of a forward vector would be undoing arithmetic that was never done. The
+// spherical one wears the flight's whole pose rotation, the same one the eye is
+// submitted with this frame.
+void voe_dev_sprites_face(voe_ecs_world *world, voe_dev_flight flight,
 			  const voe_dev_sprites *sprites)
 {
 	static const voe_math_float3 UP = { 0.0f, 1.0f, 0.0f };
-	static const voe_math_float3 SIDE = { 1.0f, 0.0f, 0.0f };
-	const voe_scene_camera *camera = voe_scene_camera_get(world, eye);
 	voe_math_quat yaw;
 
+	VOE_BASE_ASSERT(world != NULL, "facing sprites in no world");
 	VOE_BASE_ASSERT(sprites != NULL, "facing nothing towards the camera");
-	VOE_BASE_ASSERT(camera != NULL, "facing sprites towards no camera");
 
-	yaw = voe_math_quat_from_axis_angle(UP, camera->yaw);
+	yaw = voe_math_quat_from_axis_angle(UP, flight.yaw);
 
 	(void)voe_scene_transform_submit(
 		world,
@@ -447,10 +446,7 @@ void voe_dev_sprites_face(voe_ecs_world *world, voe_ecs_entity eye,
 			.entity = sprites->spherical,
 			.transform = {
 				.position = { FACING_X, FACING_Y, FACING_Z },
-				.rotation = voe_math_quat_mul(
-					yaw,
-					voe_math_quat_from_axis_angle(
-						SIDE, camera->pitch)),
+				.rotation = voe_dev_flight_pose(flight).rotation,
 				.scale = { FACING_SIZE, FACING_SIZE, 1.0f },
 			},
 		});

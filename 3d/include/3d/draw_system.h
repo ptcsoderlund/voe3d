@@ -50,6 +50,7 @@
 // light tables already state below.
 #pragma once
 
+#include <3d/camera_marker.h>
 #include <3d/gizmo.h>
 #include <3d/outline.h>
 #include <base/arena.h>
@@ -110,6 +111,24 @@ typedef struct {
 	// worked out against, as the outline's width is.
 	voe_platform_size size;
 } voe_3d_gizmoed;
+
+// The scene camera a pass draws as a marker (0223): its box and frustum as
+// line quads, voe_3d_camera_marker_quads', in the world layer. Only an
+// editor's view sets one; a game's frame never does.
+typedef struct {
+	// The camera entity, zeroed for none. A zeroed entity, a dead one and
+	// one without a camera and a transform draw nothing.
+	voe_ecs_entity entity;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear, and the whole of what the marker looks like: the outline's
+	// colour when selected, the gizmo's rest colour otherwise (0223).
+	voe_math_float3 colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_camera_marked;
 
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
@@ -174,21 +193,39 @@ typedef struct {
 	// drawn last of all behind a clear of its own (ADR-0205, and
 	// voe_3d_gizmoed above).
 	voe_3d_gizmoed gizmo;
+	// A PASS MAY MARK ONE SCENE CAMERA (0223). It is drawn in the world
+	// layer inside the world's depth, not behind the outline's clear, so
+	// what stands in front of the camera hides its lines. A zeroed record
+	// draws nothing. One entity and not a list for the reason `outlined`
+	// is one. The quads go into this frame's transient pool, sized from
+	// VOE_3D_CAMERA_MARKER_VERTICES and _INDICES, one more range and one
+	// more object; a pool too small is a capacity chosen too small and
+	// draws nothing, as the outline does. A pass whose `view` is the marked
+	// camera's own is the caller's to avoid.
+	voe_3d_camera_marked marker;
+	// TRUE WHEN THE CAMERA SEES NOTHING (0223): its transform has no
+	// inverse, a scale of nought on an axis, so voe_3d_view refused it and
+	// `view` is zeroed. _run draws no world for a blind frame. Zero means
+	// seen, so a frame a caller builds by hand keeps drawing.
+	bool blind;
 } voe_3d_frame;
 
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. `hidden`, `outlined` and `gizmo` all come back zeroed —
-// hiding something, outlining something and standing a gizmo on something are
+// matrix is never read. `hidden`, `outlined`, `gizmo` and `marker` all come back
+// zeroed — hiding, outlining, standing a gizmo and marking a camera are
 // the caller's choice and it sets the field on the answer. Asserts on a world without exactly one camera and one
 // light — see below.
 //
 // THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE THE PASS, AND HANDED BACK.
 // The pass needs the view and the light and this system needs the view again for
 // its sort, so voe_3d_draw_system_frame works both out from the tables and the
-// loop passes the result to each. Neither the camera nor the projection moves
+// loop passes the result to each. The camera is a lens and its pose is its
+// entity's transform (0222), which the camera needs and this asserts on; the two
+// become `view` through voe_3d_view (3d/projection.h), and a pose that sees
+// nothing sets `blind` instead. Neither the camera nor the projection moves
 // out of this folder for that: what the loop holds is an answer, not a way of
 // computing one. Nothing in _run reads the camera table.
 //
@@ -220,7 +257,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // names a live entity, is the one thing left out, of either table and either
 // layer, and `frame.outlined`, when it names one, is outlined after everything
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
-// move gizmo drawn after that. Calling it with no pass open is the caller's bug
+// move gizmo drawn after that; `frame.marker`, when it names a live camera with
+// a transform, is drawn with the world. Calling it with no pass open is the caller's bug
 // and asserts.
 //
 // TWO KINDS OF DRAWABLE, AND THEY ARE SORTED TOGETHER. A mesh is a range in

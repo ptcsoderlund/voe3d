@@ -1,7 +1,7 @@
-// What is under this pixel: the ray a view's camera sends through a point of
+// What is under this pixel: the ray a render view sends through a point of
 // its picture, and the entity that ray meets first.
 //
-//     voe_3d_ray ray = voe_3d_pick_ray(camera, size, point);
+//     voe_3d_ray ray = voe_3d_pick_ray(view, size, point);
 //     float distance;
 //     voe_ecs_entity hit = voe_3d_pick(world, &geometries, ray, &distance);
 //     if (hit.generation != 0)
@@ -14,12 +14,11 @@
 // that wants a click named calls this, the way it already calls
 // voe_3d_draw_system_frame to draw.
 //
-// IT WALKS THE SHAPE TABLE ALONE, AND THAT IS THE WHOLE OF WHAT A PROJECT DRAWS
-// TODAY (ADR-0202). A mesh and a material are runtime-only components
-// (3d/mesh_component.h, 3d/material_component.h), so no scene file holds one and
-// nothing in the editor imports a model: every entity a person can click on is a
-// shaped one. The mesh table's turn comes with the card that gives the editor an
-// import, against the triangles the importer read and kept the same way.
+// IT WALKS THE SHAPES AND THE CAMERAS (ADR-0202, 0223). A mesh is runtime-only
+// (3d/mesh_component.h), so every entity a person can click on is a shaped one
+// or a camera; the mesh table's turn comes with an editor import. A camera is
+// hit on its marker's box (3d/camera_marker.h), never its frustum lines, and
+// competes with the shapes on distance; a world with no camera store walks none.
 //
 // HOW A HIT IS MEASURED. The entity's world matrix is inverted once and carries
 // the ray into the shape's own space — the origin as a point, the direction as a
@@ -58,8 +57,6 @@
 
 #include <render/device.h>
 
-#include <scene/camera_component.h>
-
 // A ray in world space. `direction` is unit length, so a parameter along it is a
 // distance in metres.
 typedef struct {
@@ -67,25 +64,24 @@ typedef struct {
 	voe_math_float3 direction;
 } voe_3d_ray;
 
-// The ray through `point` of a picture `size` pixels big drawn with `camera`.
+// The ray through `point` of a picture `size` pixels big drawn with `view`.
 //
 // `point` is in that picture's own pixels, x right and y down from its top-left
 // corner, which is the shape every pointer in this engine already has — the
 // editor's main.c divides a window pointer into a panel's own space the same way
 // (ADR-0141 point 4).
 //
-// It builds the same two matrices the pass was opened with —
-// voe_3d_projection(camera, width / height) and voe_scene_camera_view(camera) —
-// inverts their product once, and takes the pixel's near point (clip z 1,
-// because depth runs backwards) and its far point (clip z 0) through it, each
-// divided by its own w. The origin is the near point and the direction is the
-// normalised difference. There is no Y negation written out anywhere in it: the
-// flip is the one line that turns point.y into a clip coordinate, and the half
-// pixel in it is the pixel's own centre.
+// It is handed the two matrices the pass was opened with — `view.view` and
+// `view.projection`, as voe_3d_view built them — inverts `projection · view`
+// once, and takes the pixel's near point (clip z 1, because depth runs
+// backwards) and its far point (clip z 0) through it, each divided by its own
+// w. The origin is the near point and the direction is the normalised
+// difference. There is no Y negation written out anywhere in it: the flip is
+// the one line that turns point.y into a clip coordinate, and the half pixel in
+// it is the pixel's own centre.
 //
-// A size with no area, or a camera whose planes are the wrong way round, is the
-// caller's bug and asserts, as voe_3d_projection's already does.
-voe_3d_ray voe_3d_pick_ray(voe_scene_camera camera, voe_platform_size size,
+// A size with no area is the caller's bug and asserts.
+voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_platform_size size,
 			   voe_math_float2 point);
 
 // The frontmost entity `ray` meets, or a zeroed entity when it meets none — and

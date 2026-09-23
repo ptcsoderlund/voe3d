@@ -189,6 +189,11 @@ int main(void)
 	uint32_t badge_first = 0;
 	uint32_t interface_elements = 0;
 	voe_math_float3 spin_axis = { SPIN_AXIS_X, SPIN_AXIS_Y, SPIN_AXIS_Z };
+	// Where the eye is and where it looks, kept here from frame to frame:
+	// orbited or flown, and turned into the eye's pose every frame.
+	voe_dev_flight flight = voe_dev_orbit(0.0f);
+	voe_scene_transform pose;
+	const voe_scene_camera *lens;
 	bool flying = false;
 	bool was_flying = false;
 	bool locked = false;
@@ -379,20 +384,14 @@ int main(void)
 		if (!opened.minimised) {
 			seconds += (float)step;
 
-			// One of the two, never both, and the camera system
-			// applies placements before motions — so a frame that
-			// submitted both would take the hand's answer, which is
-			// exactly what a handover wants.
+			// One of the two, never both. Flying starts from the
+			// flight the orbit last answered, which is exactly what
+			// a handover wants: no jump on Tab.
 			if (flying)
-				(void)voe_scene_camera_move(
-					program.world,
-					voe_dev_camera_motion(program.window,
-							      program.eye,
-							      step));
+				flight = voe_dev_fly(program.window, flight,
+						     (float)step);
 			else
-				(void)voe_scene_camera_place(
-					program.world,
-					voe_dev_orbit(program.eye, seconds));
+				flight = voe_dev_orbit(seconds);
 
 			// The sun, as an intent like everything else.
 			(void)voe_scene_light_submit(
@@ -422,19 +421,28 @@ int main(void)
 			}
 		}
 
+		// The eye, moved like anything else in 3D space: its flight as a
+		// transform intent (0222). Every frame, minimised or not, so the
+		// pose everything below is placed from is the one it stands at.
+		pose = voe_dev_flight_pose(flight);
+		(void)voe_scene_transform_submit(
+			program.world,
+			(voe_scene_transform_intent){ .entity = program.eye,
+						      .transform = pose });
+
 		// The systems, in order, and then the draw. Each of them drains
 		// what was submitted since it last ran; nothing here calls into
 		// one system from another.
+		// The camera system moves nothing: it drains lens intents, and
+		// nothing here submits one.
 		voe_scene_camera_system_run(program.world);
 
-		// THE HEADS-UP LINE IS PLACED HERE, BETWEEN TWO SYSTEMS, AND
-		// THAT POSITION IS THE WHOLE OF WHETHER IT WORKS. It is derived
-		// from where the camera is, so it has to be worked out after the
-		// camera system has moved it and submitted before the transform
-		// system drains — which is exactly this gap, and it costs
-		// nothing: both systems still run once.
+		// THE HEADS-UP LINE IS PLACED FROM THE POSE THE EYE IS SUBMITTED
+		// WITH, AND THAT IS THE WHOLE OF WHETHER IT WORKS. Both intents
+		// drain in the same run of the transform system, so the line
+		// and the eye move together and nothing lags (0223).
 		//
-		// PLACING IT UP WITH THE OTHER INTENTS PUTS IT ONE FRAME BEHIND,
+		// PLACING IT FROM LAST FRAME'S EYE WOULD PUT IT ONE FRAME BEHIND,
 		// AND ONE FRAME IS PLENTY. It reads as jitter rather than as
 		// lag, and the reason is worth writing down because the frame
 		// rate makes it look impossible: a mouse delivers motion in
@@ -448,29 +456,26 @@ int main(void)
 		// it worse rather than better.
 		(void)voe_scene_transform_submit(
 			program.world,
-			voe_dev_facing_the_camera(program.world, program.eye,
-						  program.hud,
+			voe_dev_facing_the_camera(pose, program.hud,
 						  program.hud_size));
-		// The panel travels with the line, one frame behind it in
-		// exactly the same way and for exactly the same reason.
+		// The panel travels with the line, from the same pose.
 		(void)voe_scene_transform_submit(
 			program.world,
-			voe_dev_behind_the_line(program.world, program.eye,
-						program.panel,
+			voe_dev_behind_the_line(pose, program.panel,
 						program.hud_size));
-		// And the readout, placed from the camera alone — its geometry
-		// does not exist yet and its placement does not need it.
-		(void)voe_scene_transform_submit(
-			program.world,
-			voe_dev_top_left_of_the_view(program.world, program.eye,
-						     program.readout, now_size,
-						     VOE_DEV_READOUT_EM));
-		// And the two sprites that turn towards the camera, in this
-		// same gap and for this same reason. The engine does not
-		// billboard, so this is a call site turning them itself — see
-		// src/sprites.c.
-		voe_dev_sprites_face(program.world, program.eye,
-				     &program.sprites);
+		// And the readout, placed from the pose and the lens alone — its
+		// geometry does not exist yet and its placement does not need it.
+		lens = voe_scene_camera_get(program.world, program.eye);
+		if (lens != NULL)
+			(void)voe_scene_transform_submit(
+				program.world,
+				voe_dev_top_left_of_the_view(
+					pose, *lens, program.readout, now_size,
+					VOE_DEV_READOUT_EM));
+		// And the two sprites that turn towards the camera, from the
+		// same flight. The engine does not billboard, so this is a call
+		// site turning them itself — see src/sprites.c.
+		voe_dev_sprites_face(program.world, flight, &program.sprites);
 
 		voe_scene_transform_system_run(program.world);
 		voe_scene_light_system_run(program.world);

@@ -41,6 +41,8 @@
 #include <math/float3.h>
 #include <math/quat.h>
 
+#include <scene/camera_component.h>
+
 #include <ui/colour.h>
 #include <ui/widgets.h>
 
@@ -590,14 +592,19 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		ui, (voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
 					.gap = CONTENT_GAP });
 
-	voe_ui_row_begin(ui, (voe_ui_container){ .gap = COMPONENT_GAP });
-	inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
-	voe_ui_label(ui, "Duplicate");
-	voe_ui_end(ui);
-	inspector->remove = voe_ui_button_begin(ui, "delete", 0);
-	voe_ui_label(ui, "Delete");
-	voe_ui_end(ui);
-	voe_ui_end(ui);
+	// No Duplicate and no Delete for the camera's entity: the scene's one
+	// camera is neither copied nor deleted (ADR-0218).
+	if (voe_scene_camera_get(world, selected) == NULL) {
+		voe_ui_row_begin(ui,
+				 (voe_ui_container){ .gap = COMPONENT_GAP });
+		inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
+		voe_ui_label(ui, "Duplicate");
+		voe_ui_end(ui);
+		inspector->remove = voe_ui_button_begin(ui, "delete", 0);
+		voe_ui_label(ui, "Delete");
+		voe_ui_end(ui);
+		voe_ui_end(ui);
+	}
 
 	// THE WALK, AND THE WHOLE OF WHAT THIS PANEL KNOWS ABOUT COMPONENTS.
 	// Every described type the world holds, asked whether this entity has
