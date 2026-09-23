@@ -1,12 +1,50 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, a pass begun on each one's target with its own camera, the world drawn
 // with the selection's outline and gizmo and the scene camera's marker, and
-// the pass ended.
+// the pass ended; and the preview's pass, drawn with the world's camera while
+// the selected entity has one.
 #include "view_passes.h"
 
 #include <base/assert.h>
 
 #include <scene/camera_component.h>
+
+bool voe_editor_view_passes_preview(voe_render_device *gpu,
+				    voe_base_arena *arena,
+				    voe_ecs_world *world,
+				    voe_editor_views *views,
+				    voe_render_light light,
+				    const voe_editor_scene *scene)
+{
+	voe_3d_frame frame;
+	voe_render_pass_camera camera;
+
+	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL,
+			"drawing the preview with no device, arena or world");
+	VOE_BASE_ASSERT(views != NULL && scene != NULL,
+			"drawing the preview with no views or scene");
+
+	views->preview_shown = false;
+	if (voe_scene_camera_get(world, voe_editor_scene_selected(scene)) ==
+	    NULL)
+		return true;
+
+	// Outline, gizmo and marker come back zeroed and stay so (0223).
+	frame = voe_3d_draw_system_frame(
+		world, (voe_platform_size){ VOE_EDITOR_PREVIEW_WIDTH,
+					    VOE_EDITOR_PREVIEW_HEIGHT });
+	if (frame.blind)
+		return true;
+	frame.light = light;
+
+	camera = (voe_render_pass_camera){ frame.view, frame.light };
+	if (!voe_render_pass_begin(gpu, views->preview_target, &camera))
+		return false;
+	voe_3d_draw_system_run(world, gpu, arena, frame);
+	voe_render_pass_end(gpu);
+	views->preview_shown = true;
+	return true;
+}
 
 bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,

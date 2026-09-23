@@ -2,10 +2,13 @@
 // shows, each onto that view's own target with its own camera and the
 // world's light, the world drawn by voe_3d_draw_system_run with the
 // selection's outline (ADR-0203), its move gizmo (ADR-0205) and the scene
-// camera's marker (0223), and the pass ended. main.c calls it once a frame, between opening the draw and the
-// window's pass:
+// camera's marker (0223), and the pass ended; and before those, the preview's
+// one pass with the world's own camera (view.h). main.c calls both once a
+// frame, between opening the draw and the window's pass:
 //
-//     drawn = voe_editor_view_passes_draw(gpu, arena, world, &views, &tree,
+//     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
+//                                            light, &scene);
+//     drawn = drawn && voe_editor_view_passes_draw(gpu, arena, world, &views, &tree,
 //                                         light, &scene, &geometries,
 //                                         &shapes, palette, &gizmo, ppmm);
 //
@@ -24,8 +27,10 @@
 // draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
 // for the gizmo's handles at rest and its marked one, and one for the camera's
-// marker, times the room for views. `passes` is a pass per view and the interface's, and `targets` a
-// target per view — both from the room for views, not the two in use, so a
+// marker, times the room for views, and the drawn entities once more for the
+// preview's pass, which draws the world alone. `passes` is a pass per view, the
+// preview's and the interface's, and `targets` a target per view and the
+// preview's — both from the room for views, not the two in use, so a
 // third view is a leaf and not a capacity. The three transient numbers are
 // what the selection outline's quads are copied into: one outline per view's
 // pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
@@ -78,11 +83,11 @@
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
 		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 4) *                \
-			   VOE_EDITOR_VIEWS,                                   \
+			   VOE_EDITOR_VIEWS + VOE_EDITOR_PROJECT_MAX_DRAWN,    \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
-		.passes = VOE_EDITOR_VIEWS + 1,                                \
-		.targets = VOE_EDITOR_VIEWS,                                   \
+		.passes = VOE_EDITOR_VIEWS + 2,                                \
+		.targets = VOE_EDITOR_VIEWS + 1,                               \
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
 				       VOE_3D_GIZMO_VERTICES +                 \
 				       VOE_3D_CAMERA_MARKER_VERTICES) *        \
@@ -93,6 +98,15 @@
 				     VOE_EDITOR_VIEWS,                         \
 		.transient_geometries = 4 * VOE_EDITOR_VIEWS                   \
 	}
+
+// Sets `preview_shown` to whether the selected entity has a camera and, when
+// it has and that camera is not blind, draws what it sees into the preview's
+// target, lit by `light`, with no outline, gizmo or marker. False only when
+// the device refuses the pass. Called inside an open draw, never inside a pass.
+[[nodiscard]] bool voe_editor_view_passes_preview(
+	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
+	voe_editor_views *views, voe_render_light light,
+	const voe_editor_scene *scene);
 
 // Draws every view `tree` shows, in order, and returns false at the first
 // pass the device refuses. Called inside an open draw, never inside a pass.

@@ -1,4 +1,4 @@
-// The views: their cameras, their targets and the middle-button drag, and the
+// The views: their cameras, their targets and the preview's, the middle-button drag, and the
 // light, the outline colour and the gizmo's colour a view is drawn with. See
 // the header for why the camera is not an entity, why the light is the world's and not the views' to
 // hold, why the picture lags the layout by a frame, and why a view nobody shows
@@ -110,7 +110,10 @@ bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
 			return false;
 	}
 
-	return true;
+	return voe_render_target_create(gpu, VOE_EDITOR_PREVIEW_WIDTH,
+					VOE_EDITOR_PREVIEW_HEIGHT,
+					&views->preview_target,
+					&views->preview_texture, error);
 }
 
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,

@@ -635,7 +635,12 @@ int main(int argc, char *argv[])
 
 		// A pass per view the tree shows (view_passes.h). If one is
 		// refused, the frame is still closed below and the program stops.
-		drawn = voe_editor_view_passes_draw(
+		// The preview's pass comes first, drawn only while the selected
+		// entity has a camera.
+		drawn = voe_editor_view_passes_preview(
+				gpu, arena, session.project->world, &views,
+				light, &scene) &&
+			voe_editor_view_passes_draw(
 			gpu, arena, session.project->world, &views,
 			&roots[0].tree, light, &scene, &geometries, &shapes,
 			&voe_editor_themes_chosen(&themes)->palette, &gizmo,

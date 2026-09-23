@@ -36,6 +36,13 @@
 // selectable, editable and saved, the way `Cube` is (scene.h) — so a view keeps
 // no light of its own and its pass is simply handed one; see
 // voe_editor_view_pass_camera.
+//
+// THE PREVIEW IS WHAT THE WORLD'S CAMERA SEES, AT ONE FIXED SIZE (0223): a
+// 16:9 target of VOE_EDITOR_PREVIEW_WIDTH by _HEIGHT pixels, made beside the
+// views' and never resized, because the game window's aspect is not known to
+// the editor and the marker's frustum is drawn at the same 16:9. Nothing but
+// voe_editor_view_passes_preview draws into it, and only while the selected
+// entity has a camera; `preview_shown` is that frame's answer.
 #pragma once
 
 #include <base/error.h>
@@ -62,6 +69,10 @@
 
 // What `captured` holds when no drag has a view.
 #define VOE_EDITOR_VIEW_NONE UINT32_MAX
+
+// The preview's size in pixels, named once (0223).
+#define VOE_EDITOR_PREVIEW_WIDTH 480
+#define VOE_EDITOR_PREVIEW_HEIGHT 270
 
 // One view. `eye` is worked out from the focus, the distance, `yaw` and
 // `pitch` by the orbit and is never set on its own. Zero yaw looks down −Z,
@@ -100,11 +111,16 @@ typedef struct {
 	uint32_t captured;
 	bool middle_was_down;
 	voe_math_float2 pointer;
+
+	// The preview's target and its picture, and whether this frame drew it.
+	voe_render_target preview_target;
+	voe_render_texture preview_texture;
+	bool preview_shown;
 } voe_editor_views;
 
 // Sets every view in use to its initial camera — view 0 from the front and
 // above, view 1 from the side, both looking at the origin — and makes each one a
-// target. A startup operation, because making a target is.
+// target, then the preview's. A startup operation, because making a target is.
 //
 // False when `render` refused a target, which has already said why on stderr.
 [[nodiscard]] bool voe_editor_views_create(voe_editor_views *views,

@@ -97,15 +97,16 @@ carries it out.
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
 - `view.h` — a scene view: its orbit's pose and lens, its target and the middle-button drag, which view a pointer
-  is over and where in that view's picture it lands, and the light, the outline colour and the
-  gizmo's colour a view is drawn with.
+  is over and where in that view's picture it lands, the light, the outline colour and the gizmo's
+  colour a view is drawn with, and the 480×270 preview of what the world's camera sees.
 - `view.c` — the views' orbit, which owns the eye, the drag's rates per
   millimetre, their targets, the world's first light row and the lighter half
   of the theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view with the world, the
   selection's outline, its gizmo and the camera's marker, and the device capacities those passes need.
-- `view_passes.c` — the shown views walked in order, each pass begun, drawn by `3d`'s draw system
-  with the world's camera marked, and ended, stopping at the first refused pass.
+- `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
+  walked in order, each pass begun, drawn by `3d`'s draw system with the world's camera marked, and
+  ended, stopping at the first refused pass.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector drew,
   and what the colour picker and the open dropdown are open on.
