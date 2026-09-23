@@ -42,6 +42,10 @@
 // across the window changes position by exactly what the motion says only when
 // nothing is accelerated or clipped. Reach for motion to turn something and for
 // the pointer to point at something, and never derive one from the other.
+//
+// THE POINTER'S SHAPE IS A REQUEST BY NAME, not an image: voe_platform_input_cursor
+// at the bottom, set every frame, drawn by the window system in the person's own
+// theme, and a no-op that fails nothing on a compositor without the protocol.
 #pragma once
 
 #include <stdint.h>
@@ -283,10 +287,28 @@ bool voe_platform_input_button_down(voe_platform_window *window,
 // Wayland freezes it where it stands and leaves it visible, because hiding it
 // there means handing the compositor a cursor image and this engine has none to
 // hand over — and a cursor hidden with no way back is worse than a cursor
-// sitting still. The card that owns a cursor image is the card that makes these
-// two agree.
+// sitting still. The card that owns a cursor image for hiding is the card that
+// makes these two agree; the pointer's shape is named below and needs no image.
 void voe_platform_input_lock_pointer(voe_platform_window *window, bool lock);
 
 // Whether the pointer is locked right now, which is the window system's answer
 // and not the last thing asked for.
 bool voe_platform_input_pointer_locked(voe_platform_window *window);
+
+// The pointer's shape. VOE_PLATFORM_CURSOR_COUNT is the count and never a
+// shape; asking for it asserts.
+typedef enum {
+	VOE_PLATFORM_CURSOR_ARROW,
+	VOE_PLATFORM_CURSOR_LEFT_RIGHT,
+	VOE_PLATFORM_CURSOR_UP_DOWN,
+	VOE_PLATFORM_CURSOR_COUNT
+} voe_platform_cursor;
+
+// A SHAPE IS ASKED FOR BY NAME AND DRAWN BY THE WINDOW SYSTEM, in the person's
+// own cursor theme and size (ADR-0227); this engine has no cursor image. Set it
+// every frame for what the pointer is over: only a change reaches the window
+// system, and the shape is put back each time the pointer enters the window.
+// It starts as the arrow and nothing but this call changes it. On a Wayland
+// compositor without cursor-shape-v1 nothing changes and nothing fails.
+void voe_platform_input_cursor(voe_platform_window *window,
+			       voe_platform_cursor cursor);

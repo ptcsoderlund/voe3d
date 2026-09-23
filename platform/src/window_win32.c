@@ -459,6 +459,23 @@ static void capture_lost(voe_platform_window *window)
 	window->input.pointer_over = inside;
 }
 
+// The stored shape as a system cursor, drawn by Windows in the person's theme.
+// A shared system cursor from LoadCursorW is never destroyed.
+static void cursor_show(const voe_platform_window *window)
+{
+	LPCWSTR name = (LPCWSTR)IDC_ARROW;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "shaping a NULL window's pointer");
+	VOE_BASE_DEBUG_ASSERT(window->input.cursor < VOE_PLATFORM_CURSOR_COUNT,
+			      "the stored cursor is not a shape");
+
+	if (window->input.cursor == VOE_PLATFORM_CURSOR_LEFT_RIGHT)
+		name = (LPCWSTR)IDC_SIZEWE;
+	else if (window->input.cursor == VOE_PLATFORM_CURSOR_UP_DOWN)
+		name = (LPCWSTR)IDC_SIZENS;
+	SetCursor(LoadCursorW(NULL, name));
+}
+
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 				    LPARAM lparam)
 {
@@ -553,6 +570,12 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 	case WM_CAPTURECHANGED:
 		capture_lost(window);
 		return 0;
+	// The client area's shape is ours; the frame's edges are Windows'.
+	case WM_SETCURSOR:
+		if (LOWORD(lparam) != HTCLIENT)
+			return DefWindowProcW(hwnd, message, wparam, lparam);
+		cursor_show(window);
+		return TRUE;
 	// Passed on: DefWindowProcW is what gives an activated window the
 	// keyboard focus.
 	case WM_ACTIVATE:
@@ -687,7 +710,7 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	return window;
 }
 
-// The two functions src/input.h declares, and the whole of what input.c knows
+// The three functions src/input.h declares, and the whole of what input.c knows
 // about this file.
 struct voe_platform_input *voe_platform_window_input(voe_platform_window *window)
 {
@@ -702,6 +725,18 @@ void voe_platform_window_lock_pointer(voe_platform_window *window, bool lock)
 
 	window->lock_wanted = lock;
 	apply_lock(window);
+}
+
+void voe_platform_window_cursor(voe_platform_window *window,
+				voe_platform_cursor cursor)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "shaping a NULL window's pointer");
+	VOE_BASE_DEBUG_ASSERT(cursor == window->input.cursor,
+			      "input.c stores the shape before calling here");
+
+	// Now, not at the next WM_SETCURSOR, which waits for the mouse to move.
+	if (window->input.pointer_over)
+		cursor_show(window);
 }
 
 void voe_platform_window_destroy(voe_platform_window *window)

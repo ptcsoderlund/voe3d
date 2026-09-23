@@ -15,7 +15,9 @@
 // NULL here and in seat_wayland.c unreachable. xdg_wm_base is bound at up to
 // version 6, because 6 is where the toplevel says it is suspended — hidden —
 // which is how a window knows to stop drawing (ADR-0215); every toplevel slot a
-// version up to 6 can send has a function.
+// version up to 6 can send has a function. Optional, and the window opens
+// without each: decoration, relative pointer, pointer constraints, fractional
+// scale with the viewporter, and cursor shape.
 //
 // NOTHING HERE PUTS A PIXEL ON THE SCREEN, AND THAT IS WHY THE WINDOW IS NOT
 // VISIBLE UNTIL SOMETHING ELSE DOES. A Wayland surface with no buffer ever
@@ -47,6 +49,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include "cursor-shape-v1-client-protocol.h"
 #include "fractional-scale-v1-client-protocol.h"
 #include "pointer-constraints-unstable-v1-client-protocol.h"
 #include "relative-pointer-unstable-v1-client-protocol.h"
@@ -112,6 +115,10 @@ static void registry_global(void *data, struct wl_registry *registry,
 	else if (strcmp(interface, wp_viewporter_interface.name) == 0)
 		window->viewporter = wl_registry_bind(registry, name,
 			&wp_viewporter_interface, 1);
+	// Without it the pointer keeps whatever shape the compositor gave it.
+	else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0)
+		window->cursor_shapes = wl_registry_bind(registry, name,
+			&wp_cursor_shape_manager_v1_interface, 1);
 }
 
 // Nothing here holds a global long enough to care that one went away.
@@ -283,6 +290,8 @@ static void close_down(voe_platform_window *window)
 	if (window->surface != NULL)
 		wl_surface_destroy(window->surface);
 
+	if (window->cursor_shapes != NULL)
+		wp_cursor_shape_manager_v1_destroy(window->cursor_shapes);
 	if (window->viewporter != NULL)
 		wp_viewporter_destroy(window->viewporter);
 	if (window->fractional_scales != NULL)

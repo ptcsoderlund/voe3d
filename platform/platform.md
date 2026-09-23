@@ -13,7 +13,7 @@ file, and listing, making or finding a folder.
   `_focused` and `_visible` say whether the person is in it and can see it, and
   `_wait` blocks for at most the timeout it is given.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the wheel in
-  notches, typed UTF-8 text, the pointer's position and buttons, and the lock.
+  notches, typed UTF-8 text, the pointer's position, buttons and shape, and the lock.
   The file says why all of it is polled state and not a queue of events, and
   why a key is a place rather than a letter.
 - `include/platform/clock.h` — how long something took. Its header says why it is
@@ -48,3 +48,7 @@ file, and listing, making or finding a folder.
   surface drawn at, in 120ths. Optional; without it the window is stretched.
 - `protocol/viewporter.xml` — how a client shows a bigger buffer at the logical
   size. Optional, and only used together with the fractional scale.
+- `protocol/cursor-shape-v1.xml` — how a client names the pointer's shape for
+  the compositor to draw. Optional; without it the shape does not change.
+- `protocol/tablet-v2.xml` — graphics tablets. Vendored only because the cursor
+  shape's generated code names its tool type; nothing here uses a tablet.

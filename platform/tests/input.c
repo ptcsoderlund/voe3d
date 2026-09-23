@@ -42,6 +42,8 @@
 // that would only half fit in what capacity is left — each of those is a
 // character a name box must never see appear.
 //
+// AND THE POINTER'S SHAPE IS KEPT THROUGH A POLL AND BOTH LOSSES.
+//
 // IT INCLUDES platform's INTERNAL HEADER BY RELATIVE PATH, the same way render's
 // tests reach that folder's internals: the struct these two functions operate on
 // is not platform's public surface and must not become part of it so that a test
@@ -350,6 +352,24 @@ static void control_code_points_are_dropped(void)
 	VOE_TEST_CHECK(input.text[0] == 'A');
 }
 
+// The pointer's shape is plain state that a caller sets every frame and a
+// backend reapplies on enter; a clear that reset it would put the arrow back
+// under a resize handle the pointer is still over.
+static void a_poll_and_a_loss_keep_the_cursor(void)
+{
+	struct voe_platform_input input = { 0 };
+
+	VOE_TEST_CHECK(input.cursor == VOE_PLATFORM_CURSOR_ARROW);
+	input.cursor = VOE_PLATFORM_CURSOR_LEFT_RIGHT;
+
+	voe_platform_input_begin_poll(&input);
+	VOE_TEST_CHECK(input.cursor == VOE_PLATFORM_CURSOR_LEFT_RIGHT);
+	voe_platform_input_focus_lost(&input);
+	VOE_TEST_CHECK(input.cursor == VOE_PLATFORM_CURSOR_LEFT_RIGHT);
+	voe_platform_input_pointer_lost(&input);
+	VOE_TEST_CHECK(input.cursor == VOE_PLATFORM_CURSOR_LEFT_RIGHT);
+}
+
 int main(void)
 {
 	a_poll_keeps_held_keys();
@@ -366,5 +386,6 @@ int main(void)
 	a_focus_loss_empties_typed_text();
 	a_code_point_that_does_not_fit_is_dropped_whole();
 	control_code_points_are_dropped();
+	a_poll_and_a_loss_keep_the_cursor();
 	return voe_test_result();
 }
