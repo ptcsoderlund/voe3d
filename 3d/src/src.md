@@ -39,6 +39,8 @@ is included from outside the folder — `include/3d/` is the whole public surfac
   a comment.
 - `outline.c` — the walk over one shape's edges that keeps the ones the eye is on two sides of, and
   the quad each of them becomes, a half width per vertex from that vertex's own depth.
+- `camera_marker.c` — the marker's twenty edges in the camera's own space, their quads with
+  outline.c's width and winding mirrored, and the slab test against the box.
 - `gizmo.c` — the shaft that covers the same pixels at any distance, the ray against each handle
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.

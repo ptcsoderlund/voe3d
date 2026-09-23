@@ -33,6 +33,9 @@ again, or to find where a claim that has started failing is written down.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
   and winding, and — drawn — that a hidden cube's outline shows through. The arithmetic half needs
   no graphics card; the drawn half skips without one.
+- `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
+  building nothing and not hit, and a ray meeting the box square on, turned and not at all. Needs
+  no graphics card.
 - `gizmo.c` — a ray across each arrow and through each square, the space that meets nothing, the
   shaft doubling with the distance, the two grabs and the one refusal, and the two meshes' counts,
   their winding towards the eye and the handle marking moves across. Needs no graphics card.
