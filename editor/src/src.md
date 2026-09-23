@@ -68,7 +68,8 @@ carries it out.
 - `dock.h` — the tree, the walk, and `voe_editor_panel_draw`, which is where the panels' contents
   are; a root carries this frame's keyboard beside its pointer.
 - `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, the one-millimetre gap at
-  each seam where a splitter would go, and the scroll area it opens for the Inspector's leaf.
+  each seam where a splitter would go, the scroll area it opens for the Inspector's leaf, and the
+  camera preview in each scene view's corner.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
