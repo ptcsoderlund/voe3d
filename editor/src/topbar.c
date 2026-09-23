@@ -5,7 +5,9 @@
 // A PANEL FOR THE BACKGROUND, A ROW FOR THE FLOW. voe_ui_panel_begin is a
 // column with something drawn behind it (ui/widgets.h), and this bar's
 // contents run left to right — so the panel holds one row, stretched to its
-// full width and height, and everything below is that row's children.
+// full width at its natural height, and everything below is that row's
+// children. The panel is fixed at the height kept from last frame; the row is
+// not, so the panel's measure is what its content needs (ADR-0225).
 #include "topbar.h"
 
 #include <base/arena.h>
@@ -53,17 +55,15 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	VOE_BASE_ASSERT(notice != NULL,
 			"drawing a top bar with no notice to show");
 
-	voe_ui_panel_begin(
+	bar->panel = voe_ui_panel_begin(
 		ui, "topbar", 0, VOE_UI_SURFACE_SURFACE,
 		(voe_ui_container){
 			.size = { .along = { VOE_UI_SIZE_FIXED,
-					     VOE_EDITOR_TOPBAR_HIGH } },
+					     voe_editor_topbar_high(bar) } },
 			.across = VOE_UI_ACROSS_FILL,
 			.pad = { BAR_PAD, BAR_PAD, BAR_PAD, BAR_PAD } });
 
 	voe_ui_row_begin(ui, (voe_ui_container){
-				     .size = { .along = { VOE_UI_SIZE_GROW,
-							  1.0f } },
 				     .across = VOE_UI_ACROSS_CENTER,
 				     .gap = BAR_GAP });
 
@@ -90,6 +90,28 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 
 	voe_ui_end(ui); // row
 	voe_ui_end(ui); // panel
+}
+
+float voe_editor_topbar_high(const voe_editor_topbar *bar)
+{
+	float high;
+
+	VOE_BASE_ASSERT(bar != NULL, "asking the height of no top bar");
+
+	high = bar->high > 0.0f ? bar->high : VOE_EDITOR_TOPBAR_HIGH;
+	VOE_BASE_ASSERT(high > 0.0f, "a top bar with no height");
+
+	return high;
+}
+
+void voe_editor_topbar_measure(const voe_ui_context *ui,
+			       voe_editor_topbar *bar)
+{
+	VOE_BASE_ASSERT(ui != NULL, "measuring a top bar in no interface");
+	VOE_BASE_ASSERT(bar != NULL, "measuring no top bar");
+
+	if (bar->panel != VOE_UI_NODE_NONE)
+		bar->high = voe_ui_node_measured(ui, bar->panel).y;
 }
 
 voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,

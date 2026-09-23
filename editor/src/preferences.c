@@ -100,9 +100,10 @@ void voe_editor_preferences_draw(voe_ui_context *ui,
 	}
 	voe_ui_end(ui); // scroll area
 
-	// The theme in force's own two scalars, under the list: a row each of
-	// the scalar's name, its slider and where it stands, then Reset. The
-	// two numbers are formatted into the struct because a label's text is
+	// The theme in force's own three scalars, under the list: a row each of
+	// the scalar's name, its slider and where it stands, then Reset. Each
+	// row wraps, so at a large text size a slider drops under its name
+	// rather than out of the panel. The three numbers are formatted into the struct because a label's text is
 	// read after this call (the header).
 	{
 		const voe_editor_theme *chosen =
@@ -115,7 +116,8 @@ void voe_editor_preferences_draw(voe_ui_context *ui,
 
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = PREFERENCES_GAP });
+					     .gap = PREFERENCES_GAP,
+					     .wrap = true });
 		voe_ui_label(ui, "Contrast");
 		preferences->contrast_slider = voe_ui_slider(
 			ui, "contrast", 0, chosen->contrast_strength,
@@ -129,7 +131,8 @@ void voe_editor_preferences_draw(voe_ui_context *ui,
 
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = PREFERENCES_GAP });
+					     .gap = PREFERENCES_GAP,
+					     .wrap = true });
 		voe_ui_label(ui, "Surface separation");
 		preferences->separation_slider = voe_ui_slider(
 			ui, "separation", 0, chosen->surface_separation,
@@ -140,6 +143,21 @@ void voe_editor_preferences_draw(voe_ui_context *ui,
 			 (double)chosen->surface_separation);
 		voe_ui_label(ui, preferences->separation_text);
 		voe_ui_end(ui); // separation row
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = PREFERENCES_GAP,
+					     .wrap = true });
+		voe_ui_label(ui, "Text size");
+		preferences->text_size_slider = voe_ui_slider(
+			ui, "text_size", 0, chosen->text_scale,
+			VOE_EDITOR_TEXT_SCALE_MIN, VOE_EDITOR_TEXT_SCALE_MAX,
+			PREFERENCES_SLIDER_WIDE);
+		snprintf(preferences->text_size_text,
+			 sizeof preferences->text_size_text, "%.0f%%",
+			 (double)chosen->text_scale * 100.0);
+		voe_ui_label(ui, preferences->text_size_text);
+		voe_ui_end(ui); // text size row
 
 		preferences->reset_button = voe_ui_button_begin(ui, "reset", 0);
 		voe_ui_label(ui, "Reset");
@@ -172,6 +190,7 @@ voe_editor_preferences_clicks_read(const voe_ui_context *ui,
 	// and those are skipped, exactly as topbar.c's are.
 	voe_ui_slider_result contrast = { 0 };
 	voe_ui_slider_result separation = { 0 };
+	voe_ui_slider_result text_size = { 0 };
 	voe_editor_preferences_result result = {
 		.action = VOE_EDITOR_PREFERENCES_NONE
 	};
@@ -186,9 +205,15 @@ voe_editor_preferences_clicks_read(const voe_ui_context *ui,
 						  preferences->separation_slider,
 						  VOE_UI_THEME_SCALAR_MIN,
 						  VOE_UI_THEME_SCALAR_MAX);
+	if (preferences->text_size_slider != VOE_UI_NODE_NONE)
+		text_size = voe_ui_slider_action(ui,
+						 preferences->text_size_slider,
+						 VOE_EDITOR_TEXT_SCALE_MIN,
+						 VOE_EDITOR_TEXT_SCALE_MAX);
 	result.contrast = (float)contrast.value;
 	result.separation = (float)separation.value;
-	result.sliding = contrast.held || separation.held;
+	result.text_scale = (float)text_size.value;
+	result.sliding = contrast.held || separation.held || text_size.held;
 
 	for (uint32_t i = 0; i < preferences->row_count; i++)
 		if (preferences->choose_buttons[i] != VOE_UI_NODE_NONE &&
@@ -207,7 +232,7 @@ voe_editor_preferences_clicks_read(const voe_ui_context *ui,
 	else if (preferences->reset_button != VOE_UI_NODE_NONE &&
 		 voe_ui_button_action(ui, preferences->reset_button).fired)
 		result.action = VOE_EDITOR_PREFERENCES_RESET;
-	else if (contrast.changed || separation.changed)
+	else if (contrast.changed || separation.changed || text_size.changed)
 		result.action = VOE_EDITOR_PREFERENCES_ADJUST;
 
 	return result;

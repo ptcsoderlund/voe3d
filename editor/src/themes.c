@@ -1,6 +1,7 @@
 // The themes folder read into a list, `<settings>/voe3d/theme` read and
 // written as its one line, the chosen file re-read once a second, and each
-// entry drawn with the two scalars remembered for it. See the header for the
+// entry drawn with the two scalars and the text scale remembered for it. See
+// the header for the
 // contract.
 #include "themes.h"
 
@@ -122,6 +123,7 @@ static bool derive_one(voe_editor_theme *entry, const char *file,
 		.theme = theme,
 		.contrast_strength = theme.inputs.contrast_strength,
 		.surface_separation = theme.inputs.surface_separation,
+		.text_scale = 1.0f,
 		.palette = voe_ui_theme_derive(&theme.inputs, font),
 		.bytes = bytes,
 		.size = size,
@@ -171,19 +173,33 @@ static float scalar_clamp(float value)
 						 VOE_UI_THEME_SCALAR_MAX;
 }
 
-// Derives `entry`'s palette from its inputs with the two scalars in force,
-// where it stands: the address ui keeps does not move.
+// Into VOE_EDITOR_TEXT_SCALE_MIN..MAX, a NaN landing on the minimum the same
+// way as scalar_clamp's.
+static float text_scale_clamp(float value)
+{
+	if (!(value > VOE_EDITOR_TEXT_SCALE_MIN))
+		return VOE_EDITOR_TEXT_SCALE_MIN;
+	return value < VOE_EDITOR_TEXT_SCALE_MAX ? value :
+						   VOE_EDITOR_TEXT_SCALE_MAX;
+}
+
+// Derives `entry`'s palette from its inputs with the two scalars and the text
+// scale in force, where it stands: the address ui keeps does not move.
 static void derive_in_force(voe_editor_theme *entry, const voe_text_font *font)
 {
 	voe_ui_theme_inputs inputs = entry->theme.inputs;
 
+	VOE_BASE_ASSERT(entry->text_scale > 0.0f,
+			"deriving a theme with no text scale");
 	inputs.contrast_strength = entry->contrast_strength;
 	inputs.surface_separation = entry->surface_separation;
+	inputs.text_size *= entry->text_scale;
 	entry->palette = voe_ui_theme_derive(&inputs, font);
 }
 
-// Puts the pair remembered for `entry`'s theme in force and derives it again
-// (ADR-0197). Nothing remembered leaves the theme's own two, and the palette
+// Puts the pair and the text scale remembered for `entry`'s theme in force and
+// derives it again (ADR-0197, ADR-0224). Nothing remembered leaves the theme's
+// own two and a scale of 1.0, and the palette
 // already derived with them, where they are.
 static void apply_remembered(voe_editor_themes *themes,
 			     voe_editor_theme *entry)
@@ -196,6 +212,7 @@ static void apply_remembered(voe_editor_themes *themes,
 		return;
 	entry->contrast_strength = line->contrast_strength;
 	entry->surface_separation = line->surface_separation;
+	entry->text_scale = line->text_scale;
 	derive_in_force(entry, themes->font);
 }
 
@@ -256,6 +273,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
 		.contrast_strength = defaults.contrast_strength,
 		.surface_separation = defaults.surface_separation,
+		.text_scale = 1.0f,
 		.palette = voe_ui_theme_derive(&defaults, font),
 	};
 	themes->entries[1] = (voe_editor_theme){
@@ -266,6 +284,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 			   .typeface = VOE_TEXT_TYPEFACE_OXANIUM },
 		.contrast_strength = light.contrast_strength,
 		.surface_separation = light.surface_separation,
+		.text_scale = 1.0f,
 		.palette = voe_ui_theme_derive(&light, font),
 	};
 	themes->count = THEMES_BUILT_IN;
@@ -419,7 +438,8 @@ voe_editor_themes_check_result voe_editor_themes_check(voe_editor_themes *themes
 }
 
 void voe_editor_themes_adjust(voe_editor_themes *themes, uint32_t index,
-			      float contrast, float separation)
+			      float contrast, float separation,
+			      float text_scale)
 {
 	voe_editor_theme *entry;
 
@@ -429,10 +449,12 @@ void voe_editor_themes_adjust(voe_editor_themes *themes, uint32_t index,
 	entry = &themes->entries[index];
 	entry->contrast_strength = scalar_clamp(contrast);
 	entry->surface_separation = scalar_clamp(separation);
+	entry->text_scale = text_scale_clamp(text_scale);
 	derive_in_force(entry, themes->font);
 	voe_editor_theme_scalars_set(&themes->scalars, themes->arena,
 				     entry->identity, entry->contrast_strength,
-				     entry->surface_separation);
+				     entry->surface_separation,
+				     entry->text_scale);
 	themes->scalars_unwritten = true;
 }
 
@@ -446,6 +468,7 @@ void voe_editor_themes_reset(voe_editor_themes *themes, uint32_t index)
 	entry = &themes->entries[index];
 	entry->contrast_strength = entry->theme.inputs.contrast_strength;
 	entry->surface_separation = entry->theme.inputs.surface_separation;
+	entry->text_scale = 1.0f;
 	derive_in_force(entry, themes->font);
 	voe_editor_theme_scalars_forget(&themes->scalars, entry->identity);
 	themes->scalars_unwritten = true;

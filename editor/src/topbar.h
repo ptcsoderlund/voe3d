@@ -2,11 +2,12 @@
 // Preferences, then the project's name and whether it is unsaved, then whatever notice the session
 // has to say.
 //
-// A FIXED HEIGHT AND NOTHING ELSE ABOUT THE LAYOUT IS THIS FILE'S. It draws one
-// row, VOE_EDITOR_TOPBAR_HIGH tall, that stretches to whatever width its caller
-// gives it — interface.c lays it above the dock tree and hands the tree the
-// rest of the surface's height, and neither of those is a decision this file
-// makes.
+// ITS HEIGHT IS WHAT ITS BUTTONS AND LABELS MEASURED LAST FRAME (ADR-0225). A
+// larger text size needs a taller bar, but dock.c divides a known height, so the
+// bar's has to be a number before the frame is built: voe_editor_topbar_measure
+// keeps what the panel's content measured, and voe_editor_topbar_high is the
+// height the next frame lays it out at. Where the bar sits, above the dock tree,
+// stretched to whatever width it is given, is interface.c's decision.
 //
 // THE FOUR BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
 // ROWS ARE (scene.h). A `ui` widget answers what the pointer did to it only
@@ -28,24 +29,36 @@
 
 #include <ui/layout.h>
 
-// How tall the bar is, in the surface's own millimetres, whatever width it is
-// given.
+// How tall the bar is on the first frame, before anything has been measured, in
+// the surface's own millimetres.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's four buttons, recorded as they are drawn. Zeroed is a bar that has
-// drawn nothing yet, which is only true before the first frame.
+// The bar's panel and four buttons, recorded as they are drawn, and the height
+// it is laid out at. Zeroed is a bar that has drawn nothing yet; `high` nought
+// means VOE_EDITOR_TOPBAR_HIGH.
 typedef struct {
+	voe_ui_node panel;
 	voe_ui_node new_button;
 	voe_ui_node open_button;
 	voe_ui_node save_button;
 	voe_ui_node preferences_button;
+	float high;
 } voe_editor_topbar;
+
+// The height to lay the bar out at this frame, in millimetres.
+float voe_editor_topbar_high(const voe_editor_topbar *bar);
+
+// Keeps what the panel's content measured as the next frame's height. Called
+// after voe_ui_frame_end, in the window voe_editor_topbar_clicks_read uses; a
+// panel the frame had no room for leaves the height as it was.
+void voe_editor_topbar_measure(const voe_ui_context *ui,
+			       voe_editor_topbar *bar);
 
 // Draws the bar as one row: New, Open, Save, Preferences, then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
-// exactly as long as the row's labels are (ui/widgets.h). Records the four
-// buttons into `bar`.
+// exactly as long as the row's labels are (ui/widgets.h). Records the
+// panel and the four buttons into `bar`, laid out at voe_editor_topbar_high(bar).
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, const char *name,
 			   bool unsaved, const char *notice);

@@ -100,6 +100,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       uint32_t count, voe_editor_scene *scene,
 			       voe_editor_views *views,
 			       voe_editor_session *session,
+			       voe_editor_topbar *bar,
 			       voe_editor_browser *browser,
 			       voe_editor_preferences *preferences,
 			       voe_editor_themes *themes, bool escape)
@@ -114,6 +115,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
 	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
+	VOE_BASE_ASSERT(bar != NULL, "drawing an interface with no top bar");
 	VOE_BASE_ASSERT(browser != NULL, "drawing an interface with no browser");
 	VOE_BASE_ASSERT(preferences != NULL,
 			"drawing an interface with no preferences");
@@ -125,7 +127,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// above it — dock.c's own tree is untouched, only the size
 		// its walk divides out.
 		voe_editor_dock_root below_bar = *root;
-		voe_editor_topbar bar = { 0 };
 		const char *name = voe_editor_project_name(session->project);
 		uint32_t first;
 		uint32_t records;
@@ -155,7 +156,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_inspector_add_close(&scene->inspector);
 		}
 
-		below_bar.size.y -= VOE_EDITOR_TOPBAR_HIGH;
+		below_bar.size.y -= voe_editor_topbar_high(bar);
 		if (browsing || preferring)
 			below_bar.pointer.over = false;
 
@@ -193,7 +194,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					      .across = { VOE_UI_SIZE_FIXED,
 							  root->size.x } },
 				    .across = VOE_UI_ACROSS_FILL });
-		voe_editor_topbar_draw(ui, &bar, arena,
+		voe_editor_topbar_draw(ui, bar, arena,
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text);
@@ -205,11 +206,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// dock's below it) is settled.
 		if (browsing)
 			voe_editor_browser_draw(ui, browser,
-						VOE_EDITOR_TOPBAR_HIGH,
+						voe_editor_topbar_high(bar),
 						below_bar.size);
 		if (preferring)
 			voe_editor_preferences_draw(ui, preferences, themes,
-						    VOE_EDITOR_TOPBAR_HIGH,
+						    voe_editor_topbar_high(bar),
 						    below_bar.size);
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
@@ -225,7 +226,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 							       picked.left +
 							       PICKER_GAP },
 						.y = { VOE_UI_ACROSS_START,
-						       VOE_EDITOR_TOPBAR_HIGH +
+						       voe_editor_topbar_high(bar) +
 							       PICKER_GAP } } });
 			picker = voe_ui_colour_picker(ui, "colour picker", 0,
 						      colour);
@@ -268,6 +269,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
 		voe_editor_views_rects_read(views, ui);
+		// Whatever the browser or Preferences show: the bar is drawn
+		// under both, and the next frame is laid out at this measure.
+		voe_editor_topbar_measure(ui, bar);
 
 		// THE BROWSER, WHEN IT WAS SHOWING, INSTEAD OF THE TOP BAR —
 		// see the header on why `browsing` and not browser->showing.
@@ -284,12 +288,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						      result);
 		} else {
 			voe_editor_command clicked =
-				voe_editor_topbar_clicks_read(ui, &bar);
+				voe_editor_topbar_clicks_read(ui, bar);
 
 			if (clicked != VOE_EDITOR_COMMAND_NONE)
 				voe_editor_session_do(session, scene, browser,
 						      clicked);
-			if (voe_editor_topbar_preferences_read(ui, &bar))
+			if (voe_editor_topbar_preferences_read(ui, bar))
 				voe_editor_preferences_show(preferences);
 		}
 
@@ -320,7 +324,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				   VOE_EDITOR_PREFERENCES_ADJUST) {
 				voe_editor_themes_adjust(themes, themes->chosen,
 							 result.contrast,
-							 result.separation);
+							 result.separation,
+							 result.text_scale);
 			} else if (result.action ==
 				   VOE_EDITOR_PREFERENCES_RESET) {
 				voe_editor_themes_reset(themes, themes->chosen);

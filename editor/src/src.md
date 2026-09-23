@@ -33,12 +33,13 @@ carries it out.
   the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in
   `<settings>/voe3d/themes/`, the chosen one remembered in `<settings>/voe3d/theme` and re-read once
-  a second, each carrying the two scalars it is drawn with.
+  a second, each carrying the two scalars and the text scale it is drawn with.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
-  remembered file read and written as its one line, and the chosen file's once-a-second re-read.
-- `theme_scalars.h` — a person's contrast and surface separation remembered per theme at
-  `<settings>/voe3d/theme_scalars`, one line per adjusted theme (ADR-0197).
-- `theme_scalars.c` — that file read line by line as two numbers and the name
+  remembered file read and written as its one line, the chosen file's once-a-second re-read, and
+  each theme derived at its own text scale.
+- `theme_scalars.h` — a person's contrast, surface separation and text scale remembered per
+  theme at `<settings>/voe3d/theme_scalars`, one line per adjusted theme (ADR-0197, ADR-0224).
+- `theme_scalars.c` — that file read line by line as three numbers and the name
   after them, a theme's numbers set or forgotten in the list, and every line
   written back by making the two folders above it as needed.
 - `notice.h` — one line long enough to explain why a project failed to open or
@@ -52,11 +53,12 @@ carries it out.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
-  project's name and whether it is unsaved, then the session's notice.
+  project's name and whether it is unsaved, then the session's notice, as tall as its content
+  measured last frame.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
-  force marked, a slider for each of that theme's two scalars with a Reset button, and Close, as an
+  force marked, three sliders for that theme's contrast, separation and text size with a Reset button, and Close, as an
   anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
