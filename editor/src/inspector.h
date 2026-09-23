@@ -228,7 +228,8 @@ typedef struct {
 	// (session.h).
 	uint32_t replaced;
 	// The Duplicate and Delete buttons as drawn this frame,
-	// VOE_UI_NODE_NONE when they were not.
+	// VOE_UI_NODE_NONE when they were not: nothing selected, or the
+	// camera's entity (ADR-0218).
 	voe_ui_node duplicate;
 	voe_ui_node remove;
 	// Each section's Remove button as drawn this frame, the kept types'

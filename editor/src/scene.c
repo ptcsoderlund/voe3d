@@ -13,6 +13,8 @@
 
 #include <base/assert.h>
 
+#include <scene/camera_component.h>
+
 #include <ui/widgets.h>
 
 #include <string.h>
@@ -121,7 +123,8 @@ void voe_editor_scene_delete(voe_editor_scene *scene)
 {
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 
-	if (selected.generation == 0)
+	if (selected.generation == 0 ||
+	    voe_scene_camera_get(scene->world, selected) != NULL)
 		return;
 	if (!voe_editor_entities_delete(scene->world, selected)) {
 		scene->full = true;
@@ -136,7 +139,8 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene)
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 	voe_ecs_entity made;
 
-	if (selected.generation == 0)
+	if (selected.generation == 0 ||
+	    voe_scene_camera_get(scene->world, selected) != NULL)
 		return;
 	if (!voe_editor_entities_duplicate(scene->world, selected, &made)) {
 		scene->full = true;
