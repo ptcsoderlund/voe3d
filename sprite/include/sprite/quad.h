@@ -23,8 +23,8 @@
 //
 // THE ENGINE DOES NOT BILLBOARD IT (ADR-0080). A sprite is a quad with an
 // ordinary transform, and Z decides overlap like it does for everything else.
-// Turning one to face the camera is a rotation built from
-// voe_scene_camera_forward at the call site, in game code — there is no facing
+// Turning one to face the camera is a rotation built from the camera's
+// transform at the call site, in game code — there is no facing
 // flag here and there is not going to be one. dev/src/sprites.c shows both of
 // the rotations somebody would want.
 #pragma once
