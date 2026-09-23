@@ -432,7 +432,7 @@ void voe_editor_themes_adjust(voe_editor_themes *themes, uint32_t index,
 	derive_in_force(entry, themes->font);
 	voe_editor_theme_scalars_set(&themes->scalars, themes->arena,
 				     entry->identity, entry->contrast_strength,
-				     entry->surface_separation);
+				     entry->surface_separation, 1.0f);
 	themes->scalars_unwritten = true;
 }
 

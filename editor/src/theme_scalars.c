@@ -1,5 +1,5 @@
-// `<settings>/voe3d/theme_scalars`: read line by line as two numbers and the
-// name after them, written by making the two folders above it as needed. See
+// `<settings>/voe3d/theme_scalars`: read line by line as three numbers and the
+// name after them, the older two-number shape read too, written by making the two folders above it as needed. See
 // the header for the shape of the contract.
 #include "theme_scalars.h"
 
@@ -28,12 +28,12 @@
 // into it. A block size, not a limit.
 #define THEME_SCALARS_SCRATCH (4u * 1024u)
 
-// Room for one line's two numbers, the blanks between them and the newline,
+// Room for one line's three numbers, the blanks between them and the newline,
 // beside the identity's own bytes. Wide enough for any finite float `%.3f`
 // prints, so composing a line can never be cut short.
 #define THEME_SCALARS_NUMBERS 128u
 
-// The two numbers and the rest of the line, or false for a line this file has
+// The numbers and the rest of the line, or false for a line this file has
 // nothing to say about. line is cut at its newline already and is written
 // into: the identity points into it.
 static bool parse_line(char *line, voe_editor_theme_scalars_line *out)
@@ -41,6 +41,8 @@ static bool parse_line(char *line, voe_editor_theme_scalars_line *out)
 	char *rest;
 	float contrast;
 	float separation;
+	float text_scale;
+	float value;
 
 	contrast = strtof(line, &rest);
 	if (rest == line)
@@ -50,15 +52,28 @@ static bool parse_line(char *line, voe_editor_theme_scalars_line *out)
 	if (rest == line)
 		return false;
 
+	// A third number counts only when a blank follows it; otherwise this
+	// is an older two-number line and that token starts the identity.
+	line = rest;
+	while (*line == ' ' || *line == '\t')
+		line++;
+	text_scale = 1.0f;
+	value = strtof(line, &rest);
+	if (rest != line && (*rest == ' ' || *rest == '\t')) {
+		text_scale = value;
+		line = rest;
+	}
+
 	// Written the long way round so that a NaN — which no comparison with
 	// a bound is true of — is out of range like any other bad number.
 	if (!(contrast >= VOE_UI_THEME_SCALAR_MIN &&
 	      contrast <= VOE_UI_THEME_SCALAR_MAX) ||
 	    !(separation >= VOE_UI_THEME_SCALAR_MIN &&
-	      separation <= VOE_UI_THEME_SCALAR_MAX))
+	      separation <= VOE_UI_THEME_SCALAR_MAX) ||
+	    !(text_scale >= VOE_EDITOR_TEXT_SCALE_MIN &&
+	      text_scale <= VOE_EDITOR_TEXT_SCALE_MAX))
 		return false;
 
-	line = rest;
 	while (*line == ' ' || *line == '\t')
 		line++;
 	if (*line == '\0')
@@ -67,6 +82,7 @@ static bool parse_line(char *line, voe_editor_theme_scalars_line *out)
 	out->identity = line;
 	out->contrast_strength = contrast;
 	out->surface_separation = separation;
+	out->text_scale = text_scale;
 	return true;
 }
 
@@ -132,7 +148,8 @@ voe_editor_theme_scalars_find(const voe_editor_theme_scalars *scalars,
 
 void voe_editor_theme_scalars_set(voe_editor_theme_scalars *scalars,
 				  voe_base_arena *arena, const char *identity,
-				  float contrast, float separation)
+				  float contrast, float separation,
+				  float text_scale)
 {
 	voe_editor_theme_scalars_line *line;
 	size_t length;
@@ -158,6 +175,7 @@ void voe_editor_theme_scalars_set(voe_editor_theme_scalars *scalars,
 	}
 	line->contrast_strength = contrast;
 	line->surface_separation = separation;
+	line->text_scale = text_scale;
 }
 
 void voe_editor_theme_scalars_forget(voe_editor_theme_scalars *scalars,
@@ -218,11 +236,12 @@ bool voe_editor_theme_scalars_write(const voe_editor_theme_scalars *scalars)
 			for (i = 0; i < scalars->count; i++)
 				used += (size_t)snprintf(
 					text + used, capacity - used,
-					"%.3f %.3f %s\n",
+					"%.3f %.3f %.3f %s\n",
 					(double)scalars->lines[i]
 						.contrast_strength,
 					(double)scalars->lines[i]
 						.surface_separation,
+					(double)scalars->lines[i].text_scale,
 					scalars->lines[i].identity);
 			// Nothing remembered is still written, as the one
 			// blank line a read skips: the file has to stop
