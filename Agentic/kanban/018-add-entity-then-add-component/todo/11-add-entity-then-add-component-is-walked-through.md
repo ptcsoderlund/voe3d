@@ -1,4 +1,4 @@
-# 09 — Add entity, then Add component, is walked through
+# 11 — Add entity, then Add component, is walked through
 folder: editor
 decisions: 0168, 0177, 0204, 0217, 0221
 read: feature.md
@@ -38,8 +38,3 @@ by the view; Shape is not offered again; the transform has no Remove; removing t
 listed; three undos take back the removal, the add and the entity in that order and redo restores them; a
 saved, closed and reopened project is as it was left.
 
-## Blocked
-`checks.sh --all` exits 1 on one finding outside `editor/`: `ecs/tests/tests.md`'s entry for `component.c` is
-305 characters, cap 300 (grown by card 01's "a menu path"). It needs a one-line trim in `ecs/`, a card of its
-own; the editor's own over-long `inspector_edit.c` entry is trimmed here and the capture is written. The
-human's nine-step walk at a running `voe_editor` has not been seen.
