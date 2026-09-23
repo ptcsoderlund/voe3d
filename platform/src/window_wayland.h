@@ -27,6 +27,7 @@ struct voe_platform_window {
 	struct zwp_pointer_constraints_v1 *constraints;
 	struct wp_fractional_scale_manager_v1 *fractional_scales;
 	struct wp_viewporter *viewporter;
+	struct wp_cursor_shape_manager_v1 *cursor_shapes;
 
 	struct wl_surface *surface;
 	struct xdg_surface *xdg_surface;
@@ -43,6 +44,11 @@ struct voe_platform_window {
 	struct wl_keyboard *keyboard;
 	struct wl_pointer *pointer;
 	struct zwp_relative_pointer_v1 *relative_pointer;
+
+	// The pointer's shape device, made and destroyed with the pointer, and
+	// the serial of its last enter, which set_shape must quote.
+	struct wp_cursor_shape_device_v1 *cursor_shape;
+	uint32_t pointer_serial;
 
 	// The lock, and what was asked for. Both are needed: the object is what
 	// exists, and the wish is what to do about it when a pointer appears

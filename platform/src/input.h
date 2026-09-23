@@ -67,6 +67,10 @@ struct voe_platform_input {
 	// capacity.
 	char text[256];
 	uint32_t text_size;
+
+	// The pointer's shape last asked for. Plain state: no poll, focus loss
+	// or pointer loss clears it, and a backend reapplies it on enter.
+	voe_platform_cursor cursor;
 };
 
 // Each backend defines this over its own struct voe_platform_window, and it is
@@ -78,6 +82,12 @@ struct voe_platform_input *voe_platform_window_input(voe_platform_window *window
 // it back. Called by voe_platform_input_lock_pointer once the argument has been
 // checked, so a backend never sees a NULL window here.
 void voe_platform_window_lock_pointer(voe_platform_window *window, bool lock);
+
+// Each backend defines this as well: show the shape now, if the pointer is over
+// the window. Called by voe_platform_input_cursor only when the shape changed,
+// after it is stored, so a backend never sees a NULL window or an invalid shape.
+void voe_platform_window_cursor(voe_platform_window *window,
+				voe_platform_cursor cursor);
 
 // Called by a backend at the top of its poll, before any event is dispatched. It
 // zeroes the motion and the wheel accumulated for the previous frame and leaves

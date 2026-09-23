@@ -18,6 +18,8 @@
 // looked at again once a second at the top of the loop, in the one font the
 // editor makes, Oxanium (ADR-0185). A theme that is gone or refused draws Near
 // black and says why in session.notice, unless a failure already put one there.
+// The panels' sizes are the default tree's with settings.h's file read over them.
+// Their borders are dragged through resize.h, asked before anything else reads the pointer.
 //
 // OPEN AND, ON AN UNTITLED PROJECT, SAVE TOO SHOW browser.h'S OWN FILE BROWSER,
 // which outlives every project. While it shows the middle-button drag moves no
@@ -61,8 +63,10 @@
 #include "options.h"
 #include "pick.h"
 #include "project.h"
+#include "resize.h"
 #include "scene.h"
 #include "session.h"
+#include "settings.h"
 #include "shortcuts.h"
 #include "themes.h"
 #include "undo.h"
@@ -81,6 +85,7 @@
 #include <ecs/structure.h>
 #include <ecs/world.h>
 
+#include <platform/clock.h>
 #include <platform/input.h>
 #include <platform/window.h>
 
@@ -184,6 +189,8 @@ int main(int argc, char *argv[])
 	// while the browser is not showing (preferences.h).
 	voe_editor_preferences preferences = { 0 };
 	voe_app_settings settings;
+	// The panels' sizes the tree and the bar start at (settings.h).
+	voe_editor_settings panel_sizes;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
 	voe_app *app;
@@ -223,6 +230,9 @@ int main(int argc, char *argv[])
 	// The left press on an arrow of the selected entity's move gizmo
 	// (gizmo.h), asked before `pick` every frame.
 	voe_editor_gizmo gizmo = { 0 };
+	// The borders between the root's panels, at rest (resize.h).
+	voe_editor_resize resize = { .held = UINT32_MAX };
+	voe_editor_resize_result resized;
 	// The line of scene texts Ctrl+Z steps back through, made out of
 	// `arena` below (undo.h). Beside the scene and the views because the
 	// history is the editor's and never the world's.
@@ -362,6 +372,21 @@ int main(int argc, char *argv[])
 	ui = voe_editor_interface_new(arena,
 				      &voe_editor_themes_chosen(&themes)->palette);
 	roots[0].tree = voe_editor_dock_default();
+	// The default tree's sizes, then whatever the person left (settings.h);
+	// a capture reads them too, as it reads the themes.
+	panel_sizes = (voe_editor_settings){
+		.scene_wide = voe_editor_dock_panel_length(
+			&roots[0].tree, VOE_EDITOR_PANEL_SCENE),
+		.inspector_wide = voe_editor_dock_panel_length(
+			&roots[0].tree, VOE_EDITOR_PANEL_INSPECTOR),
+	};
+	voe_editor_settings_read(&panel_sizes);
+	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_SCENE,
+					 panel_sizes.scene_wide);
+	voe_editor_dock_panel_length_set(&roots[0].tree,
+					 VOE_EDITOR_PANEL_INSPECTOR,
+					 panel_sizes.inspector_wide);
+	bar.wanted = panel_sizes.topbar_high;
 
 	say_whether_descriptions_are_in();
 	fflush(stdout);
@@ -590,6 +615,28 @@ int main(int argc, char *argv[])
 			.escape = shortcuts.escape,
 			.tab = keyboard.pressed[VOE_PLATFORM_KEY_TAB],
 		};
+
+		// THE BORDERS ARE ASKED FIRST (resize.h): a seam is a gap `ui`
+		// draws nothing in. While they have the pointer, `ui` sees no
+		// pointer and pick and the gizmo no left button.
+		resized = voe_editor_resize_frame(
+			&resize, &roots[0], &bar,
+			!browser.showing && !preferences.showing &&
+				!scene.picking.open && !scene.dropdown.open,
+			voe_platform_clock_now());
+		if (resized.taken) {
+			roots[0].pointer.over = false;
+			roots[0].pointer.down = false;
+			left = false;
+		}
+		if (window != NULL)
+			voe_platform_input_cursor(window, resized.cursor);
+		if (resized.ended) {
+			voe_base_report_error_clear();
+			if (!voe_editor_resize_remember(&roots[0].tree, &bar))
+				voe_editor_notice_from_report(&session.notice,
+							      "editor_settings");
+		}
 
 		// The middle button is the views' and the left is the
 		// interface's, so the two never compete for one press. Never

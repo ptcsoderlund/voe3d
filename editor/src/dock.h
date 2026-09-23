@@ -14,9 +14,11 @@
 // untouched. The tree is here first so that the thing that comes next is an
 // edit to one number rather than a rewrite of everything around it.
 //
-// THE FRACTION IS THE NUMBER A SPLITTER WILL LATER WRITE BACK. Nothing writes
-// one today: `voe_editor_dock_default` builds the tree and no code path changes
-// it after that. It is the whole of what a drag would have to touch.
+// A HELD LENGTH IS WHAT A DRAG WRITES, THROUGH resize.h, AND THE TREE IS STILL
+// ONLY NUMBERS. A split may hold one child at a length in millimetres (0226);
+// `voe_editor_dock_panel_length_set` is the one write, and
+// `voe_editor_dock_arrange` says where every node and seam is without a `ui`
+// frame, so a border can be hit-tested before anything is drawn.
 //
 // NO FUNCTION POINTER LIVES IN THIS FOLDER. A leaf names a panel from the
 // enumeration below and `voe_editor_panel_draw` is one function with a `switch`
@@ -67,7 +69,27 @@ typedef enum {
 #define VOE_EDITOR_DOCK_NODES 16
 #define VOE_EDITOR_DOCK_DEPTH 16
 
-// One node. A SPLIT reads `axis`, `fraction`, `first` and `second`; a LEAF reads
+// Which child of a split is held at `length` mm, the other taking the rest.
+// FRACTION is zero, so a node that names none divides by `fraction` as before.
+typedef enum {
+	VOE_EDITOR_DOCK_HOLD_FRACTION,
+	VOE_EDITOR_DOCK_HOLD_FIRST,
+	VOE_EDITOR_DOCK_HOLD_SECOND
+} voe_editor_dock_hold;
+
+// The least a held side panel is laid out at: narrower than 30 mm a panel's
+// headings and fields no longer fit a line (0226).
+#define VOE_EDITOR_DOCK_PANEL_MIN 30.0f
+// The least a scene view keeps along a split's axis, so a panel dragged wide
+// never squeezes the picture past being usable; where the two cannot both
+// hold, this wins (0226).
+#define VOE_EDITOR_DOCK_VIEW_ROOM 40.0f
+// The default tree's Scene list and Inspector: a fifth of a 16:9 surface
+// (0226), kept in millimetres so a wider window gives the room to the views.
+#define VOE_EDITOR_DOCK_SIDE_WIDE 48.0f
+
+// One node. A SPLIT reads `axis`, `hold`, `first` and `second`, then `length`
+// when it holds a child and `fraction` when it does not; a LEAF reads
 // `panel`, and `view` as well when that panel is SCENE_VIEW — which of the
 // editor's views it shows, an index into voe_editor_views and not a view itself,
 // so a tree still holds nothing but numbers. The two are one struct rather than a union because a dock tree is
@@ -81,11 +103,15 @@ typedef enum {
 //
 // `fraction` is how much of the split's length the FIRST child gets, between
 // nought and one exclusive. Two children and one number: there is no list of
-// weights, because a splitter drags one boundary at a time.
+// weights, because a splitter drags one boundary at a time. `length` is the held
+// child's millimetres as a person set them; what is laid out is that clamped
+// (voe_editor_dock_arrangement's `shown`), and `length` itself is kept as set.
 typedef struct {
 	voe_editor_dock_kind kind;
 	voe_editor_dock_axis axis;
 	double fraction;
+	voe_editor_dock_hold hold;
+	float length;
 	uint32_t first;
 	uint32_t second;
 	voe_editor_panel panel;
@@ -124,15 +150,48 @@ typedef struct {
 	voe_ui_keyboard keyboard;
 } voe_editor_dock_root;
 
-// The tree the editor opens on: three columns — `Scene` a fifth of the width on
-// the left, the two scene views stacked half and half in the middle three
-// fifths, `Inspector` the last fifth on the right. Which view is on top is one
-// number on one leaf, which is what having a tree at all is for.
+// The tree the editor opens on: three columns — `Scene` held at SIDE_WIDE on
+// the left, `Inspector` held at SIDE_WIDE on the right, and the two scene views
+// stacked half and half taking the rest between them. Which view is on top is
+// one number on one leaf, which is what having a tree at all is for.
 voe_editor_dock_tree voe_editor_dock_default(void);
 
 // Whether a leaf in `tree` shows view `view`. The loop asks before it draws a
 // view, because a view nobody shows is not drawn — see view.h.
 bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view);
+
+// Where one node is, and for a split where its seam is. `rect` is the node's
+// own rectangle; `seam` is the gap between a split's two children. When the
+// split holds a child, `least` and `most` are the bounds a drag may write and
+// `shown` the length laid out; all three are nought otherwise.
+typedef struct {
+	voe_ui_rect rect;
+	voe_ui_rect seam;
+	float least;
+	float most;
+	float shown;
+} voe_editor_dock_place;
+
+// Every node's place, indexed as the tree's nodes are. A node the root does
+// not reach is left zeroed.
+typedef struct {
+	voe_editor_dock_place nodes[VOE_EDITOR_DOCK_NODES];
+} voe_editor_dock_arrangement;
+
+// Lays `tree` out over `area` in millimetres, the same division the walk
+// draws — the walk takes every child's size from this, so the two cannot
+// disagree. A held length is clamped as 0226 says: no less than what the held
+// child needs, never so much the other side has less than it needs, and where
+// both cannot hold the other side wins.
+void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
+			     voe_editor_dock_arrangement *out);
+
+// The length of the split whose held child is a leaf of `panel`, and that
+// length set. Nought, and nothing written, when no split holds one.
+float voe_editor_dock_panel_length(const voe_editor_dock_tree *tree,
+				   voe_editor_panel panel);
+void voe_editor_dock_panel_length_set(voe_editor_dock_tree *tree,
+				      voe_editor_panel panel, float length);
 
 // Emits `root`'s tree into `ui` as one row or column whose two children are
 // given fixed sizes in millimetres, on down to a leaf's panel with

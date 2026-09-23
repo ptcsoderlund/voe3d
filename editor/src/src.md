@@ -31,6 +31,10 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
+- `settings.h` — the Scene list's and the Inspector's widths and the top bar's height a person gave
+  them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
+- `settings.c` — that file read line by line as a key and a number in range, and written back with
+  every other key's line kept, by making the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in
   `<settings>/voe3d/themes/`, the chosen one remembered in `<settings>/voe3d/theme` and re-read once
   a second, each carrying the two scalars and the text scale it is drawn with.
@@ -53,8 +57,8 @@ carries it out.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
-  project's name and whether it is unsaved, then the session's notice, as tall as its content
-  measured last frame.
+  project's name and whether it is unsaved, then the session's notice, at least as tall as its
+  content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
@@ -67,11 +71,17 @@ carries it out.
   focused `ui` field and a Make folder button.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree, the walk, and `voe_editor_panel_draw`, which is where the panels' contents
-  are; a root carries this frame's keyboard beside its pointer.
-- `dock.c` — the walk from a tree of nodes to one frame of `ui` calls, the one-millimetre gap at
-  each seam where a splitter would go, the scroll area it opens for the Inspector's leaf, and the
-  camera preview in each scene view's corner.
+- `dock.h` — the tree, whose splits may hold a side panel at a length in millimetres, the
+  arrangement that says where every node and seam is, the walk, and `voe_editor_panel_draw`, which
+  is where the panels' contents are; a root carries this frame's keyboard beside its pointer.
+- `dock.c` — the arrangement, with a held length clamped to what each side needs, the walk from it
+  to one frame of `ui` calls with a one-millimetre gap at each seam, the held panels' lengths read
+  and set, the Inspector's scroll area, and the camera preview in each scene view's corner.
+- `resize.h` — the borders a person drags to size the panels: each held split's seam and the top
+  bar's lower edge, hit-tested before `ui`, the pointer's shape over them, and a double-click that
+  sets one size back (ADR-0226).
+- `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
+  double-click timed on the caller's clock, and the three sizes written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.

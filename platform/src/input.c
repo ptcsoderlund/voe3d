@@ -118,6 +118,25 @@ bool voe_platform_input_pointer_locked(voe_platform_window *window)
 	return input->pointer_locked;
 }
 
+void voe_platform_input_cursor(voe_platform_window *window,
+			       voe_platform_cursor cursor)
+{
+	struct voe_platform_input *input;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "shaping a NULL window's pointer");
+	VOE_BASE_DEBUG_ASSERT(cursor < VOE_PLATFORM_CURSOR_COUNT,
+			      "VOE_PLATFORM_CURSOR_COUNT is a count, not a shape");
+
+	// Filtered, unlike the lock: a caller sets this every frame, and the
+	// window system only needs to hear about a change. The backend puts the
+	// stored shape back itself whenever the pointer enters.
+	input = voe_platform_window_input(window);
+	if (input->cursor == cursor)
+		return;
+	input->cursor = cursor;
+	voe_platform_window_cursor(window, cursor);
+}
+
 void voe_platform_input_begin_poll(struct voe_platform_input *input)
 {
 	VOE_BASE_DEBUG_ASSERT(input != NULL, "beginning a poll on nothing");

@@ -13,7 +13,10 @@
 // two things cross back: voe_platform_seat_listener, which _new attaches to the
 // seat the registry bound, and voe_platform_seat_release, which close_down calls.
 //
-// NOTHING HERE TOUCHES THE CURSOR IMAGE, AND THAT IS A LIMIT RATHER THAN AN
+// THE POINTER'S SHAPE IS SET BY NAME through cursor-shape-v1, on enter and on a
+// change, and the compositor draws it; without the protocol it is left alone.
+//
+// NOTHING HERE HIDES THE CURSOR, AND THAT IS A LIMIT RATHER THAN AN
 // OVERSIGHT. A locked pointer is frozen by the compositor and stays visible,
 // because hiding it means calling wl_pointer_set_cursor with a surface, and a
 // surface needs a buffer with a cursor drawn in it — an image this engine does
@@ -35,6 +38,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include "cursor-shape-v1-client-protocol.h"
 #include "pointer-constraints-unstable-v1-client-protocol.h"
 #include "relative-pointer-unstable-v1-client-protocol.h"
 
@@ -325,6 +329,27 @@ static void pointer_at(voe_platform_window *window, wl_fixed_t x, wl_fixed_t y)
 	window->input.pointer_over = true;
 }
 
+// The stored shape, by name, quoting the last enter's serial. Nothing while
+// the pointer is elsewhere or the compositor has no cursor-shape-v1: the next
+// enter applies whatever is stored then.
+static void cursor_apply(voe_platform_window *window)
+{
+	uint32_t shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "shaping a NULL window's pointer");
+	VOE_BASE_DEBUG_ASSERT(window->input.cursor < VOE_PLATFORM_CURSOR_COUNT,
+			      "the stored cursor is not a shape");
+
+	if (window->cursor_shape == NULL || !window->input.pointer_over)
+		return;
+	if (window->input.cursor == VOE_PLATFORM_CURSOR_LEFT_RIGHT)
+		shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
+	else if (window->input.cursor == VOE_PLATFORM_CURSOR_UP_DOWN)
+		shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE;
+	wp_cursor_shape_device_v1_set_shape(window->cursor_shape,
+					    window->pointer_serial, shape);
+}
+
 static void pointer_enter(void *data, struct wl_pointer *pointer,
 			  uint32_t serial, struct wl_surface *surface,
 			  wl_fixed_t x, wl_fixed_t y)
@@ -332,10 +357,11 @@ static void pointer_enter(void *data, struct wl_pointer *pointer,
 	voe_platform_window *window = data;
 
 	(void)pointer;
-	(void)serial;
 	(void)surface;
 
+	window->pointer_serial = serial;
 	pointer_at(window, x, y);
+	cursor_apply(window);
 }
 
 // The pointer has gone to another surface, and any button still down when it
@@ -597,6 +623,10 @@ static void pointer_arrived(voe_platform_window *window)
 				&relative_pointer_listener, window);
 	}
 
+	if (window->cursor_shapes != NULL)
+		window->cursor_shape = wp_cursor_shape_manager_v1_get_pointer(
+			window->cursor_shapes, window->pointer);
+
 	// A lock asked for before there was a pointer to lock. Nothing else
 	// would ever start it: the caller has already asked and got nothing.
 	if (window->lock_wanted)
@@ -615,6 +645,10 @@ static void pointer_left(voe_platform_window *window)
 	if (window->relative_pointer != NULL) {
 		zwp_relative_pointer_v1_destroy(window->relative_pointer);
 		window->relative_pointer = NULL;
+	}
+	if (window->cursor_shape != NULL) {
+		wp_cursor_shape_device_v1_destroy(window->cursor_shape);
+		window->cursor_shape = NULL;
 	}
 	if (window->pointer != NULL) {
 		wl_pointer_destroy(window->pointer);
@@ -670,7 +704,7 @@ void voe_platform_seat_release(voe_platform_window *window)
 		wl_seat_destroy(window->seat);
 }
 
-// The two functions src/input.h declares, and the whole of what input.c knows
+// The three functions src/input.h declares, and the whole of what input.c knows
 // about this file.
 struct voe_platform_input *voe_platform_window_input(voe_platform_window *window)
 {
@@ -691,4 +725,14 @@ void voe_platform_window_lock_pointer(voe_platform_window *window, bool lock)
 		lock_start(window);
 	else
 		lock_stop(window);
+}
+
+void voe_platform_window_cursor(voe_platform_window *window,
+				voe_platform_cursor cursor)
+{
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "shaping a NULL window's pointer");
+	VOE_BASE_DEBUG_ASSERT(cursor == window->input.cursor,
+			      "input.c stores the shape before calling here");
+
+	cursor_apply(window);
 }
