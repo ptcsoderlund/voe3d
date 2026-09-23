@@ -182,6 +182,8 @@ static void the_default_row_and_the_needs(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(
 		needed.value,
 		voe_ecs_component_type(world, &voe_scene_transform_key).value);
+	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
+			      "Rendering / Shape") == 0);
 
 	VOE_TEST_CHECK(replace.set);
 	VOE_TEST_CHECK_INT((long long)replace.row_offset,
