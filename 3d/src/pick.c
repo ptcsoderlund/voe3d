@@ -1,5 +1,10 @@
 // The pick ray and the walk that answers it — see the header for why this
 // question is answered here and against which table.
+//
+// The view's two matrices are inverted once per pick. The walk carries the ray
+// into each shape's own space and tests that kind's triangles; the triangle
+// test is written out once, its derivation in a comment above it. The cameras'
+// marker boxes are tested after the shapes, on the same distance.
 #include <3d/camera_marker.h>
 #include <3d/pick.h>
 #include <3d/shape_component.h>

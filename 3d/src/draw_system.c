@@ -11,6 +11,11 @@
 // takes no value: the number depth is cleared to lives in `render` beside the
 // convention it belongs to, and this folder neither supplies it nor is told it.
 // See render/include/render/device.h.
+//
+// Each object is drawn with two matrices and a colour. The solid pass runs in
+// table order and the blended one furthest first, on each side of the overlay's
+// depth clear, over both tables; the outline and the move gizmo each sit behind
+// a depth clear of their own.
 #include <3d/camera_marker.h>
 #include <3d/depth_sort.h>
 #include <3d/draw_system.h>
