@@ -15,9 +15,10 @@
 // entity has one, and this build cannot see inside it.
 //
 // WHICH ROWS AN ENTITY HOLDS IS CHANGED HERE TOO, THROUGH THE QUEUE (ADR-0190,
-// 0193). Every section has a Remove button except the identity's, which is what
-// the Scene list is built from and so is handed in as a type by dock.c rather
-// than named here. Below the sections, Add component shows one button per
+// 0193). Every section has a Remove button except the kept types', which dock.c
+// hands in: the identity, because the Scene list is built from it, and the
+// transform, because every entity has one (ADR-0217). This panel names neither.
+// Below the sections, Add component shows one button per
 // described type the entity does not have; a second click, a choice or a press
 // anywhere else hides them again. A section whose type needs another
 // (`voe_ecs_component_needs`) the entity lacks says "Needs <Heading>". Both go to
@@ -218,7 +219,7 @@ typedef struct {
 	// VOE_UI_NODE_NONE when they were not.
 	voe_ui_node duplicate;
 	voe_ui_node remove;
-	// Each section's Remove button as drawn this frame, the identity's
+	// Each section's Remove button as drawn this frame, the kept types'
 	// having none.
 	voe_editor_inspector_type_button
 		removes[VOE_EDITOR_INSPECTOR_SECTIONS];
@@ -281,9 +282,8 @@ void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is
 // not alive — including nothing selected at all — is one line saying so.
-// `identity` is the type the Scene list is built from, whose section has no
-// Remove button.
+// `kept` holds `kept_count` types whose sections have no Remove button.
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
-			       voe_ecs_type identity);
+			       const voe_ecs_type *kept, uint32_t kept_count);

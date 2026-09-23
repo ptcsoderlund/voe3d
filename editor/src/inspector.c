@@ -350,8 +350,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	voe_ui_end(ui);
 }
 
-// One component: its heading with a Remove button beside it — none for the
-// identity — the line saying what it needs when the entity lacks that, and a row
+// One component: its heading with a Remove button beside it — none for a
+// kept type — the line saying what it needs when the entity lacks that, and a row
 // per described field. A panel and not a column because the key is what makes
 // every widget beneath it unique — two components with a field of the same name
 // would otherwise be one widget sharing one highlight (ui/widgets.h).
@@ -546,7 +546,7 @@ void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
-			       voe_ecs_type identity)
+			       const voe_ecs_type *kept, uint32_t kept_count)
 {
 	uint32_t types;
 
@@ -555,6 +555,8 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(inspector->arena != NULL,
 			"drawing an inspector before its frame was opened");
 	VOE_BASE_ASSERT(world != NULL, "drawing an inspector on no world");
+	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
+			"kept types counted but not handed in");
 
 	inspector->entity = selected;
 
@@ -587,12 +589,15 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	for (uint32_t i = 0; i < types; i++) {
 		voe_ecs_type type = voe_ecs_component_type_at(world, i);
 		const void *row = voe_ecs_component_get(world, type, selected);
+		bool removable = true;
 
 		if (row == NULL || voe_ecs_component_runtime_only(world, type))
 			continue;
 
-		component_panel(ui, inspector, world, i, type,
-				type.value != identity.value,
+		for (uint32_t k = 0; k < kept_count; k++)
+			removable = removable && type.value != kept[k].value;
+
+		component_panel(ui, inspector, world, i, type, removable,
 				(const uint8_t *)row);
 	}
 
