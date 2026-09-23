@@ -53,7 +53,8 @@ carries it out.
 - `session.c` — the refuse-once rule, the four commands, and what a browser
   action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
-  project's name and whether it is unsaved, then the session's notice.
+  project's name and whether it is unsaved, then the session's notice, as tall as its content
+  measured last frame.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its four buttons afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in

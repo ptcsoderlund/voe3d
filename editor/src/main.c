@@ -177,6 +177,9 @@ int main(int argc, char *argv[])
 	// (session.h). Kept across the whole program's run, never one
 	// project's — see browser.h on why it is not part of `session`.
 	voe_editor_browser browser = { 0 };
+	// The top bar, kept between frames for the height it measured last
+	// (topbar.h).
+	voe_editor_topbar bar = { 0 };
 	// Shown by the bar's Preferences, hidden by its Close or by Escape
 	// while the browser is not showing (preferences.h).
 	voe_editor_preferences preferences = { 0 };
@@ -655,7 +658,7 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &views, &session, &browser,
+				&scene, &views, &session, &bar, &browser,
 				&preferences, &themes,
 				escape_free);
 			// Only when the Inspector's own buttons changed nothing

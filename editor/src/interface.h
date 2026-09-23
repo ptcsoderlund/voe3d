@@ -23,6 +23,7 @@
 #include "preferences.h"
 #include "session.h"
 #include "themes.h"
+#include "topbar.h"
 
 #include <base/arena.h>
 #include <math/float2.h>
@@ -271,9 +272,11 @@ void voe_editor_interface_surface(voe_platform_size target,
 // came to sit is read back into it in the same window, for the same reason.
 //
 // EACH ROOT GETS THE TOP BAR ABOVE ITS DOCK TREE, DRAWN FROM `session`, FOR
-// THE SAME REASON AGAIN. The bar takes VOE_EDITOR_TOPBAR_HIGH off the top of
-// the root's own height and hands the dock tree the rest, in a column this
-// function opens as the frame's actual root; the tree itself is dock.c's
+// THE SAME REASON AGAIN. The bar takes the height its content measured last
+// frame (topbar.h, ADR-0225) off the top of the root's own height and hands the
+// dock tree the rest, in a column this function opens as the frame's actual
+// root. `bar` keeps that height between frames; it is the one bar every root
+// draws, each root's clicks read before the next draws it. The tree is dock.c's
 // unchanged, only nested one level deeper than it used to be, which is why
 // voe_editor_dock_walk is called with VOE_EDITOR_DOCK_COLUMN (dock.h) — a
 // child's declared size is read against its PARENT's flow and not its own
@@ -331,6 +334,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     voe_editor_scene *scene,
 					     voe_editor_views *views,
 					     voe_editor_session *session,
+					     voe_editor_topbar *bar,
 					     voe_editor_browser *browser,
 					     voe_editor_preferences *preferences,
 					     voe_editor_themes *themes,
