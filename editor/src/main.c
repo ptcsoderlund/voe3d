@@ -34,16 +34,15 @@
 // interface's besides (dock.h, keys.h).
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has:
-// the window's size, the capacities, the loop and the one division that turns
+// the window's size, the loop and the one division that turns
 // the mouse's pixels into the surface's millimetres. THE PARTS IN THE LOOP ARE
 // `app`'S (ADR-0135): a frame is opened, and a draw is bracketed, by it.
 //
 // A FRAME IS A PASS PER VIEW AND THEN ONE ONTO THE WINDOW (ADR-0148). Each view
 // is drawn into its own target with its own camera first; the window's pass
 // comes last, with no camera — how `render` is told there is no eye to invent —
-// and shows each view's picture on its panel. The world goes through
-// voe_3d_draw_system_run with the view's camera and light (view.h), and each
-// pass outlines what is selected last (ADR-0203).
+// and shows each view's picture on its panel. The per-view part, and the
+// device's capacities it needs, are view_passes.h's.
 //
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // (options.h) opens the device with no window at all (voe_app_new_headless),
@@ -68,8 +67,8 @@
 #include "themes.h"
 #include "undo.h"
 #include "view.h"
+#include "view_passes.h"
 
-#include <3d/draw_system.h>
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
 
@@ -130,58 +129,6 @@
 // them is here, beside the division that turns the mouse's pixels into the same
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
-
-// How thick the selection's outline is drawn, in the surface's millimetres.
-// HOW WIDE THAT LINE IS IS THIS PROGRAM'S TO CHOOSE, the same as a notch's
-// worth: `3d` takes a width in pixels, everything this file sizes is in the
-// surface's millimetres, and `pixels_per_millimetre` is the one multiplication
-// between them — so the outline is the same thickness on a screen of any
-// density (ADR-0180).
-#define VOE_EDITOR_OUTLINE_MILLIMETRES 0.4f
-
-// How long one arrow's shaft of the move gizmo is drawn, in the surface's
-// millimetres, for the outline's reason: a size on the surface times
-// `pixels_per_millimetre` is a size in pixels, so the gizmo is one size on a
-// screen of any density — and what is hit is what is drawn (gizmo.h).
-#define VOE_EDITOR_GIZMO_MILLIMETRES 12.0f
-
-// WHAT THE EDITOR UPLOADS IS ONE CUBE AND ONE MATERIAL — the shapes' own, see
-// 3d/shape_system.h — which is what makes the geometry numbers its constants
-// and `shadings` a one. `objects` is per frame: every drawn entity is one
-// object in every view's pass, so it is the room for drawn entities
-// (VOE_EDITOR_PROJECT_MAX_DRAWN, project.h's — every project's world is
-// registered with that much room for a mesh and a material, so a device that
-// draws one is sized from the same number), one more for the selected entity's
-// outline, which is drawn into every view's pass too, and two more for the
-// gizmo's handles at rest and its marked one, times the room for views. `passes`
-// is a pass per view and the interface's, and `targets` a target per view —
-// both from the room for views, not the two in use, so a third view is a leaf
-// and not a capacity. The three transient numbers are what the selection
-// outline's quads are copied into: one outline per view's pass, sized the way
-// `passes` and `targets` are, from the room for views and not the two in use
-// (ADR-0203, 3d/outline.h). The move gizmo's quads go there too: one gizmo per
-// view's pass, two ranges and two draws, sized from the room for views the
-// same way (ADR-0205, 3d/draw_system.h).
-#define EDITOR_CAPACITIES                                                     \
-	(voe_render_capacities)                                               \
-	{                                                                     \
-		.vertices = VOE_3D_SHAPES_VERTICES,                            \
-		.indices = VOE_3D_SHAPES_INDICES,                              \
-		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 3) *                \
-			   VOE_EDITOR_VIEWS,                                   \
-		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
-		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
-		.passes = VOE_EDITOR_VIEWS + 1,                                \
-		.targets = VOE_EDITOR_VIEWS,                                   \
-		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
-				       VOE_3D_GIZMO_VERTICES) *                \
-				      VOE_EDITOR_VIEWS,                        \
-		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
-				      VOE_3D_GIZMO_INDICES) *                  \
-				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 3 * VOE_EDITOR_VIEWS                   \
-	}
 
 // One line at startup saying whether a field description reached the binary,
 // because with them off every later card's inspector has nothing to expand and
@@ -351,7 +298,7 @@ int main(int argc, char *argv[])
 	settings = (voe_app_settings){ .width = options.wide,
 				       .height = options.high,
 				       .title = "voe3d editor",
-				       .capacities = EDITOR_CAPACITIES,
+				       .capacities = VOE_EDITOR_CAPACITIES,
 				       .longest_step = MAX_FRAME_SECONDS };
 
 	// The device, with the window before it or with no window at all, in one
@@ -686,62 +633,13 @@ int main(int argc, char *argv[])
 
 		light = voe_editor_view_light(session.project->world);
 
-		// A pass per view the tree shows, each onto its own target with
-		// its own camera and the world's light. A device made with a
-		// pass per view and one more does not refuse these; if it did,
-		// the frame is still closed below and the program stops.
-		for (uint32_t v = 0; v < views.count && drawn; v++) {
-			const voe_editor_view *view = &views.views[v];
-			voe_render_pass_camera camera;
-
-			if (!voe_editor_dock_shows_view(&roots[0].tree, v))
-				continue;
-
-			camera = voe_editor_view_pass_camera(view, light);
-			drawn = voe_render_pass_begin(gpu, view->target,
-						      &camera);
-			if (!drawn)
-				break;
-			voe_3d_draw_system_run(
-				session.project->world, gpu, arena,
-				(voe_3d_frame){
-					.view = camera.view,
-					.light = camera.light,
-					.outlined = {
-						.entity = voe_editor_scene_selected(
-							&scene),
-						.geometries = &geometries,
-						.material = shapes.outline,
-						.colour = voe_editor_view_outline_colour(
-							&voe_editor_themes_chosen(
-								 &themes)
-								 ->palette),
-						.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
-							  pixels_per_millimetre,
-						.size = { (int)view->width,
-							  (int)view->height } },
-					.gizmo = {
-						.entity = voe_editor_scene_selected(
-							&scene),
-						.material = shapes.outline,
-						.colour = voe_editor_view_gizmo_colour(
-							&voe_editor_themes_chosen(
-								 &themes)
-								 ->palette,
-							false),
-						.marked_colour = voe_editor_view_gizmo_colour(
-							&voe_editor_themes_chosen(
-								 &themes)
-								 ->palette,
-							true),
-						.marked = voe_editor_gizmo_marked(
-							&gizmo, v),
-						.pixels = VOE_EDITOR_GIZMO_MILLIMETRES *
-							  pixels_per_millimetre,
-						.size = { (int)view->width,
-							  (int)view->height } } });
-			voe_render_pass_end(gpu);
-		}
+		// A pass per view the tree shows (view_passes.h). If one is
+		// refused, the frame is still closed below and the program stops.
+		drawn = voe_editor_view_passes_draw(
+			gpu, arena, session.project->world, &views,
+			&roots[0].tree, light, &scene, &geometries, &shapes,
+			&voe_editor_themes_chosen(&themes)->palette, &gizmo,
+			pixels_per_millimetre);
 
 		// Then one pass onto the window, with no camera, for the
 		// interface and the pictures on it.
