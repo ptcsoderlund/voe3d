@@ -141,6 +141,11 @@ function(voe_allowed_deps folder out_var)
         set(deps 3d render math base)
     elseif(folder STREQUAL "app")
         set(deps base math ecs scene platform assets render 3d)
+    elseif(folder STREQUAL "game")
+        # game is the loop a shipped game runs: the world's type list, one frame
+        # and the whole run (0237). It needs no field descriptions, so it never
+        # names authoring, which is what keeps it linkable into a game's tree.
+        set(deps base math ecs scene platform render 3d app)
     elseif(folder STREQUAL "dev")
         # dev may depend on anything, app included: it is the one program a
         # person runs to see the current state, so whatever exists is fair game.
