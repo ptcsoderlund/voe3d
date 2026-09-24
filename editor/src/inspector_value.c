@@ -75,22 +75,31 @@ const char *chars(voe_base_arena *arena, size_t size, const uint8_t *bytes)
 	return out;
 }
 
-// A type's heading: its key name's last `_` word, first letter capitalised, in
-// the frame's arena (ADR-0193).
+// A type's heading, in the frame's arena (ADR-0193, 0242): an engine key's
+// `voe_<folder>_` dropped, then every `_` word capitalised and joined by a
+// space, so `voe_scene_transform` is "Transform" and `follow_camera` is
+// "Follow Camera". The result is never longer than the name.
 const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
 			   voe_ecs_type type)
 {
 	const char *name = voe_ecs_component_key(world, type)->name;
-	const char *last = strrchr(name, '_');
+	const char *folder_end;
 	size_t length;
+	bool word_start = true;
 	char *out;
 
-	last = last != NULL ? last + 1 : name;
-	length = strlen(last);
+	if (strncmp(name, "voe_", 4) == 0 &&
+	    (folder_end = strchr(name + 4, '_')) != NULL)
+		name = folder_end + 1;
+	length = strlen(name);
 	out = voe_base_arena_push(arena, length + 1);
-	memcpy(out, last, length + 1);
-	if (length > 0)
-		out[0] = (char)toupper((unsigned char)out[0]);
+	for (size_t i = 0; i <= length; i++) {
+		char c = name[i];
+
+		out[i] = c == '_' ? ' '
+			 : word_start ? (char)toupper((unsigned char)c) : c;
+		word_start = c == '_';
+	}
 
 	return out;
 }

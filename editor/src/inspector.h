@@ -6,8 +6,9 @@
 //
 // IT NAMES NOTHING AND THAT IS THE WHOLE CLAIM. `voe_ecs_component_type_count`
 // and `_type_at` are the list, `voe_ecs_component_get` says whether the entity
-// has one, `voe_ecs_component_key` is the heading — its last `_` word,
-// capitalised, so `voe_3d_shape` reads "Shape" — and
+// has one, `voe_ecs_component_key` is the heading — an engine key's
+// `voe_<folder>_` dropped and every `_` word capitalised and joined by a space,
+// so `voe_3d_shape` reads "Shape" and `follow_camera` "Follow Camera" — and
 // `voe_ecs_component_description` is the fields. A type registered runtime-only
 // is the engine's own (a mesh, a material) and is not shown at all (ADR-0193). A
 // described component whose description this build compiled out is its heading
@@ -58,6 +59,9 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
+#include <game/project.h>
+#include <game/world.h>
+
 #include <math/float3.h>
 
 #include <ui/layout.h>
@@ -79,10 +83,11 @@
 // wider than this asserts, which is the program's own sizing being wrong.
 #define VOE_EDITOR_INSPECTOR_INTENT 256
 
-// How many Remove buttons one frame may record — one per component type, and a
-// project's world is made with room for eight (project.c). A type past it gets no button; nothing a person
-// does can make one.
-#define VOE_EDITOR_INSPECTOR_SECTIONS 8
+// How many Remove buttons one frame may record — one per component type: the
+// engine's VOE_GAME_WORLD_TYPES (game/world.h) and a project's
+// VOE_GAME_PROJECT_TYPES (game/project.h). A type past it gets no button;
+// nothing a person does can make one.
+#define VOE_EDITOR_INSPECTOR_SECTIONS (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
 
 // How many of a named field's values the open list shows. A further one gets no
 // row; the shapes' three are what there is today.

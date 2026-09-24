@@ -50,6 +50,9 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
+#include <game/project.h>
+#include <game/world.h>
+
 #include <ui/layout.h>
 
 #include <stdbool.h>
@@ -57,7 +60,12 @@
 
 // Levels of a path, the entry's included.
 #define VOE_EDITOR_ADD_MENU_DEPTH 4
-#define VOE_EDITOR_ADD_MENU_ENTRIES 32
+// Every engine and project type (game/world.h, game/project.h) and the folder
+// entries their menu paths open: at most a path's depth apiece, groups shared
+// or not, so no project's paths can reach the assert.
+#define VOE_EDITOR_ADD_MENU_ENTRIES \
+	((VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES) * \
+	 VOE_EDITOR_ADD_MENU_DEPTH)
 // Bytes of one part's label, its zero included.
 #define VOE_EDITOR_ADD_MENU_LABEL 32
 // The parent of a top-level entry.
