@@ -51,6 +51,11 @@ carries it out.
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
   base/report.h's first kept error.
+- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, each written only
+  when its bytes change, the project's `.gitignore` when it has none, and the argument lists that
+  configure and build the tree with the editor's own tools, and the game program's path.
+- `game_tree.c` — the files compared before they are written, the name and engine path escaped for
+  where they go, the world cooked into scene.c, and each argument list in one struct.
 - `session.h` — the project being worked on, its notice, the flag that says a different project is in
   place, and the one armed command that makes closing the window, New and Open each refuse once while
   there are unsaved changes and go ahead the second time.
