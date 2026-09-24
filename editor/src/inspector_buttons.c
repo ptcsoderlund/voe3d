@@ -5,9 +5,9 @@
 //
 // A BUTTON NEVER WRITES A ROW ITSELF. A structural change is entities.h's and
 // is counted on the scene; a choice from the open list is submitted by
-// voe_editor_inspector_named_submit (inspector_edit.c), as a replace intent;
-// an overlay opens, closes and is placed through scene.h. Where a list goes is
-// inspector_place.h's.
+// voe_editor_inspector_named_submit or _entity_submit (inspector_edit.c), as a
+// replace intent; an overlay opens, closes and is placed through scene.h.
+// Where a list goes is inspector_place.h's.
 #include "inspector_edit.h"
 
 #include "entities.h"
@@ -29,6 +29,14 @@ static voe_ui_action action_of(const voe_ui_context *ui, voe_ui_node node)
 		return (voe_ui_action){ 0 };
 
 	return voe_ui_button_action(ui, node);
+}
+
+// Whether `control` is a dropdown's closed button, a named field's or an
+// ENTITY field's, which opens the list and writes nothing itself.
+static bool opens_list(const voe_editor_inspector_control *control)
+{
+	return control->names != NULL ||
+	       control->writes == VOE_BASE_FIELD_ENTITY;
 }
 
 // One structural change's result, counted the way Delete and Duplicate count
@@ -102,11 +110,20 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	for (uint32_t i = 0; i < inspector->row_count; i++) {
 		if (!action_of(ui, inspector->rows[i].node).fired)
 			continue;
-		voe_editor_inspector_named_submit(inspector, scene->world,
-						  inspector->dropdown.entity,
-						  inspector->dropdown.type,
-						  inspector->dropdown.offset,
-						  inspector->rows[i].value);
+		if (inspector->dropdown.entities)
+			voe_editor_inspector_entity_submit(
+				inspector, scene->world,
+				inspector->dropdown.entity,
+				inspector->dropdown.type,
+				inspector->dropdown.offset,
+				inspector->rows[i].entity);
+		else
+			voe_editor_inspector_named_submit(
+				inspector, scene->world,
+				inspector->dropdown.entity,
+				inspector->dropdown.type,
+				inspector->dropdown.offset,
+				inspector->rows[i].value);
 		voe_editor_scene_dropdown_close(scene);
 	}
 
@@ -185,7 +202,7 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 			const voe_editor_inspector_control *control =
 				&inspector->controls[i];
 
-			if (control->names == NULL ||
+			if (!opens_list(control) ||
 			    !action_of(ui, control->node).fired)
 				continue;
 
@@ -195,7 +212,9 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 					.entity = inspector->entity,
 					.type = control->type,
 					.offset = control->offset,
-					.names = control->names });
+					.names = control->names,
+					.entities = control->writes ==
+						    VOE_BASE_FIELD_ENTITY });
 		}
 
 		for (uint32_t i = 0; i < inspector->remove_count; i++)
@@ -255,7 +274,7 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				  action_of(ui, inspector->rows[i].node).held;
 		for (uint32_t i = 0; i < inspector->control_count; i++)
 			on_list = on_list ||
-				  (inspector->controls[i].names != NULL &&
+				  (opens_list(&inspector->controls[i]) &&
 				   action_of(ui, inspector->controls[i].node)
 					   .held);
 		if (inspector->row_count == 0 || (pressed && !on_list))
@@ -284,7 +303,7 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				&inspector->controls[i];
 			voe_editor_inspector_place place;
 
-			if (control->names == NULL ||
+			if (!opens_list(control) ||
 			    control->node == VOE_UI_NODE_NONE ||
 			    control->type.value != scene->dropdown.type.value ||
 			    control->offset != scene->dropdown.offset)

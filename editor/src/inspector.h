@@ -89,9 +89,10 @@
 // nothing a person does can make one.
 #define VOE_EDITOR_INSPECTOR_SECTIONS (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
 
-// How many of a named field's values the open list shows. A further one gets no
-// row; the shapes' three are what there is today.
-#define VOE_EDITOR_DROPDOWN_ROWS 16
+// How many rows the open list shows: an ENTITY field's None and every authored
+// entity (entity_field.h), the longest list there is, so none of those is ever
+// left out; a named field's values are far fewer, the shapes' three today.
+#define VOE_EDITOR_DROPDOWN_ROWS (1 + VOE_GAME_WORLD_AUTHORED)
 
 // A NAMED FIELD IS A DROPDOWN (ADR-0195, 0198). A field whose description
 // carries names is shown by the name of the value it holds and not by its
@@ -141,6 +142,10 @@ typedef struct {
 	// table of the declaring folder's own, static and so outliving every
 	// frame.
 	const voe_base_field_names *names;
+	// Set, the field is an ENTITY and the list is entity_field.h's
+	// choices, each by its label, `names` being NULL; the choice is the
+	// voe_ecs_entity at `offset`.
+	bool entities;
 	// Where the list's top-left corner goes, in millimetres from the
 	// top-left of this panel's content column (`content` below) and not
 	// from the surface. The column and the button the list hangs from are
@@ -187,6 +192,8 @@ typedef struct {
 	// other control. Set, this control is the dropdown's closed button and
 	// writes nothing itself: a fired one opens the list
 	// (inspector_edit.h), and `writes` is the UINT32 the chosen value is.
+	// An ENTITY field's button is the same with `names` NULL and `writes`
+	// ENTITY, its list the authored entities (entity_field.h).
 	const voe_base_field_names *names;
 } voe_editor_inspector_control;
 
@@ -207,10 +214,11 @@ typedef struct {
 } voe_editor_inspector_place;
 
 // One row of the open list as this panel drew it: the choice button, and the
-// value it names.
+// value it names, or in entity mode the entity it names.
 typedef struct {
 	voe_ui_node node;
 	uint32_t value;
+	voe_ecs_entity entity;
 } voe_editor_dropdown_row;
 
 // What the Inspector panel drew this frame. Zeroed is a panel that has drawn

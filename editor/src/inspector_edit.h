@@ -115,3 +115,14 @@ void voe_editor_inspector_named_submit(voe_editor_inspector *inspector,
 				       voe_ecs_entity entity,
 				       voe_ecs_type type, size_t offset,
 				       uint32_t value);
+
+// Submits `target` as the replace intent of `type`'s row on `entity`, the
+// voe_ecs_entity at `offset`, and counts one in `replaced`: an ENTITY field's
+// choice from the open list, read as the named one is, a zeroed `target`
+// being None. An entity no longer alive, or without the row, submits and
+// counts nothing past the check.
+void voe_editor_inspector_entity_submit(voe_editor_inspector *inspector,
+					voe_ecs_world *world,
+					voe_ecs_entity entity,
+					voe_ecs_type type, size_t offset,
+					voe_ecs_entity target);

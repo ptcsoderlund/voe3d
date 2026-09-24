@@ -262,8 +262,11 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 		// A named field's control is that same kind of button: it opens
 		// the list and the choice comes back through
 		// voe_editor_inspector_named_submit. Asking a button what a
-		// number box did asserts (ui/widgets.h).
-		if (control->names != NULL)
+		// number box did asserts (ui/widgets.h). An ENTITY field's is
+		// too, its choice coming back through
+		// voe_editor_inspector_entity_submit.
+		if (control->names != NULL ||
+		    control->writes == VOE_BASE_FIELD_ENTITY)
 			continue;
 
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
@@ -327,5 +330,28 @@ void voe_editor_inspector_named_submit(voe_editor_inspector *inspector,
 		return;
 
 	submit(world, entity, &control, &value, sizeof value);
+	inspector->replaced++;
+}
+
+void voe_editor_inspector_entity_submit(voe_editor_inspector *inspector,
+					voe_ecs_world *world,
+					voe_ecs_entity entity,
+					voe_ecs_type type, size_t offset,
+					voe_ecs_entity target)
+{
+	voe_editor_inspector_control control = {
+		.type = type,
+		.offset = offset,
+		.writes = VOE_BASE_FIELD_ENTITY
+	};
+
+	VOE_BASE_ASSERT(inspector != NULL, "an entity submitted by no inspector");
+	VOE_BASE_ASSERT(world != NULL, "an entity submitted into no world");
+
+	if (!voe_ecs_entity_alive(world, entity) ||
+	    voe_ecs_component_get(world, type, entity) == NULL)
+		return;
+
+	submit(world, entity, &control, &target, sizeof target);
 	inspector->replaced++;
 }

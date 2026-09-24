@@ -30,7 +30,7 @@ carries it out.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
-  sections, the code its world was made with, its absolute folder and whether it has unsaved changes
+  sections, the code its world was made with, its folder and whether it has unsaved changes
   (ADR-0164), its scene handed out as text or read back in, and the swap to a world with new code.
 - `project.c` — opening, making and saving a project, the scene written out as
   text and a text read back into the same world or a new one made with new code, and the untitled scene's cube, light and camera, which are
@@ -63,10 +63,9 @@ carries it out.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
-- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, each written only
-  when its bytes change, the project's `.gitignore` when it has none, the argument lists that
-  configure and build the tree as the game or as the project's library, and the paths of the
-  program, the library, the build log and whether `Code/` holds code.
+- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, the project's
+  `.gitignore`, the argument lists that build the tree as the game or the project's library, and
+  the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
   where they go, the world cooked into scene.c, and each argument list in one struct.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
@@ -146,6 +145,10 @@ carries it out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
+- `entity_field.h` — what an ENTITY field offers and says: None and the authored entities by name,
+  and why names and only authored ones.
+- `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
+  label.
 - `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the
   right-button fly, the view a pointer is over and where in its picture, the colours a view is drawn
   with, and the 480×270 preview of what the world's camera sees.

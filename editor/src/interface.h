@@ -213,20 +213,21 @@
 // VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed, 257, one at a
 // time because one thing holds the keyboard. 12183 + 61 + 257 = 12501 elements.
 //
-// THE OPEN DROPDOWN (inspector.c) ADDS THIRTY-SIX NODES. It is drawn inside
+// THE OPEN DROPDOWN (inspector.c) ADDS SEVENTY NODES. It is drawn inside
 // the Inspector's own scroll area and clipped by it rather than over the rest
 // of the editor, an overlay belonging to the widget it opened from (ADR-0199).
-// Thirty-five are the list: the anchored column round it, one; its panel, one;
+// Sixty-nine are the list: the anchored column round it, one; its panel, one;
 // the scroll area its rows sit in, one; and up to VOE_EDITOR_DROPDOWN_ROWS
-// (inspector.h, 16) rows, each a choice button and the label composed into it,
-// thirty-two. The thirty-sixth is the content column inspector.c opens round
+// (inspector.h, 33 — an ENTITY field's None and 32 authored entities, the
+// longest list) rows, each a choice button and the label composed into it,
+// sixty-six. The seventieth is the content column inspector.c opens round
 // everything that panel draws, which is what the list is anchored to.
-// 1049 + 35 + 1 = 1085. AND FOUR HUNDRED AND TWENTY ELEMENTS: the panel's border
-// and fill, two; each row's border and fill, thirty-two; twenty-four generous
-// for each row's name, this file naming none of them and neither `base` nor the
-// declaring folder putting a length on one, 384 — a column drawing none of its
-// own; and the rows' area a track and a thumb on Y alone, two, which is what
-// the browser's own area is already counted at in this file. 12501 + 420 = 12921.
+// 1049 + 69 + 1 = 1119. AND 2149 ELEMENTS: the panel's border and fill, two;
+// each row's border and fill, sixty-six; each row's name at most an identity's
+// 63 characters (VOE_SCENE_IDENTITY_NAME less its zero), which is longer than
+// any value name a named field has, 2079 — a column drawing none of its own;
+// and the rows' area a track and a thumb on Y alone, two, which is what the
+// browser's own area is already counted at in this file. 12501 + 2149 = 14650.
 // It is never drawn beside the colour picker, because opening either closes the
 // other (scene.h), and it is counted on top all the same. AND ONE MORE SCROLL
 // AREA, the rows', on top of the dock's two and the browser's one, counted on
@@ -235,22 +236,22 @@
 //
 // THE BAR'S PLAY BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
 // and TEN ELEMENTS: its border and fill, and the eight letters of
-// "Building", its longest label. 1085 + 2 = 1087, 12921 + 10 = 12931.
+// "Building", its longest label. 1119 + 2 = 1121, 14650 + 10 = 14660.
 //
 // THE BAR'S REFRESH BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
 // and TWELVE ELEMENTS: its border and fill, and the ten letters of
-// "Refreshing", its longer label. 1087 + 2 = 1089, 12931 + 12 = 12943.
+// "Refreshing", its longer label. 1121 + 2 = 1123, 14660 + 12 = 14672.
 //
 // THE ERRORS PANEL (errors.h) ADDS FIFTY-FOUR NODES, counted on top though it
 // takes Preferences' place: the panel, one; its title, one; its scroll area,
 // one; up to VOE_EDITOR_ERRORS_LINES (48) line labels; Close's row, and Close
-// as a button and a label, three. 1089 + 54 = 1143 nodes. AND 7704 ELEMENTS:
+// as a button and a label, three. 1123 + 54 = 1177 nodes. AND 7704 ELEMENTS:
 // the panel's border and fill, two; "Build errors", eleven; the scrollbars on
 // both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES (160)
-// characters, a byte at least apiece, 7680; Close, two and five. 12943 + 7704 =
-// 20647 elements. AND ONE MORE SCROLL AREA, its lines': five.
-#define VOE_EDITOR_INTERFACE_NODES 1143
-#define VOE_EDITOR_INTERFACE_ELEMENTS 20647
+// characters, a byte at least apiece, 7680; Close, two and five. 14672 + 7704 =
+// 22376 elements. AND ONE MORE SCROLL AREA, its lines': five.
+#define VOE_EDITOR_INTERFACE_NODES 1177
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22376
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

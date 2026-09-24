@@ -8,6 +8,8 @@
 // out of a float — is the caller's bug and asserts (rule 13).
 #include "inspector_value.h"
 
+#include "entity_field.h"
+
 #include <base/assert.h>
 
 #include <ctype.h>
@@ -297,10 +299,11 @@ const char *axis_name(uint32_t axis)
 
 // The whole field as one string. Every kind reaches this, because a field
 // marked read-only is a label whatever it is (ADR-0139 point 2) and so is every
-// field of a component nothing can replace.
-const char *value_text(voe_base_arena *arena,
-			      const voe_base_field_description *field,
-			      const uint8_t *bytes)
+// field of a component nothing can replace. An ENTITY says the name of what it
+// points at (entity_field.h), which is why the world is asked.
+const char *value_text(voe_base_arena *arena, const voe_ecs_world *world,
+		       const voe_base_field_description *field,
+		       const uint8_t *bytes)
 {
 	switch (field->kind) {
 	case VOE_BASE_FIELD_INT8:
@@ -349,8 +352,7 @@ const char *value_text(voe_base_arena *arena,
 		voe_ecs_entity entity;
 
 		memcpy(&entity, bytes, sizeof entity);
-		return text(arena, "%" PRIu32 "v%" PRIu32, entity.index,
-			    entity.generation);
+		return voe_editor_entity_field_label(world, entity, arena);
 	}
 	}
 
