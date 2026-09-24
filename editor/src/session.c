@@ -1,4 +1,4 @@
-// The refuse-once rule, the four commands, and what a browser action does to
+// The refuse-once rule, the five commands, and what a browser action does to
 // the session. See the header for what each one does and why only CLOSE ever
 // answers true.
 #include "session.h"
@@ -57,7 +57,18 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 			session->armed = VOE_EDITOR_COMMAND_CLOSE;
 			return false;
 		}
+		voe_editor_play_end(&session->play);
 		return true;
+
+	case VOE_EDITOR_COMMAND_PLAY:
+		// Never arms: Play takes the world as it is, unsaved or not,
+		// and a second press is Stop.
+		if (session->play.stage == VOE_EDITOR_PLAY_IDLE)
+			voe_editor_play_start(&session->play, session->project,
+					      &session->notice);
+		else
+			voe_editor_play_end(&session->play);
+		return false;
 
 	case VOE_EDITOR_COMMAND_NEW: {
 		voe_editor_project *fresh;

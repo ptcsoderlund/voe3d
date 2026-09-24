@@ -56,11 +56,15 @@ carries it out.
   configure and build the tree with the editor's own tools, and the game program's path.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
   where they go, the world cooked into scene.c, and each argument list in one struct.
-- `session.h` — the project being worked on, its notice, the flag that says a different project is in
-  place, and the one armed command that makes closing the window, New and Open each refuse once while
-  there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the four commands, and what a browser
-  action does to the session.
+- `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
+  program of its own, a second press ending it, and the label Play, Building or Stop.
+- `play.c` — the tree written and the first step started at the press, each ended step polled on
+  to the next or to one stderr line, and the play's arena destroyed whenever it goes idle.
+- `session.h` — the project being worked on, its notice, its Play, the flag that says a different
+  project is in place, and the one armed command that makes closing the window, New and Open each
+  refuse once while there are unsaved changes and go ahead the second time.
+- `session.c` — the refuse-once rule, the five commands with Play's start and Stop and a close
+  ending the play, and what a browser action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
   project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
