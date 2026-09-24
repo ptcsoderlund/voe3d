@@ -33,11 +33,18 @@
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 
-// The world's one light, in the shape `render` takes it. The direction is
-// already unit length — scene's light system is the only thing that writes one
-// and it normalizes — so this is a copy of three fields and not arithmetic.
-static voe_render_light the_sun(const voe_ecs_world *world)
+// The direction is already unit length — scene's light system is the only
+// thing that writes one and it normalizes — so this is a copy of three fields
+// and not arithmetic. No light is `unshaded` and nothing else (ADR-0238).
+voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 {
+	VOE_BASE_ASSERT(world != NULL, "lighting no world");
+	uint32_t count = voe_scene_light_count(world);
+	VOE_BASE_ASSERT(count <= 1,
+			"a world to draw has at most one light — see 3d/draw_system.h");
+	if (count == 0)
+		return (voe_render_light){ .unshaded = 1 };
+
 	voe_scene_light light = voe_scene_light_rows(world)[0];
 	voe_render_light sun = {
 		.direction = light.direction,
@@ -285,11 +292,10 @@ static bool draw_group(voe_render_device *device, const struct group *group)
 	return true;
 }
 
-// THE CAMERA AND THE SUN ARE READ THE SAME WAY AND BOTH ARE REQUIRED. Row zero
-// of each table, because there is exactly one of each — see
-// voe_3d_draw_system_frame in 3d/draw_system.h for why more than one is a
-// mistake rather than a choice, and why a world with no sun asserts here rather
-// than drawing something black.
+// THE CAMERA IS REQUIRED AND THE SUN IS NOT. Row zero of the camera table,
+// because there is exactly one; the light is voe_3d_draw_system_light's, which
+// is unshaded for none — see voe_3d_draw_system_frame in 3d/draw_system.h for
+// why more than one of either is a mistake rather than a choice.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size)
 {
@@ -305,8 +311,6 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(world != NULL, "framing no world");
 	VOE_BASE_ASSERT(voe_scene_camera_count(world) == 1,
 			"a world to draw needs exactly one camera — see 3d/draw_system.h");
-	VOE_BASE_ASSERT(voe_scene_light_count(world) == 1,
-			"a world to draw needs exactly one light — see 3d/draw_system.h");
 
 	if (size.width > 0 && size.height > 0)
 		aspect = (float)size.width / (float)size.height;
@@ -319,7 +323,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	// no world for it (0223).
 	frame.view = (voe_render_view){ 0 };
 	frame.blind = !voe_3d_view(*pose, lens, aspect, &frame.view);
-	frame.light = the_sun(world);
+	frame.light = voe_3d_draw_system_light(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
 	// outline and the gizmo: a zeroed record outlines nothing and stands no

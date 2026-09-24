@@ -216,8 +216,9 @@ typedef struct {
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo` and `marker` all come back
 // zeroed — hiding, outlining, standing a gizmo and marking a camera are
-// the caller's choice and it sets the field on the answer. Asserts on a world without exactly one camera and one
-// light — see below.
+// the caller's choice and it sets the field on the answer. Asserts on a world
+// without exactly one camera or with more than one light; with no light the
+// frame is unshaded — see below.
 //
 // THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE THE PASS, AND HANDED BACK.
 // The pass needs the view and the light and this system needs the view again for
@@ -234,14 +235,14 @@ typedef struct {
 // that introduces a viewport; until then a world with two of them has a mistake
 // in it and this says so.
 //
-// AND EXACTLY ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE SUN. This engine
+// AND AT MOST ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE SUN. This engine
 // lights a frame with one directional light (render/device.h), so a second one
-// in the world would be silently ignored — which is worse than being told. A
-// world with none asserts as well rather than drawing everything black: a scene
-// with no sun in it is a program that forgot to make one far more often than it
-// is a deliberately unlit picture, and black is the one result that looks like a
-// broken renderer instead of a missing line. Registering the table is part of
-// building a world that can be drawn; see scene/light_system.h.
+// in the world would be silently ignored — which is worse than being told, and
+// this asserts on it. A world with none is a choice, not a mistake (ADR-0238):
+// a 2D game has no light to add, so every surface draws in its own material
+// colour, unshaded, instead of asserting. The light comes from
+// voe_3d_draw_system_light below. Registering the table is part of building a
+// world that can be drawn, rows or none; see scene/light_system.h.
 //
 // THE WINDOW'S SIZE IS THE ASPECT RATIO'S SOURCE AND THE LOOP PASSES IT. Its
 // type arrives from `render`'s public header, which is the folder that speaks to
@@ -249,6 +250,16 @@ typedef struct {
 // anything.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size);
+
+// The world's one light in the shape `render` takes it; with none, a light with
+// `unshaded` set and every other field zero (ADR-0238). Asserts on more than
+// one, because render has one sun.
+//
+// IT IS PUBLIC SO EVERY PICTURE OF A SCENE MEANS THE SAME BY "NO LIGHT". The
+// editor's own views and dev's monitor light their passes with it rather than
+// reading the light table themselves, so a scene with no light is unshaded in
+// each of them exactly as it is in the game's frame.
+voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
 // Draws every entity that has a mesh, a transform and a material — and every
 // entity that has a panel, a transform and a range this frame submitted — into
