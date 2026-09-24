@@ -4,12 +4,23 @@
 // platform/process.h.
 //
 // THE LAYOUT. `<project>/Build/game/` holds CMakeLists.txt, main.c and scene.c;
-// CMake builds it into `<project>/Build/debug/`, the program is
-// `<project>/Build/debug/game`. Everything generated lives in whole top-level
-// folders git ignores — `Build/` here, `Cache/` for any other generated data —
-// so a project's .gitignore lists only folders and nothing generated is ever
-// written beside a developer's own files (0235). A project with no .gitignore
-// is given one; an existing one is never read or changed.
+// `<project>/Code/` is the project's own code, `.c` and `.h` (0242). Every
+// configure and build step writes to `<project>/Build/build.log`. Everything
+// generated lives in whole top-level folders git ignores — `Build/` here,
+// `Cache/` for any other generated data — so a project's .gitignore lists only
+// folders and nothing generated is ever written beside a developer's own files
+// (0235). A project with no .gitignore is given one; an existing one is never
+// read or changed.
+//
+// TWO KINDS, ONE TREE (0242 point 4). GAME builds `Build/game/` into
+// `Build/debug/`, target `game`, the program `Build/debug/game`. LIBRARY
+// configures the same `Build/game/` into `Build/editor/` with
+// -DVOE_GAME_LIBRARY=ON and builds the target `project`, the code alone as
+// `Build/editor/libproject.so` (Linux only, as cmake/game.cmake is).
+//
+// CMakeLists.txt sets VOE_PROJECT_CODE to `Code/` before including game.cmake;
+// scene.c includes every `.h` in `Code/`, sorted by name, before the cooked
+// text, which names the project's own structs and keys.
 //
 // EACH FILE IS WRITTEN ONLY WHEN IT IS MISSING OR ITS BYTES DIFFER, because
 // Ninja rebuilds by timestamp: an unchanged CMakeLists.txt or main.c rewritten
@@ -46,18 +57,38 @@
 					      voe_base_arena *arena,
 					      voe_editor_notice *why);
 
-// Whether <folder>/Build/debug/CMakeCache.txt exists, so a configure is done.
-bool voe_editor_game_tree_configured(const char *folder, voe_base_arena *arena);
+typedef enum {
+	VOE_EDITOR_GAME_TREE_GAME,
+	VOE_EDITOR_GAME_TREE_LIBRARY,
+} voe_editor_game_tree_kind;
+
+// Whether kind's binary folder holds CMakeCache.txt, so a configure is done.
+bool voe_editor_game_tree_configured(const char *folder,
+				     voe_editor_game_tree_kind kind,
+				     voe_base_arena *arena);
 
 // The NULL-terminated argument list that configures <folder>/Build/game into
-// <folder>/Build/debug with Ninja, Debug, and each non-empty tool.
+// kind's binary folder with Ninja, Debug, and each non-empty tool; LIBRARY
+// adds -DVOE_GAME_LIBRARY=ON.
 const char *const *voe_editor_game_tree_configure(const char *folder,
+						  voe_editor_game_tree_kind kind,
 						  voe_base_arena *arena);
 
-// The NULL-terminated argument list that builds the target game.
+// The NULL-terminated argument list that builds kind's target: game or project.
 const char *const *voe_editor_game_tree_build(const char *folder,
+					      voe_editor_game_tree_kind kind,
 					      voe_base_arena *arena);
 
 // <folder>/Build/debug/game, with .exe on Windows.
 const char *voe_editor_game_tree_program(const char *folder,
 					 voe_base_arena *arena);
+
+// <folder>/Build/editor/libproject.so, what LIBRARY builds.
+const char *voe_editor_game_tree_library(const char *folder,
+					 voe_base_arena *arena);
+
+// <folder>/Build/build.log, where every configure and build step writes.
+const char *voe_editor_game_tree_log(const char *folder, voe_base_arena *arena);
+
+// Whether <folder>/Code/ is a folder that lists a .c file. Reports nothing.
+bool voe_editor_game_tree_has_code(const char *folder, voe_base_arena *arena);

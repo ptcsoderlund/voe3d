@@ -65,13 +65,15 @@ carries it out.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
 - `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, each written only
   when its bytes change, the project's `.gitignore` when it has none, the argument lists that
-  configure and build the tree with the editor's own tools, and the game program's path.
+  configure and build the tree as the game or as the project's library, and the paths of the
+  program, the library, the build log and whether `Code/` holds code.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
   where they go, the world cooked into scene.c, and each argument list in one struct.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
-  to the next or to one stderr line, and the play's arena destroyed whenever it goes idle.
+  to the next or to one stderr line naming the build log, and the play's arena destroyed whenever
+  it goes idle.
 - `session.h` — the project being worked on, its notice, its Play, the flag that says a different
   project is in place, and the one armed command that makes closing the window, New and Open each
   refuse once while there are unsaved changes and go ahead the second time.
