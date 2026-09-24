@@ -1,4 +1,5 @@
 // The world's step once a frame: the structural queue applied, then the
+// project's replace intents (game/project.h, ADR-0242 point 3), then the
 // transform, identity and light systems, then the shape system. main.c calls
 // it once a frame, after an undo step is taken and before anything reads the
 // world.

@@ -12,7 +12,8 @@ carries it out.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
 - `world_step.h` — the world's step once a frame, the structural queue then every owning system,
   and why in that order and all of them always.
-- `world_step.c` — the queue applied, then transform, identity, light and shape systems run.
+- `world_step.c` — the queue applied, then the project's replace intents, then transform, identity,
+  light and shape systems run.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -28,11 +29,11 @@ carries it out.
   `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its own arena, the arena a scene read owns, the world
-  in it, the kept sections it was read with, its absolute folder and whether it has unsaved changes
-  (ADR-0164), and its scene handed out as text or read back in from one.
+- `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
+  sections, the code its world was made with, its absolute folder and whether it has unsaved changes
+  (ADR-0164), its scene handed out as text or read back in, and the swap to a world with new code.
 - `project.c` — opening, making and saving a project, the scene written out as
-  text and a text read back into the same world, and the untitled scene's cube, light and camera, which are
+  text and a text read back into the same world or a new one made with new code, and the untitled scene's cube, light and camera, which are
   this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
@@ -59,6 +60,9 @@ carries it out.
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
   base/report.h's first kept error.
+- `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
+  point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
+- `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
 - `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, each written only
   when its bytes change, the project's `.gitignore` when it has none, the argument lists that
   configure and build the tree with the editor's own tools, and the game program's path.

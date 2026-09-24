@@ -1,10 +1,9 @@
 // The project being worked on. See the header for what owns what and why
 // every failure destroys the arena it was building.
 //
-// EVERY WORLD IS BUILT THE SAME WAY, WHETHER UNTITLED OR READ OFF DISK:
-// game/world.h registers the eight component types once, so an untitled
-// project and an opened one can never end up with different room for the
-// same thing by two call sites drifting apart.
+// EVERY WORLD IS BUILT THE SAME WAY, WHETHER UNTITLED, READ OFF DISK OR
+// SWAPPED: world_make, so no two call sites can drift apart on what a
+// project's world holds.
 //
 // THE UNTITLED SCENE'S THREE ENTITIES ARE BUILT HERE, NOT IN scene.c. scene.c is
 // the Scene panel's selection and the rows it drew; what a fresh project
@@ -51,9 +50,10 @@
 #include <stdint.h>
 #include <string.h>
 
-// The project's own arena, the arena a scene read owns (project.h) and the
+// The project's own arena, the world's, the arena a scene read owns (project.h) and the
 // scratch a save's text is built in. Block sizes, not limits.
-#define PROJECT_ARENA (4u * 1024u * 1024u)
+#define PROJECT_ARENA (1u * 1024u * 1024u)
+#define PROJECT_WORLD_ARENA (4u * 1024u * 1024u)
 #define PROJECT_SCENE_ARENA (1u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
 
@@ -77,6 +77,20 @@ static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 // Where the scene camera is put: up and back from the origin, looking at it.
 #define CAMERA_Y 2.0f
 #define CAMERA_Z 6.0f
+
+// A project's world in arena: game/world.h's engine types, then code's own
+// when it has a library.
+static voe_ecs_world *world_make(voe_base_arena *arena,
+				 const voe_editor_code *code)
+{
+	voe_ecs_world *world = voe_game_world_new(arena);
+
+	VOE_BASE_ASSERT(world != NULL, "no world made");
+	VOE_BASE_ASSERT(code != NULL, "making a world with no code to ask");
+	if (code->library != NULL)
+		code->register_types(world);
+	return world;
+}
 
 // An entity a person authored: just the identity, whose presence is what says
 // so (ADR-0125). A transform, a shape or a light is added by the caller once
@@ -174,9 +188,11 @@ voe_editor_project *voe_editor_project_new_untitled(void)
 	voe_editor_project *project = voe_base_arena_push(arena, sizeof *project);
 
 	*project = (voe_editor_project){
-		.arena = arena, .scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
+		.arena = arena,
+		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
+		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = voe_game_world_new(arena);
+	project->world = world_make(project->world_arena, &project->code);
 	build_untitled(project->world);
 
 	return project;
@@ -248,9 +264,11 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 
 	project = voe_base_arena_push(arena, sizeof *project);
 	*project = (voe_editor_project){
-		.arena = arena, .scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
+		.arena = arena,
+		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
+		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = voe_game_world_new(arena);
+	project->world = world_make(project->world_arena, &project->code);
 
 	voe_base_report_error_clear();
 	if (!voe_authoring_scene_read((const char *)scene_bytes, scene_size,
@@ -261,6 +279,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 		// nothing more to add here.
 		voe_editor_notice_from_report(why, scene_path);
 		voe_base_arena_destroy(project->scene_arena);
+		voe_base_arena_destroy(project->world_arena);
 		voe_base_arena_destroy(arena);
 		return NULL;
 	}
@@ -426,6 +445,57 @@ bool voe_editor_project_scene_set(voe_editor_project *project, const char *text,
 	return true;
 }
 
+bool voe_editor_project_code_set(voe_editor_project *project,
+				 voe_editor_code code, voe_editor_notice *why)
+{
+	voe_base_arena *scratch;
+	voe_base_arena *world_arena;
+	voe_base_arena *scene_arena;
+	voe_ecs_world *world;
+	voe_authoring_text text;
+	voe_authoring_kept kept;
+
+	VOE_BASE_ASSERT(project != NULL, "setting no project's code");
+	VOE_BASE_ASSERT(why != NULL, "setting code with nowhere to say why");
+
+	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
+	voe_base_report_error_clear();
+	if (!voe_editor_project_scene_text(project, scratch, &text)) {
+		voe_editor_notice_from_report(why, "the scene");
+		voe_base_arena_destroy(scratch);
+		voe_editor_code_close(&code);
+		return false;
+	}
+
+	world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA);
+	scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA);
+	world = world_make(world_arena, &code);
+
+	voe_base_report_error_clear();
+	if (!voe_authoring_scene_read(text.text, text.size, world, scene_arena,
+				      &kept)) {
+		voe_editor_notice_from_report(why, "the scene");
+		voe_base_arena_destroy(scene_arena);
+		voe_base_arena_destroy(world_arena);
+		voe_base_arena_destroy(scratch);
+		voe_editor_code_close(&code);
+		return false;
+	}
+
+	// THE OLD WORLD GOES BEFORE THE OLD CODE: it holds that code's keys.
+	voe_base_arena_destroy(project->world_arena);
+	voe_base_arena_destroy(project->scene_arena);
+	voe_editor_code_close(&project->code);
+	voe_base_arena_destroy(scratch);
+	project->world_arena = world_arena;
+	project->scene_arena = scene_arena;
+	project->world = world;
+	project->kept = kept;
+	project->code = code;
+	VOE_BASE_ASSERT(project->world == world, "the swap left the old world");
+	return true;
+}
+
 const char *voe_editor_project_name(const voe_editor_project *project)
 {
 	VOE_BASE_ASSERT(project != NULL, "asking the name of no project");
@@ -437,8 +507,16 @@ const char *voe_editor_project_name(const voe_editor_project *project)
 
 void voe_editor_project_destroy(voe_editor_project *project)
 {
+	voe_editor_code code;
+
 	VOE_BASE_ASSERT(project != NULL, "destroying no project");
 
+	// The struct is in arena, so the code is copied out before it goes and
+	// closed after every arena, the world's included (code.h).
+	code = project->code;
 	voe_base_arena_destroy(project->scene_arena);
+	voe_base_arena_destroy(project->world_arena);
 	voe_base_arena_destroy(project->arena);
+	voe_editor_code_close(&code);
+	VOE_BASE_ASSERT(code.library == NULL, "a destroyed project's code is open");
 }
