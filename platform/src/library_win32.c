@@ -9,17 +9,37 @@
 // LoadLibraryA and not LoadLibraryW, because a library name is an ASCII file
 // name that this engine writes into its own source. A path from a user would be
 // a different question and would arrive through a different function.
+//
+// A failed load is reported with GetLastError's text from FormatMessageA, cut to
+// a fixed buffer with its trailing line break dropped; no allocation.
 #include <platform/library.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <windows.h>
 
 voe_platform_library *voe_platform_library_new(const char *name)
 {
+	char reason[512];
+	HMODULE library;
+	DWORD error;
+	DWORD length;
+
 	VOE_BASE_DEBUG_ASSERT(name != NULL, "opening a library with no name");
 
-	return (voe_platform_library *)LoadLibraryA(name);
+	library = LoadLibraryA(name);
+	if (library == NULL) {
+		error = GetLastError();
+		length = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+					NULL, error, 0, reason, sizeof(reason), NULL);
+		while (length > 0 && (reason[length - 1] == '\r' || reason[length - 1] == '\n'))
+			length--;
+		reason[length] = '\0';
+		VOE_BASE_ERROR("platform", "cannot open library %s: %s (error %lu)", name,
+			       length > 0 ? reason : "no reason given", (unsigned long)error);
+	}
+	return (voe_platform_library *)library;
 }
 
 void voe_platform_library_destroy(voe_platform_library *library)

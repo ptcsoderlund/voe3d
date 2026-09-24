@@ -15,6 +15,9 @@
 //
 // The child inherits the caller's standard handles through STARTF_USESTDHANDLES
 // with handle inheritance on, so its output lands wherever the editor's does.
+// An output path is opened first as an inheritable handle for append, created
+// when missing, and set as both hStdOutput and hStdError; the parent closes its
+// copy after CreateProcessW. Written and built on Linux only (ADR-0130).
 #include <platform/process.h>
 
 #include <base/assert.h>
@@ -82,9 +85,25 @@ static wchar_t *command_line_of(const char *const *argv, voe_base_arena *scratch
 	return wide;
 }
 
-bool voe_platform_process_start(const char *const *argv, voe_base_arena *scratch,
-				voe_platform_process *out)
+// An inheritable append handle on output, or INVALID_HANDLE_VALUE, reported.
+static HANDLE output_handle_of(const char *output)
 {
+	SECURITY_ATTRIBUTES inherit = { sizeof(inherit), NULL, TRUE };
+	HANDLE file;
+
+	VOE_BASE_DEBUG_ASSERT(output != NULL, "redirecting to no output");
+	file = CreateFileA(output, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, &inherit,
+			   OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file == INVALID_HANDLE_VALUE)
+		VOE_BASE_ERROR("platform", "cannot open %s for a program's output: error %lu",
+			       output, (unsigned long)GetLastError());
+	return file;
+}
+
+bool voe_platform_process_start(const char *const *argv, const char *output,
+				voe_base_arena *scratch, voe_platform_process *out)
+{
+	HANDLE file = INVALID_HANDLE_VALUE;
 	struct voe_base_arena_mark mark;
 	JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = { 0 };
 	STARTUPINFOW startup = { 0 };
@@ -96,6 +115,11 @@ bool voe_platform_process_start(const char *const *argv, voe_base_arena *scratch
 	VOE_BASE_DEBUG_ASSERT(scratch != NULL, "starting a program with no scratch arena");
 	VOE_BASE_DEBUG_ASSERT(out != NULL && out->handle == 0, "starting into a struct already running");
 
+	if (output != NULL) {
+		file = output_handle_of(output);
+		if (file == INVALID_HANDLE_VALUE)
+			return false;
+	}
 	job = CreateJobObjectW(NULL, NULL);
 	VOE_BASE_ASSERT(job != NULL, "CreateJobObjectW failed");
 	limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
@@ -106,13 +130,15 @@ bool voe_platform_process_start(const char *const *argv, voe_base_arena *scratch
 	startup.cb = sizeof(startup);
 	startup.dwFlags = STARTF_USESTDHANDLES;
 	startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-	startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-	startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+	startup.hStdOutput = file != INVALID_HANDLE_VALUE ? file : GetStdHandle(STD_OUTPUT_HANDLE);
+	startup.hStdError = file != INVALID_HANDLE_VALUE ? file : GetStdHandle(STD_ERROR_HANDLE);
 
 	mark = voe_base_arena_mark(scratch);
 	created = CreateProcessW(NULL, command_line_of(argv, scratch), NULL, NULL, TRUE,
 				 CREATE_SUSPENDED, NULL, NULL, &startup, &started);
 	voe_base_arena_rewind(scratch, mark);
+	if (file != INVALID_HANDLE_VALUE)
+		CloseHandle(file);
 	if (!created) {
 		VOE_BASE_ERROR("platform", "cannot start %s: error %lu", argv[0],
 			       (unsigned long)GetLastError());

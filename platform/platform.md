@@ -31,9 +31,10 @@ file, listing, making or finding a folder, and starting another program.
   each platform reads and writes, and why a name is a pointer into the path
   itself rather than a copy.
 - `include/platform/library.h` — a shared library opened by name at run time, and
-  a symbol out of it. Its header says why this is here and not in the folder that
+  a symbol out of it; a failed open is reported with the loader's reason. Its header says why this is here and not in the folder that
   wants one.
-- `include/platform/process.h` — starting another program from an argument list, polling it
+- `include/platform/process.h` — starting another program from an argument list, its output
+  shared or appended to a file, polling it
   without blocking, and ending it with everything it started. Its header says why a child and
   not a thread, and why the whole group ends.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.

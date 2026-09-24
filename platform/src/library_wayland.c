@@ -20,6 +20,7 @@
 #include <platform/library.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <dlfcn.h>
 
@@ -27,9 +28,20 @@
 
 voe_platform_library *voe_platform_library_new(const char *name)
 {
+	void *library;
+	const char *reason;
+
 	VOE_BASE_DEBUG_ASSERT(name != NULL, "opening a library with no name");
 
-	return dlopen(name, RTLD_NOW | RTLD_LOCAL);
+	library = dlopen(name, RTLD_NOW | RTLD_LOCAL);
+	if (library == NULL) {
+		// dlerror's text already names the file; the name leads for a
+		// reader who grepped for it.
+		reason = dlerror();
+		VOE_BASE_ERROR("platform", "cannot open library %s: %s", name,
+			       reason != NULL ? reason : "no reason given");
+	}
+	return library;
 }
 
 void voe_platform_library_destroy(voe_platform_library *library)

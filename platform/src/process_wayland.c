@@ -17,6 +17,10 @@
 // failed exec (a name not on PATH) as its return value, not as a child that
 // exits 127, so a missing program is reported here and never polled.
 //
+// AN OUTPUT FILE IS OPENED BEFORE THE SPAWN, O_APPEND and O_CLOEXEC, and the
+// spawn's file actions dup2 it onto 1 and 2 in the child only; the parent closes
+// its copy once the child has one. A file that will not open starts nothing.
+//
 // A death by signal is reported as 128 plus the signal number, the shell's
 // convention, which is never zero.
 #define _GNU_SOURCE
@@ -26,6 +30,7 @@
 #include <base/report.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <spawn.h>
 #include <string.h>
@@ -41,13 +46,34 @@ static int exit_code_of(int status)
 	return 1;
 }
 
-bool voe_platform_process_start(const char *const *argv, voe_base_arena *scratch,
-				voe_platform_process *out)
+// Fills actions with 1 and 2 onto output's descriptor, returned for the caller
+// to close after the spawn; -1, reported, when the file will not open.
+static int output_actions(const char *output, posix_spawn_file_actions_t *actions)
+{
+	int fd;
+
+	VOE_BASE_DEBUG_ASSERT(output != NULL && actions != NULL, "redirecting to no output");
+	fd = open(output, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+	if (fd < 0) {
+		VOE_BASE_ERROR("platform", "cannot open %s for a program's output: %s", output,
+			       strerror(errno));
+		return -1;
+	}
+	VOE_BASE_ASSERT(posix_spawn_file_actions_adddup2(actions, fd, 1) == 0 &&
+				posix_spawn_file_actions_adddup2(actions, fd, 2) == 0,
+			"out of memory redirecting a program's output");
+	return fd;
+}
+
+bool voe_platform_process_start(const char *const *argv, const char *output,
+				voe_base_arena *scratch, voe_platform_process *out)
 {
 	posix_spawnattr_t attributes;
+	posix_spawn_file_actions_t actions;
 	char *const *arguments;
 	pid_t pid;
 	int failed;
+	int fd = -1;
 
 	VOE_BASE_DEBUG_ASSERT(argv != NULL && argv[0] != NULL, "starting a program with no name");
 	VOE_BASE_DEBUG_ASSERT(scratch != NULL, "starting a program with no scratch arena");
@@ -58,12 +84,24 @@ bool voe_platform_process_start(const char *const *argv, voe_base_arena *scratch
 	// the copy drops a const that C cannot express on the parameter.
 	memcpy(&arguments, &argv, sizeof(arguments));
 
+	VOE_BASE_ASSERT(posix_spawn_file_actions_init(&actions) == 0,
+			"out of memory starting a program");
+	if (output != NULL) {
+		fd = output_actions(output, &actions);
+		if (fd < 0) {
+			posix_spawn_file_actions_destroy(&actions);
+			return false;
+		}
+	}
 	VOE_BASE_ASSERT(posix_spawnattr_init(&attributes) == 0, "out of memory starting a program");
 	VOE_BASE_ASSERT(posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP) == 0 &&
 				posix_spawnattr_setpgroup(&attributes, 0) == 0,
 			"posix_spawnattr refused a process group");
-	failed = posix_spawnp(&pid, argv[0], NULL, &attributes, arguments, environ);
+	failed = posix_spawnp(&pid, argv[0], &actions, &attributes, arguments, environ);
 	posix_spawnattr_destroy(&attributes);
+	posix_spawn_file_actions_destroy(&actions);
+	if (fd >= 0)
+		close(fd);
 
 	if (failed != 0) {
 		VOE_BASE_ERROR("platform", "cannot start %s: %s", argv[0], strerror(failed));
