@@ -15,7 +15,8 @@
 // editor's, and the frame comes back with them zeroed.
 //
 // Constraints: the world is one voe_game_world_new made, with exactly one
-// camera and one light, which voe_3d_draw_system_frame asserts on. The device
+// camera and at most one light; a world with none draws every surface in its
+// material colour, unshaded (0238). The device
 // was opened with VOE_GAME_CAPACITIES and the shapes uploaded onto it.
 // `scratch` is rewound by the draw system and keeps nothing. Called outside a
 // draw; a minimised window is the caller's to skip.
