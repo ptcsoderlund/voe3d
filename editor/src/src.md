@@ -131,10 +131,16 @@ carries it out.
   their parent, its entry appended in registration order, and one parent's children drawn as a list
   the way the open dropdown's is.
 - `inspector_edit.h` — the calls that turn what the pointer did to the Inspector's controls into
-  replace intents and scene.h's commands, and the side-and-cap rule both open lists are placed by.
+  replace intents and scene.h's commands, and the rules for when each open list closes.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
-  bytes, the fired buttons, and Add component's lists and submenus opened, closed, placed and capped.
+  bytes, and the picker's colour and the open list's choice submitted the same way.
+- `inspector_buttons.c` — the fired buttons carried out through scene.h and entities.h, and the
+  open dropdown and Add component's lists and submenus opened, closed and placed each frame.
+- `inspector_place.h` — the side-and-cap rule the open lists and submenus are placed by, and the
+  rectangle test a press outside them is.
+- `inspector_place.c` — a list fitted below, above or capped on the roomier side, under its button
+  or beside its row, in the content column's space.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
   angles or the one string a label is given out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X

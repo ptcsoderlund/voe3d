@@ -40,22 +40,11 @@
 // rows, the padding at its edges, and the scrollbar a capped one has (ADR-0199);
 // and a frame in which it was open and drew no rows closes it too, that being
 // the frame its field left the panel — nothing selected, another entity
-// selected, or the component gone. Where it sits is worked out from its button's
-// rectangle and the room the panel's scroll area leaves round it — below the
-// button when the whole list fits there, above it when it fits there instead,
-// and on the roomier side capped to that room and scrolling when it fits neither
-// (ADR-0200) — and set through scene.h every frame it is open, because an
-// overlay is placed where it fits each frame and never once when it opened
-// (ADR-0199). That arithmetic is the button's rectangle less the Inspector's
-// content column's, so it is in that column's space and says nothing about how
-// far the panel is scrolled. It is voe_editor_inspector_overlay_place, and Add
-// component's list is placed by it too: that list opens and closes as the
-// open list does, and a fired type's row adds the type (inspector.h). A group
-// row opens its submenu, closing every group open at its level or deeper. A
-// submenu sits right of its list when its whole width fits before the right of
-// the area's visible rectangle, both in the surface's millimetres, else left of
-// it, and is then moved wholly inside that rectangle; its top is its row's,
-// fitted by the side-and-cap rule with the row as the widget (ADR-0221).
+// selected, or the component gone. Add component's list opens and closes as the
+// open list does, and a fired type's row adds the type (inspector.h); a group
+// row opens its submenu, closing every group open at its level or deeper.
+// Where each of those lists sits is set through scene.h or on the inspector
+// every frame it is open, by the rule inspector_place.h gives.
 // scene.h holds this struct, so it is named by its tag.
 #pragma once
 
@@ -101,15 +90,6 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 				       const voe_ui_context *ui,
 				       struct voe_editor_scene *scene,
 				       bool down, voe_math_float2 at);
-
-// Where a list hanging from `button` goes this frame, by the side-and-cap rule
-// above (ADR-0200): `list` is its panel and `rows` the area inside it as drawn
-// this frame, `list` VOE_UI_NODE_NONE for one not drawn yet, which goes below
-// uncapped. Needs this frame's content column.
-voe_editor_inspector_place
-voe_editor_inspector_overlay_place(const voe_editor_inspector *inspector,
-				   const voe_ui_context *ui, voe_ui_node button,
-				   voe_ui_node list, voe_ui_node rows);
 
 // Closes Add component's list: Escape's, which interface.c reads.
 void voe_editor_inspector_add_close(voe_editor_inspector *inspector);
