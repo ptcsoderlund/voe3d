@@ -27,7 +27,6 @@
 #include <math/float4.h>
 #include <math/quat.h>
 
-#include <scene/light_component.h>
 #include <scene/transform_system.h>
 
 #define VOE_DEV_MONITOR_VERTEX_COUNT 4
@@ -84,24 +83,6 @@ static const voe_render_vertex screen_vertices[VOE_DEV_MONITOR_VERTEX_COUNT] = {
 static const uint32_t screen_indices[VOE_DEV_MONITOR_INDEX_COUNT] = {
 	3, 2, 1, 3, 1, 0,
 };
-
-// The world's one light, in the shape `render` takes it. The direction is
-// already unit length: scene's light system is the only thing that writes one
-// and normalizing is what it does.
-static voe_render_light the_sun(const voe_ecs_world *world)
-{
-	voe_scene_light light;
-
-	VOE_BASE_ASSERT(voe_scene_light_count(world) == 1,
-			"the monitor draws the world's one sun — see 3d/draw_system.h");
-
-	light = voe_scene_light_rows(world)[0];
-	return (voe_render_light){
-		.direction = light.direction,
-		.intensity = light.intensity,
-		.colour = light.colour,
-	};
-}
 
 // The material the screen wears: the target's texture, nothing else on it, and
 // unlit so what shows is the picture rather than the picture times a lambert
@@ -191,7 +172,7 @@ voe_3d_frame voe_dev_monitor_frame(const voe_dev_monitor *monitor,
 	VOE_BASE_ASSERT(world != NULL, "a monitor frame with no world");
 
 	frame = (voe_3d_frame){
-		.light = the_sun(world),
+		.light = voe_3d_draw_system_light(world),
 		// Not optional: the screen wears this target's texture, so the
 		// pass that fills the target must not draw it. ADR-0158, and
 		// the header says what the debug check says when this is

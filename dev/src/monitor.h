@@ -17,7 +17,7 @@
 // camera table is left holding the one eye the orbit flies. That is also what
 // editor/src/view.c does and for the same reason.
 //
-// THE SUN IS THE WORLD'S, READ OUT OF THE LIGHT TABLE, AND NOT A SECOND ONE. The
+// THE SUN IS THE WORLD'S, AS `3d` GIVES IT, AND NOT A SECOND ONE. The
 // picture on the screen is meant to be the same world lit the same way at the
 // same instant; a sun of its own would light one scene two ways, which reads as a
 // bug in the lighting from across the room and is not one.
@@ -105,7 +105,7 @@ typedef struct {
 // voe_3d_draw_system_run, exactly as it does with voe_3d_draw_system_frame's
 // answer for the window.
 //
-// The world needs the one light voe_3d_draw_system_frame already requires of it,
-// and having none asserts here for the same reason it does there.
+// The light is `3d`'s answer (voe_3d_draw_system_light): the world's one light,
+// or unshaded when the world has none (ADR-0238), as the window's frame is.
 voe_3d_frame voe_dev_monitor_frame(const voe_dev_monitor *monitor,
 				   const voe_ecs_world *world);
