@@ -53,3 +53,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   0238 makes none allowed.
 - **A developer's own shading**: custom materials or shaders for a game that lights things its own way
   (sponsor, 2026-09-24). Until then, no light means unlit (0238).
+- **A `character_controller` component and system in the engine**, with physics kept separate from
+  simple collision, and collision perhaps on the GPU through compute (sponsor thinking aloud,
+  2026-09-24). A project's `player_system` would drive the controllers whose entity also has its
+  `keyboard_input` (0239). To settle before milestone 4.
