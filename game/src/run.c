@@ -3,6 +3,7 @@
 #include <game/run.h>
 
 #include <game/frame.h>
+#include <game/project.h>
 #include <game/scene.h>
 #include <game/world.h>
 
@@ -35,6 +36,8 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 			return true;
 		if (frame.minimised)
 			continue;
+		voe_game_project_systems_run(&(voe_game_project_step){
+			world, voe_app_window(app), frame.tick.step });
 		if (!voe_game_frame(app, world, shapes, scratch, frame.size))
 			return false;
 	}
@@ -65,6 +68,7 @@ int voe_game_run(const char *title)
 	voe_base_arena_clear(scratch);
 
 	world = voe_game_world_new(arena);
+	voe_game_project_register(world);
 	if (!voe_game_scene_build(world)) {
 		VOE_BASE_ERROR("game", "the scene does not fit its world");
 	} else if (!voe_3d_shapes_upload(voe_app_device(app), &shapes,

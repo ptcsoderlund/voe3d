@@ -3,6 +3,8 @@
 // is transforms first because a shape needs one (3d/shape_component.h).
 #include <game/world.h>
 
+#include <game/project.h>
+
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
@@ -13,11 +15,12 @@
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
 
-// Eight component types, four of them with an intent queue, and the entities
-// are a number to author into rather than a measurement of anything.
+// Eight component types, four of them with an intent queue, each with room for
+// a project's types and their replace intents behind it; the entities are a
+// number to author into rather than a measurement of anything.
 #define MAX_ENTITIES 1024
-#define MAX_COMPONENT_TYPES 8
-#define MAX_INTENT_TYPES 8
+#define MAX_COMPONENT_TYPES (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
+#define MAX_INTENT_TYPES (8 + VOE_GAME_PROJECT_TYPES)
 
 // The structural queue (ecs/structure.h): room for a frame's Add, Delete,
 // Duplicate or component change many times over, and for the rows they carry.
