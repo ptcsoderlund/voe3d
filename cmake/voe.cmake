@@ -590,6 +590,12 @@ endfunction()
 # The target is never registered with ctest. voe_dev opens a window and waits for
 # a person, and a check script waiting for someone to close a window is a check
 # script that hangs.
+#
+# The editor alone is linked with its exports and every DEPENDS folder but `game`
+# whole-archive: a project library's engine symbols bind to the editor's own, so
+# every engine function must be in the program and exported (ADR-0242 point 4).
+# `game` is left out because its entry points (game/project.h) are the project's
+# to define. voe_dev is linked as any program.
 
 function(voe_executable folder)
     cmake_parse_arguments(arg "" "" "DEPENDS" ${ARGN})
@@ -608,6 +614,13 @@ function(voe_executable folder)
 
     if(folder STREQUAL "editor")
         voe_editor_toolchain(voe_${folder})
+        set_target_properties(voe_${folder} PROPERTIES ENABLE_EXPORTS ON)
+        foreach(dep IN LISTS arg_DEPENDS)
+            if(NOT dep STREQUAL "game")
+                target_link_libraries(voe_${folder} PRIVATE
+                    "$<LINK_LIBRARY:WHOLE_ARCHIVE,voe::${dep}>")
+            endif()
+        endforeach()
     endif()
 
     voe_export_compile_commands(voe_${folder} ${CMAKE_CURRENT_LIST_DIR} voe_${folder})

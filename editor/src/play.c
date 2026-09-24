@@ -29,7 +29,8 @@ static void play_idle(voe_editor_play *play)
 static bool play_step(voe_editor_play *play, voe_editor_play_stage stage,
 		      const char *const *argv)
 {
-	if (!voe_platform_process_start(argv, play->arena, &play->process))
+	if (!voe_platform_process_start(argv, NULL, play->arena,
+					&play->process))
 		return false;
 	play->stage = stage;
 	return true;
