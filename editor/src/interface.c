@@ -121,6 +121,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			"drawing an interface with no preferences");
 	VOE_BASE_ASSERT(themes != NULL, "drawing an interface with no themes");
 
+	// Once a frame, before any root is built, so every root's bar reads
+	// the same label (interface.h).
+	voe_editor_play_poll(&session->play);
+
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
 		// The dock tree's own root, its height cut down by the bar
@@ -195,6 +199,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 							  root->size.x } },
 				    .across = VOE_UI_ACROSS_FILL });
 		voe_editor_topbar_draw(ui, bar, arena, root->size.y,
+				       voe_editor_play_label(&session->play),
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text);

@@ -65,11 +65,11 @@ carries it out.
   refuse once while there are unsaved changes and go ahead the second time.
 - `session.c` — the refuse-once rule, the five commands with Play's start and Stop and a close
   ending the play, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Preferences, the
   project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its four buttons afterwards.
+  the read of its five buttons, Play among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -94,9 +94,9 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, submitted into the open frame, and the one read of the
-  frame's clicks that carries out the top bar's, the browser's and Preferences' commands and the
-  colour picker's changes.
+- `interface.c` — the play state polled once a frame, one `ui` frame per root, submitted into the
+  open frame, and the one read of the frame's clicks that carries out the top bar's, Play among
+  them, the browser's and Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it.
