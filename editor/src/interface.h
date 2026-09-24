@@ -128,7 +128,7 @@
 // AND INSPECTOR.C'S PER-COMPONENT PANELS, NAMED BY NEITHER NUMBER ABOVE UNTIL
 // NOW. Every component type the selected entity has a row of gets its own
 // RAISED panel (inspector.c's component_panel), and this editor's world never
-// holds more than eight component types at once — project.c's world_new is
+// holds more than eight component types at once — game/world.h is
 // the only place that decides it, and ecs/component.h asserts rather than
 // lets a world grow past what it was made with — so at most eight are drawn
 // a frame. Each is a panel and its heading label, two nodes, and — the

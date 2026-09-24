@@ -24,8 +24,7 @@ carries it out.
   in it, the kept sections it was read with, its absolute folder and whether it has unsaved changes
   (ADR-0164), and its scene handed out as text or read back in from one.
 - `project.c` — opening, making and saving a project, the scene written out as
-  text and a text read back into the same world, the one `world_new` every
-  world is built by, and the untitled scene's cube, light and camera, which are
+  text and a text read back into the same world, and the untitled scene's cube, light and camera, which are
   this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a

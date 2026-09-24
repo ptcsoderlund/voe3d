@@ -60,15 +60,15 @@
 
 #include <ecs/world.h>
 
+#include <game/world.h>
+
 #include <stdbool.h>
 #include <stddef.h>
 
-// The world's own room, and the room a project's scene may hold. Registered
-// by every project's world, whether built untitled or read off disk; a device
-// that draws a project's shapes sizes its own voe_render_capacities from
-// VOE_EDITOR_PROJECT_MAX_DRAWN, so main.c reads it rather than keeping a
-// second copy of the number.
-#define VOE_EDITOR_PROJECT_MAX_DRAWN 64
+// The room a project's world has for drawn entities is
+// VOE_GAME_WORLD_MAX_DRAWN, which lives in game/world.h beside the world every
+// project and the game build (0237); a device that draws a project's shapes
+// sizes its voe_render_capacities from it rather than a second copy.
 
 typedef struct {
 	voe_base_arena *arena;

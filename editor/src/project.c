@@ -2,7 +2,7 @@
 // every failure destroys the arena it was building.
 //
 // EVERY WORLD IS BUILT THE SAME WAY, WHETHER UNTITLED OR READ OFF DISK:
-// world_new() registers the eight component types once, so an untitled
+// game/world.h registers the eight component types once, so an untitled
 // project and an opened one can never end up with different room for the
 // same thing by two call sites drifting apart.
 //
@@ -16,9 +16,6 @@
 
 #include "scene.h"
 
-#include <3d/material_component.h>
-#include <3d/mesh_component.h>
-#include <3d/panel_component.h>
 #include <3d/shape_component.h>
 
 #include <authoring/project.h>
@@ -33,6 +30,8 @@
 #include <ecs/component.h>
 #include <ecs/structure.h>
 #include <ecs/world.h>
+
+#include <game/world.h>
 
 #include <math/float3.h>
 #include <math/quat.h>
@@ -58,41 +57,9 @@
 #define PROJECT_SCENE_ARENA (1u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
 
-// What a project's world may hold. Eight component types, four of them with
-// an intent queue, and the entities are a number to author into rather than a
-// measurement of anything.
-#define MAX_ENTITIES 1024
-#define MAX_COMPONENT_TYPES 8
-#define MAX_INTENT_TYPES 8
-
-// The structural queue (ecs/structure.h): room for a frame's Add, Delete,
-// Duplicate or component change many times over, and for the rows those
-// requests carry.
-#define STRUCTURE_REQUESTS 256
-#define STRUCTURE_BYTES 32768
-
-// Transforms and identities. The identities are VOE_EDITOR_SCENE_ROWS because
-// that is how many the Scene panel can list, and a world that could hold an
-// identity the list could not show would be a disagreement between two
-// numbers in one program (scene.h). Transforms are wider: an entity the
-// engine makes for itself has one and no identity.
-#define MAX_TRANSFORMS 256
-#define MAX_IDENTITIES VOE_EDITOR_SCENE_ROWS
-
-// A light is only ever on an authored entity, so the room for it is the same
-// as the room for an identity.
-#define MAX_LIGHTS MAX_IDENTITIES
-
-// A scene has exactly one camera (0218).
-#define MAX_CAMERAS 1
-
-// A mesh and a material each, one per drawn entity, and the room for a shape
-// is the same number: every shape the shape system finds becomes one. The
-// panel table is walked by the draw system whether anything has one or not
-// (3d/draw_system.h), so it is registered with room for one and nothing ever
-// adds a row.
-#define MAX_SHAPES VOE_EDITOR_PROJECT_MAX_DRAWN
-#define MAX_PANELS 1
+// Every row the Scene panel lists is an authored entity, so the world must
+// have room for an identity on each of them (scene.h).
+static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 
 // The scene file's name inside every project this editor writes (ADR-0164).
 // voe_editor_project_new_opened reads whatever project.voe3d names instead —
@@ -110,29 +77,6 @@
 // Where the scene camera is put: up and back from the origin, looking at it.
 #define CAMERA_Y 2.0f
 #define CAMERA_Z 6.0f
-
-// A fresh world with every component type a project may hold registered, and
-// nothing in it yet.
-static voe_ecs_world *world_new(voe_base_arena *arena)
-{
-	voe_ecs_world *world = voe_ecs_world_new(
-		arena, (voe_ecs_limits){ .entities = MAX_ENTITIES,
-					 .component_types = MAX_COMPONENT_TYPES,
-					 .intent_types = MAX_INTENT_TYPES,
-					 .structure_requests = STRUCTURE_REQUESTS,
-					 .structure_bytes = STRUCTURE_BYTES });
-
-	voe_scene_transform_register(world, MAX_TRANSFORMS);
-	voe_scene_identity_register(world, MAX_IDENTITIES);
-	voe_scene_light_register(world, MAX_LIGHTS);
-	voe_scene_camera_register(world, MAX_CAMERAS);
-	voe_3d_mesh_register(world, VOE_EDITOR_PROJECT_MAX_DRAWN);
-	voe_3d_material_register(world, VOE_EDITOR_PROJECT_MAX_DRAWN);
-	voe_3d_panel_register(world, MAX_PANELS);
-	voe_3d_shape_register(world, MAX_SHAPES);
-
-	return world;
-}
 
 // An entity a person authored: just the identity, whose presence is what says
 // so (ADR-0125). A transform, a shape or a light is added by the caller once
@@ -232,7 +176,7 @@ voe_editor_project *voe_editor_project_new_untitled(void)
 	*project = (voe_editor_project){
 		.arena = arena, .scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = world_new(arena);
+	project->world = voe_game_world_new(arena);
 	build_untitled(project->world);
 
 	return project;
@@ -306,7 +250,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 	*project = (voe_editor_project){
 		.arena = arena, .scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = world_new(arena);
+	project->world = voe_game_world_new(arena);
 
 	voe_base_report_error_clear();
 	if (!voe_authoring_scene_read((const char *)scene_bytes, scene_size,
