@@ -97,6 +97,11 @@
 // with no normal, which takes the same exit for the opposite reason: that one is
 // a file that did not say, this one is a material that did.
 //
+// A PASS WITH NO SUN TAKES THE UNLIT EXIT FOR EVERY SURFACE. The light's
+// `unshaded` says a scene has no light (ADR-0238), and then each surface is its
+// base colour. Not ambient, which would draw a 2D game's colours dim, and not a
+// default light, which would shade surfaces with a light nobody added.
+//
 // NORMAL MAPS AND EMISSION ARE READ FROM NO PICTURE HERE. Both ids are in the
 // shading record, both are uploaded, and neither is sampled: a normal map needs
 // tangents, which the importer does not produce, and emission without tone
@@ -184,7 +189,8 @@ struct voe_render_light {
 	float3 direction;
 	float intensity;
 	float3 colour;
-	float reserved;
+	// Non-zero: this pass has no sun, and every surface takes the unlit exit.
+	uint unshaded;
 };
 
 // Set 0, binding 0. Matches struct voe_render_frame_block in
@@ -526,6 +532,10 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// things — this one was asked for and that one is a file with no
 	// normals in it.
 	if (shading.unlit != 0)
+		return voe_render_premultiplied(base.rgb, coverage);
+
+	// A pass with no sun: every surface unshaded. See the header.
+	if (sun.unshaded != 0)
 		return voe_render_premultiplied(base.rgb, coverage);
 
 	// A normal of nothing: unlit rather than NaN. See the header.

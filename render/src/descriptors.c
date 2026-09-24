@@ -80,6 +80,8 @@ static_assert(offsetof(voe_render_view, eye) == 128,
 	      "the camera block's eye moved; draw.slang has it at 128");
 static_assert(offsetof(voe_render_light, colour) == 16,
 	      "the light's colour moved; draw.slang has it at 16");
+static_assert(offsetof(voe_render_light, unshaded) == 28,
+	      "the light's unshaded flag moved; draw.slang has it at 28");
 static_assert(offsetof(struct voe_render_frame_block, light) == 144,
 	      "the sun moved inside the per-pass block; draw.slang has it at 144");
 static_assert(offsetof(voe_render_shading_values, emissive) == 32,
