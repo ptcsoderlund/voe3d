@@ -9,7 +9,7 @@ in; getting it wrong transposes every transform without failing to compile.
 - `draw.slang` — the two pipelines' two entry points, the only place a matrix is
   applied to a position, the three numbers a draw finds everything by, and the
   whole of this engine's lighting: one sun, no shadows, glTF's
-  metalness-roughness BRDF, and three unlit exits, a sunless pass the third.
+  metalness-roughness BRDF, and three unlit exits, the third for a pass with no sun.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
   instance built from a vertex index, a clip test, and a glyph's coverage cut at
   a threshold that moves out for a thin stroke, not a wide one. It copies the

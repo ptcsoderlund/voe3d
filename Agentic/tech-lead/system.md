@@ -10,10 +10,10 @@ rules are decision 0168.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
-- **platform** — the one OS-aware folder: window, wait, input, pointer shape, keymap, files, clock.
+- **platform** — the one OS-aware folder: window, wait, input, keymap, files, clock, processes.
 - **scene** — transform, a camera's lens, light and identity as components with their systems.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
-- **authoring** — scene and project text read and written; a game does not build it.
+- **authoring** — scene and project text read and written, a world cooked to C; a game omits it.
 - **render** — the GPU layer and the only folder that names Vulkan: the card, resources, passes.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
@@ -21,7 +21,8 @@ rules are decision 0168.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, camera marker.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **editor** — authoring: top bar, Scene list, views to fly, gizmo, Inspector, undo, sizes, files.
+- **game** — the loop a shipped game runs: its world's types, a frame through the camera, the run.
+- **editor** — authoring: top bar, Scene list, views to fly, gizmo, Inspector, undo, sizes, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 
@@ -44,12 +45,11 @@ rules are decision 0168.
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177 — 006 merged back; a new folder registers itself; `theme` sees `render`; draws as PNGs.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186, 0187, 0188, 0234 — Toward a coin game in the project's C; Play cooks the scene; Stop.
+- 0186–0188, 0234–0237 — Toward a coin game in C; Play builds a `game` tree; our formats are text.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
-- 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.
+- 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
-- 0231, 0232 — A draggable border rests in the border colour, reached drawn as the inverse pair.
 - 0192, 0199, 0200 — `ui` holds one focus; an overlay belongs to its widget and fits.
 - 0201, 0214 — The fastest card is the best kind then the largest memory; one line says which.
 - 0202–0204 — A click picks by a ray on the shapes' triangles; outline quads; undo is scene texts.
@@ -57,4 +57,4 @@ rules are decision 0168.
 - 0208–0211 — 015 closes on its walk; 016 moves comments only, and a page's opening says what for.
 - 0215, 0216, 0227, 0233 — Unfocused, 4 fps; hidden, none; a pointer shape; right button flies.
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
-- 0222, 0223 — Anything in 3D space is placed by its transform; the camera is a lens and a marker.
+- 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
