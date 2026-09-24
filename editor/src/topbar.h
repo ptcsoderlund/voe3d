@@ -1,7 +1,8 @@
 // The bar across the top of the root surface: New, Open and Save, then Play,
-// then Preferences, then the project's name and whether it is unsaved, then whatever notice the session
-// has to say. Play's label is the caller's (the session's play state, play.h):
-// Play, Building or Stop.
+// then Refresh, then Preferences, then the project's name and whether it is
+// unsaved, then whatever notice the session has to say. Play's label is the
+// caller's (the session's play state, play.h): Play, Building or Stop; so is
+// Refresh's (refresh.h): Refresh or Refreshing.
 //
 // IT IS AT LEAST WHAT ITS BUTTONS AND LABELS MEASURED LAST FRAME (ADR-0225,
 // amended by ADR-0226). A larger text size needs a taller bar, but dock.c
@@ -12,7 +13,7 @@
 // view's room. Where the bar sits, above the dock tree, stretched to whatever
 // width it is given, is interface.c's decision.
 //
-// THE FIVE BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
+// THE SIX BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
 // ROWS ARE (scene.h). A `ui` widget answers what the pointer did to it only
 // after voe_ui_frame_end (ui/widgets.h), and this call returns long before
 // that, so voe_editor_topbar_draw records where each button is and
@@ -36,7 +37,7 @@
 // the surface's own millimetres.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's panel and five buttons, recorded as they are drawn, and the height
+// The bar's panel and six buttons, recorded as they are drawn, and the height
 // it is laid out at. Zeroed is a bar that has drawn nothing yet; `high` nought
 // means VOE_EDITOR_TOPBAR_HIGH, `wanted` nought means fit the content.
 typedef struct {
@@ -45,6 +46,7 @@ typedef struct {
 	voe_ui_node open_button;
 	voe_ui_node save_button;
 	voe_ui_node play_button;
+	voe_ui_node refresh_button;
 	voe_ui_node preferences_button;
 	float high;
 	float wanted;
@@ -66,15 +68,16 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 			       voe_editor_topbar *bar);
 
 // Draws the bar as one row: New, Open, Save, `play` as Play's label,
-// Preferences, then `name` with " (unsaved)"
+// `refresh` as Refresh's, Preferences, then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
 // exactly as long as the row's labels are (ui/widgets.h). Records the
-// panel and the five buttons into `bar`, laid out at
+// panel and the six buttons into `bar`, laid out at
 // voe_editor_topbar_high(bar, surface_high).
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
-			   const char *play, const char *name, bool unsaved,
+			   const char *play, const char *refresh,
+			   const char *name, bool unsaved,
 			   const char *notice);
 
 // Which button fired this frame, or VOE_EDITOR_COMMAND_NONE when none did.

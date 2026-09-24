@@ -42,6 +42,10 @@
 // and dropdown. A failed build, load or swap says so in the notice and keeps
 // the old world; `play_after` is then dropped.
 //
+// A FAILED BUILD SHOWS `errors` (errors.h) from Build/build.log: a refresh
+// that answers FAILED, or a Play whose configure or build failed
+// (voe_editor_session_play_poll). A refresh or Play that starts hides it.
+//
 // voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS: the
 // inspector's edits are no command, so its caller calls this, which marks the
 // project unsaved, clears the notice and disarms.
@@ -53,6 +57,7 @@
 #pragma once
 
 #include "browser.h"
+#include "errors.h"
 #include "notice.h"
 #include "play.h"
 #include "project.h"
@@ -91,6 +96,8 @@ typedef struct {
 	bool refresh_due;
 	// How many libraries this run has loaded, the n of project-<n> (code.h).
 	uint32_t loads;
+	// Shown by a failed build, hidden by a refresh or Play that starts.
+	voe_editor_errors errors;
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;
@@ -118,6 +125,10 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 // stale and scene->world is the new one.
 bool voe_editor_session_step(voe_editor_session *session,
 			     voe_editor_scene *scene);
+
+// Once a frame: session->play polled (play.h), and a configure or build that
+// failed on this poll shows `errors` from the project's build log.
+void voe_editor_session_play_poll(voe_editor_session *session);
 
 // "Building" while a refresh with `play_after` runs, else
 // voe_editor_play_label.

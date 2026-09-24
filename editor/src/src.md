@@ -83,16 +83,20 @@ carries it out.
   Open each refuse once while there are unsaved changes and go ahead the second time.
 - `session.c` — the refuse-once rule, the six commands with Play refreshing first, a built library
   loaded and swapped in once a frame, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Preferences, the
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Preferences, the
   project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its five buttons, Play among them, afterwards.
+  the read of its six buttons, Play and Refresh among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
+- `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
+  cut at 160 bytes, in a scroll area with Close, as an anchored panel over the dock.
+- `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
+  calls, and the read of Close afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an anchored panel over the
   dock, its own arena for the current folder and its rows, and in SAVE mode a name row with a
   focused `ui` field and a Make folder button.

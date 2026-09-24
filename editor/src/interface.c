@@ -11,8 +11,8 @@
 // voe_ui_frame_end and only while the arena its nodes came out of still holds
 // them — a window this function opens and closes. So the one line that reads
 // the frame's clicks is here, between the two, and what a click MEANS is
-// scene.c's — EXCEPT FOR THE TOP BAR'S, THE BROWSER'S AND PREFERENCES' OWN,
-// whose clicks are
+// scene.c's — EXCEPT FOR THE TOP BAR'S, THE BROWSER'S, PREFERENCES' AND THE
+// ERRORS PANEL'S OWN, whose clicks are
 // commands carried out right here, through voe_editor_session_do and
 // voe_editor_session_browser_do, because the same window is the only place
 // topbar.h's and browser.h's recorded buttons can be asked either. Only one of
@@ -38,6 +38,7 @@
 #include "interface.h"
 
 #include "browser.h"
+#include "errors.h"
 #include "inspector.h"
 #include "inspector_edit.h"
 #include "notice.h"
@@ -123,7 +124,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 	// Once a frame, before any root is built, so every root's bar reads
 	// the same label (interface.h).
-	voe_editor_play_poll(&session->play);
+	voe_editor_session_play_poll(session);
 
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
@@ -140,8 +141,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// commands have run has to answer for what this frame
 		// actually laid out.
 		bool browsing = browser->showing;
-		// The same, for preferences, which the browser covers.
-		bool preferring = preferences->showing && !browsing;
+		// The same, for the Errors panel, which the browser covers,
+		// and for preferences, which both cover.
+		bool erroring = session->errors.showing && !browsing;
+		bool preferring = preferences->showing && !browsing &&
+				  !erroring;
 		// The picker, when it shows, and what it edits: the target as
 		// it was when drawn, whatever this frame's clicks do to it.
 		voe_math_float3 colour;
@@ -149,7 +153,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_ui_node picker = VOE_UI_NODE_NONE;
 		bool picking;
 
-		if (browsing || preferring)
+		if (browsing || preferring || erroring)
 			voe_editor_scene_picker_close(scene);
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
@@ -161,7 +165,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		}
 
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
-		if (browsing || preferring)
+		if (browsing || preferring || erroring)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -200,6 +204,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				    .across = VOE_UI_ACROSS_FILL });
 		voe_editor_topbar_draw(ui, bar, arena, root->size.y,
 				       voe_editor_session_play_label(session),
+				       voe_editor_refresh_label(&session->refresh),
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text);
@@ -220,6 +225,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						    voe_editor_topbar_high(
 							    bar, root->size.y),
 						    below_bar.size);
+		if (erroring)
+			voe_editor_errors_draw(ui, &session->errors,
+					       voe_editor_topbar_high(
+						       bar, root->size.y),
+					       below_bar.size);
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
 		// carries the anchor, the picker being a panel of its own.
@@ -306,6 +316,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			if (voe_editor_topbar_preferences_read(ui, bar))
 				voe_editor_preferences_show(preferences);
 		}
+
+		// THE ERRORS PANEL, WHEN IT WAS DRAWN: Close hides it.
+		if (erroring &&
+		    voe_editor_errors_clicks_read(ui, &session->errors))
+			voe_editor_errors_hide(&session->errors);
 
 		// PREFERENCES, WHEN IT WAS DRAWN. A theme chosen here is set on
 		// the context after this frame's records were built, so it

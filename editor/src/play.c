@@ -115,8 +115,9 @@ void voe_editor_play_start(voe_editor_play *play,
 	}
 }
 
-void voe_editor_play_poll(voe_editor_play *play)
+bool voe_editor_play_poll(voe_editor_play *play)
 {
+	bool failed = false;
 	int code;
 
 	VOE_BASE_ASSERT(play != NULL, "polling no play");
@@ -124,7 +125,7 @@ void voe_editor_play_poll(voe_editor_play *play)
 	if (play->stage == VOE_EDITOR_PLAY_IDLE ||
 	    voe_platform_process_poll(&play->process, &code) ==
 		    VOE_PLATFORM_PROCESS_RUNNING)
-		return;
+		return false;
 
 	switch (play->stage) {
 	case VOE_EDITOR_PLAY_CONFIGURING:
@@ -132,6 +133,7 @@ void voe_editor_play_poll(voe_editor_play *play)
 			fprintf(stderr,
 				"voe_editor: configuring the game failed (exit %d), see %s\n",
 				code, voe_editor_game_tree_log(play->folder, play->arena));
+			failed = true;
 			break;
 		}
 		if (!play_step(play, VOE_EDITOR_PLAY_BUILDING,
@@ -141,7 +143,7 @@ void voe_editor_play_poll(voe_editor_play *play)
 				"voe_editor: building the game could not start\n");
 			break;
 		}
-		return;
+		return false;
 
 	case VOE_EDITOR_PLAY_BUILDING: {
 		const char *program;
@@ -150,6 +152,7 @@ void voe_editor_play_poll(voe_editor_play *play)
 			fprintf(stderr,
 				"voe_editor: building the game failed (exit %d), see %s\n",
 				code, voe_editor_game_tree_log(play->folder, play->arena));
+			failed = true;
 			break;
 		}
 		program = voe_editor_game_tree_program(play->folder,
@@ -159,7 +162,7 @@ void voe_editor_play_poll(voe_editor_play *play)
 			fprintf(stderr, "voe_editor: the game could not start\n");
 			break;
 		}
-		return;
+		return false;
 	}
 
 	case VOE_EDITOR_PLAY_RUNNING:
@@ -167,6 +170,8 @@ void voe_editor_play_poll(voe_editor_play *play)
 		break;
 	}
 	play_idle(play);
+	VOE_BASE_ASSERT(play->stage == VOE_EDITOR_PLAY_IDLE, "an ended play still runs");
+	return failed;
 }
 
 void voe_editor_play_end(voe_editor_play *play)

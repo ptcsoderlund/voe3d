@@ -1,6 +1,7 @@
 // The refuse-once rule, the six commands, a refresh started, polled and its
-// library swapped in, and what a browser action does to the session. See the
-// header for what each one does and why only CLOSE ever answers true.
+// library swapped in, a failed build's Errors panel shown, and what a browser
+// action does to the session. See the header for what each one does and why
+// only CLOSE ever answers true.
 #include "session.h"
 
 #include "code.h"
@@ -35,12 +36,42 @@ static bool session_has_code(const voe_editor_project *project)
 	return has;
 }
 
-// A refresh started now, so a due one is forgotten; a refusal is the notice.
+// The Errors panel shown from the project's Build/build.log. A project with
+// no folder has no log, and a failed build always had one.
+static void session_errors_show(voe_editor_session *session)
+{
+	voe_base_arena *scratch;
+
+	VOE_BASE_ASSERT(session->project != NULL, "showing errors of no project");
+	if (session->project->folder == NULL)
+		return;
+	scratch = voe_base_arena_new(SESSION_SCRATCH);
+	VOE_BASE_ASSERT(scratch != NULL, "no scratch to name the log in");
+	voe_editor_errors_show(&session->errors,
+			       voe_editor_game_tree_log(session->project->folder,
+							scratch));
+	voe_base_arena_destroy(scratch);
+}
+
+// Play started now, the last failure's panel hidden; a refusal is the notice.
+static void session_play_start(voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session->play.stage == VOE_EDITOR_PLAY_IDLE,
+			"starting a play over a running one");
+	voe_editor_errors_hide(&session->errors);
+	voe_editor_play_start(&session->play, session->project,
+			      &session->notice);
+	VOE_BASE_ASSERT(!session->errors.showing, "a started play shows errors");
+}
+
+// A refresh started now, so a due one is forgotten and the last failure's
+// panel hidden; a refusal is the notice.
 static void session_refresh_start(voe_editor_session *session)
 {
 	VOE_BASE_ASSERT(session->refresh.stage == VOE_EDITOR_REFRESH_IDLE,
 			"starting a refresh over a running one");
 	session->refresh_due = false;
+	voe_editor_errors_hide(&session->errors);
 	voe_editor_refresh_start(&session->refresh, session->project,
 				 &session->notice);
 	VOE_BASE_ASSERT(!session->refresh_due, "a started refresh still due");
@@ -147,6 +178,7 @@ bool voe_editor_session_step(voe_editor_session *session,
 		voe_editor_notice_set(
 			&session->notice,
 			"The project's code did not build — see Build/build.log");
+		session_errors_show(session);
 		return false;
 	case VOE_EDITOR_REFRESH_BUILT:
 		break;
@@ -156,9 +188,22 @@ bool voe_editor_session_step(voe_editor_session *session,
 	session->play_after = false;
 	swapped = session_code_swap(session, scene);
 	if (swapped >= 0 && play && session->play.stage == VOE_EDITOR_PLAY_IDLE)
-		voe_editor_play_start(&session->play, session->project,
-				      &session->notice);
+		session_play_start(session);
 	return swapped > 0;
+}
+
+void voe_editor_session_play_poll(voe_editor_session *session)
+{
+	bool failed;
+
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
+			"polling the play of a session with no project");
+
+	failed = voe_editor_play_poll(&session->play);
+	if (failed)
+		session_errors_show(session);
+	VOE_BASE_ASSERT(!failed || session->play.stage == VOE_EDITOR_PLAY_IDLE,
+			"a failed play still runs");
 }
 
 const char *voe_editor_session_play_label(const voe_editor_session *session)
@@ -237,8 +282,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 			session->play_after = session->refresh.stage !=
 					      VOE_EDITOR_REFRESH_IDLE;
 		} else {
-			voe_editor_play_start(&session->play, session->project,
-					      &session->notice);
+			session_play_start(session);
 		}
 		return false;
 

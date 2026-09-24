@@ -531,10 +531,13 @@ int main(int argc, char *argv[])
 			escape_free = false;
 		}
 		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
-		// Preferences, which it does nothing else to. Neither while a
-		// person is typing: then it cancels that and nothing more.
-		if (escape_free && !browser.showing)
+		// Preferences and the Errors panel, which it does nothing else
+		// to. Neither while a person is typing: then it cancels that
+		// and nothing more.
+		if (escape_free && !browser.showing) {
 			voe_editor_preferences_hide(&preferences);
+			voe_editor_errors_hide(&session.errors);
+		}
 
 		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
 		// reads this for whichever field or number box is focused, and
@@ -563,6 +566,7 @@ int main(int argc, char *argv[])
 		resized = voe_editor_resize_frame(
 			&resize, &roots[0], &bar,
 			!browser.showing && !preferences.showing &&
+				!session.errors.showing &&
 				!scene.picking.open && !scene.dropdown.open &&
 				!flying,
 			voe_platform_clock_now());
@@ -598,6 +602,7 @@ int main(int argc, char *argv[])
 					      pixels_per_millimetre,
 				      roots[0].pointer.at, left && pointer.over,
 				      browser.showing || preferences.showing ||
+					      session.errors.showing ||
 					      scene.picking.open);
 
 		// Then a press over a view picks what is under it (pick.h). A
@@ -606,6 +611,7 @@ int main(int argc, char *argv[])
 		voe_editor_pick_read(&pick, &scene, &views, &geometries,
 				     roots[0].pointer.at, left && pointer.over,
 				     browser.showing || preferences.showing ||
+					     session.errors.showing ||
 					     scene.picking.open ||
 					     voe_editor_gizmo_taking(&gizmo));
 

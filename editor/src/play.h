@@ -65,8 +65,9 @@ void voe_editor_play_start(voe_editor_play *play,
 
 // Never blocks. Moves a step that ended 0 on to the next; a step that failed
 // prints one stderr line and goes idle, as does a game that ended. Idle is a
-// no-op.
-void voe_editor_play_poll(voe_editor_play *play);
+// no-op. True only when a configure or build step ended non-zero on this
+// poll, so the caller can show the log (session.h).
+bool voe_editor_play_poll(voe_editor_play *play);
 
 // Ends whatever runs, with everything it started, and goes idle. Idle is a
 // no-op.

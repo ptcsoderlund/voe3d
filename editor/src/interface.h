@@ -234,9 +234,22 @@
 // THE BAR'S PLAY BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
 // and TEN ELEMENTS: its border and fill, and the eight letters of
 // "Building", its longest label. 589 + 2 = 591, 5673 + 10 = 5683.
-#define VOE_EDITOR_INTERFACE_NODES 591
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5683
-#define VOE_EDITOR_INTERFACE_SCROLLS 4
+//
+// THE BAR'S REFRESH BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
+// and TWELVE ELEMENTS: its border and fill, and the ten letters of
+// "Refreshing", its longer label. 591 + 2 = 593, 5683 + 12 = 5695.
+//
+// THE ERRORS PANEL (errors.h) ADDS FIFTY-FOUR NODES, counted on top though it
+// takes Preferences' place: the panel, one; its title, one; its scroll area,
+// one; up to VOE_EDITOR_ERRORS_LINES (48) line labels; Close's row, and Close
+// as a button and a label, three. 593 + 54 = 647 nodes. AND 7704 ELEMENTS:
+// the panel's border and fill, two; "Build errors", eleven; the scrollbars on
+// both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES (160)
+// characters, a byte at least apiece, 7680; Close, two and five. 5695 + 7704 =
+// 13399 elements. AND ONE MORE SCROLL AREA, its lines': five.
+#define VOE_EDITOR_INTERFACE_NODES 647
+#define VOE_EDITOR_INTERFACE_ELEMENTS 13399
+#define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
 // with the font that theme was derived with — ui measures and draws every
@@ -322,9 +335,13 @@ void voe_editor_interface_surface(voe_platform_size target,
 // and sets that palette and its font on `ui`, saying in the session's notice
 // when it could not be remembered; Close hides it.
 //
+// THE SESSION'S ERRORS PANEL (errors.h) IS DRAWN THE SAME WAY, WHEN IT IS
+// SHOWING AND THE BROWSER IS NOT, and covers Preferences, which is then not
+// drawn or read; its Close hides it.
+//
 // THE COLOUR PICKER IS DRAWN OVER THE DOCK TOO, beside the Inspector column,
-// while scene.h's `picking` shows and neither the browser nor Preferences does
-// — either of those closes it. What it changes is submitted at once as the
+// while scene.h's `picking` shows and neither the browser, Preferences nor
+// the Errors panel does — any of those closes it. What it changes is submitted at once as the
 // row's replace intent and counted in `scene->inspector.replaced`; a press
 // outside it closes it. See interface.c.
 //
