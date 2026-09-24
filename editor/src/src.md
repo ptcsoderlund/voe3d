@@ -7,6 +7,14 @@ carries it out.
 - `main.c` — reads the command line, opens a project, the window and the device, makes the arena,
   the one font, the themes and the interface, uploads the built-in shapes, and runs the loop, which
   flies a view under the right button, until a close goes ahead or the picture is written.
+- `startup.h` — which project the editor opens on: the argued folder, the remembered one or
+  untitled, written back as the last project unless capturing, and the descriptions line.
+- `startup.c` — the three tried in order, what each failure says, and the last-project write.
+- `world_step.h` — the world's step once a frame, the structural queue then every owning system,
+  and why in that order and all of them always.
+- `world_step.c` — the queue applied, then transform, identity, light and shape systems run.
+- `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
+- `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
   each against last frame's, which is where every key edge in the program is found.
 - `keys.c` — the one read of every key, once a frame, and the levels it
