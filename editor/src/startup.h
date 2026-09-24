@@ -14,7 +14,8 @@
 #include "session.h"
 
 // Fills session->project from options: argued, remembered or untitled, and
-// writes it back as the last project unless options->capture is set. False
+// writes it back as the last project unless options->capture is set; a project
+// with a folder sets session->refresh_due (session.h). False
 // only when the argued folder would not open, already said on stderr, and
 // session->project is then NULL.
 [[nodiscard]] bool voe_editor_startup_project(const voe_editor_options *options,

@@ -199,7 +199,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 							  root->size.x } },
 				    .across = VOE_UI_ACROSS_FILL });
 		voe_editor_topbar_draw(ui, bar, arena, root->size.y,
-				       voe_editor_play_label(&session->play),
+				       voe_editor_session_play_label(session),
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text);

@@ -74,6 +74,10 @@ bool voe_editor_startup_project(const voe_editor_options *options,
 			"editor",
 			"could not remember %s as the last project opened",
 			session->project->folder);
+
+	// A project with a folder may have code, built and loaded at the
+	// first step (session.h).
+	session->refresh_due = session->project->folder != NULL;
 	return true;
 }
 

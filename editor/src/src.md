@@ -74,11 +74,15 @@ carries it out.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
   to the next or to one stderr line naming the build log, and the play's arena destroyed whenever
   it goes idle.
-- `session.h` — the project being worked on, its notice, its Play, the flag that says a different
-  project is in place, and the one armed command that makes closing the window, New and Open each
-  refuse once while there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the five commands with Play's start and Stop and a close
-  ending the play, and what a browser action does to the session.
+- `refresh.h` — Refresh: the game tree configured and built as the project's library, a step at a
+  time without blocking, a failed step one stderr line naming the build log, and the label.
+- `refresh.c` — the tree written and the first step started, each ended step polled on to the build,
+  BUILT or FAILED, and the refresh's arena destroyed whenever it goes idle.
+- `session.h` — the project being worked on, its notice, its Play and Refresh, the flag that says a
+  different project is in place, and the one armed command that makes closing the window, New and
+  Open each refuse once while there are unsaved changes and go ahead the second time.
+- `session.c` — the refuse-once rule, the six commands with Play refreshing first, a built library
+  loaded and swapped in once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Preferences, the
   project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.

@@ -46,12 +46,14 @@
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // (options.h) opens the device with no window at all (voe_app_new_headless),
 // builds the same world, font, themes, interface and scene, runs the loop body
-// twice and writes the picture, both counted and written by capture.h.
+// twice and writes the picture, both counted and written by capture.h. It first
+// waits out a running refresh (session.h), for at most 120 s of the frame clock.
 // EVERY READ OF THE WINDOW IS GUARDED.
 #include "browser.h"
 #include "capture.h"
 #include "dock.h"
 #include "gizmo.h"
+#include "inspector_edit.h"
 #include "interface.h"
 #include "keys.h"
 #include "preferences.h"
@@ -108,6 +110,9 @@
 // yet, so it is `app`'s required policy and no more.
 #define MAX_FRAME_SECONDS 0.25
 
+// How long a capture waits for the project's code to build before it gives up.
+#define CAPTURE_REFRESH_SECONDS 120.0
+
 #define EDITOR_WIDE 1280
 #define EDITOR_HIGH 720
 
@@ -126,6 +131,10 @@ int main(int argc, char *argv[])
 				       .high = EDITOR_HIGH };
 	// How many frames a capture has drawn so far.
 	unsigned frames = 0;
+	// Whether a capture has waited on a refresh, and the frame clock's
+	// reading when it began to.
+	bool refresh_waited = false;
+	double refresh_since = 0.0;
 	// The project being worked on, its notice and its refuse-once state
 	// (session.h); its project is never NULL past startup.h's call.
 	voe_editor_session session = { 0 };
@@ -337,6 +346,13 @@ int main(int argc, char *argv[])
 		// The light every view is shown with this frame (view.h), read
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
+
+		// A BUILT REFRESH LANDS HERE, before the undo take and the
+		// world step, so the new world's rows get their meshes before
+		// anything draws them (session.h). A swapped world holds none
+		// of the entities Add component's list was open for.
+		if (voe_editor_session_step(&session, &scene))
+			voe_editor_inspector_add_close(&scene.inspector);
 
 		// LIVE EDITING (themes.h): at most once a second, the chosen
 		// theme's file read again; set on the context before this
@@ -671,9 +687,25 @@ int main(int argc, char *argv[])
 		}
 
 		// A CAPTURE'S LOOP HAS TO STOP ITSELF (capture.h), counted here
-		// where a frame has actually been drawn and submitted.
-		if (voe_editor_capture_enough(options.capture, &frames))
+		// where a frame has actually been drawn and submitted. A
+		// running refresh is waited for, its frames not counted, for at
+		// most CAPTURE_REFRESH_SECONDS of the frame clock.
+		if (options.capture != NULL &&
+		    session.refresh.stage != VOE_EDITOR_REFRESH_IDLE) {
+			if (!refresh_waited)
+				refresh_since = opened.tick.now;
+			refresh_waited = true;
+			if (opened.tick.now - refresh_since >
+			    CAPTURE_REFRESH_SECONDS) {
+				fprintf(stderr,
+					"voe_editor: the capture gave up on the project's code after %d s\n",
+					(int)CAPTURE_REFRESH_SECONDS);
+				status = 1;
+				break;
+			}
+		} else if (voe_editor_capture_enough(options.capture, &frames)) {
 			break;
+		}
 	}
 
 stop:
@@ -688,6 +720,7 @@ stop:
 	// outlive none of this, so they go last — the browser's own may
 	// never have been made at all, on a run Open was never once asked
 	// for, which is voe_editor_browser_destroy's to tell apart.
+	voe_editor_refresh_end(&session.refresh);
 	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);

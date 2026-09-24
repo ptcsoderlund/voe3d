@@ -24,19 +24,34 @@
 // "project-<load>" plus the extension, the largest uint32_t included.
 #define CODE_NAME 32
 
+// Whether path is a folder, looked for in its parent's listing, because
+// listing a path that is not there reports an error on stderr.
+static bool folder_there(const char *path, voe_base_arena *arena)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	const char *name = voe_platform_path_name(path);
+	voe_platform_folder_listing listing;
+	bool there = false;
+
+	VOE_BASE_ASSERT(path != NULL && name != NULL, "looking for no folder");
+	if (voe_platform_folder_list(voe_platform_path_parent(arena, path), arena,
+				     &listing, NULL))
+		for (uint32_t i = 0; i < listing.count && !there; i++)
+			there = listing.entries[i].folder &&
+				strcmp(listing.entries[i].name, name) == 0;
+	voe_base_arena_rewind(arena, mark);
+	VOE_BASE_ASSERT(voe_base_arena_mark(arena).used == mark.used,
+			"a folder lookup kept memory");
+	return there;
+}
+
 // path already a folder, or made one level. False with why naming it.
 static bool folder_ensure(const char *path, voe_base_arena *arena,
 			  voe_editor_notice *why)
 {
-	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
-	voe_platform_folder_listing listing;
-	bool there;
-
 	VOE_BASE_ASSERT(path != NULL, "making no folder");
 	VOE_BASE_ASSERT(why != NULL, "making a folder with nowhere to say why");
-	there = voe_platform_folder_list(path, arena, &listing, NULL);
-	voe_base_arena_rewind(arena, mark);
-	if (there)
+	if (folder_there(path, arena))
 		return true;
 	voe_base_report_error_clear();
 	if (voe_platform_folder_create(path, NULL))
