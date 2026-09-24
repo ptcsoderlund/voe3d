@@ -9,6 +9,8 @@ and read through the description its own folder registered.
   how kept sections are merged in.
 - `scene_read.c` — the reader. Its header says why only its second pass touches
   the world and why it walks the text beside the sectioned reader for key spans.
+- `scene_cook.c` — the cook. Its header says why a field's dimensions may recurse
+  and where the growing text lives.
 - `project.c` — the project file reader and writer. Its header says how a scene
   path is checked the same way on both sides.
 - `key_span.h` — each key's own trimmed bytes in a sectioned document, which

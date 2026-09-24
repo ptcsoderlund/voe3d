@@ -1,7 +1,8 @@
 # authoring
 
 A world turned into a scene file and back (ADR-0151; format ADR-0149, content
-ADR-0150), and a project file read and written (ADR-0164). Authoring-time code:
+ADR-0150), a world cooked into C source for the game (ADR-0237), and a project
+file read and written (ADR-0164). Authoring-time code:
 components go through their field descriptions, which a game's build compiles
 out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 
@@ -14,5 +15,8 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 - `include/authoring/scene_read.h` — scene text read into a world. Its header says
   why a load may create rows, that a file is validated whole first, and what is
   kept rather than read; the file says what a world that runs out of room is left as.
+- `include/authoring/scene_cook.h` — a world cooked into C source the game compiles in.
+  Its header says what is cooked, why floats are hex and why the cooked function may
+  create rows; the file says how every field kind is spelled and what it refuses.
 - `include/authoring/project.h` — `project.voe3d` read and written. Its header
   says the one key it holds, what it refuses, and why the writer cannot fail.
