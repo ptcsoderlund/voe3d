@@ -48,3 +48,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **A game window setting in the project**: size, and windowed or fullscreen, for the game Play starts and
   the shipped game (sponsor, 2026-09-24). 0234 fixes 1280×720 until then.
 - One shared engine build per editor that every project links, so only the very first Play on a machine pays the engine compile (0235).
+- **More than one light in a scene**: drawing a frame currently allows at most one (sponsor, 2026-09-24).
+  0238 makes none allowed.
+- **A developer's own shading**: custom materials or shaders for a game that lights things its own way
+  (sponsor, 2026-09-24). Until then, no light means unlit (0238).
