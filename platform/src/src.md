@@ -37,6 +37,10 @@ header.
 - `library_wayland.c` — dlopen and dlsym. Its header says why the name says
   wayland.
 - `library_win32.c` — LoadLibraryA and GetProcAddress.
+- `process_wayland.c` — posix_spawnp into a new process group, waitpid to poll, SIGTERM to the
+  group to end.
+- `process_win32.c` — the argument list quoted into one command line, CreateProcessW inside a
+  kill-on-close job object, and TerminateJobObject to end.
 - `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an AltGr flag per code,
   built from resolved XKB v1 text, internal to this folder and built on both platforms because it
   includes no OS header.

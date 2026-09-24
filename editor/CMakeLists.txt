@@ -1,4 +1,4 @@
 cmake_minimum_required(VERSION 3.28)
 project(voe_editor C)
 include(${CMAKE_CURRENT_LIST_DIR}/../cmake/voe.cmake)
-voe_executable(editor DEPENDS app theme ui text 3d scene ecs render platform authoring math base)
+voe_executable(editor DEPENDS game app theme ui text 3d scene ecs render platform authoring math base)

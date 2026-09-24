@@ -30,3 +30,5 @@ by reading the offscreen colour image back.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.
+- `unshaded.c` — that a pass whose light says `unshaded` draws a lit cube in its base colour, even
+  with a sun pointing away, and that the same light without the flag reads black. Headless.

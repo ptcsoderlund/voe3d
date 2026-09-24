@@ -7,5 +7,6 @@ and the questions each header answers, stays on `authoring/authoring.md`.
   `voe_authoring_text` out-struct.
 - `scene_read.h` — scene text read into a world, the one load that may create
   rows.
+- `scene_cook.h` — a world cooked into C source, one function the game compiles in.
 - `project.h` — `project.voe3d` read and written, holding the one key that names
   the project's scene.

@@ -15,6 +15,7 @@ add_subdirectory(sprite)
 add_subdirectory(ui)
 add_subdirectory(theme)
 add_subdirectory(app)
+add_subdirectory(game)
 add_subdirectory(dev)
 add_subdirectory(editor)
 

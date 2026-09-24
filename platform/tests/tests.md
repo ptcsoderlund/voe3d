@@ -23,3 +23,5 @@ that module's promises from outside. None of them needs a window or a display.
 - `path.c` — join, parent and name on ordinary paths, roots and trailing
   separators, for the platform it runs on; that resolving "." to an absolute
   path is idempotent, and that resolving a made-up name is NULL.
+- `process.c` — that `cmake -E true` ends with 0 and `-E false` with non-zero, that a running
+  `-E sleep 30` is ended within five seconds and zeroed, and that a missing program is a false start.

@@ -427,11 +427,17 @@ typedef struct {
 // site by keeping intensities low; the card that maps a high-dynamic-range
 // target down to a screen is the card that fixes it, and card 013's offscreen
 // target is what makes it possible.
+//
+// `unshaded` NON-ZERO MEANS THIS PASS HAS NO SUN. Every surface then draws its
+// own base colour, as an unlit material does, and direction, intensity and
+// colour are not read. The owner of the scene's light, `3d`, sets it when a
+// scene has none (ADR-0238). Zero keeps shading, so a zeroed light is still the
+// black one above. It is the four bytes that used to be padding.
 typedef struct {
 	voe_math_float3 direction;
 	float intensity;
 	voe_math_float3 colour;
-	float reserved;
+	uint32_t unshaded;
 } voe_render_light;
 
 // One drawn object's record: the two matrices it is drawn with, the shading

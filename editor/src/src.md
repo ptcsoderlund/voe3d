@@ -24,8 +24,7 @@ carries it out.
   in it, the kept sections it was read with, its absolute folder and whether it has unsaved changes
   (ADR-0164), and its scene handed out as text or read back in from one.
 - `project.c` — opening, making and saving a project, the scene written out as
-  text and a text read back into the same world, the one `world_new` every
-  world is built by, and the untitled scene's cube, light and camera, which are
+  text and a text read back into the same world, and the untitled scene's cube, light and camera, which are
   this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
@@ -52,16 +51,25 @@ carries it out.
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
   base/report.h's first kept error.
-- `session.h` — the project being worked on, its notice, the flag that says a different project is in
-  place, and the one armed command that makes closing the window, New and Open each refuse once while
-  there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the four commands, and what a browser
-  action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Preferences, the
+- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, each written only
+  when its bytes change, the project's `.gitignore` when it has none, and the argument lists that
+  configure and build the tree with the editor's own tools, and the game program's path.
+- `game_tree.c` — the files compared before they are written, the name and engine path escaped for
+  where they go, the world cooked into scene.c, and each argument list in one struct.
+- `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
+  program of its own, a second press ending it, and the label Play, Building or Stop.
+- `play.c` — the tree written and the first step started at the press, each ended step polled on
+  to the next or to one stderr line, and the play's arena destroyed whenever it goes idle.
+- `session.h` — the project being worked on, its notice, its Play, the flag that says a different
+  project is in place, and the one armed command that makes closing the window, New and Open each
+  refuse once while there are unsaved changes and go ahead the second time.
+- `session.c` — the refuse-once rule, the five commands with Play's start and Stop and a close
+  ending the play, and what a browser action does to the session.
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Preferences, the
   project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its four buttons afterwards.
+  the read of its five buttons, Play among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -86,9 +94,9 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, submitted into the open frame, and the one read of the
-  frame's clicks that carries out the top bar's, the browser's and Preferences' commands and the
-  colour picker's changes.
+- `interface.c` — the play state polled once a frame, one `ui` frame per root, submitted into the
+  open frame, and the one read of the frame's clicks that carries out the top bar's, Play among
+  them, the browser's and Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it.

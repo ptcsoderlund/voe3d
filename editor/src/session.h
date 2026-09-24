@@ -1,5 +1,6 @@
-// The project being worked on, its notice, and the refuse-once rule that keeps
-// unsaved work from being thrown away by one click or one press of a shortcut.
+// The project being worked on, its notice, its Play, and the refuse-once rule
+// that keeps unsaved work from being thrown away by one click or one press of
+// a shortcut. The commands are New, Open, Save, Close and Play.
 //
 // ONE ARMED COMMAND, AND IT IS THE WHOLE OF THE RULE. `voe_editor_session_do`
 // is given a command the top bar or a shortcut just asked for. With the
@@ -36,6 +37,11 @@
 // voe_editor_session_browser_do's, the same shape OPEN's Confirm already
 // has.
 //
+// PLAY NEVER ARMS AND IS NEVER REFUSED FOR UNSAVED WORK: it plays the world
+// as it is (ADR-0188). Idle, it starts session->play (play.h); a second press
+// while building or running is Stop and ends it. A CLOSE THAT GOES AHEAD ENDS
+// THE PLAY FIRST, so the editor never leaves a build or a game behind.
+//
 // voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS. An edit in the
 // inspector is not a command this file was asked to do, so nothing above
 // would otherwise notice it; the caller that reads a non-zero count of
@@ -56,10 +62,11 @@
 
 #include "browser.h"
 #include "notice.h"
+#include "play.h"
 #include "project.h"
 #include "scene.h"
 
-// The four things a person can ask the session to do, and NONE for "nothing
+// The five things a person can ask the session to do, and NONE for "nothing
 // was asked this frame" — which is never a valid argument to
 // voe_editor_session_do, only the value `armed` rests at between commands.
 typedef enum {
@@ -68,6 +75,7 @@ typedef enum {
 	VOE_EDITOR_COMMAND_OPEN,
 	VOE_EDITOR_COMMAND_SAVE,
 	VOE_EDITOR_COMMAND_CLOSE,
+	VOE_EDITOR_COMMAND_PLAY,
 } voe_editor_command;
 
 // Zeroed is a session with no project yet and nothing armed — the caller sets
@@ -77,6 +85,8 @@ typedef struct {
 	voe_editor_project *project;
 	voe_editor_notice notice;
 	voe_editor_command armed;
+	// Idle while zeroed; ended by a CLOSE that goes ahead.
+	voe_editor_play play;
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;
@@ -87,9 +97,9 @@ typedef struct {
 // shows; neither is touched by any other command.
 //
 // TRUE ONLY FOR A CLOSE THAT GOES AHEAD. Every other command, refused or not,
-// answers false: NEW replaces `session->project`, OPEN shows `browser` and
-// SAVE writes to the project, none of which the caller has to be told
-// happened, and a refused command is exactly the case in which nothing may go
+// answers false: NEW replaces `session->project`, OPEN shows `browser`, SAVE
+// writes to the project and PLAY starts or ends session->play, none of which
+// the caller has to be told happened, and a refused command is exactly the case in which nothing may go
 // ahead. A caller that asked for CLOSE and got false carries on running; one
 // that got true closes.
 bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,

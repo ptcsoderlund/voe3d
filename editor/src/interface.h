@@ -128,7 +128,7 @@
 // AND INSPECTOR.C'S PER-COMPONENT PANELS, NAMED BY NEITHER NUMBER ABOVE UNTIL
 // NOW. Every component type the selected entity has a row of gets its own
 // RAISED panel (inspector.c's component_panel), and this editor's world never
-// holds more than eight component types at once — project.c's world_new is
+// holds more than eight component types at once — game/world.h is
 // the only place that decides it, and ecs/component.h asserts rather than
 // lets a world grow past what it was made with — so at most eight are drawn
 // a frame. Each is a panel and its heading label, two nodes, and — the
@@ -230,8 +230,12 @@
 // AREA, the rows', on top of the dock's two and the browser's one, counted on
 // top all the same for the reason the picker's nodes are:
 // VOE_EDITOR_INTERFACE_SCROLLS is four.
-#define VOE_EDITOR_INTERFACE_NODES 589
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5673
+//
+// THE BAR'S PLAY BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
+// and TEN ELEMENTS: its border and fill, and the eight letters of
+// "Building", its longest label. 589 + 2 = 591, 5673 + 10 = 5683.
+#define VOE_EDITOR_INTERFACE_NODES 591
+#define VOE_EDITOR_INTERFACE_ELEMENTS 5683
 #define VOE_EDITOR_INTERFACE_SCROLLS 4
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -284,6 +288,9 @@ void voe_editor_interface_surface(voe_platform_size target,
 // itself. A button that fired is carried out on `session` before this root's
 // records are submitted, through voe_editor_session_do, which is the reason
 // `session` and not just its notice and its project's name are handed in.
+// The session's play state (play.h) is polled here, once a frame before any
+// root is built, because this is the one call every frame makes with the
+// session; the bar's Play button shows its label.
 //
 // `browser` IS DRAWN OVER THE DOCK, IN THE SAME COLUMN, WHEN IT IS SHOWING —
 // see browser.h. WHETHER IT WAS SHOWING IS CAPTURED BEFORE ANYTHING IS DRAWN

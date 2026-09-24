@@ -17,3 +17,5 @@ stays on `platform/platform.md`.
   absolute path.
 - `library.h` — a shared library opened by name at run time, and a symbol out of
   it.
+- `process.h` — starting a program, polling it without waiting, and ending it with everything
+  it started.

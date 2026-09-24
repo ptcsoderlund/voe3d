@@ -156,14 +156,11 @@ typedef struct {
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 			 float pixels_per_millimetre);
 
-// The light every view is shown with: the world's first light row, or a light
-// of zero intensity — every surface black — when the world holds none. Every
-// view is lit the same way, once a frame, by whichever light `Light` (or
-// whatever a saved project called it) carries; a world with none — nothing to
-// see by, rather than a crash — is what a broken or half-built scene draws as.
-// `render` does not normalize the direction (render/device.h) but
-// voe_scene_light_add and the light system already have, so the row's is copied
-// straight across.
+// The light every view is shown with: the world's light as `3d` gives it
+// (voe_3d_draw_system_light), so a world with none draws unshaded, every
+// surface in its own material colour (ADR-0238), exactly as the game's frame
+// does. Every view is lit the same way, once a frame, by whichever light
+// `Light` (or whatever a saved project called it) carries.
 voe_render_light voe_editor_view_light(const voe_ecs_world *world);
 
 // The colour every view's selection outline is drawn in: the lighter of the

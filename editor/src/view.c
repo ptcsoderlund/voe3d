@@ -14,9 +14,8 @@
 
 #include <base/assert.h>
 
+#include <3d/draw_system.h>
 #include <3d/projection.h>
-
-#include <scene/light_component.h>
 
 #include <math/quat.h>
 
@@ -156,19 +155,9 @@ void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 
 voe_render_light voe_editor_view_light(const voe_ecs_world *world)
 {
-	const voe_scene_light *row;
-
 	VOE_BASE_ASSERT(world != NULL, "the light of no world");
 
-	if (voe_scene_light_count(world) == 0)
-		return (voe_render_light){ 0 };
-
-	row = &voe_scene_light_rows(world)[0];
-	VOE_BASE_ASSERT(row != NULL, "a light count with no rows behind it");
-
-	return (voe_render_light){ .direction = row->direction,
-				   .colour = row->colour,
-				   .intensity = row->intensity };
+	return voe_3d_draw_system_light(world);
 }
 
 voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette)

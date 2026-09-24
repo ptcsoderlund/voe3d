@@ -1,0 +1,63 @@
+// What Play writes and runs: a project's game tree and the argument lists that
+// configure it, build it and start the game (ADR-0235, ADR-0237 point 3).
+// Nothing here starts a process; the caller hands these lists to
+// platform/process.h.
+//
+// THE LAYOUT. `<project>/Build/game/` holds CMakeLists.txt, main.c and scene.c;
+// CMake builds it into `<project>/Build/debug/`, the program is
+// `<project>/Build/debug/game`. Everything generated lives in whole top-level
+// folders git ignores — `Build/` here, `Cache/` for any other generated data —
+// so a project's .gitignore lists only folders and nothing generated is ever
+// written beside a developer's own files (0235). A project with no .gitignore
+// is given one; an existing one is never read or changed.
+//
+// EACH FILE IS WRITTEN ONLY WHEN IT IS MISSING OR ITS BYTES DIFFER, because
+// Ninja rebuilds by timestamp: an unchanged CMakeLists.txt or main.c rewritten
+// on every Play would reconfigure or recompile for nothing, so a second Play
+// rebuilds only the scene.
+//
+// scene.c IS THE WORLD AS IT IS NOW, unsaved edits included (ADR-0188), cooked
+// by authoring/scene_cook.h; project->unsaved is left as it was.
+//
+// THE TOOLS COME FROM THE EDITOR'S OWN BUILD (0237): toolchain.h names the
+// engine source, CMake, the compiler, Ninja, pkg-config, slangc and
+// wayland-scanner, and an empty value is a -D left out of the configure.
+//
+// The build is Debug, so a developer can attach any debugger to the running
+// game or open Build/ in an IDE and start it there (0235).
+//
+// Every call takes the project's absolute folder (asserted non-NULL) and an
+// arena that holds its paths, its argument lists and its working memory; what
+// is pushed is the caller's to rewind.
+#pragma once
+
+#include "notice.h"
+#include "project.h"
+
+#include <base/arena.h>
+
+#include <stdbool.h>
+
+// Makes <folder>/Build/game/ as needed and writes its three files, then a
+// .gitignore listing /Build/ and /Cache/ when the project has none. False with
+// why naming the file or folder on a refused cook, folder or write; the report
+// is cleared first. project->folder must be set.
+[[nodiscard]] bool voe_editor_game_tree_write(const voe_editor_project *project,
+					      voe_base_arena *arena,
+					      voe_editor_notice *why);
+
+// Whether <folder>/Build/debug/CMakeCache.txt exists, so a configure is done.
+bool voe_editor_game_tree_configured(const char *folder, voe_base_arena *arena);
+
+// The NULL-terminated argument list that configures <folder>/Build/game into
+// <folder>/Build/debug with Ninja, Debug, and each non-empty tool.
+const char *const *voe_editor_game_tree_configure(const char *folder,
+						  voe_base_arena *arena);
+
+// The NULL-terminated argument list that builds the target game.
+const char *const *voe_editor_game_tree_build(const char *folder,
+					      voe_base_arena *arena);
+
+// <folder>/Build/debug/game, with .exe on Windows.
+const char *voe_editor_game_tree_program(const char *folder,
+					 voe_base_arena *arena);

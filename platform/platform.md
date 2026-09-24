@@ -3,7 +3,7 @@
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
 Today that is a window, its keyboard and mouse, a clock, reading and writing a
-file, and listing, making or finding a folder.
+file, listing, making or finding a folder, and starting another program.
 
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
@@ -33,6 +33,9 @@ file, and listing, making or finding a folder.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it. Its header says why this is here and not in the folder that
   wants one.
+- `include/platform/process.h` — starting another program from an argument list, polling it
+  without blocking, and ending it with everything it started. Its header says why a child and
+  not a thread, and why the whole group ends.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.
   `wayland-scanner` turns every XML here into C at build time; nothing generated
   is committed.

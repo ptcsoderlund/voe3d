@@ -22,7 +22,7 @@
 // 3d/shape_system.h — which is what makes the geometry numbers its constants
 // and `shadings` a one. `objects` is per frame: every drawn entity is one
 // object in every view's pass, so it is the room for drawn entities
-// (VOE_EDITOR_PROJECT_MAX_DRAWN, project.h's — every project's world is
+// (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's — every project's world is
 // registered with that much room for a mesh and a material, so a device that
 // draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
@@ -82,8 +82,8 @@
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_EDITOR_PROJECT_MAX_DRAWN + 4) *                \
-			   VOE_EDITOR_VIEWS + VOE_EDITOR_PROJECT_MAX_DRAWN,    \
+		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 4) *                    \
+			   VOE_EDITOR_VIEWS + VOE_GAME_WORLD_MAX_DRAWN,        \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2,                                \
