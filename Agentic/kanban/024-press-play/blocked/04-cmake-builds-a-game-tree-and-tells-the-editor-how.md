@@ -39,3 +39,9 @@ Only `cmake/` (0237 points 3 and 4). Nothing in the editor uses it yet (cards 05
    `cmake --build $t/b --target game`, exits 0 and `$t/b/game` exists.
 3. After step 2, `git status --porcelain` lists no `compile_commands.json`.
 4. `cmake -P check.cmake` exits 0.
+
+## Blocked
+The change is complete and all four `## Done when` steps pass (the scratch game tree builds `game`, no
+engine folder's `compile_commands.json` is touched, `check.cmake` exits 0). `checks.sh --folder cmake`
+leaves one finding: CLAUDE.md's per-folder check builds `voe_$top`, and there is no `voe_cmake` target.
+Unblock by having the per-folder check skip (or special-case) `cmake/`, or by accepting this finding.

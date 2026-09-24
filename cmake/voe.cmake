@@ -19,16 +19,18 @@
 # lets clangd work in a folder without being told where the build is. It is a
 # build step rather than a configure step because the database does not exist
 # until the generate phase has finished, and a copy rather than a symlink
-# because Windows does not hand those out without being asked nicely.
+# because Windows does not hand those out without being asked nicely. A game
+# tree turns that copy off with VOE_FOLDER_DATABASES (cmake/game.cmake).
 #
-# It also knows two folders by name, because the four-line rule leaves nowhere
+# It also knows three folders by name, because the four-line rule leaves nowhere
 # else to say what they need. platform links something the operating system
-# supplies; render runs slangc over its shaders. Each is a function of its own —
-# voe_platform_backend() and voe_render_shaders() — kept apart from voe_module()
+# supplies; render runs slangc over its shaders; editor is told the tools this
+# build used. Each is a function of its own — voe_platform_backend(),
+# voe_render_shaders(), voe_editor_toolchain() — kept apart from voe_module()
 # so it is obvious how much of this file is general and how much is one folder's
 # bill.
 #
-# Neither is a mechanism for anyone else. The shader rule in particular is
+# None is a mechanism for anyone else. The shader rule in particular is
 # deliberately not generalised: render is the only folder with a shader, and
 # where that call belongs when a second one turns up is a question that needs the
 # second folder to answer.
@@ -164,8 +166,11 @@ function(voe_allowed_deps folder out_var)
         # wants one of them is a decision, not an edit here. It names theme
         # because it reads the person's theme files into the palette it draws
         # with, and theme is the one folder between a theme file and ui
-        # (ADR-0170); assets stays absent, theme's own row carries it.
-        set(deps base math ecs scene platform render text ui 3d authoring app theme)
+        # (ADR-0170); assets stays absent, theme's own row carries it. It names
+        # game for the one list of component types a project's world registers
+        # (0237): the world the editor holds and the world the cook writes for
+        # must register the same types, or the cook names one the game never did.
+        set(deps base math ecs scene platform render text ui 3d authoring app theme game)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
@@ -173,8 +178,13 @@ endfunction()
 # Read by voe_target_settings() below. It exists for check.cmake step 6c, which
 # configures a scratch tree with it OFF, and it is not a knob for daily use: there
 # is no supported way to configure this root without descriptions and still run
-# the editor.
+# the editor. A game tree turns it off too (cmake/game.cmake).
 option(VOE_BASE_DESCRIPTIONS "Compile the field descriptions in" ON)
+
+# Read by voe_export_compile_commands() below. A game tree (cmake/game.cmake)
+# builds these same folders from this source, and it must not write databases
+# into the engine's folders, naming a build tree inside some project (0237).
+option(VOE_FOLDER_DATABASES "Copy compile_commands.json beside each folder" ON)
 
 # The one flag set and the one language level, in one place, applied identically
 # to a folder's library and to its test executables. A test compiled with looser
@@ -221,6 +231,9 @@ endfunction()
 # file comparison per project, and copy_if_different leaves the timestamp alone
 # when the content matches, so nothing downstream churns.
 function(voe_export_compile_commands prefix dir)
+    if(NOT VOE_FOLDER_DATABASES)
+        return()
+    endif()
     add_custom_target(${prefix}_compile_commands ALL
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_BINARY_DIR}/compile_commands.json"
@@ -414,6 +427,48 @@ function(voe_render_shaders folder_dir out_compiled out_include)
     set(${out_include} ${generated} PARENT_SCOPE)
 endfunction()
 
+# editor's bill, and the third folder this file knows by name. The editor passes
+# these to a game tree's configure, so the game is built with the tools this
+# build was (0237). The header is toolchain.h in generated/editor, one C string
+# literal each; an unset value is "", which the editor reads as a -D left out.
+# It is written at configure time and only when its bytes change, so a
+# reconfigure that changes nothing recompiles nothing. The tools are read from
+# the cache, where platform and render (configured first, as dependencies) and
+# the compiler checks left them.
+function(voe_editor_toolchain target)
+    cmake_path(GET CMAKE_CURRENT_FUNCTION_LIST_DIR PARENT_PATH engine)
+    set(VOE_TOOLCHAIN_ENGINE "${engine}")
+    set(VOE_TOOLCHAIN_CMAKE "${CMAKE_COMMAND}")
+    set(VOE_TOOLCHAIN_C_COMPILER "${CMAKE_C_COMPILER}")
+    set(VOE_TOOLCHAIN_MAKE_PROGRAM "${CMAKE_MAKE_PROGRAM}")
+    set(VOE_TOOLCHAIN_PKG_CONFIG "${PKG_CONFIG_EXECUTABLE}")
+    set(VOE_TOOLCHAIN_SLANGC "${VOE_SLANGC}")
+    set(VOE_TOOLCHAIN_WAYLAND_SCANNER "${VOE_WAYLAND_SCANNER}")
+
+    set(text "/* Generated by voe_editor_toolchain() in cmake/voe.cmake. Do not edit. */\n")
+    string(APPEND text "#pragma once\n")
+    foreach(name ENGINE CMAKE C_COMPILER MAKE_PROGRAM PKG_CONFIG SLANGC WAYLAND_SCANNER)
+        set(value "${VOE_TOOLCHAIN_${name}}")
+        if(NOT value)
+            set(value "")
+        endif()
+        string(REPLACE "\\" "\\\\" value "${value}")
+        string(REPLACE "\"" "\\\"" value "${value}")
+        string(APPEND text "#define VOE_TOOLCHAIN_${name} \"${value}\"\n")
+    endforeach()
+
+    set(generated ${CMAKE_BINARY_DIR}/generated/editor)
+    set(header ${generated}/toolchain.h)
+    set(old "")
+    if(EXISTS ${header})
+        file(READ ${header} old)
+    endif()
+    if(NOT old STREQUAL text)
+        file(WRITE ${header} "${text}")
+    endif()
+    target_include_directories(${target} PRIVATE ${generated})
+endfunction()
+
 # Everything voe_module() and voe_executable() do before they part company: the
 # guards, the dependency-map check, pulling each dependency in, and the src/ glob
 # with one-platform-only sources dropped from it.
@@ -550,6 +605,10 @@ function(voe_executable folder)
     endforeach()
 
     voe_target_settings(voe_${folder})
+
+    if(folder STREQUAL "editor")
+        voe_editor_toolchain(voe_${folder})
+    endif()
 
     voe_export_compile_commands(voe_${folder} ${CMAKE_CURRENT_LIST_DIR} voe_${folder})
 endfunction()
