@@ -44,7 +44,7 @@ rules are decision 0168.
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177 — 006 merged back; a new folder registers itself; `theme` sees `render`; draws as PNGs.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186, 0187, 0188 — Toward a coin game in the project's own C; Play cooks the scene as it is.
+- 0186, 0187, 0188, 0234 — Toward a coin game in the project's own C; Play cooks the scene as it is; Play becomes Stop.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0193, 0195, 0198 — The editor changes structure through the queue; a named field is a dropdown.
 - 0194, 0196 — One hue authored as `hue=`, roles differing only in lightness, state drawn inverted.

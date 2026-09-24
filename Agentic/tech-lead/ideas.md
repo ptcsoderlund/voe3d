@@ -45,3 +45,5 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   (0218); builds on render to a texture (003).
 - **A UI scale** that grows panels, rows and everything with it, beside 0219's text size (sponsor, 2026-09-23).
   Per-element overrides of a theme setting are the other half (0194).
+- **A game window setting in the project**: size, and windowed or fullscreen, for the game Play starts and
+  the shipped game (sponsor, 2026-09-24). 0234 fixes 1280×720 until then.
