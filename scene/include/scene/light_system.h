@@ -48,8 +48,8 @@
 // also how many intents may be waiting at once.
 //
 // A WORLD THAT IS DRAWN NEEDS THIS EVEN IF IT HOLDS NO SUN, because the draw
-// system reads the table — see 3d/draw_system.h, which is also where "exactly
-// one" is said.
+// system reads the table — see 3d/draw_system.h, which is also where "at most
+// one" is said and a world with no light draws unshaded (0238).
 void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity);
 
 // Gives the entity its light, with the direction normalized on the way in.
