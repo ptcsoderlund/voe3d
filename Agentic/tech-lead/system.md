@@ -10,7 +10,7 @@ rules are decision 0168.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled the way Slang spells them; knows no graphics API.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
-- **platform** — the one OS-aware folder: window, input, keymap, files, clock, processes, libraries.
+- **platform** — the one OS-aware folder: window, input, keymap, files, clock, processes, libraries, arguments.
 - **scene** — transform, a camera's lens, light and identity as components with their systems.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
 - **authoring** — scene and project text read and written, a world cooked to C; a game omits it.
@@ -55,4 +55,4 @@ rules are decision 0168.
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
 - 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
-- 0244, 0246, 0247 — Examples in root `examples/`, checked on structure; every string is UTF-8.
+- 0244, 0246–0248 — Examples in root `examples/`, checked on structure; every string is UTF-8, Windows too.
