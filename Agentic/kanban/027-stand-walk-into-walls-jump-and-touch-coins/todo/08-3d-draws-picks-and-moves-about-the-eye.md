@@ -32,10 +32,13 @@ eye. `render` is untouched: a `voe_render_view` is now eye-relative, its `eye` z
   hit at the origin at the same distance ±1e-4; a gizmo grab 1 mm along X reads back 1 mm ±1e-5;
   the frame's `eye` is the camera's double position and the cube's drawn matrix translation equals
   its offset from the eye. List it on `3d/tests/tests.md`.
+- card 07 split `draw_system.c` into `draw_group.c` and `draw_marks.c` but could not build
+  (this card's callers were broken); its proof lands here. Keep the split: mend the moved code
+  in place, move nothing back.
 - `3d/3d.md`, `3d/src/src.md` — entries that say "world space" for a quad or a ray say "about
   the eye" where that is now true.
 
 ## Done when
 1. `bash ~/.claude/skills/checks/scripts/checks.sh --folder 3d` prints `FINDINGS: 0`.
-2. `ctest --test-dir build/debug -R '^3d/(far|pick|gizmo|outline|camera_marker|draw_system)$'`
-   passes.
+2. `ctest --test-dir build/debug -R '^3d/'` passes, `3d/far` among them.
+3. `wc -l 3d/src/draw_system.c` is under 500.
