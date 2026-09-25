@@ -3,7 +3,7 @@
 // takes one field's kind and one field's bytes and answers a question about
 // them, which is why the Inspector's two halves can share it.
 //
-//     const char *shown = value_text(arena, field, bytes);
+//     const char *shown = value_text(arena, world, field, bytes);
 //     double number = dragged(field->kind, bytes);
 //
 // IT IS inspector.c'S AND inspector_edit.c'S SHARED ARITHMETIC. The panel that
@@ -62,7 +62,7 @@ float angle_of(voe_math_float3 angles, uint32_t axis);
 voe_math_float3 world_axis(uint32_t axis);
 const char *axis_name(uint32_t axis);
 
-const char *value_text(voe_base_arena *arena,
+const char *value_text(voe_base_arena *arena, const voe_ecs_world *world,
 		       const voe_base_field_description *field,
 		       const uint8_t *bytes);
 

@@ -8,7 +8,8 @@
 //         !voe_game_frame(app, world, &shapes, scratch, frame.size))
 //             ...                        // the device stopped answering
 //
-// THE ORDER: the structural queue applied, then the transform, identity and
+// THE ORDER: the structural queue applied, then the project's replaces
+// (game/project.h), then the transform, identity and
 // light systems, then the shape system, then a draw opened, one pass onto the
 // window with voe_3d_draw_system_frame's camera and sun, the draw system, the
 // pass and the draw closed. No outline, gizmo or marker: those are the

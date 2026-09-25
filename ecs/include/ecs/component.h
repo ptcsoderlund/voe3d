@@ -52,6 +52,7 @@
 #pragma once
 
 #include <base/describe.h>
+#include <base/imported.h>
 #include <ecs/intent.h>
 #include <ecs/world.h>
 
@@ -90,12 +91,14 @@ typedef struct {
 //
 // The two markers a registration passes instead of a description. Compared by
 // address; their contents are an empty description and nothing reads them.
+// A project's library imports them on Windows (0245), so it takes their
+// addresses at run time there, never in a static initialiser.
 //
 // runtime_only: the type is not authored data and is never saved.
 // description_compiled_out: the type is described, in a build that compiled the
 // descriptions out.
-extern const voe_base_struct_description voe_ecs_runtime_only;
-extern const voe_base_struct_description voe_ecs_description_compiled_out;
+extern VOE_BASE_IMPORTED const voe_base_struct_description voe_ecs_runtime_only;
+extern VOE_BASE_IMPORTED const voe_base_struct_description voe_ecs_description_compiled_out;
 
 // Registering twice with the same key, registering more types than the world was
 // made for, a size of zero or a capacity of zero are all the caller's bugs and

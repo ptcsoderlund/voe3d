@@ -1,27 +1,22 @@
-// The project being worked on: its own arena, the world in it, the kept
-// sections it was read with, its absolute folder (NULL when untitled) and
-// whether it has unsaved changes (ADR-0164).
+// The project being worked on: its own arena, the world in an arena of its
+// own, the kept sections it was read with, the code its world was made with,
+// its absolute folder (NULL when untitled) and whether it has unsaved changes
+// (ADR-0164).
 //
-// THE PROJECT OWNS ITS ARENA, AND NOTHING OUTLIVES IT THAT ISN'T IN IT. The
-// world, its entities, the kept sections' text and the folder path all come
-// out of the one arena voe_editor_project_new_untitled or
-// voe_editor_project_new_opened makes; voe_editor_project_destroy is the only
-// way anything in it goes back. This is what makes New and Open "build a
-// whole new project, then discard the old one" rather than an edit to the
-// world in place — the struct itself even lives inside its own arena.
+// THREE ARENAS, AND voe_editor_project_destroy IS THE ONLY WAY THEY GO BACK.
+// The struct and the folder path live in arena, so New and Open build a whole
+// new project, then discard the old one. The world and its tables live in
+// world_arena. The kept sections and a read's working memory live in
+// scene_arena, cleared by every voe_editor_project_scene_set, which reads
+// into the same world again and again. The code is closed after all three.
 //
-// A SCENE READ OWNS AN ARENA OF ITS OWN. The kept sections and the read's own
-// working memory go in scene_arena and nothing else does, because
-// voe_editor_project_scene_set reads a scene into the same world again and
-// again and a re-read's kept sections cannot be pushed on top of the last
-// read's for ever. The world's tables were allocated out of the project's
-// arena before the first read, so clearing this one is always right.
+// THE WORLD IS MADE IN ONE PLACE: game/world.h's engine types, then the
+// code's own when there is one, whether untitled, opened or swapped.
 //
-// THE WORLD'S REGISTRATIONS ARE THIS FILE'S, NOT main.c'S. Every project's
-// world holds the same eight component types with the same room — transform,
-// identity, light, camera, shape, mesh, material, panel — whether it is the
-// untitled scene or one read off disk, so there is exactly one place that
-// decides the capacities and calls the eight _register functions.
+// voe_editor_project_code_set IS A WHOLE NEW WORLD (ADR-0242 point 6), the
+// only swap ecs allows: the old world's text is read into a world made with
+// the new code, and only then are the old arenas destroyed and the old code
+// closed. A type the new code lacks survives as a kept section (0241).
 //
 // voe_editor_project_new_opened READS project.voe3d, THEN THE SCENE IT NAMES.
 // Each step clears base/report.h's kept error first, so a failure's notice is
@@ -51,6 +46,7 @@
 // need not agree.
 #pragma once
 
+#include "code.h"
 #include "notice.h"
 
 #include <authoring/scene_read.h>
@@ -72,6 +68,8 @@
 
 typedef struct {
 	voe_base_arena *arena;
+	// The world's own, replaced whole by voe_editor_project_code_set.
+	voe_base_arena *world_arena;
 	// What a scene read owns: the kept sections below and the read's own
 	// working memory, cleared by every re-read — see the header.
 	voe_base_arena *scene_arena;
@@ -80,6 +78,9 @@ typedef struct {
 	// read back into voe_authoring_scene_write on every save so a file
 	// this program does not fully know survives a trip through it.
 	voe_authoring_kept kept;
+	// The code the world's project types came from; zeroed while none.
+	// The project closes it, after the world it registered into.
+	voe_editor_code code;
 	// The project's absolute folder, in arena, or NULL for the untitled
 	// project: nothing has been saved yet to name one.
 	const char *folder;
@@ -135,6 +136,16 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 [[nodiscard]] bool voe_editor_project_scene_set(voe_editor_project *project,
 						const char *text, size_t size,
 						voe_editor_notice *why);
+
+// The world swapped for one made with code, holding what the old one did: its
+// text, kept sections included, read into a new world in new arenas, then the
+// old arenas destroyed and the old code closed. The project takes code
+// whatever happens; false, with why from the report, closes it and leaves the
+// project as it was. unsaved is untouched. Every entity handle is stale on
+// true, so the caller re-finds what it holds by authored id.
+[[nodiscard]] bool voe_editor_project_code_set(voe_editor_project *project,
+					       voe_editor_code code,
+					       voe_editor_notice *why);
 
 // project's folder's own name, or NULL when it is untitled.
 const char *voe_editor_project_name(const voe_editor_project *project);

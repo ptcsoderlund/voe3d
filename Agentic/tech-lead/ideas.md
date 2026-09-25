@@ -57,3 +57,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   simple collision, and collision perhaps on the GPU through compute (sponsor thinking aloud,
   2026-09-24). A project's `player_system` would drive the controllers whose entity also has its
   `keyboard_input` (0239). To settle before milestone 4.
+- **Draw every script as real letters, not the missing-glyph box**: Latin Extended (ł, ő, ș…),
+  Greek, Cyrillic, then Chinese/Japanese/Korean, Arabic and Hebrew. That needs fallback fonts
+  beside Oxanium (0185), glyphs beyond U+00FF and, for some scripts, shaping and right-to-left
+  text. The sponsor wants it (2026-09-25). Wait until a game needs it. Until then, 0247 only
+  promises that a character never fails.

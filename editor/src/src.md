@@ -7,6 +7,15 @@ carries it out.
 - `main.c` — reads the command line, opens a project, the window and the device, makes the arena,
   the one font, the themes and the interface, uploads the built-in shapes, and runs the loop, which
   flies a view under the right button, until a close goes ahead or the picture is written.
+- `startup.h` — which project the editor opens on: the argued folder, the remembered one or
+  untitled, written back as the last project unless capturing, and the descriptions line.
+- `startup.c` — the three tried in order, what each failure says, and the last-project write.
+- `world_step.h` — the world's step once a frame, the structural queue then every owning system,
+  and why in that order and all of them always.
+- `world_step.c` — the queue applied, then the project's replace intents, then transform, identity,
+  light and shape systems run.
+- `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
+- `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
   each against last frame's, which is where every key edge in the program is found.
 - `keys.c` — the one read of every key, once a frame, and the levels it
@@ -20,11 +29,11 @@ carries it out.
   `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its own arena, the arena a scene read owns, the world
-  in it, the kept sections it was read with, its absolute folder and whether it has unsaved changes
-  (ADR-0164), and its scene handed out as text or read back in from one.
+- `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
+  sections, the code its world was made with, its folder and whether it has unsaved changes
+  (ADR-0164), its scene handed out as text or read back in, and the swap to a world with new code.
 - `project.c` — opening, making and saving a project, the scene written out as
-  text and a text read back into the same world, and the untitled scene's cube, light and camera, which are
+  text and a text read back into the same world or a new one made with new code, and the untitled scene's cube, light and camera, which are
   this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
@@ -51,30 +60,42 @@ carries it out.
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
   base/report.h's first kept error.
-- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, each written only
-  when its bytes change, the project's `.gitignore` when it has none, the argument lists that
-  configure and build the tree with the editor's own tools, and the game program's path.
+- `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
+  point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
+- `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
+- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, the project's
+  `.gitignore`, the argument lists that build the tree as the game or the project's library, and
+  the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
   where they go, the world cooked into scene.c, and each argument list in one struct.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
-  to the next or to one stderr line, and the play's arena destroyed whenever it goes idle.
-- `session.h` — the project being worked on, its notice, its Play, the flag that says a different
-  project is in place, and the one armed command that makes closing the window, New and Open each
-  refuse once while there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the five commands with Play's start and Stop and a close
-  ending the play, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Preferences, the
+  to the next or to one stderr line naming the build log, and the play's arena destroyed whenever
+  it goes idle.
+- `refresh.h` — Refresh: the game tree configured and built as the project's library, a step at a
+  time without blocking, a failed step one stderr line naming the build log, and the label.
+- `refresh.c` — the tree written and the first step started, each ended step polled on to the build,
+  BUILT or FAILED, and the refresh's arena destroyed whenever it goes idle.
+- `session.h` — the project being worked on, its notice, its Play and Refresh, the flag that says a
+  different project is in place, and the one armed command that makes closing the window, New and
+  Open each refuse once while there are unsaved changes and go ahead the second time.
+- `session.c` — the refuse-once rule, the six commands with Play refreshing first, a built library
+  loaded and swapped in once a frame, and what a browser action does to the session.
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Preferences, the
   project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its five buttons, Play among them, afterwards.
+  the read of its six buttons, Play and Refresh among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
+- `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
+  cut at 160 bytes, in a scroll area with Close, as an anchored panel over the dock.
+- `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
+  calls, and the read of Close afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an anchored panel over the
   dock, its own arena for the current folder and its rows, and in SAVE mode a name row with a
   focused `ui` field and a Make folder button.
@@ -109,15 +130,25 @@ carries it out.
   their parent, its entry appended in registration order, and one parent's children drawn as a list
   the way the open dropdown's is.
 - `inspector_edit.h` — the calls that turn what the pointer did to the Inspector's controls into
-  replace intents and scene.h's commands, and the side-and-cap rule both open lists are placed by.
+  replace intents and scene.h's commands, and the rules for when each open list closes.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
-  bytes, the fired buttons, and Add component's lists and submenus opened, closed, placed and capped.
+  bytes, and the picker's colour and the open list's choice submitted the same way.
+- `inspector_buttons.c` — the fired buttons carried out through scene.h and entities.h, and the
+  open dropdown and Add component's lists and submenus opened, closed and placed each frame.
+- `inspector_place.h` — the side-and-cap rule the open lists and submenus are placed by, and the
+  rectangle test a press outside them is.
+- `inspector_place.c` — a list fitted below, above or capped on the roomier side, under its button
+  or beside its row, in the content column's space.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
   angles or the one string a label is given out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a field as one string, and how many
   boxes a kind is worth.
+- `entity_field.h` — what an ENTITY field offers and says: None and the authored entities by name,
+  and why names and only authored ones.
+- `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
+  label.
 - `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the
   right-button fly, the view a pointer is over and where in its picture, the colours a view is drawn
   with, and the 480×270 preview of what the world's camera sees.

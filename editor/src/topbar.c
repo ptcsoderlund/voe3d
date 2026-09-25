@@ -1,4 +1,4 @@
-// The bar's one frame of `ui` calls, and the read of its five buttons
+// The bar's one frame of `ui` calls, and the read of its six buttons
 // afterwards. See the header for why the command it hands back is not carried
 // out here.
 //
@@ -47,7 +47,8 @@ static const char *unsaved_name(voe_base_arena *arena, const char *name)
 
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
-			   const char *play, const char *name, bool unsaved,
+			   const char *play, const char *refresh,
+			   const char *name, bool unsaved,
 			   const char *notice)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing no top bar into no interface");
@@ -55,6 +56,8 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			"drawing a top bar with nowhere to record its buttons");
 	VOE_BASE_ASSERT(arena != NULL, "drawing a top bar without an arena");
 	VOE_BASE_ASSERT(play != NULL, "drawing a top bar with no Play label");
+	VOE_BASE_ASSERT(refresh != NULL,
+			"drawing a top bar with no Refresh label");
 	VOE_BASE_ASSERT(name != NULL, "drawing a top bar with no name to show");
 	VOE_BASE_ASSERT(notice != NULL,
 			"drawing a top bar with no notice to show");
@@ -86,6 +89,10 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 
 	bar->play_button = voe_ui_button_begin(ui, "play", 0);
 	voe_ui_label(ui, play);
+	voe_ui_end(ui);
+
+	bar->refresh_button = voe_ui_button_begin(ui, "refresh", 0);
+	voe_ui_label(ui, refresh);
 	voe_ui_end(ui);
 
 	bar->preferences_button = voe_ui_button_begin(ui, "preferences", 0);
@@ -160,6 +167,10 @@ voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 	if (bar->play_button != VOE_UI_NODE_NONE &&
 	    voe_ui_button_action(ui, bar->play_button).fired)
 		return VOE_EDITOR_COMMAND_PLAY;
+
+	if (bar->refresh_button != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, bar->refresh_button).fired)
+		return VOE_EDITOR_COMMAND_REFRESH;
 
 	return VOE_EDITOR_COMMAND_NONE;
 }

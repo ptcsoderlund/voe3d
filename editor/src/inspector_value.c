@@ -8,6 +8,8 @@
 // out of a float — is the caller's bug and asserts (rule 13).
 #include "inspector_value.h"
 
+#include "entity_field.h"
+
 #include <base/assert.h>
 
 #include <ctype.h>
@@ -75,22 +77,31 @@ const char *chars(voe_base_arena *arena, size_t size, const uint8_t *bytes)
 	return out;
 }
 
-// A type's heading: its key name's last `_` word, first letter capitalised, in
-// the frame's arena (ADR-0193).
+// A type's heading, in the frame's arena (ADR-0193, 0242): an engine key's
+// `voe_<folder>_` dropped, then every `_` word capitalised and joined by a
+// space, so `voe_scene_transform` is "Transform" and `follow_camera` is
+// "Follow Camera". The result is never longer than the name.
 const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
 			   voe_ecs_type type)
 {
 	const char *name = voe_ecs_component_key(world, type)->name;
-	const char *last = strrchr(name, '_');
+	const char *folder_end;
 	size_t length;
+	bool word_start = true;
 	char *out;
 
-	last = last != NULL ? last + 1 : name;
-	length = strlen(last);
+	if (strncmp(name, "voe_", 4) == 0 &&
+	    (folder_end = strchr(name + 4, '_')) != NULL)
+		name = folder_end + 1;
+	length = strlen(name);
 	out = voe_base_arena_push(arena, length + 1);
-	memcpy(out, last, length + 1);
-	if (length > 0)
-		out[0] = (char)toupper((unsigned char)out[0]);
+	for (size_t i = 0; i <= length; i++) {
+		char c = name[i];
+
+		out[i] = c == '_' ? ' '
+			 : word_start ? (char)toupper((unsigned char)c) : c;
+		word_start = c == '_';
+	}
 
 	return out;
 }
@@ -288,10 +299,11 @@ const char *axis_name(uint32_t axis)
 
 // The whole field as one string. Every kind reaches this, because a field
 // marked read-only is a label whatever it is (ADR-0139 point 2) and so is every
-// field of a component nothing can replace.
-const char *value_text(voe_base_arena *arena,
-			      const voe_base_field_description *field,
-			      const uint8_t *bytes)
+// field of a component nothing can replace. An ENTITY says the name of what it
+// points at (entity_field.h), which is why the world is asked.
+const char *value_text(voe_base_arena *arena, const voe_ecs_world *world,
+		       const voe_base_field_description *field,
+		       const uint8_t *bytes)
 {
 	switch (field->kind) {
 	case VOE_BASE_FIELD_INT8:
@@ -340,8 +352,7 @@ const char *value_text(voe_base_arena *arena,
 		voe_ecs_entity entity;
 
 		memcpy(&entity, bytes, sizeof entity);
-		return text(arena, "%" PRIu32 "v%" PRIu32, entity.index,
-			    entity.generation);
+		return voe_editor_entity_field_label(world, entity, arena);
 	}
 	}
 

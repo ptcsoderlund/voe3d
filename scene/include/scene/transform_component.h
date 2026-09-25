@@ -55,6 +55,7 @@
 #pragma once
 
 #include <base/describe.h>
+#include <base/imported.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -88,7 +89,7 @@ VOE_BASE_DESCRIBE_STRUCT(voe_scene_transform, VOE_SCENE_TRANSFORM_FIELDS)
 #define VOE_SCENE_TRANSFORM_ROTATION_TOLERANCE 1e-3f
 
 // The key this component is registered against. Its address is its identity.
-extern const struct voe_ecs_key voe_scene_transform_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_transform_key;
 
 // T · R · S, in this engine's row-major layout, ready to be handed to the GPU as
 // sixteen floats.

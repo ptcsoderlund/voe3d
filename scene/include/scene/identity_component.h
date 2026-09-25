@@ -43,6 +43,7 @@
 #pragma once
 
 #include <base/describe.h>
+#include <base/imported.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -61,7 +62,7 @@
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_identity, VOE_SCENE_IDENTITY_FIELDS)
 
 // The key this component is registered against. Its address is its identity.
-extern const struct voe_ecs_key voe_scene_identity_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_identity_key;
 
 // NULL when the entity has no identity — which is the ordinary answer for one
 // the engine made rather than a person — or is not alive any more. The pointer

@@ -13,11 +13,13 @@
 // while, so the label reads "Building" for as long as either step runs; every
 // later Play finds the cache and rebuilds only what changed.
 //
-// A FAILED BUILD IS ONE LINE ON STDERR (ADR-0234). A configure or build that
-// ends non-zero, or a game that will not start, prints one `voe_editor: …`
-// line naming the step and returns to idle; no notice, until the editor shows
-// the compiler's errors. Only what refuses Play at the press (an untitled
-// project, a refused write or start) is a notice.
+// A FAILED BUILD IS ONE LINE ON STDERR AND A LOG (ADR-0234, 0242 point 8).
+// Each press empties <project>/Build/build.log, and every configure and build
+// step writes its output there; the game keeps the editor's own stdout and
+// stderr. A step that ends non-zero prints one `voe_editor: …` line naming the
+// step and the log, where the compiler's words are, and returns to idle, as a
+// game that will not start does. Only what refuses Play at the press (an
+// untitled project, a refused write or start) is a notice.
 //
 // NOTHING HERE SAVES OR MARKS THE PROJECT (ADR-0188). The tree's scene.c is
 // the world as it was at the press, unsaved edits included; later edits never
@@ -55,16 +57,17 @@ typedef struct {
 
 // Asserts idle. An untitled project gets a notice asking to save it once and
 // nothing else (there is no folder to build in, ADR-0237). Otherwise writes
-// the game tree and starts the configure or, when it is done already, the
-// build. A refused write or start: why says so and play is idle again.
+// the game tree, empties the log and starts the GAME configure or, when it is
+// done already, the build. A refused write or start: why says so and play is idle again.
 void voe_editor_play_start(voe_editor_play *play,
 			   const voe_editor_project *project,
 			   voe_editor_notice *why);
 
 // Never blocks. Moves a step that ended 0 on to the next; a step that failed
 // prints one stderr line and goes idle, as does a game that ended. Idle is a
-// no-op.
-void voe_editor_play_poll(voe_editor_play *play);
+// no-op. True only when a configure or build step ended non-zero on this
+// poll, so the caller can show the log (session.h).
+bool voe_editor_play_poll(voe_editor_play *play);
 
 // Ends whatever runs, with everything it started, and goes idle. Idle is a
 // no-op.

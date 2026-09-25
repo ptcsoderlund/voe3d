@@ -128,14 +128,15 @@
 // AND INSPECTOR.C'S PER-COMPONENT PANELS, NAMED BY NEITHER NUMBER ABOVE UNTIL
 // NOW. Every component type the selected entity has a row of gets its own
 // RAISED panel (inspector.c's component_panel), and this editor's world never
-// holds more than eight component types at once — game/world.h is
-// the only place that decides it, and ecs/component.h asserts rather than
-// lets a world grow past what it was made with — so at most eight are drawn
-// a frame. Each is a panel and its heading label, two nodes, and — the
-// border ADR-0171 draws — two elements for the border and the fill plus
-// twenty-four generous for whatever its component's key is named, this file
-// naming none of them (inspector.h's own claim). 8 × 2 = 16 nodes,
-// 8 × 26 = 208 elements.
+// holds more than VOE_EDITOR_INSPECTOR_SECTIONS (inspector.h, 40) component
+// types at once — the engine's eight and a project's thirty-two, game/world.h
+// and game/project.h the only places that decide it, and ecs/component.h
+// asserting rather than letting a world grow past what it was made with — so
+// at most forty are drawn a frame. Each is a panel and its heading label, two
+// nodes, and — the border ADR-0171 draws — two elements for the border and the
+// fill plus twenty-four generous for whatever its component's key is named,
+// this file naming none of them (inspector.h's own claim). 40 × 2 = 80 nodes,
+// 40 × 26 = 1040 elements.
 //
 // AND ITS ROWS, BOUNDED BY VOE_EDITOR_INSPECTOR_CONTROLS (inspector.h)
 // RATHER THAN BY WHAT ANY ONE COMPONENT DESCRIBES: at most 64 across every
@@ -144,12 +145,12 @@
 // box's plain rectangle — two elements for its own border and fill
 // (ADR-0171) — plus sixteen generous for the field's name and the word it
 // shows, neither of which this file nor inspector.c puts a limit on.
-// 64 × (2 + 16) = 1152 elements. 250 + 16 + 192 = 458 nodes, and
-// 2277 + 208 + 1152 = 3637 elements.
+// 64 × (2 + 16) = 1152 elements. 250 + 80 + 192 = 522 nodes, and
+// 2277 + 1040 + 1152 = 4469 elements.
 //
 // THE BAR'S PREFERENCES BUTTON (topbar.h) ADDS TWO NODES, a button and its
 // label, and THIRTEEN ELEMENTS: its border and fill, and the eleven letters
-// of "Preferences". 458 + 2 = 460 nodes, 3637 + 13 = 3650 elements.
+// of "Preferences". 522 + 2 = 524 nodes, 4469 + 13 = 4482 elements.
 //
 // PREFERENCES (preferences.h) ADDS NOTHING, BECAUSE IT IS NEVER DRAWN IN THE
 // SAME FRAME AS THE BROWSER AND COSTS LESS. It takes the browser's place: the
@@ -165,32 +166,33 @@
 //
 // THE SCENE PANEL'S ADD ENTITY (scene.h) KEEPS THE TEN NODES the four-choice
 // Add menu it replaced was given: it is a button and its label, two, and the
-// other eight are left spare. 460 + 10 = 470 nodes. AND THIRTY-EIGHT ELEMENTS,
+// other eight are left spare. 524 + 10 = 534 nodes. AND THIRTY-EIGHT ELEMENTS,
 // of which its border and fill, two, and the letters of "Add entity", ten, are
-// used. 3650 + 38 = 3688 elements.
+// used. 4482 + 38 = 4520 elements.
 //
 // THE INSPECTOR'S DUPLICATE AND DELETE ROW (inspector.h) ADDS FIVE NODES: the
-// row, and each button and its label. 470 + 5 = 475 nodes. AND NINETEEN
+// row, and each button and its label. 534 + 5 = 539 nodes. AND NINETEEN
 // ELEMENTS: each button's border and fill, four, and the letters of
-// "Duplicate" and "Delete", 9 + 6 = 15. 3688 + 19 = 3707 elements.
+// "Duplicate" and "Delete", 9 + 6 = 15. 4520 + 19 = 4539 elements.
 //
-// THE INSPECTOR'S REMOVE, NEEDS AND ADD COMPONENT (inspector.h) ADD FIFTY
-// NODES. Each of the eight sections gains a row round its heading, a Remove
-// button and its label, and a "Needs" label, four apiece, thirty-two; Add
-// component is a button and a label, two; and its choices, one per type the
-// entity lacks and so at most eight, a button and a label each, sixteen.
-// 475 + 50 = 525 nodes. AND FIVE HUNDRED AND EIGHTEEN ELEMENTS: each section's
-// Remove border and fill, two, "Remove", six, and "Needs", five, beside
-// twenty-four generous for the needed heading, thirty-seven apiece, 296; Add
-// component's border and fill and its twelve letters, fourteen; each choice's
-// border and fill and twenty-four generous for its heading, twenty-six apiece,
-// 208. 3707 + 296 + 14 + 208 = 4225 elements.
+// THE INSPECTOR'S REMOVE, NEEDS AND ADD COMPONENT (inspector.h) ADD 482
+// NODES. Each of the forty sections gains a row round its heading, a Remove
+// button and its label, and a "Needs" label, four apiece, 160; Add component
+// is a button and a label, two; and its rows, at most one per entry of
+// VOE_EDITOR_ADD_MENU_ENTRIES (add_menu.h, 160) across every open list
+// together, a button and a label each, 320. 539 + 482 = 1021 nodes. AND 6934
+// ELEMENTS: each section's Remove border and fill, two, "Remove", six, and
+// "Needs", five, beside twenty-four generous for the needed heading,
+// thirty-seven apiece, 1480; Add component's border and fill and its twelve
+// letters, fourteen; each row's border and fill and at most
+// VOE_EDITOR_ADD_MENU_LABEL's 31 characters and a group's ">", thirty-four
+// apiece, 5440. 4539 + 1480 + 14 + 5440 = 11473 elements.
 //
 // THE COLOUR PICKER (interface.c) ADDS SEVEN NODES: the six ui/colour.h states
-// and the anchored column this file puts round it. 525 + 7 = 532 nodes. AND
+// and the anchored column this file puts round it. 1021 + 7 = 1028 nodes. AND
 // SEVEN HUNDRED AND TEN ELEMENTS: ui/colour.h's 461 while the hex field holds
 // seven characters, and one more for each typed past them up to the field's
-// VOE_UI_FIELD_CAPACITY (256), 249. 4225 + 710 = 4935 elements. It is never
+// VOE_UI_FIELD_CAPACITY (256), 249. 11473 + 710 = 12183 elements. It is never
 // drawn beside the browser or Preferences, and costs less than either, but it
 // is counted on top, as the card asked. A colour field's swatch is a button and
 // one solid element, inside the three nodes and eighteen elements a control
@@ -200,7 +202,7 @@
 // ON TOP ALL THE SAME, as the picker above is: TWENTY-ONE NODES — the column
 // under the list, one; a row per scalar, three; each scalar's name label,
 // three; each slider, three of its own (ui/slider.h), nine; each value label,
-// three; and Reset as a button and a label, two. 532 + 21 = 553 nodes. AND
+// three; and Reset as a button and a label, two. 1028 + 21 = 1049 nodes. AND
 // THREE HUNDRED AND EIGHTEEN ELEMENTS: "Contrast", eight, "Surface
 // separation", seventeen, and "Text size", eight, each space drawing nothing;
 // each slider's three, the number box's fill and the thumb's border and
@@ -209,22 +211,23 @@
 // most four, "200%"; Reset's border and fill and its five letters, seven — 61;
 // and, while one slider is open for typing (ADR-0192), a caret and up to
 // VOE_UI_FIELD_CAPACITY (256) characters of whatever was typed, 257, one at a
-// time because one thing holds the keyboard. 4935 + 61 + 257 = 5253 elements.
+// time because one thing holds the keyboard. 12183 + 61 + 257 = 12501 elements.
 //
-// THE OPEN DROPDOWN (inspector.c) ADDS THIRTY-SIX NODES. It is drawn inside
+// THE OPEN DROPDOWN (inspector.c) ADDS SEVENTY NODES. It is drawn inside
 // the Inspector's own scroll area and clipped by it rather than over the rest
 // of the editor, an overlay belonging to the widget it opened from (ADR-0199).
-// Thirty-five are the list: the anchored column round it, one; its panel, one;
+// Sixty-nine are the list: the anchored column round it, one; its panel, one;
 // the scroll area its rows sit in, one; and up to VOE_EDITOR_DROPDOWN_ROWS
-// (inspector.h, 16) rows, each a choice button and the label composed into it,
-// thirty-two. The thirty-sixth is the content column inspector.c opens round
+// (inspector.h, 33 — an ENTITY field's None and 32 authored entities, the
+// longest list) rows, each a choice button and the label composed into it,
+// sixty-six. The seventieth is the content column inspector.c opens round
 // everything that panel draws, which is what the list is anchored to.
-// 553 + 35 + 1 = 589. AND FOUR HUNDRED AND TWENTY ELEMENTS: the panel's border
-// and fill, two; each row's border and fill, thirty-two; twenty-four generous
-// for each row's name, this file naming none of them and neither `base` nor the
-// declaring folder putting a length on one, 384 — a column drawing none of its
-// own; and the rows' area a track and a thumb on Y alone, two, which is what
-// the browser's own area is already counted at in this file. 5253 + 420 = 5673.
+// 1049 + 69 + 1 = 1119. AND 2149 ELEMENTS: the panel's border and fill, two;
+// each row's border and fill, sixty-six; each row's name at most an identity's
+// 63 characters (VOE_SCENE_IDENTITY_NAME less its zero), which is longer than
+// any value name a named field has, 2079 — a column drawing none of its own;
+// and the rows' area a track and a thumb on Y alone, two, which is what the
+// browser's own area is already counted at in this file. 12501 + 2149 = 14650.
 // It is never drawn beside the colour picker, because opening either closes the
 // other (scene.h), and it is counted on top all the same. AND ONE MORE SCROLL
 // AREA, the rows', on top of the dock's two and the browser's one, counted on
@@ -233,10 +236,23 @@
 //
 // THE BAR'S PLAY BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
 // and TEN ELEMENTS: its border and fill, and the eight letters of
-// "Building", its longest label. 589 + 2 = 591, 5673 + 10 = 5683.
-#define VOE_EDITOR_INTERFACE_NODES 591
-#define VOE_EDITOR_INTERFACE_ELEMENTS 5683
-#define VOE_EDITOR_INTERFACE_SCROLLS 4
+// "Building", its longest label. 1119 + 2 = 1121, 14650 + 10 = 14660.
+//
+// THE BAR'S REFRESH BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
+// and TWELVE ELEMENTS: its border and fill, and the ten letters of
+// "Refreshing", its longer label. 1121 + 2 = 1123, 14660 + 12 = 14672.
+//
+// THE ERRORS PANEL (errors.h) ADDS FIFTY-FOUR NODES, counted on top though it
+// takes Preferences' place: the panel, one; its title, one; its scroll area,
+// one; up to VOE_EDITOR_ERRORS_LINES (48) line labels; Close's row, and Close
+// as a button and a label, three. 1123 + 54 = 1177 nodes. AND 7704 ELEMENTS:
+// the panel's border and fill, two; "Build errors", eleven; the scrollbars on
+// both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES (160)
+// characters, a byte at least apiece, 7680; Close, two and five. 14672 + 7704 =
+// 22376 elements. AND ONE MORE SCROLL AREA, its lines': five.
+#define VOE_EDITOR_INTERFACE_NODES 1177
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22376
+#define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
 // with the font that theme was derived with — ui measures and draws every
@@ -322,9 +338,13 @@ void voe_editor_interface_surface(voe_platform_size target,
 // and sets that palette and its font on `ui`, saying in the session's notice
 // when it could not be remembered; Close hides it.
 //
+// THE SESSION'S ERRORS PANEL (errors.h) IS DRAWN THE SAME WAY, WHEN IT IS
+// SHOWING AND THE BROWSER IS NOT, and covers Preferences, which is then not
+// drawn or read; its Close hides it.
+//
 // THE COLOUR PICKER IS DRAWN OVER THE DOCK TOO, beside the Inspector column,
-// while scene.h's `picking` shows and neither the browser nor Preferences does
-// — either of those closes it. What it changes is submitted at once as the
+// while scene.h's `picking` shows and neither the browser, Preferences nor
+// the Errors panel does — any of those closes it. What it changes is submitted at once as the
 // row's replace intent and counted in `scene->inspector.replaced`; a press
 // outside it closes it. See interface.c.
 //

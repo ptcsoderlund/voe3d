@@ -24,7 +24,10 @@
 // FAILURE IS A RETURNED NULL, from both functions, because each has exactly one
 // way to fail: a library that is not installed, and a symbol that is not in it.
 // Neither is the program being wrong, so neither is an assert — a machine with
-// no graphics driver is a machine we tell rather than abort on.
+// no graphics driver is a machine we tell rather than abort on. A library that
+// will not open is also reported through VOE_BASE_ERROR, naming it and the
+// loader's own reason (a missing dependency, an unresolved symbol), which a
+// caller may show from voe_base_report_error_first(); a missing symbol is not.
 //
 // A symbol is only valid while the library it came from is open. Destroying the
 // library while a pointer out of it is still being called is a crash this code
@@ -42,7 +45,8 @@ typedef struct voe_platform_library voe_platform_library;
 typedef void (*voe_platform_symbol)(void);
 
 // name is what the operating system knows the library by, with its extension.
-// Returns NULL if it is not installed or cannot be loaded.
+// Returns NULL, reported with the loader's reason, if it is not installed or
+// cannot be loaded.
 [[nodiscard]] voe_platform_library *voe_platform_library_new(const char *name);
 void voe_platform_library_destroy(voe_platform_library *library);
 

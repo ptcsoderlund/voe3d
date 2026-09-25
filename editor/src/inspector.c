@@ -34,6 +34,7 @@
 // the scroll area is what reaches it.
 #include "inspector.h"
 
+#include "entity_field.h"
 #include "inspector_value.h"
 
 #include <base/assert.h>
@@ -183,7 +184,8 @@ static void rotation_rows(voe_ui_context *ui, voe_editor_inspector *inspector,
 // to replace a row through — see the header on why a dead control is worse than
 // a number. `description` is the walk's, for the names a field's values may have.
 static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
-		      voe_ecs_type type, bool editable,
+		      const voe_ecs_world *world, voe_ecs_type type,
+		      bool editable,
 		      const voe_base_struct_description *description,
 		      const voe_base_field_description *field,
 		      const uint8_t *row)
@@ -195,7 +197,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 		field->kind == VOE_BASE_FIELD_UINT32 && field->rank == 0
 			? voe_base_names_find(description, field->name)
 			: NULL;
-	uint32_t boxes = text_box || colour ? 1 : lanes(field->kind);
+	bool entity = field->kind == VOE_BASE_FIELD_ENTITY && field->rank == 0;
+	uint32_t boxes = text_box || colour || entity ? 1 : lanes(field->kind);
 	bool shown_only = !editable || field->read_only || boxes == 0 ||
 			  !room(inspector, boxes);
 	voe_ui_sizing swatch = { .along = { VOE_UI_SIZE_FIXED, SWATCH_WIDE },
@@ -234,16 +237,18 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 	// A NAMED FIELD IS A DROPDOWN AND NEVER A NUMBER (ADR-0198): the name
 	// of the value it holds, in a button that only opens the list once the
 	// frame has ended when it can be replaced, and a label when it cannot.
-	// A value no entry names is the number it is.
-	if (names != NULL) {
+	// A value no entry names is the number it is. An ENTITY is the same
+	// button, shown by the name of what it points at (entity_field.h).
+	if (names != NULL || entity) {
 		voe_ui_node node = VOE_UI_NODE_NONE;
-		uint64_t value = whole_unsigned(field->kind, bytes);
+		uint64_t value = entity ? 0 : whole_unsigned(field->kind, bytes);
 		const char *shown =
-			value < names->value_count &&
+			names != NULL && value < names->value_count &&
 					names->values[value] != NULL
 				? text(inspector->arena, "%s",
 				       names->values[value])
-				: value_text(inspector->arena, field, bytes);
+				: value_text(inspector->arena, world, field,
+					     bytes);
 
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
@@ -262,7 +267,9 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 						  .node = node,
 						  .type = type,
 						  .offset = field->offset,
-						  .writes = VOE_BASE_FIELD_UINT32,
+						  .writes = entity
+								    ? VOE_BASE_FIELD_ENTITY
+								    : VOE_BASE_FIELD_UINT32,
 						  .names = names });
 		return;
 	}
@@ -273,7 +280,8 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 					     .gap = ROW_GAP,
 					     .wrap = true });
 		voe_ui_label(ui, field->name);
-		voe_ui_label(ui, value_text(inspector->arena, field, bytes));
+		voe_ui_label(ui, value_text(inspector->arena, world, field,
+					    bytes));
 		voe_ui_end(ui);
 		return;
 	}
@@ -399,7 +407,8 @@ static void component_panel(voe_ui_context *ui,
 	description = voe_ecs_component_description(world, type);
 	if (description != NULL)
 		for (uint32_t i = 0; i < description->field_count; i++)
-			field_row(ui, inspector, type, editable, description,
+			field_row(ui, inspector, world, type, editable,
+				  description,
 				  &description->fields[i], row);
 
 	voe_ui_end(ui);
@@ -451,6 +460,36 @@ static void add_menu_lists(voe_ui_context *ui, voe_editor_inspector *inspector)
 	}
 }
 
+// An ENTITY field's rows: None and every authored entity by its label
+// (entity_field.h), each row carrying its entity, the one `held` points at
+// marked by inversion as a named value is. A dead `held` marks None.
+static void entity_rows(voe_ui_context *ui, voe_editor_inspector *inspector,
+			const voe_ecs_world *world, voe_ecs_entity held)
+{
+	voe_ecs_entity choices[VOE_EDITOR_DROPDOWN_ROWS];
+	uint32_t count = voe_editor_entity_field_choices(
+		world, choices, VOE_EDITOR_DROPDOWN_ROWS);
+
+	VOE_BASE_ASSERT(inspector->row_count == 0,
+			"entity rows drawn after other rows");
+
+	if (!voe_ecs_entity_alive(world, held))
+		held = (voe_ecs_entity){ 0 };
+	for (uint32_t i = 0; i < count; i++) {
+		inspector->rows[i].node = voe_ui_choice_begin(
+			ui, "kind", i,
+			choices[i].index == held.index &&
+				choices[i].generation == held.generation);
+		inspector->rows[i].entity = choices[i];
+		voe_ui_label(ui, voe_editor_entity_field_label(
+					 world, choices[i], inspector->arena));
+		voe_ui_end(ui);
+	}
+	inspector->row_count = count;
+	VOE_BASE_ASSERT(inspector->row_count <= VOE_EDITOR_DROPDOWN_ROWS,
+			"more entity rows than the list holds");
+}
+
 // The open list, hanging from the button that opened it inside the content
 // column it is anchored to — see the header on why it is this panel's and not
 // the editor's. Nothing is drawn unless the list is open on a field of an
@@ -463,9 +502,11 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 	const float h = dropdown->height;
 	const bool capped = h > 0.0f;
 	const uint8_t *row;
-	uint32_t value;
+	uint32_t value = 0;
+	voe_ecs_entity held = { 0 };
 
-	if (!dropdown->open || dropdown->names == NULL ||
+	if (!dropdown->open ||
+	    (dropdown->names == NULL && !dropdown->entities) ||
 	    dropdown->entity.index != inspector->entity.index ||
 	    dropdown->entity.generation != inspector->entity.generation)
 		return;
@@ -473,7 +514,10 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 	row = voe_ecs_component_get(world, dropdown->type, dropdown->entity);
 	if (row == NULL)
 		return;
-	memcpy(&value, row + dropdown->offset, sizeof value);
+	if (dropdown->entities)
+		memcpy(&held, row + dropdown->offset, sizeof held);
+	else
+		memcpy(&value, row + dropdown->offset, sizeof value);
 
 	// The column round it only carries the anchor, the list being a panel
 	// of its own. One row per value the names name, and no row for a value
@@ -506,7 +550,10 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 			.gap = LIST_PAD,
 			.pad = { .right = capped ? LIST_BAR : 0.0f } },
 		(voe_ui_scroll_axes){ .y = true });
-	for (uint32_t i = 0; i < dropdown->names->value_count &&
+	if (dropdown->entities)
+		entity_rows(ui, inspector, world, held);
+	for (uint32_t i = 0; dropdown->names != NULL &&
+			     i < dropdown->names->value_count &&
 			     inspector->row_count < VOE_EDITOR_DROPDOWN_ROWS;
 	     i++) {
 		if (dropdown->names->values[i] == NULL)

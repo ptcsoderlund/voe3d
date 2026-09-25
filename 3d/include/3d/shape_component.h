@@ -45,6 +45,7 @@
 #pragma once
 
 #include <base/describe.h>
+#include <base/imported.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -64,7 +65,7 @@
 
 // The name of each kind, indexed by the kind's own number; NULL for nought,
 // which is no kind.
-extern const char *const voe_3d_shape_kind_names[4];
+extern VOE_BASE_IMPORTED const char *const voe_3d_shape_kind_names[4];
 
 #define VOE_3D_SHAPE_FIELDS(F, F_READ_ONLY) \
 	F(uint32_t, kind, UINT32)           \
@@ -76,7 +77,7 @@ VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_3d_shape, VOE_3D_SHAPE_FIELDS,
 			       VOE_3D_SHAPE_NAMES)
 
 // The key this component is registered against. Its address is its identity.
-extern const struct voe_ecs_key voe_3d_shape_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_shape_key;
 
 // Registers the table, its default row (a grey cube), that a shape needs a
 // transform, and the shape's intent as its replace (3d/shape_system.h), with

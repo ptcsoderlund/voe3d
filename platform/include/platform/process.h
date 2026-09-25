@@ -3,7 +3,7 @@
 //
 //     voe_platform_process game = {0};
 //     const char *argv[] = { "cmake", "--build", "Build/debug", NULL };
-//     if (!voe_platform_process_start(argv, scratch, &game))
+//     if (!voe_platform_process_start(argv, "Build/build.log", scratch, &game))
 //             return ...;                          // reported already
 //     int code;
 //     if (voe_platform_process_poll(&game, &code) == VOE_PLATFORM_PROCESS_ENDED)
@@ -21,10 +21,12 @@
 // own — a process group on Linux, a job object on Windows — and ending it ends
 // the group.
 //
-// STDOUT AND STDERR ARE SHARED, STDIN IS NOT READ. The child writes to the
-// caller's own stdout and stderr, so what a build prints lands where the
-// editor's lines do. Nothing is written to its stdin and nothing it prints is
-// captured.
+// STDOUT AND STDERR ARE SHARED OR GO TO ONE FILE, STDIN IS NOT READ. With a
+// NULL output the child writes to the caller's own stdout and stderr, so what
+// it prints lands where the editor's lines do. With a path, both go to that
+// file, opened for append and created when missing, so several steps build one
+// log; a file that cannot be opened is a false start naming the path. Nothing
+// is written to its stdin.
 //
 // BEFORE ITS OWN EXIT A CALLER ENDS WHAT IT STARTED. A process still running
 // when the caller exits is left behind on Linux; on Windows the job's
@@ -53,8 +55,10 @@ typedef enum {
 
 // argv is NULL-terminated; argv[0] is looked up on PATH or taken as a path.
 // scratch holds the Windows command line and is rewound before the return.
-// out must be zeroed. False, reported naming argv[0], when it cannot start.
+// output is NULL for the shared stdout and stderr, or the file both append to.
+// out must be zeroed. False, reported naming argv[0] or output, when it cannot start.
 [[nodiscard]] bool voe_platform_process_start(const char *const *argv,
+					      const char *output,
 					      voe_base_arena *scratch,
 					      voe_platform_process *out);
 

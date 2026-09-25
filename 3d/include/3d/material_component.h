@@ -57,6 +57,7 @@
 #pragma once
 
 #include <base/error.h>
+#include <base/imported.h>
 #include <ecs/component.h>
 #include <ecs/world.h>
 #include <math/float2.h>
@@ -132,7 +133,7 @@ typedef struct {
 	voe_render_shading shading;
 } voe_3d_material;
 
-extern const struct voe_ecs_key voe_3d_material_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_material_key;
 
 void voe_3d_material_register(voe_ecs_world *world, uint32_t capacity);
 

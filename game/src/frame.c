@@ -9,6 +9,8 @@
 
 #include <ecs/structure.h>
 
+#include <game/project.h>
+
 #include <scene/identity_system.h>
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
@@ -30,6 +32,7 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	// Which rows exist changes here and nowhere else in the frame
 	// (ecs/structure.h), before any system reads a table.
 	voe_ecs_structure_apply(world);
+	voe_game_project_replaces_apply(world);
 	voe_scene_transform_system_run(world);
 	voe_scene_identity_system_run(world);
 	voe_scene_light_system_run(world);

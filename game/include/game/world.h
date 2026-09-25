@@ -9,6 +9,10 @@
 // did not register, and the two can never have different room for the same
 // thing.
 //
+// THE ROOM FOR A PROJECT'S TYPES: past the engine's VOE_GAME_WORLD_TYPES the
+// world takes VOE_GAME_PROJECT_TYPES more types and as many more intents,
+// registered through game/project.h.
+//
 // Constraints: the world lives in `arena` and has no destroy, as every ecs
 // world (ecs/world.h). The capacities are fixed numbers; a project that
 // authors more than VOE_GAME_WORLD_AUTHORED entities or draws more than
@@ -29,6 +33,9 @@
 // which are only ever on an authored entity. The editor's Scene panel lists
 // exactly this many rows.
 #define VOE_GAME_WORLD_AUTHORED 32
+
+// How many types the engine registers here; a project's come after them.
+#define VOE_GAME_WORLD_TYPES 8
 
 // A fresh world with the eight types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
