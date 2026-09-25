@@ -345,8 +345,11 @@ const char *const *voe_editor_game_tree_configure(const char *folder,
 	define_add(list, arena, "PKG_CONFIG_EXECUTABLE", VOE_TOOLCHAIN_PKG_CONFIG);
 	define_add(list, arena, "VOE_SLANGC", VOE_TOOLCHAIN_SLANGC);
 	define_add(list, arena, "VOE_WAYLAND_SCANNER", VOE_TOOLCHAIN_WAYLAND_SCANNER);
-	if (kind == VOE_EDITOR_GAME_TREE_LIBRARY)
+	if (kind == VOE_EDITOR_GAME_TREE_LIBRARY) {
 		argument_add(list, "-DVOE_GAME_LIBRARY=ON");
+		define_add(list, arena, "VOE_EDITOR_IMPORTS",
+			   VOE_TOOLCHAIN_EDITOR_IMPORTS);
+	}
 	return list->items;
 }
 
@@ -378,8 +381,12 @@ const char *voe_editor_game_tree_program(const char *folder,
 const char *voe_editor_game_tree_library(const char *folder,
 					 voe_base_arena *arena)
 {
-	return voe_platform_path_join(arena, build_path(folder, "editor", arena),
-				      "libproject.so");
+#ifdef _WIN32
+	const char *name = "project.dll";
+#else
+	const char *name = "libproject.so";
+#endif
+	return voe_platform_path_join(arena, build_path(folder, "editor", arena), name);
 }
 
 const char *voe_editor_game_tree_log(const char *folder, voe_base_arena *arena)

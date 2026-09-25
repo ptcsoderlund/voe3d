@@ -16,7 +16,8 @@
 // `Build/debug/`, target `game`, the program `Build/debug/game`. LIBRARY
 // configures the same `Build/game/` into `Build/editor/` with
 // -DVOE_GAME_LIBRARY=ON and builds the target `project`, the code alone as
-// `Build/editor/libproject.so` (Linux only, as cmake/game.cmake is).
+// `Build/editor/libproject.so`, or `project.dll` on Windows, where it links the
+// editor's import library (0245).
 //
 // CMakeLists.txt sets VOE_PROJECT_CODE to `Code/` before including game.cmake;
 // scene.c includes every `.h` in `Code/`, sorted by name, before the cooked
@@ -69,7 +70,8 @@ bool voe_editor_game_tree_configured(const char *folder,
 
 // The NULL-terminated argument list that configures <folder>/Build/game into
 // kind's binary folder with Ninja, Debug, and each non-empty tool; LIBRARY
-// adds -DVOE_GAME_LIBRARY=ON.
+// adds -DVOE_GAME_LIBRARY=ON and, when non-empty, -DVOE_EDITOR_IMPORTS, the
+// editor's import library (Windows only).
 const char *const *voe_editor_game_tree_configure(const char *folder,
 						  voe_editor_game_tree_kind kind,
 						  voe_base_arena *arena);
@@ -83,7 +85,8 @@ const char *const *voe_editor_game_tree_build(const char *folder,
 const char *voe_editor_game_tree_program(const char *folder,
 					 voe_base_arena *arena);
 
-// <folder>/Build/editor/libproject.so, what LIBRARY builds.
+// <folder>/Build/editor/libproject.so, project.dll on Windows: what LIBRARY
+// builds.
 const char *voe_editor_game_tree_library(const char *folder,
 					 voe_base_arena *arena);
 
