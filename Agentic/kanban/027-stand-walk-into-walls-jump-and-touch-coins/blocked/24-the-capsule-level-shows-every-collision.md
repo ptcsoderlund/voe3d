@@ -34,3 +34,6 @@ say what each is. Heights are to the top of the floor at y 0. A collider's `kind
 4. The human's: `feature.md`'s `## How to test`, steps 1–15, in the editor on `examples/capsule/`
    (the look of the lines, walking, jumping, coins and smoothness are seen, not
    checked by a program).
+
+## Blocked
+The level and `capsule.md` are done: done-when 1 passes with `FINDINGS: 0`, and done-when 2 exits 0 with an empty stderr after rebuilding `build/debug`, which was older than card 23. The screenshot shows the whole level. Done-when 3 fails on two findings that were already in other folders: `3d/include/3d/3d.md` does not list `collider_marker.h`, and `scene/tests/tests.md`'s `transform.c` entry is 322 characters. A card for `3d` and one for `scene` that fix those would unblock it.
