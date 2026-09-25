@@ -2,6 +2,7 @@
 
 `math`'s implementation, one file per header in `include/math/`.
 
+- `double3.c` — the double3 operations.
 - `float2.c` — the float2 operations.
 - `float3.c` — the float3 operations.
 - `float4.c` — the float4 operations.

@@ -3,6 +3,8 @@
 One plain C program per `math` module, found by the build, each checking that
 module's promises from outside.
 
+- `double3.c` — that a millimetre survives 100 km out, in double and in a
+  difference narrowed to float, and that widen then narrow is the identity.
 - `float2.c` — the float2 operations, checked from outside.
 - `float3.c` — the float3 operations, and that the cross product is
   right-handed.
