@@ -10,6 +10,10 @@ scale = [10, 0.1, 10]
 
 [2]
 name = "Player"
+[2.keyboard_input]
+move = [0, 0]
+[2.player]
+speed = 5
 [2.voe_3d_shape]
 kind = 2
 colour = [0.8, 0.3, 0.2]
@@ -20,6 +24,9 @@ scale = [1, 1, 1]
 
 [3]
 name = "Camera"
+[3.follow_camera]
+target = 2
+distance = 6
 [3.voe_scene_camera]
 fov_y = 1.0471976
 near_plane = 0.1
