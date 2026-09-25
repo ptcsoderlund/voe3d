@@ -30,3 +30,11 @@ unique, names say what each is. Heights are to the top of the floor at y 0.
 4. The human's: `feature.md`'s `## How to test`, steps 1–15, in the editor on `examples/capsule/`
    (the look of the lines, walking, jumping, coins and smoothness are seen, not
    checked by a program).
+
+## Blocked
+The scene format as it is today cannot carry a collider: `voe_physics_collider.kind` is an ENUM
+field, and `authoring/scene_read.h` refuses every ENUM field ("no enum value has a name to be read
+with yet; nothing was loaded") while `authoring/scene_write.h` refuses to write one, so the level
+does not load and step 14 (save and reopen) cannot pass. Unblocked by a card in `authoring` that
+reads and writes an ENUM by its value names (here `Box`, `Sphere`, `Capsule` from
+`voe_physics_collider_kind_names`); then this card writes `kind = "Box"` etc. as it stands.
