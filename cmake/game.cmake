@@ -23,6 +23,11 @@
 #   against voe::game but links no engine code; its engine symbols stay
 #   undefined and bind to the editor's own when loaded. The editor builds the
 #   target `project` and nothing else of the engine need be built.
+#   On WIN32 it is project.dll, because an MSVC-ABI DLL binds only through an
+#   import library (0245): it links VOE_EDITOR_IMPORTS, the editor's import
+#   library (unset or missing is a FATAL_ERROR); it defines VOE_BASE_IMPORTING
+#   so engine data is declared dllimport; and WINDOWS_EXPORT_ALL_SYMBOLS exports
+#   its entry points for the editor to find.
 #
 # VOE_FOLDER_DATABASES is off because this tree builds the engine's folders from
 # the engine's source and must not write compile_commands.json into them. Both
@@ -32,9 +37,6 @@
 # An empty CMAKE_BUILD_TYPE becomes Debug, so Play has debug info (0235). The
 # engine's game folder builds into voe_game, not game, because `game` is the
 # program's file in the binary folder.
-#
-# Constraints: library mode is Linux-only for now; on WIN32 it is a
-# FATAL_ERROR, and the game is unchanged there (0242).
 
 include_guard(GLOBAL)
 
@@ -45,8 +47,8 @@ endif()
 option(VOE_GAME_LIBRARY "Build the project's code as the library `project`" OFF)
 
 if(VOE_GAME_LIBRARY)
-    if(WIN32)
-        message(FATAL_ERROR "game.cmake: VOE_GAME_LIBRARY is Linux-only for now")
+    if(WIN32 AND (NOT VOE_EDITOR_IMPORTS OR NOT EXISTS "${VOE_EDITOR_IMPORTS}"))
+        message(FATAL_ERROR "game.cmake: on WIN32 set VOE_EDITOR_IMPORTS to the editor's import library (got '${VOE_EDITOR_IMPORTS}')")
     endif()
     set(VOE_BASE_DESCRIPTIONS ON)
 else()
@@ -96,6 +98,13 @@ if(VOE_GAME_LIBRARY)
     set_target_properties(project PROPERTIES
         POSITION_INDEPENDENT_CODE ON
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+    if(WIN32)
+        target_link_libraries(project PRIVATE "${VOE_EDITOR_IMPORTS}")
+        target_compile_definitions(project PRIVATE VOE_BASE_IMPORTING)
+        set_target_properties(project PROPERTIES
+            WINDOWS_EXPORT_ALL_SYMBOLS ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+    endif()
 else()
     add_executable(game ${CMAKE_CURRENT_SOURCE_DIR}/main.c ${CMAKE_CURRENT_SOURCE_DIR}/scene.c
         ${voe_project_sources})
