@@ -37,6 +37,9 @@ again, or to find where a claim that has started failing is written down.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
   building nothing and not hit, and a ray meeting the box square on, turned and not at all. Needs
   no graphics card.
+- `collider_marker.c` — a box's twelve edges, a sphere's and a capsule's counts, a box twice the
+  size twice as far out, quads about the eye 100 km out, and the collider that fits each shape.
+  Needs no graphics card.
 - `gizmo.c` — a ray across each arrow and through each square, the space that meets nothing, the
   shaft doubling with the distance, the two grabs and the one refusal, and the two meshes' counts,
   their winding towards the eye and the handle marking moves across. Needs no graphics card.

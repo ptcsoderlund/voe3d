@@ -51,6 +51,7 @@
 #pragma once
 
 #include <3d/camera_marker.h>
+#include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/outline.h>
 #include <base/arena.h>
@@ -130,6 +131,24 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_camera_marked;
 
+// The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
+// It is drawn after the outline, behind the outline's depth clear, with the
+// outline's material and colour (`frame.outlined`), so it shows through what
+// stands in front. Only an editor's view sets one. The quads go into this
+// frame's transient pool, sized from VOE_3D_COLLIDER_MARKER_VERTICES and
+// _INDICES, one more range and one more object; a pool too small draws
+// nothing, as the outline does.
+typedef struct {
+	// The entity whose collider is drawn, zeroed for none. A zeroed entity,
+	// a dead one and one without a collider (voe_physics_shape_of) draw
+	// nothing.
+	voe_ecs_entity entity;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_collider_marked;
+
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
 // voe_render_pass_begin by the loop and back to voe_3d_draw_system_run for its
@@ -207,6 +226,9 @@ typedef struct {
 	// draws nothing, as the outline does. A pass whose `view` is the marked
 	// camera's own is the caller's to avoid.
 	voe_3d_camera_marked marker;
+	// The one entity whose collider this pass draws as lines, zeroed for
+	// none (voe_3d_collider_marked above).
+	voe_3d_collider_marked collider;
 	// TRUE WHEN THE CAMERA SEES NOTHING (0223): its transform has no
 	// inverse, a scale of nought on an axis, so voe_3d_view refused it and
 	// `view` is zeroed. _run draws no world for a blind frame. Zero means
@@ -222,9 +244,9 @@ typedef struct {
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. `hidden`, `outlined`, `gizmo` and `marker` all come back
-// zeroed — hiding, outlining, standing a gizmo and marking a camera are
-// the caller's choice and it sets the field on the answer. Asserts on a world
+// matrix is never read. `hidden`, `outlined`, `gizmo`, `marker` and `collider`
+// all come back zeroed — hiding, outlining, standing a gizmo, marking a camera
+// and drawing a collider are the caller's choice and it sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
 // frame is unshaded — see below.
 //
@@ -285,7 +307,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // layer, and `frame.outlined`, when it names one, is outlined after everything
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
 // move gizmo drawn after that; `frame.marker`, when it names a live camera with
-// a transform, is drawn with the world. Calling it with no pass open is the caller's bug
+// a transform, is drawn with the world, and `frame.collider`, when it names one
+// with a collider, as lines after the outline. Calling it with no pass open is the caller's bug
 // and asserts.
 //
 // TWO KINDS OF DRAWABLE, AND THEY ARE SORTED TOGETHER. A mesh is a range in
@@ -369,7 +392,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // is _begin's and _end's to report, and both return false when it has.
 //
 // `arena` is scratch for this frame's sorts, the groups they order and the
-// outline's and the gizmo's quads, and nothing survives the call: it is rewound to the mark
+// outline's, the collider's and the gizmo's quads, and nothing survives the call: it is rewound to the mark
 // this took on the way in, on every path out.
 //
 // IT WANTS AN ARENA BECAUSE THE SORTS NEED SOMEWHERE TO WORK. Working memory is

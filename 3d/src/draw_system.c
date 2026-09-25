@@ -14,9 +14,10 @@
 //
 // Each object is drawn with two matrices and a colour. The solid pass runs in
 // table order and the blended one furthest first, on each side of the overlay's
-// depth clear, over both tables; the outline and the move gizmo each sit behind
-// a depth clear of their own. The held-back groups are draw_group.c's and the
-// marker, outline and gizmo draw_marks.c's; this file walks and orders them.
+// depth clear, over both tables; the outline with the collider's lines, and the
+// move gizmo, each sit behind a depth clear of their own. The held-back groups
+// are draw_group.c's and the marker, outline, collider and gizmo
+// draw_marks.c's; this file walks and orders them.
 #include "draw_group.h"
 #include "draw_marks.h"
 
@@ -400,9 +401,11 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		(void)voe_3d_draw_group_draw(device, &overlay_blended);
 	}
 
-	// The outline, then the gizmo, each behind a depth clear of its own
-	// (3d/src/draw_marks.h); the outline's is the overlay's when it made one.
-	voe_3d_draw_marks_outline(world, device, arena, frame, cleared);
+	// The outline and the collider's lines behind one depth clear, then the
+	// gizmo behind its own (3d/src/draw_marks.h); the first is the overlay's
+	// when it made one.
+	cleared = voe_3d_draw_marks_outline(world, device, arena, frame, cleared);
+	voe_3d_draw_marks_collider(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_gizmo(world, device, arena, frame);
 
 	// Everything above is this frame's, and the caller's arena is handed

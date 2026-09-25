@@ -1,16 +1,19 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum,
-// one entity's silhouette and the move gizmo's two meshes, each as this
-// frame's transient geometry and one or two draws. See draw_marks.h.
+// one entity's silhouette, a collider's lines and the move gizmo's two meshes,
+// each as this frame's transient geometry and one or two draws. See
+// draw_marks.h.
 //
-// All three are in metres about the frame's eye already (ADR-0250), so every
+// All four are in metres about the frame's eye already (ADR-0250), so every
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
 #include "draw_marks.h"
 
 #include <3d/camera_marker.h>
+#include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/outline.h>
 #include <base/assert.h>
 #include <base/error.h>
+#include <physics/shape.h>
 #include <scene/camera_component.h>
 #include <scene/transform_component.h>
 
@@ -73,7 +76,9 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 // A REFUSED TRANSIENT RANGE DRAWS NO OUTLINE AND NOTHING ELSE CHANGES. render
 // has already said so on stderr, and the rest of the frame is drawn, ended and
 // presented — the same rule every other draw follows.
-void voe_3d_draw_marks_outline(const voe_ecs_world *world,
+//
+// Whether depth is emptied now: `cleared`, or true once this has cleared it.
+bool voe_3d_draw_marks_outline(const voe_ecs_world *world,
 			       voe_render_device *device, voe_base_arena *arena,
 			       voe_3d_frame frame, bool cleared)
 {
@@ -85,12 +90,48 @@ void voe_3d_draw_marks_outline(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(arena != NULL, "an outline with no arena");
 
 	if (!voe_ecs_entity_alive(world, frame.outlined.entity))
-		return;
+		return cleared;
 	if (!voe_3d_outline_quads(world, frame.outlined, frame.view,
 				  frame.eye, arena, &outline) ||
 	    !voe_render_geometry_create_transient(
 		    device, outline.vertices, outline.vertex_count,
 		    outline.indices, outline.index_count, &quads, &error))
+		return cleared;
+
+	if (!cleared)
+		voe_render_frame_clear_depth(device);
+	(void)voe_render_frame_draw(device, quads,
+				    mark_object(frame.outlined.material,
+						frame.outlined.colour));
+	return true;
+}
+
+// THE COLLIDER'S LINES SHARE THE OUTLINE'S CLEAR AND ITS LOOK (0253). They are
+// drawn against the depth the outline was, clearing it only when nothing has,
+// so they show through what stands in front, in the outline's material and
+// colour. A zeroed entity, a dead one and one with no collider draw nothing;
+// so does a refused transient range, which render reports.
+void voe_3d_draw_marks_collider(const voe_ecs_world *world,
+				voe_render_device *device, voe_base_arena *arena,
+				voe_3d_frame frame, bool cleared)
+{
+	voe_physics_shape shape;
+	voe_3d_outline_mesh mesh;
+	voe_render_geometry quads;
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a collider to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a collider's lines with no arena");
+
+	if (!voe_ecs_entity_alive(world, frame.collider.entity) ||
+	    !voe_physics_shape_of(world, frame.collider.entity, &shape))
+		return;
+	if (!voe_3d_collider_marker_quads(shape, frame.view, frame.eye,
+					  frame.collider.size,
+					  frame.collider.pixels, arena, &mesh) ||
+	    !voe_render_geometry_create_transient(
+		    device, mesh.vertices, mesh.vertex_count, mesh.indices,
+		    mesh.index_count, &quads, &error))
 		return;
 
 	if (!cleared)

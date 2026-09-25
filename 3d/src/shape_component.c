@@ -1,6 +1,6 @@
-// The shape component: its key, the registration and the reads. Everything
-// that writes one is in shape_system.c, which is what makes a file including
-// only this header provably a reader.
+// The shape component: its key, the registration, the reads and the collider
+// that fits each kind. Everything that writes one is in shape_system.c, which
+// is what makes a file including only this header provably a reader.
 //
 // THE INTENT'S KEY IS THIS FILE'S ALONE. The drain and the submit find the queue
 // as the shape's replace (ecs/component.h), so nothing else needs its name.
@@ -85,4 +85,17 @@ const voe_ecs_entity *voe_3d_shape_entities(const voe_ecs_world *world)
 {
 	return voe_ecs_component_entities(
 		world, voe_ecs_component_type(world, &voe_3d_shape_key));
+}
+
+voe_physics_collider voe_3d_shape_collider(uint32_t kind)
+{
+	if (kind == VOE_3D_SHAPE_CAPSULE)
+		return (voe_physics_collider){
+			.kind = VOE_PHYSICS_COLLIDER_CAPSULE,
+			.size = { 1.0f, 2.0f, 1.0f },
+		};
+	return (voe_physics_collider){
+		.kind = VOE_PHYSICS_COLLIDER_BOX,
+		.size = { 1.0f, 1.0f, 1.0f },
+	};
 }

@@ -136,7 +136,9 @@ function(voe_allowed_deps folder out_var)
         # no render header.
         set(deps ui text render assets math base)
     elseif(folder STREQUAL "3d")
-        set(deps render scene ecs assets math base)
+        # 3d names physics to draw a collider's lines and to name the collider
+        # that fits a built-in shape (ADR-0253).
+        set(deps render physics scene ecs assets math base)
     elseif(folder STREQUAL "sprite")
         # sprite sits above 3d rather than beside text, which is the one place
         # this map departs from the tree in CLAUDE.md as it was first drawn.

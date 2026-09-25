@@ -42,6 +42,9 @@
 //
 // IT SITS AT "Rendering / Shape" IN ADD COMPONENT, a menu path registered with
 // the type (ecs/component.h, 0221), so the menu is never a list kept by hand.
+//
+// THE COLLIDER THAT FITS A SHAPE IS NAMED HERE (0253 point 2), because how big
+// a built-in shape is belongs to this folder and physics does not know shapes.
 #pragma once
 
 #include <base/describe.h>
@@ -51,6 +54,8 @@
 #include <ecs/world.h>
 
 #include <math/float3.h>
+
+#include <physics/collider_component.h>
 
 #include <stdint.h>
 
@@ -100,3 +105,8 @@ const voe_3d_shape *voe_3d_shape_get(const voe_ecs_world *world,
 uint32_t voe_3d_shape_count(const voe_ecs_world *world);
 const voe_3d_shape *voe_3d_shape_rows(const voe_ecs_world *world);
 const voe_ecs_entity *voe_3d_shape_entities(const voe_ecs_world *world);
+
+// The collider that fits a built-in shape of `kind`, not a trigger: a cube and
+// a cylinder a box of 1, a capsule a capsule of (1, 2, 1). An unknown kind
+// gets the collider's default, a box of 1.
+voe_physics_collider voe_3d_shape_collider(uint32_t kind);
