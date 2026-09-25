@@ -137,6 +137,10 @@ typedef struct {
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
+	// The camera's world position, in double, that `view` is about
+	// (ADR-0250): every object's matrix, the sort and every mark is taken
+	// about this point. _frame sets it; a frame built by hand sets it too.
+	voe_math_double3 eye;
 	// A PASS MAY HIDE ONE ENTITY, AND THE CASE IS A SURFACE SHOWING THIS
 	// PASS'S OWN PICTURE (ADR-0158). A quad whose base colour texture is
 	// the target being drawn into would be an image read while it is

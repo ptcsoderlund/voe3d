@@ -84,6 +84,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	// no world for it (0223).
 	frame.view = (voe_render_view){ 0 };
 	frame.blind = !voe_3d_view(*pose, lens, aspect, &frame.view);
+	// The view is about the camera's own position; every matrix in _run is
+	// taken about the same point (ADR-0250).
+	frame.eye = pose->position;
 	frame.light = voe_3d_draw_system_light(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
@@ -280,7 +283,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 					  has_shapes ? voe_ecs_component_get(
 							       world, shapes,
 							       owners[row]) :
-						       NULL) },
+						       NULL,
+					  frame.eye) },
 		};
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.
@@ -336,7 +340,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		if (!range_is_this_frame_s(panels[row], submitted))
 			continue;
 
-		model = voe_scene_transform_matrix(*transform);
+		model = voe_scene_transform_matrix(*transform, frame.eye);
 		entry = (struct voe_3d_deferred){
 			.panel = true,
 			.elements = { .transform = panel_transform(

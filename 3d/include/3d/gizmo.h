@@ -5,9 +5,9 @@
 // a theme is, and nothing is uploaded or drawn — 3d/draw_system.h is what hands
 // the triangles to the card.
 //
-//     voe_3d_gizmo gizmo = voe_3d_gizmo_at(position, view, size, 90.0f);
-//     voe_3d_ray ray = voe_3d_pick_ray(camera, size, point);
-//     voe_math_float3 from;
+//     voe_3d_gizmo gizmo = voe_3d_gizmo_at(position, view, eye, size, 90.0f);
+//     voe_3d_ray ray = voe_3d_pick_ray(view, eye, size, point);
+//     voe_math_double3 from;
 //     voe_3d_gizmo_mesh plain, marked;
 //
 //     voe_3d_gizmo_handle under = voe_3d_gizmo_hit(gizmo, ray);
@@ -26,12 +26,16 @@
 // gizmo that turns with the entity it moves is a later card — it is these three
 // directions that become an entity's own when it comes, and nothing else here
 // changes.
+//
+// POSITIONS ARE DOUBLE AND THE ARITHMETIC IS FLOAT ABOUT ONE POINT (ADR-0250):
+// a hit or a grab about the ray's origin, the quads about the eye.
 #pragma once
 
 #include <3d/pick.h>
 
 #include <base/arena.h>
 
+#include <math/double3.h>
 #include <math/float3.h>
 
 #include <render/device.h>
@@ -92,13 +96,13 @@ typedef enum {
 // The gizmo itself: where it stands, who is looking at it and how big it is.
 // Plain numbers, copied by value, owned by whoever made it.
 typedef struct {
-	voe_math_float3 origin; // where the gizmo stands, in metres
-	voe_math_float3 eye; // the camera's position, in metres
+	voe_math_double3 origin; // where the gizmo stands, in world metres
+	voe_math_double3 eye; // the camera's position, in world metres
 	float shaft; // one arrow's shaft, in metres
 } voe_3d_gizmo;
 
 // The gizmo at `origin`, sized so one shaft covers `pixels` pixels of a picture
-// `size` big drawn through `view`.
+// `size` big drawn through `view`, an eye-relative view from `eye`.
 //
 // The origin's depth through `view.view` is floored at a tenth of a millimetre,
 // so a gizmo at the eye itself is a very large gizmo and not a division by
@@ -111,8 +115,9 @@ typedef struct {
 // one object that has to stay one shape: an arrow sized from its own tip's depth
 // would make a different gizmo of every angle, and the handle a person aimed at
 // would not be the one the ray meets. So the origin's depth sizes all of it.
-voe_3d_gizmo voe_3d_gizmo_at(voe_math_float3 origin, voe_render_view view,
-			     voe_platform_size size, float pixels);
+voe_3d_gizmo voe_3d_gizmo_at(voe_math_double3 origin, voe_render_view view,
+			     voe_math_double3 eye, voe_platform_size size,
+			     float pixels);
 
 // Which handle `ray` meets, nearest along the ray first: each axis as the
 // segment from the origin to the far end of its head, met when the ray passes
@@ -152,7 +157,7 @@ voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo gizmo, voe_3d_ray ray);
 // which happens, and there is nothing to report.
 [[nodiscard]] bool voe_3d_gizmo_grab(voe_3d_gizmo gizmo,
 				     voe_3d_gizmo_handle handle,
-				     voe_3d_ray ray, voe_math_float3 *out);
+				     voe_3d_ray ray, voe_math_double3 *out);
 
 // The gizmo as geometry, all of it in the arena the build was handed.
 typedef struct {
@@ -162,9 +167,9 @@ typedef struct {
 	uint32_t index_count;
 } voe_3d_gizmo_mesh;
 
-// Builds this frame's triangles into `arena`: every handle but `marked` into
-// `plain`, and `marked`'s own handle into `marked_out` at the marked step's
-// widths. The three labels are always in `plain`, whatever is marked, and
+// Builds this frame's triangles into `arena`, in metres about `gizmo.eye`:
+// every handle but `marked` into `plain`, and `marked`'s own handle into
+// `marked_out` at the marked step's widths. The three labels are always in `plain`, whatever is marked, and
 // VOE_3D_GIZMO_NONE leaves `marked_out` an empty mesh — a mesh the caller draws
 // nothing from.
 //

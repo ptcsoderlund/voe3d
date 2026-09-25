@@ -57,16 +57,17 @@ bool voe_3d_draw_group_shape_type(const voe_ecs_world *world, voe_ecs_type *out)
 }
 
 // The record an entity is drawn with, which is the same two matrices and the
-// same shading id whichever pass it ends up in.
+// same shading id whichever pass it ends up in; the world matrix is about `eye`.
 // `shape` is the entity's shape or NULL; its colour, opaque, is the object's,
 // and anything without one is drawn white — its material's colour as it is.
 voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transform,
 					      const voe_3d_material *material,
-					      const voe_3d_shape *shape)
+					      const voe_3d_shape *shape,
+					      voe_math_double3 eye)
 {
 	voe_render_object object = { 0 };
 
-	object.world = voe_scene_transform_matrix(*transform);
+	object.world = voe_scene_transform_matrix(*transform, eye);
 	// One inverse per drawn object per frame, which is the cost of getting a
 	// non-uniformly scaled thing lit correctly. It is computed rather than
 	// stored for the same reason the world matrix is

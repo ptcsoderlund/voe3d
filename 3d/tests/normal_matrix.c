@@ -36,6 +36,10 @@
 #define TOLERANCE 1e-5f
 
 // The two edges of the surface, and the normal the cross product of them is.
+// The point every matrix here is taken about: these transforms stand at the
+// world's origin, so about it is where they are.
+static const voe_math_double3 ORIGIN = { 0.0, 0.0, 0.0 };
+
 static const voe_math_float3 EDGE_A = { 1.0f, 1.0f, 0.0f };
 static const voe_math_float3 EDGE_B = { 0.0f, 0.0f, 1.0f };
 static const voe_math_float3 NORMAL = { 1.0f, -1.0f, 0.0f };
@@ -60,7 +64,7 @@ static voe_scene_transform squashed(void)
 // this: voe_math_float4x4_transform_dir is the affine transform without it.
 static void the_normal_stays_perpendicular_to_the_surface(void)
 {
-	voe_math_float4x4 world = voe_scene_transform_matrix(squashed());
+	voe_math_float4x4 world = voe_scene_transform_matrix(squashed(), ORIGIN);
 	voe_math_float4x4 normals = voe_3d_normal_matrix(world);
 	voe_math_float3 edge_a = voe_math_float4x4_transform_dir(world, EDGE_A);
 	voe_math_float3 edge_b = voe_math_float4x4_transform_dir(world, EDGE_B);
@@ -102,7 +106,7 @@ static void a_rotation_is_its_own_normal_matrix(void)
 			voe_math_float3_normalize(axis), 0.7f),
 		.scale = { 1.0f, 1.0f, 1.0f },
 	};
-	voe_math_float4x4 world = voe_scene_transform_matrix(transform);
+	voe_math_float4x4 world = voe_scene_transform_matrix(transform, ORIGIN);
 	voe_math_float4x4 normals = voe_3d_normal_matrix(world);
 
 	for (int row = 0; row < 3; row++) {
@@ -123,7 +127,7 @@ static void a_uniform_scale_only_changes_the_length(void)
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 3.0f, 3.0f, 3.0f },
 	};
-	voe_math_float4x4 world = voe_scene_transform_matrix(transform);
+	voe_math_float4x4 world = voe_scene_transform_matrix(transform, ORIGIN);
 	voe_math_float4x4 normals = voe_3d_normal_matrix(world);
 	voe_math_float3 turned = voe_math_float3_normalize(
 		voe_math_float4x4_transform_dir(normals, NORMAL));
@@ -145,7 +149,7 @@ static void a_flattened_object_gets_the_identity(void)
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 1.0f, 0.0f, 1.0f },
 	};
-	voe_math_float4x4 world = voe_scene_transform_matrix(transform);
+	voe_math_float4x4 world = voe_scene_transform_matrix(transform, ORIGIN);
 	voe_math_float4x4 normals = voe_3d_normal_matrix(world);
 	voe_math_float4x4 identity = voe_math_float4x4_identity();
 

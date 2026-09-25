@@ -412,8 +412,9 @@ static voe_scene_transform decomposed(voe_math_float4x4 world)
 		lengths[column] = voe_math_float3_length(axes[column]);
 	}
 
-	transform.position = (voe_math_float3){ world.m[0][3], world.m[1][3],
-						world.m[2][3] };
+	// Widened into the double position (ADR-0250).
+	transform.position = (voe_math_double3){ world.m[0][3], world.m[1][3],
+						 world.m[2][3] };
 	transform.scale = (voe_math_float3){ lengths[0], lengths[1],
 					     lengths[2] };
 

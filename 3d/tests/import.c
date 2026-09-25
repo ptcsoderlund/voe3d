@@ -203,12 +203,13 @@ int main(void)
 		if (transform == NULL)
 			continue;
 
-		check_vector(transform->position,
+		check_vector(voe_math_double3_to_float3(transform->position),
 			     (voe_math_float3){ 1.0f, 2.0f, 0.0f });
 		check_vector(transform->scale,
 			     (voe_math_float3){ 2.0f, 2.0f, 2.0f });
 
-		matrix = voe_scene_transform_matrix(*transform);
+		matrix = voe_scene_transform_matrix(
+			*transform, (voe_math_double3){ 0.0, 0.0, 0.0 });
 		check_vector(voe_math_float4x4_transform_point(
 				     matrix,
 				     (voe_math_float3){ 1.0f, 0.0f, 0.0f }),

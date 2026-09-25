@@ -116,12 +116,14 @@ static void marker_edges(voe_scene_camera lens,
 
 bool voe_3d_camera_marker_quads(voe_scene_transform pose,
 				voe_scene_camera lens, voe_render_view view,
-				voe_platform_size size, float pixels,
+				voe_math_double3 eye, voe_platform_size size,
+				float pixels,
 				voe_base_arena *arena,
 				voe_3d_outline_mesh *out)
 {
 	segment edges[VOE_3D_CAMERA_MARKER_EDGES];
-	voe_math_float4x4 matrix = voe_scene_transform_matrix(pose);
+	// About the eye, as `view` is: the quads are eye-relative (ADR-0250).
+	voe_math_float4x4 matrix = voe_scene_transform_matrix(pose, eye);
 	voe_render_vertex *vertices;
 	uint32_t *indices;
 	uint32_t quads = 0;
@@ -202,7 +204,9 @@ bool voe_3d_camera_marker_quads(voe_scene_transform pose,
 bool voe_3d_camera_marker_hit(voe_scene_transform pose, voe_3d_ray ray,
 			      float *distance)
 {
-	voe_math_float4x4 matrix = voe_scene_transform_matrix(pose);
+	// About the ray's own origin, so the ray starts at nought in float and
+	// only the small difference is narrowed (ADR-0250).
+	voe_math_float4x4 matrix = voe_scene_transform_matrix(pose, ray.origin);
 	voe_math_float4x4 inverse;
 	float origin[3];
 	float direction[3];
@@ -217,7 +221,8 @@ bool voe_3d_camera_marker_hit(voe_scene_transform pose, voe_3d_ray ray,
 
 	{
 		voe_math_float3 o =
-			voe_math_float4x4_transform_point(inverse, ray.origin);
+			voe_math_float4x4_transform_point(
+				inverse, (voe_math_float3){ 0.0f, 0.0f, 0.0f });
 		voe_math_float3 d =
 			voe_math_float4x4_transform_dir(inverse, ray.direction);
 

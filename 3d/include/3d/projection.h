@@ -10,6 +10,10 @@
 // The world's camera and an editor view's orbit both come through it, so they
 // cannot disagree about what a pose looks like.
 //
+// EVERY RENDER VIEW IS EYE-RELATIVE (0250): its view matrix has no translation
+// and its `eye` is zero, and the eye's world position travels beside it as a
+// voe_math_double3, which every object's matrix is taken about.
+//
 // IT IS HERE AND NOT IN math OR IN scene, AND BOTH HALVES OF THAT ARE RULES.
 // `math` may not know about a graphics API (CLAUDE.md, Conventions), and `scene`
 // holds the numbers a person would author — a field of view in radians and two
@@ -45,7 +49,8 @@ voe_math_float4x4 voe_3d_projection(voe_scene_camera lens, float aspect);
 
 // The view of a camera at `pose` with `lens`: the view matrix from
 // voe_scene_camera_view(pose), the projection from voe_3d_projection(lens,
-// aspect), the eye at the pose's position and `reserved` nought. False, with
-// `out` untouched, when the pose sees nothing (its matrix has no inverse).
+// aspect), the eye zero because the view is about the pose's own position, and
+// `reserved` nought. False, with `out` untouched, when the pose sees nothing
+// (its matrix has no inverse).
 [[nodiscard]] bool voe_3d_view(voe_scene_transform pose, voe_scene_camera lens,
 			       float aspect, voe_render_view *out);

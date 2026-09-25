@@ -1,12 +1,12 @@
 // A scene camera drawn in an editor's view as a marker (0223): every edge of a
-// box and of a frustum as line quads standing in the world, and the ray that
+// box and of a frustum as line quads about the eye, and the ray that
 // picks the box. It builds two arrays in an arena and uploads nothing; the
 // draw system is what hands them to the card.
 //
 //     voe_3d_outline_mesh mesh;
 //
-//     if (voe_3d_camera_marker_quads(pose, lens, view, size, 2.0f, arena,
-//                                    &mesh))
+//     if (voe_3d_camera_marker_quads(pose, lens, view, eye, size, 2.0f,
+//                                    arena, &mesh))
 //             ... // mesh.vertices, mesh.indices: this frame's geometry
 //     if (voe_3d_camera_marker_hit(pose, ray, &distance))
 //             ... // the camera is under the pointer
@@ -48,8 +48,8 @@
 #define VOE_3D_CAMERA_MARKER_VERTICES (VOE_3D_CAMERA_MARKER_EDGES * 4)
 #define VOE_3D_CAMERA_MARKER_INDICES (VOE_3D_CAMERA_MARKER_EDGES * 6)
 
-// Builds the marker of a camera at `pose` with `lens` as seen through `view`,
-// `pixels` wide on a picture `size` pixels big, into `arena`, and fills `out`.
+// Builds the marker of a camera at `pose` with `lens` as seen through `view`
+// from `eye`, in metres about `eye` (ADR-0250), `pixels` wide on a picture `size` pixels big, into `arena`, and fills `out`.
 // An edge seen exactly end-on is left out, as outline.c leaves one out.
 //
 // False, with `out` untouched, when the pose's matrix has no inverse (a camera
@@ -57,6 +57,7 @@
 [[nodiscard]] bool voe_3d_camera_marker_quads(voe_scene_transform pose,
 					      voe_scene_camera lens,
 					      voe_render_view view,
+					      voe_math_double3 eye,
 					      voe_platform_size size,
 					      float pixels,
 					      voe_base_arena *arena,
@@ -64,9 +65,9 @@
 
 // Whether `ray` meets the box of a camera at `pose`, and how far along it.
 //
-// The ray is taken into the camera's space by the inverse of its matrix, the
-// direction not renormalised, so the slab test's parameter is still a distance
-// along the world ray: `distance`, which may be NULL, is where it enters the
+// The ray is taken into the camera's space by the inverse of its matrix about
+// the ray's origin, in float (ADR-0250), the direction not renormalised, so the
+// slab test's parameter is still a distance along the world ray: `distance`, which may be NULL, is where it enters the
 // box, or where it leaves it when the ray starts inside.
 //
 // False for no hit in front of the ray's origin, or a pose with no inverse.

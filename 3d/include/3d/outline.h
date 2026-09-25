@@ -1,5 +1,5 @@
-// One entity's silhouette, seen from one camera, as quads standing in the
-// world: the geometry a selection outline is drawn from (ADR-0203). It builds
+// One entity's silhouette, seen from one camera, as quads in metres about the
+// eye (ADR-0250): the geometry a selection outline is drawn from (ADR-0203). It builds
 // two arrays in an arena and uploads nothing; 3d/draw_system.h is what hands
 // them to the card.
 //
@@ -11,7 +11,7 @@
 //                                  .pixels = 2.0f,
 //                                  .size = view_size };
 //
-//     if (voe_3d_outline_quads(world, outlined, view, arena, &mesh))
+//     if (voe_3d_outline_quads(world, outlined, view, eye, arena, &mesh))
 //             ... // mesh.vertices, mesh.indices: this frame's geometry
 //
 // WHAT A SILHOUETTE EDGE IS. An edge of the surface whose two triangles
@@ -31,12 +31,12 @@
 // all three built-in shapes are closed, and the day a read model is outlined is
 // the day that distinction has to be carried in the edge.
 //
-// THE QUADS STAND IN THE WORLD AND NOT ON THE SCREEN. They are drawn through
+// THE QUADS STAND ABOUT THE EYE AND NOT ON THE SCREEN. They are drawn through
 // the same camera and the same two matrices as everything else in the view, so
 // there is no second space here, no orthographic projection and no screen-space
 // pass — 3d/draw_system.h says the same about the overlay layer, which is a
 // depth clear and not a different way of drawing. A quad's corner goes through
-// the world matrix once, here, and is a world position from then on.
+// the matrix about the eye once, here, and is eye-relative from then on.
 //
 // THEY ARE WOUND TO FACE THE EYE AND CARRY NORMALS POINTING AT IT. The draw
 // pipeline culls back faces (render/device.h), so a quad wound the other way
@@ -58,6 +58,8 @@
 #include <base/arena.h>
 
 #include <ecs/world.h>
+
+#include <math/double3.h>
 
 #include <render/device.h>
 
@@ -118,8 +120,8 @@ typedef struct {
 // the line. Half a width at each end fills that corner for any angle a
 // silhouette makes.
 //
-// Builds `outlined`'s silhouette as seen through `view` into `arena` and fills
-// `out`.
+// Builds `outlined`'s silhouette as seen through `view` from `eye`, in metres
+// about `eye`, into `arena` and fills `out`.
 //
 // False, with nothing written to `out`, when there is nothing to outline: a
 // zeroed or dead entity, no store, an entity with no shape or no transform, a
@@ -130,5 +132,6 @@ typedef struct {
 [[nodiscard]] bool voe_3d_outline_quads(const voe_ecs_world *world,
 					voe_3d_outlined outlined,
 					voe_render_view view,
+					voe_math_double3 eye,
 					voe_base_arena *arena,
 					voe_3d_outline_mesh *out);

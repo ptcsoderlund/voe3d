@@ -12,6 +12,7 @@
 #include <base/arena.h>
 #include <base/assert.h>
 
+#include <math/double3.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
 
@@ -58,6 +59,33 @@ static const float LETTER[3][3][4] = {
 // `p` counting from VOE_3D_GIZMO_XY lies in axes p and (p + 1) % 3 and is
 // normal to (p + 2) % 3, which is what makes XY, YZ and ZX one rule and not
 // three.
+// The gizmo and a ray as float about one double point (ADR-0250): the ray's
+// origin for a hit or a grab, the eye for the quads. Every test and every
+// vertex below is worked out in this, never in world positions.
+struct flat {
+	voe_math_float3 origin;
+	voe_math_float3 eye;
+	float shaft;
+};
+
+struct flat_ray {
+	voe_math_float3 origin;
+	voe_math_float3 direction;
+};
+
+// `gizmo` as offsets from `point`, subtracted in double and only then narrowed.
+static struct flat flat_about(voe_3d_gizmo gizmo, voe_math_double3 point)
+{
+	VOE_BASE_ASSERT(gizmo.shaft >= 0.0f, "a gizmo of negative size");
+	return (struct flat){
+		.origin = voe_math_double3_to_float3(
+			voe_math_double3_sub(gizmo.origin, point)),
+		.eye = voe_math_double3_to_float3(
+			voe_math_double3_sub(gizmo.eye, point)),
+		.shaft = gizmo.shaft,
+	};
+}
+
 static const voe_math_float3 AXES[3] = { { 1.0f, 0.0f, 0.0f },
 					 { 0.0f, 1.0f, 0.0f },
 					 { 0.0f, 0.0f, 1.0f } };
@@ -72,7 +100,7 @@ static float depth_of(voe_render_view view, voe_math_float3 p)
 }
 
 // The point `along` metres along `axis` from the gizmo's origin.
-static voe_math_float3 out_from(voe_3d_gizmo gizmo, int axis, float along)
+static voe_math_float3 out_from(struct flat gizmo, int axis, float along)
 {
 	return voe_math_float3_add(gizmo.origin,
 				   voe_math_float3_scale(AXES[axis], along));
@@ -80,7 +108,7 @@ static voe_math_float3 out_from(voe_3d_gizmo gizmo, int axis, float along)
 
 // The point `along_first` metres along one of a plane's two axes and
 // `along_second` along the other, from the gizmo's origin.
-static voe_math_float3 corner(voe_3d_gizmo gizmo, voe_math_float3 first,
+static voe_math_float3 corner(struct flat gizmo, voe_math_float3 first,
 			      voe_math_float3 second, float along_first,
 			      float along_second)
 {
@@ -109,7 +137,7 @@ static voe_math_float3 in_label(voe_math_float3 centre, voe_math_float3 right,
 // Where `ray` meets the plane through `point` with unit normal `normal`, as a
 // parameter along the ray. False when it is too nearly parallel to that plane to
 // meet it anywhere in particular.
-static bool ray_meets_plane(voe_3d_ray ray, voe_math_float3 point,
+static bool ray_meets_plane(struct flat_ray ray, voe_math_float3 point,
 			    voe_math_float3 normal, float *at)
 {
 	float facing = voe_math_float3_dot(ray.direction, normal);
@@ -134,7 +162,7 @@ static bool ray_meets_plane(voe_3d_ray ray, voe_math_float3 point,
 // parameter on the segment is then clamped into it — past an end the closest
 // point is that end — and the one on the ray is measured from the segment point
 // that won, which is what keeps a hit behind the eye out.
-static bool ray_near_segment(voe_3d_ray ray, voe_math_float3 a,
+static bool ray_near_segment(struct flat_ray ray, voe_math_float3 a,
 			     voe_math_float3 b, float reach, float *at)
 {
 	voe_math_float3 along = voe_math_float3_sub(b, a);
@@ -173,7 +201,7 @@ static bool ray_near_segment(voe_3d_ray ray, voe_math_float3 a,
 
 // The arrow: the segment from the origin to the far end of the head, which is
 // the whole of what is drawn along that axis.
-static bool ray_hits_axis(voe_3d_gizmo gizmo, voe_3d_ray ray, int axis,
+static bool ray_hits_axis(struct flat gizmo, struct flat_ray ray, int axis,
 			  float *at)
 {
 	return ray_near_segment(ray, gizmo.origin,
@@ -186,7 +214,7 @@ static bool ray_hits_axis(voe_3d_gizmo gizmo, voe_3d_ray ray, int axis,
 
 // The plane square: where the ray meets that plane, kept when it lands between
 // the near corner and the far one along both of the plane's own axes.
-static bool ray_hits_plane(voe_3d_gizmo gizmo, voe_3d_ray ray, int plane,
+static bool ray_hits_plane(struct flat gizmo, struct flat_ray ray, int plane,
 			   float *at)
 {
 	float near_corner = gizmo.shaft * VOE_3D_GIZMO_PLANE_NEAR;
@@ -208,10 +236,13 @@ static bool ray_hits_plane(voe_3d_gizmo gizmo, voe_3d_ray ray, int plane,
 	       second >= near_corner && second <= far_corner;
 }
 
-voe_3d_gizmo voe_3d_gizmo_at(voe_math_float3 origin, voe_render_view view,
-			     voe_platform_size size, float pixels)
+voe_3d_gizmo voe_3d_gizmo_at(voe_math_double3 origin, voe_render_view view,
+			     voe_math_double3 eye, voe_platform_size size,
+			     float pixels)
 {
-	float depth = depth_of(view, origin);
+	// `view` is about the eye, so the origin is too.
+	float depth = depth_of(view, voe_math_double3_to_float3(
+					     voe_math_double3_sub(origin, eye)));
 
 	VOE_BASE_ASSERT(size.height > 0,
 			"a gizmo sized against a picture of no height");
@@ -222,14 +253,16 @@ voe_3d_gizmo voe_3d_gizmo_at(voe_math_float3 origin, voe_render_view view,
 		depth = NEAREST_DEPTH;
 	return (voe_3d_gizmo){
 		.origin = origin,
-		.eye = view.eye,
+		.eye = eye,
 		.shaft = pixels * 2.0f * depth /
 			 (view.projection.m[1][1] * (float)size.height),
 	};
 }
 
-voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo gizmo, voe_3d_ray ray)
+voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo placed, voe_3d_ray world_ray)
 {
+	struct flat gizmo = flat_about(placed, world_ray.origin);
+	struct flat_ray ray = { { 0.0f, 0.0f, 0.0f }, world_ray.direction };
 	voe_3d_gizmo_handle nearest = VOE_3D_GIZMO_NONE;
 	float nearest_at = 0.0f;
 	int handle;
@@ -255,11 +288,14 @@ voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo gizmo, voe_3d_ray ray)
 	return nearest;
 }
 
-bool voe_3d_gizmo_grab(voe_3d_gizmo gizmo, voe_3d_gizmo_handle handle,
-		       voe_3d_ray ray, voe_math_float3 *out)
+bool voe_3d_gizmo_grab(voe_3d_gizmo placed, voe_3d_gizmo_handle handle,
+		       voe_3d_ray world_ray, voe_math_double3 *out)
 {
+	struct flat gizmo = flat_about(placed, world_ray.origin);
+	struct flat_ray ray = { { 0.0f, 0.0f, 0.0f }, world_ray.direction };
 	voe_math_float3 from_origin =
 		voe_math_float3_sub(ray.origin, gizmo.origin);
+	voe_math_float3 point;
 	float at;
 
 	VOE_BASE_ASSERT(out != NULL, "a grab written nowhere");
@@ -273,7 +309,7 @@ bool voe_3d_gizmo_grab(voe_3d_gizmo gizmo, voe_3d_gizmo_handle handle,
 
 		if (determinant <= PARALLEL * PARALLEL)
 			return false;
-		*out = voe_math_float3_add(
+		point = voe_math_float3_add(
 			gizmo.origin,
 			voe_math_float3_scale(
 				axis,
@@ -282,13 +318,16 @@ bool voe_3d_gizmo_grab(voe_3d_gizmo gizmo, voe_3d_gizmo_handle handle,
 						     from_origin,
 						     ray.direction)) /
 					determinant));
-		return true;
-	}
-	if (!ray_meets_plane(ray, gizmo.origin,
-			     AXES[(handle - VOE_3D_GIZMO_XY + 2) % 3], &at))
+	} else if (!ray_meets_plane(ray, gizmo.origin,
+				    AXES[(handle - VOE_3D_GIZMO_XY + 2) % 3],
+				    &at)) {
 		return false;
-	*out = voe_math_float3_add(ray.origin,
-				   voe_math_float3_scale(ray.direction, at));
+	} else {
+		point = voe_math_float3_scale(ray.direction, at);
+	}
+	// Back into the world, added in double.
+	*out = voe_math_double3_add(world_ray.origin,
+				    voe_math_double3_from_float3(point));
 	return true;
 }
 
@@ -383,7 +422,7 @@ static void add_triangle(struct build *mesh, voe_math_float3 a,
 // to the person. An arrow pointed almost at the eye leaves that cross product at
 // nearly nothing, and a perpendicular to the axis is taken instead — a sliver
 // rather than nothing at all.
-static voe_math_float3 across_axis(voe_3d_gizmo gizmo, int axis)
+static voe_math_float3 across_axis(struct flat gizmo, int axis)
 {
 	voe_math_float3 to_eye = voe_math_float3_sub(
 		gizmo.eye, out_from(gizmo, axis, 0.5f * gizmo.shaft));
@@ -399,7 +438,7 @@ static voe_math_float3 across_axis(voe_3d_gizmo gizmo, int axis)
 // One arrow: the shaft's quad from the origin to the shaft's end, and the head's
 // triangle from there to the point, both in the one plane that faces the eye.
 // `step` widens the two without lengthening either, which is what marking is.
-static void add_axis(struct build *mesh, voe_3d_gizmo gizmo, int axis,
+static void add_axis(struct build *mesh, struct flat gizmo, int axis,
 		     float step)
 {
 	voe_math_float3 across = across_axis(gizmo, axis);
@@ -421,7 +460,7 @@ static void add_axis(struct build *mesh, voe_3d_gizmo gizmo, int axis,
 // the far one on both of its axes, as two triangles wound from whichever side
 // the eye is on. `step` grows it about its own centre, so a marked square still
 // covers the middle it covered.
-static void add_square(struct build *mesh, voe_3d_gizmo gizmo, int plane,
+static void add_square(struct build *mesh, struct flat gizmo, int plane,
 		       float step)
 {
 	float near_corner = gizmo.shaft * VOE_3D_GIZMO_PLANE_NEAR;
@@ -451,7 +490,7 @@ static void add_square(struct build *mesh, voe_3d_gizmo gizmo, int plane,
 // One label, past the point of its arrow: its strokes drawn in the plane facing
 // the eye, upright against the world's up where there is one to be upright
 // against. Each stroke is the quad a shaft is, widened in that same plane.
-static void add_label(struct build *mesh, voe_3d_gizmo gizmo, int axis)
+static void add_label(struct build *mesh, struct flat gizmo, int axis)
 {
 	float height = gizmo.shaft * VOE_3D_GIZMO_LABEL_HEIGHT;
 	voe_math_float3 centre = out_from(
@@ -499,10 +538,12 @@ static voe_3d_gizmo_mesh mesh_of(struct build mesh)
 	};
 }
 
-bool voe_3d_gizmo_quads(voe_3d_gizmo gizmo, voe_3d_gizmo_handle marked,
+bool voe_3d_gizmo_quads(voe_3d_gizmo placed, voe_3d_gizmo_handle marked,
 			voe_base_arena *arena, voe_3d_gizmo_mesh *plain,
 			voe_3d_gizmo_mesh *marked_out)
 {
+	// About the eye, so every vertex is eye-relative as the pass draws it.
+	struct flat gizmo = flat_about(placed, placed.eye);
 	struct build at_rest = { 0 };
 	struct build under = { 0 };
 	int handle;

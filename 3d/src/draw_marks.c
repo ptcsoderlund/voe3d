@@ -2,8 +2,8 @@
 // one entity's silhouette and the move gizmo's two meshes, each as this
 // frame's transient geometry and one or two draws. See draw_marks.h.
 //
-// All three are in world metres already, so every object here has identity
-// matrices; the record is the caller's unlit one and the colour the caller's.
+// All three are in metres about the frame's eye already (ADR-0250), so every
+// object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
 #include "draw_marks.h"
 
 #include <3d/camera_marker.h>
@@ -28,7 +28,7 @@ static voe_render_object mark_object(voe_3d_material material,
 }
 
 // The scene camera's marker as this frame's geometry and one draw, in world
-// metres like the outline's quads, so both matrices are the identity (0223).
+// metres about the eye like the outline's quads, so both matrices are the identity (0223).
 // A zeroed entity, a dead one, and one without a camera or a transform draw
 // nothing; so does a refused transient range, which render reports.
 void voe_3d_draw_marks_camera(const voe_ecs_world *world,
@@ -51,7 +51,8 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 	pose = voe_scene_transform_get(world, marker.entity);
 	if (lens == NULL || pose == NULL)
 		return;
-	if (voe_3d_camera_marker_quads(*pose, *lens, frame.view, marker.size,
+	if (voe_3d_camera_marker_quads(*pose, *lens, frame.view, frame.eye,
+				       marker.size,
 				       marker.pixels, arena, &mesh) &&
 	    voe_render_geometry_create_transient(device, mesh.vertices,
 						 mesh.vertex_count, mesh.indices,
@@ -85,8 +86,8 @@ void voe_3d_draw_marks_outline(const voe_ecs_world *world,
 
 	if (!voe_ecs_entity_alive(world, frame.outlined.entity))
 		return;
-	if (!voe_3d_outline_quads(world, frame.outlined, frame.view, arena,
-				  &outline) ||
+	if (!voe_3d_outline_quads(world, frame.outlined, frame.view,
+				  frame.eye, arena, &outline) ||
 	    !voe_render_geometry_create_transient(
 		    device, outline.vertices, outline.vertex_count,
 		    outline.indices, outline.index_count, &quads, &error))
@@ -152,7 +153,7 @@ void voe_3d_draw_marks_gizmo(const voe_ecs_world *world,
 		return;
 
 	voe_render_frame_clear_depth(device);
-	gizmo = voe_3d_gizmo_at(transform->position, frame.view,
+	gizmo = voe_3d_gizmo_at(transform->position, frame.view, frame.eye,
 				frame.gizmo.size, frame.gizmo.pixels);
 	if (!voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena, &plain,
 				&marked))

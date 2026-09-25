@@ -1,5 +1,5 @@
 // The silhouette walk and the quads it builds — see the header for what a
-// silhouette edge is, why the quads stand in the world and why the cap is a cap.
+// silhouette edge is, why the quads stand about the eye and why the cap is a cap.
 #include <3d/outline.h>
 #include <3d/shape_component.h>
 
@@ -71,8 +71,8 @@ static void triangle(uint32_t *indices, const voe_render_vertex *vertices,
 }
 
 bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
-			  voe_render_view view, voe_base_arena *arena,
-			  voe_3d_outline_mesh *out)
+			  voe_render_view view, voe_math_double3 eye,
+			  voe_base_arena *arena, voe_3d_outline_mesh *out)
 {
 	const voe_3d_shape *shape;
 	const voe_scene_transform *transform;
@@ -98,7 +98,8 @@ bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
 	if (geometry == NULL)
 		return false;
 
-	matrix = voe_scene_transform_matrix(*transform);
+	// About the eye, as `view` is (ADR-0250): the quads are eye-relative.
+	matrix = voe_scene_transform_matrix(*transform, eye);
 	// Scaled away to nothing: drawn as nothing, so there is no outline of
 	// it, and its matrix cannot be inverted (math/float4x4.h asserts on a
 	// singular one) — 3d/pick.c skips such an entity for the same reason.
@@ -151,7 +152,7 @@ bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
 		outward = voe_math_float3_normalize(outward);
 
 		// Out of the shape and not into it: the normal of whichever of
-		// the two triangles the eye is in front of, in world space.
+		// the two triangles the eye is in front of, about the eye.
 		front = voe_math_float4x4_transform_dir(
 			matrix, left_front ? edge->left : edge->right);
 		if (voe_math_float3_dot(outward, front) < 0.0f)
