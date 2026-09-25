@@ -23,9 +23,9 @@
 // and other folders' through their intents (rule 4).
 //
 // THE ENTRY POINTS ARE THE PROJECT'S, never the engine's. The game links them
-// (game/run.h registers, then runs the systems before each frame); the editor
-// resolves register with one lookup in the loaded library and never runs the
-// systems (ADR-0008).
+// (game/run.h registers; game/steps.h runs the systems each fixed step); the
+// editor resolves register with one lookup in the loaded library and never
+// runs the systems (ADR-0008).
 //
 // Constraints: at most VOE_GAME_PROJECT_TYPES types, each row at most
 // VOE_GAME_PROJECT_ROW bytes so its intent fits the Inspector's 256; each
@@ -56,7 +56,7 @@
 #define VOE_GAME_PROJECT_DESCRIPTION(name) (&voe_ecs_description_compiled_out)
 #endif
 
-// What one frame hands the project's systems. `window` is NULL headless.
+// What one fixed step hands the project's systems. `window` is NULL headless.
 typedef struct {
 	voe_ecs_world *world;
 	voe_platform_window *window;

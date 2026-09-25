@@ -10,8 +10,9 @@
 // `title`, the world (game/world.h), the project's voe_game_project_register
 // (game/project.h), voe_game_scene_build (game/scene.h), the built-in shapes
 // uploaded, then once a frame, skipping a minimised window, until it is
-// closing: the project's code in voe_game_project_systems_run, then
-// voe_game_frame.
+// closing: the frame's elapsed seconds into voe_game_steps_run, which runs
+// voe_game_project_systems_run once per fixed step (game/steps.h), then
+// voe_game_frame with the lag it returns.
 //
 // NO QUIT KEY (0234). Escape is the game's own, for its menus; the window's
 // close, the system's close key, or the editor's Stop ends the run.
