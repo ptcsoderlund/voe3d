@@ -14,7 +14,7 @@ read a transform, and `3d` draws them, so collision is neither folder's (0253).
   a bad step, slope or velocity, and the move that slides and steps.
 - `include/physics/collider_component.h` — a box, sphere or capsule, its size
   in the entity's own units and whether it is a trigger, as a described field
-  list with kind names for a dropdown.
+  list; kind is a named number, a UINT32 with names for a dropdown.
 - `include/physics/collider_system.h` — the whole-row intent registered as the
   collider's replace, the call that creates one, and the drain that keeps a row
   over a bad size and warns over an unknown kind.

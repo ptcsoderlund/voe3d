@@ -44,9 +44,10 @@
 // The name of each kind, indexed by the kind's own number; NULL for nought.
 extern VOE_BASE_IMPORTED const char *const voe_physics_collider_kind_names[4];
 
-// kind is 4 bytes like the plain enum ENUM describes; size is never below 0.
+// kind is a UINT32 named by voe_physics_collider_kind_names (0198), so a scene
+// holds it as its number; size is never below 0.
 #define VOE_PHYSICS_COLLIDER_FIELDS(F, F_READ_ONLY) \
-	F(uint32_t, kind, ENUM)                     \
+	F(uint32_t, kind, UINT32)                   \
 	F(voe_math_float3, size, FLOAT3)            \
 	F(bool, trigger, BOOL)
 

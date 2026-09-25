@@ -6,6 +6,9 @@
 // 0.008, so a centre that passed through a float would come back off by up to
 // that; the check is for exact equality, which only a double survives (0250).
 //
+// A NAMED KIND IS A UINT32, so a scene can hold it as its number; the names ride
+// beside it in the description for a tool's dropdown (0198).
+//
 // THE BAD SIZE IS REPORTED ON stderr. That line is expected output, not a
 // failure; the checks are on the row.
 #include <base/arena.h>
@@ -56,13 +59,30 @@ static voe_ecs_entity placed(voe_ecs_world *world, voe_math_double3 position,
 }
 
 // The default row is a box of 1, not a trigger; the type needs a transform and
-// sits at "Physics / Collider".
+// sits at "Physics / Collider"; kind is described as a UINT32 with 4 names.
 static void registration_tells_a_tool(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type =
 		voe_ecs_component_type(world, &voe_physics_collider_key);
 	const voe_physics_collider *row = voe_ecs_component_default(world, type);
+	const voe_base_struct_description *description =
+		voe_physics_collider_description();
+	const voe_base_field_names *kinds =
+		voe_base_names_find(description, "kind");
+	bool kind_found = false;
+
+	for (uint32_t i = 0; i < description->field_count; i++) {
+		if (strcmp(description->fields[i].name, "kind") != 0)
+			continue;
+		kind_found = true;
+		VOE_TEST_CHECK_INT(description->fields[i].kind,
+				   VOE_BASE_FIELD_UINT32);
+	}
+	VOE_TEST_CHECK(kind_found);
+	VOE_TEST_CHECK(kinds != NULL);
+	if (kinds != NULL)
+		VOE_TEST_CHECK_INT(kinds->value_count, 4);
 
 	VOE_TEST_CHECK(row != NULL);
 	if (row != NULL) {
