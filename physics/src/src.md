@@ -4,6 +4,9 @@
 reads; the `_system.c` holds the registration, creation and the drain, and
 every write to that table is in it.
 
+- `body_component.c` — the key and the reads.
+- `body_system.c` — registration, creation, the drain that keeps a bad row, and
+  the report a run of refusals writes.
 - `collider_component.c` — the key, the kind names and the reads.
 - `collider_system.c` — registration, creation, the drain that settles what it
   applies, and the report a run of settlings writes.
