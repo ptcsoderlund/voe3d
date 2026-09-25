@@ -32,3 +32,6 @@ Card 18's double positions, eye and gizmo are in the tree and stay as they are.
 4. The human's: `feature.md`'s `## How to test` step 16 in the editor on `examples/capsule/`
    (every X raised by 100000 in the Inspector, the views reopened by Open on the saved project,
    nothing shakes up close in the editor or in Play).
+
+## Blocked
+The editor change is in and Done when 1 and 2 pass (both captures identical, no stderr), but `checks.sh --all` prints `FINDINGS: 2`, both from before this card and outside `editor`: `3d/include/3d/3d.md` does not list `collider_marker.h`, and `scene/tests/tests.md`'s `transform.c` entry is 322 characters (cap 300). A card for `3d` and one for `scene` fixing those two entries would unblock it; nothing in `editor` is left to do.

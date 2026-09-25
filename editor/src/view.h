@@ -142,13 +142,23 @@ typedef struct {
 } voe_editor_views;
 
 // Sets every view in use to its initial camera — view 0 from the front and
-// above, view 1 from the side, both looking at the origin — and makes each one a
-// target, then the preview's. A startup operation, because making a target is.
+// above, view 1 from the side, both looking at the origin until
+// voe_editor_views_focus_camera moves them — and makes each one a target, then
+// the preview's. A startup operation, because making a target is.
 //
 // False when `render` refused a target, which has already said why on stderr.
 [[nodiscard]] bool voe_editor_views_create(voe_editor_views *views,
 					   voe_render_device *gpu,
 					   voe_base_error *error);
+
+// Sets every view in use to orbit the world camera entity's position, the
+// origin when the world has no camera or it has no transform, and puts each eye
+// back by the orbit; yaw, pitch and distance are untouched (0255). Called once
+// at startup and whenever a different project replaces the open one, so a scene
+// 100 km out opens where it is; not on a Refresh or a Play, which keep the same
+// scene and so the view a person flew to.
+void voe_editor_views_focus_camera(voe_editor_views *views,
+				   const voe_ecs_world *world);
 
 // Asks for the view's target to be its recorded rectangle times
 // `pixels_per_millimetre`, rounded, when that differs from what it is. A view

@@ -19,6 +19,8 @@
 
 #include <math/quat.h>
 
+#include <scene/transform_component.h>
+
 #include <math.h>
 
 // The drag's rates, per millimetre the pointer travels on the surface. Radians
@@ -128,6 +130,26 @@ bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
 					VOE_EDITOR_PREVIEW_HEIGHT,
 					&views->preview_target,
 					&views->preview_texture, error);
+}
+
+void voe_editor_views_focus_camera(voe_editor_views *views,
+				   const voe_ecs_world *world)
+{
+	VOE_BASE_ASSERT(views != NULL, "focusing no views");
+	VOE_BASE_ASSERT(world != NULL, "focusing views on no world");
+
+	voe_math_double3 focus = { 0 };
+	if (voe_scene_camera_count(world) > 0) {
+		const voe_scene_transform *transform = voe_scene_transform_get(
+			world, voe_scene_camera_entities(world)[0]);
+		if (transform != NULL)
+			focus = transform->position;
+	}
+
+	for (uint32_t i = 0; i < views->count; i++) {
+		views->views[i].focus = focus;
+		orbit_place(&views->views[i]);
+	}
 }
 
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
