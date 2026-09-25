@@ -121,6 +121,24 @@ static bool put_floats(cook *c, const uint8_t *at, uint32_t count)
 	return true;
 }
 
+// Three doubles in one brace, `%a` without `f` (DOUBLE3, ADR-0250).
+static bool put_double3(cook *c, const uint8_t *at)
+{
+	double value[3];
+
+	VOE_BASE_ASSERT(c != NULL && at != NULL, "a cook and the field's bytes");
+	memcpy(value, at, sizeof(value));
+	puts_(c, "{ ");
+	for (uint32_t i = 0; i < 3; i++) {
+		if (i > 0)
+			puts_(c, ", ");
+		if (!put_float(c, value[i], false))
+			return false;
+	}
+	puts_(c, " }");
+	return true;
+}
+
 // Bytes up to the first NUL, or all `size` of them.
 static void put_string(cook *c, const uint8_t *at, size_t size)
 {
@@ -229,6 +247,8 @@ static bool put_element(cook *c, voe_base_field_kind kind, const uint8_t *at,
 	case VOE_BASE_FIELD_FLOAT3:
 	case VOE_BASE_FIELD_COLOUR:
 		return put_floats(c, at, 3);
+	case VOE_BASE_FIELD_DOUBLE3:
+		return put_double3(c, at);
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
 		return put_floats(c, at, 4);

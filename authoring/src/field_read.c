@@ -200,8 +200,11 @@ static bool close_bracket(struct cursor *cursor, uint32_t *depth)
 	return true;
 }
 
+// `count` numbers in one bracket, floats when `single`, else doubles (DOUBLE3,
+// ADR-0250).
 static bool floats_of(struct cursor *cursor, uint8_t *bytes, uint32_t count,
-		      uint32_t *depth, const voe_authoring_site *site)
+		      bool single, uint32_t *depth,
+		      const voe_authoring_site *site)
 {
 	char number[NUMBER_MAX];
 
@@ -212,12 +215,15 @@ static bool floats_of(struct cursor *cursor, uint8_t *bytes, uint32_t count,
 
 		if (i > 0 && !expect(cursor, ','))
 			return false;
-		if (!token(cursor, number) || !float_of(number, true, &value))
+		if (!token(cursor, number) || !float_of(number, single, &value))
 			return false;
 
-		float single = (float)value;
+		float narrow = (float)value;
 
-		memcpy(bytes + i * sizeof(single), &single, sizeof(single));
+		if (single)
+			memcpy(bytes + i * sizeof(narrow), &narrow, sizeof(narrow));
+		else
+			memcpy(bytes + i * sizeof(value), &value, sizeof(value));
 	}
 	return close_bracket(cursor, depth);
 }
@@ -285,15 +291,17 @@ static bool element_of(struct cursor *cursor, voe_base_field_kind kind,
 
 	switch (kind) {
 	case VOE_BASE_FIELD_FLOAT2:
-		return floats_of(cursor, bytes, 2, depth, site);
+		return floats_of(cursor, bytes, 2, true, depth, site);
 	case VOE_BASE_FIELD_FLOAT3:
 	case VOE_BASE_FIELD_COLOUR:
-		return floats_of(cursor, bytes, 3, depth, site);
+		return floats_of(cursor, bytes, 3, true, depth, site);
+	case VOE_BASE_FIELD_DOUBLE3:
+		return floats_of(cursor, bytes, 3, false, depth, site);
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
-		return floats_of(cursor, bytes, 4, depth, site);
+		return floats_of(cursor, bytes, 4, true, depth, site);
 	case VOE_BASE_FIELD_FLOAT4X4:
-		return floats_of(cursor, bytes, 16, depth, site);
+		return floats_of(cursor, bytes, 16, true, depth, site);
 	default:
 		break;
 	}
@@ -380,6 +388,8 @@ static const char *spelling(voe_base_field_kind kind)
 	case VOE_BASE_FIELD_FLOAT3:
 	case VOE_BASE_FIELD_COLOUR:
 		return "[x, y, z]";
+	case VOE_BASE_FIELD_DOUBLE3:
+		return "[x, y, z], each a finite decimal";
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
 		return "[x, y, z, w]";

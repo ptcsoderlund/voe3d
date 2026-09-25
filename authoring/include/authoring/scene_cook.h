@@ -51,7 +51,8 @@
 // A VALUE IS COOKED BY ITS FIELD'S KIND AND SHAPE, as a designated initialiser:
 //
 //   - integers in decimal with the suffix their width needs (`u`, `ll`, `ull`);
-//   - FLOAT32 and FLOAT64 as `%a` hex literals, `f` for 32; BOOL `true`/`false`;
+//   - FLOAT32, FLOAT64 and DOUBLE3's elements as `%a` hex literals, `f` for 32;
+//     BOOL `true`/`false`;
 //     ENUM as its integer;
 //   - vector kinds, FLOAT4X4 and each array dimension as nested braces in memory
 //     order;

@@ -67,8 +67,8 @@ typedef struct voe_authoring_text {
 //   - integers in decimal, BOOL as `true` or `false` (any non-zero byte is true);
 //   - FLOAT32 and FLOAT64 as the shortest decimal that reads back to the same
 //     bits, so `0.1f` is `0.1` and `-0.0` is `-0`;
-//   - FLOAT2, FLOAT3, COLOUR, FLOAT4, QUAT and FLOAT4X4 as `[a, b, c]`, in
-//     memory order (COLOUR exactly as FLOAT3) —
+//   - FLOAT2, FLOAT3, COLOUR, DOUBLE3, FLOAT4, QUAT and FLOAT4X4 as `[a, b, c]`,
+//     in memory order (COLOUR exactly as FLOAT3, DOUBLE3's elements as FLOAT64) —
 //     a vector kind's own bracket, however the field around it nests;
 //   - a field of rank 1 or more nests one `[…]` per dimension, outermost first,
 //     `, ` between items: `F(voe_math_float3, path, FLOAT3, 4, 2)` writes four

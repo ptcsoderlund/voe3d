@@ -90,7 +90,7 @@ static voe_ecs_world *small_world(voe_base_arena *arena)
 		.intensity = 3.0f,
 	}));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
-		.position = { 0.1f, -0.0f, 2.0f },
+		.position = { 0.1, -0.0, 2.0 },
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
@@ -149,7 +149,7 @@ static void test_cook_exact_text(void)
 		"\t\treturn false;\n"
 		"\tif (!voe_ecs_component_add(world, voe_ecs_component_type(world, "
 		"&voe_scene_transform_key), e[0], &(voe_scene_transform){ "
-		".position = { 0x1.99999ap-4f, -0x0p+0f, 0x1p+1f }, "
+		".position = { 0x1.999999999999ap-4, -0x0p+0, 0x1p+1 }, "
 		".rotation = { 0x0p+0f, 0x0p+0f, 0x0p+0f, 0x1p+0f }, "
 		".scale = { 0x1p+0f, 0x1p+0f, 0x1p+0f } }))\n"
 		"\t\treturn false;\n"
@@ -244,6 +244,29 @@ static void test_cook_refuses_duplicate_id(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A position 100 km out cooks to the hex literal of each of its doubles, no
+// `f`, so Play starts at the same bits the editor had (ADR-0250).
+static void test_cook_far_position(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_ecs_world *world = world_of(arena);
+	const double far[3] = { 100000.123456789, -0.05, 1e7 + 0.001 };
+	char wanted[160];
+
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, authored(world, 5, "Far"), (voe_scene_transform){
+			.position = { far[0], far[1], far[2] },
+			.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+			.scale = { 1.0f, 1.0f, 1.0f },
+		}));
+	voe_authoring_text out = cooked(world, arena, "game/scene.h");
+
+	(void)snprintf(wanted, sizeof(wanted), ".position = { %a, %a, %a }",
+		       far[0], far[1], far[2]);
+	VOE_TEST_CHECK(strstr(out.text, wanted) != NULL);
+	voe_base_arena_destroy(arena);
+}
+
 static void test_cook_empty_world(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -266,6 +289,7 @@ int main(void)
 	test_cook_compiles();
 	test_cook_refuses_nan();
 	test_cook_refuses_duplicate_id();
+	test_cook_far_position();
 	test_cook_empty_world();
 	return voe_test_result();
 }

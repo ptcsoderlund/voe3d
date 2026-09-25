@@ -221,6 +221,27 @@ static bool put_floats(struct text *text, const struct site *site,
 	return true;
 }
 
+// Three doubles in one bracket, each as FLOAT64 is written (ADR-0250).
+static bool put_double3(struct text *text, const struct site *site,
+			const uint8_t *bytes)
+{
+	double value[3];
+
+	VOE_BASE_ASSERT(text != NULL && site != NULL, "a text and a site");
+	VOE_BASE_ASSERT(bytes != NULL, "the field's bytes");
+	memcpy(value, bytes, sizeof(value));
+	put_string(text, "[");
+	for (uint32_t i = 0; i < 3; i++) {
+		if (!finite_or_refuse(text, site, value[i]))
+			return false;
+		if (i > 0)
+			put_string(text, ", ");
+		put_shortest(text, value[i], false);
+	}
+	put_string(text, "]");
+	return true;
+}
+
 static void put_entity(struct text *text, const struct site *site,
 		       const uint8_t *bytes)
 {
@@ -328,6 +349,8 @@ static bool put_element(struct text *text, const struct site *site,
 	case VOE_BASE_FIELD_FLOAT3:
 	case VOE_BASE_FIELD_COLOUR:
 		return put_floats(text, site, bytes, 3);
+	case VOE_BASE_FIELD_DOUBLE3:
+		return put_double3(text, site, bytes);
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
 		return put_floats(text, site, bytes, 4);
