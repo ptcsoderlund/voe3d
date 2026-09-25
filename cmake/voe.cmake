@@ -595,7 +595,11 @@ endfunction()
 # whole-archive: a project library's engine symbols bind to the editor's own, so
 # every engine function must be in the program and exported (ADR-0242 point 4).
 # `game` is left out because its entry points (game/project.h) are the project's
-# to define. voe_dev is linked as any program.
+# to define. On WIN32 the editor also links voe_editor.def, which
+# cmake/exports.cmake writes from every DEPENDS archive, `game` included: a DLL
+# binds only to names the program exports (ADR-0245), and the link writes the
+# import library voe_editor.lib from it. game's run.c stays out of the .def.
+# voe_dev is linked as any program.
 
 function(voe_executable folder)
     cmake_parse_arguments(arg "" "" "DEPENDS" ${ARGN})
@@ -615,6 +619,24 @@ function(voe_executable folder)
     if(folder STREQUAL "editor")
         voe_editor_toolchain(voe_${folder})
         set_target_properties(voe_${folder} PROPERTIES ENABLE_EXPORTS ON)
+        if(WIN32)
+            if(NOT CMAKE_NM)
+                message(FATAL_ERROR "voe_executable(editor): CMAKE_NM is not set; the editor's .def needs an nm (ADR-0245)")
+            endif()
+            set(archives "")
+            foreach(dep IN LISTS arg_DEPENDS)
+                list(APPEND archives "$<TARGET_FILE:voe_${dep}>")
+            endforeach()
+            set(script ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/exports.cmake)
+            set(def ${CMAKE_CURRENT_BINARY_DIR}/voe_editor.def)
+            add_custom_command(OUTPUT ${def}
+                COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM} "-DARCHIVES=${archives}"
+                    -DOUT=${def} -P ${script}
+                DEPENDS ${archives} ${script}
+                COMMENT "exports: voe_editor.def"
+                VERBATIM)
+            target_sources(voe_${folder} PRIVATE ${def})
+        endif()
         foreach(dep IN LISTS arg_DEPENDS)
             if(NOT dep STREQUAL "game")
                 target_link_libraries(voe_${folder} PRIVATE
