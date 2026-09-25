@@ -11,6 +11,10 @@
 // is no shortcut that makes an entity with other components on it; everything
 // else comes from Add component afterwards.
 //
+// A NEW COLLIDER STARTS OUT FITTING THE SHAPE (0253). Added to an entity with
+// a shape, it is voe_3d_shape_collider's row for that shape's kind, not the
+// type's default box, so a capsule gets a capsule without a person typing one.
+//
 // EVERYTHING GOES THROUGH THE STRUCTURAL QUEUE (ADR-0193, 0190). The entity is
 // made here with voe_ecs_entity_create, and every row it is given is a
 // voe_ecs_structure_add — never a folder's typed creation call. Nothing appears
@@ -51,7 +55,8 @@
 [[nodiscard]] bool voe_editor_entities_add(voe_ecs_world *world,
 					   voe_ecs_entity *out);
 
-// Queues that type's default row onto the entity. False when the queue is full.
+// Queues that type's default row onto the entity, or for a collider on an
+// entity with a shape the one fitting it. False when the queue is full.
 // A type with no default row is the caller's bug and asserts.
 [[nodiscard]] bool voe_editor_entities_component_add(voe_ecs_world *world,
 						     voe_ecs_entity entity,

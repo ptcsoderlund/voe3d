@@ -1,6 +1,7 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, a pass begun on each one's target with its own camera, the world drawn
-// with the selection's outline and gizmo and the scene camera's marker, and
+// with the selection's outline, collider and gizmo and the scene camera's
+// marker, and
 // the pass ended; and the preview's pass, drawn with the world's camera while
 // the selected entity has one.
 #include "view_passes.h"
@@ -121,6 +122,13 @@ bool voe_editor_view_passes_draw(
 					.entity = camera_entity,
 					.material = shapes->outline,
 					.colour = marker_colour,
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
+				// The selection; one without a collider draws none.
+				.collider = {
+					.entity = selected,
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,

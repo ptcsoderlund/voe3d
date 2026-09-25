@@ -5,7 +5,11 @@
 
 #include <base/assert.h>
 
+#include <3d/shape_component.h>
+
 #include <ecs/structure.h>
+
+#include <physics/collider_component.h>
 
 #include <scene/identity_component.h>
 #include <scene/transform_component.h>
@@ -128,6 +132,14 @@ bool voe_editor_entities_component_add(voe_ecs_world *world,
 {
 	VOE_BASE_ASSERT(world != NULL, "adding a component in no world");
 
+	const voe_3d_shape *shape = voe_3d_shape_get(world, entity);
+	if (shape != NULL &&
+	    type.value ==
+		    voe_ecs_component_type(world, &voe_physics_collider_key)
+			    .value) {
+		voe_physics_collider fitted = voe_3d_shape_collider(shape->kind);
+		return voe_ecs_structure_add(world, type, entity, &fitted);
+	}
 	return queue_default(world, entity, type);
 }
 

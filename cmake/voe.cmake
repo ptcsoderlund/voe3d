@@ -178,7 +178,8 @@ function(voe_allowed_deps folder out_var)
         # game for the one list of component types a project's world registers
         # (0237): the world the editor holds and the world the cook writes for
         # must register the same types, or the cook names one the game never did.
-        set(deps base math ecs scene platform render text ui 3d authoring app theme game)
+        # It names physics to fit a new collider to its entity's shape (0253).
+        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
