@@ -5,14 +5,10 @@ that module's promises from outside. None of them needs a window or a display.
 
 - `clock.c` — that the clock moves and never goes backwards. Its header says
   why nothing in it measures a duration against a duration.
-- `file.c` — that the bytes written come back byte for byte on both sides of the API, that a shorter
-  file replaces a longer one, that a missing path or a folder fails a read as UNAVAILABLE, that no
-  `.partial` sibling outlives a successful write, that a write onto a folder is REFUSED, and
-  that a non-ASCII name is written, found and read back.
-- `folder.c` — that a listing is sorted by byte order with folder and hidden answered correctly,
-  that a missing folder fails as UNAVAILABLE, that creating over an existing name is REFUSED, and
-  that the settings folder honours `XDG_CONFIG_HOME` on Linux, and that non-ASCII names list byte for
-  byte.
+- `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
+  write fails as it says, no `.partial` outlives a write, and a non-ASCII name round-trips.
+- `folder.c` — that listings are byte-sorted with folder and hidden right, failures are
+  UNAVAILABLE or REFUSED, settings honours `XDG_CONFIG_HOME`, and non-ASCII names list exactly.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;
   focus loss releases keys, pointer loss buttons; an overflowing or control code point types
   nothing; the pointer's shape survives a poll and both losses.

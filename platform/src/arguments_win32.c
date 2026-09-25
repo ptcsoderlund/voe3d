@@ -6,6 +6,8 @@
 //
 // RULE 6 DEVIATION, the one platform/arguments.h names: the list built here is
 // argv's own shape, an array of strings, so it is a pointer to pointers.
+// It is spelt through the file-local utf8_argument, one UTF-8 argument, the
+// way LPWSTR *wide spells the list CommandLineToArgvW hands back.
 #include <platform/arguments.h>
 
 #include "wide_win32.h"
@@ -15,11 +17,13 @@
 #include <windows.h>
 #include <shellapi.h>
 
+typedef const char *utf8_argument;
+
 voe_platform_arguments voe_platform_arguments_read(int argc, char *argv[],
 						   voe_base_arena *arena)
 {
 	LPWSTR *wide;
-	const char **values;
+	utf8_argument *values;
 	int count;
 
 	VOE_BASE_DEBUG_ASSERT(argc >= 0 && argv != NULL, "reading arguments main did not give");
