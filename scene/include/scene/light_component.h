@@ -38,6 +38,7 @@
 #pragma once
 
 #include <base/describe.h>
+#include <base/imported.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -56,7 +57,7 @@
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_light, VOE_SCENE_LIGHT_FIELDS)
 
 // The key this component is registered against. Its address is its identity.
-extern const struct voe_ecs_key voe_scene_light_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_light_key;
 
 // NULL when the entity has no light, or is not alive any more. The pointer is
 // into the table and is good until the next add or remove.

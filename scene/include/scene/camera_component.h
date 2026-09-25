@@ -33,6 +33,7 @@
 #pragma once
 
 #include <base/describe.h>
+#include <base/imported.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -55,7 +56,7 @@
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_camera, VOE_SCENE_CAMERA_FIELDS)
 
-extern const struct voe_ecs_key voe_scene_camera_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_camera_key;
 
 // The world-to-camera matrix for a camera at `pose`: the inverse of
 // voe_scene_transform_matrix(pose). No projection in it and no flip. False, with
