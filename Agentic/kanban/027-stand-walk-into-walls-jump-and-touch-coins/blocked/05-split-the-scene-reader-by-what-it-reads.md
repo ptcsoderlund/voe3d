@@ -25,3 +25,10 @@ Each resulting `.c` under ~700 lines. No public header changes.
 1. `bash ~/.claude/skills/checks/scripts/checks.sh --folder authoring` prints `FINDINGS: 0`.
 2. `ctest --test-dir build/debug -R '^authoring/'` passes with no test file edited.
 3. `wc -l authoring/src/scene_read.c authoring/src/field_read.c` shows each under 800.
+
+## Blocked
+The split is done (`field_read.h`/`.c` 628 lines, `scene_read.c` 523, `src.md` updated), but `authoring`
+does not build at HEAD: card 01's `VOE_BASE_FIELD_DOUBLE3` is unhandled in the switches of `scene_cook.c`,
+`scene_write.c` and the reader's `spelling()` (now in `field_read.c`), and with `-Wswitch` off the same seven
+`scene_read`/`scene_cook`/`scene_write` test failures occur before and after the split (card 03's double
+position). Card 06 handles both; run it on top of this split, then re-check this card's `## Done when`.
