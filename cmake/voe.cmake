@@ -284,7 +284,8 @@ endfunction()
 #     because they are wayland-scanner's code and not ours to keep clean.
 #     protocol/ is globbed for the same reason src/ is: vendoring a protocol is
 #     dropping in a file, and it needs no edit here.
-#   - The Wayland client library and the Win32 libraries are linked, not built.
+#   - The Wayland client library and the Win32 libraries (user32 for the
+#     window, shell32 for the wide command line) are linked, not built.
 #     They are the programmer's to install — the same standing the Windows SDK
 #     already has — which is why this fails configuration with a message rather
 #     than trying to fetch anything.
@@ -347,7 +348,7 @@ function(voe_platform_link target include_dir)
         target_include_directories(${target} SYSTEM PRIVATE ${include_dir})
         target_link_libraries(${target} PRIVATE PkgConfig::WAYLAND)
     elseif(WIN32)
-        target_link_libraries(${target} PRIVATE user32)
+        target_link_libraries(${target} PRIVATE user32 shell32)
     else()
         message(FATAL_ERROR "VOE3D supports Windows and Linux desktop only. Found: ${CMAKE_SYSTEM_NAME}")
     endif()

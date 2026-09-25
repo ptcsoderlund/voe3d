@@ -27,6 +27,8 @@ that module's promises from outside. None of them needs a window or a display.
   path is idempotent, that resolving a made-up name is NULL, and that a non-ASCII folder resolves
   with its name byte for byte.
 - `library.c` — that a library no system has opens as NULL with a report naming it.
+- `arguments.c` — that a hand-made argv of three strings, one non-ASCII, comes back with count 3,
+  the same bytes and a NULL after the last. Linux only by construction.
 - `process.c` — that `cmake -E true` ends with 0 and `-E false` with non-zero, that a running
   `-E sleep 30` is ended within five seconds and zeroed, that a missing program is a false start,
   and on Linux that an output file holds both streams and is appended to.

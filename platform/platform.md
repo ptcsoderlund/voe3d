@@ -3,7 +3,8 @@
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
 Today that is a window, its keyboard and mouse, a clock, reading and writing a
-file, listing, making or finding a folder, and starting another program.
+file, listing, making or finding a folder, starting another program, and the
+program's own arguments.
 
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
@@ -36,6 +37,8 @@ file, listing, making or finding a folder, and starting another program.
 - `include/platform/process.h` — starting another program from an argument list, its output
   shared or appended to a file, polling it without blocking, and ending it with everything it started. Its header says why a child and
   not a thread, and why the whole group ends.
+- `include/platform/arguments.h` — the program's own arguments as UTF-8. Its header says why Linux
+  hands back `argv` and Windows reads the wide command line instead.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.
   `wayland-scanner` turns every XML here into C at build time; nothing generated
   is committed.

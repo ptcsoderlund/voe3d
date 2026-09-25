@@ -46,6 +46,9 @@ header.
 - `process_win32.c` — the argument list quoted into one command line, CreateProcessW inside a
   kill-on-close job object with an inheritable CreateFileW output handle when asked, and
   TerminateJobObject to end.
+- `arguments_wayland.c` — main's `argv`, handed back as it is.
+- `arguments_win32.c` — GetCommandLineW and CommandLineToArgvW, each entry made UTF-8 into the
+  arena, and `argv` as the fallback when the split fails.
 - `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an AltGr flag per code,
   built from resolved XKB v1 text, internal to this folder and built on both platforms because it
   includes no OS header.
