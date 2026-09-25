@@ -84,6 +84,7 @@
 
 #include <ecs/world.h>
 
+#include <platform/arguments.h>
 #include <platform/clock.h>
 #include <platform/input.h>
 #include <platform/window.h>
@@ -218,16 +219,23 @@ int main(int argc, char *argv[])
 	int status = 0;
 
 	// THE COMMAND LINE IS READ BEFORE ANYTHING IS OPENED, so a mistyped
-	// argument costs nothing and says so straight away (options.h).
-	if (!voe_editor_options_read(argc, argv, &options))
+	// argument costs nothing and says so straight away (options.h). It is
+	// read as UTF-8 (platform/arguments.h), into the arena on Windows, so
+	// the arena is the one thing made ahead of it.
+	arena = voe_base_arena_new(EDITOR_ARENA);
+	if (!voe_editor_options_read(
+		    voe_platform_arguments_read(argc, argv, arena), &options)) {
+		voe_base_arena_destroy(arena);
 		return 2;
+	}
 
 	// WHICH PROJECT OPENS, BEFORE THE DEVICE DOES (startup.h): an argued
 	// folder that would not open has already said why on stderr.
-	if (!voe_editor_startup_project(&options, &session))
+	if (!voe_editor_startup_project(&options, &session)) {
+		voe_base_arena_destroy(arena);
 		return 1;
+	}
 
-	arena = voe_base_arena_new(EDITOR_ARENA);
 	voe_editor_undo_create(&undo, arena);
 
 	settings = (voe_app_settings){ .width = options.wide,

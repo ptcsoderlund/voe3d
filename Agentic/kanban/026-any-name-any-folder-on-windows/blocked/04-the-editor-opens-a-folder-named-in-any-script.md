@@ -25,3 +25,10 @@ The editor reads its command line through card 03's `platform/include/platform/a
 4. The human's, on Windows: build the editor and follow steps 1–6 of `## How to test` in
    `feature.md`. Step 5 needs a second Windows user. If a step fails inside CMake, Ninja or
    clang, the build log says so; report which tool it was (0248).
+
+## Blocked
+The editor change is in and Done when 1 and 2 pass, but `checks.sh --all` prints `FINDINGS: 3`, all
+in `platform` from cards 01–03: `platform/src/arguments_win32.c` line 22 (a `**` past one level of
+dereference) and the `file.c` and `folder.c` entries in `platform/tests/tests.md` (350 and 305
+characters, cap 300). A card for `platform` that fixes those three unblocks Done when 3; step 4 is
+the human's on Windows.

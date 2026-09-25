@@ -23,12 +23,11 @@
 // stricter than `%d` about a leading blank or a leading '+' — neither was ever
 // part of the promised form `<W>x<H>` and nothing relied on them.
 //
-// `char *argv[]` IS main's OWN SIGNATURE AND THE ONE DEVIATION FROM RULE 6 IN
-// THIS FOLDER (DEVIATION: rule 6, an array of pointers is spelled as the array
-// it is, because the C runtime calls main with this signature and nothing in
-// this program chose it). It is handed straight to the one call below, which is
-// where the argument list is read and the only place it is.
+// THE ARGUMENTS ARE UTF-8 (platform/arguments.h, ADR-0247), read by main once
+// and handed here whole; values[0] is the program and is skipped.
 #pragma once
+
+#include <platform/arguments.h>
 
 #include <stdbool.h>
 
@@ -43,5 +42,5 @@ typedef struct {
 // Reads the arguments into `*out`, which arrives holding the size to use when
 // `--size` is absent and is left holding it then. False means the one usage
 // line has been printed on stderr and the caller returns 2.
-[[nodiscard]] bool voe_editor_options_read(int argc, char *argv[],
+[[nodiscard]] bool voe_editor_options_read(voe_platform_arguments arguments,
 					   voe_editor_options *out);

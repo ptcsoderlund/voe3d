@@ -47,24 +47,27 @@ static bool usage(void)
 	return false;
 }
 
-bool voe_editor_options_read(int argc, char *argv[], voe_editor_options *out)
+bool voe_editor_options_read(voe_platform_arguments arguments,
+			     voe_editor_options *out)
 {
+	const char *const *values = arguments.values;
+	int count = arguments.count;
 	bool sized = false;
 
-	VOE_BASE_ASSERT(argv != NULL, "reading no argument list");
+	VOE_BASE_ASSERT(values != NULL, "reading no argument list");
 	VOE_BASE_ASSERT(out != NULL, "reading the command line into nothing");
 
 	out->folder = NULL;
 	out->capture = NULL;
 
-	// `argv[a + 1]` is parsed in full before `a` moves, which the old code
+	// `values[a + 1]` is parsed in full before `a` moves, which the old code
 	// did not need to do inside its `&&` chain.
-	for (int a = 1; a < argc; a++) {
-		if (strcmp(argv[a], "--capture") == 0 && a + 1 < argc) {
-			out->capture = argv[++a];
-		} else if (strcmp(argv[a], "--size") == 0 && a + 1 < argc) {
+	for (int a = 1; a < count; a++) {
+		if (strcmp(values[a], "--capture") == 0 && a + 1 < count) {
+			out->capture = values[++a];
+		} else if (strcmp(values[a], "--size") == 0 && a + 1 < count) {
 			int w, h;
-			const char *rest = number(argv[a + 1], &w);
+			const char *rest = number(values[a + 1], &w);
 
 			if (rest != NULL && *rest == 'x')
 				rest = number(rest + 1, &h);
@@ -76,8 +79,8 @@ bool voe_editor_options_read(int argc, char *argv[], voe_editor_options *out)
 			out->high = h;
 			sized = true;
 			a++;
-		} else if (argv[a][0] != '-' && out->folder == NULL) {
-			out->folder = argv[a];
+		} else if (values[a][0] != '-' && out->folder == NULL) {
+			out->folder = values[a];
 		} else {
 			return usage();
 		}
