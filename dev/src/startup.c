@@ -322,14 +322,14 @@ bool voe_dev_start(struct voe_dev_program *program)
 	// of the frame that is open, and no frame is open until the loop starts.
 	if (!voe_dev_add_panel(
 		    program->world,
-		    (voe_math_float3){ EXHIBIT_X, EXHIBIT_Y, EXHIBIT_Z },
+		    (voe_math_double3){ EXHIBIT_X, EXHIBIT_Y, EXHIBIT_Z },
 		    EXHIBIT_SCALE,
 		    (voe_math_float2){ VOE_DEV_ELEMENTS_PANEL_WIDE,
 				       VOE_DEV_ELEMENTS_PANEL_HIGH },
 		    VOE_3D_LAYER_WORLD, &program->exhibit_panel) ||
 	    !voe_dev_add_panel(
 		    program->world,
-		    (voe_math_float3){ BADGE_X, BADGE_Y, BADGE_Z }, BADGE_SCALE,
+		    (voe_math_double3){ BADGE_X, BADGE_Y, BADGE_Z }, BADGE_SCALE,
 		    (voe_math_float2){ VOE_DEV_BADGE_WIDE, VOE_DEV_BADGE_HIGH },
 		    VOE_3D_LAYER_OVERLAY, &program->badge_panel)) {
 		VOE_BASE_ERROR("dev", "could not build the two element panels");

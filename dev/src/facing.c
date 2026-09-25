@@ -7,6 +7,7 @@
 #include "facing.h"
 
 #include <base/assert.h>
+#include <math/double3.h>
 #include <math/float4x4.h>
 #include <math/quat.h>
 
@@ -45,7 +46,7 @@
 // is the pose's own, so a quad stood with it is square to the view whatever the
 // pose is, roll included.
 struct view_basis {
-	voe_math_float3 eye;
+	voe_math_double3 eye;
 	voe_math_float3 forward;
 	voe_math_float3 right;
 	voe_math_float3 up;
@@ -54,7 +55,7 @@ struct view_basis {
 
 static struct view_basis basis_of(voe_scene_transform eye)
 {
-	const voe_math_float4x4 m = voe_scene_transform_matrix(eye);
+	const voe_math_float4x4 m = voe_scene_transform_matrix(eye, eye.position);
 	struct view_basis basis = {
 		.eye = eye.position,
 		.forward = { -m.m[0][2], -m.m[1][2], -m.m[2][2] },
@@ -70,15 +71,17 @@ static struct view_basis basis_of(voe_scene_transform eye)
 	return basis;
 }
 
-// A transform standing square to the camera at `at`, with the scale given.
+// A transform standing square to the camera `offset` metres from the eye, with
+// the scale given: the eye's double position plus the float offset (ADR-0250).
 static voe_scene_transform_intent square_to_the_camera(
 	const struct view_basis *basis, voe_ecs_entity entity,
-	voe_math_float3 at, voe_math_float3 scale)
+	voe_math_float3 offset, voe_math_float3 scale)
 {
 	return (voe_scene_transform_intent){
 		.entity = entity,
 		.transform = {
-			.position = at,
+			.position = voe_math_double3_add(
+				basis->eye, voe_math_double3_from_float3(offset)),
 			.rotation = basis->rotation,
 			.scale = scale,
 		},
@@ -105,14 +108,14 @@ voe_scene_transform_intent voe_dev_facing_the_camera(voe_scene_transform eye,
 						     voe_math_float2 size)
 {
 	struct view_basis basis = basis_of(eye);
-	voe_math_float3 at = voe_math_float3_add(
-		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
+	voe_math_float3 offset =
+		voe_math_float3_scale(basis.forward, HUD_DISTANCE);
 
-	at = voe_math_float3_add(
-		at, voe_math_float3_scale(basis.right, -size.x * 0.5f));
-	at = voe_math_float3_add(at, voe_math_float3_scale(basis.up, -HUD_DROP));
+	offset = voe_math_float3_add(
+		offset, voe_math_float3_scale(basis.right, -size.x * 0.5f));
+	offset = voe_math_float3_add(offset, voe_math_float3_scale(basis.up, -HUD_DROP));
 
-	return square_to_the_camera(&basis, text, at,
+	return square_to_the_camera(&basis, text, offset,
 				    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
 }
 
@@ -151,16 +154,16 @@ voe_scene_transform_intent voe_dev_top_left_of_the_view(
 	float half_height = tanf(lens.fov_y * 0.5f) * HUD_DISTANCE;
 	float half_width = half_height * aspect;
 	float margin = em * READOUT_MARGIN_EMS;
-	voe_math_float3 at = voe_math_float3_add(
-		basis.eye, voe_math_float3_scale(basis.forward, HUD_DISTANCE));
+	voe_math_float3 offset =
+		voe_math_float3_scale(basis.forward, HUD_DISTANCE);
 
-	at = voe_math_float3_add(
-		at, voe_math_float3_scale(basis.right, -(half_width - margin)));
-	at = voe_math_float3_add(
-		at, voe_math_float3_scale(basis.up, half_height - margin -
+	offset = voe_math_float3_add(
+		offset, voe_math_float3_scale(basis.right, -(half_width - margin)));
+	offset = voe_math_float3_add(
+		offset, voe_math_float3_scale(basis.up, half_height - margin -
 							    em));
 
-	return square_to_the_camera(&basis, readout, at,
+	return square_to_the_camera(&basis, readout, offset,
 				    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
 }
 
@@ -183,15 +186,14 @@ voe_scene_transform_intent voe_dev_behind_the_line(voe_scene_transform eye,
 {
 	struct view_basis basis = basis_of(eye);
 	float margin = size.y * HUD_PANEL_MARGIN;
-	voe_math_float3 at = voe_math_float3_add(
-		basis.eye, voe_math_float3_scale(basis.forward,
-						 HUD_DISTANCE + HUD_PANEL_BEHIND));
+	voe_math_float3 offset = voe_math_float3_scale(
+		basis.forward, HUD_DISTANCE + HUD_PANEL_BEHIND);
 
-	at = voe_math_float3_add(at, voe_math_float3_scale(basis.up, -HUD_DROP));
-	at = voe_math_float3_add(at,
+	offset = voe_math_float3_add(offset, voe_math_float3_scale(basis.up, -HUD_DROP));
+	offset = voe_math_float3_add(offset,
 				 voe_math_float3_scale(basis.up, size.y * 0.25f));
 
-	return square_to_the_camera(&basis, quad, at,
+	return square_to_the_camera(&basis, quad, offset,
 				    (voe_math_float3){ size.x + margin * 2.0f,
 						       size.y + margin * 2.0f,
 						       1.0f });

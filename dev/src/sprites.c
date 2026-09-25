@@ -288,7 +288,7 @@ static voe_3d_material sprite_material(voe_render_texture sheet,
 // the layer it is drawn in. The material is already uploaded — a frame's record
 // is made once and worn by however many entities want that frame.
 static bool add_sprite(voe_ecs_world *world, voe_render_geometry quad,
-		       voe_3d_material material, voe_math_float3 position,
+		       voe_3d_material material, voe_math_double3 position,
 		       float size, voe_3d_layer layer, voe_ecs_entity *out)
 {
 	voe_ecs_entity entity = { 0 };
@@ -349,7 +349,7 @@ bool voe_dev_sprites_add(voe_ecs_world *world, voe_render_device *gpu,
 		return false;
 
 	for (uint32_t i = 0; i < SHEET_COLUMNS; i++) {
-		voe_math_float3 at = { ROW_X + (float)i * ROW_STEP, ROW_Y,
+		voe_math_double3 at = { ROW_X + (float)i * ROW_STEP, ROW_Y,
 				       ROW_Z };
 
 		if (!add_sprite(world, quad,
@@ -359,35 +359,35 @@ bool voe_dev_sprites_add(voe_ecs_world *world, voe_render_device *gpu,
 	}
 
 	if (!add_sprite(world, quad, cutout,
-			(voe_math_float3){ CUTOUT_X, CUTOUT_Y, ROW_Z },
+			(voe_math_double3){ CUTOUT_X, CUTOUT_Y, ROW_Z },
 			CUTOUT_SIZE, VOE_3D_LAYER_WORLD, NULL))
 		return false;
 
 	// Behind the still cube, in the world: covered by it from one side of
 	// the lap and out in front from the other.
 	if (!add_sprite(world, quad, frames[FRAME_BEHIND],
-			(voe_math_float3){ 0.0f, 0.0f, BEHIND_Z }, BEHIND_SIZE,
+			(voe_math_double3){ 0.0, 0.0, BEHIND_Z }, BEHIND_SIZE,
 			VOE_3D_LAYER_WORLD, NULL))
 		return false;
 
 	// Inside the same cube, in the overlay: never covered by it, and still
 	// occluding each other the right way round.
 	if (!add_sprite(world, quad, frames[FRAME_OVERLAY_NEAR],
-			(voe_math_float3){ 0.0f, 0.0f, OVERLAY_Z },
+			(voe_math_double3){ 0.0, 0.0, OVERLAY_Z },
 			OVERLAY_SIZE, VOE_3D_LAYER_OVERLAY, NULL))
 		return false;
 	if (!add_sprite(world, quad, frames[FRAME_OVERLAY_FAR],
-			(voe_math_float3){ 0.0f, 0.0f, -OVERLAY_Z },
+			(voe_math_double3){ 0.0, 0.0, -OVERLAY_Z },
 			OVERLAY_SIZE, VOE_3D_LAYER_OVERLAY, NULL))
 		return false;
 
 	// The see-through pair, straddling the origin in Z at one X.
 	if (!add_sprite(world, quad, frames[FRAME_PAIR_NEAR],
-			(voe_math_float3){ PAIR_X, PAIR_Y, PAIR_Z }, PAIR_SIZE,
+			(voe_math_double3){ PAIR_X, PAIR_Y, PAIR_Z }, PAIR_SIZE,
 			VOE_3D_LAYER_WORLD, NULL))
 		return false;
 	if (!add_sprite(world, quad, frames[FRAME_PAIR_FAR],
-			(voe_math_float3){ PAIR_X, PAIR_Y, -PAIR_Z }, PAIR_SIZE,
+			(voe_math_double3){ PAIR_X, PAIR_Y, -PAIR_Z }, PAIR_SIZE,
 			VOE_3D_LAYER_WORLD, NULL))
 		return false;
 
@@ -395,11 +395,11 @@ bool voe_dev_sprites_add(voe_ecs_world *world, voe_render_device *gpu,
 	// can differ between them. Placed here and moved every frame by
 	// voe_dev_sprites_face.
 	if (!add_sprite(world, quad, frames[FRAME_FACING],
-			(voe_math_float3){ -FACING_X, FACING_Y, FACING_Z },
+			(voe_math_double3){ -FACING_X, FACING_Y, FACING_Z },
 			FACING_SIZE, VOE_3D_LAYER_WORLD, &out->cylindrical))
 		return false;
 	return add_sprite(world, quad, frames[FRAME_FACING],
-			  (voe_math_float3){ FACING_X, FACING_Y, FACING_Z },
+			  (voe_math_double3){ FACING_X, FACING_Y, FACING_Z },
 			  FACING_SIZE, VOE_3D_LAYER_WORLD, &out->spherical);
 }
 

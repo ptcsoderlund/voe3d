@@ -17,6 +17,7 @@
 #pragma once
 
 #include <ecs/world.h>
+#include <math/double3.h>
 #include <math/float3.h>
 #include <platform/window.h>
 #include <scene/light_system.h>
@@ -25,7 +26,7 @@
 // Where the eye is and the two angles it looks along. Zero yaw and pitch look
 // along -Z; a positive yaw turns towards -X and a positive pitch looks up.
 typedef struct {
-	voe_math_float3 eye;
+	voe_math_double3 eye;
 	float yaw;
 	float pitch;
 } voe_dev_flight;
