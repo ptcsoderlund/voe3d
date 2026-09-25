@@ -38,7 +38,8 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 			continue;
 		voe_game_project_systems_run(&(voe_game_project_step){
 			world, voe_app_window(app), frame.tick.step });
-		if (!voe_game_frame(app, world, shapes, scratch, frame.size))
+		if (!voe_game_frame(app, world, shapes, scratch, frame.size,
+				    0.0f))
 			return false;
 	}
 }

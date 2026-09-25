@@ -11,6 +11,8 @@
 //
 // TWO FRAMES each, because the shape system gives a fresh shape its mesh and
 // material in the first and the second draws a world that already has them.
+// Both at lag 0, the current transforms. Between them a replace intent for the
+// cube's collider is submitted, and the second frame's world step drains it.
 //
 // Each case writes one file into the working directory, checks it is there,
 // and removes it, pass or fail. A machine with no usable Vulkan skips and
@@ -26,6 +28,8 @@
 #include <ecs/component.h>
 
 #include <math/quat.h>
+
+#include <physics/collider_system.h>
 
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
@@ -55,8 +59,8 @@ static voe_scene_transform placed(float x, float y, float z)
 }
 
 // A camera back along Z with the default lens, a light when `lit`, and a cube
-// at the origin.
-static void build(voe_ecs_world *world, bool lit)
+// at the origin with a collider of 1. Returns the cube.
+static voe_ecs_entity build(voe_ecs_world *world, bool lit)
 {
 	voe_ecs_entity camera, light, cube;
 	const voe_scene_camera *lens = voe_ecs_component_default(
@@ -82,6 +86,11 @@ static void build(voe_ecs_world *world, bool lit)
 		world, cube,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
 				.colour = VOE_3D_SHAPE_GREY }));
+	VOE_TEST_CHECK(voe_physics_collider_add(
+		world, cube,
+		(voe_physics_collider){ .kind = VOE_PHYSICS_COLLIDER_BOX,
+					.size = { 1.0f, 1.0f, 1.0f } }));
+	return cube;
 }
 
 // A fresh world built `lit` or not, two frames of it, captured, checked on
@@ -93,11 +102,19 @@ static void draw_case(voe_app *app, voe_base_arena *arena,
 	voe_platform_size size = { WIDTH, HEIGHT };
 	voe_base_error error = VOE_BASE_OK;
 	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_ecs_entity cube = build(world, lit);
+	const voe_physics_collider *collider;
 	FILE *file;
 
-	build(world, lit);
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+	VOE_TEST_CHECK(voe_physics_collider_submit(
+		world, (voe_physics_collider_intent){
+			       .entity = cube,
+			       .collider = { .kind = VOE_PHYSICS_COLLIDER_BOX,
+					     .size = { 2.0f, 1.0f, 1.0f } } }));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+	collider = voe_physics_collider_get(world, cube);
+	VOE_TEST_CHECK(collider != NULL && collider->size.x == 2.0f);
 
 	VOE_TEST_CHECK(voe_app_capture_png(app, VOE_RENDER_TARGET_WINDOW,
 					   scratch, CAPTURE_PATH, &error));

@@ -153,7 +153,9 @@ function(voe_allowed_deps folder out_var)
         # game is the loop a shipped game runs: the world's type list, one frame
         # and the whole run (0237). It needs no field descriptions, so it never
         # names authoring, which is what keeps it linkable into a game's tree.
-        set(deps base math ecs scene platform render 3d app)
+        # physics because its world holds colliders and bodies and runs the
+        # move (0253).
+        set(deps base math ecs scene physics platform render 3d app)
     elseif(folder STREQUAL "dev")
         # dev may depend on anything, app included: it is the one program a
         # person runs to see the current state, so whatever exists is fair game.

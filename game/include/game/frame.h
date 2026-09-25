@@ -5,14 +5,18 @@
 //     if (frame.closing)
 //             break;
 //     if (!frame.minimised &&
-//         !voe_game_frame(app, world, &shapes, scratch, frame.size))
+//         !voe_game_frame(app, world, &shapes, scratch, frame.size, lag))
 //             ...                        // the device stopped answering
 //
-// THE ORDER: the structural queue applied, then the project's replaces
-// (game/project.h), then the transform, identity and
-// light systems, then the shape system, then a draw opened, one pass onto the
-// window with voe_3d_draw_system_frame's camera and sun, the draw system, the
-// pass and the draw closed. No outline, gizmo or marker: those are the
+// THE ORDER: the world step — the structural queue applied, the project's
+// replaces (game/project.h), the transform, identity and light systems, the
+// shape system, then the collider and body systems — then a draw opened, one
+// pass onto the window with voe_3d_draw_system_frame's camera and sun, the draw
+// system, the pass and the draw closed. The world step is its own call too, so
+// a fixed step runs the same owning systems in the same order.
+//
+// `lag` IS HOW FAR BEHIND THE LAST FIXED STEP THE DRAW IS (0254): 1 − banked
+// time / step, 0 draws what is, as a caller that does not step passes. No outline, gizmo or marker: those are the
 // editor's, and the frame comes back with them zeroed.
 //
 // Constraints: the world is one voe_game_world_new made, with exactly one
@@ -51,11 +55,15 @@
 		.shadings = VOE_3D_SHAPES_SHADINGS, .passes = 1 \
 	}
 
-// Runs the systems and draws the world at `size`. True when the frame was
+// Drains every intent in the frame's order: the structural queue, the project's
+// replaces, then every owning system. No move: that is a fixed step's.
+void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
+
+// Runs the world step and draws the world at `size`, `lag` of a step back. True when the frame was
 // drawn or there was nothing to draw into; false when the device refused the
 // draw, the pass or the present, with render's line on stderr — the program
 // should stop.
 [[nodiscard]] bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 				  const voe_3d_shapes *shapes,
 				  voe_base_arena *scratch,
-				  voe_platform_size size);
+				  voe_platform_size size, float lag);

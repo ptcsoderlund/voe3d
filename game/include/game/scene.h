@@ -1,5 +1,5 @@
 // The one function a project's cooked scene defines, and everything its body
-// names: the eight types' rows and keys (game/world.h) and
+// names: the types' rows and keys (game/world.h) and
 // voe_ecs_component_add. This is the include the cook is handed
 // (authoring/scene_cook.h).
 //
@@ -21,6 +21,9 @@
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
+
+#include <physics/body_component.h>
+#include <physics/collider_component.h>
 
 #include <ecs/component.h>
 #include <ecs/world.h>
