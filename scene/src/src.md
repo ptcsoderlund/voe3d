@@ -8,6 +8,8 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `transform_component.c` — the key, the matrix, and the reads.
 - `transform_system.c` — registration, creation, the drain that settles what it
   applies, and the one line a run of settlings writes to stderr.
+- `transform_previous.c` — the runtime-only previous table, the copy a step
+  starts with, and the blend a lag back from the current transform.
 - `identity_component.c` — the key and the reads, and nothing that writes.
 - `identity_system.c` — registration, creation, the drain that settles what it
   applies, and the one line a run of corrections writes to stderr.

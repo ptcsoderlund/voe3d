@@ -576,6 +576,100 @@ static void the_default_is_the_origin_unrotated_at_scale_one(
 	VOE_TEST_CHECK_FLOAT(row->scale.z, 1.0f, 0.0f);
 }
 
+// A world that steps: the transform and its previous table, nothing else.
+static voe_ecs_world *stepping_world_of(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+
+	voe_scene_transform_previous_register(world, TRANSFORMS);
+	return world;
+}
+
+// A tenth of a millimetre, so "exact to the millimetre" holds with room.
+#define MILLIMETRE_TENTH 1e-4
+
+// 100 km out, where a float would keep only ~8 mm, two millimetres of travel
+// halve to one; a quarter turn halves to an eighth; a scale of 1 to 3 is 2.
+static void a_remembered_step_blends_to_the_current_one(voe_base_arena *arena)
+{
+	voe_ecs_world *world = stepping_world_of(arena);
+	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_scene_transform then = {
+		.position = { 100000.0, 0.0, 0.0 },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_transform now = {
+		.position = { 100000.002, 0.0, 0.0 },
+		.rotation = voe_math_quat_from_axis_angle(up, QUARTER_TURN),
+		.scale = { 3.0f, 3.0f, 3.0f },
+	};
+	voe_ecs_entity thing = { 0 };
+	voe_scene_transform seen;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, thing, then));
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ .entity = thing,
+						     .transform = now }));
+	voe_scene_transform_system_run(world);
+
+	seen = voe_scene_transform_between(world, thing, 0.0f);
+	check_position(seen.position, now.position);
+	check_rotation(seen.rotation, now.rotation);
+	check_vector(seen.scale, now.scale);
+
+	seen = voe_scene_transform_between(world, thing, 0.5f);
+	VOE_TEST_CHECK_FLOAT(seen.position.x, 100000.001, MILLIMETRE_TENTH);
+	check_rotation(seen.rotation,
+		       voe_math_quat_from_axis_angle(up, QUARTER_TURN / 2.0f));
+	check_vector(seen.scale, (voe_math_float3){ 2.0f, 2.0f, 2.0f });
+
+	seen = voe_scene_transform_between(world, thing, 1.0f);
+	VOE_TEST_CHECK_FLOAT(seen.position.x, 100000.0, MILLIMETRE_TENTH);
+	check_rotation(seen.rotation, then.rotation);
+	check_vector(seen.scale, then.scale);
+}
+
+// Nothing to blend towards is the current row: a world that never registered
+// the table, and one that did but never remembered.
+static void with_nothing_remembered_between_is_now(voe_base_arena *arena)
+{
+	voe_ecs_world *plain = world_of(arena);
+	voe_ecs_world *stepping = stepping_world_of(arena);
+	voe_ecs_entity a = { 0 };
+	voe_ecs_entity b = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(plain, &a));
+	VOE_TEST_CHECK(voe_scene_transform_add(plain, a, known()));
+	VOE_TEST_CHECK(voe_ecs_entity_create(stepping, &b));
+	VOE_TEST_CHECK(voe_scene_transform_add(stepping, b, known()));
+
+	check_position(voe_scene_transform_between(plain, a, 1.0f).position,
+		       known().position);
+	check_position(voe_scene_transform_between(stepping, b, 1.0f).position,
+		       known().position);
+}
+
+// Never saved, never in the Inspector: the previous table is runtime-only.
+static void the_previous_table_is_runtime_only(voe_base_arena *arena)
+{
+	voe_ecs_world *world = stepping_world_of(arena);
+	uint32_t found = 0;
+
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_key(world, type) ==
+		    &voe_scene_transform_key)
+			continue;
+		VOE_TEST_CHECK(voe_ecs_component_runtime_only(world, type));
+		found++;
+	}
+	VOE_TEST_CHECK_INT(found, 1);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -589,6 +683,9 @@ int main(void)
 	a_transform_round_trips_through_the_table(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
+	a_remembered_step_blends_to_the_current_one(arena);
+	with_nothing_remembered_between_is_now(arena);
+	the_previous_table_is_runtime_only(arena);
 
 	a_rotation_arrives_unit_length(arena);
 	a_quiet_drain(arena);

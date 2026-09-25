@@ -13,9 +13,9 @@ space is.
   the caller names. The file says why there is no parent, why the matrix is not
   stored, and what the drain settles.
 - `include/scene/transform_system.h` — the intent that moves one, registered as
-  the component's replace, and the call that creates one. Its header says why
-  the intent is whole, why creation is not one, why only the drain checks a
-  rotation, why the report is per process, and its menu path.
+  the component's replace, the call that creates one, and the opt-in previous
+  table a stepping world remembers each step and blends back to by a lag
+  (position in double, rotation the shorter way, scale straight).
 - `include/scene/camera_component.h` — the lens only: field of view and the two
   planes, as a described field list, and the view from a pose, relative to its
   own eye. Its header says why the pose is the transform, why the view is the

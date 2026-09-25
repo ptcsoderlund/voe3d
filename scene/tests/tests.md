@@ -5,7 +5,8 @@ module's promises from outside. None of them needs a window or a graphics card.
 
 - `transform.c` — that the matrix is translate·rotate·scale, that an intent lands only when the
   system runs, that a rotation arrives unit length and one with no length leaves the row alone, and
-  that the field list a world hands back is the one the compiler laid out.
+  that the field list a world hands back is the one the compiler laid out, and that a remembered
+  step blends back by a lag.
 - `identity.c` — that a rename lands only when the system runs, that an
   unterminated name arrives cut and a replaced id arrives put back, and that the
   field list a world hands back marks the id read-only. Its header says why half
