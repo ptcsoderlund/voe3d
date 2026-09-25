@@ -12,5 +12,7 @@ read a transform, and `3d` draws them, so collision is neither folder's (0253).
 - `include/physics/collider_system.h` — the whole-row intent registered as the
   collider's replace, the call that creates one, and the drain that keeps a row
   over a bad size and warns over an unknown kind.
+- `include/physics/overlap.h` — the one query: the contacts a sphere or capsule
+  overlaps, each with its entity, push-out normal, depth and trigger flag.
 - `include/physics/shape.h` — a collider in the world: kind, double centre,
   rotation and half sizes with the transform's scale applied.
