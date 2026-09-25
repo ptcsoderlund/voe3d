@@ -27,6 +27,6 @@ unique, names say what each is. Heights are to the top of the floor at y 0.
    `build/debug/editor/voe_editor --capture $p/shot.png $p 2>$p/err` exits 0, `$p/err` is empty,
    and `$p/shot.png` shows the level (0177: the coder looks at it).
 3. `bash ~/.claude/skills/checks/scripts/checks.sh --all` prints `FINDINGS: 0`.
-4. The human's: `feature.md`'s `## How to test`, steps 1–16, in the editor on `examples/capsule/`
-   (the look of the lines, walking, jumping, coins, the 100 km move and smoothness are seen, not
+4. The human's: `feature.md`'s `## How to test`, steps 1–15, in the editor on `examples/capsule/`
+   (the look of the lines, walking, jumping, coins and smoothness are seen, not
    checked by a program).
