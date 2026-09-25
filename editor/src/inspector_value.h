@@ -51,6 +51,7 @@ const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
 		    voe_ecs_type type);
 
 float real32_at(const uint8_t *bytes, uint32_t lane);
+double real64_at(const uint8_t *bytes, uint32_t lane);
 int64_t whole_signed(voe_base_field_kind kind, const uint8_t *bytes);
 uint64_t whole_unsigned(voe_base_field_kind kind, const uint8_t *bytes);
 bool is_signed(voe_base_field_kind kind);

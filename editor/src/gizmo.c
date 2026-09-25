@@ -17,15 +17,15 @@
 // nothing to a gizmo, so the pass camera is asked with none.
 static voe_3d_ray gizmo_in_view(const voe_editor_view *view,
 				voe_math_float2 point, float pixels,
-				voe_math_float3 origin, voe_3d_gizmo *gizmo)
+				voe_math_double3 origin, voe_3d_gizmo *gizmo)
 {
 	voe_platform_size size = { (int)view->width, (int)view->height };
 
 	voe_render_view seen =
 		voe_editor_view_pass_camera(view, (voe_render_light){ 0 }).view;
 
-	*gizmo = voe_3d_gizmo_at(origin, seen, size, pixels);
-	return voe_3d_pick_ray(seen, size, point);
+	*gizmo = voe_3d_gizmo_at(origin, seen, view->eye, size, pixels);
+	return voe_3d_pick_ray(seen, view->eye, size, point);
 }
 
 // One frame of a running drag in the captured view, wherever the pointer is
@@ -37,7 +37,7 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 		       voe_math_float2 pointer)
 {
 	voe_3d_gizmo at;
-	voe_math_float3 now;
+	voe_math_double3 now;
 
 	// A rectangle of no size is a view that was never shown; there is no
 	// picture to measure against, so the entity stays where it is.
@@ -57,8 +57,8 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 	if (!voe_3d_gizmo_grab(at, gizmo->held, ray, &now))
 		return;
 
-	voe_math_float3 position = voe_math_float3_add(
-		gizmo->start, voe_math_float3_sub(now, gizmo->grab));
+	voe_math_double3 position = voe_math_double3_add(
+		gizmo->start, voe_math_double3_sub(now, gizmo->grab));
 	if (position.x == row.position.x && position.y == row.position.y &&
 	    position.z == row.position.z)
 		return;
@@ -81,7 +81,7 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 	uint32_t view;
 	voe_math_float2 point;
 	voe_3d_gizmo at;
-	voe_math_float3 grab;
+	voe_math_double3 grab;
 
 	VOE_BASE_ASSERT(gizmo != NULL, "reading a press into no gizmo");
 	VOE_BASE_ASSERT(scene != NULL, "a gizmo in no scene");

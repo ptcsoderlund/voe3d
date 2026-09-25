@@ -54,6 +54,7 @@
 
 #include <ecs/world.h>
 
+#include <math/double3.h>
 #include <math/float2.h>
 #include <math/float3.h>
 
@@ -83,15 +84,16 @@
 // `pitch` by the orbit and is never set on its own; the fly moves it only by
 // moving the focus with it, so the orbit's sum stays true. Zero yaw looks down −Z,
 // positive yaw turns towards −X and positive pitch looks up; `lens` is what
-// every view sees with.
+// every view sees with. The eye and the focus are world positions, so double
+// (ADR-0250); what moves them is float motion added to them.
 typedef struct {
-	voe_math_float3 eye;
+	voe_math_double3 eye;
 	float yaw;
 	float pitch;
 	voe_scene_camera lens;
 	// The point the camera orbits about and looks at, in metres, and how far
 	// the eye stands from it. The distance is always above nought.
-	voe_math_float3 focus;
+	voe_math_double3 focus;
 	float distance;
 
 	voe_render_target target;

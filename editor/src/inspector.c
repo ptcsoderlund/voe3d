@@ -331,14 +331,21 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 					  .offset = field->offset,
 					  .writes = VOE_BASE_FIELD_BOOL });
 	} else if (is_vector(field->kind)) {
+		// A DOUBLE3 is a world position (ADR-0250): each lane is read
+		// and written back as a double, so a typed 100000.001 stays so.
+		bool wide = field->kind == VOE_BASE_FIELD_DOUBLE3;
+
 		for (uint32_t lane = 0; lane < boxes; lane++) {
-			double value = (double)real32_at(bytes, lane);
+			double value = wide ? real64_at(bytes, lane) :
+					      (double)real32_at(bytes, lane);
 
 			number_box(ui, inspector, type, field->name, lane,
 				   field->offset +
-					   (size_t)lane * sizeof(float),
-				   VOE_BASE_FIELD_FLOAT32, value,
-				   text(inspector->arena, "%.3f", value));
+					   (size_t)lane * (wide ? sizeof(double) :
+								  sizeof(float)),
+				   wide ? VOE_BASE_FIELD_FLOAT64 :
+					  VOE_BASE_FIELD_FLOAT32,
+				   value, text(inspector->arena, "%.3f", value));
 		}
 	} else {
 		double value = dragged(field->kind, bytes);

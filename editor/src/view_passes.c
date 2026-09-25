@@ -29,10 +29,13 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	    NULL)
 		return true;
 
-	// Outline, gizmo and marker come back zeroed and stay so (0223).
+	// Outline, gizmo and marker come back zeroed and stay so (0223); the
+	// eye is the world camera's, and the editor draws what is (0254).
 	frame = voe_3d_draw_system_frame(
-		world, (voe_platform_size){ VOE_EDITOR_PREVIEW_WIDTH,
-					    VOE_EDITOR_PREVIEW_HEIGHT });
+		world,
+		(voe_platform_size){ VOE_EDITOR_PREVIEW_WIDTH,
+				     VOE_EDITOR_PREVIEW_HEIGHT },
+		0.0f);
 	if (frame.blind)
 		return true;
 	frame.light = light;
@@ -91,6 +94,7 @@ bool voe_editor_view_passes_draw(
 			(voe_3d_frame){
 				.view = camera.view,
 				.light = camera.light,
+				.eye = view->eye,
 				.outlined = {
 					.entity = voe_editor_scene_selected(scene),
 					.geometries = geometries,

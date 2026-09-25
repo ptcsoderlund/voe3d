@@ -75,13 +75,19 @@ static voe_math_float3 orbit_forward(const voe_editor_view *view)
 				  -cosf(view->yaw) * level };
 }
 
+// A world position moved by a float step, the sum in double.
+static voe_math_double3 moved(voe_math_double3 at, voe_math_float3 by)
+{
+	return voe_math_double3_add(at, voe_math_double3_from_float3(by));
+}
+
 // The eye put back where the orbit says it is.
 static void orbit_place(voe_editor_view *view)
 {
 	voe_math_float3 forward = orbit_forward(view);
 
-	view->eye = voe_math_float3_sub(
-		view->focus, voe_math_float3_scale(forward, view->distance));
+	view->eye = moved(view->focus,
+			  voe_math_float3_scale(forward, -view->distance));
 }
 
 bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
@@ -257,14 +263,14 @@ static void drag_view(voe_editor_view *view, voe_math_float2 travel,
 					  -sinf(view->yaw) };
 		voe_math_float3 up = voe_math_float3_cross(right, forward);
 
-		view->focus = voe_math_float3_add(
+		view->focus = moved(
 			view->focus,
-			voe_math_float3_scale(
-				right, -travel.x * PAN_METRES_PER_MILLIMETRE));
-		view->focus = voe_math_float3_add(
-			view->focus,
-			voe_math_float3_scale(
-				up, travel.y * PAN_METRES_PER_MILLIMETRE));
+			voe_math_float3_add(
+				voe_math_float3_scale(
+					right,
+					-travel.x * PAN_METRES_PER_MILLIMETRE),
+				voe_math_float3_scale(
+					up, travel.y * PAN_METRES_PER_MILLIMETRE)));
 	} else {
 		view->yaw -= travel.x * ORBIT_RADIANS_PER_MILLIMETRE;
 		view->pitch -= travel.y * ORBIT_RADIANS_PER_MILLIMETRE;
@@ -315,8 +321,8 @@ static void fly_view(voe_editor_view *view, voe_math_float2 turn,
 	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
 	voe_math_float3 way = { 0.0f, 0.0f, 0.0f };
 
-	view->focus = voe_math_float3_add(
-		view->eye, voe_math_float3_scale(forward, view->distance));
+	view->focus =
+		moved(view->eye, voe_math_float3_scale(forward, view->distance));
 
 	way = voe_math_float3_add(
 		way, voe_math_float3_scale(forward, (float)keys.forward -
@@ -333,8 +339,8 @@ static void fly_view(voe_editor_view *view, voe_math_float2 turn,
 			FLY_METRES_PER_SECOND * (keys.fast ? FLY_FAST : 1.0f) *
 				seconds);
 
-		view->eye = voe_math_float3_add(view->eye, step);
-		view->focus = voe_math_float3_add(view->focus, step);
+		view->eye = moved(view->eye, step);
+		view->focus = moved(view->focus, step);
 	}
 
 	orbit_place(view);

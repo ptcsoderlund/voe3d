@@ -168,9 +168,10 @@ typedef struct {
 // pointer did to it back into bytes in a component's row.
 //
 // `writes` IS WHAT THIS CONTROL PUTS THERE AND NOT WHAT THE FIELD IS. A box on
-// one component of a FLOAT3 writes a FLOAT32 at its own offset, and a row of a
-// rotation writes the whole QUAT — so the switch that builds the bytes reads
-// one word and never has to ask which element of what it is on.
+// one component of a FLOAT3 writes a FLOAT32 at its own offset (of a DOUBLE3, a
+// FLOAT64), and a row of a rotation writes the whole QUAT — so the switch that
+// builds the bytes reads one word and never has to ask which element of what it
+// is on.
 typedef struct {
 	voe_ui_node node;
 	voe_ecs_type type;

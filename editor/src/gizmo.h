@@ -21,7 +21,8 @@
 // Measured from the moving position, each frame would add a small error to the
 // last and the entity would creep away from under the pointer; measured from
 // the press, the same pointer is always the same position, and a submitted
-// position that has not been drained yet changes nothing.
+// position that has not been drained yet changes nothing. Both points and the
+// sum are double, world positions (ADR-0250), so a drag 100 km out keeps its mm.
 //
 // THE AXES ARE THE WORLD'S. A gizmo that turns with its entity is a later toggle
 // (`feature.md`); it changes the three directions 3d/gizmo.h hands out and
@@ -47,8 +48,8 @@
 
 #include <3d/gizmo.h>
 
+#include <math/double3.h>
 #include <math/float2.h>
-#include <math/float3.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -60,8 +61,8 @@ typedef struct {
 	voe_3d_gizmo_handle hovered; // what the pointer is over this frame
 	uint32_t captured; // the view the drag started in; read only while held
 	uint32_t hovered_view;
-	voe_math_float3 grab; // where on the handle the press landed
-	voe_math_float3 start; // the entity's position then
+	voe_math_double3 grab; // where on the handle the press landed
+	voe_math_double3 start; // the entity's position then
 	uint32_t moved; // moves submitted this frame; zeroed every read
 } voe_editor_gizmo;
 

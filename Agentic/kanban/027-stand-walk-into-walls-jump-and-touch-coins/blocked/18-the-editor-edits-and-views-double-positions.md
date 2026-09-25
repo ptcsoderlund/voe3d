@@ -28,3 +28,12 @@ the editor: 100 km out, a view up close does not shake and a typed position keep
    the lines naming the project's own components removed), every `position` X raised by 100000;
    `build/debug/editor/voe_editor --capture $p/shot.png $p 2>$p/err` exits 0 and `$p/err` is
    empty; `$p/shot.png` shows the floor and the capsule (0177: the coder looks at it).
+
+## Blocked
+Done when 1 passes and the double path works, but Done when 2 cannot: every view starts orbiting
+the origin (view.c `first_cameras`, far plane 200 m), so with every X raised by 100000 the capture
+shows two empty views; `$p/err` is empty and the exit is 0. With the views' first focus set to
+x = 100000 for a throwaway build the capture matched the near scene pixel for pixel in look (floor,
+capsule, camera marker), so the draw at 100 km is right. Unblock by deciding how the capture
+reaches the scene: views that open on the world camera or on the scene's bounds (a behaviour
+change in `editor/src/view.c` and the session's load), or a Done when that moves the views there.
