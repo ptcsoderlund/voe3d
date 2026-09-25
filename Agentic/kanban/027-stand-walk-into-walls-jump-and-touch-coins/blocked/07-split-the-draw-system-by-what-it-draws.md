@@ -27,3 +27,12 @@ No public header changes.
 1. `bash ~/.claude/skills/checks/scripts/checks.sh --folder 3d` prints `FINDINGS: 0`.
 2. `ctest --test-dir build/debug -R '^3d/'` passes with no test file edited.
 3. `wc -l 3d/src/draw_system.c` is under 500.
+
+## Blocked
+The split is done (draw_group.{h,c}, draw_marks.{h,c}, draw_system.c at 393 lines, src.md) and
+the folder's structural checks pass, but `3d` does not build: cards 03/06 changed
+`voe_scene_transform_matrix` to take an origin and made a transform's position a
+`voe_math_double3`, so `projection.c`, `import.c`, `camera_marker.c`, `outline.c`, the tests and
+the moved code in `draw_group.c`/`draw_marks.c`/`draw_system.c` fail exactly as HEAD's
+`draw_system.c` did. Card 08 (3d draws, picks and moves about the eye) fixes those callers; once it
+lands, Done when 1 and 2 should pass with no further change here.

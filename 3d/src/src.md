@@ -43,7 +43,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
-- `draw_system.c` — the camera's view and the sun, the solid pass and the blended one furthest
-  first, a camera marker with the world's solids, then the outline and the move gizmo.
+- `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes and panels,
+  the world's solids drawn as found, the held-back groups and the marks in their order.
+- `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
+- `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
+  or in table order, and the record a mesh is drawn with.
+- `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
+- `draw_marks.c` — the camera marker, the outline and the move gizmo, each as transient quads.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.
