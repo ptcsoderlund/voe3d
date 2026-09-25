@@ -34,6 +34,8 @@
 // voe_render_geometry_create_transient — is the case this exists for.
 #pragma once
 
+#include <base/imported.h>
+
 #include <ecs/component.h>
 #include <ecs/world.h>
 #include <render/device.h>
@@ -73,7 +75,7 @@ typedef struct {
 	voe_3d_layer layer;
 } voe_3d_mesh;
 
-extern const struct voe_ecs_key voe_3d_mesh_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_mesh_key;
 
 // Registers the table. Once per world, before anything adds a mesh.
 void voe_3d_mesh_register(voe_ecs_world *world, uint32_t capacity);

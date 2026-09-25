@@ -53,6 +53,8 @@
 // kind of thing is being drawn.
 #include <3d/mesh_component.h>
 
+#include <base/imported.h>
+
 #include <ecs/component.h>
 #include <ecs/world.h>
 #include <math/float2.h>
@@ -74,7 +76,7 @@ typedef struct {
 	voe_3d_layer layer;
 } voe_3d_panel;
 
-extern const struct voe_ecs_key voe_3d_panel_key;
+extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_panel_key;
 
 // Registers the table. Once per world, before anything adds a panel.
 void voe_3d_panel_register(voe_ecs_world *world, uint32_t capacity);
