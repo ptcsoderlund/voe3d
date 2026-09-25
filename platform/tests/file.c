@@ -29,12 +29,19 @@
 // build tree, and removed at the end whether the checks passed or not. The
 // failing cases print a reported line to stderr on purpose; that is the call
 // saying why, not the test going wrong.
+//
+// A NON-ASCII NAME IS ITS OWN CASE (ADR-0247): a file named in three scripts
+// inside a folder named in three, made, checked and read back with platform
+// calls only. Its cleanup on Windows goes through _wremove/_wrmdir, since the
+// narrow C runtime reads a name in the legacy code page, not UTF-8.
 #include <platform/file.h>
 
 #include <base/arena.h>
+#include <platform/folder.h>
 #include <testing/test.h>
 
 #include <stdio.h>
+#include <string.h>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -50,6 +57,8 @@
 #define MISSING "voe_platform_file_test_no_such_directory/file.bin"
 #define FOLDER "voe_platform_file_test_folder"
 #define FOLDER_PARTIAL "voe_platform_file_test_folder.partial"
+#define WORLD "Åsa 李 värld"
+#define WORLD_SCENE WORLD "/Min scen ÅÄÖ 李.txt"
 
 // Reads the whole file into buffer and hands back its length, or -1 if it is
 // not there. room is the size of buffer; a file that does not fit reads as
@@ -109,6 +118,21 @@ static void remove_folder(const char *path)
 	(void)_rmdir(path);
 #else
 	(void)rmdir(path);
+#endif
+}
+
+// Removes a file, or with folder a folder, by a UTF-8 name — see the header
+// comment for why Windows converts it first.
+static void remove_utf8(const char *path, bool folder)
+{
+#ifdef _WIN32
+	wchar_t wide[MAX_PATH];
+
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, MAX_PATH) == 0)
+		return;
+	(void)(folder ? _wrmdir(wide) : _wremove(wide));
+#else
+	(void)(folder ? rmdir(path) : remove(path));
 #endif
 }
 
@@ -263,7 +287,27 @@ int main(void)
 			      != NULL);
 	}
 
+	// A name in any script is written, found and read back like any other.
+	remove_utf8(WORLD_SCENE, false);
+	remove_utf8(WORLD, true);
+	VOE_TEST_CHECK(voe_platform_folder_create(WORLD, NULL));
+	VOE_TEST_CHECK(voe_platform_file_write(WORLD_SCENE, payload,
+					       sizeof payload, &error));
+	VOE_TEST_CHECK(voe_platform_file_exists(WORLD_SCENE));
+	{
+		size_t count = 0;
+		const uint8_t *read = voe_platform_file_read(WORLD_SCENE, arena,
+							      &count, &error);
+
+		VOE_TEST_CHECK(read != NULL);
+		VOE_TEST_CHECK_INT((long long)count, (long long)sizeof payload);
+		if (read != NULL && count == sizeof payload)
+			VOE_TEST_CHECK(memcmp(read, payload, count) == 0);
+	}
+
 	voe_base_arena_destroy(arena);
+	remove_utf8(WORLD_SCENE, false);
+	remove_utf8(WORLD, true);
 	remove(WRITTEN);
 	remove(WRITTEN_PARTIAL);
 	remove(EMPTY);

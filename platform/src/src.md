@@ -15,16 +15,19 @@ header.
   atomic. Its header says why the name says wayland, why the read and write
   loops and the checked fsync and close are not optional, and why the
   `.partial` path is a stack buffer.
-- `file_win32.c` — CreateFileA, ReadFile/WriteFile, CloseHandle, and the
-  MoveFileExA that makes a write atomic. Its header says why the ASCII call,
-  why a 64-bit count is moved in steps, and why the `.partial` path is a stack
-  buffer.
+- `file_win32.c` — CreateFileW, GetFileAttributesW, ReadFile/WriteFile, CloseHandle, and the
+  MoveFileExW that makes a write atomic, a UTF-8 path converted on the way in. Its header says why
+  a 64-bit count is moved in steps, and why a path too long for its stack buffer fails as an open.
 - `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
   header says why listing is two passes and the sort is by hand, and when
   `fstatat` decides `folder` instead of `d_type`.
-- `folder_win32.c` — FindFirstFileA/FindNextFileA, CreateDirectoryA, and
-  GetEnvironmentVariableA for %USERPROFILE%/%APPDATA%. Its header says why a
+- `folder_win32.c` — FindFirstFileW/FindNextFileW, CreateDirectoryW, and
+  GetEnvironmentVariableW for %USERPROFILE%/%APPDATA%, each name made UTF-8. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
+- `wide_win32.h` — UTF-8 to UTF-16 into a caller's buffer and UTF-16 to UTF-8 into an arena, for
+  the Windows files here only. Its header says why the "W" calls and not a manifest, and why a path
+  that does not fit is the caller's ordinary failure.
+- `wide_win32.c` — its implementation, with flags 0 so malformed text becomes U+FFFD.
 - `path.c` — joining, finding a parent and finding a name, for both platforms.
   Its header says why the separator is one compile-time constant rather than an
   `#ifdef` in each function.
