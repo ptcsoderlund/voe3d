@@ -9,11 +9,17 @@
 
 const struct voe_ecs_key voe_scene_transform_key = { "voe_scene_transform" };
 
-voe_math_float4x4 voe_scene_transform_matrix(voe_scene_transform transform)
+voe_math_float4x4 voe_scene_transform_matrix(voe_scene_transform transform,
+					      voe_math_double3 origin)
 {
+	// Subtracted in double, narrowed after: the difference is small, the two
+	// positions are not.
+	voe_math_float3 offset = voe_math_double3_to_float3(
+		voe_math_double3_sub(transform.position, origin));
+
 	// T · R · S. Right to left: scaled, then turned, then moved.
 	return voe_math_float4x4_mul(
-		voe_math_float4x4_from_translation(transform.position),
+		voe_math_float4x4_from_translation(offset),
 		voe_math_float4x4_mul(
 			voe_math_float4x4_from_quat(transform.rotation),
 			voe_math_float4x4_from_scale(transform.scale)));

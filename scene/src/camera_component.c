@@ -13,7 +13,8 @@ const struct voe_ecs_key voe_scene_camera_key = { "voe_scene_camera" };
 // so a singular pose is a false here and never that assert.
 bool voe_scene_camera_view(voe_scene_transform pose, voe_math_float4x4 *out)
 {
-	voe_math_float4x4 matrix = voe_scene_transform_matrix(pose);
+	voe_math_float4x4 matrix =
+		voe_scene_transform_matrix(pose, pose.position);
 
 	VOE_BASE_DEBUG_ASSERT(out != NULL, "a view written to nowhere");
 
