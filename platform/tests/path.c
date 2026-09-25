@@ -15,12 +15,50 @@
 // ABSOLUTE NEEDS NOTHING PLATFORM-SPECIFIC IN THE TEST ITSELF: "." always
 // names the working directory, wherever ctest sets it, and a name this test
 // makes up is never there on either platform.
+//
+// A NON-ASCII FOLDER RESOLVES (ADR-0247): WORLD is made with
+// voe_platform_folder_create inside a folder of this test's own, so it cannot
+// race platform/tests/folder.c's folder of the same name, and its resolved
+// path's name is WORLD byte for byte. Cleanup is at the start and the end, as
+// folder.c's is; on Windows through _wrmdir, since the narrow C runtime reads
+// a name in the legacy code page, not UTF-8.
 #include <platform/path.h>
 
 #include <base/arena.h>
+#include <platform/folder.h>
 #include <testing/test.h>
 
 #include <string.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
+#define WORLD "Åsa 李 värld"
+#define WORLD_ROOT "voe_platform_path_test"
+#define WORLD_PATH WORLD_ROOT "/" WORLD
+
+// Removes an empty folder by its UTF-8 name.
+static void remove_folder(const char *path)
+{
+#ifdef _WIN32
+	wchar_t wide[MAX_PATH];
+
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, MAX_PATH) != 0)
+		(void)_wrmdir(wide);
+#else
+	(void)rmdir(path);
+#endif
+}
+
+static void cleanup(void)
+{
+	remove_folder(WORLD_PATH);
+	remove_folder(WORLD_ROOT);
+}
 
 int main(void)
 {
@@ -107,6 +145,22 @@ int main(void)
 			       "voe_platform_path_test_missing_xyz", arena,
 			       &error) == NULL);
 	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNAVAILABLE);
+
+	// A folder named outside ASCII resolves, and its name is those bytes.
+	cleanup();
+	VOE_TEST_CHECK(voe_platform_folder_create(WORLD_ROOT, NULL));
+	VOE_TEST_CHECK(voe_platform_folder_create(WORLD_PATH, NULL));
+	{
+		const char *world = voe_platform_path_absolute(WORLD_PATH, arena,
+							       &error);
+
+		VOE_TEST_CHECK(world != NULL);
+		VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+		if (world != NULL)
+			VOE_TEST_CHECK(strcmp(voe_platform_path_name(world),
+					      WORLD) == 0);
+	}
+	cleanup();
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

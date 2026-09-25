@@ -25,8 +25,8 @@ carries it out.
   with acting on one left to the caller.
 - `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete and Ctrl+D, the rest
   a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
-- `options.h` — the command line: the folder to open, `--capture`'s path and
-  `--size`'s picture, or one usage line on stderr.
+- `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
+  `--capture`'s path and `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept

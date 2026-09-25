@@ -19,3 +19,4 @@ stays on `platform/platform.md`.
   it; a failed open is reported with the loader's reason.
 - `process.h` — starting a program with its output shared or appended to a file,
   polling it without waiting, and ending it with everything it started.
+- `arguments.h` — the program's own arguments as UTF-8 on both platforms.

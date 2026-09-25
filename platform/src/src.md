@@ -15,32 +15,40 @@ header.
   atomic. Its header says why the name says wayland, why the read and write
   loops and the checked fsync and close are not optional, and why the
   `.partial` path is a stack buffer.
-- `file_win32.c` — CreateFileA, ReadFile/WriteFile, CloseHandle, and the
-  MoveFileExA that makes a write atomic. Its header says why the ASCII call,
-  why a 64-bit count is moved in steps, and why the `.partial` path is a stack
-  buffer.
+- `file_win32.c` — CreateFileW, GetFileAttributesW, ReadFile/WriteFile, CloseHandle, and the
+  MoveFileExW that makes a write atomic, a UTF-8 path converted on the way in. Its header says why
+  a 64-bit count is moved in steps, and why a path too long for its stack buffer fails as an open.
 - `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
   header says why listing is two passes and the sort is by hand, and when
   `fstatat` decides `folder` instead of `d_type`.
-- `folder_win32.c` — FindFirstFileA/FindNextFileA, CreateDirectoryA, and
-  GetEnvironmentVariableA for %USERPROFILE%/%APPDATA%. Its header says why a
+- `folder_win32.c` — FindFirstFileW/FindNextFileW, CreateDirectoryW, and
+  GetEnvironmentVariableW for %USERPROFILE%/%APPDATA%, each name made UTF-8. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
+- `wide_win32.h` — UTF-8 to UTF-16 into a caller's buffer and UTF-16 to UTF-8 into an arena, for
+  the Windows files here only. Its header says why the "W" calls and not a manifest, and why a path
+  that does not fit is the caller's ordinary failure.
+- `wide_win32.c` — its implementation, with flags 0 so malformed text becomes U+FFFD.
 - `path.c` — joining, finding a parent and finding a name, for both platforms.
   Its header says why the separator is one compile-time constant rather than an
   `#ifdef` in each function.
 - `path_wayland.c` — realpath, resolving a path to an absolute one. Its header
   says why `PATH_MAX` is realpath's own buffer and not a limit this folder
   invents.
-- `path_win32.c` — GetFullPathNameA plus GetFileAttributesA, since the first
-  alone will invent a path for a name that is not there. Its header says why two
-  calls size the buffer.
+- `path_win32.c` — GetFullPathNameW plus GetFileAttributesW, since the first
+  alone will invent a path for a name that is not there, the result made UTF-8. Its header says why
+  two calls size the buffer.
 - `library_wayland.c` — dlopen and dlsym, a failed open reported with dlerror. Its header says why
   the name says wayland.
-- `library_win32.c` — LoadLibraryA and GetProcAddress, a failed open reported through FormatMessage.
+- `library_win32.c` — LoadLibraryW and GetProcAddress, a failed open reported through
+  FormatMessageW made UTF-8.
 - `process_wayland.c` — posix_spawnp into a new process group with output dup2'd onto a file when
   asked, waitpid to poll, SIGTERM to the group to end.
 - `process_win32.c` — the argument list quoted into one command line, CreateProcessW inside a
-  kill-on-close job object with an inheritable output handle when asked, and TerminateJobObject to end.
+  kill-on-close job object with an inheritable CreateFileW output handle when asked, and
+  TerminateJobObject to end.
+- `arguments_wayland.c` — main's `argv`, handed back as it is.
+- `arguments_win32.c` — GetCommandLineW and CommandLineToArgvW, each entry made UTF-8 into the
+  arena, and `argv` as the fallback when the split fails.
 - `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an AltGr flag per code,
   built from resolved XKB v1 text, internal to this folder and built on both platforms because it
   includes no OS header.

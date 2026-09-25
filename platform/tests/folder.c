@@ -29,6 +29,11 @@
 // FILE_ATTRIBUTE_HIDDEN is hidden too, on top of the dot rule. That block is
 // the one part of this file the coder could not run on Linux; the rest,
 // .dotted checks included, ran here exactly as it will on Windows.
+//
+// A NON-ASCII NAME IS ITS OWN CASE (ADR-0247): a folder and a file named
+// outside ASCII come back from a listing byte for byte. Their cleanup on
+// Windows goes through _wremove/_wrmdir, since the narrow C runtime reads a
+// name in the legacy code page, not UTF-8.
 #ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -60,6 +65,10 @@
 #define CREATE_ROOT "voe_platform_folder_test_create"
 #define CREATE_MISSING_CHILD CREATE_ROOT "/missing_parent/child"
 
+#define WORLD "Åsa 李 värld"
+#define WORLD_FOLDER WORLD "/Östen 张"
+#define WORLD_FILE WORLD "/å.txt"
+
 static bool make_folder(const char *path)
 {
 #ifdef _WIN32
@@ -78,6 +87,21 @@ static void remove_folder(const char *path)
 #endif
 }
 
+// Removes a file, or with folder a folder, by a UTF-8 name — see the header
+// comment for why Windows converts it first.
+static void remove_utf8(const char *path, bool folder)
+{
+#ifdef _WIN32
+	wchar_t wide[MAX_PATH];
+
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, MAX_PATH) == 0)
+		return;
+	(void)(folder ? _wrmdir(wide) : _wremove(wide));
+#else
+	(void)(folder ? rmdir(path) : remove(path));
+#endif
+}
+
 // Torn down at the start, so a leftover from a previous failed run cannot make
 // this run report the wrong thing, and at the end, whether the checks passed
 // or not.
@@ -88,6 +112,9 @@ static void cleanup(void)
 	remove_folder(LIST_NESTED);
 	remove_folder(LIST_ROOT);
 	remove_folder(CREATE_ROOT);
+	remove_utf8(WORLD_FILE, false);
+	remove_utf8(WORLD_FOLDER, true);
+	remove_utf8(WORLD, true);
 }
 
 int main(void)
@@ -172,6 +199,30 @@ int main(void)
 						  FILE_ATTRIBUTE_NORMAL));
 	}
 #endif
+
+	// Names in any script come back byte for byte, sorted by byte order:
+	// "Ö" is 0xc3 0x96 and "å" 0xc3 0xa5, so the folder comes first.
+	VOE_TEST_CHECK(voe_platform_folder_create(WORLD, NULL));
+	VOE_TEST_CHECK(voe_platform_folder_create(WORLD_FOLDER, NULL));
+	VOE_TEST_CHECK(voe_platform_file_write(WORLD_FILE, byte, sizeof byte,
+					       NULL));
+	{
+		voe_platform_folder_listing listing;
+
+		VOE_TEST_CHECK(voe_platform_folder_list(WORLD, arena, &listing,
+							&error));
+		VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+		VOE_TEST_CHECK_INT(listing.count, 2);
+		if (listing.count == 2) {
+			VOE_TEST_CHECK(strcmp(listing.entries[0].name,
+					      "Östen 张") == 0);
+			VOE_TEST_CHECK(listing.entries[0].folder);
+
+			VOE_TEST_CHECK(strcmp(listing.entries[1].name,
+					      "å.txt") == 0);
+			VOE_TEST_CHECK(!listing.entries[1].folder);
+		}
+	}
 
 	// A folder that is not there fails as UNAVAILABLE.
 	error = VOE_BASE_OK;

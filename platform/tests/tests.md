@@ -5,12 +5,10 @@ that module's promises from outside. None of them needs a window or a display.
 
 - `clock.c` — that the clock moves and never goes backwards. Its header says
   why nothing in it measures a duration against a duration.
-- `file.c` — that the bytes written come back byte for byte on both sides of the API, that a shorter
-  file replaces a longer one, that a missing path or a folder fails a read as UNAVAILABLE, that no
-  `.partial` sibling outlives a successful write, and that a write onto a folder is REFUSED.
-- `folder.c` — that a listing is sorted by byte order with folder and hidden answered correctly,
-  that a missing folder fails as UNAVAILABLE, that creating over an existing name is REFUSED, and
-  that the settings folder honours `XDG_CONFIG_HOME` on Linux.
+- `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
+  write fails as it says, no `.partial` outlives a write, and a non-ASCII name round-trips.
+- `folder.c` — that listings are byte-sorted with folder and hidden right, failures are
+  UNAVAILABLE or REFUSED, settings honours `XDG_CONFIG_HOME`, and non-ASCII names list exactly.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;
   focus loss releases keys, pointer loss buttons; an overflowing or control code point types
   nothing; the pointer's shape survives a poll and both losses.
@@ -22,8 +20,11 @@ that module's promises from outside. None of them needs a window or a display.
   stays zero.
 - `path.c` — join, parent and name on ordinary paths, roots and trailing
   separators, for the platform it runs on; that resolving "." to an absolute
-  path is idempotent, and that resolving a made-up name is NULL.
+  path is idempotent, that resolving a made-up name is NULL, and that a non-ASCII folder resolves
+  with its name byte for byte.
 - `library.c` — that a library no system has opens as NULL with a report naming it.
+- `arguments.c` — that a hand-made argv of three strings, one non-ASCII, comes back with count 3,
+  the same bytes and a NULL after the last. Linux only by construction.
 - `process.c` — that `cmake -E true` ends with 0 and `-E false` with non-zero, that a running
   `-E sleep 30` is ended within five seconds and zeroed, that a missing program is a false start,
   and on Linux that an output file holds both streams and is appended to.
