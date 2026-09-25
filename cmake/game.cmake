@@ -12,6 +12,9 @@
 # missing or holding no .c, the code is no_code.c instead: a file written into
 # CMAKE_BINARY_DIR with file(CONFIGURE), rewritten only when its bytes change,
 # defining the two entry points of game/project.h empty.
+# The variable may be a native path (backslashes on Windows); it is rewritten
+# in CMake's form first, because a CONFIGURE_DEPENDS glob is copied unescaped
+# into VerifyGlobs.cmake, where a backslash is an escape (bug 03).
 #
 # Two modes, chosen by VOE_GAME_LIBRARY:
 # - OFF (the default): the executable `game` from main.c, scene.c and the code,
@@ -65,6 +68,9 @@ include(${VOE_ENGINE}/cmake/voe.cmake)
 add_subdirectory(${VOE_ENGINE}/game ${CMAKE_BINARY_DIR}/voe_game)
 
 set(voe_project_sources "")
+if(VOE_PROJECT_CODE)
+    cmake_path(SET VOE_PROJECT_CODE NORMALIZE "${VOE_PROJECT_CODE}")
+endif()
 if(VOE_PROJECT_CODE AND IS_DIRECTORY "${VOE_PROJECT_CODE}")
     file(GLOB voe_project_sources CONFIGURE_DEPENDS "${VOE_PROJECT_CODE}/*.c")
 endif()
