@@ -12,8 +12,12 @@ scale = [10, 0.1, 10]
 name = "Player"
 [2.keyboard_input]
 move = [0, 0]
+jump = false
+jump_down = false
 [2.player]
 speed = 5
+jump_height = 1.2
+gravity = 9.81
 [2.voe_3d_shape]
 kind = 2
 colour = [0.8, 0.3, 0.2]

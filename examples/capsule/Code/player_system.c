@@ -1,10 +1,16 @@
-// The player system: keyboard_input and player into a transform intent.
-// Teaches walking one table and looking the others up by entity, and that a
-// project moves an engine row the way anything outside scene does, by
-// reading it and submitting the whole changed transform (rule 4).
+// The player system: keyboard_input and player into a body intent. Teaches
+// walking one table and looking the others up by entity, and that a project
+// moves an engine row the way anything outside physics does, by reading it
+// and submitting the whole changed body (rule 4); the body's move then slides
+// it along what it hits.
 //
-// Constraints: moves on XZ only, with no collision; a full transform queue
-// drops the rest of this frame's moves.
+// On the floor the Y velocity starts at the jump's, √(2 · gravity · height),
+// when `jump` is set, else at 0; in the air it starts at the body's own Y,
+// which the move left as what it really moved, so a ceiling stops a rise.
+// Space in the air does nothing because only the floor branch reads `jump`.
+// Gravity is then taken off in both.
+//
+// Constraints: a full body queue drops the rest of this step's moves.
 #include "keyboard_input.h"
 #include "player.h"
 
@@ -15,11 +21,14 @@
 #include <game/project.h>
 #include <game/world.h>
 
-#include <scene/transform_system.h>
+#include <physics/body_system.h>
+
+#include <math.h>
 
 const struct voe_ecs_key player_key = { "player" };
 
-static const player player_default = { .speed = 2.0f };
+static const player player_default = { .speed = 2.0f, .jump_height = 1.2f,
+				       .gravity = 9.81f };
 
 bool player_register(voe_ecs_world *world)
 {
@@ -30,6 +39,19 @@ bool player_register(voe_ecs_world *world)
 		"Player" });
 }
 
+// The Y velocity a player wants this step, before the body's move.
+static float rise_of(const player *row, const keyboard_input *input,
+		     const voe_physics_body *body, float seconds)
+{
+	float rise = body->velocity.y;
+
+	if (body->on_floor)
+		rise = input->jump ? sqrtf(2.0f * fmaxf(row->gravity, 0.0f) *
+					   fmaxf(row->jump_height, 0.0f)) :
+				     0.0f;
+	return rise - row->gravity * seconds;
+}
+
 void player_system_run(voe_ecs_world *world, double seconds)
 {
 	VOE_BASE_ASSERT(world != NULL, "moving players in no world");
@@ -37,8 +59,6 @@ void player_system_run(voe_ecs_world *world, double seconds)
 	const voe_ecs_type type = voe_ecs_component_type(world, &player_key);
 	const voe_ecs_type input_type =
 		voe_ecs_component_type(world, &keyboard_input_key);
-	const voe_ecs_type transform_type =
-		voe_ecs_component_type(world, &voe_scene_transform_key);
 	const player *rows = voe_ecs_component_rows(world, type);
 	const voe_ecs_entity *entities = voe_ecs_component_entities(world, type);
 	const uint32_t count = voe_ecs_component_count(world, type);
@@ -48,19 +68,19 @@ void player_system_run(voe_ecs_world *world, double seconds)
 	for (uint32_t i = 0; i < count; i++) {
 		const keyboard_input *input =
 			voe_ecs_component_get(world, input_type, entities[i]);
-		const voe_scene_transform *transform = voe_ecs_component_get(
-			world, transform_type, entities[i]);
+		const voe_physics_body *body =
+			voe_physics_body_get(world, entities[i]);
 
-		if (input == NULL || transform == NULL)
+		if (input == NULL || body == NULL)
 			continue;
-		const float step = rows[i].speed * (float)seconds;
-		voe_scene_transform moved = *transform;
+		voe_physics_body wanted = *body;
 
-		moved.position.x += input->move.x * step;
-		moved.position.z -= input->move.y * step;
-		if (!voe_scene_transform_submit(world,
-						(voe_scene_transform_intent){
-							entities[i], moved }))
+		wanted.velocity.x = input->move.x * rows[i].speed;
+		wanted.velocity.z = -input->move.y * rows[i].speed;
+		wanted.velocity.y =
+			rise_of(&rows[i], input, body, (float)seconds);
+		if (!voe_physics_body_submit(world, (voe_physics_body_intent){
+							    entities[i], wanted }))
 			return;
 	}
 }

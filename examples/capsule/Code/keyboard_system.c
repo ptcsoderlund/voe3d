@@ -3,7 +3,11 @@
 // and that input is raw (0239): the system asks whether a key is down and
 // makes of it what the game needs.
 //
-// Constraints: W/A/S/D only, by place on the keyboard; opposite keys cancel.
+// The jump is an edge: each row keeps Space's level from the last step in
+// `jump_down`, so a held Space jumps once and not every step.
+//
+// Constraints: W/A/S/D and Space only, by place on the keyboard; opposite
+// keys cancel.
 #include "keyboard_input.h"
 
 #include <base/assert.h>
@@ -42,15 +46,21 @@ void keyboard_system_run(voe_ecs_world *world, voe_platform_window *window)
 		return;
 	const voe_ecs_type type =
 		voe_ecs_component_type(world, &keyboard_input_key);
-	const keyboard_input row = { .move = {
+	const voe_math_float2 move = {
 		key_axis(window, VOE_PLATFORM_KEY_A, VOE_PLATFORM_KEY_D),
-		key_axis(window, VOE_PLATFORM_KEY_S, VOE_PLATFORM_KEY_W) } };
+		key_axis(window, VOE_PLATFORM_KEY_S, VOE_PLATFORM_KEY_W) };
+	const bool space = voe_platform_input_key_down(window,
+						       VOE_PLATFORM_KEY_SPACE);
+	const keyboard_input *rows = voe_ecs_component_rows(world, type);
 	const voe_ecs_entity *entities = voe_ecs_component_entities(world, type);
 	const uint32_t count = voe_ecs_component_count(world, type);
 
 	VOE_BASE_ASSERT(count <= VOE_GAME_WORLD_AUTHORED,
 			"more keyboard input rows than were registered");
 	for (uint32_t i = 0; i < count; i++) {
+		const keyboard_input row = { .move = move,
+					     .jump = space && !rows[i].jump_down,
+					     .jump_down = space };
 		const bool set = voe_ecs_component_set(world, type, entities[i],
 						       &row);
 
