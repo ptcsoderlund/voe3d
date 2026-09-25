@@ -75,6 +75,9 @@ typedef enum {
 	VOE_BASE_FIELD_FLOAT4,
 	VOE_BASE_FIELD_QUAT,
 	VOE_BASE_FIELD_FLOAT4X4,
+	// DOUBLE3 IS THREE DOUBLES, A WORLD POSITION (ADR-0250). It is spelled in
+	// scene text the way FLOAT3 is, each element a FLOAT64, and is 24 bytes.
+	VOE_BASE_FIELD_DOUBLE3,
 	// COLOUR IS THREE FLOATS, LINEAR RGB, EACH 0 TO 1, LAID OUT AND SPELLED AS
 	// FLOAT3. It is 12 bytes like FLOAT3 and is written and read in scene text the
 	// same way; it exists so a tool can show the field as a swatch without naming
@@ -167,6 +170,7 @@ voe_base_names_find(const voe_base_struct_description *description,
 #define VOE_BASE_FIELD_SIZE_FLOAT4 16
 #define VOE_BASE_FIELD_SIZE_QUAT 16
 #define VOE_BASE_FIELD_SIZE_FLOAT4X4 64
+#define VOE_BASE_FIELD_SIZE_DOUBLE3 24
 #define VOE_BASE_FIELD_SIZE_COLOUR 12
 #define VOE_BASE_FIELD_SIZE_ENUM 4
 #define VOE_BASE_FIELD_SIZE_CHAR 1

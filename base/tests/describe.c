@@ -127,6 +127,19 @@ typedef struct {
 
 VOE_BASE_DESCRIBE_STRUCT(tinted, TINTED_FIELDS)
 
+// A world position as a declaring folder spells it: three doubles, behind a byte
+// so it starts at eight, and an array of two after it.
+typedef struct {
+	double x, y, z;
+} position;
+
+#define PLACED_FIELDS(F, F_READ_ONLY)   \
+	F(uint8_t, tag, UINT8)          \
+	F(position, at, DOUBLE3)        \
+	F(position, path, DOUBLE3, 2)
+
+VOE_BASE_DESCRIBE_STRUCT(placed, PLACED_FIELDS)
+
 // A field whose values have names. Value 0 is left unnamed, as a set numbered
 // from one leaves its first entry, and a declaring folder would put this array in
 // its own .c and declare it extern.
@@ -228,6 +241,17 @@ int main(void)
 		return voe_test_result();
 	check_field(&tinted_desc->fields[0], "tint", VOE_BASE_FIELD_COLOUR,
 		    offsetof(tinted, tint), 12, 1, 0, no_dims, false);
+
+	const voe_base_struct_description *placed_desc = placed_description();
+	uint32_t path_dims[1] = { 2 };
+	VOE_TEST_CHECK_INT(placed_desc->field_count, 3);
+	if (placed_desc->field_count != 3)
+		return voe_test_result();
+	check_field(&placed_desc->fields[1], "at", VOE_BASE_FIELD_DOUBLE3,
+		    offsetof(placed, at), 24, 1, 0, no_dims, false);
+	check_field(&placed_desc->fields[2], "path", VOE_BASE_FIELD_DOUBLE3,
+		    offsetof(placed, path), 48, 2, 1, path_dims, false);
+	VOE_TEST_CHECK_INT((long long)offsetof(placed, at), 8);
 
 	const voe_base_struct_description *dial_desc = dial_description();
 	VOE_TEST_CHECK_INT(dial_desc->names_count, 1);
