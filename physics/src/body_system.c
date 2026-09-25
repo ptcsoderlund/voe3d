@@ -1,6 +1,6 @@
 // The body system: registration, the one direct creation call, the drain that
 // settles what it applies, and the report that settling writes. The move that
-// writes velocity and on_floor from the world is card 13's and lands here.
+// writes velocity and on_floor from the world is in body_move.c.
 //
 // THE RUN FLAG AND THE COUNTERS ARE FILE-SCOPE STATICS AND THEREFORE PER
 // PROCESS, as the collider's are; scene/transform_system.h says why that is

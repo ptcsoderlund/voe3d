@@ -16,7 +16,7 @@
 // `step_height` IS IN METRES and never below 0; `slope_limit` is radians from
 // level, in [0, π/2]. The default row is a step of 0.3, a slope of 0.8, still
 // and not on the floor. A body needs a collider, so colliders are registered
-// first; the move itself is card 13's.
+// first; the move is physics/body_system.h's.
 #pragma once
 
 #include <base/describe.h>

@@ -17,8 +17,26 @@
 // exist.
 //
 // THE DRAIN RUNS EVERY FRAME, in the editor and the game, so an Inspector edit
-// lands while nothing plays. The move (card 13) runs only in the game's fixed
-// steps and writes velocity and on_floor itself.
+// lands while nothing plays. The move runs only in the game's fixed steps and
+// writes velocity and on_floor itself.
+//
+//     voe_physics_body_system_move(world, 1.0f / 60.0f);  // each fixed step
+//     voe_scene_transform_system_run(world);             // before the next
+//
+// ONE MOVE, PER BODY WITH A SPHERE OR CAPSULE AND A TRANSFORM: substeps of at
+// most a quarter radius; in each, move by the velocity, then push out of the
+// deepest contact up to four times (a floor within the slope limit straight
+// up, dropping a fall; anything else a wall, along its level normal, dropping
+// the velocity into it, which is the slide); on the floor against a wall, the
+// same substep again from a step height up, kept if it lands further along;
+// last, a body that was on the floor and is not rising is put back on a floor
+// up to a step height below. Triggers and the body's own collider are passed
+// through.
+//
+// THE MOVE READS, THEN WRITES ONLY ITS OWN ROWS: the new position goes out as
+// a transform intent (0249 rule 2), rotation and scale kept, so the caller
+// drains the transform queue before the next move. The row gets `velocity` as
+// what the body really moved over the seconds, and `on_floor`.
 //
 // THE DRAIN SETTLES EVERY INTENT. A step height below 0 or not finite, a slope
 // limit outside [0, π/2] or not finite, or a velocity not finite keeps the last
@@ -60,3 +78,8 @@ typedef struct {
 // Settles and applies every waiting intent, in submission order, and empties
 // the queue.
 void voe_physics_body_system_run(voe_ecs_world *world);
+
+// Moves every body by its velocity over `seconds`, above 0 (see the header).
+// A move whose transform intent does not fit the queue is dropped, row and
+// all, and reported.
+void voe_physics_body_system_move(voe_ecs_world *world, float seconds);
