@@ -53,12 +53,43 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   0238 makes none allowed.
 - **A developer's own shading**: custom materials or shaders for a game that lights things its own way
   (sponsor, 2026-09-24). Until then, no light means unlit (0238).
-- **A `character_controller` component and system in the engine**, with physics kept separate from
-  simple collision, and collision perhaps on the GPU through compute (sponsor thinking aloud,
-  2026-09-24). A project's `player_system` would drive the controllers whose entity also has its
-  `keyboard_input` (0239). To settle before milestone 4.
+- **GPU particles that collide with the world**: compute-shader particles colliding one way
+  against an uploaded copy of the collider components or the depth buffer (0249 rule 4).
+- **Dynamic bodies**: things pushed by forces, stacking and tumbling, physics layer 3 of 0249;
+  solved in islands so it can go to threads later. Not needed for the coin game.
 - **Draw every script as real letters, not the missing-glyph box**: Latin Extended (ł, ő, ș…),
   Greek, Cyrillic, then Chinese/Japanese/Korean, Arabic and Hebrew. That needs fallback fonts
   beside Oxanium (0185), glyphs beyond U+00FF and, for some scripts, shaping and right-to-left
   text. The sponsor wants it (2026-09-25). Wait until a game needs it. Until then, 0247 only
   promises that a character never fails.
+- **World streaming for open worlds**: the world in cells loaded and unloaded around the player,
+  through ADR-0118's asynchronous tier, which today keeps physics shapes synchronous; streaming
+  collision near the player needs that revisited. Builds on 0250's double positions (sponsor,
+  2026-09-25).
+- **Automatic LOD at run time with cached baking** (sponsor, 2026-09-25): "like Nanite but with
+  good performance, more like traditional auto LOD". A mesh gets simplified levels generated
+  automatically (quadric-error simplification in the meshoptimizer style), baked on first use
+  and kept in the project's `Cache/` (0235), picked per object by its size on screen, blended
+  so levels do not pop. No per-cluster virtual geometry. Needs imported meshes first; today a
+  project draws only the built-in shapes. **LOD streaming** (sponsor, 2026-09-25): only the
+  levels near the one on screen (current ±1) sit in VRAM, the rest on disk, loaded ahead through
+  ADR-0118's asynchronous tier. Recommended shape: the lowest level of every model always stays
+  loaded, so a teleport shows something coarse rather than nothing; loading is prioritised by
+  where the camera is heading; and one VRAM budget replaces a per-game mode: a low-poly game fits
+  entirely and never streams, a high-detail game streams. A game can ask to preload around a
+  place before teleporting there.
+- **Dynamic lighting with the same philosophy** (sponsor, 2026-09-25): no baked lightmaps and
+  no editor bake step; lighting computed at run time and cached. Starts from 0252's sun shadows.
+  The sponsor's shape for the bounce: **a lit surface becomes a light** — surfaces the sun hits
+  store what they received (times their colour; dark surfaces send less) in a surface cache and
+  light what they see, a slice of surfaces re-lit per frame so the whole cycle takes ~50 ms. This
+  is radiosity, the shape of Enlighten and of Lumen's surface cache. The open question is who
+  sees whom: traced at run time (hardware ray tracing or a distance field of the world), or a
+  per-surface visibility baked automatically and kept in `Cache/` like the LOD idea, with moving
+  things lit from probes. Neither needs ray-tracing cards: cached visibility and distance fields
+  run on any card. The sponsor also proposed **light-blocking volumes** a developer places
+  (static, so never re-checked): light does not pass them either way. Recommended as a hand
+  touch-up for the leaks the automatic visibility misses (thin walls, coarse probe grids), like
+  Unity's probe adjustment volumes, and as rooms and portals (a room lit only by what is inside
+  and what comes through its doors and windows), not as the main mechanism. One bounce first, more by feeding the cache back into itself. After the
+  coin game, unless a game needs it sooner.
