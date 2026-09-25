@@ -7,7 +7,10 @@
 // empty or holds a space, tab or quote is wrapped in quotes; inside, a quote is
 // escaped with a backslash, and backslashes are doubled only where they stand
 // before a quote, the closing one included. It is built as UTF-8 in scratch,
-// then converted to UTF-16 in scratch as window_win32.c converts its title.
+// then converted to UTF-16 in scratch through platform/src/wide_win32.h,
+// sized so it always fits: a UTF-16 text never has more units than its
+// UTF-8 has bytes. The output path crosses the same way, in a MAX_PATH stack
+// buffer; one that does not fit fails as an open does (ADR-0248).
 //
 // THE CHILD STARTS SUSPENDED AND JOINS THE JOB BEFORE IT RUNS, so nothing it
 // starts can escape the job. The job is kill-on-close: if the editor dies
@@ -19,6 +22,8 @@
 // when missing, and set as both hStdOutput and hStdError; the parent closes its
 // copy after CreateProcessW. Written and built on Linux only (ADR-0130).
 #include <platform/process.h>
+
+#include "wide_win32.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -64,7 +69,6 @@ static wchar_t *command_line_of(const char *const *argv, voe_base_arena *scratch
 	size_t capacity = 1;
 	size_t length = 0;
 	char *line;
-	int wide_length;
 	wchar_t *wide;
 
 	for (size_t i = 0; argv[i] != NULL; i++)
@@ -77,11 +81,9 @@ static wchar_t *command_line_of(const char *const *argv, voe_base_arena *scratch
 	}
 	line[length] = '\0';
 
-	wide_length = MultiByteToWideChar(CP_UTF8, 0, line, -1, NULL, 0);
-	VOE_BASE_ASSERT(wide_length > 0, "a program's arguments are not UTF-8");
-	wide = voe_base_arena_push(scratch, (size_t)wide_length * sizeof(*wide));
-	VOE_BASE_ASSERT(MultiByteToWideChar(CP_UTF8, 0, line, -1, wide, wide_length) == wide_length,
-			"a program's arguments are not UTF-8");
+	wide = voe_base_arena_push(scratch, (length + 1) * sizeof(*wide));
+	VOE_BASE_ASSERT(voe_platform_wide_from_utf8(line, wide, (int)(length + 1)),
+			"a command line did not fit its own UTF-8 length in UTF-16");
 	return wide;
 }
 
@@ -89,14 +91,19 @@ static wchar_t *command_line_of(const char *const *argv, voe_base_arena *scratch
 static HANDLE output_handle_of(const char *output)
 {
 	SECURITY_ATTRIBUTES inherit = { sizeof(inherit), NULL, TRUE };
-	HANDLE file;
+	wchar_t wide[MAX_PATH];
+	HANDLE file = INVALID_HANDLE_VALUE;
+	DWORD error = ERROR_FILENAME_EXCED_RANGE;
 
 	VOE_BASE_DEBUG_ASSERT(output != NULL, "redirecting to no output");
-	file = CreateFileA(output, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, &inherit,
-			   OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (voe_platform_wide_from_utf8(output, wide, MAX_PATH)) {
+		file = CreateFileW(wide, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+				   &inherit, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		error = GetLastError();
+	}
 	if (file == INVALID_HANDLE_VALUE)
 		VOE_BASE_ERROR("platform", "cannot open %s for a program's output: error %lu",
-			       output, (unsigned long)GetLastError());
+			       output, (unsigned long)error);
 	return file;
 }
 

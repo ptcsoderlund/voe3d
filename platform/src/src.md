@@ -34,16 +34,18 @@ header.
 - `path_wayland.c` — realpath, resolving a path to an absolute one. Its header
   says why `PATH_MAX` is realpath's own buffer and not a limit this folder
   invents.
-- `path_win32.c` — GetFullPathNameA plus GetFileAttributesA, since the first
-  alone will invent a path for a name that is not there. Its header says why two
-  calls size the buffer.
+- `path_win32.c` — GetFullPathNameW plus GetFileAttributesW, since the first
+  alone will invent a path for a name that is not there, the result made UTF-8. Its header says why
+  two calls size the buffer.
 - `library_wayland.c` — dlopen and dlsym, a failed open reported with dlerror. Its header says why
   the name says wayland.
-- `library_win32.c` — LoadLibraryA and GetProcAddress, a failed open reported through FormatMessage.
+- `library_win32.c` — LoadLibraryW and GetProcAddress, a failed open reported through
+  FormatMessageW made UTF-8.
 - `process_wayland.c` — posix_spawnp into a new process group with output dup2'd onto a file when
   asked, waitpid to poll, SIGTERM to the group to end.
 - `process_win32.c` — the argument list quoted into one command line, CreateProcessW inside a
-  kill-on-close job object with an inheritable output handle when asked, and TerminateJobObject to end.
+  kill-on-close job object with an inheritable CreateFileW output handle when asked, and
+  TerminateJobObject to end.
 - `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an AltGr flag per code,
   built from resolved XKB v1 text, internal to this folder and built on both platforms because it
   includes no OS header.
