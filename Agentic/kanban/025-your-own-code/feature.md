@@ -20,7 +20,7 @@ that keeps the camera behind its target.
 A game is its logic. Until the project's own code runs, the editor only builds scenes.
 
 ## How to test
-1. Open the editor and open the example project. The capsule has none of the project's components
+1. Open the editor and open the example project, `examples/capsule/`. The capsule has none of the project's components
    yet.
 2. Select the capsule and open Add component. The project's Keyboard Input and Player are listed
    beside the engine's own. Add both. The Inspector shows Player's speed, which you can drag and

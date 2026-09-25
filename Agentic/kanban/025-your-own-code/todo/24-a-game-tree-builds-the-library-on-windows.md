@@ -1,4 +1,4 @@
-# 20 — A game tree builds the project's library on Windows
+# 24 — A game tree builds the project's library on Windows
 folder: game
 decisions: 0168, 0175, 0242, 0243, 0245
 
@@ -18,7 +18,7 @@ Points 2–4 of 0245, `game.cmake`'s half, and the end of bug 01. Read the heade
 ## Done when
 1. `checks.sh --folder game` prints `FINDINGS: 0`.
 2. `grep -c 'Linux-only' cmake/game.cmake` prints 0.
-3. In `p=$(mktemp -d)` with `cp -r game/example/. $p`: the capture of card 19's check 3 exits 0
+3. In `p=$(mktemp -d)` with `cp -r examples/capsule/. $p`: the capture of card 23's check 3 exits 0
    with `$p/err` empty and `$p/Build/editor/loaded/project-1.so` present.
 4. `checks.sh --all` prints `FINDINGS: 0`.
 5. The human's, on Windows: build and start the editor, then walk `## How to test` in

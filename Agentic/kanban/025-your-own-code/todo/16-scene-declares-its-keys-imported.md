@@ -3,7 +3,7 @@ folder: scene
 decisions: 0168, 0245
 
 ## Change
-Point 2 of 0245. A project reads `voe_scene_transform_key` (game/example/Code); on Windows that
+Point 2 of 0245. A project reads `voe_scene_transform_key` (examples/capsule/Code); on Windows that
 read needs dllimport.
 
 - `scene/include/scene/transform_component.h`, `camera_component.h`, `light_component.h`,

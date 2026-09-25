@@ -1,4 +1,4 @@
-# 19 — The library configure names the editor's import library, and the library is `project.dll`
+# 23 — The library configure names the editor's import library, and the library is `project.dll`
 folder: editor
 decisions: 0168, 0242, 0243, 0245
 
@@ -23,7 +23,7 @@ Points 3 and 4 of 0245, the editor's half. Read the headers of `voe_editor_toolc
 1. `checks.sh --folder editor` prints `FINDINGS: 0`.
 2. `grep -c EDITOR_IMPORTS build/debug/generated/editor/toolchain.h` prints 1 and the line
    defines `""`.
-3. In `p=$(mktemp -d)` with `cp -r game/example/. $p`:
+3. In `p=$(mktemp -d)` with `cp -r examples/capsule/. $p`:
    `build/debug/editor/voe_editor --capture $p/shot.png $p 2>$p/err` exits 0, `$p/err` is empty,
    `$p/Build/editor/loaded/project-1.so` exists, and
    `grep -c VOE_EDITOR_IMPORTS $p/Build/editor/CMakeCache.txt` prints 0.
