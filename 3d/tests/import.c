@@ -264,7 +264,7 @@ int main(void)
 	// loop's shape, as 3d/draw_system.h has it: the frame's inputs, begin,
 	// a pass with the frame's camera, the walk, end.
 	for (int lap = 0; lap < 2; lap++) {
-		voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+		voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 		voe_render_pass_camera camera = { .view = frame.view,
 						  .light = frame.light };
 		bool drawing = false;
@@ -289,7 +289,7 @@ int main(void)
 
 		// Computed and not used, which is the claim: no pass opens on
 		// a frame with nothing to draw into, so nothing reads it.
-		(void)voe_3d_draw_system_frame(world, none);
+		(void)voe_3d_draw_system_frame(world, none, 0.0f);
 		VOE_TEST_CHECK(voe_render_frame_begin(device, none, &drawing));
 		VOE_TEST_CHECK(!drawing);
 	}

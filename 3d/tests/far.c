@@ -175,7 +175,7 @@ static void a_far_frame_is_about_the_camera(voe_base_arena *arena)
 	voe_ecs_entity cube;
 	voe_ecs_world *world = a_world(arena, FAR, &cube);
 	voe_3d_frame frame = voe_3d_draw_system_frame(
-		world, (voe_platform_size){ WIDTH, HEIGHT });
+		world, (voe_platform_size){ WIDTH, HEIGHT }, 0.0f);
 	voe_3d_material material = { 0 };
 	voe_render_object object = voe_3d_draw_group_object_of(
 		voe_scene_transform_get(world, cube), &material, NULL,

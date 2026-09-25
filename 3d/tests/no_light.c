@@ -52,7 +52,7 @@ static voe_ecs_world *a_world_with_a_camera(voe_base_arena *arena)
 static void no_light_frames_unshaded(voe_ecs_world *world)
 {
 	voe_3d_frame frame = voe_3d_draw_system_frame(
-		world, (voe_platform_size){ 640, 480 });
+		world, (voe_platform_size){ 640, 480 }, 0.0f);
 	voe_render_light light = voe_3d_draw_system_light(world);
 
 	VOE_TEST_CHECK(frame.light.unshaded != 0);
@@ -72,7 +72,7 @@ static void one_light_frames_as_itself(voe_ecs_world *world)
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_light_add(world, entity, sun));
-	frame = voe_3d_draw_system_frame(world, (voe_platform_size){ 640, 480 });
+	frame = voe_3d_draw_system_frame(world, (voe_platform_size){ 640, 480 }, 0.0f);
 
 	VOE_TEST_CHECK_INT(frame.light.unshaded, 0);
 	VOE_TEST_CHECK_FLOAT(frame.light.direction.y, -1.0f, 1e-6f);

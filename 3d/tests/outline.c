@@ -384,7 +384,7 @@ static voe_render_picture a_drawn_frame(voe_ecs_world *world,
 					voe_3d_outlined outlined)
 {
 	voe_platform_size size = { DRAWN_WIDTH, DRAWN_HEIGHT };
-	voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera;
 	voe_render_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;

@@ -3,7 +3,7 @@
 // and issues one draw per drawable — solid ones in table order, see-through ones
 // afterwards and furthest away first.
 //
-//     voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+//     voe_3d_frame frame = voe_3d_draw_system_frame(world, size, lag);
 //     if (!voe_render_frame_begin(gpu, size, &drawing))
 //             break;                          // the GPU stopped answering
 //     if (drawing) {
@@ -212,6 +212,10 @@ typedef struct {
 	// `view` is zeroed. _run draws no world for a blind frame. Zero means
 	// seen, so a frame a caller builds by hand keeps drawing.
 	bool blind;
+	// How far back from the last step this frame is drawn, as a fraction of
+	// a step (0254): 0 is now, 1 the step before. _frame sets it; _run
+	// draws every mesh and panel from voe_scene_transform_between at it.
+	float lag;
 } voe_3d_frame;
 
 
@@ -252,8 +256,16 @@ typedef struct {
 // type arrives from `render`'s public header, which is the folder that speaks to
 // the window's answer; `3d` does not include `platform` and does not ask a window
 // anything.
+//
+// THE FRAME IS DRAWN A LAG BEHIND THE LAST STEP (0254, ADR-0065 point 4). `lag`
+// is 1 − banked time / step, between 0 and 1: the camera's pose, and every mesh
+// and panel _run draws, are voe_scene_transform_between at it, so motion stepped
+// at a fixed rate is smooth at any frame rate. A program that does not step —
+// the editor, dev, a test — passes 0 and draws what is. The outline, the gizmo
+// and the camera marker keep the current transform: they are the editor's, and
+// it passes 0.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
-				      voe_platform_size size);
+				      voe_platform_size size, float lag);
 
 // The world's one light in the shape `render` takes it; with none, a light with
 // `unshaded` set and every other field zero (ADR-0238). Asserts on more than

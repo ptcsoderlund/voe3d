@@ -32,6 +32,7 @@
 //
 // ONE NEEDS NO CARD: a camera whose transform is scaled to nothing frames
 // `blind` (0223). And a marked camera is one draw more, a zeroed marker none.
+// Nor does the lag (0254): a camera moved 1 m frames its eye halfway at 0.5.
 //
 // AND ONE MORE READS IT FOR THE GIZMO (ADR-0205): a dark cube with a gizmo
 // standing in it, drawn twice — once with the gizmo and once with the field
@@ -265,7 +266,7 @@ static uint32_t draws_of_a_frame(voe_ecs_world *world,
 				 voe_ecs_entity hidden)
 {
 	voe_platform_size size = { SIDE, SIDE };
-	voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera;
 	bool drawing = false;
 	uint32_t drawn;
@@ -486,7 +487,7 @@ static void a_shaped_cube_draws_in_its_colour(void)
 				.colour = { 1.0f, 0.0f, 0.0f } }));
 	voe_3d_shape_system_run(world, &shapes);
 
-	frame = voe_3d_draw_system_frame(world, size);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	camera = (voe_render_pass_camera){ .view = frame.view,
 					   .light = frame.light };
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
@@ -527,7 +528,7 @@ static voe_render_picture a_gizmo_frame(voe_ecs_world *world,
 					voe_3d_gizmoed gizmo)
 {
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
-	voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera;
 	voe_render_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;
@@ -701,15 +702,59 @@ static void a_camera_scaled_to_nothing_frames_blind(voe_base_arena *arena)
 
 	add_a_camera(seen);
 	add_the_sun(seen);
-	frame = voe_3d_draw_system_frame(seen, size);
+	frame = voe_3d_draw_system_frame(seen, size, 0.0f);
 	VOE_TEST_CHECK(!frame.blind);
 
 	add_a_camera_scaled(flat, (voe_math_float3){ 1.0f, 1.0f, 0.0f });
 	add_the_sun(flat);
-	frame = voe_3d_draw_system_frame(flat, size);
+	frame = voe_3d_draw_system_frame(flat, size, 0.0f);
 	VOE_TEST_CHECK(frame.blind);
 	VOE_TEST_CHECK_FLOAT(frame.view.projection.m[1][1], 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(frame.view.view.m[3][3], 0.0f, 0.0f);
+}
+
+// Moves `entity` `metres` along X through the transform system, as a step would.
+static void move_along_x(voe_ecs_world *world, voe_ecs_entity entity,
+			 double metres)
+{
+	voe_scene_transform_intent move = {
+		.entity = entity,
+		.transform = *voe_scene_transform_get(world, entity),
+	};
+
+	move.transform.position.x += metres;
+	VOE_TEST_CHECK(voe_scene_transform_submit(world, move));
+	voe_scene_transform_system_run(world);
+}
+
+// The frame is drawn a lag behind the last step (0254): a camera and a cube
+// remembered, then moved 1 m along X, frame with `eye` halfway at a lag of
+// 0.5 and where the camera is now at 0. No device: framing reads the tables.
+static void the_eye_is_a_lag_behind_the_last_step(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity cube = { 0 };
+	voe_ecs_entity eye;
+	voe_3d_frame frame;
+
+	voe_scene_transform_previous_register(world, 16);
+	add_a_camera(world);
+	add_the_sun(world);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(3.0f)));
+	eye = voe_scene_camera_entities(world)[0];
+
+	voe_scene_transform_remember(world);
+	move_along_x(world, eye, 1.0);
+	move_along_x(world, cube, 1.0);
+
+	frame = voe_3d_draw_system_frame(world, size, 0.5f);
+	VOE_TEST_CHECK_FLOAT(frame.eye.x, 0.5, 1e-9);
+	VOE_TEST_CHECK_FLOAT(frame.lag, 0.5f, 0.0f);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	VOE_TEST_CHECK_FLOAT(frame.eye.x, 1.0, 0.0);
+	VOE_TEST_CHECK_FLOAT(frame.lag, 0.0f, 0.0f);
 }
 
 // How many commands one frame of `world`, framed as `frame` with `marker` set
@@ -789,7 +834,7 @@ static void a_marked_camera_is_one_more_draw(void)
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
 				.colour = VOE_3D_SHAPE_GREY }));
 	voe_3d_shape_system_run(world, &shapes);
-	frame = voe_3d_draw_system_frame(world, size);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &marked));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, marked, at_depth(3.0f)));
@@ -830,6 +875,7 @@ int main(void)
 	voe_base_error error = VOE_BASE_OK;
 
 	a_camera_scaled_to_nothing_frames_blind(arena);
+	the_eye_is_a_lag_behind_the_last_step(arena);
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||

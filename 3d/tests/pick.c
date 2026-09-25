@@ -400,7 +400,7 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 	cube = add_a_cube(world, 1.5f, 1.0f, 0.0f);
 	voe_3d_shape_system_run(world, &shapes);
 
-	frame = voe_3d_draw_system_frame(world, size);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	pass_camera = (voe_render_pass_camera){ .view = frame.view,
 						.light = frame.light };
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));

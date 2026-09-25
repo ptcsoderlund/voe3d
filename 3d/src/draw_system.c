@@ -30,6 +30,7 @@
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
+#include <scene/transform_system.h>
 
 // The direction is already unit length — scene's light system is the only
 // thing that writes one and it normalizes — so this is a copy of three fields
@@ -58,11 +59,11 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 // is unshaded for none — see voe_3d_draw_system_frame in 3d/draw_system.h for
 // why more than one of either is a mistake rather than a choice.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
-				      voe_platform_size size)
+				      voe_platform_size size, float lag)
 {
 	voe_3d_frame frame;
 	voe_scene_camera lens;
-	const voe_scene_transform *pose;
+	voe_scene_transform pose;
 	// A window with no area has no aspect ratio. One is as good as any
 	// other then: _begin is about to say there is nothing to draw into and
 	// nothing reads the matrix, so this only keeps the division below away
@@ -70,6 +71,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	float aspect = 1.0f;
 
 	VOE_BASE_ASSERT(world != NULL, "framing no world");
+	VOE_BASE_ASSERT(lag >= 0.0f && lag <= 1.0f,
+			"a lag is a fraction of one step — see 3d/draw_system.h");
 	VOE_BASE_ASSERT(voe_scene_camera_count(world) == 1,
 			"a world to draw needs exactly one camera — see 3d/draw_system.h");
 
@@ -77,16 +80,21 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 		aspect = (float)size.width / (float)size.height;
 
 	lens = voe_scene_camera_rows(world)[0];
-	pose = voe_scene_transform_get(world, voe_scene_camera_entities(world)[0]);
-	VOE_BASE_ASSERT(pose != NULL,
+	VOE_BASE_ASSERT(voe_scene_transform_get(world,
+					voe_scene_camera_entities(world)[0]) != NULL,
 			"a camera with no transform — the camera needs one (0222)");
+	// Where the camera was `lag` of a step ago, as everything it sees is
+	// drawn (0254).
+	pose = voe_scene_transform_between(world, voe_scene_camera_entities(world)[0],
+					   lag);
 	// A pose that sees nothing leaves `view` zeroed and says so: _run draws
 	// no world for it (0223).
 	frame.view = (voe_render_view){ 0 };
-	frame.blind = !voe_3d_view(*pose, lens, aspect, &frame.view);
+	frame.blind = !voe_3d_view(pose, lens, aspect, &frame.view);
 	// The view is about the camera's own position; every matrix in _run is
 	// taken about the same point (ADR-0250).
-	frame.eye = pose->position;
+	frame.eye = pose.position;
+	frame.lag = lag;
 	frame.light = voe_3d_draw_system_light(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
@@ -257,6 +265,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	for (uint32_t row = 0; row < count; row++) {
 		const voe_scene_transform *transform;
+		voe_scene_transform drawn;
 		const voe_3d_material *material;
 		struct voe_3d_deferred entry;
 		bool blended;
@@ -274,12 +283,14 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		material = voe_3d_material_get(world, owners[row]);
 		if (transform == NULL || material == NULL)
 			continue;
+		// Where it was `lag` of a step ago (0254).
+		drawn = voe_scene_transform_between(world, owners[row], frame.lag);
 
 		entry = (struct voe_3d_deferred){
 			.panel = false,
 			.mesh = { .geometry = meshes[row].geometry,
 				  .object = voe_3d_draw_group_object_of(
-					  transform, material,
+					  &drawn, material,
 					  has_shapes ? voe_ecs_component_get(
 							       world, shapes,
 							       owners[row]) :
@@ -340,7 +351,10 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		if (!range_is_this_frame_s(panels[row], submitted))
 			continue;
 
-		model = voe_scene_transform_matrix(*transform, frame.eye);
+		model = voe_scene_transform_matrix(
+			voe_scene_transform_between(world, panel_owners[row],
+						    frame.lag),
+			frame.eye);
 		entry = (struct voe_3d_deferred){
 			.panel = true,
 			.elements = { .transform = panel_transform(
