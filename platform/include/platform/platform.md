@@ -17,5 +17,5 @@ stays on `platform/platform.md`.
   absolute path.
 - `library.h` — a shared library opened by name at run time, and a symbol out of
   it; a failed open is reported with the loader's reason.
-- `process.h` — starting a program with its output shared or appended to a file, polling it
-  without waiting, and ending it with everything it started.
+- `process.h` — starting a program with its output shared or appended to a file,
+  polling it without waiting, and ending it with everything it started.

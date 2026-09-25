@@ -32,16 +32,17 @@ carries it out.
 - `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
   sections, the code its world was made with, its folder and whether it has unsaved changes
   (ADR-0164), its scene handed out as text or read back in, and the swap to a world with new code.
-- `project.c` — opening, making and saving a project, the scene written out as
-  text and a text read back into the same world or a new one made with new code, and the untitled scene's cube, light and camera, which are
-  this file's decision and not `scene.c`'s.
+- `project.c` — opening, making and saving a project, the scene written out as text and a text read
+  back into the same world or a new one made with new code, and the untitled scene's cube, light and
+  camera, which are this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `settings.h` — the Scene list's and the Inspector's widths, the top bar's height and the views' share
-  a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
+- `settings.h` — the Scene list's and the Inspector's widths, the top bar's height and the views'
+  share a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>`
+  line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in
@@ -82,8 +83,8 @@ carries it out.
   Open each refuse once while there are unsaved changes and go ahead the second time.
 - `session.c` — the refuse-once rule, the six commands with Play refreshing first, a built library
   loaded and swapped in once a frame, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Preferences, the
-  project's name and whether it is unsaved, then the session's notice, at least as tall as its
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh,
+  Preferences, the project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its six buttons, Play and Refresh among them, afterwards.
