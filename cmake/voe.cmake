@@ -91,6 +91,10 @@ function(voe_allowed_deps folder out_var)
         set(deps base)
     elseif(folder STREQUAL "scene")
         set(deps ecs math base)
+    elseif(folder STREQUAL "physics")
+        # physics sits between scene and 3d (ADR-0253): colliders read a
+        # transform, and 3d draws them, so neither of the two holds collision.
+        set(deps scene ecs math base)
     elseif(folder STREQUAL "assets")
         set(deps platform math base)
     elseif(folder STREQUAL "authoring")
