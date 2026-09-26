@@ -186,7 +186,10 @@ function(voe_allowed_deps folder out_var)
         # (0237): the world the editor holds and the world the cook writes for
         # must register the same types, or the cook names one the game never did.
         # It names physics to fit a new collider to its entity's shape (0253).
-        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game)
+        # It names audio for a project library's symbols, not for sound of its
+        # own: a library that plays sounds binds to the editor's exports (0265,
+        # 0266).
+        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game audio)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()
