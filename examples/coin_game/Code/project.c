@@ -3,7 +3,7 @@
 // and game_state), and each fixed step has two slots (0256), each system's
 // writes before the next reads.
 //
-// systems_run is before the bodies' move: game, player, then rotator.
+// systems_run is before the bodies' move: game, player, coin, then rotator.
 // systems_after_move is after it, in the same step: player_camera. interface runs once a frame,
 // after the steps (0259): none yet, so it ends the ui frame game began and
 // returns true. Later cards add their types and systems to these lists.
@@ -39,6 +39,7 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 			"running the project's systems on no world");
 	game_system_run(step->world, step->seconds);
 	player_system_run(step->world, step->window, step->seconds);
+	coin_system_run(step->world);
 	rotator_system_run(step->world, step->seconds);
 }
 
