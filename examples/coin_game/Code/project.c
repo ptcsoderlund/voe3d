@@ -1,9 +1,10 @@
 // The coin game's four entry points (game/project.h): register names every
-// component the game has (rotator, player, coin, coin_taken and game_state), and each fixed step has two slots (0256), each
-// system's writes before the next reads.
+// component the game has (rotator, player, player_state, coin, coin_taken
+// and game_state), and each fixed step has two slots (0256), each system's
+// writes before the next reads.
 //
-// systems_run is before the bodies' move: game, then rotator. systems_after_move is
-// after it, in the same step: nothing yet. interface runs once a frame,
+// systems_run is before the bodies' move: game, player, then rotator.
+// systems_after_move is after it, in the same step: player_camera. interface runs once a frame,
 // after the steps (0259): none yet, so it ends the ui frame game began and
 // returns true. Later cards add their types and systems to these lists.
 //
@@ -37,6 +38,7 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
 	game_system_run(step->world, step->seconds);
+	player_system_run(step->world, step->window, step->seconds);
 	rotator_system_run(step->world, step->seconds);
 }
 
@@ -44,6 +46,7 @@ void voe_game_project_systems_after_move(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
+	player_camera_run(step->world);
 }
 
 bool voe_game_project_interface(const voe_game_project_frame *frame)
