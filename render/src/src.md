@@ -27,7 +27,7 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the two mesh pipelines with their embedded shader, depth and blend state, and the
+- `pipeline.c` — the three mesh pipelines, solid, blended and shadow, with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
 - `descriptors.c` — everything the shader reads and the one layout that describes it: five bindings,
   one set, one camera buffer holding a block per pass, one object buffer and one element buffer per
@@ -46,6 +46,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot; the
   targets of a caller's own, shown through one texture slot; and the read that copies a finished
   picture into an arena as RGBA8.
+- `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
+  views, and the barriers either side of a shadow pass.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built

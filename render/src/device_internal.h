@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -163,10 +163,14 @@ struct voe_render_device {
 	VkPipeline pipeline;
 	VkPipeline pipeline_blended;
 	VkPipeline pipeline_elements;
+	// The shadow pass's: the solid one's vertex stage and nothing after it
+	// but a biased depth write. pipeline.c builds it with the other two.
+	VkPipeline pipeline_shadow;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
-	// full of.
+	// full of. capacities.shadow_size is the shadow maps' side, nought for
+	// none, and is read from here.
 	voe_render_capacities capacities;
 
 	// The textures and the samplers they are read through: one per
@@ -245,6 +249,13 @@ struct voe_render_device {
 	// Meaningless while `pass_open` is false.
 	struct voe_render_target_slot *pass_target;
 	VkExtent2D pass_extent;
+
+	// Whether the open pass is a shadow pass, and onto which cascade: the
+	// draws read the first to pick the shadow pipeline, and _pass_end both to
+	// hand that layer back to the shader. Meaningless while `pass_open` is
+	// false.
+	bool pass_shadow;
+	uint32_t pass_cascade;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -388,6 +399,21 @@ void voe_render_target_teardown(voe_render_device *device);
 // device that never got as far as _startup.
 void voe_render_targets_startup(voe_render_device *device);
 void voe_render_targets_shutdown(voe_render_device *device);
+
+// shadow.c. Every frame slot's shadow map, made and settled in the layout it
+// rests in; one texel a side when capacities.shadow_size is nought. Startup's,
+// after the frame objects and before the descriptors. False with a message;
+// _shutdown is safe on a device that never got that far.
+[[nodiscard]] bool voe_render_shadow_startup(voe_render_device *device);
+void voe_render_shadow_shutdown(voe_render_device *device);
+
+// shadow.c. The barriers either side of a shadow pass onto one layer of
+// `frame`'s map: into the depth attachment layout before, back to where the
+// shader reads it after.
+void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
+				     uint32_t cascade);
+void voe_render_shadow_to_read(const struct voe_render_frame *frame,
+			       uint32_t cascade);
 
 // target.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.

@@ -32,3 +32,6 @@ by reading the offscreen colour image back.
   object record's colour tints what is drawn. Headless.
 - `unshaded.c` — that a pass whose light says `unshaded` draws a lit cube in its base colour, even
   with a sun pointing away, and that the same light without the flag reads black. Headless.
+- `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
+  cascades and a window pass in one frame of five draws, and a shadow pass past `passes` refused.
+  Headless.

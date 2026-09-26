@@ -1,7 +1,8 @@
 // The records voe_render_device is built of, each one a part of something
 // larger: the pass block, the buffers and pools and the geometry slots are
 // geometry.c's and descriptors.c's; the shading and texture slots are
-// shading.c's and texture.c's; the swapchain image is swapchain.c's; the
+// shading.c's and texture.c's; the shadow map is shadow.c's; the swapchain
+// image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
 //
@@ -202,6 +203,17 @@ struct voe_render_target {
 	struct voe_render_allocated_image depth;
 };
 
+// One frame slot's shadow map, shadow.c's: one D32 image of
+// VOE_RENDER_SHADOW_CASCADES layers, the memory under it, a view of every layer
+// for the shader to read, and a view of each layer for a shadow pass to draw into.
+// Rests in SHADER_READ_ONLY_OPTIMAL outside a shadow pass.
+struct voe_render_shadow_map {
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView array;
+	VkImageView layers[VOE_RENDER_SHADOW_CASCADES];
+};
+
 // What a voe_render_target id names: a target of the caller's own, which is the
 // window's pair above made once per frame slot at a size of its own, plus the
 // texture slot that shows it. See target.c.
@@ -267,6 +279,11 @@ struct voe_render_frame {
 	VkSemaphore acquired;
 	VkFence submitted;
 	struct voe_render_target target;
+
+	// The sun's cascades, per slot for the reason the target is: the card
+	// may still be reading the frame before last's. Startup's; a resize
+	// leaves them alone.
+	struct voe_render_shadow_map shadow;
 
 	// capacities.passes blocks, device->pass_stride bytes apart — the
 	// stride is the block rounded up to the card's uniform offset alignment.

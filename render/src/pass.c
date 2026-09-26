@@ -11,6 +11,10 @@
 // and each target's `cleared` carry that rule through the frame; frame.c resets
 // them at _begin and clears the window at _end if no pass did.
 //
+// A SHADOW PASS (voe_render_shadow_pass_begin, ADR-0258) is a pass onto one
+// cascade of the slot's shadow map instead: depth only, always cleared, drawn
+// through the shadow pipeline, and closed by the same _pass_end.
+//
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
@@ -208,6 +212,43 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 	voe_render_vk.cmd_set_scissor(commands, 0, 1, &scissor);
 }
 
+// What every pass does once its rendering block is open: `block` into this
+// pass's own block of the slot's uniform buffer, `pipeline` bound, the slot's set
+// bound at that block's offset, the static pools bound, and the pass counted.
+//
+// THE BLOCK IS SAFE TO WRITE because the fence at the top of the frame says the
+// GPU has finished reading what was in here two frames ago. The offset is the
+// whole of how the shader comes to read this pass's camera and not another's.
+//
+// THE STATIC POOLS ARE BOUND HERE because a pass's first draws come out of them.
+// Every static mesh is a range inside them, which is what makes one bind serve
+// all of those; a transient range makes draw_with (draw.c) bind the other pair,
+// and `bound_transient` is what keeps that to one bind per run.
+static void start_pass(voe_render_device *device,
+		       const struct voe_render_frame *frame,
+		       const struct voe_render_frame_block *block,
+		       VkPipeline pipeline)
+{
+	const uint32_t offset = device->pass_count * (uint32_t)device->pass_stride;
+
+	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
+			      "opening a pass whose uniform buffer is not mapped");
+	memcpy((unsigned char *)frame->uniforms_mapped + offset, block,
+	       sizeof(*block));
+
+	voe_render_vk.cmd_bind_pipeline(frame->commands,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	device->bound = pipeline;
+	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,
+					       VK_PIPELINE_BIND_POINT_GRAPHICS,
+					       device->layout, 0, 1,
+					       &frame->descriptor, 1, &offset);
+	voe_render_bind_pools(device, frame, false);
+
+	device->pass_open = true;
+	device->pass_count++;
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -239,7 +280,6 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	struct voe_render_frame *frame;
 	struct voe_render_frame_block block = { 0 };
 	struct voe_render_target_slot *own = NULL;
-	uint32_t offset;
 
 	VOE_BASE_ASSERT(device != NULL, "opening a pass on no device");
 	VOE_BASE_ASSERT(device->recording,
@@ -270,11 +310,6 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		block.camera = camera->view;
 		block.light = camera->light;
 	}
-	offset = device->pass_count * (uint32_t)device->pass_stride;
-	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
-			      "opening a pass whose uniform buffer is not mapped");
-	memcpy((unsigned char *)frame->uniforms_mapped + offset, &block,
-	       sizeof(block));
 
 	// The window's pair or this frame slot's pair of the target, each with
 	// its own clear rule and its own size. A frame in slot n draws into slot
@@ -297,39 +332,102 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	// The solid pipeline, because a pass's opaque and cutout draws come
 	// first; a blended draw binds the other one and `bound` is what keeps a
 	// run of either kind to a single bind.
-	voe_render_vk.cmd_bind_pipeline(frame->commands,
-					VK_PIPELINE_BIND_POINT_GRAPHICS,
-					device->pipeline);
-	device->bound = device->pipeline;
-	// At this pass's offset, which is the whole of how the shader comes to
-	// read this pass's camera and not another's.
-	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,
-					       VK_PIPELINE_BIND_POINT_GRAPHICS,
-					       device->layout, 0, 1,
-					       &frame->descriptor, 1, &offset);
-
-	// The static pools, bound once here because a pass's first draws come
-	// out of them. Every static mesh is a range inside them, which is what
-	// makes one bind serve all of those; a transient range makes draw_with
-	// (draw.c) bind the other pair, and `bound_transient` is what keeps that
-	// to one bind per run rather than one per draw.
-	voe_render_bind_pools(device, frame, false);
-
-	device->pass_open = true;
+	start_pass(device, frame, &block, device->pipeline);
 	device->pass_camera = camera != NULL;
-	device->pass_count++;
+	device->pass_shadow = false;
 	return true;
 }
 
+// A SHADOW PASS IS A PASS ONTO ONE LAYER OF THIS SLOT'S SHADOW MAP (ADR-0258).
+// It counts against `passes` and writes a camera block like any other — the
+// light's view, the sun zeroed because nothing in it is lit — but its rendering
+// block has depth alone, always cleared, and its draws go through the shadow
+// pipeline. The layer comes out of the layout the shader reads it in and goes
+// back at _pass_end (shadow.c's barriers), so a later pass in the frame may read
+// it and a later shadow pass may draw it again.
+//
+// THE VIEWPORT IS THE ENGINE'S ONE, flip and all. The light's projection is built
+// by the same rules a camera's is, and card 04 reads the map back through the
+// same flip, so drawing it unflipped would put every shadow upside down.
+bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
+				  const voe_render_view *light)
+{
+	struct voe_render_frame *frame;
+	struct voe_render_frame_block block = { 0 };
+	VkExtent2D extent;
+	VkRenderingAttachmentInfo depth = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.clearValue = { .depthStencil = { .depth = VOE_RENDER_DEPTH_CLEAR } },
+	};
+	VkRenderingInfo rendering = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.layerCount = 1,
+		.pDepthAttachment = &depth,
+	};
+	VkViewport viewport;
+	VkRect2D scissor = { 0 };
+
+	VOE_BASE_ASSERT(device != NULL, "opening a shadow pass on no device");
+	VOE_BASE_ASSERT(light != NULL, "opening a shadow pass with no light view");
+	VOE_BASE_ASSERT(device->recording,
+			"opening a shadow pass with no frame open");
+	VOE_BASE_ASSERT(!device->pass_open,
+			"opening a shadow pass while a pass is already open — passes do not nest");
+	VOE_BASE_ASSERT(cascade < VOE_RENDER_SHADOW_CASCADES,
+			"opening a shadow pass onto a cascade the map does not have");
+	VOE_BASE_ASSERT(device->capacities.shadow_size > 0,
+			"opening a shadow pass on a device made with shadow_size nought");
+
+	if (device->pass_count >= device->capacities.passes) {
+		VOE_BASE_ERROR("render",
+			       "this frame has already opened %u of %u passes, so a shadow pass does not fit; `passes` is too small for what this frame draws",
+			       device->pass_count, device->capacities.passes);
+		return false;
+	}
+
+	frame = voe_render_frame_at(device, device->slot);
+	extent = (VkExtent2D){ device->capacities.shadow_size,
+			       device->capacities.shadow_size };
+	block.camera = *light;
+	depth.imageView = frame->shadow.layers[cascade];
+	rendering.renderArea.extent = extent;
+	scissor.extent = extent;
+	viewport = voe_render_frame_viewport(extent);
+
+	voe_render_shadow_to_attachment(frame, cascade);
+	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
+	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
+	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
+
+	device->pass_target = NULL;
+	device->pass_extent = extent;
+	start_pass(device, frame, &block, device->pipeline_shadow);
+	device->pass_camera = true;
+	device->pass_shadow = true;
+	device->pass_cascade = cascade;
+	return true;
+}
+
+// Either kind of pass: the rendering block ended, and a shadow pass's layer handed
+// back to where the shader reads it.
 void voe_render_pass_end(voe_render_device *device)
 {
+	struct voe_render_frame *frame;
+
 	VOE_BASE_ASSERT(device != NULL, "closing a pass on no device");
 	VOE_BASE_ASSERT(device->pass_open,
 			"closing a pass that is not open — _pass_begin returned false, or _pass_end has already run");
 
-	voe_render_vk.cmd_end_rendering(voe_render_frame_at(device, device->slot)->commands);
+	frame = voe_render_frame_at(device, device->slot);
+	voe_render_vk.cmd_end_rendering(frame->commands);
+	if (device->pass_shadow)
+		voe_render_shadow_to_read(frame, device->pass_cascade);
 	device->pass_open = false;
 	device->pass_camera = false;
+	device->pass_shadow = false;
 	device->pass_target = NULL;
 }
 

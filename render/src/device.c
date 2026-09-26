@@ -3,8 +3,8 @@
 // next is asked for. Everything here happens once. open_device below is the one
 // place that order is written; the steps that grew too long for this file are
 // beside it, declared in startup.h: the instance and validation in instance.c,
-// the card and the `render` line in card.c, the two mesh pipelines, the shader
-// bytes and depth in pipeline.c. This file keeps the logical device, the format,
+// the card and the `render` line in card.c, the three mesh pipelines, the shader
+// bytes and depth in pipeline.c, the shadow maps in shadow.c. This file keeps the logical device, the format,
 // timing, present modes, the frame objects and close-down. The parts that happen
 // again live in target.c, swapchain.c and frame.c — see device_internal.h for
 // why the split is where it is.
@@ -486,6 +486,10 @@ static void close_down(voe_render_device *device)
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_shadow != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_shadow,
+						       NULL);
 		if (device->pipeline_blended != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_blended,
@@ -504,6 +508,7 @@ static void close_down(voe_render_device *device)
 		voe_render_geometry_shutdown(device);
 		voe_render_shading_shutdown(device);
 		voe_render_descriptors_teardown(device);
+		voe_render_shadow_shutdown(device);
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
@@ -618,6 +623,10 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// that. The pipelines come last because their layout names the descriptor
 	// set layout: build them first and it names a handle that is still null.
 	if (!create_frame_objects(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	// The shadow maps are settled through the command pool and named by the
+	// descriptors, so they sit between the two.
+	if (!voe_render_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
 	if (!voe_render_descriptors_build(device))
