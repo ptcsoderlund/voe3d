@@ -42,7 +42,7 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 			"running the project's systems on no world");
 	game_system_run(step->world, step->seconds);
 	player_system_run(step->world, step->window, step->seconds);
-	coin_system_run(step->world);
+	coin_system_run(step->world, step->audio);
 	rotator_system_run(step->world, step->seconds);
 }
 

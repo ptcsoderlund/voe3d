@@ -14,11 +14,11 @@
 
 // One fixed step of the world.
 static void step_once(voe_ecs_world *world, voe_platform_window *window,
-		      const voe_3d_shapes *shapes,
+		      voe_audio_mixer *audio, const voe_3d_shapes *shapes,
 		      void (*systems)(const voe_game_project_step *),
 		      void (*after_move)(const voe_game_project_step *))
 {
-	const voe_game_project_step step = { world, window,
+	const voe_game_project_step step = { world, window, audio,
 					     VOE_GAME_STEP_SECONDS };
 
 	voe_scene_transform_remember(world);
@@ -31,7 +31,7 @@ static void step_once(voe_ecs_world *world, voe_platform_window *window,
 }
 
 float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,
-			 voe_platform_window *window,
+			 voe_platform_window *window, voe_audio_mixer *audio,
 			 const voe_3d_shapes *shapes, double elapsed,
 			 void (*systems)(const voe_game_project_step *),
 			 void (*after_move)(const voe_game_project_step *))
@@ -48,7 +48,7 @@ float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,
 	for (int i = 0; i < VOE_GAME_STEPS_MAX &&
 			steps->banked >= VOE_GAME_STEP_SECONDS;
 	     i++) {
-		step_once(world, window, shapes, systems, after_move);
+		step_once(world, window, audio, shapes, systems, after_move);
 		steps->banked -= VOE_GAME_STEP_SECONDS;
 	}
 	// Past the maximum: keep the phase, drop the whole steps.

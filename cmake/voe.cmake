@@ -97,6 +97,11 @@ function(voe_allowed_deps folder out_var)
         set(deps scene ecs math base)
     elseif(folder STREQUAL "assets")
         set(deps platform math base)
+    elseif(folder STREQUAL "audio")
+        # audio owns the mixer (ADR-0265): the mixing is ours, effects come
+        # here, and the platform device only receives finished samples. It reads
+        # files through platform and decodes them through assets.
+        set(deps platform assets base)
     elseif(folder STREQUAL "authoring")
         # authoring is the code that turns a world into a scene file and back,
         # and it is authoring-time code: a game's build does not link it. It
@@ -155,8 +160,9 @@ function(voe_allowed_deps folder out_var)
         # names authoring, which is what keeps it linkable into a game's tree.
         # physics because its world holds colliders and bodies and runs the
         # move (0253). text and ui for the project's interface drawn over the
-        # world (0259); no theme, because a game reads no project text.
-        set(deps base math ecs scene physics platform render text ui 3d app)
+        # world (0259); no theme, because a game reads no project text. audio
+        # because the run owns the mixer its systems play sounds through (0265).
+        set(deps base math ecs scene physics platform render text ui 3d audio app)
     elseif(folder STREQUAL "dev")
         # dev may depend on anything, app included: it is the one program a
         # person runs to see the current state, so whatever exists is fair game.
@@ -180,7 +186,10 @@ function(voe_allowed_deps folder out_var)
         # (0237): the world the editor holds and the world the cook writes for
         # must register the same types, or the cook names one the game never did.
         # It names physics to fit a new collider to its entity's shape (0253).
-        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game)
+        # It names audio for a project library's symbols, not for sound of its
+        # own: a library that plays sounds binds to the editor's exports (0265,
+        # 0266).
+        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game audio)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

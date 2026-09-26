@@ -9,3 +9,5 @@ and the questions each header answers, stays on `assets/assets.md`.
   RGBA8 encoded back as a PNG.
 - `sectioned.h` — the engine's own authored text format: `[Section]` headers and
   `key=value` lines, handed back as text and never interpreted.
+- `sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded to interleaved
+  float.

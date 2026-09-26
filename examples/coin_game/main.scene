@@ -63,6 +63,7 @@ scale = [20, 1, 20]
 name = "Coin1"
 [5.coin]
 points = 100
+sound = "pickup.wav"
 [5.rotator]
 degrees_per_second = 45
 [5.voe_3d_shape]
@@ -81,6 +82,7 @@ scale = [0.5, 0.1, 0.5]
 name = "Coin1 2"
 [6.coin]
 points = 100
+sound = "pickup.wav"
 [6.rotator]
 degrees_per_second = 45
 [6.voe_3d_shape]
@@ -99,6 +101,7 @@ scale = [0.5, 0.1, 0.5]
 name = "Coin1 3"
 [7.coin]
 points = 100
+sound = "pickup.wav"
 [7.rotator]
 degrees_per_second = 45
 [7.voe_3d_shape]
@@ -117,6 +120,7 @@ scale = [0.5, 0.1, 0.5]
 name = "Coin1 4"
 [8.coin]
 points = 100
+sound = "pickup.wav"
 [8.rotator]
 degrees_per_second = 45
 [8.voe_3d_shape]
@@ -135,6 +139,7 @@ scale = [0.5, 0.1, 0.5]
 name = "Coin1 5"
 [9.coin]
 points = 100
+sound = "pickup.wav"
 [9.rotator]
 degrees_per_second = 45
 [9.voe_3d_shape]
@@ -153,6 +158,7 @@ scale = [0.5, 0.1, 0.5]
 name = "Coin1 6"
 [10.coin]
 points = 100
+sound = "pickup.wav"
 [10.rotator]
 degrees_per_second = 45
 [10.voe_3d_shape]

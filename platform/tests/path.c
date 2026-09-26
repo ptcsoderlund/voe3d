@@ -2,7 +2,8 @@
 // one separator between and none extra after a root, a parent ignores one
 // trailing separator and is NULL at a root or for a bare name, a name is
 // whatever follows the last separator and "" at a root, and resolving to an
-// absolute path is idempotent and NULL for a path that is not there. Needs no
+// absolute path is idempotent and NULL for a path that is not there, and the
+// program's own path is an absolute file named for this test. Needs no
 // window and no display, so it runs under ctest on a machine with neither.
 //
 // ORDINARY PATHS, ROOTS AND TRAILING SEPARATORS ARE CHECKED FOR THE PLATFORM
@@ -25,6 +26,7 @@
 #include <platform/path.h>
 
 #include <base/arena.h>
+#include <platform/file.h>
 #include <platform/folder.h>
 #include <testing/test.h>
 
@@ -161,6 +163,25 @@ int main(void)
 					      WORLD) == 0);
 	}
 	cleanup();
+
+	// The program's own path is absolute already, a file, and this test.
+	{
+		const char *program = voe_platform_path_program(arena);
+
+		VOE_TEST_CHECK(program != NULL);
+		if (program != NULL) {
+			const char *again = voe_platform_path_absolute(
+				program, arena, &error);
+
+			VOE_TEST_CHECK(again != NULL &&
+				       strcmp(again, program) == 0);
+			VOE_TEST_CHECK(voe_platform_file_exists(program));
+			VOE_TEST_CHECK(strncmp(voe_platform_path_name(program),
+					       "voe_test_platform_path",
+					       strlen("voe_test_platform_path")) ==
+				       0);
+		}
+	}
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

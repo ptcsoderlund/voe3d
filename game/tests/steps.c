@@ -96,21 +96,22 @@ static void steps_are_counted(voe_ecs_world *world,
 	voe_game_steps steps = { 0 };
 	float lag;
 
-	lag = voe_game_steps_run(&steps, world, NULL, shapes,
+	lag = voe_game_steps_run(&steps, world, NULL, NULL, shapes,
 				 VOE_GAME_STEP_SECONDS, systems, after_move);
 	VOE_TEST_CHECK_INT(seen.calls, 1);
 	VOE_TEST_CHECK_FLOAT(lag, 1.0f, 0.0f);
 
 	seen.calls = 0;
 	steps = (voe_game_steps){ 0 };
-	lag = voe_game_steps_run(&steps, world, NULL, shapes,
+	lag = voe_game_steps_run(&steps, world, NULL, NULL, shapes,
 				 2.5 * VOE_GAME_STEP_SECONDS, systems, after_move);
 	VOE_TEST_CHECK_INT(seen.calls, 2);
 	VOE_TEST_CHECK_FLOAT(lag, 0.5f, 1e-4f);
 
 	seen.calls = 0;
 	steps = (voe_game_steps){ 0 };
-	lag = voe_game_steps_run(&steps, world, NULL, shapes, 1.0, systems, after_move);
+	lag = voe_game_steps_run(&steps, world, NULL, NULL, shapes, 1.0,
+				 systems, after_move);
 	VOE_TEST_CHECK_INT(seen.calls, VOE_GAME_STEPS_MAX);
 	VOE_TEST_CHECK(steps.banked >= 0.0 &&
 		       steps.banked < VOE_GAME_STEP_SECONDS);
@@ -135,7 +136,7 @@ static void a_body_lands(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	seen.falling = true;
 	seen.calls = 0;
 	for (int i = 0; i < 60; i++)
-		(void)voe_game_steps_run(&steps, world, NULL, shapes,
+		(void)voe_game_steps_run(&steps, world, NULL, NULL, shapes,
 					 VOE_GAME_STEP_SECONDS, systems, after_move);
 	VOE_TEST_CHECK_INT(seen.calls, 60);
 	VOE_TEST_CHECK(voe_physics_body_get(world, seen.body)->on_floor);
@@ -168,7 +169,7 @@ static void a_follower_keeps_up(voe_ecs_world *world,
 	seen.following = true;
 	seen.calls = 0;
 	seen.after_calls = 0;
-	(void)voe_game_steps_run(&steps, world, NULL, shapes,
+	(void)voe_game_steps_run(&steps, world, NULL, NULL, shapes,
 				 VOE_GAME_STEP_SECONDS, systems, after_move);
 	VOE_TEST_CHECK_INT(seen.calls, 1);
 	VOE_TEST_CHECK_INT(seen.after_calls, 1);

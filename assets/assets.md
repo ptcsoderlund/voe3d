@@ -1,8 +1,8 @@
 # assets
 
-Files on the way in, and a PNG on the way out: a decoder takes a buffer and an
-encoder hands one back, since `platform` owns files (ADR-0023: written, not
-fetched). Nothing here knows about Vulkan, a scene or an entity.
+Files on the way in (glTF, PNG, JPEG, WAV, sectioned text), and a PNG on the
+way out: a decoder takes a buffer and an encoder hands one back, since
+`platform` owns files (ADR-0023: written, not fetched). Nothing here knows about Vulkan, a scene or an entity.
 
 - `include` — the public headers, in `include/assets/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
@@ -17,3 +17,6 @@ fetched). Nothing here knows about Vulkan, a scene or an entity.
   `[Section]` headers and `key=value` lines, handed back as text and never
   interpreted. Its header says why it is layer one of three and why comments
   are `//`.
+- `include/assets/sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded
+  to interleaved float. Its header says what is unsupported, what is malformed,
+  and why only WAV.

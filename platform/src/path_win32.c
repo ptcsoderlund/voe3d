@@ -14,6 +14,11 @@
 // large one needs to be, scratch in the caller's arena is pushed for exactly
 // that, and the second call fills it. The wide scratch stays in the arena
 // under the UTF-8 copy; it is small and the arena is the caller's.
+//
+// THE PROGRAM'S PATH IS GetModuleFileNameW(NULL, ...) INTO A GROWING BUFFER:
+// the call answers the whole capacity when it truncated, so the wide scratch
+// in the caller's arena doubles from 256 units until the answer is shorter.
+// A too-small try is rewound; the one that fits stays under the UTF-8 copy.
 #include <platform/path.h>
 
 #include "wide_win32.h"
@@ -63,4 +68,30 @@ const char *voe_platform_path_absolute(const char *path, voe_base_arena *arena,
 	if (error != NULL)
 		*error = VOE_BASE_OK;
 	return voe_platform_utf8_from_wide(buffer, arena);
+}
+
+const char *voe_platform_path_program(voe_base_arena *arena)
+{
+	DWORD capacity = 256;
+
+	VOE_BASE_ASSERT(arena != NULL, "finding the program's path into no arena");
+
+	for (;;) {
+		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+		wchar_t *buffer = voe_base_arena_push(
+			arena, (size_t)capacity * sizeof(*buffer));
+		DWORD length = GetModuleFileNameW(NULL, buffer, capacity);
+
+		if (length == 0) {
+			VOE_BASE_ERROR("platform",
+				       "could not find the program's path: error %lu",
+				       (unsigned long)GetLastError());
+			voe_base_arena_rewind(arena, mark);
+			return NULL;
+		}
+		if (length < capacity)
+			return voe_platform_utf8_from_wide(buffer, arena);
+		voe_base_arena_rewind(arena, mark);
+		capacity *= 2;
+	}
 }
