@@ -5,8 +5,8 @@
 //
 // systems_run is before the bodies' move: game, player, coin, then rotator.
 // systems_after_move is after it, in the same step: player_camera. interface runs once a frame,
-// after the steps (0259): none yet, so it ends the ui frame game began and
-// returns true. Later cards add their types and systems to these lists.
+// after the steps (0259): game_interface draws the screens and ends the ui
+// frame game began; its false ends the run.
 //
 // The game links all four and calls register once, after the engine's
 // types, both slots each fixed step and interface each frame; the editor
@@ -54,6 +54,5 @@ bool voe_game_project_interface(const voe_game_project_frame *frame)
 {
 	VOE_BASE_ASSERT(frame != NULL && frame->ui != NULL,
 			"drawing the project's interface in no frame");
-	(void)voe_ui_frame_end(frame->ui);
-	return true;
+	return game_interface_run(frame);
 }
