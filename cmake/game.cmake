@@ -46,7 +46,16 @@
 # program carries no symbols. `cmake --install` puts in the install root the
 # program, renamed VOE_GAME_NAME (default `game`, set by the tree's
 # CMakeLists.txt), and its two licences, voe3d-LICENSE.txt and Oxanium-OFL.txt.
-# Nothing else is read at run time: shaders and the font are embedded.
+# Shaders and the font are embedded; the sounds are the only files read.
+#
+# Sounds (0266): every .wav under the project folder, the tree's grandparent,
+# is copied by the target `game_sounds` (which `game` depends on) to the same
+# relative path under CMAKE_BINARY_DIR, and installed the same way. Relative,
+# because the game resolves a sound's project-relative path against its own
+# program's folder, in Play and shipped alike. Paths under Build/ and Cache/
+# are skipped: they hold build output, not the project's sounds. The glob walks
+# those folders too before dropping them; a glob per top-level folder would
+# lift that cost.
 
 include_guard(GLOBAL)
 
@@ -146,4 +155,26 @@ else()
         RENAME ${VOE_GAME_NAME}${CMAKE_EXECUTABLE_SUFFIX})
     install(FILES ${VOE_ENGINE}/LICENSE DESTINATION . RENAME voe3d-LICENSE.txt)
     install(FILES ${VOE_ENGINE}/text/fonts/OFL.txt DESTINATION . RENAME Oxanium-OFL.txt)
+
+    cmake_path(SET voe_project_root NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+    file(GLOB_RECURSE voe_sounds CONFIGURE_DEPENDS "${voe_project_root}/*.wav")
+    set(voe_sound_copies "")
+    foreach(voe_sound IN LISTS voe_sounds)
+        file(RELATIVE_PATH voe_sound_rel "${voe_project_root}" "${voe_sound}")
+        if(voe_sound_rel MATCHES "^(Build|Cache)/")
+            continue()
+        endif()
+        set(voe_sound_copy "${CMAKE_BINARY_DIR}/${voe_sound_rel}")
+        add_custom_command(OUTPUT "${voe_sound_copy}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${voe_sound}" "${voe_sound_copy}"
+            DEPENDS "${voe_sound}" VERBATIM)
+        list(APPEND voe_sound_copies "${voe_sound_copy}")
+        cmake_path(GET voe_sound_rel PARENT_PATH voe_sound_dir)
+        if(NOT voe_sound_dir)
+            set(voe_sound_dir .)
+        endif()
+        install(FILES "${voe_sound}" DESTINATION "${voe_sound_dir}")
+    endforeach()
+    add_custom_target(game_sounds DEPENDS ${voe_sound_copies})
+    add_dependencies(game game_sounds)
 endif()
