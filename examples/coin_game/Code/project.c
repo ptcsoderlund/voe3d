@@ -1,12 +1,13 @@
 // The coin game's four entry points (game/project.h): register names every
-// component the game has (rotator, player, player_state, coin, coin_taken
-// and game_state), and each fixed step has two slots (0256), each system's
+// component the game has (rotator, player, player_state, player_camera_state,
+// coin, coin_taken and game_state), and each fixed step has two slots (0256), each system's
 // writes before the next reads.
 //
 // systems_run is before the bodies' move: game, player, coin, then rotator.
-// systems_after_move is after it, in the same step: player_camera. interface runs once a frame,
-// after the steps (0259): game_interface draws the screens and ends the ui
-// frame game began; its false ends the run.
+// systems_after_move is after it, in the same step: player_camera. interface
+// runs once a frame, after the steps (0259): player_camera_look reads the
+// mouse, then game_interface draws the screens and ends the ui frame game
+// began; its false ends the run.
 //
 // The game links all four and calls register once, after the engine's
 // types, both slots each fixed step and interface each frame; the editor
@@ -16,6 +17,7 @@
 #include "coin.h"
 #include "game_state.h"
 #include "player.h"
+#include "player_camera.h"
 #include "rotator.h"
 
 #include <base/assert.h>
@@ -29,6 +31,7 @@ void voe_game_project_register(voe_ecs_world *world)
 	// type asserts on its first run.
 	(void)rotator_register(world);
 	(void)player_register(world);
+	(void)player_camera_register(world);
 	(void)coin_register(world);
 	(void)game_state_register(world);
 }
@@ -54,5 +57,6 @@ bool voe_game_project_interface(const voe_game_project_frame *frame)
 {
 	VOE_BASE_ASSERT(frame != NULL && frame->ui != NULL,
 			"drawing the project's interface in no frame");
+	player_camera_look(frame);
 	return game_interface_run(frame);
 }

@@ -1,5 +1,5 @@
-// The player module: registers player and player_state, moves every player
-// before the move and places the camera behind the first one after it.
+// The player module: registers player and player_state and moves every
+// player before the move.
 //
 // A player's first step only records its state: its position as the start
 // and the current restart count, through the structural queue, so the row
@@ -9,9 +9,6 @@
 // on the floor the Y velocity starts at √(2 · gravity · height) on Space's
 // edge, else 0; in the air at the body's own Y; gravity is then taken off.
 // Off the playing phase there is no walk and no jump (0260 point 4).
-//
-// The camera is the scene's one camera (0218), placed after the move so it
-// follows the player in the same step (0257).
 //
 // Constraints: the only writer of player_state rows. A full body, transform
 // or structural queue drops the rest of this step's players. The runtime-only
@@ -29,13 +26,11 @@
 #include <game/world.h>
 
 #include <math/float3.h>
-#include <math/quat.h>
 
 #include <physics/body_system.h>
 
 #include <platform/input.h>
 
-#include <scene/camera_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
@@ -48,6 +43,9 @@ static const player player_default = {
 	.jump_height = 1.2f,
 	.gravity = 9.81f,
 	.camera_distance = 6.0f,
+	.camera_turn_speed = 0.25f,
+	.camera_distance_min = 2.0f,
+	.camera_distance_max = 12.0f,
 	.start_score = 1000,
 	.score_drop = 10,
 };
@@ -194,53 +192,4 @@ void player_system_run(voe_ecs_world *world, voe_platform_window *window,
 	for (uint32_t i = 0; i < count; i++)
 		if (!player_step(world, entities[i], &rows[i], keys, seconds))
 			return;
-}
-
-// (0, 0, -1) rotated by the unit quaternion q: the third column of its
-// matrix, negated. math/quat.h has no rotate, and this is all of it needed.
-static voe_math_float3 player_forward_of(voe_math_quat q)
-{
-	const voe_math_float3 forward = {
-		-2.0f * (q.x * q.z + q.w * q.y),
-		-2.0f * (q.y * q.z - q.w * q.x),
-		-(1.0f - 2.0f * (q.x * q.x + q.y * q.y)),
-	};
-
-	VOE_BASE_DEBUG_ASSERT(voe_math_float3_length(forward) < 1.01f,
-			      "a forward longer than one");
-	return forward;
-}
-
-void player_camera_run(voe_ecs_world *world)
-{
-	VOE_BASE_ASSERT(world != NULL, "placing the camera in no world");
-	const voe_ecs_type type = voe_ecs_component_type(world, &player_key);
-	const voe_ecs_type camera_type =
-		voe_ecs_component_type(world, &voe_scene_camera_key);
-	const voe_ecs_type transform_type =
-		voe_ecs_component_type(world, &voe_scene_transform_key);
-
-	if (voe_ecs_component_count(world, type) == 0 ||
-	    voe_ecs_component_count(world, camera_type) == 0)
-		return;
-	const voe_ecs_entity camera =
-		voe_ecs_component_entities(world, camera_type)[0];
-	const voe_scene_transform *own =
-		voe_ecs_component_get(world, transform_type, camera);
-	const voe_scene_transform *target = voe_ecs_component_get(
-		world, transform_type, voe_ecs_component_entities(world, type)[0]);
-
-	if (own == NULL || target == NULL)
-		return;
-	voe_scene_transform moved = *own;
-
-	moved.position = voe_math_double3_sub(
-		target->position,
-		voe_math_double3_from_float3(voe_math_float3_scale(
-			player_forward_of(own->rotation),
-			((const player *)voe_ecs_component_rows(world, type))[0]
-				.camera_distance)));
-	// A full transform queue leaves the camera where it was this step.
-	(void)voe_scene_transform_submit(world, (voe_scene_transform_intent){
-						     camera, moved });
 }
