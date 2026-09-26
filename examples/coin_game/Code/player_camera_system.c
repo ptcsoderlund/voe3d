@@ -3,9 +3,14 @@
 //
 // The first step reads yaw and pitch off the camera's authored rotation
 // (0261 point 2) and the distance off the first player; every later step
-// sets the row's arm by the spring arm (0261 point 5) and submits the
+// sets the row's arm by the spring arm (0261 point 5, 0262) and submits the
 // camera's transform from the row, which player_camera_look turns once a
 // frame.
+//
+// The arm snaps in only when something solid is in the way of where the
+// camera now is; otherwise it glides to the wheel's distance both ways. The
+// test reaches max(arm, distance), not only the distance, so a camera gliding
+// in from beyond a nearer distance never sits inside a wall on the way.
 //
 // Constraints: a full structural or transform queue leaves the camera where
 // it was this step. The runtime-only marker is taken by address at run time,
@@ -165,17 +170,21 @@ static float player_camera_clear_length(const voe_ecs_world *world,
 	return clear;
 }
 
-// The arm after this step: in at once to the clear length, out towards it at
-// most PLAYER_CAMERA_ARM_SPEED metres a second.
-static float player_camera_sprung(float arm, float wanted, double seconds)
+// The arm after this step (0262): in at once to `clear` when that is shorter
+// than the arm, else towards min(distance, clear) by at most
+// PLAYER_CAMERA_ARM_SPEED metres a second, nearer or farther alike.
+static float player_camera_sprung(float arm, float distance, float clear,
+				  double seconds)
 {
 	VOE_BASE_ASSERT(seconds >= 0.0, "a step of negative seconds");
-	const float grown =
-		fminf(wanted, arm + PLAYER_CAMERA_ARM_SPEED * (float)seconds);
-	const float next = wanted < arm ? wanted : grown;
+	if (clear < arm)
+		return clear;
+	const float wanted = fminf(distance, clear);
+	const float step = PLAYER_CAMERA_ARM_SPEED * (float)seconds;
+	const float next = fminf(fmaxf(wanted, arm - step), arm + step);
 
-	VOE_BASE_DEBUG_ASSERT(next <= fmaxf(wanted, arm) + 0.001f,
-			      "an arm past what it springs to");
+	VOE_BASE_DEBUG_ASSERT(next <= clear + 0.001f,
+			      "an arm past what is clear");
 	return next;
 }
 
@@ -234,11 +243,11 @@ void player_camera_run(voe_ecs_world *world, double seconds)
 	player_camera_state row = *state;
 
 	row.arm = player_camera_sprung(
-		row.arm,
+		row.arm, row.distance,
 		player_camera_clear_length(world, player_entity,
 					   target->position,
 					   player_camera_rotation_of(&row),
-					   row.distance),
+					   fmaxf(row.arm, row.distance)),
 		seconds);
 	const bool ok = voe_ecs_component_set(world, state_type, camera, &row);
 

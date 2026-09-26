@@ -25,8 +25,8 @@
 // THE ARM SPRINGS IN FRONT OF WHAT IS IN THE WAY (0261 point 5): each step it
 // is the longest length up to the distance that a 0.25 m capsule from the
 // player to the camera leaves clear. In the way is any solid collider: not a
-// trigger, not the player. The arm comes in at once and goes out at most
-// 10 m/s.
+// trigger, not the player. The zoom glides nearer and farther at 10 m/s; the
+// arm comes in at once only for something solid in the way (0262).
 //
 // Constraints: one row (capacity 1). Nothing turns off the playing phase, and
 // the lock is let go there. The arm test keeps 16 contacts, so past 16 triggers
