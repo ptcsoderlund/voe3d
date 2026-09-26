@@ -10,7 +10,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
-- **platform** — the one OS-aware folder: window, input, keymap, files, clock, processes, libraries, argv.
+- **platform** — the one OS-aware folder: window, input, keys, files, clock, processes, libraries.
 - **scene** — transform (double position, a stepping world's previous one), lens, light, identity.
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
