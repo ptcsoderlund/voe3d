@@ -1,6 +1,13 @@
 // The Linux half of platform/path.h: resolving a path to an absolute one
-// with realpath. Read the header first — what the call promises and which
-// failure is which is written there.
+// with realpath, and the program's own path with readlink on /proc/self/exe.
+// Read the header first — what the calls promise and which failure is which
+// is written there.
+//
+// THE PROGRAM'S PATH GROWS ITS BUFFER IN THE CALLER'S ARENA, doubling from
+// 256 bytes until readlink's answer is shorter than the room it had: the link
+// has no length limit of its own worth trusting, and readlink says nothing
+// about truncating. A too-small try is rewound; the one that fits stays,
+// up to twice the answer's length.
 //
 // LINUX AND NOT WAYLAND, DESPITE THE NAME — see platform/src/file_wayland.c's
 // header for why a name ending in _wayland means "this platform" in the
@@ -32,6 +39,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 const char *voe_platform_path_absolute(const char *path, voe_base_arena *arena,
 				       voe_base_error *error)
@@ -58,4 +66,31 @@ const char *voe_platform_path_absolute(const char *path, voe_base_arena *arena,
 	if (error != NULL)
 		*error = VOE_BASE_OK;
 	return copy;
+}
+
+const char *voe_platform_path_program(voe_base_arena *arena)
+{
+	size_t capacity = 256;
+
+	VOE_BASE_ASSERT(arena != NULL, "finding the program's path into no arena");
+
+	for (;;) {
+		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+		char *buffer = voe_base_arena_push(arena, capacity);
+		ssize_t length = readlink("/proc/self/exe", buffer, capacity);
+
+		if (length < 0) {
+			VOE_BASE_ERROR("platform",
+				       "could not read /proc/self/exe: %s",
+				       strerror(errno));
+			voe_base_arena_rewind(arena, mark);
+			return NULL;
+		}
+		if ((size_t)length < capacity) {
+			buffer[length] = '\0';
+			return buffer;
+		}
+		voe_base_arena_rewind(arena, mark);
+		capacity *= 2;
+	}
 }

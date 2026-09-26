@@ -31,12 +31,13 @@ header.
 - `path.c` — joining, finding a parent and finding a name, for both platforms.
   Its header says why the separator is one compile-time constant rather than an
   `#ifdef` in each function.
-- `path_wayland.c` — realpath, resolving a path to an absolute one. Its header
+- `path_wayland.c` — realpath, resolving a path to an absolute one, and readlink on
+  `/proc/self/exe` for the program's own path. Its header
   says why `PATH_MAX` is realpath's own buffer and not a limit this folder
   invents.
 - `path_win32.c` — GetFullPathNameW plus GetFileAttributesW, since the first
-  alone will invent a path for a name that is not there, the result made UTF-8. Its header says why
-  two calls size the buffer.
+  alone will invent a path for a name that is not there, the result made UTF-8; GetModuleFileNameW, grown until not truncated,
+  for the program's own path. Its header says why two calls size the buffer.
 - `library_wayland.c` — dlopen and dlsym, a failed open reported with dlerror. Its header says why
   the name says wayland.
 - `library_win32.c` — LoadLibraryW and GetProcAddress, a failed open reported through

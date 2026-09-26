@@ -21,7 +21,7 @@ that module's promises from outside. None of them needs a window or a display.
 - `path.c` — join, parent and name on ordinary paths, roots and trailing
   separators, for the platform it runs on; that resolving "." to an absolute
   path is idempotent, that resolving a made-up name is NULL, and that a non-ASCII folder resolves
-  with its name byte for byte.
+  with its name byte for byte; that the program's own path is an absolute file named for this test.
 - `library.c` — that a library no system has opens as NULL with a report naming it.
 - `arguments.c` — that a hand-made argv of three strings, one non-ASCII, comes back with count 3,
   the same bytes and a NULL after the last. Linux only by construction.

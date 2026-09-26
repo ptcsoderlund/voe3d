@@ -1,7 +1,8 @@
 // String arithmetic on a path: joining a folder and a name, finding a path's
-// parent and its last name, and resolving a path to an absolute one. Nothing
-// here touches disk except _absolute, which has to ask the operating system
-// what "here" and "a symlink" mean; the other three are pure text.
+// parent and its last name, resolving a path to an absolute one, and the
+// running program's own path. Nothing here touches disk except _absolute and
+// _program, which have to ask the operating system; the other three are pure
+// text.
 //
 //     const char *scene = voe_platform_path_join(arena, project, "main.scene");
 //     const char *parent = voe_platform_path_parent(arena, scene);   // project
@@ -43,6 +44,12 @@
 // not there. NULL with VOE_BASE_ERROR_UNAVAILABLE, and the path named in a
 // report through base/report.h, is nothing being there to resolve.
 //
+// THE PROGRAM'S OWN PATH. voe_platform_path_program is the running
+// executable's absolute path, from /proc/self/exe on Linux and
+// GetModuleFileNameW on Windows — not argv[0], which is a bare name found on
+// PATH or relative to a working directory that may since have moved. NULL,
+// reported, when the system will not say.
+//
 // A NULL path or arena is the caller's bug and aborts (rule 13).
 #pragma once
 
@@ -68,3 +75,7 @@ const char *voe_platform_path_name(const char *path);
 [[nodiscard]] const char *voe_platform_path_absolute(const char *path,
 						     voe_base_arena *arena,
 						     voe_base_error *error);
+
+// The running program's absolute path, UTF-8, into arena. NULL, and the
+// reason reported, when the system will not say.
+[[nodiscard]] const char *voe_platform_path_program(voe_base_arena *arena);

@@ -28,7 +28,7 @@ program's own arguments.
   Its header says what folder and hidden answer, which failure means what, and
   that no path it hands back carries a trailing separator.
 - `include/platform/path.h` — joining a folder and a name, a path's parent, its last
-  name, and resolving a path to an absolute one. Its header says which separator
+  name, resolving it to an absolute one, and the running program's own path. Its header says which separator
   each platform reads and writes, and why a name is a pointer into the path
   itself rather than a copy.
 - `include/platform/library.h` — a shared library opened by name at run time, and
