@@ -3,8 +3,9 @@
 //
 // NO ALSA HEADER. The nine calls used are resolved by name, and their
 // prototypes and the four constants are declared below from ALSA's stable ABI,
-// so building needs no libasound development package. snd_pcm_open's `**`
-// is ALSA's shape at the boundary, kept as it is.
+// so building needs no libasound development package. snd_pcm_open's out
+// parameter is declared as `void *`, the address of the device pointer, the
+// same at the ABI, because the engine never spells a pointer to a pointer.
 //
 // snd_pcm_set_params does the setup in one call: float, interleaved, stereo,
 // 48 kHz, soft resampling on so any hardware rate works, and a 100 ms buffer.
@@ -32,7 +33,7 @@
 #define LATENCY_MICROSECONDS 100000u
 
 typedef struct snd_pcm snd_pcm;
-typedef int (*pcm_open_fn)(snd_pcm **pcm, const char *name, int stream, int mode);
+typedef int (*pcm_open_fn)(void *pcm, const char *name, int stream, int mode);
 typedef int (*pcm_set_params_fn)(snd_pcm *pcm, int format, int access, unsigned channels,
 				 unsigned rate, int soft_resample, unsigned latency);
 typedef int (*pcm_get_params_fn)(snd_pcm *pcm, unsigned long *buffer, unsigned long *period);
