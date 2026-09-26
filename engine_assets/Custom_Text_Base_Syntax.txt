@@ -1,0 +1,35 @@
+[Player1]
+type="Node"
+id=1
+hp=20.0
+[Player1.Stats]
+max_hp=200.0
+max_constitution=100.0
+some_array=[0,2,3,4,5]
+
+[Example_Of_Types]
+text="we can put text here"
+int=400_000_000_000
+decimal=400.12345d
+double=200.0
+bool=1
+also_bool=true
+
+//This is a comment
+[Example_Of_Types.ComplexType]
+text="This is more text"
+
+
+[My_Unique_Name]
+type="Transform"
+[My_Unique_Name.position]
+x=0.0
+y=0.0
+z=0.0
+
+[Theme1]
+accent="#2B2B2B"
+contrast_strength=1.25
+surface_separation=1.25
+error_light="#B836BA"
+error_dark="#D8A0D9"

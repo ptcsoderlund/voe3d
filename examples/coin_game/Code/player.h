@@ -2,19 +2,23 @@
 //
 //     player_register(world);                   // in voe_game_project_register
 //     player_system_run(world, window, seconds); // before the move
-//     player_camera_run(world);                 // after the move
 //
 // `speed` is metres a second, default 2; `jump_height` metres, default 1.2;
 // `gravity` metres a second squared, default 9.81; `camera_distance` metres
-// behind the player, default 6; `start_score` the points a run begins with,
-// default 1000; `score_drop` the points lost a second, default 10.
+// behind the player the camera starts at, default 6; `camera_turn_speed`
+// degrees the camera turns per unit of mouse motion, default 0.25;
+// `camera_distance_min` and `camera_distance_max` the metres the wheel keeps
+// it within, defaults 2 and 12 (0261 point 1); `start_score` the points a run
+// begins with, default 1000; `score_drop` the points lost a second, default 10.
 //
 // Every number the sponsor sets sits here, on the one component the level
 // already has, so the Inspector is the whole tuning panel and no separate
 // game-numbers component appears in the level (0260 point 1). The run's own
 // state, player_state, is runtime-only and never shown.
 //
-// THE KEYS ARE READ HERE, so a Player needs nothing else beside its body and
+// THE KEYS WALK AS THE CAMERA LOOKS: W away from it, S towards it, A and D
+// to its left and right, along player_camera_state's yaw (0261 point 6).
+// They are read here, so a Player needs nothing else beside its body and
 // transform; where it stands when the run begins is its start, the place a
 // restart puts it back.
 //
@@ -32,12 +36,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PLAYER_FIELDS(F, F_READ_ONLY)        \
-	F(float, speed, FLOAT32)             \
-	F(float, jump_height, FLOAT32)       \
-	F(float, gravity, FLOAT32)           \
-	F(float, camera_distance, FLOAT32)   \
-	F(int32_t, start_score, INT32)       \
+#define PLAYER_FIELDS(F, F_READ_ONLY)          \
+	F(float, speed, FLOAT32)               \
+	F(float, jump_height, FLOAT32)         \
+	F(float, gravity, FLOAT32)             \
+	F(float, camera_distance, FLOAT32)     \
+	F(float, camera_turn_speed, FLOAT32)   \
+	F(float, camera_distance_min, FLOAT32) \
+	F(float, camera_distance_max, FLOAT32) \
+	F(int32_t, start_score, INT32)         \
 	F(int32_t, score_drop, INT32)
 
 VOE_BASE_DESCRIBE_STRUCT(player, PLAYER_FIELDS)
@@ -62,7 +69,3 @@ extern const struct voe_ecs_key player_state_key;
 // reads no keys.
 void player_system_run(voe_ecs_world *world, voe_platform_window *window,
 		       double seconds);
-
-// Places the scene's camera camera_distance behind the first player along
-// the camera's own forward, its rotation kept.
-void player_camera_run(voe_ecs_world *world);
