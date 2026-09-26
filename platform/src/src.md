@@ -42,6 +42,10 @@ header.
   the name says wayland.
 - `library_win32.c` — LoadLibraryW and GetProcAddress, a failed open reported through
   FormatMessageW made UTF-8.
+- `sound_wayland.c` — ALSA's default device through libasound loaded at run time, its calls
+  declared here with no ALSA header. Its header says why the stream is started by hand.
+- `sound_win32.c` — WASAPI in shared mode through COM in C, ole32 loaded at run time and the
+  GUIDs defined here. Written, not verified.
 - `process_wayland.c` — posix_spawnp into a new process group with output dup2'd onto a file when
   asked, waitpid to poll, SIGTERM to the group to end.
 - `process_win32.c` — the argument list quoted into one command line, CreateProcessW inside a

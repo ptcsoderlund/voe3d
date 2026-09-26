@@ -3,8 +3,8 @@
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
 Today that is a window, its keyboard and mouse, a clock, reading and writing a
-file, listing, making or finding a folder, starting another program, and the
-program's own arguments.
+file, listing, making or finding a folder, starting another program, the
+program's own arguments, and the sound device.
 
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
@@ -34,6 +34,9 @@ program's own arguments.
 - `include/platform/library.h` — a shared library opened by name at run time, and
   a symbol out of it; a failed open is reported with the loader's reason. Its header says why this
   is here and not in the folder that wants one.
+- `include/platform/sound.h` — the default sound device, taking stereo float frames at 48 kHz:
+  how many it takes now, and writing them. Its header says why it is pushed from the caller's
+  loop, why loaded at run time, and that silence is the answer to NULL.
 - `include/platform/process.h` — starting another program from an argument list, its output
   shared or appended to a file, polling it without blocking, and ending it with everything it started. Its header says why a child and
   not a thread, and why the whole group ends.
