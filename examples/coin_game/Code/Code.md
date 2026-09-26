@@ -9,4 +9,6 @@ the library the editor loads (0242).
 - `player_system.c` — registers player with its defaults under "Player".
 - `coin.h` — the Coin component, its points, and the runtime-only coin_taken that hides a taken coin.
 - `coin_system.c` — registers coin under "Coin" and coin_taken with no menu.
-- `project.c` — the four entry points: registers rotator, player and coin, runs it before the move, draws no interface.
+- `game_state.h` — the run's runtime-only game_state row: phase, dropped score, restarts; the derived score and coins left.
+- `game_system.c` — registers game_state, makes its row on the first player, drops the score each second and ends the run.
+- `project.c` — the four entry points: registers rotator, player, coin and game_state, runs game then rotator before the move, draws no interface.
