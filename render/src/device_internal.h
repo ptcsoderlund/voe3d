@@ -410,8 +410,8 @@ voe_render_target_at(voe_render_device *device, voe_render_target target);
 					      uint32_t mask,
 					      VkMemoryPropertyFlags properties);
 
-// frame.c. The engine's viewport for a target of this size, and the one Y flip
-// in the engine — read frame.c's header before touching it.
+// pass.c. The engine's viewport for a target of this size, and the one Y flip
+// in the engine — read the comment above it in pass.c before touching it.
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
 // frame.c. The slot the next frame will use, and the one the recording that is
@@ -424,7 +424,7 @@ const struct voe_render_frame *voe_render_frame_current(const voe_render_device 
 // if no recording is open, which is the same assert every draw makes.
 struct voe_render_frame *voe_render_frame_open(voe_render_device *device);
 
-// frame.c. Which viewport the open pass was begun with, so that a test can
+// pass.c. Which viewport the open pass was begun with, so that a test can
 // hand in its mirror image. The mirror is what gets a back face in front of the
 // rasteriser without a second shader and without touching the pipeline whose
 // front-face constant is the thing under test: the same geometry drawn through a

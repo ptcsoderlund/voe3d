@@ -52,8 +52,15 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame.c` — one frame and the passes in it: wait and open a recording, open a pass onto the window
-  or a target with its camera, draw an object into it solid or blended, close the pass, end the
-  frame and present.
+- `frame_internal.h` — the calls frame.c, pass.c, draw.c and present.c make across one another;
+  included by those four only.
+- `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
+  rebuild on resize, end, submit and present.
+- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, the
+  clear colour, the first-clears-later-load rule, and the one Y flip in the viewport.
+- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, the depth
+  clear between them, and the rebinds only when pipeline or pool pair changes.
+- `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
+  the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built
   only when a test asks. Its header says why it is not built at startup.
