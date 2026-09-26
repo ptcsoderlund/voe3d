@@ -4,6 +4,24 @@ A general-purpose real-time 3D engine, written in C23 on Vulkan 1.3, for Windows
 desktop. The repository holds the engine's folders, an editor for authoring scenes, and a dev
 program that shows what the engine can currently do.
 
+## Read this first
+
+**This is a hobby project, built for fun.** It is not a product, and nothing here is a promise:
+
+- **No stability.** APIs, file formats and folder layout change whenever I feel like it.
+  Versions are `0.x` and will likely stay that way.
+- **Linux is the tested platform.** Windows is meant to work, but it is not tested on every change
+  and may be broken at any given time.
+- **No pull requests.** They will be closed unopened. Fork it and do whatever you like instead —
+  that is what the license is for.
+- **Issues may go unanswered.** Feel free to open one; just don't expect a reply or a fix.
+- **Built with AI.** Most of the code is written by Claude agents working through a planner/coder
+  workflow, with me deciding what gets built and accepting the result. The workflow's records
+  live in `Agentic/` and `history/`.
+
+If you find something useful in here, take it. If you want an engine to ship a game on, use
+one with a team behind it.
+
 ## What you need
 
 Install these yourself. Everything the engine links against or ships is fetched by the build.
@@ -70,3 +88,13 @@ The editor can also draw one frame with no window at all and save it as a pictur
   decision: 0001–0167 in the first, later ones in the second.
 - Each folder's `<folder>.md` — what is in it.
 - `Agentic/` — the workflow's state: work orders, the feature being built, the ones accepted.
+
+## License
+
+VOE3D is released under the MIT License; see [`LICENSE`](LICENSE).
+
+These files are not covered by it and keep their own licenses:
+
+- `render/vulkan/` — the Vulkan headers, © The Khronos Group Inc., Apache-2.0.
+- `text/fonts/Oxanium-Regular.ttf` — the Oxanium font, SIL Open Font License 1.1; see
+  `text/fonts/OFL.txt`.
