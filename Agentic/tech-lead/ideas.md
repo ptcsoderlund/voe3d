@@ -91,8 +91,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   (static, so never re-checked): light does not pass them either way. Recommended as a hand
   touch-up for the leaks the automatic visibility misses (thin walls, coarse probe grids), like
   Unity's probe adjustment volumes, and as rooms and portals (a room lit only by what is inside
-  and what comes through its doors and windows), not as the main mechanism. One bounce first, more by feeding the cache back into itself. After the
-  coin game, unless a game needs it sooner.
+  and what comes through its doors and windows), not as the main mechanism. One bounce first,
+  more by feeding the cache back into itself. After the coin game, unless a game needs it sooner.
 - **Fill light for shadows** (2026-09-26): 028 has no ambient (0258), so shadowed sides are flat
   dark. A cheap stopgap was offered: a two-colour sky/ground fill term, a few lines of shading,
   replaced later by the bounce. The sponsor chose to wait; revisit if the coin game's shadows read

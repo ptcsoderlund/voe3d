@@ -15,11 +15,11 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
 - **authoring** — scene and project text read and written, a world cooked to C; a game omits it.
-- **render** — the GPU layer and the only folder that names Vulkan: the card, resources, passes.
+- **render** — the GPU layer and the only folder that names Vulkan: card, resources, passes, shadow maps.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, markers.
+- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, sun shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game's loop: world types, 1/60 s steps in two slots, a frame, the code seam.
@@ -44,7 +44,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186–0188, 0234–0237, 0251, 0252 — A coin game after sun shadows; Play builds a game; text formats.
+- 0186–0188, 0234–0237, 0251, 0252, 0258 — Coin game after cascaded sun shadows; Play; text formats.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
