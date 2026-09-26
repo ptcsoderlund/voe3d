@@ -155,10 +155,10 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
-- `view_passes.h` — what a frame draws into the views: a pass per shown view with the world, the
+- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world, the
   selection's outline, its collider, its gizmo and the camera's marker, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
-  walked in order, each pass begun, drawn by `3d`'s draw system with the world's camera marked, and
+  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera marked, and
   ended, stopping at the first refused pass.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector

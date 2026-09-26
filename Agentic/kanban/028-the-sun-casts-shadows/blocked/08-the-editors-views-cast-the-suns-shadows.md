@@ -30,3 +30,9 @@ member (card 06).
    shadow stays below and shrinks on landing; walking, edges stand still; far out distant things
    keep shadows and close up the edge is crisp; 100 km along X looks the same in editor and
    game; deleting the light unlights, undo restores; the game runs as smoothly as before.
+
+## Blocked
+The editor change is in and done-when 1 and 2 pass (`--folder editor` FINDINGS: 0; capture exits 0 with
+empty stderr), but `checks.sh --all` prints one finding outside this folder: `game/tests/tests.md`'s
+`frame.c` entry is 332 characters against a cap of 300, left by card 07 (8acd55a). Shortening that
+entry in `game` (the rest moves to `frame.c`'s header) unblocks it; step 4 is the human's.
