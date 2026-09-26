@@ -51,12 +51,19 @@
 //
 // ---- THE LIGHTING, AND EVERY DECISION IN IT ----
 //
-// ONE DIRECTIONAL LIGHT, NO SHADOWS, NO AMBIENT, NO IMAGE-BASED ANYTHING. The
-// sun arrives with the camera, once a frame, and every surface is lit from the
-// same direction with the same strength. Nothing tests whether something is in
-// the way and nothing lights the side facing away, so a surface pointing away
-// from the sun is black — which is what a scene with one light and no bounce
-// looks like, and not a bug to patch with a fudge factor here.
+// ONE DIRECTIONAL LIGHT, NO AMBIENT, NO IMAGE-BASED ANYTHING. The sun arrives
+// with the camera, once a frame, and every surface is lit from the same
+// direction with the same strength. Nothing lights the side facing away, so a
+// surface pointing away from the sun is black — which is what a scene with one
+// light and no bounce looks like, and not a bug to patch with a fudge factor.
+//
+// THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
+// `count` above nought, a lit surface picks the first cascade whose split is past
+// its view distance, pushes its position one texel along its normal so it does
+// not shadow itself, projects it into that cascade and averages a 3×3 of
+// comparison lookups; past the last split it is fully lit. The sun's direct
+// term is multiplied by the result. With no ambient, a shadowed surface is as
+// dark as one facing away — one sun and no bounce, as above.
 //
 // METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
 // base colour, the metalness, the roughness and the occlusion come out of the
@@ -193,17 +200,37 @@ struct voe_render_light {
 	uint unshaded;
 };
 
+// Where the sun's cascades are: voe_render_shadow in render/device.h. The C
+// side's `float splits[4]` and `float texels[4]` are float4s here, because a
+// uniform block gives every element of a scalar array sixteen bytes and a
+// float4 is the same sixteen bytes C has. `count` nought is no shadow.
+struct voe_render_shadow {
+	float4x4 cascades[4];
+	float4 splits;
+	float4 texels;
+	uint count;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
+};
+
 // Set 0, binding 0. Matches struct voe_render_frame_block in
-// render/src/device_internal.h field for field: descriptors.c builds the layout
-// that matches it, asserts on both structs' sizes and offsets, and frame.c
+// render/src/device_parts.h field for field: descriptors.c builds the layout
+// that matches it, asserts on both structs' sizes and offsets, and pass.c
 // writes one of these per pass, bound at that pass's dynamic offset.
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
+	voe_render_shadow shadow;
 };
 
 [[vk::binding(0, 0)]]
 ConstantBuffer<voe_render_frame_block> voe_render_frame;
+
+// Set 0, binding 5: this frame slot's cascades, one layer each, read through a
+// comparison sampler whose border is lit (render/src/shadow.c).
+[[vk::binding(5, 0)]]
+Sampler2DArrayShadow voe_render_shadow_maps;
 
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.
@@ -422,6 +449,43 @@ float voe_render_median(float3 field)
 	return max(min(field.r, field.g), min(max(field.r, field.g), field.b));
 }
 
+// How much of the sun reaches `world`, nought to one. See the header's lighting
+// section; one is the answer with no cascades and past the last split.
+//
+// THE ONE Y FLIP: clip +y is row 0 of the map, because the shadow pass drew
+// through the engine's flipped viewport, so v runs opposite to clip y.
+float voe_render_sunlight(float3 world, float3 normal)
+{
+	voe_render_shadow shadow = voe_render_frame.shadow;
+	float distance = -mul(voe_render_frame.camera.view, float4(world, 1.0)).z;
+	uint cascade = 0;
+
+	while (cascade < shadow.count && distance > shadow.splits[cascade])
+		cascade++;
+	if (cascade >= shadow.count)
+		return 1.0;
+
+	float3 pushed = world + normal * shadow.texels[cascade];
+	float4 clip = mul(shadow.cascades[cascade], float4(pushed, 1.0));
+	float3 ndc = clip.xyz / clip.w;
+	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+	float width;
+	float height;
+	float layers;
+
+	voe_render_shadow_maps.GetDimensions(width, height, layers);
+	float2 step = float2(1.0 / width, 1.0 / height);
+	float lit = 0.0;
+
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			float3 at = float3(uv + float2(x, y) * step, cascade);
+			lit += voe_render_shadow_maps.SampleCmpLevelZero(at, ndc.z);
+		}
+	}
+	return lit / 9.0;
+}
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -569,7 +633,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// the light did not have.
 	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
 
-	float3 radiance = sun.colour * sun.intensity * n_dot_l;
+	float3 radiance = sun.colour * sun.intensity * n_dot_l *
+			  voe_render_sunlight(vertex.world, n);
 	float3 lit = (diffuse + specular) * radiance * occlusion;
 
 	return voe_render_premultiplied(lit, coverage);

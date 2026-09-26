@@ -17,15 +17,15 @@
 
 #include <render/device.h>
 
-// Everything one pass is drawn with that is not a per-object record: the camera
-// and the sun, in one block. There is one block per pass per frame slot, all of
+// Everything one pass is drawn with that is not a per-object record: the camera,
+// the sun and the sun's shadow record, in one block. There is one block per pass per frame slot, all of
 // them in the slot's one uniform buffer, `pass_stride` bytes apart.
 //
 // IT IS ONE BLOCK AND NOT TWO BINDINGS BECAUSE THEY HAVE THE SAME LIFETIME.
 // Both are written once by voe_render_pass_begin and read by both stages for
 // every draw in the pass, so splitting them would be a second buffer, a second
 // descriptor and a second pool entry to say what one memcpy says. It is internal
-// only in name: voe_render_pass_camera is the same two members in the same
+// only in name: voe_render_pass_camera is the same three members in the same
 // order, and a pass's block is a copy of it.
 //
 // ONE BUFFER AND A DYNAMIC OFFSET, NOT A SET PER PASS. Binding 0 is a dynamic
@@ -33,12 +33,13 @@
 // that pass's block. A set per pass would be `passes` copies of the texture
 // array's sixty-four descriptors, every one rewritten whenever a texture is made.
 //
-// draw.slang declares the same two structs in the same order at binding 0.
+// draw.slang declares the same three structs in the same order at binding 0.
 // descriptors.c asserts on the sizes and the offsets, so a member that moves is
 // a build error rather than a frame lit from the wrong direction.
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
+	voe_render_shadow shadow;
 };
 
 // A buffer and the memory under it, which in this engine are always made and

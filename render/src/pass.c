@@ -302,13 +302,14 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 
 	frame = voe_render_frame_at(device, device->slot);
 
-	// The camera and the sun, into this pass's own block of this slot's
-	// buffer. Safe because the fence at the top of the frame says the GPU
-	// has finished reading what was in here two frames ago. A pass with no
+	// The camera, the sun and its shadow, into this pass's own block of
+	// this slot's buffer. Safe because the fence at the top of the frame says
+	// the GPU has finished reading what was in here two frames ago. A pass with no
 	// camera writes a zeroed block, which no draw it may make reads.
 	if (camera != NULL) {
 		block.camera = camera->view;
 		block.light = camera->light;
+		block.shadow = camera->shadow;
 	}
 
 	// The window's pair or this frame slot's pair of the target, each with

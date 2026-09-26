@@ -1,8 +1,9 @@
 // The sun's shadow maps (ADR-0258): per frame slot one D32 image of
 // VOE_RENDER_SHADOW_CASCADES layers, a view of the whole array for the shader
-// and one view per layer for a shadow pass to draw into, and the two barriers
-// round such a pass. pass.c opens and closes shadow passes; this file owns the
-// images and their layouts.
+// and one view per layer for a shadow pass to draw into, the two barriers
+// round such a pass, and the comparison sampler binding 5 reads them through.
+// pass.c opens and closes shadow passes; this file owns the images, their
+// layouts and the sampler.
 //
 // LIFETIME: STARTUP TO SHUTDOWN. The maps' size is capacities.shadow_size, which
 // no resize changes, so unlike target.c's images nothing here is rebuilt.
@@ -252,6 +253,44 @@ static bool settle(voe_render_device *device)
 	return result == VK_SUCCESS;
 }
 
+// The sampler binding 5 reads every slot's maps through. A lookup compares the
+// surface's depth with the stored one and returns the fraction that passed:
+// GREATER_OR_EQUAL because depth is reversed, so nearer the sun is larger and a
+// surface at least as near as what the map holds is lit. LINEAR filters the four
+// comparisons, not the depths. Outside the map the border is depth nought, the
+// far plane, which every surface passes: off the map is lit.
+static bool build_sampler(voe_render_device *device)
+{
+	VkSamplerCreateInfo info = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_LINEAR,
+		.minFilter = VK_FILTER_LINEAR,
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+		.anisotropyEnable = VK_FALSE,
+		.maxAnisotropy = 1.0f,
+		.compareEnable = VK_TRUE,
+		.compareOp = VK_COMPARE_OP_GREATER_OR_EQUAL,
+		.minLod = 0.0f,
+		.maxLod = 0.0f,
+		.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+	};
+	VkResult result = voe_render_vk.create_sampler(device->device, &info,
+						       NULL,
+						       &device->shadow_sampler);
+
+	if (result != VK_SUCCESS) {
+		VOE_BASE_ERROR("render",
+			       "vkCreateSampler failed for the shadow maps (VkResult %d)",
+			       (int)result);
+		device->shadow_sampler = VK_NULL_HANDLE;
+		return false;
+	}
+	return true;
+}
+
 bool voe_render_shadow_startup(voe_render_device *device)
 {
 	uint32_t side;
@@ -267,7 +306,7 @@ bool voe_render_shadow_startup(voe_render_device *device)
 		if (!build_map(device, &device->frames[i].shadow, side))
 			return false;
 	}
-	return settle(device);
+	return build_sampler(device) && settle(device);
 }
 
 void voe_render_shadow_shutdown(voe_render_device *device)
@@ -294,6 +333,10 @@ void voe_render_shadow_shutdown(voe_render_device *device)
 						  NULL);
 		*map = (struct voe_render_shadow_map){ 0 };
 	}
+	if (device->shadow_sampler != VK_NULL_HANDLE)
+		voe_render_vk.destroy_sampler(device->device,
+					      device->shadow_sampler, NULL);
+	device->shadow_sampler = VK_NULL_HANDLE;
 }
 
 void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,

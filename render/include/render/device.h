@@ -428,8 +428,9 @@ typedef struct {
 // ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
 // sun: a direction, a colour and a strength, the same for every draw in the
 // pass. There is no light list and no second light — many lights is a later
-// card and it is the card that decides how they are gathered — and there is no
-// shadow: nothing here tests whether anything is in the way.
+// card and it is the card that decides how they are gathered. The sun casts
+// shadows through the pass's voe_render_shadow record below (ADR-0258); a pass
+// whose light is `unshaded` reads no shadow either, because it reads no sun.
 //
 // NOTHING IS TONE MAPPED, SO BRIGHT VALUES CLIP. A light strong enough to push a
 // surface past one is clamped by the target's format and the highlight goes
@@ -449,6 +450,34 @@ typedef struct {
 	voe_math_float3 colour;
 	uint32_t unshaded;
 } voe_render_light;
+
+// Where the sun's shadow maps are, for one pass that reads them (ADR-0258).
+//
+// THE NUMBERS ARE 3d's. `cascades[i]` takes a position in the world the objects'
+// matrices place things in — eye-relative, as they are — to cascade i's clip
+// space: the same view × projection its shadow pass drew with. `splits[i]` is
+// the far view distance cascade i covers, rising; `texels[i]` the metres one of
+// its texels spans, which is how far a surface is pushed along its normal before
+// it looks itself up, so it does not shadow itself. `count` is how many are in
+// use, from cascade 0.
+//
+// NOUGHT IS NONE. A zeroed record — every existing `{ view, light }` initializer
+// — reads no map and every surface is lit as it was. With `count` set, a lit
+// surface picks the first cascade whose split is past its view distance, takes a
+// filtered lookup there and scales the sun's direct light by it; past the last
+// split it is fully lit. Unlit materials and an `unshaded` pass read nothing.
+//
+// Padded to sixteen bytes like the other blocks; draw.slang declares the split
+// and texel arrays as float4s, which is the same sixteen bytes each.
+typedef struct {
+	voe_math_float4x4 cascades[VOE_RENDER_SHADOW_CASCADES];
+	float splits[VOE_RENDER_SHADOW_CASCADES];
+	float texels[VOE_RENDER_SHADOW_CASCADES];
+	uint32_t count;
+	uint32_t reserved0;
+	uint32_t reserved1;
+	uint32_t reserved2;
+} voe_render_shadow;
 
 // One drawn object's record: the two matrices it is drawn with, the shading
 // record it wears and the colour it is tinted by. `shading` is the index half of
@@ -986,11 +1015,13 @@ typedef struct {
 					  voe_render_picture *out,
 					  voe_base_error *error);
 
-// The camera and the sun one pass draws with. Handed over together because they
-// land in one block the shader reads, and a pass that has one has both.
+// The camera, the sun and the sun's shadow one pass draws with. Handed over
+// together because they land in one block the shader reads, and a pass that has
+// one has all three; a zeroed `shadow` is none.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
+	voe_render_shadow shadow;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass

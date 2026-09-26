@@ -1,13 +1,15 @@
 // Everything the shader reads, and the one layout that describes it: the
 // descriptor set layout, the pool, and per frame slot one set, one mapped
-// uniform buffer holding a camera and a sun for every pass, one mapped buffer of
-// per-object records and one mapped buffer of element records.
+// uniform buffer holding a camera, a sun and a shadow record for every pass, one
+// mapped buffer of per-object records, one mapped buffer of element records, and
+// the slot's shadow maps.
 // This was the front half of cube.c until card 018 took the cube out of render.
 //
-// FIVE BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// SIX BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
-//   0  the camera and the sun, one block per pass in one uniform buffer per
-//      frame slot, written as each pass opens. A DYNAMIC uniform buffer: every
+//   0  the camera, the sun and its shadow record, one block per pass in one
+//      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
+//      uniform buffer: every
 //      bind of the set names the offset of the pass's block, which is how one
 //      set serves every pass without a set per pass
 //   1  every texture at once, one descriptor array, rewritten when a texture
@@ -18,6 +20,9 @@
 //      once per record at startup
 //   4  the element records, one storage buffer per frame slot, written as the
 //      frame submits them
+//   5  the slot's shadow maps as one array, through shadow.c's comparison
+//      sampler, written once at startup. One per slot because each slot draws
+//      its own maps while the card may still be reading the other's
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
@@ -64,7 +69,9 @@ static_assert(sizeof(voe_render_view) == 144,
 	      "voe_render_view no longer matches the shader's camera block");
 static_assert(sizeof(voe_render_light) == 32,
 	      "voe_render_light no longer matches the shader's light block");
-static_assert(sizeof(struct voe_render_frame_block) == 176,
+static_assert(sizeof(voe_render_shadow) == 304,
+	      "voe_render_shadow no longer matches the shader's shadow block");
+static_assert(sizeof(struct voe_render_frame_block) == 480,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
 
 // And the offsets, because the sizes above can stay right while the order goes
@@ -84,6 +91,14 @@ static_assert(offsetof(voe_render_light, unshaded) == 28,
 	      "the light's unshaded flag moved; draw.slang has it at 28");
 static_assert(offsetof(struct voe_render_frame_block, light) == 144,
 	      "the sun moved inside the per-pass block; draw.slang has it at 144");
+static_assert(offsetof(struct voe_render_frame_block, shadow) == 176,
+	      "the shadow record moved inside the per-pass block; draw.slang has it at 176");
+static_assert(offsetof(voe_render_shadow, splits) == 256,
+	      "the shadow record's splits moved; draw.slang has them at 256");
+static_assert(offsetof(voe_render_shadow, texels) == 272,
+	      "the shadow record's texels moved; draw.slang has them at 272");
+static_assert(offsetof(voe_render_shadow, count) == 288,
+	      "the shadow record's count moved; draw.slang has it at 288");
 static_assert(offsetof(voe_render_shading_values, emissive) == 32,
 	      "the shading record's emissive colour moved; draw.slang has it at 32");
 static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
@@ -111,7 +126,7 @@ static_assert(offsetof(voe_render_element, sheet) == 64,
 
 static bool build_layout(voe_render_device *device)
 {
-	VkDescriptorSetLayoutBinding bindings[5] = {
+	VkDescriptorSetLayoutBinding bindings[6] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -153,10 +168,17 @@ static bool build_layout(voe_render_device *device)
 			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
 				      VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
+		{
+			.binding = 5,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 5,
+		.bindingCount = 6,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -165,9 +187,10 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT,
 		},
 		{
+			// The texture array and the shadow maps.
 			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT *
-					   VOE_RENDER_MAX_TEXTURES,
+					   (VOE_RENDER_MAX_TEXTURES + 1),
 		},
 		{
 			// Three per set: the objects, the shadings and the
@@ -310,7 +333,12 @@ static bool build_slots(voe_render_device *device)
 							1) *
 				 sizeof(voe_render_element),
 		};
-		VkWriteDescriptorSet writes[3] = {
+		VkDescriptorImageInfo shadow = {
+			.sampler = device->shadow_sampler,
+			.imageView = frame->shadow.array,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		VkWriteDescriptorSet writes[4] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstBinding = 0,
@@ -334,6 +362,14 @@ static bool build_slots(voe_render_device *device)
 				.descriptorType =
 					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.pBufferInfo = &elements,
+			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 5,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &shadow,
 			},
 		};
 
@@ -362,7 +398,8 @@ static bool build_slots(voe_render_device *device)
 		writes[0].dstSet = frame->descriptor;
 		writes[1].dstSet = frame->descriptor;
 		writes[2].dstSet = frame->descriptor;
-		voe_render_vk.update_descriptor_sets(device->device, 3, writes,
+		writes[3].dstSet = frame->descriptor;
+		voe_render_vk.update_descriptor_sets(device->device, 4, writes,
 						     0, NULL);
 	}
 

@@ -29,9 +29,9 @@ which file to open — what each one owns, and where the seams between them run.
   that says which and why.
 - `pipeline.c` — the three mesh pipelines, solid, blended and shadow, with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: five bindings,
-  one set, one camera buffer holding a block per pass, one object buffer and one element buffer per
-  frame slot.
+- `descriptors.c` — everything the shader reads and the one layout that describes it: six bindings,
+  one set, one camera buffer holding a block per pass, one object buffer, one element buffer and the
+  shadow maps per frame slot.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -47,7 +47,7 @@ which file to open — what each one owns, and where the seams between them run.
   targets of a caller's own, shown through one texture slot; and the read that copies a finished
   picture into an arena as RGBA8.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
-  views, and the barriers either side of a shadow pass.
+  views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built

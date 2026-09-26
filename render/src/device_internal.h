@@ -186,6 +186,9 @@ struct voe_render_device {
 	// instead of to something undefined.
 	struct voe_render_texture_slot textures[VOE_RENDER_MAX_TEXTURES];
 	VkSampler samplers[VOE_RENDER_SAMPLING_COUNT];
+	// The comparison sampler every slot's shadow maps are read through at
+	// binding 5. shadow.c makes and destroys it.
+	VkSampler shadow_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -401,7 +404,8 @@ void voe_render_targets_startup(voe_render_device *device);
 void voe_render_targets_shutdown(voe_render_device *device);
 
 // shadow.c. Every frame slot's shadow map, made and settled in the layout it
-// rests in; one texel a side when capacities.shadow_size is nought. Startup's,
+// rests in, and the comparison sampler they are read through; one texel a side
+// when capacities.shadow_size is nought. Startup's,
 // after the frame objects and before the descriptors. False with a message;
 // _shutdown is safe on a device that never got that far.
 [[nodiscard]] bool voe_render_shadow_startup(voe_render_device *device);
