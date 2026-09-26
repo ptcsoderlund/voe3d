@@ -8,9 +8,9 @@ holds the allowed edges, so a change needing a new edge is a decision, not a car
 rules are decision 0168, named on every card; the Agentic workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
-- **math** — vectors and matrices spelled the way Slang spells them, and double3 for a world position.
+- **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
-- **platform** — the one OS-aware folder: window, input, keymap, files, clock, processes, libraries, arguments.
+- **platform** — the one OS-aware folder: window, input, keymap, files, clock, processes, libraries, argv.
 - **scene** — transform (double position, a stepping world's previous one), lens, light, identity.
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
@@ -22,7 +22,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, markers.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **game** — a shipped game's loop: world types, fixed 1/60 s steps in two slots, a frame, the code seam.
+- **game** — a shipped game's loop: world types, 1/60 s steps in two slots, a frame, the code seam.
 - **editor** — authoring: top bar, Scene list, views to fly, gizmo, Inspector, undo, Play, Refresh.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
@@ -44,7 +44,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186–0188, 0234–0237, 0251, 0252 — A coin game in `examples/`, after sun shadows; Play builds a `game` tree; formats are text.
+- 0186–0188, 0234–0237, 0251, 0252 — A coin game after sun shadows; Play builds a game; text formats.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
@@ -55,5 +55,5 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
 - 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
-- 0244, 0246–0248 — Examples in root `examples/`, checked on structure; every string is UTF-8, Windows too.
+- 0244, 0246–0248 — Examples in root `examples/`, checked on structure; every string is UTF-8.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
