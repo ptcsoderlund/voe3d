@@ -337,7 +337,7 @@ static void test_round_trip_world_first(void)
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(first, &probe));
 	VOE_TEST_CHECK(voe_scene_transform_add(first, cube, (voe_scene_transform){
-		.position = { 0.1f, -2.5f, 1.0f / 3.0f },
+		.position = { 0.1, -2.5, 1.0 / 3.0 },
 		.rotation = { 0.0f, 0.38268343f, 0.0f, 0.9238795f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
@@ -347,7 +347,7 @@ static void test_round_trip_world_first(void)
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
 	VOE_TEST_CHECK(voe_scene_transform_add(first, eye, (voe_scene_transform){
-		.position = { 0.0f, 1.7f, 4.0f },
+		.position = { 0.0, 1.7, 4.0 },
 		.rotation = { -0.09933467f, 0.04983342f, 0.0049667f, 0.99374009f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
@@ -383,6 +383,41 @@ static void test_round_trip_world_first(void)
 	VOE_TEST_CHECK_INT(voe_ecs_entity_count(second), 3);
 	check_same_rows(first, second);
 
+	voe_base_arena_destroy(arena);
+}
+
+// A position 100 km out is written, read back into a fresh world and is the
+// same bits, as undo and Play need (ADR-0250).
+static void test_far_position_round_trip(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	struct types types;
+	voe_ecs_world *first = world_of(arena, ENTITIES, &types);
+	const voe_math_double3 far = { 100000.123456789, -0.05, 1e7 + 0.001 };
+	voe_authoring_text out = { 0 };
+
+	VOE_TEST_CHECK(voe_scene_transform_add(first, authored(first, 4, "Far"),
+					       (voe_scene_transform){
+		.position = far,
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	}));
+	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &out));
+
+	struct types second_types;
+	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
+	voe_authoring_kept kept = { 0 };
+
+	VOE_TEST_CHECK(out.text != NULL &&
+		       voe_authoring_scene_read(out.text, out.size, second, arena,
+						&kept));
+	VOE_TEST_CHECK_INT(voe_ecs_entity_count(second), 1);
+
+	const voe_scene_transform *back =
+		voe_scene_transform_get(second, entity_with_id(second, 4));
+
+	VOE_TEST_CHECK(back != NULL &&
+		       memcmp(&back->position, &far, sizeof(far)) == 0);
 	voe_base_arena_destroy(arena);
 }
 
@@ -756,6 +791,7 @@ int main(void)
 {
 	test_round_trip_text_first();
 	test_round_trip_world_first();
+	test_far_position_round_trip();
 	test_colour_round_trip();
 	test_refusals();
 	test_shapes_refusals();

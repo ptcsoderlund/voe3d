@@ -91,6 +91,10 @@ function(voe_allowed_deps folder out_var)
         set(deps base)
     elseif(folder STREQUAL "scene")
         set(deps ecs math base)
+    elseif(folder STREQUAL "physics")
+        # physics sits between scene and 3d (ADR-0253): colliders read a
+        # transform, and 3d draws them, so neither of the two holds collision.
+        set(deps scene ecs math base)
     elseif(folder STREQUAL "assets")
         set(deps platform math base)
     elseif(folder STREQUAL "authoring")
@@ -132,7 +136,9 @@ function(voe_allowed_deps folder out_var)
         # no render header.
         set(deps ui text render assets math base)
     elseif(folder STREQUAL "3d")
-        set(deps render scene ecs assets math base)
+        # 3d names physics to draw a collider's lines and to name the collider
+        # that fits a built-in shape (ADR-0253).
+        set(deps render physics scene ecs assets math base)
     elseif(folder STREQUAL "sprite")
         # sprite sits above 3d rather than beside text, which is the one place
         # this map departs from the tree in CLAUDE.md as it was first drawn.
@@ -147,7 +153,9 @@ function(voe_allowed_deps folder out_var)
         # game is the loop a shipped game runs: the world's type list, one frame
         # and the whole run (0237). It needs no field descriptions, so it never
         # names authoring, which is what keeps it linkable into a game's tree.
-        set(deps base math ecs scene platform render 3d app)
+        # physics because its world holds colliders and bodies and runs the
+        # move (0253).
+        set(deps base math ecs scene physics platform render 3d app)
     elseif(folder STREQUAL "dev")
         # dev may depend on anything, app included: it is the one program a
         # person runs to see the current state, so whatever exists is fair game.
@@ -170,7 +178,8 @@ function(voe_allowed_deps folder out_var)
         # game for the one list of component types a project's world registers
         # (0237): the world the editor holds and the world the cook writes for
         # must register the same types, or the cook names one the game never did.
-        set(deps base math ecs scene platform render text ui 3d authoring app theme game)
+        # It names physics to fit a new collider to its entity's shape (0253).
+        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

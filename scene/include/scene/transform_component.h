@@ -1,6 +1,11 @@
 // Where a thing is: a position, a rotation and a scale, and the matrix those
 // three become. Read by anyone, const; written only through
-// scene/transform_system.h.
+// scene/transform_system.h, which also says how often its drain reports.
+//
+// THE POSITION IS DOUBLE AND THE GPU NEVER SEES IT (ADR-0250). At 100 km a float
+// keeps only ~8 mm; a difference of two doubles keeps it. So every matrix is
+// about a point the caller names, normally the eye, and rotation and scale stay
+// float.
 //
 // THERE IS NO PARENT AND NO HIERARCHY, DELIBERATELY. A transform is a world
 // transform and nothing else, so the matrix below needs no walk and no cache and
@@ -47,8 +52,6 @@
 // it is the normal matrix, and 3d/src/normal_matrix.c answers it there rather
 // than this module forbidding it here.
 //
-// scene/transform_system.h says how often the drain reports what it settled.
-//
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a build
 // that asks for descriptions also has voe_scene_transform_description(), and one
 // that does not has the same struct and nothing more.
@@ -60,6 +63,7 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
+#include <math/double3.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
 #include <math/quat.h>
@@ -70,7 +74,7 @@
 // struct with the scale filled in — there is no identity constant, because
 // every caller so far has all three numbers to say.
 #define VOE_SCENE_TRANSFORM_FIELDS(F, F_READ_ONLY) \
-	F(voe_math_float3, position, FLOAT3)       \
+	F(voe_math_double3, position, DOUBLE3)     \
 	F(voe_math_quat, rotation, QUAT)           \
 	F(voe_math_float3, scale, FLOAT3)
 
@@ -91,8 +95,10 @@ VOE_BASE_DESCRIBE_STRUCT(voe_scene_transform, VOE_SCENE_TRANSFORM_FIELDS)
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_transform_key;
 
-// T · R · S, in this engine's row-major layout, ready to be handed to the GPU as
-// sixteen floats.
+// T · R · S about `origin`, in this engine's row-major layout, ready to be handed
+// to the GPU as sixteen floats. T is the position minus `origin`, subtracted in
+// double and only then narrowed, so the matrix places the thing relative to a
+// point the caller names, normally the eye.
 //
 // TRANSLATE, THEN ROTATE, THEN SCALE — READ RIGHT TO LEFT. The matrix is
 // T · R · S, so a point is scaled first, then rotated, then moved: the order
@@ -106,7 +112,8 @@ extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_transform_key;
 // stored one is a second copy of the truth that something has to remember to
 // invalidate. If that ever measures slow it becomes a cached column in this
 // table, which is a change to this module and nothing else.
-voe_math_float4x4 voe_scene_transform_matrix(voe_scene_transform transform);
+voe_math_float4x4 voe_scene_transform_matrix(voe_scene_transform transform,
+					      voe_math_double3 origin);
 
 // NULL when the entity has no transform, or is not alive any more. The pointer
 // is into the table and is good until the next add or remove.

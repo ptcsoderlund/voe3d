@@ -30,6 +30,7 @@
 #include <3d/mesh_component.h>
 #include <base/error.h>
 #include <ecs/world.h>
+#include <math/double3.h>
 #include <math/float2.h>
 #include <math/float4.h>
 #include <render/device.h>
@@ -50,12 +51,12 @@ voe_3d_material voe_dev_quad_material(voe_math_float4 colour,
 				      bool unlit);
 
 // An upright square quad at `position`, `size` metres across.
-voe_scene_transform voe_dev_quad_at(voe_math_float3 position, float size);
+voe_scene_transform voe_dev_quad_at(voe_math_double3 position, float size);
 
 // One element panel entity: a transform and a panel component `millimetres`
 // big in `layer`. Its range is written every frame by main.c.
 [[nodiscard]] bool voe_dev_add_panel(voe_ecs_world *world,
-				     voe_math_float3 position, float scale,
+				     voe_math_double3 position, float scale,
 				     voe_math_float2 millimetres,
 				     voe_3d_layer layer, voe_ecs_entity *out);
 

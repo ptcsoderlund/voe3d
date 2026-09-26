@@ -14,6 +14,7 @@
 #include <game/project.h>
 #include <game/world.h>
 
+#include <math/double3.h>
 #include <math/float3.h>
 #include <math/quat.h>
 
@@ -70,10 +71,10 @@ void follow_camera_system_run(voe_ecs_world *world)
 			continue;
 		voe_scene_transform moved = *own;
 
-		moved.position = voe_math_float3_sub(
+		moved.position = voe_math_double3_sub(
 			target->position,
-			voe_math_float3_scale(forward_of(own->rotation),
-					      rows[i].distance));
+			voe_math_double3_from_float3(voe_math_float3_scale(
+				forward_of(own->rotation), rows[i].distance)));
 		if (!voe_scene_transform_submit(world,
 						(voe_scene_transform_intent){
 							entities[i], moved }))

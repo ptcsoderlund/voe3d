@@ -45,7 +45,8 @@ static const struct voe_ecs_key transform_intent_key = {
 	"voe_scene_transform_intent"
 };
 
-// Long enough for the longest sentence below with four `%g` floats in it.
+// Long enough for the longest sentence below with four `%g` floats or three
+// `%.15g` doubles in it.
 #define REASON 160
 
 // What settling decided about one intent. The middle one is a correction the
@@ -65,6 +66,11 @@ static uint32_t run_count;
 static bool run_kept;
 
 static bool finite_vector(voe_math_float3 v)
+{
+	return isfinite(v.x) && isfinite(v.y) && isfinite(v.z);
+}
+
+static bool finite_position(voe_math_double3 v)
 {
 	return isfinite(v.x) && isfinite(v.y) && isfinite(v.z);
 }
@@ -135,12 +141,13 @@ static settling settled(voe_scene_transform *transform, char *reason,
 {
 	float length;
 
-	if (!finite_vector(transform->position)) {
+	// %.15g, because a position is double and 100 km out %g would print
+	// 100000.25 and 100000.26 alike.
+	if (!finite_position(transform->position)) {
 		(void)snprintf(reason, size,
-			       "position was not finite (%g, %g, %g), kept the last valid transform",
-			       (double)transform->position.x,
-			       (double)transform->position.y,
-			       (double)transform->position.z);
+			       "position was not finite (%.15g, %.15g, %.15g), kept the last valid transform",
+			       transform->position.x, transform->position.y,
+			       transform->position.z);
 		return SETTLED_KEPT;
 	}
 

@@ -4,16 +4,15 @@
 and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
-- `main.c` — reads the command line, opens a project, the window and the device, makes the arena,
-  the one font, the themes and the interface, uploads the built-in shapes, and runs the loop, which
-  flies a view under the right button, until a close goes ahead or the picture is written.
+- `main.c` — opens a project, the window and the device, makes the arena, font, themes and
+  interface, uploads the shapes, opens the views on the scene's camera, and runs the loop until a
+  close goes ahead or the picture is written.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
-- `world_step.h` — the world's step once a frame, the structural queue then every owning system,
-  and why in that order and all of them always.
-- `world_step.c` — the queue applied, then the project's replace intents, then transform, identity,
-  light and shape systems run.
+- `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, and
+  why the editor runs no move.
+- `world_step.c` — the one call to `voe_game_world_step`.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -152,12 +151,12 @@ carries it out.
   label.
 - `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the
   right-button fly, the view a pointer is over and where in its picture, the colours a view is drawn
-  with, and the 480×270 preview of what the world's camera sees.
-- `view.c` — the views' orbit, which owns the eye, the drag's rates per millimetre, the fly's turn
-  about the eye and its rates, their targets, the world's first light row and the lighter half of the
-  theme's inverse pair the selection is outlined in, dimmed for a gizmo handle at rest.
+  with, the 480×270 preview of what the world's camera sees, and the views opened on that camera.
+- `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
+  the focus set to the world camera's position, the world's first light row and the selection's
+  outline colour, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view with the world, the
-  selection's outline, its gizmo and the camera's marker, and the device capacities those passes need.
+  selection's outline, its collider, its gizmo and the camera's marker, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
   walked in order, each pass begun, drawn by `3d`'s draw system with the world's camera marked, and
   ended, stopping at the first refused pass.
@@ -182,7 +181,8 @@ carries it out.
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
 - `entities.h` — Add entity (an identity and a transform, nothing else), duplicating and deleting
-  entities and giving or taking their components, all through the world's structural queue. Its header says
+  entities and giving or taking their components, a new collider fitting the shape, all through the
+  world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.
 - `entities.c` — the new id and name, the queued rows, and the destroy that
   undoes a half-made entity.

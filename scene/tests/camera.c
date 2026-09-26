@@ -22,6 +22,7 @@
 #include <ecs/component.h>
 #include <ecs/intent.h>
 #include <ecs/world.h>
+#include <math/double3.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
 #include <math/quat.h>
@@ -166,16 +167,43 @@ static void registration_says_what_a_camera_is(voe_base_arena *arena)
 		check_description(found);
 }
 
-// Five metres back along +Z, unrotated: the origin is five metres in front.
+// A point as the view takes it: its position minus the eye, in double.
+static voe_math_float3 relative(voe_math_double3 point,
+				voe_scene_transform pose)
+{
+	return voe_math_double3_to_float3(
+		voe_math_double3_sub(point, pose.position));
+}
+
+// Five metres back along +Z, unrotated: the origin is five metres in front, and
+// the view itself carries no translation.
 static void the_view_undoes_the_position(void)
 {
 	voe_scene_transform pose = unmoved();
 	voe_math_float4x4 view;
 
-	pose.position = (voe_math_float3){ 0.0f, 0.0f, 5.0f };
+	pose.position = (voe_math_double3){ 0.0, 0.0, 5.0 };
 	VOE_TEST_CHECK(voe_scene_camera_view(pose, &view));
-	check_point(view, (voe_math_float3){ 0.0f, 0.0f, 0.0f },
+	check_point(view, relative((voe_math_double3){ 0.0, 0.0, 0.0 }, pose),
 		    (voe_math_float3){ 0.0f, 0.0f, -5.0f });
+	VOE_TEST_CHECK_FLOAT(view.m[0][3], 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(view.m[1][3], 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(view.m[2][3], 0.0f, 0.0f);
+}
+
+// 100 km out a float steps in ~8 mm, so a point 1 mm in front of the eye would
+// round onto it. Taken relative to the eye in double, it stays 1 mm in front.
+static void a_far_camera_sees_a_millimetre(void)
+{
+	voe_scene_transform pose = unmoved();
+	voe_math_float4x4 view;
+
+	pose.position = (voe_math_double3){ 100000.0, 0.0, 100000.0 };
+	VOE_TEST_CHECK(voe_scene_camera_view(pose, &view));
+	check_point(view,
+		    relative((voe_math_double3){ 100000.0, 0.0, 99999.999 },
+			     pose),
+		    (voe_math_float3){ 0.0f, 0.0f, -0.001f });
 }
 
 // Rolled a quarter turn left about +Z: what is above the world's origin is to
@@ -264,6 +292,7 @@ int main(void)
 
 	registration_says_what_a_camera_is(arena);
 	the_view_undoes_the_position();
+	a_far_camera_sees_a_millimetre();
 	the_view_keeps_the_roll();
 	a_pose_scaled_to_nothing_sees_nothing();
 	a_good_lens_applies(arena);

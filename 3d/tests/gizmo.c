@@ -16,6 +16,7 @@
 
 #include <base/arena.h>
 
+#include <math/double3.h>
 #include <math/float3.h>
 
 #include <render/device.h>
@@ -52,8 +53,8 @@ static const voe_math_float3 ACROSS[3] = { { 0.0f, 0.0f, 1.0f },
 static voe_3d_gizmo a_gizmo(void)
 {
 	return (voe_3d_gizmo){
-		.origin = WHERE,
-		.eye = { 1.0f, 2.0f, 13.0f },
+		.origin = voe_math_double3_from_float3(WHERE),
+		.eye = { 1.0, 2.0, 13.0 },
 		.shaft = SHAFT,
 	};
 }
@@ -62,8 +63,8 @@ static voe_3d_gizmo a_gizmo(void)
 static voe_3d_ray aimed_at(voe_math_float3 target, voe_math_float3 from)
 {
 	return (voe_3d_ray){
-		.origin = voe_math_float3_add(
-			target, voe_math_float3_scale(from, REACH)),
+		.origin = voe_math_double3_from_float3(voe_math_float3_add(
+			target, voe_math_float3_scale(from, REACH))),
 		.direction = voe_math_float3_neg(from),
 	};
 }
@@ -103,7 +104,7 @@ static void each_arrow_is_hit_across_its_middle(void)
 
 	for (axis = 0; axis < 3; axis++) {
 		voe_math_float3 middle = voe_math_float3_add(
-			gizmo.origin, along(axis, 0.5f * SHAFT));
+			WHERE, along(axis, 0.5f * SHAFT));
 
 		VOE_TEST_CHECK_INT(voe_3d_gizmo_hit(
 					   gizmo, aimed_at(middle,
@@ -124,7 +125,7 @@ static void each_square_is_hit_through_its_middle(void)
 
 	for (plane = 0; plane < 3; plane++) {
 		voe_math_float3 centre = voe_math_float3_add(
-			gizmo.origin,
+			WHERE,
 			voe_math_float3_add(along(plane, middle),
 					    along((plane + 1) % 3, middle)));
 
@@ -142,14 +143,14 @@ static void empty_space_hits_nothing(void)
 {
 	voe_3d_gizmo gizmo = a_gizmo();
 	voe_math_float3 beside = voe_math_float3_add(
-		gizmo.origin, (voe_math_float3){ 10.0f, 10.0f, 0.0f });
+		WHERE, (voe_math_float3){ 10.0f, 10.0f, 0.0f });
 	voe_3d_ray ray = aimed_at(beside, AXIS[2]);
 
 	VOE_TEST_CHECK_INT(voe_3d_gizmo_hit(gizmo, ray), VOE_3D_GIZMO_NONE);
 
 	gizmo.shaft = 0.0f;
 	VOE_TEST_CHECK_INT(voe_3d_gizmo_hit(gizmo,
-					    aimed_at(gizmo.origin, AXIS[2])),
+					    aimed_at(WHERE, AXIS[2])),
 			   VOE_3D_GIZMO_NONE);
 }
 
@@ -157,12 +158,14 @@ static void empty_space_hits_nothing(void)
 // which is what covering the same pixels at any distance means.
 static void twice_as_far_is_twice_the_shaft(void)
 {
-	voe_math_float3 origin = { 0.0f, 0.0f, 0.0f };
+	voe_math_double3 origin = { 0.0, 0.0, 0.0 };
 	voe_platform_size size = { WIDTH, HEIGHT };
 	voe_3d_gizmo near_gizmo =
-		voe_3d_gizmo_at(origin, the_view(5.0f), size, 90.0f);
+		voe_3d_gizmo_at(origin, the_view(5.0f),
+				(voe_math_double3){ 0.0, 0.0, 5.0 }, size, 90.0f);
 	voe_3d_gizmo far_gizmo =
-		voe_3d_gizmo_at(origin, the_view(10.0f), size, 90.0f);
+		voe_3d_gizmo_at(origin, the_view(10.0f),
+				(voe_math_double3){ 0.0, 0.0, 10.0 }, size, 90.0f);
 
 	VOE_TEST_CHECK(near_gizmo.shaft > 0.0f);
 	VOE_TEST_CHECK_FLOAT(far_gizmo.shaft, near_gizmo.shaft * 2.0f, 1e-5f);
@@ -175,9 +178,9 @@ static void twice_as_far_is_twice_the_shaft(void)
 static void an_axis_grab_keeps_the_other_two(void)
 {
 	voe_3d_gizmo gizmo = a_gizmo();
-	voe_math_float3 on_x = voe_math_float3_add(gizmo.origin,
+	voe_math_float3 on_x = voe_math_float3_add(WHERE,
 						   along(0, 0.5f * SHAFT));
-	voe_math_float3 grabbed = { 0.0f, 0.0f, 0.0f };
+	voe_math_double3 grabbed = { 0.0, 0.0, 0.0 };
 
 	VOE_TEST_CHECK(voe_3d_gizmo_grab(gizmo, VOE_3D_GIZMO_X,
 					 aimed_at(on_x, AXIS[2]), &grabbed));
@@ -192,10 +195,10 @@ static void a_plane_grab_keeps_its_normal(void)
 {
 	voe_3d_gizmo gizmo = a_gizmo();
 	voe_math_float3 in_zx = voe_math_float3_add(
-		gizmo.origin,
+		WHERE,
 		voe_math_float3_add(along(2, 0.4f * SHAFT),
 				    along(0, 0.4f * SHAFT)));
-	voe_math_float3 grabbed = { 0.0f, 0.0f, 0.0f };
+	voe_math_double3 grabbed = { 0.0, 0.0, 0.0 };
 
 	VOE_TEST_CHECK(voe_3d_gizmo_grab(gizmo, VOE_3D_GIZMO_ZX,
 					 aimed_at(in_zx, AXIS[1]), &grabbed));
@@ -209,15 +212,16 @@ static void a_plane_grab_keeps_its_normal(void)
 static void a_ray_in_a_plane_is_refused(void)
 {
 	voe_3d_gizmo gizmo = a_gizmo();
-	voe_3d_ray across = { .origin = voe_math_float3_add(gizmo.origin,
-							    along(1, REACH)),
+	voe_3d_ray across = { .origin = voe_math_double3_from_float3(
+					      voe_math_float3_add(
+						      WHERE, along(1, REACH))),
 			      .direction = AXIS[0] };
-	voe_math_float3 untouched = { 9.0f, 9.0f, 9.0f };
+	voe_math_double3 untouched = { 9.0, 9.0, 9.0 };
 
 	VOE_TEST_CHECK(!voe_3d_gizmo_grab(gizmo, VOE_3D_GIZMO_ZX, across,
 					  &untouched));
 	VOE_TEST_CHECK(!voe_3d_gizmo_grab(gizmo, VOE_3D_GIZMO_NONE,
-					  aimed_at(gizmo.origin, AXIS[2]),
+					  aimed_at(WHERE, AXIS[2]),
 					  &untouched));
 	VOE_TEST_CHECK_FLOAT(untouched.x, 9.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(untouched.y, 9.0f, 0.0f);
@@ -228,7 +232,9 @@ static void a_ray_in_a_plane_is_refused(void)
 // A gizmo of the usual size seen from `eye`.
 static voe_3d_gizmo seen_from(voe_math_float3 eye)
 {
-	return (voe_3d_gizmo){ .origin = WHERE, .eye = eye, .shaft = SHAFT };
+	return (voe_3d_gizmo){ .origin = voe_math_double3_from_float3(WHERE),
+			       .eye = voe_math_double3_from_float3(eye),
+			       .shaft = SHAFT };
 }
 
 // What one handle costs: an arrow is a shaft quad and a head triangle, a square
@@ -291,11 +297,12 @@ static void every_triangle_faces_the_eye(voe_base_arena *arena)
 					voe_math_float3_sub(v[at[2]].position,
 							    a));
 
-				VOE_TEST_CHECK(
-					voe_math_float3_dot(
-						normal,
-						voe_math_float3_sub(gizmo.eye,
-								    a)) > 0.0f);
+				// The quads are about the eye, so the eye
+				// is at nought in their space.
+				VOE_TEST_CHECK(voe_math_float3_dot(
+						       normal,
+						       voe_math_float3_neg(a)) >
+					       0.0f);
 			}
 	}
 }

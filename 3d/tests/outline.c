@@ -77,10 +77,13 @@ static voe_scene_camera the_lens(void)
 	};
 }
 
+// Where the camera stands, and what every outline's quads are about.
+static const voe_math_double3 EYE = { 0.0, 0.0, 5.0 };
+
 static voe_scene_transform the_pose(void)
 {
 	return (voe_scene_transform){
-		.position = { 0.0f, 0.0f, 5.0f },
+		.position = EYE,
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	};
@@ -170,7 +173,7 @@ static void a_cube_seen_square_on_has_four_edges(
 	VOE_TEST_CHECK(voe_3d_outline_quads(world, outlining(cube, geometries),
 					    the_view((voe_platform_size){
 						    WIDTH, HEIGHT }),
-					    arena, &mesh));
+					    EYE, arena, &mesh));
 	VOE_TEST_CHECK_INT(mesh.vertex_count, 16);
 	VOE_TEST_CHECK_INT(mesh.index_count, 24);
 
@@ -201,7 +204,7 @@ static void a_turned_cube_has_six(voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_3d_outline_quads(world, outlining(cube, geometries),
 					    the_view((voe_platform_size){
 						    WIDTH, HEIGHT }),
-					    arena, &mesh));
+					    EYE, arena, &mesh));
 	VOE_TEST_CHECK_INT(mesh.vertex_count, 24);
 	VOE_TEST_CHECK_INT(mesh.index_count, 36);
 }
@@ -234,10 +237,12 @@ static void twice_as_far_is_twice_as_wide(
 
 	VOE_TEST_CHECK(voe_3d_outline_quads(near_world,
 					    outlining(near_cube, geometries),
-					    the_view(size), arena, &near_mesh));
+					    the_view(size), EYE, arena,
+					    &near_mesh));
 	VOE_TEST_CHECK(voe_3d_outline_quads(far_world,
 					    outlining(far_cube, geometries),
-					    the_view(size), arena, &far_mesh));
+					    the_view(size), EYE, arena,
+					    &far_mesh));
 	VOE_TEST_CHECK_FLOAT(first_quad_width(far_mesh),
 			     2.0f * first_quad_width(near_mesh), 1e-5f);
 	// And that width is the two pixels it was asked for: at four and a half
@@ -261,7 +266,7 @@ static void every_triangle_faces_the_eye(
 	voe_3d_outline_mesh mesh = { 0 };
 
 	VOE_TEST_CHECK(voe_3d_outline_quads(world, outlining(cube, geometries),
-					    view, arena, &mesh));
+					    view, EYE, arena, &mesh));
 
 	for (uint32_t i = 0; i + 2 < mesh.index_count; i += 3) {
 		voe_math_float3 a = mesh.vertices[mesh.indices[i]].position;
@@ -290,7 +295,7 @@ static void a_capsule_has_many_and_no_more_than_the_cap(
 					    outlining(capsule, geometries),
 					    the_view((voe_platform_size){
 						    WIDTH, HEIGHT }),
-					    arena, &mesh));
+					    EYE, arena, &mesh));
 	VOE_TEST_CHECK(mesh.vertex_count > 4 * 4);
 	VOE_TEST_CHECK(mesh.vertex_count <= VOE_3D_OUTLINE_VERTICES);
 	VOE_TEST_CHECK_INT(mesh.index_count, mesh.vertex_count / 4 * 6);
@@ -315,7 +320,7 @@ static void nothing_to_outline_is_false(
 	mesh.vertex_count = 7;
 
 	VOE_TEST_CHECK(!voe_3d_outline_quads(
-		world, outlining(nothing, geometries), view, arena, &mesh));
+		world, outlining(nothing, geometries), view, EYE, arena, &mesh));
 
 	// A transform and no shape.
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &bare));
@@ -324,7 +329,7 @@ static void nothing_to_outline_is_false(
 		(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 				       .scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(!voe_3d_outline_quads(world, outlining(bare, geometries),
-					     view, arena, &mesh));
+					     view, EYE, arena, &mesh));
 
 	// A shape and no transform.
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &nowhere));
@@ -333,16 +338,16 @@ static void nothing_to_outline_is_false(
 						.kind = VOE_3D_SHAPE_CUBE,
 						.colour = VOE_3D_SHAPE_GREY }));
 	VOE_TEST_CHECK(!voe_3d_outline_quads(
-		world, outlining(nowhere, geometries), view, arena, &mesh));
+		world, outlining(nowhere, geometries), view, EYE, arena, &mesh));
 
 	// A kind nothing in this build draws.
 	unknown = a_shape(world, 99, 0.0f, 0.0f);
 	VOE_TEST_CHECK(!voe_3d_outline_quads(
-		world, outlining(unknown, geometries), view, arena, &mesh));
+		world, outlining(unknown, geometries), view, EYE, arena, &mesh));
 
 	// And a caller with no store.
 	VOE_TEST_CHECK(!voe_3d_outline_quads(world, outlining(unknown, NULL),
-					     view, arena, &mesh));
+					     view, EYE, arena, &mesh));
 
 	VOE_TEST_CHECK(mesh.vertices == &sentinel);
 	VOE_TEST_CHECK_INT(mesh.vertex_count, 7);
@@ -379,7 +384,7 @@ static voe_render_picture a_drawn_frame(voe_ecs_world *world,
 					voe_3d_outlined outlined)
 {
 	voe_platform_size size = { DRAWN_WIDTH, DRAWN_HEIGHT };
-	voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera;
 	voe_render_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;

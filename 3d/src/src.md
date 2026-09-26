@@ -15,7 +15,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   turns a material's numbers into a record `render` holds.
 - `shape_component.c` — the shape table: its key, its registration as described
   with its default row, its need of a transform and its intent, its creation
-  call and the reads.
+  call, the reads and the collider that fits each kind.
 - `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
   repoints a changed kind and drops both once the shape is gone.
@@ -39,11 +39,19 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the quad each of them becomes, a half width per vertex from that vertex's own depth.
 - `camera_marker.c` — the marker's twenty edges in the camera's own space, their quads with
   outline.c's width and winding mirrored, and the slab test against the box.
+- `collider_marker.c` — each kind's segments in the shape's own space, a circle of 24, and their
+  quads with camera_marker.c's width and winding.
 - `gizmo.c` — the shaft that covers the same pixels at any distance, the ray against each handle
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
-- `draw_system.c` — the camera's view and the sun, the solid pass and the blended one furthest
-  first, a camera marker with the world's solids, then the outline and the move gizmo.
+- `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes and panels,
+  the world's solids drawn as found, the held-back groups and the marks in their order.
+- `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
+- `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
+  or in table order, and the record a mesh is drawn with.
+- `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
+- `draw_marks.c` — the camera marker, the outline, a collider's lines and the move gizmo, each as
+  transient quads.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.

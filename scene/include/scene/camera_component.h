@@ -23,6 +23,10 @@
 // view matrix below is a different matter: it is where the camera is and which
 // way it faces, which is scene's own.
 //
+// THE VIEW SEES THE WORLD RELATIVE TO ITS OWN EYE (ADR-0250). A point is taken
+// into it as its position minus the eye, in double, before this matrix, so the
+// view itself carries no translation and nothing 100 km out loses precision.
+//
 // A CAMERA LOOKS ALONG ITS OWN -Z (CLAUDE.md), so an unrotated pose looks down
 // the world's -Z with +Y up.
 //
@@ -58,9 +62,10 @@ VOE_BASE_DESCRIBE_STRUCT(voe_scene_camera, VOE_SCENE_CAMERA_FIELDS)
 
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_camera_key;
 
-// The world-to-camera matrix for a camera at `pose`: the inverse of
-// voe_scene_transform_matrix(pose). No projection in it and no flip. False, with
-// `out` untouched, when that matrix has no inverse.
+// The eye-relative world-to-camera matrix for a camera at `pose`: the inverse of
+// voe_scene_transform_matrix(pose, pose.position), so it has no translation. No
+// projection in it and no flip. False, with `out` untouched, when that matrix
+// has no inverse.
 [[nodiscard]] bool voe_scene_camera_view(voe_scene_transform pose,
 					 voe_math_float4x4 *out);
 

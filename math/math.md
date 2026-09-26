@@ -7,6 +7,8 @@ inline; no systems here, because nothing here owns an identity.
 - `include` — the public headers, in `include/math/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
+- `include/math/double3.h` — three doubles, for a world position and nothing
+  else, with add, sub, and a widen and narrow to float3 for differences.
 - `include/math/float2.h` — a two-component vector, and the operations on it.
 - `include/math/float3.h` — a three-component vector; the only one with a cross
   product.

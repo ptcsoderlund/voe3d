@@ -31,8 +31,15 @@
 // divides.
 #define PARALLEL 1e-9f
 
-// The clip-space point of a pixel's centre at depth `z`, taken back into world
-// space by `inverse` and divided by its own w.
+// A ray in one entity's own space, all float: the world ray's origin has been
+// subtracted in double before anything was narrowed.
+struct local_ray {
+	voe_math_float3 origin;
+	voe_math_float3 direction;
+};
+
+// The clip-space point of a pixel's centre at depth `z`, taken back into
+// eye-relative space by `inverse` and divided by its own w.
 static voe_math_float3 unproject(voe_math_float4x4 inverse, float x, float y,
 				 float z)
 {
@@ -56,7 +63,7 @@ static voe_math_float3 unproject(voe_math_float4x4 inverse, float x, float y,
 // Both faces count: a ray leaving a shape through its far side is still inside
 // that shape, and refusing a back face would let a click through a box a person
 // is standing in.
-static bool ray_hits_triangle(voe_3d_ray ray, voe_math_float3 a,
+static bool ray_hits_triangle(struct local_ray ray, voe_math_float3 a,
 			      voe_math_float3 b, voe_math_float3 c, float *t)
 {
 	voe_math_float3 ab = voe_math_float3_sub(b, a);
@@ -107,8 +114,8 @@ static bool has_cameras(const voe_ecs_world *world)
 	return false;
 }
 
-voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_platform_size size,
-			   voe_math_float2 point)
+voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_math_double3 eye,
+			   voe_platform_size size, voe_math_float2 point)
 {
 	float width = (float)size.width;
 	float height = (float)size.height;
@@ -122,7 +129,7 @@ voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_platform_size size,
 			"a pick ray through a picture with no area");
 
 	// The two matrices the pass was opened with, inverted as one product:
-	// clip to world in a single multiply per point.
+	// clip to eye-relative space in a single multiply per point.
 	inverse = voe_math_float4x4_inverse(
 		voe_math_float4x4_mul(view.projection, view.view));
 
@@ -136,7 +143,9 @@ voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_platform_size size,
 	near_point = unproject(inverse, x, y, 1.0f);
 	far_point = unproject(inverse, x, y, 0.0f);
 
-	return (voe_3d_ray){ .origin = near_point,
+	return (voe_3d_ray){ .origin = voe_math_double3_add(
+				     eye, voe_math_double3_from_float3(
+						  near_point)),
 			     .direction = voe_math_float3_normalize(
 				     voe_math_float3_sub(far_point,
 							 near_point)) };
@@ -158,12 +167,14 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		const voe_3d_shape_geometry *geometry =
 			voe_3d_shape_geometry_of(geometries, rows[i].kind);
 		voe_math_float4x4 matrix;
-		voe_3d_ray local;
+		struct local_ray local;
 
 		if (transform == NULL || geometry == NULL)
 			continue;
 
-		matrix = voe_scene_transform_matrix(*transform);
+		// About the ray's origin, so the ray starts at nought and only
+		// the entity's small offset from it is narrowed (ADR-0250).
+		matrix = voe_scene_transform_matrix(*transform, ray.origin);
 		// Scaled away to nothing: drawn as nothing, and its matrix
 		// cannot be inverted (math/float4x4.h asserts on a singular
 		// one).
@@ -173,8 +184,8 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		matrix = voe_math_float4x4_inverse(matrix);
 		// The direction is carried over and not normalised again, so
 		// `t` below is the same number in both spaces — see the header.
-		local.origin =
-			voe_math_float4x4_transform_point(matrix, ray.origin);
+		local.origin = voe_math_float4x4_transform_point(
+			matrix, (voe_math_float3){ 0.0f, 0.0f, 0.0f });
 		local.direction =
 			voe_math_float4x4_transform_dir(matrix, ray.direction);
 

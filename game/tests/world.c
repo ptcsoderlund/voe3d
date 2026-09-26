@@ -1,7 +1,8 @@
-// A fresh game world has every one of the eight types registered: each key
-// resolves through voe_ecs_component_type, which asserts on a key nothing
-// registered, and the eight answers are eight different types. Needs no
-// window and no graphics card.
+// A fresh game world has every one of the eleven types registered: each public
+// key resolves through voe_ecs_component_type, which asserts on a key nothing
+// registered, the ten answers are ten different types, and the world counts
+// eleven, the eleventh the transforms' previous table, whose key is scene's
+// own. Needs no window and no graphics card.
 #include <game/world.h>
 
 #include <3d/material_component.h>
@@ -13,6 +14,9 @@
 
 #include <ecs/component.h>
 
+#include <physics/body_component.h>
+#include <physics/collider_component.h>
+
 #include <scene/camera_component.h>
 #include <scene/identity_component.h>
 #include <scene/light_component.h>
@@ -20,7 +24,8 @@
 
 #include <testing/test.h>
 
-#define TYPES 8
+// The public keys; the previous table is the one more the world counts.
+#define TYPES 10
 
 int main(void)
 {
@@ -29,6 +34,7 @@ int main(void)
 		&voe_scene_light_key,	  &voe_scene_camera_key,
 		&voe_3d_mesh_key,	  &voe_3d_material_key,
 		&voe_3d_panel_key,	  &voe_3d_shape_key,
+		&voe_physics_collider_key, &voe_physics_body_key,
 	};
 	voe_base_arena *arena = voe_base_arena_new(1 << 20);
 	voe_ecs_world *world = voe_game_world_new(arena);
@@ -40,6 +46,8 @@ int main(void)
 	for (int i = 0; i < TYPES; i++)
 		for (int j = i + 1; j < TYPES; j++)
 			VOE_TEST_CHECK(types[i].value != types[j].value);
+	VOE_TEST_CHECK(voe_ecs_component_type_count(world) ==
+		       VOE_GAME_WORLD_TYPES);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

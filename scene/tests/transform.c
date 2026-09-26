@@ -40,6 +40,7 @@
 #include <ecs/component.h>
 #include <ecs/intent.h>
 #include <ecs/world.h>
+#include <math/double3.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
 #include <math/quat.h>
@@ -69,6 +70,14 @@ static void check_vector(voe_math_float3 actual, voe_math_float3 expected)
 	VOE_TEST_CHECK_FLOAT(actual.z, expected.z, TOLERANCE);
 }
 
+// A position is double, and one that went in comes out bit for bit.
+static void check_position(voe_math_double3 actual, voe_math_double3 expected)
+{
+	VOE_TEST_CHECK_FLOAT(actual.x, expected.x, 0.0);
+	VOE_TEST_CHECK_FLOAT(actual.y, expected.y, 0.0);
+	VOE_TEST_CHECK_FLOAT(actual.z, expected.z, 0.0);
+}
+
 static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
@@ -86,7 +95,7 @@ static voe_scene_transform known(void)
 {
 	voe_math_float3 axis = { 0.0f, 1.0f, 0.0f };
 	voe_scene_transform transform = {
-		.position = { 1.0f, 2.0f, 3.0f },
+		.position = { 1.0, 2.0, 3.0 },
 		.rotation = voe_math_quat_from_axis_angle(axis, QUARTER_TURN),
 		.scale = { 2.0f, 2.0f, 2.0f },
 	};
@@ -148,7 +157,8 @@ static voe_scene_transform row_of(const voe_ecs_world *world,
 
 static void the_matrix_is_translate_rotate_scale(void)
 {
-	voe_math_float4x4 m = voe_scene_transform_matrix(known());
+	voe_math_float4x4 m = voe_scene_transform_matrix(
+		known(), (voe_math_double3){ 0.0, 0.0, 0.0 });
 	voe_math_float3 origin = { 0.0f, 0.0f, 0.0f };
 	voe_math_float3 along_x = { 1.0f, 0.0f, 0.0f };
 	voe_math_float3 along_y = { 0.0f, 1.0f, 0.0f };
@@ -175,6 +185,23 @@ static void the_matrix_is_translate_rotate_scale(void)
 	VOE_TEST_CHECK_FLOAT(m.m[3][3], 1.0f, 0.0f);
 }
 
+// 100 km out a float steps in ~8 mm, so 100000.75 and 100000.25 as floats
+// would not differ by exactly 0.5. Subtracted in double first, they do.
+static void the_matrix_is_about_an_origin(void)
+{
+	voe_scene_transform far = {
+		.position = { 100000.75, 0.0, 0.0 },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_math_float4x4 m = voe_scene_transform_matrix(
+		far, (voe_math_double3){ 100000.25, 0.0, 0.0 });
+
+	VOE_TEST_CHECK_FLOAT(m.m[0][3], 0.5f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(m.m[1][3], 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(m.m[2][3], 0.0f, 0.0f);
+}
+
 static void a_transform_round_trips_through_the_table(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
@@ -191,7 +218,7 @@ static void a_transform_round_trips_through_the_table(voe_base_arena *arena)
 	if (read == NULL)
 		return;
 
-	check_vector(read->position, given.position);
+	check_position(read->position, given.position);
 	check_vector(read->scale, given.scale);
 	VOE_TEST_CHECK_FLOAT(read->rotation.x, given.rotation.x, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->rotation.y, given.rotation.y, 0.0f);
@@ -216,39 +243,39 @@ static void an_intent_lands_only_when_the_system_runs(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, thing, known()));
 
-	moved.position = (voe_math_float3){ 9.0f, 9.0f, 9.0f };
+	moved.position = (voe_math_double3){ 9.0, 9.0, 9.0 };
 	VOE_TEST_CHECK(voe_scene_transform_submit(
 		world, (voe_scene_transform_intent){ .entity = thing,
 						     .transform = moved }));
 
 	read = voe_scene_transform_get(world, thing);
 	if (read != NULL)
-		check_vector(read->position,
-			     (voe_math_float3){ 1.0f, 2.0f, 3.0f });
+		check_position(read->position,
+			       (voe_math_double3){ 1.0, 2.0, 3.0 });
 
 	voe_scene_transform_system_run(world);
 
 	read = voe_scene_transform_get(world, thing);
 	if (read != NULL)
-		check_vector(read->position,
-			     (voe_math_float3){ 9.0f, 9.0f, 9.0f });
+		check_position(read->position,
+			       (voe_math_double3){ 9.0, 9.0, 9.0 });
 
 	// Two submitters, and the second one wins: an intent carries the whole
 	// transform, so this is last-writer-wins rather than an accumulation in
 	// an order nobody chose.
-	moved.position = (voe_math_float3){ 1.0f, 0.0f, 0.0f };
+	moved.position = (voe_math_double3){ 1.0, 0.0, 0.0 };
 	VOE_TEST_CHECK(voe_scene_transform_submit(
 		world, (voe_scene_transform_intent){ .entity = thing,
 						     .transform = moved }));
-	moved.position = (voe_math_float3){ 2.0f, 0.0f, 0.0f };
+	moved.position = (voe_math_double3){ 2.0, 0.0, 0.0 };
 	VOE_TEST_CHECK(voe_scene_transform_submit(
 		world, (voe_scene_transform_intent){ .entity = thing,
 						     .transform = moved }));
 	voe_scene_transform_system_run(world);
 	read = voe_scene_transform_get(world, thing);
 	if (read != NULL)
-		check_vector(read->position,
-			     (voe_math_float3){ 2.0f, 0.0f, 0.0f });
+		check_position(read->position,
+			       (voe_math_double3){ 2.0, 0.0, 0.0 });
 }
 
 // An entity that dies between the submit and the drain takes its intent with it,
@@ -316,12 +343,12 @@ static void a_rotation_arrives_unit_length(voe_base_arena *arena)
 
 	// And the position beside it landed, because this was a correction to
 	// one field and not a refusal of the row.
-	stretched.position = (voe_math_float3){ 4.0f, 5.0f, 6.0f };
+	stretched.position = (voe_math_double3){ 4.0, 5.0, 6.0 };
 	stretched.rotation = lengthened(known().rotation, 2.0f);
 	VOE_TEST_CHECK(submit_raw(world, thing, stretched));
 	voe_scene_transform_system_run(world);
-	check_vector(row_of(world, thing).position,
-		     (voe_math_float3){ 4.0f, 5.0f, 6.0f });
+	check_position(row_of(world, thing).position,
+		       (voe_math_double3){ 4.0, 5.0, 6.0 });
 
 	drifted.rotation = lengthened(known().rotation, 1.0005f);
 	VOE_TEST_CHECK(submit_raw(world, thing, drifted));
@@ -344,23 +371,31 @@ static void a_row_with_no_valid_value_is_left_alone(voe_base_arena *arena)
 	voe_scene_transform not_a_number = known();
 
 	zeroed.rotation = (voe_math_quat){ 0.0f, 0.0f, 0.0f, 0.0f };
-	zeroed.position = (voe_math_float3){ 7.0f, 7.0f, 7.0f };
+	zeroed.position = (voe_math_double3){ 7.0, 7.0, 7.0 };
 	VOE_TEST_CHECK(submit_raw(world, thing, zeroed));
 	voe_scene_transform_system_run(world);
 
 	// The position it came with is refused with it: the whole row is one
 	// intent, and half of a refused one is not an edit anybody submitted.
-	check_vector(row_of(world, thing).position,
-		     (voe_math_float3){ 1.0f, 2.0f, 3.0f });
+	check_position(row_of(world, thing).position,
+		       (voe_math_double3){ 1.0, 2.0, 3.0 });
 	check_rotation(row_of(world, thing).rotation, known().rotation);
 
-	not_a_number.position = (voe_math_float3){ NAN, 2.0f, 3.0f };
+	not_a_number.position = (voe_math_double3){ NAN, 2.0, 3.0 };
 	VOE_TEST_CHECK(submit_raw(world, thing, not_a_number));
 	voe_scene_transform_system_run(world);
 
-	check_vector(row_of(world, thing).position,
-		     (voe_math_float3){ 1.0f, 2.0f, 3.0f });
+	check_position(row_of(world, thing).position,
+		       (voe_math_double3){ 1.0, 2.0, 3.0 });
 	check_rotation(row_of(world, thing).rotation, known().rotation);
+
+	// An infinity 100 km out: the report prints 100000.26, not 100000.3.
+	not_a_number.position = (voe_math_double3){ 100000.26, INFINITY, 3.0 };
+	VOE_TEST_CHECK(submit_raw(world, thing, not_a_number));
+	voe_scene_transform_system_run(world);
+
+	check_position(row_of(world, thing).position,
+		       (voe_math_double3){ 1.0, 2.0, 3.0 });
 }
 
 // The claim the typed call exists to not be special about: an intent through it
@@ -458,7 +493,7 @@ static void check_description(const voe_base_struct_description *description)
 	if (description->field_count != 3)
 		return;
 
-	check_field(&fields[0], "position", VOE_BASE_FIELD_FLOAT3,
+	check_field(&fields[0], "position", VOE_BASE_FIELD_DOUBLE3,
 		    offsetof(voe_scene_transform, position));
 	check_field(&fields[1], "rotation", VOE_BASE_FIELD_QUAT,
 		    offsetof(voe_scene_transform, rotation));
@@ -531,9 +566,7 @@ static void the_default_is_the_origin_unrotated_at_scale_one(
 	VOE_TEST_CHECK(row != NULL);
 	if (row == NULL)
 		return;
-	VOE_TEST_CHECK_FLOAT(row->position.x, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->position.y, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->position.z, 0.0f, 0.0f);
+	check_position(row->position, (voe_math_double3){ 0.0, 0.0, 0.0 });
 	VOE_TEST_CHECK_FLOAT(row->rotation.x, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(row->rotation.y, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(row->rotation.z, 0.0f, 0.0f);
@@ -543,11 +576,106 @@ static void the_default_is_the_origin_unrotated_at_scale_one(
 	VOE_TEST_CHECK_FLOAT(row->scale.z, 1.0f, 0.0f);
 }
 
+// A world that steps: the transform and its previous table, nothing else.
+static voe_ecs_world *stepping_world_of(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+
+	voe_scene_transform_previous_register(world, TRANSFORMS);
+	return world;
+}
+
+// A tenth of a millimetre, so "exact to the millimetre" holds with room.
+#define MILLIMETRE_TENTH 1e-4
+
+// 100 km out, where a float would keep only ~8 mm, two millimetres of travel
+// halve to one; a quarter turn halves to an eighth; a scale of 1 to 3 is 2.
+static void a_remembered_step_blends_to_the_current_one(voe_base_arena *arena)
+{
+	voe_ecs_world *world = stepping_world_of(arena);
+	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_scene_transform then = {
+		.position = { 100000.0, 0.0, 0.0 },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_transform now = {
+		.position = { 100000.002, 0.0, 0.0 },
+		.rotation = voe_math_quat_from_axis_angle(up, QUARTER_TURN),
+		.scale = { 3.0f, 3.0f, 3.0f },
+	};
+	voe_ecs_entity thing = { 0 };
+	voe_scene_transform seen;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, thing, then));
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ .entity = thing,
+						     .transform = now }));
+	voe_scene_transform_system_run(world);
+
+	seen = voe_scene_transform_between(world, thing, 0.0f);
+	check_position(seen.position, now.position);
+	check_rotation(seen.rotation, now.rotation);
+	check_vector(seen.scale, now.scale);
+
+	seen = voe_scene_transform_between(world, thing, 0.5f);
+	VOE_TEST_CHECK_FLOAT(seen.position.x, 100000.001, MILLIMETRE_TENTH);
+	check_rotation(seen.rotation,
+		       voe_math_quat_from_axis_angle(up, QUARTER_TURN / 2.0f));
+	check_vector(seen.scale, (voe_math_float3){ 2.0f, 2.0f, 2.0f });
+
+	seen = voe_scene_transform_between(world, thing, 1.0f);
+	VOE_TEST_CHECK_FLOAT(seen.position.x, 100000.0, MILLIMETRE_TENTH);
+	check_rotation(seen.rotation, then.rotation);
+	check_vector(seen.scale, then.scale);
+}
+
+// Nothing to blend towards is the current row: a world that never registered
+// the table, and one that did but never remembered.
+static void with_nothing_remembered_between_is_now(voe_base_arena *arena)
+{
+	voe_ecs_world *plain = world_of(arena);
+	voe_ecs_world *stepping = stepping_world_of(arena);
+	voe_ecs_entity a = { 0 };
+	voe_ecs_entity b = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(plain, &a));
+	VOE_TEST_CHECK(voe_scene_transform_add(plain, a, known()));
+	VOE_TEST_CHECK(voe_ecs_entity_create(stepping, &b));
+	VOE_TEST_CHECK(voe_scene_transform_add(stepping, b, known()));
+
+	check_position(voe_scene_transform_between(plain, a, 1.0f).position,
+		       known().position);
+	check_position(voe_scene_transform_between(stepping, b, 1.0f).position,
+		       known().position);
+}
+
+// Never saved, never in the Inspector: the previous table is runtime-only.
+static void the_previous_table_is_runtime_only(voe_base_arena *arena)
+{
+	voe_ecs_world *world = stepping_world_of(arena);
+	uint32_t found = 0;
+
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_key(world, type) ==
+		    &voe_scene_transform_key)
+			continue;
+		VOE_TEST_CHECK(voe_ecs_component_runtime_only(world, type));
+		found++;
+	}
+	VOE_TEST_CHECK_INT(found, 1);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	the_matrix_is_translate_rotate_scale();
+	the_matrix_is_about_an_origin();
 	the_description_is_the_struct_the_compiler_laid_out();
 	the_world_hands_back_the_transforms_field_list(arena);
 	the_world_names_the_intent_that_replaces_a_transform(arena);
@@ -555,6 +683,9 @@ int main(void)
 	a_transform_round_trips_through_the_table(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
+	a_remembered_step_blends_to_the_current_one(arena);
+	with_nothing_remembered_between_is_now(arena);
+	the_previous_table_is_runtime_only(arena);
 
 	a_rotation_arrives_unit_length(arena);
 	a_quiet_drain(arena);

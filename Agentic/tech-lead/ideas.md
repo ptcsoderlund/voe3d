@@ -93,3 +93,5 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   Unity's probe adjustment volumes, and as rooms and portals (a room lit only by what is inside
   and what comes through its doors and windows), not as the main mechanism. One bounce first, more by feeding the cache back into itself. After the
   coin game, unless a game needs it sooner.
+- Explicit system ordering (Bevy-style `.before`/`.after`, system sets) for when a slot's systems
+  run on several threads; until then list order within a slot is enough (0256).

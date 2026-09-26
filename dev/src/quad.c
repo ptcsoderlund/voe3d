@@ -98,7 +98,7 @@ voe_3d_material voe_dev_quad_material(voe_math_float4 colour,
 
 // Where one quad stands and how big it is. They are all square and all upright,
 // so a position and one number is the whole of a quad's transform.
-voe_scene_transform voe_dev_quad_at(voe_math_float3 position, float size)
+voe_scene_transform voe_dev_quad_at(voe_math_double3 position, float size)
 {
 	voe_scene_transform transform = {
 		.position = position,
@@ -145,7 +145,7 @@ voe_scene_transform voe_dev_quad_at(voe_math_float3 position, float size)
 //     the plate and ticks in the top-left corner, and what it does is hold fewer
 //     millimetres rather than narrower ones: the ticks keep their size and
 //     spacing and the far ones fall off the right edge. See src/surface.h.
-bool voe_dev_add_panel(voe_ecs_world *world, voe_math_float3 position,
+bool voe_dev_add_panel(voe_ecs_world *world, voe_math_double3 position,
 		       float scale, voe_math_float2 millimetres,
 		       voe_3d_layer layer, voe_ecs_entity *out)
 {
@@ -284,7 +284,7 @@ bool voe_dev_add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 	voe_math_float4 over_lit = { 0.25f, 0.9f, 0.4f, QUAD_ALPHA };
 	voe_math_float4 over_unlit = { 0.95f, 0.55f, 0.1f, QUAD_ALPHA };
 	voe_math_float4 over_solid = { 0.55f, 0.2f, 0.75f, 1.0f };
-	voe_math_float3 middle = { VOE_DEV_CUBES_APART, 0.0f, 0.0f };
+	voe_math_double3 middle = { VOE_DEV_CUBES_APART, 0.0, 0.0 };
 
 	if (!voe_render_geometry_create(gpu, voe_dev_quad_vertices,
 					VOE_DEV_QUAD_VERTEX_COUNT,
@@ -301,14 +301,14 @@ bool voe_dev_add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 	if (!voe_dev_add_quad(
 		    world, gpu, geometry,
 		    voe_dev_quad_material(warm, VOE_RENDER_ALPHA_BLENDED, false),
-		    voe_dev_quad_at((voe_math_float3){ QUAD_X, QUAD_Y, QUAD_Z },
+		    voe_dev_quad_at((voe_math_double3){ QUAD_X, QUAD_Y, QUAD_Z },
 				    QUAD_SIZE),
 		    VOE_3D_LAYER_WORLD, NULL, error))
 		return false;
 	if (!voe_dev_add_quad(
 		    world, gpu, geometry,
 		    voe_dev_quad_material(cool, VOE_RENDER_ALPHA_BLENDED, false),
-		    voe_dev_quad_at((voe_math_float3){ QUAD_X, QUAD_Y, -QUAD_Z },
+		    voe_dev_quad_at((voe_math_double3){ QUAD_X, QUAD_Y, -QUAD_Z },
 				    QUAD_SIZE),
 		    VOE_3D_LAYER_WORLD, NULL, error))
 		return false;
@@ -327,7 +327,7 @@ bool voe_dev_add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 		    world, gpu, geometry,
 		    voe_dev_quad_material(over_lit, VOE_RENDER_ALPHA_BLENDED,
 					  false),
-		    voe_dev_quad_at((voe_math_float3){ middle.x, middle.y,
+		    voe_dev_quad_at((voe_math_double3){ middle.x, middle.y,
 						       OVERLAY_QUAD_Z },
 				    OVERLAY_QUAD_SIZE),
 		    VOE_3D_LAYER_OVERLAY, NULL, error))
@@ -335,7 +335,7 @@ bool voe_dev_add_the_quads(voe_ecs_world *world, voe_render_device *gpu,
 	return voe_dev_add_quad(
 		world, gpu, geometry,
 		voe_dev_quad_material(over_unlit, VOE_RENDER_ALPHA_BLENDED, true),
-		voe_dev_quad_at((voe_math_float3){ middle.x, middle.y,
+		voe_dev_quad_at((voe_math_double3){ middle.x, middle.y,
 						   -OVERLAY_QUAD_Z },
 				OVERLAY_QUAD_SIZE),
 		VOE_3D_LAYER_OVERLAY, NULL, error);

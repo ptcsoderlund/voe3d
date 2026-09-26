@@ -22,20 +22,12 @@
 // every member, its alignment is at most 8 for every kind, so that is at least its
 // sizeof; where _replace does know the size an assert holds the two to it.
 //
-// NOTHING RECURSES OVER THE TEXT. A value nests as deep as its field's shape
-// says, up to seven of the field's own dimensions and one more for a vector
-// kind's own bracket (ADR-0154 points 3 and 5) — shape_value() walks that with
-// an explicit stack of one frame per open level, not a call for each, and
-// BRACKET_DEPTH_MAX (8) is a hostile file's ceiling regardless of what the
-// field declares, checked before anything about the array's shape is (rule
-// 14).
-//
-// THE NUMBERS ARE READ BY THE C LIBRARY IN THE "C" LOCALE, as the writer writes
-// them; the spelling is checked by hand first, so strtod never sees `inf`, `nan`,
-// a hex float or a leading blank.
+// ONE FIELD'S VALUE IS field_read.c's, which reads the text without recursing
+// over it; this file decides which field of which row a key is.
 #include <authoring/scene_read.h>
 
 #include "authored.h"
+#include "field_read.h"
 #include "key_span.h"
 
 #include <assets/sectioned.h>
@@ -46,22 +38,10 @@
 #include <scene/identity_component.h>
 
 #include <inttypes.h>
-#include <math.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define MODULE "authoring"
-
-// The longest number token a value may spell. The writer never needs more than
-// a few dozen; this is room for a person's long decimals and nothing more.
-#define NUMBER_MAX 400
-
-// A place in one value's text. A struct and not a `const char **`, which rule 6
-// forbids.
-struct cursor {
-	const char *at;
-};
 
 // What one section is, decided before any value is read.
 enum section_role {
@@ -79,13 +59,6 @@ struct section {
 	uint8_t *row;
 };
 
-// An ENTITY element, held as an authored id until the entity exists. Only ids
-// the file holds are held.
-struct patch {
-	uint8_t *bytes;
-	uint64_t id;
-};
-
 struct reader {
 	voe_ecs_world *world;
 	voe_base_arena *arena;
@@ -99,28 +72,13 @@ struct reader {
 
 	struct section *sections;
 
-	// One per `[N]`, ascending by id; the entities are filled in pass two.
-	voe_authoring_authored *authored;
-	uint32_t authored_count;
-
-	struct patch *patches;
-	uint32_t patch_count;
+	// One `[N]` each, ascending by id, the entities filled in pass two; and
+	// the references pass one holds.
+	voe_authoring_field_refs refs;
 
 	voe_authoring_kept_section *kept;
 	uint32_t kept_count;
 };
-
-// Where a value sits, for a report.
-struct site {
-	uint32_t line;
-	const char *section;
-	const char *field;
-};
-
-static bool blank(char c)
-{
-	return c == ' ' || c == '\t';
-}
 
 // A decimal from 1, no sign, no leading zero, fitting 64 bits, running exactly
 // `size` bytes.
@@ -219,7 +177,7 @@ static bool classify(struct reader *reader)
 		section->description =
 			voe_ecs_component_description(reader->world,
 						      reader->identity);
-		reader->authored[authored++] = (voe_authoring_authored){
+		reader->refs.authored[authored++] = (voe_authoring_authored){
 			.id = section->id,
 		};
 	}
@@ -227,8 +185,8 @@ static bool classify(struct reader *reader)
 	voe_authoring_authored *scratch = voe_base_arena_push(
 		reader->arena, (authored + 1) * sizeof(*scratch));
 
-	reader->authored_count = authored;
-	voe_authoring_authored_sort(reader->authored, scratch, authored);
+	reader->refs.authored_count = authored;
+	voe_authoring_authored_sort(reader->refs.authored, scratch, authored);
 
 	for (uint32_t s = 0; s < doc->section_count; s++) {
 		struct section *section = &reader->sections[s];
@@ -237,8 +195,8 @@ static bool classify(struct reader *reader)
 
 		if (dot == NULL)
 			continue;
-		if (voe_authoring_authored_find(reader->authored,
-						reader->authored_count,
+		if (voe_authoring_authored_find(reader->refs.authored,
+						reader->refs.authored_count,
 						section->id) == NULL) {
 			VOE_BASE_ERROR(MODULE,
 				       "line %u: [%s] belongs to entity %" PRIu64
@@ -281,588 +239,6 @@ static bool classify(struct reader *reader)
 	return true;
 }
 
-static void skip_blanks(struct cursor *cursor)
-{
-	while (blank(*cursor->at))
-		cursor->at++;
-}
-
-// Consumes `c`, and any blanks before it.
-static bool expect(struct cursor *cursor, char c)
-{
-	skip_blanks(cursor);
-	if (*cursor->at != c)
-		return false;
-	cursor->at++;
-	return true;
-}
-
-static bool ends_token(char c)
-{
-	return c == '\0' || blank(c) || c == ',' || c == '[' || c == ']';
-}
-
-// The bytes up to a blank, a comma, a bracket or the end, copied NUL-terminated.
-static bool token(struct cursor *cursor, char out[NUMBER_MAX])
-{
-	size_t size = 0;
-
-	skip_blanks(cursor);
-	while (!ends_token(*cursor->at)) {
-		if (size + 1 >= NUMBER_MAX)
-			return false;
-		out[size++] = *cursor->at++;
-	}
-	out[size] = '\0';
-	return size > 0;
-}
-
-static bool digits_only(const char *text)
-{
-	if (*text == '\0')
-		return false;
-	for (; *text != '\0'; text++)
-		if (*text < '0' || *text > '9')
-			return false;
-	return true;
-}
-
-static bool unsigned_of(const char *text, uint64_t max, uint64_t *out)
-{
-	uint64_t value = 0;
-
-	if (!digits_only(text))
-		return false;
-	for (; *text != '\0'; text++) {
-		uint64_t digit = (uint64_t)(*text - '0');
-
-		if (value > (UINT64_MAX - digit) / 10)
-			return false;
-		value = value * 10 + digit;
-	}
-	if (value > max)
-		return false;
-	*out = value;
-	return true;
-}
-
-static bool signed_of(const char *text, int64_t max, int64_t *out)
-{
-	bool negative = text[0] == '-';
-	uint64_t magnitude;
-
-	// Two's complement: the most negative value is one past -max.
-	if (!unsigned_of(text + negative, (uint64_t)max + negative, &magnitude))
-		return false;
-	if (!negative)
-		*out = (int64_t)magnitude;
-	else if (magnitude == 0)
-		*out = 0;
-	else
-		*out = -(int64_t)(magnitude - 1) - 1;
-	return true;
-}
-
-// `-? digits (. digits)? ((e|E) (+|-)? digits)?`, and finite once read.
-static bool float_of(const char *text, bool single, double *out)
-{
-	const char *at = text;
-
-	if (*at == '-')
-		at++;
-	if (*at < '0' || *at > '9')
-		return false;
-	while (*at >= '0' && *at <= '9')
-		at++;
-	if (*at == '.') {
-		at++;
-		if (*at < '0' || *at > '9')
-			return false;
-		while (*at >= '0' && *at <= '9')
-			at++;
-	}
-	if (*at == 'e' || *at == 'E') {
-		at++;
-		if (*at == '+' || *at == '-')
-			at++;
-		if (*at < '0' || *at > '9')
-			return false;
-		while (*at >= '0' && *at <= '9')
-			at++;
-	}
-	if (*at != '\0')
-		return false;
-
-	double value = single ? (double)strtof(text, NULL) : strtod(text, NULL);
-
-	if (!isfinite(value))
-		return false;
-	*out = value;
-	return true;
-}
-
-// The most bracket levels a value may nest, a vector kind's own bracket
-// counted the same as one the field's shape opens (ADR-0154 point 3).
-// Refused, past this, before anything about the array's shape is checked —
-// an explicit count kept beside the cursor, not the call stack, because rule
-// 14 forbids recursing over data read from a file, and it is at least
-// possible to write a value nested past any bound this reader is not one to
-// recurse itself to find out (see shape_value() below, which is the one place
-// that ever does nest).
-#define BRACKET_DEPTH_MAX 8
-
-// Consumes '[', counting it against BRACKET_DEPTH_MAX. `depth` is one call's
-// own counter, passed down through every function that may open a bracket —
-// the field's own shape and a vector kind's leaf alike — so the two share one
-// limit.
-static bool open_bracket(struct cursor *cursor, uint32_t *depth,
-			 const struct site *site)
-{
-	if (!expect(cursor, '['))
-		return false;
-	if (*depth >= BRACKET_DEPTH_MAX) {
-		VOE_BASE_ERROR(MODULE,
-			       "line %u: %s.%s nests more than %d levels of "
-			       "brackets; nothing was loaded",
-			       site->line, site->section, site->field,
-			       BRACKET_DEPTH_MAX);
-		return false;
-	}
-	(*depth)++;
-	return true;
-}
-
-static bool close_bracket(struct cursor *cursor, uint32_t *depth)
-{
-	if (!expect(cursor, ']'))
-		return false;
-	(*depth)--;
-	return true;
-}
-
-static bool floats_of(struct cursor *cursor, uint8_t *bytes, uint32_t count,
-		      uint32_t *depth, const struct site *site)
-{
-	char number[NUMBER_MAX];
-
-	if (!open_bracket(cursor, depth, site))
-		return false;
-	for (uint32_t i = 0; i < count; i++) {
-		double value;
-
-		if (i > 0 && !expect(cursor, ','))
-			return false;
-		if (!token(cursor, number) || !float_of(number, true, &value))
-			return false;
-
-		float single = (float)value;
-
-		memcpy(bytes + i * sizeof(single), &single, sizeof(single));
-	}
-	return close_bracket(cursor, depth);
-}
-
-// Written at `size` bytes, which the field's kind has already checked `max` fits.
-static bool store_signed(const char *number, int64_t max, uint8_t *bytes,
-			 size_t size)
-{
-	int64_t value;
-
-	if (!signed_of(number, max, &value))
-		return false;
-	if (size == 1) {
-		int8_t narrow = (int8_t)value;
-
-		memcpy(bytes, &narrow, size);
-	} else if (size == 2) {
-		int16_t narrow = (int16_t)value;
-
-		memcpy(bytes, &narrow, size);
-	} else if (size == 4) {
-		int32_t narrow = (int32_t)value;
-
-		memcpy(bytes, &narrow, size);
-	} else {
-		memcpy(bytes, &value, sizeof(value));
-	}
-	return true;
-}
-
-static bool store_unsigned(const char *number, uint64_t max, uint8_t *bytes,
-			   size_t size)
-{
-	uint64_t value;
-
-	if (!unsigned_of(number, max, &value))
-		return false;
-	if (size == 1) {
-		uint8_t narrow = (uint8_t)value;
-
-		memcpy(bytes, &narrow, size);
-	} else if (size == 2) {
-		uint16_t narrow = (uint16_t)value;
-
-		memcpy(bytes, &narrow, size);
-	} else if (size == 4) {
-		uint32_t narrow = (uint32_t)value;
-
-		memcpy(bytes, &narrow, size);
-	} else {
-		memcpy(bytes, &value, sizeof(value));
-	}
-	return true;
-}
-
-// One element of a field that is neither CHAR nor ENUM. An ENTITY element holds
-// nothing yet; its id goes out through `entity_id`, and 0 is no entity. `depth`
-// is the bracket-nesting counter a vector kind's own `[` is checked against,
-// same as the field's own shape (BRACKET_DEPTH_MAX above).
-static bool element_of(struct cursor *cursor, voe_base_field_kind kind,
-		       uint8_t *bytes, uint64_t *entity_id, uint32_t *depth,
-		       const struct site *site)
-{
-	char number[NUMBER_MAX];
-
-	switch (kind) {
-	case VOE_BASE_FIELD_FLOAT2:
-		return floats_of(cursor, bytes, 2, depth, site);
-	case VOE_BASE_FIELD_FLOAT3:
-	case VOE_BASE_FIELD_COLOUR:
-		return floats_of(cursor, bytes, 3, depth, site);
-	case VOE_BASE_FIELD_FLOAT4:
-	case VOE_BASE_FIELD_QUAT:
-		return floats_of(cursor, bytes, 4, depth, site);
-	case VOE_BASE_FIELD_FLOAT4X4:
-		return floats_of(cursor, bytes, 16, depth, site);
-	default:
-		break;
-	}
-
-	if (!token(cursor, number))
-		return false;
-
-	switch (kind) {
-	case VOE_BASE_FIELD_INT8:
-		return store_signed(number, INT8_MAX, bytes, 1);
-	case VOE_BASE_FIELD_INT16:
-		return store_signed(number, INT16_MAX, bytes, 2);
-	case VOE_BASE_FIELD_INT32:
-		return store_signed(number, INT32_MAX, bytes, 4);
-	case VOE_BASE_FIELD_INT64:
-		return store_signed(number, INT64_MAX, bytes, 8);
-	case VOE_BASE_FIELD_UINT8:
-		return store_unsigned(number, UINT8_MAX, bytes, 1);
-	case VOE_BASE_FIELD_UINT16:
-		return store_unsigned(number, UINT16_MAX, bytes, 2);
-	case VOE_BASE_FIELD_UINT32:
-		return store_unsigned(number, UINT32_MAX, bytes, 4);
-	case VOE_BASE_FIELD_UINT64:
-		return store_unsigned(number, UINT64_MAX, bytes, 8);
-	case VOE_BASE_FIELD_FLOAT32:
-	case VOE_BASE_FIELD_FLOAT64: {
-		bool single = kind == VOE_BASE_FIELD_FLOAT32;
-		double value;
-
-		if (!float_of(number, single, &value))
-			return false;
-		if (single) {
-			float narrow = (float)value;
-
-			memcpy(bytes, &narrow, sizeof(narrow));
-		} else {
-			memcpy(bytes, &value, sizeof(value));
-		}
-		return true;
-	}
-	case VOE_BASE_FIELD_BOOL:
-		if (strcmp(number, "true") != 0 && strcmp(number, "false") != 0)
-			return false;
-		bytes[0] = number[0] == 't';
-		return true;
-	case VOE_BASE_FIELD_ENTITY:
-		return unsigned_of(number, UINT64_MAX, entity_id);
-	default:
-		break;
-	}
-
-	VOE_BASE_ASSERT(false, "a field kind this reader does not know");
-	return false;
-}
-
-// How a kind is spelled, for a refusal.
-static const char *spelling(voe_base_field_kind kind)
-{
-	switch (kind) {
-	case VOE_BASE_FIELD_INT8:
-		return "an integer from -128 to 127";
-	case VOE_BASE_FIELD_INT16:
-		return "an integer from -32768 to 32767";
-	case VOE_BASE_FIELD_INT32:
-		return "a 32-bit signed integer";
-	case VOE_BASE_FIELD_INT64:
-		return "a 64-bit signed integer";
-	case VOE_BASE_FIELD_UINT8:
-		return "an integer from 0 to 255";
-	case VOE_BASE_FIELD_UINT16:
-		return "an integer from 0 to 65535";
-	case VOE_BASE_FIELD_UINT32:
-		return "a 32-bit unsigned integer";
-	case VOE_BASE_FIELD_UINT64:
-		return "a 64-bit unsigned integer";
-	case VOE_BASE_FIELD_FLOAT32:
-		return "a finite decimal that fits a float";
-	case VOE_BASE_FIELD_FLOAT64:
-		return "a finite decimal";
-	case VOE_BASE_FIELD_BOOL:
-		return "true or false";
-	case VOE_BASE_FIELD_FLOAT2:
-		return "[x, y]";
-	case VOE_BASE_FIELD_FLOAT3:
-	case VOE_BASE_FIELD_COLOUR:
-		return "[x, y, z]";
-	case VOE_BASE_FIELD_FLOAT4:
-	case VOE_BASE_FIELD_QUAT:
-		return "[x, y, z, w]";
-	case VOE_BASE_FIELD_FLOAT4X4:
-		return "16 decimals in brackets";
-	case VOE_BASE_FIELD_ENTITY:
-		return "an authored id, or 0";
-	case VOE_BASE_FIELD_CHAR:
-		return "a quoted string";
-	case VOE_BASE_FIELD_ENUM:
-		break;
-	}
-	return "a value this reader does not know";
-}
-
-static bool char_value(const struct site *site,
-		       const voe_base_field_description *field,
-		       const char *value, uint8_t *bytes)
-{
-	size_t length = strlen(value);
-
-	if (length >= field->count) {
-		VOE_BASE_ERROR(MODULE,
-			       "line %u: %s.%s is %zu bytes, and it holds %u "
-			       "beside its terminating zero; nothing was loaded",
-			       site->line, site->section, site->field, length,
-			       field->count - 1);
-		return false;
-	}
-	for (size_t i = 0; i < length; i++) {
-		if ((unsigned char)value[i] >= 0x20)
-			continue;
-		VOE_BASE_ERROR(MODULE,
-			       "line %u: %s.%s holds byte 0x%02x at %zu, and a "
-			       "scene cannot carry a control character; nothing "
-			       "was loaded",
-			       site->line, site->section, site->field,
-			       (unsigned char)value[i], i);
-		return false;
-	}
-	memcpy(bytes, value, length);
-	return true;
-}
-
-// A string inside an array: `"…"`, with the escapes `\"` and `\\` and nothing
-// else; `,` and `]` inside it are bytes, and a control character refuses it.
-// Unlike a bare value — which the sectioned reader unquotes and unescapes
-// before this ever sees it — an array's text is not the whole value, so the
-// sectioned reader has left this one exactly as the file spelled it: this
-// function strips the quotes and undoes the escapes itself (ADR-0154 point 4).
-// `max` is the slot's byte count, the field's own innermost dimension.
-static bool char_leaf(struct cursor *cursor, size_t max, uint8_t *bytes)
-{
-	size_t length = 0;
-
-	skip_blanks(cursor);
-	if (*cursor->at != '"')
-		return false;
-	cursor->at++;
-	for (;;) {
-		char c = *cursor->at;
-
-		if (c == '"') {
-			cursor->at++;
-			return true;
-		}
-		if (c == '\\') {
-			cursor->at++;
-			c = *cursor->at;
-			if (c != '"' && c != '\\')
-				return false;
-		} else if (c == '\0' || (unsigned char)c < 0x20) {
-			return false;
-		}
-		if (length + 1 >= max)
-			return false;
-		bytes[length++] = (uint8_t)c;
-		cursor->at++;
-	}
-}
-
-// Reads one element, and holds it for pass two if it is a reference. `depth`
-// is the bracket-nesting counter, shared with the field's own shape.
-static bool held_element(struct reader *reader, const struct site *site,
-			 struct cursor *cursor, voe_base_field_kind kind,
-			 uint8_t *bytes, uint32_t *depth)
-{
-	uint64_t id = 0;
-
-	if (!element_of(cursor, kind, bytes, &id, depth, site))
-		return false;
-	if (kind != VOE_BASE_FIELD_ENTITY || id == 0)
-		return true;
-
-	if (voe_authoring_authored_find(reader->authored,
-					reader->authored_count, id) == NULL) {
-		VOE_BASE_WARNING(MODULE,
-				 "line %u: %s.%s names entity %" PRIu64 ", which "
-				 "the file does not hold; loaded as no entity",
-				 site->line, site->section, site->field, id);
-		return true;
-	}
-	reader->patches[reader->patch_count++] = (struct patch){
-		.bytes = bytes,
-		.id = id,
-	};
-	return true;
-}
-
-// Reads a value against `bracket_rank` levels of the field's own brackets,
-// then a leaf, with an explicit stack of one frame per open level — `index`
-// and `base` below — rather than a recursive call, and BRACKET_DEPTH_MAX
-// enforced through every '[' this or a vector kind's own leaf consumes (rule
-// 14; open_bracket()/close_bracket() above are the shared counter).
-// `strides[level]` is the byte span of one whole item at `level`;
-// `strides[bracket_rank]` is one leaf: a kind element, or for CHAR the
-// string's own byte count. Every level's count is exactly its dimension —
-// a short, long or ragged level fails the comma or bracket it expects next,
-// caught here and reported by field_value(), the caller.
-static bool shape_value(struct reader *reader, const struct site *site,
-			const voe_base_field_description *field,
-			uint32_t bracket_rank, const size_t *strides,
-			struct cursor *cursor, uint8_t *bytes, uint32_t *depth)
-{
-	uint32_t index[VOE_BASE_FIELD_RANK_MAX];
-	uint8_t *base[VOE_BASE_FIELD_RANK_MAX + 1];
-	uint32_t level = 0;
-
-	base[0] = bytes;
-	if (!open_bracket(cursor, depth, site))
-		return false;
-	index[0] = 0;
-
-	for (;;) {
-		if (index[level] > 0 && !expect(cursor, ','))
-			return false;
-
-		uint8_t *at =
-			base[level] + (size_t)index[level] * strides[level + 1];
-
-		if (level + 1 == bracket_rank) {
-			if (field->kind == VOE_BASE_FIELD_CHAR) {
-				if (!char_leaf(cursor,
-						field->dims[field->rank - 1],
-						at))
-					return false;
-			} else if (!held_element(reader, site, cursor,
-						 field->kind, at, depth)) {
-				return false;
-			}
-		} else {
-			base[level + 1] = at;
-			if (!open_bracket(cursor, depth, site))
-				return false;
-			level++;
-			index[level] = 0;
-			continue;
-		}
-
-		index[level]++;
-		while (index[level] == field->dims[level]) {
-			if (!close_bracket(cursor, depth))
-				return false;
-			if (level == 0)
-				return true;
-			level--;
-			index[level]++;
-		}
-	}
-}
-
-// One value against the field's whole shape: a bare leaf for a rank-0,
-// non-CHAR field (a plain value, or a vector kind's own bracket), the field's
-// nested brackets otherwise.
-static bool elements_of(struct reader *reader, const struct site *site,
-			const voe_base_field_description *field,
-			struct cursor *cursor, uint8_t *bytes, uint32_t *depth)
-{
-	// Every dimension is a bracket level, except for CHAR, whose innermost
-	// dimension is the string's own bytes and not a level (ADR-0154
-	// point 8).
-	uint32_t bracket_rank = field->kind == VOE_BASE_FIELD_CHAR
-					 ? field->rank - 1
-					 : field->rank;
-
-	if (bracket_rank == 0)
-		return held_element(reader, site, cursor, field->kind, bytes,
-				    depth);
-
-	size_t strides[VOE_BASE_FIELD_RANK_MAX + 1];
-
-	strides[bracket_rank] = field->kind == VOE_BASE_FIELD_CHAR
-					 ? field->dims[field->rank - 1]
-					 : field->size / field->count;
-	for (uint32_t l = bracket_rank; l > 0; l--)
-		strides[l - 1] = strides[l] * field->dims[l - 1];
-
-	return shape_value(reader, site, field, bracket_rank, strides, cursor,
-			   bytes, depth);
-}
-
-static bool field_value(struct reader *reader, const struct site *site,
-			const voe_base_field_description *field,
-			const char *value, uint8_t *row)
-{
-	uint8_t *bytes = row + field->offset;
-	struct cursor cursor = { .at = value };
-	uint32_t depth = 0;
-
-	VOE_BASE_ASSERT(field->count > 0, "a field of no elements");
-	VOE_BASE_ASSERT(field->kind != VOE_BASE_FIELD_CHAR || field->rank >= 1,
-			"a CHAR field with no length dimension");
-	if (field->kind == VOE_BASE_FIELD_CHAR && field->rank <= 1)
-		return char_value(site, field, value, bytes);
-	if (field->kind == VOE_BASE_FIELD_ENUM) {
-		VOE_BASE_ERROR(MODULE,
-			       "line %u: %s.%s is an enum, and no enum value has "
-			       "a name to be read with yet; nothing was loaded",
-			       site->line, site->section, site->field);
-		return false;
-	}
-
-	if (elements_of(reader, site, field, &cursor, bytes, &depth)) {
-		skip_blanks(&cursor);
-		if (*cursor.at == '\0')
-			return true;
-	}
-
-	if (field->count == 1)
-		VOE_BASE_ERROR(MODULE,
-			       "line %u: %s.%s = %s is not %s; nothing was "
-			       "loaded",
-			       site->line, site->section, site->field, value,
-			       spelling(field->kind));
-	else
-		VOE_BASE_ERROR(MODULE,
-			       "line %u: %s.%s = %s is not %u of %s, in "
-			       "brackets; nothing was loaded",
-			       site->line, site->section, site->field, value,
-			       field->count, spelling(field->kind));
-	return false;
-}
-
 static const voe_base_field_description *
 field_by_name(const voe_base_struct_description *description, const char *name,
 	      bool skip_id)
@@ -885,7 +261,7 @@ static bool read_section(struct reader *reader, uint32_t s)
 	struct section *section = &reader->sections[s];
 	const voe_base_struct_description *description = section->description;
 	bool entity = section->role == ROLE_ENTITY;
-	struct site site = {
+	voe_authoring_site site = {
 		.line = reader->doc.sections[s].line,
 		.section = parsed->name,
 	};
@@ -923,7 +299,8 @@ static bool read_section(struct reader *reader, uint32_t s)
 			continue;
 		}
 		site.field = field->name;
-		if (!field_value(reader, &site, field, key->value, section->row))
+		if (!voe_authoring_field_value(&reader->refs, &site, field,
+					       key->value, section->row))
 			return false;
 	}
 
@@ -1034,7 +411,7 @@ static bool create(struct reader *reader)
 			continue;
 
 		voe_authoring_authored *authored = voe_authoring_authored_find(
-			reader->authored, reader->authored_count, section->id);
+			reader->refs.authored, reader->refs.authored_count, section->id);
 
 		VOE_BASE_ASSERT(authored != NULL, "an [N] missing from its map");
 		if (!voe_ecs_entity_create(reader->world, &authored->entity)) {
@@ -1047,10 +424,10 @@ static bool create(struct reader *reader)
 		}
 	}
 
-	for (uint32_t p = 0; p < reader->patch_count; p++) {
-		const struct patch *patch = &reader->patches[p];
+	for (uint32_t p = 0; p < reader->refs.patch_count; p++) {
+		const voe_authoring_patch *patch = &reader->refs.patches[p];
 		voe_authoring_authored *authored = voe_authoring_authored_find(
-			reader->authored, reader->authored_count, patch->id);
+			reader->refs.authored, reader->refs.authored_count, patch->id);
 
 		VOE_BASE_ASSERT(authored != NULL, "a held id missing from the map");
 		memcpy(patch->bytes, &authored->entity, sizeof(authored->entity));
@@ -1067,8 +444,8 @@ static bool create(struct reader *reader)
 
 			voe_authoring_authored *authored =
 				voe_authoring_authored_find(
-					reader->authored,
-					reader->authored_count, section->id);
+					reader->refs.authored,
+					reader->refs.authored_count, section->id);
 
 			VOE_BASE_ASSERT(authored != NULL,
 					"a section's [N] missing from the map");
@@ -1116,8 +493,8 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 	reader.sections = voe_base_arena_push(
 		arena, (sections + 1) * sizeof(*reader.sections));
 	memset(reader.sections, 0, (sections + 1) * sizeof(*reader.sections));
-	reader.authored = voe_base_arena_push(
-		arena, (sections + 1) * sizeof(*reader.authored));
+	reader.refs.authored = voe_base_arena_push(
+		arena, (sections + 1) * sizeof(*reader.refs.authored));
 	reader.kept =
 		voe_base_arena_push(arena, (sections + 1) * sizeof(*reader.kept));
 
@@ -1125,8 +502,8 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 	if (!classify(&reader))
 		return false;
 
-	reader.patches = voe_base_arena_push(
-		arena, (patch_capacity(&reader) + 1) * sizeof(*reader.patches));
+	reader.refs.patches = voe_base_arena_push(
+		arena, (patch_capacity(&reader) + 1) * sizeof(*reader.refs.patches));
 
 	for (uint32_t s = 0; s < sections; s++) {
 		if (reader.sections[s].role == ROLE_KEPT)

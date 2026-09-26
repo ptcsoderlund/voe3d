@@ -5,6 +5,7 @@
 #include <game/frame.h>
 #include <game/project.h>
 #include <game/scene.h>
+#include <game/steps.h>
 #include <game/world.h>
 
 #include <3d/shape_system.h>
@@ -29,16 +30,22 @@
 static bool run_frames(voe_app *app, voe_ecs_world *world,
 		       const voe_3d_shapes *shapes, voe_base_arena *scratch)
 {
+	voe_game_steps steps = { 0 };
+
 	while (true) {
 		voe_app_frame frame = voe_app_frame_open(app);
+		float lag;
 
 		if (frame.closing)
 			return true;
 		if (frame.minimised)
 			continue;
-		voe_game_project_systems_run(&(voe_game_project_step){
-			world, voe_app_window(app), frame.tick.step });
-		if (!voe_game_frame(app, world, shapes, scratch, frame.size))
+		lag = voe_game_steps_run(&steps, world, voe_app_window(app),
+					 shapes, frame.tick.step,
+					 voe_game_project_systems_run,
+					 voe_game_project_systems_after_move);
+		if (!voe_game_frame(app, world, shapes, scratch, frame.size,
+				    lag))
 			return false;
 	}
 }

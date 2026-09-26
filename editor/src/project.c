@@ -75,8 +75,8 @@ static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 #define LIGHT_INTENSITY 3.14159265f
 
 // Where the scene camera is put: up and back from the origin, looking at it.
-#define CAMERA_Y 2.0f
-#define CAMERA_Z 6.0f
+#define CAMERA_Y 2.0
+#define CAMERA_Z 6.0
 
 // A project's world in arena: game/world.h's engine types, then code's own
 // when it has a library.
@@ -131,7 +131,7 @@ static void add_camera(voe_ecs_world *world, uint64_t id)
 		voe_scene_transform_add(
 			world, camera,
 			(voe_scene_transform){
-				.position = { 0.0f, CAMERA_Y, CAMERA_Z },
+				.position = { 0.0, CAMERA_Y, CAMERA_Z },
 				.rotation = voe_math_quat_from_axis_angle(
 					(voe_math_float3){ 1.0f, 0.0f, 0.0f },
 					-atanf(CAMERA_Y / CAMERA_Z)),
@@ -152,7 +152,7 @@ static void build_untitled(voe_ecs_world *world)
 		voe_scene_transform_add(
 			world, cube,
 			(voe_scene_transform){
-				.position = { 0.0f, 0.0f, 0.0f },
+				.position = { 0.0, 0.0, 0.0 },
 				.rotation = voe_math_quat_from_axis_angle(
 					(voe_math_float3){ 0.0f, 1.0f, 0.0f },
 					0.0f),

@@ -3,20 +3,37 @@ name = "Floor"
 [1.voe_3d_shape]
 kind = 1
 colour = [0.5, 0.5, 0.5]
+[1.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
 [1.voe_scene_transform]
-position = [0, -0.05, 0]
+position = [-2, -0.05, 0]
 rotation = [0, 0, 0, 1]
-scale = [10, 0.1, 10]
+scale = [12, 0.1, 16]
 
 [2]
 name = "Player"
 [2.keyboard_input]
 move = [0, 0]
+jump = false
+jump_down = false
 [2.player]
 speed = 5
+jump_height = 1.2
+gravity = 9.81
 [2.voe_3d_shape]
 kind = 2
 colour = [0.8, 0.3, 0.2]
+[2.voe_physics_body]
+step_height = 0.3
+slope_limit = 0.8
+velocity = [0, 0, 0]
+on_floor = false
+[2.voe_physics_collider]
+kind = 3
+size = [1, 2, 1]
+trigger = false
 [2.voe_scene_transform]
 position = [0, 1, 0]
 rotation = [0, 0, 0, 1]
@@ -42,3 +59,195 @@ name = "Sun"
 direction = [-0.33333334, -0.6666667, -0.6666667]
 colour = [1, 1, 1]
 intensity = 1
+
+[5]
+name = "Floor Past The Gap"
+[5.voe_3d_shape]
+kind = 1
+colour = [0.5, 0.5, 0.5]
+[5.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[5.voe_scene_transform]
+position = [8, -0.05, 0]
+rotation = [0, 0, 0, 1]
+scale = [4, 0.1, 16]
+
+[6]
+name = "Wall West"
+[6.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.75]
+[6.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[6.voe_scene_transform]
+position = [-8.25, 1.5, 0]
+rotation = [0, 0, 0, 1]
+scale = [0.5, 3, 17]
+
+[7]
+name = "Wall East"
+[7.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.75]
+[7.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[7.voe_scene_transform]
+position = [10.25, 1.5, 0]
+rotation = [0, 0, 0, 1]
+scale = [0.5, 3, 17]
+
+[8]
+name = "Wall North"
+[8.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.75]
+[8.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[8.voe_scene_transform]
+position = [1, 1.5, -8.25]
+rotation = [0, 0, 0, 1]
+scale = [19, 3, 0.5]
+
+[9]
+name = "Wall South"
+[9.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.75]
+[9.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[9.voe_scene_transform]
+position = [1, 1.5, 8.25]
+rotation = [0, 0, 0, 1]
+scale = [19, 3, 0.5]
+
+[10]
+name = "Gentle Ramp"
+[10.voe_3d_shape]
+kind = 1
+colour = [0.3, 0.6, 0.3]
+[10.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[10.voe_scene_transform]
+position = [-2.95773, 0.42105, -5]
+rotation = [0, 0, -0.13052619, 0.99144486]
+scale = [4, 0.2, 2]
+
+[11]
+name = "Steep Ramp"
+[11.voe_3d_shape]
+kind = 1
+colour = [0.6, 0.3, 0.3]
+[11.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[11.voe_scene_transform]
+position = [-2.22907, 1.58095, 5]
+rotation = [0, 0, -0.46174861, 0.88701083]
+scale = [4, 0.2, 2]
+
+[12]
+name = "Low Ledge"
+[12.voe_3d_shape]
+kind = 1
+colour = [0.3, 0.4, 0.7]
+[12.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[12.voe_scene_transform]
+position = [2, 0.125, 4]
+rotation = [0, 0, 0, 1]
+scale = [2, 0.25, 2]
+
+[13]
+name = "Coin On The Ledge"
+[13.coin]
+spin = 2
+[13.voe_3d_shape]
+kind = 1
+colour = [1, 0.85, 0.1]
+[13.voe_physics_collider]
+kind = 2
+size = [1, 1, 1]
+trigger = true
+[13.voe_scene_transform]
+position = [2, 0.85, 4]
+rotation = [0, 0, 0, 1]
+scale = [0.4, 0.4, 0.4]
+
+[14]
+name = "Coin Past The Gentle Ramp"
+[14.coin]
+spin = 2
+[14.voe_3d_shape]
+kind = 1
+colour = [1, 0.85, 0.1]
+[14.voe_physics_collider]
+kind = 2
+size = [1, 1, 1]
+trigger = true
+[14.voe_scene_transform]
+position = [-6.5, 0.6, -5]
+rotation = [0, 0, 0, 1]
+scale = [0.4, 0.4, 0.4]
+
+[15]
+name = "Coin By The Start"
+[15.coin]
+spin = 2
+[15.voe_3d_shape]
+kind = 1
+colour = [1, 0.85, 0.1]
+[15.voe_physics_collider]
+kind = 2
+size = [1, 1, 1]
+trigger = true
+[15.voe_scene_transform]
+position = [0, 0.6, -3]
+rotation = [0, 0, 0, 1]
+scale = [0.4, 0.4, 0.4]
+
+[16]
+name = "Coin In The West"
+[16.coin]
+spin = 2
+[16.voe_3d_shape]
+kind = 1
+colour = [1, 0.85, 0.1]
+[16.voe_physics_collider]
+kind = 2
+size = [1, 1, 1]
+trigger = true
+[16.voe_scene_transform]
+position = [-5, 0.6, 1]
+rotation = [0, 0, 0, 1]
+scale = [0.4, 0.4, 0.4]
+
+[17]
+name = "Coin Past The Gap"
+[17.coin]
+spin = 2
+[17.voe_3d_shape]
+kind = 1
+colour = [1, 0.85, 0.1]
+[17.voe_physics_collider]
+kind = 2
+size = [1, 1, 1]
+trigger = true
+[17.voe_scene_transform]
+position = [8, 0.6, 0]
+rotation = [0, 0, 0, 1]
+scale = [0.4, 0.4, 0.4]

@@ -1,24 +1,17 @@
-// The world's step once a frame: the structural queue applied, then the
-// project's replace intents (game/project.h, ADR-0242 point 3), then the
-// transform, identity and light systems, then the shape system. main.c calls
-// it once a frame, after an undo step is taken and before anything reads the
-// world.
+// The world's step once a frame: one call to voe_game_world_step
+// (game/frame.h), which applies the structural queue, then the project's
+// replace intents, then runs every owning system, the collider's and the
+// body's drains among them. main.c calls it once a frame, after an undo step
+// is taken and before anything reads the world.
 //
-// WHICH ROWS EXIST CHANGES HERE AND NOWHERE ELSE IN THE FRAME (ADR-0193,
-// ecs/structure.h), before any system reads a table, so a row queued last
-// frame is there for every one of them and none sees one appear partway
-// through its run.
+// THE ORDER IS GAME'S NOW. The editor's world and a game's register the same
+// types (0237), so they drain them in the same order, and the one place that
+// order is written is game/frame.h. Which rows exist still changes before any
+// system reads a table (ADR-0193), and every owning system still runs every
+// frame whether anything submitted or not (ADR-0134 point 7).
 //
-// EVERY OWNING SYSTEM RUNS EVERY FRAME, WHETHER ANYTHING SUBMITTED OR NOT
-// (ADR-0134 point 7). An intent that reaches a queue on a frame its system
-// does not drain is an edit that lands whenever the loop next happens to run
-// it, which is a class of bug that does not exist if the run is unconditional
-// — the Inspector can submit a replace intent for any editable field the
-// moment it draws one, transform's and light's alike, so all three are run
-// from the start rather than from whenever somebody remembers a first submit
-// needs one. The shape system drains the shape's intent the same way and
-// gives a fresh shape its mesh and material the first frame it exists
-// (3d/shape_system.h).
+// NO MOVE: the editor steps nothing (0254). A body's velocity is drained into
+// its row and never integrated, so what is edited stays where it is put.
 #pragma once
 
 #include <3d/shape_system.h>

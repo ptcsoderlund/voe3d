@@ -1,8 +1,8 @@
 // What a frame draws into the scene views: a pass per view the dock tree
 // shows, each onto that view's own target with its own camera and the
 // world's light, the world drawn by voe_3d_draw_system_run with the
-// selection's outline (ADR-0203), its move gizmo (ADR-0205) and the scene
-// camera's marker (0223), and the pass ended; and before those, the preview's
+// selection's outline (ADR-0203), its collider as lines (0253), its move
+// gizmo (ADR-0205) and the scene camera's marker (0223), and the pass ended; and before those, the preview's
 // one pass with the world's own camera (view.h). main.c calls both once a
 // frame, between opening the draw and the window's pass:
 //
@@ -26,8 +26,8 @@
 // registered with that much room for a mesh and a material, so a device that
 // draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
-// for the gizmo's handles at rest and its marked one, and one for the camera's
-// marker, times the room for views, and the drawn entities once more for the
+// for the gizmo's handles at rest and its marked one, one for the camera's
+// marker and one for the selection's collider, times the room for views, and the drawn entities once more for the
 // preview's pass, which draws the world alone. `passes` is a pass per view, the
 // preview's and the interface's, and `targets` a target per view and the
 // preview's — both from the room for views, not the two in use, so a
@@ -37,7 +37,8 @@
 // The move gizmo's quads go there too: one gizmo per view's pass, two ranges
 // and two draws, sized from the room for views the same way (ADR-0205,
 // 3d/draw_system.h). So do the camera marker's: one marker per view's pass,
-// one range and one draw, sized the same way (0223, 3d/camera_marker.h).
+// one range and one draw, sized the same way (0223, 3d/camera_marker.h), and
+// the collider's, one more of each (0253, 3d/collider_marker.h).
 #pragma once
 
 #include "dock.h"
@@ -82,7 +83,7 @@
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 4) *                    \
+		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 5) *                    \
 			   VOE_EDITOR_VIEWS + VOE_GAME_WORLD_MAX_DRAWN,        \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
@@ -90,13 +91,15 @@
 		.targets = VOE_EDITOR_VIEWS + 1,                               \
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
 				       VOE_3D_GIZMO_VERTICES +                 \
-				       VOE_3D_CAMERA_MARKER_VERTICES) *        \
+				       VOE_3D_CAMERA_MARKER_VERTICES +         \
+				       VOE_3D_COLLIDER_MARKER_VERTICES) *      \
 				      VOE_EDITOR_VIEWS,                        \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
 				      VOE_3D_GIZMO_INDICES +                   \
-				      VOE_3D_CAMERA_MARKER_INDICES) *          \
+				      VOE_3D_CAMERA_MARKER_INDICES +           \
+				      VOE_3D_COLLIDER_MARKER_INDICES) *        \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 4 * VOE_EDITOR_VIEWS                   \
+		.transient_geometries = 5 * VOE_EDITOR_VIEWS                   \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

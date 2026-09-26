@@ -98,3 +98,37 @@ typedef struct {
 // an entity that no longer exists would be noise in front of the lines that
 // matter.
 void voe_scene_transform_system_run(voe_ecs_world *world);
+
+// THE PREVIOUS STEP'S TRANSFORMS, FOR A WORLD THAT STEPS (0254). The draw sits a
+// lag behind the last fixed step, so it needs where things were one step back.
+// That state is the transform's, not physics' (ADR-0065 point 4): a thing moved
+// by a script or an intent blends the same as a body, and physics owns no
+// transform it would have to copy (ADR-0011).
+//
+// IT IS OPT-IN. The editor steps nothing and never registers it, and a world
+// without it pays nothing: between() then hands back the current row. The table
+// is runtime-only, so it is never saved, has no replace and is not in Add
+// component.
+//
+//     voe_scene_transform_previous_register(world, 4096);  // a stepping world
+//     voe_scene_transform_remember(world);                 // each step, first
+//     drawn = voe_scene_transform_between(world, entity, lag);
+//
+// capacity is how many transforms may be remembered: the transform table's.
+void voe_scene_transform_previous_register(voe_ecs_world *world,
+					   uint32_t capacity);
+
+// Copies every transform row into the previous table, adding a row for an
+// entity that has none. Asserts the table is registered and has room.
+void voe_scene_transform_remember(voe_ecs_world *world);
+
+// The transform `lag` of a step back from the current one: 0 is now, 1 the
+// remembered one. A LAG AND NOT AN ALPHA, so nought means "now" and every
+// caller that does not step passes 0 and gets the current row untouched.
+// Position blends in double, rotation along the shorter way and normalised,
+// scale straight. The current row when lag is 0, the table is not registered,
+// or the entity was never remembered. Asserts the entity has a transform and
+// 0 <= lag <= 1.
+voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
+						voe_ecs_entity entity,
+						float lag);

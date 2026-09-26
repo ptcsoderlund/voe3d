@@ -7,8 +7,13 @@ and read through the description its own folder registered.
 
 - `scene_write.c` — the writer. Its header says why it walks the world twice and
   how kept sections are merged in.
-- `scene_read.c` — the reader. Its header says why only its second pass touches
-  the world and why it walks the text beside the sectioned reader for key spans.
+- `scene_read.c` — the reader's two passes. Its header says why only the second
+  touches the world and why it walks the text beside the sectioned reader for
+  key spans.
+- `field_read.h` — one field's value read from the text into a row, and how an
+  entity reference is held until the entity exists.
+- `field_read.c` — the tokens, numbers, brackets and strings. Its header says why
+  nothing recurses and how numbers are read.
 - `scene_cook.c` — the cook. Its header says why a field's dimensions may recurse
   and where the growing text lives.
 - `project.c` — the project file reader and writer. Its header says how a scene

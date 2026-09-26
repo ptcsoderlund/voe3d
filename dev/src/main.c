@@ -496,7 +496,7 @@ int main(void)
 		// there is nothing to draw into skips everything in the middle
 		// and the loop comes round again — it does not wait, which is
 		// what the spin on a minimised window is.
-		frame = voe_3d_draw_system_frame(program.world, now_size);
+		frame = voe_3d_draw_system_frame(program.world, now_size, 0.0f);
 		if (!voe_app_draw_open(program.app, now_size, &drawing))
 			break;
 		if (drawing) {

@@ -15,6 +15,7 @@
 #include "motion.h"
 
 #include <base/assert.h>
+#include <math/double3.h>
 #include <math/quat.h>
 #include <platform/input.h>
 
@@ -175,10 +176,10 @@ voe_dev_flight voe_dev_fly(voe_platform_window *window, voe_dev_flight flight,
 	// guarded, because asking for nothing is the ordinary case.
 	length = voe_math_float3_length(direction);
 	if (length > 0.0f)
-		flight.eye = voe_math_float3_add(
+		flight.eye = voe_math_double3_add(
 			flight.eye,
-			voe_math_float3_scale(direction,
-					      speed * seconds / length));
+			voe_math_double3_from_float3(voe_math_float3_scale(
+				direction, speed * seconds / length)));
 	return flight;
 }
 
@@ -217,7 +218,7 @@ voe_dev_flight voe_dev_orbit(float seconds)
 	voe_math_float3 towards = voe_math_float3_normalize(
 		voe_math_float3_neg(position));
 	voe_dev_flight flight = {
-		.eye = position,
+		.eye = voe_math_double3_from_float3(position),
 		.pitch = asinf(towards.y),
 		// Zero yaw looks along -Z and a positive yaw turns towards -X,
 		// which is what this pair of arguments says.

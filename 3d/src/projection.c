@@ -78,7 +78,7 @@ bool voe_3d_view(voe_scene_transform pose, voe_scene_camera lens, float aspect,
 
 	*out = (voe_render_view){ .view = view,
 				  .projection = voe_3d_projection(lens, aspect),
-				  .eye = pose.position,
+				  .eye = { 0.0f, 0.0f, 0.0f },
 				  .reserved = 0.0f };
 	VOE_BASE_ASSERT(out->reserved == 0.0f, "a view with padding written");
 	return true;

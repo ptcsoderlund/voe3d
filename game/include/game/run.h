@@ -10,16 +10,19 @@
 // `title`, the world (game/world.h), the project's voe_game_project_register
 // (game/project.h), voe_game_scene_build (game/scene.h), the built-in shapes
 // uploaded, then once a frame, skipping a minimised window, until it is
-// closing: the project's code in voe_game_project_systems_run, then
-// voe_game_frame.
+// closing: the frame's elapsed seconds into voe_game_steps_run, which runs
+// voe_game_project_systems_run and voe_game_project_systems_after_move once
+// per fixed step (game/steps.h), then
+// voe_game_frame with the lag it returns.
 //
 // NO QUIT KEY (0234). Escape is the game's own, for its menus; the window's
 // close, the system's close key, or the editor's Stop ends the run.
 //
 // Constraints: the window size is fixed until a project setting names one
 // (0234). Links only in a tree that has a cooked scene.c defining
-// voe_game_scene_build and a project defining the two entry points of
-// game/project.h; run.c is the one file that names them.
+// voe_game_scene_build and a project defining the three entry points of
+// game/project.h (register, systems_run, systems_after_move); run.c is the
+// one file that names them.
 #pragma once
 
 // The window the game opens in, whatever the editor's size (0234).

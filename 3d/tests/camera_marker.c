@@ -30,12 +30,15 @@ static voe_scene_transform a_pose(voe_math_float3 position, float turn,
 				  float scale)
 {
 	return (voe_scene_transform){
-		.position = position,
+		.position = voe_math_double3_from_float3(position),
 		.rotation = { 0.0f, sinf(turn * 0.5f), 0.0f,
 			      cosf(turn * 0.5f) },
 		.scale = { scale, scale, scale },
 	};
 }
+
+// Where the_view's eye stands, which its quads are about.
+static const voe_math_double3 EYE = { 0.0, 0.0, 5.0 };
 
 // Five metres back along +Z, looking down -Z.
 static voe_render_view the_view(void)
@@ -63,7 +66,7 @@ static void an_identity_pose_builds_twenty_edges(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(voe_3d_camera_marker_quads(
 		a_pose((voe_math_float3){ 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f),
-		the_lens(), the_view(), (voe_platform_size){ WIDTH, HEIGHT },
+		the_lens(), the_view(), EYE, (voe_platform_size){ WIDTH, HEIGHT },
 		2.0f, arena, &mesh));
 	VOE_TEST_CHECK_INT(mesh.vertex_count, VOE_3D_CAMERA_MARKER_VERTICES);
 	VOE_TEST_CHECK_INT(mesh.index_count, VOE_3D_CAMERA_MARKER_INDICES);
@@ -79,7 +82,7 @@ static void a_pose_scaled_to_nothing_builds_nothing_and_is_not_hit(
 	voe_3d_outline_mesh mesh = { 0 };
 
 	VOE_TEST_CHECK(!voe_3d_camera_marker_quads(
-		nothing, the_lens(), the_view(),
+		nothing, the_lens(), the_view(), EYE,
 		(voe_platform_size){ WIDTH, HEIGHT }, 2.0f, arena, &mesh));
 	VOE_TEST_CHECK_INT(mesh.vertex_count, 0);
 	VOE_TEST_CHECK(

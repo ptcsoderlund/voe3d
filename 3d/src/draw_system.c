@@ -14,24 +14,24 @@
 //
 // Each object is drawn with two matrices and a colour. The solid pass runs in
 // table order and the blended one furthest first, on each side of the overlay's
-// depth clear, over both tables; the outline and the move gizmo each sit behind
-// a depth clear of their own.
-#include <3d/camera_marker.h>
-#include <3d/depth_sort.h>
+// depth clear, over both tables; the outline with the collider's lines, and the
+// move gizmo, each sit behind a depth clear of their own. The held-back groups
+// are draw_group.c's and the marker, outline, collider and gizmo
+// draw_marks.c's; this file walks and orders them.
+#include "draw_group.h"
+#include "draw_marks.h"
+
 #include <3d/draw_system.h>
-#include <3d/gizmo.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
-#include <3d/normal_matrix.h>
-#include <3d/outline.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
 #include <3d/shape_component.h>
 #include <base/assert.h>
-#include <base/error.h>
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
+#include <scene/transform_system.h>
 
 // The direction is already unit length — scene's light system is the only
 // thing that writes one and it normalizes — so this is a copy of three fields
@@ -55,253 +55,16 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 	return sun;
 }
 
-// Whether two entity ids name the same entity. A zeroed id — which is what a
-// frame that hides nothing carries — never matches a live one, because
-// generation 0 is never handed out (ecs/world.h), so the hidden test needs no
-// "is anything hidden at all" branch in front of it.
-static bool is_the_same_entity(voe_ecs_entity a, voe_ecs_entity b)
-{
-	return a.index == b.index && a.generation == b.generation;
-}
-
-// One entity, held back until its group's turn: everything that group needs in
-// order to issue the draw without looking anything up again.
-//
-// IT IS ONE OF TWO THINGS AND `panel` SAYS WHICH. A mesh draw is a range in
-// render's geometry pools plus the record it is shaded with; a panel draw is a
-// range of this frame's element buffer plus the one matrix that puts those
-// elements where the panel is. They go into the same groups, through the same
-// sort, in one order — see draw_group, and see voe_3d_draw_system_run in
-// 3d/draw_system.h for why a separate pass for panels would be a bug rather
-// than a simplification.
-//
-// A UNION AND NOT BOTH SETS OF FIELDS, because an entry is a hundred and forty
-// bytes of matrices either way and every group is sized for every drawable in
-// the world. What the two arms have in common is nothing: no field means the
-// same thing in both, so there is nothing to hoist out of them.
-struct deferred {
-	bool panel;
-	union {
-		struct {
-			voe_render_geometry geometry;
-			voe_render_object object;
-		} mesh;
-		struct {
-			// Element millimetres all the way to clip space:
-			// projection × view × the transform's matrix × the
-			// surface's own plane. Composed once, here, because
-			// render takes the finished product and cannot compose
-			// it — it has never heard of a camera.
-			voe_math_float4x4 transform;
-			uint32_t first;
-			uint32_t count;
-		} elements;
-	};
-};
-
-// One group of draws that could not be issued as the mesh table was walked,
-// because it has to wait for a sort, for the depth clear, or for both.
-//
-// `depths` AND `order` ARE BOTH THERE OR BOTH ABSENT, AND THAT IS WHAT SAYS
-// WHICH KIND OF GROUP THIS IS. A group with them sorts and draws blended; a
-// group without them draws solid, in the order it was filled, which is table
-// order. One field would do and two is what the sort already takes.
-struct group {
-	struct deferred *deferred;
-	float *depths;
-	uint32_t *order;
-	uint32_t count;
-	// What it was sized for, kept so that hold can say so. It is not read
-	// anywhere else: the arrays are filled once and walked once, and `count`
-	// is what says how far.
-	uint32_t capacity;
-};
-
-// The view-space depth of an object's origin, which is the key the blended pass
-// sorts on.
-//
-// THE ORIGIN IS THE WORLD MATRIX'S LAST COLUMN AND THAT IS NOT A SHORTCUT. A
-// matrix applied to (0, 0, 0, 1) is its translation, and matrices here are
-// row-major — m[row][column] — so the translation is m[0..2][3]. Reading it out
-// costs three loads where the multiply would cost sixteen, and it is the same
-// number.
-//
-// MORE NEGATIVE IS FURTHER AWAY, because a camera looks along its own −Z. The
-// sign is not corrected here: voe_3d_depth_sort takes the view-space z as it is
-// and there is exactly one place the convention is spelled out.
-static float view_depth(voe_math_float4x4 view, voe_math_float4x4 world)
-{
-	voe_math_float4 origin = { world.m[0][3], world.m[1][3], world.m[2][3],
-				   1.0f };
-
-	return voe_math_float4x4_mul_float4(view, origin).z;
-}
-
-// The record an entity is drawn with, which is the same two matrices and the
-// same shading id whichever pass it ends up in.
-// The world's shape table, or false when it has none — dev registers none. A
-// walk of the types rather than voe_ecs_component_type, which asserts on a key
-// nothing registered; once per run, not per object.
-static bool shape_type(const voe_ecs_world *world, voe_ecs_type *out)
-{
-	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
-		voe_ecs_type type = voe_ecs_component_type_at(world, i);
-
-		if (voe_ecs_component_key(world, type) == &voe_3d_shape_key) {
-			*out = type;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-// `shape` is the entity's shape or NULL; its colour, opaque, is the object's,
-// and anything without one is drawn white — its material's colour as it is.
-static voe_render_object object_of(const voe_scene_transform *transform,
-				   const voe_3d_material *material,
-				   const voe_3d_shape *shape)
-{
-	voe_render_object object = { 0 };
-
-	object.world = voe_scene_transform_matrix(*transform);
-	// One inverse per drawn object per frame, which is the cost of getting a
-	// non-uniformly scaled thing lit correctly. It is computed rather than
-	// stored for the same reason the world matrix is
-	// (scene/transform_component.h): a second copy of the truth is a thing
-	// to invalidate. If it ever measures slow it becomes a cached column in
-	// the transform table and nothing here changes.
-	object.normal = voe_3d_normal_matrix(object.world);
-	object.shading = material->shading.index;
-	object.colour = shape != NULL ?
-				(voe_math_float4){ shape->colour.x,
-						   shape->colour.y,
-						   shape->colour.z, 1.0f } :
-				(voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
-
-	return object;
-}
-
-// Room in the arena for one group, sized for the whole mesh table — see below
-// for why that bound and not a measured one. A sorted group gets the two
-// arrays the sort works in; an unsorted one has nothing to sort and gets neither.
-//
-// A TABLE WITH NOTHING IN IT PUSHES NOTHING. voe_base_arena_push asserts on a
-// size of nought (base/arena.h), so an empty group is the zeroed struct and the
-// fill and the draw below both do nothing with it.
-//
-// EACH GROUP'S SCRATCH IS SIZED BY THE WHOLE OF BOTH TABLES AND NOT BY WHAT
-// LANDS IN IT. Which group a drawable is in is not known until both walks have
-// finished, so the bound for each of them is every mesh and every panel there
-// is; it is an arena, it is rewound at the end of the frame, and counting first
-// would be a second walk to save memory that is given back a millisecond later.
-// The overlay's solid group is the one exception and is sized by the meshes
-// alone: a panel is blended and cannot land in it.
-static struct group group_new(voe_base_arena *arena, uint32_t capacity,
-			      bool sorted)
-{
-	struct group group = { 0 };
-
-	if (capacity == 0)
-		return group;
-
-	group.capacity = capacity;
-	group.deferred = voe_base_arena_push(
-		arena, (size_t)capacity * sizeof(*group.deferred));
-	if (sorted) {
-		group.depths = voe_base_arena_push(
-			arena, (size_t)capacity * sizeof(*group.depths));
-		group.order = voe_base_arena_push(
-			arena, (size_t)capacity * sizeof(*group.order));
-	}
-	return group;
-}
-
-// Sets one entity aside in its group. The view matrix rather than a depth,
-// because only a sorted group has anywhere to put a key — so the work of
-// computing one is not done at all for a group drawn in the order it was filled.
-//
-// `world` IS PASSED RATHER THAN READ OFF THE ENTRY, because the two kinds of
-// entry keep their matrices in different places and neither of them keeps a
-// world matrix as such — a panel's is already composed into a chain by the time
-// it gets here. The key is the same key either way: the view-space depth of the
-// object's origin.
-static void hold(struct group *group, struct deferred entry,
-		 voe_math_float4x4 world, voe_math_float4x4 view)
-{
-	// A group is sized for every drawable in the world, so a drawable that
-	// exists always has room. It is asserted rather than assumed because the
-	// size is now arithmetic over two tables: a group sized for nothing has
-	// no arrays at all, and one sized for too few would write past an arena
-	// push and corrupt whatever came after it. Either is a bug in the three
-	// lines below the walk and not something a caller can cause.
-	VOE_BASE_ASSERT(group->deferred != NULL &&
-				group->count < group->capacity,
-			"holding a drawable in a group that was not sized for it — see group_new");
-
-	group->deferred[group->count] = entry;
-	if (group->depths != NULL)
-		group->depths[group->count] = view_depth(view, world);
-	group->count++;
-}
-
-// One group's draws: sorted furthest away first through the blended pipeline, or
-// in the order it was filled through the solid one. Returns false only when a
-// draw was refused, which stops this group and not the frame — the same rule the
-// draws issued during the walk follow.
-//
-// A PANEL IS ISSUED FROM THE SAME LOOP AND IN THE SAME ORDER, WHICH IS THE
-// WHOLE OF WHAT THIS CARD CHANGED. Two loops, one over the meshes and one over
-// the panels, would be two sorted lists laid end to end — which is not a sort,
-// and which comes out right from most angles and wrong from the rest. The
-// element draw's pipeline state is the blended pipeline's, so a panel and a
-// see-through quad are the same kind of thing to sort and there is no reason to
-// tell them apart here.
-static bool draw_group(voe_render_device *device, const struct group *group)
-{
-	bool sorted = group->order != NULL;
-
-	if (sorted)
-		voe_3d_depth_sort(group->depths, group->count, group->order);
-
-	for (uint32_t i = 0; i < group->count; i++) {
-		const struct deferred *drawn =
-			&group->deferred[sorted ? group->order[i] : i];
-		bool drawn_ok;
-
-		// A panel ignores `sorted`: there is one element draw and it is
-		// blended whichever group it landed in. A panel never reaches an
-		// unsorted group anyway — see the walk — and the day one does,
-		// drawing it correctly is better than drawing it as a mesh.
-		if (drawn->panel)
-			drawn_ok = voe_render_frame_draw_elements(
-				device, drawn->elements.transform,
-				drawn->elements.first, drawn->elements.count);
-		else if (sorted)
-			drawn_ok = voe_render_frame_draw_blended(
-				device, drawn->mesh.geometry,
-				drawn->mesh.object);
-		else
-			drawn_ok = voe_render_frame_draw(device,
-							 drawn->mesh.geometry,
-							 drawn->mesh.object);
-
-		if (!drawn_ok)
-			return false;
-	}
-	return true;
-}
-
 // THE CAMERA IS REQUIRED AND THE SUN IS NOT. Row zero of the camera table,
 // because there is exactly one; the light is voe_3d_draw_system_light's, which
 // is unshaded for none — see voe_3d_draw_system_frame in 3d/draw_system.h for
 // why more than one of either is a mistake rather than a choice.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
-				      voe_platform_size size)
+				      voe_platform_size size, float lag)
 {
 	voe_3d_frame frame;
 	voe_scene_camera lens;
-	const voe_scene_transform *pose;
+	voe_scene_transform pose;
 	// A window with no area has no aspect ratio. One is as good as any
 	// other then: _begin is about to say there is nothing to draw into and
 	// nothing reads the matrix, so this only keeps the division below away
@@ -309,6 +72,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	float aspect = 1.0f;
 
 	VOE_BASE_ASSERT(world != NULL, "framing no world");
+	VOE_BASE_ASSERT(lag >= 0.0f && lag <= 1.0f,
+			"a lag is a fraction of one step — see 3d/draw_system.h");
 	VOE_BASE_ASSERT(voe_scene_camera_count(world) == 1,
 			"a world to draw needs exactly one camera — see 3d/draw_system.h");
 
@@ -316,13 +81,21 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 		aspect = (float)size.width / (float)size.height;
 
 	lens = voe_scene_camera_rows(world)[0];
-	pose = voe_scene_transform_get(world, voe_scene_camera_entities(world)[0]);
-	VOE_BASE_ASSERT(pose != NULL,
+	VOE_BASE_ASSERT(voe_scene_transform_get(world,
+					voe_scene_camera_entities(world)[0]) != NULL,
 			"a camera with no transform — the camera needs one (0222)");
+	// Where the camera was `lag` of a step ago, as everything it sees is
+	// drawn (0254).
+	pose = voe_scene_transform_between(world, voe_scene_camera_entities(world)[0],
+					   lag);
 	// A pose that sees nothing leaves `view` zeroed and says so: _run draws
 	// no world for it (0223).
 	frame.view = (voe_render_view){ 0 };
-	frame.blind = !voe_3d_view(*pose, lens, aspect, &frame.view);
+	frame.blind = !voe_3d_view(pose, lens, aspect, &frame.view);
+	// The view is about the camera's own position; every matrix in _run is
+	// taken about the same point (ADR-0250).
+	frame.eye = pose.position;
+	frame.lag = lag;
 	frame.light = voe_3d_draw_system_light(world);
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
@@ -380,81 +153,6 @@ static voe_math_float4x4 panel_transform(voe_math_float4x4 clip,
 static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
 {
 	return panel.first <= submitted && panel.count <= submitted - panel.first;
-}
-
-// One of the gizmo's two meshes, as this frame's geometry and one draw. An
-// empty mesh is no draw at all, which is what a gizmo with nothing marked hands
-// back for its marked one.
-//
-// The quads are already in world metres (3d/gizmo.h), so both matrices are the
-// identity exactly as the outline's are; the record is the caller's unlit one
-// and the colour the caller's, which is the whole of what a handle looks like.
-// A refused transient range draws nothing and changes nothing else — render has
-// already said so on stderr.
-static void draw_gizmo_mesh(voe_render_device *device, voe_3d_gizmo_mesh mesh,
-			    voe_3d_material material, voe_math_float3 colour)
-{
-	voe_render_geometry quads;
-	voe_base_error error = VOE_BASE_OK;
-	voe_render_object object = {
-		.world = voe_math_float4x4_identity(),
-		.normal = voe_math_float4x4_identity(),
-		.shading = material.shading.index,
-		.colour = { colour.x, colour.y, colour.z, 1.0f },
-	};
-
-	VOE_BASE_ASSERT(device != NULL, "drawing a gizmo to no device");
-	VOE_BASE_ASSERT(mesh.index_count == 0 ||
-				(mesh.vertices != NULL && mesh.indices != NULL),
-			"a gizmo mesh of triangles with no arrays behind it");
-
-	if (mesh.index_count == 0)
-		return;
-	if (voe_render_geometry_create_transient(device, mesh.vertices,
-						 mesh.vertex_count,
-						 mesh.indices, mesh.index_count,
-						 &quads, &error))
-		(void)voe_render_frame_draw(device, quads, object);
-}
-
-// The scene camera's marker as this frame's geometry and one draw, in world
-// metres like the outline's quads, so both matrices are the identity (0223).
-// A zeroed entity, a dead one, and one without a camera or a transform draw
-// nothing; so does a refused transient range, which render reports.
-static void draw_camera_marker(const voe_ecs_world *world,
-			       voe_render_device *device, voe_base_arena *arena,
-			       voe_render_view view,
-			       voe_3d_camera_marked marker)
-{
-	const voe_scene_camera *lens;
-	const voe_scene_transform *pose;
-	voe_3d_outline_mesh mesh;
-	voe_render_geometry quads;
-	voe_base_error error = VOE_BASE_OK;
-	voe_render_object object = {
-		.world = voe_math_float4x4_identity(),
-		.normal = voe_math_float4x4_identity(),
-		.shading = marker.material.shading.index,
-		.colour = { marker.colour.x, marker.colour.y, marker.colour.z,
-			    1.0f },
-	};
-
-	VOE_BASE_ASSERT(device != NULL, "drawing a camera marker to no device");
-	VOE_BASE_ASSERT(arena != NULL, "a camera marker with no arena");
-
-	if (!voe_ecs_entity_alive(world, marker.entity))
-		return;
-	lens = voe_scene_camera_get(world, marker.entity);
-	pose = voe_scene_transform_get(world, marker.entity);
-	if (lens == NULL || pose == NULL)
-		return;
-	if (voe_3d_camera_marker_quads(*pose, *lens, view, marker.size,
-				       marker.pixels, arena, &mesh) &&
-	    voe_render_geometry_create_transient(device, mesh.vertices,
-						 mesh.vertex_count, mesh.indices,
-						 mesh.index_count, &quads,
-						 &error))
-		(void)voe_render_frame_draw(device, quads, object);
 }
 
 // THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
@@ -521,9 +219,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// in. The world's solid objects are the fourth and are drawn as they are
 	// found, so they need none.
 	struct voe_base_arena_mark mark;
-	struct group world_blended = { 0 };
-	struct group overlay_solid = { 0 };
-	struct group overlay_blended = { 0 };
+	struct voe_3d_draw_group world_blended = { 0 };
+	struct voe_3d_draw_group overlay_solid = { 0 };
+	struct voe_3d_draw_group overlay_blended = { 0 };
 	voe_ecs_type shapes = { 0 };
 	bool has_shapes;
 	// Whether the depth buffer has been emptied yet, which the overlay does
@@ -542,7 +240,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	if (frame.blind)
 		return;
 
-	has_shapes = shape_type(world, &shapes);
+	has_shapes = voe_3d_draw_group_shape_type(world, &shapes);
 	meshes = voe_3d_mesh_rows(world);
 	owners = voe_3d_mesh_entities(world);
 	count = voe_3d_mesh_count(world);
@@ -561,15 +259,16 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// Every drawable there is, meshes and panels together, because which
 	// group a thing lands in is not known until both walks have finished —
-	// the same bound group_new explains, over one more table.
-	world_blended = group_new(arena, count + panel_count, true);
-	overlay_solid = group_new(arena, count, false);
-	overlay_blended = group_new(arena, count + panel_count, true);
+	// the same bound voe_3d_draw_group_new explains.
+	world_blended = voe_3d_draw_group_new(arena, count + panel_count, true);
+	overlay_solid = voe_3d_draw_group_new(arena, count, false);
+	overlay_blended = voe_3d_draw_group_new(arena, count + panel_count, true);
 
 	for (uint32_t row = 0; row < count; row++) {
 		const voe_scene_transform *transform;
+		voe_scene_transform drawn;
 		const voe_3d_material *material;
-		struct deferred entry;
+		struct voe_3d_deferred entry;
 		bool blended;
 
 		// The pass's one hidden entity, tested ahead of the two lookups
@@ -578,23 +277,26 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// pay for the components it would have been drawn with. It
 		// reaches no group either — no matrix, no depth key, no sort
 		// slot.
-		if (is_the_same_entity(owners[row], frame.hidden))
+		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame.hidden))
 			continue;
 
 		transform = voe_scene_transform_get(world, owners[row]);
 		material = voe_3d_material_get(world, owners[row]);
 		if (transform == NULL || material == NULL)
 			continue;
+		// Where it was `lag` of a step ago (0254).
+		drawn = voe_scene_transform_between(world, owners[row], frame.lag);
 
-		entry = (struct deferred){
+		entry = (struct voe_3d_deferred){
 			.panel = false,
 			.mesh = { .geometry = meshes[row].geometry,
-				  .object = object_of(
-					  transform, material,
+				  .object = voe_3d_draw_group_object_of(
+					  &drawn, material,
 					  has_shapes ? voe_ecs_component_get(
 							       world, shapes,
 							       owners[row]) :
-						       NULL) },
+						       NULL,
+					  frame.eye) },
 		};
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.
@@ -604,7 +306,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// side of the depth clear this is on, the alpha mode says which
 		// pass it is in on that side.
 		if (meshes[row].layer == VOE_3D_LAYER_OVERLAY) {
-			hold(blended ? &overlay_blended : &overlay_solid, entry,
+			voe_3d_draw_group_hold(blended ? &overlay_blended : &overlay_solid, entry,
 			     entry.mesh.object.world, view.view);
 			continue;
 		}
@@ -612,7 +314,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// solid in the world, and after every see-through thing further
 		// away than it is.
 		if (blended) {
-			hold(&world_blended, entry, entry.mesh.object.world,
+			voe_3d_draw_group_hold(&world_blended, entry, entry.mesh.object.world,
 			     view.view);
 			continue;
 		}
@@ -632,12 +334,12 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	for (uint32_t row = 0; row < panel_count; row++) {
 		const voe_scene_transform *transform;
 		voe_math_float4x4 model;
-		struct deferred entry;
+		struct voe_3d_deferred entry;
 
 		// The same hiding rule as the mesh table's, in the same place
 		// and for the same reason: a pass hides an entity, whichever
 		// table draws it, and it is tested before the lookup.
-		if (is_the_same_entity(panel_owners[row], frame.hidden))
+		if (voe_3d_draw_group_is_the_same_entity(panel_owners[row], frame.hidden))
 			continue;
 
 		transform = voe_scene_transform_get(world, panel_owners[row]);
@@ -650,8 +352,11 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		if (!range_is_this_frame_s(panels[row], submitted))
 			continue;
 
-		model = voe_scene_transform_matrix(*transform);
-		entry = (struct deferred){
+		model = voe_scene_transform_matrix(
+			voe_scene_transform_between(world, panel_owners[row],
+						    frame.lag),
+			frame.eye);
+		entry = (struct voe_3d_deferred){
 			.panel = true,
 			.elements = { .transform = panel_transform(
 					      clip, model, panels[row].size),
@@ -663,7 +368,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// out of the model matrix rather than out of the composed one,
 		// because the composed one is already in clip space and its
 		// last column is not a position any more.
-		hold(panels[row].layer == VOE_3D_LAYER_OVERLAY ?
+		voe_3d_draw_group_hold(panels[row].layer == VOE_3D_LAYER_OVERLAY ?
 			     &overlay_blended :
 			     &world_blended,
 		     entry, model, view.view);
@@ -673,8 +378,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// every return value here is deliberately dropped: the loop still ends
 	// and presents the frame. The camera marker is solid and in the world's
 	// depth (0223), so it goes with the solids, before the blended group.
-	draw_camera_marker(world, device, arena, view, frame.marker);
-	(void)draw_group(device, &world_blended);
+	voe_3d_draw_marks_camera(world, device, arena, frame);
+	(void)voe_3d_draw_group_draw(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,
 	// which is the whole of what a layer is. The colour the world was drawn
@@ -692,85 +397,16 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		voe_render_frame_clear_depth(device);
 		cleared = true;
 
-		(void)draw_group(device, &overlay_solid);
-		(void)draw_group(device, &overlay_blended);
+		(void)voe_3d_draw_group_draw(device, &overlay_solid);
+		(void)voe_3d_draw_group_draw(device, &overlay_blended);
 	}
 
-	// THE OUTLINE IS THE LAST THING IN THE FRAME, WHICH IS WHAT MAKES IT SHOW
-	// THROUGH. It goes after the overlay's own groups and after the depth
-	// clear, so nothing already drawn can be in front of it — while the
-	// entity it belongs to was drawn where it really is, in its own layer,
-	// untouched. A world with nothing above it has not cleared depth at that
-	// point, so this clears it: the clear is what the outline is drawn
-	// against, and it is made once either way. See `outlined` in
-	// 3d/draw_system.h and ADR-0203.
-	//
-	// A REFUSED TRANSIENT RANGE DRAWS NO OUTLINE AND NOTHING ELSE CHANGES.
-	// render has already said so on stderr, and the rest of the frame is
-	// drawn, ended and presented — the same rule every other draw in here
-	// follows.
-	if (voe_ecs_entity_alive(world, frame.outlined.entity)) {
-		voe_3d_outline_mesh outline;
-		voe_render_geometry quads;
-		voe_base_error error = VOE_BASE_OK;
-
-		if (voe_3d_outline_quads(world, frame.outlined, view, arena,
-					 &outline) &&
-		    voe_render_geometry_create_transient(
-			    device, outline.vertices, outline.vertex_count,
-			    outline.indices, outline.index_count, &quads,
-			    &error)) {
-			// The quads are already in world space (3d/outline.h),
-			// so both matrices are the identity; the record is the
-			// caller's unlit one and the colour the caller's, which
-			// is the whole of what the outline looks like.
-			voe_render_object object = {
-				.world = voe_math_float4x4_identity(),
-				.normal = voe_math_float4x4_identity(),
-				.shading = frame.outlined.material.shading.index,
-				.colour = { frame.outlined.colour.x,
-					    frame.outlined.colour.y,
-					    frame.outlined.colour.z, 1.0f },
-			};
-
-			if (!cleared)
-				voe_render_frame_clear_depth(device);
-			(void)voe_render_frame_draw(device, quads, object);
-		}
-	}
-
-	// AND THE GIZMO IS AFTER EVEN THE OUTLINE, BEHIND A CLEAR OF ITS OWN.
-	// The outline is in the same depth buffer and cuts across an arrow that
-	// stands in front of it, so the gizmo is given an empty buffer too:
-	// that second clear is the whole of what puts it in front of everything
-	// in the picture, and it still occludes itself. Two draws, because the
-	// marked handle is a colour of its own (ADR-0205).
-	if (voe_ecs_entity_alive(world, frame.gizmo.entity)) {
-		const voe_scene_transform *transform =
-			voe_scene_transform_get(world, frame.gizmo.entity);
-		voe_3d_gizmo gizmo;
-		voe_3d_gizmo_mesh plain;
-		voe_3d_gizmo_mesh marked;
-
-		// An entity with nowhere to be has nowhere to stand a gizmo,
-		// which is skipped rather than guessed at — the same rule a
-		// mesh with no transform is drawn by.
-		if (transform != NULL) {
-			voe_render_frame_clear_depth(device);
-			gizmo = voe_3d_gizmo_at(transform->position, view,
-						frame.gizmo.size,
-						frame.gizmo.pixels);
-			if (voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena,
-					       &plain, &marked)) {
-				draw_gizmo_mesh(device, plain,
-						frame.gizmo.material,
-						frame.gizmo.colour);
-				draw_gizmo_mesh(device, marked,
-						frame.gizmo.material,
-						frame.gizmo.marked_colour);
-			}
-		}
-	}
+	// The outline and the collider's lines behind one depth clear, then the
+	// gizmo behind its own (3d/src/draw_marks.h); the first is the overlay's
+	// when it made one.
+	cleared = voe_3d_draw_marks_outline(world, device, arena, frame, cleared);
+	voe_3d_draw_marks_collider(world, device, arena, frame, cleared);
+	voe_3d_draw_marks_gizmo(world, device, arena, frame);
 
 	// Everything above is this frame's, and the caller's arena is handed
 	// back exactly as it arrived. Ending the frame is the loop's.

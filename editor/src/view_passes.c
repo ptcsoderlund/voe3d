@@ -1,6 +1,7 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, a pass begun on each one's target with its own camera, the world drawn
-// with the selection's outline and gizmo and the scene camera's marker, and
+// with the selection's outline, collider and gizmo and the scene camera's
+// marker, and
 // the pass ended; and the preview's pass, drawn with the world's camera while
 // the selected entity has one.
 #include "view_passes.h"
@@ -29,10 +30,13 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	    NULL)
 		return true;
 
-	// Outline, gizmo and marker come back zeroed and stay so (0223).
+	// Outline, gizmo and marker come back zeroed and stay so (0223); the
+	// eye is the world camera's, and the editor draws what is (0254).
 	frame = voe_3d_draw_system_frame(
-		world, (voe_platform_size){ VOE_EDITOR_PREVIEW_WIDTH,
-					    VOE_EDITOR_PREVIEW_HEIGHT });
+		world,
+		(voe_platform_size){ VOE_EDITOR_PREVIEW_WIDTH,
+				     VOE_EDITOR_PREVIEW_HEIGHT },
+		0.0f);
 	if (frame.blind)
 		return true;
 	frame.light = light;
@@ -91,6 +95,7 @@ bool voe_editor_view_passes_draw(
 			(voe_3d_frame){
 				.view = camera.view,
 				.light = camera.light,
+				.eye = view->eye,
 				.outlined = {
 					.entity = voe_editor_scene_selected(scene),
 					.geometries = geometries,
@@ -117,6 +122,13 @@ bool voe_editor_view_passes_draw(
 					.entity = camera_entity,
 					.material = shapes->outline,
 					.colour = marker_colour,
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
+				// The selection; one without a collider draws none.
+				.collider = {
+					.entity = selected,
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,

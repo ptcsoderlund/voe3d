@@ -140,8 +140,9 @@ static void the_centre_stays_centred(void)
 	VOE_TEST_CHECK_FLOAT(clip.w, 5.0f, TOLERANCE);
 }
 
-// A pose at (0, 0, 5) sees from there: the eye is its position, the view is
-// scene's own and the projection the lens's.
+// A pose at (0, 0, 5) sees from there: the view is scene's own, about the
+// pose's position, so the eye is nought (ADR-0250), and the projection is the
+// lens's.
 static void a_view_is_a_pose_and_a_lens(void)
 {
 	voe_scene_transform pose = { .position = { 0.0f, 0.0f, 5.0f },
@@ -155,7 +156,7 @@ static void a_view_is_a_pose_and_a_lens(void)
 	VOE_TEST_CHECK(voe_3d_view(pose, a_camera(), 2.0f, &view));
 	VOE_TEST_CHECK_FLOAT(view.eye.x, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(view.eye.y, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(view.eye.z, 5.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(view.eye.z, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(view.reserved, 0.0f, 0.0f);
 	for (int row = 0; row < 4; row++) {
 		for (int column = 0; column < 4; column++) {

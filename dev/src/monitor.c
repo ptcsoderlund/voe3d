@@ -178,6 +178,10 @@ voe_3d_frame voe_dev_monitor_frame(const voe_dev_monitor *monitor,
 		// the header says what the debug check says when this is
 		// forgotten.
 		.hidden = monitor->screen,
+		// What the view and every matrix are taken about (ADR-0250),
+		// and drawn as it is now: dev steps nothing (ADR-0254).
+		.eye = monitor->pose.position,
+		.lag = 0.0f,
 	};
 
 	// The aspect ratio is the target's own and not the window's: this

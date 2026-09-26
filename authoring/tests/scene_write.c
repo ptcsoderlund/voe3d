@@ -123,19 +123,19 @@ static void test_three_entities(void)
 
 	authored(world, 7, "Sun");
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
-		.position = { 1.0f, 2.5f, -3.0f },
+		.position = { 1.0, 2.5, -3.0 },
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
 	voe_ecs_entity floor = authored(world, 3, "Floor \"big\"");
 
 	VOE_TEST_CHECK(voe_scene_transform_add(world, floor, (voe_scene_transform){
-		.position = { 0.0f, -0.5f, 0.0f },
+		.position = { 0.0, -0.5, 0.0 },
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 10.0f, 0.1f, 10.0f },
 	}));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, probe, (voe_scene_transform){
-		.position = { 9.0f, 9.0f, 9.0f },
+		.position = { 9.0, 9.0, 9.0 },
 		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 		.scale = { 1.0f, 1.0f, 1.0f },
 	}));
@@ -159,6 +159,34 @@ static void test_three_entities(void)
 		   "\n"
 		   "[7]\n"
 		   "name = \"Sun\"\n");
+
+	voe_base_arena_destroy(arena);
+}
+
+// A position 100 km out is written as each double's shortest decimal, which
+// reads back to the same bits (ADR-0250).
+static void test_far_position(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity far = authored(world, 4, "Far");
+	size_t size;
+
+	VOE_TEST_CHECK(voe_scene_transform_add(world, far, (voe_scene_transform){
+		.position = { 100000.123456789, -0.05, 1e7 + 0.001 },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	}));
+
+	const char *text = written(world, arena, &size);
+
+	CHECK_TEXT(text, size,
+		   "[4]\n"
+		   "name = \"Far\"\n"
+		   "[4.voe_scene_transform]\n"
+		   "position = [100000.123456789, -0.05, 10000000.001]\n"
+		   "rotation = [0, 0, 0, 1]\n"
+		   "scale = [1, 1, 1]\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -562,7 +590,7 @@ static void test_same_bytes_twice(void)
 		(void)snprintf(name, sizeof(name), "e%u", (unsigned)id);
 		entity = authored(world, id * 11 % 13, name);
 		VOE_TEST_CHECK(voe_scene_transform_add(world, entity, (voe_scene_transform){
-			.position = { (float)id / 7.0f, 0.0f, 0.0f },
+			.position = { (double)id / 7.0, 0.0, 0.0 },
 			.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 			.scale = { 1.0f, 1.0f, 1.0f },
 		}));
@@ -639,6 +667,7 @@ static void test_kept_sections(void)
 int main(void)
 {
 	test_three_entities();
+	test_far_position();
 	test_every_kind();
 	test_floats();
 	test_ascending_ids();

@@ -110,7 +110,7 @@ static const uint8_t APP_ICON_PNG[] = {
 // this file says which layer it is in — see src/text.c on the two placements and
 // why neither is the normal case.
 static bool add_cube(voe_ecs_world *world, voe_render_geometry geometry,
-		     voe_3d_material material, voe_math_float3 position,
+		     voe_3d_material material, voe_math_double3 position,
 		     voe_math_float3 scale, voe_ecs_entity *out)
 {
 	voe_scene_transform transform = {
@@ -253,10 +253,10 @@ bool voe_dev_add_the_cubes(voe_ecs_world *world, voe_render_device *gpu,
 	// that one mesh can be worn two ways. The second one is squashed, which
 	// is what makes the normal matrix visible — see CUBE_SCALE_X.
 	return add_cube(world, geometry, icon,
-			(voe_math_float3){ 0.0f, 0.0f, 0.0f },
+			(voe_math_double3){ 0.0, 0.0, 0.0 },
 			(voe_math_float3){ 1.0f, 1.0f, 1.0f }, &still) &&
 	       add_cube(world, geometry, logo,
-			(voe_math_float3){ VOE_DEV_CUBES_APART, 0.0f, 0.0f },
+			(voe_math_double3){ VOE_DEV_CUBES_APART, 0.0, 0.0 },
 			(voe_math_float3){ CUBE_SCALE_X, CUBE_SCALE_Y,
 					   CUBE_SCALE_Z },
 			turning);

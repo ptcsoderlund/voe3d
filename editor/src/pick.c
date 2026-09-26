@@ -35,6 +35,7 @@ void voe_editor_pick_read(voe_editor_pick *pick, voe_editor_scene *scene,
 	const voe_editor_view *clicked = &views->views[view];
 	voe_3d_ray ray = voe_3d_pick_ray(
 		voe_editor_view_pass_camera(clicked, (voe_render_light){ 0 }).view,
+		clicked->eye,
 		(voe_platform_size){ (int)clicked->width,
 				     (int)clicked->height },
 		point);

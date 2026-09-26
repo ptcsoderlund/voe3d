@@ -1,5 +1,5 @@
 // The seam a project's own code is written against (0239, 0242): its component
-// types registered through game, and the two entry points the project defines.
+// types registered through game, and the three entry points the project defines.
 //
 //     const struct voe_ecs_key player_key = { "player" };
 //     void voe_game_project_register(voe_ecs_world *world)
@@ -23,9 +23,15 @@
 // and other folders' through their intents (rule 4).
 //
 // THE ENTRY POINTS ARE THE PROJECT'S, never the engine's. The game links them
-// (game/run.h registers, then runs the systems before each frame); the editor
-// resolves register with one lookup in the loaded library and never runs the
-// systems (ADR-0008).
+// (game/run.h registers; game/steps.h runs the systems each fixed step); the
+// editor resolves register with one lookup in the loaded library and never
+// runs the systems (ADR-0008).
+//
+// TWO SLOTS A STEP (0256): systems_run is before the bodies' move;
+// systems_after_move is after it, in the same step, so what it moves is
+// drawn at the same lag (a camera following a body belongs there). Within a
+// slot the project calls its systems in list order, and that is the only
+// ordering. A project with no after-the-move systems defines it empty.
 //
 // Constraints: at most VOE_GAME_PROJECT_TYPES types, each row at most
 // VOE_GAME_PROJECT_ROW bytes so its intent fits the Inspector's 256; each
@@ -56,7 +62,7 @@
 #define VOE_GAME_PROJECT_DESCRIPTION(name) (&voe_ecs_description_compiled_out)
 #endif
 
-// What one frame hands the project's systems. `window` is NULL headless.
+// What one fixed step hands the project's systems. `window` is NULL headless.
 typedef struct {
 	voe_ecs_world *world;
 	voe_platform_window *window;
@@ -85,3 +91,4 @@ void voe_game_project_replaces_apply(voe_ecs_world *world);
 // Defined by the project, never by the engine.
 void voe_game_project_register(voe_ecs_world *world);
 void voe_game_project_systems_run(const voe_game_project_step *step);
+void voe_game_project_systems_after_move(const voe_game_project_step *step);

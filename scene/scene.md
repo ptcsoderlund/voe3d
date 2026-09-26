@@ -8,18 +8,18 @@ space is.
 - `include` — the public headers, in `include/scene/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
-- `include/scene/transform_component.h` — position, rotation, scale as a
-  described field list, and the matrix they become. The file says why there is
-  no parent, why the matrix is not stored, in which order the three compose, what
-  the drain settles, and a rotation's two bounds.
+- `include/scene/transform_component.h` — a double position, a rotation and a
+  scale as a described field list, and the matrix they become about an origin
+  the caller names. The file says why there is no parent, why the matrix is not
+  stored, and what the drain settles.
 - `include/scene/transform_system.h` — the intent that moves one, registered as
-  the component's replace, and the call that creates one. Its header says why
-  the intent is whole, why creation is not one, why only the drain checks a
-  rotation, why the report is per process, and its menu path.
+  the component's replace, the call that creates one, and the opt-in previous
+  table a stepping world remembers each step and blends back to by a lag
+  (position in double, rotation the shorter way, scale straight).
 - `include/scene/camera_component.h` — the lens only: field of view and the two
-  planes, as a described field list, and the view from a pose. Its header says
-  why the pose is the transform, why the view is the plain inverse, and why the
-  projection is not built here.
+  planes, as a described field list, and the view from a pose, relative to its
+  own eye. Its header says why the pose is the transform, why the view is the
+  plain inverse, and why the projection is not built here.
 - `include/scene/camera_system.h` — the whole-lens intent, registered as the
   camera's replace, and the transform a camera needs. Its header says why the
   intent is whole, what lens is refused, and why Add component never offers one.

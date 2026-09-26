@@ -193,7 +193,7 @@ static uint32_t draws_of_a_frame(voe_ecs_world *world,
 				 voe_base_arena *arena, uint32_t records)
 {
 	voe_platform_size size = { SIDE, SIDE };
-	voe_3d_frame frame = voe_3d_draw_system_frame(world, size);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera = { .view = frame.view,
 					  .light = frame.light };
 	bool drawing = false;

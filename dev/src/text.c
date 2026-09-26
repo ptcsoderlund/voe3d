@@ -335,7 +335,7 @@ static bool add_text(voe_ecs_world *world, voe_render_device *gpu,
 							     HUD_PANEL_G,
 							     HUD_PANEL_B, 1.0f },
 					  VOE_RENDER_ALPHA_OPAQUE, true),
-		    voe_dev_quad_at((voe_math_float3){ 0.0f, 0.0f, 0.0f }, 1.0f),
+		    voe_dev_quad_at((voe_math_double3){ 0.0, 0.0, 0.0 }, 1.0),
 		    VOE_3D_LAYER_OVERLAY, panel, error))
 		return NULL;
 

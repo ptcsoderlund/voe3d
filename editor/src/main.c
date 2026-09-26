@@ -280,6 +280,9 @@ int main(int argc, char *argv[])
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
 
+	// The views open where the scene's camera is, not at the origin (0255).
+	voe_editor_views_focus_camera(&views, scene.world);
+
 	oxanium = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena,
 				    &error);
 	if (oxanium == NULL) {
@@ -393,6 +396,7 @@ int main(int argc, char *argv[])
 		if (session.replaced) {
 			session.replaced = false;
 			voe_editor_undo_forget(&undo);
+			voe_editor_views_focus_camera(&views, scene.world);
 		} else if ((step_back || step_forward) &&
 			   voe_editor_undo_take(&undo, session.project, &scene,
 						&session.notice, step_forward)) {

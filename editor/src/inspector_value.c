@@ -116,6 +116,14 @@ float real32_at(const uint8_t *bytes, uint32_t lane)
 	return value;
 }
 
+double real64_at(const uint8_t *bytes, uint32_t lane)
+{
+	double value;
+
+	memcpy(&value, bytes + (size_t)lane * sizeof value, sizeof value);
+	return value;
+}
+
 int64_t whole_signed(voe_base_field_kind kind, const uint8_t *bytes)
 {
 	switch (kind) {
@@ -331,6 +339,9 @@ const char *value_text(voe_base_arena *arena, const voe_ecs_world *world,
 			    (double)real32_at(bytes, 0),
 			    (double)real32_at(bytes, 1),
 			    (double)real32_at(bytes, 2));
+	case VOE_BASE_FIELD_DOUBLE3:
+		return text(arena, "%.3f, %.3f, %.3f", real64_at(bytes, 0),
+			    real64_at(bytes, 1), real64_at(bytes, 2));
 	case VOE_BASE_FIELD_FLOAT4:
 	case VOE_BASE_FIELD_QUAT:
 		return text(arena, "%.3f, %.3f, %.3f, %.3f",
@@ -381,6 +392,7 @@ uint32_t lanes(voe_base_field_kind kind)
 	case VOE_BASE_FIELD_FLOAT2:
 		return 2;
 	case VOE_BASE_FIELD_FLOAT3:
+	case VOE_BASE_FIELD_DOUBLE3:
 	case VOE_BASE_FIELD_COLOUR:
 	case VOE_BASE_FIELD_QUAT:
 		return 3;
@@ -400,5 +412,5 @@ uint32_t lanes(voe_base_field_kind kind)
 bool is_vector(voe_base_field_kind kind)
 {
 	return kind == VOE_BASE_FIELD_FLOAT2 || kind == VOE_BASE_FIELD_FLOAT3 ||
-	       kind == VOE_BASE_FIELD_FLOAT4;
+	       kind == VOE_BASE_FIELD_DOUBLE3 || kind == VOE_BASE_FIELD_FLOAT4;
 }
