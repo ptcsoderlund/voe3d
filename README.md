@@ -36,6 +36,11 @@ Press Play in the editor to build and run the coin game as a program of its own.
 presets and targets, tests, how the engine's folders and public API fit together, and how the
 editor turns a project into an executable.
 
+## Contact
+
+Per Söderlund — [ptcsoderlund@gmail.com](mailto:ptcsoderlund@gmail.com). Email is a better way to
+reach me than an issue.
+
 ## License
 
 VOE3D is released under the MIT License; see [`LICENSE`](LICENSE).
