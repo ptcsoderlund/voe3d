@@ -97,6 +97,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.eye = pose.position;
 	frame.lag = lag;
 	frame.light = voe_3d_draw_system_light(world);
+	// No shadow until voe_3d_draw_system_shadows fills one (ADR-0258).
+	frame.shadow = (voe_render_shadow){ 0 };
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
 	// outline and the gizmo: a zeroed record outlines nothing and stands no

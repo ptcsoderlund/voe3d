@@ -7,7 +7,10 @@
 //     if (!voe_render_frame_begin(gpu, size, &drawing))
 //             break;                          // the GPU stopped answering
 //     if (drawing) {
-//             voe_render_pass_camera camera = { frame.view, frame.light };
+//             (void)voe_3d_draw_system_shadows(world, gpu, &frame);
+//                                             // false: unshadowed, said on stderr
+//             voe_render_pass_camera camera = { frame.view, frame.light,
+//                                               frame.shadow };
 //             ...                             // build what changes this frame
 //             if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
 //                     voe_3d_draw_system_run(world, gpu, scratch, frame);
@@ -19,7 +22,8 @@
 //
 // THE LOOP OWNS THE FRAME AND THIS SYSTEM DRAWS INTO IT (ADR-0098). Begin and
 // end are the program's calls, made from its loop exactly as render's own header
-// shows, and the phases inside a frame are ordered there: begin; build what
+// shows, and the phases inside a frame are ordered there: begin; the sun's
+// shadow passes, one per cascade (voe_3d_draw_system_shadows); build what
 // changes this frame — a readout, a user interface — which is the only world
 // write after the systems have run; a pass opened with the frame's camera; this
 // system walks the world; the pass closed; end, which presents. That order exists because geometry built for one frame
@@ -156,6 +160,10 @@ typedef struct {
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
+	// Where the sun's shadow maps are; zero is none. _frame leaves it
+	// zeroed, voe_3d_draw_system_shadows fills it, and the loop hands it
+	// to the pass beside `view` and `light` (ADR-0258).
+	voe_render_shadow shadow;
 	// The camera's world position, in double, that `view` is about
 	// (ADR-0250): every object's matrix, the sort and every mark is taken
 	// about this point. _frame sets it; a frame built by hand sets it too.
@@ -298,6 +306,25 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // reading the light table themselves, so a scene with no light is unshaded in
 // each of them exactly as it is in the game's frame.
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
+
+// The sun's shadow passes for `frame`, opened between the frame's begin and the
+// view's pass (ADR-0258). With the light shaded and the frame not blind, it fits
+// the four cascades to `frame->view`, `frame->eye` and the light's direction at
+// VOE_3D_SHADOW_TEXELS, sets `frame->shadow`, and opens one shadow pass per
+// cascade that draws every caster at the frame's lag; otherwise it leaves
+// `shadow` zeroed and opens nothing. A caller that never calls it draws as
+// before, with no shadow. False when a pass or a draw is refused, with render's
+// line on stderr; `shadow` is zeroed then, so the view draws unshadowed. Called
+// with a pass open, it asserts.
+//
+// CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
+// frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
+// nothing. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
+// passes and 4 × the drawn objects more per view: every caster is drawn once
+// into each cascade.
+[[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
+					      voe_render_device *device,
+					      voe_3d_frame *frame);
 
 // Draws every entity that has a mesh, a transform and a material — and every
 // entity that has a panel, a transform and a range this frame submitted — into
