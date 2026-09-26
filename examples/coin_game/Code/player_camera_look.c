@@ -96,7 +96,6 @@ void player_camera_look(const voe_game_project_frame *frame)
 		row.distance = player_camera_zoomed(
 			row.distance,
 			voe_platform_input_wheel(frame->window).y, numbers);
-		row.arm = row.distance;
 	}
 	const bool ok = voe_ecs_component_set(world, type, camera, &row);
 

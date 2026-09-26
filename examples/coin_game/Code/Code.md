@@ -8,7 +8,7 @@ the library the editor loads (0242).
 - `player.h` — the Player component: the sponsor's numbers for the walk, the jump, the camera and the score; the runtime-only player_state.
 - `player_system.c` — registers player and player_state; walks, jumps and restarts players.
 - `player_camera.h` — the runtime-only player_camera_state on the scene's camera: yaw, pitch, distance, arm, lock asked.
-- `player_camera_system.c` — registers player_camera_state; after the move adds its row or places the camera behind the first player.
+- `player_camera_system.c` — registers player_camera_state; after the move adds its row or springs the arm in front of what is in the way and places the camera behind the first player.
 - `player_camera_look.c` — once a frame while playing: locks the pointer and turns by the mouse on the right button, zooms by the wheel.
 - `coin.h` — the Coin component, its points, and the runtime-only coin_taken that hides a taken coin.
 - `coin_system.c` — registers coin under "Coin" and coin_taken with no menu; takes a coin a player's overlap finds and puts it back after a restart.

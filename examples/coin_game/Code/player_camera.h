@@ -2,7 +2,7 @@
 // zoomed by the wheel, and placed behind the first player after each move.
 //
 //     player_camera_register(world);   // in voe_game_project_register
-//     player_camera_run(world);        // after the move, each fixed step
+//     player_camera_run(world, seconds); // after the move, each fixed step
 //     player_camera_look(frame);       // once a frame, before the screens
 //
 // player_camera_state is one runtime-only row on the scene's one camera
@@ -19,11 +19,18 @@
 // `yaw` and `pitch` are radians; the rotation is yaw about +Y then pitch
 // about +X, so it never rolls or flips. Pitch stays in [-80 deg, -5 deg],
 // always looking down at the player; yaw wraps to (-pi, pi]. `distance` is
-// the metres the wheel chose, `arm` the metres the camera sits at (for now
-// the distance); `lock_asked` whether the pointer lock was last asked for.
+// the metres the wheel chose, `arm` the metres the camera sits at; `lock_asked`
+// whether the pointer lock was last asked for.
+//
+// THE ARM SPRINGS IN FRONT OF WHAT IS IN THE WAY (0261 point 5): each step it
+// is the longest length up to the distance that a 0.25 m capsule from the
+// player to the camera leaves clear. In the way is any solid collider: not a
+// trigger, not the player. The arm comes in at once and goes out at most
+// 10 m/s.
 //
 // Constraints: one row (capacity 1). Nothing turns off the playing phase, and
-// the lock is let go there.
+// the lock is let go there. The arm test keeps 16 contacts, so past 16 triggers
+// on it a solid collider may be missed.
 #pragma once
 
 #include <ecs/world.h>
@@ -51,9 +58,10 @@ extern const struct voe_ecs_key player_camera_state_key;
 [[nodiscard]] bool player_camera_register(voe_ecs_world *world);
 
 // Adds the row on its first run, from the camera's own rotation and the first
-// player's camera_distance; after, places the camera arm metres behind the
-// first player along the row's rotation.
-void player_camera_run(voe_ecs_world *world);
+// player's camera_distance; after, springs the arm over the step's seconds
+// and places the camera arm metres behind the first player along the row's
+// rotation.
+void player_camera_run(voe_ecs_world *world, double seconds);
 
 // Takes and lets go of the pointer lock, turns by the mouse while the right
 // button is held and zooms by the wheel, all only while playing.

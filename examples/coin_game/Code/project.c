@@ -50,7 +50,7 @@ void voe_game_project_systems_after_move(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
-	player_camera_run(step->world);
+	player_camera_run(step->world, step->seconds);
 }
 
 bool voe_game_project_interface(const voe_game_project_frame *frame)

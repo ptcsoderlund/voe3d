@@ -3,12 +3,15 @@
 //
 // The first step reads yaw and pitch off the camera's authored rotation
 // (0261 point 2) and the distance off the first player; every later step
-// submits the camera's transform from the row, which player_camera_look
-// turns once a frame.
+// sets the row's arm by the spring arm (0261 point 5) and submits the
+// camera's transform from the row, which player_camera_look turns once a
+// frame.
 //
 // Constraints: a full structural or transform queue leaves the camera where
 // it was this step. The runtime-only marker is taken by address at run time,
-// because a project library imports it on Windows (0245).
+// because a project library imports it on Windows (0245). The spring arm
+// bisects capsule overlaps, about fifteen a step, because physics has no ray
+// or sweep yet (0253); one would replace the bisection.
 #include "player.h"
 #include "player_camera.h"
 
@@ -22,10 +25,18 @@
 #include <math/float3.h>
 #include <math/quat.h>
 
+#include <physics/collider_component.h>
+#include <physics/overlap.h>
+#include <physics/shape.h>
+
 #include <scene/camera_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
+#include <stdint.h>
+
+#define PLAYER_CAMERA_CONTACTS 16u
+#define PLAYER_CAMERA_ARM_SPEED 10.0f
 
 const struct voe_ecs_key player_camera_state_key = { "player_camera_state" };
 
@@ -77,18 +88,105 @@ static player_camera_state player_camera_first(voe_math_quat rotation,
 	return first;
 }
 
-// The camera's transform: rotation yaw then pitch, at the target plus the
+// The row's rotation: yaw about +Y, then pitch about +X.
+static voe_math_quat player_camera_rotation_of(const player_camera_state *row)
+{
+	VOE_BASE_ASSERT(row != NULL, "turning the camera from no row");
+	const voe_math_quat rotation = voe_math_quat_mul(
+		voe_math_quat_from_axis_angle((voe_math_float3){ 0, 1, 0 },
+					      row->yaw),
+		voe_math_quat_from_axis_angle((voe_math_float3){ 1, 0, 0 },
+					      row->pitch));
+
+	VOE_BASE_DEBUG_ASSERT(fabsf(voe_math_quat_length(rotation) - 1.0f) <
+				      0.01f,
+			      "a camera rotation that is not unit");
+	return rotation;
+}
+
+// Whether a capsule of radius 0.25 m from the player along the rotation's +Z
+// for `length` metres touches anything solid. Triggers and the player are not
+// in the way.
+static bool player_camera_blocked(const voe_ecs_world *world,
+				  voe_ecs_entity player_entity,
+				  voe_math_double3 from, voe_math_quat rotation,
+				  float length)
+{
+	VOE_BASE_ASSERT(world != NULL && length >= 0.0f,
+			"testing a camera arm of no length or in no world");
+	const voe_math_float3 back =
+		voe_math_float3_scale(player_camera_forward_of(rotation), -1.0f);
+	const voe_physics_shape arm = {
+		.kind = VOE_PHYSICS_COLLIDER_CAPSULE,
+		.centre = voe_math_double3_add(
+			from, voe_math_double3_from_float3(voe_math_float3_scale(
+				      back, length * 0.5f))),
+		.rotation = voe_math_quat_mul(
+			rotation, voe_math_quat_from_axis_angle(
+					  (voe_math_float3){ 1, 0, 0 },
+					  PLAYER_CAMERA_PI * 0.5f)),
+		.half = { 0.25f, length * 0.5f + 0.25f, 0.0f },
+	};
+	voe_physics_contact contacts[PLAYER_CAMERA_CONTACTS];
+	const uint32_t found = voe_physics_overlap(
+		world, arm, player_entity, contacts, PLAYER_CAMERA_CONTACTS);
+
+	VOE_BASE_ASSERT(found <= PLAYER_CAMERA_CONTACTS, "more contacts than room");
+	for (uint32_t i = 0; i < found; i++)
+		if (!contacts[i].trigger)
+			return true;
+	return false;
+}
+
+// The longest clear arm up to `distance`: all of it when clear, else
+// bisected to 1 cm. Overlap only grows with length, so bisection holds.
+static float player_camera_clear_length(const voe_ecs_world *world,
+					voe_ecs_entity player_entity,
+					voe_math_double3 from,
+					voe_math_quat rotation, float distance)
+{
+	VOE_BASE_ASSERT(distance >= 0.0f, "a camera distance below nought");
+	if (!player_camera_blocked(world, player_entity, from, rotation,
+				   distance))
+		return distance;
+	float clear = 0.0f;
+	float blocked = distance;
+
+	for (int i = 0; i < 32 && blocked - clear > 0.01f; i++) {
+		const float middle = 0.5f * (clear + blocked);
+
+		if (player_camera_blocked(world, player_entity, from, rotation,
+					  middle))
+			blocked = middle;
+		else
+			clear = middle;
+	}
+	VOE_BASE_DEBUG_ASSERT(clear <= distance, "a clear arm past the distance");
+	return clear;
+}
+
+// The arm after this step: in at once to the clear length, out towards it at
+// most PLAYER_CAMERA_ARM_SPEED metres a second.
+static float player_camera_sprung(float arm, float wanted, double seconds)
+{
+	VOE_BASE_ASSERT(seconds >= 0.0, "a step of negative seconds");
+	const float grown =
+		fminf(wanted, arm + PLAYER_CAMERA_ARM_SPEED * (float)seconds);
+	const float next = wanted < arm ? wanted : grown;
+
+	VOE_BASE_DEBUG_ASSERT(next <= fmaxf(wanted, arm) + 0.001f,
+			      "an arm past what it springs to");
+	return next;
+}
+
+// The camera's transform: the row's rotation, at the target plus the
 // rotation's +Z times the arm.
 static voe_scene_transform player_camera_placed(voe_scene_transform own,
 						voe_math_double3 target,
 						const player_camera_state *row)
 {
 	VOE_BASE_ASSERT(row != NULL, "placing the camera from no row");
-	const voe_math_quat rotation = voe_math_quat_mul(
-		voe_math_quat_from_axis_angle((voe_math_float3){ 0, 1, 0 },
-					      row->yaw),
-		voe_math_quat_from_axis_angle((voe_math_float3){ 1, 0, 0 },
-					      row->pitch));
+	const voe_math_quat rotation = player_camera_rotation_of(row);
 
 	own.rotation = rotation;
 	own.position = voe_math_double3_sub(
@@ -98,7 +196,7 @@ static voe_scene_transform player_camera_placed(voe_scene_transform own,
 	return own;
 }
 
-void player_camera_run(voe_ecs_world *world)
+void player_camera_run(voe_ecs_world *world, double seconds)
 {
 	VOE_BASE_ASSERT(world != NULL, "placing the camera in no world");
 	const voe_ecs_type type = voe_ecs_component_type(world, &player_key);
@@ -116,8 +214,10 @@ void player_camera_run(voe_ecs_world *world)
 		voe_ecs_component_entities(world, camera_type)[0];
 	const voe_scene_transform *own =
 		voe_ecs_component_get(world, transform_type, camera);
-	const voe_scene_transform *target = voe_ecs_component_get(
-		world, transform_type, voe_ecs_component_entities(world, type)[0]);
+	const voe_ecs_entity player_entity =
+		voe_ecs_component_entities(world, type)[0];
+	const voe_scene_transform *target =
+		voe_ecs_component_get(world, transform_type, player_entity);
 	const player_camera_state *state =
 		voe_ecs_component_get(world, state_type, camera);
 
@@ -131,6 +231,18 @@ void player_camera_run(voe_ecs_world *world)
 		(void)voe_ecs_structure_add(world, state_type, camera, &first);
 		return;
 	}
+	player_camera_state row = *state;
+
+	row.arm = player_camera_sprung(
+		row.arm,
+		player_camera_clear_length(world, player_entity,
+					   target->position,
+					   player_camera_rotation_of(&row),
+					   row.distance),
+		seconds);
+	const bool ok = voe_ecs_component_set(world, state_type, camera, &row);
+
+	VOE_BASE_ASSERT(ok, "a player_camera_state row vanished while springing");
 	(void)voe_scene_transform_submit(world, (voe_scene_transform_intent){
-		camera, player_camera_placed(*own, target->position, state) });
+		camera, player_camera_placed(*own, target->position, &row) });
 }
