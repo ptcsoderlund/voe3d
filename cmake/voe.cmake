@@ -160,8 +160,9 @@ function(voe_allowed_deps folder out_var)
         # names authoring, which is what keeps it linkable into a game's tree.
         # physics because its world holds colliders and bodies and runs the
         # move (0253). text and ui for the project's interface drawn over the
-        # world (0259); no theme, because a game reads no project text.
-        set(deps base math ecs scene physics platform render text ui 3d app)
+        # world (0259); no theme, because a game reads no project text. audio
+        # because the run owns the mixer its systems play sounds through (0265).
+        set(deps base math ecs scene physics platform render text ui 3d audio app)
     elseif(folder STREQUAL "dev")
         # dev may depend on anything, app included: it is the one program a
         # person runs to see the current state, so whatever exists is fair game.

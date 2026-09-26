@@ -8,13 +8,17 @@
 //
 // THE ORDER: two arenas, voe_app_new at VOE_GAME_WIDTH by VOE_GAME_HEIGHT with
 // `title`, the interface (game/interface.h), the world (game/world.h), the
-// project's voe_game_project_register (game/project.h), voe_game_scene_build
-// (game/scene.h), the built-in shapes uploaded, then once a frame, skipping a
-// minimised window, until it is closing: the frame's elapsed seconds into
+// project's voe_game_project_register (game/project.h), the mixer
+// (audio/mixer.h) on the program's folder and the sound device
+// (platform/sound.h), voe_game_scene_build (game/scene.h), the built-in shapes
+// uploaded, then once a frame, skipping a minimised window, until it is
+// closing: the frame's elapsed seconds into
 // voe_game_steps_run, which runs voe_game_project_systems_run and
 // voe_game_project_systems_after_move once per fixed step (game/steps.h), then
 // voe_game_interface_run with voe_game_project_interface in the cleared
-// scratch, then voe_game_frame with the lag and the interface's context.
+// scratch, then the mixer pumped into an open device, then voe_game_frame with
+// the lag and the interface's context. A game with no sound device, or whose
+// device fails, runs silent.
 //
 // NO QUIT KEY (0234), BUT THE PROJECT'S INTERFACE MAY END THE RUN (0259).
 // Escape is the game's own, for its menus; the window's close, the system's

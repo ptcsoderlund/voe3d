@@ -46,6 +46,8 @@
 // but through here.
 #pragma once
 
+#include <audio/mixer.h>
+
 #include <base/describe.h>
 
 #include <ecs/component.h>
@@ -72,10 +74,13 @@
 #define VOE_GAME_PROJECT_DESCRIPTION(name) (&voe_ecs_description_compiled_out)
 #endif
 
-// What one fixed step hands the project's systems. `window` is NULL headless.
+// What one fixed step hands the project's systems. `window` is NULL headless;
+// `audio` is the game's mixer, where a system plays a sound (0266 point 4),
+// NULL only in a test whose systems play nothing.
 typedef struct {
 	voe_ecs_world *world;
 	voe_platform_window *window;
+	voe_audio_mixer *audio;
 	double seconds;
 } voe_game_project_step;
 
