@@ -242,16 +242,20 @@
 // and TWELVE ELEMENTS: its border and fill, and the ten letters of
 // "Refreshing", its longer label. 1121 + 2 = 1123, 14660 + 12 = 14672.
 //
+// THE BAR'S SHIP BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
+// and TEN ELEMENTS: its border and fill, and the eight letters of
+// "Shipping", its longer label. 1123 + 2 = 1125, 14672 + 10 = 14682.
+//
 // THE ERRORS PANEL (errors.h) ADDS FIFTY-FOUR NODES, counted on top though it
 // takes Preferences' place: the panel, one; its title, one; its scroll area,
 // one; up to VOE_EDITOR_ERRORS_LINES (48) line labels; Close's row, and Close
-// as a button and a label, three. 1123 + 54 = 1177 nodes. AND 7704 ELEMENTS:
+// as a button and a label, three. 1125 + 54 = 1179 nodes. AND 7704 ELEMENTS:
 // the panel's border and fill, two; "Build errors", eleven; the scrollbars on
 // both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES (160)
-// characters, a byte at least apiece, 7680; Close, two and five. 14672 + 7704 =
-// 22376 elements. AND ONE MORE SCROLL AREA, its lines': five.
-#define VOE_EDITOR_INTERFACE_NODES 1177
-#define VOE_EDITOR_INTERFACE_ELEMENTS 22376
+// characters, a byte at least apiece, 7680; Close, two and five. 14682 + 7704 =
+// 22386 elements. AND ONE MORE SCROLL AREA, its lines': five.
+#define VOE_EDITOR_INTERFACE_NODES 1179
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22386
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -304,9 +308,10 @@ void voe_editor_interface_surface(voe_platform_size target,
 // itself. A button that fired is carried out on `session` before this root's
 // records are submitted, through voe_editor_session_do, which is the reason
 // `session` and not just its notice and its project's name are handed in.
-// The session's play state (play.h) is polled here, once a frame before any
-// root is built, because this is the one call every frame makes with the
-// session; the bar's Play button shows its label.
+// The session's play state (play.h) and its ship (ship.h) are polled here,
+// once a frame before any root is built, because this is the one call every
+// frame makes with the session; the bar's Play and Ship buttons show their
+// labels.
 //
 // `browser` IS DRAWN OVER THE DOCK, IN THE SAME COLUMN, WHEN IT IS SHOWING —
 // see browser.h. WHETHER IT WAS SHOWING IS CAPTURED BEFORE ANYTHING IS DRAWN
