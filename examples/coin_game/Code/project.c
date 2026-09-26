@@ -1,5 +1,5 @@
 // The coin game's four entry points (game/project.h): register names every
-// component the game has, and each fixed step has two slots (0256), each
+// component the game has (rotator, player, coin and coin_taken), and each fixed step has two slots (0256), each
 // system's writes before the next reads.
 //
 // systems_run is before the bodies' move: rotator. systems_after_move is
@@ -12,6 +12,8 @@
 // loads this code as a library and calls only register (0242).
 //
 // Constraints: the order within a slot is the data flow.
+#include "coin.h"
+#include "player.h"
 #include "rotator.h"
 
 #include <base/assert.h>
@@ -24,6 +26,8 @@ void voe_game_project_register(voe_ecs_world *world)
 	// A refusal is game's line on stderr; the system that needs the refused
 	// type asserts on its first run.
 	(void)rotator_register(world);
+	(void)player_register(world);
+	(void)coin_register(world);
 }
 
 void voe_game_project_systems_run(const voe_game_project_step *step)
