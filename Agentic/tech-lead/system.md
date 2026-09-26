@@ -24,7 +24,7 @@ workflow replaced specs.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game's loop: world types, 1/60 s steps, a frame, the code seam, its `ui`.
-- **editor** — authoring: top bar, Scene list, views to fly, gizmo, Inspector, undo, Play, Refresh.
+- **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, undo, Play, Refresh, Ship.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
@@ -46,7 +46,7 @@ workflow replaced specs.
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186–0188, 0234–0237, 0251, 0252, 0258–0262 — Coin game; sun shadows; Play; its UI, state, camera.
+- 0186–0188, 0234–0237, 0251, 0252, 0258–0262, 0264 — Coin game; shadows; Play; its UI; Ship.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
