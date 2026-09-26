@@ -1,4 +1,4 @@
-// The project's three entry points (game/project.h). Teaches where a project
+// The project's four entry points (game/project.h). Teaches where a project
 // starts: register names every component the project has, and each fixed
 // step has two slots, each system's writes before the next reads.
 //
@@ -7,9 +7,12 @@
 // follow, because a camera that reads its target before the move is drawn a
 // step behind it (bug 01, 0257).
 //
-// The game links all three and calls register once, after the engine's
-// types, and both slots each fixed step; the editor loads this code as a
-// library and calls only register (0242).
+// interface runs once a frame, after the steps (0259): the showcase draws
+// none, so it ends the ui frame game began and returns true.
+//
+// The game links all four and calls register once, after the engine's
+// types, both slots each fixed step and interface each frame; the editor
+// loads this code as a library and calls only register (0242).
 //
 // Constraints: before the move, keyboard, then player, then coin; after the
 // move, follow. The order is the data flow.
@@ -47,4 +50,12 @@ void voe_game_project_systems_after_move(const voe_game_project_step *step)
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
 	follow_camera_system_run(step->world);
+}
+
+bool voe_game_project_interface(const voe_game_project_frame *frame)
+{
+	VOE_BASE_ASSERT(frame != NULL && frame->ui != NULL,
+			"drawing the project's interface in no frame");
+	(void)voe_ui_frame_end(frame->ui);
+	return true;
 }

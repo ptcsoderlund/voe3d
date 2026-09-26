@@ -1,5 +1,5 @@
 // The seam a project's own code is written against (0239, 0242): its component
-// types registered through game, and the three entry points the project defines.
+// types registered through game, and the four entry points the project defines.
 //
 //     const struct voe_ecs_key player_key = { "player" };
 //     void voe_game_project_register(voe_ecs_world *world)
@@ -33,6 +33,12 @@
 // slot the project calls its systems in list order, and that is the only
 // ordering. A project with no after-the-move systems defines it empty.
 //
+// THE INTERFACE RUNS ONCE A FRAME, AFTER THE STEPS (0259), because a click is
+// per frame and a step runs zero to four times. Game begins the ui frame and
+// sets the pointer; the project lays out, calls voe_ui_frame_end itself and
+// reads its buttons. False ends the run. A project with no interface ends the
+// frame and returns true.
+//
 // Constraints: at most VOE_GAME_PROJECT_TYPES types, each row at most
 // VOE_GAME_PROJECT_ROW bytes so its intent fits the Inspector's 256; each
 // replace queue holds VOE_GAME_WORLD_AUTHORED values a frame. The world is one
@@ -45,7 +51,11 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
+#include <math/float2.h>
+
 #include <platform/window.h>
+
+#include <ui/layout.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -68,6 +78,16 @@ typedef struct {
 	voe_platform_window *window;
 	double seconds;
 } voe_game_project_step;
+
+// What one frame hands the project's interface. `window` is NULL headless;
+// `ui`'s frame is begun with the pointer set; `size` is the surface in
+// millimetres, the root's size.
+typedef struct {
+	voe_ecs_world *world;
+	voe_platform_window *window;
+	voe_ui_context *ui;
+	voe_math_float2 size;
+} voe_game_project_frame;
 
 // One project type. `default_row` NULL is zeros; `menu` NULL is no menu path.
 typedef struct {
@@ -92,3 +112,4 @@ void voe_game_project_replaces_apply(voe_ecs_world *world);
 void voe_game_project_register(voe_ecs_world *world);
 void voe_game_project_systems_run(const voe_game_project_step *step);
 void voe_game_project_systems_after_move(const voe_game_project_step *step);
+bool voe_game_project_interface(const voe_game_project_frame *frame);

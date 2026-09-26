@@ -3,6 +3,7 @@
 #include <game/run.h>
 
 #include <game/frame.h>
+#include <game/interface.h>
 #include <game/project.h>
 #include <game/scene.h>
 #include <game/steps.h>
@@ -26,9 +27,11 @@
 // The ceiling on a frame's step, in seconds (app/clock.h).
 #define LONGEST_STEP 0.25
 
-// The frames, until the window is closing. False when one was refused.
+// The frames, until the window is closing or the project's interface ends
+// the run. False when one was refused.
 static bool run_frames(voe_app *app, voe_ecs_world *world,
-		       const voe_3d_shapes *shapes, voe_base_arena *scratch)
+		       const voe_3d_shapes *shapes, voe_base_arena *scratch,
+		       voe_game_interface *interface)
 {
 	voe_game_steps steps = { 0 };
 
@@ -44,8 +47,14 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 					 shapes, frame.tick.step,
 					 voe_game_project_systems_run,
 					 voe_game_project_systems_after_move);
+		// The ui frame is laid out in scratch and gone by the next.
+		voe_base_arena_clear(scratch);
+		if (!voe_game_interface_run(interface, scratch, world,
+					    voe_app_window(app), frame.size,
+					    voe_game_project_interface))
+			return true;
 		if (!voe_game_frame(app, world, shapes, scratch, frame.size,
-				    lag))
+				    lag, voe_game_interface_context(interface)))
 			return false;
 	}
 }
@@ -60,6 +69,7 @@ int voe_game_run(const char *title)
 				      .capacities = VOE_GAME_CAPACITIES,
 				      .longest_step = LONGEST_STEP };
 	voe_base_error error = VOE_BASE_OK;
+	voe_game_interface *interface;
 	voe_3d_shapes shapes;
 	voe_ecs_world *world;
 	voe_app *app;
@@ -74,6 +84,12 @@ int voe_game_run(const char *title)
 	// Startup keeps nothing in scratch (app/app.h).
 	voe_base_arena_clear(scratch);
 
+	interface = voe_game_interface_new(voe_app_device(app), arena);
+	if (interface == NULL) {
+		VOE_BASE_ERROR("game", "the interface would not open");
+		goto closed;
+	}
+
 	world = voe_game_world_new(arena);
 	voe_game_project_register(world);
 	if (!voe_game_scene_build(world)) {
@@ -82,11 +98,13 @@ int voe_game_run(const char *title)
 					 &error)) {
 		VOE_BASE_ERROR("game", "the shapes do not fit the device: %s",
 			       voe_base_error_string(error));
-	} else if (!run_frames(app, world, &shapes, scratch)) {
+	} else if (!run_frames(app, world, &shapes, scratch, interface)) {
 		VOE_BASE_ERROR("game", "the device stopped drawing");
 	} else {
 		status = 0;
 	}
+	voe_game_interface_destroy(interface);
+closed:
 	voe_app_destroy(app);
 released:
 	voe_base_arena_destroy(scratch);

@@ -11,7 +11,8 @@
 # picked up by the next build, and the folder is on the include path. Unset,
 # missing or holding no .c, the code is no_code.c instead: a file written into
 # CMAKE_BINARY_DIR with file(CONFIGURE), rewritten only when its bytes change,
-# defining the three entry points of game/project.h empty.
+# defining the four entry points of game/project.h: three empty, and the
+# interface ending the ui frame and returning true (0259).
 # The variable may be a native path (backslashes on Windows); it is rewritten
 # in CMake's form first, because a CONFIGURE_DEPENDS glob is copied unescaped
 # into VerifyGlobs.cmake, where a backslash is an escape (bug 03).
@@ -82,6 +83,7 @@ else()
     file(CONFIGURE OUTPUT "${voe_no_code}" CONTENT [[
 // Written by cmake/game.cmake: a project with no code still gets empty entry points.
 #include <game/project.h>
+#include <ui/layout.h>
 
 void voe_game_project_register(voe_ecs_world *world)
 {
@@ -96,6 +98,12 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 void voe_game_project_systems_after_move(const voe_game_project_step *step)
 {
 	(void)step;
+}
+
+bool voe_game_project_interface(const voe_game_project_frame *frame)
+{
+	(void)voe_ui_frame_end(frame->ui);
+	return true;
 }
 ]])
     set(voe_project_sources "${voe_no_code}")

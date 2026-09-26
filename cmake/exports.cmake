@@ -13,8 +13,8 @@
 # __declspec(dllimport), which VOE_BASE_IMPORTED gives it (ADR-0245 point 2).
 #
 # An archive member that lists `voe_game_project_register`,
-# `voe_game_project_systems_run` or `voe_game_project_systems_after_move` as
-# undefined (game's run.c) is skipped: those
+# `voe_game_project_systems_run`, `voe_game_project_systems_after_move` or
+# `voe_game_project_interface` as undefined (game's run.c) is skipped: those
 # entry points are the project's to define, and exporting the editor's caller
 # of them would say the editor defines what it only calls.
 #
@@ -46,7 +46,7 @@ foreach(archive IN LISTS ARCHIVES)
 
     # First pass: the members that leave a project entry point undefined.
     foreach(line IN LISTS lines)
-        if(line MATCHES "^(.*\\[[^]]*\\]): (voe_game_project_register|voe_game_project_systems_run|voe_game_project_systems_after_move) U")
+        if(line MATCHES "^(.*\\[[^]]*\\]): (voe_game_project_register|voe_game_project_systems_run|voe_game_project_systems_after_move|voe_game_project_interface) U")
             string(MD5 key "${CMAKE_MATCH_1}")
             set(skip_${key} 1)
         endif()
