@@ -363,8 +363,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // rules. So there are four groups and one depth clear between the second and the
 // third, and nothing about blending, the sort or shading differs between the
 // halves. An overlay object keeps a real position in metres and is seen through
-// the same camera: this layer is "always on top" and is not screen space, and no
-// orthographic projection exists anywhere in this engine.
+// the same camera: this layer is "always on top" and is not screen space. The one
+// orthographic projection in this engine is the sun's cascades' (ADR-0258).
 //
 // THE OVERLAY STILL OCCLUDES ITSELF, WHICH IS WHY THIS IS A CLEAR AND NOT THE
 // DEPTH TEST TURNED OFF. Two overlapping panels above the world have to hide

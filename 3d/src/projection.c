@@ -67,6 +67,31 @@ voe_math_float4x4 voe_3d_projection(voe_scene_camera lens, float aspect)
 	return projection;
 }
 
+// The same two equations as the perspective one with w fixed at one:
+// -a * near + b = 1 and -a * far + b = 0, so a = 1 / (far - near) and
+// b = far / (far - near).
+voe_math_float4x4 voe_3d_projection_orthographic(float half_width,
+						 float half_height,
+						 float near_plane,
+						 float far_plane)
+{
+	voe_math_float4x4 projection = { 0 };
+	float span = far_plane - near_plane;
+
+	VOE_BASE_ASSERT(half_width > 0.0f && half_height > 0.0f,
+			"an orthographic box with no area");
+	VOE_BASE_ASSERT(span > 0.0f,
+			"an orthographic box whose far plane is not past its near one");
+
+	projection.m[0][0] = 1.0f / half_width;
+	projection.m[1][1] = 1.0f / half_height;
+	projection.m[2][2] = 1.0f / span;
+	projection.m[2][3] = far_plane / span;
+	projection.m[3][3] = 1.0f;
+	VOE_BASE_ASSERT(projection.m[2][2] > 0.0f, "a box whose depth runs forwards");
+	return projection;
+}
+
 bool voe_3d_view(voe_scene_transform pose, voe_scene_camera lens, float aspect,
 		 voe_render_view *out)
 {

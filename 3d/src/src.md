@@ -5,6 +5,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
   the whole thing, and the render view a pose and a lens become.
+- `shadow_cascades.c` — the splits, each slice's sphere from the inverted
+  projection, the snap to whole texels in double, and the light's view and box.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,

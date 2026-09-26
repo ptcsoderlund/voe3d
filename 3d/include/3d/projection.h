@@ -32,6 +32,10 @@
 // this engine is Y-up, and the whole of the reconciliation is a negative
 // viewport height inside `render`. Negating a row here as well would flip twice,
 // which looks exactly like not flipping at all until something is culled.
+//
+// THE BOX IS THE SAME CONVENTION (ADR-0258). voe_3d_projection_orthographic is
+// the sun's cascades' lens: near 1, far 0, no Y negation, so the three files
+// that agree about depth agree for it too. An empty or inverted box asserts.
 #pragma once
 
 #include <math/float4x4.h>
@@ -46,6 +50,14 @@
 // A zero or negative aspect, or a camera whose planes are the wrong way round,
 // is the caller's bug and asserts: none of it can come out of a file.
 voe_math_float4x4 voe_3d_projection(voe_scene_camera lens, float aspect);
+
+// A box half_width by half_height about the view axis, from near_plane to
+// far_plane along -Z, to clip space: x and y to ±1, depth 1 at the near plane
+// and 0 at the far one, w left at one.
+voe_math_float4x4 voe_3d_projection_orthographic(float half_width,
+						 float half_height,
+						 float near_plane,
+						 float far_plane);
 
 // The view of a camera at `pose` with `lens`: the view matrix from
 // voe_scene_camera_view(pose), the projection from voe_3d_projection(lens,

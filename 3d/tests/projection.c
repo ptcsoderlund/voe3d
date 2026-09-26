@@ -182,9 +182,31 @@ static void a_flattened_pose_sees_nothing(void)
 	VOE_TEST_CHECK_FLOAT(view.eye.x, 7.0f, 0.0f);
 }
 
+// The sun's box runs backwards too: its near plane at depth one, its far at
+// nought, and a corner of it at ±1 across and up, w untouched.
+static void the_box_runs_backwards(void)
+{
+	voe_math_float4x4 box =
+		voe_3d_projection_orthographic(4.0f, 2.0f, 1.0f, 11.0f);
+	voe_math_float4 near_corner = { 4.0f, -2.0f, -1.0f, 1.0f };
+	voe_math_float4 far_corner = { -4.0f, 2.0f, -11.0f, 1.0f };
+	voe_math_float4 near_clip = voe_math_float4x4_mul_float4(box, near_corner);
+	voe_math_float4 far_clip = voe_math_float4x4_mul_float4(box, far_corner);
+
+	VOE_TEST_CHECK_FLOAT(near_clip.z, 1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(far_clip.z, 0.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(near_clip.x, 1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(near_clip.y, -1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(far_clip.x, -1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(far_clip.y, 1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(near_clip.w, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(far_clip.w, 1.0f, 0.0f);
+}
+
 int main(void)
 {
 	depth_runs_backwards();
+	the_box_runs_backwards();
 	the_aspect_ratio_divides();
 	nothing_here_flips_y();
 	the_centre_stays_centred();
