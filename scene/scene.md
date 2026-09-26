@@ -32,8 +32,9 @@ space is.
   which of the two checks is an assert and which a correction, and why the
   report's state is per process.
 - `include/scene/light_component.h` — the sun: which way its light travels, its
-  colour and its strength, written as a described field list. Its header says why a direction is where the light
-  goes rather than where the sun is, and why a reader never has to normalize it.
+  colour and its strength, written as a described field list. Its header says
+  why a direction is where the light goes rather than where the sun is, and why
+  a reader never has to normalize it.
 - `include/scene/light_system.h` — the intent that turns it, and the direct call
   that creates one. Its header says where the normalization happens and why a
   world that is drawn needs this table even when it holds no sun, and where it
