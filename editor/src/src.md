@@ -78,6 +78,12 @@ carries it out.
   time without blocking, a failed step one stderr line naming the build log, and the label.
 - `refresh.c` — the tree written and the first step started, each ended step polled on to the build,
   BUILT or FAILED, and the refresh's arena destroyed whenever it goes idle.
+- `ship.h` — Ship: the game tree configured and built in release, the old shipped folder cleared
+  and the game installed into it, a step at a time without blocking, a failed step one stderr line
+  naming the build log, and the label.
+- `ship.c` — the tree written and the first step started, each ended step polled on to the next,
+  SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
+  idle.
 - `session.h` — the project being worked on, its notice, its Play and Refresh, the flag that says a
   different project is in place, and the one armed command that makes closing the window, New and
   Open each refuse once while there are unsaved changes and go ahead the second time.
