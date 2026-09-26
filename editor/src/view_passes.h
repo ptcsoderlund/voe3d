@@ -1,9 +1,10 @@
 // What a frame draws into the scene views: a pass per view the dock tree
-// shows, each onto that view's own target with its own camera and the
-// world's light, the world drawn by voe_3d_draw_system_run with the
+// shows, each preceded by the sun's shadow passes fitted to that view
+// (voe_3d_draw_system_shadows, ADR-0258) and onto that view's own target with
+// its own camera, the world's light and those shadows, the world drawn by voe_3d_draw_system_run with the
 // selection's outline (ADR-0203), its collider as lines (0253), its move
 // gizmo (ADR-0205) and the scene camera's marker (0223), and the pass ended; and before those, the preview's
-// one pass with the world's own camera (view.h). main.c calls both once a
+// shadow passes and one pass with the world's own camera (view.h). main.c calls both once a
 // frame, between opening the draw and the window's pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
@@ -12,7 +13,8 @@
 //                                         light, &scene, &geometries,
 //                                         &shapes, palette, &gizmo, ppmm);
 //
-// A REFUSED PASS STOPS THE REST: no later view is begun and the call returns
+// A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
+// view is begun and the call returns
 // false, which is what the caller's `drawn` becomes. The frame is still the
 // caller's to close.
 //
@@ -28,9 +30,12 @@
 // entity's outline, which is drawn into every view's pass too, and two more
 // for the gizmo's handles at rest and its marked one, one for the camera's
 // marker and one for the selection's collider, times the room for views, and the drawn entities once more for the
-// preview's pass, which draws the world alone. `passes` is a pass per view, the
-// preview's and the interface's, and `targets` a target per view and the
-// preview's — both from the room for views, not the two in use, so a
+// preview's pass, which draws the world alone; and every caster once per
+// cascade, VOE_GAME_WORLD_MAX_DRAWN × VOE_RENDER_SHADOW_CASCADES, per view and
+// for the preview. `passes` is a pass per view, the preview's and the
+// interface's, and a shadow pass per cascade for each view and the preview
+// (`shadow_size` is VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h), and
+// `targets` a target per view and the preview's — both from the room for views, not the two in use, so a
 // third view is a leaf and not a capacity. The three transient numbers are
 // what the selection outline's quads are copied into: one outline per view's
 // pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
@@ -49,6 +54,7 @@
 #include "view.h"
 
 #include <3d/draw_system.h>
+#include <3d/shadow_cascades.h>
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
 
@@ -84,10 +90,15 @@
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
 		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 5) *                    \
-			   VOE_EDITOR_VIEWS + VOE_GAME_WORLD_MAX_DRAWN,        \
+			   VOE_EDITOR_VIEWS + VOE_GAME_WORLD_MAX_DRAWN +       \
+			   VOE_GAME_WORLD_MAX_DRAWN *                          \
+				   VOE_RENDER_SHADOW_CASCADES *                \
+				   (VOE_EDITOR_VIEWS + 1),                     \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
-		.passes = VOE_EDITOR_VIEWS + 2,                                \
+		.passes = VOE_EDITOR_VIEWS + 2 +                               \
+			  VOE_RENDER_SHADOW_CASCADES * (VOE_EDITOR_VIEWS + 1), \
+		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
 		.targets = VOE_EDITOR_VIEWS + 1,                               \
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
 				       VOE_3D_GIZMO_VERTICES +                 \

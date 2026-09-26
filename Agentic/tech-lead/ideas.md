@@ -93,5 +93,12 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   Unity's probe adjustment volumes, and as rooms and portals (a room lit only by what is inside
   and what comes through its doors and windows), not as the main mechanism. One bounce first, more by feeding the cache back into itself. After the
   coin game, unless a game needs it sooner.
+- **Fill light for shadows** (2026-09-26): 028 has no ambient (0258), so shadowed sides are flat
+  dark. A cheap stopgap was offered: a two-colour sky/ground fill term, a few lines of shading,
+  replaced later by the bounce. The sponsor chose to wait; revisit if the coin game's shadows read
+  too black.
+- **A sky** (sponsor, 2026-09-26): a sky that is drawn, i.e. a panorama or sky dome and later
+  volumetric clouds, which could also feed the fill light and the bounce. Wanted sooner or later;
+  too big for now.
 - Explicit system ordering (Bevy-style `.before`/`.after`, system sets) for when a slot's systems
   run on several threads; until then list order within a slot is enough (0256).

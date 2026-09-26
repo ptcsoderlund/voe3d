@@ -14,6 +14,10 @@
 // Both at lag 0, the current transforms. Between them a replace intent for the
 // cube's collider is submitted, and the second frame's world step drains it.
 //
+// THE SHADOW CASE: a capsule set over the cube casts onto it, so both are
+// drawn into every cascade and the window pass; with VOE_GAME_CAPACITIES every
+// pass and object fits and the frame comes back true, lit or not (0258).
+//
 // Each case writes one file into the working directory, checks it is there,
 // and removes it, pass or fail. A machine with no usable Vulkan skips and
 // says so.
@@ -131,6 +135,28 @@ static void draw_case(voe_app *app, voe_base_arena *arena,
 	remove(CAPTURE_PATH);
 }
 
+// A fresh world built `lit` or not with a capsule two metres over the cube,
+// two frames of it, both true: the shadow passes and their casters fit.
+static void shadow_case(voe_app *app, voe_base_arena *arena,
+			voe_base_arena *scratch, const voe_3d_shapes *shapes,
+			bool lit)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_ecs_entity capsule;
+
+	(void)build(world, lit);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &capsule));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, capsule,
+					       placed(0.0f, 2.0f, 0.0f)));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, capsule,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CAPSULE,
+				.colour = VOE_3D_SHAPE_GREY }));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 23);
@@ -161,6 +187,8 @@ int main(void)
 
 	draw_case(app, arena, scratch, &shapes, true);
 	draw_case(app, arena, scratch, &shapes, false);
+	shadow_case(app, arena, scratch, &shapes, true);
+	shadow_case(app, arena, scratch, &shapes, false);
 
 	voe_app_destroy(app);
 	voe_base_arena_destroy(scratch);

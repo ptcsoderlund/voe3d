@@ -1,9 +1,10 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
-// show, a pass begun on each one's target with its own camera, the world drawn
+// show, the sun's shadow passes fitted to each one's camera, then a pass begun
+// on each one's target with that camera and the shadows, the world drawn
 // with the selection's outline, collider and gizmo and the scene camera's
 // marker, and
-// the pass ended; and the preview's pass, drawn with the world's camera while
-// the selected entity has one.
+// the pass ended; and the preview's shadow passes and pass, drawn with the
+// world's camera while the selected entity has one.
 #include "view_passes.h"
 
 #include <base/assert.h>
@@ -40,8 +41,11 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	if (frame.blind)
 		return true;
 	frame.light = light;
+	if (!voe_3d_draw_system_shadows(world, gpu, &frame))
+		return false;
 
-	camera = (voe_render_pass_camera){ frame.view, frame.light };
+	camera = (voe_render_pass_camera){ frame.view, frame.light,
+					   frame.shadow };
 	if (!voe_render_pass_begin(gpu, views->preview_target, &camera))
 		return false;
 	voe_3d_draw_system_run(world, gpu, arena, frame);
@@ -83,11 +87,20 @@ bool voe_editor_view_passes_draw(
 	for (uint32_t v = 0; v < views->count; v++) {
 		const voe_editor_view *view = &views->views[v];
 		voe_render_pass_camera camera;
+		voe_3d_frame frame;
 
 		if (!voe_editor_dock_shows_view(tree, v))
 			continue;
 
+		// This view's own view and eye first: its cascades are fitted
+		// to them before its pass opens.
 		camera = voe_editor_view_pass_camera(view, light);
+		frame = (voe_3d_frame){ .view = camera.view,
+					.light = camera.light,
+					.eye = view->eye };
+		if (!voe_3d_draw_system_shadows(world, gpu, &frame))
+			return false;
+		camera.shadow = frame.shadow;
 		if (!voe_render_pass_begin(gpu, view->target, &camera))
 			return false;
 		voe_3d_draw_system_run(
@@ -96,6 +109,7 @@ bool voe_editor_view_passes_draw(
 				.view = camera.view,
 				.light = camera.light,
 				.eye = view->eye,
+				.shadow = frame.shadow,
 				.outlined = {
 					.entity = voe_editor_scene_selected(scene),
 					.geometries = geometries,

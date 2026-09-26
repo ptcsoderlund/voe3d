@@ -4,9 +4,12 @@
 registered nowhere. A reader is here to find which file already makes a claim before making it
 again, or to find where a claim that has started failing is written down.
 
-- `projection.c` — reversed depth, the aspect ratio, that nothing in the
+- `projection.c` — reversed depth in the lens and the box, the aspect ratio, that nothing in the
   projection flips Y, and the view of a pose and a lens, a flattened pose seeing
   nothing. Needs no graphics card.
+- `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
+  its cascade's box, and a moved and turned eye moves the map by whole texels,
+  near the origin and 100 km out. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -23,6 +26,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, a red shape reads red, a gizmo shows through its cube and a camera marker is one
   draw more. Skips without a graphics card.
+- `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
+  not beside it, that no light casts nothing, and that 100 km out reads the same. Skips without a
+  graphics card.
 - `no_light.c` — that a world with no light frames unshaded and not blind, and one light frames as
   itself. Needs no graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each

@@ -16,7 +16,7 @@
 // kept for the life of the device. A transient range is
 // voe_render_geometry_create_transient's: written straight into the open frame's
 // slot, drawn in that frame, and gone when the next frame begins. Both are a
-// voe_render_geometry_slot and both go through draw_with in frame.c, which is
+// voe_render_geometry_slot and both go through draw_with in draw.c, which is
 // what keeps the draw path single; the slot's `transient` flag is the only place
 // the difference is recorded, and the draw reads it to know which pair of
 // buffers to have bound.
@@ -28,7 +28,7 @@
 // not change when the second kind arrived.
 //
 // THE INDICES ARE STORED AS THE CALLER NUMBERED THEM, FROM ZERO. What shifts
-// them into a pool is vkCmdDrawIndexed's vertexOffset, which frame.c passes from
+// them into a pool is vkCmdDrawIndexed's vertexOffset, which draw.c passes from
 // the slot. Rewriting a mesh's indices on the way in would work equally well
 // until the same mesh had to be uploaded twice. The same holds in the transient
 // pools, where it is what lets a caller build the same arrays for either create.

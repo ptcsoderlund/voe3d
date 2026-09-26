@@ -14,8 +14,10 @@ which file to open — what each one owns, and where the seams between them run.
   types here and its header says why.
 - `backend_win32.c` — the Windows backend, and the seven Windows typedefs
   `vulkan_win32.h` expects `windows.h` to have made. Its header says why each.
-- `device_internal.h` — the struct the files below share, where the split
-  between them runs, and the constants the whole folder reads.
+- `device_internal.h` — the device struct the files below share, the calls between them, where
+  the split runs, and the constants the whole folder reads.
+- `device_parts.h` — the records the device is built of: buffers, pools, slots, targets and the
+  one-frame record; included only through `device_internal.h`.
 - `device.c` — starting up, and the one place its order is: the surface, the logical device, the
   format, timing, present modes, frame objects and close-down, plus the headless device the tests
   run on.
@@ -25,11 +27,11 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the two mesh pipelines with their embedded shader, depth and blend state, and the
+- `pipeline.c` — the three mesh pipelines, solid, blended and shadow, with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: five bindings,
-  one set, one camera buffer holding a block per pass, one object buffer and one element buffer per
-  frame slot.
+- `descriptors.c` — everything the shader reads and the one layout that describes it: six bindings,
+  one set, one camera buffer holding a block per pass, one object buffer, one element buffer and the
+  shadow maps per frame slot.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -44,14 +46,23 @@ which file to open — what each one owns, and where the seams between them run.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot; the
   targets of a caller's own, shown through one texture slot; and the read that copies a finished
   picture into an arena as RGBA8.
+- `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
+  views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame.c` — one frame and the passes in it: wait and open a recording, open a pass onto the window
-  or a target with its camera, draw an object into it solid or blended, close the pass, end the
-  frame and present.
+- `frame_internal.h` — the calls frame.c, pass.c, draw.c and present.c make across one another;
+  included by those four only.
+- `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
+  rebuild on resize, end, submit and present.
+- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, the
+  clear colour, the first-clears-later-load rule, and the one Y flip in the viewport.
+- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, the depth
+  clear between them, and the rebinds only when pipeline or pool pair changes.
+- `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
+  the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built
   only when a test asks. Its header says why it is not built at startup.

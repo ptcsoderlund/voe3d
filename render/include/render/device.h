@@ -104,6 +104,11 @@ typedef struct voe_render_device voe_render_device;
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs one texture slot of the
 // sixty-four as well as its images.
+//
+// shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
+// sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
+// costs shadow_size² × 4 bytes × cascades × frame slots — 2048 is 128 MiB over
+// two slots. Nought is no shadow pass at all; one texel stays for the binding.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -116,7 +121,12 @@ typedef struct {
 	uint32_t elements;
 	uint32_t passes;
 	uint32_t targets;
+	uint32_t shadow_size;
 } voe_render_capacities;
+
+// How many depth maps the sun renders into, near to far: the layers of one frame
+// slot's shadow image, and the range voe_render_shadow_pass_begin's cascade is in.
+#define VOE_RENDER_SHADOW_CASCADES 4
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
@@ -418,8 +428,9 @@ typedef struct {
 // ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
 // sun: a direction, a colour and a strength, the same for every draw in the
 // pass. There is no light list and no second light — many lights is a later
-// card and it is the card that decides how they are gathered — and there is no
-// shadow: nothing here tests whether anything is in the way.
+// card and it is the card that decides how they are gathered. The sun casts
+// shadows through the pass's voe_render_shadow record below (ADR-0258); a pass
+// whose light is `unshaded` reads no shadow either, because it reads no sun.
 //
 // NOTHING IS TONE MAPPED, SO BRIGHT VALUES CLIP. A light strong enough to push a
 // surface past one is clamped by the target's format and the highlight goes
@@ -439,6 +450,34 @@ typedef struct {
 	voe_math_float3 colour;
 	uint32_t unshaded;
 } voe_render_light;
+
+// Where the sun's shadow maps are, for one pass that reads them (ADR-0258).
+//
+// THE NUMBERS ARE 3d's. `cascades[i]` takes a position in the world the objects'
+// matrices place things in — eye-relative, as they are — to cascade i's clip
+// space: the same view × projection its shadow pass drew with. `splits[i]` is
+// the far view distance cascade i covers, rising; `texels[i]` the metres one of
+// its texels spans, which is how far a surface is pushed along its normal before
+// it looks itself up, so it does not shadow itself. `count` is how many are in
+// use, from cascade 0.
+//
+// NOUGHT IS NONE. A zeroed record — every existing `{ view, light }` initializer
+// — reads no map and every surface is lit as it was. With `count` set, a lit
+// surface picks the first cascade whose split is past its view distance, takes a
+// filtered lookup there and scales the sun's direct light by it; past the last
+// split it is fully lit. Unlit materials and an `unshaded` pass read nothing.
+//
+// Padded to sixteen bytes like the other blocks; draw.slang declares the split
+// and texel arrays as float4s, which is the same sixteen bytes each.
+typedef struct {
+	voe_math_float4x4 cascades[VOE_RENDER_SHADOW_CASCADES];
+	float splits[VOE_RENDER_SHADOW_CASCADES];
+	float texels[VOE_RENDER_SHADOW_CASCADES];
+	uint32_t count;
+	uint32_t reserved0;
+	uint32_t reserved1;
+	uint32_t reserved2;
+} voe_render_shadow;
 
 // One drawn object's record: the two matrices it is drawn with, the shading
 // record it wears and the colour it is tinted by. `shading` is the index half of
@@ -976,11 +1015,13 @@ typedef struct {
 					  voe_render_picture *out,
 					  voe_base_error *error);
 
-// The camera and the sun one pass draws with. Handed over together because they
-// land in one block the shader reads, and a pass that has one has both.
+// The camera, the sun and the sun's shadow one pass draws with. Handed over
+// together because they land in one block the shader reads, and a pass that has
+// one has all three; a zeroed `shadow` is none.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
+	voe_render_shadow shadow;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1017,7 +1058,23 @@ typedef struct {
 					 voe_render_target target,
 					 const voe_render_pass_camera *camera);
 
-// Closes the open pass. Without one open it asserts.
+// Opens a shadow pass onto cascade `cascade` of this frame slot's shadow map: its
+// depth cleared to the far plane, no colour, the viewport the map's size with the
+// same one Y flip every pass has. `light` is the camera block's view — the sun's
+// view and projection — and the block's sun is zeroed. Mesh draws in it write
+// depth only; closed by voe_render_pass_end like any pass (ADR-0258).
+//
+// IT IS A PASS AND COUNTS AGAINST `passes`, its draws against `objects`. False,
+// with a line, when the frame's passes are spent; nothing is open then.
+//
+// Calling this outside a frame, with a pass already open, with a cascade not below
+// VOE_RENDER_SHADOW_CASCADES, or on a device whose shadow_size is nought is the
+// caller's bug and asserts.
+[[nodiscard]] bool voe_render_shadow_pass_begin(voe_render_device *device,
+						uint32_t cascade,
+						const voe_render_view *light);
+
+// Closes the open pass, a shadow pass included. Without one open it asserts.
 void voe_render_pass_end(voe_render_device *device);
 
 // Whether a pass is open: true from a _pass_begin that returned true until its
@@ -1050,6 +1107,10 @@ void voe_render_pass_end(voe_render_device *device);
 // not sort anything and cannot, because it does not know where anything is. The
 // caller draws every opaque and cutout object first and then its blended ones
 // furthest first — see voe_3d_draw_system_run, which is the one caller.
+//
+// IN A SHADOW PASS IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
+// vertex stage, no fragment stage, nothing culled, depth biased away from the
+// sun. The record's world matrix is all that is read.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
@@ -1068,7 +1129,8 @@ void voe_render_pass_end(voe_render_device *device);
 // an opaque one draws solid. Both are the caller's mistake and neither fails.
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
-// asserts.
+// asserts — and one more: in a shadow pass it asserts, because nothing
+// see-through casts.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
 // OUTPUTS PREMULTIPLIED COLOUR. A fragment's rgb is already multiplied by its
@@ -1107,6 +1169,7 @@ void voe_render_pass_end(voe_render_device *device);
 //
 // Calling this with no pass open, or in a pass opened with no camera, is the
 // caller's bug and asserts — the same mistakes voe_render_frame_draw asserts on.
+// So is calling it in a shadow pass, whose depth is the map being drawn.
 void voe_render_frame_clear_depth(voe_render_device *device);
 
 // Whether a frame is open for drawing: true from a _begin whose `drawing` came
@@ -1210,7 +1273,8 @@ voe_render_frame_elements_submitted(const voe_render_device *device);
 //
 // It needs a pass open and does not need that pass to have a camera: the
 // transform is the whole of what places the elements. Calling it with no pass
-// open is the caller's bug and asserts.
+// open, or in a shadow pass, which has no colour to blend into, is the caller's
+// bug and asserts.
 [[nodiscard]] bool
 voe_render_frame_draw_elements(voe_render_device *device,
 			       voe_math_float4x4 transform, uint32_t first,

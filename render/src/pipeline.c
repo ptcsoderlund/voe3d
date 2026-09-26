@@ -1,4 +1,4 @@
-// The two mesh pipelines, solid and blended, and the pipeline layout every
+// The three mesh pipelines, solid, blended and shadow, and the pipeline layout every
 // pipeline in this folder shares. A step of startup; device.c's open_device
 // calls voe_render_pipelines_create once, after the descriptors — see startup.h.
 //
@@ -13,12 +13,13 @@
 // voe_render_vertex — which is why voe_render_descriptors_build runs before this
 // in open_device and not after it.
 //
-// THERE ARE TWO OF THEM AND THEY DIFFER IN THREE LINES. The solid one writes
-// depth and does not blend; the blended one tests depth the same way, writes
-// none, and blends premultiplied. Everything else — the shader module, the
-// vertex input, the raster state, the layout — is one description built once and
-// handed to both, which is what keeps the two from drifting apart: see
-// create_pipeline's `blended` parameter, which is the whole of the difference.
+// THERE ARE THREE OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
+// does not blend; the blended one tests depth the same way, writes none, and
+// blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
+// the colour attachment, culls nothing, and biases the depth it writes away from
+// the sun. The shader module, the vertex input, the layout are shared, which is
+// what keeps them from drifting apart: create_pipeline's `kind` is the whole of
+// the difference.
 //
 // A THIRD PIPELINE IS NOT BUILT HERE AND IT IS NOT A VARIANT OF THESE TWO.
 // element.c builds it: no vertex input at all, a triangle strip, nothing culled
@@ -60,11 +61,29 @@ static alignas(uint32_t) const unsigned char draw_spv[] = {
 #define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
 #define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
 
-// Both pipelines, from one description. `blended` is the only thing that differs
-// between the two and the three lines it touches are marked below.
-static bool create_pipeline(voe_render_device *device, bool blended,
+// Which of the three create_pipeline builds.
+enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW };
+
+// THE SHADOW PIPELINE'S DEPTH BIAS, AND BOTH ARE NEGATIVE BECAUSE DEPTH RUNS
+// BACKWARDS. Bias exists to push a caster's stored depth away from the sun, so a
+// lit surface does not shadow itself in stripes (acne); away from the sun is
+// toward the far plane, which is 0 here, so the bias subtracts. A positive pair —
+// every tutorial's — pulls the map toward the sun and makes the acne worse.
+//
+// The constant is in units of the depth format's resolution at the primitive's
+// depth and covers the flat case; the slope term scales with how steeply the
+// surface faces away from the sun, which is where acne is worst. Card 04's normal
+// offset takes the rest; these are kept small so shadows stay on their casters.
+#define SHADOW_BIAS_CONSTANT -2.0f
+#define SHADOW_BIAS_SLOPE -2.5f
+
+// All three pipelines, from one description. `kind` is the only thing that
+// differs between them and the lines it touches are marked below.
+static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			    VkPipeline *out)
 {
+	const bool blended = kind == MESH_BLENDED;
+	const bool shadow = kind == MESH_SHADOW;
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.codeSize = sizeof(draw_spv),
@@ -151,11 +170,18 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	// sign in voe_render_frame_viewport, and it fails. Change all three and it
 	// still fails, which is the point: flipping twice looks exactly like
 	// flipping none until something is culled.
+	//
+	// THE SHADOW PIPELINE CULLS NOTHING: a plane or an open mesh seen from the
+	// sun's side may be wound away from it and still casts, and its depth is
+	// biased rather than front- or back-face picked.
 	VkPipelineRasterizationStateCreateInfo raster = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.cullMode = shadow ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.depthBiasEnable = shadow ? VK_TRUE : VK_FALSE,
+		.depthBiasConstantFactor = shadow ? SHADOW_BIAS_CONSTANT : 0.0f,
+		.depthBiasSlopeFactor = shadow ? SHADOW_BIAS_SLOPE : 0.0f,
 		.lineWidth = 1.0f,
 	};
 	VkPipelineMultisampleStateCreateInfo multisample = {
@@ -223,7 +249,7 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	};
 	VkPipelineColorBlendStateCreateInfo blend = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-		.attachmentCount = 1,
+		.attachmentCount = shadow ? 0 : 1,
 		.pAttachments = &attachment,
 	};
 	// So that a resize rebuilds the targets and the swapchain and nothing
@@ -248,10 +274,11 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	// Dynamic rendering has no render pass, so both attachment formats are
 	// declared here instead. They have to match what frame.c attaches, and a
 	// depth format declared with no depth attachment — or the other way
-	// round — is invalid rather than merely wrong.
+	// round — is invalid rather than merely wrong. A shadow pass attaches
+	// depth alone, the map's layer, in the same D32 format.
 	VkPipelineRenderingCreateInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-		.colorAttachmentCount = 1,
+		.colorAttachmentCount = shadow ? 0 : 1,
 		.pColorAttachmentFormats = &device->format.format,
 		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
@@ -298,7 +325,8 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	VkGraphicsPipelineCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.pNext = &rendering,
-		.stageCount = 2,
+		// The vertex stage alone for the shadow one: depth is all it writes.
+		.stageCount = shadow ? 1 : 2,
 		.pStages = stages,
 		.pVertexInputState = &vertex_input,
 		.pInputAssemblyState = &assembly,
@@ -333,8 +361,8 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 		.pName = DRAW_FRAGMENT_ENTRY,
 	};
 
-	// ONE LAYOUT FOR BOTH PIPELINES, MADE BY WHICHEVER GETS HERE FIRST. The
-	// two describe the same set and the same push constant, and the probe
+	// ONE LAYOUT FOR ALL THREE PIPELINES, MADE BY WHICHEVER GETS HERE FIRST.
+	// All describe the same set and the same push constant, and the probe
 	// shares it as well — see device_internal.h. A second one would be a
 	// second handle for the same description and a leak the day only one of
 	// them was destroyed.
@@ -359,7 +387,8 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 	if (result != VK_SUCCESS) {
 		VOE_BASE_ERROR("render",
 			       "vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)",
-			       blended ? "blended" : "solid", (int)result);
+			       shadow ? "shadow" : blended ? "blended" : "solid",
+			       (int)result);
 		*out = VK_NULL_HANDLE;
 		return false;
 	}
@@ -370,6 +399,7 @@ static bool create_pipeline(voe_render_device *device, bool blended,
 // every draw that is not see-through goes through.
 bool voe_render_pipelines_create(voe_render_device *device)
 {
-	return create_pipeline(device, false, &device->pipeline) &&
-	       create_pipeline(device, true, &device->pipeline_blended);
+	return create_pipeline(device, MESH_SOLID, &device->pipeline) &&
+	       create_pipeline(device, MESH_BLENDED, &device->pipeline_blended) &&
+	       create_pipeline(device, MESH_SHADOW, &device->pipeline_shadow);
 }
