@@ -16,7 +16,9 @@
 // game-numbers component appears in the level (0260 point 1). The run's own
 // state, player_state, is runtime-only and never shown.
 //
-// THE KEYS ARE READ HERE, so a Player needs nothing else beside its body and
+// THE KEYS WALK AS THE CAMERA LOOKS: W away from it, S towards it, A and D
+// to its left and right, along player_camera_state's yaw (0261 point 6).
+// They are read here, so a Player needs nothing else beside its body and
 // transform; where it stands when the run begins is its start, the place a
 // restart puts it back.
 //

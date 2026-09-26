@@ -6,7 +6,7 @@ the library the editor loads (0242).
 - `rotator.h` — the Rotator component: degrees a second about the world's Y, default 90.
 - `rotator_system.c` — turns every rotator with a transform by its degrees a second.
 - `player.h` — the Player component: the sponsor's numbers for the walk, the jump, the camera and the score; the runtime-only player_state.
-- `player_system.c` — registers player and player_state; walks, jumps and restarts players.
+- `player_system.c` — registers player and player_state; walks players as the camera looks, jumps and restarts them.
 - `player_camera.h` — the runtime-only player_camera_state on the scene's camera: yaw, pitch, distance, arm, lock asked.
 - `player_camera_system.c` — registers player_camera_state; after the move adds its row or springs the arm in front of what is in the way and places the camera behind the first player.
 - `player_camera_look.c` — once a frame while playing: locks the pointer and turns by the mouse on the right button, zooms by the wheel.
