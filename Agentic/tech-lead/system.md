@@ -11,10 +11,10 @@ workflow replaced specs.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
-- **platform** — the one OS-aware folder: window, input, keys, files, clock, processes, libraries, sound.
+- **platform** — the one OS-aware folder: window, input, files, clock, processes, libraries, sound.
 - **scene** — transform (double position, a stepping world's previous one), lens, light, identity.
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
-- **assets** — glTF, images, WAV, fonts and the sectioned text format to CPU data; the JSON parser.
+- **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: sounds played by path, overlapping voices in float, pushed to the device.
 - **authoring** — scene and project text read and written, a world cooked to C; a game omits it.
 - **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
@@ -24,7 +24,7 @@ workflow replaced specs.
 - **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmo, sun shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **game** — a shipped game's loop: world types, 1/60 s steps, a frame, the code seam, its `ui`, its sound.
+- **game** — a shipped game's loop: world types, 1/60 s steps, a frame, the code seam, `ui`, sound.
 - **editor** — authoring: top bar, Scene list, views, gizmo, Inspector, undo, Play, Refresh, Ship.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
@@ -34,18 +34,19 @@ workflow replaced specs.
 ## Decisions in force
 
 0001–0167 stand in `history/decisions/`; 0168 on are indexed in `decisions/decisions.md`.
-
-- 0001, 0004, 0005, 0008, 0021, 0023, 0026, 0028, 0031, 0042, 0047, 0213 — One repo of static CMake folders, no plugin; Clang 19+ as `clang`; tools installed, deps fetched; no CI; CTest.
+- 0001, 0005, 0008, 0026, 0047 — One repo of static CMake folders, no plugin; Clang 19+ as `clang`.
+- 0004, 0021, 0023, 0028, 0031, 0042, 0213 — Tools installed, deps fetched; no CI; CTest.
 - 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module.
 - 0014, 0029, 0032, 0034, 0041 — Naming carries the namespace; memory is arenas; failure is a value.
-- 0022, 0121, 0135, 0151, 0265 — The folder map above; editor and dev are leaves; a game omits authoring; sound is ours, ALSA and WASAPI in `platform`, mixing in `audio`.
+- 0022, 0121, 0135, 0151 — The folder map above; editor and dev are leaves; a game omits authoring.
 - 0033, 0035, 0250 — +Y up −Z forward, reversed depth; double positions, camera-relative on the GPU.
 - 0015, 0040, 0046 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
-- 0113, 0120, 0130, 0133, 0173 — A change owns the call sites it breaks; Linux alone verifies a card; every code folder carries a `.md`; `src/` and `tests/` list their own files.
+- 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a card.
+- 0120, 0133, 0173 — Every code folder carries a `.md`; `src/` and `tests/` list their own files.
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186–0188, 0234–0237, 0251, 0252, 0258–0262, 0264, 0266 — Coin game; shadows; Play; its UI; Ship; a coin's sound.
+- 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
