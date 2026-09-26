@@ -1,6 +1,6 @@
 # System
 
-The map of VOE3D, a real-time 3D engine in C23 on Vulkan 1.3, its editor and dev program in one
+The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its editor and dev program in one
 tree. Every code folder is a standalone CMake project — `include/<folder>/`, `src/`, `tests/`, a
 four-line `CMakeLists.txt` — built as `voe_<folder>`, linked as `voe::<folder>`, mapped by
 `<folder>/<folder>.md`. Dependencies point down this list and never back up; `cmake/voe.cmake`
@@ -27,6 +27,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
+- **engine_assets** — the human's logo and input material; not code; agents read and link, never write.
 
 ## Decisions in force
 
@@ -44,16 +45,15 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
-- 0186–0188, 0234–0237, 0251, 0252, 0258–0260 — Coin game; sun shadows; Play; text; its UI, state.
+- 0186–0188, 0234–0237, 0251, 0252, 0258–0262 — Coin game; sun shadows; Play; its UI, state, camera.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
 - 0192, 0193, 0195, 0198–0200 — Structure via the queue; one focus; dropdowns; overlays fit.
-- 0201, 0214 — The fastest card is the best kind then the largest memory; one line says which.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
-- 0215, 0216, 0227, 0233 — Unfocused, 4 fps; hidden, none; a pointer shape; right button flies.
+- 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right button flies.
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
 - 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
-- 0244, 0246–0248 — Examples in root `examples/`, checked on structure; every string is UTF-8.
+- 0244, 0246–0248, 0263 — Root `examples/`, checked on structure; UTF-8; `engine_assets/` is the human's.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
