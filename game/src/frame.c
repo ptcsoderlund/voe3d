@@ -1,5 +1,5 @@
-// The systems, the shadow passes and the window pass, in the order
-// game/include/game/frame.h gives. A refused pass, shadow or window, still
+// The systems, the shadow passes and the window pass with the interface over
+// the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
 // once.
 #include <game/frame.h>
@@ -19,6 +19,8 @@
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
 
+#include <ui/widgets.h>
+
 void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 {
 	VOE_BASE_ASSERT(world != NULL && shapes != NULL,
@@ -36,9 +38,33 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	voe_physics_body_system_run(world);
 }
 
+// The interface's records submitted as one range and drawn in one command
+// over the world, depth cleared first so no surface hides them. False when a
+// record did not fit or the draw was refused.
+static bool draw_interface(voe_render_device *device, const voe_ui_context *ui,
+			   voe_platform_size size)
+{
+	uint32_t records = ui == NULL ? 0 : voe_ui_element_count(ui);
+	uint32_t first;
+	bool ok = true;
+
+	if (records == 0)
+		return true;
+	voe_render_frame_clear_depth(device);
+	first = voe_render_frame_elements_submitted(device);
+	for (uint32_t e = 0; e < records && ok; e++)
+		ok = voe_render_frame_submit_element(device,
+						     voe_ui_element(ui, e));
+	return ok && voe_render_frame_draw_elements(
+			     device,
+			     voe_render_element_transform(
+				     voe_game_interface_surface(size)),
+			     first, records);
+}
+
 bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 		    const voe_3d_shapes *shapes, voe_base_arena *scratch,
-		    voe_platform_size size, float lag)
+		    voe_platform_size size, float lag, const voe_ui_context *ui)
 {
 	voe_render_device *device;
 	voe_render_pass_camera camera;
@@ -69,6 +95,7 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 				       &camera);
 	if (passed) {
 		voe_3d_draw_system_run(world, device, scratch, frame);
+		passed = draw_interface(device, ui, size);
 		voe_render_pass_end(device);
 	}
 	return voe_app_draw_close(app) && shadowed && passed;

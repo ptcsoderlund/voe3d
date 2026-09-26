@@ -1,12 +1,13 @@
 // One frame of the game: the world's systems run in the editor's order, then
 // the sun's shadows and the world drawn into the window through the scene's
-// own camera.
+// own camera, and the project's interface over it.
 //
 //     voe_app_frame frame = voe_app_frame_open(app);
 //     if (frame.closing)
 //             break;
 //     if (!frame.minimised &&
-//         !voe_game_frame(app, world, &shapes, scratch, frame.size, lag))
+//         !voe_game_frame(app, world, &shapes, scratch, frame.size, lag,
+//                         voe_game_interface_context(interface)))
 //             ...                        // the device stopped answering
 //
 // THE ORDER: the world step — the structural queue applied, the project's
@@ -14,7 +15,8 @@
 // shape system, then the collider and body systems — then a draw opened, the
 // sun's shadow passes (voe_3d_draw_system_shadows, 0258), one pass onto the
 // window with voe_3d_draw_system_frame's camera, sun and shadow, the draw
-// system, the pass and the draw closed. The world step is its own call too, so
+// system, depth cleared and the interface's element records drawn in one
+// command over the surface of game/interface.h, the pass and the draw closed. The world step is its own call too, so
 // a fixed step runs the same owning systems in the same order.
 //
 // `lag` IS HOW FAR BEHIND THE LAST FIXED STEP THE DRAW IS (0254): 1 − banked
@@ -38,9 +40,12 @@
 
 #include <ecs/world.h>
 
+#include <game/interface.h>
 #include <game/world.h>
 
 #include <platform/window.h>
+
+#include <ui/layout.h>
 
 #include <stdbool.h>
 
@@ -48,8 +53,8 @@
 // their two records; one object per drawn entity in the window pass and one
 // more in each cascade, every caster drawn once into each; the window pass and
 // one shadow pass per cascade; the sun's maps at VOE_3D_SHADOW_TEXELS a side.
-// Nothing transient, no elements and no targets: the game draws no outline,
-// no interface and nothing off screen.
+// the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
+// transient and no targets: the game draws no outline and nothing off screen.
 #define VOE_GAME_CAPACITIES                                                  \
 	(voe_render_capacities)                                              \
 	{                                                                    \
@@ -60,6 +65,7 @@
 			   (1 + VOE_RENDER_SHADOW_CASCADES),                  \
 		.shadings = VOE_3D_SHAPES_SHADINGS,                           \
 		.passes = 1 + VOE_RENDER_SHADOW_CASCADES,                     \
+		.elements = VOE_GAME_INTERFACE_ELEMENTS,                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS                           \
 	}
 
@@ -67,11 +73,13 @@
 // replaces, then every owning system. No move: that is a fixed step's.
 void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 
-// Runs the world step and draws the world at `size`, `lag` of a step back. True when the frame was
+// Runs the world step and draws the world at `size`, `lag` of a step back,
+// then `ui`'s element records over it; NULL, or no records, draws none. True when the frame was
 // drawn or there was nothing to draw into; false when the device refused the
 // draw, the pass or the present, with render's line on stderr — the program
 // should stop.
 [[nodiscard]] bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 				  const voe_3d_shapes *shapes,
 				  voe_base_arena *scratch,
-				  voe_platform_size size, float lag);
+				  voe_platform_size size, float lag,
+				  const voe_ui_context *ui);

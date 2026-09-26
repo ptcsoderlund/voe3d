@@ -18,10 +18,15 @@
 // drawn into every cascade and the window pass; with VOE_GAME_CAPACITIES every
 // pass and object fits and the frame comes back true, lit or not (0258).
 //
-// Each case writes one file into the working directory, checks it is there,
+// THE INTERFACE CASE: a context holding a label, laid out as
+// tests/interface.c lays one out, is drawn over the world and the frame comes
+// back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
+//
+// Each draw case writes one file into the working directory, checks it is there,
 // and removes it, pass or fail. A machine with no usable Vulkan skips and
 // says so.
 #include <game/frame.h>
+#include <game/interface.h>
 #include <game/world.h>
 
 #include <app/app.h>
@@ -41,6 +46,8 @@
 #include <scene/transform_system.h>
 
 #include <3d/shape_component.h>
+
+#include <ui/widgets.h>
 
 #include <testing/test.h>
 
@@ -110,13 +117,13 @@ static void draw_case(voe_app *app, voe_base_arena *arena,
 	const voe_physics_collider *collider;
 	FILE *file;
 
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
 	VOE_TEST_CHECK(voe_physics_collider_submit(
 		world, (voe_physics_collider_intent){
 			       .entity = cube,
 			       .collider = { .kind = VOE_PHYSICS_COLLIDER_BOX,
 					     .size = { 2.0f, 1.0f, 1.0f } } }));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
 	collider = voe_physics_collider_get(world, cube);
 	VOE_TEST_CHECK(collider != NULL && collider->size.x == 2.0f);
 
@@ -153,8 +160,40 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 		world, capsule,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CAPSULE,
 				.colour = VOE_3D_SHAPE_GREY }));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
+}
+
+// One label; the run goes on.
+static bool labelled(const voe_game_project_frame *frame)
+{
+	voe_ui_column_begin(frame->ui, (voe_ui_container){ 0 });
+	voe_ui_label(frame->ui, "Coins");
+	voe_ui_end(frame->ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(frame->ui));
+	return true;
+}
+
+// A fresh lit world with a label drawn over it: the frame comes back true.
+static void interface_case(voe_app *app, voe_base_arena *arena,
+			   voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_game_interface *interface =
+		voe_game_interface_new(voe_app_device(app), arena);
+
+	VOE_TEST_CHECK(interface != NULL);
+	if (interface == NULL)
+		return;
+	(void)build(world, true);
+	VOE_TEST_CHECK(voe_game_interface_run(interface, scratch, world, NULL,
+					      size, labelled));
+	VOE_TEST_CHECK(voe_ui_element_count(
+			       voe_game_interface_context(interface)) > 0);
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f,
+				      voe_game_interface_context(interface)));
+	voe_game_interface_destroy(interface);
 }
 
 int main(void)
@@ -189,6 +228,7 @@ int main(void)
 	draw_case(app, arena, scratch, &shapes, false);
 	shadow_case(app, arena, scratch, &shapes, true);
 	shadow_case(app, arena, scratch, &shapes, false);
+	interface_case(app, arena, scratch, &shapes);
 
 	voe_app_destroy(app);
 	voe_base_arena_destroy(scratch);
