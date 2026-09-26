@@ -84,10 +84,10 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its notice, its Play and Refresh, the flag that says a
+- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, the flag that says a
   different project is in place, and the one armed command that makes closing the window, New and
   Open each refuse once while there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the six commands with Play refreshing first, a built library
+- `session.c` — the refuse-once rule, the seven commands with Play and Ship refreshing first and one build at a time, a built library
   loaded and swapped in once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh,
   Preferences, the project's name and whether it is unsaved, then the session's notice, at least as tall as its

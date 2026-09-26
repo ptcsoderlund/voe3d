@@ -1,7 +1,7 @@
-// The project being worked on, its notice, its Play and Refresh, and the
+// The project being worked on, its notice, its Play, Refresh and Ship, and the
 // refuse-once rule that keeps unsaved work from being thrown away by one click
-// or one press of a shortcut. The commands are New, Open, Save, Close, Play and
-// Refresh.
+// or one press of a shortcut. The commands are New, Open, Save, Close, Play,
+// Refresh and Ship.
 //
 // ONE ARMED COMMAND IS THE WHOLE OF THE RULE. With the project unsaved, CLOSE,
 // NEW and OPEN are refused the first time: the notice says so and `armed`
@@ -14,8 +14,7 @@
 // (project.h's "build a whole new project, then discard the old one") and
 // clears `scene`'s selection. OPEN, once allowed, only shows the browser in
 // OPEN mode; what a chosen folder does is voe_editor_session_browser_do's, on
-// the browser's own Confirm. Either ends a running refresh, whose library
-// would be the old project's.
+// the browser's own Confirm. Either ends a running refresh and ship.
 //
 // SAVE NEVER ARMS. An opened project is written back over itself; an untitled
 // one shows the browser in SAVE mode instead, and its Confirm is
@@ -27,12 +26,17 @@
 // (ADR-0242 point 7); with no code it starts session->play (play.h) at once.
 // A press during that refresh ends it, during any other refresh sets
 // `play_after`, and while building or running is Stop. A CLOSE THAT GOES AHEAD
-// ENDS THE PLAY AND THE REFRESH FIRST.
+// ENDS THE PLAY, THE REFRESH AND THE SHIP FIRST.
+//
+// SHIP NEVER ARMS (ADR-0264): Play's shape, `ship_after` its `play_after`, and
+// a press while shipping does nothing. ONE BUILD AT A TIME: Ship waits with a
+// notice while Play builds or a refresh runs for Play, and joins any other
+// refresh; Play's build and Refresh wait with a notice while a ship runs or is
+// to follow a refresh, and a due refresh stays due. A ship never stops a game.
 //
 // REFRESH NEVER ARMS: it starts session->refresh now (refresh.h), unless one
-// runs. `refresh_due` asks for one the next step, and is set wherever a
-// project with a folder lands: the browser's Open Confirm, the Save that gives
-// an untitled project its folder, and startup.h.
+// runs. `refresh_due` asks for one the next step, set wherever a project with
+// a folder lands: Open's Confirm, a first Save, and startup.h.
 //
 // voe_editor_session_step IS WHERE A REFRESH LANDS, once a frame at its top,
 // before the undo take and the structural queue. A due refresh starts there if
@@ -40,20 +44,19 @@
 // its bytes equal the loaded one's (code.h), swaps the world for one made with
 // it (project.h), re-finds the selection by authored id and closes the picker
 // and dropdown. A failed build, load or swap says so in the notice and keeps
-// the old world; `play_after` is then dropped.
+// the old world; `play_after` and `ship_after` are then dropped.
 //
 // A FAILED BUILD SHOWS `errors` (errors.h) from Build/build.log: a refresh
-// that answers FAILED, or a Play whose configure or build failed
-// (voe_editor_session_play_poll). A refresh or Play that starts hides it.
+// that answers FAILED, or a Play or Ship whose step failed (the two polls). A
+// refresh, Play or Ship that starts hides it.
 //
 // voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS: the
 // inspector's edits are no command, so its caller calls this, which marks the
 // project unsaved, clears the notice and disarms.
 //
-// `replaced` IS A FLAG AND NOT A RETURN VALUE. NEW and the browser's OPEN
-// Confirm put a different project in place from two calls, one made from
-// interface.c; the loop reads the flag and clears it (main.c empties the undo
-// history on it).
+// `replaced` IS A FLAG AND NOT A RETURN VALUE: NEW and OPEN's Confirm put a
+// different project in place; the loop reads and clears it (main.c empties the
+// undo history on it).
 #pragma once
 
 #include "browser.h"
@@ -63,10 +66,11 @@
 #include "project.h"
 #include "refresh.h"
 #include "scene.h"
+#include "ship.h"
 
 #include <stdint.h>
 
-// The six things a person can ask the session to do, and NONE for "nothing
+// The seven things a person can ask the session to do, and NONE for "nothing
 // was asked this frame" — which is never a valid argument to
 // voe_editor_session_do, only the value `armed` rests at between commands.
 typedef enum {
@@ -77,6 +81,7 @@ typedef enum {
 	VOE_EDITOR_COMMAND_CLOSE,
 	VOE_EDITOR_COMMAND_PLAY,
 	VOE_EDITOR_COMMAND_REFRESH,
+	VOE_EDITOR_COMMAND_SHIP,
 } voe_editor_command;
 
 // Zeroed is a session with no project yet and nothing armed — the caller sets
@@ -92,11 +97,15 @@ typedef struct {
 	voe_editor_refresh refresh;
 	// The running refresh starts Play once its code is in.
 	bool play_after;
+	// Idle while zeroed; ended by a CLOSE that goes ahead, NEW and OPEN.
+	voe_editor_ship ship;
+	// The running refresh starts Ship once its code is in.
+	bool ship_after;
 	// A refresh is to start at the next voe_editor_session_step.
 	bool refresh_due;
 	// How many libraries this run has loaded, the n of project-<n> (code.h).
 	uint32_t loads;
-	// Shown by a failed build, hidden by a refresh or Play that starts.
+	// Shown by a failed build, hidden by a refresh, Play or Ship that starts.
 	voe_editor_errors errors;
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
@@ -109,8 +118,8 @@ typedef struct {
 //
 // TRUE ONLY FOR A CLOSE THAT GOES AHEAD. Every other command, refused or not,
 // answers false: NEW replaces `session->project`, OPEN shows `browser`, SAVE
-// writes to the project, PLAY starts or ends session->play or a refresh and
-// REFRESH starts one, none of which the caller has to be told happened, and a
+// writes to the project, PLAY starts or ends session->play or a refresh,
+// REFRESH starts one and SHIP starts a ship or a refresh, none of which the caller has to be told happened, and a
 // refused command is exactly the case in which nothing may go ahead. A caller
 // that asked for CLOSE and got false carries on running; one that got true
 // closes.
@@ -120,7 +129,8 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 
 // Once a frame, before the undo take and the world step: a due refresh
 // started if the project has code, a running one polled, and a built library
-// loaded and swapped in, then Play if `play_after` — see the header above.
+// loaded and swapped in, then Play or Ship if `play_after` or `ship_after` —
+// see the header above. A due refresh waits while a ship runs.
 // True when the world was swapped, so every entity handle outside `scene` is
 // stale and scene->world is the new one.
 bool voe_editor_session_step(voe_editor_session *session,
@@ -133,6 +143,14 @@ void voe_editor_session_play_poll(voe_editor_session *session);
 // "Building" while a refresh with `play_after` runs, else
 // voe_editor_play_label.
 const char *voe_editor_session_play_label(const voe_editor_session *session);
+
+// Once a frame: a ship not idle polled (ship.h). SHIPPED sets the notice to
+// what the poll told; FAILED shows `errors` from the project's build log.
+void voe_editor_session_ship_poll(voe_editor_session *session);
+
+// "Shipping" while a refresh with `ship_after` runs, else
+// voe_editor_ship_label.
+const char *voe_editor_session_ship_label(const voe_editor_session *session);
 
 // An edit reached the project outside any command above — the inspector's.
 // Marks session->project unsaved, clears the notice and disarms, exactly as
