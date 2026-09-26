@@ -11,13 +11,16 @@ into a standalone game, and a dev program that shows what the engine can current
 - **No stability.** APIs, file formats and folder layout change whenever I feel like it.
   Versions are `0.x` and will likely stay that way.
 - **Linux is the tested platform.** Windows is meant to work, but it is not tested on every change
-  and may be broken at any given time.
+  and may be broken at any given time. There are no Windows downloads: to make a Windows game,
+  build the engine and editor from source on Windows.
 - **No pull requests.** They will be closed unopened. Fork it and do whatever you like instead —
   that is what the license is for.
 - **Issues may go unanswered.** Feel free to open one; just don't expect a reply or a fix.
-- **Built with AI.** Most of the code is written by Claude agents working through a planner/coder
-  workflow, with me deciding what gets built and accepting the result. The workflow's records
-  live in `Agentic/` and `history/`.
+- **I don't write the code. AI agents do.** Claude agents plan, write and test every change
+  through a planner/coder workflow. My part is deciding what gets built and trying the result in
+  the editor. I don't read most of the code, and technically I'm out of my depth in much of it.
+  So don't take anything here as how an expert would do it. It may be good, it may be bad, and
+  I often couldn't tell you which. The workflow's records live in `Agentic/` and `history/`.
 
 If you find something useful in here, take it. If you want an engine to ship a game on, use
 one with a team behind it.
