@@ -1,4 +1,6 @@
-# VOE3D
+# Voluntary Overtime Engine 3D
+
+![Voluntary Overtime Engine 3D](engine_assets/Engine%20images/Primary.png)
 
 A general-purpose real-time 3D engine, written in C23 on Vulkan 1.3, for Windows and Linux
 desktop. The repository holds the engine, an editor for authoring scenes that builds your project
@@ -46,7 +48,7 @@ reach me than an issue.
 
 ## License
 
-VOE3D is released under the MIT License; see [`LICENSE`](LICENSE).
+voe3d is released under the MIT License; see [`LICENSE`](LICENSE).
 
 These files are not covered by it and keep their own licenses:
 
