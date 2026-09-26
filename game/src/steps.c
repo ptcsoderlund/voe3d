@@ -15,25 +15,31 @@
 // One fixed step of the world.
 static void step_once(voe_ecs_world *world, voe_platform_window *window,
 		      const voe_3d_shapes *shapes,
-		      void (*systems)(const voe_game_project_step *))
+		      void (*systems)(const voe_game_project_step *),
+		      void (*after_move)(const voe_game_project_step *))
 {
+	const voe_game_project_step step = { world, window,
+					     VOE_GAME_STEP_SECONDS };
+
 	voe_scene_transform_remember(world);
-	systems(&(voe_game_project_step){ world, window,
-					  VOE_GAME_STEP_SECONDS });
+	systems(&step);
 	voe_game_world_step(world, shapes);
 	voe_physics_body_system_move(world, (float)VOE_GAME_STEP_SECONDS);
 	voe_scene_transform_system_run(world);
+	after_move(&step);
+	voe_game_world_step(world, shapes);
 }
 
 float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,
 			 voe_platform_window *window,
 			 const voe_3d_shapes *shapes, double elapsed,
-			 void (*systems)(const voe_game_project_step *))
+			 void (*systems)(const voe_game_project_step *),
+			 void (*after_move)(const voe_game_project_step *))
 {
 	float lag;
 
 	VOE_BASE_ASSERT(steps != NULL && world != NULL && shapes != NULL &&
-				systems != NULL,
+				systems != NULL && after_move != NULL,
 			"fixed steps with no bank, world, shapes or systems");
 	VOE_BASE_ASSERT(isfinite(elapsed) && elapsed >= 0.0,
 			"fixed steps over a negative or endless time");
@@ -42,7 +48,7 @@ float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,
 	for (int i = 0; i < VOE_GAME_STEPS_MAX &&
 			steps->banked >= VOE_GAME_STEP_SECONDS;
 	     i++) {
-		step_once(world, window, shapes, systems);
+		step_once(world, window, shapes, systems, after_move);
 		steps->banked -= VOE_GAME_STEP_SECONDS;
 	}
 	// Past the maximum: keep the phase, drop the whole steps.

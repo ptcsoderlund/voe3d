@@ -42,7 +42,8 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 			continue;
 		lag = voe_game_steps_run(&steps, world, voe_app_window(app),
 					 shapes, frame.tick.step,
-					 voe_game_project_systems_run);
+					 voe_game_project_systems_run,
+					 voe_game_project_systems_after_move);
 		if (!voe_game_frame(app, world, shapes, scratch, frame.size,
 				    lag))
 			return false;
