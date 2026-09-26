@@ -11,4 +11,4 @@ into the library the editor loads (0242).
 - `coin_system.c` — spins each coin and destroys the ones a player's collider overlaps.
 - `follow_camera.h` — the Follow Camera component: a target entity and a distance, default 6.
 - `follow_camera_system.c` — keeps each follower a distance behind its target along its own forward.
-- `project.c` — the three entry points: registers the four types, runs three systems before the move and follow after it.
+- `project.c` — the four entry points: registers the four types, runs three systems before the move and follow after it, draws no interface.
