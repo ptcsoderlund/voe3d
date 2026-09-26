@@ -41,6 +41,12 @@
 # An empty CMAKE_BUILD_TYPE becomes Debug, so Play has debug info (0235). The
 # engine's game folder builds into voe_game, not game, because `game` is the
 # program's file in the binary folder.
+#
+# Release is what Ship builds (0264); outside WIN32 it links with -s, so the
+# program carries no symbols. `cmake --install` puts in the install root the
+# program, renamed VOE_GAME_NAME (default `game`, set by the tree's
+# CMakeLists.txt), and its two licences, voe3d-LICENSE.txt and Oxanium-OFL.txt.
+# Nothing else is read at run time: shaders and the font are embedded.
 
 include_guard(GLOBAL)
 
@@ -130,4 +136,14 @@ else()
     target_include_directories(game PRIVATE ${voe_project_includes})
     target_link_libraries(game PRIVATE voe::game)
     voe_target_settings(game)
+    if(NOT VOE_GAME_NAME)
+        set(VOE_GAME_NAME game)
+    endif()
+    if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT WIN32)
+        target_link_options(game PRIVATE -s)
+    endif()
+    install(PROGRAMS $<TARGET_FILE:game> DESTINATION .
+        RENAME ${VOE_GAME_NAME}${CMAKE_EXECUTABLE_SUFFIX})
+    install(FILES ${VOE_ENGINE}/LICENSE DESTINATION . RENAME voe3d-LICENSE.txt)
+    install(FILES ${VOE_ENGINE}/text/fonts/OFL.txt DESTINATION . RENAME Oxanium-OFL.txt)
 endif()
