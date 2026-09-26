@@ -97,6 +97,11 @@ function(voe_allowed_deps folder out_var)
         set(deps scene ecs math base)
     elseif(folder STREQUAL "assets")
         set(deps platform math base)
+    elseif(folder STREQUAL "audio")
+        # audio owns the mixer (ADR-0265): the mixing is ours, effects come
+        # here, and the platform device only receives finished samples. It reads
+        # files through platform and decodes them through assets.
+        set(deps platform assets base)
     elseif(folder STREQUAL "authoring")
         # authoring is the code that turns a world into a scene file and back,
         # and it is authoring-time code: a game's build does not link it. It
