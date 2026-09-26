@@ -63,11 +63,12 @@ carries it out.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
-- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, the project's
-  `.gitignore`, the argument lists that build the tree as the game or the project's library, and
-  the paths it reads and writes.
+- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s three files, the
+  `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
+  install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the world cooked into scene.c, and each argument list in one struct.
+  where they go, the world cooked into scene.c, each argument list in one struct, the release kind
+  and the shipped folder.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
