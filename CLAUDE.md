@@ -18,7 +18,9 @@ every card. `ADR-NNNN` in code means the record of that number: 0001–0167 in `
 - `history`
 - `build`
 - `cmake-build-debug`
+- `engine_assets`
 
 ## Never touch
 - `history`
 - `render/vulkan`
+- `engine_assets`
