@@ -38,3 +38,6 @@ Never edit `main.scene` (0251): its coins have no `sound` key, so they read the 
 3. `bash ~/.claude/skills/checks/scripts/checks.sh --all` prints `FINDINGS: 0`.
 4. The human's: `feature.md`'s `## How to test`, steps 1 to 6, in the editor on Linux
    (step 4 with another `.wav` put in the project folder; step 6 as in 031).
+
+## Blocked
+The coin_game change is done: `--folder examples/coin_game` gives FINDINGS: 0, and the editor capture, both game builds and the install all pass (the game trees need `CC=clang`, per ADR-0005). Done when 3 fails: `--all` reports 4 findings in other folders. They are the missing `audio/include/audio/audio.md`, a `**` at `game/src/run.c:53` and at `platform/src/sound_wayland.c:35`, and the `path.c` entry in `platform/tests/tests.md` running past its cap. A card for those folders would unblock this one. Done when 2 also fails as written: `scene_read.c` in `authoring` warns once per coin, `[N.coin] does not say sound; loaded as its default`, and that stays until the sponsor saves `main.scene`. Either loosen the check or have authoring stop warning about missing keys.

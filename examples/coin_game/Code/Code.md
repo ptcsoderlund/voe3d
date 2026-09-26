@@ -10,8 +10,8 @@ the library the editor loads (0242).
 - `player_camera.h` — the runtime-only player_camera_state on the scene's camera: yaw, pitch, distance, arm, lock asked.
 - `player_camera_system.c` — registers player_camera_state; after the move adds its row, glides the arm to the wheel's distance both ways, snapping in only when blocked, and places the camera behind the first player.
 - `player_camera_look.c` — once a frame while playing: locks the pointer and turns by the mouse on the right button, zooms by the wheel.
-- `coin.h` — the Coin component, its points, and the runtime-only coin_taken that hides a taken coin.
-- `coin_system.c` — registers coin under "Coin" and coin_taken with no menu; takes a coin a player's overlap finds and puts it back after a restart.
+- `coin.h` — the Coin component, its points and the sound a take plays, and the runtime-only coin_taken that hides a taken coin.
+- `coin_system.c` — registers coin under "Coin" and coin_taken with no menu; takes a coin a player's overlap finds, playing its sound, and puts it back after a restart.
 - `game_state.h` — the run's runtime-only game_state row: phase, dropped score, restarts; the derived score and coins left.
 - `game_system.c` — registers game_state, makes its row on the first player, drops the score each second and ends the run.
 - `game_interface.c` — the menu, HUD, win and game-over screens each frame; their buttons, Enter and Escape start, restart or quit the run.
