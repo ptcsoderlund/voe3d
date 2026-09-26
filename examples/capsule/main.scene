@@ -141,7 +141,7 @@ size = [1, 1, 1]
 trigger = false
 [10.voe_scene_transform]
 position = [-2.95773, 0.42105, -5]
-rotation = [0, 0, -0.13052619, 0.99144486]
+rotation = [0, 0, -0.13052619, 0.9914449]
 scale = [4, 0.2, 2]
 
 [11]
@@ -155,7 +155,7 @@ size = [1, 1, 1]
 trigger = false
 [11.voe_scene_transform]
 position = [-2.22907, 1.58095, 5]
-rotation = [0, 0, -0.46174861, 0.88701083]
+rotation = [0, 0, -0.4617486, 0.8870108]
 scale = [4, 0.2, 2]
 
 [12]
