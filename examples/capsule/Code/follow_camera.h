@@ -3,14 +3,14 @@
 // entities, and a system that follows it to another entity's row.
 //
 //     follow_camera_register(world);            // in voe_game_project_register
-//     follow_camera_system_run(world);          // last, each fixed step
+//     follow_camera_system_run(world);          // after the move, each step
 //
 // `target` is the entity followed, none by default; `distance` is metres,
 // default 6. The follower keeps its own rotation and sits at the target's
 // position minus its own forward (its rotation applied to -Z) x distance.
 //
-// Constraints: at most VOE_GAME_WORLD_AUTHORED rows. The target's position is
-// the one before this step's body move, so the follower trails by a step.
+// Constraints: at most VOE_GAME_WORLD_AUTHORED rows. Run after the move, it
+// reads the target where this step's move left it.
 #pragma once
 
 #include <base/describe.h>
