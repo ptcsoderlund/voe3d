@@ -63,11 +63,12 @@ carries it out.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
-- `game_tree.h` — what Play writes and runs: `<project>/Build/game/`'s three files, the project's
-  `.gitignore`, the argument lists that build the tree as the game or the project's library, and
-  the paths it reads and writes.
+- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s three files, the
+  `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
+  install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the world cooked into scene.c, and each argument list in one struct.
+  where they go, the world cooked into scene.c, each argument list in one struct, the release kind
+  and the shipped folder.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
@@ -77,16 +78,22 @@ carries it out.
   time without blocking, a failed step one stderr line naming the build log, and the label.
 - `refresh.c` — the tree written and the first step started, each ended step polled on to the build,
   BUILT or FAILED, and the refresh's arena destroyed whenever it goes idle.
-- `session.h` — the project being worked on, its notice, its Play and Refresh, the flag that says a
+- `ship.h` — Ship: the game tree configured and built in release, the old shipped folder cleared
+  and the game installed into it, a step at a time without blocking, a failed step one stderr line
+  naming the build log, and the label.
+- `ship.c` — the tree written and the first step started, each ended step polled on to the next,
+  SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
+  idle.
+- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, the flag that says a
   different project is in place, and the one armed command that makes closing the window, New and
   Open each refuse once while there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the six commands with Play refreshing first, a built library
+- `session.c` — the refuse-once rule, the seven commands with Play and Ship refreshing first and one build at a time, a built library
   loaded and swapped in once a frame, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh,
+- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
   Preferences, the project's name and whether it is unsaved, then the session's notice, at least as tall as its
   content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its six buttons, Play and Refresh among them, afterwards.
+  the read of its seven buttons, Play, Refresh and Ship among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -115,8 +122,8 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — the play state polled once a frame, one `ui` frame per root, submitted into the
-  open frame, and the one read of the frame's clicks that carries out the top bar's, Play among
+- `interface.c` — the play state and the ship polled once a frame, one `ui` frame per root, submitted into the
+  open frame, and the one read of the frame's clicks that carries out the top bar's, Play and Ship among
   them, the browser's and Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel

@@ -1,5 +1,6 @@
-// The refuse-once rule, the six commands, a refresh started, polled and its
-// library swapped in, a failed build's Errors panel shown, and what a browser
+// The refuse-once rule, the seven commands, a refresh started, polled and its
+// library swapped in, Ship started after it and polled, a failed build's
+// Errors panel shown, and what a browser
 // action does to the session. See the header for what each one does and why
 // only CLOSE ever answers true.
 #include "session.h"
@@ -77,11 +78,30 @@ static void session_refresh_start(voe_editor_session *session)
 	VOE_BASE_ASSERT(!session->refresh_due, "a started refresh still due");
 }
 
+// A ship started now, the last failure's panel hidden; a refusal is the notice.
+static void session_ship_start(voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session->ship.stage == VOE_EDITOR_SHIP_IDLE,
+			"starting a ship over a running one");
+	voe_editor_errors_hide(&session->errors);
+	voe_editor_ship_start(&session->ship, session->project,
+			      &session->notice);
+	VOE_BASE_ASSERT(!session->errors.showing, "a started ship shows errors");
+}
+
+// A ship runs or is to follow the running refresh, so nothing else may build.
+static bool session_ship_busy(const voe_editor_session *session)
+{
+	return session->ship.stage != VOE_EDITOR_SHIP_IDLE ||
+	       session->ship_after;
+}
+
 // The refresh and what was to follow it ended, before the project changes.
 static void session_refresh_end(voe_editor_session *session)
 {
 	voe_editor_refresh_end(&session->refresh);
 	session->play_after = false;
+	session->ship_after = false;
 	VOE_BASE_ASSERT(session->refresh.stage == VOE_EDITOR_REFRESH_IDLE,
 			"an ended refresh still runs");
 }
@@ -157,6 +177,7 @@ bool voe_editor_session_step(voe_editor_session *session,
 			     voe_editor_scene *scene)
 {
 	bool play;
+	bool ship;
 	int swapped;
 
 	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
@@ -164,7 +185,11 @@ bool voe_editor_session_step(voe_editor_session *session,
 	VOE_BASE_ASSERT(scene != NULL, "stepping a session with no scene");
 
 	if (session->refresh.stage == VOE_EDITOR_REFRESH_IDLE) {
-		if (session->refresh_due && session_has_code(session->project))
+		// A due refresh waits out a ship: one build at a time.
+		if (!session->refresh_due ||
+		    session->ship.stage != VOE_EDITOR_SHIP_IDLE)
+			return false;
+		if (session_has_code(session->project))
 			session_refresh_start(session);
 		session->refresh_due = false;
 		return false;
@@ -175,6 +200,7 @@ bool voe_editor_session_step(voe_editor_session *session,
 		return false;
 	case VOE_EDITOR_REFRESH_FAILED:
 		session->play_after = false;
+		session->ship_after = false;
 		voe_editor_notice_set(
 			&session->notice,
 			"The project's code did not build — see Build/build.log");
@@ -185,10 +211,14 @@ bool voe_editor_session_step(voe_editor_session *session,
 	}
 
 	play = session->play_after;
+	ship = session->ship_after;
 	session->play_after = false;
+	session->ship_after = false;
 	swapped = session_code_swap(session, scene);
 	if (swapped >= 0 && play && session->play.stage == VOE_EDITOR_PLAY_IDLE)
 		session_play_start(session);
+	if (swapped >= 0 && ship && session->ship.stage == VOE_EDITOR_SHIP_IDLE)
+		session_ship_start(session);
 	return swapped > 0;
 }
 
@@ -214,6 +244,37 @@ const char *voe_editor_session_play_label(const voe_editor_session *session)
 	    session->refresh.stage != VOE_EDITOR_REFRESH_IDLE)
 		return "Building";
 	return voe_editor_play_label(&session->play);
+}
+
+void voe_editor_session_ship_poll(voe_editor_session *session)
+{
+	voe_editor_notice told = { 0 };
+
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
+			"polling the ship of a session with no project");
+
+	if (session->ship.stage == VOE_EDITOR_SHIP_IDLE)
+		return;
+	switch (voe_editor_ship_poll(&session->ship, &told)) {
+	case VOE_EDITOR_SHIP_RUNNING:
+		break;
+	case VOE_EDITOR_SHIP_SHIPPED:
+		session->notice = told;
+		break;
+	case VOE_EDITOR_SHIP_FAILED:
+		session_errors_show(session);
+		break;
+	}
+}
+
+const char *voe_editor_session_ship_label(const voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session != NULL, "labelling no session's Ship");
+
+	if (session->ship_after &&
+	    session->refresh.stage != VOE_EDITOR_REFRESH_IDLE)
+		return "Shipping";
+	return voe_editor_ship_label(&session->ship);
 }
 
 void voe_editor_session_edited(voe_editor_session *session)
@@ -266,6 +327,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		}
 		voe_editor_play_end(&session->play);
 		session_refresh_end(session);
+		voe_editor_ship_end(&session->ship);
 		return true;
 
 	case VOE_EDITOR_COMMAND_PLAY:
@@ -273,6 +335,9 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// after the code it runs is in, and a second press is Stop.
 		if (session->play.stage != VOE_EDITOR_PLAY_IDLE) {
 			voe_editor_play_end(&session->play);
+		} else if (session_ship_busy(session)) {
+			voe_editor_notice_set(&session->notice,
+					      "Ship is building — Play once it is done");
 		} else if (session->refresh.stage != VOE_EDITOR_REFRESH_IDLE) {
 			if (session->play_after)
 				voe_editor_refresh_end(&session->refresh);
@@ -287,8 +352,34 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		return false;
 
 	case VOE_EDITOR_COMMAND_REFRESH:
-		if (session->refresh.stage == VOE_EDITOR_REFRESH_IDLE)
+		if (session_ship_busy(session))
+			voe_editor_notice_set(&session->notice,
+					      "Ship is building — Refresh once it is done");
+		else if (session->refresh.stage == VOE_EDITOR_REFRESH_IDLE)
 			session_refresh_start(session);
+		return false;
+
+	case VOE_EDITOR_COMMAND_SHIP:
+		// Never arms, and one build at a time in Build/game/: a press
+		// while shipping does nothing, a Play build is waited out and
+		// any other refresh is joined (ADR-0264 point 5).
+		if (session_ship_busy(session))
+			return false;
+		if (session->play.stage == VOE_EDITOR_PLAY_CONFIGURING ||
+		    session->play.stage == VOE_EDITOR_PLAY_BUILDING ||
+		    (session->play_after &&
+		     session->refresh.stage != VOE_EDITOR_REFRESH_IDLE)) {
+			voe_editor_notice_set(&session->notice,
+					      "Play is building — Ship once it is done");
+		} else if (session->refresh.stage != VOE_EDITOR_REFRESH_IDLE) {
+			session->ship_after = true;
+		} else if (session_has_code(session->project)) {
+			session_refresh_start(session);
+			session->ship_after = session->refresh.stage !=
+					      VOE_EDITOR_REFRESH_IDLE;
+		} else {
+			session_ship_start(session);
+		}
 		return false;
 
 	case VOE_EDITOR_COMMAND_NEW: {
@@ -303,6 +394,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		}
 
 		session_refresh_end(session);
+		voe_editor_ship_end(&session->ship);
 		fresh = voe_editor_project_new_untitled();
 		voe_editor_project_destroy(session->project);
 		session->project = fresh;
@@ -393,6 +485,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 				return;
 
 			session_refresh_end(session);
+			voe_editor_ship_end(&session->ship);
 			session->refresh_due = true;
 			voe_editor_project_destroy(session->project);
 			session->project = opened;

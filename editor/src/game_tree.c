@@ -3,8 +3,8 @@
 // A file is compared against what is on disk before it is written, so its
 // timestamp only moves when its bytes do. Text put into a generated file is
 // escaped for where it goes: the project's name as a C string literal in
-// main.c, the engine's and the code's paths as quoted CMake arguments in
-// CMakeLists.txt. Code/ is looked for in the project's own listing before it is
+// main.c, the engine's and the code's paths and the name as quoted CMake
+// arguments in CMakeLists.txt. Code/ is looked for in the project's own listing before it is
 // listed, so a project with none reports nothing.
 //
 // An argument list is at most ARGUMENTS entries, the NULL included, in one
@@ -140,18 +140,22 @@ refused:
 	return false;
 }
 
-static const char *cmake_lists(const char *folder, voe_base_arena *arena)
+static const char *cmake_lists(const voe_editor_project *project,
+			       voe_base_arena *arena)
 {
-	const char *code = voe_platform_path_join(arena, folder, "Code");
+	const char *code = voe_platform_path_join(arena, project->folder, "Code");
+	const char *name = voe_editor_project_name(project);
 
+	VOE_BASE_ASSERT(name != NULL, "a game tree for an untitled project");
 	return format(arena,
 		      "cmake_minimum_required(VERSION 3.28)\n"
 		      "project(voe_game_tree C)\n"
 		      "set(VOE_ENGINE \"%s\")\n"
 		      "set(VOE_PROJECT_CODE \"%s\")\n"
+		      "set(VOE_GAME_NAME \"%s\")\n"
 		      "include(\"${VOE_ENGINE}/cmake/game.cmake\")\n",
 		      escaped(arena, VOE_TOOLCHAIN_ENGINE, true),
-		      escaped(arena, code, true));
+		      escaped(arena, code, true), escaped(arena, name, true));
 }
 
 // <folder>/Code/'s entries, sorted by name; none when it is not a folder.
@@ -230,7 +234,7 @@ static bool game_files_write(const voe_editor_project *project,
 	voe_authoring_text cooked;
 
 	if (!file_write_changed(voe_platform_path_join(arena, game, "CMakeLists.txt"),
-				cmake_lists(project->folder, arena), arena, why))
+				cmake_lists(project, arena), arena, why))
 		return false;
 	if (!file_write_changed(voe_platform_path_join(arena, game, "main.c"),
 				main_source(project, arena), arena, why))
@@ -280,16 +284,22 @@ static const char *build_path(const char *folder, const char *name,
 				      name);
 }
 
-// Where kind is built: Build/debug for GAME, Build/editor for LIBRARY.
+// Where kind is built: Build/debug for GAME, Build/editor for LIBRARY,
+// Build/release for RELEASE.
 static const char *binary_folder(const char *folder,
 				 voe_editor_game_tree_kind kind,
 				 voe_base_arena *arena)
 {
-	VOE_BASE_ASSERT(kind == VOE_EDITOR_GAME_TREE_GAME ||
-				kind == VOE_EDITOR_GAME_TREE_LIBRARY,
+	static const char *const names[] = {
+		[VOE_EDITOR_GAME_TREE_GAME] = "debug",
+		[VOE_EDITOR_GAME_TREE_LIBRARY] = "editor",
+		[VOE_EDITOR_GAME_TREE_RELEASE] = "release",
+	};
+
+	VOE_BASE_ASSERT(kind >= VOE_EDITOR_GAME_TREE_GAME &&
+				kind <= VOE_EDITOR_GAME_TREE_RELEASE,
 			"a game tree of no kind");
-	return build_path(folder, kind == VOE_EDITOR_GAME_TREE_GAME ? "debug" : "editor",
-			  arena);
+	return build_path(folder, names[kind], arena);
 }
 
 bool voe_editor_game_tree_configured(const char *folder,
@@ -339,7 +349,9 @@ const char *const *voe_editor_game_tree_configure(const char *folder,
 	argument_add(list, binary);
 	argument_add(list, "-G");
 	argument_add(list, "Ninja");
-	argument_add(list, "-DCMAKE_BUILD_TYPE=Debug");
+	argument_add(list, kind == VOE_EDITOR_GAME_TREE_RELEASE
+				   ? "-DCMAKE_BUILD_TYPE=Release"
+				   : "-DCMAKE_BUILD_TYPE=Debug");
 	define_add(list, arena, "CMAKE_C_COMPILER", VOE_TOOLCHAIN_C_COMPILER);
 	define_add(list, arena, "CMAKE_MAKE_PROGRAM", VOE_TOOLCHAIN_MAKE_PROGRAM);
 	define_add(list, arena, "PKG_CONFIG_EXECUTABLE", VOE_TOOLCHAIN_PKG_CONFIG);
@@ -363,7 +375,41 @@ const char *const *voe_editor_game_tree_build(const char *folder,
 	argument_add(list, "--build");
 	argument_add(list, binary);
 	argument_add(list, "--target");
-	argument_add(list, kind == VOE_EDITOR_GAME_TREE_GAME ? "game" : "project");
+	argument_add(list, kind == VOE_EDITOR_GAME_TREE_LIBRARY ? "project" : "game");
+	return list->items;
+}
+
+const char *voe_editor_game_tree_shipped(const char *folder, voe_base_arena *arena)
+{
+	const char *name = voe_platform_path_name(folder);
+
+	VOE_BASE_ASSERT(name != NULL && name[0] != '\0', "shipping a folder with no name");
+	return voe_platform_path_join(arena, build_path(folder, "ship", arena), name);
+}
+
+const char *const *voe_editor_game_tree_ship_clear(const char *folder,
+						   voe_base_arena *arena)
+{
+	const char *shipped = voe_editor_game_tree_shipped(folder, arena);
+	arguments *list = arguments_new(arena);
+
+	argument_add(list, "-E");
+	argument_add(list, "rm");
+	argument_add(list, "-rf");
+	argument_add(list, shipped);
+	return list->items;
+}
+
+const char *const *voe_editor_game_tree_install(const char *folder,
+						voe_base_arena *arena)
+{
+	const char *shipped = voe_editor_game_tree_shipped(folder, arena);
+	arguments *list = arguments_new(arena);
+
+	argument_add(list, "--install");
+	argument_add(list, binary_folder(folder, VOE_EDITOR_GAME_TREE_RELEASE, arena));
+	argument_add(list, "--prefix");
+	argument_add(list, shipped);
 	return list->items;
 }
 

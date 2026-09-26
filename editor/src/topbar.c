@@ -1,4 +1,4 @@
-// The bar's one frame of `ui` calls, and the read of its six buttons
+// The bar's one frame of `ui` calls, and the read of its seven buttons
 // afterwards. See the header for why the command it hands back is not carried
 // out here.
 //
@@ -48,7 +48,7 @@ static const char *unsaved_name(voe_base_arena *arena, const char *name)
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
-			   const char *name, bool unsaved,
+			   const char *ship, const char *name, bool unsaved,
 			   const char *notice)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing no top bar into no interface");
@@ -58,6 +58,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	VOE_BASE_ASSERT(play != NULL, "drawing a top bar with no Play label");
 	VOE_BASE_ASSERT(refresh != NULL,
 			"drawing a top bar with no Refresh label");
+	VOE_BASE_ASSERT(ship != NULL, "drawing a top bar with no Ship label");
 	VOE_BASE_ASSERT(name != NULL, "drawing a top bar with no name to show");
 	VOE_BASE_ASSERT(notice != NULL,
 			"drawing a top bar with no notice to show");
@@ -93,6 +94,10 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 
 	bar->refresh_button = voe_ui_button_begin(ui, "refresh", 0);
 	voe_ui_label(ui, refresh);
+	voe_ui_end(ui);
+
+	bar->ship_button = voe_ui_button_begin(ui, "ship", 0);
+	voe_ui_label(ui, ship);
 	voe_ui_end(ui);
 
 	bar->preferences_button = voe_ui_button_begin(ui, "preferences", 0);
@@ -171,6 +176,10 @@ voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 	if (bar->refresh_button != VOE_UI_NODE_NONE &&
 	    voe_ui_button_action(ui, bar->refresh_button).fired)
 		return VOE_EDITOR_COMMAND_REFRESH;
+
+	if (bar->ship_button != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, bar->ship_button).fired)
+		return VOE_EDITOR_COMMAND_SHIP;
 
 	return VOE_EDITOR_COMMAND_NONE;
 }

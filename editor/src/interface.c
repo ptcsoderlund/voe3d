@@ -125,6 +125,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	// Once a frame, before any root is built, so every root's bar reads
 	// the same label (interface.h).
 	voe_editor_session_play_poll(session);
+	voe_editor_session_ship_poll(session);
 
 	for (uint32_t i = 0; i < count && ok; i++) {
 		const voe_editor_dock_root *root = &roots[i];
@@ -205,6 +206,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_topbar_draw(ui, bar, arena, root->size.y,
 				       voe_editor_session_play_label(session),
 				       voe_editor_refresh_label(&session->refresh),
+				       voe_editor_session_ship_label(session),
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text);
