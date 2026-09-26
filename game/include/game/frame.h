@@ -1,5 +1,6 @@
 // One frame of the game: the world's systems run in the editor's order, then
-// the world drawn into the window through the scene's own camera, in one pass.
+// the sun's shadows and the world drawn into the window through the scene's
+// own camera.
 //
 //     voe_app_frame frame = voe_app_frame_open(app);
 //     if (frame.closing)
@@ -10,8 +11,9 @@
 //
 // THE ORDER: the world step — the structural queue applied, the project's
 // replaces (game/project.h), the transform, identity and light systems, the
-// shape system, then the collider and body systems — then a draw opened, one
-// pass onto the window with voe_3d_draw_system_frame's camera and sun, the draw
+// shape system, then the collider and body systems — then a draw opened, the
+// sun's shadow passes (voe_3d_draw_system_shadows, 0258), one pass onto the
+// window with voe_3d_draw_system_frame's camera, sun and shadow, the draw
 // system, the pass and the draw closed. The world step is its own call too, so
 // a fixed step runs the same owning systems in the same order.
 //
@@ -27,6 +29,7 @@
 // draw; a minimised window is the caller's to skip.
 #pragma once
 
+#include <3d/shadow_cascades.h>
 #include <3d/shape_system.h>
 
 #include <app/app.h>
@@ -42,17 +45,22 @@
 #include <stdbool.h>
 
 // What the device must hold for one frame: the built-in shapes' geometry and
-// their two records, one object per drawn entity in the one pass, and one pass.
+// their two records; one object per drawn entity in the window pass and one
+// more in each cascade, every caster drawn once into each; the window pass and
+// one shadow pass per cascade; the sun's maps at VOE_3D_SHADOW_TEXELS a side.
 // Nothing transient, no elements and no targets: the game draws no outline,
 // no interface and nothing off screen.
-#define VOE_GAME_CAPACITIES                                   \
-	(voe_render_capacities)                               \
-	{                                                     \
-		.vertices = VOE_3D_SHAPES_VERTICES,            \
-		.indices = VOE_3D_SHAPES_INDICES,              \
-		.geometries = VOE_3D_SHAPES_GEOMETRIES,        \
-		.objects = VOE_GAME_WORLD_MAX_DRAWN,           \
-		.shadings = VOE_3D_SHAPES_SHADINGS, .passes = 1 \
+#define VOE_GAME_CAPACITIES                                                  \
+	(voe_render_capacities)                                              \
+	{                                                                    \
+		.vertices = VOE_3D_SHAPES_VERTICES,                           \
+		.indices = VOE_3D_SHAPES_INDICES,                             \
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,                       \
+		.objects = VOE_GAME_WORLD_MAX_DRAWN *                         \
+			   (1 + VOE_RENDER_SHADOW_CASCADES),                  \
+		.shadings = VOE_3D_SHAPES_SHADINGS,                           \
+		.passes = 1 + VOE_RENDER_SHADOW_CASCADES,                     \
+		.shadow_size = VOE_3D_SHADOW_TEXELS                           \
 	}
 
 // Drains every intent in the frame's order: the structural queue, the project's

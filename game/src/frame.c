@@ -1,6 +1,7 @@
-// The systems and the one window pass, in the order game/include/game/frame.h
-// gives. A refused pass still closes the draw, so the frame ends as render
-// expects and the caller is told once.
+// The systems, the shadow passes and the window pass, in the order
+// game/include/game/frame.h gives. A refused pass, shadow or window, still
+// closes the draw, so the frame ends as render expects and the caller is told
+// once.
 #include <game/frame.h>
 
 #include <3d/draw_system.h>
@@ -43,6 +44,7 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	voe_render_pass_camera camera;
 	voe_3d_frame frame;
 	bool drawing;
+	bool shadowed;
 	bool passed;
 
 	VOE_BASE_ASSERT(app != NULL && world != NULL && shapes != NULL &&
@@ -60,12 +62,14 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 
 	device = voe_app_device(app);
 	frame = voe_3d_draw_system_frame(world, size, lag);
-	camera = (voe_render_pass_camera){ frame.view, frame.light };
+	shadowed = voe_3d_draw_system_shadows(world, device, &frame);
+	camera = (voe_render_pass_camera){ frame.view, frame.light,
+					   frame.shadow };
 	passed = voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 				       &camera);
 	if (passed) {
 		voe_3d_draw_system_run(world, device, scratch, frame);
 		voe_render_pass_end(device);
 	}
-	return voe_app_draw_close(app) && passed;
+	return voe_app_draw_close(app) && shadowed && passed;
 }
