@@ -1,11 +1,12 @@
 # System
 
-The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its editor and dev program in one
-tree. Every code folder is a standalone CMake project — `include/<folder>/`, `src/`, `tests/`, a
-four-line `CMakeLists.txt` — built as `voe_<folder>`, linked as `voe::<folder>`, mapped by
-`<folder>/<folder>.md`. Dependencies point down this list and never back up; `cmake/voe.cmake`
-holds the allowed edges, so a change needing a new edge is a decision, not a card. The standing
-rules are decision 0168, named on every card; the Agentic workflow replaced specs.
+The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its
+editor and dev program in one tree. Every code folder is a standalone CMake project —
+`include/<folder>/`, `src/`, `tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`,
+linked as `voe::<folder>`, mapped by `<folder>/<folder>.md`. Dependencies point down this list and
+never back up; `cmake/voe.cmake` holds the allowed edges, so a change needing a new edge is a
+decision, not a card. The standing rules are decision 0168, named on every card; the Agentic
+workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
@@ -15,7 +16,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, fonts and the sectioned text format to CPU data; the JSON parser.
 - **authoring** — scene and project text read and written, a world cooked to C; a game omits it.
-- **render** — the GPU layer and the only folder that names Vulkan: card, resources, passes, shadow maps.
+- **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -27,7 +28,7 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
-- **engine_assets** — the human's logo and input material; not code; agents read and link, never write.
+- **engine_assets** — the human's logo and input material; not code; agents read, link, never write.
 
 ## Decisions in force
 
@@ -51,9 +52,9 @@ rules are decision 0168, named on every card; the Agentic workflow replaced spec
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
 - 0192, 0193, 0195, 0198–0200 — Structure via the queue; one focus; dropdowns; overlays fit.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
-- 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right button flies.
+- 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
 - 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
 - 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
-- 0244, 0246–0248, 0263 — Root `examples/`, checked on structure; UTF-8; `engine_assets/` is the human's.
+- 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
