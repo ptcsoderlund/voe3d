@@ -32,3 +32,6 @@ belongs to.
   header says where the files came from and why a quantiser of one is what keeps
   a decoder tested against its own encoder honest.
 - `jpeg_data.inc` — those files, as bytes.
+- `wav.c` — WAV files built byte by byte: mono 16-bit, stereo float, an
+  extensible header and a skipped `LIST` decoded, and each refusal with its
+  category.

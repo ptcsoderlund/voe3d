@@ -1,6 +1,6 @@
 # src
 
-`assets`'s implementation: the readers and the one writer behind the three
+`assets`'s implementation: the readers and the one writer behind the four
 public headers, and the compressor and decompressor PNG shares with them.
 Nothing here opens a file, so a decoder takes a buffer and an encoder hands one
 back. A reader is here to pick which file to open: what each one owns, and which
@@ -47,3 +47,5 @@ of them is internal to this folder rather than reachable from outside it.
   upsampling and the colour conversion. Baseline only; its header says why
   progressive is refused rather than attempted, and which index in the format is
   the one that walks off the end of a block.
+- `wav.c` — the WAV reader: one walk over the RIFF chunks, then 16-bit or
+  float samples converted to float in the caller's arena.
