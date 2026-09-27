@@ -16,6 +16,7 @@
 
 #include <ui/widgets.h>
 
+#include <ctype.h>
 #include <string.h>
 
 // The browser's own long-lived room for its current folder's path and rows,
@@ -32,6 +33,7 @@
 
 // What a marked row's label ends in.
 #define PROJECT_MARK " — project"
+#define FILE_MARK " — file"
 
 // SAVE mode's own button, beside the name field. Literal, for the same
 // reason PROJECT_MARK is.
@@ -62,11 +64,41 @@ static bool marks_project(voe_base_arena *scratch, const char *folder,
 	return voe_platform_file_exists(project_path);
 }
 
+bool voe_editor_browser_names_model(const char *name)
+{
+	static const char glb[] = ".glb";
+	size_t length;
+
+	VOE_BASE_ASSERT(name != NULL, "asking whether no name is a model");
+	length = strlen(name);
+
+	if (length < sizeof(glb) - 1)
+		return false;
+	name += length - (sizeof(glb) - 1);
+	for (size_t i = 0; i < sizeof(glb) - 1; i++)
+		if (tolower((unsigned char)name[i]) != glb[i])
+			return false;
+	return true;
+}
+
+// Whether entry is a row in mode: a visible folder always, a visible `.glb`
+// file in IMPORT mode only.
+static bool lists(const voe_platform_folder_entry *entry,
+		  voe_editor_browser_mode mode)
+{
+	VOE_BASE_ASSERT(entry != NULL, "asking whether no entry is a row");
+	if (entry->hidden)
+		return false;
+	return entry->folder || (mode == VOE_EDITOR_BROWSER_IMPORT &&
+				 voe_editor_browser_names_model(entry->name));
+}
+
 // Lists candidate into scratch and, only once that has succeeded, clears
 // browser->arena and rebuilds browser->folder and browser->rows from it —
 // see the header on why the order is this way round. candidate may be
 // scratch's own: nothing here keeps a pointer into it past this call, because
-// everything kept is copied into browser->arena first.
+// everything kept is copied into browser->arena first. Folders in the first
+// pass, IMPORT's files in the second.
 static bool relist(voe_editor_browser *browser, const char *candidate,
 		   voe_base_arena *scratch, voe_editor_notice *why)
 {
@@ -84,19 +116,29 @@ static bool relist(voe_editor_browser *browser, const char *candidate,
 	folder_copy = copy_string(browser->arena, candidate);
 
 	browser->row_count = 0;
-	for (uint32_t i = 0;
-	     i < listing.count && browser->row_count < VOE_EDITOR_BROWSER_ROWS;
-	     i++) {
-		const voe_platform_folder_entry *entry = &listing.entries[i];
+	for (uint32_t pass = 0; pass < 2; pass++) {
+		for (uint32_t i = 0; i < listing.count &&
+				     browser->row_count < VOE_EDITOR_BROWSER_ROWS;
+		     i++) {
+			const voe_platform_folder_entry *entry =
+				&listing.entries[i];
 
-		if (!entry->folder || entry->hidden)
-			continue;
+			if (entry->folder != (pass == 0) ||
+			    !lists(entry, browser->mode))
+				continue;
 
-		browser->rows[browser->row_count++] = (voe_editor_browser_row){
-			.node = VOE_UI_NODE_NONE,
-			.name = copy_string(browser->arena, entry->name),
-			.project = marks_project(scratch, candidate, entry->name),
-		};
+			browser->rows[browser->row_count++] =
+				(voe_editor_browser_row){
+					.node = VOE_UI_NODE_NONE,
+					.name = copy_string(browser->arena,
+							    entry->name),
+					.project = entry->folder &&
+						   marks_project(scratch,
+								 candidate,
+								 entry->name),
+					.file = !entry->folder,
+				};
+		}
 	}
 
 	browser->folder = folder_copy;
@@ -122,24 +164,22 @@ void voe_editor_browser_show(voe_editor_browser *browser,
 	browser->focus_name = mode == VOE_EDITOR_BROWSER_SAVE;
 
 	// THE FIRST SHOWING EVER PICKS A FOLDER; EVERY OTHER ONE KEEPS WHAT IT
-	// HAD (the header's "across showings, for the session").
-	if (browser->folder == NULL) {
-		voe_base_arena *scratch =
-			voe_base_arena_new(VOE_EDITOR_BROWSER_SCRATCH);
-		voe_base_error error;
-		const char *start = voe_platform_folder_home(scratch);
+	// HAD (the header's "across showings, for the session") and lists it
+	// again in this mode.
+	voe_base_arena *scratch = voe_base_arena_new(VOE_EDITOR_BROWSER_SCRATCH);
+	voe_base_error error;
+	const char *start = browser->folder;
 
-		if (start == NULL)
-			start = voe_platform_path_absolute(".", scratch,
-							   &error);
+	if (start == NULL)
+		start = voe_platform_folder_home(scratch);
+	if (start == NULL)
+		start = voe_platform_path_absolute(".", scratch, &error);
 
-		if (start != NULL)
-			relist(browser, start, scratch, why);
-		else
-			voe_editor_notice_set(
-				why, "no folder to start the browser in");
-		voe_base_arena_destroy(scratch);
-	}
+	if (start != NULL)
+		relist(browser, copy_string(scratch, start), scratch, why);
+	else
+		voe_editor_notice_set(why, "no folder to start the browser in");
+	voe_base_arena_destroy(scratch);
 }
 
 void voe_editor_browser_hide(voe_editor_browser *browser)
@@ -229,6 +269,8 @@ void voe_editor_browser_draw(voe_ui_context *ui, voe_editor_browser *browser,
 		voe_ui_label(ui, browser->rows[i].name);
 		if (browser->rows[i].project)
 			voe_ui_label(ui, PROJECT_MARK);
+		if (browser->rows[i].file)
+			voe_ui_label(ui, FILE_MARK);
 		voe_ui_end(ui);
 	}
 	voe_ui_end(ui); // scroll area
@@ -266,11 +308,15 @@ void voe_editor_browser_draw(voe_ui_context *ui, voe_editor_browser *browser,
 
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = BROWSER_GAP });
-	browser->confirm_button = voe_ui_button_begin(ui, "confirm", 0);
-	voe_ui_label(ui, browser->mode == VOE_EDITOR_BROWSER_OPEN ?
-				 "Open" :
-				 "Save here");
-	voe_ui_end(ui); // confirm button
+	// IMPORT HAS NO CONFIRM: pressing a file row is the choice.
+	browser->confirm_button = VOE_UI_NODE_NONE;
+	if (browser->mode != VOE_EDITOR_BROWSER_IMPORT) {
+		browser->confirm_button = voe_ui_button_begin(ui, "confirm", 0);
+		voe_ui_label(ui, browser->mode == VOE_EDITOR_BROWSER_OPEN ?
+					 "Open" :
+					 "Save here");
+		voe_ui_end(ui); // confirm button
+	}
 	browser->cancel_button = voe_ui_button_begin(ui, "cancel", 0);
 	voe_ui_label(ui, "Cancel");
 	voe_ui_end(ui); // cancel button
@@ -325,11 +371,18 @@ voe_editor_browser_clicks_read(const voe_ui_context *ui,
 	for (uint32_t i = 0; i < browser->row_count; i++) {
 		if (browser->rows[i].node == VOE_UI_NODE_NONE)
 			continue;
-		if (voe_ui_button_action(ui, browser->rows[i].node).fired) {
+		if (!voe_ui_button_action(ui, browser->rows[i].node).fired)
+			continue;
+		if (browser->rows[i].file) {
+			result.action = VOE_EDITOR_BROWSER_IMPORT_FILE;
+			result.name = voe_platform_path_join(
+				browser->arena, browser->folder,
+				browser->rows[i].name);
+		} else {
 			result.action = VOE_EDITOR_BROWSER_ENTERED;
 			result.name = browser->rows[i].name;
-			return result;
 		}
+		return result;
 	}
 
 	if (browser->confirm_button != VOE_UI_NODE_NONE &&

@@ -527,5 +527,15 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 		voe_editor_browser_make_folder(browser, result.name,
 					       &session->notice);
 		return;
+
+	case VOE_EDITOR_BROWSER_IMPORT_FILE:
+		// Import is only drawn for a project with a folder, but New or
+		// Open may have replaced it while the browser showed.
+		if (session->project->folder != NULL)
+			voe_editor_assets_import(&scene->assets,
+						 session->project->folder,
+						 result.name, &session->notice);
+		voe_editor_browser_hide(browser);
+		return;
 	}
 }

@@ -105,8 +105,8 @@ carries it out.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of Close afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an anchored panel over the
-  dock, its own arena for the current folder and its rows, and in SAVE mode a name row with a
-  focused `ui` field and a Make folder button.
+  dock, its own arena for the current folder and its rows, in SAVE mode a name row with a focused
+  `ui` field and a Make folder button, and in IMPORT mode `.glb` files a press imports.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side panel's length in millimetres or the views' share,
@@ -117,9 +117,9 @@ carries it out.
   scroll area, and the camera preview in each scene view's corner.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
-  as models.
+  as models, and Import copying a chosen `.glb` into the shown folder.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
-  the panel's one frame of `ui` calls and the read of its rows and Up afterwards.
+  the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the import.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the views' border and the top
   bar's lower edge, hit-tested before `ui`, the pointer's shape over them, the seam it reports reached
   for the walk to light, and a double-click that sets one size back (ADR-0226).

@@ -1,7 +1,9 @@
 // The Assets panel (0270, 0277 point 6): the project's `<project>/Assets/`
 // folder as rows, folders first and then files, each by name, hidden ones left
-// out. A folder row is entered, Up goes back a level, and the listing follows
-// the project in place. main.c updates it once a frame; dock.c draws it under
+// out. A folder row is entered, Up goes back a level, Import copies a `.glb`
+// chosen in the browser's IMPORT mode into the shown folder (0277 point 7),
+// and the listing follows the project in place. main.c updates it once a
+// frame; dock.c draws it under
 // the Scene list and interface.c reads its clicks beside the other panels':
 //
 //     voe_editor_assets_update(&scene.assets, session.project->folder, now);
@@ -72,6 +74,7 @@ typedef struct {
 	voe_editor_assets_row rows[VOE_EDITOR_BROWSER_ROWS];
 	uint32_t row_count;
 	voe_ui_node up_button;
+	voe_ui_node import_button;
 } voe_editor_assets;
 
 // Lists again when `project_folder` (NULL for untitled) differs from the one
@@ -80,14 +83,24 @@ typedef struct {
 void voe_editor_assets_update(voe_editor_assets *assets,
 			      const char *project_folder, double now);
 
-// Up (not at `Assets/`), the shown folder's path, then one row per entry, or
-// the line saying there is no `Assets/`. Records every node for the read.
+// Up (not at `Assets/`) beside Import (only when the project has a folder),
+// the shown folder's path, then one row per entry, or the line saying there
+// is no `Assets/`. Records every node for the read.
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
 // After voe_ui_frame_end: a folder row fired is entered, Up fired goes up a
-// level; either lists at once.
-void voe_editor_assets_clicks_read(const voe_ui_context *ui,
+// level; either lists at once. True when Import fired, which the caller
+// answers by showing the browser in IMPORT mode.
+bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets);
+
+// Copies the file at `source` into the shown folder under its own name, read
+// whole and written atomically over any file of that name, making `Assets/`
+// first when it is missing, then lists again. A failure is said in why,
+// naming the file, and changes nothing else.
+void voe_editor_assets_import(voe_editor_assets *assets,
+			      const char *project_folder, const char *source,
+			      voe_editor_notice *why);
 
 // Frees the arena, when one was made. Called once, at shutdown.
 void voe_editor_assets_destroy(voe_editor_assets *assets);

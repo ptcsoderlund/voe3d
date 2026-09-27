@@ -161,7 +161,9 @@ void voe_editor_session_edited(voe_editor_session *session);
 // voe_editor_browser_clicks_read. Entering a row, going up and making a
 // folder (MAKE_FOLDER, the name field's own Enter or its Make folder button)
 // are browser.c's own to do, given session->notice to write a failure into;
-// Cancel hides the browser and nothing else. CONFIRM IS THIS FILE'S OWN IN
+// Cancel hides the browser and nothing else. IMPORT_FILE copies the pressed
+// file into the Assets panel's shown folder (voe_editor_assets_import, a
+// failure in the notice) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
 // BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
 // voe_editor_project_new_opened on browser->folder, and on success
 // session->project, scene->world and scene->selected are replaced exactly as
