@@ -1,6 +1,6 @@
 // A selected shape's silhouette as quads: how many edges a cube has from where,
-// how wide the quads are in metres, which way they face and what is not
-// outlined at all.
+// how wide the quads are in metres, which way they face, what is not outlined
+// at all, and a model outlined from its own edges.
 //
 // THE FIRST HALF NEEDS NO GRAPHICS CARD. The silhouette is a walk over edges the
 // CPU holds and two matrices built from a camera, and the answer is arrays in an
@@ -16,6 +16,8 @@
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/outline.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
@@ -44,6 +46,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 // The three shapes' triangles and edges are a couple of hundred kilobytes
 // (3d/shape_geometry.h), every case below builds a capped outline into the same
@@ -122,6 +125,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	voe_3d_mesh_register(world, 16);
 	voe_3d_material_register(world, 16);
 	voe_3d_panel_register(world, 16);
+	voe_3d_model_register(world, 4);
 	return world;
 }
 
@@ -353,6 +357,106 @@ static void nothing_to_outline_is_false(
 	VOE_TEST_CHECK_INT(mesh.vertex_count, 7);
 }
 
+// A closed tetrahedron as a `.glb`: one node, one mesh, twelve unindexed
+// positions wound outward, no material. Built here because model_data.inc's
+// triangles all lie in one plane and so have no silhouette from anywhere.
+static const char TETRAHEDRON_JSON[] =
+	"{\"asset\":{\"version\":\"2.0\"},\"scene\":0,"
+	"\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0}],"
+	"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+	"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,"
+	"\"count\":12,\"type\":\"VEC3\"}],"
+	"\"bufferViews\":[{\"buffer\":0,\"byteLength\":144}],"
+	"\"buffers\":[{\"byteLength\":144}]}";
+
+static const float TETRAHEDRON[12 * 3] = {
+	0.0f,  1.0f,  0.0f, -1.0f, -1.0f, 1.0f,	 1.0f,	-1.0f, 1.0f,
+	0.0f,  1.0f,  0.0f, 1.0f,  -1.0f, 1.0f,	 0.0f,	-1.0f, -1.0f,
+	0.0f,  1.0f,  0.0f, 0.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,
+	-1.0f, -1.0f, 1.0f, 0.0f,  -1.0f, -1.0f, 1.0f,	-1.0f, 1.0f,
+};
+
+// The file's bytes into `glb`, which is large enough; its length.
+static size_t tetrahedron_glb(uint8_t *glb)
+{
+	uint32_t json = (uint32_t)(sizeof(TETRAHEDRON_JSON) - 1 + 3) & ~3u;
+	uint32_t bin = sizeof(TETRAHEDRON);
+	uint32_t words[5] = { 0x46546C67u, 2, 12 + 8 + json + 8 + bin, json,
+			      0x4E4F534Au };
+	uint32_t bin_header[2] = { bin, 0x004E4942u };
+
+	memcpy(glb, words, sizeof(words));
+	memset(glb + 20, ' ', json);
+	memcpy(glb + 20, TETRAHEDRON_JSON, sizeof(TETRAHEDRON_JSON) - 1);
+	memcpy(glb + 20 + json, bin_header, sizeof(bin_header));
+	memcpy(glb + 28 + json, TETRAHEDRON, bin);
+	return 28 + json + bin;
+}
+
+// A thing wearing a loaded model and no shape is outlined from the entry's own
+// edges, as quads; with no model store it is not. Loading uploads, so this
+// skips with no card.
+static void a_model_outlines_to_quads(voe_base_arena *arena,
+				      const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { 4, 4 };
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_capacities capacities = {
+		.vertices = 12,
+		.indices = 12,
+		.geometries = 1,
+		.objects = 1,
+		.shadings = 1,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	uint8_t glb[1024];
+	size_t glb_size = tetrahedron_glb(glb);
+	voe_ecs_world *world;
+	voe_ecs_entity thing = { 0 };
+	voe_3d_model model = { 0 };
+	voe_3d_models *models;
+	voe_3d_outlined outlined;
+	voe_3d_outline_mesh mesh = { 0 };
+	voe_render_view view = the_view((voe_platform_size){ WIDTH, HEIGHT });
+
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED) {
+			printf("skip: %s\n", voe_base_error_string(error));
+			return;
+		}
+		VOE_TEST_CHECK(device != NULL);
+		return;
+	}
+	models = voe_3d_models_new();
+	VOE_TEST_CHECK(voe_3d_models_load(models, device, "Assets/tetra.glb", 1,
+					  glb, glb_size, &error));
+
+	world = a_world(arena);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, thing,
+		(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	snprintf(model.path, sizeof(model.path), "%s", "Assets/tetra.glb");
+	VOE_TEST_CHECK(voe_3d_model_add(world, thing, model));
+
+	outlined = outlining(thing, geometries);
+	VOE_TEST_CHECK(!voe_3d_outline_quads(world, outlined, view, EYE, arena,
+					     &mesh));
+	outlined.models = models;
+	VOE_TEST_CHECK(voe_3d_outline_quads(world, outlined, view, EYE, arena,
+					    &mesh));
+	VOE_TEST_CHECK(mesh.vertex_count >= 12 && mesh.vertex_count % 4 == 0);
+	VOE_TEST_CHECK_INT(mesh.index_count, mesh.vertex_count / 4 * 6);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	voe_render_device_destroy(device);
+}
+
 // What the drawn half outlines: the caller's own unlit record, a colour nothing
 // else in the picture can be, and a line thick enough to count on the picture
 // that is about to be read.
@@ -568,6 +672,7 @@ int main(void)
 	every_triangle_faces_the_eye(arena, &geometries);
 	a_capsule_has_many_and_no_more_than_the_cap(arena, &geometries);
 	nothing_to_outline_is_false(arena, &geometries);
+	a_model_outlines_to_quads(arena, &geometries);
 	the_outline_is_drawn_through_what_hides_it(arena, &geometries);
 
 	voe_base_arena_destroy(arena);

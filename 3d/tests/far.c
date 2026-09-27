@@ -126,7 +126,7 @@ static float centre_pick(voe_base_arena *arena,
 					(voe_3d_shape){
 						.kind = VOE_3D_SHAPE_CUBE,
 						.colour = VOE_3D_SHAPE_GREY }));
-	hit = voe_3d_pick(world, geometries,
+	hit = voe_3d_pick(world, geometries, NULL,
 			  voe_3d_pick_ray(the_view(eye_of(where)),
 					  eye_of(where), size,
 					  (voe_math_float2){ WIDTH / 2.0f,

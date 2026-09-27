@@ -43,8 +43,10 @@ static bool upload_images(voe_render_device *device, voe_base_arena *arena,
 			  voe_3d_model_upload *out, voe_base_error *error)
 {
 	const uint32_t count = model->image_count;
-	bool *as_colour = voe_base_arena_push(arena, count * sizeof(*as_colour));
-	bool *as_data = voe_base_arena_push(arena, count * sizeof(*as_data));
+	// One more than the file has, so a model with no pictures pushes some.
+	bool *as_colour =
+		voe_base_arena_push(arena, (count + 1) * sizeof(*as_colour));
+	bool *as_data = voe_base_arena_push(arena, (count + 1) * sizeof(*as_data));
 
 	for (uint32_t i = 0; i < model->material_count; i++) {
 		const voe_assets_material *material = &model->materials[i];

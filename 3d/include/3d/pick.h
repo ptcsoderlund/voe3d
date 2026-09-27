@@ -3,9 +3,10 @@
 //
 //     voe_3d_ray ray = voe_3d_pick_ray(view, eye, size, point);
 //     float distance;
-//     voe_ecs_entity hit = voe_3d_pick(world, &geometries, ray, &distance);
+//     voe_ecs_entity hit = voe_3d_pick(world, &geometries, models, ray,
+//                                      &distance);
 //     if (hit.generation != 0)
-//             ... // the frontmost shaped entity the ray met
+//             ... // the frontmost shape, model, camera or sun it met
 //
 // IT IS THIS FOLDER'S QUESTION AND NOT THE EDITOR'S. Answering it needs the
 // shape table, the transform table and the projection matrix, and this is the
@@ -14,12 +15,13 @@
 // that wants a click named calls this, the way it already calls
 // voe_3d_draw_system_frame to draw.
 //
-// IT WALKS THE SHAPES, THE CAMERAS AND THE SUNS (ADR-0202, 0223, 0274). A mesh
-// is runtime-only (3d/mesh_component.h), so every entity a person can click on
-// is a shaped one, a camera or a light; the mesh table's turn comes with an
-// editor import. A camera is hit on its marker's box (3d/camera_marker.h),
-// never its frustum lines, a sun on its marker's cube (3d/sun_marker.h), never
-// its circle or arrow, and both compete with the shapes on distance; a world
+// IT WALKS THE SHAPES, THE MODELS, THE CAMERAS AND THE SUNS (ADR-0202, 0223,
+// 0274, 0277). A mesh is runtime-only (3d/mesh_component.h); the mesh table's
+// turn has come as models, each tested on its loaded entry's own triangles
+// (3d/models.h) as a shape is, and a NULL store walks none. A camera is hit on
+// its marker's box (3d/camera_marker.h), never its frustum lines, a sun on its
+// marker's cube (3d/sun_marker.h), never its circle or arrow, and all of them
+// compete on distance; a world
 // with no camera or light store walks none of that kind, nor a light with no
 // transform.
 //
@@ -32,11 +34,11 @@
 // distances of two entities scaled differently are comparable and the one handed
 // back is in metres.
 //
-// WHICH ENTITIES ARE SKIPPED. A shaped entity with no transform, because it is
-// nowhere and the draw system does not draw it either (3d/shape_component.h); a
-// kind this build does not know, which draws nothing and so picks nothing
-// (3d/shape_geometry.h); and one whose world matrix has a determinant of
-// nothing, which is a thing scaled away to nothing — it is drawn as nothing, its
+// WHICH ENTITIES ARE SKIPPED. A shaped or model entity with no transform,
+// because it is nowhere and the draw system does not draw it either
+// (3d/shape_component.h); a kind this build does not know, which draws nothing
+// and so picks nothing (3d/shape_geometry.h); a model with no loaded entry; and
+// one whose world matrix has a determinant of nothing, which is a thing scaled away to nothing — it is drawn as nothing, its
 // matrix cannot be inverted (math/float4x4.h asserts on a singular one), and
 // there is no ray in its space to cast.
 //
@@ -52,6 +54,7 @@
 // project — is what would want a tree here, built from the same store.
 #pragma once
 
+#include <3d/models.h>
 #include <3d/shape_geometry.h>
 
 #include <ecs/world.h>
@@ -99,4 +102,5 @@ voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_math_double3 eye,
 // the near plane and not the eye — and is not touched when nothing was hit.
 voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 			   const voe_3d_shape_geometries *geometries,
-			   voe_3d_ray ray, float *distance);
+			   const voe_3d_models *models, voe_3d_ray ray,
+			   float *distance);

@@ -2,11 +2,13 @@
 // question is answered here and against which table.
 //
 // The view's two matrices are inverted once per pick. The walk carries the ray
-// into each shape's own space and tests that kind's triangles; the triangle
+// into each shape's or model's own space and tests its triangles; the triangle
 // test is written out once, its derivation in a comment above it. The cameras'
-// marker boxes and the suns' marker cubes are tested after the shapes, on the
-// same distance.
+// marker boxes and the suns' marker cubes are tested after the shapes and the
+// models, on the same distance.
 #include <3d/camera_marker.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/pick.h>
 #include <3d/shape_component.h>
 #include <3d/sun_marker.h>
@@ -154,9 +156,56 @@ voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_math_double3 eye,
 							 near_point)) };
 }
 
+// The nearest hit along `ray` of `geometry` placed by `transform`, in metres,
+// false when it is missed or scaled away to nothing. Shapes and models alike.
+static bool geometry_hit(voe_scene_transform transform,
+			 const voe_3d_shape_geometry *geometry, voe_3d_ray ray,
+			 float *nearest)
+{
+	voe_math_float4x4 matrix;
+	struct local_ray local;
+	bool hit = false;
+
+	VOE_BASE_ASSERT(geometry != NULL, "a ray against no geometry");
+	VOE_BASE_ASSERT(nearest != NULL, "a hit measured into nothing");
+
+	// About the ray's origin, so the ray starts at nought and only the
+	// entity's small offset from it is narrowed (ADR-0250).
+	matrix = voe_scene_transform_matrix(transform, ray.origin);
+	// Scaled away to nothing: drawn as nothing, and its matrix cannot be
+	// inverted (math/float4x4.h asserts on a singular one).
+	if (voe_math_float4x4_determinant(matrix) == 0.0f)
+		return false;
+
+	matrix = voe_math_float4x4_inverse(matrix);
+	// The direction is carried over and not normalised again, so `t` below
+	// is the same number in both spaces — see the header.
+	local.origin = voe_math_float4x4_transform_point(
+		matrix, (voe_math_float3){ 0.0f, 0.0f, 0.0f });
+	local.direction = voe_math_float4x4_transform_dir(matrix, ray.direction);
+
+	for (uint32_t j = 0; j + 2 < geometry->index_count; j += 3) {
+		float t;
+
+		if (!ray_hits_triangle(
+			    local,
+			    geometry->vertices[geometry->indices[j]].position,
+			    geometry->vertices[geometry->indices[j + 1]].position,
+			    geometry->vertices[geometry->indices[j + 2]].position,
+			    &t))
+			continue;
+		if (hit && t >= *nearest)
+			continue;
+		*nearest = t;
+		hit = true;
+	}
+	return hit;
+}
+
 voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 			   const voe_3d_shape_geometries *geometries,
-			   voe_3d_ray ray, float *distance)
+			   const voe_3d_models *models, voe_3d_ray ray,
+			   float *distance)
 {
 	uint32_t count = voe_3d_shape_count(world);
 	const voe_3d_shape *rows = voe_3d_shape_rows(world);
@@ -169,46 +218,39 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 			voe_scene_transform_get(world, entities[i]);
 		const voe_3d_shape_geometry *geometry =
 			voe_3d_shape_geometry_of(geometries, rows[i].kind);
-		voe_math_float4x4 matrix;
-		struct local_ray local;
+		float t;
 
-		if (transform == NULL || geometry == NULL)
+		if (transform == NULL || geometry == NULL ||
+		    !geometry_hit(*transform, geometry, ray, &t))
 			continue;
-
-		// About the ray's origin, so the ray starts at nought and only
-		// the entity's small offset from it is narrowed (ADR-0250).
-		matrix = voe_scene_transform_matrix(*transform, ray.origin);
-		// Scaled away to nothing: drawn as nothing, and its matrix
-		// cannot be inverted (math/float4x4.h asserts on a singular
-		// one).
-		if (voe_math_float4x4_determinant(matrix) == 0.0f)
+		if (hit.generation != 0 && t >= nearest)
 			continue;
+		nearest = t;
+		hit = entities[i];
+	}
 
-		matrix = voe_math_float4x4_inverse(matrix);
-		// The direction is carried over and not normalised again, so
-		// `t` below is the same number in both spaces — see the header.
-		local.origin = voe_math_float4x4_transform_point(
-			matrix, (voe_math_float3){ 0.0f, 0.0f, 0.0f });
-		local.direction =
-			voe_math_float4x4_transform_dir(matrix, ray.direction);
+	// A model row is tested on its loaded entry's own triangles, exactly as
+	// a shape is on its kind's (ADR-0277 point 3).
+	if (models != NULL && has_store(world, &voe_3d_model_key)) {
+		uint32_t wearers = voe_3d_model_count(world);
+		const voe_3d_model *worn = voe_3d_model_rows(world);
+		const voe_ecs_entity *owners = voe_3d_model_entities(world);
 
-		for (uint32_t j = 0; j + 2 < geometry->index_count; j += 3) {
+		for (uint32_t i = 0; i < wearers; i++) {
+			const voe_scene_transform *transform =
+				voe_scene_transform_get(world, owners[i]);
+			const voe_3d_model_entry *entry =
+				voe_3d_models_find(models, worn[i].path);
 			float t;
 
-			if (!ray_hits_triangle(
-				    local,
-				    geometry->vertices[geometry->indices[j]]
-					    .position,
-				    geometry->vertices[geometry->indices[j + 1]]
-					    .position,
-				    geometry->vertices[geometry->indices[j + 2]]
-					    .position,
-				    &t))
+			if (transform == NULL || entry == NULL ||
+			    !entry->loaded ||
+			    !geometry_hit(*transform, &entry->shape, ray, &t))
 				continue;
 			if (hit.generation != 0 && t >= nearest)
 				continue;
 			nearest = t;
-			hit = entities[i];
+			hit = owners[i];
 		}
 	}
 
