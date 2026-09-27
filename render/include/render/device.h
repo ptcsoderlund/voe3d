@@ -103,7 +103,7 @@ typedef struct voe_render_device voe_render_device;
 // not per frame slot: it is how many voe_render_target_create may make over the
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs one texture slot of the
-// sixty-four as well as its images.
+// 1024 as well as its images.
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It

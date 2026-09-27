@@ -31,7 +31,7 @@
 // ONE BUFFER AND A DYNAMIC OFFSET, NOT A SET PER PASS. Binding 0 is a dynamic
 // uniform buffer, so opening a pass binds the slot's one set with the offset of
 // that pass's block. A set per pass would be `passes` copies of the texture
-// array's sixty-four descriptors, every one rewritten whenever a texture is made.
+// array's 1024 descriptors, every one rewritten whenever a texture is made.
 //
 // draw.slang declares the same three structs in the same order at binding 0.
 // descriptors.c asserts on the sizes and the offsets, so a member that moves is

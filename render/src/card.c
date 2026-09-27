@@ -19,6 +19,9 @@
 // flushed, because it is what a person reads to know which card the engine is
 // on. The rate is the present mode, not hertz: the device opens on FIFO
 // (ADR-0131) and nothing in the engine knows the display's refresh.
+//
+// THE CHOSEN CARD IS REFUSED, NOT PASSED OVER, when its descriptor limits are
+// below the texture array (0278): startup fails with one line naming the limit.
 #include "startup.h"
 
 #include <base/report.h>
@@ -203,6 +206,42 @@ static void say_choice(const voe_render_device *device,
 	fflush(stdout);
 }
 
+// --------------------------------------------------------- the texture limits
+
+// Whether the card can bind the fragment stage's texture array (0278): the
+// VOE_RENDER_MAX_TEXTURES slots plus the shadow maps' one combined sampler, which
+// count against the same four limits. Too low is a set layout the driver may
+// refuse or, worse, accept and mis-sample, so it is refused here with one line
+// naming the first limit short and its value.
+static bool holds_the_textures(const VkPhysicalDeviceProperties *card)
+{
+	const uint32_t needed = VOE_RENDER_MAX_TEXTURES + 1;
+	const struct {
+		const char *name;
+		uint32_t value;
+	} limits[4] = {
+		{ "maxPerStageDescriptorSampledImages",
+		  card->limits.maxPerStageDescriptorSampledImages },
+		{ "maxPerStageDescriptorSamplers",
+		  card->limits.maxPerStageDescriptorSamplers },
+		{ "maxDescriptorSetSampledImages",
+		  card->limits.maxDescriptorSetSampledImages },
+		{ "maxDescriptorSetSamplers",
+		  card->limits.maxDescriptorSetSamplers },
+	};
+
+	for (uint32_t i = 0; i < 4; i++) {
+		if (limits[i].value < needed) {
+			VOE_BASE_ERROR("render",
+				       "%s cannot hold %u textures: its %s is %u, below %u",
+				       card->deviceName, VOE_RENDER_MAX_TEXTURES,
+				       limits[i].name, limits[i].value, needed);
+			return false;
+		}
+	}
+	return true;
+}
+
 // ------------------------------------------------------------- the choice
 
 bool voe_render_card_choose(voe_render_device *device, voe_base_arena *arena)
@@ -246,6 +285,8 @@ bool voe_render_card_choose(voe_render_device *device, voe_base_arena *arena)
 			       device->headless ? "" : " and present to this window");
 		return false;
 	}
+	if (!holds_the_textures(&properties[chosen]))
+		return false;
 
 	device->physical = cards[chosen];
 	device->queue_family = graphics_family(device, cards[chosen], arena,

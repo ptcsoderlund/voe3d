@@ -239,14 +239,14 @@ Sampler2DArrayShadow voe_render_shadow_maps;
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.
 //
-// THE LENGTH IS VOE_RENDER_MAX_TEXTURES AND IT IS WRITTEN DOWN IN THREE PLACES —
-// device_internal.h, the layout in descriptors.c, and here. A descriptor array
-// has a fixed length in all three and they have to agree; there is no way to say
-// "as many as the C side thinks" from a shader. Every element is always written,
-// slots nothing has claimed pointing at a one-pixel white texture, because
-// Vulkan requires the whole array to be valid whether or not this samples it.
+// THE LENGTH IS VOE_RENDER_MAX_TEXTURES AND IT IS WRITTEN DOWN IN FOUR PLACES —
+// device_internal.h, the layout in descriptors.c, elements.slang and here. A
+// descriptor array has a fixed length in all four and they have to agree; there is
+// no way to say "as many as the C side thinks" from a shader. Every element is
+// always written, slots nothing has claimed pointing at a one-pixel white texture,
+// because Vulkan requires the whole array to be valid whether or not this samples it.
 [[vk::binding(1, 0)]]
-Sampler2D voe_render_textures[64];
+Sampler2D voe_render_textures[1024];
 
 // One drawn object. Matches voe_render_object in render/device.h field for
 // field, padding included: the two matrices fill the first hundred and

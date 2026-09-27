@@ -12,6 +12,8 @@ by reading the offscreen colour image back.
 - `pools.c` — two meshes and two ranges, a texture id that stops naming
   anything when it is destroyed, and a full pool as a returned failure. Its
   header says why those two cases are the ones worth a test.
+- `textures.c` — 1024 texture slots: at least 1000 one-pixel textures made before one is refused,
+  and a quad wearing the last of them, in the highest slot, drawn in its colour. Headless.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
   drawing different contents, a static and a transient range in one frame, and an overrun refused
   without corrupting the frame. Headless.
