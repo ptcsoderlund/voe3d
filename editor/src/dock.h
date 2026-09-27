@@ -99,10 +99,9 @@ typedef enum {
 // when it holds a child and `fraction` when it does not; a LEAF reads
 // `panel`, and `view` as well when that panel is SCENE_VIEW — which of the
 // editor's views it shows, an index into voe_editor_views and not a view itself,
-// so a tree still holds nothing but numbers. A `fixed` split's seam is drawn
-// but no drag reaches it (resize.h). The two are one struct rather than a union because a dock tree is
-// sixteen of these and telling a reader which fields are live is what `kind` is
-// for.
+// so a tree still holds nothing but numbers. The two are one struct rather
+// than a union because a dock tree is sixteen of these and telling a reader
+// which fields are live is what `kind` is for.
 //
 // `first` AND `second` ARE INDICES INTO THE TREE'S OWN ARRAY AND NOT POINTERS.
 // A tree is therefore a plain value that can be copied, compared and one day
@@ -124,7 +123,6 @@ typedef struct {
 	uint32_t second;
 	voe_editor_panel panel;
 	uint32_t view;
-	bool fixed;
 } voe_editor_dock_node;
 
 // A whole tree: its nodes, how many of them are live, and which one is the root.
@@ -163,7 +161,8 @@ typedef struct {
 } voe_editor_dock_root;
 
 // The tree the editor opens on: three columns — `Scene` above `Assets`, held
-// at ASSETS_TALL on a fixed seam, together held at SIDE_WIDE on the left, `Inspector` held at SIDE_WIDE on the right, and the two scene views
+// at ASSETS_TALL, together held at SIDE_WIDE on the left, `Inspector` held
+// at SIDE_WIDE on the right, and the two scene views
 // stacked taking the rest between them, the views' share starting at a half.
 // Which view is on top is one number on one leaf, which is what having a tree
 // at all is for.

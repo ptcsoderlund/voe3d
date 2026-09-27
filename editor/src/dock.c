@@ -379,8 +379,8 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 	// Three columns out of two ROW splits: the Scene list is held on the
 	// left and the Inspector on the right, each at SIDE_WIDE millimetres,
 	// and the views between them take whatever the window has left. The
-	// left column is the Scene list over Assets, held at ASSETS_TALL on a
-	// seam no drag reaches in 036 (0277).
+	// left column is the Scene list over Assets, Assets held at ASSETS_TALL
+	// (0279).
 	tree.nodes[0] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
 						.axis = VOE_EDITOR_DOCK_ROW,
 						.hold = VOE_EDITOR_DOCK_HOLD_FIRST,
@@ -392,8 +392,7 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 						.hold = VOE_EDITOR_DOCK_HOLD_SECOND,
 						.length = VOE_EDITOR_DOCK_ASSETS_TALL,
 						.first = 7,
-						.second = 8,
-						.fixed = true };
+						.second = 8 };
 	tree.nodes[2] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
 						.axis = VOE_EDITOR_DOCK_ROW,
 						.hold = VOE_EDITOR_DOCK_HOLD_SECOND,

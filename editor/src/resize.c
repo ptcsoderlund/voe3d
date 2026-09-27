@@ -72,7 +72,7 @@ static uint32_t border_under(const voe_editor_dock_root *root,
 		const voe_editor_dock_node *node = &root->tree.nodes[i];
 		voe_ui_rect band = places->nodes[i].seam;
 
-		if (node->kind != VOE_EDITOR_DOCK_SPLIT || node->fixed)
+		if (node->kind != VOE_EDITOR_DOCK_SPLIT)
 			continue;
 		if (node->axis == VOE_EDITOR_DOCK_ROW) {
 			band.min.x -= reach;
@@ -234,6 +234,8 @@ bool voe_editor_resize_remember(const voe_editor_dock_tree *tree,
 			tree, VOE_EDITOR_PANEL_SCENE),
 		.inspector_wide = voe_editor_dock_panel_length(
 			tree, VOE_EDITOR_PANEL_INSPECTOR),
+		.assets_tall = voe_editor_dock_panel_length(
+			tree, VOE_EDITOR_PANEL_ASSETS),
 		.topbar_high = bar->wanted,
 		.view_share = voe_editor_dock_view_share(tree) });
 }

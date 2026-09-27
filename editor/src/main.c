@@ -320,6 +320,7 @@ int main(int argc, char *argv[])
 		.inspector_wide = voe_editor_dock_panel_length(
 			&roots[0].tree, VOE_EDITOR_PANEL_INSPECTOR),
 		.view_share = voe_editor_dock_view_share(&roots[0].tree),
+		.assets_tall = VOE_EDITOR_DOCK_ASSETS_TALL,
 	};
 	voe_editor_settings_read(&panel_sizes);
 	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_SCENE,
@@ -327,6 +328,8 @@ int main(int argc, char *argv[])
 	voe_editor_dock_panel_length_set(&roots[0].tree,
 					 VOE_EDITOR_PANEL_INSPECTOR,
 					 panel_sizes.inspector_wide);
+	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_ASSETS,
+					 panel_sizes.assets_tall);
 	voe_editor_dock_view_share_set(&roots[0].tree, panel_sizes.view_share);
 	bar.wanted = panel_sizes.topbar_high;
 

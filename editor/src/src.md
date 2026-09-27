@@ -39,8 +39,8 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `settings.h` — the Scene list's and the Inspector's widths, the top bar's height and the views'
-  share a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>`
+- `settings.h` — the Scene list's and the Inspector's widths, the Assets panel's and the top bar's
+  heights and the views' share a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>`
   line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
@@ -123,9 +123,9 @@ carries it out.
   the ray lands, over the Inspector swaps the selected thing's model, anywhere else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
   rectangle from the dock tree, and the one undo step and unsaved mark.
-- `resize.h` — the borders a person drags to size the panels: each side panel's seam, the views' border and the top
-  bar's lower edge, hit-tested before `ui`, the pointer's shape over them, the seam it reports reached
-  for the walk to light, and a double-click that sets one size back (ADR-0226).
+- `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
+  panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
+  reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock, and the three sizes written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
