@@ -67,7 +67,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
-- `draw_marks.c` — the camera marker, the outline, a collider's lines and the move gizmo, each as
-  transient quads.
+- `draw_marks.c` — the camera and sun markers, the outline, a collider's lines and the gizmo's
+  arrows or rings, each as transient quads.
 - `import.c` — the three uploads in their forced order and the tree walk that
   turns a read model into one entity per drawn primitive.

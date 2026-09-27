@@ -24,8 +24,8 @@ again, or to find where a claim that has started failing is written down.
   Skips without a graphics card.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
-  frames blind, a red shape reads red, a gizmo shows through its cube and a camera marker is one
-  draw more. Skips without a graphics card.
+  frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
+  or sun marker is one draw more. Skips without a graphics card.
 - `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
   not beside it, that a fill lifts that shadow but not to the lit floor, that no light casts
   nothing, and that 100 km out reads the same. Skips without a graphics card.

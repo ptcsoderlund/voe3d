@@ -114,6 +114,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.outlined = (voe_3d_outlined){ 0 };
 	frame.gizmo = (voe_3d_gizmoed){ 0 };
 	frame.marker = (voe_3d_camera_marked){ 0 };
+	frame.sun = (voe_3d_sun_marked){ 0 };
 
 	return frame;
 }
@@ -384,9 +385,11 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// A refused draw in any group stops that group and not the frame, so
 	// every return value here is deliberately dropped: the loop still ends
-	// and presents the frame. The camera marker is solid and in the world's
-	// depth (0223), so it goes with the solids, before the blended group.
+	// and presents the frame. The camera and sun markers are solid and in
+	// the world's depth (0223, 0274), so they go with the solids, before the
+	// blended group.
 	voe_3d_draw_marks_camera(world, device, arena, frame);
+	voe_3d_draw_marks_sun(world, device, arena, frame);
 	(void)voe_3d_draw_group_draw(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,

@@ -1,20 +1,23 @@
-// The editor's marks drawn over the world: a scene camera's box and frustum,
-// one entity's silhouette, a collider's lines and the move gizmo's two meshes,
-// each as this frame's transient geometry and one or two draws. See
-// draw_marks.h.
+// The editor's marks drawn over the world: a scene camera's box and frustum, a
+// sun's circle and arrow, one entity's silhouette, a collider's lines and the
+// gizmo's two meshes, arrows or rings, each as this frame's transient geometry
+// and one or two draws. See draw_marks.h.
 //
-// All four are in metres about the frame's eye already (ADR-0250), so every
+// All five are in metres about the frame's eye already (ADR-0250), so every
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
 #include "draw_marks.h"
 
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
+#include <3d/gizmo_rings.h>
 #include <3d/outline.h>
+#include <3d/sun_marker.h>
 #include <base/assert.h>
 #include <base/error.h>
 #include <physics/shape.h>
 #include <scene/camera_component.h>
+#include <scene/light_component.h>
 #include <scene/transform_component.h>
 
 // An unlit record at the identity, in one opaque colour: what every mark is
@@ -64,6 +67,39 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 		(void)voe_render_frame_draw(
 			device, quads,
 			mark_object(marker.material, marker.colour));
+}
+
+// The sun's marker, drawn as the camera's is (0274): this frame's geometry and
+// one draw, in world metres about the eye. A zeroed entity, a dead one, and one
+// without a light or a transform draw nothing; so does a refused range.
+void voe_3d_draw_marks_sun(const voe_ecs_world *world,
+			   voe_render_device *device, voe_base_arena *arena,
+			   voe_3d_frame frame)
+{
+	voe_3d_sun_marked sun = frame.sun;
+	const voe_scene_transform *pose;
+	voe_3d_outline_mesh mesh;
+	voe_render_geometry quads;
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a sun marker to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a sun marker with no arena");
+
+	if (!voe_ecs_entity_alive(world, sun.entity) ||
+	    voe_scene_light_get(world, sun.entity) == NULL)
+		return;
+	pose = voe_scene_transform_get(world, sun.entity);
+	if (pose == NULL)
+		return;
+	if (voe_3d_sun_marker_quads(*pose, frame.view, frame.eye, sun.size,
+				    sun.pixels, arena, &mesh) &&
+	    voe_render_geometry_create_transient(device, mesh.vertices,
+						 mesh.vertex_count, mesh.indices,
+						 mesh.index_count, &quads,
+						 &error))
+		(void)voe_render_frame_draw(device, quads,
+					    mark_object(sun.material,
+							sun.colour));
 }
 
 // THE OUTLINE IS DRAWN AFTER THE OVERLAY AND AGAINST AN EMPTY DEPTH BUFFER,
@@ -196,8 +232,12 @@ void voe_3d_draw_marks_gizmo(const voe_ecs_world *world,
 	voe_render_frame_clear_depth(device);
 	gizmo = voe_3d_gizmo_at(transform->position, frame.view, frame.eye,
 				frame.gizmo.size, frame.gizmo.pixels);
-	if (!voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena, &plain,
-				&marked))
+	// Arrows or rings (0274): the same gizmo, the same two draws.
+	if (frame.gizmo.rings ?
+		    !voe_3d_gizmo_rings_quads(gizmo, frame.gizmo.marked, arena,
+					      &plain, &marked) :
+		    !voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena, &plain,
+					&marked))
 		return;
 	draw_gizmo_mesh(device, plain, frame.gizmo.material, frame.gizmo.colour);
 	draw_gizmo_mesh(device, marked, frame.gizmo.material,
