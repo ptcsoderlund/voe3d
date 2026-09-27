@@ -109,9 +109,8 @@ carries it out.
   `ui` field and a Make folder button, and in IMPORT mode `.glb` files a press imports.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side panel's length in millimetres or the views' share,
-  every node's and seam's place (seams in the border colour, the reached one lit), the walk and
-  `voe_editor_panel_draw`; a root carries this frame's keyboard and lit seam beside its pointer.
+- `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
+  panel's length or the views' share, every seam's place (the reached one lit), and the walk.
 - `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
   the walk to one frame of `ui` calls, the held lengths and share read and set, the Inspector's
   scroll area, and the camera preview in each scene view's corner.
@@ -204,10 +203,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity (an identity and a transform, nothing else), a dropped model's thing,
-  duplicating and deleting
-  entities and giving or taking their components, a new collider fitting the shape, all through the
-  world's structural queue. Its header says
-  the id and name rules and what a failure leaves behind.
+- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities, and giving
+  or taking their components, all through the world's structural queue. Its header says the id and
+  name rules.
 - `entities.c` — the new id and name, the queued rows, and the destroy that
   undoes a half-made entity.
