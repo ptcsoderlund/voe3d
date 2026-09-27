@@ -426,9 +426,10 @@ typedef struct {
 // given a zeroed one looks like.
 //
 // `fill` IS THE ONE LIGHT THAT IS NOT THE SUN (ADR-0273). Linear, the colour
-// already multiplied by its strength, and added as `fill × base colour` to every
-// lit surface from no direction and never shadowed, so a side facing away from
-// the sun or in its shadow reads the fill and not black. Zero is no fill, and a
+// already multiplied by its strength, and added as `fill × base colour` only
+// where the sun does not reach, fading out as it does (ADR-0275, ADR-0276), not
+// to every lit surface: a side facing away from the sun or in its shadow reads
+// the fill and not black, a sunlit one the sun alone. Zero is no fill, and a
 // zeroed record draws as before it existed. An `unshaded` pass reads none.
 //
 // ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the

@@ -1,6 +1,7 @@
 // A PASS WHOSE LIGHT SAYS `unshaded` DRAWS EVERY SURFACE IN ITS BASE COLOUR.
 // That is what a scene with no light looks like (ADR-0238), and the claim is
-// five pictures of one lit cube, read at the centre of each:
+// nine pictures of one lit cube, read at the centre of each, which is its +Z
+// face:
 //
 // 1. no sun at all (intensity 0) and `unshaded` set: the base colour times the
 //    object colour, encoded into the sRGB target, within a small tolerance;
@@ -10,7 +11,11 @@
 //    base colour again, so the flag wins over whatever the light says;
 // 4. that sun pointing away, shaded, with fill (0.25, 0.25, 0.25): a quarter of
 //    the base colour, the fill lifting a face the sun does not reach (ADR-0273);
-// 5. the same with fill zero: black, as before the fill existed.
+// 5. the same with fill zero: black, as before the fill existed;
+// 6. the sun pointing straight at the face read, fill (0.25, 0.25, 0.25)
+//    against fill zero: the same picture, the fill gone where the sun reaches;
+// 7. the same with the sun meeting that face at N·L of 0.5: the same again, a
+//    slanted sunlit face untinted by the fill (ADR-0275, ADR-0276).
 //
 // The material is lit (not `unlit`), fully rough and not metallic, so the only
 // thing that can take the unlit exit is the flag under test. The colour is not
@@ -36,7 +41,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 5
+#define CASES 9
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -260,6 +265,17 @@ static void check_black(const unsigned char *pixel)
 	VOE_TEST_CHECK(pixel[BLUE] <= TOLERANCE);
 }
 
+// A sunlit face drawn with fill and without: lit at all, and the same both
+// ways, because the fill is gone wherever the sun reaches.
+static void check_fill_absent(const unsigned char *filled,
+			      const unsigned char *unfilled)
+{
+	VOE_TEST_CHECK(unfilled[RED] > TOLERANCE);
+	VOE_TEST_CHECK(abs(filled[RED] - unfilled[RED]) <= TOLERANCE);
+	VOE_TEST_CHECK(abs(filled[GREEN] - unfilled[GREEN]) <= TOLERANCE);
+	VOE_TEST_CHECK(abs(filled[BLUE] - unfilled[BLUE]) <= TOLERANCE);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -297,6 +313,25 @@ int main(void)
 		.intensity = 1.0f,
 		.colour = { 1.0f, 1.0f, 1.0f },
 	};
+	// Travelling straight into the +Z face read: N·L of one.
+	voe_render_light head_on = {
+		.direction = { 0.0f, 0.0f, -1.0f },
+		.intensity = 1.0f,
+		.colour = { 1.0f, 1.0f, 1.0f },
+		.fill = { 0.25f, 0.25f, 0.25f },
+	};
+	// Travelling down and into that face at sixty degrees: N·L of a half.
+	voe_render_light slanted = {
+		.direction = { 0.0f, -0.8660254f, -0.5f },
+		.intensity = 1.0f,
+		.colour = { 1.0f, 1.0f, 1.0f },
+		.fill = { 0.25f, 0.25f, 0.25f },
+	};
+	voe_render_light head_on_unfilled = head_on;
+	voe_render_light slanted_unfilled = slanted;
+
+	head_on_unfilled.fill = (voe_math_float3){ 0.0f, 0.0f, 0.0f };
+	slanted_unfilled.fill = (voe_math_float3){ 0.0f, 0.0f, 0.0f };
 	void *mapped = NULL;
 
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
@@ -342,6 +377,14 @@ int main(void)
 		  IMAGE_BYTES * 3);
 	draw_case(device, cube, shading, unfilled, readback.buffer,
 		  IMAGE_BYTES * 4);
+	draw_case(device, cube, shading, head_on, readback.buffer,
+		  IMAGE_BYTES * 5);
+	draw_case(device, cube, shading, head_on_unfilled, readback.buffer,
+		  IMAGE_BYTES * 6);
+	draw_case(device, cube, shading, slanted, readback.buffer,
+		  IMAGE_BYTES * 7);
+	draw_case(device, cube, shading, slanted_unfilled, readback.buffer,
+		  IMAGE_BYTES * 8);
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -353,6 +396,8 @@ int main(void)
 		check_base_colour(centre_of(mapped, 2), 1.0f);
 		check_base_colour(centre_of(mapped, 3), 0.25f);
 		check_black(centre_of(mapped, 4));
+		check_fill_absent(centre_of(mapped, 5), centre_of(mapped, 6));
+		check_fill_absent(centre_of(mapped, 7), centre_of(mapped, 8));
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 
