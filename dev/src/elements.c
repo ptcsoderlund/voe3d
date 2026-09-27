@@ -17,13 +17,14 @@
 //      thirty-two draws of one shading record, and the draw count main.c prints
 //      is what says they were not.
 //   5  ONE LINE OF WRITING, LARGE. What to look for is the edge of a letter:
-//      it is a hard cut through a distance field, so a stem has straight sides
-//      and a corner is a corner, at whatever size the window happens to be.
-//      Nothing here is antialiased and it is not meant to look as though it is.
+//      it is covered across one screen pixel of a distance field, so a stem
+//      has straight sides and a corner is a corner, and at this size the edge
+//      looks sharp at whatever size the window happens to be (ADR-0269).
 //   6  ONE LINE OF WRITING, SMALL — small enough to show what the sheet cannot
 //      hold. The atlas samples the shape at a fixed resolution, so a stem
-//      thinner than a texel or two is one it has no room to describe: such text
-//      THINS and eventually breaks up rather than going blurry, which is the
+//      thinner than a texel or two is one it has no room to describe: there the
+//      edge looks smooth and such a stem FADES to partial coverage rather than
+//      breaking up or going blurry, which is the
 //      thing text/include/text/font.h's "no analytic curves" paragraph is about
 //      and is worth being able to see rather than only read.
 //
@@ -82,10 +83,10 @@
 // reaches above it by however much the font says, and a descender reaches below.
 //
 // THE EM SIZES ARE THE POINT OF THE PAIR AND NOT A TASTE. Nine millimetres is
-// large enough that a stem is many pixels across and the hard edge of the field
-// is plainly a hard edge; two and a half is small enough that a stem is about
-// one, which is where the sheet runs out of room to describe the shape and the
-// letters thin. Both are drawn from the one atlas, at the one resolution, by the
+// large enough that a stem is many pixels across and the line looks sharp, its
+// one-pixel ramp too narrow to see; two and a half is small enough that a stem
+// is about one, which is where the sheet runs out of room to describe the shape
+// and a stem fades to partial coverage rather than breaking up. Both are drawn from the one atlas, at the one resolution, by the
 // one shader — the difference is entirely what a distance field can and cannot
 // do, which is what makes the two lines worth having beside each other.
 #define TITLE_BASELINE 43.0f

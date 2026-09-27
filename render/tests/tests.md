@@ -15,9 +15,16 @@ by reading the offscreen colour image back.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
   drawing different contents, a static and a transient range in one frame, and an overrun refused
   without corrupting the frame. Headless.
-- `elements.c` — rectangles and letters from records: the colours, the clip rectangle, paint order
-  both ways round, the blend, the capacity refused, the two matrices, the near clip boundary and the
-  stroke widths, thin, aligned and wide. Five of its claims need no graphics card. Headless.
+- `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways
+  round, the blend, the capacity refused, a mesh after them, an empty frame and two ranges with two
+  matrices. Headless.
+- `glyphs.c` — letters from records: one draw with a rectangle, the sheet read the right way round,
+  the clip, no sheet, paint order across kinds, and the ink of thin, aligned and wide strokes with
+  an edge partly covered. Headless.
+- `element_transform.c` — the element arithmetic with no graphics card: the transform's origin, the
+  near clip boundary, the surface matrix and size, `ui` scale and the eighty-byte record.
+- `element_scene.h` — the device, readback, record builders and colour counts `elements.c` and
+  `glyphs.c` share. Its header says why it is a header.
 - `matrix.c` — that slangc really was given `-matrix-layout-row-major`, checked by making a shader
   report a known matrix back. Its header says which two claims are not in it and where they live
   instead.
