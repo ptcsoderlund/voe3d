@@ -1,10 +1,10 @@
-# 15 — The sun in the editor is walked through
+# 18 — The sun in the editor is walked through
 folder: editor
 decisions: 0168, 0273, 0274
 read: feature.md
 
 ## Change
-Needs cards 01–14. No code unless the walk-through finds a gap; a gap in another folder is
+Needs cards 01–13, 16 and 17 (card 14 was replanned as 16 and 17). No code unless the walk-through finds a gap; a gap in another folder is
 reported in `## Blocked`, not fixed here.
 
 - Coder: run the whole suite and fix only what it finds in `editor/`.

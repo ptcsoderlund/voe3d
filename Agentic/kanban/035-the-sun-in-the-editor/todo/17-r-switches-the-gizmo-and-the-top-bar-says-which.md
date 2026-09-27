@@ -1,9 +1,9 @@
-# 14 — R switches the gizmo, and the top bar says which
+# 17 — R switches the gizmo, and the top bar says which
 folder: editor
 decisions: 0168, 0274
 
 ## Change
-Needs card 13.
+Needs cards 13 and 16 (16 adds `VOE_PLATFORM_KEY_R`).
 
 - `editor/src/shortcuts.h`, `editor/src/shortcuts.c`: a `gizmo_switch` flag, true on R's down
   edge (`VOE_PLATFORM_KEY_R`, no modifier) under the same quiet guard Delete uses (not typing,
@@ -22,6 +22,3 @@ Needs card 13.
 `cmake --preset debug && cmake --build --preset debug --target voe_editor` exits 0, and
 `build/debug/editor/voe_editor examples/coin_game --capture <scratch>/bar.png` exits 0 with a
 PNG in which the top bar reads Move (look at it once).
-
-## Blocked
-`VOE_PLATFORM_KEY_R` does not exist: `platform/include/platform/input.h` lists only the keys with a caller (W A S D Q E, Space, Control, Shift, Tab, Escape, P, N, O, Backspace, Enter, Delete, Z, Y), and no card in this feature adds R. Adding it is a line in the enum and a line in each backend table (`platform/src/seat_wayland.c`, `platform/src/seat_win32.c`), which is the `platform` folder, not `editor`. A `platform` card that adds `VOE_PLATFORM_KEY_R` unblocks this one unchanged.
