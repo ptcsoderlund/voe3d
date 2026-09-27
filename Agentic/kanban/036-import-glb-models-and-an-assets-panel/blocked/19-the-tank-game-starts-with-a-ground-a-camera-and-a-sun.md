@@ -36,3 +36,6 @@ imported models only if the sponsor asks.
 `bash ~/.claude/skills/checks/scripts/checks.sh --all` exits 0 and prints `FINDINGS: 0`, and
 `d=$(mktemp -d) && build/debug/editor/voe_editor examples/tank_game --capture "$d/t.png" && test
 -s "$d/t.png"` exits 0. The nine steps above are the human's.
+
+## Blocked
+`examples/tank_game` is in place, `checks.sh --folder examples` prints `FINDINGS: 0` and the editor's `--capture` on it writes a non-empty PNG. But `checks.sh --all` stops at 7 table-of-contents findings outside this card's folder, left by earlier cards: `3d/include/3d/3d.md` does not list `model_component.h` and `models.h`; the `3d/tests/tests.md` entries `shadows.c`, `pick.c` and `models.c` and the `editor/src/src.md` entries `dock.h` and `entities.h` are over the 300-character cap. Because of these, the whole suite never builds or runs. A card for `3d` and `editor` that fixes those pages would unblock this one; after that, rerun `--all`.

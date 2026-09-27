@@ -1,0 +1,36 @@
+[1]
+name = "Ground"
+[1.voe_3d_shape]
+kind = 1
+colour = [0.35, 0.4, 0.3]
+[1.voe_physics_collider]
+kind = 1
+size = [1, 1, 1]
+trigger = false
+[1.voe_scene_transform]
+position = [0, -0.05, 0]
+rotation = [0, 0, 0, 1]
+scale = [40, 0.1, 40]
+
+[2]
+name = "Camera"
+[2.voe_scene_camera]
+fov_y = 1.0471976
+near_plane = 0.1
+far_plane = 100
+[2.voe_scene_transform]
+position = [0, 20, 12]
+rotation = [-0.4924, 0, 0, 0.8704]
+scale = [1, 1, 1]
+
+[3]
+name = "Sun"
+[3.voe_scene_light]
+colour = [0.92112833, 0.7978724, 0.38872972]
+intensity = 1
+fill_colour = [1, 0.5637274, 0]
+fill_intensity = 0.07931393
+[3.voe_scene_transform]
+position = [0, 8, 0]
+rotation = [-0.36514837, 0.18257418, 0, 0.91287094]
+scale = [1, 1, 1]
