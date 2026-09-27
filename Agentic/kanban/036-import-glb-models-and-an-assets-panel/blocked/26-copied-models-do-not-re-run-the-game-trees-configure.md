@@ -33,3 +33,6 @@ Then `bash ~/.claude/skills/checks/scripts/checks.sh --all` exits 0 and prints `
 For the human, 036 How to test step 8 on `examples/tank_game` with both tank models placed:
 Play shows them lit and shadowed as in the editor, `Build/build.log` has no error and no
 `GLOB mismatch`; Ship's game shows them too.
+
+## Blocked
+The `game.cmake` change is in and works: the Done-when sequence run with `--target game` exits 0, shows no `GLOB mismatch` and copies both tank models back, and `checks.sh --all` gives `FINDINGS: 0`. The card's plain `cmake --build examples/tank_game/Build/debug` fails in another folder: the game tree builds the engine's tests with descriptions off, and `physics/tests/collider.c:70` calls `voe_physics_collider_description()`, which does not exist in that build. A physics card that guards or moves that test (or a game tree that does not build engine tests) would unblock it.

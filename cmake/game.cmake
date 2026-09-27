@@ -53,11 +53,11 @@
 # the tree's grandparent, is copied by the target `game_files` (which `game`
 # depends on) to the same relative path under CMAKE_BINARY_DIR, and installed
 # the same way. Relative, because the game resolves a file's project-relative
-# path against its own program's folder, in Play and shipped alike. Paths under
-# Build/ and Cache/ are skipped: they hold build output, not the project's
-# files. The glob walks
-# those folders too before dropping them; a glob per top-level folder would
-# lift that cost.
+# path against its own program's folder, in Play and shipped alike. Build/ and
+# Cache/ are skipped: they hold build output, not the project's files. The glob
+# is per top-level folder, skipping those two, so the copies under Build/ never
+# count as a change and a build re-runs CMake only when the project's own files
+# change.
 
 include_guard(GLOBAL)
 
@@ -159,14 +159,23 @@ else()
     install(FILES ${VOE_ENGINE}/text/fonts/OFL.txt DESTINATION . RENAME Oxanium-OFL.txt)
 
     cmake_path(SET voe_project_root NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-    file(GLOB_RECURSE voe_files CONFIGURE_DEPENDS
-        "${voe_project_root}/*.wav" "${voe_project_root}/*.glb")
+    file(GLOB voe_top LIST_DIRECTORIES true CONFIGURE_DEPENDS "${voe_project_root}/*")
+    set(voe_files "")
+    foreach(voe_entry IN LISTS voe_top)
+        cmake_path(GET voe_entry FILENAME voe_entry_name)
+        if(IS_DIRECTORY "${voe_entry}")
+            if(NOT voe_entry_name MATCHES "^(Build|Cache)$")
+                file(GLOB_RECURSE voe_dir_files CONFIGURE_DEPENDS
+                    "${voe_entry}/*.wav" "${voe_entry}/*.glb")
+                list(APPEND voe_files ${voe_dir_files})
+            endif()
+        elseif(voe_entry_name MATCHES "\\.(wav|glb)$")
+            list(APPEND voe_files "${voe_entry}")
+        endif()
+    endforeach()
     set(voe_file_copies "")
     foreach(voe_file IN LISTS voe_files)
         file(RELATIVE_PATH voe_file_rel "${voe_project_root}" "${voe_file}")
-        if(voe_file_rel MATCHES "^(Build|Cache)/")
-            continue()
-        endif()
         set(voe_file_copy "${CMAKE_BINARY_DIR}/${voe_file_rel}")
         add_custom_command(OUTPUT "${voe_file_copy}"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${voe_file}" "${voe_file_copy}"
