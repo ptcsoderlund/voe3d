@@ -72,7 +72,7 @@ static uint32_t border_under(const voe_editor_dock_root *root,
 		const voe_editor_dock_node *node = &root->tree.nodes[i];
 		voe_ui_rect band = places->nodes[i].seam;
 
-		if (node->kind != VOE_EDITOR_DOCK_SPLIT)
+		if (node->kind != VOE_EDITOR_DOCK_SPLIT || node->fixed)
 			continue;
 		if (node->axis == VOE_EDITOR_DOCK_ROW) {
 			band.min.x -= reach;

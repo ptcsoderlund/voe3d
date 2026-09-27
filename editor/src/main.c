@@ -643,6 +643,8 @@ int main(int argc, char *argv[])
 		// The files this frame's rows name, before the draw opens (models.h).
 		voe_editor_models_update(models, &session, gpu, arena,
 					 opened.tick.now);
+		voe_editor_assets_update(&scene.assets, session.project->folder,
+					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
 			status = 1;
 			break;
@@ -755,6 +757,7 @@ stop:
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
 	voe_editor_browser_destroy(&browser);
+	voe_editor_assets_destroy(&scene.assets);
 	voe_editor_themes_destroy(&themes);
 	return status;
 }

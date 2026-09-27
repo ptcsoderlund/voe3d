@@ -109,12 +109,17 @@ carries it out.
   focused `ui` field and a Make folder button.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree, whose splits hold a side panel's length in millimetres or the views' share,
+- `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side panel's length in millimetres or the views' share,
   every node's and seam's place (seams in the border colour, the reached one lit), the walk and
   `voe_editor_panel_draw`; a root carries this frame's keyboard and lit seam beside its pointer.
 - `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
   the walk to one frame of `ui` calls, the held lengths and share read and set, the Inspector's
   scroll area, and the camera preview in each scene view's corner.
+- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
+  Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
+  as models.
+- `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
+  the panel's one frame of `ui` calls and the read of its rows and Up afterwards.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the views' border and the top
   bar's lower edge, hit-tested before `ui`, the pointer's shape over them, the seam it reports reached
   for the walk to light, and a double-click that sets one size back (ADR-0226).

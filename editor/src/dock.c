@@ -108,6 +108,8 @@ static const char *panel_key(voe_editor_panel panel)
 		return "inspector";
 	case VOE_EDITOR_PANEL_SCENE_VIEW:
 		return "scene_view";
+	case VOE_EDITOR_PANEL_ASSETS:
+		return "assets";
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
 	}
@@ -376,15 +378,22 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 
 	// Three columns out of two ROW splits: the Scene list is held on the
 	// left and the Inspector on the right, each at SIDE_WIDE millimetres,
-	// and the views between them take whatever the window has left.
+	// and the views between them take whatever the window has left. The
+	// left column is the Scene list over Assets, held at ASSETS_TALL on a
+	// seam no drag reaches in 036 (0277).
 	tree.nodes[0] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
 						.axis = VOE_EDITOR_DOCK_ROW,
 						.hold = VOE_EDITOR_DOCK_HOLD_FIRST,
 						.length = VOE_EDITOR_DOCK_SIDE_WIDE,
 						.first = 1,
 						.second = 2 };
-	tree.nodes[1] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_LEAF,
-						.panel = VOE_EDITOR_PANEL_SCENE };
+	tree.nodes[1] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
+						.axis = VOE_EDITOR_DOCK_COLUMN,
+						.hold = VOE_EDITOR_DOCK_HOLD_SECOND,
+						.length = VOE_EDITOR_DOCK_ASSETS_TALL,
+						.first = 7,
+						.second = 8,
+						.fixed = true };
 	tree.nodes[2] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_SPLIT,
 						.axis = VOE_EDITOR_DOCK_ROW,
 						.hold = VOE_EDITOR_DOCK_HOLD_SECOND,
@@ -415,7 +424,11 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 		.kind = VOE_EDITOR_DOCK_LEAF,
 		.panel = VOE_EDITOR_PANEL_INSPECTOR
 	};
-	tree.count = 7;
+	tree.nodes[7] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_LEAF,
+						.panel = VOE_EDITOR_PANEL_SCENE };
+	tree.nodes[8] = (voe_editor_dock_node){ .kind = VOE_EDITOR_DOCK_LEAF,
+						.panel = VOE_EDITOR_PANEL_ASSETS };
+	tree.count = 9;
 	tree.root = 0;
 
 	return tree;
@@ -441,7 +454,8 @@ bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view)
 }
 
 // The split holding a leaf of `panel` as its held child, or UINT32_MAX. The
-// held child is looked at and not its subtree: a side panel is held as a leaf.
+// held child is looked at, and a split's first child when it is one: a side
+// panel is held as a leaf, or as the head of its column (the Scene list).
 static uint32_t split_holding(const voe_editor_dock_tree *tree,
 			      voe_editor_panel panel)
 {
@@ -454,6 +468,9 @@ static uint32_t split_holding(const voe_editor_dock_tree *tree,
 			continue;
 		held = node->hold == VOE_EDITOR_DOCK_HOLD_FIRST ? node->first :
 								   node->second;
+		if (held < tree->count &&
+		    tree->nodes[held].kind == VOE_EDITOR_DOCK_SPLIT)
+			held = tree->nodes[held].first;
 		if (held < tree->count &&
 		    tree->nodes[held].kind == VOE_EDITOR_DOCK_LEAF &&
 		    tree->nodes[held].panel == panel)
@@ -737,6 +754,10 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 		return;
 	case VOE_EDITOR_PANEL_SCENE_VIEW:
 		scene_view_panel(ui, view, views);
+		return;
+	case VOE_EDITOR_PANEL_ASSETS:
+		voe_ui_label(ui, "Assets");
+		voe_editor_assets_draw(ui, &scene->assets);
 		return;
 	case VOE_EDITOR_PANEL_COUNT:
 		break;

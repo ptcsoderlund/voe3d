@@ -7,5 +7,5 @@ that plays sounds loads. A gap in an engine folder is a card there, never a
 reach-around from here.
 
 - `src` — the implementation: the loop, the project and its session, undo,
-  the themes, the top bar, the browser, Preferences, the dock and the three
+  the themes, the top bar, the browser, Preferences, the dock and the four
   panels; each file is listed on `src/src.md`.

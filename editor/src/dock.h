@@ -48,6 +48,7 @@ typedef enum {
 	VOE_EDITOR_PANEL_SCENE,
 	VOE_EDITOR_PANEL_INSPECTOR,
 	VOE_EDITOR_PANEL_SCENE_VIEW,
+	VOE_EDITOR_PANEL_ASSETS,
 	VOE_EDITOR_PANEL_COUNT
 } voe_editor_panel;
 
@@ -91,12 +92,15 @@ typedef enum {
 // The default tree's Scene list and Inspector: a fifth of a 16:9 surface
 // (0226), kept in millimetres so a wider window gives the room to the views.
 #define VOE_EDITOR_DOCK_SIDE_WIDE 48.0f
+// The Assets panel's height under the Scene list (0277 point 6).
+#define VOE_EDITOR_DOCK_ASSETS_TALL 70.0f
 
 // One node. A SPLIT reads `axis`, `hold`, `first` and `second`, then `length`
 // when it holds a child and `fraction` when it does not; a LEAF reads
 // `panel`, and `view` as well when that panel is SCENE_VIEW — which of the
 // editor's views it shows, an index into voe_editor_views and not a view itself,
-// so a tree still holds nothing but numbers. The two are one struct rather than a union because a dock tree is
+// so a tree still holds nothing but numbers. A `fixed` split's seam is drawn
+// but no drag reaches it (resize.h). The two are one struct rather than a union because a dock tree is
 // sixteen of these and telling a reader which fields are live is what `kind` is
 // for.
 //
@@ -120,6 +124,7 @@ typedef struct {
 	uint32_t second;
 	voe_editor_panel panel;
 	uint32_t view;
+	bool fixed;
 } voe_editor_dock_node;
 
 // A whole tree: its nodes, how many of them are live, and which one is the root.
@@ -157,8 +162,8 @@ typedef struct {
 	uint32_t lit;
 } voe_editor_dock_root;
 
-// The tree the editor opens on: three columns — `Scene` held at SIDE_WIDE on
-// the left, `Inspector` held at SIDE_WIDE on the right, and the two scene views
+// The tree the editor opens on: three columns — `Scene` above `Assets`, held
+// at ASSETS_TALL on a fixed seam, together held at SIDE_WIDE on the left, `Inspector` held at SIDE_WIDE on the right, and the two scene views
 // stacked taking the rest between them, the views' share starting at a half.
 // Which view is on top is one number on one leaf, which is what having a tree
 // at all is for.
@@ -197,8 +202,8 @@ typedef struct {
 void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
 			     voe_editor_dock_arrangement *out);
 
-// The length of the split whose held child is a leaf of `panel`, and that
-// length set. Nought, and nothing written, when no split holds one.
+// The length of the split whose held child is a leaf of `panel`, or a split
+// whose first child is, and that length set. Nought, and nothing written, when no split holds one.
 float voe_editor_dock_panel_length(const voe_editor_dock_tree *tree,
 				   voe_editor_panel panel);
 void voe_editor_dock_panel_length_set(voe_editor_dock_tree *tree,
