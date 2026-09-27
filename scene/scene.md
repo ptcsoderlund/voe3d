@@ -32,7 +32,7 @@ space is.
   which of the two checks is an assert and which a correction, and why the
   report's state is per process.
 - `include/scene/light_component.h` — the sun: its linear colour and strength
-  and a flat unshadowed fill, as a described field list, and the conversions
+  and a fill of the shade, as a described field list, and the conversions
   between a rotation and the direction it shines. Its header says why the
   direction is the transform's -Z and what the fill is.
 - `include/scene/light_system.h` — the whole-light intent, registered as the

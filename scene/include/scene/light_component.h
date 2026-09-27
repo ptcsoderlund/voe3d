@@ -16,9 +16,11 @@
 // voe_scene_light_direction and voe_scene_light_facing convert between the two
 // for a reader that wants a vector and a writer that holds one.
 //
-// THE FILL IS A FLAT, UNSHADOWED LIFT OF SHADOWED SIDES: fill_colour times
-// fill_intensity, added to every lit surface from no direction. 0 is no fill,
-// and a scene with none draws as it did before the fill existed.
+// THE FILL LIGHTS ONLY WHAT THE SUN DOES NOT REACH (0275, 0276): fill_colour
+// times fill_intensity lifts shadowed sides and sides facing away, and fades
+// out as the sun reaches the surface, so a surface in full sun looks the same
+// whatever the fill. 0 is no fill, and a scene with none draws as it did
+// before the fill existed.
 //
 // INTENSITY IS A MULTIPLIER AND NOT A PHYSICAL UNIT. There is no exposure or
 // tone mapping yet, so a number here is whatever looks right; 1 with white is
@@ -46,7 +48,7 @@
 #include <stdint.h>
 
 // The colours are linear multipliers, (1, 1, 1) white; the intensities are
-// not negative. The fill is the flat lift — see the header.
+// not negative. The fill lifts only the shade — see the header.
 #define VOE_SCENE_LIGHT_FIELDS(F, F_READ_ONLY)      \
 	F(voe_math_float3, colour, COLOUR)          \
 	F(float, intensity, FLOAT32)                \
