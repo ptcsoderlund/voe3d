@@ -12,7 +12,7 @@ workflow replaced specs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
 - **platform** — the one OS-aware folder: window, input, files, clock, processes, libraries, sound.
-- **scene** — transform (double position, a stepping world's previous one), lens, sun and fill, identity.
+- **scene** — transform (double position, a stepping world's previous one), lens, sun, identity.
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: sounds played by path, overlapping voices in float, pushed to the device.
@@ -21,7 +21,7 @@ workflow replaced specs.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmos, sun and shadows.
+- **3d** — scene → draws → a render target: meshes, shapes, picking, outlines, gizmos, sun shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game's loop: world types, 1/60 s steps, a frame, the code seam, `ui`, sound.
