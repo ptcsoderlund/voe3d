@@ -1,11 +1,12 @@
 # System
 
-The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its editor and
-dev program in one tree. Every code folder is a standalone CMake project — `include/<folder>/`, `src/`,
-`tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`, linked as `voe::<folder>`, mapped by
-`<folder>/<folder>.md`. Dependencies point down this list and never back up; `cmake/voe.cmake` holds the
-allowed edges, so a change needing a new edge is a decision, not a card. The standing rules are decision 0168,
-named on every card; the Agentic workflow replaced specs.
+The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its
+editor and dev program in one tree. Every code folder is a standalone CMake project —
+`include/<folder>/`, `src/`, `tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`,
+linked as `voe::<folder>`, mapped by `<folder>/<folder>.md`. Dependencies point down this list and
+never back up; `cmake/voe.cmake` holds the allowed edges, so a change needing a new edge is a
+decision, not a card. The standing rules are decision 0168, named on every card; the Agentic
+workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
@@ -40,8 +41,7 @@ named on every card; the Agentic workflow replaced specs.
 - 0022, 0121, 0135, 0151 — The folder map above; editor and dev are leaves; a game omits authoring.
 - 0033, 0035, 0250 — +Y up −Z forward, reversed depth; double positions, camera-relative on the GPU.
 - 0015, 0040, 0046 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
-- 0113, 0130 — A change owns the call sites it breaks downstream; Linux alone verifies a card.
-- 0120, 0133, 0173 — Every code folder carries a `.md`; `src/` and `tests/` list their own files.
+- 0113, 0120, 0130, 0133, 0173 — A change owns what it breaks; Linux verifies; a folder has a `.md`.
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
@@ -51,7 +51,7 @@ named on every card; the Agentic workflow replaced specs.
 - 0192, 0193, 0195, 0198–0200 — Structure via the queue; one focus; dropdowns; overlays fit.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
-- 0189–0191, 0217, 0218, 0221 — An entity is a number, its rows the world's; a colour; menu paths; one camera.
+- 0189–0191, 0217, 0218, 0221 — An entity is a number; the world owns rows; a colour; one camera.
 - 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
