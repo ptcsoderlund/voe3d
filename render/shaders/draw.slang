@@ -110,11 +110,17 @@
 // base colour. Not ambient, which would draw a 2D game's colours dim, and not a
 // default light, which would shade surfaces with a light nobody added.
 //
-// NORMAL MAPS AND EMISSION ARE READ FROM NO PICTURE HERE. Both ids are in the
-// shading record, both are uploaded, and neither is sampled: a normal map needs
-// tangents, which the importer does not produce, and emission without tone
-// mapping is a colour that clips. Rule 10 — each arrives with the card that
-// needs it.
+// A NORMAL MAP TILTS THE SHADING NORMAL THROUGH A FRAME BUILT PER PIXEL
+// (ADR-0278). No tangent attribute: the tangent (+u) and bitangent (−v, glTF's
+// green) come from the screen derivatives of the world position and the UV,
+// orthogonalised against the interpolated normal, and each channel maps 0..1
+// to −1..1. The interpolated normal still places the shadow lookup. Seams
+// where a frame flips across a UV island are the cost; a tangent attribute is
+// the card that lifts it.
+//
+// EMISSION IS ADDED LAST: the record's emissive times the emissive map, after
+// the sun and the fill, unshadowed and unoccluded. Only on the lit path; an
+// unlit exit is its base colour. Untone-mapped, so a strong one clips.
 //
 // A DISTANCE-FIELD BASE COLOUR IS THE THIRD UNIFORM BRANCH IN THIS FILE, AND IT
 // IS SPENT KNOWINGLY. `unlit` was the second and the alpha mode was the first;
@@ -495,6 +501,40 @@ float voe_render_sunlight(float3 world, float3 normal)
 	return lit / 9.0;
 }
 
+// Slot 0, the white pixel: voe_render_texture in render/device.h.
+static const uint VOE_RENDER_NO_TEXTURE = 0;
+
+// The shading normal a normal map gives `normal` (ADR-0278 point 3). dP/du and
+// dP/dv come from solving the screen derivatives of the world position against
+// those of the UV; the determinant's sign is the frame's handedness, and it
+// multiplies rather than divides because only the direction is kept. Each axis
+// is orthogonalised against the interpolated normal. glTF's green runs along
+// −v, because its v runs down. A UV with no area on screen, or an axis along
+// the normal, has no frame, and the interpolated normal is the answer.
+float3 voe_render_mapped_normal(float3 normal, float3 texel, float3 world_dx,
+				float3 world_dy, float2 uv_dx, float2 uv_dy)
+{
+	float det = uv_dx.x * uv_dy.y - uv_dy.x * uv_dx.y;
+	float hand = det < 0.0 ? -1.0 : 1.0;
+	float3 along_u = (world_dx * uv_dy.y - world_dy * uv_dx.y) * hand;
+	float3 along_v = (world_dy * uv_dx.x - world_dx * uv_dy.x) * hand;
+
+	along_u -= normal * dot(normal, along_u);
+	along_v -= normal * dot(normal, along_v);
+	// Not VOE_LEAST: these are per-pixel steps, a millionth apart on a far
+	// surface, and a frame that small is still a frame.
+	if (det == 0.0 || dot(along_u, along_u) < 1e-30 ||
+	    dot(along_v, along_v) < 1e-30)
+		return normal;
+
+	float3 m = texel * 2.0 - 1.0;
+	float3 mapped = normalize(along_u) * m.x - normalize(along_v) * m.y +
+			normal * m.z;
+	if (dot(mapped, mapped) < VOE_LEAST)
+		return normal;
+	return normalize(mapped);
+}
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -508,7 +548,7 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// EVERY SAMPLE HAPPENS BEFORE ANY BRANCH, AND THAT IS DELIBERATE. A
 	// Sample needs the derivatives the rasteriser computes across a quad of
 	// fragments, which are only defined where the whole quad took the same
-	// path. Reading all three here costs one fetch of a one-pixel white
+	// path. Reading all five here costs one fetch of a one-pixel white
 	// texture where a material has no map, and is correct without a rule
 	// about where a branch may go.
 	//
@@ -541,6 +581,15 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 		voe_render_textures[shading.metallic_roughness_texture].Sample(vertex.uv);
 	float occlusion =
 		voe_render_textures[shading.occlusion_texture].Sample(vertex.uv).r;
+	float3 tilt =
+		voe_render_textures[shading.normal_texture].Sample(vertex.uv).rgb;
+	float3 glow =
+		voe_render_textures[shading.emissive_texture].Sample(vertex.uv).rgb;
+	// The tangent frame's derivatives, taken here for the same reason.
+	float3 world_dx = ddx(vertex.world);
+	float3 world_dy = ddy(vertex.world);
+	float2 uv_dx = ddx(vertex.uv);
+	float2 uv_dy = ddy(vertex.uv);
 
 	// The distance-field reading of that same sample, worked out here whether
 	// or not this material wants it. Unconditional because of fwidth: see the
@@ -616,8 +665,13 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
 		return voe_render_premultiplied(base.rgb, coverage);
 
-	float3 n = normalize(vertex.normal);
-	float3 v = normalize(voe_render_frame.camera.eye - vertex.world);
+	// The geometric normal places the shadow lookup; the mapped one shades.
+	float3 surface = normalize(vertex.normal);
+	float3 n = surface;
+	if (shading.normal_texture != VOE_RENDER_NO_TEXTURE)
+		n = voe_render_mapped_normal(surface, tilt, world_dx, world_dy,
+					     uv_dx, uv_dy);
+	float3 v =normalize(voe_render_frame.camera.eye - vertex.world);
 	// Towards the light, which is the opposite of the way the light travels.
 	float3 l = -sun.direction;
 	float3 h = normalize(l + v);
@@ -643,12 +697,13 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// the light did not have.
 	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
 
-	float reach = n_dot_l * voe_render_sunlight(vertex.world, n);
+	float reach = n_dot_l * voe_render_sunlight(vertex.world, surface);
 	float3 radiance = sun.colour * sun.intensity * reach;
 	// The fill, only where the sun does not reach: see the header.
 	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+	// Emission last, unshadowed and unoccluded (ADR-0278).
 	float3 lit = (diffuse + specular) * radiance * occlusion +
-		     fill_weight * sun.fill * base.rgb;
+		     fill_weight * sun.fill * base.rgb + shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);
 }

@@ -314,10 +314,11 @@ typedef struct {
 	// so an unlit surface may be opaque, cutout or blended like any other.
 	uint32_t unlit;
 	// Texture ids, index halves only — VOE_RENDER_NO_TEXTURE where the
-	// material references none. The base colour, the metallic-roughness and
-	// the occlusion ones are sampled; the normal and the emissive ones are
-	// stored and not read, because nothing has asked for normal mapping or
-	// for emission yet (rule 10) and both are a card of their own.
+	// material references none. All five are sampled: the normal map tilts
+	// a lit surface's normal through a tangent frame built per pixel from
+	// screen derivatives (glTF's convention, no tangent attribute), and the
+	// emissive map times `emissive` is added to a lit surface, unshadowed
+	// (ADR-0278).
 	//
 	// A COLOUR TEXTURE AND A DATA TEXTURE ARE NOT INTERCHANGEABLE HERE. The
 	// base colour and the emissive ones are uploaded as
