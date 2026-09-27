@@ -33,9 +33,10 @@
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
-// The direction is already unit length — scene's light system is the only
-// thing that writes one and it normalizes — so this is a copy of three fields
-// and not arithmetic. No light is `unshaded` and nothing else (ADR-0238).
+// The direction is the light entity's transform rotation's -Z, unit length from
+// voe_scene_light_direction, and -Z itself with no transform (ADR-0273); the
+// fill is its colour times its strength. No light is `unshaded` and nothing
+// else (ADR-0238).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "lighting no world");
@@ -46,8 +47,13 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 		return (voe_render_light){ .unshaded = 1 };
 
 	voe_scene_light light = voe_scene_light_rows(world)[0];
+	const voe_scene_transform *turn = voe_scene_transform_get(
+		world, voe_scene_light_entities(world)[0]);
 	voe_render_light sun = {
-		.direction = light.direction,
+		.direction = turn ? voe_scene_light_direction(turn->rotation)
+				  : (voe_math_float3){ 0.0f, 0.0f, -1.0f },
+		.fill = voe_math_float3_scale(light.fill_colour,
+					      light.fill_intensity),
 		.intensity = light.intensity,
 		.colour = light.colour,
 	};
@@ -108,6 +114,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.outlined = (voe_3d_outlined){ 0 };
 	frame.gizmo = (voe_3d_gizmoed){ 0 };
 	frame.marker = (voe_3d_camera_marked){ 0 };
+	frame.sun = (voe_3d_sun_marked){ 0 };
 
 	return frame;
 }
@@ -378,9 +385,11 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// A refused draw in any group stops that group and not the frame, so
 	// every return value here is deliberately dropped: the loop still ends
-	// and presents the frame. The camera marker is solid and in the world's
-	// depth (0223), so it goes with the solids, before the blended group.
+	// and presents the frame. The camera and sun markers are solid and in
+	// the world's depth (0223, 0274), so they go with the solids, before the
+	// blended group.
 	voe_3d_draw_marks_camera(world, device, arena, frame);
+	voe_3d_draw_marks_sun(world, device, arena, frame);
 	(void)voe_3d_draw_group_draw(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,

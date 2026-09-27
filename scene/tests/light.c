@@ -1,17 +1,16 @@
-// The sun: that a reader always gets a unit direction, and that turning it is an
-// intent the system drains like everything else.
+// The sun: what registration tells a tool, that an intent lands only when the
+// system runs and a bad one keeps the row, and that a rotation and the direction
+// it shines convert both ways.
 //
-// THE NORMALIZATION IS THE CLAIM WORTH A TEST. Everything downstream of this
-// component — the draw system, the object records, the shader's dot products —
-// assumes the direction is unit length, and nothing on that path would fail
-// loudly if it were not: a direction of length two makes a scene twice as bright
-// and a direction of length a half makes it dim, and both look like somebody
-// chose the wrong intensity. So both writes are checked, with a vector whose
-// length is nowhere near one.
+// THE CONVERSIONS ARE THE CLAIM WORTH MOST. Everything that draws the sun reads
+// its direction through voe_scene_light_direction, and a sign wrong there lights
+// exactly the faces that should be dark, which reads as a broken normal rather
+// than a flipped light. So straight down is checked against a rotation built by
+// hand, and facing is checked by turning a few directions into rotations and
+// back, +Z (where every arc is as short) among them.
 //
-// (3, 4, 0) HAS LENGTH FIVE, which is why it is the vector below: every
-// component of the answer is a fifth of what went in, and a normalization that
-// silently did nothing leaves a 3 where a 0.6 belongs.
+// EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
+// after each, so a refusal that let one field through shows as that field.
 //
 // THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
 // scene/tests/transform.c gives at length. WHAT THE BUILD SAID IS KEPT FIRST,
@@ -29,17 +28,20 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 #include <math/float3.h>
+#include <math/quat.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
+#include <scene/transform_system.h>
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
-// One divide and three multiplies.
-#define TOLERANCE 1e-6f
+// A quaternion built, turned into a direction and back.
+#define TOLERANCE 1e-5f
 
 #define LIGHTS 4
 
@@ -59,99 +61,109 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
+	voe_scene_transform_register(world, LIGHTS);
 	voe_scene_light_register(world, LIGHTS);
 	return world;
 }
 
-// Length five, pointing down and to the right, with a colour and an intensity
-// that are neither white nor one — so that a field copied from the wrong place
-// shows up as a wrong number rather than as the default.
+// Every field neither white, one nor nought, so that a field copied from the
+// wrong place shows up as a wrong number rather than as the default.
 static voe_scene_light known(void)
 {
-	voe_scene_light light = {
-		.direction = { 3.0f, -4.0f, 0.0f },
+	return (voe_scene_light){
 		.colour = { 1.0f, 0.8f, 0.5f },
 		.intensity = 2.5f,
+		.fill_colour = { 0.25f, 0.5f, 0.75f },
+		.fill_intensity = 0.3f,
 	};
-
-	return light;
 }
 
-static void a_light_arrives_normalized(voe_base_arena *arena)
+static void check_light(const voe_scene_light *read, voe_scene_light expected)
+{
+	VOE_TEST_CHECK(read != NULL);
+	if (read == NULL)
+		return;
+	check_vector(read->colour, expected.colour);
+	VOE_TEST_CHECK_FLOAT(read->intensity, expected.intensity, 0.0f);
+	check_vector(read->fill_colour, expected.fill_colour);
+	VOE_TEST_CHECK_FLOAT(read->fill_intensity, expected.fill_intensity,
+			     0.0f);
+}
+
+static void a_light_arrives_as_given(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity sun = { 0 };
-	const voe_scene_light *read;
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
 	VOE_TEST_CHECK(voe_scene_light_get(world, sun) == NULL);
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
 
-	read = voe_scene_light_get(world, sun);
-	VOE_TEST_CHECK(read != NULL);
-	if (read == NULL)
-		return;
-
-	check_vector(read->direction,
-		     (voe_math_float3){ 0.6f, -0.8f, 0.0f });
-	VOE_TEST_CHECK_FLOAT(voe_math_float3_length(read->direction), 1.0f,
-			     TOLERANCE);
-
-	// Everything else is carried through untouched: only the direction is
-	// this system's to change.
-	check_vector(read->colour, known().colour);
-	VOE_TEST_CHECK_FLOAT(read->intensity, known().intensity, 0.0f);
-
+	check_light(voe_scene_light_get(world, sun), known());
 	VOE_TEST_CHECK_INT(voe_scene_light_count(world), 1);
-	VOE_TEST_CHECK(voe_scene_light_rows(world) == read);
+	VOE_TEST_CHECK(voe_scene_light_rows(world) ==
+		       voe_scene_light_get(world, sun));
 	VOE_TEST_CHECK_INT(voe_scene_light_entities(world)[0].index, sun.index);
 }
 
-// An intent changes nothing until the system runs, and what it does land is
-// normalized as well — the second write into the table, and the one a frame
-// loop uses every frame.
+// An intent changes nothing until the system runs; two in one frame resolve as
+// last-writer-wins, because an intent carries the whole light.
 static void an_intent_lands_only_when_the_system_runs(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity sun = { 0 };
-	voe_scene_light turned = known();
-	const voe_scene_light *read;
+	voe_scene_light dimmer = known();
+	voe_scene_light filled = known();
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
 
-	turned.direction = (voe_math_float3){ 0.0f, 0.0f, -5.0f };
+	dimmer.intensity = 0.5f;
 	VOE_TEST_CHECK(voe_scene_light_submit(
 		world,
-		(voe_scene_light_intent){ .entity = sun, .light = turned }));
-
-	read = voe_scene_light_get(world, sun);
-	if (read != NULL)
-		check_vector(read->direction,
-			     (voe_math_float3){ 0.6f, -0.8f, 0.0f });
-
+		(voe_scene_light_intent){ .entity = sun, .light = dimmer }));
+	check_light(voe_scene_light_get(world, sun), known());
 	voe_scene_light_system_run(world);
+	check_light(voe_scene_light_get(world, sun), dimmer);
 
-	read = voe_scene_light_get(world, sun);
-	if (read != NULL)
-		check_vector(read->direction,
-			     (voe_math_float3){ 0.0f, 0.0f, -1.0f });
-
-	// Two submitters, and the second one wins: an intent carries the whole
-	// light, so this is last-writer-wins and not an accumulation.
-	turned.direction = (voe_math_float3){ 1.0f, 0.0f, 0.0f };
+	filled.fill_intensity = 1.0f;
 	VOE_TEST_CHECK(voe_scene_light_submit(
 		world,
-		(voe_scene_light_intent){ .entity = sun, .light = turned }));
-	turned.direction = (voe_math_float3){ 0.0f, 2.0f, 0.0f };
+		(voe_scene_light_intent){ .entity = sun, .light = known() }));
 	VOE_TEST_CHECK(voe_scene_light_submit(
 		world,
-		(voe_scene_light_intent){ .entity = sun, .light = turned }));
+		(voe_scene_light_intent){ .entity = sun, .light = filled }));
 	voe_scene_light_system_run(world);
-	read = voe_scene_light_get(world, sun);
-	if (read != NULL)
-		check_vector(read->direction,
-			     (voe_math_float3){ 0.0f, 1.0f, 0.0f });
+	check_light(voe_scene_light_get(world, sun), filled);
+}
+
+// Each bad number on its own: the row stays what it was.
+static void a_refused_intent_keeps_the_row(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity sun = { 0 };
+	voe_scene_light bad[7];
+
+	for (int i = 0; i < 7; i++)
+		bad[i] = known();
+	bad[0].colour.x = 1.5f;
+	bad[1].colour.y = -0.1f;
+	bad[2].intensity = -1.0f;
+	bad[3].intensity = INFINITY;
+	bad[4].fill_colour.z = NAN;
+	bad[5].fill_colour.x = 2.0f;
+	bad[6].fill_intensity = -0.5f;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
+
+	for (int i = 0; i < 7; i++) {
+		VOE_TEST_CHECK(voe_scene_light_submit(
+			world, (voe_scene_light_intent){ .entity = sun,
+							 .light = bad[i] }));
+		voe_scene_light_system_run(world);
+		check_light(voe_scene_light_get(world, sun), known());
+	}
 }
 
 // An entity that dies between the submit and the drain takes its intent with
@@ -192,106 +204,127 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK(!actual->read_only);
 }
 
-// Three fields, in the order they are declared, each kinded as declared and each
+// Four fields, in the order they are declared, each kinded as declared and each
 // at the offset and size the compiler gave it. None is read-only.
 static void check_description(const voe_base_struct_description *description)
 {
 	const voe_base_field_description *fields = description->fields;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_light") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 3);
-	if (description->field_count != 3)
+	VOE_TEST_CHECK_INT(description->field_count, 4);
+	if (description->field_count != 4)
 		return;
 
-	check_field(&fields[0], "direction", VOE_BASE_FIELD_FLOAT3,
-		    offsetof(voe_scene_light, direction), sizeof(voe_math_float3));
-	check_field(&fields[1], "colour", VOE_BASE_FIELD_FLOAT3,
+	check_field(&fields[0], "colour", VOE_BASE_FIELD_COLOUR,
 		    offsetof(voe_scene_light, colour), sizeof(voe_math_float3));
-	check_field(&fields[2], "intensity", VOE_BASE_FIELD_FLOAT32,
+	check_field(&fields[1], "intensity", VOE_BASE_FIELD_FLOAT32,
 		    offsetof(voe_scene_light, intensity), sizeof(float));
+	check_field(&fields[2], "fill_colour", VOE_BASE_FIELD_COLOUR,
+		    offsetof(voe_scene_light, fill_colour),
+		    sizeof(voe_math_float3));
+	check_field(&fields[3], "fill_intensity", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_light, fill_intensity), sizeof(float));
 }
 
-static void the_description_is_the_struct_the_compiler_laid_out(void)
-{
-	check_description(voe_scene_light_description());
-}
-
-// The inspector, minus the drawing: ask the world what an entity is made of
-// without naming a type, and reach the field list from the answer. The table the
-// world holds is scene/src's own copy, so it is checked field by field and never
-// by address.
-static void the_world_hands_back_the_lights_field_list(voe_base_arena *arena)
+// What a tool sees: the replace, the default row (0190: white of strength one,
+// a white fill of nought), the transform it needs, the menu path and the field
+// list, which in a describing build is scene/src's own copy and so is checked
+// field by field and never by address.
+static void registration_says_what_a_light_is(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
-	voe_ecs_entity sun = { 0 };
-	const voe_base_struct_description *found = NULL;
-	bool runtime_only = true;
-	uint32_t had = 0;
+	voe_ecs_type type = voe_ecs_component_type(world, &voe_scene_light_key);
+	voe_ecs_replace replace = voe_ecs_component_replace(world, type);
+	const voe_scene_light *row = voe_ecs_component_default(world, type);
+	voe_ecs_type needed = { 0 };
+	const voe_base_struct_description *found =
+		voe_ecs_component_description(world, type);
 
-	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
-	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
+	VOE_TEST_CHECK(replace.set);
+	VOE_TEST_CHECK_INT((long long)replace.row_offset,
+			   (long long)offsetof(voe_scene_light_intent, light));
+	VOE_TEST_CHECK_INT((long long)replace.row_size,
+			   (long long)sizeof(voe_scene_light));
+	VOE_TEST_CHECK_INT((long long)replace.value_size,
+			   (long long)sizeof(voe_scene_light_intent));
 
-	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
-		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+	check_light(row, (voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+					    .intensity = 1.0f,
+					    .fill_colour = { 1.0f, 1.0f, 1.0f },
+					    .fill_intensity = 0.0f });
 
-		if (voe_ecs_component_get(world, type, sun) == NULL)
-			continue;
+	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
+	VOE_TEST_CHECK(voe_ecs_component_key(world, needed) ==
+		       &voe_scene_transform_key);
+	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
+			      "Rendering / Light") == 0);
+	// Authored in either build, with or without a table to show for it.
+	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, type));
 
-		had++;
-		found = voe_ecs_component_description(world, type);
-		runtime_only = voe_ecs_component_runtime_only(world, type);
-		VOE_TEST_CHECK(voe_ecs_component_key(world, type) ==
-			       &voe_scene_light_key);
-		VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
-				      "Rendering / Light") == 0);
-	}
-
-	VOE_TEST_CHECK_INT(had, 1);
-
-	// Not runtime-only in either build: with descriptions off a light is still
-	// authored data, only without a table in this binary to show for it.
-	VOE_TEST_CHECK(!runtime_only);
-
+	check_description(voe_scene_light_description());
 	if (!BUILD_DESCRIBES) {
 		VOE_TEST_CHECK(found == NULL);
 		return;
 	}
-
 	VOE_TEST_CHECK(found != NULL);
 	if (found != NULL)
 		check_description(found);
 }
 
-// What "add at default" gives (ADR-0190): white light of strength one, going
-// straight down.
-static void the_default_is_white_and_straight_down(voe_base_arena *arena)
+// The unturned light shines along -Z; a quarter turn of -90 degrees about X
+// takes -Z to straight down, and a non-unit rotation gives the same.
+static void a_rotation_becomes_the_direction_it_shines(void)
 {
-	voe_ecs_world *world = world_of(arena);
-	const voe_scene_light *row = voe_ecs_component_default(
-		world, voe_ecs_component_type(world, &voe_scene_light_key));
+	voe_math_quat down = voe_math_quat_from_axis_angle(
+		(voe_math_float3){ 1.0f, 0.0f, 0.0f }, -1.5707963f);
 
-	VOE_TEST_CHECK(row != NULL);
-	if (row == NULL)
-		return;
-	VOE_TEST_CHECK_FLOAT(row->direction.x, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->direction.y, -1.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->direction.z, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->colour.x, 1.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->colour.y, 1.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->colour.z, 1.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(row->intensity, 1.0f, 0.0f);
+	check_vector(voe_scene_light_direction(
+			     (voe_math_quat){ 0.0f, 0.0f, 0.0f, 1.0f }),
+		     (voe_math_float3){ 0.0f, 0.0f, -1.0f });
+	check_vector(voe_scene_light_direction(down),
+		     (voe_math_float3){ 0.0f, -1.0f, 0.0f });
+	check_vector(voe_scene_light_direction((voe_math_quat){
+			     down.x * 3.0f, down.y * 3.0f, down.z * 3.0f,
+			     down.w * 3.0f }),
+		     (voe_math_float3){ 0.0f, -1.0f, 0.0f });
+}
+
+// Facing and back gives the unit direction facing was handed, whatever its
+// length; +Z is a half turn about Y.
+static void a_direction_becomes_a_rotation_and_back(void)
+{
+	const voe_math_float3 directions[] = {
+		{ 0.0f, -1.0f, 0.0f }, { 3.0f, -4.0f, 0.0f },
+		{ -0.4f, -1.0f, -0.3f }, { 0.0f, 0.0f, -2.0f },
+		{ 1.0f, 0.0f, 0.001f }, { 0.2f, 0.1f, 5.0f },
+	};
+	voe_math_quat half = voe_scene_light_facing(
+		(voe_math_float3){ 0.0f, 0.0f, 3.0f });
+
+	for (size_t i = 0; i < sizeof directions / sizeof directions[0]; i++)
+		check_vector(voe_scene_light_direction(
+				     voe_scene_light_facing(directions[i])),
+			     voe_math_float3_normalize(directions[i]));
+
+	VOE_TEST_CHECK_FLOAT(half.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(half.y, 1.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(half.z, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(half.w, 0.0f, 0.0f);
+	check_vector(voe_scene_light_direction(half),
+		     (voe_math_float3){ 0.0f, 0.0f, 1.0f });
 }
 
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
-	a_light_arrives_normalized(arena);
-	the_description_is_the_struct_the_compiler_laid_out();
-	the_world_hands_back_the_lights_field_list(arena);
+	registration_says_what_a_light_is(arena);
+	a_light_arrives_as_given(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
+	a_refused_intent_keeps_the_row(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
-	the_default_is_white_and_straight_down(arena);
+	a_rotation_becomes_the_direction_it_shines();
+	a_direction_becomes_a_rotation_and_back();
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

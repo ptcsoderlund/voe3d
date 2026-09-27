@@ -69,7 +69,8 @@ static voe_scene_transform placed(float x, float y, float z)
 	};
 }
 
-// A camera back along Z with the default lens, a light when `lit`, and a cube
+// A camera back along Z with the default lens, a light turned by its transform
+// and with no fill when `lit`, and a cube
 // at the origin with a collider of 1. Returns the cube.
 static voe_ecs_entity build(voe_ecs_world *world, bool lit)
 {
@@ -84,11 +85,15 @@ static voe_ecs_entity build(voe_ecs_world *world, bool lit)
 		voe_scene_transform_add(world, camera, placed(0.0f, 0.0f, 5.0f)));
 	VOE_TEST_CHECK(voe_scene_camera_add(world, camera, *lens));
 	if (lit) {
+		voe_scene_transform sun = placed(0.0f, 0.0f, 0.0f);
+
+		sun.rotation = voe_scene_light_facing(
+			(voe_math_float3){ -0.4f, -1.0f, -0.6f });
 		VOE_TEST_CHECK(voe_ecs_entity_create(world, &light));
+		VOE_TEST_CHECK(voe_scene_transform_add(world, light, sun));
 		VOE_TEST_CHECK(voe_scene_light_add(
 			world, light,
-			(voe_scene_light){ .direction = { -0.4f, -1.0f, -0.6f },
-					   .colour = { 1.0f, 1.0f, 1.0f },
+			(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					   .intensity = 3.0f }));
 	}
 	VOE_TEST_CHECK(

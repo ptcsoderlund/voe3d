@@ -1,5 +1,6 @@
 // The bar across the top of the root surface: New, Open and Save, then Play,
-// then Refresh, then Ship, then Preferences, then the project's name and
+// then Refresh, then Ship, then Preferences, then a label naming the gizmo's
+// mode (Move or Rotate, the caller's), then the project's name and
 // whether it is unsaved, then whatever notice the session has to say. Play's
 // label is the caller's (the session's play state, play.h): Play, Building or
 // Stop; so are Refresh's (refresh.h), Refresh or Refreshing, and Ship's
@@ -70,7 +71,8 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 			       voe_editor_topbar *bar);
 
 // Draws the bar as one row: New, Open, Save, `play` as Play's label,
-// `refresh` as Refresh's, `ship` as Ship's, Preferences, then `name` with " (unsaved)"
+// `refresh` as Refresh's, `ship` as Ship's, Preferences, `gizmo` as a label,
+// then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
 // exactly as long as the row's labels are (ui/widgets.h). Records the
@@ -79,8 +81,8 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
-			   const char *ship, const char *name, bool unsaved,
-			   const char *notice);
+			   const char *ship, const char *gizmo,
+			   const char *name, bool unsaved, const char *notice);
 
 // Which button fired this frame, or VOE_EDITOR_COMMAND_NONE when none did.
 // Called after voe_ui_frame_end and before the frame's arena is rewound — the

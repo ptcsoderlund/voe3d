@@ -2,7 +2,7 @@
 // show, the sun's shadow passes fitted to each one's camera, then a pass begun
 // on each one's target with that camera and the shadows, the world drawn
 // with the selection's outline, collider and gizmo and the scene camera's
-// marker, and
+// and the sun's markers, and
 // the pass ended; and the preview's shadow passes and pass, drawn with the
 // world's camera while the selected entity has one.
 #include "view_passes.h"
@@ -10,6 +10,32 @@
 #include <base/assert.h>
 
 #include <scene/camera_component.h>
+#include <scene/light_component.h>
+#include <scene/transform_component.h>
+
+// A marker's colour, the camera's and the sun's alike (0223, 0274): the
+// outline's while `marked` is the selection, the gizmo's rest colour otherwise.
+static voe_math_float3 marker_colour(const voe_ui_theme *palette,
+				     voe_ecs_entity marked,
+				     voe_ecs_entity selected)
+{
+	bool is_selected = marked.generation != 0 &&
+			   marked.index == selected.index &&
+			   marked.generation == selected.generation;
+	return is_selected ? voe_editor_view_outline_colour(palette)
+			   : voe_editor_view_gizmo_colour(palette, false);
+}
+
+// The world's first light with a transform, zeroed for none: the one sun a
+// view marks (0274).
+static voe_ecs_entity first_placed_light(const voe_ecs_world *world)
+{
+	const voe_ecs_entity *lights = voe_scene_light_entities(world);
+	for (uint32_t i = 0; i < voe_scene_light_count(world); i++)
+		if (voe_scene_transform_get(world, lights[i]) != NULL)
+			return lights[i];
+	return (voe_ecs_entity){ 0 };
+}
 
 bool voe_editor_view_passes_preview(voe_render_device *gpu,
 				    voe_base_arena *arena,
@@ -70,17 +96,17 @@ bool voe_editor_view_passes_draw(
 				palette != NULL && gizmo != NULL,
 			"drawing views with no shapes, palette or gizmo");
 
-	// The world's camera, zeroed for none; outline-coloured while selected.
+	// The world's camera and sun, zeroed for none; outline-coloured while
+	// selected.
 	voe_ecs_entity camera_entity = { 0 };
 	if (voe_scene_camera_count(world) > 0)
 		camera_entity = voe_scene_camera_entities(world)[0];
+	voe_ecs_entity sun_entity = first_placed_light(world);
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
-	bool camera_selected = camera_entity.generation != 0 &&
-			       camera_entity.index == selected.index &&
-			       camera_entity.generation == selected.generation;
-	voe_math_float3 marker_colour =
-		camera_selected ? voe_editor_view_outline_colour(palette)
-				: voe_editor_view_gizmo_colour(palette, false);
+	voe_math_float3 camera_colour =
+		marker_colour(palette, camera_entity, selected);
+	voe_math_float3 sun_colour =
+		marker_colour(palette, sun_entity, selected);
 
 	// A device made with a pass per view and one more does not refuse
 	// these; if it did, the caller still closes the frame and stops.
@@ -128,6 +154,7 @@ bool voe_editor_view_passes_draw(
 					.marked_colour = voe_editor_view_gizmo_colour(
 						palette, true),
 					.marked = voe_editor_gizmo_marked(gizmo, v),
+					.rings = scene->rings,
 					.pixels = VOE_EDITOR_GIZMO_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,
@@ -135,7 +162,15 @@ bool voe_editor_view_passes_draw(
 				.marker = {
 					.entity = camera_entity,
 					.material = shapes->outline,
-					.colour = marker_colour,
+					.colour = camera_colour,
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
+				.sun = {
+					.entity = sun_entity,
+					.material = shapes->outline,
+					.colour = sun_colour,
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,

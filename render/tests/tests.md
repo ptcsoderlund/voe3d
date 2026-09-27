@@ -37,8 +37,9 @@ by reading the offscreen colour image back.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.
-- `unshaded.c` — that a pass whose light says `unshaded` draws a lit cube in its base colour, even
-  with a sun pointing away, and that the same light without the flag reads black. Headless.
+- `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
+  fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
+  same with fill and without. Headless.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.

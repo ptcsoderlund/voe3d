@@ -57,7 +57,9 @@
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
+#include <3d/gizmo_rings.h>
 #include <3d/outline.h>
+#include <3d/sun_marker.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 #include <render/device.h>
@@ -85,10 +87,12 @@
 // draws the handles at rest in `colour` and the marked one in `marked_colour`,
 // and knows nothing else about either.
 //
-// THE QUADS COME FROM voe_3d_gizmo_quads AND GO INTO THIS FRAME'S TRANSIENT
-// POOL. A program that draws a gizmo sizes its voe_render_capacities' transient
-// vertices and indices from VOE_3D_GIZMO_VERTICES and VOE_3D_GIZMO_INDICES, and
-// counts two more transient ranges and two more objects per pass — the handles
+// THE QUADS COME FROM voe_3d_gizmo_quads, OR voe_3d_gizmo_rings_quads WHEN
+// `rings` IS SET (0274), AND GO INTO THIS FRAME'S TRANSIENT POOL. A program that
+// draws a gizmo sizes its voe_render_capacities' transient vertices and indices
+// from the larger of VOE_3D_GIZMO_VERTICES and VOE_3D_GIZMO_RING_VERTICES, and
+// of the two _INDICES, and counts two more transient ranges and two more
+// objects per pass whichever is drawn — the handles
 // at rest and the marked one are two draws, because a drawn object's colour is
 // one record per draw (ADR-0191). A refused transient range draws no gizmo and
 // leaves the rest of the frame alone, as the outline's does.
@@ -108,8 +112,12 @@ typedef struct {
 	// a drawn object's colour is one record per draw (ADR-0191).
 	voe_math_float3 marked_colour;
 	// Which handle that is, VOE_3D_GIZMO_NONE for none. The editor's
-	// question, answered with voe_3d_gizmo_hit.
+	// question, answered with voe_3d_gizmo_hit — or, with `rings`, the ring
+	// voe_3d_gizmo_rings_hit answers.
 	voe_3d_gizmo_handle marked;
+	// False draws the move gizmo's arrows; true the rotate gizmo's three
+	// rings (0274), in the same two draws at the same place in the order.
+	bool rings;
 	// How many pixels one arrow's shaft covers, at any distance.
 	float pixels;
 	// The size of that picture, in pixels — the height is what the size is
@@ -134,6 +142,23 @@ typedef struct {
 	// The size of that picture, in pixels.
 	voe_platform_size size;
 } voe_3d_camera_marked;
+
+// The sun a pass draws as a marker (0274): its circle and arrow as line quads,
+// voe_3d_sun_marker_quads', in the world layer. Only an editor's view sets one.
+typedef struct {
+	// The light entity, zeroed for none. A zeroed entity, a dead one and
+	// one without a light and a transform draw nothing.
+	voe_ecs_entity entity;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear, and the whole of what the marker looks like: the outline's
+	// colour when selected, the gizmo's rest colour otherwise (0274).
+	voe_math_float3 colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_sun_marked;
 
 // The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
 // It is drawn after the outline, behind the outline's depth clear, with the
@@ -234,6 +259,13 @@ typedef struct {
 	// draws nothing, as the outline does. A pass whose `view` is the marked
 	// camera's own is the caller's to avoid.
 	voe_3d_camera_marked marker;
+	// A PASS MAY MARK ONE SUN (0274), drawn as the camera marker is: in the
+	// world layer inside the world's depth. A zeroed record, a dead entity
+	// and one without a light or a transform draw nothing. The quads go into
+	// this frame's transient pool, sized from VOE_3D_SUN_MARKER_VERTICES and
+	// _INDICES, one more range and one more object; a pool too small draws
+	// nothing, as the outline does.
+	voe_3d_sun_marked sun;
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
@@ -252,9 +284,9 @@ typedef struct {
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. `hidden`, `outlined`, `gizmo`, `marker` and `collider`
-// all come back zeroed — hiding, outlining, standing a gizmo, marking a camera
-// and drawing a collider are the caller's choice and it sets the field on the answer. Asserts on a world
+// matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun` and
+// `collider` all come back zeroed — hiding, outlining, standing a gizmo, marking
+// a camera or a sun and drawing a collider are the caller's choice and it sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
 // frame is unshaded — see below.
 //
@@ -299,7 +331,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 
 // The world's one light in the shape `render` takes it; with none, a light with
 // `unshaded` set and every other field zero (ADR-0238). Asserts on more than
-// one, because render has one sun.
+// one, because render has one sun. The direction is the light entity's
+// transform rotation's -Z (scene's voe_scene_light_direction), -Z with no
+// transform; the fill is fill_colour times fill_intensity (ADR-0273).
 //
 // IT IS PUBLIC SO EVERY PICTURE OF A SCENE MEANS THE SAME BY "NO LIGHT". The
 // editor's own views and dev's monitor light their passes with it rather than
@@ -333,8 +367,9 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // names a live entity, is the one thing left out, of either table and either
 // layer, and `frame.outlined`, when it names one, is outlined after everything
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
-// move gizmo drawn after that; `frame.marker`, when it names a live camera with
-// a transform, is drawn with the world, and `frame.collider`, when it names one
+// gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
+// a live camera with a transform, and `frame.sun`, when it names a live light
+// with a transform, are drawn with the world, and `frame.collider`, when it names one
 // with a collider, as lines after the outline. Calling it with no pass open is the caller's bug
 // and asserts.
 //

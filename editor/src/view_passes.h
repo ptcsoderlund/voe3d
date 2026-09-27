@@ -3,7 +3,7 @@
 // (voe_3d_draw_system_shadows, ADR-0258) and onto that view's own target with
 // its own camera, the world's light and those shadows, the world drawn by voe_3d_draw_system_run with the
 // selection's outline (ADR-0203), its collider as lines (0253), its move
-// gizmo (ADR-0205) and the scene camera's marker (0223), and the pass ended; and before those, the preview's
+// gizmo (ADR-0205), the scene camera's marker (0223) and the sun's (0274), and the pass ended; and before those, the preview's
 // shadow passes and one pass with the world's own camera (view.h). main.c calls both once a
 // frame, between opening the draw and the window's pass:
 //
@@ -29,7 +29,7 @@
 // draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
 // for the gizmo's handles at rest and its marked one, one for the camera's
-// marker and one for the selection's collider, times the room for views, and the drawn entities once more for the
+// marker, one for the sun's and one for the selection's collider, times the room for views, and the drawn entities once more for the
 // preview's pass, which draws the world alone; and every caster once per
 // cascade, VOE_GAME_WORLD_MAX_DRAWN × VOE_RENDER_SHADOW_CASCADES, per view and
 // for the preview. `passes` is a pass per view, the preview's and the
@@ -39,10 +39,11 @@
 // third view is a leaf and not a capacity. The three transient numbers are
 // what the selection outline's quads are copied into: one outline per view's
 // pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
-// The move gizmo's quads go there too: one gizmo per view's pass, two ranges
-// and two draws, sized from the room for views the same way (ADR-0205,
-// 3d/draw_system.h). So do the camera marker's: one marker per view's pass,
-// one range and one draw, sized the same way (0223, 3d/camera_marker.h), and
+// The gizmo's quads go there too: one gizmo per view's pass, two ranges and
+// two draws, its share the larger of the arrows' and the rings' so either
+// mode fits (ADR-0205, 0274, 3d/draw_system.h). So do the camera marker's:
+// one marker per view's pass, one range and one draw, sized the same way
+// (0223, 3d/camera_marker.h), the sun marker's (0274, 3d/sun_marker.h) and
 // the collider's, one more of each (0253, 3d/collider_marker.h).
 #pragma once
 
@@ -82,6 +83,17 @@
 // screen of any density — and what is hit is what is drawn (gizmo.h).
 #define VOE_EDITOR_GIZMO_MILLIMETRES 12.0f
 
+// The gizmo's share of the transient pool: the arrows or the rings, whichever
+// is larger, so switching modes needs no other capacity.
+#define VOE_EDITOR_GIZMO_VERTICES                                   \
+	(VOE_3D_GIZMO_VERTICES > VOE_3D_GIZMO_RING_VERTICES          \
+		 ? VOE_3D_GIZMO_VERTICES                               \
+		 : VOE_3D_GIZMO_RING_VERTICES)
+#define VOE_EDITOR_GIZMO_INDICES                                    \
+	(VOE_3D_GIZMO_INDICES > VOE_3D_GIZMO_RING_INDICES            \
+		 ? VOE_3D_GIZMO_INDICES                                \
+		 : VOE_3D_GIZMO_RING_INDICES)
+
 // What the device is opened with; the reasoning is at the top of this file.
 #define VOE_EDITOR_CAPACITIES                                                 \
 	(voe_render_capacities)                                               \
@@ -89,7 +101,7 @@
 		.vertices = VOE_3D_SHAPES_VERTICES,                            \
 		.indices = VOE_3D_SHAPES_INDICES,                              \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 5) *                    \
+		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 6) *                    \
 			   VOE_EDITOR_VIEWS + VOE_GAME_WORLD_MAX_DRAWN +       \
 			   VOE_GAME_WORLD_MAX_DRAWN *                          \
 				   VOE_RENDER_SHADOW_CASCADES *                \
@@ -101,16 +113,18 @@
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
 		.targets = VOE_EDITOR_VIEWS + 1,                               \
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
-				       VOE_3D_GIZMO_VERTICES +                 \
+				       VOE_EDITOR_GIZMO_VERTICES +             \
 				       VOE_3D_CAMERA_MARKER_VERTICES +         \
+				       VOE_3D_SUN_MARKER_VERTICES +            \
 				       VOE_3D_COLLIDER_MARKER_VERTICES) *      \
 				      VOE_EDITOR_VIEWS,                        \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
-				      VOE_3D_GIZMO_INDICES +                   \
+				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
+				      VOE_3D_SUN_MARKER_INDICES +              \
 				      VOE_3D_COLLIDER_MARKER_INDICES) *        \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 5 * VOE_EDITOR_VIEWS                   \
+		.transient_geometries = 6 * VOE_EDITOR_VIEWS                   \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

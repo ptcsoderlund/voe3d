@@ -513,10 +513,15 @@ static void the_outline_is_drawn_through_what_hides_it(
 	VOE_TEST_CHECK(voe_scene_transform_add(world, eye, the_pose()));
 	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, the_lens()));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -0.6f, -0.8f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
-		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
-				   .colour = { 1.0f, 1.0f, 1.0f },
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f }));
 	far_cube = a_shape(world, VOE_3D_SHAPE_CUBE, 0.0f, 0.0f);
 	near_cube = a_shape(world, VOE_3D_SHAPE_CUBE, 2.0f, 0.0f);

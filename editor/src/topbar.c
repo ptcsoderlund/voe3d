@@ -48,8 +48,8 @@ static const char *unsaved_name(voe_base_arena *arena, const char *name)
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
-			   const char *ship, const char *name, bool unsaved,
-			   const char *notice)
+			   const char *ship, const char *gizmo,
+			   const char *name, bool unsaved, const char *notice)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing no top bar into no interface");
 	VOE_BASE_ASSERT(bar != NULL,
@@ -59,6 +59,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	VOE_BASE_ASSERT(refresh != NULL,
 			"drawing a top bar with no Refresh label");
 	VOE_BASE_ASSERT(ship != NULL, "drawing a top bar with no Ship label");
+	VOE_BASE_ASSERT(gizmo != NULL, "drawing a top bar with no gizmo mode");
 	VOE_BASE_ASSERT(name != NULL, "drawing a top bar with no name to show");
 	VOE_BASE_ASSERT(notice != NULL,
 			"drawing a top bar with no notice to show");
@@ -104,6 +105,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	voe_ui_label(ui, "Preferences");
 	voe_ui_end(ui);
 
+	voe_ui_label(ui, gizmo);
 	voe_ui_label(ui, unsaved ? unsaved_name(arena, name) : name);
 
 	if (notice[0] != '\0')

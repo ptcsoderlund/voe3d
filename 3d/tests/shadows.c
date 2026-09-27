@@ -4,9 +4,14 @@
 // ONE PICTURE, TWO FLOOR PIXELS. A camera at the origin looks along -Z; a
 // flattened cube lies a metre below as the floor, and a cube stands a metre
 // above the floor's middle five metres out, lit by a sun straight down. The
-// floor pixel straight under the cube is in its shadow, and with no ambient term
-// a shadowed surface is black; the floor pixel two metres to the side is lit.
+// floor pixel straight under the cube is in its shadow, and with no fill a
+// shadowed surface is black; the floor pixel two metres to the side is lit.
 // So the first reads darker than the second.
+//
+// A FILL LIFTS THE SHADOW AND NOTHING MORE (ADR-0275): with a white fill of 0.2
+// the pixel under the cube reads lighter than it did with none, and still
+// darker than the lit floor beside it; the lit floor reads as it did with none,
+// within the 100 km case's two levels.
 //
 // WHERE THE PIXELS ARE. At five metres, a vertical field of sixty degrees over
 // a square picture spans 2.89 m either way of the middle. The floor under the
@@ -87,9 +92,9 @@ static void add_a_shape(voe_ecs_world *world, double x, double y, double z,
 }
 
 // The camera, the floor and the cube, all `x` metres along X, and the sun
-// straight down when `lit`.
+// straight down when `lit`, with a white fill of `fill`.
 static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
-			      double x, bool lit)
+			      double x, bool lit, float fill)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -122,11 +127,18 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 				    .far_plane = 100.0f }));
 	if (lit) {
 		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+		VOE_TEST_CHECK(voe_scene_transform_add(
+			world, entity,
+			(voe_scene_transform){
+				.rotation = voe_scene_light_facing(
+					(voe_math_float3){ 0.0f, -1.0f, 0.0f }),
+				.scale = { 1.0f, 1.0f, 1.0f } }));
 		VOE_TEST_CHECK(voe_scene_light_add(
 			world, entity,
-			(voe_scene_light){ .direction = { 0.0f, -1.0f, 0.0f },
-					   .colour = { 1.0f, 1.0f, 1.0f },
-					   .intensity = 3.0f }));
+			(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+					   .intensity = 3.0f,
+					   .fill_colour = { 1.0f, 1.0f, 1.0f },
+					   .fill_intensity = fill }));
 	}
 	add_a_shape(world, x, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f });
 	add_a_shape(world, x, 1.0, -5.0, (voe_math_float3){ 1.0f, 1.0f, 1.0f });
@@ -188,7 +200,7 @@ static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 					       double x)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, x, true);
+	voe_ecs_world *world = a_world(arena, shapes, x, true, 0.0f);
 	uint32_t count = 0;
 	uint32_t added = 0;
 	floor_pixels pixels = a_frame(world, device, arena, &count, &added);
@@ -205,7 +217,7 @@ static void no_light_casts_nothing(voe_render_device *device,
 				   const voe_3d_shapes *shapes)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, 0.0, false);
+	voe_ecs_world *world = a_world(arena, shapes, 0.0, false, 0.0f);
 	uint32_t count = 1;
 	uint32_t added = 1;
 	floor_pixels pixels = a_frame(world, device, arena, &count, &added);
@@ -213,6 +225,25 @@ static void no_light_casts_nothing(voe_render_device *device,
 	VOE_TEST_CHECK_INT(count, 0);
 	VOE_TEST_CHECK_INT(added, 0);
 	VOE_TEST_CHECK_INT(pixels.under, pixels.beside);
+	voe_base_arena_destroy(arena);
+}
+
+// A white fill of 0.2 lifts the floor under the cube above `unfilled`'s and
+// leaves it darker than the lit floor beside it; that lit floor reads as
+// `unfilled`'s, since the fill fades out where the sun reaches (ADR-0276).
+static void a_fill_lifts_the_shadow(voe_render_device *device,
+				    const voe_3d_shapes *shapes,
+				    floor_pixels unfilled)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_ecs_world *world = a_world(arena, shapes, 0.0, true, 0.2f);
+	uint32_t count = 0;
+	uint32_t added = 0;
+	floor_pixels pixels = a_frame(world, device, arena, &count, &added);
+
+	VOE_TEST_CHECK(pixels.under > unfilled.under);
+	VOE_TEST_CHECK(pixels.under < pixels.beside);
+	VOE_TEST_CHECK(abs((int)pixels.beside - (int)unfilled.beside) <= 2);
 	voe_base_arena_destroy(arena);
 }
 
@@ -240,6 +271,7 @@ int main(void)
 
 	near = the_cube_shadows_the_floor(device, &shapes, 0.0);
 	no_light_casts_nothing(device, &shapes);
+	a_fill_lifts_the_shadow(device, &shapes, near);
 	far = the_cube_shadows_the_floor(device, &shapes, FAR_OUT);
 	VOE_TEST_CHECK(abs((int)far.under - (int)near.under) <= 2);
 	VOE_TEST_CHECK(abs((int)far.beside - (int)near.beside) <= 2);

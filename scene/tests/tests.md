@@ -13,7 +13,6 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `camera.c` — what registration tells a tool, that the view of a pose is its
   inverse with roll kept and none when scaled to nothing, and that a whole-lens
   intent applies a good lens and keeps the row over a bad one.
-- `light.c` — that a direction arrives unit length whichever of the two writes
-  it came through, that an intent lands only when the system runs, and that the
-  field list a world hands back is the one the compiler laid out. Its header
-  says why the normalization is the claim worth a test.
+- `light.c` — what registration tells a tool, that an intent lands only when
+  the system runs and a refused one keeps the row, and that a rotation and the
+  direction it shines convert both ways, +Z included.

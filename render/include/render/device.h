@@ -422,8 +422,15 @@ typedef struct {
 // `colour` IS LINEAR AND `intensity` HAS NO UNIT. A colour of (1, 1, 1) tints
 // nothing; the intensity is a multiplier that is whatever looks right, because
 // there is no exposure and no tone mapping in this engine yet. A light of no
-// intensity leaves every surface black, which is what a frame given a zeroed one
-// looks like.
+// intensity leaves every surface black but for its fill, which is what a frame
+// given a zeroed one looks like.
+//
+// `fill` IS THE ONE LIGHT THAT IS NOT THE SUN (ADR-0273). Linear, the colour
+// already multiplied by its strength, and added as `fill × base colour` only
+// where the sun does not reach, fading out as it does (ADR-0275, ADR-0276), not
+// to every lit surface: a side facing away from the sun or in its shadow reads
+// the fill and not black, a sunlit one the sun alone. Zero is no fill, and a
+// zeroed record draws as before it existed. An `unshaded` pass reads none.
 //
 // ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
 // sun: a direction, a colour and a strength, the same for every draw in the
@@ -440,8 +447,8 @@ typedef struct {
 // target is what makes it possible.
 //
 // `unshaded` NON-ZERO MEANS THIS PASS HAS NO SUN. Every surface then draws its
-// own base colour, as an unlit material does, and direction, intensity and
-// colour are not read. The owner of the scene's light, `3d`, sets it when a
+// own base colour, as an unlit material does, and direction, intensity, colour
+// and fill are not read. The owner of the scene's light, `3d`, sets it when a
 // scene has none (ADR-0238). Zero keeps shading, so a zeroed light is still the
 // black one above. It is the four bytes that used to be padding.
 typedef struct {
@@ -449,6 +456,8 @@ typedef struct {
 	float intensity;
 	voe_math_float3 colour;
 	uint32_t unshaded;
+	voe_math_float3 fill;
+	float reserved;
 } voe_render_light;
 
 // Where the sun's shadow maps are, for one pass that reads them (ADR-0258).

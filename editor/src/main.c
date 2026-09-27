@@ -676,6 +676,8 @@ int main(int argc, char *argv[])
 				voe_editor_scene_delete(&scene);
 			if (scene.structural == 0 && shortcuts.duplicate)
 				voe_editor_scene_duplicate(&scene);
+			if (shortcuts.gizmo_switch)
+				voe_editor_scene_gizmo_switch(&scene);
 			if (scene.full)
 				voe_editor_notice_set(&session.notice,
 						      "The scene is full.");

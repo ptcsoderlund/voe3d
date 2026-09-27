@@ -51,19 +51,20 @@
 //
 // ---- THE LIGHTING, AND EVERY DECISION IN IT ----
 //
-// ONE DIRECTIONAL LIGHT, NO AMBIENT, NO IMAGE-BASED ANYTHING. The sun arrives
-// with the camera, once a frame, and every surface is lit from the same
-// direction with the same strength. Nothing lights the side facing away, so a
-// surface pointing away from the sun is black — which is what a scene with one
-// light and no bounce looks like, and not a bug to patch with a fudge factor.
+// ONE DIRECTIONAL LIGHT AND A FILL FOR ITS SHADE, NO IMAGE-BASED ANYTHING. The
+// sun arrives with the camera, once a frame, and every surface is lit from the
+// same direction with the same strength. The fill is the one term that is not
+// the sun (ADR-0273) and it lifts only the shade (ADR-0275): `fill × base
+// colour`, whole where the sun does not reach, fading out as N·L × shadow
+// rises and gone from a reach of 0.3 (ADR-0276) — black when it is zero.
 //
 // THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
 // `count` above nought, a lit surface picks the first cascade whose split is past
 // its view distance, pushes its position one texel along its normal so it does
 // not shadow itself, projects it into that cascade and averages a 3×3 of
 // comparison lookups; past the last split it is fully lit. The sun's direct
-// term is multiplied by the result. With no ambient, a shadowed surface is as
-// dark as one facing away — one sun and no bounce, as above.
+// term is multiplied by the result, and so is the sun's reach that turns the
+// fill away, so a shadowed surface still reads its fill and nothing more.
 //
 // METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
 // base colour, the metalness, the roughness and the occlusion come out of the
@@ -198,6 +199,9 @@ struct voe_render_light {
 	float3 colour;
 	// Non-zero: this pass has no sun, and every surface takes the unlit exit.
 	uint unshaded;
+	// Linear, colour times strength: added to every lit surface, unshadowed.
+	float3 fill;
+	float reserved;
 };
 
 // Where the sun's cascades are: voe_render_shadow in render/device.h. The C
@@ -388,6 +392,11 @@ static const float VOE_DIELECTRIC_REFLECTANCE = 0.04;
 // it. A grazing angle sends the visibility term's denominator to zero and one
 // NaN fragment is a black or white speck that moves with the camera.
 static const float VOE_LEAST = 1e-7;
+
+// The sun's reach, N·L times its shadow, at which the fill is gone (ADR-0276).
+// Below it the fill fades in along a smoothstep, so neither a shadow's soft
+// edge nor the terminator shows a seam; above it a surface is the sun's alone.
+static const float VOE_FILL_FADE_REACH = 0.3;
 
 // Schlick's approximation: how much more a surface reflects at a grazing angle
 // than head-on. The fifth power is the approximation and not a tunable.
@@ -634,9 +643,12 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// the light did not have.
 	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
 
-	float3 radiance = sun.colour * sun.intensity * n_dot_l *
-			  voe_render_sunlight(vertex.world, n);
-	float3 lit = (diffuse + specular) * radiance * occlusion;
+	float reach = n_dot_l * voe_render_sunlight(vertex.world, n);
+	float3 radiance = sun.colour * sun.intensity * reach;
+	// The fill, only where the sun does not reach: see the header.
+	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+	float3 lit = (diffuse + specular) * radiance * occlusion +
+		     fill_weight * sun.fill * base.rgb;
 
 	return voe_render_premultiplied(lit, coverage);
 }

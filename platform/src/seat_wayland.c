@@ -101,6 +101,8 @@ static voe_platform_key key_of(uint32_t scancode)
 		return VOE_PLATFORM_KEY_Z;
 	case KEY_Y:
 		return VOE_PLATFORM_KEY_Y;
+	case KEY_R:
+		return VOE_PLATFORM_KEY_R;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}

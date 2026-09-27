@@ -1,9 +1,11 @@
-// What the primary button does to the selected entity's move gizmo: which handle
-// the pointer is over, a press on one grabbing it, and a drag submitting the
-// entity's new position until the release. The gizmo, what a ray meets and where
-// it grabs are `3d`'s (3d/gizmo.h, ADR-0205); what is here is the pointer, the
-// button and the entity. It is asked before pick.h each frame, so a press this
-// file takes is one picking never sees (voe_editor_gizmo_taking).
+// What the primary button does to the selected entity's gizmo, arrows that move
+// it or, while scene.h's `rings` is set, rings that turn it: which handle the
+// pointer is over, a press on one grabbing it, and a drag submitting the
+// entity's new position or rotation until the release. The gizmo, what a ray
+// meets and where it grabs are `3d`'s (3d/gizmo.h, 3d/gizmo_rings.h, ADR-0205,
+// ADR-0274); what is here is the pointer, the button and the entity. It is asked
+// before pick.h each frame, so a press this file takes is one picking never sees
+// (voe_editor_gizmo_taking). A switch of mode while a handle is held ends the drag.
 //
 // THE MIDDLE BUTTON IS NEVER READ IN HERE, for pick.h's reason. The middle
 // button is the views' camera and the left is the interface's, and turning the
@@ -16,31 +18,33 @@
 // started over one of them grabs nothing when the pointer reaches a handle.
 //
 // THE DRAG IS MEASURED FROM THE PRESS AND NOT FROM WHERE THE ENTITY HAS GOT TO.
-// Each frame the ray is met against the handle taken through `start`, and the
-// entity is put at `start` plus how far that point has travelled from `grab`.
-// Measured from the moving position, each frame would add a small error to the
-// last and the entity would creep away from under the pointer; measured from
-// the press, the same pointer is always the same position, and a submitted
-// position that has not been drained yet changes nothing. Both points and the
-// sum are double, world positions (ADR-0250), so a drag 100 km out keeps its mm.
+// Each frame the ray is met against the handle taken through `start`. A move
+// puts the entity at `start` plus how far that point has travelled from `grab`;
+// a turn gives it `kept`, the rotation at the press, turned about the ring's
+// world axis by the angle now less `grab_angle`. Measured from where it has got
+// to, each frame would add a small error to the last and the entity would creep
+// away from under the pointer; measured from the press, the same pointer is
+// always the same pose, and a submission not yet drained changes nothing. The
+// points are double, world positions (ADR-0250), so 100 km out keeps its mm.
 //
 // THE AXES ARE THE WORLD'S. A gizmo that turns with its entity is a later toggle
 // (`feature.md`); it changes the three directions 3d/gizmo.h hands out and
 // nothing here.
 //
 // A WHOLE TRANSFORM IS SUBMITTED, NOT A DELTA, AND IT LANDS A FRAME LATER. The
-// row is read as it is, its position replaced, and the result submitted to the
-// transform system, which is the one writer of that table (rule 3, rule 4,
-// scene/transform_system.h). Rotation and scale go back as they were read, and
-// two submitters in one frame resolve as last-writer-wins.
+// row is read as it is, its position or rotation replaced, and the result
+// submitted to the transform system, which is the one writer of that table
+// (rule 3, rule 4, scene/transform_system.h). The rest goes back as it was read,
+// and two submitters in one frame resolve as last-writer-wins.
 //
 // A ZEROED STRUCT HOLDS NOTHING. VOE_3D_GIZMO_NONE is nought, so a zeroed
 // gizmo has no handle held and none hovered, and `captured` is read only while
 // something is held, so its nought names no view.
 //
-// `moved` IS WHAT TELLS THE CALLER AN EDIT REACHED THE PROJECT: the moves
-// submitted in the last read, each one a position that actually changed. A drag
-// held still submits nothing and counts nothing.
+// `moved` IS WHAT TELLS THE CALLER AN EDIT REACHED THE PROJECT: the moves and
+// turns submitted in the last read, each a position or rotation that actually
+// changed, so a turn marks unsaved and settles into one undo step (ADR-0204). A
+// drag held still, or a refused angle, submits nothing and counts nothing.
 #pragma once
 
 #include "scene.h"
@@ -50,6 +54,7 @@
 
 #include <math/double3.h>
 #include <math/float2.h>
+#include <math/quat.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -63,7 +68,10 @@ typedef struct {
 	uint32_t hovered_view;
 	voe_math_double3 grab; // where on the handle the press landed
 	voe_math_double3 start; // the entity's position then
-	uint32_t moved; // moves submitted this frame; zeroed every read
+	bool turning; // the held handle is a ring; read only while held
+	float grab_angle; // where about the ring's axis the press landed
+	voe_math_quat kept; // the entity's rotation then
+	uint32_t moved; // moves and turns submitted this frame; zeroed every read
 } voe_editor_gizmo;
 
 // This frame's pointer and primary button, once a frame at pick.h's place and

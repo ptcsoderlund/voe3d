@@ -393,10 +393,12 @@ int main(void)
 			else
 				flight = voe_dev_orbit(seconds);
 
-			// The sun, as an intent like everything else.
-			(void)voe_scene_light_submit(
+			// The sun, turned by its transform like everything else.
+			(void)voe_scene_transform_submit(
 				program.world,
-				voe_dev_sunlight(program.sun, seconds));
+				(voe_scene_transform_intent){
+					.entity = program.sun,
+					.transform = voe_dev_sun_pose(seconds) });
 
 			// The turning cube, as an intent like everything else.
 			//

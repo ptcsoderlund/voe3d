@@ -3,7 +3,8 @@
 // straight after the keyboard and acts on the flags it gets back.
 //
 // WHICH KEY EDGE MEANS WHICH COMMAND IS ONE ANSWER GIVEN ONCE. Ctrl+N is New,
-// Delete is Delete, Ctrl+Shift+Z and Ctrl+Y are both Redo, and each is decided
+// Delete is Delete, R switches the gizmo between moving and turning,
+// Ctrl+Shift+Z and Ctrl+Y are both Redo, and each is decided
 // here and nowhere else, so no two callers can disagree about what a person
 // pressed. keys.h answers whether a key went down; this file answers what that
 // edge was for.
@@ -51,6 +52,8 @@ typedef struct {
 typedef struct {
 	bool new_project, open, save;
 	bool delete_entity, duplicate;
+	// R alone: the gizmo's arrows become rings or back (scene.h).
+	bool gizmo_switch;
 	bool undo, redo;
 	// No drag, no fly, no typing, no browser, no picker, no open list.
 	bool at_rest;

@@ -31,7 +31,8 @@
 // of its own, sized for the built-in shapes.
 //
 // ONE NEEDS NO CARD: a camera whose transform is scaled to nothing frames
-// `blind` (0223). And a marked camera is one draw more, a zeroed marker none.
+// `blind` (0223). And a marked camera or sun is one draw more, a zeroed marker
+// none (0274).
 // Nor does the lag (0254): a camera moved 1 m frames its eye halfway at 0.5.
 //
 // AND ONE MORE READS IT FOR THE GIZMO (ADR-0205): a dark cube with a gizmo
@@ -42,7 +43,8 @@
 // the gizmo stands inside is in front of the arrow and the pixel stays the
 // cube's. The colour is linear (1, 0, 1), which an sRGB target hands back as
 // exactly (255, 0, 255) — nought and one are the two values the curve leaves
-// alone — and no lit pixel of a dark cube can be that.
+// alone — and no lit pixel of a dark cube can be that. The rings (0274) are read
+// the same way, at a pixel of the ring about Z inside a cube that fills the view.
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, for the reason
 // 3d/tests/import.c gives at length: a box with no Vulkan is the box and not
@@ -151,12 +153,17 @@ static void add_the_sun(voe_ecs_world *world)
 {
 	voe_ecs_entity sun = { 0 };
 	voe_scene_light light = {
-		.direction = { 0.0f, -1.0f, 0.0f },
 		.colour = { 1.0f, 1.0f, 1.0f },
 		.intensity = 1.0f,
 	};
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -1.0f, 0.0f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, light));
 }
 
@@ -474,10 +481,15 @@ static void a_shaped_cube_draws_in_its_colour(void)
 	voe_3d_shape_register(world, 2);
 	add_a_camera(world);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -0.6f, -0.8f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
-		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
-				   .colour = { 1.0f, 1.0f, 1.0f },
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f }));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(3.0f)));
@@ -593,6 +605,49 @@ static bool the_arrow_covers_the_stretch(voe_render_picture picture)
 	return true;
 }
 
+// WHICH PIXEL OF THE RING ABOUT Z IS READ. That ring faces the eye at the
+// gizmo's depth, one shaft — GIZMO_PIXELS — about the middle, so the pixel
+// (43.5, 41.5) from the middle to its centre is on it: mid-segment, clear of
+// the joint at 45 degrees where two segments' quads leave a pixel uncovered.
+// The other two rings are seen edge on along the middle row and column.
+#define RING_X (GIZMO_SIDE / 2 + 43)
+#define RING_Y (GIZMO_SIDE / 2 - 42)
+
+// The rings (0274) show through too: `gizmo` with `rings` set, standing in a
+// cube scaled to fill the picture whose near face is a metre and a half in
+// front of the ring about Z. A pixel of that ring is the gizmo's colour, and
+// without the gizmo it is the cube's — neither the gizmo's nor `background`.
+static void the_rings_show_through(voe_ecs_world *world,
+				   voe_render_device *device,
+				   voe_base_arena *arena, voe_3d_shapes *shapes,
+				   voe_3d_gizmoed gizmo,
+				   const uint8_t *background)
+{
+	voe_scene_transform filling = at_depth(3.0f);
+	voe_ecs_entity big = { 0 };
+	const uint8_t *cube_pixel;
+
+	filling.scale = (voe_math_float3){ 3.0f, 3.0f, 3.0f };
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &big));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, big, filling));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, big,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = { 0.02f, 0.02f, 0.15f } }));
+	voe_3d_shape_system_run(world, shapes);
+
+	gizmo.rings = true;
+	VOE_TEST_CHECK(is_the_gizmos_colour(pixel_at(
+		a_gizmo_frame(world, device, arena, gizmo), RING_X, RING_Y)));
+	cube_pixel = pixel_at(a_gizmo_frame(world, device, arena,
+					    (voe_3d_gizmoed){ 0 }),
+			      RING_X, RING_Y);
+	VOE_TEST_CHECK(!is_the_gizmos_colour(cube_pixel));
+	VOE_TEST_CHECK(cube_pixel[0] != background[0] ||
+		       cube_pixel[1] != background[1] ||
+		       cube_pixel[2] != background[2]);
+}
+
 // A gizmo stands in the middle of the cube it moves, and it is drawn after
 // everything else behind a clear of its own — so a pixel of an arrow that is
 // inside the cube is the gizmo's colour and not the cube's (ADR-0205).
@@ -601,18 +656,23 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
 	voe_base_error error = VOE_BASE_OK;
-	// The shapes' own pools, one object for the cube and one for each of
-	// the gizmo's two draws, and one gizmo's worth of this frame's geometry
-	// twice over — what a program that draws one pays for
-	// (3d/draw_system.h).
+	// The shapes' own pools, one object for each of the two cubes and one
+	// for each of the gizmo's two draws, and the larger of the two gizmos'
+	// geometry — what a program that draws one pays for (3d/draw_system.h).
 	voe_render_capacities capacities = {
 		.vertices = VOE_3D_SHAPES_VERTICES,
 		.indices = VOE_3D_SHAPES_INDICES,
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,
-		.objects = 3,
+		.objects = 4,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
-		.transient_vertices = VOE_3D_GIZMO_VERTICES,
-		.transient_indices = VOE_3D_GIZMO_INDICES,
+		.transient_vertices =
+			VOE_3D_GIZMO_VERTICES > VOE_3D_GIZMO_RING_VERTICES ?
+				VOE_3D_GIZMO_VERTICES :
+				VOE_3D_GIZMO_RING_VERTICES,
+		.transient_indices =
+			VOE_3D_GIZMO_INDICES > VOE_3D_GIZMO_RING_INDICES ?
+				VOE_3D_GIZMO_INDICES :
+				VOE_3D_GIZMO_RING_INDICES,
 		.transient_geometries = 2,
 		.passes = 1,
 	};
@@ -640,10 +700,15 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	// Lit from above and in front, so the face of the cube turned towards
 	// the camera has a colour of its own to be told from the background by.
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -0.6f, -0.8f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
-		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
-				   .colour = { 1.0f, 1.0f, 1.0f },
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 1.0f }));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(3.0f)));
@@ -685,6 +750,9 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	VOE_TEST_CHECK(cube_pixel[0] != background[0] ||
 		       cube_pixel[1] != background[1] ||
 		       cube_pixel[2] != background[2]);
+
+	the_rings_show_through(world, device, arena, &shapes, gizmo,
+			       background);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
@@ -757,12 +825,13 @@ static void the_eye_is_a_lag_behind_the_last_step(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT(frame.lag, 0.0f, 0.0f);
 }
 
-// How many commands one frame of `world`, framed as `frame` with `marker` set
-// on it, comes to.
+// How many commands one frame of `world`, framed as `frame` with `marker` and
+// `sun` set on it, comes to.
 static uint32_t draws_with_a_marker(voe_ecs_world *world,
 				    voe_render_device *device,
 				    voe_base_arena *arena, voe_3d_frame frame,
-				    voe_3d_camera_marked marker)
+				    voe_3d_camera_marked marker,
+				    voe_3d_sun_marked sun)
 {
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
 	voe_render_pass_camera camera = { .view = frame.view,
@@ -771,7 +840,9 @@ static uint32_t draws_with_a_marker(voe_ecs_world *world,
 	uint32_t drawn = 0;
 
 	VOE_TEST_CHECK_INT(frame.marker.entity.generation, 0);
+	VOE_TEST_CHECK_INT(frame.sun.entity.generation, 0);
 	frame.marker = marker;
+	frame.sun = sun;
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (drawing) {
@@ -785,25 +856,26 @@ static uint32_t draws_with_a_marker(voe_ecs_world *world,
 	return drawn;
 }
 
-// A marker on a live camera is one more draw than none, and a marker on a
-// zeroed entity is the same as none (0223). The marked camera is a second one,
-// added after framing, because framing wants exactly one and _run reads no
-// camera table.
+// A marker on a live camera, or on a live sun, is one more draw than none, and
+// a marker on a zeroed entity is the same as none (0223, 0274). The marked
+// camera and sun are second ones, added after framing, because framing wants
+// exactly one camera and at most one light, and _run reads neither table.
 static void a_marked_camera_is_one_more_draw(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
 	voe_base_error error = VOE_BASE_OK;
 	// The shapes' pools, one object for the cube and one for the marker,
-	// and one marker's worth of this frame's geometry (3d/draw_system.h).
+	// and one marker's worth of this frame's geometry (3d/draw_system.h) —
+	// the sun's, which is the larger of the two.
 	voe_render_capacities capacities = {
 		.vertices = VOE_3D_SHAPES_VERTICES,
 		.indices = VOE_3D_SHAPES_INDICES,
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,
 		.objects = 2,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
-		.transient_vertices = VOE_3D_CAMERA_MARKER_VERTICES,
-		.transient_indices = VOE_3D_CAMERA_MARKER_INDICES,
+		.transient_vertices = VOE_3D_SUN_MARKER_VERTICES,
+		.transient_indices = VOE_3D_SUN_MARKER_INDICES,
 		.transient_geometries = 1,
 		.passes = 1,
 	};
@@ -813,8 +885,12 @@ static void a_marked_camera_is_one_more_draw(void)
 	voe_ecs_world *world;
 	voe_ecs_entity cube = { 0 };
 	voe_ecs_entity marked = { 0 };
+	voe_ecs_entity shining = { 0 };
 	voe_3d_frame frame;
 	voe_3d_camera_marked marker;
+	voe_3d_sun_marked sun;
+	const voe_3d_camera_marked no_marker = { 0 };
+	const voe_3d_sun_marked no_sun = { 0 };
 	uint32_t without;
 
 	if (device == NULL) {
@@ -851,16 +927,34 @@ static void a_marked_camera_is_one_more_draw(void)
 		.pixels = 2.0f,
 		.size = size,
 	};
-	without = draws_with_a_marker(world, device, arena, frame,
-				      (voe_3d_camera_marked){ 0 });
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &shining));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, shining, at_depth(3.0f)));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, shining,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 1.0f }));
+	sun = (voe_3d_sun_marked){
+		.entity = shining,
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+
+	without = draws_with_a_marker(world, device, arena, frame, no_marker,
+				      no_sun);
 	VOE_TEST_CHECK_INT(without, 1);
-	VOE_TEST_CHECK_INT(
-		draws_with_a_marker(world, device, arena, frame, marker),
-		without + 1);
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       marker, no_sun),
+			   without + 1);
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       no_marker, sun),
+			   without + 1);
 	marker.entity = (voe_ecs_entity){ 0 };
-	VOE_TEST_CHECK_INT(
-		draws_with_a_marker(world, device, arena, frame, marker),
-		without);
+	sun.entity = (voe_ecs_entity){ 0 };
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       marker, sun),
+			   without);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);

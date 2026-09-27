@@ -1,6 +1,6 @@
 // How the eye and the sun move each frame: the keys flying reads, where the
-// orbit is at a given second, the pose a flight is seen from, and where the sun
-// is pointing at one. Pure functions of the loop's clock and the keyboard, each
+// orbit is at a given second, the pose a flight is seen from, and the sun's pose
+// at one. Pure functions of the loop's clock and the keyboard, each
 // returning what main.c keeps or submits.
 //
 // ITS OWN FILE BECAUSE IT IS THE SCENE'S MOTION AND NOT AN EXHIBIT. Nothing
@@ -16,11 +16,9 @@
 // says why the handover is seamless.
 #pragma once
 
-#include <ecs/world.h>
 #include <math/double3.h>
 #include <math/float3.h>
 #include <platform/window.h>
-#include <scene/light_system.h>
 #include <scene/transform_component.h>
 
 // Where the eye is and the two angles it looks along. Zero yaw and pitch look
@@ -45,5 +43,6 @@ voe_dev_flight voe_dev_orbit(float seconds);
 // the pitch about the turned X, no roll, scale one (0223).
 voe_scene_transform voe_dev_flight_pose(voe_dev_flight flight);
 
-// Where the sun is pointing at this many seconds in, as a light intent.
-voe_scene_light_intent voe_dev_sunlight(voe_ecs_entity sun, float seconds);
+// The sun's pose at this many seconds in: turned to shine along its lap's
+// direction (0273), standing above the origin, scale one.
+voe_scene_transform voe_dev_sun_pose(float seconds);

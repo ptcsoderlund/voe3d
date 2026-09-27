@@ -56,9 +56,12 @@ scale = [1, 1, 1]
 [4]
 name = "Sun"
 [4.voe_scene_light]
-direction = [-0.33333334, -0.6666667, -0.6666667]
 colour = [1, 1, 1]
 intensity = 1
+[4.voe_scene_transform]
+position = [0, 8, 0]
+rotation = [-0.36514837, 0.18257419, 0, 0.91287094]
+scale = [1, 1, 1]
 
 [5]
 name = "Floor Past The Gap"

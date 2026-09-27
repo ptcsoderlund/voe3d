@@ -43,6 +43,7 @@
 #include <math/quat.h>
 
 #include <scene/camera_component.h>
+#include <scene/light_component.h>
 
 #include <ui/colour.h>
 #include <ui/widgets.h>
@@ -647,13 +648,18 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 					.gap = CONTENT_GAP });
 
 	// No Duplicate and no Delete for the camera's entity: the scene's one
-	// camera is neither copied nor deleted (ADR-0218).
+	// camera is neither copied nor deleted (ADR-0218). No Duplicate for a
+	// light's either, as a copy would be a second sun (ADR-0273); it can
+	// still be deleted.
 	if (voe_scene_camera_get(world, selected) == NULL) {
 		voe_ui_row_begin(ui,
 				 (voe_ui_container){ .gap = COMPONENT_GAP });
-		inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
-		voe_ui_label(ui, "Duplicate");
-		voe_ui_end(ui);
+		if (voe_scene_light_get(world, selected) == NULL) {
+			inspector->duplicate =
+				voe_ui_button_begin(ui, "duplicate", 0);
+			voe_ui_label(ui, "Duplicate");
+			voe_ui_end(ui);
+		}
 		inspector->remove = voe_ui_button_begin(ui, "delete", 0);
 		voe_ui_label(ui, "Delete");
 		voe_ui_end(ui);

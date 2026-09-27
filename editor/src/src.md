@@ -22,7 +22,7 @@ carries it out.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
   once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
   with acting on one left to the caller.
-- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete and Ctrl+D, the rest
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the rest
   a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
@@ -91,7 +91,7 @@ carries it out.
   build at a time, a built library loaded and swapped in once a frame, and what a browser action
   does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
-  Preferences, the project's name and whether it is unsaved, then the session's notice, at least as
+  Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's notice, at least as
   tall as its content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its seven buttons, Play, Refresh and Ship among them, afterwards.
@@ -165,24 +165,25 @@ carries it out.
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world, the
-  selection's outline, its collider, its gizmo and the camera's marker, and the device capacities those passes need.
+  selection's outline, its collider, its gizmo and the camera's and sun's markers, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
-  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera marked, and
+  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera and sun marked, and
   ended, stopping at the first refused pass.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
-  drew, and what the colour picker and the open dropdown are open on.
-- `scene.c` — the selection, Delete and Duplicate (both refuse the camera), opening and closing the
-  colour picker and the dropdown, the open list moved to where the Inspector measured it, and the one
-  question asked of the Scene panel's rows after the frame has ended.
+  drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
+- `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
+  gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
+  measured them, and the Scene panel's rows asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a
   click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
-- `gizmo.h` — what the primary button does to the selected entity's move gizmo: the handle under
-  the pointer, a press that grabs one, and the drag that submits the entity's new position.
-- `gizmo.c` — the hover, the grab and the drag, each against a gizmo built from the view's own
-  camera, measured from the press position and submitted as a whole transform.
+- `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
+  handle under the pointer, a press that grabs one, and the drag that submits its new position or
+  rotation.
+- `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
+  own camera, measured from the press and submitted as a whole transform.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
   settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
   a neighbouring one back into the project's world (ADR-0204).
