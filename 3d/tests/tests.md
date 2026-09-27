@@ -62,3 +62,5 @@ again, or to find where a claim that has started failing is written down.
 - `shape.c` — the shape table's description, default row, intents and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
+- `model_component.c` — the model's one CHAR field `path` of 128, a submitted path read back after a
+  run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
