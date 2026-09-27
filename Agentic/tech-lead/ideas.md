@@ -103,3 +103,6 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   Answered 2026-09-26: editor-only folders, definitely, and a folder can hold folders to any
   depth. Still open: whether selecting a folder selects what is in it (move the whole group
   with the gizmo).
+- Split a multi-object `.glb` into a tree of things on import (a body with a head child), so moving
+  parts need not be exported one file each. Set aside for 0.2 by 0280; worth it once parenting (037)
+  exists and exporting parts one by one becomes a chore.
