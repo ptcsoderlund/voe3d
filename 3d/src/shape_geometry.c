@@ -1,7 +1,8 @@
 // The three built-in shapes on the CPU: the cube pointed straight at, the
 // capsule and the cylinder built into the caller's arena, and the edges of all
-// three found by welding their vertices by position and walking their triangles.
-// Nothing here opens a device (3d/shape_geometry.h).
+// three found by welding their vertices by position and walking their triangles —
+// the one build any triangles go through, a model's too. Nothing here opens a
+// device (3d/shape_geometry.h).
 //
 // THE EDGES ARE FOUND IN AN OPEN-ADDRESSED TABLE keyed by an edge's two welded
 // vertex numbers, smaller first, and sized at the next power of two above three
@@ -164,15 +165,30 @@ static uint32_t walk_edges(voe_base_arena *arena,
 	return count;
 }
 
-static void build_edges(voe_base_arena *arena, voe_3d_shape_geometry *geometry)
+void voe_3d_shape_geometry_build(voe_base_arena *arena,
+				 const voe_render_vertex *vertices,
+				 uint32_t vertex_count, const uint32_t *indices,
+				 uint32_t index_count,
+				 voe_3d_shape_geometry *out)
 {
-	const uint32_t count = walk_edges(arena, geometry, NULL);
-	voe_3d_shape_edge *edges =
-		voe_base_arena_push(arena, sizeof *edges * count);
+	uint32_t count;
+	voe_3d_shape_edge *edges;
 
-	walk_edges(arena, geometry, edges);
-	geometry->edges = edges;
-	geometry->edge_count = count;
+	VOE_BASE_ASSERT(arena != NULL, "building edges with no arena");
+	VOE_BASE_ASSERT(out != NULL, "building edges into nothing");
+	VOE_BASE_ASSERT(index_count % 3 == 0, "edges of a partial triangle");
+
+	*out = (voe_3d_shape_geometry){
+		.vertices = vertices,
+		.vertex_count = vertex_count,
+		.indices = indices,
+		.index_count = index_count,
+	};
+	count = walk_edges(arena, out, NULL);
+	edges = voe_base_arena_push(arena, sizeof *edges * count);
+	walk_edges(arena, out, edges);
+	out->edges = edges;
+	out->edge_count = count;
 }
 
 void voe_3d_shape_geometries_create(voe_base_arena *arena,
@@ -189,39 +205,31 @@ void voe_3d_shape_geometries_create(voe_base_arena *arena,
 	*out = (voe_3d_shape_geometries){ 0 };
 
 	// The cube is data already (src/cube.h); nothing is copied for it.
-	out->kinds[VOE_3D_SHAPE_CUBE] = (voe_3d_shape_geometry){
-		.vertices = voe_3d_cube_vertices,
-		.vertex_count = VOE_3D_CUBE_VERTICES,
-		.indices = voe_3d_cube_indices,
-		.index_count = VOE_3D_CUBE_INDICES,
-	};
+	voe_3d_shape_geometry_build(arena, voe_3d_cube_vertices,
+				    VOE_3D_CUBE_VERTICES, voe_3d_cube_indices,
+				    VOE_3D_CUBE_INDICES,
+				    &out->kinds[VOE_3D_SHAPE_CUBE]);
 
 	capsule_vertices = voe_base_arena_push(
 		arena, sizeof *capsule_vertices * VOE_3D_CAPSULE_VERTICES);
 	capsule_indices = voe_base_arena_push(
 		arena, sizeof *capsule_indices * VOE_3D_CAPSULE_INDICES);
 	voe_3d_capsule_build(capsule_vertices, capsule_indices);
-	out->kinds[VOE_3D_SHAPE_CAPSULE] = (voe_3d_shape_geometry){
-		.vertices = capsule_vertices,
-		.vertex_count = VOE_3D_CAPSULE_VERTICES,
-		.indices = capsule_indices,
-		.index_count = VOE_3D_CAPSULE_INDICES,
-	};
+	voe_3d_shape_geometry_build(arena, capsule_vertices,
+				    VOE_3D_CAPSULE_VERTICES, capsule_indices,
+				    VOE_3D_CAPSULE_INDICES,
+				    &out->kinds[VOE_3D_SHAPE_CAPSULE]);
 
 	cylinder_vertices = voe_base_arena_push(
 		arena, sizeof *cylinder_vertices * VOE_3D_CYLINDER_VERTICES);
 	cylinder_indices = voe_base_arena_push(
 		arena, sizeof *cylinder_indices * VOE_3D_CYLINDER_INDICES);
 	voe_3d_cylinder_build(cylinder_vertices, cylinder_indices);
-	out->kinds[VOE_3D_SHAPE_CYLINDER] = (voe_3d_shape_geometry){
-		.vertices = cylinder_vertices,
-		.vertex_count = VOE_3D_CYLINDER_VERTICES,
-		.indices = cylinder_indices,
-		.index_count = VOE_3D_CYLINDER_INDICES,
-	};
-
-	for (uint32_t kind = 1; kind < KIND_COUNT; kind++)
-		build_edges(arena, &out->kinds[kind]);
+	voe_3d_shape_geometry_build(arena, cylinder_vertices,
+				    VOE_3D_CYLINDER_VERTICES, cylinder_indices,
+				    VOE_3D_CYLINDER_INDICES,
+				    &out->kinds[VOE_3D_SHAPE_CYLINDER]);
+	VOE_BASE_ASSERT(KIND_COUNT == 4, "a kind this build does not build");
 }
 
 const voe_3d_shape_geometry *

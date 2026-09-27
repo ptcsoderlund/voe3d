@@ -22,8 +22,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
   repoints a changed kind and drops both once the shape is gone.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
-  capsule and the cylinder built into an arena, and each surface's edges found by
-  welding its vertices by position and walking its triangles twice.
+  capsule and the cylinder built into an arena, and the build any triangles go
+  through, whose edges are found by welding by position and walking twice.
 - `cube.h` — the built-in cube's vertices and indices as the files that use them
   see them, internal to this folder.
 - `cube.c` — those twenty-four vertices and thirty-six indices written out by
@@ -69,5 +69,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
 - `draw_marks.c` — the camera and sun markers, the outline, a collider's lines and the gizmo's
   arrows or rings, each as transient quads.
-- `import.c` — the three uploads in their forced order and the tree walk that
-  turns a read model into one entity per drawn primitive.
+- `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
+  listed, shared by the import and the model store; internal.
+- `model_upload.c` — each picture once per colour space wanted, a record per material and
+  one default shared by the primitives naming none.
+- `import.c` — the model's upload, its geometry and the tree walk that turns a read model
+  into one entity per drawn primitive.

@@ -104,6 +104,16 @@ typedef struct {
 void voe_3d_shape_geometries_create(voe_base_arena *arena,
 				    voe_3d_shape_geometries *out);
 
+// Points `out` at the caller's triangles, which must outlive it, and finds their
+// welded edges into `arena`. This is how any triangles — a model's as well as
+// the three shapes' — get what a ray and a silhouette need (ADR-0277 point 2);
+// the working memory is given back before it returns, as above.
+void voe_3d_shape_geometry_build(voe_base_arena *arena,
+				 const voe_render_vertex *vertices,
+				 uint32_t vertex_count, const uint32_t *indices,
+				 uint32_t index_count,
+				 voe_3d_shape_geometry *out);
+
 // The entry for `kind`, or NULL for nought and for a kind this build does not
 // know — the same answer voe_3d_shape_kind_names gives such a kind, so a caller
 // that already draws nothing for an unknown kind picks and outlines nothing for

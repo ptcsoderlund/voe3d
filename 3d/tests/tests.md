@@ -33,8 +33,8 @@ again, or to find where a claim that has started failing is written down.
   itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
   card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
-  kind's own triangles, and that every kind is a closed surface wound counter-clockwise seen from
-  outside. Needs no graphics card.
+  kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
+  outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, camera box or sun cube at the right distance and
   nothing where nothing is, and that a drawn pixel the cube covers picks it. The arithmetic half
   needs no graphics card; the drawn half skips without one.
