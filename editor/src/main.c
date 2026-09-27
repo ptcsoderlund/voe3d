@@ -640,6 +640,9 @@ int main(int argc, char *argv[])
 				voe_editor_view_fit(&views.views[v], gpu,
 						    pixels_per_millimetre);
 
+		// The files this frame's rows name, before the draw opens (models.h).
+		voe_editor_models_update(models, &session, gpu, arena,
+					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
 			status = 1;
 			break;

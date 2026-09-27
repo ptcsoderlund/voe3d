@@ -169,10 +169,11 @@ carries it out.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
   walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera and sun marked, and
   ended, stopping at the first refused pass.
-- `models.h` — the editor's one model store, handed to picking and the view passes so models are
-  drawn, picked and outlined, and why one for the program and not one per project.
-- `models.c` — the store made empty, cleared through the device and destroyed, and handed out
-  read-only.
+- `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
+  emptied on a different project, a broken file said in the notice, and handed to picking and the
+  view passes.
+- `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
+  with a failure's notice, cleared through the device and destroyed.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
   drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
