@@ -7,13 +7,10 @@
 // the surface and not of a pass, so it changes nothing about which draw the
 // entity goes through — see render/include/render/device.h.
 //
-// BASE COLOUR, METALNESS, ROUGHNESS AND OCCLUSION ARE ALL SHADED WITH; EMISSION
-// AND THE NORMAL MAP ARE STORED AND NOT READ. Card 019 lit the engine and reads
-// the first four, factors and pictures both. The other two are still what card
-// 018 made them — parsed, uploaded and waiting — because a normal map needs
-// tangents the importer does not produce and emission without tone mapping is a
-// colour that clips. Storing what the file said is not the same as pretending to
-// shade with it.
+// EVERY CHANNEL IS SHADED WITH. Card 019 lit the engine with base colour,
+// metalness, roughness and occlusion, factors and pictures both, and 0278 reads
+// the other two: the normal map through a tangent frame built per pixel, and
+// emission added to a lit surface after the sun, unshadowed.
 //
 // A TEXTURE ID HERE IS ALREADY IN THE RIGHT COLOUR SPACE. The base colour and
 // emissive ones name pictures uploaded as sRGB and the other three name pictures

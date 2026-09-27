@@ -28,7 +28,7 @@ again, or to find where a claim that has started failing is written down.
   or sun marker is one draw more. Skips without a graphics card.
 - `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
   not beside it, that a fill lifts that shadow and leaves the lit floor as it was, that no light
-  casts nothing, and that 100 km out reads the same. Skips without a graphics card.
+  casts nothing, that 100 km out reads the same, and that a model casts as the cube does. Skips without a graphics card.
 - `no_light.c` — that a world with no light frames unshaded and not blind, one light frames as
   itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
   card.
@@ -66,4 +66,4 @@ again, or to find where a claim that has started failing is written down.
   run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
 - `models.c` — the store: a model's parts and baked node transform, bad bytes and an unread
   file kept as failed, a path loaded a hundred times on room for three, good then bad and bad
-  then good, and a clear. Skips without a graphics card.
+  then good, a clear, and a thing wearing a model drawn only with the store and not hidden. Skips without a graphics card.

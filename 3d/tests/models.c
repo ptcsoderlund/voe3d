@@ -1,7 +1,7 @@
 // The model store: the hand-built `.glb` of model_data.inc loaded by path, bytes
 // that are no model kept as a failed entry, a file that could not be read kept
 // the same way, a path never asked for not there, a path loaded again replacing
-// itself, and a clear.
+// itself, a clear, and a model drawn.
 //
 // THE DEVICE HOLDS THREE COPIES OF THE MODEL: 6 vertices, 6 indices, 2
 // geometries and 2 shading records each. So a hundred loads of one path pass
@@ -14,13 +14,31 @@
 // (1 + 2 p.z, 2 + 2 p.y, -2 p.x), and the model has two parts. The file is read
 // again here through `assets` to know each p.
 //
+// A MODEL IS DRAWN FROM THE FRAME'S STORE (0277 point 3). A camera at the origin
+// looks along -Z; a thing wearing the model is turned a quarter turn about -Y,
+// so the file's triangles, all in its x = 1 plane facing +X, face the camera,
+// and stands so the green part's middle is five metres out on the axis. With
+// the store in the frame the centre pixel is not the background; without it,
+// and with the thing hidden, it is.
+//
 // IT SKIPS WHEN THERE IS NO GRAPHICS CARD, because a load uploads.
+#include <3d/draw_system.h>
+#include <3d/material_component.h>
+#include <3d/mesh_component.h>
+#include <3d/model_component.h>
 #include <3d/models.h>
+#include <3d/panel_component.h>
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <math/float3.h>
 #include <render/device.h>
+#include <scene/camera_component.h>
+#include <scene/light_component.h>
+#include <scene/transform_component.h>
+#include <scene/camera_system.h>
+#include <scene/light_system.h>
+#include <scene/transform_system.h>
 
 #include <testing/test.h>
 
@@ -134,6 +152,108 @@ static void check_baked(voe_base_arena *arena, const voe_3d_model_entry *entry)
 	VOE_TEST_CHECK(entry->shape.edge_count > 0);
 }
 
+// A camera at the origin and one thing wearing `path`, set in the header.
+static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
+			      voe_ecs_entity *thing)
+{
+	voe_ecs_limits limits = {
+		.entities = 4,
+		.component_types = 8,
+		.intent_types = 8,
+		.structure_requests = 8,
+		.structure_bytes = 256,
+	};
+	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
+	voe_ecs_entity camera = { 0 };
+	voe_3d_model model = { 0 };
+
+	voe_scene_transform_register(world, 4);
+	voe_scene_camera_register(world, 2);
+	voe_scene_light_register(world, 2);
+	voe_3d_mesh_register(world, 4);
+	voe_3d_material_register(world, 4);
+	voe_3d_panel_register(world, 4);
+	voe_3d_model_register(world, 4);
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, camera,
+		(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_camera_add(
+		world, camera,
+		(voe_scene_camera){ .fov_y = 1.0471976f,
+				    .near_plane = 0.1f,
+				    .far_plane = 100.0f }));
+
+	// The green part, (0,2,1) (-2,2,1) (0,0,1) once turned, centred on the
+	// axis five metres out.
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, *thing,
+		(voe_scene_transform){
+			.position = { 2.0 / 3.0, -4.0 / 3.0, -6.0 },
+			.rotation = { 0.0f, -0.70710678f, 0.0f, 0.70710678f },
+			.scale = { 1.0f, 1.0f, 1.0f } }));
+	snprintf(model.path, sizeof(model.path), "%s", path);
+	VOE_TEST_CHECK(voe_3d_model_add(world, *thing, model));
+	return world;
+}
+
+// The centre pixel of one frame of `world` drawn with `models`, `hidden` left
+// out; its RGBA packed.
+static uint32_t centre_pixel(voe_ecs_world *world, voe_render_device *device,
+			     voe_base_arena *arena, const voe_3d_models *models,
+			     voe_ecs_entity hidden)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_render_pass_camera camera;
+	voe_render_picture picture = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	bool drawing = false;
+	const uint8_t *pixel;
+
+	VOE_TEST_CHECK(frame.models == NULL);
+	frame.models = models;
+	frame.hidden = hidden;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return 0;
+	camera = (voe_render_pass_camera){ frame.view, frame.light, frame.shadow };
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	voe_3d_draw_system_run(world, device, arena, frame);
+	voe_render_pass_end(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
+					      arena, &picture, &error));
+	if (picture.pixels == NULL)
+		return 0;
+	pixel = &picture.pixels[((size_t)(SIDE / 2) * SIDE + SIDE / 2) * 4];
+	printf("centre %u %u %u %u\n", pixel[0], pixel[1], pixel[2], pixel[3]);
+	return (uint32_t)pixel[0] | (uint32_t)pixel[1] << 8 |
+	       (uint32_t)pixel[2] << 16 | (uint32_t)pixel[3] << 24;
+}
+
+// A thing wearing a loaded model colours the centre pixel with the store in
+// the frame; with no store, or hidden, it is the background.
+static void check_drawn(voe_3d_models *models, voe_render_device *device)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_ecs_entity thing = { 0 };
+	voe_ecs_world *world = a_world(arena, "Assets/two.glb", &thing);
+	voe_ecs_entity none = { 0 };
+	uint32_t background = centre_pixel(world, device, arena, NULL, none);
+
+	VOE_TEST_CHECK(centre_pixel(world, device, arena, models, none) !=
+		       background);
+	VOE_TEST_CHECK_INT(centre_pixel(world, device, arena, models, thing),
+			   background);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -218,6 +338,9 @@ int main(void)
 	VOE_TEST_CHECK(load(models, device, "Assets/two.glb", 8, true));
 	entry = voe_3d_models_find(models, "Assets/two.glb");
 	VOE_TEST_CHECK(entry != NULL && entry->loaded);
+
+	// ---- a thing wearing it is drawn, and not without the store or hidden
+	check_drawn(models, device);
 
 	voe_3d_models_destroy(models);
 	voe_render_device_destroy(device);

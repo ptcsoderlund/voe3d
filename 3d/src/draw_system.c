@@ -1,7 +1,8 @@
 // The draw system: the camera, the sun, the matrices each object is drawn with,
 // and one draw per drawable into the frame the loop has opened.
 //
-// IT WALKS TWO TABLES AND LOOKS THE OTHER COMPONENTS UP BY ENTITY. That is what
+// IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
+// BY ENTITY; a model row's parts come from the frame's store. That is what
 // a flat-table ECS with no archetypes costs and it is the trade this engine
 // took: each walk is linear and each lookup is one load (ecs/component.h). If
 // that ever measures slow it is a later card with a number attached, and nothing
@@ -14,7 +15,7 @@
 //
 // Each object is drawn with two matrices and a colour. The solid pass runs in
 // table order and the blended one furthest first, on each side of the overlay's
-// depth clear, over both tables; the outline with the collider's lines, and the
+// depth clear, over every table; the outline with the collider's lines, and the
 // move gizmo, each sit behind a depth clear of their own. The held-back groups
 // are draw_group.c's and the marker, outline, collider and gizmo
 // draw_marks.c's; this file walks and orders them.
@@ -24,6 +25,8 @@
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
 #include <3d/shape_component.h>
@@ -115,6 +118,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.gizmo = (voe_3d_gizmoed){ 0 };
 	frame.marker = (voe_3d_camera_marked){ 0 };
 	frame.sun = (voe_3d_sun_marked){ 0 };
+	frame.models = NULL;
 
 	return frame;
 }
@@ -162,6 +166,92 @@ static voe_math_float4x4 panel_transform(voe_math_float4x4 clip,
 static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
 {
 	return panel.first <= submitted && panel.count <= submitted - panel.first;
+}
+
+// The loaded entry a model row draws from, NULL when it draws nothing: no
+// store, no transform, or a path the store lacks or failed on.
+static const voe_3d_model_entry *drawn_model(const voe_ecs_world *world,
+					    const voe_3d_models *models,
+					    uint32_t row)
+{
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(row < voe_3d_model_count(world), "a model row past the table");
+	if (models == NULL ||
+	    voe_scene_transform_get(world, voe_3d_model_entities(world)[row]) == NULL)
+		return NULL;
+	entry = voe_3d_models_find(models, voe_3d_model_rows(world)[row].path);
+	if (entry == NULL || !entry->loaded)
+		return NULL;
+	VOE_BASE_ASSERT(entry->part_count <= VOE_3D_MODEL_PARTS,
+			"a model with more parts than the store holds");
+	return entry;
+}
+
+// Every loaded part of every model row, which the world's blended group is
+// sized for as it is for every mesh and panel. Nought with no store.
+static uint32_t model_part_count(const voe_ecs_world *world,
+				 const voe_3d_models *models)
+{
+	uint32_t parts = 0;
+
+	VOE_BASE_ASSERT(world != NULL, "counting parts in no world");
+	if (models == NULL)
+		return 0;
+	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
+		const voe_3d_model_entry *entry = drawn_model(world, models, row);
+
+		parts += entry != NULL ? entry->part_count : 0;
+	}
+	VOE_BASE_ASSERT(parts <= voe_3d_model_count(world) * VOE_3D_MODEL_PARTS,
+			"more parts than the rows can wear");
+	return parts;
+}
+
+// Each model row's parts, as the mesh walk does a world-layer mesh: solid ones
+// drawn now, blended ones held in `world_blended`. White, since a model has no
+// shape (ADR-0191). False when a draw is refused, which stops this walk only.
+static bool draw_models(voe_ecs_world *world, voe_render_device *device,
+			const voe_3d_frame *frame,
+			struct voe_3d_draw_group *world_blended)
+{
+	const voe_ecs_entity *owners;
+
+	VOE_BASE_ASSERT(world != NULL && frame != NULL && world_blended != NULL,
+			"drawing models with no world, frame or group");
+	if (frame->models == NULL)
+		return true;
+	owners = voe_3d_model_entities(world);
+	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
+		const voe_3d_model_entry *model;
+		voe_scene_transform drawn;
+
+		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+			continue;
+		model = drawn_model(world, frame->models, row);
+		if (model == NULL)
+			continue;
+		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
+		for (uint32_t part = 0; part < model->part_count; part++) {
+			const voe_3d_model_part *piece = &model->parts[part];
+			struct voe_3d_deferred entry = {
+				.panel = false,
+				.mesh = { .geometry = piece->geometry,
+					  .object = voe_3d_draw_group_object_of(
+						  &drawn, &piece->material, NULL,
+						  frame->eye) },
+			};
+
+			if (piece->material.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
+				voe_3d_draw_group_hold(world_blended, entry,
+						       entry.mesh.object.world,
+						       frame->view.view);
+			else if (!voe_render_frame_draw(device, entry.mesh.geometry,
+							entry.mesh.object))
+				return false;
+		}
+	}
+	return true;
 }
 
 // THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
@@ -269,7 +359,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// Every drawable there is, meshes and panels together, because which
 	// group a thing lands in is not known until both walks have finished —
 	// the same bound voe_3d_draw_group_new explains.
-	world_blended = voe_3d_draw_group_new(arena, count + panel_count, true);
+	world_blended = voe_3d_draw_group_new(
+		arena, count + panel_count + model_part_count(world, frame.models),
+		true);
 	overlay_solid = voe_3d_draw_group_new(arena, count, false);
 	overlay_blended = voe_3d_draw_group_new(arena, count + panel_count, true);
 
@@ -332,6 +424,10 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 					   entry.mesh.object))
 			break;
 	}
+
+	// The model rows' parts, world layer only (0277 point 3); a refused
+	// draw stops this walk and not the frame.
+	(void)draw_models(world, device, &frame, &world_blended);
 
 	// THE SECOND TABLE, AND EVERY ROW IN IT IS HELD BACK. A panel is drawn
 	// by the element pipeline, which is blended, tests depth and writes

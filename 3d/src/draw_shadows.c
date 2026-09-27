@@ -14,7 +14,8 @@
 // solid in the sun; opaque or cutout, because nothing see-through casts, and a
 // cutout casts as solid since the depth-only pipeline has no fragment stage to
 // discard with. Panels and the editor's marks cast nothing, and the frame's
-// `hidden` is left out here as in _run.
+// `hidden` is left out here as in _run. A model part in the frame's store casts
+// by the same rule, its material the part's, in the world layer as every part is.
 //
 // Each caster's record is draw_group.c's, the object's matrix about the frame's
 // eye at its lag, exactly as the view draws it; only the world matrix is read.
@@ -25,10 +26,55 @@
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/shadow_cascades.h>
 #include <base/assert.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
+
+// Whether a material casts: lit, and not blended (0258 point 5).
+static bool casts(const voe_3d_material *material)
+{
+	VOE_BASE_ASSERT(material != NULL, "casting with no material");
+	return !material->unlit && material->alpha_mode != VOE_RENDER_ALPHA_BLENDED;
+}
+
+// Every loaded model part that casts, drawn into the shadow pass that is open,
+// as draw_casters draws a mesh. Nothing with no store (0277 point 3).
+static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
+			       const voe_3d_frame *frame)
+{
+	const voe_3d_model *rows = voe_3d_model_rows(world);
+	const voe_ecs_entity *owners = voe_3d_model_entities(world);
+
+	VOE_BASE_ASSERT(frame->models != NULL, "casting models from no store");
+	VOE_BASE_ASSERT(voe_render_pass_is_open(device),
+			"drawing casters with no shadow pass open");
+	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
+		const voe_3d_model_entry *model;
+		voe_scene_transform drawn;
+
+		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		    voe_scene_transform_get(world, owners[row]) == NULL)
+			continue;
+		model = voe_3d_models_find(frame->models, rows[row].path);
+		if (model == NULL || !model->loaded)
+			continue;
+		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
+		for (uint32_t part = 0; part < model->part_count; part++) {
+			const voe_3d_model_part *piece = &model->parts[part];
+
+			if (casts(&piece->material) &&
+			    !voe_render_frame_draw(device, piece->geometry,
+						   voe_3d_draw_group_object_of(
+							   &drawn, &piece->material,
+							   NULL, frame->eye)))
+				return false;
+		}
+	}
+	return true;
+}
 
 // Every caster in the world, drawn into the shadow pass that is open. False
 // when render refuses a draw, which it has already said on stderr.
@@ -49,8 +95,7 @@ static bool draw_casters(voe_ecs_world *world, voe_render_device *device,
 		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
-		if (material == NULL || material->unlit ||
-		    material->alpha_mode == VOE_RENDER_ALPHA_BLENDED ||
+		if (material == NULL || !casts(material) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		// Where it was `lag` of a step ago, as the view draws it (0254).
@@ -60,7 +105,7 @@ static bool draw_casters(voe_ecs_world *world, voe_render_device *device,
 								       NULL, frame->eye)))
 			return false;
 	}
-	return true;
+	return frame->models == NULL || draw_model_casters(world, device, frame);
 }
 
 bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
