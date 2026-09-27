@@ -243,7 +243,8 @@ typedef struct {
 	uint32_t replaced;
 	// The Duplicate and Delete buttons as drawn this frame,
 	// VOE_UI_NODE_NONE when they were not: nothing selected, or the
-	// camera's entity (ADR-0218).
+	// camera's entity (ADR-0218), and no Duplicate for the light's
+	// entity (ADR-0273).
 	voe_ui_node duplicate;
 	voe_ui_node remove;
 	// Each section's Remove button as drawn this frame, the kept types'

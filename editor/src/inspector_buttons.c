@@ -170,8 +170,8 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	// below — that is the frame in which its field went off the panel.
 	if (voe_ecs_entity_alive(scene->world, inspector->entity)) {
 		// A fired swatch opens the picker on its row's colour, beside
-		// the column: Duplicate, the first thing drawn, starts at its
-		// left edge.
+		// the column: the content column's left edge, not Duplicate's,
+		// because Duplicate is not drawn for the camera or the sun.
 		for (uint32_t i = 0; i < inspector->control_count; i++) {
 			const voe_editor_inspector_control *control =
 				&inspector->controls[i];
@@ -185,11 +185,11 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 					.entity = inspector->entity,
 					.type = control->type,
 					.offset = control->offset,
-					.left = inspector->duplicate !=
+					.left = inspector->content !=
 							VOE_UI_NODE_NONE
 							? voe_ui_node_rect(
 								  ui,
-								  inspector->duplicate)
+								  inspector->content)
 								  .min.x
 							: 0.0f });
 		}
