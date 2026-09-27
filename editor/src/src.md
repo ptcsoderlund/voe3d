@@ -120,6 +120,10 @@ carries it out.
   as models, and Import copying a chosen `.glb` into the shown folder.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the import.
+- `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
+  the ray lands, over the Inspector swaps the selected thing's model, anywhere else nothing.
+- `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
+  rectangle from the dock tree, and the one undo step and unsaved mark.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the views' border and the top
   bar's lower edge, hit-tested before `ui`, the pointer's shape over them, the seam it reports reached
   for the walk to light, and a double-click that sets one size back (ADR-0226).
@@ -200,7 +204,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity (an identity and a transform, nothing else), duplicating and deleting
+- `entities.h` — Add entity (an identity and a transform, nothing else), a dropped model's thing,
+  duplicating and deleting
   entities and giving or taking their components, a new collider fitting the shape, all through the
   world's structural queue. Its header says
   the id and name rules and what a failure leaves behind.

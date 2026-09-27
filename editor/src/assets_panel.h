@@ -75,6 +75,10 @@ typedef struct {
 	uint32_t row_count;
 	voe_ui_node up_button;
 	voe_ui_node import_button;
+	// The model row the pointer went down on and still holds, as the last
+	// read found it, NULL for none: its name in `arena`, valid until the
+	// next listing. What assets_drag.h starts a drag from.
+	const char *held;
 } voe_editor_assets;
 
 // Lists again when `project_folder` (NULL for untitled) differs from the one
@@ -89,7 +93,7 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
 // After voe_ui_frame_end: a folder row fired is entered, Up fired goes up a
-// level; either lists at once. True when Import fired, which the caller
+// level; either lists at once. `held` is set to the model row held, if any. True when Import fired, which the caller
 // answers by showing the browser in IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets);

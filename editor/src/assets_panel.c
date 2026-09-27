@@ -153,7 +153,8 @@ static void relist(voe_editor_assets *assets, const char *project,
 		return;
 	}
 	voe_base_arena_clear(assets->arena);
-	assets->project = kept ? copy_string(assets->arena, kept) : NULL;
+	assets->held = NULL;
+	assets->project =kept ? copy_string(assets->arena, kept) : NULL;
 	assets->shown = copy_string(assets->arena, next);
 	assets->path = next[0] == '\0' ?
 		ASSETS_FOLDER "/" :
@@ -242,9 +243,13 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	// the panel asks nothing stale.
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
+	assets->held = NULL;
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 
+		if (row->model && row->node != VOE_UI_NODE_NONE &&
+		    voe_ui_button_action(ui, row->node).held)
+			assets->held = row->name;
 		if (entered == NULL && row->folder &&
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)

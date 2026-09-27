@@ -5,6 +5,7 @@
 
 #include <base/assert.h>
 
+#include <3d/model_component.h>
 #include <3d/shape_component.h>
 
 #include <ecs/structure.h>
@@ -14,6 +15,7 @@
 #include <scene/identity_component.h>
 #include <scene/transform_component.h>
 
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -97,17 +99,23 @@ static bool queue_default(voe_ecs_world *world, voe_ecs_entity entity,
 	return voe_ecs_structure_add(world, type, entity, row);
 }
 
-bool voe_editor_entities_add(voe_ecs_world *world, voe_ecs_entity *out)
+// Makes an entity named `base` by the rules in the header and queues its
+// identity, a transform at `position` and, when `model` is not NULL, that row.
+static bool entity_make(voe_ecs_world *world, const char *base,
+			size_t base_length, voe_math_double3 position,
+			const voe_3d_model *model, voe_ecs_entity *out)
 {
-	static const char base[] = "Entity";
 	voe_scene_identity identity = { 0 };
+	voe_scene_transform transform;
 	voe_ecs_entity entity;
+	const voe_scene_transform *origin = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_transform_key));
 
-	VOE_BASE_ASSERT(world != NULL, "adding an entity to no world");
-	VOE_BASE_ASSERT(out != NULL, "adding an entity with nowhere to put it");
-
+	VOE_BASE_ASSERT(origin != NULL, "a transform with no default row");
+	transform = *origin;
+	transform.position = position;
 	identity.id = next_id(world);
-	free_name(world, base, sizeof base - 1, identity.name);
+	free_name(world, base, base_length, identity.name);
 
 	if (!voe_ecs_entity_create(world, &entity))
 		return false;
@@ -116,15 +124,65 @@ bool voe_editor_entities_add(voe_ecs_world *world, voe_ecs_entity *out)
 		    world,
 		    voe_ecs_component_type(world, &voe_scene_identity_key),
 		    entity, &identity) ||
-	    !queue_default(world, entity,
-			   voe_ecs_component_type(world,
-						  &voe_scene_transform_key))) {
+	    !voe_ecs_structure_add(
+		    world,
+		    voe_ecs_component_type(world, &voe_scene_transform_key),
+		    entity, &transform) ||
+	    (model != NULL &&
+	     !voe_ecs_structure_add(
+		     world, voe_ecs_component_type(world, &voe_3d_model_key),
+		     entity, model))) {
 		undo_create(world, entity);
 		return false;
 	}
 
 	*out = entity;
 	return true;
+}
+
+bool voe_editor_entities_add(voe_ecs_world *world, voe_ecs_entity *out)
+{
+	static const char base[] = "Entity";
+
+	VOE_BASE_ASSERT(world != NULL, "adding an entity to no world");
+	VOE_BASE_ASSERT(out != NULL, "adding an entity with nowhere to put it");
+
+	return entity_make(world, base, sizeof base - 1,
+			   (voe_math_double3){ 0 }, NULL, out);
+}
+
+// The path's last name, less a trailing `.glb` in any case.
+static const char *model_base(const char *path, size_t *length)
+{
+	const char *slash = strrchr(path, '/');
+	const char *name = slash != NULL ? slash + 1 : path;
+	size_t n = strlen(name);
+
+	if (n > 4 && name[n - 4] == '.' && tolower((unsigned char)name[n - 3]) == 'g' &&
+	    tolower((unsigned char)name[n - 2]) == 'l' &&
+	    tolower((unsigned char)name[n - 1]) == 'b')
+		n -= 4;
+	*length = n;
+	return name;
+}
+
+bool voe_editor_entities_model_add(voe_ecs_world *world, const char *path,
+				   voe_math_double3 position,
+				   voe_ecs_entity *out)
+{
+	voe_3d_model model = { 0 };
+	size_t length;
+	const char *base;
+
+	VOE_BASE_ASSERT(world != NULL, "adding a model to no world");
+	VOE_BASE_ASSERT(path != NULL && out != NULL,
+			"adding a model with no path or nowhere to put it");
+	VOE_BASE_ASSERT(strlen(path) < VOE_3D_MODEL_PATH,
+			"a model path longer than the row holds");
+
+	snprintf(model.path, sizeof model.path, "%s", path);
+	base = model_base(path, &length);
+	return entity_make(world, base, length, position, &model, out);
 }
 
 bool voe_editor_entities_component_add(voe_ecs_world *world,

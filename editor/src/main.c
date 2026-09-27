@@ -49,6 +49,7 @@
 // twice and writes the picture, both counted and written by capture.h. It first
 // waits out a running refresh (session.h), for at most 120 s of the frame clock.
 // EVERY READ OF THE WINDOW IS GUARDED.
+#include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
 #include "dock.h"
@@ -192,6 +193,8 @@ int main(int argc, char *argv[])
 	// The left press in a view that moves the selection (pick.h), beside
 	// the drag it shares the pointer with.
 	voe_editor_pick pick = { 0 };
+	// A model row held from the Assets panel (assets_drag.h).
+	voe_editor_assets_drag drag = { 0 };
 	// A GIZMO DRAG IS ONE MORE READER OF THE POINTER (gizmo.h, ADR-0205).
 	// The middle button is the views'; the left is asked of the gizmo first
 	// and of picking second, so a press on an arrow moves the entity and
@@ -621,16 +624,27 @@ int main(int argc, char *argv[])
 					      session.errors.showing ||
 					      scene.picking.open);
 
+		// A held model row, released over a view or the Inspector
+		// (assets_drag.h), under the pick's own `blocked`.
+		voe_editor_assets_drag_read(
+			&drag, &session, &undo, &scene, &views, &roots[0], &bar,
+			&geometries, voe_editor_models_store(models),
+			roots[0].pointer.at, left && pointer.over,
+			browser.showing || preferences.showing ||
+				session.errors.showing || scene.picking.open ||
+				voe_editor_gizmo_taking(&gizmo));
+
 		// Then a press over a view picks what is under it (pick.h). A
-		// press the gizmo took is not a press that selects, and the
-		// order is the point: the gizmo is asked first.
+		// press the gizmo or a drag took is not a press that selects,
+		// and the order is the point: the gizmo is asked first.
 		voe_editor_pick_read(&pick, &scene, &views, &geometries,
 				     voe_editor_models_store(models),
 				     roots[0].pointer.at, left && pointer.over,
 				     browser.showing || preferences.showing ||
 					     session.errors.showing ||
 					     scene.picking.open ||
-					     voe_editor_gizmo_taking(&gizmo));
+					     voe_editor_gizmo_taking(&gizmo) ||
+					     drag.holding);
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
