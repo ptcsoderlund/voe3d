@@ -53,6 +53,9 @@ again, or to find where a claim that has started failing is written down.
 - `gizmo.c` — a ray across each arrow and through each square, the space that meets nothing, the
   shaft doubling with the distance, the two grabs and the one refusal, and the two meshes' counts,
   their winding towards the eye and the handle marking moves across. Needs no graphics card.
+- `gizmo_rings.c` — a ray on each rim, through the centre and across two rings, a quarter turn
+  about Y reading π/2, a ray in the plane refused, 100 km out the same, and the meshes' counts,
+  winding and marked ring. Needs no graphics card.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.

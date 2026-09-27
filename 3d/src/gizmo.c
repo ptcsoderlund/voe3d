@@ -6,8 +6,10 @@
 // An arrow is tested as the segment out to its head's far end and a square as
 // its patch of plane; a drag is measured from the closest point on an axis or
 // where the ray meets a plane; the meshes are shafts, heads, squares and label
-// strokes.
+// strokes, each quad and its winding gizmo_quads.c's.
 #include <3d/gizmo.h>
+
+#include "gizmo_quads.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -331,90 +333,21 @@ bool voe_3d_gizmo_grab(voe_3d_gizmo placed, voe_3d_gizmo_handle handle,
 	return true;
 }
 
-// One mesh under construction: its two arrays, each of the whole gizmo's size
-// because a marked handle is a few vertices and one bound is fewer numbers than
-// two, and how much of them is used so far.
-struct build {
-	voe_render_vertex *vertices;
-	uint32_t *indices;
-	uint32_t vertex_count;
-	uint32_t index_count;
-};
-
-// One corner, with its normal the direction from it to the eye.
-static voe_render_vertex facing(voe_math_float3 position, voe_math_float3 eye)
-{
-	return (voe_render_vertex){
-		.position = position,
-		.normal = voe_math_float3_normalize(
-			voe_math_float3_sub(eye, position)),
-		.uv = { 0.0f, 0.0f },
-	};
-}
-
-// Three corners already pushed, wound to face the eye: the pipeline culls back
-// faces, so the last two are swapped when the triangle would face away.
-static void wind(struct build *mesh, uint32_t a, uint32_t b, uint32_t c,
-		 voe_math_float3 eye)
-{
-	voe_math_float3 corner = mesh->vertices[a].position;
-	voe_math_float3 normal = voe_math_float3_cross(
-		voe_math_float3_sub(mesh->vertices[b].position, corner),
-		voe_math_float3_sub(mesh->vertices[c].position, corner));
-
-	VOE_BASE_ASSERT(mesh->index_count + 3 <= VOE_3D_GIZMO_INDICES,
-			"more indices than a gizmo has");
-	VOE_BASE_ASSERT(a < mesh->vertex_count && b < mesh->vertex_count &&
-				c < mesh->vertex_count,
-			"a triangle of corners nobody pushed");
-	if (voe_math_float3_dot(normal, voe_math_float3_sub(eye, corner)) <
-	    0.0f) {
-		uint32_t swap = b;
-
-		b = c;
-		c = swap;
-	}
-	mesh->indices[mesh->index_count++] = a;
-	mesh->indices[mesh->index_count++] = b;
-	mesh->indices[mesh->index_count++] = c;
-}
-
-// The quad from `from` to `to`, widened by `half_width` to each side along
-// `across`. A shaft and a label stroke are both this.
-static void add_quad(struct build *mesh, voe_math_float3 from,
-		     voe_math_float3 to, voe_math_float3 across,
-		     float half_width, voe_math_float3 eye)
-{
-	voe_math_float3 offset = voe_math_float3_scale(across, half_width);
-	uint32_t v = mesh->vertex_count;
-
-	VOE_BASE_ASSERT(mesh->vertex_count + 4 <= VOE_3D_GIZMO_VERTICES,
-			"more vertices than a gizmo has");
-	VOE_BASE_ASSERT(half_width > 0.0f, "a quad of no width");
-	mesh->vertices[v + 0] = facing(voe_math_float3_sub(from, offset), eye);
-	mesh->vertices[v + 1] = facing(voe_math_float3_add(from, offset), eye);
-	mesh->vertices[v + 2] = facing(voe_math_float3_sub(to, offset), eye);
-	mesh->vertices[v + 3] = facing(voe_math_float3_add(to, offset), eye);
-	mesh->vertex_count += 4;
-	wind(mesh, v + 0, v + 1, v + 2, eye);
-	wind(mesh, v + 1, v + 3, v + 2, eye);
-}
-
 // The triangle of those three corners, which is an arrowhead and nothing else.
-static void add_triangle(struct build *mesh, voe_math_float3 a,
+static void add_triangle(struct voe_3d_gizmo_build *mesh, voe_math_float3 a,
 			 voe_math_float3 b, voe_math_float3 c,
 			 voe_math_float3 eye)
 {
 	uint32_t v = mesh->vertex_count;
 
-	VOE_BASE_ASSERT(mesh->vertex_count + 3 <= VOE_3D_GIZMO_VERTICES,
+	VOE_BASE_ASSERT(mesh->vertex_count + 3 <= mesh->vertex_capacity,
 			"more vertices than a gizmo has");
 	VOE_BASE_ASSERT(mesh->vertices != NULL, "a triangle built nowhere");
-	mesh->vertices[v + 0] = facing(a, eye);
-	mesh->vertices[v + 1] = facing(b, eye);
-	mesh->vertices[v + 2] = facing(c, eye);
+	mesh->vertices[v + 0] = voe_3d_gizmo_facing(a, eye);
+	mesh->vertices[v + 1] = voe_3d_gizmo_facing(b, eye);
+	mesh->vertices[v + 2] = voe_3d_gizmo_facing(c, eye);
 	mesh->vertex_count += 3;
-	wind(mesh, v + 0, v + 1, v + 2, eye);
+	voe_3d_gizmo_wind(mesh, v + 0, v + 1, v + 2, eye);
 }
 
 // The unit an arrow is widened along: perpendicular to the axis and to the
@@ -438,8 +371,8 @@ static voe_math_float3 across_axis(struct flat gizmo, int axis)
 // One arrow: the shaft's quad from the origin to the shaft's end, and the head's
 // triangle from there to the point, both in the one plane that faces the eye.
 // `step` widens the two without lengthening either, which is what marking is.
-static void add_axis(struct build *mesh, struct flat gizmo, int axis,
-		     float step)
+static void add_axis(struct voe_3d_gizmo_build *mesh, struct flat gizmo,
+		     int axis, float step)
 {
 	voe_math_float3 across = across_axis(gizmo, axis);
 	voe_math_float3 end = out_from(gizmo, axis, gizmo.shaft);
@@ -450,8 +383,9 @@ static void add_axis(struct build *mesh, struct flat gizmo, int axis,
 
 	VOE_BASE_ASSERT(step > 0.0f, "an arrow of no width");
 	VOE_BASE_ASSERT(mesh != NULL, "an arrow built nowhere");
-	add_quad(mesh, gizmo.origin, end, across,
-		 gizmo.shaft * VOE_3D_GIZMO_LINE_HALF_WIDTH * step, gizmo.eye);
+	voe_3d_gizmo_add_quad(mesh, gizmo.origin, end, across,
+			      gizmo.shaft * VOE_3D_GIZMO_LINE_HALF_WIDTH * step,
+			      gizmo.eye);
 	add_triangle(mesh, voe_math_float3_sub(end, half),
 		     voe_math_float3_add(end, half), point, gizmo.eye);
 }
@@ -460,8 +394,8 @@ static void add_axis(struct build *mesh, struct flat gizmo, int axis,
 // the far one on both of its axes, as two triangles wound from whichever side
 // the eye is on. `step` grows it about its own centre, so a marked square still
 // covers the middle it covered.
-static void add_square(struct build *mesh, struct flat gizmo, int plane,
-		       float step)
+static void add_square(struct voe_3d_gizmo_build *mesh, struct flat gizmo,
+		       int plane, float step)
 {
 	float near_corner = gizmo.shaft * VOE_3D_GIZMO_PLANE_NEAR;
 	float side = gizmo.shaft * VOE_3D_GIZMO_PLANE_SIDE;
@@ -474,23 +408,24 @@ static void add_square(struct build *mesh, struct flat gizmo, int plane,
 	VOE_BASE_ASSERT(plane >= 0 && plane < 3, "a plane of no world");
 	VOE_BASE_ASSERT(mesh->vertex_count + 4 <= VOE_3D_GIZMO_VERTICES,
 			"more vertices than a gizmo has");
-	mesh->vertices[v + 0] = facing(corner(gizmo, first, second, low, low),
-				       gizmo.eye);
-	mesh->vertices[v + 1] = facing(corner(gizmo, first, second, high, low),
-				       gizmo.eye);
-	mesh->vertices[v + 2] = facing(corner(gizmo, first, second, high, high),
-				       gizmo.eye);
-	mesh->vertices[v + 3] = facing(corner(gizmo, first, second, low, high),
-				       gizmo.eye);
+	mesh->vertices[v + 0] = voe_3d_gizmo_facing(
+		corner(gizmo, first, second, low, low), gizmo.eye);
+	mesh->vertices[v + 1] = voe_3d_gizmo_facing(
+		corner(gizmo, first, second, high, low), gizmo.eye);
+	mesh->vertices[v + 2] = voe_3d_gizmo_facing(
+		corner(gizmo, first, second, high, high), gizmo.eye);
+	mesh->vertices[v + 3] = voe_3d_gizmo_facing(
+		corner(gizmo, first, second, low, high), gizmo.eye);
 	mesh->vertex_count += 4;
-	wind(mesh, v + 0, v + 1, v + 2, gizmo.eye);
-	wind(mesh, v + 0, v + 2, v + 3, gizmo.eye);
+	voe_3d_gizmo_wind(mesh, v + 0, v + 1, v + 2, gizmo.eye);
+	voe_3d_gizmo_wind(mesh, v + 0, v + 2, v + 3, gizmo.eye);
 }
 
 // One label, past the point of its arrow: its strokes drawn in the plane facing
 // the eye, upright against the world's up where there is one to be upright
 // against. Each stroke is the quad a shaft is, widened in that same plane.
-static void add_label(struct build *mesh, struct flat gizmo, int axis)
+static void add_label(struct voe_3d_gizmo_build *mesh, struct flat gizmo,
+		      int axis)
 {
 	float height = gizmo.shaft * VOE_3D_GIZMO_LABEL_HEIGHT;
 	voe_math_float3 centre = out_from(
@@ -515,27 +450,12 @@ static void add_label(struct build *mesh, struct flat gizmo, int axis)
 		voe_math_float3 to = in_label(centre, right, up, height, ends[2],
 					      ends[3]);
 
-		add_quad(mesh, from, to,
-			 voe_math_float3_normalize(voe_math_float3_cross(
-				 voe_math_float3_sub(to, from), forward)),
-			 gizmo.shaft * VOE_3D_GIZMO_LINE_HALF_WIDTH,
-			 gizmo.eye);
+		voe_3d_gizmo_add_quad(
+			mesh, from, to,
+			voe_math_float3_normalize(voe_math_float3_cross(
+				voe_math_float3_sub(to, from), forward)),
+			gizmo.shaft * VOE_3D_GIZMO_LINE_HALF_WIDTH, gizmo.eye);
 	}
-}
-
-// What one build has come to, as the mesh the caller was promised.
-static voe_3d_gizmo_mesh mesh_of(struct build mesh)
-{
-	VOE_BASE_ASSERT(mesh.vertex_count <= VOE_3D_GIZMO_VERTICES,
-			"a mesh of more vertices than a gizmo has");
-	VOE_BASE_ASSERT(mesh.index_count <= VOE_3D_GIZMO_INDICES,
-			"a mesh of more indices than a gizmo has");
-	return (voe_3d_gizmo_mesh){
-		.vertices = mesh.vertices,
-		.vertex_count = mesh.vertex_count,
-		.indices = mesh.indices,
-		.index_count = mesh.index_count,
-	};
 }
 
 bool voe_3d_gizmo_quads(voe_3d_gizmo placed, voe_3d_gizmo_handle marked,
@@ -544,8 +464,8 @@ bool voe_3d_gizmo_quads(voe_3d_gizmo placed, voe_3d_gizmo_handle marked,
 {
 	// About the eye, so every vertex is eye-relative as the pass draws it.
 	struct flat gizmo = flat_about(placed, placed.eye);
-	struct build at_rest = { 0 };
-	struct build under = { 0 };
+	struct voe_3d_gizmo_build at_rest;
+	struct voe_3d_gizmo_build under;
 	int handle;
 
 	VOE_BASE_ASSERT(arena != NULL, "a gizmo built with no arena");
@@ -556,19 +476,17 @@ bool voe_3d_gizmo_quads(voe_3d_gizmo placed, voe_3d_gizmo_handle marked,
 	if (gizmo.shaft <= 0.0f)
 		return false;
 
-	at_rest.vertices = voe_base_arena_push(
-		arena, sizeof *at_rest.vertices * VOE_3D_GIZMO_VERTICES);
-	at_rest.indices = voe_base_arena_push(
-		arena, sizeof *at_rest.indices * VOE_3D_GIZMO_INDICES);
-	under.vertices = voe_base_arena_push(
-		arena, sizeof *under.vertices * VOE_3D_GIZMO_VERTICES);
-	under.indices = voe_base_arena_push(
-		arena, sizeof *under.indices * VOE_3D_GIZMO_INDICES);
+	// Each of the whole gizmo's size, because a marked handle is a few
+	// vertices and one bound is fewer numbers than two.
+	at_rest = voe_3d_gizmo_build_in(arena, VOE_3D_GIZMO_VERTICES,
+					VOE_3D_GIZMO_INDICES);
+	under = voe_3d_gizmo_build_in(arena, VOE_3D_GIZMO_VERTICES,
+				      VOE_3D_GIZMO_INDICES);
 
 	for (handle = 0; handle < 6; handle++) {
 		bool is_marked = marked == (voe_3d_gizmo_handle)(
 						   VOE_3D_GIZMO_X + handle);
-		struct build *mesh = is_marked ? &under : &at_rest;
+		struct voe_3d_gizmo_build *mesh = is_marked ? &under : &at_rest;
 		float step = is_marked ? VOE_3D_GIZMO_MARKED_STEP : 1.0f;
 
 		if (handle < 3)
@@ -581,7 +499,7 @@ bool voe_3d_gizmo_quads(voe_3d_gizmo placed, voe_3d_gizmo_handle marked,
 	for (handle = 0; handle < 3; handle++)
 		add_label(&at_rest, gizmo, handle);
 
-	*plain = mesh_of(at_rest);
-	*marked_out = mesh_of(under);
+	*plain = voe_3d_gizmo_mesh_of(at_rest);
+	*marked_out = voe_3d_gizmo_mesh_of(under);
 	return true;
 }

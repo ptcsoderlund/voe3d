@@ -52,6 +52,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `gizmo.c` — the shaft that covers the same pixels at any distance, the ray against each handle
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.
+- `gizmo_rings.c` — each ring's plane crossed by the ray, its distance against the radius and its
+  angle about the axis, and a camera-facing quad per segment.
+- `gizmo_quads.h` — the camera-facing quads both gizmos are built from, a build that knows its
+  room; internal.
+- `gizmo_quads.c` — a build's arrays in the arena, each normal towards the eye, each triangle wound
+  to face it, and a quad as two of them.
 - `depth_sort.c` — the insertion sort, where the sign is the whole of it.
 - `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes and panels,
   the world's solids drawn as found, the held-back groups and the marks in their order.
