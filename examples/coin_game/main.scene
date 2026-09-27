@@ -12,11 +12,13 @@ scale = [1, 1, 1]
 [2]
 name = "Sun"
 [2.voe_scene_light]
-colour = [1, 1, 1]
+colour = [0.92112833, 0.7978724, 0.38872972]
 intensity = 1
+fill_colour = [1, 0.5637274, 0]
+fill_intensity = 0.07931393
 [2.voe_scene_transform]
 position = [0, 8, 0]
-rotation = [-0.36514837, 0.18257419, 0, 0.91287094]
+rotation = [-0.36514837, 0.18257418, 0, 0.91287094]
 scale = [1, 1, 1]
 
 [3]
