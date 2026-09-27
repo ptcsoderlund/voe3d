@@ -173,9 +173,8 @@ carries it out.
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
   drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
 - `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
-  gizmo's switch, opening and closing the
-  colour picker and the dropdown, the open list moved to where the Inspector measured it, and the one
-  question asked of the Scene panel's rows after the frame has ended.
+  gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
+  measured them, and the Scene panel's rows asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a
   click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that

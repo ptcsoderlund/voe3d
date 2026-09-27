@@ -29,3 +29,11 @@ Human, in `examples/coin_game` (`## How to test` in `feature.md`):
 ## Done when
 `bash ~/.claude/skills/checks/scripts/checks.sh --all` prints `FINDINGS: 0`; the human's eight
 steps above pass.
+
+## Blocked
+`checks.sh --all` still prints three findings outside `editor/`: `3d/include/3d/3d.md` does not list
+`gizmo_rings.h` or `sun_marker.h`, and `dev/src/src.md`'s `motion.h` entry is 313 characters (cap 300);
+the editor's own finding (`scene.c` entry in `editor/src/src.md`) is fixed and `--folder editor` is clean.
+The direction grep shows only rays and render lights, and `editor/editor.md` still holds. The eight
+human steps were not seen (they need a person at the window); a card each in `3d` and `dev`, then the
+human walk-through, would unblock it.
