@@ -64,10 +64,10 @@ typedef struct voe_platform_window voe_platform_window;
 // THE LIST IS SHORT BECAUSE OF RULE 10 AND NOT BECAUSE IT WAS HARD. Every key
 // below has a caller today. There is no rest of the alphabet, no F-keys and no
 // arrows, because nothing reads them; adding one is a line in the enum and a line
-// in each backend's table, and it happens when something wants it. Z and Y are
-// the most recent to arrive that way and are not movement keys: the editor's
-// undo and redo commands (spec 014) read them. Delete arrived the same way and
-// is not a movement key either: the editor's Delete command (spec 010) reads it.
+// in each backend's table, and it happens when something wants it. R is the most
+// recent to arrive that way: the editor's gizmo switch between move and rotate
+// (spec 035) reads it. Z and Y came before it for the editor's undo and redo
+// (spec 014), and Delete for the editor's Delete command (spec 010).
 //
 // Every key this engine reads, and the length of the state each backend keeps.
 // VOE_PLATFORM_KEY_COUNT is the count and never a key; asking for it asserts.
@@ -96,6 +96,7 @@ typedef enum {
 	VOE_PLATFORM_KEY_DELETE,
 	VOE_PLATFORM_KEY_Z,
 	VOE_PLATFORM_KEY_Y,
+	VOE_PLATFORM_KEY_R,
 	VOE_PLATFORM_KEY_COUNT
 } voe_platform_key;
 
