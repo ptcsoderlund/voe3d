@@ -227,10 +227,10 @@ typedef enum {
 	// size including one that fills the screen. Filtered, the crossing
 	// falls where the distances say it falls.
 	//
-	// IT SOFTENS NOTHING. What reads a field thresholds it, and a threshold
-	// keeps only the sign, so there is no sampler setting here that can
-	// produce a partially covered pixel. This mode moves the edge; it does
-	// not blur it.
+	// IT SOFTENS NOTHING. What reads a field turns the distance into a
+	// coverage — a hard cut for world text, one screen pixel of ramp for an
+	// interface glyph (ADR-0269) — and the filter only makes that distance
+	// true. This mode moves the edge; it does not blur it.
 	VOE_RENDER_SAMPLING_FIELD,
 } voe_render_sampling;
 
@@ -525,7 +525,8 @@ typedef enum {
 	VOE_RENDER_ELEMENT_SOLID = 0,
 	// A rectangle whose coverage comes out of a distance-field sheet: the
 	// record's `sheet` says which part of `sheet_texture` to read and the
-	// fragment stage takes the median of three channels and thresholds it.
+	// fragment stage takes the median of three channels and turns it into a
+	// coverage across one screen pixel (ADR-0269).
 	// The record's colour is the whole of what the letter is coloured; there
 	// is no material, no lighting and no shading record on this path, and
 	// that is exactly what lets a letter and a fill be one draw command.
@@ -540,7 +541,7 @@ typedef enum {
 	// shows the picture as it is. What it is for is a view drawn into a target
 	// of one's own, an icon, a thumbnail.
 	//
-	// IT IS NOT A TEXT KIND EITHER, AND IT IS NOT A GLYPH WITH THE THRESHOLD
+	// IT IS NOT A TEXT KIND EITHER, AND IT IS NOT A GLYPH WITH THE COVERAGE
 	// TAKEN OFF. A glyph's sheet is numbers and its colour is the record's
 	// alone; an image's sheet is a picture — a COLOUR texture, or a target's —
 	// and its colour is the picture's. Read NEAREST like every picture here.
@@ -653,7 +654,7 @@ typedef struct {
 	//
 	// VOE_RENDER_NO_TEXTURE IS SLOT 0 AND SLOT 0 IS ONE WHITE PIXEL, so a
 	// glyph that forgot to name its sheet samples opaque white, medians to
-	// white, thresholds to one and DRAWS A SOLID RECTANGLE. That is the
+	// white, is fully covered and DRAWS A SOLID RECTANGLE. That is the
 	// engine's standing convention for the empty texture id and nothing here
 	// tests for it; it is written down because a plausible-looking rectangle
 	// is a worse failure to find than a blank one, and

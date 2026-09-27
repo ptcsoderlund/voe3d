@@ -128,11 +128,11 @@
 // which is the outline. The colour is the base colour factor, untouched — the
 // sheet's rgb is numbers and multiplying by it would be arithmetic on distances.
 //
-// THE STEP IS HARD BECAUSE THIS ENGINE HAS NO ANTIALIASING ANYWHERE. It was a
-// smoothstep across one screen pixel, taken from the median's own derivative,
-// until that rule was settled. What the field buys is not a soft edge — it is an
-// edge in the right place at any size, which is what keeps a hard cut looking
-// like a letter rather than like blocks.
+// THE STEP IS HARD BECAUSE WORLD TEXT IS NOT ANTIALIASED. Interface text is:
+// elements.slang covers its edge across one screen pixel (ADR-0269). World
+// text has no caller that shows it small, so it keeps the hard cut. What the
+// field buys here is not a soft edge — it is an edge in the right place at any
+// size, which is what keeps a hard cut looking like a letter rather than blocks.
 //
 // ---- ALPHA, AND THE ONE MULTIPLY AT THE END ----
 //
@@ -538,11 +538,12 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// header. A material that is an ordinary picture pays three min/max and
 	// one derivative for it.
 	//
-	// A HARD CUT AT THE OUTLINE, BECAUSE THIS ENGINE HAS NO ANTIALIASING.
+	// A HARD CUT AT THE OUTLINE, BECAUSE WORLD TEXT IS NOT ANTIALIASED.
 	// The median is the signed distance and half is the outline, so a step
 	// is the whole of the decision: a fragment is inside the letter or it is
-	// not. There is no derivative here and no smoothstep, and that is the
-	// engine's rule rather than a limit of the sheet.
+	// not. Interface text is covered across a pixel instead (ADR-0269, in
+	// elements.slang); world text keeps this cut by choice, not by a limit
+	// of the sheet.
 	//
 	// THE DISTANCE FIELD IS STILL WHAT MAKES THIS WORK, AND THAT IS THE
 	// thing to understand before changing it. A hard cut through a field

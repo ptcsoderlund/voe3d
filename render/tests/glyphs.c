@@ -1,5 +1,5 @@
 // The letters on the element path: a glyph record reading a field sheet, drawn
-// in the same draw command as the rectangles around it. Eight claims, each one
+// in the same draw command as the rectangles around it. Nine claims, each one
 // a wrong implementation would get wrong quietly:
 //
 // - a solid and a glyph are one draw command;
@@ -7,17 +7,19 @@
 // - a glyph is clipped exactly as a solid is;
 // - a glyph naming no sheet draws a solid rectangle, on purpose;
 // - paint order holds across the two kinds, both ways round;
-// - a stroke thinner than a pixel keeps a pixel (ADR-0183);
-// - a stroke whose edges lie on pixel boundaries keeps its width (ADR-0184);
-// - a stroke already wider than a pixel gains no row (ADR-0212).
+// - a stroke thinner than a pixel keeps a pixel of ink (ADR-0183, ADR-0269);
+// - a stroke whose edges lie on pixel boundaries stays sharp (ADR-0269);
+// - a stroke already wider than a pixel keeps its width (ADR-0212, ADR-0269);
+// - an edge between pixel centres is partly covered (ADR-0269).
 //
 // IT READS THE PICTURE BACK, through tests/element_scene.h, because a sheet
-// read the wrong way round or a cutoff one byte off leaves the bookkeeping
-// perfect.
+// read the wrong way round or a coverage a few per cent off leaves the
+// bookkeeping perfect. The stroke claims measure ink, not rows: coverage() turns
+// a read byte back into how much of the pixel the letter covers.
 //
 // THE STROKE SHEETS ARE WRITTEN AS text/src/raster.c WRITES AN ATLAS — 0.5 plus
 // the signed distance over twice the spread, rounded to a byte — because the
-// aligned stroke's promise is decided within a byte of the cutoff, and a
+// aligned stroke's promise is decided within a few per cent of coverage, and a
 // hand-picked rounding could keep it falsely. This folder does not depend on
 // `text`, so the arithmetic is written out in bar_sheet() rather than called.
 //
@@ -25,6 +27,7 @@
 #include "element_scene.h"
 
 #include <assert.h>
+#include <math.h>
 
 // One element room more than the busiest claim here submits, which is two;
 // the same room elements.c opens with, and no mesh at all.
@@ -170,7 +173,7 @@ static void a_glyph_is_clipped_like_a_solid(struct scene *scene)
 //
 // AND A GLYPH THAT NAMED NO SHEET DRAWS A SOLID RECTANGLE, ASSERTED SO IT
 // CANNOT CHANGE QUIETLY. VOE_RENDER_NO_TEXTURE is slot 0 and slot 0 is one
-// white pixel, so such a record medians to white, thresholds to one and comes
+// white pixel, so such a record medians to white, is fully covered and comes
 // out as a plausible-looking rectangle rather than as anything that fails. It
 // is the worst failure on this path to find by looking, so it is the one with a
 // test naming it.
@@ -233,16 +236,17 @@ static void paint_order_holds_across_kinds(struct scene *scene)
 // A bar sheet: a horizontal stroke `half_width` texels either side of the
 // sheet's middle row line, its field written as text/src/raster.c writes one —
 // 0.5 plus the signed distance over twice the spread, clamped and rounded to a
-// byte — so that the cutoff meets the numbers a real atlas hands it. Uploaded
+// byte — so that the coverage meets the numbers a real atlas hands it. Uploaded
 // DATA and FIELD as the corner sheet is; the caller destroys it.
 //
-// AND THE CUTOFF IS HELD TO ITS THREE PROMISES WITH BAR SHEETS OF THEIR OWN
-// (ADR-0183, ADR-0212): a stroke half a pixel tall lying across a pixel boundary
-// keeps a pixel in every column, a stroke whose edges lie on pixel boundaries
-// keeps exactly its width, and a stroke already wider than a pixel gains no row
-// wherever it falls. Each bar's field is written and rounded to bytes as
-// text/src/raster.c writes an atlas, because the second promise is decided
-// within a byte of the cutoff and a hand-picked rounding could keep it falsely.
+// AND THE COVERAGE IS HELD TO ITS PROMISES WITH BAR SHEETS OF THEIR OWN
+// (ADR-0183, ADR-0212, ADR-0269): a stroke half a pixel tall lying across a pixel
+// boundary keeps a pixel of ink in every column, a stroke whose edges lie on
+// pixel boundaries stays sharp, a stroke already wider than a pixel keeps its
+// width wherever it falls, and an edge between pixel centres is partly covered.
+// Each bar's field is rounded to bytes as text/src/raster.c writes an atlas,
+// because the sharp stroke's promise is decided within a few per cent of
+// coverage and a hand-picked rounding could keep it falsely.
 #define BAR_SPREAD 4.0f
 #define BAR_MAX_BYTES (32 * 16 * 4)
 
@@ -276,12 +280,43 @@ static bool bar_sheet(voe_render_device *device, int width, int height,
 					 texels, out, &error);
 }
 
-// A stroke thinner than a pixel, lying across a pixel boundary, keeps a pixel
-// (ADR-0183). A bar two texels tall at four texels to a pixel is half a pixel
-// tall, and its centre sits exactly on the line between rows 7 and 8, so the
-// nearest pixel centres are a quarter of a pixel outside it on both sides: at
-// the field's half nothing at all is drawn, and the letter loses the limb.
-static void thin_stroke_keeps_a_pixel(struct scene *scene)
+// The clear's green, in linear light: CLEAR_GREEN in render/src/pass.c, copied
+// because a test reads the picture rather than the engine's private numbers.
+#define PAPER_GREEN 0.00857f
+
+// How much of pixel (x, y) a GREEN glyph covers, from the byte read back. The
+// headless target is B8G8R8A8_SRGB (element_scene.h), so the green byte is
+// decoded out of sRGB first; the premultiplied blend over the clear then makes
+// linear green paper + coverage * (1 - paper), which is undone here.
+static float coverage(const unsigned char *image, int x, int y)
+{
+	float encoded = image[(y * SIDE + x) * 4 + 1] / 255.0f;
+	float linear = encoded <= 0.04045f ?
+		encoded / 12.92f : powf((encoded + 0.055f) / 1.055f, 2.4f);
+
+	assert(x >= 0 && x < SIDE && y >= 0 && y < SIDE);
+	return (linear - PAPER_GREEN) / (1.0f - PAPER_GREEN);
+}
+
+// The ink in column x: the coverage of every row summed, in pixels.
+static float column_ink(const unsigned char *image, int x)
+{
+	float ink = 0.0f;
+
+	assert(x >= 0 && x < SIDE);
+	for (int y = 0; y < SIDE; y++)
+		ink += coverage(image, x, y);
+	return ink;
+}
+
+// A stroke thinner than a pixel, lying across a pixel boundary, keeps its ink
+// (ADR-0183, ADR-0212, ADR-0269). A bar two texels tall at four texels to a pixel
+// is half a pixel tall, and its centre sits exactly on the line between rows 7
+// and 8, so the nearest pixel centres are a quarter of a pixel outside it on both
+// sides: with no dilation each would be barely covered and the limb would fade
+// to grey. The edge moves out for a thin stroke, so each of those two rows is
+// about 0.625 covered and every column holds at least one pixel of ink.
+static void thin_stroke_keeps_its_ink(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
 	const struct voe_render_frame *frame;
@@ -304,17 +339,16 @@ static void thin_stroke_keeps_a_pixel(struct scene *scene)
 	read_back(device, frame, scene->readback.buffer);
 
 	for (int x = left; x < left + width; x++)
-		VOE_TEST_CHECK(count_in(scene->pixels, x, 0, x + 1, SIDE,
-					IS_GREEN) >= 1);
+		VOE_TEST_CHECK(column_ink(scene->pixels, x) >= 1.0f);
 	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
 }
 
-// A stroke whose edges lie on pixel boundaries keeps its true width (ADR-0184):
-// eight texels tall at one texel a pixel, rows 4 to 11. The nearest outside
-// pixel centres are exactly half a pixel out, reading about 0.439 after byte
-// rounding, and the cutoff sits half a pixel out less one byte step, about
-// 0.441, so they stay paper — eight rows, not nine or ten.
-static void aligned_stroke_keeps_its_width(struct scene *scene)
+// A stroke whose edges lie on pixel boundaries stays sharp (ADR-0269): eight
+// texels tall at one texel a pixel, rows 4 to 11. At one texel a pixel the edge
+// is the outline and the ramp is one pixel wide, so the pixel centres half a
+// pixel inside read about 0.99 covered and the ones half a pixel outside about
+// 0.01 — large text as sharp as under a hard cut.
+static void aligned_stroke_stays_sharp(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
 	const struct voe_render_frame *frame;
@@ -332,23 +366,18 @@ static void aligned_stroke_keeps_its_width(struct scene *scene)
 	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
 
-	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 0, HALF + 1, SIDE,
-				    IS_GREEN), 8);
-	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 4, HALF + 1, 12,
-				    IS_GREEN), 8);
+	for (int y = 4; y < 12; y++)
+		VOE_TEST_CHECK(coverage(scene->pixels, HALF, y) >= 0.95f);
+	VOE_TEST_CHECK(coverage(scene->pixels, HALF, 3) <= 0.05f);
+	VOE_TEST_CHECK(coverage(scene->pixels, HALF, 12) <= 0.05f);
 	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
 }
 
-// A stroke already wider than a pixel gains no row (ADR-0212): four texels tall
-// at one texel a pixel, its centre a quarter of a pixel above a pixel centre, so
-// the true outline lands between pixel centres and nothing on the grid decides
-// it. Pixel centres sit 0.25, 0.75, 1.25 and 1.75 pixels inside the outline and
-// 2.25 and 2.75 outside it; filtered and rounded to bytes those read about
-// 0.686, 0.655, 0.592 and 0.530 inside and 0.470 and 0.408 outside, and at one
-// texel a pixel the cutoff is the half exactly — four rows. With ADR-0184's
-// fixed half a pixel the cutoff was about 0.441 and the 0.470 row came in too,
-// which is the fifth row this claim refuses.
-static void a_wide_stroke_gains_no_row(struct scene *scene)
+// The wide bar of the next two claims: four texels tall at one texel a pixel,
+// its centre a quarter of a pixel above a pixel centre, so the true outline
+// lands between pixel centres and nothing on the grid decides it. Drawn over
+// the whole surface; the caller reads scene->pixels.
+static void draw_wide_bar(struct scene *scene)
 {
 	voe_render_device *device = scene->device;
 	const struct voe_render_frame *frame;
@@ -366,12 +395,39 @@ static void a_wide_stroke_gains_no_row(struct scene *scene)
 	VOE_TEST_CHECK(draw_everything(device));
 	VOE_TEST_CHECK(close_frame(device));
 	read_back(device, frame, scene->readback.buffer);
-
-	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 0, HALF + 1, SIDE,
-				    IS_GREEN), 4);
-	VOE_TEST_CHECK_INT(count_in(scene->pixels, HALF, 6, HALF + 1, 10,
-				    IS_GREEN), 4);
 	VOE_TEST_CHECK(voe_render_texture_destroy(device, bar));
+}
+
+// A stroke already wider than a pixel keeps its width (ADR-0212, ADR-0269): at
+// one texel a pixel the edge is the outline, so the wide bar's four pixels of
+// ink come out as four — about 0.25, 1, 1, 1 and 0.75 down a column. A dilation
+// spent where it was not needed would add ink, and a ramp off its centre would
+// add or lose some.
+static void a_wide_stroke_keeps_its_width(struct scene *scene)
+{
+	draw_wide_bar(scene);
+	for (int x = 0; x < SIDE; x++) {
+		float ink = column_ink(scene->pixels, x);
+
+		VOE_TEST_CHECK(ink >= 3.85f && ink <= 4.15f);
+	}
+}
+
+// An edge between pixel centres is partly covered (ADR-0269): in the wide bar
+// the outline lies a quarter of a pixel from the nearest centres, so some row
+// reads strictly between 0.2 and 0.8. A hard cut reads only nought or one, which
+// is the grain small text had.
+static void an_edge_between_pixel_centres_is_partly_covered(struct scene *scene)
+{
+	bool partly = false;
+
+	draw_wide_bar(scene);
+	for (int y = 0; y < SIDE; y++) {
+		float covered = coverage(scene->pixels, HALF, y);
+
+		partly = partly || (covered > 0.2f && covered < 0.8f);
+	}
+	VOE_TEST_CHECK(partly);
 }
 
 int main(void)
@@ -406,9 +462,10 @@ int main(void)
 		a_glyph_is_clipped_like_a_solid(&scene);
 		a_glyph_with_no_sheet_draws_a_solid_rectangle(&scene);
 		paint_order_holds_across_kinds(&scene);
-		thin_stroke_keeps_a_pixel(&scene);
-		aligned_stroke_keeps_its_width(&scene);
-		a_wide_stroke_gains_no_row(&scene);
+		thin_stroke_keeps_its_ink(&scene);
+		aligned_stroke_stays_sharp(&scene);
+		a_wide_stroke_keeps_its_width(&scene);
+		an_edge_between_pixel_centres_is_partly_covered(&scene);
 	} else {
 		VOE_TEST_CHECK(scene.pixels != NULL);
 	}

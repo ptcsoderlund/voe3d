@@ -19,8 +19,8 @@ by reading the offscreen colour image back.
   round, the blend, the capacity refused, a mesh after them, an empty frame and two ranges with two
   matrices. Headless.
 - `glyphs.c` — letters from records: one draw with a rectangle, the sheet read the right way round,
-  the clip, no sheet, paint order across kinds and the stroke widths, thin, aligned and wide.
-  Headless.
+  the clip, no sheet, paint order across kinds, and the ink of thin, aligned and wide strokes with
+  an edge partly covered. Headless.
 - `element_transform.c` — the element arithmetic with no graphics card: the transform's origin, the
   near clip boundary, the surface matrix and size, `ui` scale and the eighty-byte record.
 - `element_scene.h` — the device, readback, record builders and colour counts `elements.c` and

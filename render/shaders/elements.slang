@@ -79,46 +79,39 @@
 // A LETTER IS A RECTANGLE WHOSE COVERAGE CAME OUT OF A SHEET, AND THAT IS THE
 // WHOLE OF THE GLYPH KIND. A GLYPH record carries the part of a distance-field
 // sheet it reads and the texture it reads it from; this file samples that,
-// takes the median of three channels, thresholds it, and multiplies the
-// record's alpha by the answer. There is no material, no lighting and no
+// takes the median of three channels, turns it into a coverage, and multiplies
+// the record's alpha by the answer. There is no material, no lighting and no
 // shading record on this path — which is exactly what lets a letter and a fill
 // sit in one buffer and go out as one draw command.
 //
-// A THRESHOLD, NOT A SMOOTHSTEP, AND NOT BY OVERSIGHT. Card 026 took the
-// antialiasing out of this engine. The sheet asks for a filtered sampler
-// (VOE_RENDER_SAMPLING_FIELD) so that the field's crossings land where the
-// distances say they land rather than on the nearest texel boundary; that moves
-// the edge, it does not blur it, and there is no sampler setting on that path
-// that can produce a partly covered pixel. Softening the edge here would put
-// back the thing that was deliberately removed.
+// COVERAGE IS A BOX FILTER OVER ONE SCREEN PIXEL, READ FROM THE DISTANCE
+// (ADR-0269). The field is a distance, so its value at the pixel centre over
+// the field one pixel spans is how far that centre is from the edge in pixels;
+// a linear ramp one pixel wide centred on the edge is how much of the pixel the
+// letter covers. That is what keeps small text from going grainy. The sheet
+// asks for a filtered sampler (VOE_RENDER_SAMPLING_FIELD) so the distance read
+// is the distance the outline has, not the nearest texel's.
 //
-// BUT THE CUT IS NOT AT THE FIELD'S HALF: IT SITS OUTSIDE THE OUTLINE BY ONLY
-// AS FAR AS A THIN STROKE NEEDS, LESS ONE BYTE STEP OF THE FIELD (ADR-0182,
-// ADR-0183, ADR-0184, ADR-0212). A pixel is inside when its centre is within
-// that distance of the letter, so a thin stroke keeps a pixel even when it falls
-// between two pixel centres; at the half alone such a stroke lost every pixel
-// and the letter lost a limb. A stroke can only lose all of them when it is
-// under a pixel across, so the move is spent where it is needed: the face's
-// thinnest stroke is two sheet texels, which is 2 / texels_per_pixel screen
-// pixels, and the cut moves out only far enough to bring that to a pixel and a
-// quarter. At about one texel per pixel, which is the editor on an ordinary
-// display, the thinnest stroke is already two pixels and the cut does not move
-// at all, so the letters keep the face's weight; past about 1.6 texels per pixel
-// it grows — 0.375 pixel at four, where bug 03's strokes vanished, and the whole
-// half from eight on. (ADR-0212's prose says 0.47 at four; its formula, which is
-// what this follows and what render/tests/elements.c measures, gives 0.375.)
-// A pixel and a quarter rather than one is the margin for the byte-step guard,
-// for step counting a centre exactly on the moved edge as inside, and for the
-// constant being the face's stem rather than this fragment's stroke.
-// Less one byte step because an outline lying exactly on pixel boundaries has
-// its nearest outside centre exactly half a pixel away, and the sheet stores
-// bytes: a rounded texel can read up to half a byte step high, so the guard is a
-// whole byte step in field, not a fraction of a pixel, which would fail at some
-// magnification. Such text keeps its true width at every scale and does not gain
-// a row; where the cut does move, text that does not line up is at most one
-// pixel wider, which bug 01 of 009 accepts.
-// voe_render_element_cutoff turns the distance into a field value, and
-// draw.slang's world text keeps the half.
+// THE EDGE STILL MOVES OUT ONLY AS FAR AS A THIN STROKE NEEDS (ADR-0183,
+// ADR-0212), so small text keeps its ink instead of fading to a faint grey. A
+// stroke can only lose its ink when it is under a pixel across, so the move is
+// spent where it is needed: the face's thinnest stroke is two sheet texels,
+// which is 2 / texels_per_pixel screen pixels, and the edge moves out only far
+// enough to bring that to a pixel and a quarter. At about one texel per pixel,
+// the editor on an ordinary display, the edge does not move at all and the
+// letters keep the face's weight; past about 1.6 texels per pixel it grows —
+// 0.375 pixel at four, and the whole half from eight on.
+//
+// A TEXEL ENCODED AS NOUGHT IS NEVER COVERED, however small the text: the
+// ramp's low end is at least a byte step of the field, so what is far outside
+// everything stays paper, and its width is at least a byte step, so a
+// derivative of nought cannot divide by nought.
+//
+// LARGE TEXT IS NEARLY HARD. At about one texel per pixel the ramp is one pixel
+// wide, so a pixel centre half a pixel outside an aligned outline reads about
+// one per cent: the letters come out as sharp as they did under a hard cut.
+// voe_render_element_coverage is the ramp, and draw.slang's world text keeps
+// its hard cut at the half.
 //
 // THE SHEET IS SAMPLED AT AN EXPLICIT LEVEL AND THAT IS WHY THE BRANCH BELOW IS
 // FREE. draw.slang's fragment stage samples everything before it branches,
@@ -129,14 +122,14 @@
 // and needs no rule about where it may go. A solid then samples nothing rather
 // than fetching a white pixel it would throw away.
 //
-// THE ONE DERIVATIVE THE GLYPH NEEDS IS TAKEN BEFORE ANY BRANCH. The cutoff
+// THE ONE DERIVATIVE THE GLYPH NEEDS IS TAKEN BEFORE ANY BRANCH. The coverage
 // needs how many sheet texels one screen pixel spans, which is fwidth of the
 // interpolated sheet coordinate, and a derivative is only defined in uniform
 // control flow. So it is the first thing the fragment stage does — ahead of the
 // clip test's discard as well as the kind branch — and the glyph branch only
 // multiplies it by its sheet's size. It is taken from the sheet coordinate and
 // not from the median, whose slope flattens on the ridge of a thin stroke,
-// exactly where the cut has to move (ADR-0183).
+// exactly where the edge has to move (ADR-0183).
 //
 // AND THE TEXTURE INDEX HERE IS GENUINELY NON-UNIFORM, WHICH draw.slang'S IS
 // NOT. Over there the index comes from a record a push constant picked, so it
@@ -212,21 +205,18 @@ static const float VOE_RENDER_ELEMENT_FIELD_SPREAD = 4.0;
 // moves with ATLAS_EM and with the face.
 static const float VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS = 2.0;
 
-// The field value at and above which a glyph's pixel counts as inside: the
-// half, moved outward by as far as a thin stroke needs and no farther, less one
-// byte step of the field (ADR-0183, ADR-0184, ADR-0212). `texels_per_pixel` is
-// how many sheet texels one screen pixel spans along each axis; the larger is
-// taken, so a squeezed axis never under-dilates. The face's thinnest stroke is
-// VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS across, so it spans that many texels
-// divided by that larger number in screen pixels, and the dilation is what
-// brings it to a pixel and a quarter: nought once the stroke is that wide
-// already, which is text at about one texel per pixel, and at most the half a
-// pixel ADR-0184 spent at every size. The byte step keeps an outline on pixel
-// boundaries from gaining a row when a rounded texel reads half a step high.
-// Clamped to at most the half so the cut never erodes past the outline, and to
-// at least a five-hundred-and-twelfth so that a texel encoded as nought — far
-// outside everything — is never inside, however small the text gets.
-float voe_render_element_cutoff(float2 texels_per_pixel)
+// How much of one screen pixel a glyph covers, from the median of its field
+// (ADR-0269): a linear ramp one pixel wide centred on the edge. The edge is the
+// half, moved outward by as far as a thin stroke needs and no farther (ADR-0183,
+// ADR-0212). `texels_per_pixel` is how many sheet texels one screen pixel spans
+// along each axis; the larger is taken, so a squeezed axis never under-dilates.
+// The face's thinnest stroke is VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS across,
+// so it spans that many texels divided by that larger number in screen pixels,
+// and the dilation is what brings it to a pixel and a quarter: nought once the
+// stroke is that wide already, and at most half a pixel. The ramp's low end is
+// at least a byte step, so a texel encoded as nought is never covered, and its
+// width is at least a byte step, so nothing divides by nought.
+float voe_render_element_coverage(float median, float2 texels_per_pixel)
 {
 	float texels = max(texels_per_pixel.x, texels_per_pixel.y);
 	float field_per_pixel = texels
@@ -234,8 +224,11 @@ float voe_render_element_cutoff(float2 texels_per_pixel)
 	float thin_stroke_pixels =
 		VOE_RENDER_ELEMENT_THIN_STROKE_TEXELS / texels;
 	float dilation = clamp(0.5 * (1.25 - thin_stroke_pixels), 0.0, 0.5);
-	return clamp(0.5 - dilation * field_per_pixel + 1.0 / 255.0,
-		     1.0 / 512.0, 0.5);
+	float edge = 0.5 - dilation * field_per_pixel;
+	float low = max(edge - 0.5 * field_per_pixel, 1.0 / 255.0);
+	float high = max(edge + 0.5 * field_per_pixel, low + 1.0 / 255.0);
+
+	return saturate((median - low) / (high - low));
 }
 
 // The middle of three, which is what turns three one-sided distance fields back
@@ -343,7 +336,7 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 	// decides. A zeroed rectangle discards everything, which is what
 	// voe_render_element says it does: whoever builds a record says what it
 	// is clipped to and nothing here repairs a caller that did not.
-	// Sheet coordinate per screen pixel, for the glyph's cutoff. First, in
+	// Sheet coordinate per screen pixel, for the glyph's coverage. First, in
 	// uniform control flow, before the discard and the branch below: see the
 	// header. Every kind computes it and only a glyph reads it.
 	float2 sheet_per_pixel = fwidth(vertex.sheet_at);
@@ -368,18 +361,18 @@ voe_render_element_fragment(voe_render_element_vertex_out vertex) : SV_Target
 			NonUniformResourceIndex(vertex.sheet_texture)]
 			.SampleLevel(vertex.sheet_at, 0.0).rgb;
 
-		// A hard cut as far outside the outline as a thin stroke needs,
-		// less a byte step, not draw.slang's half: see the header. The derivative was taken
-		// above; here it only becomes texels by the sheet's size.
-		// Inside or outside, and nothing in between.
+		// Coverage across one screen pixel around an edge as far outside
+		// the outline as a thin stroke needs, not draw.slang's hard cut:
+		// see the header. The derivative was taken above; here it only
+		// becomes texels by the sheet's size.
 		uint sheet_width;
 		uint sheet_height;
 		voe_render_textures[NonUniformResourceIndex(vertex.sheet_texture)]
 			.GetDimensions(sheet_width, sheet_height);
 		float2 texels_per_pixel =
 			sheet_per_pixel * float2(sheet_width, sheet_height);
-		colour.a *= step(voe_render_element_cutoff(texels_per_pixel),
-				 voe_render_element_median(field));
+		colour.a *= voe_render_element_coverage(
+			voe_render_element_median(field), texels_per_pixel);
 	} else if (vertex.kind == VOE_RENDER_ELEMENT_IMAGE) {
 		// The same explicit level and the same non-uniform subscript as
 		// the glyph above, for the same reasons; the texture is a picture
