@@ -9,7 +9,9 @@
 //
 // AN ADD MAKES AN IDENTITY AND A TRANSFORM AND NOTHING ELSE (ADR-0217). There
 // is no shortcut that makes an entity with other components on it; everything
-// else comes from Add component afterwards.
+// else comes from Add component afterwards. The one other make is a model
+// dropped into a view (assets_drag.h): an identity, a transform where it
+// landed and the model row naming the file, as 0277 point 8 asks.
 //
 // A NEW COLLIDER STARTS OUT FITTING THE SHAPE (0253). Added to an entity with
 // a shape, it is voe_3d_shape_collider's row for that shape's kind, not the
@@ -25,7 +27,8 @@
 // A NEW ENTITY'S ID is one more than the largest identity id in the world, which
 // cannot collide with any id in the file (ADR-0193).
 //
-// ITS NAME is the base name — "Entity" for an add, and for a duplicate its source's name less a trailing " <number>" — when
+// ITS NAME is the base name — "Entity" for an add, the file's last name less
+// `.glb` for a model, and for a duplicate its source's name less a trailing " <number>" — when
 // no identity has that name, and otherwise "<base> N" for the lowest N from 2
 // that no identity has. A base too long to take the suffix in
 // VOE_SCENE_IDENTITY_NAME bytes is cut short to make room for it.
@@ -48,12 +51,23 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
+#include <math/double3.h>
+
 // Makes an entity and queues its two rows: an identity with a new id and the
 // name "Entity" by the rules above, and the transform's default row (the
 // origin). Writes the entity to `out`. False when the world or the queue is
 // full, and then nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_add(voe_ecs_world *world,
 					   voe_ecs_entity *out);
+
+// As voe_editor_entities_add, named after `path`'s last name less `.glb`, the
+// transform at `position` and a model row naming `path` (shorter than
+// VOE_3D_MODEL_PATH, project-relative with `/`). False when the world or the
+// queue is full, and then nothing is left of it.
+[[nodiscard]] bool voe_editor_entities_model_add(voe_ecs_world *world,
+						 const char *path,
+						 voe_math_double3 position,
+						 voe_ecs_entity *out);
 
 // Queues that type's default row onto the entity, or for a collider on an
 // entity with a shape the one fitting it. False when the queue is full.

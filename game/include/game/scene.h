@@ -1,7 +1,9 @@
 // The one function a project's cooked scene defines, and everything its body
 // names: the types' rows and keys (game/world.h) and
 // voe_ecs_component_add. This is the include the cook is handed
-// (authoring/scene_cook.h).
+// (authoring/scene_cook.h), so it includes the header of every type
+// game/world.h registers; tests/world.c names each key through this header
+// alone and stops compiling when one is missing.
 //
 //     voe_ecs_world *world = voe_game_world_new(arena);
 //     if (!voe_game_scene_build(world))
@@ -19,6 +21,7 @@
 
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
 

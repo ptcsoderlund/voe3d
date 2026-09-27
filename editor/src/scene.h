@@ -49,8 +49,12 @@
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
 // move or turn is how someone is working, not what the scene is, so it is never
 // saved and never undone, and a new project keeps it.
+//
+// THE ASSETS PANEL'S STATE IS HERE TOO, in `assets`, so the dock reaches it
+// with no parameter of its own (assets_panel.h); nothing in scene.c reads it.
 #pragma once
 
+#include "assets_panel.h"
 #include "inspector.h"
 
 #include <ecs/world.h>
@@ -111,6 +115,9 @@ typedef struct voe_editor_scene {
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.
 	voe_editor_inspector inspector;
+	// The Assets panel: updated by main.c, drawn by dock.c, read by
+	// interface.c (assets_panel.h).
+	voe_editor_assets assets;
 	// THE COLOUR PICKER'S TARGET IS HERE TOO, IN `picking`, because it
 	// outlives the frame the Inspector's swatch fired in and the
 	// Inspector's own struct forgets its controls every frame. It names an

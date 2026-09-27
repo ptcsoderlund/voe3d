@@ -181,7 +181,7 @@ struct voe_render_element {
 // descriptor array's length is fixed in each of them and there is no way to say
 // "as many as the C side thinks" from a shader.
 [[vk::binding(1, 0)]]
-Sampler2D voe_render_textures[64];
+Sampler2D voe_render_textures[1024];
 
 // VOE_RENDER_ELEMENT_GLYPH, which is the C enum's second value. The kinds are
 // written out on both sides rather than shared, the same way this whole record

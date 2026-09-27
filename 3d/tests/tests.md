@@ -28,19 +28,19 @@ again, or to find where a claim that has started failing is written down.
   or sun marker is one draw more. Skips without a graphics card.
 - `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
   not beside it, that a fill lifts that shadow and leaves the lit floor as it was, that no light
-  casts nothing, and that 100 km out reads the same. Skips without a graphics card.
+  casts nothing, 100 km out the same, and a model casts as the cube does. Skips without a card.
 - `no_light.c` — that a world with no light frames unshaded and not blind, one light frames as
   itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
   card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
-  kind's own triangles, and that every kind is a closed surface wound counter-clockwise seen from
-  outside. Needs no graphics card.
+  kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
+  outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, camera box or sun cube at the right distance and
-  nothing where nothing is, and that a drawn pixel the cube covers picks it. The arithmetic half
-  needs no graphics card; the drawn half skips without one.
+  nothing where nothing is, that a drawn pixel the cube covers picks it, and a model hit at its
+  distance, missed beside it. The arithmetic half needs no card; the rest skip without one.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
-  and winding, and — drawn — that a hidden cube's outline shows through. The arithmetic half needs
-  no graphics card; the drawn half skips without one.
+  and winding, a loaded model outlined to quads and not without a store, and — drawn — that a hidden
+  cube's outline shows through. The arithmetic half needs no card; the rest skip without one.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
   building nothing and not hit, and a ray meeting the box square on, turned and not at all. Needs
   no graphics card.
@@ -62,3 +62,8 @@ again, or to find where a claim that has started failing is written down.
 - `shape.c` — the shape table's description, default row, intents and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
+- `model_component.c` — the model's one CHAR field `path` of 128, a submitted path read back after a
+  run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
+- `models.c` — the store: a model's parts and baked node transform, bad bytes and an unread
+  file kept as failed, a path loaded a hundred times on room for three, good then bad and bad
+  then good, a clear, and a model drawn only with the store and not hidden. Skips without a card.

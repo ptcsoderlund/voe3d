@@ -39,8 +39,8 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `settings.h` — the Scene list's and the Inspector's widths, the top bar's height and the views'
-  share a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>`
+- `settings.h` — the Scene list's and the Inspector's widths, the Assets panel's and the top bar's
+  heights and the views' share a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>`
   line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
@@ -105,19 +105,27 @@ carries it out.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of Close afterwards.
 - `browser.h` — the editor's own file browser: a folder listing shown as an anchored panel over the
-  dock, its own arena for the current folder and its rows, and in SAVE mode a name row with a
-  focused `ui` field and a Make folder button.
+  dock, its own arena for the current folder and its rows, in SAVE mode a name row with a focused
+  `ui` field and a Make folder button, and in IMPORT mode `.glb` files a press imports.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree, whose splits hold a side panel's length in millimetres or the views' share,
-  every node's and seam's place (seams in the border colour, the reached one lit), the walk and
-  `voe_editor_panel_draw`; a root carries this frame's keyboard and lit seam beside its pointer.
+- `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
+  panel's length or the views' share, every seam's place (the reached one lit), and the walk.
 - `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
   the walk to one frame of `ui` calls, the held lengths and share read and set, the Inspector's
   scroll area, and the camera preview in each scene view's corner.
-- `resize.h` — the borders a person drags to size the panels: each side panel's seam, the views' border and the top
-  bar's lower edge, hit-tested before `ui`, the pointer's shape over them, the seam it reports reached
-  for the walk to light, and a double-click that sets one size back (ADR-0226).
+- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
+  Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
+  as models, and Import copying a chosen `.glb` into the shown folder.
+- `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
+  the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the import.
+- `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
+  the ray lands, over the Inspector swaps the selected thing's model, anywhere else nothing.
+- `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
+  rectangle from the dock tree, and the one undo step and unsaved mark.
+- `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
+  panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
+  reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock, and the three sizes written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
@@ -164,19 +172,24 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
-- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world, the
+- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world and its models, the
   selection's outline, its collider, its gizmo and the camera's and sun's markers, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
   walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera and sun marked, and
   ended, stopping at the first refused pass.
+- `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
+  emptied on a different project, a broken file said in the notice, and handed to picking and the
+  view passes.
+- `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
+  with a failure's notice, cleared through the device and destroyed.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
   drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
 - `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
   gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
   measured them, and the Scene panel's rows asked after the frame has ended.
-- `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a
-  click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
+- `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
+  too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
@@ -190,9 +203,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity (an identity and a transform, nothing else), duplicating and deleting
-  entities and giving or taking their components, a new collider fitting the shape, all through the
-  world's structural queue. Its header says
-  the id and name rules and what a failure leaves behind.
+- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities, and giving
+  or taking their components, all through the world's structural queue. Its header says the id and
+  name rules.
 - `entities.c` — the new id and name, the queued rows, and the destroy that
   undoes a half-made entity.

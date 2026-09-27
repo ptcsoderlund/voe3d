@@ -6,6 +6,7 @@
 //     voe_3d_outline_mesh mesh;
 //     voe_3d_outlined outlined = { .entity = selected,
 //                                  .geometries = &geometries,
+//                                  .models = models,
 //                                  .material = shapes.outline,
 //                                  .colour = theme_colour,
 //                                  .pixels = 2.0f,
@@ -28,8 +29,8 @@
 // which are a fold of nothing and must not be drawn across its faces. The same
 // answer is given to the boundary edge of an open surface, which carries one
 // triangle's normal in both (3d/shape_geometry.h) and would be on the outline —
-// all three built-in shapes are closed, and the day a read model is outlined is
-// the day that distinction has to be carried in the edge.
+// all three built-in shapes are closed, and a model's open edge goes undrawn
+// until that distinction is carried in the edge.
 //
 // THE QUADS STAND ABOUT THE EYE AND NOT ON THE SCREEN. They are drawn through
 // the same camera and the same two matrices as everything else in the view, so
@@ -53,6 +54,7 @@
 #pragma once
 
 #include <3d/material_component.h>
+#include <3d/models.h>
 #include <3d/shape_geometry.h>
 
 #include <base/arena.h>
@@ -64,25 +66,31 @@
 #include <render/device.h>
 
 // VOE_3D_OUTLINE_EDGES IS A CAP AND NOT AN ASSERT. A capsule is about fifteen
-// hundred edges and a mesh read from a file has no measured number at all; a
+// hundred edges and a model read from a file has no measured number at all; a
 // shape nobody has measured must not be able to fill one frame's transient pool
 // and have the frame refused. Past the cap the outline is missing a few edges,
 // which is a line with a gap in it, and everything else in the frame is drawn.
+// It is 4096 and not the shapes' 512 because a model's silhouette is walked
+// over thousands of triangles, and its turning edges run to a few thousand.
 //
 // The most edges one outline is built from, and the vertices and indices that
 // many edges come to. A program sizes voe_render_capacities' three transient
 // numbers from these: four vertices and six indices per edge, one transient
 // range per view that outlines something.
-#define VOE_3D_OUTLINE_EDGES 512
+#define VOE_3D_OUTLINE_EDGES 4096
 #define VOE_3D_OUTLINE_VERTICES (VOE_3D_OUTLINE_EDGES * 4)
 #define VOE_3D_OUTLINE_INDICES (VOE_3D_OUTLINE_EDGES * 6)
 
 // What a pass outlines and how. A zeroed entity outlines nothing, which is what
-// no selection looks like (ecs/world.h), and a NULL store the same.
+// no selection looks like (ecs/world.h), and a NULL geometry store the same.
 typedef struct {
 	voe_ecs_entity entity;
 	// The CPU-side geometry the silhouette is walked over, or NULL.
 	const voe_3d_shape_geometries *geometries;
+	// The model store an entity with no shape is outlined from, or NULL
+	// for none (ADR-0277 point 3); a world handed one registers models,
+	// as voe_3d_frame.models asks.
+	const voe_3d_models *models;
 	// The unlit record the quads wear — voe_3d_shapes' outline material.
 	// Read by whoever draws them, not by the build below.
 	voe_3d_material material;
@@ -124,8 +132,9 @@ typedef struct {
 // about `eye`, into `arena` and fills `out`.
 //
 // False, with nothing written to `out`, when there is nothing to outline: a
-// zeroed or dead entity, no store, an entity with no shape or no transform, a
-// kind this build does not know, one scaled away to nothing (3d/pick.h skips
+// zeroed or dead entity, no store, an entity with no transform, one with no
+// shape and no model with a loaded entry (or no model store), a kind this
+// build does not know, one scaled away to nothing (3d/pick.h skips
 // the same entity for the same reason), or a silhouette with no edges at all —
 // which is a caller's ordinary case and not a failure, so the frame simply
 // draws no outline.

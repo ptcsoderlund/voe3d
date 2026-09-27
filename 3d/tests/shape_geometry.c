@@ -141,6 +141,19 @@ int main(void)
 	check_winding(capsule);
 	check_winding(cylinder);
 
+	// Any triangles go through the same build: the cube's own arrays
+	// handed to it give the cube kind's edges, pointed at and not copied.
+	{
+		voe_3d_shape_geometry built;
+
+		voe_3d_shape_geometry_build(arena, voe_3d_cube_vertices,
+					    VOE_3D_CUBE_VERTICES,
+					    voe_3d_cube_indices,
+					    VOE_3D_CUBE_INDICES, &built);
+		VOE_TEST_CHECK(built.vertices == voe_3d_cube_vertices);
+		VOE_TEST_CHECK_INT(built.edge_count, cube->edge_count);
+	}
+
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

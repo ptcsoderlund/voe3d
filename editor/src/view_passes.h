@@ -1,16 +1,16 @@
 // What a frame draws into the scene views: a pass per view the dock tree
 // shows, each preceded by the sun's shadow passes fitted to that view
 // (voe_3d_draw_system_shadows, ADR-0258) and onto that view's own target with
-// its own camera, the world's light and those shadows, the world drawn by voe_3d_draw_system_run with the
-// selection's outline (ADR-0203), its collider as lines (0253), its move
+// its own camera, the world's light and those shadows, the world and its models drawn by voe_3d_draw_system_run with the
+// selection's outline, a model's too (ADR-0203), its collider as lines (0253), its move
 // gizmo (ADR-0205), the scene camera's marker (0223) and the sun's (0274), and the pass ended; and before those, the preview's
 // shadow passes and one pass with the world's own camera (view.h). main.c calls both once a
 // frame, between opening the draw and the window's pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
-//                                            light, &scene);
+//                                            light, &scene, models);
 //     drawn = drawn && voe_editor_view_passes_draw(gpu, arena, world, &views, &tree,
-//                                         light, &scene, &geometries,
+//                                         light, &scene, &geometries, models,
 //                                         &shapes, palette, &gizmo, ppmm);
 //
 // A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
@@ -21,12 +21,12 @@
 // WHAT THE DEVICE'S CAPACITIES MUST COVER is VOE_EDITOR_CAPACITIES below, kept
 // beside the passes so the next capacity a pass needs is added here. The
 // editor uploads one cube and one material — the shapes' own, see
-// 3d/shape_system.h — which is what makes the geometry numbers its constants
-// and `shadings` a one. `objects` is per frame: every drawn entity is one
-// object in every view's pass, so it is the room for drawn entities
-// (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's — every project's world is
-// registered with that much room for a mesh and a material, so a device that
-// draws one is sized from the same number), one more for the selected
+// 3d/shape_system.h — and the model store's room on top (VOE_3D_MODELS_*,
+// 3d/models.h, ADR-0277). `objects` is per frame: every drawn entity is one
+// object in every view's pass, and a model part is an object too, so it is
+// twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's
+// — every project's world is registered with that much room for a mesh and a
+// material, so a device that draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
 // for the gizmo's handles at rest and its marked one, one for the camera's
 // marker, one for the sun's and one for the selection's collider, times the room for views, and the drawn entities once more for the
@@ -55,6 +55,7 @@
 #include "view.h"
 
 #include <3d/draw_system.h>
+#include <3d/models.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
@@ -98,15 +99,17 @@
 #define VOE_EDITOR_CAPACITIES                                                 \
 	(voe_render_capacities)                                               \
 	{                                                                     \
-		.vertices = VOE_3D_SHAPES_VERTICES,                            \
-		.indices = VOE_3D_SHAPES_INDICES,                              \
-		.geometries = VOE_3D_SHAPES_GEOMETRIES,                        \
-		.objects = (VOE_GAME_WORLD_MAX_DRAWN + 6) *                    \
-			   VOE_EDITOR_VIEWS + VOE_GAME_WORLD_MAX_DRAWN +       \
-			   VOE_GAME_WORLD_MAX_DRAWN *                          \
+		.vertices = VOE_3D_SHAPES_VERTICES + VOE_3D_MODELS_VERTICES,   \
+		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
+		.geometries =                                                  \
+			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 6) *                \
+				   VOE_EDITOR_VIEWS +                          \
+			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
+			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
 				   VOE_RENDER_SHADOW_CASCADES *                \
 				   (VOE_EDITOR_VIEWS + 1),                     \
-		.shadings = VOE_3D_SHAPES_SHADINGS,                            \
+		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2 +                               \
 			  VOE_RENDER_SHADOW_CASCADES * (VOE_EDITOR_VIEWS + 1), \
@@ -129,19 +132,21 @@
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when
 // it has and that camera is not blind, draws what it sees into the preview's
-// target, lit by `light`, with no outline, gizmo or marker. False only when
+// target, lit by `light`, with `models`' rows (NULL for none) and no outline,
+// gizmo or marker. False only when
 // the device refuses the pass. Called inside an open draw, never inside a pass.
 [[nodiscard]] bool voe_editor_view_passes_preview(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, voe_render_light light,
-	const voe_editor_scene *scene);
+	const voe_editor_scene *scene, const voe_3d_models *models);
 
-// Draws every view `tree` shows, in order, and returns false at the first
+// Draws every view `tree` shows, in order, models and the selected model's
+// outline through `models` (NULL for none), and returns false at the first
 // pass the device refuses. Called inside an open draw, never inside a pass.
 [[nodiscard]] bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	const voe_editor_views *views, const voe_editor_dock_tree *tree,
 	voe_render_light light, const voe_editor_scene *scene,
-	const voe_3d_shape_geometries *geometries, const voe_3d_shapes *shapes,
-	const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
+	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
+	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
 	float pixels_per_millimetre);

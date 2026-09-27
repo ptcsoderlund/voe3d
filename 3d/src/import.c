@@ -7,14 +7,9 @@
 // all three. Nothing here can be reordered without something naming an id that
 // does not exist yet.
 //
-// THE ONE EXCEPTION IS THAT THE UPLOAD OF THE PICTURES READS THE MATERIALS. A
-// picture is uploaded in one of two colour spaces and nothing in a picture says
-// which — only the material slot that referenced it does — so upload_images
-// walks the materials for their texture indices before it uploads anything, and
-// upload_materials then walks them again for everything else. Two walks over a
-// handful of materials, and the alternative is uploading a picture lazily from
-// inside the material loop, which puts a GPU upload behind a field
-// initialisation.
+// THE PICTURES AND MATERIALS ARE ONE CALL, in model_upload.h, which the model
+// store shares; that header says which colour space each picture is uploaded in
+// and why the upload of the pictures reads the materials.
 //
 // THE TREE IS WALKED WITH AN EXPLICIT STACK IN THE ARENA (rule 14). The stack is
 // as long as the file has nodes, which is enough because `assets` has already
@@ -31,6 +26,8 @@
 // NOTHING HERE UNWINDS ON FAILURE, and the header says so out loud: `render`
 // cannot free geometry yet, and half a model in a world nobody drew costs
 // nothing. A caller that cannot load its model destroys the world.
+#include "model_upload.h"
+
 #include <3d/import.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -49,21 +46,13 @@ struct import {
 	voe_base_arena *arena;
 	const voe_assets_model *model;
 
-	// One per picture per kind, one per glTF material, one per primitive —
-	// the ids that came back from the uploads, indexed the way the file
-	// indexes them. A slot left at zero is a picture that was never wanted
-	// that way round, which is VOE_RENDER_NO_TEXTURE and samples white.
-	voe_render_texture *colours;
-	voe_render_texture *data;
-	voe_3d_material *materials;
+	// The pictures and materials uploaded, and one geometry per primitive
+	// indexed the way the file indexes them.
+	voe_3d_model_upload upload;
 	voe_render_geometry *geometries;
 
 	voe_ecs_entity *entities;
 	uint32_t entity_count;
-
-	// How many pictures were actually uploaded, which is not the file's
-	// image count when one picture is wanted both ways round.
-	uint32_t texture_count;
 };
 
 // One frame of the tree walk: which node, where its parent put it, and how deep
@@ -82,195 +71,6 @@ static bool no_room(voe_base_error *error, const char *what)
 	if (error != NULL)
 		*error = VOE_BASE_ERROR_REFUSED;
 	return false;
-}
-
-// Says a picture is wanted, ignoring the indices that name none. Every index
-// here came out of a file, so the bound is checked where the array is reached
-// rather than trusted from a folder away.
-static void wanted(bool *marks, uint32_t count, uint32_t index)
-{
-	if (index < count)
-		marks[index] = true;
-}
-
-// A texture id per picture in the file, in the kind each picture is wanted as.
-//
-// A PICTURE IS UPLOADED ONCE PER KIND AND NOT ONCE. A texture slot holds one
-// format, and a base colour map has to be sRGB while an ORM map has to be raw
-// (render/device.h) — so a file whose one picture is referenced as both costs
-// two slots and there is no way round it short of two views onto one image,
-// which is a card of its own. Nothing real does this: the two kinds of picture
-// are authored differently and an exporter that shared one between them would be
-// wrong about one of the two. What the two arrays buy is that such a file is
-// merely wasteful here rather than wrong.
-//
-// WHICH KIND EACH PICTURE IS COMES OUT OF THE MATERIALS AND NOT OUT OF THE
-// PICTURE. Nothing in a PNG says whether its bytes are a colour, so the only
-// answer is which slot of which material referenced it, which is why the
-// materials are walked before anything is uploaded even though the materials
-// need the ids this produces.
-//
-// `render` DEDUPLICATES NOTHING: the deduplication is that `assets` resolved
-// every glTF texture to a picture, so this uploads each one once per kind and
-// every material that wanted it that way round gets the same id.
-static bool upload_images(struct import *import, voe_base_error *error)
-{
-	const voe_assets_model *model = import->model;
-	uint32_t count = model->image_count;
-	bool *as_colour;
-	bool *as_data;
-
-	if (count == 0)
-		return true;
-
-	import->colours = voe_base_arena_push(
-		import->arena, (size_t)count * sizeof(*import->colours));
-	import->data = voe_base_arena_push(
-		import->arena, (size_t)count * sizeof(*import->data));
-	as_colour = voe_base_arena_push(import->arena,
-					(size_t)count * sizeof(*as_colour));
-	as_data = voe_base_arena_push(import->arena,
-				      (size_t)count * sizeof(*as_data));
-
-	for (uint32_t i = 0; i < model->material_count; i++) {
-		const voe_assets_material *material = &model->materials[i];
-
-		wanted(as_colour, count, material->base_colour_image);
-		wanted(as_colour, count, material->emissive_image);
-		wanted(as_data, count, material->metallic_roughness_image);
-		wanted(as_data, count, material->normal_image);
-		wanted(as_data, count, material->occlusion_image);
-	}
-
-	for (uint32_t i = 0; i < count; i++) {
-		if (as_colour[i] &&
-		    !voe_render_texture_create(import->device,
-					       VOE_RENDER_TEXTURE_COLOUR,
-					       VOE_RENDER_SAMPLING_SMOOTH,
-					       model->images[i].width,
-					       model->images[i].height,
-					       model->images[i].pixels,
-					       &import->colours[i], error))
-			return false;
-		if (as_data[i] &&
-		    !voe_render_texture_create(import->device,
-					       VOE_RENDER_TEXTURE_DATA,
-					       VOE_RENDER_SAMPLING_SMOOTH,
-					       model->images[i].width,
-					       model->images[i].height,
-					       model->images[i].pixels,
-					       &import->data[i], error))
-			return false;
-		import->texture_count += (uint32_t)as_colour[i] +
-					 (uint32_t)as_data[i];
-	}
-	return true;
-}
-
-// The id of the picture at `index` in the kind asked for, or the "there isn't
-// one" id. A material naming no picture and a material naming one that was never
-// uploaded are the same thing to a shader: it samples white.
-static voe_render_texture texture_at(const struct import *import,
-				     const voe_render_texture *ids,
-				     uint32_t index)
-{
-	voe_render_texture none = { .index = VOE_RENDER_NO_TEXTURE,
-				    .generation = 0 };
-
-	if (ids == NULL || index == VOE_ASSETS_MODEL_NONE ||
-	    index >= import->model->image_count)
-		return none;
-	return ids[index];
-}
-
-// `assets`' three words into `render`'s three words. Two enums and not one
-// because `assets` may not name `render` — see 3d/material_component.h — and
-// this is the one place in the engine where the mapping is written down. It is
-// one to one and it is total, so the default below is unreachable rather than a
-// fallback: the reader refuses a mode it does not know (assets/model.h) and
-// never hands one over.
-static voe_render_alpha_mode alpha_mode_of(voe_assets_alpha_mode mode)
-{
-	switch (mode) {
-	case VOE_ASSETS_ALPHA_CUTOUT:
-		return VOE_RENDER_ALPHA_CUTOUT;
-	case VOE_ASSETS_ALPHA_BLENDED:
-		return VOE_RENDER_ALPHA_BLENDED;
-	case VOE_ASSETS_ALPHA_OPAQUE:
-		break;
-	}
-	return VOE_RENDER_ALPHA_OPAQUE;
-}
-
-static bool upload_materials(struct import *import, voe_base_error *error)
-{
-	const voe_assets_model *model = import->model;
-
-	if (model->material_count == 0)
-		return true;
-
-	import->materials = voe_base_arena_push(
-		import->arena,
-		(size_t)model->material_count * sizeof(*import->materials));
-
-	for (uint32_t i = 0; i < model->material_count; i++) {
-		const voe_assets_material *from = &model->materials[i];
-
-		import->materials[i] = (voe_3d_material){
-			.base_colour = from->base_colour,
-			.metallic = from->metallic,
-			.roughness = from->roughness,
-			.emissive = from->emissive,
-			.alpha_mode = alpha_mode_of(from->alpha_mode),
-			.alpha_cutoff = from->alpha_cutoff,
-			.base_colour_texture =
-				texture_at(import, import->colours,
-					   from->base_colour_image),
-			.metallic_roughness_texture =
-				texture_at(import, import->data,
-					   from->metallic_roughness_image),
-			.normal_texture = texture_at(import, import->data,
-						     from->normal_image),
-			.occlusion_texture =
-				texture_at(import, import->data,
-					   from->occlusion_image),
-			.emissive_texture = texture_at(import,
-						       import->colours,
-						       from->emissive_image),
-		};
-
-		// One record per glTF material and not one per entity, so two
-		// entities wearing one material share the record as well as the
-		// texture ids.
-		if (!voe_3d_material_upload(import->device,
-					    &import->materials[i], error))
-			return false;
-	}
-	return true;
-}
-
-// glTF's default material: white, fully metallic, fully rough, opaque, no
-// pictures. It
-// is what an unmaterialled primitive is *defined* to be, so this is the file's
-// answer and not a substitute for it — and it gets a shading record of its own
-// like any other material.
-static bool default_material(struct import *import, voe_3d_material *out,
-			     voe_base_error *error)
-{
-	*out = (voe_3d_material){
-		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
-		.metallic = 1.0f,
-		.roughness = 1.0f,
-		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
-		.alpha_cutoff = 0.5f,
-		.base_colour_texture = { .index = VOE_RENDER_NO_TEXTURE },
-		.metallic_roughness_texture = { .index = VOE_RENDER_NO_TEXTURE },
-		.normal_texture = { .index = VOE_RENDER_NO_TEXTURE },
-		.occlusion_texture = { .index = VOE_RENDER_NO_TEXTURE },
-		.emissive_texture = { .index = VOE_RENDER_NO_TEXTURE },
-	};
-
-	return voe_3d_material_upload(import->device, out, error);
 }
 
 // One primitive's attributes, interleaved into whatever a vertex is on the GPU.
@@ -467,19 +267,10 @@ static bool place_node(struct import *import, const struct frame *frame,
 			return true;
 		primitive = &model->primitives[index];
 
-		// The bound is checked here as well as in the reader, because
-		// this is the index that reaches an array and the number came
-		// out of a file. VOE_ASSETS_MODEL_NONE is above any real count,
-		// so a primitive that named no material takes the same branch:
-		// glTF says an unmaterialled primitive is the default material,
-		// and the default material is white and fully rough.
-		if (import->materials == NULL ||
-		    primitive->material >= model->material_count) {
-			if (!default_material(import, &material, error))
-				return false;
-		} else {
-			material = import->materials[primitive->material];
-		}
+		// A primitive naming no material, or one past the file's,
+		// wears glTF's default (3d/src/model_upload.h).
+		material = voe_3d_model_upload_material(&import->upload,
+							primitive->material);
 
 		if (!voe_ecs_entity_create(import->world, &entity))
 			return no_room(error, "another entity");
@@ -607,15 +398,15 @@ bool voe_3d_import_glb(voe_ecs_world *world, voe_render_device *device,
 		arena, (size_t)(expected == 0 ? 1 : expected) *
 			       sizeof(*import.entities));
 
-	if (!upload_images(&import, error) ||
-	    !upload_materials(&import, error) ||
+	if (!voe_3d_model_upload_create(device, arena, &model, &import.upload,
+					error) ||
 	    !upload_geometry(&import, error) || !walk(&import, error))
 		return false;
 
 	*out = (voe_3d_import){
 		.entities = import.entities,
 		.entity_count = import.entity_count,
-		.texture_count = import.texture_count,
+		.texture_count = import.upload.texture_count,
 		.material_count = model.material_count,
 		.geometry_count = model.primitive_count,
 	};

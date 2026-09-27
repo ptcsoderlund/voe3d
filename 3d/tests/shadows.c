@@ -27,11 +27,19 @@
 // same two pixels read as they did: the cascades are fitted about the eye and
 // snapped in double, so nothing is lost to a float's reach.
 //
+// A MODEL CASTS AS A MESH DOES (0277 point 3): the cube swapped for a thing
+// wearing model_data.inc's model, turned a quarter turn about +Z so the file's
+// triangles, all in its x = 1 plane, lie flat a metre up, and standing so the
+// green part's middle is over the floor under the cube. That pixel darkens as
+// the cube's does, with two parts drawn into each cascade beside the floor.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_system.c does.
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_component.h>
@@ -49,6 +57,8 @@
 
 #include <testing/test.h>
 
+#include "model_data.inc"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -60,14 +70,16 @@
 #define FLOOR_Y 42
 #define FAR_OUT 100000.0
 
-// Two drawn objects, each drawn once more into each of the four cascades, and
-// the four shadow passes before the view's one.
+// Three drawn objects at most (the floor and the model's two parts), each
+// drawn once more into each of the four cascades, and the four shadow passes
+// before the view's one; room for the model's 6 vertices, 6 indices, 2
+// geometries and 2 shading records.
 static const voe_render_capacities CAPACITIES = {
-	.vertices = VOE_3D_SHAPES_VERTICES,
-	.indices = VOE_3D_SHAPES_INDICES,
-	.geometries = VOE_3D_SHAPES_GEOMETRIES,
-	.objects = 2 + VOE_RENDER_SHADOW_CASCADES * 2,
-	.shadings = VOE_3D_SHAPES_SHADINGS,
+	.vertices = VOE_3D_SHAPES_VERTICES + 6,
+	.indices = VOE_3D_SHAPES_INDICES + 6,
+	.geometries = VOE_3D_SHAPES_GEOMETRIES + 2,
+	.objects = 3 + VOE_RENDER_SHADOW_CASCADES * 3,
+	.shadings = VOE_3D_SHAPES_SHADINGS + 2,
 	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
@@ -92,9 +104,10 @@ static void add_a_shape(voe_ecs_world *world, double x, double y, double z,
 }
 
 // The camera, the floor and the cube, all `x` metres along X, and the sun
-// straight down when `lit`, with a white fill of `fill`.
+// straight down when `lit`, with a white fill of `fill`. With `model` the cube
+// is a thing wearing it instead, placed as the header says.
 static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
-			      double x, bool lit, float fill)
+			      double x, bool lit, float fill, const char *model)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -113,6 +126,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	voe_3d_material_register(world, 8);
 	voe_3d_panel_register(world, 8);
 	voe_3d_shape_register(world, 8);
+	voe_3d_model_register(world, 8);
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
@@ -141,7 +155,23 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 					   .fill_intensity = fill }));
 	}
 	add_a_shape(world, x, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f });
-	add_a_shape(world, x, 1.0, -5.0, (voe_math_float3){ 1.0f, 1.0f, 1.0f });
+	if (model == NULL) {
+		add_a_shape(world, x, 1.0, -5.0,
+			    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
+	} else {
+		voe_3d_model row = { 0 };
+
+		// The green part lies at (-2,1,0) (-2,1,2) (0,1,0) once turned.
+		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+		VOE_TEST_CHECK(voe_scene_transform_add(
+			world, entity,
+			(voe_scene_transform){
+				.position = { x + 4.0 / 3.0, 0.0, -5.0 - 2.0 / 3.0 },
+				.rotation = { 0.0f, 0.0f, 0.70710678f, 0.70710678f },
+				.scale = { 1.0f, 1.0f, 1.0f } }));
+		snprintf(row.path, sizeof(row.path), "%s", model);
+		VOE_TEST_CHECK(voe_3d_model_add(world, entity, row));
+	}
 	voe_3d_shape_system_run(world, shapes);
 	return world;
 }
@@ -155,8 +185,8 @@ typedef struct {
 // One frame of `world` with its shadows, and the floor's two pixels. `count` is
 // the shadow's cascade count; `added` how many draws the shadow call made.
 static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
-			    voe_base_arena *arena, uint32_t *count,
-			    uint32_t *added)
+			    voe_base_arena *arena, const voe_3d_models *models,
+			    uint32_t *count, uint32_t *added)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
@@ -168,6 +198,7 @@ static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 	uint32_t before;
 
 	VOE_TEST_CHECK_INT(frame.shadow.count, 0);
+	frame.models = models;
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
@@ -200,10 +231,10 @@ static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 					       double x)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, x, true, 0.0f);
+	voe_ecs_world *world = a_world(arena, shapes, x, true, 0.0f, NULL);
 	uint32_t count = 0;
 	uint32_t added = 0;
-	floor_pixels pixels = a_frame(world, device, arena, &count, &added);
+	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
 
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
 	VOE_TEST_CHECK_INT(added, VOE_RENDER_SHADOW_CASCADES * 2);
@@ -217,10 +248,10 @@ static void no_light_casts_nothing(voe_render_device *device,
 				   const voe_3d_shapes *shapes)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, 0.0, false, 0.0f);
+	voe_ecs_world *world = a_world(arena, shapes, 0.0, false, 0.0f, NULL);
 	uint32_t count = 1;
 	uint32_t added = 1;
-	floor_pixels pixels = a_frame(world, device, arena, &count, &added);
+	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
 
 	VOE_TEST_CHECK_INT(count, 0);
 	VOE_TEST_CHECK_INT(added, 0);
@@ -236,14 +267,40 @@ static void a_fill_lifts_the_shadow(voe_render_device *device,
 				    floor_pixels unfilled)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, 0.0, true, 0.2f);
+	voe_ecs_world *world = a_world(arena, shapes, 0.0, true, 0.2f, NULL);
 	uint32_t count = 0;
 	uint32_t added = 0;
-	floor_pixels pixels = a_frame(world, device, arena, &count, &added);
+	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
 
 	VOE_TEST_CHECK(pixels.under > unfilled.under);
 	VOE_TEST_CHECK(pixels.under < pixels.beside);
 	VOE_TEST_CHECK(abs((int)pixels.beside - (int)unfilled.beside) <= 2);
+	voe_base_arena_destroy(arena);
+}
+
+// A thing wearing the model darkens the floor under it as the cube does: the
+// floor and the model's two parts drawn into each cascade.
+static void the_model_shadows_the_floor(voe_render_device *device,
+					const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_ecs_world *world =
+		a_world(arena, shapes, 0.0, true, 0.0f, "Assets/two.glb");
+	voe_3d_models *models = voe_3d_models_new();
+	voe_base_error error = VOE_BASE_OK;
+	uint32_t count = 0;
+	uint32_t added = 0;
+	floor_pixels pixels;
+
+	VOE_TEST_CHECK(voe_3d_models_load(models, device, "Assets/two.glb", 1,
+					  TWO_PRIMITIVES_GLB,
+					  sizeof(TWO_PRIMITIVES_GLB), &error));
+	pixels = a_frame(world, device, arena, models, &count, &added);
+	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
+	VOE_TEST_CHECK_INT(added, VOE_RENDER_SHADOW_CASCADES * 3);
+	VOE_TEST_CHECK(pixels.under + 32 < pixels.beside);
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
 	voe_base_arena_destroy(arena);
 }
 
@@ -275,6 +332,7 @@ int main(void)
 	far = the_cube_shadows_the_floor(device, &shapes, FAR_OUT);
 	VOE_TEST_CHECK(abs((int)far.under - (int)near.under) <= 2);
 	VOE_TEST_CHECK(abs((int)far.beside - (int)near.beside) <= 2);
+	the_model_shadows_the_floor(device, &shapes);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);

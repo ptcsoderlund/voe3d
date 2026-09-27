@@ -13,7 +13,9 @@
 // THE STALE ID IS THE OTHER ONE. Slots are reused, so an id kept across a
 // destroy names a live slot holding something else; the generation half is what
 // catches that, and it is only worth having if something refuses an id whose
-// generation has moved on. That is what the checks on a destroyed texture are.
+// generation has moved on. That is what the checks on a destroyed texture, mesh
+// and shading record are; a freed mesh range is also checked to be reused, and
+// two freed neighbours to merge into one that a larger mesh fits.
 //
 // It includes render's internal header by relative path, as the other tests in
 // this folder do: what a geometry id resolves to is not public — a caller has an
@@ -157,6 +159,115 @@ static void a_full_pool_says_so(voe_base_arena *arena)
 	voe_render_device_destroy(device);
 }
 
+// A frame with one pass and a draw of each id, returning whether each was
+// accepted. Nothing is read back: what is checked is which ids the draw takes.
+static void draw_each(voe_render_device *device,
+		      const voe_render_geometry *ids, bool *drawn, uint32_t count)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_pass_camera camera = { 0 };
+	bool drawing = false;
+
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return;
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	for (uint32_t i = 0; i < count; i++)
+		drawn[i] = voe_render_frame_draw(
+			device, ids[i],
+			(voe_render_object){ .colour = { 1, 1, 1, 1 } });
+	voe_render_pass_end(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
+// Room for exactly two meshes: a third fits only in the range the first gave
+// back, and the first's id is refused by the draw and by a second destroy.
+static void a_freed_range_is_reused(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_capacities room = CAPACITIES;
+	voe_render_device *device;
+	voe_render_geometry ids[3] = { 0 };
+	bool drawn[3] = { true, false, false };
+	voe_base_error error = VOE_BASE_OK;
+	const struct voe_render_geometry_slot *slot;
+
+	room.vertices = 6;
+	room.indices = 6;
+	room.objects = 3;
+	device = voe_render_device_new_headless(arena, size, room, &error);
+	if (device == NULL)
+		return;
+
+	for (uint32_t i = 0; i < 2; i++)
+		VOE_TEST_CHECK(voe_render_geometry_create(device, TRIANGLE, 3,
+							  TRIANGLE_INDICES, 3,
+							  &ids[i], &error));
+	VOE_TEST_CHECK(voe_render_geometry_destroy(device, ids[0]));
+	VOE_TEST_CHECK(!voe_render_geometry_destroy(device, ids[0]));
+	VOE_TEST_CHECK(voe_render_geometry_create(device, TRIANGLE, 3,
+						  TRIANGLE_INDICES, 3, &ids[2],
+						  &error));
+	VOE_TEST_CHECK_INT(ids[2].index, ids[0].index);
+	VOE_TEST_CHECK(ids[2].generation != ids[0].generation);
+	slot = voe_render_geometry_at(device, ids[2]);
+	VOE_TEST_CHECK(slot != NULL);
+	if (slot != NULL) {
+		VOE_TEST_CHECK_INT(slot->first_vertex, 0);
+		VOE_TEST_CHECK_INT(slot->first_index, 0);
+	}
+
+	draw_each(device, ids, drawn, 3);
+	VOE_TEST_CHECK(!drawn[0]);
+	VOE_TEST_CHECK(drawn[1]);
+	VOE_TEST_CHECK(drawn[2]);
+
+	voe_render_device_destroy(device);
+}
+
+// Two neighbouring ranges under a live one, freed upper first so the second
+// merges into the hole above it: a mesh of their summed size then fits there.
+static void neighbouring_ranges_merge(voe_base_arena *arena)
+{
+	static const uint32_t SIX_INDICES[6] = { 0, 1, 2, 3, 4, 5 };
+	voe_render_vertex six[6];
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_capacities room = CAPACITIES;
+	voe_render_device *device;
+	voe_render_geometry ids[3] = { 0 };
+	voe_render_geometry merged = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const struct voe_render_geometry_slot *slot;
+
+	for (uint32_t i = 0; i < 6; i++)
+		six[i] = TRIANGLE[i % 3];
+	room.vertices = 9;
+	room.indices = 9;
+	room.geometries = 3;
+	device = voe_render_device_new_headless(arena, size, room, &error);
+	if (device == NULL)
+		return;
+
+	for (uint32_t i = 0; i < 3; i++)
+		VOE_TEST_CHECK(voe_render_geometry_create(device, TRIANGLE, 3,
+							  TRIANGLE_INDICES, 3,
+							  &ids[i], &error));
+	VOE_TEST_CHECK(voe_render_geometry_destroy(device, ids[1]));
+	VOE_TEST_CHECK(voe_render_geometry_destroy(device, ids[0]));
+	VOE_TEST_CHECK(voe_render_geometry_create(device, six, 6, SIX_INDICES,
+						  6, &merged, &error));
+	slot = voe_render_geometry_at(device, merged);
+	VOE_TEST_CHECK(slot != NULL);
+	if (slot != NULL) {
+		VOE_TEST_CHECK_INT(slot->first_vertex, 0);
+		VOE_TEST_CHECK_INT(slot->first_index, 0);
+	}
+
+	voe_render_device_destroy(device);
+}
+
 static void a_texture_id_names_one_texture(voe_render_device *device)
 {
 	voe_render_texture texture = { 0 };
@@ -229,6 +340,24 @@ static void a_full_shading_buffer_says_so(voe_render_device *device)
 	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_REFUSED);
 }
 
+// Run on the full shading buffer the check above left: a record destroyed
+// frees its slot for the next create, and the old id names nothing.
+static void a_destroyed_shading_slot_is_reused(voe_render_device *device)
+{
+	voe_render_shading_values values = { .base_colour = { 1, 1, 1, 1 } };
+	voe_render_shading old = { .index = 0, .generation = 1 };
+	voe_render_shading again = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_TEST_CHECK(voe_render_shading_destroy(device, old));
+	VOE_TEST_CHECK(voe_render_shading_create(device, values, &again,
+						 &error));
+	VOE_TEST_CHECK_INT(again.index, old.index);
+	VOE_TEST_CHECK(again.generation != old.generation);
+	VOE_TEST_CHECK(!voe_render_shading_destroy(device, old));
+	VOE_TEST_CHECK(voe_render_shading_destroy(device, again));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -252,10 +381,13 @@ int main(void)
 	two_meshes_get_two_ranges(device);
 	a_texture_id_names_one_texture(device);
 	a_full_shading_buffer_says_so(device);
+	a_destroyed_shading_slot_is_reused(device);
 
 	voe_render_device_destroy(device);
 
 	a_full_pool_says_so(arena);
+	a_freed_range_is_reused(arena);
+	neighbouring_ranges_merge(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

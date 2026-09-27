@@ -274,6 +274,27 @@ int main(void)
 	VOE_TEST_CHECK(!voe_platform_file_exists(FOLDER));
 	VOE_TEST_CHECK(!voe_platform_file_exists("voe_platform_file_test_missing.bin"));
 
+	// voe_platform_file_stamp: false with out untouched for a missing path
+	// and a folder; a file's stamp is the same asked twice, and differs once
+	// it is written again with a different length, however soon after.
+	{
+		uint64_t stamp = 7;
+		uint64_t again = 0;
+		uint64_t rewritten = 0;
+
+		VOE_TEST_CHECK(!voe_platform_file_stamp("voe_platform_file_test_missing.bin",
+							&stamp));
+		VOE_TEST_CHECK(!voe_platform_file_stamp(FOLDER, &stamp));
+		VOE_TEST_CHECK(stamp == 7);
+		VOE_TEST_CHECK(voe_platform_file_stamp(WRITTEN, &stamp));
+		VOE_TEST_CHECK(voe_platform_file_stamp(WRITTEN, &again));
+		VOE_TEST_CHECK(stamp == again);
+		VOE_TEST_CHECK(voe_platform_file_write(WRITTEN, payload,
+						       sizeof payload, &error));
+		VOE_TEST_CHECK(voe_platform_file_stamp(WRITTEN, &rewritten));
+		VOE_TEST_CHECK(stamp != rewritten);
+	}
+
 	// The out-parameter is optional, and a caller that does not want to know
 	// which way still gets the answer in the return value.
 	VOE_TEST_CHECK(voe_platform_file_write(WRITTEN, single, sizeof single,

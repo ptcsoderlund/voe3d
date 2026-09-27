@@ -1,5 +1,6 @@
 // The silhouette walk and the quads it builds — see the header for what a
 // silhouette edge is, why the quads stand about the eye and why the cap is a cap.
+#include <3d/model_component.h>
 #include <3d/outline.h>
 #include <3d/shape_component.h>
 
@@ -70,11 +71,34 @@ static void triangle(uint32_t *indices, const voe_render_vertex *vertices,
 	indices[2] = c;
 }
 
+// The CPU geometry `entity` is outlined from: its shape's kind, else the
+// loaded entry of the model it wears; NULL when it has neither.
+static const voe_3d_shape_geometry *
+outlined_geometry(const voe_ecs_world *world, voe_3d_outlined outlined)
+{
+	const voe_3d_shape *shape = voe_3d_shape_get(world, outlined.entity);
+	const voe_3d_model *model;
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(world != NULL, "a geometry of no world");
+	if (shape != NULL)
+		return outlined.geometries == NULL ?
+			       NULL :
+			       voe_3d_shape_geometry_of(outlined.geometries,
+							shape->kind);
+	if (outlined.models == NULL)
+		return NULL;
+	model = voe_3d_model_get(world, outlined.entity);
+	if (model == NULL)
+		return NULL;
+	entry = voe_3d_models_find(outlined.models, model->path);
+	return entry != NULL && entry->loaded ? &entry->shape : NULL;
+}
+
 bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
 			  voe_render_view view, voe_math_double3 eye,
 			  voe_base_arena *arena, voe_3d_outline_mesh *out)
 {
-	const voe_3d_shape *shape;
 	const voe_scene_transform *transform;
 	const voe_3d_shape_geometry *geometry;
 	struct voe_base_arena_mark mark;
@@ -88,13 +112,10 @@ bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
 	VOE_BASE_ASSERT(arena != NULL, "outlining with no arena");
 	VOE_BASE_ASSERT(out != NULL, "outlining into nothing");
 
-	if (outlined.geometries == NULL)
-		return false;
-	shape = voe_3d_shape_get(world, outlined.entity);
 	transform = voe_scene_transform_get(world, outlined.entity);
-	if (shape == NULL || transform == NULL)
+	if (transform == NULL)
 		return false;
-	geometry = voe_3d_shape_geometry_of(outlined.geometries, shape->kind);
+	geometry = outlined_geometry(world, outlined);
 	if (geometry == NULL)
 		return false;
 

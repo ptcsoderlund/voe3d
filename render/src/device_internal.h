@@ -50,9 +50,10 @@
 //
 // IT IS FIXED BECAUSE THE SHADER'S ARRAY IS FIXED. A descriptor array is
 // declared with a length in the layout and in the shader, and both have to agree
-// with this number; growing it is changing all three together, which is a card,
-// not a runtime decision. Sixty-four is what a model with a handful of pictures
-// on it needs, with room for the next one; it is not in
+// with this number; growing it is changing the four places draw.slang names
+// together, which is a card, not a runtime decision. 1024 is what a scene of
+// models with up to four pictures each needs (0278), and card.c refuses a card
+// whose descriptor limits are below it; it is not in
 // voe_render_capacities with the other limits precisely because it is the
 // shader's array length and not a size a caller may choose.
 //
@@ -62,7 +63,7 @@
 // nothing has claimed point at a one-pixel white image. Sampling an unclaimed
 // slot is then white rather than undefined, and there is no partially-bound
 // extension to ask for.
-#define VOE_RENDER_MAX_TEXTURES 64
+#define VOE_RENDER_MAX_TEXTURES 1024
 
 // How many voe_render_sampling values there are, which is how many samplers the
 // device makes. Here and not in the public enum: a caller has no use for a count

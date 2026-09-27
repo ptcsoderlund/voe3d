@@ -1,4 +1,5 @@
-// The press edge and the view it landed in, handed to `3d` as a ray. See the
+// The press edge and the view it landed in, handed to `3d` as a ray against
+// the shapes and the models. See the
 // header for why the middle button is not read here, what `blocked` is for, why
 // a press and not a release selects, and why a click over no view leaves the
 // selection alone.
@@ -11,6 +12,7 @@
 void voe_editor_pick_read(voe_editor_pick *pick, voe_editor_scene *scene,
 			  const voe_editor_views *views,
 			  const voe_3d_shape_geometries *geometries,
+			  const voe_3d_models *models,
 			  voe_math_float2 pointer, bool down, bool blocked)
 {
 	bool pressed;
@@ -44,5 +46,5 @@ void voe_editor_pick_read(voe_editor_pick *pick, voe_editor_scene *scene,
 	// selecting one clears the selection (scene.h) — which is what a click
 	// on empty space in a view means.
 	voe_editor_scene_select(
-		scene, voe_3d_pick(scene->world, geometries, ray, NULL));
+		scene, voe_3d_pick(scene->world, geometries, models, ray, NULL));
 }

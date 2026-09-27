@@ -6,7 +6,7 @@
 // meets nothing, the frontmost of two in either order, a camera's box or a
 // sun's cube beating or losing to a cube, a ray through the frustum and not
 // the box picking nothing, and the entities that are skipped are all checkable
-// on a build box with no Vulkan.
+// on a build box with no Vulkan. A model's case needs one to load the model.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
 // MOST. The arithmetic half cannot catch a flipped Y: it works the pixel out the
@@ -20,6 +20,8 @@
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/pick.h>
 #include <3d/projection.h>
@@ -45,6 +47,8 @@
 
 #include <math.h>
 #include <stdio.h>
+
+#include "model_data.inc"
 
 // The three shapes' triangles and edges are a couple of hundred kilobytes
 // (3d/shape_geometry.h), and the drawn half reads a picture back into the same
@@ -118,6 +122,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	// The draw system walks this table too, and the drawn half below runs it.
 	voe_3d_panel_register(world, 4);
 	voe_3d_shape_register(world, 8);
+	voe_3d_model_register(world, 4);
 	return world;
 }
 
@@ -176,7 +181,7 @@ static void the_centre_ray_hits_a_cube_at_the_origin(
 	VOE_TEST_CHECK_FLOAT(ray.origin.z, 4.9f, 1e-3f);
 	VOE_TEST_CHECK_FLOAT(ray.direction.z, -1.0f, 1e-3f);
 
-	hit = voe_3d_pick(world, geometries, ray, &distance);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 	VOE_TEST_CHECK_INT(hit.index, cube.index);
 	VOE_TEST_CHECK_INT(hit.generation, cube.generation);
 	VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
@@ -187,7 +192,7 @@ static void the_centre_ray_hits_a_cube_at_the_origin(
 	distance = -1.0f;
 	ray = voe_3d_pick_ray(the_view(size), EYE, size,
 			      (voe_math_float2){ 0.0f, 0.0f });
-	hit = voe_3d_pick(world, geometries, ray, &distance);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 	VOE_TEST_CHECK_INT(hit.index, 0);
 	VOE_TEST_CHECK_INT(hit.generation, 0);
 	VOE_TEST_CHECK_FLOAT(distance, -1.0f, 1e-6f);
@@ -208,7 +213,7 @@ static void the_nearer_of_two_wins_in_either_order(
 		voe_ecs_entity far_cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 		voe_ecs_entity near_cube = add_a_cube(world, 0.0f, 0.0f, 2.0f);
 		voe_ecs_entity hit =
-			voe_3d_pick(world, geometries, ray, &distance);
+			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
 		(void)far_cube;
 		VOE_TEST_CHECK_INT(hit.index, near_cube.index);
@@ -223,7 +228,7 @@ static void the_nearer_of_two_wins_in_either_order(
 		voe_ecs_entity near_cube = add_a_cube(world, 0.0f, 0.0f, 2.0f);
 		voe_ecs_entity far_cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 		voe_ecs_entity hit =
-			voe_3d_pick(world, geometries, ray, &distance);
+			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
 		(void)far_cube;
 		VOE_TEST_CHECK_INT(hit.index, near_cube.index);
@@ -260,7 +265,7 @@ static void a_camera_competes_with_the_cube_on_distance(
 		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 		voe_ecs_entity camera = add_a_camera(world, 0.0f, 0.0f, 2.0f);
 		voe_ecs_entity hit =
-			voe_3d_pick(world, geometries, ray, &distance);
+			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
 		(void)cube;
 		VOE_TEST_CHECK_INT(hit.index, camera.index);
@@ -272,7 +277,7 @@ static void a_camera_competes_with_the_cube_on_distance(
 		voe_ecs_entity camera = add_a_camera(world, 0.0f, 0.0f, -2.0f);
 		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 		voe_ecs_entity hit =
-			voe_3d_pick(world, geometries, ray, &distance);
+			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
 		(void)camera;
 		VOE_TEST_CHECK_INT(hit.index, cube.index);
@@ -311,7 +316,7 @@ static void a_sun_competes_with_the_cube_on_distance(
 		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 		voe_ecs_entity sun = add_a_sun(world, 0.0f, 0.0f, 2.0f);
 		voe_ecs_entity hit =
-			voe_3d_pick(world, geometries, ray, &distance);
+			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
 		(void)cube;
 		VOE_TEST_CHECK_INT(hit.index, sun.index);
@@ -323,7 +328,7 @@ static void a_sun_competes_with_the_cube_on_distance(
 		voe_ecs_entity sun = add_a_sun(world, 0.0f, 0.0f, -2.0f);
 		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 		voe_ecs_entity hit =
-			voe_3d_pick(world, geometries, ray, &distance);
+			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
 		(void)sun;
 		VOE_TEST_CHECK_INT(hit.index, cube.index);
@@ -347,7 +352,7 @@ static void a_ray_through_the_frustum_s_corner_picks_nothing(
 	voe_ecs_entity hit;
 
 	(void)add_a_camera(world, 0.0f, 0.0f, 0.0f);
-	hit = voe_3d_pick(world, geometries, ray, &distance);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 	VOE_TEST_CHECK_INT(hit.generation, 0);
 	VOE_TEST_CHECK_FLOAT(distance, -1.0f, 1e-6f);
 }
@@ -370,7 +375,7 @@ static void a_cube_off_centre_is_found_at_its_own_pixel(
 	VOE_TEST_CHECK(point.x > 0.0f && point.x < (float)WIDTH);
 	VOE_TEST_CHECK(point.y > 0.0f && point.y < (float)HEIGHT);
 
-	hit = voe_3d_pick(world, geometries, ray, NULL);
+	hit = voe_3d_pick(world, geometries, NULL, ray, NULL);
 	VOE_TEST_CHECK_INT(hit.index, cube.index);
 	VOE_TEST_CHECK_INT(hit.generation, cube.generation);
 
@@ -389,7 +394,7 @@ static void a_cube_off_centre_is_found_at_its_own_pixel(
 			(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
 					.colour = VOE_3D_SHAPE_GREY }));
 		VOE_TEST_CHECK_INT(
-			voe_3d_pick(empty, geometries, centre, NULL).generation,
+			voe_3d_pick(empty, geometries, NULL, centre, NULL).generation,
 			0);
 	}
 }
@@ -505,7 +510,7 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 	VOE_TEST_CHECK(found);
 	if (found) {
 		voe_ecs_entity hit = voe_3d_pick(
-			world, geometries,
+			world, geometries, NULL,
 			voe_3d_pick_ray(frame.view, frame.eye, size, covered), NULL);
 
 		VOE_TEST_CHECK_INT(hit.index, cube.index);
@@ -514,13 +519,101 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 
 	// And the corner the background was taken from picks nothing.
 	VOE_TEST_CHECK_INT(
-		voe_3d_pick(world, geometries,
+		voe_3d_pick(world, geometries, NULL,
 			    voe_3d_pick_ray(frame.view, frame.eye, size,
 					    (voe_math_float2){ 0.0f, 0.0f }),
 			    NULL)
 			.generation,
 		0);
 
+	voe_render_device_destroy(device);
+}
+
+// A THING WEARING A MODEL IS HIT ON THE MODEL'S OWN TRIANGLES. The file of
+// model_data.inc is loaded (which uploads, so this skips with no card) and worn
+// by a thing at (3,0,0), unturned. A ray five metres out along +X from the
+// middle of the entry's first triangle, pointing back along -X, meets it at
+// five metres, since that triangle lies in the model's x = 1 plane
+// (3d/tests/models.c); the same ray ten metres higher meets nothing, and with
+// no store the first ray meets nothing either.
+static void a_model_is_hit_at_its_distance_and_missed_beside_it(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { 4, 4 };
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_capacities capacities = {
+		.vertices = 64,
+		.indices = 64,
+		.geometries = 4,
+		.objects = 1,
+		.shadings = 4,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	voe_ecs_world *world;
+	voe_ecs_entity thing = { 0 };
+	voe_3d_model model = { 0 };
+	voe_3d_models *models;
+	const voe_3d_model_entry *entry;
+	const voe_3d_shape_geometry *shape;
+	voe_math_float3 middle = { 0.0f, 0.0f, 0.0f };
+	voe_3d_ray ray;
+	voe_ecs_entity hit;
+	float distance = -1.0f;
+
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED) {
+			printf("skip: %s\n", voe_base_error_string(error));
+			return;
+		}
+		VOE_TEST_CHECK(device != NULL);
+		return;
+	}
+	models = voe_3d_models_new();
+	VOE_TEST_CHECK(voe_3d_models_load(models, device, "Assets/two.glb", 1,
+					  TWO_PRIMITIVES_GLB,
+					  sizeof(TWO_PRIMITIVES_GLB), &error));
+	entry = voe_3d_models_find(models, "Assets/two.glb");
+	VOE_TEST_CHECK(entry != NULL && entry->loaded);
+	if (entry == NULL || !entry->loaded || entry->shape.index_count < 3)
+		goto destroy;
+	shape = &entry->shape;
+	for (uint32_t i = 0; i < 3; i++)
+		middle = voe_math_float3_add(
+			middle, voe_math_float3_scale(
+					shape->vertices[shape->indices[i]].position,
+					1.0f / 3.0f));
+	VOE_TEST_CHECK_FLOAT(middle.x, 1.0f, 1e-5f);
+
+	world = a_world(arena);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(
+		voe_scene_transform_add(world, thing, at(3.0f, 0.0f, 0.0f)));
+	snprintf(model.path, sizeof(model.path), "%s", "Assets/two.glb");
+	VOE_TEST_CHECK(voe_3d_model_add(world, thing, model));
+
+	ray = (voe_3d_ray){ .origin = { 3.0 + middle.x + 5.0, middle.y,
+					middle.z },
+			    .direction = { -1.0f, 0.0f, 0.0f } };
+	hit = voe_3d_pick(world, geometries, models, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, thing.index);
+	VOE_TEST_CHECK_INT(hit.generation, thing.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 5.0f, 1e-4f);
+
+	VOE_TEST_CHECK_INT(
+		voe_3d_pick(world, geometries, NULL, ray, NULL).generation, 0);
+
+	ray.origin.y += 10.0;
+	distance = -1.0f;
+	hit = voe_3d_pick(world, geometries, models, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.generation, 0);
+	VOE_TEST_CHECK_FLOAT(distance, -1.0f, 1e-6f);
+
+destroy:
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
 	voe_render_device_destroy(device);
 }
 
@@ -538,6 +631,7 @@ int main(void)
 	a_sun_competes_with_the_cube_on_distance(arena, &geometries);
 	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);
 	a_pixel_the_cube_covers_picks_the_cube(arena, &geometries);
+	a_model_is_hit_at_its_distance_and_missed_beside_it(arena, &geometries);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

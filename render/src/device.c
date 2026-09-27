@@ -115,7 +115,7 @@ static bool create_device(voe_render_device *device)
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 	};
 	// WHAT THE FRAGMENT STAGE NEEDS IN ORDER TO PICK A TEXTURE AT RUN TIME.
-	// It samples one element of an array of sixty-four, and which element is
+	// It samples one element of an array of 1024, and which element is
 	// a number that came out of a buffer — the same number the CPU handed
 	// out as a texture id (ADR-0018). Indexing a sampled-image array with
 	// anything but a compile-time constant is what this feature permits, and

@@ -1,7 +1,7 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, the sun's shadow passes fitted to each one's camera, then a pass begun
-// on each one's target with that camera and the shadows, the world drawn
-// with the selection's outline, collider and gizmo and the scene camera's
+// on each one's target with that camera and the shadows, the world and its
+// models drawn with the selection's outline, collider and gizmo and the scene camera's
 // and the sun's markers, and
 // the pass ended; and the preview's shadow passes and pass, drawn with the
 // world's camera while the selected entity has one.
@@ -42,7 +42,8 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 				    voe_ecs_world *world,
 				    voe_editor_views *views,
 				    voe_render_light light,
-				    const voe_editor_scene *scene)
+				    const voe_editor_scene *scene,
+				    const voe_3d_models *models)
 {
 	voe_3d_frame frame;
 	voe_render_pass_camera camera;
@@ -67,6 +68,7 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	if (frame.blind)
 		return true;
 	frame.light = light;
+	frame.models = models;
 	if (!voe_3d_draw_system_shadows(world, gpu, &frame))
 		return false;
 
@@ -84,8 +86,8 @@ bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	const voe_editor_views *views, const voe_editor_dock_tree *tree,
 	voe_render_light light, const voe_editor_scene *scene,
-	const voe_3d_shape_geometries *geometries, const voe_3d_shapes *shapes,
-	const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
+	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
+	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
 	float pixels_per_millimetre)
 {
 	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL,
@@ -123,7 +125,8 @@ bool voe_editor_view_passes_draw(
 		camera = voe_editor_view_pass_camera(view, light);
 		frame = (voe_3d_frame){ .view = camera.view,
 					.light = camera.light,
-					.eye = view->eye };
+					.eye = view->eye,
+					.models = models };
 		if (!voe_3d_draw_system_shadows(world, gpu, &frame))
 			return false;
 		camera.shadow = frame.shadow;
@@ -136,7 +139,9 @@ bool voe_editor_view_passes_draw(
 				.light = camera.light,
 				.eye = view->eye,
 				.shadow = frame.shadow,
+				.models = models,
 				.outlined = {
+					.models = models,
 					.entity = voe_editor_scene_selected(scene),
 					.geometries = geometries,
 					.material = shapes->outline,

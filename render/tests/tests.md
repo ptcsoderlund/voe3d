@@ -9,9 +9,11 @@ by reading the offscreen colour image back.
   integrated wherever listed, the next one down when the fastest cannot present, a software
   rasteriser alone, the larger memory, and a card without 1.3 or a drawing queue never.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
-- `pools.c` — two meshes and two ranges, a texture id that stops naming
-  anything when it is destroyed, and a full pool as a returned failure. Its
-  header says why those two cases are the ones worth a test.
+- `pools.c` — two meshes and two ranges, a full pool as a returned failure, and ids that stop
+  naming anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose
+  range the next mesh takes, freed neighbours merging. Headless.
+- `textures.c` — 1024 texture slots: at least 1000 one-pixel textures made before one is refused,
+  and a quad wearing the last of them, in the highest slot, drawn in its colour. Headless.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
   drawing different contents, a static and a transient range in one frame, and an overrun refused
   without corrupting the frame. Headless.
@@ -40,6 +42,8 @@ by reading the offscreen colour image back.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.
+- `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
+  red to a black surface whether the sun faces it or not. Headless.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.

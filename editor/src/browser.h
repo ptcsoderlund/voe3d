@@ -1,9 +1,8 @@
 // The editor's own file browser: a folder listing shown as a panel over the
-// dock, used to choose a project to open, or — in SAVE mode, task 14 — a
-// folder to save one into, typing a new folder's name there if none of the
-// listed ones is the right one yet. There is no system dialog anywhere in
-// this engine (ADR-0164's spec) — this is the whole of what stands in for
-// one.
+// dock, used to choose a project to open, a folder to save one into (SAVE,
+// with a name row for a new folder), or a `.glb` to import into the Assets
+// panel's folder (IMPORT, 0277 point 7). There is no system dialog anywhere
+// in this engine (ADR-0164) — this is the whole of what stands in for one.
 //
 // IT OWNS ITS OWN ARENA, MADE ONCE AND CLEARED ON EVERY NAVIGATION. The
 // folder's absolute path and its rows are pushed into `arena`; entering a row
@@ -24,16 +23,17 @@
 // changed) is reported through `why` and leaves the browser exactly where it
 // was, never with a folder it could not actually list.
 //
-// EVERY ROW IS A FOLDER, NEVER A FILE, AND NEVER A HIDDEN ONE — the same rule
-// platform/folder.h's own listing states, applied here rather than
-// re-decided. A row is marked when `<row>/project.voe3d` exists
-// (voe_platform_file_exists), which is the only thing that tells a folder
-// full of other folders from a project.
+// EVERY ROW IS A FOLDER, NEVER A HIDDEN ONE, and a folder row is marked when
+// `<row>/project.voe3d` exists, the only thing that tells a project from a
+// folder of folders. IMPORT ALONE THEN LISTS THE `.glb` FILES (any case),
+// marked as files, because a model is the one file anything here picks:
+// Open and Save pick a folder, so a file row there would be a dead end.
 //
 // THIS FILE CARRIES OUT NO COMMAND OF ITS OWN, exactly as topbar.h's buttons
 // do not: voe_editor_browser_clicks_read says what fired — a row entered, Up,
 // Confirm (with the folder it names), Cancel, the name field's own Enter or
-// Make folder (MAKE_FOLDER), or Escape read as a Cancel — and what a click
+// Make folder (MAKE_FOLDER), a file row (IMPORT), or Escape read as a
+// Cancel — and what a click
 // MEANS, in particular what Confirm does to the project being worked on, is
 // session.h's (voe_editor_session_browser_do). Entering a row, going up and
 // making a folder are the exception: none of the three changes anything
@@ -68,21 +68,22 @@
 // How many folder rows one showing may hold — see the header above.
 #define VOE_EDITOR_BROWSER_ROWS 32
 
-// Which the browser is for. SAVE mode's name box and Make-folder button are
-// task 14's; this file already carries the value because session.h has to
-// say which one a showing is for.
+// Which the browser is for: a project to open, a folder to save into, or a
+// `.glb` to import (folders then `.glb` files, no Confirm).
 typedef enum {
 	VOE_EDITOR_BROWSER_OPEN,
 	VOE_EDITOR_BROWSER_SAVE,
+	VOE_EDITOR_BROWSER_IMPORT,
 } voe_editor_browser_mode;
 
-// One listed folder: its name (not its full path, into the browser's own
-// arena) and the button drawn for it, and whether `<name>/project.voe3d`
-// exists.
+// One listed row: its name (not its full path, into the browser's own arena),
+// the button drawn for it, whether `<name>/project.voe3d` exists, and whether
+// it is a `.glb` file rather than a folder (IMPORT mode only).
 typedef struct {
 	voe_ui_node node;
 	const char *name;
 	bool project;
+	bool file;
 } voe_editor_browser_row;
 
 // The browser's whole state. Zeroed is a browser never shown: arena is NULL,
@@ -130,7 +131,8 @@ typedef struct {
 
 // Shows browser in mode, keeping its folder if one is already set, or
 // starting at the home folder — else the current one — the first time this is
-// ever called. A listing that fails at this point is reported through why and
+// ever called. The folder is listed again in mode, since IMPORT's rows are
+// not OPEN's. A listing that fails at this point is reported through why and
 // the browser still shows, holding whatever folder and rows it had before
 // (nothing, on a first showing).
 //
@@ -161,9 +163,10 @@ void voe_editor_browser_up(voe_editor_browser *browser, voe_editor_notice *why);
 // width — the area below the top bar, in the same column interface.c opens
 // over the dock (interface.h) — which is what puts it over the dock and under
 // nothing. The current path, an Up button, a scroll area of one button per
-// row (marked rows read " — project"), then — IN SAVE MODE ONLY — a name row
-// holding the field and a Make folder button, then Confirm ("Open" in OPEN
-// mode, "Save here" in SAVE mode) and Cancel. Records every button into
+// row (marked rows read " — project", file rows " — file"), then — IN SAVE
+// MODE ONLY — a name row holding the field and a Make folder button, then
+// Confirm ("Open" in OPEN mode, "Save here" in SAVE mode, not drawn in IMPORT
+// mode) and Cancel. Records every button into
 // browser, read back by voe_editor_browser_clicks_read; outside SAVE mode
 // `name_field` and `make_button` are set to VOE_UI_NODE_NONE, fresh every
 // call. Consumes `focus_name` when it is set, taking the keyboard to the
@@ -178,11 +181,14 @@ typedef enum {
 	VOE_EDITOR_BROWSER_CONFIRM,
 	VOE_EDITOR_BROWSER_CANCEL,
 	VOE_EDITOR_BROWSER_MAKE_FOLDER,
+	VOE_EDITOR_BROWSER_IMPORT_FILE,
 } voe_editor_browser_action;
 
 // What fired this frame. `name` is the row entered (VOE_EDITOR_BROWSER_ENTERED,
 // a pointer into browser's own arena — read it before the next navigation
-// clears that arena) or the typed name to make a folder from
+// clears that arena), the pressed file's absolute path
+// (VOE_EDITOR_BROWSER_IMPORT_FILE, in that same arena) or the typed name to
+// make a folder from
 // (VOE_EDITOR_BROWSER_MAKE_FOLDER, a pointer into browser->name — read it
 // before calling voe_editor_browser_make_folder, which may clear that same
 // buffer on success). NULL for every other action. Confirm names no folder of
@@ -220,6 +226,10 @@ voe_editor_browser_clicks_read(const voe_ui_context *ui,
 // folder yet.
 void voe_editor_browser_make_folder(voe_editor_browser *browser,
 				    const char *name, voe_editor_notice *why);
+
+// Whether name ends `.glb` in any case: the model file IMPORT lists and the
+// Assets panel marks.
+bool voe_editor_browser_names_model(const char *name);
 
 // Frees the browser's own arena, when it ever made one. Called once, at
 // shutdown.

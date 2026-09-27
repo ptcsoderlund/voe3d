@@ -1,6 +1,6 @@
 // The one list of component types a project's world holds, and the room it
 // has for each: transform, identity, light, camera, mesh, material, panel,
-// shape, collider, body and the transforms' previous step (0254), registered
+// shape, model, collider, body and the transforms' previous step (0254), registered
 // once on a fresh world.
 //
 //     voe_ecs_world *world = voe_game_world_new(arena);
@@ -26,7 +26,7 @@
 #include <ecs/world.h>
 
 // How many entities may wear a mesh and a material, which is also the room
-// for shapes: every shape the shape system finds becomes one of each. A
+// for shapes and models: every shape the shape system finds becomes one of each. A
 // device that draws the world is sized from the same number.
 #define VOE_GAME_WORLD_MAX_DRAWN 64
 
@@ -36,8 +36,8 @@
 #define VOE_GAME_WORLD_AUTHORED 32
 
 // How many types the engine registers here; a project's come after them.
-#define VOE_GAME_WORLD_TYPES 11
+#define VOE_GAME_WORLD_TYPES 12
 
-// A fresh world with the eleven types registered and nothing in it. Never NULL:
+// A fresh world with the twelve types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
 voe_ecs_world *voe_game_world_new(voe_base_arena *arena);

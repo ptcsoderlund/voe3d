@@ -58,6 +58,7 @@
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
+#include <3d/models.h>
 #include <3d/outline.h>
 #include <3d/sun_marker.h>
 #include <base/arena.h>
@@ -278,6 +279,10 @@ typedef struct {
 	// a step (0254): 0 is now, 1 the step before. _frame sets it; _run
 	// draws every mesh and panel from voe_scene_transform_between at it.
 	float lag;
+	// The model store the frame's model rows are drawn from, NULL for none
+	// (0277 point 3): with NULL no model draws and the model table is not
+	// read. _frame leaves it NULL; the caller sets it.
+	const voe_3d_models *models;
 } voe_3d_frame;
 
 
@@ -285,8 +290,9 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun` and
-// `collider` all come back zeroed — hiding, outlining, standing a gizmo, marking
-// a camera or a sun and drawing a collider are the caller's choice and it sets the field on the answer. Asserts on a world
+// `collider` all come back zeroed and `models` NULL — hiding, outlining, standing
+// a gizmo, marking a camera or a sun, drawing a collider and drawing models are
+// the caller's choice and it sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
 // frame is unshaded — see below.
 //
@@ -353,7 +359,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 //
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
 // frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
-// nothing. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
+// nothing. A model part in `frame->models` casts under the same rule, its
+// material the part's. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
 // passes and 4 × the drawn objects more per view: every caster is drawn once
 // into each cascade.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
@@ -388,8 +395,12 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // material would draw with somebody else's record, which looks like a bug in the
 // importer. A PANEL NEEDS TWO OF THE THREE: a panel and a transform. It has no
 // material and cannot have one — an element carries its own colour, which is the
-// whole reason an interface is one draw command. THE ONE EXCEPTION IS THE
-// FRAME'S `hidden`: the entity it names is not drawn however complete it is.
+// whole reason an interface is one draw command. A MODEL ROW WITH A TRANSFORM
+// WHOSE ENTRY IN `frame.models` IS LOADED draws each part (0277 point 3): in the
+// world layer, white in its object record, solid or blended by the part's
+// material. An empty path, a path the store lacks, a failed entry and a NULL
+// store draw nothing. THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
+// names is not drawn however complete it is, mesh, panel or model.
 //
 // A DRAWN OBJECT'S COLOUR IS ITS SHAPE'S, OR WHITE (ADR-0191). The per-object
 // record carries a colour the shader multiplies into the material's base
@@ -461,8 +472,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // an arena passed in and there is no default one (rule 11), so the caller hands
 // over scratch; this rewinds every frame to exactly what it was handed, keeps
 // nothing, and a caller may pass the same arena it uses for anything else. What
-// it takes is bounded by the number of drawables in the world — three groups'
-// worth of it, because which group a drawable is in is not known until the walks
+// it takes is bounded by the number of drawables in the world, each loaded part
+// of each model row counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
 // have finished and each of them therefore has room for all of them.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame);

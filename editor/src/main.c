@@ -49,6 +49,7 @@
 // twice and writes the picture, both counted and written by capture.h. It first
 // waits out a running refresh (session.h), for at most 120 s of the frame clock.
 // EVERY READ OF THE WINDOW IS GUARDED.
+#include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
 #include "dock.h"
@@ -56,6 +57,7 @@
 #include "inspector_edit.h"
 #include "interface.h"
 #include "keys.h"
+#include "models.h"
 #include "preferences.h"
 #include "notice.h"
 #include "options.h"
@@ -169,6 +171,8 @@ int main(int argc, char *argv[])
 	// The built-in shapes' GPU side, uploaded once at startup and read
 	// every frame by world_step.h.
 	voe_3d_shapes shapes;
+	// The one model store, destroyed before the device (models.h).
+	voe_editor_models *models = NULL;
 	// The one font the editor carries, Oxanium (ADR-0185); themes.h
 	// derives every palette with it.
 	voe_text_font *oxanium;
@@ -189,6 +193,8 @@ int main(int argc, char *argv[])
 	// The left press in a view that moves the selection (pick.h), beside
 	// the drag it shares the pointer with.
 	voe_editor_pick pick = { 0 };
+	// A model row held from the Assets panel (assets_drag.h).
+	voe_editor_assets_drag drag = { 0 };
 	// A GIZMO DRAG IS ONE MORE READER OF THE POINTER (gizmo.h, ADR-0205).
 	// The middle button is the views'; the left is asked of the gizmo first
 	// and of picking second, so a press on an arrow moves the entity and
@@ -269,6 +275,7 @@ int main(int argc, char *argv[])
 		status = 1;
 		goto stop;
 	}
+	models = voe_editor_models_new();
 
 	// The same three kinds on the CPU, for the ray a click is cast as
 	// (pick.h). No device in it, and the kept arena because the store is
@@ -313,6 +320,7 @@ int main(int argc, char *argv[])
 		.inspector_wide = voe_editor_dock_panel_length(
 			&roots[0].tree, VOE_EDITOR_PANEL_INSPECTOR),
 		.view_share = voe_editor_dock_view_share(&roots[0].tree),
+		.assets_tall = VOE_EDITOR_DOCK_ASSETS_TALL,
 	};
 	voe_editor_settings_read(&panel_sizes);
 	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_SCENE,
@@ -320,6 +328,8 @@ int main(int argc, char *argv[])
 	voe_editor_dock_panel_length_set(&roots[0].tree,
 					 VOE_EDITOR_PANEL_INSPECTOR,
 					 panel_sizes.inspector_wide);
+	voe_editor_dock_panel_length_set(&roots[0].tree, VOE_EDITOR_PANEL_ASSETS,
+					 panel_sizes.assets_tall);
 	voe_editor_dock_view_share_set(&roots[0].tree, panel_sizes.view_share);
 	bar.wanted = panel_sizes.topbar_high;
 
@@ -617,15 +627,27 @@ int main(int argc, char *argv[])
 					      session.errors.showing ||
 					      scene.picking.open);
 
+		// A held model row, released over a view or the Inspector
+		// (assets_drag.h), under the pick's own `blocked`.
+		voe_editor_assets_drag_read(
+			&drag, &session, &undo, &scene, &views, &roots[0], &bar,
+			&geometries, voe_editor_models_store(models),
+			roots[0].pointer.at, left && pointer.over,
+			browser.showing || preferences.showing ||
+				session.errors.showing || scene.picking.open ||
+				voe_editor_gizmo_taking(&gizmo));
+
 		// Then a press over a view picks what is under it (pick.h). A
-		// press the gizmo took is not a press that selects, and the
-		// order is the point: the gizmo is asked first.
+		// press the gizmo or a drag took is not a press that selects,
+		// and the order is the point: the gizmo is asked first.
 		voe_editor_pick_read(&pick, &scene, &views, &geometries,
+				     voe_editor_models_store(models),
 				     roots[0].pointer.at, left && pointer.over,
 				     browser.showing || preferences.showing ||
 					     session.errors.showing ||
 					     scene.picking.open ||
-					     voe_editor_gizmo_taking(&gizmo));
+					     voe_editor_gizmo_taking(&gizmo) ||
+					     drag.holding);
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the
@@ -635,6 +657,11 @@ int main(int argc, char *argv[])
 				voe_editor_view_fit(&views.views[v], gpu,
 						    pixels_per_millimetre);
 
+		// The files this frame's rows name, before the draw opens (models.h).
+		voe_editor_models_update(models, &session, gpu, arena,
+					 opened.tick.now);
+		voe_editor_assets_update(&scene.assets, session.project->folder,
+					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
 			status = 1;
 			break;
@@ -650,10 +677,11 @@ int main(int argc, char *argv[])
 		// entity has a camera.
 		drawn = voe_editor_view_passes_preview(
 				gpu, arena, session.project->world, &views,
-				light, &scene) &&
+				light, &scene, voe_editor_models_store(models)) &&
 			voe_editor_view_passes_draw(
 			gpu, arena, session.project->world, &views,
-			&roots[0].tree, light, &scene, &geometries, &shapes,
+			&roots[0].tree, light, &scene, &geometries,
+			voe_editor_models_store(models), &shapes,
 			&voe_editor_themes_chosen(&themes)->palette, &gizmo,
 			pixels_per_millimetre);
 
@@ -741,10 +769,12 @@ stop:
 	// never have been made at all, on a run Open was never once asked
 	// for, which is voe_editor_browser_destroy's to tell apart.
 	voe_editor_refresh_end(&session.refresh);
+	voe_editor_models_destroy(models, gpu);
 	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
 	voe_editor_browser_destroy(&browser);
+	voe_editor_assets_destroy(&scene.assets);
 	voe_editor_themes_destroy(&themes);
 	return status;
 }

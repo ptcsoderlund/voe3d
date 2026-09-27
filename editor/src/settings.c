@@ -29,16 +29,17 @@
 // The largest size a line may hold, in millimetres.
 #define SETTINGS_MOST 1000.0f
 
-// Room for the four lines this file writes: each key and any finite double
+// Room for the five lines this file writes: each key and any finite double
 // `%.3f` prints, which is under 330 characters.
-#define SETTINGS_OWN_ROOM (4u * 352u)
+#define SETTINGS_OWN_ROOM (5u * 352u)
 
-// The four keys, in the order they are written.
+// The five keys, in the order they are written.
 static const char *const KEYS[] = { "scene_wide", "inspector_wide",
-				    "topbar_high", "view_share" };
+				    "assets_tall", "topbar_high",
+				    "view_share" };
 #define KEY_COUNT (sizeof KEYS / sizeof KEYS[0])
-#define KEY_TOPBAR 2u
-#define KEY_SHARE 3u
+#define KEY_TOPBAR 3u
+#define KEY_SHARE 4u
 
 // The size field KEYS[key] names; key is not KEY_SHARE.
 static float *field(voe_editor_settings *settings, size_t key)
@@ -46,6 +47,7 @@ static float *field(voe_editor_settings *settings, size_t key)
 	VOE_BASE_ASSERT(key < KEY_SHARE, "no size field for that key");
 	return key == 0 ? &settings->scene_wide :
 	       key == 1 ? &settings->inspector_wide :
+	       key == 2 ? &settings->assets_tall :
 			  &settings->topbar_high;
 }
 

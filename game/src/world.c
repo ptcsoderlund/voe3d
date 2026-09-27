@@ -1,13 +1,15 @@
-// The eleven registrations and the room behind them. The reasoning is in
+// The twelve registrations and the room behind them. The reasoning is in
 // game/include/game/world.h; what is here is the numbers and the order, which
-// is transforms first because a shape needs one (3d/shape_component.h), and a
-// collider before a body, which needs one (physics/body_system.h).
+// is transforms first because a shape and a model need one
+// (3d/shape_component.h, 3d/model_component.h), and a collider before a body,
+// which needs one (physics/body_system.h).
 #include <game/world.h>
 
 #include <game/project.h>
 
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
 
@@ -19,7 +21,7 @@
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
 
-// Eleven component types, six of them with an intent queue, each with room for
+// Twelve component types, eight of them with an intent queue, each with room for
 // a project's types and their replace intents behind it; the entities are a
 // number to author into rather than a measurement of anything.
 #define MAX_ENTITIES 1024
@@ -60,6 +62,7 @@ voe_ecs_world *voe_game_world_new(voe_base_arena *arena)
 	voe_3d_material_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_3d_panel_register(world, MAX_PANELS);
 	voe_3d_shape_register(world, VOE_GAME_WORLD_MAX_DRAWN);
+	voe_3d_model_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_physics_collider_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_physics_body_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_transform_previous_register(world, MAX_TRANSFORMS);

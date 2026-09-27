@@ -103,7 +103,7 @@ typedef struct voe_render_device voe_render_device;
 // not per frame slot: it is how many voe_render_target_create may make over the
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs one texture slot of the
-// sixty-four as well as its images.
+// 1024 as well as its images.
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
@@ -314,10 +314,11 @@ typedef struct {
 	// so an unlit surface may be opaque, cutout or blended like any other.
 	uint32_t unlit;
 	// Texture ids, index halves only — VOE_RENDER_NO_TEXTURE where the
-	// material references none. The base colour, the metallic-roughness and
-	// the occlusion ones are sampled; the normal and the emissive ones are
-	// stored and not read, because nothing has asked for normal mapping or
-	// for emission yet (rule 10) and both are a card of their own.
+	// material references none. All five are sampled: the normal map tilts
+	// a lit surface's normal through a tangent frame built per pixel from
+	// screen derivatives (glTF's convention, no tangent attribute), and the
+	// emissive map times `emissive` is added to a lit surface, unshadowed
+	// (ADR-0278).
 	//
 	// A COLOUR TEXTURE AND A DATA TEXTURE ARE NOT INTERCHANGEABLE HERE. The
 	// base colour and the emissive ones are uploaded as
@@ -746,15 +747,15 @@ void voe_render_device_destroy(voe_render_device *device);
 // frame.
 //
 // GEOMETRY LIVES IN TWO SHARED POOLS AND A MESH IS A RANGE IN THEM. One vertex
-// pool and one index pool, created with the device, appended to by
-// voe_render_geometry_create and NEVER FREED — there is no _destroy for one on
-// purpose, because nothing in the engine unloads anything yet and a free list
-// arrives with the card that does. That layout is also what lets many objects be
-// drawn from one buffer later, with one indirect call instead of one call each.
+// pool and one index pool, created with the device; voe_render_geometry_create
+// takes the first range given back that fits, else appends, and
+// voe_render_geometry_destroy below gives both ranges back. That layout is also
+// what lets many objects be drawn from one buffer later, with one indirect call
+// instead of one call each.
 //
 // AND THERE ARE TWO LIFETIMES OF GEOMETRY, WHICH THE ID DOES NOT TELL APART.
-// voe_render_geometry_create is the startup one above: uploaded once, kept for
-// ever. voe_render_geometry_create_transient is the other: built inside a frame,
+// voe_render_geometry_create is the startup one above: uploaded once, kept until
+// destroyed. voe_render_geometry_create_transient is the other: built inside a frame,
 // drawn in that frame, gone at the end of it. Both hand back a voe_render_geometry
 // and both go through the same two draw calls, so what holds one never has to
 // know which kind it holds — a transient id used a frame late is simply refused,
@@ -766,6 +767,14 @@ void voe_render_device_destroy(voe_render_device *device);
 					      uint32_t index_count,
 					      voe_render_geometry *out,
 					      voe_base_error *error);
+
+// Gives a static mesh's vertex and index ranges back to their pools and its slot
+// back with the generation bumped, so every copy of the id is refused from here
+// on. False when the id was already stale, which is not an error: somebody else
+// got here first. A transient id is the caller's bug and asserts — it is gone at
+// the next frame's begin. A startup operation: it waits for the GPU to go idle.
+bool voe_render_geometry_destroy(voe_render_device *device,
+				 voe_render_geometry geometry);
 
 // The same shape, for geometry that lives one frame: copies the vertices and the
 // indices into this frame's own pool and hands back an id that names them until
@@ -849,6 +858,12 @@ bool voe_render_texture_destroy(voe_render_device *device,
 					     voe_render_shading_values values,
 					     voe_render_shading *out,
 					     voe_base_error *error);
+
+// Gives a record's slot back with the generation bumped, so the id is refused
+// from here on. False for a stale id, as voe_render_texture_destroy. A startup
+// operation: it waits for the GPU to go idle.
+bool voe_render_shading_destroy(voe_render_device *device,
+				voe_render_shading shading);
 
 // ------------------------------------------------------------------ frames
 
