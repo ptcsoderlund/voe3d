@@ -51,19 +51,20 @@
 //
 // ---- THE LIGHTING, AND EVERY DECISION IN IT ----
 //
-// ONE DIRECTIONAL LIGHT, NO AMBIENT, NO IMAGE-BASED ANYTHING. The sun arrives
-// with the camera, once a frame, and every surface is lit from the same
-// direction with the same strength. Nothing lights the side facing away, so a
-// surface pointing away from the sun is black — which is what a scene with one
-// light and no bounce looks like, and not a bug to patch with a fudge factor.
+// ONE DIRECTIONAL LIGHT AND ONE FLAT FILL, NO IMAGE-BASED ANYTHING. The sun
+// arrives with the camera, once a frame, and every surface is lit from the same
+// direction with the same strength. The fill is the one term that is not the
+// sun (ADR-0273): `fill × base colour`, added to every lit surface from no
+// direction and never shadowed, so a surface pointing away from the sun reads
+// its fill — black when the fill is zero, as one light and no bounce looks.
 //
 // THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
 // `count` above nought, a lit surface picks the first cascade whose split is past
 // its view distance, pushes its position one texel along its normal so it does
 // not shadow itself, projects it into that cascade and averages a 3×3 of
 // comparison lookups; past the last split it is fully lit. The sun's direct
-// term is multiplied by the result. With no ambient, a shadowed surface is as
-// dark as one facing away — one sun and no bounce, as above.
+// term is multiplied by the result and the fill is not, so a shadowed surface
+// is as dark as one facing away: its fill and nothing more.
 //
 // METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
 // base colour, the metalness, the roughness and the occlusion come out of the
@@ -198,6 +199,9 @@ struct voe_render_light {
 	float3 colour;
 	// Non-zero: this pass has no sun, and every surface takes the unlit exit.
 	uint unshaded;
+	// Linear, colour times strength: added to every lit surface, unshadowed.
+	float3 fill;
+	float reserved;
 };
 
 // Where the sun's cascades are: voe_render_shadow in render/device.h. The C
@@ -636,7 +640,9 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 
 	float3 radiance = sun.colour * sun.intensity * n_dot_l *
 			  voe_render_sunlight(vertex.world, n);
-	float3 lit = (diffuse + specular) * radiance * occlusion;
+	// The fill, from no direction and outside the shadow: see the header.
+	float3 lit = (diffuse + specular) * radiance * occlusion +
+		     sun.fill * base.rgb;
 
 	return voe_render_premultiplied(lit, coverage);
 }

@@ -1,13 +1,16 @@
 // A PASS WHOSE LIGHT SAYS `unshaded` DRAWS EVERY SURFACE IN ITS BASE COLOUR.
 // That is what a scene with no light looks like (ADR-0238), and the claim is
-// three pictures of one lit cube, read at the centre of each:
+// five pictures of one lit cube, read at the centre of each:
 //
 // 1. no sun at all (intensity 0) and `unshaded` set: the base colour times the
 //    object colour, encoded into the sRGB target, within a small tolerance;
 // 2. the same light with `unshaded` clear: black, which is the zeroed light
 //    every caller that never sets the flag still gets;
 // 3. `unshaded` set with a real sun pointing away from the faces in view: the
-//    base colour again, so the flag wins over whatever the light says.
+//    base colour again, so the flag wins over whatever the light says;
+// 4. that sun pointing away, shaded, with fill (0.25, 0.25, 0.25): a quarter of
+//    the base colour, the fill lifting a face the sun does not reach (ADR-0273);
+// 5. the same with fill zero: black, as before the fill existed.
 //
 // The material is lit (not `unlit`), fully rough and not metallic, so the only
 // thing that can take the unlit exit is the flag under test. The colour is not
@@ -33,7 +36,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 3
+#define CASES 5
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -238,12 +241,15 @@ static const unsigned char *centre_of(const unsigned char *pixels, int image)
 	       ((size_t)(SIDE / 2) * SIDE + SIDE / 2) * 4;
 }
 
-static void check_base_colour(const unsigned char *pixel)
+// The base colour times the tint, times `scale`: one for the unlit exit, the
+// fill for a face lit by the fill alone.
+static void check_base_colour(const unsigned char *pixel, float scale)
 {
-	VOE_TEST_CHECK(abs(pixel[RED] - srgb_byte(BASE.x * TINT.x)) <= TOLERANCE);
-	VOE_TEST_CHECK(abs(pixel[GREEN] - srgb_byte(BASE.y * TINT.y)) <=
+	VOE_TEST_CHECK(abs(pixel[RED] - srgb_byte(BASE.x * TINT.x * scale)) <=
 		       TOLERANCE);
-	VOE_TEST_CHECK(abs(pixel[BLUE] - srgb_byte(BASE.z * TINT.z)) <=
+	VOE_TEST_CHECK(abs(pixel[GREEN] - srgb_byte(BASE.y * TINT.y * scale)) <=
+		       TOLERANCE);
+	VOE_TEST_CHECK(abs(pixel[BLUE] - srgb_byte(BASE.z * TINT.z * scale)) <=
 		       TOLERANCE);
 }
 
@@ -278,6 +284,18 @@ int main(void)
 		.intensity = 1.0f,
 		.colour = { 1.0f, 1.0f, 1.0f },
 		.unshaded = 1,
+	};
+	// The sun above, read this time, so only the fill reaches the faces.
+	voe_render_light filled = {
+		.direction = { 0.0f, 0.70710678f, 0.70710678f },
+		.intensity = 1.0f,
+		.colour = { 1.0f, 1.0f, 1.0f },
+		.fill = { 0.25f, 0.25f, 0.25f },
+	};
+	voe_render_light unfilled = {
+		.direction = { 0.0f, 0.70710678f, 0.70710678f },
+		.intensity = 1.0f,
+		.colour = { 1.0f, 1.0f, 1.0f },
 	};
 	void *mapped = NULL;
 
@@ -320,15 +338,21 @@ int main(void)
 	draw_case(device, cube, shading, dark, readback.buffer, IMAGE_BYTES);
 	draw_case(device, cube, shading, away, readback.buffer,
 		  IMAGE_BYTES * 2);
+	draw_case(device, cube, shading, filled, readback.buffer,
+		  IMAGE_BYTES * 3);
+	draw_case(device, cube, shading, unfilled, readback.buffer,
+		  IMAGE_BYTES * 4);
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
 						    VK_WHOLE_SIZE, 0, &mapped),
 			   VK_SUCCESS);
 	if (mapped != NULL) {
-		check_base_colour(centre_of(mapped, 0));
+		check_base_colour(centre_of(mapped, 0), 1.0f);
 		check_black(centre_of(mapped, 1));
-		check_base_colour(centre_of(mapped, 2));
+		check_base_colour(centre_of(mapped, 2), 1.0f);
+		check_base_colour(centre_of(mapped, 3), 0.25f);
+		check_black(centre_of(mapped, 4));
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 

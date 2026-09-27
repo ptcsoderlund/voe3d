@@ -38,7 +38,8 @@ by reading the offscreen colour image back.
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.
 - `unshaded.c` — that a pass whose light says `unshaded` draws a lit cube in its base colour, even
-  with a sun pointing away, and that the same light without the flag reads black. Headless.
+  with a sun pointing away, that the same light without the flag reads black, and that a fill of a
+  quarter lifts a face the sun misses to a quarter of its base colour, black with no fill. Headless.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
