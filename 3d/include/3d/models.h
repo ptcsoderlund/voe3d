@@ -7,6 +7,7 @@
 //                             bytes, size, &error))
 //             ... // kept as a failed entry; say so once
 //     const voe_3d_model_entry *hull = voe_3d_models_find(models, path);
+//     voe_3d_models_clear(models, device);   // a different project
 //     voe_3d_models_destroy(models);
 //
 // A STORE AND NOT A COMPONENT, because a file is uploaded once however many
@@ -27,10 +28,16 @@
 //
 // THE MEMORY IS THE STORE'S (rule 11's long-lived exception): the store and each
 // entry own their memory, given back by _destroy. _destroy frees nothing on the
-// card; the device's own destroy does that. Loading is a startup operation, as
-// every upload is: between frames, never while one is recorded.
+// card; the device's own destroy does that, so a program that keeps its device
+// calls _clear first.
 //
-// A PATH IS LOADED ONCE here; a path already held asserts.
+// A PATH LOADED AGAIN REPLACES ITSELF (ADR-0277 point 5): success swaps in new
+// parts and shape and frees the old ones on the card; failure keeps the old
+// parts and `loaded` as they were at the new stamp. So a failed entry loaded
+// again with good bytes becomes loaded, and a part's ids change with each load.
+//
+// THE STORE IS CHANGED ONLY BETWEEN FRAMES, never while one is recorded: every
+// upload and every free waits for the card to go idle.
 #pragma once
 
 #include <3d/material_component.h>
@@ -77,19 +84,24 @@ typedef struct voe_3d_models voe_3d_models;
 
 voe_3d_models *voe_3d_models_new(void);
 void voe_3d_models_destroy(voe_3d_models *models);
+// Frees every entry's parts on the card and its memory; the store is empty
+// and takes loads again.
+void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 
 // Reads `bytes` as a `.glb` and uploads it as `path`'s entry. False, with the
 // entry kept as failed at `stamp` and `error` set: MALFORMED for bytes that are
 // not a model, UNSUPPORTED for more than VOE_3D_MODEL_PARTS materials or nodes
 // nested past VOE_3D_IMPORT_MAX_DEPTH, REFUSED when the device or the store has
-// no room. What a failed load had put on the card is given back.
+// no room. What a failed load had put on the card is given back. A path already
+// held is replaced when this load succeeds and kept, at `stamp`, when it fails.
 [[nodiscard]] bool voe_3d_models_load(voe_3d_models *models,
 				      voe_render_device *device,
 				      const char *path, uint64_t stamp,
 				      const uint8_t *bytes, size_t size,
 				      voe_base_error *error);
 
-// Keeps `path` as a failed entry at `stamp`: a file that could not be read.
+// Keeps `path` as a failed entry at `stamp`: a file that could not be read. A
+// path already held keeps what it had, at `stamp`.
 void voe_3d_models_fail(voe_3d_models *models, const char *path,
 			uint64_t stamp);
 
