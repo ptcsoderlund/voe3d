@@ -6,7 +6,7 @@
 //                                    frame.tick.step,
 //                                    voe_game_project_systems_run,
 //                                    voe_game_project_systems_after_move);
-//     voe_game_frame(app, world, &shapes, scratch, size, lag);
+//     voe_game_frame(app, world, &shapes, models, scratch, size, lag, ui);
 //
 // ONE STEP, IN ORDER: the transforms remembered, `systems` with `seconds` the
 // step, the world step (game/frame.h), the bodies' move, the transform

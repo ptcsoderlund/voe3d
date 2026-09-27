@@ -1,12 +1,13 @@
-// A fresh game world has every one of the eleven types registered: each public
+// A fresh game world has every one of the twelve types registered: each public
 // key resolves through voe_ecs_component_type, which asserts on a key nothing
-// registered, the ten answers are ten different types, and the world counts
-// eleven, the eleventh the transforms' previous table, whose key is scene's
-// own. Needs no window and no graphics card.
+// registered, the eleven answers, the model table's among them, are eleven
+// different types, and the world counts twelve, the twelfth the transforms'
+// previous table, whose key is scene's own. Needs no window and no graphics card.
 #include <game/world.h>
 
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
 
@@ -25,7 +26,7 @@
 #include <testing/test.h>
 
 // The public keys; the previous table is the one more the world counts.
-#define TYPES 10
+#define TYPES 11
 
 int main(void)
 {
@@ -35,6 +36,7 @@ int main(void)
 		&voe_3d_mesh_key,	  &voe_3d_material_key,
 		&voe_3d_panel_key,	  &voe_3d_shape_key,
 		&voe_physics_collider_key, &voe_physics_body_key,
+		&voe_3d_model_key,
 	};
 	voe_base_arena *arena = voe_base_arena_new(1 << 20);
 	voe_ecs_world *world = voe_game_world_new(arena);

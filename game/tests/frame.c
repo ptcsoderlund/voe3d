@@ -22,6 +22,10 @@
 // tests/interface.c lays one out, is drawn over the world and the frame comes
 // back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
 //
+// THE MODEL CASE: a store from voe_3d_models_new with nothing loaded, and a
+// thing whose model path the store lacks; two frames with that store come
+// back true, the thing drawing as nothing. The other cases pass no store.
+//
 // Each draw case writes one file into the working directory, checks it is there,
 // and removes it, pass or fail. A machine with no usable Vulkan skips and
 // says so.
@@ -45,6 +49,8 @@
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
 
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/shape_component.h>
 
 #include <ui/widgets.h>
@@ -122,13 +128,15 @@ static void draw_case(voe_app *app, voe_base_arena *arena,
 	const voe_physics_collider *collider;
 	FILE *file;
 
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
 	VOE_TEST_CHECK(voe_physics_collider_submit(
 		world, (voe_physics_collider_intent){
 			       .entity = cube,
 			       .collider = { .kind = VOE_PHYSICS_COLLIDER_BOX,
 					     .size = { 2.0f, 1.0f, 1.0f } } }));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
 	collider = voe_physics_collider_get(world, cube);
 	VOE_TEST_CHECK(collider != NULL && collider->size.x == 2.0f);
 
@@ -165,8 +173,34 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 		world, capsule,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CAPSULE,
 				.colour = VOE_3D_SHAPE_GREY }));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
+}
+
+// A fresh lit world with a thing wearing a path an empty store lacks, two
+// frames drawn with that store, both true.
+static void model_case(voe_app *app, voe_base_arena *arena,
+		       voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_3d_models *models = voe_3d_models_new();
+	voe_ecs_entity hull;
+
+	(void)build(world, true);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &hull));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, hull,
+					       placed(0.0f, 2.0f, 0.0f)));
+	VOE_TEST_CHECK(voe_3d_model_add(
+		world, hull, (voe_3d_model){ .path = "Assets/hull.glb" }));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
+				      0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
+				      0.0f, NULL));
+	VOE_TEST_CHECK(voe_3d_models_count(models) == 0);
+	voe_3d_models_destroy(models);
 }
 
 // One label; the run goes on.
@@ -196,7 +230,7 @@ static void interface_case(voe_app *app, voe_base_arena *arena,
 					      size, labelled));
 	VOE_TEST_CHECK(voe_ui_element_count(
 			       voe_game_interface_context(interface)) > 0);
-	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, scratch, size, 0.0f,
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size, 0.0f,
 				      voe_game_interface_context(interface)));
 	voe_game_interface_destroy(interface);
 }
@@ -234,6 +268,7 @@ int main(void)
 	shadow_case(app, arena, scratch, &shapes, true);
 	shadow_case(app, arena, scratch, &shapes, false);
 	interface_case(app, arena, scratch, &shapes);
+	model_case(app, arena, scratch, &shapes);
 
 	voe_app_destroy(app);
 	voe_base_arena_destroy(scratch);

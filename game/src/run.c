@@ -83,8 +83,9 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 			voe_platform_sound_destroy(sound->device);
 			sound->device = NULL;
 		}
-		if (!voe_game_frame(app, world, shapes, scratch, frame.size,
-				    lag, voe_game_interface_context(interface)))
+		if (!voe_game_frame(app, world, shapes, NULL, scratch,
+				    frame.size, lag,
+voe_game_interface_context(interface)))
 			return false;
 	}
 }

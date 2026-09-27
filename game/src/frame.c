@@ -5,6 +5,7 @@
 #include <game/frame.h>
 
 #include <3d/draw_system.h>
+#include <3d/model_component.h>
 
 #include <base/assert.h>
 
@@ -34,6 +35,7 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	voe_scene_identity_system_run(world);
 	voe_scene_light_system_run(world);
 	voe_3d_shape_system_run(world, shapes);
+	voe_3d_model_system_run(world);
 	voe_physics_collider_system_run(world);
 	voe_physics_body_system_run(world);
 }
@@ -63,7 +65,8 @@ static bool draw_interface(voe_render_device *device, const voe_ui_context *ui,
 }
 
 bool voe_game_frame(voe_app *app, voe_ecs_world *world,
-		    const voe_3d_shapes *shapes, voe_base_arena *scratch,
+		    const voe_3d_shapes *shapes, const voe_3d_models *models,
+		    voe_base_arena *scratch,
 		    voe_platform_size size, float lag, const voe_ui_context *ui)
 {
 	voe_render_device *device;
@@ -88,6 +91,7 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 
 	device = voe_app_device(app);
 	frame = voe_3d_draw_system_frame(world, size, lag);
+	frame.models = models;
 	shadowed = voe_3d_draw_system_shadows(world, device, &frame);
 	camera = (voe_render_pass_camera){ frame.view, frame.light,
 					   frame.shadow };
