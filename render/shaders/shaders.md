@@ -12,7 +12,7 @@ in; getting it wrong transposes every transform without failing to compile.
   metalness-roughness BRDF, and three unlit exits, the third for a pass with no sun.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
   instance built from a vertex index, a clip test, and a glyph's coverage across
-  one pixel around an edge that moves out for a thin stroke, not a wide one. It copies the
-  field's spread, the face's thinnest stroke and the median.
+  one pixel around an edge that moves out for a thin stroke, not a wide one. It
+  copies the field's spread, the face's thinnest stroke and the median.
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

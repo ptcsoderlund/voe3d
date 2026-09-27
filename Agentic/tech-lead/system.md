@@ -45,7 +45,7 @@ workflow replaced specs.
 - 0120, 0133, 0173 — Every code folder carries a `.md`; `src/` and `tests/` list their own files.
 - 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
-- 0180–0185, 0212 — Wayland at fractional scale; editor text scales, hard-edged, dilated when thin.
+- 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
 - 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
 - 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.

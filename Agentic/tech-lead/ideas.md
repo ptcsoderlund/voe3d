@@ -102,15 +102,6 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   too big for now.
 - Explicit system ordering (Bevy-style `.before`/`.after`, system sets) for when a slot's systems
   run on several threads; until then list order within a slot is enough (0256).
-- **Text is grainy at small sizes** (sponsor, 2026-09-26): it looks fantastic large but grainy
-  in a small window. The sponsor's idea is a minimum render height per character (about 64 px),
-  drawn at that size and then scaled down with the texture it sits on, i.e. supersampling.
-  Recommended instead, to try first: the grain is most likely the glyph's hard cutoff (0183,
-  0212), where a pixel is either in or out. A soft edge (coverage from the distance field over a
-  pixel) antialiases small text for almost nothing. Supersampling works too, but it costs an
-  offscreen texture and a filtered downscale for every piece of text. Answered 2026-09-26: all
-  text is grainy, editor and game alike (the editor draws through the same runtime), so one fix
-  in the one glyph path covers both.
 - **Entity groups in the Scene list** (sponsor, 2026-09-26): a flat list means a lot of
   scrolling. Recommended first step: editor-only folders, collapsible, saved in the scene, with
   no effect on transforms or the game, plus a filter box at the top of the list. The cost is
