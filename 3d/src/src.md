@@ -37,10 +37,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `cylinder.h` — the built-in cylinder's counts and its builder, internal to
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
-- `pick.c` — the pixel's ray from the view's two matrices inverted, and the walk that
-  tests it against each shape's and loaded model's triangles, then the cameras' boxes and suns' cubes.
-- `outline.c` — the walk over one shape's or loaded model's edges that keeps the ones the eye is on two sides of, and
-  the quad each of them becomes, a half width per vertex from that vertex's own depth.
+- `pick.c` — the pixel's ray from the view's two matrices inverted, and the walk that tests
+  it against each shape's and loaded model's triangles, then the cameras' boxes and suns' cubes.
+- `outline.c` — the walk over one shape's or loaded model's edges that keeps the ones the eye
+  is on two sides of, and the quad each of them becomes, a half width per vertex from that
+  vertex's own depth.
 - `camera_marker.c` — the marker's twenty edges in the camera's own space, handed to marker_lines.c
   for their quads and the slab test against the box.
 - `sun_marker.c` — the sun's circle, shaft and head in its own space under its pose unscaled, and

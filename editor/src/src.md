@@ -40,8 +40,8 @@ carries it out.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
 - `settings.h` — the Scene list's and the Inspector's widths, the Assets panel's and the top bar's
-  heights and the views' share a person gave them, remembered at `<settings>/voe3d/editor_settings`, one `<key> <number>`
-  line each (ADR-0226).
+  heights and the views' share a person gave them, remembered at
+  `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file in
@@ -172,8 +172,9 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
-- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world and its models, the
-  selection's outline, its collider, its gizmo and the camera's and sun's markers, and the device capacities those passes need.
+- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
+  passes, with the world and its models, the selection's outline, its collider, its gizmo and the
+  camera's and sun's markers, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
   walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera and sun marked, and
   ended, stopping at the first refused pass.
