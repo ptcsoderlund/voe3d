@@ -2,7 +2,7 @@
 // answers and who calls it.
 //
 // EVERY NUMBER IN HERE IS A CALL SITE'S OPINION: which key means forward, how
-// wide the orbit is, how long a lap takes and how bright the sun is. What a
+// wide the orbit is, how long a lap takes and where the sun stands. What a
 // camera does about being moved is the transform system's; this only asks.
 //
 // THE FLIGHT'S CONSTANTS ARE WHAT "FASTER" AND "MORE SENSITIVE" MEAN. They were
@@ -18,6 +18,7 @@
 #include <math/double3.h>
 #include <math/quat.h>
 #include <platform/input.h>
+#include <scene/light_component.h>
 
 #include <math.h>
 
@@ -48,7 +49,7 @@
 #define ORBIT_HEIGHT 1.8f
 #define ORBIT_SECONDS 12.0f
 
-// The sun: how long a lap takes, how high it sits, and how strong it is.
+// The sun: how long a lap takes, how high it sits, and where its marker stands.
 //
 // IT MOVES BECAUSE A STILL LIGHT PROVES NOTHING. A light that never moves is
 // indistinguishable from a light pointing the wrong way, from a normal matrix
@@ -61,14 +62,11 @@
 // scene/light_component.h on which way a direction points. Not so steep that
 // the sides of things go dark and not so shallow that the tops do.
 //
-// THE INTENSITY IS ABOVE ONE BECAUSE THE DIFFUSE TERM DIVIDES BY PI. A surface
-// facing a white light of one comes back at about a third of its albedo, which
-// is a scene that looks underexposed; π is what makes "one" mean "as bright as
-// the texture". There is no exposure control and no tone mapping yet, so this is
-// a number that looks right rather than a number that means something.
+// THE MARKER STANDS ABOVE THE ORIGIN, out of the picture's way. Where a
+// directional light stands changes nothing it lights; only its turn does.
 #define SUN_SECONDS 20.0f
 #define SUN_HEIGHT (-0.8f)
-#define SUN_INTENSITY 3.14159265f
+#define SUN_ABOVE 4.0
 
 // The bindings, and the only thing in this file that decides anything. Which key
 // means forward is a call site's business — the engine's job is to know what
@@ -255,10 +253,14 @@ voe_scene_transform voe_dev_flight_pose(voe_dev_flight flight)
 	return pose;
 }
 
-// Where the sun is pointing at this many seconds in, as an intent.
+// The sun's pose at this many seconds in.
 //
-// THE SUN'S PATH. The light circles the scene on the same clock, as a light
-// intent every frame, for one reason: a still light is a light nobody can tell
+// THE SUN IS TURNED BY ITS TRANSFORM (0273): the light shines along its
+// rotation's -Z, so the lap's direction is made a rotation here and main.c
+// submits the pose as a transform intent, as it does the eye's.
+//
+// THE SUN'S PATH. The light circles the scene on the same clock, as a
+// transform intent every frame, for one reason: a still light is a light nobody can tell
 // from a wrong one. A scene will say where its sun is the day there is a scene
 // file.
 //
@@ -275,8 +277,7 @@ voe_scene_transform voe_dev_flight_pose(voe_dev_flight flight)
 // IT CIRCLES ON THE HORIZONTAL PLANE AND LEANS DOWNWARDS. The x and z components
 // go round with the clock and the y component is fixed, so the light comes from
 // a different side of the scene every few seconds and always from above. The
-// direction is not normalized here: the light system does that, which is the
-// point of it doing it there — see scene/light_system.h.
+// direction is not normalized here: voe_scene_light_facing takes any length.
 //
 // THE LAP IS NOT THE CAMERA'S LAP. SUN_SECONDS and ORBIT_SECONDS are different
 // numbers on purpose: if the sun went round with the camera, every surface would
@@ -290,18 +291,16 @@ voe_scene_transform voe_dev_flight_pose(voe_dev_flight flight)
 //     cleared and not lit, so a black scene on a coloured background is a
 //     lighting failure and a black window is not.
 //   - The bright side of the still cube not moving as the sun goes round — the
-//     light intent is not landing, or the light system is not being run.
-voe_scene_light_intent voe_dev_sunlight(voe_ecs_entity sun, float seconds)
+//     transform intent is not landing, or the light system is not being run.
+voe_scene_transform voe_dev_sun_pose(float seconds)
 {
 	float angle = seconds * TURN / SUN_SECONDS;
-	voe_scene_light_intent intent = {
-		.entity = sun,
-		.light = {
-			.direction = { sinf(angle), SUN_HEIGHT, cosf(angle) },
-			.colour = { 1.0f, 1.0f, 1.0f },
-			.intensity = SUN_INTENSITY,
-		},
+	voe_math_float3 lap = { sinf(angle), SUN_HEIGHT, cosf(angle) };
+	voe_scene_transform pose = {
+		.position = { 0.0, SUN_ABOVE, 0.0 },
+		.rotation = voe_scene_light_facing(lap),
+		.scale = { 1.0f, 1.0f, 1.0f },
 	};
 
-	return intent;
+	return pose;
 }
