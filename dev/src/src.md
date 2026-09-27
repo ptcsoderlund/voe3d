@@ -49,10 +49,9 @@ that carries it out. The pictures and the model it embeds sit here too.
 - `facing.h` — the transforms that turn the heads-up line, its panel and the readout to the camera,
   from the eye's pose this frame, and who calls them each frame.
 - `facing.c` — the eye's frame read from its pose and the three placements built from it.
-- `motion.h` — how the eye and the sun move each frame: the flight the keys fly, where the orbit is
-  at a given second, the pose a flight is seen from and `voe_dev_sun_pose`, the sun's transform at
-  one, turned to shine along its lap. Its header says why they are here and why the turning cube's
-  spin is not.
+- `motion.h` — how the eye and the sun move each frame: the flight the keys fly, the orbit at a
+  second, the pose a flight is seen from and `voe_dev_sun_pose`, the sun's transform turned along
+  its lap. Its header says why the cube's spin is not here.
 - `motion.c` — those answers and the numbers behind them: the bindings, speeds and pitch limit and
   what is wrong if flying feels wrong, the orbit's radius, height and lap, and the sun's lap, height
   and where its marker stands.
