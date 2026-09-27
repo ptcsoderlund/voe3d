@@ -35,14 +35,14 @@ which file to open — what each one owns, and where the seams between them run.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
-- `geometry.c` — the two static pools, the transient pair in every frame slot, and the ranges into
-  all of them.
+- `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
+  pair in every frame slot, and the ranges into all of them.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.
 - `shading.c` — the record buffer the fragment stage reads by index, and the
-  slots that name its rows. Its header says why one buffer serves every frame
-  slot and why creating a record waits for the GPU.
+  slots that name its rows, freed and reused. Its header says why one buffer
+  serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot; the
   targets of a caller's own, shown through one texture slot; and the read that copies a finished
   picture into an arena as RGBA8.

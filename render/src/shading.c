@@ -17,6 +17,10 @@
 // while the engine is running want a per-slot buffer or a copy queue, and that
 // is the card that needs them.
 //
+// A RECORD IS FREED BY voe_render_shading_destroy (0278), which gives its slot
+// back with the generation bumped; a create takes the lowest free slot. The
+// same idle wait makes destroying one a startup operation too.
+//
 // THE TEXTURE IDS IN A RECORD ARE INDEX HALVES AND ARE NOT CHECKED. An id that
 // names no live texture samples the one-pixel white default rather than failing,
 // because a material referring to a picture that did not load is a thing to see
@@ -125,5 +129,29 @@ bool voe_render_shading_create(voe_render_device *device,
 
 	out->index = index;
 	out->generation = slot->generation;
+	return true;
+}
+
+// The row's bytes are left as they are: nothing may draw with the old id, and
+// the next create of this slot overwrites them. The wait is the create's, for
+// the same reason: that overwrite may not land while a frame reads the row.
+bool voe_render_shading_destroy(voe_render_device *device,
+				voe_render_shading shading)
+{
+	struct voe_render_shading_slot *slot;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a shading record on no device");
+
+	if (device->shading_slots == NULL ||
+	    shading.index >= device->capacities.shadings)
+		return false;
+	slot = &device->shading_slots[shading.index];
+	if (!slot->live || slot->generation != shading.generation)
+		return false;
+
+	voe_render_vk.device_wait_idle(device->device);
+
+	slot->generation++;
+	slot->live = false;
 	return true;
 }

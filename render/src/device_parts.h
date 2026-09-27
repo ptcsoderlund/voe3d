@@ -51,22 +51,33 @@ struct voe_render_buffer {
 	VkDeviceMemory memory;
 };
 
-// A pool: one buffer, appended to and never freed, and how much of it is spent.
+// A range given back to a static pool: `count` elements from `offset`.
+struct voe_render_free_range {
+	uint32_t offset;
+	uint32_t count;
+};
+
+// A pool: one buffer, how much of it is spent, and the ranges given back.
 //
 // TWO OF THESE ARE THE WHOLE OF THIS ENGINE'S GEOMETRY. Every mesh's vertices go
 // into one pool and every mesh's indices into another, so a mesh is a range and
 // not a buffer of its own — which is what lets one bind serve every draw in a
 // frame, and what lets many draws become one indirect call in a later card.
 //
-// `used` ONLY EVER GOES UP. Nothing in this engine unloads anything yet, so there
-// is no free list and no compaction here; the card that unloads a model is the
-// card that decides what to do about the hole it leaves. Until then a pool that
-// fills up is a returned failure and not a wait.
+// `used` IS THE HIGH-WATER MARK AND `holes` THE RANGES UNDER IT (0278). The list is
+// sorted by offset, no two entries touch, and none touches `used` — a range
+// given back there lowers `used` instead. So there are never more holes than
+// live ranges, and `hole_room` is the static band's slot count. There is no
+// compaction: a pool whose holes are too small is a returned failure. A
+// transient pool has no list; it is emptied whole every frame.
 struct voe_render_pool {
 	struct voe_render_buffer buffer;
 	// Elements, not bytes: vertices in one pool and indices in the other.
 	uint32_t capacity;
 	uint32_t used;
+	struct voe_render_free_range *holes;
+	uint32_t hole_count;
+	uint32_t hole_room;
 };
 
 // A transient pool: the same bookkeeping over a host-visible buffer that stays
@@ -105,10 +116,14 @@ struct voe_render_transient_pool {
 // is host-visible and this frame slot's own. The draw reads the flag to know
 // which buffers have to be bound before the range means anything, and it is the
 // only place in the engine that distinguishes the two kinds.
+//
+// `live` FALSE IS A FREE SLOT, and vertex_count is kept only so a destroy knows
+// how much of the vertex pool to give back.
 struct voe_render_geometry_slot {
 	uint32_t first_vertex;
 	uint32_t first_index;
 	uint32_t index_count;
+	uint32_t vertex_count;
 	uint32_t generation;
 	bool live;
 	bool transient;
@@ -117,10 +132,7 @@ struct voe_render_geometry_slot {
 // What a voe_render_shading id names. The record itself lives in the GPU buffer
 // the fragment stage reads; this is only what the CPU needs in order to refuse a
 // stale id, which is the same shape a texture slot has and for the same reason.
-//
-// THERE IS NO DESTROY FOR ONE, so a generation here never moves past 1 today. It
-// is kept because the id type has one and because the card that starts unloading
-// materials should not have to change the id everything else stores.
+// `live` false is a free slot; a destroy and a create each bump the generation.
 struct voe_render_shading_slot {
 	uint32_t generation;
 	bool live;

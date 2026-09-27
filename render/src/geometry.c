@@ -1,5 +1,5 @@
 // The geometry pools and the ranges into them. Two static pools — one vertex,
-// one index, both device-local, both appended to and never freed — plus a
+// one index, both device-local, ranges taken and given back — plus a
 // transient pair in every frame slot, host-visible and emptied every frame; and
 // one slot per range so that a voe_render_geometry id can be refused when it
 // names nothing.
@@ -38,12 +38,14 @@
 // thing a loader should have to explain to a person. glTF hands out bytes, shorts
 // and ints, and the importer widens all three to this.
 //
-// NOTHING STATIC IS FREED, DELIBERATELY, AND THE HEADER SAYS SO OUT LOUD. There
-// is no voe_render_geometry_destroy: the card that unloads a model is the card
-// that decides what to do about the hole a removal leaves in a pool, and
-// inventing a free list before then would be inventing it blind. Geometry that
-// has to come and go has the transient path instead, where nothing is freed
-// because everything is.
+// A STATIC RANGE IS FREED BY voe_render_geometry_destroy (0278), so a reloaded
+// model does not fill the pools. Each static pool keeps a sorted list of the
+// ranges given back; a create takes the first that fits, splitting it, before
+// appending at `used`, and a range given back merges with a neighbour it
+// touches or lowers `used`. First fit and no compaction: fragmentation that
+// leaves no hole big enough is a returned failure, lifted only by a compacting
+// pass that rewrites every slot. The transient path frees nothing because it
+// empties everything.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -52,12 +54,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+// A static pool, with room for as many holes as the static band has slots —
+// the bound device_parts.h gives for voe_render_pool.
 static bool build_pool(voe_render_device *device, struct voe_render_pool *pool,
 		       uint32_t capacity, size_t element,
 		       VkBufferUsageFlags usage)
 {
 	pool->capacity = capacity;
 	pool->used = 0;
+	pool->hole_count = 0;
+	pool->hole_room = device->capacities.geometries;
+	pool->holes = calloc(pool->hole_room, sizeof(*pool->holes));
+	VOE_BASE_ASSERT(pool->holes != NULL,
+			"out of memory making room for a pool's free ranges");
 
 	return voe_render_buffer_build(device, &pool->buffer,
 				       (VkDeviceSize)capacity * element,
@@ -196,6 +205,12 @@ void voe_render_geometry_shutdown(voe_render_device *device)
 	voe_render_buffer_teardown(device, &device->vertices.buffer);
 	device->indices.used = 0;
 	device->vertices.used = 0;
+	free(device->indices.holes);
+	free(device->vertices.holes);
+	device->indices.holes = NULL;
+	device->vertices.holes = NULL;
+	device->indices.hole_count = 0;
+	device->vertices.hole_count = 0;
 
 	free(device->geometries);
 	device->geometries = NULL;
@@ -265,6 +280,99 @@ voe_render_geometry_at(const voe_render_device *device,
 	return slot;
 }
 
+// Where `count` elements would go in a static pool, first fit: the index of the
+// lowest hole that holds them, hole_count for the end of what is spent, or
+// UINT32_MAX when neither has room. Finding is apart from taking so that both
+// pools can be checked before either is changed.
+static uint32_t pool_find(const struct voe_render_pool *pool, uint32_t count)
+{
+	for (uint32_t i = 0; i < pool->hole_count; i++) {
+		if (pool->holes[i].count >= count)
+			return i;
+	}
+	if (count <= pool->capacity - pool->used)
+		return pool->hole_count;
+	return UINT32_MAX;
+}
+
+static uint32_t pool_offset(const struct voe_render_pool *pool, uint32_t where)
+{
+	return where < pool->hole_count ? pool->holes[where].offset : pool->used;
+}
+
+// Takes what pool_find found. A hole is split from its low end; what is left of
+// it still touches nothing, so the list's invariants hold without a merge.
+static void pool_take(struct voe_render_pool *pool, uint32_t where,
+		      uint32_t count)
+{
+	struct voe_render_free_range *hole;
+
+	VOE_BASE_DEBUG_ASSERT(where <= pool->hole_count, "taking a range pool_find did not find");
+
+	if (where == pool->hole_count) {
+		pool->used += count;
+		return;
+	}
+	hole = &pool->holes[where];
+	VOE_BASE_DEBUG_ASSERT(hole->count >= count, "taking more than a hole holds");
+	hole->offset += count;
+	hole->count -= count;
+	if (hole->count > 0)
+		return;
+	memmove(hole, hole + 1,
+		(size_t)(pool->hole_count - where - 1) * sizeof(*hole));
+	pool->hole_count--;
+}
+
+// Gives a range back: it lowers `used` when it ends there (taking the hole
+// below with it if that now ends there too), else it joins the sorted list,
+// merged with whichever neighbours it touches.
+static void pool_give(struct voe_render_pool *pool, uint32_t offset,
+		      uint32_t count)
+{
+	struct voe_render_free_range *holes = pool->holes;
+	uint32_t at = 0;
+	bool below;
+	bool above;
+
+	VOE_BASE_DEBUG_ASSERT(count > 0 && offset + count <= pool->used,
+			      "giving back a range the pool never handed out");
+
+	while (at < pool->hole_count && holes[at].offset < offset)
+		at++;
+
+	if (offset + count == pool->used) {
+		VOE_BASE_DEBUG_ASSERT(at == pool->hole_count, "a hole above the end of the pool");
+		pool->used = offset;
+		if (at > 0 && holes[at - 1].offset + holes[at - 1].count == offset) {
+			pool->used = holes[at - 1].offset;
+			pool->hole_count--;
+		}
+		return;
+	}
+
+	below = at > 0 && holes[at - 1].offset + holes[at - 1].count == offset;
+	above = at < pool->hole_count && offset + count == holes[at].offset;
+	if (below && above) {
+		holes[at - 1].count += count + holes[at].count;
+		memmove(&holes[at], &holes[at + 1],
+			(size_t)(pool->hole_count - at - 1) * sizeof(*holes));
+		pool->hole_count--;
+	} else if (below) {
+		holes[at - 1].count += count;
+	} else if (above) {
+		holes[at].offset = offset;
+		holes[at].count += count;
+	} else {
+		VOE_BASE_ASSERT(pool->hole_count < pool->hole_room,
+				"more free ranges than live meshes, which the list's invariants rule out");
+		memmove(&holes[at + 1], &holes[at],
+			(size_t)(pool->hole_count - at) * sizeof(*holes));
+		holes[at] = (struct voe_render_free_range){ offset, count };
+		pool->hole_count++;
+	}
+}
+
 bool voe_render_geometry_create(voe_render_device *device,
 				const voe_render_vertex *vertices,
 				uint32_t vertex_count, const uint32_t *indices,
@@ -273,6 +381,10 @@ bool voe_render_geometry_create(voe_render_device *device,
 {
 	struct voe_render_geometry_slot *slot = NULL;
 	uint32_t index = 0;
+	uint32_t vertex_at;
+	uint32_t index_at;
+	uint32_t first_vertex;
+	uint32_t first_index;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "uploading a mesh to no device");
 	VOE_BASE_DEBUG_ASSERT(vertices != NULL, "uploading a mesh with no vertices");
@@ -300,10 +412,11 @@ bool voe_render_geometry_create(voe_render_device *device,
 
 	// Both pools are checked before either is written, so a mesh that does
 	// not fit leaves neither pool half filled with it.
-	if (device->vertices.used + vertex_count > device->vertices.capacity ||
-	    device->indices.used + index_count > device->indices.capacity) {
+	vertex_at = pool_find(&device->vertices, vertex_count);
+	index_at = pool_find(&device->indices, index_count);
+	if (vertex_at == UINT32_MAX || index_at == UINT32_MAX) {
 		VOE_BASE_ERROR("render",
-			       "no room for a mesh of %u vertices and %u indices — %u of %u vertices and %u of %u indices are spent",
+			       "no room for a mesh of %u vertices and %u indices — no free range fits and the pools are spent to %u of %u vertices and %u of %u indices",
 			       vertex_count, index_count, device->vertices.used,
 			       device->vertices.capacity, device->indices.used,
 			       device->indices.capacity);
@@ -311,39 +424,74 @@ bool voe_render_geometry_create(voe_render_device *device,
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
 	}
+	first_vertex = pool_offset(&device->vertices, vertex_at);
+	first_index = pool_offset(&device->indices, index_at);
 
 	if (!voe_render_buffer_upload(device, &device->vertices.buffer,
-				      (VkDeviceSize)device->vertices.used *
+				      (VkDeviceSize)first_vertex *
 					      sizeof(*vertices),
 				      vertices,
 				      (VkDeviceSize)vertex_count *
 					      sizeof(*vertices)) ||
 	    !voe_render_buffer_upload(device, &device->indices.buffer,
-				      (VkDeviceSize)device->indices.used *
+				      (VkDeviceSize)first_index *
 					      sizeof(*indices),
 				      indices,
 				      (VkDeviceSize)index_count *
 					      sizeof(*indices))) {
-		// The pools are left as they were: `used` has not moved, so the
-		// bytes a half-finished upload wrote are inside the unspent
-		// part of the pool and the next mesh overwrites them.
+		// The pools are left as they were: nothing has been taken, so
+		// the bytes a half-finished upload wrote are in a free part of
+		// the pool and the next mesh there overwrites them.
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_REFUSED;
 		return false;
 	}
 
-	slot->first_vertex = device->vertices.used;
-	slot->first_index = device->indices.used;
+	pool_take(&device->vertices, vertex_at, vertex_count);
+	pool_take(&device->indices, index_at, index_count);
+
+	slot->first_vertex = first_vertex;
+	slot->first_index = first_index;
 	slot->index_count = index_count;
+	slot->vertex_count = vertex_count;
 	slot->generation++;
 	slot->live = true;
 	slot->transient = false;
 
-	device->vertices.used += vertex_count;
-	device->indices.used += index_count;
-
 	out->index = index;
 	out->generation = slot->generation;
+	return true;
+}
+
+// Waits for idle before giving the ranges back, because the next create may
+// upload over them while a frame in flight is still drawing from them.
+bool voe_render_geometry_destroy(voe_render_device *device,
+				 voe_render_geometry geometry)
+{
+	struct voe_render_geometry_slot *slot;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a mesh on no device");
+	VOE_BASE_ASSERT(geometry.index < device->capacities.geometries ||
+				geometry.index >= device->capacities.geometries +
+							  device->capacities.transient_geometries,
+			"destroying a transient mesh — it is gone at the next frame's begin, and nothing destroys one");
+
+	if (device->geometries == NULL ||
+	    geometry.index >= device->capacities.geometries)
+		return false;
+	slot = &device->geometries[geometry.index];
+	if (!slot->live || slot->generation != geometry.generation)
+		return false;
+
+	voe_render_vk.device_wait_idle(device->device);
+
+	pool_give(&device->vertices, slot->first_vertex, slot->vertex_count);
+	pool_give(&device->indices, slot->first_index, slot->index_count);
+
+	// Bumped here as well as on a create, as a texture's is, so the id just
+	// destroyed is refused at once and not only once the slot is reused.
+	slot->generation++;
+	slot->live = false;
 	return true;
 }
 
