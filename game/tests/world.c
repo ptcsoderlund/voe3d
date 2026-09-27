@@ -3,25 +3,17 @@
 // registered, the eleven answers, the model table's among them, are eleven
 // different types, and the world counts twelve, the twelfth the transforms'
 // previous table, whose key is scene's own. Needs no window and no graphics card.
+//
+// The keys come through game/scene.h, the one header a cooked scene.c sees,
+// and no component header of their own: a type game/world.h registers that
+// scene.h does not declare stops this test compiling. It never calls
+// voe_game_scene_build, so it links without a scene.c.
+#include <game/scene.h>
 #include <game/world.h>
-
-#include <3d/material_component.h>
-#include <3d/mesh_component.h>
-#include <3d/model_component.h>
-#include <3d/panel_component.h>
-#include <3d/shape_component.h>
 
 #include <base/arena.h>
 
 #include <ecs/component.h>
-
-#include <physics/body_component.h>
-#include <physics/collider_component.h>
-
-#include <scene/camera_component.h>
-#include <scene/identity_component.h>
-#include <scene/light_component.h>
-#include <scene/transform_component.h>
 
 #include <testing/test.h>
 
