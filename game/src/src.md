@@ -9,3 +9,4 @@ project's cooked `scene.c` defines.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them.
 - `run.c` — the run's steps and their refusals, the interface each frame and its end of the run, the mixer and a sound device pumped or silent; the only file naming `voe_game_scene_build` and the project's entry points.
+- `models.c` — a path joined onto the folder, stamped, read into rewound scratch and loaded; each failure a stderr line and counted.
