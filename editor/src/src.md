@@ -22,7 +22,7 @@ carries it out.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
   once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
   with acting on one left to the caller.
-- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete and Ctrl+D, the rest
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the rest
   a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
@@ -91,7 +91,7 @@ carries it out.
   build at a time, a built library loaded and swapped in once a frame, and what a browser action
   does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
-  Preferences, the project's name and whether it is unsaved, then the session's notice, at least as
+  Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's notice, at least as
   tall as its content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its seven buttons, Play, Refresh and Ship among them, afterwards.
