@@ -56,6 +56,7 @@
 #include "inspector_edit.h"
 #include "interface.h"
 #include "keys.h"
+#include "models.h"
 #include "preferences.h"
 #include "notice.h"
 #include "options.h"
@@ -169,6 +170,8 @@ int main(int argc, char *argv[])
 	// The built-in shapes' GPU side, uploaded once at startup and read
 	// every frame by world_step.h.
 	voe_3d_shapes shapes;
+	// The one model store, destroyed before the device (models.h).
+	voe_editor_models *models = NULL;
 	// The one font the editor carries, Oxanium (ADR-0185); themes.h
 	// derives every palette with it.
 	voe_text_font *oxanium;
@@ -269,6 +272,7 @@ int main(int argc, char *argv[])
 		status = 1;
 		goto stop;
 	}
+	models = voe_editor_models_new();
 
 	// The same three kinds on the CPU, for the ray a click is cast as
 	// (pick.h). No device in it, and the kept arena because the store is
@@ -621,6 +625,7 @@ int main(int argc, char *argv[])
 		// press the gizmo took is not a press that selects, and the
 		// order is the point: the gizmo is asked first.
 		voe_editor_pick_read(&pick, &scene, &views, &geometries,
+				     voe_editor_models_store(models),
 				     roots[0].pointer.at, left && pointer.over,
 				     browser.showing || preferences.showing ||
 					     session.errors.showing ||
@@ -650,10 +655,11 @@ int main(int argc, char *argv[])
 		// entity has a camera.
 		drawn = voe_editor_view_passes_preview(
 				gpu, arena, session.project->world, &views,
-				light, &scene) &&
+				light, &scene, voe_editor_models_store(models)) &&
 			voe_editor_view_passes_draw(
 			gpu, arena, session.project->world, &views,
-			&roots[0].tree, light, &scene, &geometries, &shapes,
+			&roots[0].tree, light, &scene, &geometries,
+			voe_editor_models_store(models), &shapes,
 			&voe_editor_themes_chosen(&themes)->palette, &gizmo,
 			pixels_per_millimetre);
 
@@ -741,6 +747,7 @@ stop:
 	// never have been made at all, on a run Open was never once asked
 	// for, which is voe_editor_browser_destroy's to tell apart.
 	voe_editor_refresh_end(&session.refresh);
+	voe_editor_models_destroy(models, gpu);
 	voe_app_destroy(app);
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);

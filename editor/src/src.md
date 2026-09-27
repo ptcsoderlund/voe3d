@@ -164,19 +164,23 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
-- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world, the
+- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow passes, with the world and its models, the
   selection's outline, its collider, its gizmo and the camera's and sun's markers, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
   walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera and sun marked, and
   ended, stopping at the first refused pass.
+- `models.h` — the editor's one model store, handed to picking and the view passes so models are
+  drawn, picked and outlined, and why one for the program and not one per project.
+- `models.c` — the store made empty, cleared through the device and destroyed, and handed out
+  read-only.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
   drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
 - `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
   gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
   measured them, and the Scene panel's rows asked after the frame has ended.
-- `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a
-  click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
+- `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
+  too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
