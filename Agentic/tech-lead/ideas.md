@@ -32,9 +32,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   draws with a theme; per-element property overrides and a theme override are how it gets colour on purpose.
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
-- **Rotate and scale gizmos**, and a toggle for the move gizmo to follow the entity's own axes rather than the
-  world's (left out of 015 on purpose, 2026-09-19). The sponsor would like the rotate gizmo drawn on top of the
-  move gizmo, both at once, in world space (2026-09-23); typing rotation in the Inspector does until then.
+- **A scale gizmo**, and a toggle for the move and rotate gizmos to follow the entity's own axes rather than
+  the world's (left out of 015 and 035). Typing scale in the Inspector does until then.
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
 - **A view recorder**: something in the game that films from its own place and renders to a texture, for a
@@ -90,10 +89,6 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   Unity's probe adjustment volumes, and as rooms and portals (a room lit only by what is inside
   and what comes through its doors and windows), not as the main mechanism. One bounce first,
   more by feeding the cache back into itself. After the coin game, unless a game needs it sooner.
-- **Fill light for shadows** (2026-09-26): 028 has no ambient (0258), so shadowed sides are flat
-  dark. A cheap stopgap was offered: a two-colour sky/ground fill term, a few lines of shading,
-  replaced later by the bounce. The sponsor chose to wait; revisit if the coin game's shadows read
-  too black.
 - **A sky** (sponsor, 2026-09-26): a sky that is drawn, i.e. a panorama or sky dome and later
   volumetric clouds, which could also feed the fill light and the bounce. Wanted sooner or later;
   too big for now.
