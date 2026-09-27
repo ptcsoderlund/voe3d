@@ -164,6 +164,24 @@ bool voe_platform_file_exists(const char *path)
 	return S_ISREG(info.st_mode);
 }
 
+// Nanoseconds since the epoch, the size multiplied by an odd 64-bit constant
+// (the golden ratio's) so a size change moves high bits too, the two XORed.
+bool voe_platform_file_stamp(const char *path, uint64_t *out)
+{
+	struct stat info;
+	uint64_t nanoseconds;
+
+	VOE_BASE_ASSERT(path != NULL, "stamping no path");
+	VOE_BASE_ASSERT(out != NULL, "stamping into nothing");
+
+	if (stat(path, &info) != 0 || !S_ISREG(info.st_mode))
+		return false;
+	nanoseconds = (uint64_t)info.st_mtim.tv_sec * 1000000000u +
+		      (uint64_t)info.st_mtim.tv_nsec;
+	*out = nanoseconds ^ ((uint64_t)info.st_size * 0x9E3779B97F4A7C15u);
+	return true;
+}
+
 bool voe_platform_file_write(const char *path, const uint8_t *bytes,
 			     size_t count, voe_base_error *error)
 {

@@ -6,7 +6,8 @@ that module's promises from outside. None of them needs a window or a display.
 - `clock.c` — that the clock moves and never goes backwards. Its header says
   why nothing in it measures a duration against a duration.
 - `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
-  write fails as it says, no `.partial` outlives a write, and a non-ASCII name round-trips.
+  write fails as it says, no `.partial` outlives a write, a stamp holds until a rewrite of
+  another length and is false for a folder or nothing, and a non-ASCII name round-trips.
 - `folder.c` — that listings are byte-sorted with folder and hidden right, failures are
   UNAVAILABLE or REFUSED, settings honours `XDG_CONFIG_HOME`, and non-ASCII names list exactly.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;

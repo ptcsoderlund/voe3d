@@ -68,6 +68,19 @@
 // True only for a path that is a regular file.
 bool voe_platform_file_exists(const char *path);
 
+// A STAMP TELLS A CHANGED FILE FROM THE SAME ONE, AND NOTHING ELSE. It mixes
+// the modification time, at the finest resolution the system gives, with the
+// size into one number. Only equality means anything: two stamps are the same
+// file unchanged or they are not, and a caller never orders them, because a
+// mix has no order and a clock set back would break one anyway. The size is
+// in it because a file rewritten twice inside one clock tick keeps its time;
+// a different length still changes the stamp. A NULL path or out is the
+// caller's bug and aborts.
+//
+// True with the stamp in *out for a regular file; false, *out untouched, for
+// a folder or anything not there.
+[[nodiscard]] bool voe_platform_file_stamp(const char *path, uint64_t *out);
+
 // WRITING. voe_platform_file_write is atomic: it writes every byte to a
 // sibling named `<path>.partial`, flushes that file to the disk (`fsync` /
 // `FlushFileBuffers`), closes it, and only then renames it over path

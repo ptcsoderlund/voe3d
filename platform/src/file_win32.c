@@ -150,6 +150,32 @@ bool voe_platform_file_exists(const char *path)
 	return (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
+// 100-nanosecond ticks of the last write, the size multiplied by an odd 64-bit
+// constant (the golden ratio's) so a size change moves high bits too, the two
+// XORed. The same mix as the Linux side; only equality is ever asked of it.
+bool voe_platform_file_stamp(const char *path, uint64_t *out)
+{
+	wchar_t wide_path[MAX_PATH];
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	uint64_t ticks;
+	uint64_t size;
+
+	VOE_BASE_ASSERT(path != NULL, "stamping no path");
+	VOE_BASE_ASSERT(out != NULL, "stamping into nothing");
+
+	if (!voe_platform_wide_from_utf8(path, wide_path, MAX_PATH))
+		return false;
+	if (!GetFileAttributesExW(wide_path, GetFileExInfoStandard, &data))
+		return false;
+	if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		return false;
+	ticks = ((uint64_t)data.ftLastWriteTime.dwHighDateTime << 32) |
+		data.ftLastWriteTime.dwLowDateTime;
+	size = ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+	*out = ticks ^ (size * 0x9E3779B97F4A7C15u);
+	return true;
+}
+
 bool voe_platform_file_write(const char *path, const uint8_t *bytes,
 			     size_t count, voe_base_error *error)
 {
