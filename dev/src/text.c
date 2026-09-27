@@ -129,10 +129,12 @@
 // table: the edge is the same width over it, and what still looks soft on it is
 // soft. See HUD_PANEL_R.
 //
-// AND THERE IS NO ANTIALIASING ANYWHERE IN THE PICTURE, WHICH IS THE ENGINE'S
-// RULE AND NOT A GAP. Letters have hard edges, textures show their texels close
-// up and shimmer at a distance, and polygon silhouettes are stair-stepped. Every
-// one of those is intended. What to look for instead is that the edges are in
+// AND THE WORLD IS HARD-EDGED, WHICH IS THE ENGINE'S RULE AND NOT A GAP. World
+// letters have hard edges, textures show their texels close up and shimmer at a
+// distance, and polygon silhouettes are stair-stepped. Every one of those is
+// intended. The heads-up line, drawn as elements, is the one smooth-edged thing:
+// its edge is covered across one pixel (ADR-0269). What to look for is that the
+// edges are in
 // the RIGHT PLACE: a letter walked up to has straight sides and square corners
 // rather than blocks, which is the distance field doing its job under a hard
 // cut. Blocks would mean the sheet had become a picture of coverage again.
