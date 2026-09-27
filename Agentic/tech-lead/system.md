@@ -1,12 +1,11 @@
 # System
 
-The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its
-editor and dev program in one tree. Every code folder is a standalone CMake project —
-`include/<folder>/`, `src/`, `tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`,
-linked as `voe::<folder>`, mapped by `<folder>/<folder>.md`. Dependencies point down this list and
-never back up; `cmake/voe.cmake` holds the allowed edges, so a change needing a new edge is a
-decision, not a card. The standing rules are decision 0168, named on every card; the Agentic
-workflow replaced specs.
+The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its editor and
+dev program in one tree. Every code folder is a standalone CMake project — `include/<folder>/`, `src/`,
+`tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`, linked as `voe::<folder>`, mapped by
+`<folder>/<folder>.md`. Dependencies point down this list and never back up; `cmake/voe.cmake` holds the
+allowed edges, so a change needing a new edge is a decision, not a card. The standing rules are decision 0168,
+named on every card; the Agentic workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
@@ -47,14 +46,15 @@ workflow replaced specs.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
 - 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
-- 0189, 0190, 0191 — An entity is a number; the world owns its rows; a shape has a colour.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
 - 0192, 0193, 0195, 0198–0200 — Structure via the queue; one focus; dropdowns; overlays fit.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
-- 0217, 0218, 0221 — An entity, then components offered by each type's registered path; one camera.
+- 0189–0191, 0217, 0218, 0221 — An entity is a number, its rows the world's; a colour; menu paths; one camera.
 - 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
+- 0267, 0268, 0270–0272 — 0.1 closed with the coin game; 0.2 is a top-down tank game that grows
+  milestone by milestone; an Assets panel; parenting; no user docs before 1.0.

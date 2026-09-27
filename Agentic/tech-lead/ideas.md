@@ -37,9 +37,6 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   move gizmo, both at once, in world space (2026-09-23); typing rotation in the Inspector does until then.
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
-- **An asset browser** where a project stores its assets and prefabs (sponsor, 2026-09-23). Not on 0186's road
-  until the coin game needs it; duplicating an entity covers twenty coins. Prefabs and a scene clone (above)
-  would land here when it comes.
 - **A view recorder**: something in the game that films from its own place and renders to a texture, for a
   security camera on a screen or anything else that must film in game (sponsor, 2026-09-23). Not a second camera
   (0218); builds on render to a texture (003).
