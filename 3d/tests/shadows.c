@@ -8,9 +8,10 @@
 // shadowed surface is black; the floor pixel two metres to the side is lit.
 // So the first reads darker than the second.
 //
-// A FILL LIFTS THE SHADOW AND NOTHING MORE (ADR-0273): with a white fill of 0.2
+// A FILL LIFTS THE SHADOW AND NOTHING MORE (ADR-0275): with a white fill of 0.2
 // the pixel under the cube reads lighter than it did with none, and still
-// darker than the lit floor beside it.
+// darker than the lit floor beside it; the lit floor reads as it did with none,
+// within the 100 km case's two levels.
 //
 // WHERE THE PIXELS ARE. At five metres, a vertical field of sixty degrees over
 // a square picture spans 2.89 m either way of the middle. The floor under the
@@ -227,8 +228,9 @@ static void no_light_casts_nothing(voe_render_device *device,
 	voe_base_arena_destroy(arena);
 }
 
-// A white fill of 0.2 lifts the floor under the cube above `unfilled`'s, and
-// leaves it darker than the lit floor beside it.
+// A white fill of 0.2 lifts the floor under the cube above `unfilled`'s and
+// leaves it darker than the lit floor beside it; that lit floor reads as
+// `unfilled`'s, since the fill fades out where the sun reaches (ADR-0276).
 static void a_fill_lifts_the_shadow(voe_render_device *device,
 				    const voe_3d_shapes *shapes,
 				    floor_pixels unfilled)
@@ -241,6 +243,7 @@ static void a_fill_lifts_the_shadow(voe_render_device *device,
 
 	VOE_TEST_CHECK(pixels.under > unfilled.under);
 	VOE_TEST_CHECK(pixels.under < pixels.beside);
+	VOE_TEST_CHECK(abs((int)pixels.beside - (int)unfilled.beside) <= 2);
 	voe_base_arena_destroy(arena);
 }
 

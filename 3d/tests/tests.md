@@ -27,8 +27,8 @@ again, or to find where a claim that has started failing is written down.
   frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
   or sun marker is one draw more. Skips without a graphics card.
 - `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
-  not beside it, that a fill lifts that shadow but not to the lit floor, that no light casts
-  nothing, and that 100 km out reads the same. Skips without a graphics card.
+  not beside it, that a fill lifts that shadow and leaves the lit floor as it was, that no light
+  casts nothing, and that 100 km out reads the same. Skips without a graphics card.
 - `no_light.c` — that a world with no light frames unshaded and not blind, one light frames as
   itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
   card.
