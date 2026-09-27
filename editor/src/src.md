@@ -172,7 +172,7 @@ carries it out.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
   drew, and what the colour picker and the open dropdown are open on.
-- `scene.c` — the selection, Delete and Duplicate (both refuse the camera), opening and closing the
+- `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), opening and closing the
   colour picker and the dropdown, the open list moved to where the Inspector measured it, and the one
   question asked of the Scene panel's rows after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a

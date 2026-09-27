@@ -14,6 +14,7 @@
 #include <base/assert.h>
 
 #include <scene/camera_component.h>
+#include <scene/light_component.h>
 
 #include <ui/widgets.h>
 
@@ -140,7 +141,8 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene)
 	voe_ecs_entity made;
 
 	if (selected.generation == 0 ||
-	    voe_scene_camera_get(scene->world, selected) != NULL)
+	    voe_scene_camera_get(scene->world, selected) != NULL ||
+	    voe_scene_light_get(scene->world, selected) != NULL)
 		return;
 	if (!voe_editor_entities_duplicate(scene->world, selected, &made)) {
 		scene->full = true;

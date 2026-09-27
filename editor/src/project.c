@@ -66,13 +66,15 @@ static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 // see the header on why the two are not the same call.
 #define SCENE_FILE "main.scene"
 
-// The untitled light: where its light goes, not where it is — down, and from
-// the front-right, so the cube's three visible faces are three different
-// brightnesses. Not unit length here; voe_scene_light_add normalizes it once.
+// The untitled light: where its light goes — down, and from the front-right,
+// so the cube's three visible faces are three different brightnesses — turned
+// into the sun's rotation by voe_scene_light_facing, which takes any length.
+// LIGHT_HEIGHT is where the sun stands, which is only where its marker is seen.
 #define LIGHT_X (-0.4f)
 #define LIGHT_Y (-1.0f)
 #define LIGHT_Z (-0.6f)
 #define LIGHT_INTENSITY 3.14159265f
+#define LIGHT_HEIGHT 4.0
 
 // Where the scene camera is put: up and back from the origin, looking at it.
 #define CAMERA_Y 2.0
@@ -94,8 +96,7 @@ static voe_ecs_world *world_make(voe_base_arena *arena,
 
 // An entity a person authored: just the identity, whose presence is what says
 // so (ADR-0125). A transform, a shape or a light is added by the caller once
-// this returns — some authored entities have all three, `Light` has none of
-// the first two.
+// this returns — some authored entities have all three, `Light` has no shape.
 static voe_ecs_entity identified(voe_ecs_world *world, uint64_t id,
 				 const char *name)
 {
@@ -164,14 +165,24 @@ static void build_untitled(voe_ecs_world *world)
 						 .colour = VOE_3D_SHAPE_GREY }),
 		"a project's shape table is too small for its own untitled scene");
 
-	// LIGHT HAS NO TRANSFORM. A directional light has no position — see
-	// scene/light_component.h — so there is nothing to place it at.
+	// THE LIGHT'S TRANSFORM TURNS IT (ADR-0273): its rotation is the
+	// direction it shines. A directional light lights the same from
+	// anywhere, so its position only places the marker a person sees.
 	light = identified(world, 2, "Light");
+	VOE_BASE_ASSERT(
+		voe_scene_transform_add(
+			world, light,
+			(voe_scene_transform){
+				.position = { 0.0, LIGHT_HEIGHT, 0.0 },
+				.rotation = voe_scene_light_facing(
+					(voe_math_float3){ LIGHT_X, LIGHT_Y,
+							   LIGHT_Z }),
+				.scale = { 1.0f, 1.0f, 1.0f } }),
+		"a project's transform table is too small for its own untitled scene");
 	VOE_BASE_ASSERT(
 		voe_scene_light_add(
 			world, light,
 			(voe_scene_light){
-				.direction = { LIGHT_X, LIGHT_Y, LIGHT_Z },
 				.colour = { 1.0f, 1.0f, 1.0f },
 				.intensity = LIGHT_INTENSITY }),
 		"a project's light table is too small for its own untitled scene");
