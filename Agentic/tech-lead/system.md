@@ -52,9 +52,8 @@ workflow replaced specs.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
 - 0189–0191, 0217, 0218, 0221 — An entity is a number; the world owns rows; a colour; one camera.
-- 0222, 0223, 0238 — Placed by transform; the camera is a lens and a marker; no light draws unlit.
+- 0222, 0223, 0238, 0273–0276 — Placed by transform; camera and sun are markers; rotate rings; fill.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
 - 0267, 0268, 0270–0272 — 0.1 closed; 0.2 is a growing tank game; Assets panel; parenting; no docs.
-- 0273–0276 — The sun turns by its transform, is a marker, turns by rings; its fill lifts only shade.
