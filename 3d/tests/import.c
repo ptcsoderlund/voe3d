@@ -121,12 +121,17 @@ static void add_the_sun(voe_ecs_world *world)
 {
 	voe_ecs_entity sun = { 0 };
 	voe_scene_light light = {
-		.direction = { 0.0f, -1.0f, 0.0f },
 		.colour = { 1.0f, 1.0f, 1.0f },
 		.intensity = 1.0f,
 	};
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -1.0f, 0.0f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, light));
 }
 

@@ -151,12 +151,17 @@ static void add_the_sun(voe_ecs_world *world)
 {
 	voe_ecs_entity sun = { 0 };
 	voe_scene_light light = {
-		.direction = { 0.0f, -1.0f, 0.0f },
 		.colour = { 1.0f, 1.0f, 1.0f },
 		.intensity = 1.0f,
 	};
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -1.0f, 0.0f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, light));
 }
 
@@ -474,10 +479,15 @@ static void a_shaped_cube_draws_in_its_colour(void)
 	voe_3d_shape_register(world, 2);
 	add_a_camera(world);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -0.6f, -0.8f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
-		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
-				   .colour = { 1.0f, 1.0f, 1.0f },
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f }));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(3.0f)));
@@ -640,10 +650,15 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	// Lit from above and in front, so the face of the cube turned towards
 	// the camera has a colour of its own to be told from the background by.
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -0.6f, -0.8f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
-		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
-				   .colour = { 1.0f, 1.0f, 1.0f },
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 1.0f }));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(3.0f)));

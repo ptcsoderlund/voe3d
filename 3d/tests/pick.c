@@ -392,10 +392,15 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 		voe_scene_transform_add(world, eye, at(0.0f, 0.0f, 5.0f)));
 	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, the_lens()));
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.0f, -0.6f, -0.8f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, sun,
-		(voe_scene_light){ .direction = { 0.0f, -0.6f, -0.8f },
-				   .colour = { 1.0f, 1.0f, 1.0f },
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f }));
 	cube = add_a_cube(world, 1.5f, 1.0f, 0.0f);
 	voe_3d_shape_system_run(world, &shapes);

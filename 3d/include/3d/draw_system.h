@@ -299,7 +299,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 
 // The world's one light in the shape `render` takes it; with none, a light with
 // `unshaded` set and every other field zero (ADR-0238). Asserts on more than
-// one, because render has one sun.
+// one, because render has one sun. The direction is the light entity's
+// transform rotation's -Z (scene's voe_scene_light_direction), -Z with no
+// transform; the fill is fill_colour times fill_intensity (ADR-0273).
 //
 // IT IS PUBLIC SO EVERY PICTURE OF A SCENE MEANS THE SAME BY "NO LIGHT". The
 // editor's own views and dev's monitor light their passes with it rather than

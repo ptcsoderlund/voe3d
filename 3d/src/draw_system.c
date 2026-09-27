@@ -33,9 +33,10 @@
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
-// The direction is already unit length — scene's light system is the only
-// thing that writes one and it normalizes — so this is a copy of three fields
-// and not arithmetic. No light is `unshaded` and nothing else (ADR-0238).
+// The direction is the light entity's transform rotation's -Z, unit length from
+// voe_scene_light_direction, and -Z itself with no transform (ADR-0273); the
+// fill is its colour times its strength. No light is `unshaded` and nothing
+// else (ADR-0238).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "lighting no world");
@@ -46,8 +47,13 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 		return (voe_render_light){ .unshaded = 1 };
 
 	voe_scene_light light = voe_scene_light_rows(world)[0];
+	const voe_scene_transform *turn = voe_scene_transform_get(
+		world, voe_scene_light_entities(world)[0]);
 	voe_render_light sun = {
-		.direction = light.direction,
+		.direction = turn ? voe_scene_light_direction(turn->rotation)
+				  : (voe_math_float3){ 0.0f, 0.0f, -1.0f },
+		.fill = voe_math_float3_scale(light.fill_colour,
+					      light.fill_intensity),
 		.intensity = light.intensity,
 		.colour = light.colour,
 	};
