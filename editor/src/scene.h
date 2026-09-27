@@ -45,6 +45,10 @@
 // other components come from the Inspector's Add component. A fired Add entity
 // is an entity added, selected, and counted in `structural`, which main.c reads
 // to mark the project unsaved.
+//
+// THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
+// move or turn is how someone is working, not what the scene is, so it is never
+// saved and never undone, and a new project keeps it.
 #pragma once
 
 #include "inspector.h"
@@ -143,6 +147,9 @@ typedef struct voe_editor_scene {
 	//
 	// The open dropdown's target, kept across frames.
 	voe_editor_dropdown dropdown;
+	// Whether the selection's gizmo is rings that turn it, or arrows that
+	// move it when false, so zeroed is move. See the header.
+	bool rings;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -207,6 +214,9 @@ void voe_editor_scene_delete(voe_editor_scene *scene);
 // (ADR-0273), from either caller. Counts one in `structural`, or sets `full`
 // when the world or the queue is full.
 void voe_editor_scene_duplicate(voe_editor_scene *scene);
+
+// Flips `rings`: move becomes turn and turn becomes move, whatever is selected.
+void voe_editor_scene_gizmo_switch(voe_editor_scene *scene);
 
 // Opens the picker on `picking`, replacing whatever it was open on, and closes
 // the dropdown.

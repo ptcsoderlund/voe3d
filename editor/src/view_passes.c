@@ -154,6 +154,7 @@ bool voe_editor_view_passes_draw(
 					.marked_colour = voe_editor_view_gizmo_colour(
 						palette, true),
 					.marked = voe_editor_gizmo_marked(gizmo, v),
+					.rings = scene->rings,
 					.pixels = VOE_EDITOR_GIZMO_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,

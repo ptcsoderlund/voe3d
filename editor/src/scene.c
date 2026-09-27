@@ -1,5 +1,5 @@
-// The selection, the colour picker's and the open dropdown's targets, and the
-// rows the Scene panel drew. See the header for why building a project's entities is not this
+// The selection, the colour picker's and the open dropdown's targets, the
+// gizmo's mode, and the rows the Scene panel drew. See the header for why building a project's entities is not this
 // file's job, and why the rows outlive the call that drew them.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
@@ -150,6 +150,13 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene)
 	}
 	scene->selected = made;
 	scene->structural++;
+}
+
+void voe_editor_scene_gizmo_switch(voe_editor_scene *scene)
+{
+	VOE_BASE_ASSERT(scene != NULL, "switching the gizmo of no scene");
+
+	scene->rings = !scene->rings;
 }
 
 void voe_editor_scene_picker_open(voe_editor_scene *scene,

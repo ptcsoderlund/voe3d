@@ -171,18 +171,20 @@ carries it out.
   ended, stopping at the first refused pass.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
-  drew, and what the colour picker and the open dropdown are open on.
-- `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), opening and closing the
+  drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
+- `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
+  gizmo's switch, opening and closing the
   colour picker and the dropdown, the open list moved to where the Inspector measured it, and the one
   question asked of the Scene panel's rows after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, and a
   click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
-- `gizmo.h` — what the primary button does to the selected entity's move gizmo: the handle under
-  the pointer, a press that grabs one, and the drag that submits the entity's new position.
-- `gizmo.c` — the hover, the grab and the drag, each against a gizmo built from the view's own
-  camera, measured from the press position and submitted as a whole transform.
+- `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
+  handle under the pointer, a press that grabs one, and the drag that submits its new position or
+  rotation.
+- `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
+  own camera, measured from the press and submitted as a whole transform.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
   settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
   a neighbouring one back into the project's world (ADR-0204).
