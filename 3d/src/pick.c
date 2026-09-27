@@ -4,10 +4,12 @@
 // The view's two matrices are inverted once per pick. The walk carries the ray
 // into each shape's own space and tests that kind's triangles; the triangle
 // test is written out once, its derivation in a comment above it. The cameras'
-// marker boxes are tested after the shapes, on the same distance.
+// marker boxes and the suns' marker cubes are tested after the shapes, on the
+// same distance.
 #include <3d/camera_marker.h>
 #include <3d/pick.h>
 #include <3d/shape_component.h>
+#include <3d/sun_marker.h>
 
 #include <base/assert.h>
 
@@ -17,6 +19,7 @@
 #include <ecs/component.h>
 
 #include <scene/camera_component.h>
+#include <scene/light_component.h>
 #include <scene/transform_component.h>
 
 #include <stddef.h>
@@ -99,17 +102,17 @@ static bool ray_hits_triangle(struct local_ray ray, voe_math_float3 a,
 	return true;
 }
 
-// Whether the world registered a camera store. A walk of the types rather than
-// voe_ecs_component_type, which asserts on a key nothing registered, as
-// draw_system.c's shape_type walks them; once per pick.
-static bool has_cameras(const voe_ecs_world *world)
+// Whether the world registered the store under `key`. A walk of the types
+// rather than voe_ecs_component_type, which asserts on a key nothing
+// registered, as draw_system.c's shape_type walks them; once per pick.
+static bool has_store(const voe_ecs_world *world, const struct voe_ecs_key *key)
 {
 	uint32_t count = voe_ecs_component_type_count(world);
 
 	for (uint32_t i = 0; i < count; i++)
 		if (voe_ecs_component_key(world,
 					  voe_ecs_component_type_at(world, i)) ==
-		    &voe_scene_camera_key)
+		    key)
 			return true;
 	return false;
 }
@@ -211,7 +214,7 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 
 	// The cameras compete on the same distance: their box, never their
 	// frustum (0223, 3d/camera_marker.h).
-	if (has_cameras(world)) {
+	if (has_store(world, &voe_scene_camera_key)) {
 		uint32_t cameras = voe_scene_camera_count(world);
 		const voe_ecs_entity *owners = voe_scene_camera_entities(world);
 
@@ -222,6 +225,27 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 
 			if (pose == NULL ||
 			    !voe_3d_camera_marker_hit(*pose, ray, &t))
+				continue;
+			if (hit.generation != 0 && t >= nearest)
+				continue;
+			nearest = t;
+			hit = owners[i];
+		}
+	}
+
+	// So do the suns, on their marker's cube, never its lines (0274,
+	// 3d/sun_marker.h).
+	if (has_store(world, &voe_scene_light_key)) {
+		uint32_t lights = voe_scene_light_count(world);
+		const voe_ecs_entity *owners = voe_scene_light_entities(world);
+
+		for (uint32_t i = 0; i < lights; i++) {
+			const voe_scene_transform *pose =
+				voe_scene_transform_get(world, owners[i]);
+			float t;
+
+			if (pose == NULL ||
+			    !voe_3d_sun_marker_hit(*pose, ray, &t))
 				continue;
 			if (hit.generation != 0 && t >= nearest)
 				continue;

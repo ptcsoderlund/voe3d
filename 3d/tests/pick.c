@@ -3,10 +3,10 @@
 //
 // THE ARITHMETIC HALF NEEDS NO GRAPHICS CARD. A ray is two matrices and a walk
 // over triangles the CPU already holds, so the distance to a cube, the ray that
-// meets nothing, the frontmost of two in either order, a camera's box beating or
-// losing to a cube, a ray through the frustum and not the box picking nothing,
-// and the entities that are skipped are all checkable on a build box with no
-// Vulkan.
+// meets nothing, the frontmost of two in either order, a camera's box or a
+// sun's cube beating or losing to a cube, a ray through the frustum and not
+// the box picking nothing, and the entities that are skipped are all checkable
+// on a build box with no Vulkan.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
 // MOST. The arithmetic half cannot catch a flipped Y: it works the pixel out the
@@ -280,6 +280,57 @@ static void a_camera_competes_with_the_cube_on_distance(
 	}
 }
 
+// A light with a transform at (x, y, z), shining down -Z.
+static voe_ecs_entity add_a_sun(voe_ecs_world *world, float x, float y,
+				float z)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, at(x, y, z)));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, entity,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 1.0f }));
+	return entity;
+}
+
+// A sun competes with the shapes on distance (0274): in front of the cube its
+// marker's cube, 0.25 m in half extent, is met at 4.9 - 2.25; behind the cube
+// it loses.
+static void a_sun_competes_with_the_cube_on_distance(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_3d_ray ray = voe_3d_pick_ray(
+		the_view(size), EYE, size,
+		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
+	float distance = -1.0f;
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity sun = add_a_sun(world, 0.0f, 0.0f, 2.0f);
+		voe_ecs_entity hit =
+			voe_3d_pick(world, geometries, ray, &distance);
+
+		(void)cube;
+		VOE_TEST_CHECK_INT(hit.index, sun.index);
+		VOE_TEST_CHECK_INT(hit.generation, sun.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.9f - 2.25f, 1e-3f);
+	}
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity sun = add_a_sun(world, 0.0f, 0.0f, -2.0f);
+		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity hit =
+			voe_3d_pick(world, geometries, ray, &distance);
+
+		(void)sun;
+		VOE_TEST_CHECK_INT(hit.index, cube.index);
+		VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+	}
+}
+
 // Only the box is hit (0223): a ray straight down -Z through the frustum's far
 // top-right corner, 1 m ahead at 60 degrees and 16:9, passes the box by and
 // picks nothing.
@@ -484,6 +535,7 @@ int main(void)
 	the_nearer_of_two_wins_in_either_order(arena, &geometries);
 	a_cube_off_centre_is_found_at_its_own_pixel(arena, &geometries);
 	a_camera_competes_with_the_cube_on_distance(arena, &geometries);
+	a_sun_competes_with_the_cube_on_distance(arena, &geometries);
 	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);
 	a_pixel_the_cube_covers_picks_the_cube(arena, &geometries);
 

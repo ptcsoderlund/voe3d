@@ -14,11 +14,14 @@
 // that wants a click named calls this, the way it already calls
 // voe_3d_draw_system_frame to draw.
 //
-// IT WALKS THE SHAPES AND THE CAMERAS (ADR-0202, 0223). A mesh is runtime-only
-// (3d/mesh_component.h), so every entity a person can click on is a shaped one
-// or a camera; the mesh table's turn comes with an editor import. A camera is
-// hit on its marker's box (3d/camera_marker.h), never its frustum lines, and
-// competes with the shapes on distance; a world with no camera store walks none.
+// IT WALKS THE SHAPES, THE CAMERAS AND THE SUNS (ADR-0202, 0223, 0274). A mesh
+// is runtime-only (3d/mesh_component.h), so every entity a person can click on
+// is a shaped one, a camera or a light; the mesh table's turn comes with an
+// editor import. A camera is hit on its marker's box (3d/camera_marker.h),
+// never its frustum lines, a sun on its marker's cube (3d/sun_marker.h), never
+// its circle or arrow, and both compete with the shapes on distance; a world
+// with no camera or light store walks none of that kind, nor a light with no
+// transform.
 //
 // HOW A HIT IS MEASURED. The entity's matrix about the ray's origin (ADR-0250:
 // the origin is double, the test float about it) is inverted once and carries

@@ -35,7 +35,7 @@ again, or to find where a claim that has started failing is written down.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, and that every kind is a closed surface wound counter-clockwise seen from
   outside. Needs no graphics card.
-- `pick.c` — that the pick ray meets the nearest cube or camera box at the right distance and
+- `pick.c` — that the pick ray meets the nearest cube, camera box or sun cube at the right distance and
   nothing where nothing is, and that a drawn pixel the cube covers picks it. The arithmetic half
   needs no graphics card; the drawn half skips without one.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
@@ -44,6 +44,9 @@ again, or to find where a claim that has started failing is written down.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
   building nothing and not hit, and a ray meeting the box square on, turned and not at all. Needs
   no graphics card.
+- `sun_marker.c` — the marker's twenty-nine edges, a turned sun's arrow tip a metre along its
+  turned -Z, a scaled sun building the same quads, and a ray meeting the cube square on, turned and
+  not at all. Needs no graphics card.
 - `collider_marker.c` — a box's twelve edges, a sphere's and a capsule's counts, a box twice the
   size twice as far out, quads about the eye 100 km out, and the collider that fits each shape.
   Needs no graphics card.

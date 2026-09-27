@@ -36,13 +36,19 @@ here is included from outside the folder — `include/3d/` is the whole public s
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
 - `pick.c` — the pixel's ray from the view's two matrices inverted, and the walk that
-  tests it against each shape's triangles, then the cameras' marker boxes.
+  tests it against each shape's triangles, then the cameras' marker boxes and the suns' cubes.
 - `outline.c` — the walk over one shape's edges that keeps the ones the eye is on two sides of, and
   the quad each of them becomes, a half width per vertex from that vertex's own depth.
-- `camera_marker.c` — the marker's twenty edges in the camera's own space, their quads with
-  outline.c's width and winding mirrored, and the slab test against the box.
-- `collider_marker.c` — each kind's segments in the shape's own space, a circle of 24, and their
-  quads with camera_marker.c's width and winding.
+- `camera_marker.c` — the marker's twenty edges in the camera's own space, handed to marker_lines.c
+  for their quads and the slab test against the box.
+- `sun_marker.c` — the sun's circle, shaft and head in its own space under its pose unscaled, and
+  its cube's hit.
+- `marker_lines.h` — the markers' shared line quads and box slab test, and why they are outline.h's
+  quads; internal.
+- `marker_lines.c` — each segment's quad with a half width per end and its winding towards the eye,
+  and the slab test.
+- `collider_marker.c` — each kind's segments in the shape's own space, a circle of 24, handed to
+  marker_lines.c for their quads.
 - `gizmo.c` — the shaft that covers the same pixels at any distance, the ray against each handle
   nearest first, the point a drag is measured from, and the two meshes of camera-facing quads it is
   all drawn as.

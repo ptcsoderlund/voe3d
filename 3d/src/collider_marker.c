@@ -1,7 +1,9 @@
-// A collider's lines: each kind's segments in the shape's own space, then their
-// quads with camera_marker.c's width and winding — see the header for why lines
-// and why the shape is physics's.
+// A collider's lines: each kind's segments in the shape's own space, then
+// their quads from marker_lines.c, as the camera marker's are — see the header
+// for why lines and why the shape is physics's.
 #include <3d/collider_marker.h>
+
+#include "marker_lines.h"
 
 #include <base/assert.h>
 
@@ -17,63 +19,7 @@
 #define CIRCLE VOE_3D_COLLIDER_MARKER_CIRCLE
 #define PI 3.14159265358979f
 
-// outline.c's: an edge whose cross product with the eye is below this is seen
-// end-on and has no quad.
-#define DEGENERATE 1e-12f
-
-typedef struct {
-	voe_math_float3 a;
-	voe_math_float3 b;
-} segment;
-
-// Mirrors outline.c's: how far in front of the eye `p` is, in metres.
-static float depth_of(voe_render_view view, voe_math_float3 p)
-{
-	return -(view.view.m[2][0] * p.x + view.view.m[2][1] * p.y +
-		 view.view.m[2][2] * p.z + view.view.m[2][3]);
-}
-
-// Mirrors outline.c's: half the line's width in metres at `p`, so the line is
-// `pixels` pixels across at any distance.
-static float half_width(voe_render_view view, voe_platform_size size,
-			float pixels, voe_math_float3 p)
-{
-	return depth_of(view, p) * pixels /
-	       (view.projection.m[1][1] * (float)size.height);
-}
-
-// Mirrors outline.c's: one corner of a quad, its normal pointing at the eye.
-static voe_render_vertex facing(voe_math_float3 position, voe_math_float3 eye)
-{
-	return (voe_render_vertex){
-		.position = position,
-		.normal = voe_math_float3_normalize(
-			voe_math_float3_sub(eye, position)),
-		.uv = { 0.0f, 0.0f },
-	};
-}
-
-// Mirrors outline.c's: one triangle, its last two corners swapped when it
-// would face away from the eye and be culled.
-static void triangle(uint32_t *indices, const voe_render_vertex *vertices,
-		     voe_math_float3 eye, uint32_t a, uint32_t b, uint32_t c)
-{
-	voe_math_float3 corner = vertices[a].position;
-	voe_math_float3 normal = voe_math_float3_cross(
-		voe_math_float3_sub(vertices[b].position, corner),
-		voe_math_float3_sub(vertices[c].position, corner));
-
-	if (voe_math_float3_dot(normal, voe_math_float3_sub(eye, corner)) <
-	    0.0f) {
-		uint32_t swap = b;
-
-		b = c;
-		c = swap;
-	}
-	indices[0] = a;
-	indices[1] = b;
-	indices[2] = c;
-}
+typedef voe_3d_marker_segment segment;
 
 static voe_math_float3 at(float x, float y, float z)
 {
@@ -168,10 +114,7 @@ bool voe_3d_collider_marker_quads(voe_physics_shape shape,
 		voe_math_float4x4_from_translation(voe_math_double3_to_float3(
 			voe_math_double3_sub(shape.centre, eye))),
 		voe_math_float4x4_from_quat(shape.rotation));
-	voe_render_vertex *vertices;
-	uint32_t *indices;
 	uint32_t count;
-	uint32_t quads = 0;
 
 	VOE_BASE_ASSERT(arena != NULL, "a collider marker with no arena");
 	VOE_BASE_ASSERT(out != NULL, "a collider marker into nothing");
@@ -182,62 +125,7 @@ bool voe_3d_collider_marker_quads(voe_physics_shape shape,
 	if (count == 0)
 		return false;
 
-	vertices = voe_base_arena_push(arena, sizeof *vertices * count * 4);
-	indices = voe_base_arena_push(arena, sizeof *indices * count * 6);
-
-	for (uint32_t i = 0; i < count; i++) {
-		voe_math_float3 a =
-			voe_math_float4x4_transform_point(matrix, edges[i].a);
-		voe_math_float3 b =
-			voe_math_float4x4_transform_point(matrix, edges[i].b);
-		voe_math_float3 along = voe_math_float3_sub(b, a);
-		voe_math_float3 side = voe_math_float3_cross(
-			along, voe_math_float3_sub(a, view.eye));
-		float near_width = half_width(view, size, pixels, a);
-		float far_width = half_width(view, size, pixels, b);
-		voe_math_float3 near_end;
-		voe_math_float3 far_end;
-		uint32_t v = quads * 4;
-
-		if (voe_math_float3_length(side) < DEGENERATE)
-			continue;
-		along = voe_math_float3_normalize(along);
-		side = voe_math_float3_normalize(side);
-
-		near_end = voe_math_float3_sub(
-			a, voe_math_float3_scale(along, near_width));
-		far_end = voe_math_float3_add(
-			b, voe_math_float3_scale(along, far_width));
-
-		// Centred on the segment: a half width to each side of it.
-		vertices[v + 0] = facing(
-			voe_math_float3_sub(near_end, voe_math_float3_scale(
-							      side, near_width)),
-			view.eye);
-		vertices[v + 1] = facing(
-			voe_math_float3_sub(far_end, voe_math_float3_scale(
-							     side, far_width)),
-			view.eye);
-		vertices[v + 2] = facing(
-			voe_math_float3_add(near_end, voe_math_float3_scale(
-							      side, near_width)),
-			view.eye);
-		vertices[v + 3] = facing(
-			voe_math_float3_add(far_end, voe_math_float3_scale(
-							     side, far_width)),
-			view.eye);
-		triangle(&indices[quads * 6 + 0], vertices, view.eye, v + 0,
-			 v + 1, v + 2);
-		triangle(&indices[quads * 6 + 3], vertices, view.eye, v + 1,
-			 v + 3, v + 2);
-		quads++;
-	}
-
-	*out = (voe_3d_outline_mesh){
-		.vertices = vertices,
-		.vertex_count = quads * 4,
-		.indices = indices,
-		.index_count = quads * 6,
-	};
+	voe_3d_marker_lines(edges, count, matrix, view, size, pixels, arena,
+			    out);
 	return true;
 }
