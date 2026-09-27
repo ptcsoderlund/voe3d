@@ -77,3 +77,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   one default shared by the primitives naming none.
 - `import.c` — the model's upload, its geometry and the tree walk that turns a read model
   into one entity per drawn primitive.
+- `model_bake.h` — a read model's nodes baked into its vertices and its primitives merged
+  into one part per material; internal.
+- `model_bake.c` — the walk into a list of placed primitives, each part's room counted
+  from it, the fill, and the mirrored node's turned triangles.
+- `models.c` — the store's table of entries with an arena each, and the load that reads,
+  bakes, uploads and gives back what a failure made.
