@@ -85,9 +85,10 @@ static voe_ecs_world *small_world(voe_base_arena *arena)
 	voe_ecs_entity cube = authored(world, 3, "Cube");
 
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, (voe_scene_light){
-		.direction = { 0.0f, -1.0f, 0.0f },
 		.colour = { 1.0f, 0.5f, 0.25f },
 		.intensity = 3.0f,
+		.fill_colour = { 1.0f, 1.0f, 1.0f },
+		.fill_intensity = 0.25f,
 	}));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
 		.position = { 0.1, -0.0, 2.0 },
@@ -159,9 +160,10 @@ static void test_cook_exact_text(void)
 		"\t\treturn false;\n"
 		"\tif (!voe_ecs_component_add(world, voe_ecs_component_type(world, "
 		"&voe_scene_light_key), e[1], &(voe_scene_light){ "
-		".direction = { 0x0p+0f, -0x1p+0f, 0x0p+0f }, "
 		".colour = { 0x1p+0f, 0x1p-1f, 0x1p-2f }, "
-		".intensity = 0x1.8p+1f }))\n"
+		".intensity = 0x1.8p+1f, "
+		".fill_colour = { 0x1p+0f, 0x1p+0f, 0x1p+0f }, "
+		".fill_intensity = 0x1p-2f }))\n"
 		"\t\treturn false;\n"
 		"\treturn true;\n"
 		"}\n");
@@ -218,17 +220,21 @@ static void test_cook_compiles(void)
 	voe_base_arena_destroy(arena);
 }
 
+// voe_scene_light_add asserts on a NaN colour, so the light goes in through the
+// raw component add: the cook must still refuse what a world can hold.
 static void test_cook_refuses_nan(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity sun = authored(world, 1, "Sun");
-
-	VOE_TEST_CHECK(voe_scene_light_add(world, sun, (voe_scene_light){
-		.direction = { 0.0f, -1.0f, 0.0f },
+	const voe_scene_light light = {
 		.colour = { 1.0f, NAN, 1.0f },
 		.intensity = 1.0f,
-	}));
+	};
+
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, voe_ecs_component_type(world, &voe_scene_light_key), sun,
+		&light));
 	check_refused(world, arena);
 	voe_base_arena_destroy(arena);
 }
