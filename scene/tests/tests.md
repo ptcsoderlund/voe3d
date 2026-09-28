@@ -3,10 +3,9 @@
 One plain C program per `scene` module, found by the build, each checking that
 module's promises from outside. None of them needs a window or a graphics card.
 
-- `transform.c` — that the matrix is translate·rotate·scale, a child composes under a parent and
-  relative undoes it (a far millimetre kept, a zero scale finite), an intent lands when the system runs,
-  a rotation arrives unit length (a zero one leaves the row alone), the field list is the
-  compiler's layout, and a remembered step blends back by a lag, a child along its blended parent.
+- `transform.c` — that the matrix is translate·rotate·scale and changes only through a drained
+  intent, that a child composes under its parent and back, that a rotation arrives unit length, that
+  the field list is the compiler's layout, and that a remembered step blends back by a lag.
 - `parent.c` — that a barrel's world place follows its hull, a world with no
   parent table answers the row, the walks go both ways, a loop ends, local
   then world round-trips, and parenting, unparenting and re-parenting keep the world place.

@@ -18,6 +18,12 @@
 // A QUARTER TURN ABOUT +Y TAKES +Z TOWARDS +X (math/tests/quat.c), so it takes
 // +X to -Z. That is where the -2 below comes from.
 //
+// PARENTING AND BLENDING ARE CHECKED TOO. A child composes under its parent and
+// relative undoes it, a millimetre kept under a far parent and a zero parent
+// scale giving a finite row; a rotation arrives unit length, a zero one leaving
+// the row alone; and a remembered step blends back by a lag, a child along its
+// blended parent rather than straight.
+//
 // THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID. check.cmake builds
 // without descriptions, and a check that followed the build would never run on
 // the one run that gates a card. Nothing else in this file changes with it: the
