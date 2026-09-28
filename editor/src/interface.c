@@ -31,6 +31,9 @@
 // again rather than being closed behind. The browser and Preferences cover the
 // same area, and either showing closes it.
 //
+// THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
+// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks.
+//
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
 // button it hangs from (ADR-0199), and the only thing this file still does to it

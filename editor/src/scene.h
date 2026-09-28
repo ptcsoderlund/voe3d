@@ -44,7 +44,8 @@
 // makes an entity with only an identity and a transform at the origin; its
 // other components come from the Inspector's Add component. A fired Add entity
 // is an entity added, selected, and counted in `structural`, which main.c reads
-// to mark the project unsaved.
+// to mark the project unsaved. The Scene list row being dragged is held here
+// too, across frames, in `list_held`.
 //
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
 // move or turn is how someone is working, not what the scene is, so it is never

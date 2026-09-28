@@ -136,10 +136,9 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — the play state and the ship polled once a frame, one `ui` frame per root,
-  submitted into the open frame, and the one read of the frame's clicks that carries out the top
-  bar's, Play and Ship among them, the browser's and Preferences' commands, the colour picker's
-  changes and the Scene list's drop.
+- `interface.c` — one `ui` frame per root, the play state and the ship polled once a frame, and
+  the one read of the frame's clicks that carries out the top bar's, the browser's and
+  Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it.
@@ -188,9 +187,9 @@ carries it out.
   view passes.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed.
-- `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
-  Add entity button, Delete and Duplicate, the structural changes made this frame, the row being dragged, what the Inspector
-  drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
+- `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, Add
+  entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
+  dropdown are open on, and the gizmo's unsaved mode.
 - `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate the sun), the
   gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
   measured them, and the Scene panel's rows asked after the frame has ended.
