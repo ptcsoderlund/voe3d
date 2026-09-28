@@ -96,9 +96,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Entity groups in the Scene list** (sponsor, 2026-09-26): a flat list means a lot of
   scrolling. Recommended first step: editor-only folders, collapsible, saved in the scene, with
   no effect on transforms or the game, plus a filter box at the top of the list. The cost is
-  small and it keeps 0222 (a thing is placed only by its transform) untouched. Transform
-  parenting (a child moves with its parent, Unity/Godot style) is the bigger alternative. It
-  needs its own decision amending 0222 and belongs where a game needs things to move together.
+  small and leaves transforms alone; transform parenting is 0271's, not this idea's.
   Answered 2026-09-26: editor-only folders, definitely, and a folder can hold folders to any
   depth. Still open: whether selecting a folder selects what is in it (move the whole group
   with the gizmo).

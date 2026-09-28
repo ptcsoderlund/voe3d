@@ -12,7 +12,7 @@ workflow replaced specs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
 - **platform** — the one OS-aware folder: window, input, files, clock, processes, libraries, sound.
-- **scene** — transform (double position, a stepping world's previous one), lens, sun, identity.
+- **scene** — transform (double, relative to its parent, a step behind), parent, lens, sun, identity.
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: sounds played by path, overlapping voices in float, pushed to the device.
@@ -56,4 +56,4 @@ workflow replaced specs.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
-- 0267, 0268, 0270–0272, 0277–0280 — 0.1 closed; 0.2 a tank game; `.glb` models, Assets; parenting.
+- 0267, 0268, 0270–0272, 0277–0282 — 0.1 closed; 0.2 a tank game; `.glb` models, Assets; parenting.

@@ -22,8 +22,8 @@ carries it out.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
   once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
   with acting on one left to the caller.
-- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the rest
-  a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the
+  rest a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
@@ -91,8 +91,8 @@ carries it out.
   build at a time, a built library loaded and swapped in once a frame, and what a browser action
   does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
-  Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's notice, at least as
-  tall as its content measured last frame and as tall as the person made it.
+  Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's
+  notice, at least as tall as its content measured last frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its seven buttons, Play, Refresh and Ship among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
@@ -123,7 +123,8 @@ carries it out.
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
   as models, and Import copying a chosen `.glb` into the shown folder.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
-  the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the import.
+  the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the
+  import.
 - `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
   the ray lands, over the Inspector swaps the selected thing's model, anywhere else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
@@ -136,9 +137,9 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play
-  state and the ship polled once a frame, and the one read of the frame's clicks that carries out the top bar's, the browser's and
-  Preferences' commands and the colour picker's changes.
+- `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play state
+  and the ship polled once a frame, and the one read of the frame's clicks that carries out the top
+  bar's, the browser's and Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it.
@@ -180,8 +181,8 @@ carries it out.
   passes, with the world and its models, the selection's outline, its collider, its gizmo and the
   camera's and sun's markers, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
-  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with the world's camera and sun marked, and
-  ended, stopping at the first refused pass.
+  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with
+  the world's camera and sun marked, and ended, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.
@@ -191,9 +192,9 @@ carries it out.
   entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
   dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
   cancel.
-- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate the sun), the
-  gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
-  measured them, and the Scene panel's rows asked after the frame has ended.
+- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate
+  the sun), the gizmo's switch, the colour picker and dropdown opened, closed and placed where the
+  Inspector measured them, and the Scene panel's rows asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
   too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
@@ -210,8 +211,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities with their trees, and giving
-  or taking their components, all through the world's structural queue. Its header says the id and
-  name rules.
+- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities with their
+  trees, and giving or taking their components, all through the world's structural queue. Its header
+  says the id and name rules.
 - `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
   undoes a half-made entity.
