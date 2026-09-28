@@ -1,8 +1,8 @@
-// The thirteen registrations and the room behind them. The reasoning is in
+// The fifteen registrations and the room behind them. The reasoning is in
 // game/include/game/world.h; what is here is the numbers and the order, which
-// is transforms first because a parent, a shape and a model need one
-// (3d/shape_component.h, 3d/model_component.h), and a collider before a body,
-// which needs one (physics/body_system.h).
+// is transforms first because a parent, a prefab, a shape and a model need one
+// (3d/shape_component.h, 3d/model_component.h, scene/prefab_system.h), and a
+// collider before a body, which needs one (physics/body_system.h).
 #include <game/world.h>
 
 #include <game/project.h>
@@ -20,23 +20,27 @@
 #include <scene/identity_system.h>
 #include <scene/light_system.h>
 #include <scene/parent_system.h>
+#include <scene/prefab_system.h>
 #include <scene/transform_system.h>
 
-// Thirteen component types, eight of them with an intent queue, each with room for
-// a project's types and their replace intents behind it; the entities are a
-// number to author into rather than a measurement of anything.
-#define MAX_ENTITIES 1024
+// Fifteen component types, eight of them with an intent queue, each with room for
+// a project's types and their replace intents behind it. The entities are room
+// for what a game spawns while it runs, shells and enemies by the hundred, each
+// a prefab's whole tree (0283 point 11).
+#define MAX_ENTITIES 4096
 #define MAX_COMPONENT_TYPES (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
 #define MAX_INTENT_TYPES (10 + VOE_GAME_PROJECT_TYPES)
 
 // The structural queue (ecs/structure.h): room for a frame's Add, Delete,
-// Duplicate or component change many times over, and for the rows they carry.
-#define STRUCTURE_REQUESTS 256
-#define STRUCTURE_BYTES 32768
+// Duplicate or component change many times over, and for the rows they carry:
+// a frame that spawns a volley of prefabs queues every row of every tree.
+#define STRUCTURE_REQUESTS 2048
+#define STRUCTURE_BYTES (256 * 1024)
 
 // Transforms are wider than identities: an entity the engine makes for itself
-// has one and no identity. Every transform may have a parent.
-#define MAX_TRANSFORMS 256
+// has one and no identity, and so has every spawned thing and each of its
+// parts. Every transform may have a parent.
+#define MAX_TRANSFORMS 1024
 
 // A scene has exactly one camera (0218).
 #define MAX_CAMERAS 1
@@ -58,6 +62,7 @@ voe_ecs_world *voe_game_world_new(voe_base_arena *arena)
 	voe_scene_transform_register(world, MAX_TRANSFORMS);
 	voe_scene_identity_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_parent_register(world, MAX_TRANSFORMS);
+	voe_scene_prefab_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_light_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_camera_register(world, MAX_CAMERAS);
 	voe_3d_mesh_register(world, VOE_GAME_WORLD_MAX_DRAWN);

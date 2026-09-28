@@ -2,7 +2,7 @@
 
 The public headers, one entry each.
 
-- `world.h` — the thirteen component types a project's world registers, the room for each, and room for a project's own.
+- `world.h` — the fifteen component types a project's world registers, the room for each, and room for a project's own.
 - `scene.h` — the include the cook is handed: `voe_game_scene_build`, defined by a project's cooked `scene.c`.
 - `frame.h` — the world step (structural queue, project replaces, every owning system) and one frame: that step, then one window pass a lag behind with the interface over it; the device capacities it needs.
 - `steps.h` — the fixed steps: elapsed time banked, up to four steps of 1/60 s a frame, the project's systems in two slots, before and after the bodies' move, the lag the draw sits behind, and the mixer put in every step.
