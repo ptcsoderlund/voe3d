@@ -8,7 +8,8 @@
 // height the aim is never above or below it, so only the turn about +Y is
 // left. A ray parallel to that plane, or pointing away from it, aims nowhere
 // and the turret stays. The turret's world rotation is turned about +Y
-// toward facing the aim with its -Z, by at most `turn` a second, and
+// toward facing the aim with its barrel, its -Z turned by `aim` about its own
+// +Y, by at most `turn` a second, and
 // voe_scene_transform_local makes that its row under the hull. A barrel
 // under the turret follows it with no code here, by parenting.
 //
@@ -43,7 +44,8 @@
 
 const struct voe_ecs_key tank_turret_key = { "tank_turret" };
 
-static const tank_turret tank_turret_default = { .turn = 180.0f };
+static const tank_turret tank_turret_default = { .turn = 180.0f,
+						      .aim = 0.0f };
 
 bool tank_turret_register(voe_ecs_world *world)
 {
@@ -95,9 +97,10 @@ static float yaw_toward(float x, float z)
 	return yaw;
 }
 
-// The turn about +Y, at most `limit` radians either way, that faces -Z of
-// `rotation` toward the aim `(x, z)` away. False when the turret's forward
-// is straight up or down and has no heading to turn.
+// The turn about +Y, at most `limit` radians either way, that faces the
+// barrel toward the aim `(x, z)` away. `q` is the world rotation with the aim
+// offset applied first, so its -Z is the barrel, not the bare -Z. False when
+// that forward is straight up or down and has no heading to turn.
 static bool turn_toward(voe_math_quat q, float x, float z, float limit,
 			float *out)
 {
@@ -141,6 +144,12 @@ void tank_turret_system_run(voe_ecs_world *world, voe_platform_window *window,
 			voe_scene_transform_world(world, entities[i]);
 		const double along = (placed.position.y - ray.origin.y) /
 				     (double)ray.direction.y;
+		// The barrel: -Z turned by the aim offset about the turret's own +Y.
+		const voe_math_quat barrel = voe_math_quat_mul(
+			placed.rotation,
+			voe_math_quat_from_axis_angle(
+				(voe_math_float3){ 0.0f, 1.0f, 0.0f },
+				rows[i].aim * TANK_TURRET_RADIANS_PER_DEGREE));
 		float turn;
 
 		// Pointing away from the plane: no aim.
@@ -152,7 +161,7 @@ void tank_turret_system_run(voe_ecs_world *world, voe_platform_window *window,
 				 placed.position.z;
 
 		if (x * x + z * z < 1e-6 ||
-		    !turn_toward(placed.rotation, (float)x, (float)z,
+		    !turn_toward(barrel, (float)x, (float)z,
 				 rows[i].turn * TANK_TURRET_RADIANS_PER_DEGREE *
 					 (float)seconds,
 				 &turn))

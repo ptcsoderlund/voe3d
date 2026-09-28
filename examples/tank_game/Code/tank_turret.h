@@ -4,8 +4,10 @@
 //     tank_turret_register(world);                        // in voe_game_project_register
 //     tank_turret_system_run(world, window, seconds);     // after the hull, before the move
 //
-// `turn` is degrees a second, default 180. A turret needs a transform to aim,
-// and the world a camera with one to aim through.
+// `turn` is degrees a second, default 180. `aim` is the degrees about the
+// turret's own up from its -Z to where its barrel points, default 0: 180 fits
+// a model that faces +Z, as `tank_head.glb` does. A turret needs a transform
+// to aim, and the world a camera with one to aim through.
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows.
 #pragma once
@@ -19,7 +21,8 @@
 #include <stdbool.h>
 
 #define TANK_TURRET_FIELDS(F, F_READ_ONLY) \
-	F(float, turn, FLOAT32)
+	F(float, turn, FLOAT32)       \
+	F(float, aim, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(tank_turret, TANK_TURRET_FIELDS)
 
