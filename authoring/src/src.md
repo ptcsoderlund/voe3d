@@ -5,8 +5,12 @@ the three public headers, and the two helpers they share. Nothing here opens a
 file and nothing here knows what a transform or a camera is — a field is written
 and read through the description its own folder registered.
 
-- `scene_write.c` — the writer. Its header says why it walks the world twice and
-  how kept sections are merged in.
+- `scene_write.c` — the writer's walk. Its header says why it walks the world
+  twice and how kept sections are merged in.
+- `value_write.h` — one field's value spelled into the text, and every refusal
+  about a value.
+- `value_write.c` — the numbers, floats, strings, references and a field's
+  nested brackets. Its header says why the split falls at one field.
 - `scene_read.c` — the reader's two passes. Its header says why only the second
   touches the world and why it walks the text beside the sectioned reader for
   key spans.
