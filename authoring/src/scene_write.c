@@ -28,6 +28,11 @@
 // WRITTEN, two sorted runs walked side by side, so it lands where its key name
 // sorts without the described types and the kept ones ever sharing an array.
 //
+// A PLACED COPY IS WRITTEN AS ITS ROOT ALONE (0283 point 3). An entity whose
+// part row names another is skipped, kept sections and all; one whose part row
+// names itself gets its identity, transform, parent and prefab sections and its
+// kept ones. A world with no part table writes every entity whole.
+//
 // THE IDENTITY TYPE IS FOUND BY WALKING THE TYPES, not with
 // voe_ecs_component_type, which asserts on a world that registered none — and a
 // world with no identities is an ordinary world with nothing authored in it.
@@ -41,6 +46,9 @@
 #include <base/report.h>
 #include <ecs/component.h>
 #include <scene/identity_component.h>
+#include <scene/parent_component.h>
+#include <scene/prefab_component.h>
+#include <scene/transform_component.h>
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -53,6 +61,8 @@ struct described {
 	const char *key;
 	// NULL when this build compiled the description out.
 	const voe_base_struct_description *description;
+	// Transform, parent or prefab: written for a placed copy's root.
+	bool on_copy_root;
 };
 
 struct scene {
@@ -134,6 +144,12 @@ static bool put_entity_block(voe_authoring_output *text,
 		.id = authored->id,
 		.component = voe_ecs_component_key(world, scene->identity)->name,
 	};
+	const voe_scene_prefab_part *part =
+		voe_scene_prefab_part_get(world, authored->entity);
+	// A part row naming itself: a placed copy's root, saved as its root alone.
+	bool copy_root = part != NULL &&
+			 part->instance.index == authored->entity.index &&
+			 part->instance.generation == authored->entity.generation;
 	const uint8_t *row;
 
 	if (!voe_authoring_value_described_or_refuse(text, &site,
@@ -160,6 +176,8 @@ static bool put_entity_block(voe_authoring_output *text,
 	for (uint32_t t = 0; t < scene->described_count; t++) {
 		const struct described *described = &scene->described[t];
 
+		if (copy_root && !described->on_copy_root)
+			continue;
 		row = voe_ecs_component_get(world, described->type,
 					    authored->entity);
 		if (row == NULL)
@@ -208,6 +226,7 @@ static void drop_kept(const voe_authoring_output *text,
 static bool put_scene(voe_authoring_output *text, const struct scene *scene)
 {
 	uint32_t k = 0;
+	bool written_one = false;
 
 	for (uint32_t i = 0; i < scene->authored_count; i++) {
 		const voe_authoring_authored *authored = &scene->authored[i];
@@ -221,8 +240,14 @@ static bool put_scene(voe_authoring_output *text, const struct scene *scene)
 		       scene->kept[end].id == authored->id)
 			end++;
 
-		if (i > 0)
+		if (voe_authoring_prefab_part_skipped(scene->world,
+						      authored->entity)) {
+			k = end;
+			continue;
+		}
+		if (written_one)
 			voe_authoring_put_string(text, "\n");
+		written_one = true;
 		if (!put_entity_block(text, scene, authored, scene->kept + k,
 				      end - k))
 			return false;
@@ -307,6 +332,9 @@ static void gather(struct scene *scene, const voe_ecs_world *world,
 			.type = type,
 			.key = key->name,
 			.description = voe_ecs_component_description(world, type),
+			.on_copy_root = key == &voe_scene_transform_key ||
+					key == &voe_scene_parent_key ||
+					key == &voe_scene_prefab_key,
 		};
 	}
 	sort_by_key(scene->described, scene->described_count);

@@ -29,6 +29,10 @@
 #include <math/quat.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
+#include <scene/parent_component.h>
+#include <scene/parent_system.h>
+#include <scene/prefab_component.h>
+#include <scene/prefab_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -664,6 +668,109 @@ static void test_kept_sections(void)
 	voe_base_arena_destroy(arena);
 }
 
+#define BALL_FIELDS(F, F_READ_ONLY) F(float, radius, FLOAT32)
+
+VOE_BASE_DESCRIBE_STRUCT(ball, BALL_FIELDS)
+
+static const struct voe_ecs_key ball_key = { "test_ball" };
+
+static void add_row(voe_ecs_world *world, const struct voe_ecs_key *key,
+		    voe_ecs_entity entity, const void *row)
+{
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, voe_ecs_component_type(world, key), entity, row));
+}
+
+// A placed copy: root 1 with a ball and a prefab row, child 2 under it, and
+// entity 3 linking to the child. `parted` gives both part rows naming the root.
+static const char *copy_written(voe_base_arena *arena, bool parted,
+				size_t *size)
+{
+	voe_ecs_world *world = world_of(arena);
+	const voe_scene_transform at = {
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_prefab prefab = { .path = "Assets/tank.prefab" };
+
+	voe_scene_parent_register(world, ENTITIES);
+	voe_scene_prefab_register(world, ENTITIES);
+	voe_ecs_component_register(world, &ball_key, sizeof(ball), ENTITIES,
+				   ball_description());
+	voe_ecs_component_register(world, &link_key, sizeof(link), ENTITIES,
+				   link_description());
+
+	voe_ecs_entity root = authored(world, 1, "Tank");
+	voe_ecs_entity child = authored(world, 2, "Turret");
+	voe_ecs_entity other = authored(world, 3, "Aim");
+
+	VOE_TEST_CHECK(voe_scene_transform_add(world, root, at));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, child, at));
+	add_row(world, &ball_key, root, &(ball){ .radius = 2.0f });
+	add_row(world, &voe_scene_prefab_key, root, &prefab);
+	add_row(world, &voe_scene_parent_key, child,
+		&(voe_scene_parent){ .parent = root });
+	add_row(world, &link_key, other, &(link){ .target = child });
+	if (parted) {
+		const voe_scene_prefab_part part = { .instance = root };
+
+		add_row(world, &voe_scene_prefab_part_key, root, &part);
+		add_row(world, &voe_scene_prefab_part_key, child, &part);
+	}
+	return written(world, arena, size);
+}
+
+static void test_placed_copy(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	size_t size;
+	const char *text = copy_written(arena, true, &size);
+
+	CHECK_TEXT(text, size,
+		   "[1]\n"
+		   "name = \"Tank\"\n"
+		   "[1.voe_scene_prefab]\n"
+		   "path = \"Assets/tank.prefab\"\n"
+		   "[1.voe_scene_transform]\n"
+		   "position = [0, 0, 0]\n"
+		   "rotation = [0, 0, 0, 1]\n"
+		   "scale = [1, 1, 1]\n"
+		   "\n"
+		   "[3]\n"
+		   "name = \"Aim\"\n"
+		   "[3.test_link]\n"
+		   "target = 0\n");
+
+	text = copy_written(arena, false, &size);
+	CHECK_TEXT(text, size,
+		   "[1]\n"
+		   "name = \"Tank\"\n"
+		   "[1.test_ball]\n"
+		   "radius = 2\n"
+		   "[1.voe_scene_prefab]\n"
+		   "path = \"Assets/tank.prefab\"\n"
+		   "[1.voe_scene_transform]\n"
+		   "position = [0, 0, 0]\n"
+		   "rotation = [0, 0, 0, 1]\n"
+		   "scale = [1, 1, 1]\n"
+		   "\n"
+		   "[2]\n"
+		   "name = \"Turret\"\n"
+		   "[2.voe_scene_parent]\n"
+		   "parent = 1\n"
+		   "[2.voe_scene_transform]\n"
+		   "position = [0, 0, 0]\n"
+		   "rotation = [0, 0, 0, 1]\n"
+		   "scale = [1, 1, 1]\n"
+		   "\n"
+		   "[3]\n"
+		   "name = \"Aim\"\n"
+		   "[3.test_link]\n"
+		   "target = 2\n");
+
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	test_three_entities();
@@ -678,5 +785,6 @@ int main(void)
 	test_refusals();
 	test_same_bytes_twice();
 	test_kept_sections();
+	test_placed_copy();
 	return voe_test_result();
 }

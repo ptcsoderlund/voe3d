@@ -27,6 +27,12 @@
 //     key name sorts among the component sections, its lines exactly as they were
 //     read. A kept section whose id no entity in the world has any more is dropped,
 //     and that is a warning.
+//   - A placed copy is its root alone (ADR-0283 point 3), because a copy takes
+//     its parts from its prefab file at every read. An entity whose
+//     voe_scene_prefab_part names another is not written, its kept sections
+//     neither, and an ENTITY naming it is written `0` with the warning below.
+//     One whose part row names itself gets only its identity and its transform,
+//     parent and prefab sections, and its kept sections.
 //   - A blank line before every `[N]` but the first and nowhere else, `\n` line
 //     endings and a final newline. An empty world is the empty text.
 //

@@ -20,6 +20,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 #include <scene/identity_component.h>
+#include <scene/prefab_component.h>
 
 #include <inttypes.h>
 #include <math.h>
@@ -182,6 +183,22 @@ static bool put_double3(voe_authoring_output *text,
 	return true;
 }
 
+bool voe_authoring_prefab_part_skipped(const voe_ecs_world *world,
+				       voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(world != NULL, "asking about a part in no world");
+
+	const voe_scene_prefab_part *part =
+		voe_scene_prefab_part_get(world, entity);
+	bool skipped = part != NULL &&
+		       (part->instance.index != entity.index ||
+			part->instance.generation != entity.generation);
+
+	VOE_BASE_DEBUG_ASSERT(!skipped || part != NULL,
+			      "a skipped part without a part row");
+	return skipped;
+}
+
 static void put_entity(voe_authoring_output *text,
 		       const voe_authoring_value_site *site,
 		       const uint8_t *bytes)
@@ -198,7 +215,8 @@ static void put_entity(voe_authoring_output *text,
 	// An entity with a field being written is authored, so the identity type
 	// is registered.
 	identity = voe_ecs_component_get(site->world, site->identity, target);
-	if (identity != NULL) {
+	if (identity != NULL &&
+	    !voe_authoring_prefab_part_skipped(site->world, target)) {
 		voe_authoring_put_unsigned(text, identity->id);
 		return;
 	}

@@ -43,6 +43,12 @@ void voe_authoring_put_string(voe_authoring_output *output,
 			      const char *string);
 void voe_authoring_put_unsigned(voe_authoring_output *output, uint64_t value);
 
+// True when `entity` is a placed copy's part other than its root: its part row
+// names another entity. The walk does not write it, and an ENTITY naming it is
+// written 0 (0283 point 3). False in a world with no part table.
+bool voe_authoring_prefab_part_skipped(const voe_ecs_world *world,
+				       voe_ecs_entity entity);
+
 // `name = value\n` for one field of `row`; false, reported, when the value
 // cannot be written.
 [[nodiscard]] bool
