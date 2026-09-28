@@ -115,6 +115,26 @@ extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_transform_key;
 voe_math_float4x4 voe_scene_transform_matrix(voe_scene_transform transform,
 					      voe_math_double3 origin);
 
+// `child`'s world transform when `child` is relative to `parent` (ADR-0281):
+// position = parent position + parent rotation · (parent scale ∘ child
+// position), rotated in double so a far position keeps its millimetres
+// (ADR-0250); rotation = parent · child, normalised; scale = parent scale ∘ child
+// scale. The child is scaled, then turned, then moved by the parent — the same
+// right-to-left order as the matrix above.
+//
+// EXACT WHILE SCALES ARE UNIFORM. A rotated child of a non-uniformly scaled
+// parent shows no shear, because position, rotation and scale cannot hold one
+// and every reader takes those three, not a matrix (ADR-0281).
+voe_scene_transform voe_scene_transform_compose(voe_scene_transform parent,
+						voe_scene_transform child);
+
+// The inverse: the row that, composed under `parent`, gives `placed`. A zero
+// component of the parent's scale gives zero for that component of the
+// position and scale, never a division by zero or a NaN — nothing composed
+// under a flattened axis can be told apart along it.
+voe_scene_transform voe_scene_transform_relative(voe_scene_transform parent,
+						 voe_scene_transform placed);
+
 // NULL when the entity has no transform, or is not alive any more. The pointer
 // is into the table and is good until the next add or remove.
 const voe_scene_transform *voe_scene_transform_get(const voe_ecs_world *world,
