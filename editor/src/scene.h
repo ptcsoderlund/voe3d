@@ -114,6 +114,10 @@ typedef struct voe_editor_scene {
 	// Whether a Delete, Duplicate, Remove or Add component was refused
 	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
 	bool full;
+	// Which Scene list row is being dragged (scene_list.h), kept across
+	// frames and not cleared with the rows. A world swapped under it (New,
+	// Open, undo) leaves it stale, which the release tests for.
+	voe_ecs_entity list_held;
 	// What the Inspector panel drew this frame, and the arena its labels
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.

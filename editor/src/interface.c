@@ -44,6 +44,7 @@
 #include "notice.h"
 #include "preferences.h"
 #include "project.h"
+#include "scene_list.h"
 #include "themes.h"
 #include "topbar.h"
 
@@ -291,6 +292,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
+		voe_editor_scene_list_drop(scene, ui, root->pointer.down,
+					   root->pointer.at);
 		if (voe_editor_assets_clicks_read(ui, &scene->assets))
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT,

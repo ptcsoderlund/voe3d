@@ -1,12 +1,17 @@
 // The Scene list's one frame of `ui` calls: the heading, Add entity and a
 // choice per identity row, drawn depth-first and indented by depth, each node
-// handed to the scene to be asked after the frame. See scene_list.h for the
-// order, why the rows are the identity table and how they are keyed.
+// handed to the scene to be asked after the frame, and the held row's drop
+// read after it. See scene_list.h for the order, why the rows are the identity
+// table, how they are keyed and what a drop does.
 #include "scene_list.h"
+
+#include "inspector_place.h"
 
 #include <base/assert.h>
 #include <scene/identity_component.h>
 #include <scene/parent_component.h>
+#include <scene/parent_system.h>
+#include <scene/transform_component.h>
 
 // How far each level of the tree is indented, in millimetres.
 #define INDENT_PER_DEPTH 4.0f
@@ -126,4 +131,82 @@ void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene)
 	for (uint32_t i = 0; i < count; i++)
 		if (!listed[i])
 			row_draw(ui, scene, i, 0);
+}
+
+static bool same_entity(voe_ecs_entity a, voe_ecs_entity b)
+{
+	return a.index == b.index && a.generation == b.generation;
+}
+
+// Whether `at` is on `node` as drawn, for a node the frame had room for.
+static bool over(const voe_ui_context *ui, voe_ui_node node,
+		 voe_math_float2 at)
+{
+	return node != VOE_UI_NODE_NONE &&
+	       voe_editor_inspector_rect_contains(voe_ui_node_visible(ui, node),
+						  at);
+}
+
+// The entity the drop lands `held` under: a row's, zeroed for the heading,
+// or false when it lands nowhere or changes nothing.
+static bool drop_target(const voe_editor_scene *scene,
+			const voe_ui_context *ui, voe_ecs_entity held,
+			voe_math_float2 at, voe_ecs_entity *target)
+{
+	const voe_scene_parent *parent =
+		voe_scene_parent_get(scene->world, held);
+
+	if (over(ui, scene->heading, at)) {
+		*target = (voe_ecs_entity){ 0 };
+		return parent != NULL;
+	}
+	for (uint32_t i = 0; i < scene->listed_count; i++) {
+		const voe_ecs_entity row = scene->listed[i].entity;
+
+		if (!over(ui, scene->listed[i].node, at))
+			continue;
+		*target = row;
+		// Onto itself or something under it would be a loop.
+		if (voe_scene_parent_within(scene->world, row, held))
+			return false;
+		if (voe_scene_transform_get(scene->world, row) == NULL)
+			return false;
+		return parent == NULL || !same_entity(parent->parent, row);
+	}
+	return false;
+}
+
+void voe_editor_scene_list_drop(voe_editor_scene *scene,
+				const voe_ui_context *ui, bool down,
+				voe_math_float2 at)
+{
+	voe_ecs_entity held;
+	voe_ecs_entity target;
+
+	VOE_BASE_ASSERT(scene != NULL, "dropping a row on no scene");
+	VOE_BASE_ASSERT(ui != NULL, "dropping a row out of no interface");
+
+	for (uint32_t i = 0; i < scene->listed_count; i++) {
+		if (scene->listed[i].node == VOE_UI_NODE_NONE)
+			continue;
+		if (voe_ui_button_action(ui, scene->listed[i].node).held) {
+			scene->list_held = scene->listed[i].entity;
+			return;
+		}
+	}
+	if (down)
+		return;
+
+	held = scene->list_held;
+	scene->list_held = (voe_ecs_entity){ 0 };
+	// A zeroed entity is never alive, so no drag in flight ends here too.
+	if (!voe_ecs_entity_alive(scene->world, held) ||
+	    voe_scene_transform_get(scene->world, held) == NULL)
+		return;
+	if (!drop_target(scene, ui, held, at, &target))
+		return;
+	if (voe_scene_parent_set(scene->world, held, target))
+		scene->structural++;
+	else
+		scene->full = true;
 }

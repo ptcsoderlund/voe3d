@@ -5,6 +5,7 @@
 //     voe_editor_scene_list_draw(ui, &scene);
 //     ... voe_ui_frame_end ...
 //     (scene.h reads the rows and Add entity it recorded)
+//     voe_editor_scene_list_drop(&scene, ui, pointer.down, pointer.at);
 //
 // THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE. It walks
 // voe_scene_identity_rows and _entities rather than a list the editor keeps, so
@@ -33,6 +34,14 @@
 //
 // THE ADD ENTITY BUTTON IS ABOVE THE LIST, recorded on the scene to be asked
 // after the frame, as the rows are; what it makes is entities.h's (ADR-0217).
+//
+// A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7). Over another row it
+// becomes that row's child, unless it already is or that row is itself or under
+// it; over the heading it becomes a root again; anywhere else, nothing. A press
+// and release on one row is that, so it stays a click. The world place is kept
+// (scene/parent_system.h), so nothing moves in the view. The drop is read after
+// voe_ui_frame_end because only then does a button say it is held and a node
+// where it was drawn. A set counts one in `structural`; a full queue sets `full`.
 #pragma once
 
 #include "scene.h"
@@ -40,3 +49,10 @@
 #include <ui/widgets.h>
 
 void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene);
+
+// Remembers the held row in scene->list_held, and on the first frame none is
+// held and `down` is false, drops it at `at`, the root's millimetres. A held
+// entity no longer alive, or either one without a transform, does nothing.
+void voe_editor_scene_list_drop(voe_editor_scene *scene,
+				const voe_ui_context *ui, bool down,
+				voe_math_float2 at);

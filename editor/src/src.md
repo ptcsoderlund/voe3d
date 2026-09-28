@@ -115,9 +115,10 @@ carries it out.
   the walk to one frame of `ui` calls, the held lengths and share read and set, each leaf handed
   to its panel's draw, the Inspector's call, and the camera preview in each scene view's corner.
 - `scene_list.h` — the Scene list: its heading, Add entity and one row per authored entity as a
-  tree, depth-first and indented by depth, each row keyed by its identity-table index.
+  tree, depth-first and indented by depth, each row keyed by its identity-table index, and a row
+  dropped onto another parenting it, onto the heading unparenting it.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row's, the heading's and Add entity's node handed to the scene.
+  stack, each row's, the heading's and Add entity's node handed to the scene, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
   as models, and Import copying a chosen `.glb` into the shown folder.
@@ -137,8 +138,8 @@ carries it out.
   colour picker over it, and one draw command per root.
 - `interface.c` — the play state and the ship polled once a frame, one `ui` frame per root,
   submitted into the open frame, and the one read of the frame's clicks that carries out the top
-  bar's, Play and Ship among them, the browser's and Preferences' commands and the colour picker's
-  changes.
+  bar's, Play and Ship among them, the browser's and Preferences' commands, the colour picker's
+  changes and the Scene list's drop.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it.
@@ -188,7 +189,7 @@ carries it out.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
-  Add entity button, Delete and Duplicate, the structural changes made this frame, what the Inspector
+  Add entity button, Delete and Duplicate, the structural changes made this frame, the row being dragged, what the Inspector
   drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
 - `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
   gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
