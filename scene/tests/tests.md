@@ -6,10 +6,10 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `transform.c` — that the matrix is translate·rotate·scale, a child composes under a parent and
   relative undoes it (a far millimetre kept, a zero scale finite), an intent lands when the system runs,
   a rotation arrives unit length (a zero one leaves the row alone), the field list is the
-  compiler's layout, and a remembered step blends back by a lag.
+  compiler's layout, and a remembered step blends back by a lag, a child along its blended parent.
 - `parent.c` — that a barrel's world place follows its hull, a world with no
-  parent table answers the row, the walks go both ways, a loop ends, and local
-  then world round-trips.
+  parent table answers the row, the walks go both ways, a loop ends, local
+  then world round-trips, and parenting, unparenting and re-parenting keep the world place.
 - `identity.c` — that a rename lands only when the system runs, that an
   unterminated name arrives cut and a replaced id arrives put back, and that the
   field list a world hands back marks the id read-only. Its header says why half

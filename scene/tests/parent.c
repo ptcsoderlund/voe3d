@@ -1,13 +1,14 @@
 // A tank's hull, turret and barrel: that the barrel's world place follows the
 // hull moved and turned, that a world with no parent table answers the row, that
 // within and tree walk the chain both ways, that a loop written by hand ends the
-// walk instead of hanging, and that local then world round-trips.
+// walk instead of hanging, that local then world round-trips, and that
+// parenting, unparenting and re-parenting through _set keep the world place.
 //
-// THE ROWS ARE WRITTEN STRAIGHT WITH voe_ecs_component_add, because parenting
-// through the structural queue is card 03's and what is checked here is the
-// reads over rows that exist.
+// THE TANK'S ROWS ARE WRITTEN STRAIGHT WITH voe_ecs_component_add, so the reads
+// are checked over rows that exist apart from the call that writes them.
 #include <base/arena.h>
 #include <ecs/component.h>
+#include <ecs/structure.h>
 #include <ecs/world.h>
 #include <math/quat.h>
 #include <scene/parent_system.h>
@@ -32,7 +33,9 @@ static voe_ecs_world *world_of(voe_base_arena *arena, bool parents)
 	voe_ecs_world *world = voe_ecs_world_new(
 		arena, (voe_ecs_limits){ .entities = ENTITIES,
 					 .component_types = 3,
-					 .intent_types = 2 });
+					 .intent_types = 2,
+					 .structure_requests = 8,
+					 .structure_bytes = 256 });
 
 	voe_scene_transform_register(world, ENTITIES);
 	if (parents)
@@ -186,6 +189,71 @@ static void local_then_world_round_trips(voe_base_arena *arena)
 		       3.0, 4.0, 5.0);
 }
 
+// Applies what _set queued, as a frame would: structure first, then the drain.
+static void frame(voe_ecs_world *world)
+{
+	voe_ecs_structure_apply(world);
+	voe_scene_transform_system_run(world);
+}
+
+static void check_same_place(voe_scene_transform a, voe_scene_transform b)
+{
+	check_position(a, b.position.x, b.position.y, b.position.z);
+	VOE_TEST_CHECK_FLOAT(a.rotation.y, b.rotation.y, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(a.rotation.w, b.rotation.w, TOLERANCE);
+}
+
+// A hull at (10, 0, 5) turned a quarter about +Y, which takes +Z to +X, and a
+// loose turret at (12, 1, 5): two metres along the hull's +X is its +Z.
+static void parenting_keeps_the_world_place(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, true);
+	voe_scene_transform turned = at(10.0, 0.0, 5.0);
+	voe_ecs_entity hull, turret;
+	voe_scene_transform before;
+
+	turned.rotation = voe_math_quat_from_axis_angle(
+		(voe_math_float3){ 0.0f, 1.0f, 0.0f }, QUARTER_TURN);
+	hull = placed(world, turned);
+	turret = placed(world, at(12.0, 1.0, 5.0));
+	before = voe_scene_transform_world(world, turret);
+
+	VOE_TEST_CHECK(voe_scene_parent_set(world, turret, hull));
+	frame(world);
+	check_same_place(voe_scene_transform_world(world, turret), before);
+	check_position(*voe_scene_transform_get(world, turret), 0.0, 1.0, 2.0);
+	VOE_TEST_CHECK_INT(voe_scene_parent_get(world, turret)->parent.index,
+			   hull.index);
+
+	VOE_TEST_CHECK(voe_scene_parent_set(world, turret, (voe_ecs_entity){ 0 }));
+	frame(world);
+	check_same_place(voe_scene_transform_world(world, turret), before);
+	check_position(*voe_scene_transform_get(world, turret), 12.0, 1.0, 5.0);
+	VOE_TEST_CHECK(voe_scene_parent_get(world, turret) == NULL);
+}
+
+// From one hull to another in one frame: the remove, the add and the row land
+// together, and the turret has not moved.
+static void re_parenting_lands_in_one_frame(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, true);
+	voe_ecs_entity first = placed(world, at(10.0, 0.0, 0.0));
+	voe_ecs_entity second = placed(world, at(-4.0, 2.0, 0.0));
+	voe_ecs_entity turret = placed(world, at(10.0, 1.0, 0.0));
+	voe_scene_transform before;
+
+	VOE_TEST_CHECK(voe_scene_parent_set(world, turret, first));
+	frame(world);
+	before = voe_scene_transform_world(world, turret);
+
+	VOE_TEST_CHECK(voe_scene_parent_set(world, turret, second));
+	frame(world);
+	check_same_place(voe_scene_transform_world(world, turret), before);
+	check_position(*voe_scene_transform_get(world, turret), 14.0, -1.0, 0.0);
+	VOE_TEST_CHECK_INT(voe_scene_parent_get(world, turret)->parent.index,
+			   second.index);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
@@ -196,6 +264,8 @@ int main(void)
 	the_tree_lists_the_hull_first(arena);
 	a_loop_ends_the_walk(arena);
 	local_then_world_round_trips(arena);
+	parenting_keeps_the_world_place(arena);
+	re_parenting_lands_in_one_frame(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

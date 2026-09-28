@@ -9,9 +9,10 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `transform_system.c` — registration, creation, the drain that settles what it
   applies, and the one line a run of settlings writes to stderr.
 - `transform_previous.c` — the runtime-only previous table, the copy a step
-  starts with, and the blend a lag back from the current transform.
+  starts with, and the world place a lag back, blended link by link.
 - `parent_component.c` — the key, the read, and the walks up and down the tree.
-- `parent_system.c` — registration, and nothing that drains.
+- `parent_system.c` — registration, and parenting as structural requests plus
+  one transform intent; nothing that drains.
 - `identity_component.c` — the key and the reads, and nothing that writes.
 - `identity_system.c` — registration, creation, the drain that settles what it
   applies, and the one line a run of corrections writes to stderr.

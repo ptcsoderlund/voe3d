@@ -46,6 +46,7 @@
 #include <math/quat.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -746,6 +747,61 @@ static void with_nothing_remembered_between_is_now(voe_base_arena *arena)
 		       known().position);
 }
 
+// A hull steps from the origin to x = 2 and turns a quarter about +Y, with a
+// turret one metre out along its +X. Halfway, the hull is at x = 1 turned an
+// eighth, so the turret is one metre out along that eighth: each link blends,
+// then they compose, rather than the turret's world place blending straight.
+static void a_child_blends_along_its_parent(voe_base_arena *arena)
+{
+	voe_ecs_world *world = voe_ecs_world_new(
+		arena, (voe_ecs_limits){ .entities = TRANSFORMS,
+					 .component_types = 3,
+					 .intent_types = 1 });
+	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_scene_transform hull_row = {
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_transform turret_row = hull_row;
+	voe_ecs_entity hull = { 0 };
+	voe_ecs_entity turret = { 0 };
+	voe_scene_transform seen;
+	voe_scene_transform now;
+
+	voe_scene_transform_register(world, TRANSFORMS);
+	voe_scene_parent_register(world, TRANSFORMS);
+	voe_scene_transform_previous_register(world, TRANSFORMS);
+	turret_row.position.x = 1.0;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &hull));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &turret));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, hull, hull_row));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, turret, turret_row));
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, voe_ecs_component_type(world, &voe_scene_parent_key),
+		turret, &(voe_scene_parent){ .parent = hull }));
+
+	voe_scene_transform_remember(world);
+	hull_row.position.x = 2.0;
+	hull_row.rotation = voe_math_quat_from_axis_angle(up, QUARTER_TURN);
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ .entity = hull,
+						     .transform = hull_row }));
+	voe_scene_transform_system_run(world);
+
+	seen = voe_scene_transform_between(world, turret, 0.5f);
+	VOE_TEST_CHECK_FLOAT(seen.position.x, 1.0 + sqrt(0.5), TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(seen.position.y, 0.0, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(seen.position.z, -sqrt(0.5), TOLERANCE);
+	check_rotation(seen.rotation,
+		       voe_math_quat_from_axis_angle(up, QUARTER_TURN / 2.0f));
+
+	seen = voe_scene_transform_between(world, turret, 0.0f);
+	now = voe_scene_transform_world(world, turret);
+	check_position(seen.position, now.position);
+	check_rotation(seen.rotation, now.rotation);
+	VOE_TEST_CHECK_FLOAT(now.position.z, -1.0, TOLERANCE);
+}
+
 // Never saved, never in the Inspector: the previous table is runtime-only.
 static void the_previous_table_is_runtime_only(voe_base_arena *arena)
 {
@@ -784,6 +840,7 @@ int main(void)
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
 	a_remembered_step_blends_to_the_current_one(arena);
 	with_nothing_remembered_between_is_now(arena);
+	a_child_blends_along_its_parent(arena);
 	the_previous_table_is_runtime_only(arena);
 
 	a_rotation_arrives_unit_length(arena);
