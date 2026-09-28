@@ -2,7 +2,8 @@
 // authored entity, drawn into the dock's Scene leaf. dock.c calls it for that
 // leaf, and the clicks are asked after the frame through scene.h:
 //
-//     voe_editor_scene_list_draw(ui, &scene);
+//     voe_editor_scene_list_draw(ui, palette, &scene);
+//     voe_editor_scene_list_ghost_draw(ui, &scene, pointer.at);  // root
 //     ... voe_ui_frame_end ...
 //     (scene.h reads the rows and Add entity it recorded)
 //     voe_editor_scene_list_drop(&scene, ui, pointer.down, pointer.at);
@@ -49,6 +50,13 @@
 // what is drawn lit is what a release would do. Escape cancels a drag under way
 // (voe_editor_scene_list_cancel): the release that follows neither parents nor
 // selects.
+//
+// A DRAG SHOWS THREE MARKS (ADR-0282): a raised ghost of its name beside the
+// pointer, the held row dimmed, and an `inverse` rim round the row or heading a
+// release would land on — a rim, not an accent (ADR-0194 removed it), so it
+// reads even on a selected row. Every row and the heading always sit in a
+// keyed wrapper padded by the rim, drawn only when lit, so keys and spacing do
+// not change as a rim comes and goes.
 #pragma once
 
 #include "scene.h"
@@ -58,7 +66,17 @@
 // How far the pointer moves from the press, in millimetres, to start a drag.
 #define VOE_EDITOR_SCENE_DRAG_START 1.0f
 
-void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene);
+// `palette` is the theme in force; the drag's dim and rim are derived from it.
+void voe_editor_scene_list_draw(voe_ui_context *ui,
+				const voe_ui_theme *palette,
+				voe_editor_scene *scene);
+
+// While a drag is under way and the held entity is alive with an identity: an
+// anchored raised panel of its name, a few millimetres right of and below
+// `at`, taking no pointer. Called in the root surface, `at` in its millimetres.
+void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
+				      const voe_editor_scene *scene,
+				      voe_math_float2 at);
 
 // Follows the held row in scene's `list_` fields — its start, the threshold and
 // the target at `at`, the root's millimetres — and on the first frame none is

@@ -111,14 +111,14 @@ carries it out.
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
   panel's length or the views' share, every seam's place (the reached one lit), and the walk.
-- `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
-  the walk to one frame of `ui` calls, the held lengths and share read and set, each leaf handed
-  to its panel's draw, the Inspector's call, and the camera preview in each scene view's corner.
+- `dock.c` — the arrangement, held lengths and the views' share clamped and set, the walk to one
+  frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
+  drag marks, the Inspector's call, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree,
   keyed by identity index; a drag past a 1 mm threshold dropped onto a row parents it, onto the
-  heading unparents it, its target is the release's answer, and Escape cancels it.
+  heading unparents it; a ghost, a dimmed row and an inverse rim show it; Escape cancels it.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row's, the heading's and Add entity's node handed to the scene, and the held row's drop.
+  stack, each row and the heading in a rim wrapper, the drag's ghost, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
   as models, and Import copying a chosen `.glb` into the shown folder.
@@ -136,8 +136,8 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the play state and the ship polled once a frame, and
-  the one read of the frame's clicks that carries out the top bar's, the browser's and
+- `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play
+  state and the ship polled once a frame, and the one read of the frame's clicks that carries out the top bar's, the browser's and
   Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel

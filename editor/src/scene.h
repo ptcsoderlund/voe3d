@@ -62,6 +62,7 @@
 #include <math/float2.h>
 #include <math/float3.h>
 #include <ui/layout.h>
+#include <ui/theme.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -131,6 +132,11 @@ typedef struct voe_editor_scene {
 	bool list_cancelled;
 	voe_ecs_entity list_target;
 	bool list_target_heading;
+	// The themes the Scene list pushes for the held row's dim and the
+	// target's rim (ADR-0282), rebuilt by it from the palette each frame.
+	// Here because a pushed theme must outlive the frame it is drawn in.
+	voe_ui_theme list_dim;
+	voe_ui_theme list_rim;
 	// What the Inspector panel drew this frame, and the arena its labels
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.

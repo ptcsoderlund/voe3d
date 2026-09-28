@@ -319,7 +319,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 
 		if (picture) {
 			voe_editor_panel_draw(ui, node->panel, node->view,
-					      scene, views);
+					      palette, scene, views);
 			voe_ui_end(ui);
 			return;
 		}
@@ -342,8 +342,8 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		if (node->panel == VOE_EDITOR_PANEL_INSPECTOR)
 			voe_editor_inspector_area_set(&scene->inspector, area);
 
-		voe_editor_panel_draw(ui, node->panel, node->view, scene,
-				      views);
+		voe_editor_panel_draw(ui, node->panel, node->view,
+				      palette, scene, views);
 		voe_ui_end(ui);
 		voe_ui_end(ui);
 		return;
@@ -687,10 +687,11 @@ static void scene_view_panel(voe_ui_context *ui, uint32_t view,
 }
 
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
-			   uint32_t view, voe_editor_scene *scene,
-			   voe_editor_views *views)
+			   uint32_t view, const voe_ui_theme *palette,
+			   voe_editor_scene *scene, voe_editor_views *views)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing a panel into no interface");
+	VOE_BASE_ASSERT(palette != NULL, "drawing a panel with no palette");
 	VOE_BASE_ASSERT(scene != NULL, "drawing a panel with no scene");
 	VOE_BASE_ASSERT(scene->world != NULL,
 			"drawing a panel onto a scene with no world");
@@ -698,7 +699,7 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 
 	switch (panel) {
 	case VOE_EDITOR_PANEL_SCENE:
-		voe_editor_scene_list_draw(ui, scene);
+		voe_editor_scene_list_draw(ui, palette, scene);
 		return;
 	case VOE_EDITOR_PANEL_INSPECTOR:
 		inspector_panel(ui, scene);

@@ -16,6 +16,12 @@
 // How far each level of the tree is indented, in millimetres.
 #define INDENT_PER_DEPTH 4.0f
 
+// How wide the drop rim round every row and the heading is, in millimetres.
+#define RIM_WIDTH 0.5f
+
+// How far right of and below the pointer the ghost sits, in millimetres.
+#define GHOST_OFFSET 3.0f
+
 // No identity parent: a root.
 #define NO_PARENT UINT32_MAX
 
@@ -42,13 +48,45 @@ static uint32_t parent_index(const voe_ecs_world *world,
 	return NO_PARENT;
 }
 
+static bool same_entity(voe_ecs_entity a, voe_ecs_entity b)
+{
+	return a.index == b.index && a.generation == b.generation;
+}
+
+// Opens the keyed wrapper every row and the heading sit in: padded by the
+// rim, drawn only when `lit`, then under list_rim for its panel alone. Closed
+// by voe_ui_end.
+static voe_ui_node rim_begin(voe_ui_context *ui, voe_editor_scene *scene,
+			     const char *name, uint32_t index, bool lit)
+{
+	voe_ui_node rim;
+
+	if (lit)
+		voe_ui_theme_push(ui, &scene->list_rim);
+	rim = voe_ui_panel_begin(
+		ui, name, index, lit ? VOE_UI_SURFACE_RAISED : VOE_UI_SURFACE_NONE,
+		(voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
+				    .pad = { RIM_WIDTH, RIM_WIDTH, RIM_WIDTH,
+					     RIM_WIDTH } });
+	if (lit)
+		voe_ui_theme_pop(ui);
+	VOE_BASE_ASSERT(rim != VOE_UI_NODE_NONE, "a rim with no node");
+	return rim;
+}
+
 static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 		     uint32_t index, uint32_t depth)
 {
 	const voe_scene_identity *rows = voe_scene_identity_rows(scene->world);
 	const voe_ecs_entity *entities =
 		voe_scene_identity_entities(scene->world);
+	const bool dim = scene->list_dragging &&
+			 same_entity(entities[index], scene->list_held);
 
+	if (dim)
+		voe_ui_theme_push(ui, &scene->list_dim);
+	rim_begin(ui, scene, "row_rim", index,
+		  same_entity(entities[index], scene->list_target));
 	voe_ui_row_begin(ui, (voe_ui_container){ 0 });
 	// A fixed-size box is the spacer (ui/layout.h has no margin).
 	if (depth > 0) {
@@ -71,6 +109,9 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	voe_ui_label(ui, rows[index].name);
 	voe_ui_end(ui);
 	voe_ui_end(ui);
+	voe_ui_end(ui);
+	if (dim)
+		voe_ui_theme_pop(ui);
 
 	// The click is answered after voe_ui_frame_end and this function has
 	// to have returned by then, so the node is handed to the scene to be
@@ -78,7 +119,28 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	voe_editor_scene_row_add(scene, row, entities[index]);
 }
 
-void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene)
+// The drag's two themes, copies of `palette` rebuilt each frame (ADR-0282):
+// the held row reads as a flat control with the dimmest text; the rim is
+// `inverse` all through, and its text is `inverse_ink` so the heading's label,
+// which has no fill of its own, reads on it.
+static void marks_derive(voe_editor_scene *scene, const voe_ui_theme *palette)
+{
+	scene->list_dim = *palette;
+	scene->list_dim.inverse = palette->control;
+	scene->list_dim.control_hovered = palette->control;
+	scene->list_dim.text_primary = palette->text_disabled;
+	scene->list_dim.text_secondary = palette->text_disabled;
+	scene->list_dim.inverse_ink = palette->text_disabled;
+
+	scene->list_rim = *palette;
+	scene->list_rim.border = palette->inverse;
+	scene->list_rim.surface_raised = palette->inverse;
+	scene->list_rim.text_primary = palette->inverse_ink;
+}
+
+void voe_editor_scene_list_draw(voe_ui_context *ui,
+				const voe_ui_theme *palette,
+				voe_editor_scene *scene)
 {
 	const voe_ecs_entity *entities;
 	uint32_t parents[VOE_EDITOR_SCENE_ROWS];
@@ -88,7 +150,18 @@ void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene)
 	voe_ui_node add;
 	uint32_t count;
 
-	scene->heading = voe_ui_label(ui, "Scene");
+	VOE_BASE_ASSERT(palette != NULL, "drawing the Scene list with no palette");
+	marks_derive(scene, palette);
+
+	// Its label is under list_rim too while lit, as it has no fill.
+	scene->heading = rim_begin(ui, scene, "heading_rim", 0,
+				   scene->list_target_heading);
+	if (scene->list_target_heading)
+		voe_ui_theme_push(ui, &scene->list_rim);
+	voe_ui_label(ui, "Scene");
+	if (scene->list_target_heading)
+		voe_ui_theme_pop(ui);
+	voe_ui_end(ui);
 
 	add = voe_ui_button_begin(ui, "add", 0);
 	voe_ui_label(ui, "Add entity");
@@ -131,11 +204,6 @@ void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene)
 	for (uint32_t i = 0; i < count; i++)
 		if (!listed[i])
 			row_draw(ui, scene, i, 0);
-}
-
-static bool same_entity(voe_ecs_entity a, voe_ecs_entity b)
-{
-	return a.index == b.index && a.generation == b.generation;
 }
 
 // Whether `at` is on `node` as drawn, for a node the frame had room for.
@@ -261,4 +329,32 @@ bool voe_editor_scene_list_cancel(voe_editor_scene *scene)
 	scene->list_target_heading = false;
 	VOE_BASE_ASSERT(!scene->list_dragging, "a cancelled drag still dragging");
 	return true;
+}
+
+void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
+				      const voe_editor_scene *scene,
+				      voe_math_float2 at)
+{
+	const voe_scene_identity *identity;
+
+	VOE_BASE_ASSERT(ui != NULL, "drawing a ghost into no interface");
+	VOE_BASE_ASSERT(scene != NULL, "drawing a ghost with no scene");
+	if (!scene->list_dragging ||
+	    !voe_ecs_entity_alive(scene->world, scene->list_held))
+		return;
+	identity = voe_scene_identity_get(scene->world, scene->list_held);
+	if (identity == NULL)
+		return;
+	// Not blocking the pointer, so the rows under it still answer it.
+	voe_ui_panel_begin(
+		ui, "scene_ghost", 0, VOE_UI_SURFACE_RAISED,
+		(voe_ui_container){
+			.pad = { RIM_WIDTH, RIM_WIDTH, RIM_WIDTH, RIM_WIDTH },
+			.anchor = { .anchored = true,
+				    .x = { VOE_UI_ACROSS_START,
+					   at.x + GHOST_OFFSET },
+				    .y = { VOE_UI_ACROSS_START,
+					   at.y + GHOST_OFFSET } } });
+	voe_ui_label(ui, identity->name);
+	voe_ui_end(ui);
 }

@@ -218,6 +218,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views);
+		// A Scene list drag's ghost, anchored beside the pointer
+		// (ADR-0282); before the overlays, so they paint over it.
+		voe_editor_scene_list_ghost_draw(ui, scene, root->pointer.at);
 		// ANCHORED, SO ITS PLACE IN THIS CALL ORDER DOES NOT MATTER TO
 		// WHERE IT PAINTS (ui/layout.h) — it is called here, after the
 		// tree, only because that is where browser.h's own state (the
