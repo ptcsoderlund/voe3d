@@ -76,13 +76,15 @@
 						     voe_ecs_entity entity,
 						     voe_ecs_type type);
 
-// Queues the removal of the entity's row of that type. False when the queue is
-// full.
+// Queues the removal of the entity's row of that type; the parent's goes
+// through voe_scene_parent_set, so the entity keeps its world place. False when
+// the queue is full.
 [[nodiscard]] bool voe_editor_entities_component_remove(voe_ecs_world *world,
 							voe_ecs_entity entity,
 							voe_ecs_type type);
 
-// Queues the entity's destruction. False when the queue is full.
+// Queues the destruction of the entity and everything under it, its tree
+// (scene/parent_component.h). False when the queue is full.
 [[nodiscard]] bool voe_editor_entities_delete(voe_ecs_world *world,
 					      voe_ecs_entity entity);
 

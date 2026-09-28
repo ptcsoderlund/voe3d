@@ -216,9 +216,10 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 // fields (inspector.h). Both are zeroed with the rows, every frame, which is
 // why main.c calls these after the interface has drawn and not before.
 //
-// Queues the selected entity's destruction and clears the selection. Nothing
-// selected does nothing, and neither does the camera's entity: the scene's one
-// camera is never deleted (ADR-0218), from either caller. Counts one in `structural`, or sets `full` when the
+// Queues the destruction of the selected entity and its tree and clears the
+// selection. Nothing selected does nothing, and neither does a tree holding the
+// camera's entity: the scene's one camera is never deleted (ADR-0218), from
+// either caller. Counts one in `structural`, or sets `full` when the
 // queue is full.
 void voe_editor_scene_delete(voe_editor_scene *scene);
 

@@ -191,7 +191,7 @@ carries it out.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, its
   Add entity button, Delete and Duplicate, the structural changes made this frame, the row being dragged, what the Inspector
   drew, what the colour picker and the open dropdown are open on, and the gizmo's unsaved mode.
-- `scene.c` — the selection, Delete and Duplicate (both refuse the camera, Duplicate the sun), the
+- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate the sun), the
   gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
   measured them, and the Scene panel's rows asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
@@ -210,8 +210,8 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities, and giving
+- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities with their trees, and giving
   or taking their components, all through the world's structural queue. Its header says the id and
   name rules.
-- `entities.c` — the new id and name, the queued rows, and the destroy that
+- `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
   undoes a half-made entity.
