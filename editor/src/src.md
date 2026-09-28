@@ -6,7 +6,7 @@ carries it out.
 
 - `main.c` — opens a project, the window and the device, makes the arena, font, themes and
   interface, uploads the shapes, opens the views on the scene's camera, and runs the loop until a
-  close goes ahead or the picture is written.
+  close goes ahead or the picture is written; Escape cancels a Scene list drag first.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
@@ -114,9 +114,9 @@ carries it out.
 - `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
   the walk to one frame of `ui` calls, the held lengths and share read and set, each leaf handed
   to its panel's draw, the Inspector's call, and the camera preview in each scene view's corner.
-- `scene_list.h` — the Scene list: its heading, Add entity and one row per authored entity as a
-  tree, depth-first and indented by depth, each row keyed by its identity-table index, and a row
-  dropped onto another parenting it, onto the heading unparenting it.
+- `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree,
+  keyed by identity index; a drag past a 1 mm threshold dropped onto a row parents it, onto the
+  heading unparents it, its target is the release's answer, and Escape cancels it.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
   stack, each row's, the heading's and Add entity's node handed to the scene, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
@@ -189,7 +189,8 @@ carries it out.
   with a failure's notice, cleared through the device and destroyed.
 - `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, Add
   entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
-  dropdown are open on, and the gizmo's unsaved mode.
+  dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
+  cancel.
 - `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate the sun), the
   gizmo's switch, the colour picker and dropdown opened, closed and placed where the Inspector
   measured them, and the Scene panel's rows asked after the frame has ended.

@@ -109,7 +109,8 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 	for (uint32_t i = 0; i < scene->listed_count; i++) {
 		if (scene->listed[i].node == VOE_UI_NODE_NONE)
 			continue;
-		if (voe_ui_button_action(ui, scene->listed[i].node).fired)
+		if (voe_ui_button_action(ui, scene->listed[i].node).fired &&
+		    !scene->list_dragging && !scene->list_cancelled)
 			scene->selected = scene->listed[i].entity;
 	}
 

@@ -37,22 +37,38 @@
 //
 // A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7). Over another row it
 // becomes that row's child, unless it already is or that row is itself or under
-// it; over the heading it becomes a root again; anywhere else, nothing. A press
-// and release on one row is that, so it stays a click. The world place is kept
-// (scene/parent_system.h), so nothing moves in the view. The drop is read after
-// voe_ui_frame_end because only then does a button say it is held and a node
-// where it was drawn. A set counts one in `structural`; a full queue sets `full`.
+// it; over the heading it becomes a root again; anywhere else, nothing. The
+// world place is kept (scene/parent_system.h), so nothing moves in the view. The
+// drop is read after voe_ui_frame_end because only then does a button say it is
+// held and a node where it was drawn. A set counts one in `structural`; a full
+// queue sets `full`.
+//
+// A DRAG STARTS ONLY PAST VOE_EDITOR_SCENE_DRAG_START FROM THE PRESS (ADR-0282),
+// so a click that wobbles stays a click, and a release before it drops nothing.
+// While dragging, `list_target` is the release's own answer at the pointer, so
+// what is drawn lit is what a release would do. Escape cancels a drag under way
+// (voe_editor_scene_list_cancel): the release that follows neither parents nor
+// selects.
 #pragma once
 
 #include "scene.h"
 
 #include <ui/widgets.h>
 
+// How far the pointer moves from the press, in millimetres, to start a drag.
+#define VOE_EDITOR_SCENE_DRAG_START 1.0f
+
 void voe_editor_scene_list_draw(voe_ui_context *ui, voe_editor_scene *scene);
 
-// Remembers the held row in scene->list_held, and on the first frame none is
-// held and `down` is false, drops it at `at`, the root's millimetres. A held
-// entity no longer alive, or either one without a transform, does nothing.
+// Follows the held row in scene's `list_` fields — its start, the threshold and
+// the target at `at`, the root's millimetres — and on the first frame none is
+// held and `down` is false, drops it there if it was dragged and not cancelled,
+// then zeroes them. A held entity no longer alive, or either one without a
+// transform, does nothing.
 void voe_editor_scene_list_drop(voe_editor_scene *scene,
 				const voe_ui_context *ui, bool down,
 				voe_math_float2 at);
+
+// When a drag is under way, cancels it for the rest of the press and returns
+// true, so the caller spends Escape on it; else false and changes nothing.
+bool voe_editor_scene_list_cancel(voe_editor_scene *scene);

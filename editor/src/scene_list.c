@@ -147,15 +147,23 @@ static bool over(const voe_ui_context *ui, voe_ui_node node,
 						  at);
 }
 
-// The entity the drop lands `held` under: a row's, zeroed for the heading,
-// or false when it lands nowhere or changes nothing.
+// What a release of `held` at `at` would do, the one answer the release and
+// the drawn target both use: true with `target` a row's entity to parent onto,
+// or zeroed to unparent over the heading; false when it lands nowhere or is
+// refused (held dead or without a transform, onto itself or under it, onto a
+// row without a transform or already its parent, the heading for a root).
 static bool drop_target(const voe_editor_scene *scene,
 			const voe_ui_context *ui, voe_ecs_entity held,
 			voe_math_float2 at, voe_ecs_entity *target)
 {
-	const voe_scene_parent *parent =
-		voe_scene_parent_get(scene->world, held);
+	const voe_scene_parent *parent;
 
+	VOE_BASE_ASSERT(target != NULL, "a drop target into nowhere");
+	// A zeroed entity is never alive, so no drag in flight ends here too.
+	if (!voe_ecs_entity_alive(scene->world, held) ||
+	    voe_scene_transform_get(scene->world, held) == NULL)
+		return false;
+	parent = voe_scene_parent_get(scene->world, held);
 	if (over(ui, scene->heading, at)) {
 		*target = (voe_ecs_entity){ 0 };
 		return parent != NULL;
@@ -165,15 +173,42 @@ static bool drop_target(const voe_editor_scene *scene,
 
 		if (!over(ui, scene->listed[i].node, at))
 			continue;
-		*target = row;
 		// Onto itself or something under it would be a loop.
 		if (voe_scene_parent_within(scene->world, row, held))
 			return false;
 		if (voe_scene_transform_get(scene->world, row) == NULL)
 			return false;
-		return parent == NULL || !same_entity(parent->parent, row);
+		if (parent != NULL && same_entity(parent->parent, row))
+			return false;
+		*target = row;
+		return true;
 	}
 	return false;
+}
+
+// One held frame: the start remembered on a newly held row, the threshold
+// crossed unless cancelled, and the target a release now would land on.
+static void drag_follow(voe_editor_scene *scene, const voe_ui_context *ui,
+			voe_ecs_entity row, voe_math_float2 at)
+{
+	voe_ecs_entity target = { 0 };
+	bool lands;
+
+	if (!same_entity(scene->list_held, row)) {
+		scene->list_held = row;
+		scene->list_from = at;
+	}
+	if (!scene->list_cancelled &&
+	    voe_math_float2_length(voe_math_float2_sub(
+		    at, scene->list_from)) >= VOE_EDITOR_SCENE_DRAG_START)
+		scene->list_dragging = true;
+	lands = scene->list_dragging &&
+		drop_target(scene, ui, row, at, &target);
+	scene->list_target = lands ? target : (voe_ecs_entity){ 0 };
+	scene->list_target_heading =
+		lands && same_entity(target, (voe_ecs_entity){ 0 });
+	VOE_BASE_ASSERT(!scene->list_dragging || !scene->list_cancelled,
+			"a cancelled drag still dragging");
 }
 
 void voe_editor_scene_list_drop(voe_editor_scene *scene,
@@ -181,7 +216,8 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 				voe_math_float2 at)
 {
 	voe_ecs_entity held;
-	voe_ecs_entity target;
+	voe_ecs_entity target = { 0 };
+	bool lands;
 
 	VOE_BASE_ASSERT(scene != NULL, "dropping a row on no scene");
 	VOE_BASE_ASSERT(ui != NULL, "dropping a row out of no interface");
@@ -190,7 +226,7 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 		if (scene->listed[i].node == VOE_UI_NODE_NONE)
 			continue;
 		if (voe_ui_button_action(ui, scene->listed[i].node).held) {
-			scene->list_held = scene->listed[i].entity;
+			drag_follow(scene, ui, scene->listed[i].entity, at);
 			return;
 		}
 	}
@@ -198,15 +234,31 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 		return;
 
 	held = scene->list_held;
+	lands = scene->list_dragging && !scene->list_cancelled &&
+		drop_target(scene, ui, held, at, &target);
 	scene->list_held = (voe_ecs_entity){ 0 };
-	// A zeroed entity is never alive, so no drag in flight ends here too.
-	if (!voe_ecs_entity_alive(scene->world, held) ||
-	    voe_scene_transform_get(scene->world, held) == NULL)
-		return;
-	if (!drop_target(scene, ui, held, at, &target))
+	scene->list_from = (voe_math_float2){ 0 };
+	scene->list_dragging = false;
+	scene->list_cancelled = false;
+	scene->list_target = (voe_ecs_entity){ 0 };
+	scene->list_target_heading = false;
+	if (!lands)
 		return;
 	if (voe_scene_parent_set(scene->world, held, target))
 		scene->structural++;
 	else
 		scene->full = true;
+}
+
+bool voe_editor_scene_list_cancel(voe_editor_scene *scene)
+{
+	VOE_BASE_ASSERT(scene != NULL, "cancelling a drag on no scene");
+	if (!scene->list_dragging)
+		return false;
+	scene->list_cancelled = true;
+	scene->list_dragging = false;
+	scene->list_target = (voe_ecs_entity){ 0 };
+	scene->list_target_heading = false;
+	VOE_BASE_ASSERT(!scene->list_dragging, "a cancelled drag still dragging");
+	return true;
 }

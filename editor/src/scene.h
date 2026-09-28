@@ -44,8 +44,8 @@
 // makes an entity with only an identity and a transform at the origin; its
 // other components come from the Inspector's Add component. A fired Add entity
 // is an entity added, selected, and counted in `structural`, which main.c reads
-// to mark the project unsaved. The Scene list row being dragged is held here
-// too, across frames, in `list_held`.
+// to mark the project unsaved. The Scene list's drag is held here too, across
+// frames, in the `list_` fields.
 //
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
 // move or turn is how someone is working, not what the scene is, so it is never
@@ -59,6 +59,7 @@
 #include "inspector.h"
 
 #include <ecs/world.h>
+#include <math/float2.h>
 #include <math/float3.h>
 #include <ui/layout.h>
 
@@ -115,10 +116,21 @@ typedef struct voe_editor_scene {
 	// Whether a Delete, Duplicate, Remove or Add component was refused
 	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
 	bool full;
-	// Which Scene list row is being dragged (scene_list.h), kept across
-	// frames and not cleared with the rows. A world swapped under it (New,
-	// Open, undo) leaves it stale, which the release tests for.
+	// The Scene list's drag, owned by scene_list.c, kept across frames and
+	// not cleared with the rows; the release zeroes all six. `list_held` is
+	// the row held down (a world swapped under it by New, Open or undo
+	// leaves it stale, which the release tests for), `list_from` where the
+	// pointer was when it was first held, `list_dragging` whether it has
+	// since moved past VOE_EDITOR_SCENE_DRAG_START, `list_cancelled`
+	// whether Escape cancelled this press, `list_target` the row a release
+	// now would parent onto (zeroed if none) and `list_target_heading`
+	// whether a release now would unparent it.
 	voe_ecs_entity list_held;
+	voe_math_float2 list_from;
+	bool list_dragging;
+	bool list_cancelled;
+	voe_ecs_entity list_target;
+	bool list_target_heading;
 	// What the Inspector panel drew this frame, and the arena its labels
 	// were formatted into. Opened and read by interface.c, filled in by
 	// inspector.c, and untouched by anything in scene.c.
@@ -197,7 +209,9 @@ void voe_editor_scene_add_record(voe_editor_scene *scene, voe_ui_node add);
 void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 			      voe_ecs_entity entity);
 
-// Moves the selection to whichever recorded row fired this frame, and carries
+// Moves the selection to whichever recorded row fired this frame, unless the
+// Scene list's drag is under way or was cancelled (a release that ends a drag
+// is no click; this runs before voe_editor_scene_list_drop zeroes both), and carries
 // out Add entity: when it fired, adds an entity through entities.h, selects it
 // and counts one in `structural`. Called after voe_ui_frame_end and before the
 // frame's arena is rewound, which is the one window in which a widget will
