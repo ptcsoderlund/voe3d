@@ -21,11 +21,11 @@ workflow replaced specs.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene → draws → a render target: meshes, `.glb` models, shapes, picking, outlines, gizmos, shadows.
+- **3d** — scene to draws: meshes, `.glb` models, shapes, picking, outlines, gizmos, shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **game** — a shipped game's loop: world types, 1/60 s steps, a frame, the code seam, `ui`, sound, models.
-- **editor** — authoring: top bar, Scene list, Assets, views, gizmo, Inspector, undo, Play, Refresh, Ship.
+- **game** — a shipped game: world types, 1/60 s steps, a frame, code seam, `ui`, sound, models.
+- **editor** — top bar, Scene list, Assets, views, gizmo, Inspector, undo, Play, Refresh, Ship.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
