@@ -104,6 +104,9 @@ typedef struct voe_editor_scene {
 	// The Add entity button as the panel drew it this frame, or
 	// VOE_UI_NODE_NONE when it did not.
 	voe_ui_node add;
+	// The Scene list's "Scene" heading as drawn this frame, or
+	// VOE_UI_NODE_NONE when it was not.
+	voe_ui_node heading;
 	// How many structural changes this panel and the Inspector's buttons
 	// made this frame. Zeroed with
 	// the rows, every frame.

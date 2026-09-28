@@ -12,9 +12,22 @@
 // (ADR-0125) — cannot appear in it, and neither can an authored one go missing.
 // There is nothing here to keep in step with the world.
 //
-// EVERY ROW IS KEYED BY ONE NAME AND THE ROW INDEX, which is what `index` on a
-// widget is for (ui/widgets.h): one name for every button in the loop would make
-// the whole list one button sharing one highlight. The row's label points into
+// THE ROWS ARE THE TREE, DEPTH-FIRST (ADR-0281 point 7). Each root — no parent
+// row, or a parent that is dead or has no identity — in identity-table order,
+// and right after each row the authored entities whose parent it is, in table
+// order, at any depth, by an explicit stack capped at
+// VOE_SCENE_PARENT_DEPTH_MAX. An entity in a loop (only a hand-edited file
+// makes one) or past the cap is reached from no root; it is still listed,
+// after the rest, at depth 0, so no authored entity goes missing.
+//
+// EACH ROW IS INDENTED BY ITS DEPTH, a fixed number of millimetres per level
+// set as a fixed-size spacer before the row, as ui/layout.h says a gap is made.
+// The "Scene" heading's node is recorded in scene.heading for dragging.
+//
+// EVERY ROW IS KEYED BY ONE NAME AND ITS IDENTITY-TABLE INDEX, which is what
+// `index` on a widget is for (ui/widgets.h): one name for every button would make
+// the whole list one button sharing one highlight, and a key that is not the
+// drawn position keeps a row's highlight on its entity when the order changes. The row's label points into
 // the table, which outlives the frame — a name is 64 bytes in the component and
 // never a pointer.
 //

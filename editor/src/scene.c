@@ -59,6 +59,7 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene)
 
 	scene->listed_count = 0;
 	scene->add = VOE_UI_NODE_NONE;
+	scene->heading = VOE_UI_NODE_NONE;
 	scene->structural = 0;
 	scene->full = false;
 }

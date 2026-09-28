@@ -114,10 +114,10 @@ carries it out.
 - `dock.c` — the arrangement, a held length or the views' share clamped to what each side needs,
   the walk to one frame of `ui` calls, the held lengths and share read and set, each leaf handed
   to its panel's draw, the Inspector's call, and the camera preview in each scene view's corner.
-- `scene_list.h` — the Scene list: its heading, Add entity and one row per authored entity, the
-  identity table and nothing else, each row keyed by one name and its index.
-- `scene_list.c` — the list's one frame of `ui` calls, each row's and Add entity's node handed to
-  the scene to be asked after the frame.
+- `scene_list.h` — the Scene list: its heading, Add entity and one row per authored entity as a
+  tree, depth-first and indented by depth, each row keyed by its identity-table index.
+- `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
+  stack, each row's, the heading's and Add entity's node handed to the scene.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
   as models, and Import copying a chosen `.glb` into the shown folder.
