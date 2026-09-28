@@ -59,9 +59,12 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	free(models->folder);
 	models->folder = NULL;
 	if (folder != NULL) {
-		models->folder = strdup(folder);
+		size_t size = strlen(folder) + 1;
+
+		models->folder = malloc(size);
 		VOE_BASE_ASSERT(models->folder != NULL,
 				"out of memory copying the models' folder");
+		memcpy(models->folder, folder, size);
 	}
 	VOE_BASE_ASSERT(voe_3d_models_count(models->store) == 0,
 			"a cleared store still holds models");

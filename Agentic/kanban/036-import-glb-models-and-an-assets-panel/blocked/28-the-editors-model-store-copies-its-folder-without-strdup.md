@@ -21,3 +21,6 @@ editor scene 2>/dev/null` exits 0 (no `strdup` left in the tree's C sources), an
 
 For the human: on Windows, build `voe_editor` in CLion (debug preset, clang); it builds past
 `editor/src/models.c`.
+
+## Blocked
+The change is made and `checks.sh --folder editor/src` prints `FINDINGS: 0`; the grep for `strdup` passes. `checks.sh --all` still exits 1 on one finding outside this folder: `Agentic/tech-lead/system.md` is over 60 lines at 100 columns (it was already there before this change, last touched in bb3b21f). Trimming `system.md` (or raising `--system-cap`) is tech-lead work; once that is done, `--all` should pass and this card can move to `done/`.
