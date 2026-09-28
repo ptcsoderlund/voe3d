@@ -10,4 +10,5 @@ window or a graphics card.
   keeps the row, and the shape a scaled box far from the origin and a capsule
   become.
 - `overlap.c` — a capsule on a floor, at a wall and on a tilted box, round
-  shapes against each other, triggers, `ignore` and capacity, near and far.
+  shapes against each other, triggers, `ignore` and capacity, and a child
+  found at its world place, not its row's, near and far.

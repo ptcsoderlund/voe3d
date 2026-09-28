@@ -106,9 +106,10 @@ void voe_scene_transform_system_run(voe_ecs_world *world);
 // transform it would have to copy (ADR-0011).
 //
 // IT IS OPT-IN. The editor steps nothing and never registers it, and a world
-// without it pays nothing: between() then hands back the current row. The table
+// without it pays nothing: between() then hands back the world place. The table
 // is runtime-only, so it is never saved, has no replace and is not in Add
-// component.
+// component. The draw gets a world transform from it: each link of the parent
+// chain blended by the lag, then composed (0281 point 2).
 //
 //     voe_scene_transform_previous_register(world, 4096);  // a stepping world
 //     voe_scene_transform_remember(world);                 // each step, first
@@ -122,12 +123,13 @@ void voe_scene_transform_previous_register(voe_ecs_world *world,
 // entity that has none. Asserts the table is registered and has room.
 void voe_scene_transform_remember(voe_ecs_world *world);
 
-// The transform `lag` of a step back from the current one: 0 is now, 1 the
-// remembered one. A LAG AND NOT AN ALPHA, so nought means "now" and every
-// caller that does not step passes 0 and gets the current row untouched.
-// Position blends in double, rotation along the shorter way and normalised,
-// scale straight. The current row when lag is 0, the table is not registered,
-// or the entity was never remembered. Asserts the entity has a transform and
+// The world transform `lag` of a step back from the current one: 0 is now, 1
+// the remembered one. A LAG AND NOT AN ALPHA, so nought means "now" and every
+// caller that does not step passes 0 and gets voe_scene_transform_world.
+// Each row up the parent chain blends on its own — position in double,
+// rotation along the shorter way and normalised, scale straight — and the
+// blended rows compose. A row never remembered, or a world with no previous
+// table, blends as its current row. Asserts the entity has a transform and
 // 0 <= lag <= 1.
 voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
 						voe_ecs_entity entity,

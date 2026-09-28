@@ -3,6 +3,8 @@
 // what a failure leaves behind.
 #include "entities.h"
 
+#include "scene.h"
+
 #include <base/assert.h>
 
 #include <3d/model_component.h>
@@ -13,6 +15,8 @@
 #include <physics/collider_component.h>
 
 #include <scene/identity_component.h>
+#include <scene/parent_component.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 
 #include <ctype.h>
@@ -207,14 +211,27 @@ bool voe_editor_entities_component_remove(voe_ecs_world *world,
 {
 	VOE_BASE_ASSERT(world != NULL, "removing a component in no world");
 
+	if (type.value ==
+	    voe_ecs_component_type(world, &voe_scene_parent_key).value)
+		return voe_scene_parent_set(world, entity, (voe_ecs_entity){ 0 });
 	return voe_ecs_structure_remove(world, type, entity);
 }
 
+// The tree goes with its root: an editor world holds only authored entities,
+// so VOE_EDITOR_SCENE_ROWS holds all of it.
 bool voe_editor_entities_delete(voe_ecs_world *world, voe_ecs_entity entity)
 {
+	voe_ecs_entity tree[VOE_EDITOR_SCENE_ROWS];
+	uint32_t count;
+
 	VOE_BASE_ASSERT(world != NULL, "deleting an entity in no world");
 
-	return voe_ecs_structure_destroy(world, entity);
+	count = voe_scene_parent_tree(world, entity, tree, VOE_EDITOR_SCENE_ROWS);
+	VOE_BASE_ASSERT(count > 0, "deleting an entity missing from its tree");
+	for (uint32_t i = 0; i < count; i++)
+		if (!voe_ecs_structure_destroy(world, tree[i]))
+			return false;
+	return true;
 }
 
 bool voe_editor_entities_duplicate(voe_ecs_world *world, voe_ecs_entity source,

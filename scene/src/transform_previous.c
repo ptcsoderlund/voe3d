@@ -1,5 +1,7 @@
 // The previous step's transforms: the table a stepping world registers, the
-// copy taken at the start of each step, and the blend the draw reads.
+// copy taken at the start of each step, and the blend the draw reads — each
+// link of the parent chain blended by the lag, then composed into a world
+// transform (0281 point 2).
 //
 // THE TABLE IS FOUND BY WALKING THE WORLD'S TYPES, because a world that does not
 // step never registered it and voe_ecs_component_type asserts on a key nobody
@@ -13,8 +15,10 @@
 // reads a previous row only for an entity whose transform exists, so a stale row
 // is never drawn.
 #include <base/assert.h>
+#include <scene/parent_component.h>
 #include <scene/transform_system.h>
 
+#include <math.h>
 #include <stddef.h>
 
 static const struct voe_ecs_key previous_key = {
@@ -107,24 +111,18 @@ static voe_math_quat blend_rotation(voe_math_quat now, voe_math_quat then,
 	return voe_math_quat_normalize(q);
 }
 
-voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
-						voe_ecs_entity entity,
-						float lag)
+// One row `lag` back: the current row when the entity was never remembered.
+static voe_scene_transform blended_row(const voe_ecs_world *world,
+				       voe_ecs_type previous,
+				       voe_ecs_entity entity, float lag)
 {
-	const voe_scene_transform *now;
-	const voe_scene_transform *then = NULL;
-	voe_ecs_type previous;
+	const voe_scene_transform *now = voe_scene_transform_get(world, entity);
+	const voe_scene_transform *then;
 	voe_scene_transform out;
 
-	VOE_BASE_ASSERT(world != NULL, "blending a transform in no world");
-	VOE_BASE_ASSERT(lag >= 0.0f && lag <= 1.0f,
-			"a lag is between nought and one step");
-
-	now = voe_scene_transform_get(world, entity);
 	VOE_BASE_ASSERT(now != NULL, "blending an entity with no transform");
 
-	if (lag > 0.0f && previous_type(world, &previous))
-		then = voe_ecs_component_get(world, previous, entity);
+	then = voe_ecs_component_get(world, previous, entity);
 	if (then == NULL)
 		return *now;
 
@@ -140,4 +138,45 @@ voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
 		blend_float(now->scale.z, then->scale.z, lag),
 	};
 	return out;
+}
+
+// The parent a row is relative to, false for a root: the same end of the chain
+// as voe_scene_transform_world's.
+static bool parent_of(const voe_ecs_world *world, voe_ecs_entity entity,
+		      voe_ecs_entity *out)
+{
+	const voe_scene_parent *row = voe_scene_parent_get(world, entity);
+
+	if (row == NULL || voe_scene_transform_get(world, row->parent) == NULL)
+		return false;
+	*out = row->parent;
+	return true;
+}
+
+voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
+						voe_ecs_entity entity,
+						float lag)
+{
+	voe_ecs_type previous;
+	voe_scene_transform placed;
+	voe_ecs_entity at = entity;
+
+	VOE_BASE_ASSERT(world != NULL, "blending a transform in no world");
+	VOE_BASE_ASSERT(lag >= 0.0f && lag <= 1.0f,
+			"a lag is between nought and one step");
+
+	if (lag == 0.0f || !previous_type(world, &previous))
+		return voe_scene_transform_world(world, entity);
+
+	placed = blended_row(world, previous, entity, lag);
+	for (uint32_t link = 0; link < VOE_SCENE_PARENT_DEPTH_MAX; link++) {
+		if (!parent_of(world, at, &at))
+			break;
+		placed = voe_scene_transform_compose(
+			blended_row(world, previous, at, lag), placed);
+	}
+
+	VOE_BASE_DEBUG_ASSERT(isfinite(placed.position.x),
+			      "a blended world place that is not finite");
+	return placed;
 }

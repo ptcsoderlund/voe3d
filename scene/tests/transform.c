@@ -18,6 +18,12 @@
 // A QUARTER TURN ABOUT +Y TAKES +Z TOWARDS +X (math/tests/quat.c), so it takes
 // +X to -Z. That is where the -2 below comes from.
 //
+// PARENTING AND BLENDING ARE CHECKED TOO. A child composes under its parent and
+// relative undoes it, a millimetre kept under a far parent and a zero parent
+// scale giving a finite row; a rotation arrives unit length, a zero one leaving
+// the row alone; and a remembered step blends back by a lag, a child along its
+// blended parent rather than straight.
+//
 // THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID. check.cmake builds
 // without descriptions, and a check that followed the build would never run on
 // the one run that gates a card. Nothing else in this file changes with it: the
@@ -46,6 +52,7 @@
 #include <math/quat.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -200,6 +207,100 @@ static void the_matrix_is_about_an_origin(void)
 	VOE_TEST_CHECK_FLOAT(m.m[0][3], 0.5f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(m.m[1][3], 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(m.m[2][3], 0.0f, 0.0f);
+}
+
+// A quarter turn about +Y takes +X to -Z, so the child's (1, 0, 0), scaled by
+// two, lands two metres down -Z from the parent.
+static voe_scene_transform turned_parent(void)
+{
+	return (voe_scene_transform){
+		.position = { 10.0, 0.0, 0.0 },
+		.rotation = voe_math_quat_from_axis_angle(
+			(voe_math_float3){ 0.0f, 1.0f, 0.0f }, QUARTER_TURN),
+		.scale = { 2.0f, 2.0f, 2.0f },
+	};
+}
+
+static void a_child_composes_under_its_parent(void)
+{
+	voe_scene_transform child = {
+		.position = { 1.0, 0.0, 0.0 },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_transform world =
+		voe_scene_transform_compose(turned_parent(), child);
+
+	VOE_TEST_CHECK_FLOAT(world.position.x, 10.0, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(world.position.y, 0.0, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(world.position.z, -2.0, TOLERANCE);
+	check_rotation(world.rotation, turned_parent().rotation);
+	check_vector(world.scale, (voe_math_float3){ 2.0f, 2.0f, 2.0f });
+}
+
+static void relative_undoes_compose(void)
+{
+	voe_scene_transform child = {
+		.position = { 1.5, -0.25, 3.0 },
+		.rotation = voe_math_quat_from_axis_angle(
+			(voe_math_float3){ 1.0f, 1.0f, 0.0f }, 0.7f),
+		.scale = { 0.5f, 1.0f, 3.0f },
+	};
+	voe_scene_transform back = voe_scene_transform_relative(
+		turned_parent(),
+		voe_scene_transform_compose(turned_parent(), child));
+
+	VOE_TEST_CHECK_FLOAT(back.position.x, child.position.x, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(back.position.y, child.position.y, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(back.position.z, child.position.z, TOLERANCE);
+	check_rotation(back.rotation, child.rotation);
+	check_vector(back.scale, child.scale);
+}
+
+static void an_identity_parent_leaves_the_child_alone(void)
+{
+	voe_scene_transform identity = {
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_transform world = voe_scene_transform_compose(identity, known());
+	voe_scene_transform child = known();
+
+	check_position(world.position, child.position);
+	check_rotation(world.rotation, child.rotation);
+	check_vector(world.scale, child.scale);
+}
+
+// Ten thousand kilometres out a float steps by a metre; the millimetre survives
+// only because the offset is rotated and added in double.
+static void a_far_parent_keeps_a_millimetre(void)
+{
+	voe_scene_transform parent = turned_parent();
+	voe_scene_transform child = {
+		.position = { 0.0005, 0.0, 0.0 },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+
+	parent.position = (voe_math_double3){ 1e7, 0.0, 1e7 };
+	voe_scene_transform world = voe_scene_transform_compose(parent, child);
+
+	VOE_TEST_CHECK_FLOAT(world.position.x - 1e7, 0.0, 1e-6);
+	VOE_TEST_CHECK_FLOAT(world.position.z - 1e7, -0.001, 1e-6);
+}
+
+static void a_zero_parent_scale_gives_a_finite_row(void)
+{
+	voe_scene_transform parent = turned_parent();
+
+	parent.scale = (voe_math_float3){ 0.0f, 2.0f, 2.0f };
+	voe_scene_transform back = voe_scene_transform_relative(parent, known());
+
+	VOE_TEST_CHECK(isfinite(back.position.x) && isfinite(back.position.y) &&
+		       isfinite(back.position.z));
+	VOE_TEST_CHECK(isfinite(back.scale.x) && isfinite(back.scale.y) &&
+		       isfinite(back.scale.z));
+	VOE_TEST_CHECK_FLOAT(back.scale.x, 0.0f, 0.0f);
 }
 
 static void a_transform_round_trips_through_the_table(voe_base_arena *arena)
@@ -652,6 +753,61 @@ static void with_nothing_remembered_between_is_now(voe_base_arena *arena)
 		       known().position);
 }
 
+// A hull steps from the origin to x = 2 and turns a quarter about +Y, with a
+// turret one metre out along its +X. Halfway, the hull is at x = 1 turned an
+// eighth, so the turret is one metre out along that eighth: each link blends,
+// then they compose, rather than the turret's world place blending straight.
+static void a_child_blends_along_its_parent(voe_base_arena *arena)
+{
+	voe_ecs_world *world = voe_ecs_world_new(
+		arena, (voe_ecs_limits){ .entities = TRANSFORMS,
+					 .component_types = 3,
+					 .intent_types = 1 });
+	voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_scene_transform hull_row = {
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_transform turret_row = hull_row;
+	voe_ecs_entity hull = { 0 };
+	voe_ecs_entity turret = { 0 };
+	voe_scene_transform seen;
+	voe_scene_transform now;
+
+	voe_scene_transform_register(world, TRANSFORMS);
+	voe_scene_parent_register(world, TRANSFORMS);
+	voe_scene_transform_previous_register(world, TRANSFORMS);
+	turret_row.position.x = 1.0;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &hull));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &turret));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, hull, hull_row));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, turret, turret_row));
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, voe_ecs_component_type(world, &voe_scene_parent_key),
+		turret, &(voe_scene_parent){ .parent = hull }));
+
+	voe_scene_transform_remember(world);
+	hull_row.position.x = 2.0;
+	hull_row.rotation = voe_math_quat_from_axis_angle(up, QUARTER_TURN);
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ .entity = hull,
+						     .transform = hull_row }));
+	voe_scene_transform_system_run(world);
+
+	seen = voe_scene_transform_between(world, turret, 0.5f);
+	VOE_TEST_CHECK_FLOAT(seen.position.x, 1.0 + sqrt(0.5), TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(seen.position.y, 0.0, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(seen.position.z, -sqrt(0.5), TOLERANCE);
+	check_rotation(seen.rotation,
+		       voe_math_quat_from_axis_angle(up, QUARTER_TURN / 2.0f));
+
+	seen = voe_scene_transform_between(world, turret, 0.0f);
+	now = voe_scene_transform_world(world, turret);
+	check_position(seen.position, now.position);
+	check_rotation(seen.rotation, now.rotation);
+	VOE_TEST_CHECK_FLOAT(now.position.z, -1.0, TOLERANCE);
+}
+
 // Never saved, never in the Inspector: the previous table is runtime-only.
 static void the_previous_table_is_runtime_only(voe_base_arena *arena)
 {
@@ -676,6 +832,11 @@ int main(void)
 
 	the_matrix_is_translate_rotate_scale();
 	the_matrix_is_about_an_origin();
+	a_child_composes_under_its_parent();
+	relative_undoes_compose();
+	an_identity_parent_leaves_the_child_alone();
+	a_far_parent_keeps_a_millimetre();
+	a_zero_parent_scale_gives_a_finite_row();
 	the_description_is_the_struct_the_compiler_laid_out();
 	the_world_hands_back_the_transforms_field_list(arena);
 	the_world_names_the_intent_that_replaces_a_transform(arena);
@@ -685,6 +846,7 @@ int main(void)
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
 	a_remembered_step_blends_to_the_current_one(arena);
 	with_nothing_remembered_between_is_now(arena);
+	a_child_blends_along_its_parent(arena);
 	the_previous_table_is_runtime_only(arena);
 
 	a_rotation_arrives_unit_length(arena);

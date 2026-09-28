@@ -254,8 +254,15 @@
 // both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES (160)
 // characters, a byte at least apiece, 7680; Close, two and five. 14682 + 7704 =
 // 22386 elements. AND ONE MORE SCROLL AREA, its lines': five.
-#define VOE_EDITOR_INTERFACE_NODES 1179
-#define VOE_EDITOR_INTERFACE_ELEMENTS 22386
+//
+// THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD THIRTY-FIVE NODES:
+// a rim wrapper round each of VOE_EDITOR_SCENE_ROWS (32) rows and the heading,
+// thirty-three, and the ghost's panel and name label, two. 1179 + 35 = 1214
+// nodes. AND SIXTY-EIGHT ELEMENTS: the one lit rim's border and fill, two; the
+// ghost's border and fill, two, and its name's 64 characters. 22386 + 68 =
+// 22454 elements.
+#define VOE_EDITOR_INTERFACE_NODES 1214
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22454
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

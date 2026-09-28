@@ -252,8 +252,8 @@ void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 // are ordinary C (ADR-0142 point 2); handing it in is the alternative to this
 // folder reaching for a global.
 //
-// `palette` is the one in force, read only for every seam's colours (0231,
-// 0232); no panel is handed it.
+// `palette` is the one in force, read for every seam's colours (0231, 0232)
+// and handed to each panel, where only the Scene list reads it (0282).
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
@@ -270,6 +270,7 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 // either.
 //
 // `view` is the leaf's own and is read only for a SCENE_VIEW panel.
+// `palette` is the walk's, read only by the Scene list for its drag's marks.
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
-			   uint32_t view, voe_editor_scene *scene,
-			   voe_editor_views *views);
+			   uint32_t view, const voe_ui_theme *palette,
+			   voe_editor_scene *scene, voe_editor_views *views);

@@ -4,7 +4,8 @@
 //
 // THE FIRST HALF NEEDS NO GRAPHICS CARD. The silhouette is a walk over edges the
 // CPU holds and two matrices built from a camera, and the answer is arrays in an
-// arena, so every claim there is checkable on a build box with no Vulkan.
+// arena, so every claim there is checkable on a build box with no Vulkan,
+// among them a child's quads laid about its world place and not its local one.
 //
 // AND THE SECOND HALF IS THE ONE CLAIM ONLY A DRAWN FRAME CAN MAKE: that the
 // outline shows through whatever stands in front of the entity. Two cubes down
@@ -28,6 +29,7 @@
 #include <base/arena.h>
 #include <base/error.h>
 
+#include <ecs/structure.h>
 #include <ecs/world.h>
 
 #include <math/float3.h>
@@ -39,6 +41,7 @@
 #include <scene/camera_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -108,7 +111,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = 16,
-		.component_types = 8,
+		.component_types = 12,
 		.intent_types = 8,
 		.structure_requests = 4,
 		.structure_bytes = 128,
@@ -116,6 +119,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_transform_register(world, 16);
+	voe_scene_parent_register(world, 16);
 	voe_3d_shape_register(world, 8);
 	// The drawn half runs the shape and the draw systems over one of these,
 	// and every table a system walks has to be registered — including the
@@ -659,6 +663,45 @@ static void the_outline_is_drawn_through_what_hides_it(
 	voe_render_device_destroy(device);
 }
 
+// A cube 5 m along +X under a parent at (0, 0, -10) that has no shape: its
+// quads stand about its world place, (5, 0, -15) from the eye, not its row.
+static void a_child_is_outlined_at_its_world_place(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity parent = { 0 };
+	voe_ecs_entity child = a_shape(world, VOE_3D_SHAPE_CUBE, -10.0f, 0.0f);
+	voe_scene_transform placed = *voe_scene_transform_get(world, child);
+	voe_3d_outline_mesh mesh = { 0 };
+
+	placed.position.x = 5.0;
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ .entity = child,
+						     .transform = placed }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
+	placed.position.x = 0.0;
+	VOE_TEST_CHECK(voe_scene_transform_add(world, parent, placed));
+	voe_scene_transform_system_run(world);
+	VOE_TEST_CHECK(voe_scene_parent_set(world, child, parent));
+	voe_ecs_structure_apply(world);
+	voe_scene_transform_system_run(world);
+	VOE_TEST_CHECK_FLOAT(voe_scene_transform_get(world, child)->position.z,
+			     0.0f, 1e-5f);
+
+	VOE_TEST_CHECK(voe_3d_outline_quads(world, outlining(child, geometries),
+					    the_view((voe_platform_size){
+						    WIDTH, HEIGHT }),
+					    EYE, arena, &mesh));
+	VOE_TEST_CHECK(mesh.vertex_count > 0);
+	for (uint32_t i = 0; i < mesh.vertex_count; i++) {
+		voe_math_float3 p = mesh.vertices[i].position;
+
+		VOE_TEST_CHECK(fabsf(p.x - 5.0f) <= 0.8f);
+		VOE_TEST_CHECK(fabsf(p.y) <= 0.8f);
+		VOE_TEST_CHECK(fabsf(p.z + 15.0f) <= 0.8f);
+	}
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -673,6 +716,7 @@ int main(void)
 	a_capsule_has_many_and_no_more_than_the_cap(arena, &geometries);
 	nothing_to_outline_is_false(arena, &geometries);
 	a_model_outlines_to_quads(arena, &geometries);
+	a_child_is_outlined_at_its_world_place(arena, &geometries);
 	the_outline_is_drawn_through_what_hides_it(arena, &geometries);
 
 	voe_base_arena_destroy(arena);
