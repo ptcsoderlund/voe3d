@@ -13,6 +13,8 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `parent_component.c` — the key, the read, and the walks up and down the tree.
 - `parent_system.c` — registration, and parenting as structural requests plus
   one transform intent; nothing that drains.
+- `prefab_component.c` — the two keys and the two reads.
+- `prefab_system.c` — registration of both tables; nothing that drains.
 - `identity_component.c` — the key and the reads, and nothing that writes.
 - `identity_system.c` — registration, creation, the drain that settles what it
   applies, and the one line a run of corrections writes to stderr.

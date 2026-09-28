@@ -15,6 +15,11 @@ space is.
   walks up to an ancestor and down a tree, each capped at 32 links.
 - `include/scene/parent_system.h` — registering the parent table (no replace, no
   menu path), and the one call that parents or unparents keeping the world place.
+- `include/scene/prefab_component.h` — the prefab file a placed copy's root was
+  placed from, saved, and the runtime-only row naming the copy each part was
+  made for. Its header says what a copy saves and why parts carry identities.
+- `include/scene/prefab_system.h` — registering both tables: no replace, no menu
+  path, the part table runtime-only.
 - `include/scene/transform_system.h` — the intent that moves one, registered as
   the component's replace, the call that creates one, and the opt-in previous
   table a stepping world remembers each step and blends back to by a lag

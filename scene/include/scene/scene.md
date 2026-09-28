@@ -9,6 +9,9 @@ stays on `scene/scene.md`.
   creates one.
 - `parent_component.h` — the entity a thing hangs under, and the walks of the tree.
 - `parent_system.h` — registering the parent table.
+- `prefab_component.h` — the prefab a placed copy is, and the copy a part was
+  made for.
+- `prefab_system.h` — registering the two prefab tables.
 - `camera_component.h` — eye, yaw, pitch, field of view, the two planes, and the
   view matrix.
 - `camera_system.h` — the two camera intents, absolute and relative.
