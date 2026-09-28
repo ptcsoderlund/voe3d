@@ -7,6 +7,8 @@ stays on `scene/scene.md`.
   three of them become.
 - `transform_system.h` — the intent that moves one, and the direct call that
   creates one.
+- `parent_component.h` — the entity a thing hangs under, and the walks of the tree.
+- `parent_system.h` — registering the parent table.
 - `camera_component.h` — eye, yaw, pitch, field of view, the two planes, and the
   view matrix.
 - `camera_system.h` — the two camera intents, absolute and relative.

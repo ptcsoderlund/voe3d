@@ -1,5 +1,6 @@
 // The transform component: its key, the matrix its three numbers become,
-// composing one under a parent and back, and the reads anyone may do.
+// composing one under a parent and back, the world place up the parent chain,
+// and the reads anyone may do.
 //
 // NOTHING IN THIS FILE WRITES. Every write to this table is in
 // transform_system.c, which is the whole of what "read by anyone, written by
@@ -9,6 +10,7 @@
 // conjugate and no rotate-a-vector, and the rotate wanted here is in double for
 // a position, which is this module's need rather than a general one.
 #include <base/assert.h>
+#include <scene/parent_component.h>
 #include <scene/transform_component.h>
 
 #include <math.h>
@@ -129,6 +131,55 @@ const voe_scene_transform *voe_scene_transform_get(const voe_ecs_world *world,
 	return voe_ecs_component_get(
 		world, voe_ecs_component_type(world, &voe_scene_transform_key),
 		entity);
+}
+
+// The parent whose transform the row is relative to, false for a root: no row,
+// or a parent dead or without a transform.
+static bool placed_under(const voe_ecs_world *world, voe_ecs_entity entity,
+			 voe_ecs_entity *out)
+{
+	const voe_scene_parent *row = voe_scene_parent_get(world, entity);
+
+	if (row == NULL || voe_scene_transform_get(world, row->parent) == NULL)
+		return false;
+	*out = row->parent;
+	return true;
+}
+
+voe_scene_transform voe_scene_transform_world(const voe_ecs_world *world,
+					      voe_ecs_entity entity)
+{
+	const voe_scene_transform *row = voe_scene_transform_get(world, entity);
+	voe_scene_transform placed;
+	voe_ecs_entity at = entity;
+
+	VOE_BASE_ASSERT(row != NULL, "the world place of no transform");
+
+	placed = *row;
+	for (uint32_t link = 0; link < VOE_SCENE_PARENT_DEPTH_MAX; link++) {
+		if (!placed_under(world, at, &at))
+			break;
+		placed = voe_scene_transform_compose(
+			*voe_scene_transform_get(world, at), placed);
+	}
+
+	VOE_BASE_DEBUG_ASSERT(isfinite(placed.position.x),
+			      "a world place that is not finite");
+	return placed;
+}
+
+voe_scene_transform voe_scene_transform_local(const voe_ecs_world *world,
+					      voe_ecs_entity entity,
+					      voe_scene_transform placed)
+{
+	voe_ecs_entity parent;
+
+	VOE_BASE_DEBUG_ASSERT(world != NULL, "placing in no world");
+
+	if (!placed_under(world, entity, &parent))
+		return placed;
+	return voe_scene_transform_relative(
+		voe_scene_transform_world(world, parent), placed);
 }
 
 uint32_t voe_scene_transform_count(const voe_ecs_world *world)

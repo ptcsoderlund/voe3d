@@ -7,12 +7,11 @@
 // about a point the caller names, normally the eye, and rotation and scale stay
 // float.
 //
-// THERE IS NO PARENT AND NO HIERARCHY, DELIBERATELY. A transform is a world
-// transform and nothing else, so the matrix below needs no walk and no cache and
-// cannot be stale. A glTF node tree is flattened when it is imported — the
-// importer composes the tree once and writes world transforms — and a `parent`
-// component is a later card with a number attached, not something this shape is
-// waiting for.
+// THE ROW IS RELATIVE TO ITS PARENT (0271), the thing scene/parent_component.h
+// names; a root's row is its world place. The world place is composed up the
+// chain on demand and never stored, so it cannot be stale. Whatever places,
+// draws, picks or collides reads voe_scene_transform_world; the Inspector and
+// the drain read and write the row.
 //
 // THE ROTATION IS UNIT LENGTH AND EVERYTHING THAT READS ONE ASSUMES SO. The
 // matrix below uses the short formula that only holds for a unit quaternion and
@@ -134,6 +133,18 @@ voe_scene_transform voe_scene_transform_compose(voe_scene_transform parent,
 // under a flattened axis can be told apart along it.
 voe_scene_transform voe_scene_transform_relative(voe_scene_transform parent,
 						 voe_scene_transform placed);
+
+// The entity's world place: its row composed under each parent up the chain,
+// which ends as scene/parent_component.h says. The row itself when the world has
+// no parent table or the entity no parent. Asserts the entity has a transform.
+voe_scene_transform voe_scene_transform_world(const voe_ecs_world *world,
+					      voe_ecs_entity entity);
+
+// The row that puts the entity at world `placed` under its current parent;
+// `placed` itself for a root.
+voe_scene_transform voe_scene_transform_local(const voe_ecs_world *world,
+					      voe_ecs_entity entity,
+					      voe_scene_transform placed);
 
 // NULL when the entity has no transform, or is not alive any more. The pointer
 // is into the table and is good until the next add or remove.
