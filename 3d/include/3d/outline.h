@@ -21,8 +21,8 @@
 // because the picture's outline is where the surface turns away from the eye,
 // and that turn happens along an edge and nowhere else. Nothing here looks at a
 // pixel: it is a walk over the edges 3d/shape_geometry.h already welded, in the
-// shape's own space, with the eye carried into it by the inverse of the world
-// matrix.
+// shape's own space, with the eye carried into it by the inverse of its world
+// place's matrix.
 //
 // AN EDGE WHOSE TWO TRIANGLES SHARE A NORMAL IS NOT ONE. Both of them agree
 // about the eye, always, so it never shows: that is a cube's six face diagonals,

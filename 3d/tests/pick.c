@@ -31,6 +31,7 @@
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/component.h>
+#include <ecs/structure.h>
 #include <ecs/world.h>
 #include <math/float2.h>
 #include <math/float4.h>
@@ -40,6 +41,7 @@
 #include <scene/camera_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -105,7 +107,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = 16,
-		.component_types = 8,
+		.component_types = 12,
 		.intent_types = 8,
 		// The shape system queues its removals through it
 		// (3d/shape_system.h).
@@ -115,6 +117,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_transform_register(world, 16);
+	voe_scene_parent_register(world, 16);
 	voe_scene_camera_register(world, 2);
 	voe_scene_light_register(world, 2);
 	voe_3d_mesh_register(world, 16);
@@ -617,6 +620,48 @@ destroy:
 	voe_render_device_destroy(device);
 }
 
+// A cube 5 m along +X under a parent at (0, 0, -10) that has no shape: the ray
+// finds it at its world place, and follows it when the parent moves 3 m up.
+static void a_child_is_hit_at_its_world_place(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity parent = { 0 };
+	voe_ecs_entity child = add_a_cube(world, 5.0f, 0.0f, -10.0f);
+	voe_3d_ray ray = { .origin = { 5.0, 0.0, 0.0 },
+			   .direction = { 0.0f, 0.0f, -1.0f } };
+	float distance = -1.0f;
+	voe_ecs_entity hit;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, parent,
+					       at(0.0f, 0.0f, -10.0f)));
+	VOE_TEST_CHECK(voe_scene_parent_set(world, child, parent));
+	voe_ecs_structure_apply(world);
+	voe_scene_transform_system_run(world);
+	VOE_TEST_CHECK_FLOAT(voe_scene_transform_get(world, child)->position.z,
+			     0.0f, 1e-5f);
+
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, child.index);
+	VOE_TEST_CHECK_INT(hit.generation, child.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 9.5f, 1e-4f);
+
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){
+			       .entity = parent,
+			       .transform = at(0.0f, 3.0f, -10.0f) }));
+	voe_scene_transform_system_run(world);
+	VOE_TEST_CHECK_INT(voe_3d_pick(world, geometries, NULL, ray, NULL)
+				   .generation,
+			   0);
+
+	ray.origin.y = 3.0;
+	hit = voe_3d_pick(world, geometries, NULL, ray, NULL);
+	VOE_TEST_CHECK_INT(hit.index, child.index);
+	VOE_TEST_CHECK_INT(hit.generation, child.generation);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -632,6 +677,7 @@ int main(void)
 	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);
 	a_pixel_the_cube_covers_picks_the_cube(arena, &geometries);
 	a_model_is_hit_at_its_distance_and_missed_beside_it(arena, &geometries);
+	a_child_is_hit_at_its_world_place(arena, &geometries);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

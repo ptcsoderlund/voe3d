@@ -25,14 +25,14 @@
 // with no camera or light store walks none of that kind, nor a light with no
 // transform.
 //
-// HOW A HIT IS MEASURED. The entity's matrix about the ray's origin (ADR-0250:
-// the origin is double, the test float about it) is inverted once and carries
-// the ray into the shape's own space — the origin as a point, the direction as a
-// direction — and the kind's triangles are tested there, which is where they
-// are. The direction is carried over WITHOUT being normalised again, on purpose:
-// the parameter along the ray is then the same number in both spaces, so the
-// distances of two entities scaled differently are comparable and the one handed
-// back is in metres.
+// HOW A HIT IS MEASURED. The matrix of the entity's world place about the ray's
+// origin (ADR-0250: the origin is double, the test float about it) is inverted
+// once and carries the ray into the shape's own space — the origin as a point,
+// the direction as a direction — and the kind's triangles are tested there,
+// which is where they are. The direction is carried over WITHOUT being
+// normalised again, on purpose: the parameter along the ray is then the same
+// number in both spaces, so the distances of two entities scaled differently are
+// comparable and the one handed back is in metres.
 //
 // WHICH ENTITIES ARE SKIPPED. A shaped or model entity with no transform,
 // because it is nowhere and the draw system does not draw it either

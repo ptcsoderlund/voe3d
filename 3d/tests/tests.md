@@ -37,9 +37,10 @@ again, or to find where a claim that has started failing is written down.
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, camera box or sun cube at the right distance and
   nothing where nothing is, that a drawn pixel the cube covers picks it, and a model hit at its
-  distance, missed beside it. The arithmetic half needs no card; the rest skip without one.
+  distance, missed beside it, and a child hit at its world place as its parent moves. The arithmetic half needs no card; the rest skip without one.
 - `outline.c` — the silhouette edge counts of a cube square on and turned, the quads' corners, width
-  and winding, a loaded model outlined to quads and not without a store, and — drawn — that a hidden
+  and winding, a child's quads about its world place, a loaded model outlined to quads and not
+  without a store, and — drawn — that a hidden
   cube's outline shows through. The arithmetic half needs no card; the rest skip without one.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
   building nothing and not hit, and a ray meeting the box square on, turned and not at all. Needs

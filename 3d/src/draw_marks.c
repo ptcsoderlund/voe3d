@@ -1,7 +1,7 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum, a
 // sun's circle and arrow, one entity's silhouette, a collider's lines and the
 // gizmo's two meshes, arrows or rings, each as this frame's transient geometry
-// and one or two draws. See draw_marks.h.
+// and one or two draws, at the entity's world place. See draw_marks.h.
 //
 // All five are in metres about the frame's eye already (ADR-0250), so every
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
@@ -43,7 +43,7 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 {
 	voe_3d_camera_marked marker = frame.marker;
 	const voe_scene_camera *lens;
-	const voe_scene_transform *pose;
+	voe_scene_transform pose;
 	voe_3d_outline_mesh mesh;
 	voe_render_geometry quads;
 	voe_base_error error = VOE_BASE_OK;
@@ -54,10 +54,10 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 	if (!voe_ecs_entity_alive(world, marker.entity))
 		return;
 	lens = voe_scene_camera_get(world, marker.entity);
-	pose = voe_scene_transform_get(world, marker.entity);
-	if (lens == NULL || pose == NULL)
+	if (lens == NULL || voe_scene_transform_get(world, marker.entity) == NULL)
 		return;
-	if (voe_3d_camera_marker_quads(*pose, *lens, frame.view, frame.eye,
+	pose = voe_scene_transform_world(world, marker.entity);
+	if (voe_3d_camera_marker_quads(pose, *lens, frame.view, frame.eye,
 				       marker.size,
 				       marker.pixels, arena, &mesh) &&
 	    voe_render_geometry_create_transient(device, mesh.vertices,
@@ -77,7 +77,7 @@ void voe_3d_draw_marks_sun(const voe_ecs_world *world,
 			   voe_3d_frame frame)
 {
 	voe_3d_sun_marked sun = frame.sun;
-	const voe_scene_transform *pose;
+	voe_scene_transform pose;
 	voe_3d_outline_mesh mesh;
 	voe_render_geometry quads;
 	voe_base_error error = VOE_BASE_OK;
@@ -88,10 +88,10 @@ void voe_3d_draw_marks_sun(const voe_ecs_world *world,
 	if (!voe_ecs_entity_alive(world, sun.entity) ||
 	    voe_scene_light_get(world, sun.entity) == NULL)
 		return;
-	pose = voe_scene_transform_get(world, sun.entity);
-	if (pose == NULL)
+	if (voe_scene_transform_get(world, sun.entity) == NULL)
 		return;
-	if (voe_3d_sun_marker_quads(*pose, frame.view, frame.eye, sun.size,
+	pose = voe_scene_transform_world(world, sun.entity);
+	if (voe_3d_sun_marker_quads(pose, frame.view, frame.eye, sun.size,
 				    sun.pixels, arena, &mesh) &&
 	    voe_render_geometry_create_transient(device, mesh.vertices,
 						 mesh.vertex_count, mesh.indices,
@@ -212,7 +212,7 @@ void voe_3d_draw_marks_gizmo(const voe_ecs_world *world,
 			     voe_render_device *device, voe_base_arena *arena,
 			     voe_3d_frame frame)
 {
-	const voe_scene_transform *transform;
+	voe_scene_transform transform;
 	voe_3d_gizmo gizmo;
 	voe_3d_gizmo_mesh plain;
 	voe_3d_gizmo_mesh marked;
@@ -222,15 +222,15 @@ void voe_3d_draw_marks_gizmo(const voe_ecs_world *world,
 
 	if (!voe_ecs_entity_alive(world, frame.gizmo.entity))
 		return;
-	transform = voe_scene_transform_get(world, frame.gizmo.entity);
 	// An entity with nowhere to be has nowhere to stand a gizmo, which is
 	// skipped rather than guessed at — the same rule a mesh with no
-	// transform is drawn by.
-	if (transform == NULL)
+	// transform is drawn by. It stands at the world place (0281).
+	if (voe_scene_transform_get(world, frame.gizmo.entity) == NULL)
 		return;
+	transform = voe_scene_transform_world(world, frame.gizmo.entity);
 
 	voe_render_frame_clear_depth(device);
-	gizmo = voe_3d_gizmo_at(transform->position, frame.view, frame.eye,
+	gizmo = voe_3d_gizmo_at(transform.position, frame.view, frame.eye,
 				frame.gizmo.size, frame.gizmo.pixels);
 	// Arrows or rings (0274): the same gizmo, the same two draws.
 	if (frame.gizmo.rings ?

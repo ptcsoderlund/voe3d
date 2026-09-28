@@ -99,7 +99,6 @@ bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
 			  voe_render_view view, voe_math_double3 eye,
 			  voe_base_arena *arena, voe_3d_outline_mesh *out)
 {
-	const voe_scene_transform *transform;
 	const voe_3d_shape_geometry *geometry;
 	struct voe_base_arena_mark mark;
 	voe_math_float4x4 matrix;
@@ -112,15 +111,16 @@ bool voe_3d_outline_quads(const voe_ecs_world *world, voe_3d_outlined outlined,
 	VOE_BASE_ASSERT(arena != NULL, "outlining with no arena");
 	VOE_BASE_ASSERT(out != NULL, "outlining into nothing");
 
-	transform = voe_scene_transform_get(world, outlined.entity);
-	if (transform == NULL)
+	if (voe_scene_transform_get(world, outlined.entity) == NULL)
 		return false;
 	geometry = outlined_geometry(world, outlined);
 	if (geometry == NULL)
 		return false;
 
-	// About the eye, as `view` is (ADR-0250): the quads are eye-relative.
-	matrix = voe_scene_transform_matrix(*transform, eye);
+	// About the eye, as `view` is (ADR-0250): the quads are eye-relative,
+	// and stand about the entity's world place (0281).
+	matrix = voe_scene_transform_matrix(
+		voe_scene_transform_world(world, outlined.entity), eye);
 	// Scaled away to nothing: drawn as nothing, so there is no outline of
 	// it, and its matrix cannot be inverted (math/float4x4.h asserts on a
 	// singular one) — 3d/pick.c skips such an entity for the same reason.
