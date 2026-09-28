@@ -140,10 +140,9 @@ void voe_editor_views_focus_camera(voe_editor_views *views,
 
 	voe_math_double3 focus = { 0 };
 	if (voe_scene_camera_count(world) > 0) {
-		const voe_scene_transform *transform = voe_scene_transform_get(
-			world, voe_scene_camera_entities(world)[0]);
-		if (transform != NULL)
-			focus = transform->position;
+		voe_ecs_entity camera = voe_scene_camera_entities(world)[0];
+		if (voe_scene_transform_get(world, camera) != NULL)
+			focus = voe_scene_transform_world(world, camera).position;
 	}
 
 	for (uint32_t i = 0; i < views->count; i++) {

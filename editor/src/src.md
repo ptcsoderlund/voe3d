@@ -202,7 +202,8 @@ carries it out.
   handle under the pointer, a press that grabs one, and the drag that submits its new position or
   rotation.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
-  own camera, measured from the press and submitted as a whole transform.
+  own camera, measured from the press in world space and submitted as a whole transform, a child's
+  written back relative to its parent.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
   settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
   a neighbouring one back into the project's world (ADR-0204).

@@ -32,10 +32,12 @@
 // nothing here.
 //
 // A WHOLE TRANSFORM IS SUBMITTED, NOT A DELTA, AND IT LANDS A FRAME LATER. The
-// row is read as it is, its position or rotation replaced, and the result
-// submitted to the transform system, which is the one writer of that table
-// (rule 3, rule 4, scene/transform_system.h). The rest goes back as it was read,
-// and two submitters in one frame resolve as last-writer-wins.
+// drag is in world space: the entity's world transform, composed up its parents,
+// has its position or rotation replaced, and is then made the row relative to
+// the parent (ADR-0271) and submitted to the transform system, the one writer of
+// that table (rule 3, rule 4, scene/transform_system.h). Children keep their
+// rows, so a turned turret carries its barrel. Two submitters in one frame
+// resolve as last-writer-wins.
 //
 // A ZEROED STRUCT HOLDS NOTHING. VOE_3D_GIZMO_NONE is nought, so a zeroed
 // gizmo has no handle held and none hovered, and `captured` is read only while
@@ -67,10 +69,10 @@ typedef struct {
 	uint32_t captured; // the view the drag started in; read only while held
 	uint32_t hovered_view;
 	voe_math_double3 grab; // where on the handle the press landed
-	voe_math_double3 start; // the entity's position then
+	voe_math_double3 start; // the entity's world position then
 	bool turning; // the held handle is a ring; read only while held
 	float grab_angle; // where about the ring's axis the press landed
-	voe_math_quat kept; // the entity's rotation then
+	voe_math_quat kept; // the entity's world rotation then
 	uint32_t moved; // moves and turns submitted this frame; zeroed every read
 } voe_editor_gizmo;
 
