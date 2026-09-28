@@ -54,6 +54,7 @@
 #include "dock.h"
 
 #include "inspector.h"
+#include "scene_list.h"
 
 #include <base/assert.h>
 
@@ -617,55 +618,6 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	voe_ui_end(ui);
 }
 
-// THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE. It walks
-// voe_scene_identity_rows and _entities rather than a list the editor keeps, so
-// an entity the engine made for itself — no identity, hence not authored
-// (ADR-0125) — cannot appear in it, and neither can an authored one go missing.
-// There is nothing here to keep in step with the world.
-//
-// EVERY ROW IS KEYED BY ONE NAME AND THE ROW INDEX, which is what `index` on a
-// widget is for (ui/widgets.h): one name for every button in the loop would make
-// the whole list one button sharing one highlight. The row's label points into
-// the table, which outlives the frame — a name is 64 bytes in the component and
-// never a pointer.
-//
-// THE ADD ENTITY BUTTON IS ABOVE THE LIST, recorded on the scene to be asked
-// after the frame, as the rows are; what it makes is entities.h's (ADR-0217).
-static void scene_panel(voe_ui_context *ui, voe_editor_scene *scene)
-{
-	const voe_scene_identity *rows;
-	const voe_ecs_entity *entities;
-	voe_ui_node add;
-	uint32_t count;
-
-	voe_ui_label(ui, "Scene");
-
-	add = voe_ui_button_begin(ui, "add", 0);
-	voe_ui_label(ui, "Add entity");
-	voe_ui_end(ui);
-	voe_editor_scene_add_record(scene, add);
-
-	count = voe_scene_identity_count(scene->world);
-	rows = voe_scene_identity_rows(scene->world);
-	entities = voe_scene_identity_entities(scene->world);
-
-	for (uint32_t i = 0; i < count; i++) {
-		// A selection is drawn inverted, as anything held or pressed
-		// is (ADR-0194), so the row is a choice and its label plain.
-		voe_ui_node row = voe_ui_choice_begin(
-			ui, "entity", i,
-			voe_editor_scene_is_selected(scene, entities[i]));
-
-		voe_ui_label(ui, rows[i].name);
-		voe_ui_end(ui);
-
-		// The click is answered after voe_ui_frame_end and this
-		// function has to have returned by then, so the node is handed
-		// to the scene to be asked later. See scene.h.
-		voe_editor_scene_row_add(scene, row, entities[i]);
-	}
-}
-
 // WHAT IS ON THE INSPECTOR IS ONE CALL AND NOT A SECOND SCENE PANEL. It is
 // handed the world, the selection and the types it keeps and nothing else,
 // because what it lists is the world's own component types and not anything this
@@ -746,7 +698,7 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 
 	switch (panel) {
 	case VOE_EDITOR_PANEL_SCENE:
-		scene_panel(ui, scene);
+		voe_editor_scene_list_draw(ui, scene);
 		return;
 	case VOE_EDITOR_PANEL_INSPECTOR:
 		inspector_panel(ui, scene);
