@@ -33,3 +33,6 @@ only if the sponsor asks.
 done)` exits 0; `bash ~/.claude/skills/checks/scripts/checks.sh --all` prints `FINDINGS: 0`;
 `d=$(mktemp -d) && build/debug/editor/voe_editor examples/tank_game --capture "$d/t.png" && test
 -s "$d/t.png"` exits 0. The six steps above are the human's.
+
+## Blocked
+The change is in and passes the syntax check, `checks.sh --folder examples` (FINDINGS: 0) and the editor capture, but `checks.sh --all` prints FINDINGS: 5: `.md` entries over the 300-character cap in `3d/tests/tests.md` (`pick.c`, `outline.c`), `editor/src/src.md` (`interface.c`, `scene.h`) and `scene/tests/tests.md` (`transform.c`), left by cards 03, 04 and 11. Those folders are outside this card's; a card per folder that shortens those entries unblocks it.
