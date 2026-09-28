@@ -6,7 +6,8 @@
 // meets nothing, the frontmost of two in either order, a camera's box or a
 // sun's cube beating or losing to a cube, a ray through the frustum and not
 // the box picking nothing, and the entities that are skipped are all checkable
-// on a build box with no Vulkan. A model's case needs one to load the model.
+// on a build box with no Vulkan, and so is a child hit at its world place as
+// its parent moves. A model's case needs one to load the model.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
 // MOST. The arithmetic half cannot catch a flipped Y: it works the pixel out the

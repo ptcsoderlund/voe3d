@@ -4,7 +4,8 @@
 //
 // THE FIRST HALF NEEDS NO GRAPHICS CARD. The silhouette is a walk over edges the
 // CPU holds and two matrices built from a camera, and the answer is arrays in an
-// arena, so every claim there is checkable on a build box with no Vulkan.
+// arena, so every claim there is checkable on a build box with no Vulkan,
+// among them a child's quads laid about its world place and not its local one.
 //
 // AND THE SECOND HALF IS THE ONE CLAIM ONLY A DRAWN FRAME CAN MAKE: that the
 // outline shows through whatever stands in front of the entity. Two cubes down
