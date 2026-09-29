@@ -24,8 +24,10 @@
 // the segment than its reach plus the radius is passed over before the exact
 // test. Every obstacle is looked at; a grid would lift that ceiling.
 //
-// BOXES ARE GATHERED BUT NOT YET HIT: the sweep passes over them until the box
-// test arrives (041 card 02).
+// EVERY KIND IS EXACT: a sphere and a capsule as the ray against the shape of
+// the summed radius, a box as the ray against the box rounded by `radius`, its
+// edges and corners round, never a sharp grown box. Nothing moves in steps,
+// so nothing thin is tunnelled.
 #pragma once
 
 #include <ecs/world.h>
