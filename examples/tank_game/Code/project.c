@@ -8,8 +8,8 @@
 // pointer or the right stick, then the gun, which fires while the row's fire
 // is held, then the shells, which fly, hit and run out, then the lives,
 // which count this step's hits on the player before the hit shells go, then
-// the spawner, which makes enemies on a timer, then the enemies, which drive
-// and run out, then the camera, which fits its lens to the window's shape
+// the spawner, which makes enemies on a timer, then the enemies, which drive,
+// fire at the lives' hull and run out, then the camera, which fits its lens to the window's shape
 // (0291). The gun is after the turret so it fires along this step's aim. The
 // breakable has no system: the shells swap a hit one for its wreck.
 // systems_after_move has nothing yet. interface runs once a frame, after

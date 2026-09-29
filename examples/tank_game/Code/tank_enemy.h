@@ -1,14 +1,27 @@
-// Tank enemy: a spawned enemy tank. It drives along its own -Z and is
-// removed, its turret with it, when its life runs out.
+// Tank enemy: a spawned enemy tank. It drives along its own -Z, fires at the
+// player within range, and is removed, its turret with it, when its life runs
+// out.
 //
 //     tank_enemy_register(world);          // in voe_game_project_register
 //     tank_enemy_system_run(step);         // after the spawner, before the move
 //
 // `speed` is metres a second, default 2; `life` is seconds left, default 20,
-// counted down by the system. An enemy needs a transform to drive and is a
-// root, as a spawned prefab's root is.
+// counted down by the system. An enemy needs a transform to drive and fire
+// and is a root, as a spawned prefab's root is.
 //
-// Constraints: at most TANK_ENEMY_ROWS rows.
+// IT FIRES AT THE PLAYER (0294 point 5): the entity of the tank_lives row
+// (tank_lives.h), the player's hull; with no row nothing fires. `prefab` is
+// the cooked prefab fired, default `shell`; `rate` is shots a second, default
+// 0.5, and at or below 0 never fires; `range` is metres, default 30. `wait` is
+// the seconds to the next shot, written only by the system.
+//
+// THE AIM IS ALONG THE LEVEL: the way to the player flattened onto the ground,
+// so a shot flies level whatever the heights. The fire frame is the turn
+// about +Y whose -Z points that way; `muzzle`, default (0, 0.5, -3), is in
+// that frame, added to the enemy's position. The turret does not turn yet: the
+// shot leaves toward the player whichever way the tank faces.
+//
+// Constraints: at most TANK_ENEMY_ROWS rows; `prefab` at most 63 bytes.
 #pragma once
 
 #include <base/describe.h>
@@ -17,13 +30,21 @@
 
 #include <game/project.h>
 
+#include <math/float3.h>
+
 #include <stdbool.h>
 
 #define TANK_ENEMY_ROWS 64
+#define TANK_ENEMY_PREFAB 64
 
-#define TANK_ENEMY_FIELDS(F, F_READ_ONLY) \
-	F(float, speed, FLOAT32)          \
-	F(float, life, FLOAT32)
+#define TANK_ENEMY_FIELDS(F, F_READ_ONLY)          \
+	F(float, speed, FLOAT32)                   \
+	F(float, life, FLOAT32)                    \
+	F(char, prefab, CHAR, TANK_ENEMY_PREFAB)   \
+	F(float, rate, FLOAT32)                    \
+	F(float, range, FLOAT32)                   \
+	F(voe_math_float3, muzzle, FLOAT3)         \
+	F_READ_ONLY(float, wait, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(tank_enemy, TANK_ENEMY_FIELDS)
 
@@ -34,5 +55,6 @@ extern const struct voe_ecs_key tank_enemy_key;
 [[nodiscard]] bool tank_enemy_register(voe_ecs_world *world);
 
 // Drives every enemy along its own -Z for this step's seconds, counts its
-// life down, and removes it and its tree when that reaches zero.
+// life and wait down, fires each ready one at the player within range, and
+// removes it and its tree when its life reaches zero.
 void tank_enemy_system_run(const voe_game_project_step *step);
