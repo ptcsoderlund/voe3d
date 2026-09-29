@@ -18,8 +18,10 @@
 // holding a pointer to nothing until it next thought to ask.
 //
 // Input is src/seat_win32.c: window_proc takes each keyboard and mouse message
-// and hands it to a voe_platform_seat_ function there. The struct both files
-// write is src/window_win32.h.
+// and hands it to a voe_platform_seat_ function there. Pads are
+// src/gamepad_win32.c, opened with the window, routed their device changes,
+// polled after the messages and closed after the window is gone. The struct
+// these files write is src/window_win32.h.
 #include "window_win32.h"
 
 #include <base/assert.h>
@@ -91,6 +93,9 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 		// Handed on as well: the documentation asks for it, and the
 		// system does cleanup for the message there.
 		return DefWindowProcW(hwnd, message, wparam, lparam);
+	case WM_INPUT_DEVICE_CHANGE:
+		voe_platform_gamepads_device_change(window, wparam, lparam);
+		return 0;
 	case WM_MOUSEMOVE:
 		voe_platform_seat_pointer_at(window, lparam);
 		return 0;
@@ -293,6 +298,7 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	};
 
 	RegisterRawInputDevices(&mouse, 1, sizeof(mouse));
+	voe_platform_gamepads_open(window);
 
 	ShowWindow(window->hwnd, SW_SHOW);
 
@@ -323,6 +329,8 @@ void voe_platform_window_destroy(voe_platform_window *window)
 
 	if (window->hwnd != NULL)
 		DestroyWindow(window->hwnd);
+	// After the window, so no pad message arrives to a closed table.
+	voe_platform_gamepads_close(window);
 	free(window);
 }
 
@@ -340,6 +348,7 @@ void voe_platform_window_poll(voe_platform_window *window)
 		TranslateMessage(&message);
 		DispatchMessageW(&message);
 	}
+	voe_platform_gamepads_poll(window);
 
 	window->visible = !IsIconic(window->hwnd);
 }

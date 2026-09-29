@@ -1,8 +1,8 @@
-// The keyboard and the mouse. Both belong to a window, both are drained by
-// voe_platform_window_poll, and both are read as state rather than received as
-// events. Typed text is the one exception with any order in it — see
-// voe_platform_input_text below — and it is drained the same way the wheel is,
-// not handed out as a queue of events. No gamepad, no clipboard.
+// The keyboard, the mouse and up to four gamepads. All belong to a window, all
+// are folded in by voe_platform_window_poll, and all are read as state rather
+// than received as events. Typed text is the one exception with any order in
+// it — see voe_platform_input_text below — and it is drained the same way the
+// wheel is, not handed out as a queue of events. No clipboard.
 //
 //     while (!voe_platform_window_should_close(window)) {
 //             voe_platform_window_poll(window);
@@ -312,3 +312,58 @@ typedef enum {
 // compositor without cursor-shape-v1 nothing changes and nothing fails.
 void voe_platform_input_cursor(voe_platform_window *window,
 			       voe_platform_cursor cursor);
+
+// A GAMEPAD IS POLLED STATE ON THE WINDOW, THE SAME AS THE KEYBOARD (ADR-0292).
+// There are four slots. A pad plugged in takes the lowest free one and an id one
+// higher than any pad before it in this run, so a game tells a new pad from an
+// old one that used the same slot; a pad pulled out reads connected false and
+// all at rest, and its slot is free again. A fifth pad is ignored. Pads found
+// at window open work from the first frame.
+#define VOE_PLATFORM_GAMEPAD_SLOTS 4
+
+// A BUTTON IS A PLACE ON THE PAD, NOT A LABEL, for the reason a key is a place:
+// south is the bottom face button whether it says A or a cross.
+// VOE_PLATFORM_GAMEPAD_BUTTON_COUNT is the count and never a button.
+typedef enum {
+	VOE_PLATFORM_GAMEPAD_BUTTON_SOUTH,
+	VOE_PLATFORM_GAMEPAD_BUTTON_EAST,
+	VOE_PLATFORM_GAMEPAD_BUTTON_WEST,
+	VOE_PLATFORM_GAMEPAD_BUTTON_NORTH,
+	VOE_PLATFORM_GAMEPAD_BUTTON_LEFT_SHOULDER,
+	VOE_PLATFORM_GAMEPAD_BUTTON_RIGHT_SHOULDER,
+	VOE_PLATFORM_GAMEPAD_BUTTON_BACK,
+	VOE_PLATFORM_GAMEPAD_BUTTON_START,
+	VOE_PLATFORM_GAMEPAD_BUTTON_LEFT_STICK,
+	VOE_PLATFORM_GAMEPAD_BUTTON_RIGHT_STICK,
+	VOE_PLATFORM_GAMEPAD_BUTTON_PAD_UP,
+	VOE_PLATFORM_GAMEPAD_BUTTON_PAD_DOWN,
+	VOE_PLATFORM_GAMEPAD_BUTTON_PAD_LEFT,
+	VOE_PLATFORM_GAMEPAD_BUTTON_PAD_RIGHT,
+	VOE_PLATFORM_GAMEPAD_BUTTON_COUNT
+} voe_platform_gamepad_button;
+
+// THE STICKS ARE −1..1 WITH RIGHT AND UP POSITIVE, as +Y is up in this engine;
+// the triggers are 0..1, 0 at rest. Buttons are level, as keys are. id is 0 and
+// everything is at rest while connected is false.
+//
+// NO DEAD ZONE AND NO FOCUS GATE. The values are the device's, only normalised:
+// a stick at rest may read a little off 0, and how much to ignore is policy
+// that differs per game, so it is the game's (ADR-0239). Pads are read whether
+// or not the window has focus, on both platforms alike, so a pad does not go
+// dead because a person clicked another window on a second screen.
+typedef struct {
+	bool connected;
+	uint32_t id;
+	float left_x;
+	float left_y;
+	float right_x;
+	float right_y;
+	float left_trigger;
+	float right_trigger;
+	bool buttons[VOE_PLATFORM_GAMEPAD_BUTTON_COUNT];
+} voe_platform_gamepad;
+
+// A copy of the pad in slot, 0 to VOE_PLATFORM_GAMEPAD_SLOTS - 1, as the last
+// poll left it. Asking for a slot outside that range asserts.
+voe_platform_gamepad voe_platform_input_gamepad(voe_platform_window *window,
+						int slot);

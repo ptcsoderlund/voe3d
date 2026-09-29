@@ -457,6 +457,9 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	window->viewport_stale = true;
 	viewport_update(window);
 
+	// Last, so a window that failed to open has no pad fds to close.
+	voe_platform_gamepads_open(window);
+
 	return window;
 }
 
@@ -464,6 +467,7 @@ void voe_platform_window_destroy(voe_platform_window *window)
 {
 	VOE_BASE_DEBUG_ASSERT(window != NULL, "destroying a NULL window");
 
+	voe_platform_gamepads_close(window);
 	close_down(window);
 }
 
@@ -505,6 +509,7 @@ void voe_platform_window_poll(voe_platform_window *window)
 	voe_platform_input_begin_poll(&window->input);
 
 	pump(window);
+	voe_platform_gamepads_poll(window);
 
 	// A connection that has died cannot be reported: _poll returns nothing,
 	// and the NULL from _new only covers a window that never opened. Rather

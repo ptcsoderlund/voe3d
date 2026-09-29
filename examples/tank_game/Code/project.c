@@ -2,9 +2,11 @@
 // component the game has; each fixed step has two slots, before the bodies'
 // move and after it (0256).
 //
-// systems_run is before the move: the hull, which drives on WASD, then the
-// turret, which aims at the mouse pointer, then the gun, which fires while
-// fire is held, then the shells, which fly and run out, then the spawner,
+// systems_run is before the move: the control first, which reads the pad
+// beside the keyboard and mouse into one row, the last touched winning; then
+// the hull, which drives on the row, then the turret, which aims at the
+// pointer or the right stick, then the gun, which fires while the row's fire
+// is held, then the shells, which fly and run out, then the spawner,
 // which makes enemies on a timer, then the enemies, which drive and run out,
 // then the camera, which fits its lens to the window's shape (0291).
 // The gun is after the turret so it fires along this step's aim.
@@ -16,9 +18,10 @@
 // types, both slots each fixed step and interface each frame; the editor
 // loads this code as a library and calls only register (0242).
 //
-// Constraints: before the move, the hull, turret, gun, shell, spawner, enemy,
+// Constraints: before the move, the control, hull, turret, gun, shell, spawner, enemy,
 // then camera; after it, nothing. The order is the data flow.
 #include "tank_camera.h"
+#include "tank_control.h"
 #include "tank_enemy.h"
 #include "tank_gun.h"
 #include "tank_hull.h"
@@ -36,6 +39,7 @@ void voe_game_project_register(voe_ecs_world *world)
 	// A refusal is game's line on stderr; the system that needs the refused
 	// type asserts on its first run.
 	(void)tank_hull_register(world);
+	(void)tank_control_register(world);
 	(void)tank_turret_register(world);
 	(void)tank_gun_register(world);
 	(void)tank_shell_register(world);
@@ -48,7 +52,8 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
-	tank_hull_system_run(step->world, step->window, step->seconds);
+	tank_control_run(step);
+	tank_hull_system_run(step->world, step->seconds);
 	tank_turret_system_run(step->world, step->window, step->seconds);
 	tank_gun_system_run(step);
 	tank_shell_system_run(step);

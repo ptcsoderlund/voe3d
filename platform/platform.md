@@ -13,9 +13,9 @@ program's own arguments, and the sound device.
   fail; `_poll` folds events into state; `_close_refuse` takes back a close;
   `_focused` and `_visible` say whether the person is in it and can see it, and
   `_wait` blocks for at most the timeout it is given.
-- `include/platform/input.h` — the keyboard and the mouse: keys, motion, the wheel in
-  notches, typed UTF-8 text, the pointer's position, buttons and shape, and the lock, which hides the pointer.
-  Its header says why it is polled state and a key is a place.
+- `include/platform/input.h` — the keyboard, the mouse and four gamepad slots: keys, motion, the
+  wheel in notches, typed UTF-8 text, the pointer's position, buttons, shape and lock, and each
+  pad's sticks, triggers and buttons. Its header says why it is polled state and a key is a place.
 - `include/platform/clock.h` — how long something took. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   the wait is on the window.

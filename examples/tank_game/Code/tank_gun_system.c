@@ -13,11 +13,13 @@
 // `wait` row is the only thing written here, whole, through
 // voe_ecs_component_set.
 //
-// Constraints: the left mouse button or Space, level not edge; at most one
-// shot a gun a step, so a rate above the step rate fires at the step rate.
-// Nothing with no window (headless). A gun with no transform, a rate at or
+// Constraints: the control row's `fire` (tank_control.h), level not edge; at
+// most one shot a gun a step, so a rate above the step rate fires at the step
+// rate. Nothing with no control row (headless, or before its first step). A
+// gun with no transform, a rate at or
 // below zero or a prefab name with no NUL does not fire. A refused spawn
 // leaves `wait` as it was, so the gun tries again next step.
+#include "tank_control.h"
 #include "tank_gun.h"
 #include "tank_turret.h"
 
@@ -29,8 +31,6 @@
 
 #include <math/double3.h>
 #include <math/quat.h>
-
-#include <platform/input.h>
 
 #include <scene/transform_component.h>
 
@@ -107,12 +107,14 @@ void tank_gun_system_run(const voe_game_project_step *step)
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"firing guns in no world");
 	VOE_BASE_ASSERT(step->seconds >= 0.0, "firing guns back in time");
-	if (step->window == NULL)
+	const voe_ecs_type control_type =
+		voe_ecs_component_type(step->world, &tank_control_key);
+
+	if (voe_ecs_component_count(step->world, control_type) == 0)
 		return;
-	const bool held =
-		voe_platform_input_button_down(step->window,
-					       VOE_PLATFORM_BUTTON_LEFT) ||
-		voe_platform_input_key_down(step->window, VOE_PLATFORM_KEY_SPACE);
+	const tank_control *control =
+		voe_ecs_component_rows(step->world, control_type);
+	const bool held = control->fire;
 	const voe_ecs_type type =
 		voe_ecs_component_type(step->world, &tank_gun_key);
 	const tank_gun *rows = voe_ecs_component_rows(step->world, type);

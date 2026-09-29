@@ -61,13 +61,24 @@ header.
   level of the format's fixed nesting, none of them calling itself. Its header
   says why a brace counter stands in for recursion here, and why a key body is
   read by its statements rather than by its first `[`.
+- `gamepad.h` — the four pad slots, attaching and detaching a pad, and evdev, XInput and HID input
+  mapped onto a pad, OS-free.
+- `gamepad.c` — its implementation, in double so no range overflows; evdev codes, XInput bits and
+  HID usages as numbers.
+- `gamepad_wayland.c` — the Linux window's pads: `/dev/input/event*` found by scan and inotify,
+  read through evdev into `gamepad.h`. Its header says why evdev, why attribute changes are
+  watched, and why nothing in it is Wayland.
+- `gamepad_win32.c` — the Windows window's pads: XInput polled and HID raw input read, both DLLs
+  loaded at run time, into `gamepad.h`. Written, not verified. Its header says why an unconnected
+  XInput user waits a second and why a HID value is sign-extended.
 - `input.h` — the input state both backends fill and neither reads, the two functions each of them
   defines over its own window, the three clears both of them call, and the one shared function that
   turns a code point into UTF-8.
 - `input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
-- `window_wayland.h` — the Linux window's struct, shared by the two files below and seen by
-  nothing outside this folder, and the two functions that cross between them.
+- `window_wayland.h` — the Linux window's struct and its pad device table, shared by the two
+  files below and `gamepad_wayland.c` and seen by nothing outside this folder, and the functions
+  that cross between them.
 - `window_wayland.c` — the Linux window: registry, shell, decoration, fractional scale, cursor
   shape manager, open, close and poll; there is no X11 backend, and nothing in it draws.
 - `seat_wayland.c` — the Linux window's seat: keyboard, pointer, its shape by name, relative
@@ -76,8 +87,8 @@ header.
   length rounded half away from zero and a position not rounded. OS-free like
   `input.h`, so it is built on both platforms and tested without a compositor.
 - `scale.c` — its implementation, in 64-bit integers for the length.
-- `window_win32.h` — the Windows window's struct, shared by the two files below and seen by
-  nothing outside this folder, and the seat functions the window procedure calls.
+- `window_win32.h` — the Windows window's struct and its pad tables, shared by the two files below
+  and `gamepad_win32.c` and seen by nothing outside this folder, and the functions that cross.
 - `window_win32.c` — the Windows window: its class, the window procedure, open, close, poll, wait
   and the queries.
 - `seat_win32.c` — the Windows window's seat: the keyboard and its `WM_CHAR` text, the mouse as a

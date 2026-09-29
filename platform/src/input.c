@@ -137,6 +137,19 @@ void voe_platform_input_cursor(voe_platform_window *window,
 	voe_platform_window_cursor(window, cursor);
 }
 
+voe_platform_gamepad voe_platform_input_gamepad(voe_platform_window *window,
+						int slot)
+{
+	struct voe_platform_input *input;
+
+	VOE_BASE_DEBUG_ASSERT(window != NULL, "asking a NULL window for a gamepad");
+	VOE_BASE_DEBUG_ASSERT(slot >= 0 && slot < VOE_PLATFORM_GAMEPAD_SLOTS,
+			      "asking for a gamepad slot out of range");
+
+	input = voe_platform_window_input(window);
+	return input->gamepads.slots[slot];
+}
+
 void voe_platform_input_begin_poll(struct voe_platform_input *input)
 {
 	VOE_BASE_DEBUG_ASSERT(input != NULL, "beginning a poll on nothing");

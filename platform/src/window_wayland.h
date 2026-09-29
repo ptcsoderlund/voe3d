@@ -4,18 +4,39 @@
 //
 // The split: src/window_wayland.c owns the registry, the shell, decoration,
 // fractional scale, open, close and poll; src/seat_wayland.c owns the seat and
-// everything that arrives on it. Each writes only its own fields below, and
-// what crosses between them is the two declarations at the bottom.
+// everything that arrives on it; src/gamepad_wayland.c owns the pad devices.
+// Each writes only its own fields below, and what crosses between them is the
+// declarations at the bottom.
 #pragma once
 
 #include <platform/window.h>
 
+#include "gamepad.h"
 #include "input.h"
 #include "keymap.h"
 
 #include <wayland-client.h>
 
 #include <stdint.h>
+#include <sys/types.h>
+
+// One open evdev pad: its fd, its node's dev_t so it is not opened twice, the
+// slot it holds, its ranges, and whether a SYN_DROPPED awaits its SYN_REPORT.
+struct voe_platform_gamepad_device {
+	int fd;
+	dev_t node;
+	int slot;
+	struct voe_platform_gamepad_evdev evdev;
+	bool dropped;
+};
+
+// Every open pad, one per slot at most, and the inotify on /dev/input (-1
+// when there is none). Written only by src/gamepad_wayland.c.
+struct voe_platform_gamepad_devices {
+	struct voe_platform_gamepad_device open[VOE_PLATFORM_GAMEPAD_SLOTS];
+	int count;
+	int inotify;
+};
 
 struct voe_platform_window {
 	struct wl_display *display;
@@ -128,6 +149,8 @@ struct voe_platform_window {
 	bool altgr_held;
 
 	struct voe_platform_input input;
+
+	struct voe_platform_gamepad_devices gamepad_devices;
 };
 
 // The seat's listener, attached by _new to the seat the registry bound.
@@ -136,3 +159,13 @@ extern const struct wl_seat_listener voe_platform_seat_listener;
 // Lets go of the pointer, its lock, the keyboard and the seat; close_down's
 // first step.
 void voe_platform_seat_release(voe_platform_window *window);
+
+// Watches /dev/input and takes every pad already there; once, when the window
+// is otherwise open. A failing watch is only no pads arriving later.
+void voe_platform_gamepads_open(voe_platform_window *window);
+
+// Takes pads that arrived, reads every open one, and lets go of those gone.
+void voe_platform_gamepads_poll(voe_platform_window *window);
+
+// Closes every pad's fd and the watch; _open must have run.
+void voe_platform_gamepads_close(voe_platform_window *window);

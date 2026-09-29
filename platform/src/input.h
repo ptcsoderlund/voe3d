@@ -18,6 +18,8 @@
 // where a reader can see all of them.
 #pragma once
 
+#include "gamepad.h"
+
 #include <platform/input.h>
 
 // What the OS has told us, folded flat. Nothing in here is a queue.
@@ -71,6 +73,11 @@ struct voe_platform_input {
 	// The pointer's shape last asked for. Plain state: no poll, focus loss
 	// or pointer loss clears it, and a backend reapplies it on enter.
 	voe_platform_cursor cursor;
+
+	// The four pad slots, written by a backend through src/gamepad.h. Plain
+	// state: no poll, focus loss or pointer loss clears it (ADR-0292 point
+	// 3); only a pad pulled out empties its slot.
+	struct voe_platform_gamepads gamepads;
 };
 
 // Each backend defines this over its own struct voe_platform_window, and it is

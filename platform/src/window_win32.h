@@ -4,20 +4,80 @@
 //
 // The split: src/window_win32.c owns the class, the window procedure, open,
 // close, poll, wait and the queries; src/seat_win32.c owns the keyboard, the
-// mouse and the lock, and the three functions src/input.h asks of a window.
-// What crosses is the declarations at the bottom: the handlers window_proc
-// calls for each input message, two of which, _apply_lock and _focus_gained,
-// _destroy and _new call as well. Nothing crosses the other way; the seat
-// reaches the window only through the struct.
+// mouse and the lock, and the three functions src/input.h asks of a window;
+// src/gamepad_win32.c owns the pads. What crosses is the declarations at the
+// bottom: the handlers window_proc calls for each input message, two of which,
+// _apply_lock and _focus_gained, _destroy and _new call as well, and the pads'
+// open, poll and close. Nothing crosses the other way; the seat and the pads
+// reach the window only through the struct.
 #pragma once
 
+#include <platform/library.h>
 #include <platform/window.h>
 
+#include "gamepad.h"
 #include "input.h"
 
 #include <windows.h>
 
+// hidpi.h returns NTSTATUS, which windows.h leaves undefined in some SDKs; the
+// same typedef twice is allowed.
+typedef LONG NTSTATUS;
+
+#include <hidpi.h>
+#include <xinput.h>
+
 #include <stdint.h>
+
+// The most value caps a HID pad may declare; one declaring more is not taken.
+#define VOE_PLATFORM_GAMEPAD_HID_VALUES 32
+
+// The five calls loaded from xinput and hid.dll. NTSTATUS is a LONG.
+typedef DWORD(WINAPI *voe_platform_xinput_get_state_fn)(DWORD user, XINPUT_STATE *state);
+typedef LONG(WINAPI *voe_platform_hidp_get_caps_fn)(PHIDP_PREPARSED_DATA data, HIDP_CAPS *caps);
+typedef LONG(WINAPI *voe_platform_hidp_get_value_caps_fn)(HIDP_REPORT_TYPE type,
+							  HIDP_VALUE_CAPS *caps, USHORT *length,
+							  PHIDP_PREPARSED_DATA data);
+typedef LONG(WINAPI *voe_platform_hidp_get_usage_value_fn)(HIDP_REPORT_TYPE type, USAGE page,
+							   USHORT collection, USAGE usage,
+							   ULONG *value, PHIDP_PREPARSED_DATA data,
+							   CHAR *report, ULONG length);
+typedef LONG(WINAPI *voe_platform_hidp_get_usages_fn)(HIDP_REPORT_TYPE type, USAGE page,
+						      USHORT collection, USAGE *usages,
+						      ULONG *count, PHIDP_PREPARSED_DATA data,
+						      CHAR *report, ULONG length);
+
+// One XInput user: the slot it holds (-1 for none) and the tick count before
+// which an unconnected user is not asked again (0 is at once).
+struct voe_platform_gamepad_xinput_user {
+	int slot;
+	ULONGLONG ask_at;
+};
+
+// One HID pad: its raw input handle, its slot, its preparsed data (malloc'd,
+// freed on removal) and its input value caps.
+struct voe_platform_gamepad_hid_device {
+	HANDLE handle;
+	int slot;
+	PHIDP_PREPARSED_DATA preparsed;
+	HIDP_VALUE_CAPS values[VOE_PLATFORM_GAMEPAD_HID_VALUES];
+	USHORT value_count;
+};
+
+// The loaded DLLs and their calls (NULL when missing), the four XInput users
+// and the HID pads. Written only by src/gamepad_win32.c.
+struct voe_platform_gamepad_devices {
+	voe_platform_library *xinput;
+	voe_platform_xinput_get_state_fn get_state;
+	voe_platform_library *hid;
+	voe_platform_hidp_get_caps_fn get_caps;
+	voe_platform_hidp_get_value_caps_fn get_value_caps;
+	voe_platform_hidp_get_usage_value_fn get_usage_value;
+	voe_platform_hidp_get_usages_fn get_usages;
+	struct voe_platform_gamepad_xinput_user users[XUSER_MAX_COUNT];
+	struct voe_platform_gamepad_hid_device open[VOE_PLATFORM_GAMEPAD_SLOTS];
+	int count;
+};
 
 struct voe_platform_window {
 	HWND hwnd;
@@ -64,6 +124,8 @@ struct voe_platform_window {
 	uint16_t pending_high_surrogate;
 
 	struct voe_platform_input input;
+
+	struct voe_platform_gamepad_devices gamepad_devices;
 };
 
 // A key message's virtual key, down or up, into the keys src/input.h keeps.
@@ -88,3 +150,16 @@ void voe_platform_seat_button_set(voe_platform_window *window,
 void voe_platform_seat_capture_lost(voe_platform_window *window);
 // The stored shape as a system cursor.
 void voe_platform_seat_cursor_show(const voe_platform_window *window);
+
+// Loads xinput and hid.dll and registers raw input for HID pads and joysticks;
+// once, after the mouse's registration. A missing DLL is only its pads absent.
+void voe_platform_gamepads_open(voe_platform_window *window);
+// WM_INPUT_DEVICE_CHANGE: a HID pad taken on arrival, let go on removal.
+void voe_platform_gamepads_device_change(voe_platform_window *window, WPARAM wparam,
+					 LPARAM lparam);
+// A WM_INPUT of type RIM_TYPEHID onto its pad's slot.
+void voe_platform_gamepads_hid(voe_platform_window *window, const RAWINPUT *raw);
+// Asks the XInput users due, attaching, feeding and detaching their slots.
+void voe_platform_gamepads_poll(voe_platform_window *window);
+// Frees every HID pad and unloads both DLLs; after the window is destroyed.
+void voe_platform_gamepads_close(voe_platform_window *window);

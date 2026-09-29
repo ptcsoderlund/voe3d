@@ -1,15 +1,18 @@
-// The tank hull system: WASD into a hull's turn and drive. Teaches driving a
-// thing by its own facing: the turn is about the world's up, and the drive
-// is along the hull's own -Z after that turn, so W is always forward.
+// The tank hull system: the control row's drive and turn into a hull's
+// motion. Teaches driving a thing by its own facing: the turn is about the
+// world's up, and the drive is along the hull's own -Z after that turn, so
+// forward is always forward. The hull moves `speed × drive` and turns
+// `turn × turn` for the step's seconds, so a stick at rest stops it dead.
 //
 // A hull is a root and moves only its own row: the turret and the barrel
 // are its children and ride on it by parenting (0271), so nothing here
 // touches them. Each hull gets one transform intent a step, turn and drive
 // together.
 //
-// Constraints: W/A/S/D only, by place on the keyboard; opposite keys cancel.
-// Nothing with no window (headless). A full transform queue leaves the rest
-// of the hulls where they were this step.
+// Constraints: one control row drives every hull. Nothing with no control
+// row (headless, or before its first step). A full transform queue leaves
+// the rest of the hulls where they were this step.
+#include "tank_control.h"
 #include "tank_hull.h"
 
 #include <base/assert.h>
@@ -22,8 +25,6 @@
 #include <math/double3.h>
 #include <math/float3.h>
 #include <math/quat.h>
-
-#include <platform/input.h>
 
 #include <scene/transform_system.h>
 
@@ -42,14 +43,6 @@ bool tank_hull_register(voe_ecs_world *world)
 		"Tank / Hull" });
 }
 
-// -1, 0 or 1 from a pair of opposite keys.
-static float key_axis(voe_platform_window *window, voe_platform_key minus,
-		      voe_platform_key plus)
-{
-	return (voe_platform_input_key_down(window, plus) ? 1.0f : 0.0f) -
-	       (voe_platform_input_key_down(window, minus) ? 1.0f : 0.0f);
-}
-
 // (0, 0, -1) rotated by the unit quaternion q: the third column of its
 // matrix, negated. math/quat.h has no rotate, and this is all of it needed.
 static voe_math_float3 forward_of(voe_math_quat q)
@@ -65,17 +58,19 @@ static voe_math_float3 forward_of(voe_math_quat q)
 	return forward;
 }
 
-void tank_hull_system_run(voe_ecs_world *world, voe_platform_window *window,
-			  double seconds)
+void tank_hull_system_run(voe_ecs_world *world, double seconds)
 {
 	VOE_BASE_ASSERT(world != NULL, "driving hulls in no world");
 	VOE_BASE_ASSERT(seconds >= 0.0, "driving hulls back in time");
-	if (window == NULL)
+	const voe_ecs_type control_type =
+		voe_ecs_component_type(world, &tank_control_key);
+
+	if (voe_ecs_component_count(world, control_type) == 0)
 		return;
-	const float drive = key_axis(window, VOE_PLATFORM_KEY_S,
-				     VOE_PLATFORM_KEY_W);
-	const float turn = key_axis(window, VOE_PLATFORM_KEY_D,
-				    VOE_PLATFORM_KEY_A);
+	const tank_control *control =
+		voe_ecs_component_rows(world, control_type);
+	const float drive = control->drive;
+	const float turn = control->turn;
 	const voe_ecs_type type = voe_ecs_component_type(world, &tank_hull_key);
 	const voe_ecs_type transform_type =
 		voe_ecs_component_type(world, &voe_scene_transform_key);

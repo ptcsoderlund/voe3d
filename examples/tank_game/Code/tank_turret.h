@@ -1,5 +1,7 @@
-// Tank turret: the part of the tank that aims. Each step it turns about the
-// world's up toward the point on the ground under the mouse pointer.
+// Tank turret: the part of the tank that aims, as the control row
+// (tank_control.h) says. Each step it turns about the world's up toward the
+// point on the ground under the mouse pointer, or, on the pad, toward the
+// right stick's direction on screen laid on the ground; a stick let go holds.
 //
 //     tank_turret_register(world);                        // in voe_game_project_register
 //     tank_turret_system_run(world, window, seconds);     // after the hull, before the move
@@ -32,8 +34,9 @@ extern const struct voe_ecs_key tank_turret_key;
 // when game refuses it.
 [[nodiscard]] bool tank_turret_register(voe_ecs_world *world);
 
-// For every turret with a transform, turns it toward the pointer's aim by at
-// most its turn for this step's seconds. Does nothing with no window
-// (headless), no pointer over it, or no camera.
+// For every turret with a transform, turns it toward the pointer's aim or
+// the pad's by at most its turn for this step's seconds. Does nothing with
+// no control row (headless, or before its first step), no camera, on the
+// pointer no pointer over the window, or on the pad no aim.
 void tank_turret_system_run(voe_ecs_world *world, voe_platform_window *window,
 			    double seconds);
