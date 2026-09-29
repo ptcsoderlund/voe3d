@@ -6,8 +6,8 @@
 //
 // TWO CASES: that world, and the same world without the light, its light
 // table still registered by voe_game_world_new. The second is bug 01 of 024:
-// a lightless scene asserted in voe_3d_draw_system_frame; it now draws
-// unshaded (0238).
+// a lightless scene asserted in voe_3d_draw_system_frame; it no longer
+// asserts and now draws black (0287).
 //
 // TWO FRAMES each, because the shape system gives a fresh shape its mesh and
 // material in the first and the second draws a world that already has them.
