@@ -3,8 +3,9 @@
 # A game tree is the build tree Play writes inside a project folder
 # (<project>/Build/game/), with the engine compiled from its source (0235). Its
 # CMakeLists.txt sets VOE_ENGINE to the engine source root and includes this
-# file; its main.c calls voe_game_run() and its scene.c is the cooked world,
-# defining voe_game_scene_build() (0237).
+# file; its main.c calls voe_game_run(), its scene.c is the cooked world,
+# defining voe_game_scene_build() (0237), and its prefabs.c the cooked prefabs,
+# defining voe_game_prefabs_cooked of game/prefabs.h (0283).
 #
 # VOE_PROJECT_CODE, set before the include, is the project's Code/ folder
 # (0242): its *.c are globbed with CONFIGURE_DEPENDS, so a file added later is
@@ -18,12 +19,13 @@
 # into VerifyGlobs.cmake, where a backslash is an escape (bug 03).
 #
 # Two modes, chosen by VOE_GAME_LIBRARY:
-# - OFF (the default): the executable `game` from main.c, scene.c and the code,
-#   linking voe::game. VOE_BASE_DESCRIPTIONS is off because a shipped game
-#   compiles the field descriptions out (ADR-0145).
+# - OFF (the default): the executable `game` from main.c, scene.c, prefabs.c
+#   and the code, linking voe::game. VOE_BASE_DESCRIPTIONS is off because a
+#   shipped game compiles the field descriptions out (ADR-0145).
 # - ON: the editor's second configure of the same tree, into Build/editor/.
 #   Descriptions are on, there is no `game`, and the SHARED target `project` is
-#   the code alone, built into CMAKE_BINARY_DIR as libproject.so. It compiles
+#   the code alone (no prefabs.c: its spawns go to the editor's
+#   voe_game_project_spawn), built into CMAKE_BINARY_DIR as libproject.so. It compiles
 #   against voe::game but links no engine code; its engine symbols stay
 #   undefined and bind to the editor's own when loaded. The editor builds the
 #   target `project` and nothing else of the engine need be built.
@@ -45,9 +47,8 @@
 # Release is what Ship builds (0264); outside WIN32 it links with -s, so the
 # program carries no symbols. `cmake --install` puts in the install root the
 # program, renamed VOE_GAME_NAME (default `game`, set by the tree's
-# CMakeLists.txt), and its two licences, voe3d-LICENSE.txt and Oxanium-OFL.txt.
-# Shaders and the font are embedded; the sounds and models are the only files
-# read.
+# CMakeLists.txt), and its licences, voe3d-LICENSE.txt and Oxanium-OFL.txt.
+# Shaders and the font are embedded; only the sounds and models are read.
 #
 # Sounds and models (0266, 0277): every .wav and .glb under the project folder,
 # the tree's grandparent, is copied by the target `game_files` (which `game`
@@ -143,7 +144,7 @@ if(VOE_GAME_LIBRARY)
     endif()
 else()
     add_executable(game ${CMAKE_CURRENT_SOURCE_DIR}/main.c ${CMAKE_CURRENT_SOURCE_DIR}/scene.c
-        ${voe_project_sources})
+        ${CMAKE_CURRENT_SOURCE_DIR}/prefabs.c ${voe_project_sources})
     target_include_directories(game PRIVATE ${voe_project_includes})
     target_link_libraries(game PRIVATE voe::game)
     voe_target_settings(game)
