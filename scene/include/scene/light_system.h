@@ -50,9 +50,10 @@
 // light. capacity is how many lights the world may hold and also how many
 // intents may be waiting at once.
 //
-// A WORLD THAT IS DRAWN NEEDS THIS EVEN IF IT HOLDS NO SUN, because the draw
-// system reads the table — see 3d/draw_system.h, which is also where "at most
-// one" is said and a world with no light draws unshaded (0238).
+// A WORLD THAT IS DRAWN NEEDS THIS EVEN IF IT HOLDS NO DIRECTIONAL LIGHT,
+// because the draw system reads the table — see 3d/draw_system.h, which is also
+// where "at most one" is said. With no directional light a game draws its lit
+// surfaces black, and the editor's views light it with a preview light (0287).
 void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity);
 
 // Gives the entity its light, as given; a light the drain would refuse asserts.
