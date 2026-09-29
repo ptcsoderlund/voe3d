@@ -6,6 +6,7 @@
 #include <game/frame.h>
 #include <game/interface.h>
 #include <game/models.h>
+#include <game/prefabs.h>
 #include <game/project.h>
 #include <game/scene.h>
 #include <game/steps.h>
@@ -83,7 +84,8 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 		if (frame.minimised)
 			continue;
 		lag = voe_game_steps_run(&steps, world, voe_app_window(app),
-					 sound->mixer, NULL, shapes,
+					 sound->mixer, &voe_game_prefabs_cooked,
+					 shapes,
 					 frame.tick.step,
 					 voe_game_project_systems_run,
 					 voe_game_project_systems_after_move);

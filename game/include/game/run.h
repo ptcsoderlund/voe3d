@@ -13,8 +13,8 @@
 // sound device (platform/sound.h), voe_game_scene_build (game/scene.h), the
 // built-in shapes uploaded, voe_game_models_update (game/models.h) from the
 // program's folder, then once a frame, skipping a minimised window, until it
-// is closing: the frame's elapsed seconds into
-// voe_game_steps_run, which runs voe_game_project_systems_run and
+// is closing: the frame's elapsed seconds and the cooked prefabs
+// (game/prefabs.h) into voe_game_steps_run, which runs voe_game_project_systems_run and
 // voe_game_project_systems_after_move once per fixed step (game/steps.h), then
 // voe_game_models_update again for paths the step named, then
 // voe_game_interface_run with voe_game_project_interface in the cleared
@@ -30,7 +30,8 @@
 //
 // Constraints: the window size is fixed until a project setting names one
 // (0234). Links only in a tree that has a cooked scene.c defining
-// voe_game_scene_build and a project defining the four entry points of
+// voe_game_scene_build, a cooked prefabs.c defining voe_game_prefabs_cooked,
+// and a project defining the four entry points of
 // game/project.h (register, systems_run, systems_after_move, interface);
 // run.c is the one file that names them.
 #pragma once
