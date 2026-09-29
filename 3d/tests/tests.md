@@ -26,9 +26,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
   or sun marker is one draw more. Skips without a graphics card.
-- `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
-  not beside it, that a fill lifts that shadow and leaves the lit floor as it was, that no light
-  casts nothing and draws the floor black, 100 km out the same, and a model casts as the cube does. Skips without a card.
+- `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
+  the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
+  a graphics card.
 - `no_light.c` — that a world with no light frames the zeroed light, drawing black, and not blind, one light frames as
   itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
   card.
