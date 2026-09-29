@@ -5,8 +5,8 @@ the library the editor loads (0242).
 
 - `tank_hull.h` — the Tank / Hull component: a drive speed, default 4 m/s, and a turn, default 90 deg/s.
 - `tank_hull_system.c` — turns each hull and drives it along its own forward as the control row says: W/A/S/D or the left stick.
-- `tank_turret.h` — the Tank / Turret component: a turn, default 180 deg/s, and an aim offset, default 0.
-- `tank_turret_system.c` — turns each turret about the world's up toward where the mouse pointer meets the ground, or the right stick's direction on screen, held when let go.
+- `tank_turret.h` — the Tank / Turret component: a turn, default 180 deg/s, and an aim offset, default 0; the call that turns any turret toward a point, for its owner.
+- `tank_turret_system.c` — turns the player's turrets about the world's up toward where the mouse pointer meets the ground, or the right stick's direction on screen, held when let go, through the exported turn call.
 - `tank_gun.h` — the Tank / Gun component: a prefab to fire, default `shell`, a rate, default 6 a second, a muzzle offset and the wait to the next shot.
 - `tank_gun_system.c` — while the control row's fire holds (left button, Space or right trigger), fires each ready gun's prefab at its muzzle along its turret's barrel, owned by its tank.
 - `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, a life, default 3 s, and a radius, default 0.1 m; the runtime-only shot row: owner, where the sweep starts, and what it hit.
