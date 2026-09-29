@@ -23,6 +23,8 @@
 
 #include <base/assert.h>
 
+#define RAW_INPUT_BYTES 1024
+
 // A virtual key to one of the eleven keys this engine reads, or
 // VOE_PLATFORM_KEY_COUNT for everything else. The letters are their own ASCII
 // capitals, which is what Windows defines VK_A..VK_Z to be and why there are no
@@ -265,8 +267,9 @@ void voe_platform_seat_apply_lock(voe_platform_window *window)
 // own relative counts and keeps reporting them when the cursor is against a
 // screen edge, which is the whole reason it is registered for.
 //
-// One WM_INPUT message, which may carry several mouse movements. Only the mouse
-// is registered for, so nothing here checks which device it was.
+// One WM_INPUT message, which may carry several mouse movements, or a HID pad's
+// reports, handed to src/gamepad_win32.c. The buffer is RAW_INPUT_BYTES because
+// a HID report follows the struct; one larger than that is dropped.
 //
 // MOUSE_MOVE_ABSOLUTE IS A REAL CASE, IT IS DROPPED, AND THE CONSEQUENCE IS THAT
 // SOME MACHINES HAVE NO MOUSE LOOK AT ALL. A tablet, a touch digitiser, and the
@@ -286,19 +289,27 @@ void voe_platform_seat_apply_lock(voe_platform_window *window)
 // virtual machine should read this paragraph and write that card.
 void voe_platform_seat_raw_input(voe_platform_window *window, HRAWINPUT handle)
 {
-	RAWINPUT raw;
-	UINT size = sizeof(raw);
+	union {
+		RAWINPUT raw;
+		BYTE bytes[RAW_INPUT_BYTES];
+	} input;
+	const RAWINPUT *raw = &input.raw;
+	UINT size = sizeof(input);
 
-	if (GetRawInputData(handle, RID_INPUT, &raw, &size,
+	if (GetRawInputData(handle, RID_INPUT, &input, &size,
 			    sizeof(RAWINPUTHEADER)) == (UINT)-1)
 		return;
-	if (raw.header.dwType != RIM_TYPEMOUSE)
+	if (raw->header.dwType == RIM_TYPEHID) {
+		voe_platform_gamepads_hid(window, raw);
 		return;
-	if ((raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)
+	}
+	if (raw->header.dwType != RIM_TYPEMOUSE)
+		return;
+	if ((raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)
 		return;
 
-	window->input.motion_x += (float)raw.data.mouse.lLastX;
-	window->input.motion_y += (float)raw.data.mouse.lLastY;
+	window->input.motion_x += (float)raw->data.mouse.lLastX;
+	window->input.motion_y += (float)raw->data.mouse.lLastY;
 }
 
 // Whether the last recorded position is inside the client area. Asked when a
