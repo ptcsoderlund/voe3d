@@ -6,9 +6,11 @@
 //
 // `prefab` is the name of a cooked prefab, its path under `Assets/` less
 // `.prefab`, default `shell`. `rate` is shots a second, default 6. `muzzle`
-// is where the shot appears in the gun's own frame, default (0, 0.3, -1.2).
-// `wait` is the seconds to the next shot, written only by the system. A gun
-// needs a transform to fire, and sits on a turret so it fires along its aim.
+// is where the shot appears in the barrel's frame, the gun's frame turned by
+// its turret's `aim`, default (0, 0.3, -1.2); the shot flies along the
+// barrel. `wait` is the seconds to the next shot, written only by the system.
+// A gun needs a transform to fire, and sits on a turret so it fires along its
+// aim.
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows; `prefab` at most 63
 // bytes.

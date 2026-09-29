@@ -1,11 +1,15 @@
 // The tank gun system: fire held into spawned shots. Teaches spawning a
 // cooked prefab from game code (0283 point 10): the shot is made at the
-// gun's world muzzle, turned as the gun is, and lands at the step's
+// barrel's world muzzle, turned as the barrel is, and lands at the step's
 // structural apply.
 //
-// The gun's world transform is read, the muzzle offset is turned by its
-// rotation and added to its position, and the prefab's root is spawned there
-// with that rotation, so a shell flies along the gun's -Z. The gun's own
+// The shot's frame is the barrel: the gun's world rotation, every parent's
+// included, turned about its own +Y by the `aim` of the turret on the same
+// entity, or the gun's own frame when it has no turret. A model facing +Z
+// needs an `aim` of 180, so the bare -Z would fire out of the back. The
+// muzzle offset is turned by that frame and added to the gun's position, and
+// the prefab's root is spawned there with it, so a shell flies along the
+// barrel. The gun's own
 // `wait` row is the only thing written here, whole, through
 // voe_ecs_component_set.
 //
@@ -15,6 +19,7 @@
 // below zero or a prefab name with no NUL does not fire. A refused spawn
 // leaves `wait` as it was, so the gun tries again next step.
 #include "tank_gun.h"
+#include "tank_turret.h"
 
 #include <base/assert.h>
 
@@ -31,6 +36,8 @@
 
 #include <math.h>
 #include <string.h>
+
+#define TANK_GUN_RADIANS_PER_DEGREE (3.14159265358979323846f / 180.0f)
 
 const struct voe_ecs_key tank_gun_key = { "tank_gun" };
 
@@ -77,14 +84,22 @@ static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
 		return false;
 	const voe_scene_transform placed =
 		voe_scene_transform_world(step->world, entity);
+	const tank_turret *turret = voe_ecs_component_get(
+		step->world,
+		voe_ecs_component_type(step->world, &tank_turret_key), entity);
+	const float aim = turret != NULL ? turret->aim : 0.0f;
+	// The same product the turret aims with: world rotation, then aim.
+	const voe_math_quat barrel = voe_math_quat_normalize(voe_math_quat_mul(
+		placed.rotation,
+		voe_math_quat_from_axis_angle(
+			(voe_math_float3){ 0.0f, 1.0f, 0.0f },
+			aim * TANK_GUN_RADIANS_PER_DEGREE)));
 	const voe_math_double3 muzzle = voe_math_double3_add(
 		placed.position,
-		voe_math_double3_from_float3(
-			turned_by(placed.rotation, gun->muzzle)));
+		voe_math_double3_from_float3(turned_by(barrel, gun->muzzle)));
 	voe_ecs_entity root;
 
-	return voe_game_project_spawn(step, gun->prefab, muzzle,
-				      placed.rotation, &root);
+	return voe_game_project_spawn(step, gun->prefab, muzzle, barrel, &root);
 }
 
 void tank_gun_system_run(const voe_game_project_step *step)
