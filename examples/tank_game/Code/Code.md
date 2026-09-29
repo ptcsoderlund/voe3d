@@ -11,4 +11,8 @@ the library the editor loads (0242).
 - `tank_gun_system.c` — while the left button or Space is held, spawns each ready gun's prefab at its muzzle, turned as the gun is.
 - `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, and a life, default 3 s.
 - `tank_shell_system.c` — flies each shell along its own forward and removes it when its life runs out.
-- `project.c` — the four entry points: registers all four types, runs the hull, turret, gun, then shell before the move, nothing after, draws no interface.
+- `tank_spawner.h` — the Tank / Spawner component: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, and the wait to the next spawn.
+- `tank_spawner_system.c` — spawns each ready spawner's prefab at it, turned as it is, while the world holds fewer enemies than its most.
+- `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, and a life, default 20 s.
+- `tank_enemy_system.c` — drives each enemy along its own forward and removes it, turret and all, when its life runs out.
+- `project.c` — the four entry points: registers all six types, runs the hull, turret, gun, shell, spawner, then enemy before the move, nothing after, draws no interface.

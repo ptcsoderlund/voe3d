@@ -65,3 +65,15 @@ parent = 4
 position = [-0.23866540581249832, -0.02859061211597691, 0.09467263823940603]
 rotation = [0, 1, 0, -4.371139e-08]
 scale = [1, 1, 1]
+
+[6]
+name = "Spawner"
+[6.tank_spawner]
+prefab = "enemy_tank"
+every = 4
+most = 6
+wait = 0
+[6.voe_scene_transform]
+position = [0, 0, -15]
+rotation = [0, 1, 0, 0]
+scale = [1, 1, 1]
