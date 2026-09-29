@@ -35,7 +35,9 @@
 // is lit the same way, by whichever light the world holds — an authored entity,
 // selectable, editable and saved, the way `Cube` is (scene.h) — so a view keeps
 // no light of its own and its pass is simply handed one; see
-// voe_editor_view_pass_camera.
+// voe_editor_view_pass_camera. A world with no directional light is shown by
+// the editor's preview light instead (0287), never an entity; see
+// voe_editor_view_light.
 //
 // A VIEW IS MOVED TWO WAYS, ONE VIEW AT A TIME: the middle-button drag and the
 // right-button fly (0233). Each holds the view it started over until its button
@@ -168,11 +170,11 @@ void voe_editor_views_focus_camera(voe_editor_views *views,
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 			 float pixels_per_millimetre);
 
-// The light every view is shown with: the world's light as `3d` gives it
-// (voe_3d_draw_system_light), so a world with none draws unshaded, every
-// surface in its own material colour (ADR-0238), exactly as the game's frame
-// does. Every view is lit the same way, once a frame, by whichever light
-// `Light` (or whatever a saved project called it) carries.
+// The light every view and the preview are shown with, once a frame: the
+// world's directional light as `3d` gives it (voe_3d_draw_system_light). A
+// world (level or open prefab) with no light is shown by the preview light
+// (voe_editor_project_preview_light), shadows included, and a light added
+// replaces it at once; Play and the game draw such a world black (0287).
 voe_render_light voe_editor_view_light(const voe_ecs_world *world);
 
 // The colour every view's selection outline is drawn in: the lighter of the
@@ -195,8 +197,8 @@ voe_math_float3 voe_editor_view_gizmo_colour(const voe_ui_theme *palette,
 					     bool marked);
 
 // The camera and `light` the view's pass is opened with, the aspect ratio from
-// the view's own size. `light` is the caller's to find — the world's first
-// light row, or a light of zero intensity when the world has none — because a
+// the view's own size. `light` is the caller's to find — what
+// voe_editor_view_light gives — because a
 // view knows nothing about the world it is shown (view.h's own header).
 voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,
 						   voe_render_light light);

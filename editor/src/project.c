@@ -76,8 +76,14 @@ static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 #define LIGHT_X (-0.4f)
 #define LIGHT_Y (-1.0f)
 #define LIGHT_Z (-0.6f)
-#define LIGHT_INTENSITY 3.14159265f
 #define LIGHT_HEIGHT 4.0
+
+// The untitled light's colour, strength and fill, and so the preview light's
+// (0289): one value both read, so the two cannot drift.
+static const voe_scene_light untitled_light = {
+	.colour = { 1.0f, 1.0f, 1.0f },
+	.intensity = 3.14159265f,
+};
 
 // Where the scene camera is put: up and back from the origin, looking at it.
 #define CAMERA_Y 2.0
@@ -191,17 +197,25 @@ static void build_untitled(voe_ecs_world *world)
 				.scale = { 1.0f, 1.0f, 1.0f } }),
 		"a project's transform table is too small for its own untitled scene");
 	VOE_BASE_ASSERT(
-		voe_scene_light_add(
-			world, light,
-			(voe_scene_light){
-				.colour = { 1.0f, 1.0f, 1.0f },
-				.intensity = LIGHT_INTENSITY }),
+		voe_scene_light_add(world, light, untitled_light),
 		"a project's light table is too small for its own untitled scene");
 
 	add_camera(world, 3);
 
 	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 3,
 			"an untitled scene is not the three identities it is written to be");
+}
+
+voe_render_light voe_editor_project_preview_light(void)
+{
+	return (voe_render_light){
+		.direction = voe_scene_light_direction(voe_scene_light_facing(
+			(voe_math_float3){ LIGHT_X, LIGHT_Y, LIGHT_Z })),
+		.intensity = untitled_light.intensity,
+		.colour = untitled_light.colour,
+		.fill = voe_math_float3_scale(untitled_light.fill_colour,
+					      untitled_light.fill_intensity),
+	};
 }
 
 voe_editor_project *voe_editor_project_new_untitled(void)

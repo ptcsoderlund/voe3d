@@ -71,6 +71,8 @@
 
 #include <game/world.h>
 
+#include <render/device.h>
+
 #include <scene/prefab_component.h>
 
 #include <stdbool.h>
@@ -115,6 +117,12 @@ typedef struct {
 // to a device or opens a file, and the room the three entities need is this
 // file's own to size.
 voe_editor_project *voe_editor_project_new_untitled(void);
+
+// The preview light of 0287/0289, as `render` takes it: the untitled scene's
+// light, direction, colour, strength and fill. Never an entity and never saved;
+// it is one set of values with the untitled light, so changing one changes the
+// other.
+voe_render_light voe_editor_project_preview_light(void);
 
 // Opens the project at folder. NULL on failure, with why naming the file the
 // failing step was on and what was wrong with it — see the header above. A

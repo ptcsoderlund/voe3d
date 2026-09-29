@@ -12,6 +12,8 @@
 // moves the eye and the focus together, then puts the eye back as the orbit does.
 #include "view.h"
 
+#include "project.h"
+
 #include <base/assert.h>
 
 #include <3d/draw_system.h>
@@ -19,6 +21,7 @@
 
 #include <math/quat.h>
 
+#include <scene/light_component.h>
 #include <scene/transform_component.h>
 
 #include <math.h>
@@ -184,6 +187,8 @@ voe_render_light voe_editor_view_light(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "the light of no world");
 
+	if (voe_scene_light_count(world) == 0)
+		return voe_editor_project_preview_light();
 	return voe_3d_draw_system_light(world);
 }
 
