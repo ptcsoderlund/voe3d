@@ -23,6 +23,12 @@
 // authoring/scene_read.h is: it adds rows straight to the entities it has just
 // made and to the root it is expanding, asks no system and submits no intent.
 // It never overwrites a row the root has, and never touches another entity.
+//
+// COOKING ONE QUEUES STRUCTURE ADDS, NOT COMPONENT ADDS (0283 point 9): a spawn
+// lands mid-step, from game logic, so its rows go through ecs/structure.h and
+// appear at the step's structural apply. NO IDENTITY IS COOKED: spawned things
+// are not authored, and the identity table stays at 32 (0283 point 11). The
+// caller makes the entities and owns the include line.
 #pragma once
 
 #include <authoring/scene_write.h>
@@ -62,3 +68,19 @@
 					     uint64_t first_id,
 					     voe_base_arena *arena,
 					     uint64_t *out_next_id);
+
+// Cooks `world`, holding one prefab read by voe_authoring_scene_read, into one
+// definition with no includes: `static bool <function>(voe_ecs_world *world,
+// const voe_ecs_entity *entities, voe_math_double3 position, voe_math_quat
+// rotation)`. `entities[0]` is the root, the one entity with no parent row; the
+// rest follow ascending by id. Each entity's described, not runtime-only rows
+// but its identity are queued by voe_ecs_structure_add, false when one is
+// refused; the root's transform is `position`, `rotation` and scale one; an
+// ENTITY naming a prefab entity is `entities[j]`, any other a zeroed entity.
+// `*out_entities` is how many entities it needs. Refuses, arena and `*out` as
+// voe_authoring_scene_cook, and a world without exactly one root.
+[[nodiscard]] bool voe_authoring_prefab_cook(const voe_ecs_world *world,
+					     const char *function,
+					     voe_base_arena *arena,
+					     voe_authoring_text *out,
+					     uint32_t *out_entities);

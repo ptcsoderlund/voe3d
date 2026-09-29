@@ -3,12 +3,15 @@
 // with no parent section — and that a root that cannot head a prefab is refused.
 // The prefab reader: that text read back onto a placed root (0283 point 4), and
 // a text that is not one tree, or holds a camera or prefab, creating nothing.
+// The prefab cook: that text read into a world and cooked into a spawning
+// function (0283 point 9), and two roots refused.
 //
 // THE EXPECTATION IS A STRING LITERAL COMPARED BYTE FOR BYTE, as in
 // scene_write.c's test, so order and blank lines are checked with the rest.
 //
 // Refusals print a line to stderr; that is the report doing its job.
 #include <authoring/prefab.h>
+#include <authoring/scene_read.h>
 
 #include <base/arena.h>
 #include <base/describe.h>
@@ -37,6 +40,12 @@ VOE_BASE_DESCRIBE_STRUCT(link, LINK_FIELDS)
 
 static const struct voe_ecs_key link_key = { "test_link" };
 
+#define TEST_SHAPE_FIELDS(F, F_READ_ONLY) F(uint32_t, kind, UINT32)
+
+VOE_BASE_DESCRIBE_STRUCT(test_shape, TEST_SHAPE_FIELDS)
+
+static const struct voe_ecs_key test_shape_key = { "test_shape" };
+
 static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_world *world = voe_ecs_world_new(arena, (voe_ecs_limits){
@@ -51,6 +60,8 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	voe_scene_prefab_register(world, ENTITIES);
 	voe_ecs_component_register(world, &link_key, sizeof(link), ENTITIES,
 				   link_description());
+	voe_ecs_component_register(world, &test_shape_key, sizeof(test_shape),
+				   ENTITIES, test_shape_description());
 	return world;
 }
 
@@ -284,11 +295,69 @@ static void test_read_refusals(void)
 			   "[1.voe_scene_prefab]\npath = \"Assets/a.prefab\"\n");
 }
 
+static bool holds(const voe_authoring_text *text, const char *part)
+{
+	return text->text != NULL && strstr(text->text, part) != NULL;
+}
+
+static void test_cook(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(128 * 1024);
+	voe_ecs_world *source = world_of(arena);
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity hull = placed(source, 1, "Hull", at(0, 0, 0), NULL);
+	voe_authoring_text text = { 0 };
+	voe_authoring_text cooked = { 0 };
+	voe_authoring_kept kept = { 0 };
+	uint32_t entities = 0;
+
+	(void)placed(source, 2, "Turret", at(0, 1, 0), &hull);
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		source, voe_ecs_component_type(source, &test_shape_key), hull,
+		&(test_shape){ .kind = 3 }));
+	VOE_TEST_CHECK(voe_authoring_prefab_write(source, hull, arena, &text));
+	VOE_TEST_CHECK(voe_authoring_scene_read(text.text, text.size, world,
+						arena, &kept));
+
+	VOE_TEST_CHECK(voe_authoring_prefab_cook(world, "enemy_tank", arena,
+						 &cooked, &entities));
+	VOE_TEST_CHECK_INT(entities, 2);
+	VOE_TEST_CHECK(holds(&cooked, "static bool enemy_tank("));
+	VOE_TEST_CHECK(holds(&cooked, "voe_ecs_structure_add(world, "
+				      "voe_ecs_component_type(world, "
+				      "&test_shape_key), entities[0], "
+				      "&(test_shape){ .kind = 3u }))"));
+	VOE_TEST_CHECK(holds(&cooked, "entities[0], &(voe_scene_transform){ "
+				      ".position = position, .rotation = "
+				      "rotation, .scale = { 0x1p+0f, 0x1p+0f, "
+				      "0x1p+0f } }"));
+	VOE_TEST_CHECK(holds(&cooked, "entities[1], &(voe_scene_parent){ "
+				      ".parent = entities[0] }"));
+	VOE_TEST_CHECK(holds(&cooked, "entities[1], &(voe_scene_transform){ "));
+	VOE_TEST_CHECK(!holds(&cooked, "voe_scene_identity"));
+	VOE_TEST_CHECK(!holds(&cooked, "#include"));
+
+	// Two roots.
+	voe_ecs_world *two = world_of(arena);
+	voe_authoring_text sentinel = { .text = "untouched", .size = 9 };
+
+	(void)placed(two, 1, "A", at(0, 0, 0), NULL);
+	(void)placed(two, 2, "B", at(0, 0, 0), NULL);
+	entities = 12345;
+	VOE_TEST_CHECK(!voe_authoring_prefab_cook(two, "enemy_tank", arena,
+						  &sentinel, &entities));
+	VOE_TEST_CHECK(strcmp(sentinel.text, "untouched") == 0);
+	VOE_TEST_CHECK_INT(entities, 12345);
+
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	test_tree();
 	test_refusals();
 	test_read();
 	test_read_refusals();
+	test_cook();
 	return voe_test_result();
 }

@@ -28,6 +28,10 @@ and read through the description its own folder registered.
   nothing recurses and how numbers are read.
 - `scene_cook.c` — the cook. Its header says why a field's dimensions may recurse
   and where the growing text lives.
+- `cook_text.h` — the cook's text and value spelling, defined in `scene_cook.c`
+  and shared with `prefab_cook.c`; its header says what differs between the two.
+- `prefab_cook.c` — the prefab cook: finds the root, orders the entities root
+  first and writes the spawning function.
 - `project.c` — the project file reader and writer. Its header says how a scene
   path is checked the same way on both sides.
 - `key_span.h` — each key's own trimmed bytes in a sectioned document, which
