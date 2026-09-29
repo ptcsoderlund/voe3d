@@ -92,12 +92,12 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, the flag that
-  says a different project is in place, and the one armed command that makes closing the window,
-  New and Open each refuse once while there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the seven commands with Play and Ship refreshing first and one
-  build at a time, a built library loaded and swapped in once a frame, and what a browser action
-  does to the session.
+- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, a prefab
+  opened and Back, the flags that say a different project or world is in place, and the one armed
+  command that makes Close, New, Open and Back each refuse once over unsaved work.
+- `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
+  build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
+  once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
   Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's
   notice, at least as tall as its content measured last frame and as tall as the person made it.
@@ -220,9 +220,10 @@ carries it out.
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
-  settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
-  a neighbouring one back into the project's world (ADR-0204).
-- `undo.c` — the states pushed once, the compare a settled edit makes against
+  settled edit recorded as the whole scene's text, Ctrl+Z or Ctrl+Y reading
+  a neighbouring one back into the project's world (ADR-0204), and the level's
+  line set aside while a prefab is open.
+- `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
 - `entities.h` — Add entity, a dropped model's thing, a dropped prefab's copy, duplicating and deleting entities with their

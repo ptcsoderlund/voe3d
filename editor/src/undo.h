@@ -34,13 +34,19 @@
 // calling voe_editor_undo_edited for the next step.
 //
 // THE LINE BELONGS TO THE PROJECT BEING WORKED ON. voe_editor_undo_forget
-// empties it when a different project is opened or made, and the first settle
-// after that records the fresh project as the line's one state.
+// empties both lines when a different project is opened or made, and the first
+// settle after that records the fresh project as the line's one state.
 //
-// CONSTRAINTS. The line is VOE_EDITOR_UNDO_STEPS states of VOE_EDITOR_UNDO_TEXT
-// bytes, pushed once out of the arena voe_editor_undo_create is handed — two
-// megabytes of it — and a project's world holds at most VOE_EDITOR_SCENE_ROWS
-// authored entities, which is a fraction of one state. A scene text too long
+// TWO LINES, ONE IN FORCE (0283 point 8). Opening a prefab sets the level's
+// line aside (voe_editor_undo_aside) and the prefab gets an empty one; Back
+// swaps the level's in again and drops the prefab's (_restore). The level keeps
+// its own because its states are texts, and a text re-expands every placed
+// copy from the prefab files as they are when it is read.
+//
+// CONSTRAINTS. Each line is VOE_EDITOR_UNDO_STEPS states of VOE_EDITOR_UNDO_TEXT
+// bytes, both pushed once out of the arena voe_editor_undo_create is handed —
+// two megabytes each, four in all — and a project's world holds at most
+// VOE_EDITOR_SCENE_ROWS authored entities, which is a fraction of one state. A scene text too long
 // for a state empties the line rather than recording half of it; lifting that
 // means a text a state does not hold, which is a different structure and not a
 // larger number. Once the line is full, dropping the oldest state shifts the
@@ -80,17 +86,30 @@ typedef struct {
 	uint32_t at;
 	// Whether an edit has reached the project since the last settle.
 	bool edited;
+	// The line set aside while a prefab is open: its states, pushed by
+	// _create too, and its count and at, as above.
+	voe_editor_undo_state *aside_states;
+	uint32_t aside_count;
+	uint32_t aside_at;
 } voe_editor_undo;
 
-// Pushes the line's states out of arena, once, and leaves it empty: the first
-// settle records the project as its one state.
+// Pushes both lines' states out of arena, once, and leaves them empty: the
+// first settle records the project as its one state.
 void voe_editor_undo_create(voe_editor_undo *undo, voe_base_arena *arena);
+
+// Sets the line in force aside and puts the other, emptied, in its place: a
+// prefab was opened, and the first settle records it.
+void voe_editor_undo_aside(voe_editor_undo *undo);
+
+// Swaps the set-aside line back in and empties the one in force: Back left the
+// prefab, whose line is dropped.
+void voe_editor_undo_restore(voe_editor_undo *undo);
 
 // Says an edit has reached the project. The step it belongs to is taken by
 // whichever later settle finds the editor at rest.
 void voe_editor_undo_edited(voe_editor_undo *undo);
 
-// Empties the line and forgets any edit: a different project is being worked
+// Empties both lines and forgets any edit: a different project is being worked
 // on.
 void voe_editor_undo_forget(voe_editor_undo *undo);
 

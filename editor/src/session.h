@@ -1,50 +1,48 @@
-// The project being worked on, its notice, its Play, Refresh and Ship, and the
-// refuse-once rule that keeps unsaved work from being thrown away by one click
-// or one press of a shortcut. The commands are New, Open, Save, Close, Play,
-// Refresh and Ship.
+// The project being worked on, its notice, its Play, Refresh and Ship, its open
+// prefab and the refuse-once rule that keeps unsaved work from being thrown
+// away by one click or one press of a shortcut.
 //
-// ONE ARMED COMMAND IS THE WHOLE OF THE RULE. With the project unsaved, CLOSE,
-// NEW and OPEN are refused the first time: the notice says so and `armed`
+// ONE ARMED COMMAND IS THE WHOLE OF THE RULE. With unsaved work, CLOSE, NEW,
+// OPEN and BACK are refused the first time: the notice says so and `armed`
 // remembers which, so the very next time the SAME command arrives it goes
 // ahead. EVERY CALL TO voe_editor_session_do STARTS BY CLEARING THE NOTICE AND
-// DISARMING, so `armed` never survives past the one command it was for and a
-// command that goes ahead leaves the bar with nothing to explain.
+// DISARMING, so `armed` never outlives the one command it was for. CLOSE, NEW
+// and OPEN count the open prefab and the level set aside for it (0283 point 8).
 //
 // NEW, ONCE ALLOWED, puts a fresh untitled project in place of the old one
-// (project.h's "build a whole new project, then discard the old one") and
-// clears `scene`'s selection. OPEN, once allowed, only shows the browser in
-// OPEN mode; what a chosen folder does is voe_editor_session_browser_do's, on
-// the browser's own Confirm. Either ends a running refresh and ship.
+// (project.h) and clears `scene`'s selection. OPEN only shows the browser in
+// OPEN mode; its Confirm is voe_editor_session_browser_do's. Either ends a
+// running refresh and ship. SAVE NEVER ARMS: an opened project (or its open
+// prefab) is written over itself; an untitled one shows the browser in SAVE.
 //
-// SAVE NEVER ARMS. An opened project is written back over itself; an untitled
-// one shows the browser in SAVE mode instead, and its Confirm is
-// voe_editor_session_browser_do's too.
+// A PREFAB IS OPENED BY voe_editor_session_prefab_open, refused while one is
+// open, and left by BACK, refused once while it is unsaved; with none open BACK
+// does nothing. Both clear the selection; `prefab_opened` and `prefab_closed`
+// tell the loop, which swaps undo.h's lines on them.
 //
-// PLAY NEVER ARMS AND IS NEVER REFUSED FOR UNSAVED WORK (ADR-0188). Play idle
-// and code in `Code/`: a refresh starts with `play_after`, so the world is
-// made with the code the game will run, and Play starts once it is in
-// (ADR-0242 point 7); with no code it starts session->play (play.h) at once.
-// A press during that refresh ends it, during any other refresh sets
-// `play_after`, and while building or running is Stop. A CLOSE THAT GOES AHEAD
-// ENDS THE PLAY, THE REFRESH AND THE SHIP FIRST.
+// PLAY NEVER ARMS AND IS NEVER REFUSED FOR UNSAVED WORK (ADR-0188), only while
+// a prefab is open (Back first). Idle with code in `Code/`, a refresh starts
+// with `play_after` and Play once the code is in (ADR-0242 point 7); with no
+// code session->play (play.h) starts at once. A press during that refresh ends
+// it, during any other sets `play_after`, and while building or running is
+// Stop. A CLOSE THAT GOES AHEAD ENDS THE PLAY, THE REFRESH AND THE SHIP FIRST.
 //
-// SHIP NEVER ARMS (ADR-0264): Play's shape, `ship_after` its `play_after`, and
-// a press while shipping does nothing. ONE BUILD AT A TIME: Ship waits with a
-// notice while Play builds or a refresh runs for Play, and joins any other
-// refresh; Play's build and Refresh wait with a notice while a ship runs or is
-// to follow a refresh, and a due refresh stays due. A ship never stops a game.
+// SHIP NEVER ARMS (ADR-0264): Play's shape, `ship_after` its `play_after`,
+// refused while a prefab is open, and a press while shipping does nothing. ONE
+// BUILD AT A TIME: Ship waits with a notice while Play builds or a refresh runs
+// for Play, and joins any other refresh; Play's build and Refresh wait with a
+// notice while a ship runs or follows a refresh. A ship never stops a game.
 //
 // REFRESH NEVER ARMS: it starts session->refresh now (refresh.h), unless one
 // runs. `refresh_due` asks for one the next step, set wherever a project with
 // a folder lands: Open's Confirm, a first Save, and startup.h.
 //
 // voe_editor_session_step IS WHERE A REFRESH LANDS, once a frame at its top,
-// before the undo take and the structural queue. A due refresh starts there if
-// the project has code; a running one is polled. BUILT loads the library unless
-// its bytes equal the loaded one's (code.h), swaps the world for one made with
-// it (project.h), re-finds the selection by authored id and closes the picker
-// and dropdown. A failed build, load or swap says so in the notice and keeps
-// the old world; `play_after` and `ship_after` are then dropped.
+// before the undo take and the structural queue: a due one started if the
+// project has code, a running one polled. BUILT loads the library unless its
+// bytes equal the loaded one's (code.h), swaps the world (project.h), re-finds
+// the selection by authored id and closes the picker and dropdown. A failure
+// says so and keeps the old world; `play_after` and `ship_after` are dropped.
 //
 // A FAILED BUILD SHOWS `errors` (errors.h) from Build/build.log: a refresh
 // that answers FAILED, or a Play or Ship whose step failed (the two polls). A
@@ -70,7 +68,7 @@
 
 #include <stdint.h>
 
-// The seven things a person can ask the session to do, and NONE for "nothing
+// The eight things a person can ask the session to do, and NONE for "nothing
 // was asked this frame" — which is never a valid argument to
 // voe_editor_session_do, only the value `armed` rests at between commands.
 typedef enum {
@@ -82,6 +80,7 @@ typedef enum {
 	VOE_EDITOR_COMMAND_PLAY,
 	VOE_EDITOR_COMMAND_REFRESH,
 	VOE_EDITOR_COMMAND_SHIP,
+	VOE_EDITOR_COMMAND_BACK,
 } voe_editor_command;
 
 // Zeroed is a session with no project yet and nothing armed — the caller sets
@@ -110,6 +109,10 @@ typedef struct {
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;
+	// A prefab was opened in the level's place, or Back left it; each set
+	// by the call that did it and cleared by main.c.
+	bool prefab_opened;
+	bool prefab_closed;
 } voe_editor_session;
 
 // Carries out command, or refuses it once — see the header above. `scene` is
@@ -119,7 +122,8 @@ typedef struct {
 // TRUE ONLY FOR A CLOSE THAT GOES AHEAD. Every other command, refused or not,
 // answers false: NEW replaces `session->project`, OPEN shows `browser`, SAVE
 // writes to the project, PLAY starts or ends session->play or a refresh,
-// REFRESH starts one and SHIP starts a ship or a refresh, none of which the caller has to be told happened, and a
+// REFRESH starts one, SHIP starts a ship or a refresh and BACK goes back to the
+// level (prefab_closed), none of which the caller has to be told happened, and a
 // refused command is exactly the case in which nothing may go ahead. A caller
 // that asked for CLOSE and got false carries on running; one that got true
 // closes.
@@ -156,6 +160,14 @@ const char *voe_editor_session_ship_label(const voe_editor_session *session);
 // Marks session->project unsaved, clears the notice and disarms, exactly as
 // "anything else done" does in voe_editor_session_do.
 void voe_editor_session_edited(voe_editor_session *session);
+
+// Opens the prefab at `path` under the project's folder in the level's place
+// (voe_editor_project_prefab_open), clearing the notice and disarming as a
+// command does. Refused with a notice while a prefab is open; a failure is the
+// notice. On success `scene`'s selection is cleared, the picker and dropdown
+// closed, any Play or Ship to follow a refresh dropped, and prefab_opened set.
+void voe_editor_session_prefab_open(voe_editor_session *session,
+				    voe_editor_scene *scene, const char *path);
 
 // Carries out what browser reported this frame — see browser.h's
 // voe_editor_browser_clicks_read. Entering a row, going up and making a

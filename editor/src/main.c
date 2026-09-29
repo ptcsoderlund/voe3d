@@ -404,9 +404,19 @@ int main(int argc, char *argv[])
 		// so the rows a step puts back are given their meshes before
 		// anything draws them (undo.h). A step leaves the project
 		// unsaved and is never itself an edit to record.
+		// A prefab opened sets the level's line aside, and Back puts it
+		// back (0283 point 8).
 		if (session.replaced) {
 			session.replaced = false;
 			voe_editor_undo_forget(&undo);
+			voe_editor_views_focus_camera(&views, scene.world);
+		} else if (session.prefab_opened) {
+			session.prefab_opened = false;
+			voe_editor_undo_aside(&undo);
+			voe_editor_views_focus_camera(&views, scene.world);
+		} else if (session.prefab_closed) {
+			session.prefab_closed = false;
+			voe_editor_undo_restore(&undo);
 			voe_editor_views_focus_camera(&views, scene.world);
 		} else if ((step_back || step_forward) &&
 			   voe_editor_undo_take(&undo, session.project, &scene,
