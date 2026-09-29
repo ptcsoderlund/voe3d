@@ -18,6 +18,10 @@ and read through the description its own folder registered.
 - `scene_read.c` — the reader's two passes. Its header says why only the second
   touches the world and why it walks the text beside the sectioned reader for
   key spans.
+- `scene_scratch.h` — the reader's first pass, text into scratch with the world
+  untouched, shared by `scene_read.c` and `prefab_read.c`.
+- `prefab_read.c` — the prefab reader: checks the text is one tree a prefab may
+  hold, then adds it onto a placed root.
 - `field_read.h` — one field's value read from the text into a row, and how an
   entity reference is held until the entity exists.
 - `field_read.c` — the tokens, numbers, brackets and strings. Its header says why

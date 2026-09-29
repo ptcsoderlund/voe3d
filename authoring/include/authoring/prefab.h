@@ -15,14 +15,22 @@
 // tree is written `0`, with no warning: that is what a prefab is. Kept sections
 // are not written.
 //
-// WHAT A PREFAB MAY HOLD IS NOT CHECKED HERE. No camera, light, prefab or part
-// row is the caller's to check before it writes, and the reader's when it reads
-// (0283 points 6 and 8).
+// WHAT A PREFAB MAY HOLD IS NOT CHECKED BY THE WRITER. No camera, light, prefab
+// or part row is the caller's to check before it writes, and the reader's when
+// it reads (0283 points 6 and 8).
+//
+// READING ONE IS A LOAD, rule 3's creation exception (0283 point 4), as
+// authoring/scene_read.h is: it adds rows straight to the entities it has just
+// made and to the root it is expanding, asks no system and submits no intent.
+// It never overwrites a row the root has, and never touches another entity.
 #pragma once
 
 #include <authoring/scene_write.h>
 #include <base/arena.h>
 #include <ecs/world.h>
+
+#include <stddef.h>
+#include <stdint.h>
 
 // Writes `root` and everything under it as prefab text into `arena`. On success
 // `*out` holds the text. On failure it returns false, reports why naming the
@@ -34,3 +42,23 @@
 					      voe_ecs_entity root,
 					      voe_base_arena *arena,
 					      voe_authoring_text *out);
+
+// Reads `size` bytes of prefab text onto `root`, which must be alive with a
+// transform, in a world that registered identities and prefab parts. The text
+// is validated whole first, as voe_authoring_scene_read does, and also refused
+// without exactly one `[N]` lacking a parent section, or holding a camera,
+// light, prefab or part section; refused, it creates nothing. Then `root` gets
+// every row of the file's root it lacks, never identity, transform or parent;
+// every other entity is made in ascending file id, its identity the file's name
+// with id `first_id`, `first_id + 1`, ...; an ENTITY naming a file id names the
+// entity made for it (the file's root: `root`), any other is zero; and `root`
+// and every made entity get a part row naming `root`. `*out_next_id` is the id
+// after the last used. A section of an unregistered type is skipped, one
+// warning per type. The arena holds working memory, the caller's to rewind.
+// A world out of room returns false half-made, as voe_authoring_scene_read.
+[[nodiscard]] bool voe_authoring_prefab_read(const char *text, size_t size,
+					     voe_ecs_world *world,
+					     voe_ecs_entity root,
+					     uint64_t first_id,
+					     voe_base_arena *arena,
+					     uint64_t *out_next_id);

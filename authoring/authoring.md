@@ -12,9 +12,9 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 - `include/authoring/scene_write.h` — a world written as scene text, handed back
   in one `voe_authoring_text` out-struct. Its header says what is written and in
   what order; the file says how every field kind is spelled and what it refuses.
-- `include/authoring/prefab.h` — one tree written as a `.prefab` file's scene text.
-  Its header says what a prefab file is, why the root sits at the origin, and who
-  checks what a prefab may hold.
+- `include/authoring/prefab.h` — one tree written as a `.prefab` file's scene text,
+  and read back onto a placed root. Its header says what a prefab file is, why the
+  root sits at the origin, and why a read may add rows.
 - `include/authoring/scene_read.h` — scene text read into a world. Its header says
   why a load may create rows, that a file is validated whole first, and what is
   kept rather than read; the file says what a world that runs out of room is left as.
