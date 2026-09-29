@@ -34,6 +34,7 @@
 #include <scene/camera_component.h>
 #include <scene/identity_component.h>
 #include <scene/light_component.h>
+#include <scene/parent_component.h>
 #include <scene/transform_component.h>
 
 #include <stdbool.h>

@@ -65,6 +65,7 @@
 #include "project.h"
 #include "resize.h"
 #include "scene.h"
+#include "scene_list.h"
 #include "session.h"
 #include "settings.h"
 #include "shortcuts.h"
@@ -545,9 +546,12 @@ int main(int argc, char *argv[])
 		step_forward = shortcuts.redo;
 
 		// ESCAPE'S ORDER IS THIS FILE'S, out of the free edge that read
-		// leaves: the picker closes first and goes no further,
-		// otherwise it is the browser's Cancel or Preferences' Close.
+		// leaves: a Scene list drag under way is cancelled first, then
+		// the picker closes and goes no further, otherwise it is the
+		// browser's Cancel or Preferences' Close.
 		escape_free = shortcuts.escape_free;
+		if (escape_free && voe_editor_scene_list_cancel(&scene))
+			escape_free = false;
 		if (escape_free && scene.picking.open) {
 			voe_editor_scene_picker_close(&scene);
 			escape_free = false;

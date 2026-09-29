@@ -31,6 +31,9 @@
 // again rather than being closed behind. The browser and Preferences cover the
 // same area, and either showing closes it.
 //
+// THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
+// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks.
+//
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
 // button it hangs from (ADR-0199), and the only thing this file still does to it
@@ -44,6 +47,7 @@
 #include "notice.h"
 #include "preferences.h"
 #include "project.h"
+#include "scene_list.h"
 #include "themes.h"
 #include "topbar.h"
 
@@ -214,6 +218,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views);
+		// A Scene list drag's ghost, anchored beside the pointer
+		// (ADR-0282); before the overlays, so they paint over it.
+		voe_editor_scene_list_ghost_draw(ui, scene, root->pointer.at);
 		// ANCHORED, SO ITS PLACE IN THIS CALL ORDER DOES NOT MATTER TO
 		// WHERE IT PAINTS (ui/layout.h) — it is called here, after the
 		// tree, only because that is where browser.h's own state (the
@@ -291,6 +298,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
+		voe_editor_scene_list_drop(scene, ui, root->pointer.down,
+					   root->pointer.at);
 		if (voe_editor_assets_clicks_read(ui, &scene->assets))
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT,

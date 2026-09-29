@@ -1,16 +1,18 @@
 // The overlap query: a capsule on a floor, against a wall and on a tilted box;
 // sphere against sphere and capsule against capsule; a trigger flagged, the
-// ignored entity left out, and capacity honoured.
+// ignored entity left out, and capacity honoured; a child at its world place.
 //
 // EVERY SCENE RUNS TWICE, at the origin and moved by (100000, 0, 100000), and
 // checks the same numbers to 1e-5. A float there has a step of about 0.008, so
 // only a query that subtracts centres in double first passes both (0250).
 #include <base/arena.h>
+#include <ecs/structure.h>
 #include <ecs/world.h>
 #include <math/quat.h>
 #include <physics/collider_component.h>
 #include <physics/collider_system.h>
 #include <physics/overlap.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -25,12 +27,16 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
-		.component_types = 2,
+		.component_types = 3,
 		.intent_types = 2,
+		// voe_scene_parent_set queues through it.
+		.structure_requests = 4,
+		.structure_bytes = 128,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_transform_register(world, ENTITIES);
+	voe_scene_parent_register(world, ENTITIES);
 	voe_physics_collider_register(world, ENTITIES);
 	return world;
 }
@@ -211,6 +217,50 @@ static void trigger_ignore_and_capacity(voe_base_arena *arena,
 	VOE_TEST_CHECK_INT(n, 1);
 }
 
+// A box 2 m along +X under a parent at (10, 0, 0): a sphere at its world
+// place, (12, 0, 0), finds it; one at its row's place, (2, 0, 0), does not.
+static void a_child_collides_at_its_world_place(voe_base_arena *arena,
+						voe_math_double3 base)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_physics_contact contacts[4];
+	voe_ecs_entity parent = { 0 };
+	voe_ecs_entity child =
+		placed(world, base, (voe_math_double3){ 12.0, 0.0, 0.0 },
+		       turned_about_z(0.0f), VOE_PHYSICS_COLLIDER_BOX,
+		       (voe_math_float3){ 1.0f, 1.0f, 1.0f }, false);
+	voe_physics_shape sphere = { .kind = VOE_PHYSICS_COLLIDER_SPHERE,
+				     .centre = { base.x + 12.0, base.y, base.z },
+				     .rotation = turned_about_z(0.0f),
+				     .half = { 0.5f, 0.0f, 0.0f } };
+	uint32_t n;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, parent,
+		(voe_scene_transform){
+			.position = { base.x + 10.0, base.y, base.z },
+			.rotation = turned_about_z(0.0f),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_parent_set(world, child, parent));
+	voe_ecs_structure_apply(world);
+	voe_scene_transform_system_run(world);
+	VOE_TEST_CHECK_FLOAT((float)voe_scene_transform_get(world, child)
+				     ->position.x,
+			     2.0f, 1e-5f);
+
+	n = voe_physics_overlap(world, sphere, (voe_ecs_entity){ 0 }, contacts,
+				4);
+	VOE_TEST_CHECK_INT(n, 1);
+	if (n == 1)
+		VOE_TEST_CHECK(contacts[0].entity.index == child.index);
+
+	sphere.centre.x = base.x + 2.0;
+	n = voe_physics_overlap(world, sphere, (voe_ecs_entity){ 0 }, contacts,
+				4);
+	VOE_TEST_CHECK_INT(n, 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -223,6 +273,7 @@ int main(void)
 		a_capsule_on_a_tilted_box(arena, places[i]);
 		round_against_round(arena, places[i]);
 		trigger_ignore_and_capacity(arena, places[i]);
+		a_child_collides_at_its_world_place(arena, places[i]);
 	}
 
 	voe_base_arena_destroy(arena);

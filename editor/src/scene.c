@@ -15,6 +15,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
+#include <scene/parent_component.h>
 
 #include <ui/widgets.h>
 
@@ -59,6 +60,7 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene)
 
 	scene->listed_count = 0;
 	scene->add = VOE_UI_NODE_NONE;
+	scene->heading = VOE_UI_NODE_NONE;
 	scene->structural = 0;
 	scene->full = false;
 }
@@ -107,7 +109,8 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 	for (uint32_t i = 0; i < scene->listed_count; i++) {
 		if (scene->listed[i].node == VOE_UI_NODE_NONE)
 			continue;
-		if (voe_ui_button_action(ui, scene->listed[i].node).fired)
+		if (voe_ui_button_action(ui, scene->listed[i].node).fired &&
+		    !scene->list_dragging && !scene->list_cancelled)
 			scene->selected = scene->listed[i].entity;
 	}
 
@@ -120,12 +123,26 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 	return true;
 }
 
+// The camera anywhere in the selection's tree refuses the whole delete.
+static bool tree_holds_camera(const voe_ecs_world *world, voe_ecs_entity root)
+{
+	voe_ecs_entity tree[VOE_EDITOR_SCENE_ROWS];
+	uint32_t count = voe_scene_parent_tree(world, root, tree,
+					       VOE_EDITOR_SCENE_ROWS);
+
+	VOE_BASE_ASSERT(count > 0, "a tree without its root");
+	for (uint32_t i = 0; i < count; i++)
+		if (voe_scene_camera_get(world, tree[i]) != NULL)
+			return true;
+	return false;
+}
+
 void voe_editor_scene_delete(voe_editor_scene *scene)
 {
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 
 	if (selected.generation == 0 ||
-	    voe_scene_camera_get(scene->world, selected) != NULL)
+	    tree_holds_camera(scene->world, selected))
 		return;
 	if (!voe_editor_entities_delete(scene->world, selected)) {
 		scene->full = true;

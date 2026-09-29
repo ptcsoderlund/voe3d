@@ -9,13 +9,16 @@ space is.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/scene/transform_component.h` — a double position, a rotation and a
-  scale as a described field list, and the matrix they become about an origin
-  the caller names. The file says why there is no parent, why the matrix is not
-  stored, and what the drain settles.
+  scale relative to a parent, the matrix they become about an origin the caller
+  names, and the world place composed up the chain.
+- `include/scene/parent_component.h` — the entity a thing hangs under, and the
+  walks up to an ancestor and down a tree, each capped at 32 links.
+- `include/scene/parent_system.h` — registering the parent table (no replace, no
+  menu path), and the one call that parents or unparents keeping the world place.
 - `include/scene/transform_system.h` — the intent that moves one, registered as
   the component's replace, the call that creates one, and the opt-in previous
   table a stepping world remembers each step and blends back to by a lag
-  (position in double, rotation the shorter way, scale straight).
+  (each link of the chain, composed into a world transform).
 - `include/scene/camera_component.h` — the lens only: field of view and the two
   planes, as a described field list, and the view from a pose, relative to its
   own eye. Its header says why the pose is the transform, why the view is the

@@ -1,5 +1,7 @@
 // A collider and its transform turned into a shape in the world. Reads both
 // tables and writes neither; physics/shape.h says what each kind's half means.
+// The shape stands at the entity's world place, its parents' included (0281):
+// the row is read only to tell whether there is a transform at all.
 #include <base/assert.h>
 #include <ecs/component.h>
 #include <physics/collider_component.h>
@@ -12,7 +14,7 @@ bool voe_physics_shape_of(const voe_ecs_world *world, voe_ecs_entity entity,
 			  voe_physics_shape *out)
 {
 	const voe_physics_collider *collider;
-	const voe_scene_transform *transform;
+	voe_scene_transform world_place;
 	voe_math_float3 scale;
 	voe_math_float3 half = { 0.0f, 0.0f, 0.0f };
 
@@ -20,13 +22,13 @@ bool voe_physics_shape_of(const voe_ecs_world *world, voe_ecs_entity entity,
 			      "a shape out of no world, or into nowhere");
 
 	collider = voe_physics_collider_get(world, entity);
-	transform = voe_scene_transform_get(world, entity);
-	if (collider == NULL || transform == NULL)
+	if (collider == NULL || voe_scene_transform_get(world, entity) == NULL)
 		return false;
+	world_place = voe_scene_transform_world(world, entity);
 
-	scale = (voe_math_float3){ fabsf(transform->scale.x),
-				   fabsf(transform->scale.y),
-				   fabsf(transform->scale.z) };
+	scale = (voe_math_float3){ fabsf(world_place.scale.x),
+				   fabsf(world_place.scale.y),
+				   fabsf(world_place.scale.z) };
 
 	switch (collider->kind) {
 	case VOE_PHYSICS_COLLIDER_BOX:
@@ -47,8 +49,8 @@ bool voe_physics_shape_of(const voe_ecs_world *world, voe_ecs_entity entity,
 	}
 
 	*out = (voe_physics_shape){ .kind = collider->kind,
-				    .centre = transform->position,
-				    .rotation = transform->rotation,
+				    .centre = world_place.position,
+				    .rotation = world_place.rotation,
 				    .half = half };
 	return true;
 }

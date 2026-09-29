@@ -17,6 +17,9 @@
 // A BODY STANDS ON WORLD Y: its capsule's lower cap is taken to be straight
 // below its centre, as a player's is. A body tipped over steps wrongly.
 //
+// A BODY IS EXPECTED TO BE A ROOT: its move is written as its row, so under a
+// parent the world place it lands at is not the one it moved to.
+//
 // MOST_SUBSTEPS IS A CEILING: a body faster than MOST_SUBSTEPS quarter radii a
 // call moves further than that per substep and may pass through a thin wall.
 // A swept query per substep is what would lift it.

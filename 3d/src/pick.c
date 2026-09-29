@@ -2,10 +2,10 @@
 // question is answered here and against which table.
 //
 // The view's two matrices are inverted once per pick. The walk carries the ray
-// into each shape's or model's own space and tests its triangles; the triangle
-// test is written out once, its derivation in a comment above it. The cameras'
-// marker boxes and the suns' marker cubes are tested after the shapes and the
-// models, on the same distance.
+// into each shape's or model's own space, from its world place, and tests its
+// triangles; the triangle test is written out once, its derivation in a comment
+// above it. The cameras' marker boxes and the suns' marker cubes are tested
+// after the shapes and the models, on the same distance.
 #include <3d/camera_marker.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
@@ -214,14 +214,14 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 	float nearest = 0.0f;
 
 	for (uint32_t i = 0; i < count; i++) {
-		const voe_scene_transform *transform =
-			voe_scene_transform_get(world, entities[i]);
 		const voe_3d_shape_geometry *geometry =
 			voe_3d_shape_geometry_of(geometries, rows[i].kind);
 		float t;
 
-		if (transform == NULL || geometry == NULL ||
-		    !geometry_hit(*transform, geometry, ray, &t))
+		if (voe_scene_transform_get(world, entities[i]) == NULL ||
+		    geometry == NULL ||
+		    !geometry_hit(voe_scene_transform_world(world, entities[i]),
+				  geometry, ray, &t))
 			continue;
 		if (hit.generation != 0 && t >= nearest)
 			continue;
@@ -237,15 +237,15 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		const voe_ecs_entity *owners = voe_3d_model_entities(world);
 
 		for (uint32_t i = 0; i < wearers; i++) {
-			const voe_scene_transform *transform =
-				voe_scene_transform_get(world, owners[i]);
 			const voe_3d_model_entry *entry =
 				voe_3d_models_find(models, worn[i].path);
 			float t;
 
-			if (transform == NULL || entry == NULL ||
-			    !entry->loaded ||
-			    !geometry_hit(*transform, &entry->shape, ray, &t))
+			if (voe_scene_transform_get(world, owners[i]) == NULL ||
+			    entry == NULL || !entry->loaded ||
+			    !geometry_hit(voe_scene_transform_world(world,
+								    owners[i]),
+					  &entry->shape, ray, &t))
 				continue;
 			if (hit.generation != 0 && t >= nearest)
 				continue;
@@ -261,12 +261,12 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		const voe_ecs_entity *owners = voe_scene_camera_entities(world);
 
 		for (uint32_t i = 0; i < cameras; i++) {
-			const voe_scene_transform *pose =
-				voe_scene_transform_get(world, owners[i]);
 			float t;
 
-			if (pose == NULL ||
-			    !voe_3d_camera_marker_hit(*pose, ray, &t))
+			if (voe_scene_transform_get(world, owners[i]) == NULL ||
+			    !voe_3d_camera_marker_hit(
+				    voe_scene_transform_world(world, owners[i]),
+				    ray, &t))
 				continue;
 			if (hit.generation != 0 && t >= nearest)
 				continue;
@@ -282,12 +282,12 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		const voe_ecs_entity *owners = voe_scene_light_entities(world);
 
 		for (uint32_t i = 0; i < lights; i++) {
-			const voe_scene_transform *pose =
-				voe_scene_transform_get(world, owners[i]);
 			float t;
 
-			if (pose == NULL ||
-			    !voe_3d_sun_marker_hit(*pose, ray, &t))
+			if (voe_scene_transform_get(world, owners[i]) == NULL ||
+			    !voe_3d_sun_marker_hit(
+				    voe_scene_transform_world(world, owners[i]),
+				    ray, &t))
 				continue;
 			if (hit.generation != 0 && t >= nearest)
 				continue;
