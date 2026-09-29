@@ -70,7 +70,7 @@ voe_ecs_world *voe_game_world_new(voe_base_arena *arena)
 	voe_3d_panel_register(world, MAX_PANELS);
 	voe_3d_shape_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_3d_model_register(world, VOE_GAME_WORLD_MAX_DRAWN);
-	voe_physics_collider_register(world, VOE_GAME_WORLD_AUTHORED);
+	voe_physics_collider_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_physics_body_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_transform_previous_register(world, MAX_TRANSFORMS);
 
