@@ -3,11 +3,18 @@
 //
 //     int main(void)
 //     {
-//             return voe_game_run("My game");
+//             voe_game_window window = { 1280, 720, false };
+//
+//             return voe_game_run("My game", window);
 //     }
 //
-// THE ORDER: two arenas, voe_app_new at VOE_GAME_WIDTH by VOE_GAME_HEIGHT with
-// `title`, the interface (game/interface.h), the world (game/world.h), the
+// THE WINDOW IS HANDED IN (0291). The editor's game tree writes it into the
+// generated main.c from the project's settings, so the game reads no project
+// text (0236). Fullscreen takes the screen and ignores the size. The window
+// can be resized to any shape; the world is drawn at the window's aspect,
+// never stretched.
+//
+// THE ORDER: two arenas, voe_app_new with `window` and `title`, the interface (game/interface.h), the world (game/world.h), the
 // project's voe_game_project_register (game/project.h), the model store
 // (3d/models.h), the mixer (audio/mixer.h) on the program's folder and the
 // sound device (platform/sound.h), voe_game_scene_build (game/scene.h), the
@@ -28,19 +35,25 @@
 // close key, the editor's Stop, or voe_game_project_interface answering false
 // ends the run.
 //
-// Constraints: the window size is fixed until a project setting names one
-// (0234). Links only in a tree that has a cooked scene.c defining
+// Constraints: links only in a tree that has a cooked scene.c defining
 // voe_game_scene_build, a cooked prefabs.c defining voe_game_prefabs_cooked,
 // and a project defining the four entry points of
 // game/project.h (register, systems_run, systems_after_move, interface);
 // run.c is the one file that names them.
 #pragma once
 
-// The window the game opens in, whatever the editor's size (0234).
-#define VOE_GAME_WIDTH 1280
-#define VOE_GAME_HEIGHT 720
+#include <stdbool.h>
+
+// The window the game opens in, whatever the editor's size: `width` by
+// `height` pixels, both above nought, or the whole screen when `fullscreen`.
+typedef struct voe_game_window {
+	int width;
+	int height;
+	bool fullscreen;
+} voe_game_window;
 
 // 0 when the window was closed or the project's interface ended the run. 1
-// with a line on stderr when the window, device or interface would not open, the scene did not fit its world, the shapes did not
-// fit the device, or the device stopped answering. `title` is the window's.
-int voe_game_run(const char *title);
+// with a line on stderr when the window, device or interface would not open,
+// the scene did not fit its world, the shapes did not fit the device, or the
+// device stopped answering. `title` is the window's.
+int voe_game_run(const char *title, voe_game_window window);
