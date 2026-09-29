@@ -1,6 +1,12 @@
 // The lives' step and HUD: registers tank_lives, adds it to the first hull,
-// takes a life for each shot that hit that hull this step, and draws the
-// count at the top left.
+// makes that hull solid, takes a life for each shot that hit it this step,
+// and draws the count at the top left.
+//
+// The collider: each step the first hull has none, a box of (4.64, 4, 2.62),
+// the enemy's, not a trigger, is queued onto it, lives row or not (0295). It
+// is added here, not authored, because the sponsor's tank_body.prefab has
+// none and agents do not edit it; added at run time it is never saved. A
+// collider already on the hull is kept.
 //
 // The shots that hit this step are still there: the shell system records the
 // hit and its shell is only gone at the step's structural apply (0294), so
@@ -20,6 +26,8 @@
 #include <ecs/structure.h>
 
 #include <game/project.h>
+
+#include <physics/collider_component.h>
 
 #include <scene/parent_component.h>
 
@@ -61,6 +69,28 @@ static int32_t tank_lives_hits(voe_ecs_world *world, voe_ecs_entity hull)
 	return hits;
 }
 
+// Queues the enemy's solid box onto `hull` when it has no collider, so an
+// enemy's sweep has something to hit (0295). One the sponsor put there is
+// kept. A refused add is left for the next step.
+static void tank_lives_solidify(voe_ecs_world *world, voe_ecs_entity hull)
+{
+	VOE_BASE_ASSERT(world != NULL, "making a hull solid in no world");
+	if (voe_physics_collider_get(world, hull) != NULL)
+		return;
+	const voe_physics_collider box = {
+		.kind = VOE_PHYSICS_COLLIDER_BOX,
+		.size = { 4.64f, 4.0f, 2.62f },
+		.trigger = false,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(box.size.x > 0.0f && box.size.y > 0.0f &&
+				      box.size.z > 0.0f,
+			      "a hull box with no size");
+	(void)voe_ecs_structure_add(
+		world, voe_ecs_component_type(world, &voe_physics_collider_key),
+		hull, &box);
+}
+
 void tank_lives_run(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
@@ -70,6 +100,9 @@ void tank_lives_run(const voe_game_project_step *step)
 	const voe_ecs_type hull_type =
 		voe_ecs_component_type(world, &tank_hull_key);
 
+	if (voe_ecs_component_count(world, hull_type) > 0)
+		tank_lives_solidify(
+			world, voe_ecs_component_entities(world, hull_type)[0]);
 	if (voe_ecs_component_count(world, type) == 0) {
 		if (voe_ecs_component_count(world, hull_type) == 0)
 			return;

@@ -17,6 +17,12 @@
 // The enemies (08) read the row for whom to fire at: its entity is the
 // player's hull.
 //
+// THE HULL IS MADE SOLID (0295): tank_lives_run queues a box collider of
+// (4.64, 4, 2.62), the enemy's size, not a trigger, onto the first hull each
+// step it has none, so enemy shells hit it. A collider the sponsor puts on the
+// hull is kept and wins. Added only in the running game, which is a separate
+// program, so it is never saved.
+//
 // The interface draws a small panel at the top left reading `Lives N`, then
 // ends the ui frame and returns true; with no row it only ends the frame.
 //
