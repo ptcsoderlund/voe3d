@@ -3,9 +3,10 @@
 // A file is compared against what is on disk before it is written, so its
 // timestamp only moves when its bytes do. Text put into a generated file is
 // escaped for where it goes: the project's name as a C string literal in
-// main.c beside its game window's numbers, the engine's and the code's paths and the name as quoted CMake
-// arguments in CMakeLists.txt. Code/ is looked for in the project's own listing before it is
-// listed, so a project with none reports nothing.
+// main.c beside its game window's numbers, the engine's and the code's paths
+// and the name as quoted CMake arguments in CMakeLists.txt. Code/ is looked for
+// in the project's own listing before it is listed, so a project with none
+// reports nothing.
 //
 // The prefabs under Assets/ are found with an explicit stack of listings, one
 // per folder level, so a folder deeper than PREFAB_DEPTH (a symlink loop

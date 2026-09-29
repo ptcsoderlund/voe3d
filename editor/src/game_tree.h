@@ -5,14 +5,13 @@
 // platform/process.h.
 //
 // THE LAYOUT. `<project>/Build/game/` holds CMakeLists.txt, main.c, scene.c and
-// prefabs.c;
-// `<project>/Code/` is the project's own code, `.c` and `.h` (0242). Every
-// configure and build step writes to `<project>/Build/build.log`. Everything
-// generated lives in whole top-level folders git ignores — `Build/` here,
-// `Cache/` for any other generated data — so a project's .gitignore lists only
-// folders and nothing generated is ever written beside a developer's own files
-// (0235). A project with no .gitignore is given one; an existing one is never
-// read or changed.
+// prefabs.c; `<project>/Code/` is the project's own code, `.c` and `.h` (0242).
+// Every configure and build step writes to `<project>/Build/build.log`.
+// Everything generated lives in whole top-level folders git ignores — `Build/`
+// here, `Cache/` for any other generated data — so a project's .gitignore lists
+// only folders and nothing generated is ever written beside a developer's own
+// files (0235). A project with no .gitignore is given one; an existing one is
+// never read or changed.
 //
 // THREE KINDS, ONE TREE (0242 point 4). GAME builds `Build/game/` into
 // `Build/debug/`, target `game`, the program `Build/debug/game`. LIBRARY

@@ -75,8 +75,8 @@ carries it out.
   `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
   install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the game window's numbers in main.c, the world cooked into scene.c, every prefab found and cooked into prefabs.c, each
-  argument list in one struct, the release kind and the shipped folder.
+  where they go, the game window's numbers in main.c, the world cooked into scene.c, every prefab
+  found and cooked into prefabs.c, the release kind and the shipped folder.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
