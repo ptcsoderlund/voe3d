@@ -2,7 +2,7 @@
 
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
-Today that is a window, its keyboard and mouse, a clock, reading and writing a
+Today that is a window, its keyboard, mouse and gamepads, a clock, reading and writing a
 file, listing, making or finding a folder, starting another program, the
 program's own arguments, and the sound device.
 
