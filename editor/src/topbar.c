@@ -1,5 +1,5 @@
-// The bar's one frame of `ui` calls, and the read of its seven buttons
-// afterwards. See the header for why the command it hands back is not carried
+// The bar's one frame of `ui` calls, and the read of its buttons, Back among
+// them while a prefab is open, afterwards. See the header for why the command it hands back is not carried
 // out here.
 //
 // A PANEL FOR THE BACKGROUND, A ROW FOR THE FLOW. voe_ui_panel_begin is a
@@ -49,7 +49,8 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
 			   const char *ship, const char *gizmo,
-			   const char *name, bool unsaved, const char *notice)
+			   const char *name, bool unsaved, const char *notice,
+			   bool back)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing no top bar into no interface");
 	VOE_BASE_ASSERT(bar != NULL,
@@ -76,6 +77,13 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	voe_ui_row_begin(ui, (voe_ui_container){
 				     .across = VOE_UI_ACROSS_CENTER,
 				     .gap = BAR_GAP });
+
+	bar->back_button = VOE_UI_NODE_NONE;
+	if (back) {
+		bar->back_button = voe_ui_button_begin(ui, "back", 0);
+		voe_ui_label(ui, "Back");
+		voe_ui_end(ui);
+	}
 
 	bar->new_button = voe_ui_button_begin(ui, "new", 0);
 	voe_ui_label(ui, "New");
@@ -159,6 +167,10 @@ voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 	// the caller's bug — so they are skipped, exactly as the Scene
 	// panel's rows are (scene.c): a full frame is `ui`'s to report and
 	// not this file's to fail on.
+	if (bar->back_button != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, bar->back_button).fired)
+		return VOE_EDITOR_COMMAND_BACK;
+
 	if (bar->new_button != VOE_UI_NODE_NONE &&
 	    voe_ui_button_action(ui, bar->new_button).fired)
 		return VOE_EDITOR_COMMAND_NEW;

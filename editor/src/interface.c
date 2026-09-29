@@ -35,6 +35,11 @@
 // scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
 // over the Assets leaf it makes a prefab (prefabs.h), one structural change.
 //
+// A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT, through
+// voe_editor_session_prefab_open, beside where Import shows the browser; the
+// bar then names the prefab's file and draws Back, whose command reaches
+// voe_editor_session_do as the bar's others do.
+//
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
 // button it hangs from (ADR-0199), and the only thing this file still does to it
@@ -54,6 +59,8 @@
 #include "topbar.h"
 
 #include <base/assert.h>
+
+#include <platform/path.h>
 
 #include <ui/colour.h>
 #include <ui/theme.h>
@@ -139,7 +146,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// above it — dock.c's own tree is untouched, only the size
 		// its walk divides out.
 		voe_editor_dock_root below_bar = *root;
-		const char *name = voe_editor_project_name(session->project);
+		// The open prefab's file in the project's place (0283 point 8).
+		bool prefab_open = session->project->prefab[0] != '\0';
+		const char *name =
+			prefab_open ?
+				voe_platform_path_name(session->project->prefab) :
+				voe_editor_project_name(session->project);
 		uint32_t first;
 		uint32_t records;
 		// Captured before anything is drawn, and used for every
@@ -216,7 +228,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       scene->rings ? "Rotate" : "Move",
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
-				       session->notice.text);
+				       session->notice.text, prefab_open);
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views);
@@ -317,6 +329,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT,
 						&session->notice);
+		if (scene->assets.opened[0] != '\0') {
+			voe_editor_session_prefab_open(session, scene,
+						       scene->assets.opened);
+			scene->assets.opened[0] = '\0';
+		}
 		voe_editor_views_rects_read(views, ui);
 		// Whatever the browser or Preferences show: the bar is drawn
 		// under both, and the next frame is laid out at this measure.

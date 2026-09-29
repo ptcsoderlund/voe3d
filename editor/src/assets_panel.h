@@ -29,6 +29,9 @@
 //
 // A PREFAB ROW is a file whose name ends `.prefab`, in any case (0283): drawn
 // marked as a model row is, and held as one is, so assets_drag.h places it.
+// Pressed and released on the row, which a drag to a view never is, it fires:
+// the read leaves its project-relative path, `/` between, in `opened`, a field
+// the caller reads and clears; a path too long for it is not reported.
 //
 // A FAILED LISTING KEEPS THE OLD ROWS for the same project, as browser.h's
 // does, and says why on stderr through platform/folder.h. `Assets/` is looked
@@ -45,6 +48,8 @@
 #include "browser.h"
 
 #include <base/arena.h>
+
+#include <scene/prefab_component.h>
 
 #include <ui/widgets.h>
 
@@ -85,6 +90,9 @@ typedef struct {
 	// assets_drag.h starts a drag from.
 	const char *held;
 	bool held_prefab;
+	// The prefab row fired at the last read, `Assets/...` under the
+	// project, "" for none. The caller clears it once it has opened it.
+	char opened[VOE_SCENE_PREFAB_PATH];
 } voe_editor_assets;
 
 // Lists again when `project_folder` (NULL for untitled) differs from the one
@@ -99,8 +107,9 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
 // After voe_ui_frame_end: a folder row fired is entered, Up fired goes up a
-// level; either lists at once. `held` is set to the model or prefab row held, if any. True when Import fired, which the caller
-// answers by showing the browser in IMPORT mode.
+// level; either lists at once. `held` is set to the model or prefab row held,
+// if any, and `opened` to a prefab row fired. True when Import fired, which
+// the caller answers by showing the browser in IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets);
 

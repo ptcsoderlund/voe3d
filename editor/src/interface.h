@@ -261,8 +261,12 @@
 // nodes. AND SIXTY-EIGHT ELEMENTS: the one lit rim's border and fill, two; the
 // ghost's border and fill, two, and its name's 64 characters. 22386 + 68 =
 // 22454 elements.
-#define VOE_EDITOR_INTERFACE_NODES 1214
-#define VOE_EDITOR_INTERFACE_ELEMENTS 22454
+//
+// THE BAR'S BACK BUTTON (topbar.h), while a prefab is open, ADDS TWO NODES, a
+// button and its label, and SIX ELEMENTS: its border and fill, and "Back".
+// 1214 + 2 = 1216 nodes, 22454 + 6 = 22460 elements.
+#define VOE_EDITOR_INTERFACE_NODES 1216
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22460
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

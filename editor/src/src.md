@@ -98,11 +98,12 @@ carries it out.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
-  Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's
-  notice, at least as tall as its content measured last frame and as tall as the person made it.
+- `topbar.h` — the bar across the top of the root surface: Back while a prefab is open, New, Open,
+  Save, Play, Refresh, Ship, Preferences, the gizmo's mode, the project's or prefab's name and
+  whether it is unsaved, then the session's notice, at least as tall as its content measured last
+  frame and as tall as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its seven buttons, Play, Refresh and Ship among them, afterwards.
+  the read of its buttons, Back, Play, Refresh and Ship among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -131,10 +132,11 @@ carries it out.
   stack, each row in a rim wrapper, a copy's file name, the drag's ghost, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
-  as models and `.prefab` rows as prefabs, and Import copying a chosen `.glb` into the shown folder.
+  as models and `.prefab` rows as prefabs, a fired prefab row's path left for the caller to open,
+  and Import copying a chosen `.glb` into the shown folder.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
-  the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the
-  import.
+  the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
+  afterwards, and the import.
 - `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
   the ray lands, over the Inspector swaps the selected thing's model unless it is a part; a held
   prefab row over a view places a copy there unless a prefab is open; anywhere else nothing.
@@ -150,7 +152,8 @@ carries it out.
   colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play state
   and the ship polled once a frame, and the one read of the frame's clicks that carries out the top
-  bar's, the browser's and Preferences' commands, the colour picker's changes and a prefab made.
+  bar's, Back's, the browser's and Preferences' commands, the colour picker's changes, a prefab made
+  and a prefab row's click opening it.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
