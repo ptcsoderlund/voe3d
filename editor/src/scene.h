@@ -132,6 +132,9 @@ typedef struct voe_editor_scene {
 	bool list_cancelled;
 	voe_ecs_entity list_target;
 	bool list_target_heading;
+	// The entity a drag released over the Assets panel left for the caller
+	// to make a prefab of (interface.c), which clears it; zeroed if none.
+	voe_ecs_entity list_made;
 	// The themes the Scene list pushes for the held row's dim and the
 	// target's rim (ADR-0282), rebuilt by it from the palette each frame.
 	// Here because a pushed theme must outlive the frame it is drawn in.

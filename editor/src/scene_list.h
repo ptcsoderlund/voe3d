@@ -6,7 +6,8 @@
 //     voe_editor_scene_list_ghost_draw(ui, &scene, pointer.at);  // root
 //     ... voe_ui_frame_end ...
 //     (scene.h reads the rows and Add entity it recorded)
-//     voe_editor_scene_list_drop(&scene, ui, pointer.down, pointer.at);
+//     voe_editor_scene_list_drop(&scene, ui, pointer.down, pointer.at,
+//                                over_assets);
 //
 // THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE, walked directly, so an
 // entity the engine made for itself (no identity, not authored, ADR-0125)
@@ -36,6 +37,10 @@
 // selects, and no rim or drop lands on its row. A part is the prefab's, and a
 // thing under one would be saved naming what no file holds. A copy's root
 // drags and takes a drop as any row.
+//
+// A DRAG OVER THE ASSETS PANEL HAS THAT AS ITS TARGET (0283 point 6): no row is
+// rimmed and the ghost still follows; released there, the held entity is left
+// in `list_made` for the caller to make a prefab of, and nothing is parented.
 //
 // A DRAG STARTS ONLY PAST VOE_EDITOR_SCENE_DRAG_START FROM THE PRESS (ADR-0282),
 // so a wobbling click stays a click. While dragging, `list_target` is the
@@ -71,10 +76,11 @@ void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
 // the target at `at`, the root's millimetres — and on the first frame none is
 // held and `down` is false, drops it there if it was dragged and not cancelled,
 // then zeroes them. A held entity no longer alive, or either one without a
-// transform, does nothing.
+// transform, does nothing. `over_assets` is whether `at` is over the Assets
+// panel: no target then, and a drop there sets `list_made` instead.
 void voe_editor_scene_list_drop(voe_editor_scene *scene,
 				const voe_ui_context *ui, bool down,
-				voe_math_float2 at);
+				voe_math_float2 at, bool over_assets);
 
 // When a drag is under way, cancels it for the rest of the press and returns
 // true, so the caller spends Escape on it; else false and changes nothing.

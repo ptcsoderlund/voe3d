@@ -246,6 +246,29 @@ void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
 	arrange_node(tree, tree->root, area, 0, out);
 }
 
+bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
+				voe_editor_panel panel, voe_math_float2 pointer)
+{
+	voe_editor_dock_arrangement places;
+
+	VOE_BASE_ASSERT(root != NULL, "asking where a panel is on no root");
+	voe_editor_dock_arrange(
+		&root->tree,
+		(voe_ui_rect){ .min = { 0.0f, top },
+			       .size = { root->size.x, root->size.y - top } },
+		&places);
+	for (uint32_t i = 0; i < root->tree.count; i++) {
+		const voe_editor_dock_node *node = &root->tree.nodes[i];
+		voe_ui_rect r = places.nodes[i].rect;
+
+		if (node->kind == VOE_EDITOR_DOCK_LEAF && node->panel == panel &&
+		    pointer.x >= r.min.x && pointer.x < r.min.x + r.size.x &&
+		    pointer.y >= r.min.y && pointer.y < r.min.y + r.size.y)
+			return true;
+	}
+	return false;
+}
+
 // A split's seam, SEAM along it and filling across. Not lit, one fill of
 // `border`; lit, two stripes each half of it: the first child's side
 // `inverse_ink`, the second's `inverse` (0231, 0232).

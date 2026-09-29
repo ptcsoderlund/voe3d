@@ -32,7 +32,8 @@
 // same area, and either showing closes it.
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
-// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks.
+// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
+// over the Assets leaf it makes a prefab (prefabs.h), one structural change.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
@@ -45,6 +46,7 @@
 #include "inspector.h"
 #include "inspector_edit.h"
 #include "notice.h"
+#include "prefabs.h"
 #include "preferences.h"
 #include "project.h"
 #include "scene_list.h"
@@ -298,8 +300,19 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
-		voe_editor_scene_list_drop(scene, ui, root->pointer.down,
-					   root->pointer.at);
+		voe_editor_scene_list_drop(
+			scene, ui, root->pointer.down, root->pointer.at,
+			voe_editor_dock_over_panel(
+				root, voe_editor_topbar_high(bar, root->size.y),
+				VOE_EDITOR_PANEL_ASSETS, root->pointer.at));
+		if (scene->list_made.generation != 0) {
+			if (voe_editor_prefab_make(session->project,
+						   scene->list_made,
+						   scene->assets.shown, arena,
+						   &session->notice))
+				scene->structural++;
+			scene->list_made = (voe_ecs_entity){ 0 };
+		}
 		if (voe_editor_assets_clicks_read(ui, &scene->assets))
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT,

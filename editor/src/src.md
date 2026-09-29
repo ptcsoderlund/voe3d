@@ -14,9 +14,12 @@ carries it out.
   the editor runs no move, and why placed copies are expanded after it.
 - `world_step.c` — the one call to `voe_game_world_step`, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
-  ascending id, a load, with deterministic ids and a file that will not read said in the notice.
+  ascending id, a load, with deterministic ids and a file that will not read said in the notice;
+  a tree dragged into the Assets panel made one, and what refuses it.
 - `prefab_expand.c` — the next unexpanded root found, its file read onto it, the ids carried, and a
   refused root given its part row.
+- `prefab_make.c` — a tree's camera, light or prefab rows refused, the file written under the shown
+  folder unless it exists, then the prefab and part rows queued.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -115,13 +118,15 @@ carries it out.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
-  panel's length or the views' share, every seam's place (the reached one lit), and the walk.
+  panel's length or the views' share, every seam's place (the reached one lit), whether a point is
+  over a panel, and the walk.
 - `dock.c` — the arrangement, held lengths and the views' share clamped and set, the walk to one
   frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
   drag marks, the Inspector's call, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree,
   keyed by identity index, a placed copy marked with its prefab's file name; a drag past 1 mm onto a
-  row parents it, onto the heading unparents it; a part never drags or takes a drop; Escape cancels.
+  row parents it, onto the heading unparents it, onto the Assets panel is left to make a prefab; a
+  part never drags or takes a drop; Escape cancels.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
   stack, each row in a rim wrapper, a copy's file name, the drag's ghost, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
@@ -145,7 +150,7 @@ carries it out.
   colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play state
   and the ship polled once a frame, and the one read of the frame's clicks that carries out the top
-  bar's, the browser's and Preferences' commands and the colour picker's changes.
+  bar's, the browser's and Preferences' commands, the colour picker's changes and a prefab made.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

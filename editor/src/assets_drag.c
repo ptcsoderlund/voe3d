@@ -52,32 +52,6 @@ static voe_math_double3 drop_point(voe_ecs_world *world,
 				   ray.origin.z + ray.direction.z * along };
 }
 
-// Whether `pointer` is over the Inspector's leaf, laid out as resize.c does.
-static bool over_inspector(const voe_editor_dock_root *root,
-			   const voe_editor_topbar *bar,
-			   voe_math_float2 pointer)
-{
-	voe_editor_dock_arrangement places;
-	float high = voe_editor_topbar_high(bar, root->size.y);
-
-	voe_editor_dock_arrange(
-		&root->tree,
-		(voe_ui_rect){ .min = { 0.0f, high },
-			       .size = { root->size.x, root->size.y - high } },
-		&places);
-	for (uint32_t i = 0; i < root->tree.count; i++) {
-		const voe_editor_dock_node *node = &root->tree.nodes[i];
-		voe_ui_rect r = places.nodes[i].rect;
-
-		if (node->kind == VOE_EDITOR_DOCK_LEAF &&
-		    node->panel == VOE_EDITOR_PANEL_INSPECTOR &&
-		    pointer.x >= r.min.x && pointer.x < r.min.x + r.size.x &&
-		    pointer.y >= r.min.y && pointer.y < r.min.y + r.size.y)
-			return true;
-	}
-	return false;
-}
-
 // A new thing wearing the held path where the view's ray lands, selected.
 static bool drop_into_view(const voe_editor_assets_drag *drag,
 			   voe_editor_scene *scene,
@@ -118,7 +92,9 @@ static void drop(const voe_editor_assets_drag *drag,
 	if (voe_editor_views_under(views, pointer, &view, &point)) {
 		done = drop_into_view(drag, scene, &views->views[view], point,
 				      geometries, models);
-	} else if (over_inspector(root, bar, pointer) &&
+	} else if (voe_editor_dock_over_panel(
+			   root, voe_editor_topbar_high(bar, root->size.y),
+			   VOE_EDITOR_PANEL_INSPECTOR, pointer) &&
 		   !voe_editor_inspector_is_part(scene->world, selected, NULL) &&
 		   voe_3d_model_get(scene->world, selected) != NULL) {
 		snprintf(swap.model.path, sizeof swap.model.path, "%s",

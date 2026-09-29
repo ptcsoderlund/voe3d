@@ -290,9 +290,11 @@ static bool drop_target(const voe_editor_scene *scene,
 }
 
 // One held frame: the start remembered on a newly held row, the threshold
-// crossed unless cancelled, and the target a release now would land on.
+// crossed unless cancelled, and the target a release now would land on, none
+// over the Assets panel.
 static void drag_follow(voe_editor_scene *scene, const voe_ui_context *ui,
-			voe_ecs_entity row, voe_math_float2 at)
+			voe_ecs_entity row, voe_math_float2 at,
+			bool over_assets)
 {
 	voe_ecs_entity target = { 0 };
 	bool lands;
@@ -305,7 +307,7 @@ static void drag_follow(voe_editor_scene *scene, const voe_ui_context *ui,
 	    voe_math_float2_length(voe_math_float2_sub(
 		    at, scene->list_from)) >= VOE_EDITOR_SCENE_DRAG_START)
 		scene->list_dragging = true;
-	lands = scene->list_dragging &&
+	lands = scene->list_dragging && !over_assets &&
 		drop_target(scene, ui, row, at, &target);
 	scene->list_target = lands ? target : (voe_ecs_entity){ 0 };
 	scene->list_target_heading =
@@ -316,10 +318,11 @@ static void drag_follow(voe_editor_scene *scene, const voe_ui_context *ui,
 
 void voe_editor_scene_list_drop(voe_editor_scene *scene,
 				const voe_ui_context *ui, bool down,
-				voe_math_float2 at)
+				voe_math_float2 at, bool over_assets)
 {
 	voe_ecs_entity held;
 	voe_ecs_entity target = { 0 };
+	bool dropped;
 	bool lands;
 
 	VOE_BASE_ASSERT(scene != NULL, "dropping a row on no scene");
@@ -332,7 +335,8 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 			// A held part is only a click: it selects on release.
 			if (!is_part(scene->world, scene->listed[i].entity))
 				drag_follow(scene, ui,
-					    scene->listed[i].entity, at);
+					    scene->listed[i].entity, at,
+					    over_assets);
 			return;
 		}
 	}
@@ -340,8 +344,12 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 		return;
 
 	held = scene->list_held;
-	lands = scene->list_dragging && !scene->list_cancelled &&
+	dropped = scene->list_dragging && !scene->list_cancelled;
+	lands = dropped && !over_assets &&
 		drop_target(scene, ui, held, at, &target);
+	if (dropped && over_assets &&
+	    voe_ecs_entity_alive(scene->world, held))
+		scene->list_made = held;
 	scene->list_held = (voe_ecs_entity){ 0 };
 	scene->list_from = (voe_math_float2){ 0 };
 	scene->list_dragging = false;

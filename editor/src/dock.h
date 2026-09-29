@@ -201,6 +201,11 @@ typedef struct {
 void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
 			     voe_editor_dock_arrangement *out);
 
+// Whether `pointer` is over a leaf of `panel` in `root`'s tree laid out below
+// `top`, the top bar's height, all in the root's millimetres.
+bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
+				voe_editor_panel panel, voe_math_float2 pointer);
+
 // The length of the split whose held child is a leaf of `panel`, or a split
 // whose first child is, and that length set. Nought, and nothing written, when no split holds one.
 float voe_editor_dock_panel_length(const voe_editor_dock_tree *tree,
