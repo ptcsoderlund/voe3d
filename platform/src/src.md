@@ -61,6 +61,9 @@ header.
   level of the format's fixed nesting, none of them calling itself. Its header
   says why a brace counter stands in for recursion here, and why a key body is
   read by its statements rather than by its first `[`.
+- `gamepad.h` — the four pad slots, attaching and detaching a pad, and a device's range onto −1..1
+  or 0..1. OS-free, built and tested on both platforms; its header says why.
+- `gamepad.c` — its implementation, in double so no range overflows.
 - `input.h` — the input state both backends fill and neither reads, the two functions each of them
   defines over its own window, the three clears both of them call, and the one shared function that
   turns a code point into UTF-8.

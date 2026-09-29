@@ -13,6 +13,8 @@ that module's promises from outside. None of them needs a window or a display.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;
   focus loss releases keys, pointer loss buttons; an overflowing or control code point types
   nothing; the pointer's shape survives a poll and both losses.
+- `gamepad.c` — four attaches fill slots 0 to 3 and a fifth is refused, a freed slot is zero and
+  comes back with a higher id, and axis and trigger at both ends, the middle, past them and no width.
 - `keymap.c` — a hand-written keymap text checked key by key, and a second copied from a real
   compositor's own spelling, for both keysym spellings, the levels, AltGr, aliases, dead keys and
   the two refusals.
