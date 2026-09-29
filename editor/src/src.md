@@ -35,10 +35,9 @@ carries it out.
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
-  sections, the code its world was made with, its folder and whether it has unsaved changes
-  (ADR-0164), the one place its worlds are made, its scene as text or read back in, the new-code swap,
-  every read's placed copies expanded, and a prefab opened with the level set aside as text.
+- `project.h` — the project being worked on: its three arenas, kept sections, code, folder and
+  unsaved flag (ADR-0164), where its worlds are made, its scene as text or read back and expanded,
+  the new-code swap, and a prefab opened with the level set aside.
 - `project.c` — opening, making and saving a project or its open prefab, the scene written out as
   text and read back into the same world or a new one, each read expanded, a prefab opened and
   Back, and the untitled scene's cube, light and camera.
@@ -98,10 +97,9 @@ carries it out.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, and what a browser action does to the session.
-- `topbar.h` — the bar across the top of the root surface: Back while a prefab is open, New, Open,
-  Save, Play, Refresh, Ship, Preferences, the gizmo's mode, the project's or prefab's name and
-  whether it is unsaved, then the session's notice, at least as tall as its content measured last
-  frame and as tall as the person made it.
+- `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
+  Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its content
+  or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its buttons, Back, Play, Refresh and Ship among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
@@ -124,16 +122,14 @@ carries it out.
 - `dock.c` — the arrangement, held lengths and the views' share clamped and set, the walk to one
   frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
   drag marks, the Inspector's call, and each scene view's camera preview.
-- `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree,
-  keyed by identity index, a placed copy marked with its prefab's file name; a drag past 1 mm onto a
-  row parents it, onto the heading unparents it, onto the Assets panel is left to make a prefab; a
-  part never drags or takes a drop; Escape cancels.
+- `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
+  copy marked with its prefab's file; a drag parents, unparents or, onto the Assets panel, makes a
+  prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
   stack, each row in a rim wrapper, a copy's file name, the drag's ghost, and the held row's drop.
-- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
-  Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
-  as models and `.prefab` rows as prefabs, a fired prefab row's path left for the caller to open,
-  and Import copying a chosen `.glb` into the shown folder.
+- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
+  entered and Up but never above it, listed again once a second, model and prefab rows marked, a
+  fired prefab row left to open, and Import.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
   afterwards, and the import.
@@ -150,17 +146,15 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play state
-  and the ship polled once a frame, and the one read of the frame's clicks that carries out the top
-  bar's, Back's, the browser's and Preferences' commands, the colour picker's changes, a prefab made
-  and a prefab row's click opening it.
+- `interface.c` — one `ui` frame per root, the drag ghost, play and ship polled once a frame, and
+  the one read of the frame's clicks carrying out the bar's, browser's and Preferences' commands,
+  the picker's changes, and a prefab made or opened.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
-- `inspector.c` — the Duplicate and Delete row, the walk over the world's described component types,
-  each section's heading, Remove and "Needs" line, a wrapping row per described field, the record
-  each control leaves behind, the Add component button and its menu, the open list, and a part's
-  line naming its prefab with its fields as labels.
+- `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
+  section's heading, Remove and "Needs" line, a row per field, each control's record, Add component
+  and its menu, the open list, and a part shown read-only.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
@@ -196,10 +190,9 @@ carries it out.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
   passes, with the world and its models, the selection's outline, its collider, its gizmo and the
   camera's and sun's markers, and the device capacities those passes need.
-- `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
-  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with
-  the world's camera and sun marked and no gizmo on a part, and ended, stopping at the first refused
-  pass.
+- `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
+  view's shadow passes and pass through `3d`'s draw system, camera and sun marked, no gizmo on a
+  part, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.
@@ -229,8 +222,8 @@ carries it out.
 - `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity, a dropped model's thing, a dropped prefab's copy, duplicating and deleting entities with their
-  trees (a placed copy duplicated as its four saved rows), and giving or taking their components,
-  all through the world's structural queue. Its header says the id and name rules.
+- `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
+  entities with their trees, and giving or taking components, all through the world's structural
+  queue. Its header says the id and name rules.
 - `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
   undoes a half-made entity.
