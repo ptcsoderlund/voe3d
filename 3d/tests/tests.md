@@ -28,8 +28,8 @@ again, or to find where a claim that has started failing is written down.
   or sun marker is one draw more. Skips without a graphics card.
 - `shadows.c` — that a cube over a floor under a sun straight down darkens the floor beneath it and
   not beside it, that a fill lifts that shadow and leaves the lit floor as it was, that no light
-  casts nothing, 100 km out the same, and a model casts as the cube does. Skips without a card.
-- `no_light.c` — that a world with no light frames unshaded and not blind, one light frames as
+  casts nothing and draws the floor black, 100 km out the same, and a model casts as the cube does. Skips without a card.
+- `no_light.c` — that a world with no light frames the zeroed light, drawing black, and not blind, one light frames as
   itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
   card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each

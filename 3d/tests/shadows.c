@@ -19,9 +19,9 @@
 // (2, -0.95, -5), is seven tenths of it to the right. Both are far inside what
 // they are part of — the shadow is a metre across, the lit floor twenty.
 //
-// NO LIGHT CASTS NOTHING (ADR-0238): the call opens no pass, draws nothing,
-// leaves `shadow` zeroed and still returns true, and the two pixels are alike —
-// both the floor's material colour, unshaded.
+// NO LIGHT CASTS NOTHING (ADR-0287): the call opens no pass, draws nothing,
+// leaves `shadow` zeroed and still returns true, and the two pixels are both
+// black, the floor lit by the zeroed light.
 //
 // 100 KM OUT (0250) the camera, floor and cube all stand 100 km along X and the
 // same two pixels read as they did: the cascades are fitted about the eye and
@@ -243,7 +243,7 @@ static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 	return pixels;
 }
 
-// No light: nothing cast, nothing drawn, the floor alike under and beside.
+// No light: nothing cast, nothing drawn, the floor black under and beside.
 static void no_light_casts_nothing(voe_render_device *device,
 				   const voe_3d_shapes *shapes)
 {
@@ -255,7 +255,8 @@ static void no_light_casts_nothing(voe_render_device *device,
 
 	VOE_TEST_CHECK_INT(count, 0);
 	VOE_TEST_CHECK_INT(added, 0);
-	VOE_TEST_CHECK_INT(pixels.under, pixels.beside);
+	VOE_TEST_CHECK_INT(pixels.under, 0);
+	VOE_TEST_CHECK_INT(pixels.beside, 0);
 	voe_base_arena_destroy(arena);
 }
 

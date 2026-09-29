@@ -118,8 +118,11 @@ bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
 	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
 			"the sun's shadow passes go before the view's pass — see 3d/draw_system.h");
 	frame->shadow = (voe_render_shadow){ 0 };
-	// No sun casts nothing (ADR-0238), and a blind camera draws no world.
-	if (frame->light.unshaded || frame->blind)
+	// A light of no strength casts nothing, and a zeroed one's direction
+	// cannot orient cascades (0290 point 2); nor does an unshaded one, and
+	// a blind camera draws no world.
+	if (frame->light.unshaded || frame->light.intensity <= 0.0f ||
+	    frame->blind)
 		return true;
 
 	cascades = voe_3d_shadow_cascades_fit(frame->view, frame->eye,

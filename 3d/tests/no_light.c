@@ -1,10 +1,12 @@
-// A scene with no light is framed unshaded, and one light is framed as itself
-// (ADR-0238). Needs no graphics card: voe_3d_draw_system_frame and
-// voe_3d_draw_system_light take no device.
+// A scene with no light is framed with the zeroed light, which draws lit
+// surfaces black, and one light is framed as itself (ADR-0287). Needs no
+// graphics card: voe_3d_draw_system_frame and voe_3d_draw_system_light take no
+// device.
 //
 // It claims three things. A world with a camera, its transform and a light
-// table with no rows frames without asserting, not blind, with `unshaded` set;
-// voe_3d_draw_system_light on that world says the same; and once one light is
+// table with no rows frames without asserting, not blind, with `unshaded`,
+// intensity, colour and fill all nought; voe_3d_draw_system_light on that
+// world says the same; and once one light is
 // added `unshaded` is zero and direction, intensity and colour are the light's:
 // the direction its transform's -Z, so a turn of -pi/2 about X shines straight
 // down, and `fill` its fill colour times its fill intensity (ADR-0273).
@@ -51,15 +53,27 @@ static voe_ecs_world *a_world_with_a_camera(voe_base_arena *arena)
 	return world;
 }
 
-static void no_light_frames_unshaded(voe_ecs_world *world)
+// Every field a lit surface reads is nought, so it draws black.
+static void check_zeroed(voe_render_light light)
+{
+	VOE_TEST_CHECK_INT(light.unshaded, 0);
+	VOE_TEST_CHECK_FLOAT(light.intensity, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(light.colour.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(light.colour.y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(light.colour.z, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(light.fill.x, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(light.fill.y, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(light.fill.z, 0.0f, 0.0f);
+}
+
+static void no_light_frames_the_zeroed_light(voe_ecs_world *world)
 {
 	voe_3d_frame frame = voe_3d_draw_system_frame(
 		world, (voe_platform_size){ 640, 480 }, 0.0f);
-	voe_render_light light = voe_3d_draw_system_light(world);
 
-	VOE_TEST_CHECK(frame.light.unshaded != 0);
+	check_zeroed(frame.light);
 	VOE_TEST_CHECK(!frame.blind);
-	VOE_TEST_CHECK(light.unshaded != 0);
+	check_zeroed(voe_3d_draw_system_light(world));
 }
 
 static void one_light_frames_as_itself(voe_ecs_world *world)
@@ -126,7 +140,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_ecs_world *world = a_world_with_a_camera(arena);
 
-	no_light_frames_unshaded(world);
+	no_light_frames_the_zeroed_light(world);
 	one_light_frames_as_itself(world);
 	a_turned_light_frames_its_turn_and_fill(arena);
 
