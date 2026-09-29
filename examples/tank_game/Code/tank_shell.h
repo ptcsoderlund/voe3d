@@ -12,8 +12,9 @@
 // EACH STEP A SHELL SWEEPS (0294 point 2): a sphere of `radius` from its
 // shot's `from` to where it would fly, against the solid colliders gathered
 // once that step, past its `owner`. On a hit it stops: not moved, its shot
-// records `hit` and `target`, and it is removed. A target with a
-// tank_breakable row is swapped for its wreck (tank_breakable.h).
+// records `hit` and `target`, and it is removed. Only the player's shots
+// swap a target with a tank_breakable row for its wreck (tank_breakable.h,
+// 0296); any other shell stops and changes nothing.
 //
 // A SHOT CARRIES A tank_shot ROW (0294 point 1), runtime-only: never saved,
 // never in the Inspector, no menu. The one firing adds it, through

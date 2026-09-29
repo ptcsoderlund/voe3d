@@ -15,10 +15,14 @@
 // `hit` and `target` and queues the shell's removal, unmoved; no hit moves
 // it and its `from` becomes where it went. Shot rows are written whole.
 //
-// THE SWAP (0294 point 3): a hit target with a tank_breakable row, not yet
-// swapped this step, has its `wreck` spawned at its world place and, only
-// when that is not refused, is removed with its tree. Swapped targets are a
-// local list, so many shells hitting one thing swap it once.
+// THE SWAP (0294 point 3, 0296): only the player's shots wreck. The player's
+// hull, the tank_lives row's entity, is found once a step; a hit swaps only
+// when the shell has a shot row and that hull is within its `owner`. Any
+// other hit stops the shell and changes nothing. Then a hit target with a
+// tank_breakable row, not yet swapped this step, has its `wreck` spawned at
+// its world place and, only when that is not refused, is removed with its
+// tree. Swapped targets are a local list, so many shells hitting one thing
+// swap it once.
 //
 // tank_shell_fire spawns a shot and queues its tank_shot row (tank_shell.h)
 // behind the spawn's rows on the structural queue.
@@ -33,6 +37,7 @@
 #include "tank_shell.h"
 
 #include "tank_breakable.h"
+#include "tank_lives.h"
 
 #include <base/assert.h>
 
@@ -47,6 +52,7 @@
 
 #include <physics/sweep.h>
 
+#include <scene/parent_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -173,10 +179,12 @@ static void shot_write(voe_ecs_world *world, voe_ecs_entity entity,
 }
 
 // Sweeps one live shell and stops it on a hit or moves it. False when the
-// transform queue refused the move.
+// transform queue refused the move. `player` is the player's hull, NULL when
+// there is none; only a shot whose owner holds it swaps (0296).
 static bool fly(const voe_game_project_step *step, voe_ecs_entity entity,
 		const tank_shell *shell, const voe_physics_obstacle *obstacles,
-		uint32_t count, struct swapped *list)
+		uint32_t count, const voe_ecs_entity *player,
+		struct swapped *list)
 {
 	VOE_BASE_ASSERT(step != NULL && shell != NULL && list != NULL,
 			"flying no shell");
@@ -209,7 +217,9 @@ static bool fly(const voe_game_project_step *step, voe_ecs_entity entity,
 		shot_write(step->world, entity, row != NULL, &shot);
 		// Refused: the queue is full, and next step tries again.
 		(void)voe_game_project_remove(step, entity);
-		swap_for_wreck(step, hit.entity, list);
+		if (row != NULL && player != NULL &&
+		    voe_scene_parent_within(step->world, *player, shot.owner))
+			swap_for_wreck(step, hit.entity, list);
 		return true;
 	}
 	voe_scene_transform flown = *transform;
@@ -238,6 +248,11 @@ void tank_shell_system_run(const voe_game_project_step *step)
 	const uint32_t obstacle_count = voe_physics_obstacles_gather(
 		step->world, obstacles, VOE_GAME_WORLD_MAX_DRAWN);
 	struct swapped list = { .count = 0 };
+	const voe_ecs_type lives =
+		voe_ecs_component_type(step->world, &tank_lives_key);
+	const voe_ecs_entity *player =
+		voe_ecs_component_count(step->world, lives) > 0 ?
+		&voe_ecs_component_entities(step->world, lives)[0] : NULL;
 	bool queue_full = false;
 
 	VOE_BASE_ASSERT(count <= TANK_SHELL_ROWS,
@@ -259,6 +274,6 @@ void tank_shell_system_run(const voe_game_project_step *step)
 		    queue_full)
 			continue;
 		queue_full = !fly(step, entities[i], &next, obstacles,
-				  obstacle_count, &list);
+				  obstacle_count, player, &list);
 	}
 }

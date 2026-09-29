@@ -1,8 +1,9 @@
-// Tank breakable: a thing a shell wrecks. When a shell's sweep hits an
-// entity with this row, the shell system (tank_shell.h) spawns the `wreck`
-// prefab at that entity's world place and, only when the spawn is not
-// refused, removes the entity with its tree (0294 point 3). Once a step,
-// however many shells hit it.
+// Tank breakable: a thing the player's shell wrecks. When the sweep of a
+// shell the player fired hits an entity with this row, the shell system
+// (tank_shell.h) spawns the `wreck` prefab at that entity's world place and,
+// only when the spawn is not refused, removes the entity with its tree (0294
+// point 3, 0296). Once a step, however many shells hit it. An enemy's shell
+// stops on it and nothing changes.
 //
 //     tank_breakable_register(world);      // in voe_game_project_register
 //

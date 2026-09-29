@@ -10,8 +10,8 @@ the library the editor loads (0242).
 - `tank_gun.h` — the Tank / Gun component: a prefab to fire, default `shell`, a rate, default 6 a second, a muzzle offset and the wait to the next shot.
 - `tank_gun_system.c` — while the control row's fire holds (left button, Space or right trigger), fires each ready gun's prefab at its muzzle along its turret's barrel, owned by its tank.
 - `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, a life, default 3 s, and a radius, default 0.1 m; the runtime-only shot row: owner, where the sweep starts, and what it hit.
-- `tank_shell_system.c` — fires a shell with its shot row; sweeps each shell, stopping it where it hits and swapping a breakable target for its wreck, else flies it along its own forward; removes it when it hits or its life runs out.
-- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, that a shell's hit swaps the thing for, once a step.
+- `tank_shell_system.c` — fires a shell with its shot row; sweeps each shell, stopping it where it hits and, for the player's shots only, swapping a breakable target for its wreck, else flies it along its own forward; removes it when it hits or its life runs out.
+- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, that only the player's shell's hit swaps the thing for, once a step; an enemy's shell changes nothing.
 - `tank_breakable.c` — the breakable's key and registration; it has no system.
 - `tank_lives.h` — the runtime-only lives row on the player's hull: 3 at the start, one off per shot that hits the hull, never below 0; the enemies read it for whom to fire at; the hull is made solid when it has no collider.
 - `tank_lives_system.c` — adds the lives row to the first hull, makes it solid with the enemy's box when it has no collider, takes a life for each shot that hit it this step, and draws `Lives N` in a HUD panel at the top left.
