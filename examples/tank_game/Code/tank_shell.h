@@ -1,13 +1,19 @@
 // Tank shell: a shot in flight. It flies along its own -Z and is removed
-// when its life runs out.
+// when its life runs out or it hits something.
 //
 //     tank_shell_register(world);          // in voe_game_project_register
 //     tank_shell_fire(step, "shell", at, turned, tank, gun_at); // a gun
 //     tank_shell_system_run(step);         // after the gun, before the move
 //
 // `speed` is metres a second, default 30; `life` is seconds left, default 3,
-// counted down by the system. A shell needs a transform to fly and is a root,
-// as a spawned prefab's root is.
+// counted down by the system; `radius` is metres, default 0.1. A shell needs a
+// transform to fly and is a root, as a spawned prefab's root is.
+//
+// EACH STEP A SHELL SWEEPS (0294 point 2): a sphere of `radius` from its
+// shot's `from` to where it would fly, against the solid colliders gathered
+// once that step, past its `owner`. On a hit it stops: not moved, its shot
+// records `hit` and `target`, and it is removed. A target with a
+// tank_breakable row is swapped for its wreck (tank_breakable.h).
 //
 // A SHOT CARRIES A tank_shot ROW (0294 point 1), runtime-only: never saved,
 // never in the Inspector, no menu. The one firing adds it, through
@@ -37,7 +43,8 @@
 
 #define TANK_SHELL_FIELDS(F, F_READ_ONLY) \
 	F(float, speed, FLOAT32)          \
-	F(float, life, FLOAT32)
+	F(float, life, FLOAT32)           \
+	F(float, radius, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(tank_shell, TANK_SHELL_FIELDS)
 
@@ -64,6 +71,8 @@ extern const struct voe_ecs_key tank_shot_key;
 				   voe_math_quat rotation, voe_ecs_entity owner,
 				   voe_math_double3 from);
 
-// Moves every shell along its own -Z for this step's seconds, counts its
-// life down, and removes it and its tree when that reaches zero.
+// Counts every shell's life down and removes it and its tree when that
+// reaches zero; sweeps the rest, stopping and removing a shell that hits and
+// swapping a breakable target for its wreck, and moves one that does not
+// along its own -Z for this step's seconds.
 void tank_shell_system_run(const voe_game_project_step *step);

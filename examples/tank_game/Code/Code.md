@@ -9,8 +9,10 @@ the library the editor loads (0242).
 - `tank_turret_system.c` — turns each turret about the world's up toward where the mouse pointer meets the ground, or the right stick's direction on screen, held when let go.
 - `tank_gun.h` — the Tank / Gun component: a prefab to fire, default `shell`, a rate, default 6 a second, a muzzle offset and the wait to the next shot.
 - `tank_gun_system.c` — while the control row's fire holds (left button, Space or right trigger), fires each ready gun's prefab at its muzzle along its turret's barrel, owned by its tank.
-- `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, and a life, default 3 s; the runtime-only shot row: owner, where the sweep starts, and what it hit.
-- `tank_shell_system.c` — fires a shell with its shot row, flies each shell along its own forward and removes it when its life runs out.
+- `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, a life, default 3 s, and a radius, default 0.1 m; the runtime-only shot row: owner, where the sweep starts, and what it hit.
+- `tank_shell_system.c` — fires a shell with its shot row; sweeps each shell, stopping it where it hits and swapping a breakable target for its wreck, else flies it along its own forward; removes it when it hits or its life runs out.
+- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, that a shell's hit swaps the thing for, once a step.
+- `tank_breakable.c` — the breakable's key and registration; it has no system.
 - `tank_spawner.h` — the Tank / Spawner component: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, and the wait to the next spawn.
 - `tank_spawner_system.c` — spawns each ready spawner's prefab at it, turned as it is, while the world holds fewer enemies than its most.
 - `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, and a life, default 20 s.
@@ -19,4 +21,4 @@ the library the editor loads (0242).
 - `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
 - `tank_control.h` — the runtime-only control row on the player's hull: drive, turn, aim, fire and whether the pad is in use.
 - `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
-- `project.c` — the four entry points: registers all eight types, runs the control first (pad beside keyboard and mouse, last touched wins), then the hull, turret, gun, shell, spawner, enemy, then camera before the move, nothing after, draws no interface.
+- `project.c` — the four entry points: registers all nine types, runs the control first (pad beside keyboard and mouse, last touched wins), then the hull, turret, gun, shell, spawner, enemy, then camera before the move, nothing after, draws no interface.
