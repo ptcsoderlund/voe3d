@@ -1,5 +1,5 @@
 // project.voe3d: the exact bytes the writer emits, a round trip back to the
-// same scene, every refusal named in authoring/project.h with the line
+// same scene and window, the window's defaults, every refusal named in authoring/project.h with the line
 // voe_base_report_error_first() keeps where the file has one, and an unknown
 // key that still loads with a warning.
 //
@@ -26,32 +26,44 @@ static void check_text(const char *actual, size_t size, const char *expected)
 	VOE_TEST_CHECK(actual[size] == '\0');
 }
 
+#define WINDOW_1280 { .width = 1280, .height = 720, .fullscreen = false }
+#define WINDOW_TEXT_1280 \
+	"\n[window]\nwidth = 1280\nheight = 720\nfullscreen = false\n"
+
 static void test_write_exact_bytes(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
-	voe_authoring_project project = { .scene = "main.scene" };
+	voe_authoring_project project = { .scene = "main.scene",
+					  .window = WINDOW_1280 };
 	size_t size;
 	const char *text = voe_authoring_project_write(&project, arena, &size);
 
-	check_text(text, size, "[project]\nscene = \"main.scene\"\n");
+	check_text(text, size,
+		   "[project]\nscene = \"main.scene\"\n" WINDOW_TEXT_1280);
 	voe_base_arena_destroy(arena);
 }
 
 static void test_write_escapes(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
-	voe_authoring_project project = { .scene = "weird\"scene.scene" };
+	voe_authoring_project project = { .scene = "weird\"scene.scene",
+					  .window = WINDOW_1280 };
 	size_t size;
 	const char *text = voe_authoring_project_write(&project, arena, &size);
 
-	check_text(text, size, "[project]\nscene = \"weird\\\"scene.scene\"\n");
+	check_text(text, size,
+		   "[project]\nscene = \"weird\\\"scene.scene\"\n"
+		   WINDOW_TEXT_1280);
 	voe_base_arena_destroy(arena);
 }
 
 static void test_round_trip(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
-	voe_authoring_project written = { .scene = "sub/main.scene" };
+	voe_authoring_project written = {
+		.scene = "sub/main.scene",
+		.window = { .width = 1600, .height = 900, .fullscreen = true },
+	};
 	size_t size;
 	const char *text = voe_authoring_project_write(&written, arena, &size);
 
@@ -60,7 +72,37 @@ static void test_round_trip(void)
 	voe_base_report_error_clear();
 	VOE_TEST_CHECK(voe_authoring_project_read(text, size, arena, &read));
 	VOE_TEST_CHECK(strcmp(read.scene, "sub/main.scene") == 0);
+	VOE_TEST_CHECK(read.window.width == 1600);
+	VOE_TEST_CHECK(read.window.height == 900);
+	VOE_TEST_CHECK(read.window.fullscreen);
 	voe_base_arena_destroy(arena);
+}
+
+// Reads `text`, which must load, into `*out`.
+static void read_ok(const char *text, voe_authoring_project *out)
+{
+	voe_base_arena *arena = voe_base_arena_new(4096);
+
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(
+		voe_authoring_project_read(text, strlen(text), arena, out));
+	voe_base_arena_destroy(arena);
+}
+
+static void test_window_defaults(void)
+{
+	voe_authoring_project out;
+
+	read_ok("[project]\nscene = main.scene\n", &out);
+	VOE_TEST_CHECK(out.window.width == 1280);
+	VOE_TEST_CHECK(out.window.height == 720);
+	VOE_TEST_CHECK(!out.window.fullscreen);
+
+	read_ok("[project]\nscene = main.scene\n[window]\nheight = 900\n",
+		&out);
+	VOE_TEST_CHECK(out.window.width == 1280);
+	VOE_TEST_CHECK(out.window.height == 900);
+	VOE_TEST_CHECK(!out.window.fullscreen);
 }
 
 static bool refused(const char *text, const char *line_prefix)
@@ -125,6 +167,21 @@ static void test_refusals(void)
 	VOE_TEST_CHECK(
 		refused("[project]\nscene = ../main.scene\n", "line 2"));
 	VOE_TEST_CHECK(refused("[project]\nscene = main.scene/\n", "line 2"));
+
+	// A window value out of range or not in its form, an unknown
+	// [window] key, and a repeated section — each on its own line.
+	VOE_TEST_CHECK(refused("[project]\nscene = m.scene\n[window]\n"
+			       "width = 100\n", "line 4"));
+	VOE_TEST_CHECK(refused("[project]\nscene = m.scene\n[window]\n"
+			       "width = 17000\n", "line 4"));
+	VOE_TEST_CHECK(refused("[project]\nscene = m.scene\n[window]\n"
+			       "width = 12.5\n", "line 4"));
+	VOE_TEST_CHECK(refused("[project]\nscene = m.scene\n[window]\n"
+			       "fullscreen = yes\n", "line 4"));
+	VOE_TEST_CHECK(refused("[project]\nscene = m.scene\n[window]\n"
+			       "depth = 3\n", "line 4"));
+	VOE_TEST_CHECK(refused("[project]\nscene = m.scene\n[window]\n"
+			       "[window]\n", "sectioned: line 4"));
 }
 
 static void test_unknown_key_warns_and_loads(void)
@@ -146,6 +203,7 @@ int main(void)
 	test_write_exact_bytes();
 	test_write_escapes();
 	test_round_trip();
+	test_window_defaults();
 	test_refusals();
 	test_unknown_key_warns_and_loads();
 	return voe_test_result();

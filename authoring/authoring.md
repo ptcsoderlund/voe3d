@@ -22,4 +22,5 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
   Its header says what is cooked, why floats are hex and why the cooked function may
   create rows; the file says how every field kind is spelled and what it refuses.
 - `include/authoring/project.h` — `project.voe3d` read and written. Its header
-  says the one key it holds, what it refuses, and why the writer cannot fail.
+  says the scene key and the optional `[window]` section with its range and defaults,
+  what it refuses, and why the writer cannot fail.
