@@ -20,6 +20,7 @@
 #include <audio/mixer.h>
 
 #include <base/arena.h>
+#include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
 
@@ -110,12 +111,13 @@ voe_game_interface_context(interface)))
 	}
 }
 
-int voe_game_run(const char *title)
+int voe_game_run(const char *title, voe_game_window window)
 {
 	voe_base_arena *arena = voe_base_arena_new(RUN_ARENA);
 	voe_base_arena *scratch = voe_base_arena_new(RUN_SCRATCH);
-	voe_app_settings settings = { .width = VOE_GAME_WIDTH,
-				      .height = VOE_GAME_HEIGHT,
+	voe_app_settings settings = { .width = window.width,
+				      .height = window.height,
+				      .fullscreen = window.fullscreen,
 				      .title = title,
 				      .capacities = VOE_GAME_CAPACITIES,
 				      .longest_step = LONGEST_STEP };
@@ -128,6 +130,8 @@ int voe_game_run(const char *title)
 	voe_app *app;
 	int status = 1;
 
+	VOE_BASE_ASSERT(window.width > 0 && window.height > 0,
+			"a game window with no width or height");
 	app = voe_app_new(arena, scratch, settings, &error);
 	if (app == NULL) {
 		VOE_BASE_ERROR("game", "the window would not open: %s",

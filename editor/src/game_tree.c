@@ -3,9 +3,10 @@
 // A file is compared against what is on disk before it is written, so its
 // timestamp only moves when its bytes do. Text put into a generated file is
 // escaped for where it goes: the project's name as a C string literal in
-// main.c, the engine's and the code's paths and the name as quoted CMake
-// arguments in CMakeLists.txt. Code/ is looked for in the project's own listing before it is
-// listed, so a project with none reports nothing.
+// main.c beside its game window's numbers, the engine's and the code's paths
+// and the name as quoted CMake arguments in CMakeLists.txt. Code/ is looked for
+// in the project's own listing before it is listed, so a project with none
+// reports nothing.
 //
 // The prefabs under Assets/ are found with an explicit stack of listings, one
 // per folder level, so a folder deeper than PREFAB_DEPTH (a symlink loop
@@ -469,12 +470,16 @@ static const char *main_source(const voe_editor_project *project,
 			       voe_base_arena *arena)
 {
 	const char *name = voe_editor_project_name(project);
+	voe_authoring_project_window window = project->file.window;
 
 	VOE_BASE_ASSERT(name != NULL, "a game tree for an untitled project");
+	VOE_BASE_ASSERT(window.width > 0 && window.height > 0, "a game window of no size");
 	return format(arena,
 		      "#include <game/run.h>\n\n"
-		      "int main(void)\n{\n\treturn voe_game_run(\"%s\");\n}\n",
-		      escaped(arena, name, false));
+		      "int main(void)\n{\n\treturn voe_game_run(\"%s\",\n"
+		      "\t\t(voe_game_window){ %d, %d, %s });\n}\n",
+		      escaped(arena, name, false), window.width, window.height,
+		      window.fullscreen ? "true" : "false");
 }
 
 // The four files, each in <folder>/Build/game/, the scene and prefabs cooked

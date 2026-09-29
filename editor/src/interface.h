@@ -22,6 +22,7 @@
 #include "browser.h"
 #include "dock.h"
 #include "preferences.h"
+#include "project_panel.h"
 #include "session.h"
 #include "themes.h"
 #include "topbar.h"
@@ -273,8 +274,26 @@
 // its. But its name, a file's, is up to VOE_EDITOR_ASSETS_DRAG_PATH (128)
 // less "Assets/" and the zero, 120 characters against the 64 counted, so
 // FIFTY-SIX ELEMENTS MORE. 22473 + 56 = 22529.
-#define VOE_EDITOR_INTERFACE_NODES 1217
-#define VOE_EDITOR_INTERFACE_ELEMENTS 22529
+//
+// THE BAR'S PROJECT BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
+// and NINE ELEMENTS: its border and fill, and the seven letters of "Project".
+// 1217 + 2 = 1219 nodes, 22529 + 9 = 22538 elements.
+//
+// THE PROJECT PANEL (project_panel.h) ADDS NOTHING, BECAUSE IT IS NEVER DRAWN
+// IN THE SAME FRAME AS THE BROWSER AND COSTS LESS. It takes the browser's
+// place: the panel, one; Width's and Height's rows, each a row, its name
+// label, the number box and the figure composed into it, eight; the choice
+// row and Windowed and Fullscreen as a choice and a label each, five; Close's
+// row, and Close as a button and a label, three — 17 nodes against the
+// browser's 111. Elements: the panel's border and fill, two; "Width" and
+// "Height", eleven; each box's fill, two, and its figure at most five digits,
+// "16384", ten; each choice's border and fill, four, "Windowed" and
+// "Fullscreen", eighteen; Close, two and five — 54; and, while one box is open
+// for typing, a caret, up to VOE_UI_FIELD_CAPACITY (256) typed characters and
+// "not a number", a generous 300 — 354 against the browser's 1504. No scroll
+// area.
+#define VOE_EDITOR_INTERFACE_NODES 1219
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22538
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -364,6 +383,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // and sets that palette and its font on `ui`, saying in the session's notice
 // when it could not be remembered; Close hides it.
 //
+// `project_panel` IS DRAWN IN THE SAME PLACE THE SAME WAY, WHEN IT IS SHOWING
+// AND NONE OF THE BROWSER, THE ERRORS PANEL AND PREFERENCES IS: one of the
+// three at a time, the bar's Project hiding Preferences and its Preferences
+// hiding Project. It shows the session's project's window; a changed one goes
+// to voe_editor_project_window_set, a failure into the notice; Close hides it.
+//
 // THE SESSION'S ERRORS PANEL (errors.h) IS DRAWN THE SAME WAY, WHEN IT IS
 // SHOWING AND THE BROWSER IS NOT, and covers Preferences, which is then not
 // drawn or read; its Close hides it.
@@ -391,5 +416,6 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     voe_editor_topbar *bar,
 					     voe_editor_browser *browser,
 					     voe_editor_preferences *preferences,
+					     voe_editor_project_panel *project_panel,
 					     voe_editor_themes *themes,
 					     bool escape);

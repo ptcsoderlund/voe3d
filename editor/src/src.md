@@ -36,12 +36,12 @@ carries it out.
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its three arenas, kept sections, code, folder and
-  unsaved flag (ADR-0164), where its worlds are made, its scene as text or read back and expanded,
-  the new-code swap, and a prefab opened with the level set aside.
-- `project.c` — opening, making and saving a project or its open prefab, the scene written out as
-  text and read back into the same world or a new one, each read expanded, a prefab opened and
-  Back, and the untitled scene's cube, light and camera.
+- `project.h` — the project being worked on: its three arenas, kept sections, project file with its
+  game window, code, folder and unsaved flag (ADR-0164), where its worlds are made, its scene as
+  text or read back and expanded, the new-code swap, and a prefab opened with the level set aside.
+- `project.c` — opening, making and saving a project or its open prefab, the game window set and
+  written at once, the scene written out as text and read back into the same world or a new one,
+  each read expanded, a prefab opened and Back, and the untitled scene's cube, light and camera.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
@@ -75,8 +75,8 @@ carries it out.
   `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
   install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the world cooked into scene.c, every prefab found and cooked into prefabs.c, each
-  argument list in one struct, the release kind and the shipped folder.
+  where they go, the game window's numbers in main.c, the world cooked into scene.c, every prefab
+  found and cooked into prefabs.c, the release kind and the shipped folder.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
@@ -99,10 +99,14 @@ carries it out.
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
-  Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its content
+  Project, Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its content
   or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its buttons, Back, Play, Refresh and Ship among them, afterwards.
+  the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
+- `project_panel.h` — the Project panel: the game window's width and height as number boxes, a
+  Windowed / Fullscreen choice and Close, as an anchored panel over the dock, carrying out nothing.
+- `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
+  a number rounded and clamped to the project file's range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -149,11 +153,11 @@ carries it out.
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock, and the three sizes written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
-  from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
-  colour picker over it, and one draw command per root.
+  from the window's height, the top bar above each root's dock tree, the browser, Preferences,
+  Project or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, Play and Ship
   polled once a frame, and the one read of the frame's clicks carrying out the bar's, browser's and
-  Preferences' commands, the picker's changes, and a prefab made or opened.
+  Preferences' and Project's commands, the picker's changes, and a prefab made or opened.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

@@ -9,8 +9,8 @@ program's own arguments, and the sound device.
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
-- `include/platform/window.h` — the window API. Opening can fail and returns
-  NULL; `_poll` folds events into state; `_close_refuse` takes back a close;
+- `include/platform/window.h` — the window API. Opening, maybe fullscreen, can
+  fail; `_poll` folds events into state; `_close_refuse` takes back a close;
   `_focused` and `_visible` say whether the person is in it and can see it, and
   `_wait` blocks for at most the timeout it is given.
 - `include/platform/input.h` — the keyboard and the mouse: keys, motion, the wheel in

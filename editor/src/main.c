@@ -160,6 +160,8 @@ int main(int argc, char *argv[])
 	// Shown by the bar's Preferences, hidden by its Close or by Escape
 	// while the browser is not showing (preferences.h).
 	voe_editor_preferences preferences = { 0 };
+	// Shown by the bar's Project, hidden the same ways (project_panel.h).
+	voe_editor_project_panel project_panel = { 0 };
 	voe_app_settings settings;
 	// The panels' sizes the tree and the bar start at (settings.h).
 	voe_editor_settings panel_sizes;
@@ -574,6 +576,7 @@ int main(int argc, char *argv[])
 		// and nothing more.
 		if (escape_free && !browser.showing) {
 			voe_editor_preferences_hide(&preferences);
+			voe_editor_project_panel_hide(&project_panel);
 			voe_editor_errors_hide(&session.errors);
 		}
 
@@ -604,6 +607,7 @@ int main(int argc, char *argv[])
 		resized = voe_editor_resize_frame(
 			&resize, &roots[0], &bar,
 			!browser.showing && !preferences.showing &&
+				!project_panel.showing &&
 				!session.errors.showing &&
 				!scene.picking.open && !scene.dropdown.open &&
 				!flying,
@@ -640,6 +644,7 @@ int main(int argc, char *argv[])
 					      pixels_per_millimetre,
 				      roots[0].pointer.at, left && pointer.over,
 				      browser.showing || preferences.showing ||
+					      project_panel.showing ||
 					      session.errors.showing ||
 					      scene.picking.open);
 
@@ -650,6 +655,7 @@ int main(int argc, char *argv[])
 			&geometries, voe_editor_models_store(models),
 			roots[0].pointer.at, left && pointer.over,
 			browser.showing || preferences.showing ||
+				project_panel.showing ||
 				session.errors.showing || scene.picking.open ||
 				voe_editor_gizmo_taking(&gizmo));
 
@@ -660,6 +666,7 @@ int main(int argc, char *argv[])
 				     voe_editor_models_store(models),
 				     roots[0].pointer.at, left && pointer.over,
 				     browser.showing || preferences.showing ||
+					     project_panel.showing ||
 					     session.errors.showing ||
 					     scene.picking.open ||
 					     voe_editor_gizmo_taking(&gizmo) ||
@@ -711,7 +718,7 @@ int main(int argc, char *argv[])
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &drag, &views, &session, &bar, &browser,
-				&preferences, &themes,
+				&preferences, &project_panel, &themes,
 				escape_free);
 			// Only when the Inspector's own buttons changed nothing
 			// structural this frame: two changes before the queue is

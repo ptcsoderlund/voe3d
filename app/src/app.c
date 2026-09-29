@@ -75,7 +75,7 @@ voe_app *voe_app_new(voe_base_arena *arena, voe_base_arena *scratch,
 	VOE_BASE_ASSERT(settings.title != NULL, "a window needs a title");
 
 	window = voe_platform_window_new(settings.width, settings.height,
-					 settings.title);
+					 settings.fullscreen, settings.title);
 	if (window == NULL) {
 		VOE_BASE_ERROR("app", "the window would not open");
 		report(error, VOE_BASE_ERROR_UNAVAILABLE);

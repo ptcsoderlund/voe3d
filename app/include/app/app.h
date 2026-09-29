@@ -67,9 +67,15 @@ typedef struct voe_app voe_app;
 // `capacities` is handed to render untouched — see render/include/render/device.h
 // for what each number buys. `longest_step` is the ceiling on a frame's step, in
 // seconds, and is the same number every tick; see app/clock.h for why it exists.
+//
+// `fullscreen` ASKS THE WINDOW TO COVER A WHOLE SCREEN (ADR-0291), and false,
+// a designated initializer's zero, is a window at `width` by `height`. Fullscreen,
+// the size is then the screen's, read from the frame as ever. The headless
+// startup has no window and ignores it.
 typedef struct {
 	int width;
 	int height;
+	bool fullscreen;
 	const char *title;
 	voe_render_capacities capacities;
 	double longest_step;

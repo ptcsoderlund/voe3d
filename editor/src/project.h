@@ -1,55 +1,42 @@
 // The project being worked on: its own arena, the world in an arena of its
-// own, the kept sections it was read with, the code its world was made with,
-// its absolute folder (NULL when untitled) and whether it has unsaved changes
-// (ADR-0164).
+// own, the kept sections and the project file it was read with, the code its
+// world was made with, its absolute folder (NULL when untitled) and whether it
+// has unsaved changes (ADR-0164).
 //
 // THREE ARENAS, AND voe_editor_project_destroy IS THE ONLY WAY THEY GO BACK.
-// The struct and the folder path live in arena, so New and Open build a whole
-// new project, then discard the old one. The world and its tables live in
-// world_arena. The kept sections and a read's working memory live in
+// The struct, the folder and the project file's scene path live in arena, so
+// New and Open build a whole new project, then discard the old one. The world
+// lives in world_arena. The kept sections and a read's working memory live in
 // scene_arena, cleared by every voe_editor_project_scene_set, which reads
 // into the same world again and again. The code is closed after all three.
 //
 // THE WORLD IS MADE IN ONE PLACE, voe_editor_project_world_new: game/world.h's
-// engine types, then the code's own when there is one, whether untitled,
-// opened, swapped or a prefab the game tree cooks.
+// types, then the code's own, whether untitled, opened, swapped or cooked.
+// voe_editor_project_code_set IS A WHOLE NEW WORLD (ADR-0242 point 6): the old
+// world's text is read into a world made with the new code, and only then are
+// the old arenas destroyed and the old code closed. A type the new code lacks
+// survives as a kept section (0241). Every scene text read into a world is
+// expanded (prefabs.h); a prefab that will not read is said in why only.
 //
-// voe_editor_project_code_set IS A WHOLE NEW WORLD (ADR-0242 point 6), the
-// only swap ecs allows: the old world's text is read into a world made with
-// the new code, and only then are the old arenas destroyed and the old code
-// closed. A type the new code lacks survives as a kept section (0241).
+// voe_editor_project_new_opened READS project.voe3d, THEN THE SCENE IT NAMES,
+// each step clearing base/report.h's kept error first so a notice is that
+// step's own. A missing project.voe3d is worded "is not a project", what a
+// person picking a folder needs to hear; every other failure keeps the
+// report's message, naming the file the step was on. On failure the arena is
+// destroyed and NULL comes back; the caller's own project is untouched.
 //
-// EVERY SCENE TEXT READ INTO A WORLD IS EXPANDED (prefabs.h): new_opened,
-// scene_set and code_set each expand every placed copy from the project's
-// folder right after a successful read. A prefab that will not read is said
-// in why and does not fail the call.
+// THE PROJECT FILE IS KEPT AS READ (file), so a settings write keeps its scene
+// path. The game window is a project setting, not a scene edit (0291 point 4):
+// voe_editor_project_window_set writes project.voe3d at once, never touching
+// unsaved or the undo line; an untitled project writes it with its first save.
 //
-// voe_editor_project_new_opened READS project.voe3d, THEN THE SCENE IT NAMES.
-// Each step clears base/report.h's kept error first, so a failure's notice is
-// that step's own and not one left over from before it. A missing
-// project.voe3d is worded "is not a project" rather than repeating whatever
-// the operating system said about opening a file that is not there — that
-// wording is what a person picking a folder in Open needs to hear. Every
-// other failure — a malformed project.voe3d, a scene file that will not open,
-// a scene that voe_authoring_scene_read refuses, or a world too small to hold
-// it (the same failure, since scene_read reports it the same way) — keeps the
-// report's own message, naming the file the step was on. On any failure the
-// project's arena is destroyed and NULL comes back; the caller's own project,
-// if it has one, is untouched.
-//
-// voe_editor_project_save WRITES ONLY WHAT THIS PROJECT HAS. An opened
-// project (folder is NULL here) writes just the scene, over the file it was
-// read from. An untitled project (folder is required) refuses a folder that
-// is not empty, then writes main.scene and project.voe3d and adopts the
-// folder as its own. Scratch text for both cases comes from a scratch arena
-// made and destroyed inside the call — none of it is the project's to keep,
-// because the scene text and the project text are turned into files before
-// this returns.
-//
-// THE SCENE FILE IS ALWAYS NAMED main.scene. This is the one project layout
-// this editor ever writes (ADR-0164); voe_editor_project_new_opened still
-// reads whatever project.voe3d names, because a hand-made or future project
-// need not agree.
+// voe_editor_project_save WRITES ONLY WHAT THIS PROJECT HAS. An opened project
+// writes just the scene, over the file it was read from. An untitled one
+// refuses a folder that is not empty, writes main.scene and project.voe3d and
+// adopts the folder. Its text is built in a scratch arena made and destroyed
+// inside the call. THE SCENE FILE IS ALWAYS NAMED main.scene, the one layout
+// this editor writes (ADR-0164); new_opened still reads whatever
+// project.voe3d names, because a hand-made project need not agree.
 //
 // A PREFAB OPENED IN PLACE OF THE LEVEL (0283 point 8) sets the level aside as
 // its scene text, kept sections and unsaved edits included, with its unsaved
@@ -62,6 +49,7 @@
 #include "code.h"
 #include "notice.h"
 
+#include <authoring/project.h>
 #include <authoring/scene_read.h>
 #include <authoring/scene_write.h>
 
@@ -95,6 +83,10 @@ typedef struct {
 	// read back into voe_authoring_scene_write on every save so a file
 	// this program does not fully know survives a trip through it.
 	voe_authoring_kept kept;
+	// project.voe3d as read, its scene path in arena: main.scene and the
+	// default window while untitled. Kept by a code swap, a scene set and a
+	// prefab; the window changes only through voe_editor_project_window_set.
+	voe_authoring_project file;
 	// The code the world's project types came from; zeroed while none.
 	// The project closes it, after the world it registered into.
 	voe_editor_code code;
@@ -141,6 +133,14 @@ voe_render_light voe_editor_project_preview_light(void);
 [[nodiscard]] bool voe_editor_project_save(voe_editor_project *project,
 					   const char *folder,
 					   voe_editor_notice *why);
+
+// Sets the game's window, asserting a size in range; with a folder, writes
+// project.voe3d at once with the kept scene path. False with why when that
+// write fails, the window still set. Untitled writes nothing. Never touches
+// unsaved or the undo line.
+[[nodiscard]] bool voe_editor_project_window_set(voe_editor_project *project,
+						 voe_authoring_project_window window,
+						 voe_editor_notice *why);
 
 // The world and project->kept written into arena as scene text — the same
 // bytes a save writes to the scene file. False when

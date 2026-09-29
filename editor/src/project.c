@@ -226,7 +226,13 @@ voe_editor_project *voe_editor_project_new_untitled(void)
 	*project = (voe_editor_project){
 		.arena = arena,
 		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
-		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
+		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA),
+		.file = {
+			.scene = SCENE_FILE,
+			.window = {
+				.width = VOE_AUTHORING_PROJECT_WINDOW_DEFAULT_WIDTH,
+				.height = VOE_AUTHORING_PROJECT_WINDOW_DEFAULT_HEIGHT,
+				.fullscreen = false } }
 	};
 	project->world = voe_editor_project_world_new(project, project->world_arena);
 	build_untitled(project->world);
@@ -321,6 +327,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 	}
 
 	project->kept = kept;
+	project->file = file;
 	project->folder = absolute;
 	project->unsaved = false;
 
@@ -458,10 +465,9 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	if (project->folder == NULL) {
 		const char *project_path = voe_platform_path_join(
 			scratch, target, VOE_AUTHORING_PROJECT_FILE);
-		voe_authoring_project file = { .scene = SCENE_FILE };
 		size_t project_size;
 		const char *project_text = voe_authoring_project_write(
-			&file, scratch, &project_size);
+			&project->file, scratch, &project_size);
 
 		voe_base_report_error_clear();
 		if (!voe_platform_file_write(project_path,
@@ -478,6 +484,44 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	project->unsaved = false;
 	voe_base_arena_destroy(scratch);
 	return true;
+}
+
+bool voe_editor_project_window_set(voe_editor_project *project,
+				   voe_authoring_project_window window,
+				   voe_editor_notice *why)
+{
+	voe_base_arena *scratch;
+	voe_base_error error;
+	const char *path;
+	const char *text;
+	size_t size;
+	bool written;
+
+	VOE_BASE_ASSERT(project != NULL && why != NULL,
+			"setting a window on no project or with nowhere to say why");
+	VOE_BASE_ASSERT(window.width >= VOE_AUTHORING_PROJECT_WINDOW_MIN &&
+				window.width <= VOE_AUTHORING_PROJECT_WINDOW_MAX &&
+				window.height >= VOE_AUTHORING_PROJECT_WINDOW_MIN &&
+				window.height <= VOE_AUTHORING_PROJECT_WINDOW_MAX,
+			"a game window size out of range");
+
+	project->file.window = window;
+	if (project->folder == NULL)
+		return true;
+
+	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
+	path = voe_platform_path_join(scratch, project->folder,
+				      VOE_AUTHORING_PROJECT_FILE);
+	text = voe_authoring_project_write(&project->file, scratch, &size);
+	voe_base_report_error_clear();
+	written = voe_platform_file_write(path, (const uint8_t *)text, size,
+					  &error);
+	if (!written)
+		voe_editor_notice_from_report(why, path);
+	voe_base_arena_destroy(scratch);
+	VOE_BASE_ASSERT(project->file.window.width == window.width,
+			"the window was not kept");
+	return written;
 }
 
 bool voe_editor_project_scene_text(const voe_editor_project *project,

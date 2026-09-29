@@ -1,5 +1,5 @@
 // The bar across the top of the root surface: New, Open and Save, then Play,
-// then Refresh, then Ship, then Preferences, then a label naming the gizmo's
+// then Refresh, then Ship, then Project, then Preferences, then a label naming the gizmo's
 // mode (Move or Rotate, the caller's), then the project's name and
 // whether it is unsaved, then whatever notice the session has to say. Play's
 // label is the caller's (the session's play state, play.h): Play, Building or
@@ -28,9 +28,10 @@
 //
 // THE COMMAND IT HANDS BACK IS NOT CARRIED OUT HERE. This file knows nothing
 // of a project, a world or an arm — it says which button fired and nothing
-// more; what a command does is session.h's. Preferences is no session
-// command — it only shows preferences.h's panel — so it is read on its own,
-// by voe_editor_topbar_preferences_read.
+// more; what a command does is session.h's. Project and Preferences are no
+// session command — each only shows its panel, project_panel.h's or
+// preferences.h's — so each is read on its own, by
+// voe_editor_topbar_project_read and voe_editor_topbar_preferences_read.
 #pragma once
 
 #include "session.h"
@@ -43,7 +44,7 @@
 // the surface's own millimetres.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's panel and eight buttons, recorded as they are drawn, and the height
+// The bar's panel and nine buttons, recorded as they are drawn, and the height
 // it is laid out at. Zeroed is a bar that has drawn nothing yet; `high` nought
 // means VOE_EDITOR_TOPBAR_HIGH, `wanted` nought means fit the content.
 typedef struct {
@@ -55,6 +56,7 @@ typedef struct {
 	voe_ui_node play_button;
 	voe_ui_node refresh_button;
 	voe_ui_node ship_button;
+	voe_ui_node project_button;
 	voe_ui_node preferences_button;
 	float high;
 	float wanted;
@@ -76,7 +78,7 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 			       voe_editor_topbar *bar);
 
 // Draws the bar as one row: Back when `back`, New, Open, Save, `play` as Play's label,
-// `refresh` as Refresh's, `ship` as Ship's, Preferences, `gizmo` as a label,
+// `refresh` as Refresh's, `ship` as Ship's, Project, Preferences, `gizmo` as a label,
 // then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
@@ -95,6 +97,11 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 // one window in which a widget will answer.
 voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
 						 const voe_editor_topbar *bar);
+
+// Whether Project fired this frame, in the same window as
+// voe_editor_topbar_clicks_read.
+bool voe_editor_topbar_project_read(const voe_ui_context *ui,
+				    const voe_editor_topbar *bar);
 
 // Whether Preferences fired this frame, in the same window as
 // voe_editor_topbar_clicks_read.
