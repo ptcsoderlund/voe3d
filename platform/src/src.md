@@ -65,13 +65,17 @@ header.
   or 0..1, and evdev key and axis events onto a pad by the kernel's standard codes. OS-free, built
   and tested on both platforms; its header says why, and why digital triggers yield to axes.
 - `gamepad.c` — its implementation, in double so no range overflows; evdev codes as numbers.
+- `gamepad_wayland.c` — the Linux window's pads: `/dev/input/event*` found by scan and inotify,
+  read through evdev into `gamepad.h`. Its header says why evdev, why attribute changes are
+  watched, and why nothing in it is Wayland.
 - `input.h` — the input state both backends fill and neither reads, the two functions each of them
   defines over its own window, the three clears both of them call, and the one shared function that
   turns a code point into UTF-8.
 - `input.c` — every function in `include/platform/input.h`, once, for both
   platforms. No `#ifdef` in it and its header says why there must not be one.
-- `window_wayland.h` — the Linux window's struct, shared by the two files below and seen by
-  nothing outside this folder, and the two functions that cross between them.
+- `window_wayland.h` — the Linux window's struct and its pad device table, shared by the two
+  files below and `gamepad_wayland.c` and seen by nothing outside this folder, and the functions
+  that cross between them.
 - `window_wayland.c` — the Linux window: registry, shell, decoration, fractional scale, cursor
   shape manager, open, close and poll; there is no X11 backend, and nothing in it draws.
 - `seat_wayland.c` — the Linux window's seat: keyboard, pointer, its shape by name, relative
