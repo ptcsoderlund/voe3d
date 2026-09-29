@@ -1,5 +1,6 @@
-// Tank gun: the part of the tank that fires. While the left mouse button or
-// Space is held it spawns a prefab at its muzzle, `rate` times a second.
+// Tank gun: the part of the tank that fires. While the control row's `fire`
+// holds (tank_control.h: the left mouse button, Space or the right trigger)
+// it spawns a prefab at its muzzle, `rate` times a second.
 //
 //     tank_gun_register(world);            // in voe_game_project_register
 //     tank_gun_system_run(step);           // after the turret, before the move
@@ -43,6 +44,6 @@ extern const struct voe_ecs_key tank_gun_key;
 [[nodiscard]] bool tank_gun_register(voe_ecs_world *world);
 
 // Counts every gun's wait down by the step's seconds and, while fire is held,
-// spawns each ready gun's prefab at its muzzle. Does nothing with no window
-// (headless).
+// spawns each ready gun's prefab at its muzzle. Does nothing with no control
+// row (headless, or before its first step).
 void tank_gun_system_run(const voe_game_project_step *step);

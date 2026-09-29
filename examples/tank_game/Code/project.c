@@ -2,10 +2,11 @@
 // component the game has; each fixed step has two slots, before the bodies'
 // move and after it (0256).
 //
-// systems_run is before the move: the control, which reads the keyboard,
-// mouse and pad into one row, then the hull, which drives on WASD, then the
-// turret, which aims at the mouse pointer, then the gun, which fires while
-// fire is held, then the shells, which fly and run out, then the spawner,
+// systems_run is before the move: the control first, which reads the pad
+// beside the keyboard and mouse into one row, the last touched winning; then
+// the hull, which drives on the row, then the turret, which aims at the
+// pointer or the right stick, then the gun, which fires while the row's fire
+// is held, then the shells, which fly and run out, then the spawner,
 // which makes enemies on a timer, then the enemies, which drive and run out,
 // then the camera, which fits its lens to the window's shape (0291).
 // The gun is after the turret so it fires along this step's aim.
@@ -52,7 +53,7 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
 	tank_control_run(step);
-	tank_hull_system_run(step->world, step->window, step->seconds);
+	tank_hull_system_run(step->world, step->seconds);
 	tank_turret_system_run(step->world, step->window, step->seconds);
 	tank_gun_system_run(step);
 	tank_shell_system_run(step);
