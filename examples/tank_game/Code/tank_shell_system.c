@@ -7,14 +7,20 @@
 // drives. Its `life` row is written here, whole, through
 // voe_ecs_component_set; a shell whose life is spent is not moved again.
 //
+// tank_shell_fire spawns a shot and queues its tank_shot row (tank_shell.h)
+// behind the spawn's rows on the structural queue.
+//
 // Constraints: runs headless as well, nothing here reads input. A full
 // transform queue leaves the rest of the shells where they were this step;
-// a full structural queue leaves a spent shell to be removed next step.
+// a full structural queue leaves a spent shell to be removed next step. The
+// runtime-only marker is taken by address at run time, because a project
+// library imports it on Windows (0245).
 #include "tank_shell.h"
 
 #include <base/assert.h>
 
 #include <ecs/component.h>
+#include <ecs/structure.h>
 
 #include <math/double3.h>
 #include <math/float3.h>
@@ -23,16 +29,41 @@
 #include <scene/transform_system.h>
 
 const struct voe_ecs_key tank_shell_key = { "tank_shell" };
+const struct voe_ecs_key tank_shot_key = { "tank_shot" };
 
 static const tank_shell tank_shell_default = { .speed = 30.0f, .life = 3.0f };
 
 bool tank_shell_register(voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "registering tank shell in no world");
-	return voe_game_project_component(world, &(voe_game_project_type){
-		&tank_shell_key, sizeof(tank_shell), TANK_SHELL_ROWS,
-		VOE_GAME_PROJECT_DESCRIPTION(tank_shell), &tank_shell_default,
-		"Tank / Shell" });
+	const bool shell = voe_game_project_component(world,
+		&(voe_game_project_type){
+			&tank_shell_key, sizeof(tank_shell), TANK_SHELL_ROWS,
+			VOE_GAME_PROJECT_DESCRIPTION(tank_shell),
+			&tank_shell_default, "Tank / Shell" });
+	const bool shot = voe_game_project_component(world,
+		&(voe_game_project_type){
+			&tank_shot_key, sizeof(tank_shot), TANK_SHELL_ROWS,
+			&voe_ecs_runtime_only, NULL, NULL });
+
+	return shell && shot;
+}
+
+bool tank_shell_fire(const voe_game_project_step *step, const char *prefab,
+		     voe_math_double3 position, voe_math_quat rotation,
+		     voe_ecs_entity owner, voe_math_double3 from)
+{
+	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
+			"firing a shell in no world");
+	VOE_BASE_ASSERT(prefab != NULL, "firing no prefab");
+	const tank_shot shot = { .owner = owner, .from = from };
+	voe_ecs_entity root;
+
+	if (!voe_game_project_spawn(step, prefab, position, rotation, &root))
+		return false;
+	return voe_ecs_structure_add(
+		step->world, voe_ecs_component_type(step->world, &tank_shot_key),
+		root, &shot);
 }
 
 // (0, 0, -1) rotated by the unit quaternion q: the third column of its

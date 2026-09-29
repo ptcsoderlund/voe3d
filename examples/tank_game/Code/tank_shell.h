@@ -2,13 +2,24 @@
 // when its life runs out.
 //
 //     tank_shell_register(world);          // in voe_game_project_register
+//     tank_shell_fire(step, "shell", at, turned, tank, gun_at); // a gun
 //     tank_shell_system_run(step);         // after the gun, before the move
 //
 // `speed` is metres a second, default 30; `life` is seconds left, default 3,
 // counted down by the system. A shell needs a transform to fly and is a root,
 // as a spawned prefab's root is.
 //
-// Constraints: at most TANK_SHELL_ROWS rows.
+// A SHOT CARRIES A tank_shot ROW (0294 point 1), runtime-only: never saved,
+// never in the Inspector, no menu. The one firing adds it, through
+// tank_shell_fire at the spawn, so it lands at the same structural apply as
+// the shell; after that this system is its one writer. `owner` is the firing
+// tank's root, which its sweeps ignore. `from` is where the next sweep
+// starts: at the spawn the firing gun's world position, not the muzzle, so a
+// muzzle already past a wall still hits the wall. `hit` and `target` record
+// what the shot struck.
+//
+// Constraints: at most TANK_SHELL_ROWS rows of each. A refused shot row
+// leaves the spawned shell flying without one.
 #pragma once
 
 #include <base/describe.h>
@@ -16,6 +27,9 @@
 #include <ecs/world.h>
 
 #include <game/project.h>
+
+#include <math/double3.h>
+#include <math/quat.h>
 
 #include <stdbool.h>
 
@@ -27,11 +41,28 @@
 
 VOE_BASE_DESCRIBE_STRUCT(tank_shell, TANK_SHELL_FIELDS)
 
-extern const struct voe_ecs_key tank_shell_key;
+typedef struct {
+	voe_ecs_entity owner;
+	voe_math_double3 from;
+	bool hit;
+	voe_ecs_entity target;
+} tank_shot;
 
-// Registers the type under "Tank / Shell" with its defaults. False, reported,
-// when game refuses it.
+extern const struct voe_ecs_key tank_shell_key;
+extern const struct voe_ecs_key tank_shot_key;
+
+// Registers the shell under "Tank / Shell" with its defaults, and tank_shot
+// runtime-only with no menu. False, reported, when game refuses either.
 [[nodiscard]] bool tank_shell_register(voe_ecs_world *world);
+
+// Spawns `prefab` at `position` and `rotation` and queues a tank_shot row of
+// `owner` and `from` onto its root. False when the spawn or the row is
+// refused.
+[[nodiscard]] bool tank_shell_fire(const voe_game_project_step *step,
+				   const char *prefab,
+				   voe_math_double3 position,
+				   voe_math_quat rotation, voe_ecs_entity owner,
+				   voe_math_double3 from);
 
 // Moves every shell along its own -Z for this step's seconds, counts its
 // life down, and removes it and its tree when that reaches zero.

@@ -9,7 +9,9 @@
 // needs an `aim` of 180, so the bare -Z would fire out of the back. The
 // muzzle offset is turned by that frame and added to the gun's position, and
 // the prefab's root is spawned there with it, so a shell flies along the
-// barrel. The gun's own
+// barrel. It fires through tank_shell_fire, so the shot carries its tank_shot
+// row (0294 point 1): `owner` the gun's topmost ancestor, `from` the gun's
+// world position, not the muzzle. The gun's own
 // `wait` row is the only thing written here, whole, through
 // voe_ecs_component_set.
 //
@@ -21,6 +23,7 @@
 // leaves `wait` as it was, so the gun tries again next step.
 #include "tank_control.h"
 #include "tank_gun.h"
+#include "tank_shell.h"
 #include "tank_turret.h"
 
 #include <base/assert.h>
@@ -32,6 +35,7 @@
 #include <math/double3.h>
 #include <math/quat.h>
 
+#include <scene/parent_component.h>
 #include <scene/transform_component.h>
 
 #include <math.h>
@@ -73,8 +77,28 @@ static voe_math_float3 turned_by(voe_math_quat q, voe_math_float3 v)
 	return out;
 }
 
-// Spawns the gun's prefab at its world muzzle. False when the spawn is
-// refused or the gun cannot fire.
+// The entity's topmost ancestor, itself when it has no parent: the walk
+// ends at a missing, zeroed or dead parent, or VOE_SCENE_PARENT_DEPTH_MAX
+// links, as scene/parent_component.h says.
+static voe_ecs_entity root_of(const voe_ecs_world *world, voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(world != NULL, "walking up in no world");
+	voe_ecs_entity root = entity;
+
+	for (int link = 0; link < VOE_SCENE_PARENT_DEPTH_MAX; link++) {
+		const voe_scene_parent *parent = voe_scene_parent_get(world, root);
+
+		if (parent == NULL || !voe_ecs_entity_alive(world, parent->parent))
+			break;
+		root = parent->parent;
+	}
+	VOE_BASE_DEBUG_ASSERT(voe_scene_parent_within(world, entity, root),
+			      "a root not above its entity");
+	return root;
+}
+
+// Spawns the gun's prefab at its world muzzle with its shot row. False when
+// the spawn or the row is refused or the gun cannot fire.
 static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
 		 const tank_gun *gun)
 {
@@ -97,9 +121,9 @@ static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
 	const voe_math_double3 muzzle = voe_math_double3_add(
 		placed.position,
 		voe_math_double3_from_float3(turned_by(barrel, gun->muzzle)));
-	voe_ecs_entity root;
 
-	return voe_game_project_spawn(step, gun->prefab, muzzle, barrel, &root);
+	return tank_shell_fire(step, gun->prefab, muzzle, barrel,
+			       root_of(step->world, entity), placed.position);
 }
 
 void tank_gun_system_run(const voe_game_project_step *step)
