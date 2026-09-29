@@ -49,6 +49,11 @@ scale = [1, 1, 1]
 
 [5]
 name = "tank_head"
+[5.tank_gun]
+prefab = "shell"
+rate = 6
+muzzle = [0, 0.3, -1.2]
+wait = 0
 [5.tank_turret]
 turn = 180
 aim = 180

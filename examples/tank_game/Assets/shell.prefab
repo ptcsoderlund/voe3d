@@ -1,0 +1,21 @@
+[1]
+name = "Shell"
+[1.tank_shell]
+speed = 30
+life = 3
+[1.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[2]
+name = "Shell body"
+[2.voe_3d_shape]
+kind = 1
+colour = [1, 0.75, 0.1]
+[2.voe_scene_parent]
+parent = 1
+[2.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [0.15, 0.15, 0.4]
