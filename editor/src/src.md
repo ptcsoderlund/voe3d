@@ -37,7 +37,7 @@ carries it out.
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
   sections, the code its world was made with, its folder and whether it has unsaved changes
-  (ADR-0164), its scene handed out as text or read back in, the swap to a world with new code,
+  (ADR-0164), the one place its worlds are made, its scene as text or read back in, the new-code swap,
   every read's placed copies expanded, and a prefab opened with the level set aside as text.
 - `project.c` — opening, making and saving a project or its open prefab, the scene written out as
   text and read back into the same world or a new one, each read expanded, a prefab opened and
@@ -71,12 +71,12 @@ carries it out.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
-- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s three files, the
+- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s four files, the
   `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
   install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the world cooked into scene.c, each argument list in one struct, the release kind
-  and the shipped folder.
+  where they go, the world cooked into scene.c, every prefab found and cooked into prefabs.c, each
+  argument list in one struct, the release kind and the shipped folder.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on

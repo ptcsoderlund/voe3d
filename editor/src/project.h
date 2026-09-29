@@ -10,8 +10,9 @@
 // scene_arena, cleared by every voe_editor_project_scene_set, which reads
 // into the same world again and again. The code is closed after all three.
 //
-// THE WORLD IS MADE IN ONE PLACE: game/world.h's engine types, then the
-// code's own when there is one, whether untitled, opened or swapped.
+// THE WORLD IS MADE IN ONE PLACE, voe_editor_project_world_new: game/world.h's
+// engine types, then the code's own when there is one, whether untitled,
+// opened, swapped or a prefab the game tree cooks.
 //
 // voe_editor_project_code_set IS A WHOLE NEW WORLD (ADR-0242 point 6), the
 // only swap ecs allows: the old world's text is read into a world made with
@@ -187,6 +188,11 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 // when the level's text will not read, the prefab still counted open.
 [[nodiscard]] bool voe_editor_project_prefab_back(voe_editor_project *project,
 						  voe_editor_notice *why);
+
+// A fresh world in arena, made as every one of project's is: game/world.h's
+// types, then project's code's own when it has code. Never NULL.
+voe_ecs_world *voe_editor_project_world_new(const voe_editor_project *project,
+					    voe_base_arena *arena);
 
 // project's folder's own name, or NULL when it is untitled.
 const char *voe_editor_project_name(const voe_editor_project *project);

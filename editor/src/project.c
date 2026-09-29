@@ -3,7 +3,8 @@
 //
 // EVERY WORLD IS BUILT THE SAME WAY, WHETHER UNTITLED, READ OFF DISK OR
 // SWAPPED: world_make, so no two call sites can drift apart on what a
-// project's world holds.
+// project's world holds. voe_editor_project_world_new is it with the
+// project's own code; code_set calls it with the new code.
 //
 // THE UNTITLED SCENE'S THREE ENTITIES ARE BUILT HERE, NOT IN scene.c. scene.c is
 // the Scene panel's selection and the rows it drew; what a fresh project
@@ -94,6 +95,14 @@ static voe_ecs_world *world_make(voe_base_arena *arena,
 	if (code->library != NULL)
 		code->register_types(world);
 	return world;
+}
+
+voe_ecs_world *voe_editor_project_world_new(const voe_editor_project *project,
+					    voe_base_arena *arena)
+{
+	VOE_BASE_ASSERT(project != NULL, "making a world for no project");
+	VOE_BASE_ASSERT(arena != NULL, "making a project's world in no arena");
+	return world_make(arena, &project->code);
 }
 
 // An entity a person authored: just the identity, whose presence is what says
@@ -205,7 +214,7 @@ voe_editor_project *voe_editor_project_new_untitled(void)
 		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
 		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = world_make(project->world_arena, &project->code);
+	project->world = voe_editor_project_world_new(project, project->world_arena);
 	build_untitled(project->world);
 
 	return project;
@@ -281,7 +290,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
 		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = world_make(project->world_arena, &project->code);
+	project->world = voe_editor_project_world_new(project, project->world_arena);
 
 	voe_base_report_error_clear();
 	if (!voe_authoring_scene_read((const char *)scene_bytes, scene_size,

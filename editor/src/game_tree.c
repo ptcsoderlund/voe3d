@@ -7,24 +7,41 @@
 // arguments in CMakeLists.txt. Code/ is looked for in the project's own listing before it is
 // listed, so a project with none reports nothing.
 //
+// The prefabs under Assets/ are found with an explicit stack of listings, one
+// per folder level, so a folder deeper than PREFAB_DEPTH (a symlink loop
+// included) is refused rather than followed; a larger constant lifts it. Each
+// prefab is read and cooked in one scratch arena rewound after it, sized in
+// blocks as a project's world is.
+//
 // An argument list is at most ARGUMENTS entries, the NULL included, in one
 // struct pushed into the caller's arena.
 #include "game_tree.h"
 
 #include "toolchain.h"
 
+#include <authoring/prefab.h>
 #include <authoring/scene_cook.h>
+#include <authoring/scene_read.h>
 #include <base/assert.h>
 #include <base/report.h>
+#include <game/prefabs.h>
 #include <platform/file.h>
 #include <platform/folder.h>
 #include <platform/path.h>
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define ARGUMENTS 16
+
+// How many folder levels under Assets/ are looked in for prefabs, Assets/ one.
+#define PREFAB_DEPTH 16
+
+// The scratch one prefab is read and cooked in. A block size, not a limit.
+#define PREFAB_SCRATCH (4u * 1024u * 1024u)
 
 typedef struct {
 	const char *items[ARGUMENTS];
@@ -195,10 +212,8 @@ static bool entry_ends(const voe_platform_folder_entry *entry, const char *suffi
 	       strcmp(entry->name + length - tail, suffix) == 0;
 }
 
-// `#include "<name>.h"` for every .h in Code/, then the cooked scene.
-static const char *scene_source(const char *folder,
-				const voe_authoring_text *cooked,
-				voe_base_arena *arena)
+// `#include "<name>.h"` for every .h in Code/, sorted by name; "" for none.
+static const char *code_includes(const char *folder, voe_base_arena *arena)
 {
 	voe_platform_folder_listing code = code_list(folder, arena);
 	const char *out = "";
@@ -208,9 +223,246 @@ static const char *scene_source(const char *folder,
 			out = format(arena, "%s#include \"%s\"\n", out,
 				     escaped(arena, code.entries[i].name, false));
 	}
-	out = format(arena, "%s%.*s", out, (int)cooked->size, cooked->text);
+	VOE_BASE_ASSERT(out != NULL, "no code includes made");
+	return out;
+}
+
+// Code/'s includes, then the cooked scene.
+static const char *scene_source(const char *folder,
+				const voe_authoring_text *cooked,
+				voe_base_arena *arena)
+{
+	const char *out = format(arena, "%s%.*s", code_includes(folder, arena),
+				 (int)cooked->size, cooked->text);
+
 	VOE_BASE_ASSERT(out[0] != '\0', "a scene with no text");
 	return out;
+}
+
+// The paths of the prefabs found, under Assets/ with `/`, in arena.
+struct prefab_path {
+	const char *path;
+};
+
+struct prefab_paths {
+	struct prefab_path *items;
+	uint32_t count;
+	uint32_t room;
+};
+
+// One folder level being walked: its path under Assets/ ("" for Assets/), its
+// listing and the next entry to look at.
+struct prefab_folder {
+	const char *relative;
+	voe_platform_folder_listing listing;
+	uint32_t next;
+};
+
+// Whether name ends `.prefab`, in any case, and is longer than it.
+static bool prefab_named(const char *name)
+{
+	static const char suffix[] = ".prefab";
+	size_t length = strlen(name);
+	size_t tail = sizeof suffix - 1;
+
+	VOE_BASE_ASSERT(tail == 7, "a prefab suffix of the wrong length");
+	if (length <= tail)
+		return false;
+	for (size_t i = 0; i < tail; i++) {
+		if (tolower((unsigned char)name[length - tail + i]) != suffix[i])
+			return false;
+	}
+	return true;
+}
+
+// path added, the room doubled into arena when it is full.
+static void prefab_path_add(struct prefab_paths *paths, voe_base_arena *arena,
+			    const char *path)
+{
+	VOE_BASE_ASSERT(path != NULL && path[0] != '\0', "adding no prefab path");
+	if (paths->count == paths->room) {
+		uint32_t room = paths->room == 0 ? 16 : paths->room * 2;
+		struct prefab_path *items =
+			voe_base_arena_push(arena, room * sizeof *items);
+
+		VOE_BASE_ASSERT(items != NULL, "no room for the prefab paths");
+		if (paths->count > 0)
+			memcpy(items, paths->items, paths->count * sizeof *items);
+		paths->items = items;
+		paths->room = room;
+	}
+	paths->items[paths->count++].path = path;
+	VOE_BASE_ASSERT(paths->count <= paths->room, "prefab paths outgrew their room");
+}
+
+// assets/<relative> listed into frame. False with why naming it.
+static bool prefab_folder_list(const char *assets, const char *relative,
+			       voe_base_arena *arena, struct prefab_folder *frame,
+			       voe_editor_notice *why)
+{
+	const char *path = relative[0] == '\0'
+				   ? assets
+				   : voe_platform_path_join(arena, assets, relative);
+
+	VOE_BASE_ASSERT(frame != NULL && why != NULL, "listing into no frame");
+	*frame = (struct prefab_folder){ .relative = relative };
+	voe_base_report_error_clear();
+	if (voe_platform_folder_list(path, arena, &frame->listing, NULL))
+		return true;
+	voe_editor_notice_from_report(why, path);
+	return false;
+}
+
+// Every `.prefab` file under assets, hidden entries skipped, unsorted; none
+// when assets is not a folder. False with why on a folder that will not list
+// or one deeper than PREFAB_DEPTH.
+static bool prefabs_find(const char *assets, voe_base_arena *arena,
+			 struct prefab_paths *out, voe_editor_notice *why)
+{
+	struct prefab_folder stack[PREFAB_DEPTH];
+	uint32_t depth = 1;
+
+	VOE_BASE_ASSERT(assets != NULL && out != NULL, "finding prefabs nowhere");
+	*out = (struct prefab_paths){ 0 };
+	if (!folder_there(assets, arena))
+		return true;
+	if (!prefab_folder_list(assets, "", arena, &stack[0], why))
+		return false;
+	while (depth > 0) {
+		struct prefab_folder *top = &stack[depth - 1];
+		const voe_platform_folder_entry *entry;
+		const char *relative;
+
+		if (top->next == top->listing.count) {
+			depth--;
+			continue;
+		}
+		entry = &top->listing.entries[top->next++];
+		if (entry->hidden)
+			continue;
+		relative = top->relative[0] == '\0'
+				   ? entry->name
+				   : format(arena, "%s/%s", top->relative, entry->name);
+		if (!entry->folder) {
+			if (prefab_named(entry->name))
+				prefab_path_add(out, arena, relative);
+			continue;
+		}
+		if (depth == PREFAB_DEPTH) {
+			voe_editor_notice_set(why, "Assets/%s is deeper than %d folders",
+					      relative, PREFAB_DEPTH);
+			return false;
+		}
+		if (!prefab_folder_list(assets, relative, arena, &stack[depth], why))
+			return false;
+		depth++;
+	}
+	VOE_BASE_ASSERT(out->count <= out->room, "prefab paths outgrew their room");
+	return true;
+}
+
+static int prefab_path_order(const void *a, const void *b)
+{
+	const struct prefab_path *left = a;
+	const struct prefab_path *right = b;
+
+	VOE_BASE_ASSERT(left->path != NULL && right->path != NULL,
+			"ordering no prefab path");
+	return strcmp(left->path, right->path);
+}
+
+// One prefab cooked: its function's text and how many entities it makes.
+struct prefab_cooked {
+	const char *text;
+	uint32_t entities;
+};
+
+// file read into a fresh project world in scratch and cooked as prefab_<n>, the
+// text copied into arena and scratch rewound. False with why naming file on a
+// refused read or cook, or more than VOE_GAME_PREFAB_ENTITIES entities.
+static bool prefab_cook(const voe_editor_project *project, const char *file,
+			uint32_t n, voe_base_arena *scratch,
+			voe_base_arena *arena, struct prefab_cooked *out,
+			voe_editor_notice *why)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	const uint8_t *bytes;
+	size_t size;
+	voe_ecs_world *world;
+	voe_authoring_kept kept;
+	voe_authoring_text cooked;
+	bool done = false;
+
+	VOE_BASE_ASSERT(file != NULL && out != NULL, "cooking no prefab");
+	voe_base_report_error_clear();
+	bytes = voe_platform_file_read(file, scratch, &size, NULL);
+	if (bytes != NULL) {
+		world = voe_editor_project_world_new(project, scratch);
+		done = voe_authoring_scene_read((const char *)bytes, size, world,
+						scratch, &kept) &&
+		       voe_authoring_prefab_cook(world, format(scratch, "prefab_%u", n),
+						 scratch, &cooked, &out->entities);
+	}
+	if (!done) {
+		voe_editor_notice_from_report(why, file);
+	} else if (out->entities > VOE_GAME_PREFAB_ENTITIES) {
+		voe_editor_notice_set(why, "%s makes %u entities, more than %d", file,
+				      out->entities, VOE_GAME_PREFAB_ENTITIES);
+		done = false;
+	} else {
+		out->text = format(arena, "%.*s", (int)cooked.size, cooked.text);
+	}
+	voe_base_arena_rewind(scratch, mark);
+	VOE_BASE_ASSERT(voe_base_arena_mark(scratch).used == mark.used,
+			"a prefab cook kept scratch");
+	return done;
+}
+
+// `#include <game/prefabs.h>`, Code/'s includes, one function per prefab, then
+// the table; count 0 with no entries when there is none. NULL with why on a
+// prefab that will not find, read or cook.
+static const char *prefabs_source(const voe_editor_project *project,
+				  voe_base_arena *arena, voe_editor_notice *why)
+{
+	const char *assets = voe_platform_path_join(arena, project->folder, "Assets");
+	voe_base_arena *scratch;
+	struct prefab_paths paths;
+	struct prefab_cooked cooked;
+	const char *functions = "";
+	const char *entries = "";
+	bool done = true;
+
+	VOE_BASE_ASSERT(why != NULL, "cooking prefabs with nowhere to say why");
+	if (!prefabs_find(assets, arena, &paths, why))
+		return NULL;
+	if (paths.count > 0)
+		qsort(paths.items, paths.count, sizeof *paths.items, prefab_path_order);
+	scratch = voe_base_arena_new(PREFAB_SCRATCH);
+	for (uint32_t i = 0; i < paths.count; i++) {
+		const char *path = paths.items[i].path;
+
+		done = prefab_cook(project, voe_platform_path_join(arena, assets, path),
+				   i, scratch, arena, &cooked, why);
+		if (!done)
+			break;
+		functions = format(arena, "%s%s\n", functions, cooked.text);
+		entries = format(arena, "%s\t\t{ \"%s\", %u, prefab_%u },\n", entries,
+				 escaped(arena, format(arena, "%.*s", (int)(strlen(path) - 7),
+						       path), false),
+				 cooked.entities, i);
+	}
+	voe_base_arena_destroy(scratch);
+	if (!done)
+		return NULL;
+	return format(arena,
+		      "#include <game/prefabs.h>\n%s\n%s%s", code_includes(project->folder, arena),
+		      functions,
+		      paths.count == 0
+			      ? "const voe_game_prefabs voe_game_prefabs_cooked = { .count = 0 };\n"
+			      : format(arena,
+				       "const voe_game_prefabs voe_game_prefabs_cooked = {\n"
+				       "\t(const voe_game_prefab[]){\n%s\t},\n\t%u,\n};\n",
+				       entries, paths.count));
 }
 
 static const char *main_source(const voe_editor_project *project,
@@ -225,12 +477,14 @@ static const char *main_source(const voe_editor_project *project,
 		      escaped(arena, name, false));
 }
 
-// The three files, each in <folder>/Build/game/, the scene cooked last.
+// The four files, each in <folder>/Build/game/, the scene and prefabs cooked
+// last.
 static bool game_files_write(const voe_editor_project *project,
 			     const char *game, voe_base_arena *arena,
 			     voe_editor_notice *why)
 {
 	const char *scene = voe_platform_path_join(arena, game, "scene.c");
+	const char *prefabs;
 	voe_authoring_text cooked;
 
 	if (!file_write_changed(voe_platform_path_join(arena, game, "CMakeLists.txt"),
@@ -244,8 +498,13 @@ static bool game_files_write(const voe_editor_project *project,
 		voe_editor_notice_from_report(why, scene);
 		return false;
 	}
-	return file_write_changed(scene, scene_source(project->folder, &cooked, arena),
-				  arena, why);
+	if (!file_write_changed(scene, scene_source(project->folder, &cooked, arena),
+				arena, why))
+		return false;
+	prefabs = prefabs_source(project, arena, why);
+	return prefabs != NULL &&
+	       file_write_changed(voe_platform_path_join(arena, game, "prefabs.c"),
+				  prefabs, arena, why);
 }
 
 bool voe_editor_game_tree_write(const voe_editor_project *project,
