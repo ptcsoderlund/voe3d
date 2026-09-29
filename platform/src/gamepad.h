@@ -3,8 +3,9 @@
 // includes no OS header, as keymap.h does.
 //
 // WHY OS-FREE (ADR-0292 point 6). Which slot a pad takes, what id it gets and
-// how a device's raw range becomes −1..1 are the same answer on Linux and
-// Windows, and they are where a bug would make the two platforms disagree. So
+// how a device's raw range becomes −1..1 (0..1 for a trigger) are the same
+// answer on Linux and Windows, and they are where a bug would make the two
+// platforms disagree. So
 // they are here once, tested without a device, and the _wayland and _win32 files
 // only move bytes: they call attach when a pad arrives, detach when it goes, and
 // write the slot's fields through the two conversions below.
