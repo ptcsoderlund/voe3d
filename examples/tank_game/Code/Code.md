@@ -15,4 +15,6 @@ the library the editor loads (0242).
 - `tank_spawner_system.c` — spawns each ready spawner's prefab at it, turned as it is, while the world holds fewer enemies than its most.
 - `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, and a life, default 20 s.
 - `tank_enemy_system.c` — drives each enemy along its own forward and removes it, turret and all, when its life runs out.
-- `project.c` — the four entry points: registers all six types, runs the hull, turret, gun, shell, spawner, then enemy before the move, nothing after, draws no interface.
+- `tank_camera.h` — the runtime-only camera fit row: the camera's authored field of view, kept so the level's width stays in view at any window shape.
+- `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
+- `project.c` — the four entry points: registers all seven types, runs the hull, turret, gun, shell, spawner, enemy, then camera before the move, nothing after, draws no interface.
