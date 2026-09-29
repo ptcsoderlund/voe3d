@@ -138,10 +138,9 @@ carries it out.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
   afterwards, and the import.
-- `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
-  the ray lands, over the Inspector swaps the selected thing's model unless it is a part; a held
-  prefab row over a view places a copy there unless a prefab is open; anywhere else nothing; past
-  the start threshold a ghost of the file's name, refused where it would do nothing.
+- `assets_drag.h` — a held model or prefab row from the Assets panel: released over a scene view
+  it places a new thing or a copy where the ray lands, over the Inspector it swaps the selected
+  thing's model, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the drop point, the Inspector's rectangle, and the one undo step.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets

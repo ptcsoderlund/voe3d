@@ -22,7 +22,8 @@
 //   an Inspector edit marks them.
 // - A `.prefab` row over a scene view: a placed copy's root at the same point,
 //   selected, one undo step and unsaved as a model's is (0283 point 7); the
-//   world step expands it the next frame. Over the Inspector, nothing.
+//   world step expands it the next frame. Over the Inspector, or while a
+//   prefab is open, nothing.
 // - Anywhere else, or while `blocked`: nothing.
 // The drag starts only past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from
 // the press, so a click opens a prefab and a release before it does nothing.
