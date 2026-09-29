@@ -12,3 +12,5 @@ stays on `physics/physics.md`.
   creates one.
 - `overlap.h` — what a sphere or capsule overlaps, as push-out contacts.
 - `shape.h` — a collider in the world, worked out from its transform.
+- `sweep.h` — solid colliders gathered, and a sphere or ray swept to the first
+  one it hits.

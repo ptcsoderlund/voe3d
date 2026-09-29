@@ -12,3 +12,6 @@ window or a graphics card.
 - `overlap.c` — a capsule on a floor, at a wall and on a tilted box, round
   shapes against each other, triggers, `ignore` and capacity, and a child
   found at its world place, not its row's, near and far.
+- `sweep.c` — a ray into a sphere, a sphere into a capsule's side and cap, a
+  miss, the nearer of two, `ignore`, triggers, capacity and a start inside,
+  near and 1e6 m out.
