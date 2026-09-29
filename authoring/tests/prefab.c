@@ -1,10 +1,11 @@
-// The prefab writer: that one tree comes out as the exact bytes of a `.prefab`
-// file (ADR-0283 point 1) — the tree and nothing else, the root at the origin
-// with no parent section — and that a root that cannot head a prefab is refused.
+// The prefab writer: that a three-deep tree placed, turned and parented in a
+// world comes out as the exact bytes of a `.prefab` file (ADR-0283 point 1) —
+// the tree and nothing else, the root at the origin with no parent section —
+// and that a dead root or one with no identity is refused.
 // The prefab reader: that text read back onto a placed root (0283 point 4), and
-// a text that is not one tree, or holds a camera or prefab, creating nothing.
-// The prefab cook: that text read into a world and cooked into a spawning
-// function (0283 point 9), and two roots refused.
+// a text with two roots, a camera or a prefab section creating nothing.
+// The prefab cook: a hull and turret read into a world and cooked into a
+// spawning function (0283 point 9), and two roots refused.
 //
 // THE EXPECTATION IS A STRING LITERAL COMPARED BYTE FOR BYTE, as in
 // scene_write.c's test, so order and blank lines are checked with the rest.

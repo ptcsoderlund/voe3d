@@ -8,10 +8,9 @@ file; the rest hand the writer a world and the reader text held in memory.
   every kind and for kept sections, fields of every shape from rank 0 to 7, the
   shortest float spellings, every refusal, the same bytes twice, and a placed
   copy written as its root alone.
-- `prefab.c` — the exact bytes of a three-deep tree placed, turned and parented
-  in a world, and a dead root or one with no identity refused; that text read
-  onto a placed root, and two roots, a camera or a prefab section refused; a
-  hull and turret cooked into a spawning function, and two roots refused.
+- `prefab.c` — the prefab writer's exact bytes for a placed three-deep tree,
+  the reader putting that text onto a placed root, the cook turning a hull and
+  turret into a spawning function, and each one's refusals.
 - `scene_read.c` — a canonical file read and written back byte for byte, a world round-tripped row
   for row, every refusal creating nothing, the warnings that still load, and fields of every shape
   from rank 0 to 7.
