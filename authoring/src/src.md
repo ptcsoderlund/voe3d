@@ -7,6 +7,10 @@ and read through the description its own folder registered.
 
 - `scene_write.c` — the writer's walk. Its header says why it walks the world
   twice and how kept sections are merged in.
+- `scene_tree.h` — the writer's walk narrowed to one tree, which the prefab
+  writer calls; its header says what changes for the root.
+- `prefab_write.c` — the prefab writer: refuses a root that cannot head a prefab
+  and hands its tree to the walk.
 - `value_write.h` — one field's value spelled into the text, and every refusal
   about a value.
 - `value_write.c` — the numbers, floats, strings, references and a field's

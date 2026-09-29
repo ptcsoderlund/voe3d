@@ -10,6 +10,8 @@
 // caller gives. A refused value means nothing is written.
 #pragma once
 
+#include "scene_tree.h"
+
 #include <base/describe.h>
 #include <ecs/component.h>
 
@@ -27,10 +29,12 @@ typedef struct {
 // `field` is a buffer and not a pointer because an element inside an array
 // names its index too — `tags[1]` — built up as the shape is walked down and
 // torn down as it returns, one field at a time, never two at once. `world` and
-// `identity` are what an ENTITY element is spelled as an authored id through.
+// `identity` are what an ENTITY element is spelled as an authored id through;
+// `tree`, NULL for the whole world, is what one outside it is written 0 for.
 typedef struct {
 	const voe_ecs_world *world;
 	voe_ecs_type identity;
+	const voe_authoring_tree *tree;
 	uint64_t id;
 	const char *component;
 	char field[128];

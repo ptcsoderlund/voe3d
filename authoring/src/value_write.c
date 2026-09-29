@@ -199,6 +199,20 @@ bool voe_authoring_prefab_part_skipped(const voe_ecs_world *world,
 	return skipped;
 }
 
+bool voe_authoring_tree_holds(const voe_authoring_tree *tree,
+			      voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(tree != NULL, "asking about no tree");
+	VOE_BASE_ASSERT(tree->entities != NULL || tree->count == 0,
+			"a tree with entities and nowhere they are");
+
+	for (uint32_t i = 0; i < tree->count; i++)
+		if (tree->entities[i].index == entity.index &&
+		    tree->entities[i].generation == entity.generation)
+			return true;
+	return false;
+}
+
 static void put_entity(voe_authoring_output *text,
 		       const voe_authoring_value_site *site,
 		       const uint8_t *bytes)
@@ -207,7 +221,11 @@ static void put_entity(voe_authoring_output *text,
 	const voe_scene_identity *identity;
 
 	memcpy(&target, bytes, sizeof(target));
-	if (!voe_ecs_entity_alive(site->world, target)) {
+	// Outside a prefab's tree is not in its file, and that is what a prefab
+	// is, so it is no warning (0283 point 1).
+	if (!voe_ecs_entity_alive(site->world, target) ||
+	    (site->tree != NULL &&
+	     !voe_authoring_tree_holds(site->tree, target))) {
 		voe_authoring_put_string(text, "0");
 		return;
 	}

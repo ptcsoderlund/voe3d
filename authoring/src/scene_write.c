@@ -33,12 +33,16 @@
 // names itself gets its identity, transform, parent and prefab sections and its
 // kept ones. A world with no part table writes every entity whole.
 //
+// A PREFAB IS THIS WALK NARROWED TO ONE TREE (scene_tree.h): the authored table
+// holds only the tree's entities, and the root's rows pass through row_written().
+//
 // THE IDENTITY TYPE IS FOUND BY WALKING THE TYPES, not with
 // voe_ecs_component_type, which asserts on a world that registered none — and a
 // world with no identities is an ordinary world with nothing authored in it.
 #include <authoring/scene_write.h>
 
 #include "authored.h"
+#include "scene_tree.h"
 #include "value_write.h"
 
 #include <base/assert.h>
@@ -58,6 +62,7 @@
 
 struct described {
 	voe_ecs_type type;
+	const struct voe_ecs_key *ecs_key;
 	const char *key;
 	// NULL when this build compiled the description out.
 	const voe_base_struct_description *description;
@@ -67,6 +72,8 @@ struct described {
 
 struct scene {
 	const voe_ecs_world *world;
+	// NULL for the whole world.
+	const voe_authoring_tree *tree;
 
 	bool has_identity;
 	voe_ecs_type identity;
@@ -127,6 +134,38 @@ static bool put_kept(voe_authoring_output *text, const struct scene *scene,
 	return true;
 }
 
+static bool same_entity(voe_ecs_entity a, voe_ecs_entity b)
+{
+	return a.index == b.index && a.generation == b.generation;
+}
+
+// The row this entity writes for `described`, or NULL for none. A prefab's
+// root writes no parent and its transform at the origin, with no turn and
+// scale one (0283 point 1), copied into `origin`; every other row is as it is.
+static const uint8_t *row_written(const struct scene *scene,
+				  voe_ecs_entity entity,
+				  const struct described *described,
+				  voe_scene_transform *origin)
+{
+	const uint8_t *row = voe_ecs_component_get(scene->world,
+						   described->type, entity);
+
+	VOE_BASE_ASSERT(origin != NULL, "nowhere to put the root's origin");
+	if (row == NULL || scene->tree == NULL ||
+	    !same_entity(entity, scene->tree->root))
+		return row;
+	if (described->ecs_key == &voe_scene_parent_key)
+		return NULL;
+	if (described->ecs_key != &voe_scene_transform_key)
+		return row;
+
+	memcpy(origin, row, sizeof(*origin));
+	origin->position = (voe_math_double3){ 0.0, 0.0, 0.0 };
+	origin->rotation = (voe_math_quat){ 0.0f, 0.0f, 0.0f, 1.0f };
+	origin->scale = (voe_math_float3){ 1.0f, 1.0f, 1.0f };
+	return (const uint8_t *)origin;
+}
+
 // `kept` is this entity's kept sections, `kept_count` of them, ascending by key
 // name.
 static bool put_entity_block(voe_authoring_output *text,
@@ -141,6 +180,7 @@ static bool put_entity_block(voe_authoring_output *text,
 	voe_authoring_value_site site = {
 		.world = world,
 		.identity = scene->identity,
+		.tree = scene->tree,
 		.id = authored->id,
 		.component = voe_ecs_component_key(world, scene->identity)->name,
 	};
@@ -151,6 +191,7 @@ static bool put_entity_block(voe_authoring_output *text,
 			 part->instance.index == authored->entity.index &&
 			 part->instance.generation == authored->entity.generation;
 	const uint8_t *row;
+	voe_scene_transform origin;
 
 	if (!voe_authoring_value_described_or_refuse(text, &site,
 						     identity_description))
@@ -178,8 +219,7 @@ static bool put_entity_block(voe_authoring_output *text,
 
 		if (copy_root && !described->on_copy_root)
 			continue;
-		row = voe_ecs_component_get(world, described->type,
-					    authored->entity);
+		row = row_written(scene, authored->entity, described, &origin);
 		if (row == NULL)
 			continue;
 
@@ -306,11 +346,12 @@ static void gather_kept(struct scene *scene, const voe_authoring_kept *kept,
 }
 
 static void gather(struct scene *scene, const voe_ecs_world *world,
-		   const voe_authoring_kept *kept, voe_base_arena *arena)
+		   const voe_authoring_kept *kept,
+		   const voe_authoring_tree *tree, voe_base_arena *arena)
 {
 	uint32_t type_count = voe_ecs_component_type_count(world);
 
-	*scene = (struct scene){ .world = world };
+	*scene = (struct scene){ .world = world, .tree = tree };
 	gather_kept(scene, kept, arena);
 	if (type_count > 0)
 		scene->described = voe_base_arena_push(
@@ -330,6 +371,7 @@ static void gather(struct scene *scene, const voe_ecs_world *world,
 
 		scene->described[scene->described_count++] = (struct described){
 			.type = type,
+			.ecs_key = key,
 			.key = key->name,
 			.description = voe_ecs_component_description(world, type),
 			.on_copy_root = key == &voe_scene_transform_key ||
@@ -360,13 +402,15 @@ static void gather(struct scene *scene, const voe_ecs_world *world,
 
 	scene->authored = voe_base_arena_push(arena,
 					      count * sizeof(*scene->authored));
-	scene->authored_count = count;
 	for (uint32_t i = 0; i < count; i++)
-		scene->authored[i] = (voe_authoring_authored){
-			.id = rows[i].id,
-			.entity = entities[i],
-		};
-	voe_authoring_authored_sort(scene->authored, scratch, count);
+		if (tree == NULL || voe_authoring_tree_holds(tree, entities[i]))
+			scene->authored[scene->authored_count++] =
+				(voe_authoring_authored){
+					.id = rows[i].id,
+					.entity = entities[i],
+				};
+	voe_authoring_authored_sort(scene->authored, scratch,
+				    scene->authored_count);
 }
 
 static bool ids_unique_or_refuse(const struct scene *scene)
@@ -392,6 +436,15 @@ bool voe_authoring_scene_write(const voe_ecs_world *world,
 			       const voe_authoring_kept *kept,
 			       voe_base_arena *arena, voe_authoring_text *out)
 {
+	return voe_authoring_scene_write_tree(world, kept, NULL, arena, out);
+}
+
+bool voe_authoring_scene_write_tree(const voe_ecs_world *world,
+				    const voe_authoring_kept *kept,
+				    const voe_authoring_tree *tree,
+				    voe_base_arena *arena,
+				    voe_authoring_text *out)
+{
 	struct scene scene;
 	voe_authoring_output measured = { 0 };
 	voe_authoring_output written;
@@ -400,7 +453,7 @@ bool voe_authoring_scene_write(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(arena != NULL, "writing into a NULL arena");
 	VOE_BASE_ASSERT(out != NULL, "nowhere to put the text");
 
-	gather(&scene, world, kept, arena);
+	gather(&scene, world, kept, tree, arena);
 	if (!ids_unique_or_refuse(&scene))
 		return false;
 	if (!put_scene(&measured, &scene))
