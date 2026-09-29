@@ -98,6 +98,12 @@ static void drop(const voe_editor_assets_drag *drag,
 	bool done;
 
 	if (voe_editor_views_under(views, pointer, &view, &point)) {
+		if (drag->prefab && session->project->prefab[0] != '\0') {
+			voe_editor_notice_set(
+				&session->notice,
+				"A prefab is not placed while one is open.");
+			return;
+		}
 		done = drop_into_view(drag, scene, &views->views[view], point,
 				      geometries, models);
 	} else if (voe_editor_dock_over_panel(

@@ -49,6 +49,13 @@
 // this editor ever writes (ADR-0164); voe_editor_project_new_opened still
 // reads whatever project.voe3d names, because a hand-made or future project
 // need not agree.
+//
+// A PREFAB OPENED IN PLACE OF THE LEVEL (0283 point 8) sets the level aside as
+// its scene text, kept sections and unsaved edits included, with its unsaved
+// flag, in an arena of its own. Text, because Back reads it through scene_set,
+// so every copy is expanded from the prefab files as they are then. Save writes
+// the world to `<folder>/<prefab>` alone. code_set swaps only the world, so a
+// Refresh keeps both the open prefab and the set-aside level.
 #pragma once
 
 #include "code.h"
@@ -62,6 +69,8 @@
 #include <ecs/world.h>
 
 #include <game/world.h>
+
+#include <scene/prefab_component.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -90,6 +99,14 @@ typedef struct {
 	// project: nothing has been saved yet to name one.
 	const char *folder;
 	bool unsaved;
+	// The open prefab's path under folder, or "" while the level is open.
+	char prefab[VOE_SCENE_PREFAB_PATH];
+	// The level set aside while a prefab is open: its arena (NULL when
+	// none), its scene text in it and its unsaved flag.
+	voe_base_arena *level_arena;
+	const char *level_text;
+	size_t level_size;
+	bool level_unsaved;
 } voe_editor_project;
 
 // The untitled scene: one cube, the light that shows it and the scene's one
@@ -109,7 +126,9 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 // Saves project. folder is NULL for an opened project (folder is already set)
 // and required for an untitled one. False on failure, with why saying why and
 // nothing written; true clears project->unsaved and, for an untitled project,
-// sets project->folder to folder.
+// sets project->folder to folder. With a prefab open it writes the prefab,
+// refusing a world without exactly one entity with no parent, or one that
+// voe_editor_prefab_refused (prefabs.h) refuses.
 [[nodiscard]] bool voe_editor_project_save(voe_editor_project *project,
 					   const char *folder,
 					   voe_editor_notice *why);
@@ -154,6 +173,20 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 [[nodiscard]] bool voe_editor_project_code_set(voe_editor_project *project,
 					       voe_editor_code code,
 					       voe_editor_notice *why);
+
+// Opens the prefab at `<folder>/<path>` in the level's place: the level set
+// aside as text, the world made to hold the prefab, prefab set and unsaved
+// false. Needs a folder and no prefab open. False with why on any failure, the
+// level put back as it was.
+[[nodiscard]] bool voe_editor_project_prefab_open(voe_editor_project *project,
+						  const char *path,
+						  voe_editor_notice *why);
+
+// The set-aside level read back through scene_set, its unsaved flag restored,
+// its arena destroyed and prefab cleared. Needs a prefab open. False with why
+// when the level's text will not read, the prefab still counted open.
+[[nodiscard]] bool voe_editor_project_prefab_back(voe_editor_project *project,
+						  voe_editor_notice *why);
 
 // project's folder's own name, or NULL when it is untitled.
 const char *voe_editor_project_name(const voe_editor_project *project);

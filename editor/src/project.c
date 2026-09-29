@@ -45,6 +45,7 @@
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
 #include <scene/light_system.h>
+#include <scene/parent_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
@@ -320,6 +321,51 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 	return project;
 }
 
+// The open prefab's world written to `<folder>/<prefab>`: refused unless it is
+// one tree whose root voe_editor_prefab_refused lets through (0283 point 1).
+static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
+{
+	const voe_ecs_entity *authored = voe_scene_identity_entities(project->world);
+	uint32_t count = voe_scene_identity_count(project->world);
+	voe_ecs_entity root = { 0 };
+	uint32_t roots = 0;
+	voe_base_arena *scratch;
+	voe_base_error error;
+	const char *path;
+	voe_authoring_text text;
+	bool saved = false;
+
+	VOE_BASE_ASSERT(project->folder != NULL && project->prefab[0] != '\0',
+			"saving a prefab with no prefab open");
+	for (uint32_t i = 0; i < count; i++) {
+		if (voe_scene_parent_get(project->world, authored[i]) == NULL) {
+			root = authored[i];
+			roots++;
+		}
+	}
+	if (roots != 1) {
+		voe_editor_notice_set(
+			why, "A prefab holds exactly one entity with no parent.");
+		return false;
+	}
+	if (voe_editor_prefab_refused(project->world, root, why))
+		return false;
+
+	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
+	path = voe_platform_path_join(scratch, project->folder, project->prefab);
+	voe_base_report_error_clear();
+	if (!voe_editor_project_scene_text(project, scratch, &text) ||
+	    !voe_platform_file_write(path, (const uint8_t *)text.text,
+				     text.size, &error)) {
+		voe_editor_notice_from_report(why, path);
+	} else {
+		project->unsaved = false;
+		saved = true;
+	}
+	voe_base_arena_destroy(scratch);
+	return saved;
+}
+
 bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 			     voe_editor_notice *why)
 {
@@ -333,6 +379,9 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	VOE_BASE_ASSERT(why != NULL, "saving a project with nowhere to say why");
 	VOE_BASE_ASSERT((project->folder == NULL) == (folder != NULL),
 			"folder is required for an untitled project and refused for an opened one");
+
+	if (project->prefab[0] != '\0')
+		return prefab_save(project, why);
 
 	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
 
@@ -512,6 +561,88 @@ bool voe_editor_project_code_set(voe_editor_project *project,
 	return true;
 }
 
+bool voe_editor_project_prefab_open(voe_editor_project *project,
+				    const char *path, voe_editor_notice *why)
+{
+	voe_base_arena *arena;
+	voe_base_error error;
+	voe_authoring_text level;
+	const char *absolute;
+	const uint8_t *bytes;
+	size_t size;
+	voe_editor_notice ignored;
+
+	VOE_BASE_ASSERT(project != NULL && path != NULL && why != NULL,
+			"opening a prefab with no project, path or notice");
+	VOE_BASE_ASSERT(project->folder != NULL, "opening a prefab untitled");
+	VOE_BASE_ASSERT(project->prefab[0] == '\0' &&
+				project->level_arena == NULL,
+			"opening a prefab while one is open");
+
+	if (strlen(path) >= sizeof project->prefab) {
+		voe_editor_notice_set(why, "The prefab's path is too long.");
+		return false;
+	}
+	arena = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
+	voe_base_report_error_clear();
+	if (!voe_editor_project_scene_text(project, arena, &level)) {
+		voe_editor_notice_from_report(why, "the scene");
+		voe_base_arena_destroy(arena);
+		return false;
+	}
+	absolute = voe_platform_path_join(arena, project->folder, path);
+	voe_base_report_error_clear();
+	bytes = voe_platform_file_read(absolute, arena, &size, &error);
+	if (bytes == NULL) {
+		voe_editor_notice_from_report(why, path);
+		voe_base_arena_destroy(arena);
+		return false;
+	}
+	if (!voe_editor_project_scene_set(project, (const char *)bytes, size,
+					  why)) {
+		// The world is half-loaded; the level's own text always fits
+		// back into the world it came from (scene_set).
+		bool restored = voe_editor_project_scene_set(
+			project, level.text, level.size, &ignored);
+
+		VOE_BASE_ASSERT(restored,
+				"the level did not read back after a refused prefab");
+		voe_base_arena_destroy(arena);
+		return false;
+	}
+
+	memcpy(project->prefab, path, strlen(path) + 1);
+	project->level_arena = arena;
+	project->level_text = level.text;
+	project->level_size = level.size;
+	project->level_unsaved = project->unsaved;
+	project->unsaved = false;
+	VOE_BASE_ASSERT(project->prefab[0] != '\0', "an open prefab with no path");
+	return true;
+}
+
+bool voe_editor_project_prefab_back(voe_editor_project *project,
+				    voe_editor_notice *why)
+{
+	VOE_BASE_ASSERT(project != NULL && why != NULL,
+			"going back from no project or with nowhere to say why");
+	VOE_BASE_ASSERT(project->prefab[0] != '\0' &&
+				project->level_arena != NULL,
+			"going back with no prefab open");
+
+	if (!voe_editor_project_scene_set(project, project->level_text,
+					  project->level_size, why))
+		return false;
+	project->unsaved = project->level_unsaved;
+	voe_base_arena_destroy(project->level_arena);
+	project->level_arena = NULL;
+	project->level_text = NULL;
+	project->level_size = 0;
+	project->prefab[0] = '\0';
+	VOE_BASE_ASSERT(project->level_arena == NULL, "a level left set aside");
+	return true;
+}
+
 const char *voe_editor_project_name(const voe_editor_project *project)
 {
 	VOE_BASE_ASSERT(project != NULL, "asking the name of no project");
@@ -530,6 +661,8 @@ void voe_editor_project_destroy(voe_editor_project *project)
 	// The struct is in arena, so the code is copied out before it goes and
 	// closed after every arena, the world's included (code.h).
 	code = project->code;
+	if (project->level_arena != NULL)
+		voe_base_arena_destroy(project->level_arena);
 	voe_base_arena_destroy(project->scene_arena);
 	voe_base_arena_destroy(project->world_arena);
 	voe_base_arena_destroy(project->arena);

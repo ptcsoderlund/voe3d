@@ -18,8 +18,8 @@ carries it out.
   a tree dragged into the Assets panel made one, and what refuses it.
 - `prefab_expand.c` — the next unexpanded root found, its file read onto it, the ids carried, and a
   refused root given its part row.
-- `prefab_make.c` — a tree's camera, light or prefab rows refused, the file written under the shown
-  folder unless it exists, then the prefab and part rows queued.
+- `prefab_make.c` — a tree's camera, light or prefab rows refused, and any while a prefab is open,
+  the file written under the shown folder unless it exists, then the prefab and part rows queued.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -37,11 +37,11 @@ carries it out.
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
   sections, the code its world was made with, its folder and whether it has unsaved changes
-  (ADR-0164), its scene handed out as text or read back in, the swap to a world with new code, and
-  every read's placed copies expanded.
-- `project.c` — opening, making and saving a project, the scene written out as text and a text read
-  back into the same world or a new one made with new code, each read expanded, and the untitled
-  scene's cube, light and camera, which are this file's decision and not `scene.c`'s.
+  (ADR-0164), its scene handed out as text or read back in, the swap to a world with new code,
+  every read's placed copies expanded, and a prefab opened with the level set aside as text.
+- `project.c` — opening, making and saving a project or its open prefab, the scene written out as
+  text and read back into the same world or a new one, each read expanded, a prefab opened and
+  Back, and the untitled scene's cube, light and camera.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
@@ -137,7 +137,7 @@ carries it out.
   import.
 - `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
   the ray lands, over the Inspector swaps the selected thing's model unless it is a part; a held
-  prefab row over a view places a copy there; anywhere else nothing.
+  prefab row over a view places a copy there unless a prefab is open; anywhere else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
   rectangle from the dock tree, and the one undo step and unsaved mark.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets

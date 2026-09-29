@@ -122,6 +122,11 @@ bool voe_editor_prefab_make(voe_editor_project *project, voe_ecs_entity root,
 				      "Save the project before making a prefab.");
 		return false;
 	}
+	if (project->prefab[0] != '\0') {
+		voe_editor_notice_set(why,
+				      "Go back to the level before making a prefab.");
+		return false;
+	}
 	identity = voe_scene_identity_get(project->world, root);
 	if (identity == NULL) {
 		voe_editor_notice_set(why, "Only a named entity makes a prefab.");
