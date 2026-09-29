@@ -27,6 +27,9 @@
 // thing can draw in 0.2 (0270). It is drawn marked, as the Scene list marks
 // its selected row; other files are only listed.
 //
+// A PREFAB ROW is a file whose name ends `.prefab`, in any case (0283): drawn
+// marked as a model row is, and held as one is, so assets_drag.h places it.
+//
 // A FAILED LISTING KEEPS THE OLD ROWS for the same project, as browser.h's
 // does, and says why on stderr through platform/folder.h. `Assets/` is looked
 // for in the project's own listing first, so a project without one, or an
@@ -49,12 +52,13 @@
 #include <stdint.h>
 
 // One listed entry: its name in the panel's arena, whether it is a folder,
-// whether it is a model, and the row drawn for it.
+// whether it is a model or a prefab, and the row drawn for it.
 typedef struct {
 	voe_ui_node node;
 	const char *name;
 	bool folder;
 	bool model;
+	bool prefab;
 } voe_editor_assets_row;
 
 // The panel's whole state. Zeroed is a panel never listed.
@@ -75,10 +79,12 @@ typedef struct {
 	uint32_t row_count;
 	voe_ui_node up_button;
 	voe_ui_node import_button;
-	// The model row the pointer went down on and still holds, as the last
-	// read found it, NULL for none: its name in `arena`, valid until the
-	// next listing. What assets_drag.h starts a drag from.
+	// The model or prefab row the pointer went down on and still holds, as
+	// the last read found it, NULL for none: its name in `arena`, valid
+	// until the next listing, and whether it is a prefab. What
+	// assets_drag.h starts a drag from.
 	const char *held;
+	bool held_prefab;
 } voe_editor_assets;
 
 // Lists again when `project_folder` (NULL for untitled) differs from the one
@@ -93,7 +99,7 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
 // After voe_ui_frame_end: a folder row fired is entered, Up fired goes up a
-// level; either lists at once. `held` is set to the model row held, if any. True when Import fired, which the caller
+// level; either lists at once. `held` is set to the model or prefab row held, if any. True when Import fired, which the caller
 // answers by showing the browser in IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets);

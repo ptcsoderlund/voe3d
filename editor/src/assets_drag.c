@@ -1,5 +1,5 @@
 // The drag's start from the held row and its release into a view, onto the
-// Inspector or nowhere. See the header for the three outcomes, the point a
+// Inspector or nowhere. See the header for the four outcomes, the point a
 // placed model lands at and why the Inspector drop replaces the path.
 #include "assets_drag.h"
 
@@ -14,11 +14,13 @@
 // How far along the ray a model lands that meets nothing and no ground.
 #define DROP_METRES 10.0
 
-// The held row's path into `drag`, `\` from a joined subfolder made `/`.
-// False when it does not fit a model row.
+// The held row's path into `drag`, `\` from a joined subfolder made `/`, and
+// whether it is a prefab. False when it does not fit its kind's row.
 static bool path_hold(voe_editor_assets_drag *drag,
 		      const voe_editor_assets *assets)
 {
+	size_t room = assets->held_prefab ? VOE_SCENE_PREFAB_PATH :
+					    VOE_3D_MODEL_PATH;
 	int length = assets->shown[0] == '\0' ?
 			     snprintf(drag->path, sizeof drag->path,
 				      "Assets/%s", assets->held) :
@@ -26,8 +28,10 @@ static bool path_hold(voe_editor_assets_drag *drag,
 				      "Assets/%s/%s", assets->shown,
 				      assets->held);
 
-	if (length < 0 || (size_t)length >= sizeof drag->path)
+	VOE_BASE_ASSERT(room <= sizeof drag->path, "a row longer than the drag");
+	if (length < 0 || (size_t)length >= room)
 		return false;
+	drag->prefab = assets->held_prefab;
 	for (int i = 0; i < length; i++)
 		if (drag->path[i] == '\\')
 			drag->path[i] = '/';
@@ -52,7 +56,8 @@ static voe_math_double3 drop_point(voe_ecs_world *world,
 				   ray.origin.z + ray.direction.z * along };
 }
 
-// A new thing wearing the held path where the view's ray lands, selected.
+// A new thing wearing the held path, or a placed copy of the held prefab,
+// where the view's ray lands, selected.
 static bool drop_into_view(const voe_editor_assets_drag *drag,
 			   voe_editor_scene *scene,
 			   const voe_editor_view *view, voe_math_float2 point,
@@ -65,10 +70,13 @@ static bool drop_into_view(const voe_editor_assets_drag *drag,
 		view->eye,
 		(voe_platform_size){ (int)view->width, (int)view->height },
 		point);
+	voe_math_double3 at = drop_point(scene->world, geometries, models, ray);
 
-	if (!voe_editor_entities_model_add(
-		    scene->world, drag->path,
-		    drop_point(scene->world, geometries, models, ray), &made))
+	if (drag->prefab ?
+		    !voe_editor_entities_prefab_add(scene->world, drag->path, at,
+						    &made) :
+		    !voe_editor_entities_model_add(scene->world, drag->path, at,
+						   &made))
 		return false;
 	voe_editor_scene_select(scene, made);
 	return true;
@@ -95,6 +103,7 @@ static void drop(const voe_editor_assets_drag *drag,
 	} else if (voe_editor_dock_over_panel(
 			   root, voe_editor_topbar_high(bar, root->size.y),
 			   VOE_EDITOR_PANEL_INSPECTOR, pointer) &&
+		   !drag->prefab &&
 		   !voe_editor_inspector_is_part(scene->world, selected, NULL) &&
 		   voe_3d_model_get(scene->world, selected) != NULL) {
 		snprintf(swap.model.path, sizeof swap.model.path, "%s",

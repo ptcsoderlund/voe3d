@@ -9,9 +9,11 @@
 //
 // AN ADD MAKES AN IDENTITY AND A TRANSFORM AND NOTHING ELSE (ADR-0217). There
 // is no shortcut that makes an entity with other components on it; everything
-// else comes from Add component afterwards. The one other make is a model
+// else comes from Add component afterwards. The other makes are a model
 // dropped into a view (assets_drag.h): an identity, a transform where it
-// landed and the model row naming the file, as 0277 point 8 asks.
+// landed and the model row naming the file, as 0277 point 8 asks; and a prefab
+// dropped the same way: the prefab row instead (0283 point 7), the rest of the
+// copy expanded onto it by the world step (prefabs.h).
 //
 // A NEW COLLIDER STARTS OUT FITTING THE SHAPE (0253). Added to an entity with
 // a shape, it is voe_3d_shape_collider's row for that shape's kind, not the
@@ -28,7 +30,7 @@
 // cannot collide with any id in the file (ADR-0193).
 //
 // ITS NAME is the base name — "Entity" for an add, the file's last name less
-// `.glb` for a model, and for a duplicate its source's name less a trailing " <number>" — when
+// `.glb` for a model or `.prefab` for a prefab, and for a duplicate its source's name less a trailing " <number>" — when
 // no identity has that name, and otherwise "<base> N" for the lowest N from 2
 // that no identity has. A base too long to take the suffix in
 // VOE_SCENE_IDENTITY_NAME bytes is cut short to make room for it.
@@ -68,6 +70,14 @@
 						 const char *path,
 						 voe_math_double3 position,
 						 voe_ecs_entity *out);
+
+// As voe_editor_entities_model_add, named after `path`'s last name less
+// `.prefab`, with a prefab row naming `path` (shorter than
+// VOE_SCENE_PREFAB_PATH) in place of the model row.
+[[nodiscard]] bool voe_editor_entities_prefab_add(voe_ecs_world *world,
+						  const char *path,
+						  voe_math_double3 position,
+						  voe_ecs_entity *out);
 
 // Queues that type's default row onto the entity, or for a collider on an
 // entity with a shape the one fitting it. False when the queue is full.

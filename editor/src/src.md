@@ -131,13 +131,13 @@ carries it out.
   stack, each row in a rim wrapper, a copy's file name, the drag's ghost, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
-  as models, and Import copying a chosen `.glb` into the shown folder.
+  as models and `.prefab` rows as prefabs, and Import copying a chosen `.glb` into the shown folder.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the
   import.
 - `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
-  the ray lands, over the Inspector swaps the selected thing's model unless it is a part, anywhere
-  else nothing.
+  the ray lands, over the Inspector swaps the selected thing's model unless it is a part; a held
+  prefab row over a view places a copy there; anywhere else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
   rectangle from the dock tree, and the one undo step and unsaved mark.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
@@ -225,7 +225,7 @@ carries it out.
 - `undo.c` — the states pushed once, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities with their
+- `entities.h` — Add entity, a dropped model's thing, a dropped prefab's copy, duplicating and deleting entities with their
   trees (a placed copy duplicated as its four saved rows), and giving or taking their components,
   all through the world's structural queue. Its header says the id and name rules.
 - `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
