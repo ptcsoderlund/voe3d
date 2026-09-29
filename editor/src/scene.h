@@ -118,7 +118,7 @@ typedef struct voe_editor_scene {
 	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
 	bool full;
 	// The Scene list's drag, owned by scene_list.c, kept across frames and
-	// not cleared with the rows; the release zeroes all six. `list_held` is
+	// not cleared with the rows; the release zeroes all seven. `list_held` is
 	// the row held down (a world swapped under it by New, Open or undo
 	// leaves it stale, which the release tests for), `list_from` where the
 	// pointer was when it was first held, `list_dragging` whether it has
@@ -132,6 +132,9 @@ typedef struct voe_editor_scene {
 	bool list_cancelled;
 	voe_ecs_entity list_target;
 	bool list_target_heading;
+	// Whether a release now would drop nothing: the release's own answer,
+	// worked out after the frame and drawn a frame late, as the target is.
+	bool list_refused;
 	// The entity a drag released over the Assets panel left for the caller
 	// to make a prefab of (interface.c), which clears it; zeroed if none.
 	voe_ecs_entity list_made;

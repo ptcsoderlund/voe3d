@@ -54,11 +54,20 @@ void voe_editor_prefabs_expand(voe_ecs_world *world, const char *folder,
 					     voe_ecs_entity root,
 					     voe_editor_notice *why);
 
+// True, with why, when a make of root would be refused: the project is
+// untitled, a prefab is open, root has no identity or _refused says so. The
+// file already existing is left out (0286 point 5): this is asked every frame
+// of a drag, and a disk test per frame is not worth a case the make reports.
+// `why` must not be NULL.
+[[nodiscard]] bool voe_editor_prefab_make_refused(const voe_editor_project *project,
+						  voe_ecs_entity root,
+						  voe_editor_notice *why);
+
 // Makes a prefab of root's tree in project's `Assets/<shown>/` (`shown` the
-// Assets panel's folder relative to `Assets/`). Refused with why when the
-// project is untitled, root has no identity, _refused says so or the file
-// exists; else the file is written and the rows queued. False with why on any
-// failure. The scratch is rewound to where it was.
+// Assets panel's folder relative to `Assets/`). Refused with why when
+// _make_refused says so or the file exists; else the file is written and the
+// rows queued. False with why on any failure. The scratch is rewound to where
+// it was.
 [[nodiscard]] bool voe_editor_prefab_make(voe_editor_project *project,
 					  voe_ecs_entity root,
 					  const char *shown,

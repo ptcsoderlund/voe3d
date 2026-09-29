@@ -7,7 +7,7 @@
 //     ... voe_ui_frame_end ...
 //     (scene.h reads the rows and Add entity it recorded)
 //     voe_editor_scene_list_drop(&scene, ui, pointer.down, pointer.at,
-//                                over_assets);
+//                                over_assets, assets_take);
 //
 // THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE, walked directly, so an
 // entity the engine made for itself (no identity, not authored, ADR-0125)
@@ -48,9 +48,12 @@
 // release that follows neither parents nor selects.
 //
 // A DRAG SHOWS THREE MARKS (ADR-0282): a raised ghost of its name beside the
-// pointer, the held row dimmed, and an `inverse` rim (not an accent, ADR-0194)
-// round what a release would land on. Every row and the heading always sit in
-// a keyed wrapper padded by the rim, so keys and spacing never change.
+// pointer (drag_ghost.h), the held row dimmed, and an `inverse` rim (not an
+// accent, ADR-0194) round what a release would land on. Every row and the
+// heading always sit in a keyed wrapper padded by the rim, so keys and spacing
+// never change. REFUSED (ADR-0285) is no row or heading target and not over an
+// Assets panel that takes it: the ghost is then dimmed under `list_dim` and
+// says "Can't drop here".
 #pragma once
 
 #include "scene.h"
@@ -65,9 +68,9 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 				const voe_ui_theme *palette,
 				voe_editor_scene *scene);
 
-// While a drag is under way and the held entity is alive with an identity: an
-// anchored raised panel of its name, a few millimetres right of and below
-// `at`, taking no pointer. Called in the root surface, `at` in its millimetres.
+// While a drag is under way and the held entity is alive with an identity: the
+// drag ghost of its name at `at`, refused when `list_refused` says so. Called
+// in the root surface, `at` in its millimetres.
 void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
 				      const voe_editor_scene *scene,
 				      voe_math_float2 at);
@@ -78,9 +81,12 @@ void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
 // then zeroes them. A held entity no longer alive, or either one without a
 // transform, does nothing. `over_assets` is whether `at` is over the Assets
 // panel: no target then, and a drop there sets `list_made` instead.
+// `assets_take` is whether a make there would go ahead; while dragging it and
+// the target set `list_refused`, and the release ignores it.
 void voe_editor_scene_list_drop(voe_editor_scene *scene,
 				const voe_ui_context *ui, bool down,
-				voe_math_float2 at, bool over_assets);
+				voe_math_float2 at, bool over_assets,
+				bool assets_take);
 
 // When a drag is under way, cancels it for the rest of the press and returns
 // true, so the caller spends Escape on it; else false and changes nothing.

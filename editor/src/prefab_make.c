@@ -103,6 +103,28 @@ static bool rows_queue(voe_ecs_world *world, voe_ecs_entity root,
 	return true;
 }
 
+bool voe_editor_prefab_make_refused(const voe_editor_project *project,
+				    voe_ecs_entity root, voe_editor_notice *why)
+{
+	VOE_BASE_ASSERT(project != NULL && why != NULL,
+			"checking a make with no project or notice");
+	if (project->folder == NULL) {
+		voe_editor_notice_set(why,
+				      "Save the project before making a prefab.");
+		return true;
+	}
+	if (project->prefab[0] != '\0') {
+		voe_editor_notice_set(why,
+				      "Go back to the level before making a prefab.");
+		return true;
+	}
+	if (voe_scene_identity_get(project->world, root) == NULL) {
+		voe_editor_notice_set(why, "Only a named entity makes a prefab.");
+		return true;
+	}
+	return voe_editor_prefab_refused(project->world, root, why);
+}
+
 bool voe_editor_prefab_make(voe_editor_project *project, voe_ecs_entity root,
 			    const char *shown, voe_base_arena *scratch,
 			    voe_editor_notice *why)
@@ -117,23 +139,10 @@ bool voe_editor_prefab_make(voe_editor_project *project, voe_ecs_entity root,
 
 	VOE_BASE_ASSERT(project != NULL && scratch != NULL && why != NULL,
 			"making a prefab with no project, scratch or notice");
-	if (project->folder == NULL) {
-		voe_editor_notice_set(why,
-				      "Save the project before making a prefab.");
+	if (voe_editor_prefab_make_refused(project, root, why))
 		return false;
-	}
-	if (project->prefab[0] != '\0') {
-		voe_editor_notice_set(why,
-				      "Go back to the level before making a prefab.");
-		return false;
-	}
 	identity = voe_scene_identity_get(project->world, root);
-	if (identity == NULL) {
-		voe_editor_notice_set(why, "Only a named entity makes a prefab.");
-		return false;
-	}
-	if (voe_editor_prefab_refused(project->world, root, why))
-		return false;
+	VOE_BASE_ASSERT(identity != NULL, "an unrefused prefab with no identity");
 	if (!path_make(path, shown != NULL ? shown : "", identity->name)) {
 		voe_editor_notice_set(why, "The prefab's path is too long.");
 		return false;

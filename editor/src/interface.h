@@ -255,18 +255,19 @@
 // characters, a byte at least apiece, 7680; Close, two and five. 14682 + 7704 =
 // 22386 elements. AND ONE MORE SCROLL AREA, its lines': five.
 //
-// THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD THIRTY-FIVE NODES:
+// THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD THIRTY-SIX NODES:
 // a rim wrapper round each of VOE_EDITOR_SCENE_ROWS (32) rows and the heading,
-// thirty-three, and the ghost's panel and name label, two. 1179 + 35 = 1214
-// nodes. AND SIXTY-EIGHT ELEMENTS: the one lit rim's border and fill, two; the
-// ghost's border and fill, two, and its name's 64 characters. 22386 + 68 =
-// 22454 elements.
+// thirty-three, and the ghost's panel, name label and, refused, its second
+// label (drag_ghost.h; the panel is the column holding both), three. 1179 + 36
+// = 1215 nodes. AND EIGHTY-ONE ELEMENTS: the one lit rim's border and fill,
+// two; the ghost's border and fill, two, its name's 64 characters, and the 13
+// "Can't drop here" draws, its two spaces drawing nothing. 22386 + 81 = 22467.
 //
 // THE BAR'S BACK BUTTON (topbar.h), while a prefab is open, ADDS TWO NODES, a
 // button and its label, and SIX ELEMENTS: its border and fill, and "Back".
-// 1214 + 2 = 1216 nodes, 22454 + 6 = 22460 elements.
-#define VOE_EDITOR_INTERFACE_NODES 1216
-#define VOE_EDITOR_INTERFACE_ELEMENTS 22460
+// 1215 + 2 = 1217 nodes, 22467 + 6 = 22473 elements.
+#define VOE_EDITOR_INTERFACE_NODES 1217
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22473
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

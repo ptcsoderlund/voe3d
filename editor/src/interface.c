@@ -33,7 +33,9 @@
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
 // scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
-// over the Assets leaf it makes a prefab (prefabs.h), one structural change.
+// over the Assets leaf it makes a prefab (prefabs.h), one structural change;
+// whether the Assets leaf takes it is !voe_editor_prefab_make_refused for the
+// session's project, which the ghost shows as refused or not.
 //
 // A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT, through
 // voe_editor_session_prefab_open, beside where Import shows the browser; the
@@ -171,6 +173,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_picking picked;
 		voe_ui_node picker = VOE_UI_NODE_NONE;
 		bool picking;
+		// Why a Scene list drag over Assets would be refused, never
+		// shown: the release's make says it in the session's notice.
+		voe_editor_notice unshown = { 0 };
 
 		if (browsing || preferring || erroring)
 			voe_editor_scene_picker_close(scene);
@@ -316,7 +321,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			scene, ui, root->pointer.down, root->pointer.at,
 			voe_editor_dock_over_panel(
 				root, voe_editor_topbar_high(bar, root->size.y),
-				VOE_EDITOR_PANEL_ASSETS, root->pointer.at));
+				VOE_EDITOR_PANEL_ASSETS, root->pointer.at),
+			!voe_editor_prefab_make_refused(session->project,
+							scene->list_held,
+							&unshown));
 		if (scene->list_made.generation != 0) {
 			if (voe_editor_prefab_make(session->project,
 						   scene->list_made,

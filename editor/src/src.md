@@ -15,11 +15,12 @@ carries it out.
 - `world_step.c` — the one call to `voe_game_world_step`, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
   ascending id, a load, with deterministic ids and a file that will not read said in the notice;
-  a tree dragged into the Assets panel made one, and what refuses it.
+  a tree dragged into the Assets panel made one, what refuses it, and the refusals asked per frame.
 - `prefab_expand.c` — the next unexpanded root found, its file read onto it, the ids carried, and a
   refused root given its part row.
 - `prefab_make.c` — a tree's camera, light or prefab rows refused, and any while a prefab is open,
-  the file written under the shown folder unless it exists, then the prefab and part rows queued.
+  those refusals as one call without the file test, the file written under the shown folder unless
+  it exists, then the prefab and part rows queued.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -126,7 +127,11 @@ carries it out.
   copy marked with its prefab's file; a drag parents, unparents or, onto the Assets panel, makes a
   prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row in a rim wrapper, a copy's file name, the drag's ghost, and the held row's drop.
+  stack, each row in a rim wrapper, a copy's file name, the drag's ghost refused or not, and the
+  held row's drop.
+- `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
+  dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
+- `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
   entered and Up but never above it, listed again once a second, model and prefab rows marked, a
   fired prefab row left to open, and Import.
