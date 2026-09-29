@@ -11,7 +11,10 @@
 #include <scene/identity_component.h>
 #include <scene/parent_component.h>
 #include <scene/parent_system.h>
+#include <scene/prefab_component.h>
 #include <scene/transform_component.h>
+
+#include <string.h>
 
 // How far each level of the tree is indented, in millimetres.
 #define INDENT_PER_DEPTH 4.0f
@@ -53,6 +56,25 @@ static bool same_entity(voe_ecs_entity a, voe_ecs_entity b)
 	return a.index == b.index && a.generation == b.generation;
 }
 
+// A part: made from a prefab for a placed copy other than itself (0283 point
+// 5). A copy's root names itself, so it is not one.
+static bool is_part(const voe_ecs_world *world, voe_ecs_entity entity)
+{
+	const voe_scene_prefab_part *part =
+		voe_scene_prefab_part_get(world, entity);
+
+	return part != NULL && !same_entity(part->instance, entity);
+}
+
+// The last name of a prefab's path, pointing into the row, which outlives the
+// frame as the identity's name does.
+static const char *prefab_file_name(const voe_scene_prefab *prefab)
+{
+	const char *slash = strrchr(prefab->path, '/');
+
+	return slash != NULL ? slash + 1 : prefab->path;
+}
+
 // Opens the keyed wrapper every row and the heading sit in: padded by the
 // rim, drawn only when `lit`, then under list_rim for its panel alone. Closed
 // by voe_ui_end.
@@ -82,6 +104,8 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 		voe_scene_identity_entities(scene->world);
 	const bool dim = scene->list_dragging &&
 			 same_entity(entities[index], scene->list_held);
+	const voe_scene_prefab *prefab =
+		voe_scene_prefab_get(scene->world, entities[index]);
 
 	if (dim)
 		voe_ui_theme_push(ui, &scene->list_dim);
@@ -106,7 +130,15 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 		ui, "entity", index,
 		voe_editor_scene_is_selected(scene, entities[index]));
 
-	voe_ui_label(ui, rows[index].name);
+	if (prefab == NULL) {
+		voe_ui_label(ui, rows[index].name);
+	} else {
+		voe_ui_row_begin(ui, (voe_ui_container){ .gap = 2.0f });
+		voe_ui_label(ui, rows[index].name);
+		voe_ui_label_role(ui, prefab_file_name(prefab),
+				  VOE_UI_TEXT_ROLE_SECONDARY);
+		voe_ui_end(ui);
+	}
 	voe_ui_end(ui);
 	voe_ui_end(ui);
 	voe_ui_end(ui);
@@ -219,7 +251,8 @@ static bool over(const voe_ui_context *ui, voe_ui_node node,
 // the drawn target both use: true with `target` a row's entity to parent onto,
 // or zeroed to unparent over the heading; false when it lands nowhere or is
 // refused (held dead or without a transform, onto itself or under it, onto a
-// row without a transform or already its parent, the heading for a root).
+// part, a row without a transform or already its parent, the heading for a
+// root).
 static bool drop_target(const voe_editor_scene *scene,
 			const voe_ui_context *ui, voe_ecs_entity held,
 			voe_math_float2 at, voe_ecs_entity *target)
@@ -243,6 +276,8 @@ static bool drop_target(const voe_editor_scene *scene,
 			continue;
 		// Onto itself or something under it would be a loop.
 		if (voe_scene_parent_within(scene->world, row, held))
+			return false;
+		if (is_part(scene->world, row))
 			return false;
 		if (voe_scene_transform_get(scene->world, row) == NULL)
 			return false;
@@ -294,7 +329,10 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 		if (scene->listed[i].node == VOE_UI_NODE_NONE)
 			continue;
 		if (voe_ui_button_action(ui, scene->listed[i].node).held) {
-			drag_follow(scene, ui, scene->listed[i].entity, at);
+			// A held part is only a click: it selects on release.
+			if (!is_part(scene->world, scene->listed[i].entity))
+				drag_follow(scene, ui,
+					    scene->listed[i].entity, at);
 			return;
 		}
 	}

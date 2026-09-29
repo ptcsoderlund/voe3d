@@ -8,55 +8,44 @@
 //     (scene.h reads the rows and Add entity it recorded)
 //     voe_editor_scene_list_drop(&scene, ui, pointer.down, pointer.at);
 //
-// THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE. It walks
-// voe_scene_identity_rows and _entities rather than a list the editor keeps, so
-// an entity the engine made for itself — no identity, hence not authored
-// (ADR-0125) — cannot appear in it, and neither can an authored one go missing.
-// There is nothing here to keep in step with the world.
+// THE LIST IS THE IDENTITY TABLE AND NOTHING ELSE, walked directly, so an
+// entity the engine made for itself (no identity, not authored, ADR-0125)
+// cannot appear and an authored one cannot go missing.
 //
-// THE ROWS ARE THE TREE, DEPTH-FIRST (ADR-0281 point 7). Each root — no parent
-// row, or a parent that is dead or has no identity — in identity-table order,
-// and right after each row the authored entities whose parent it is, in table
-// order, at any depth, by an explicit stack capped at
-// VOE_SCENE_PARENT_DEPTH_MAX. An entity in a loop (only a hand-edited file
-// makes one) or past the cap is reached from no root; it is still listed,
-// after the rest, at depth 0, so no authored entity goes missing.
+// THE ROWS ARE THE TREE, DEPTH-FIRST (ADR-0281 point 7): each root in table
+// order, then the entities under it in table order, by an explicit stack capped
+// at VOE_SCENE_PARENT_DEPTH_MAX, each indented by a fixed-size spacer per level.
+// One in a loop or past the cap is listed after the rest at depth 0.
 //
-// EACH ROW IS INDENTED BY ITS DEPTH, a fixed number of millimetres per level
-// set as a fixed-size spacer before the row, as ui/layout.h says a gap is made.
-// The "Scene" heading's node is recorded in scene.heading for dragging.
+// EVERY ROW IS KEYED BY ONE NAME AND ITS IDENTITY-TABLE INDEX, so each row is
+// its own button and its highlight follows its entity when the order changes.
+// Its label points into the table, which outlives the frame. Add entity sits
+// above the list and is asked after the frame, as the rows are (ADR-0217).
 //
-// EVERY ROW IS KEYED BY ONE NAME AND ITS IDENTITY-TABLE INDEX, which is what
-// `index` on a widget is for (ui/widgets.h): one name for every button would make
-// the whole list one button sharing one highlight, and a key that is not the
-// drawn position keeps a row's highlight on its entity when the order changes. The row's label points into
-// the table, which outlives the frame — a name is 64 bytes in the component and
-// never a pointer.
+// A PLACED COPY'S ROOT SHOWS ITS PREFAB'S FILE NAME after its name, in the
+// secondary text role, so it reads as a prefab at a glance; its parts are
+// listed under it as any tree (0283 point 5).
 //
-// THE ADD ENTITY BUTTON IS ABOVE THE LIST, recorded on the scene to be asked
-// after the frame, as the rows are; what it makes is entities.h's (ADR-0217).
+// A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7): over another row it
+// becomes its child, unless it already is or that row is itself or under it;
+// over the heading (scene.heading) a root; elsewhere nothing. The world place
+// is kept. The drop is read after voe_ui_frame_end, when a button says it is
+// held. A set counts one in `structural`; a full queue sets `full`.
 //
-// A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7). Over another row it
-// becomes that row's child, unless it already is or that row is itself or under
-// it; over the heading it becomes a root again; anywhere else, nothing. The
-// world place is kept (scene/parent_system.h), so nothing moves in the view. The
-// drop is read after voe_ui_frame_end because only then does a button say it is
-// held and a node where it was drawn. A set counts one in `structural`; a full
-// queue sets `full`.
+// A PART IS NEVER DRAGGED OR DROPPED ONTO (0283 point 5): a press on one only
+// selects, and no rim or drop lands on its row. A part is the prefab's, and a
+// thing under one would be saved naming what no file holds. A copy's root
+// drags and takes a drop as any row.
 //
 // A DRAG STARTS ONLY PAST VOE_EDITOR_SCENE_DRAG_START FROM THE PRESS (ADR-0282),
-// so a click that wobbles stays a click, and a release before it drops nothing.
-// While dragging, `list_target` is the release's own answer at the pointer, so
-// what is drawn lit is what a release would do. Escape cancels a drag under way
-// (voe_editor_scene_list_cancel): the release that follows neither parents nor
-// selects.
+// so a wobbling click stays a click. While dragging, `list_target` is the
+// release's own answer at the pointer. Escape cancels a drag under way: the
+// release that follows neither parents nor selects.
 //
 // A DRAG SHOWS THREE MARKS (ADR-0282): a raised ghost of its name beside the
-// pointer, the held row dimmed, and an `inverse` rim round the row or heading a
-// release would land on — a rim, not an accent (ADR-0194 removed it), so it
-// reads even on a selected row. Every row and the heading always sit in a
-// keyed wrapper padded by the rim, drawn only when lit, so keys and spacing do
-// not change as a rim comes and goes.
+// pointer, the held row dimmed, and an `inverse` rim (not an accent, ADR-0194)
+// round what a release would land on. Every row and the heading always sit in
+// a keyed wrapper padded by the rim, so keys and spacing never change.
 #pragma once
 
 #include "scene.h"

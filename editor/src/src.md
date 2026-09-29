@@ -120,10 +120,10 @@ carries it out.
   frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
   drag marks, the Inspector's call, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree,
-  keyed by identity index; a drag past a 1 mm threshold dropped onto a row parents it, onto the
-  heading unparents it; a ghost, a dimmed row and an inverse rim show it; Escape cancels it.
+  keyed by identity index, a placed copy marked with its prefab's file name; a drag past 1 mm onto a
+  row parents it, onto the heading unparents it; a part never drags or takes a drop; Escape cancels.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row and the heading in a rim wrapper, the drag's ghost, and the held row's drop.
+  stack, each row in a rim wrapper, a copy's file name, the drag's ghost, and the held row's drop.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
   Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
   as models, and Import copying a chosen `.glb` into the shown folder.
