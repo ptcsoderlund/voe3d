@@ -449,9 +449,10 @@ typedef struct {
 //
 // `unshaded` NON-ZERO MEANS THIS PASS HAS NO SUN. Every surface then draws its
 // own base colour, as an unlit material does, and direction, intensity, colour
-// and fill are not read. The owner of the scene's light, `3d`, sets it when a
-// scene has none (ADR-0238). Zero keeps shading, so a zeroed light is still the
-// black one above. It is the four bytes that used to be padding.
+// and fill are not read. A pass that wants base colours may ask for it; no folder
+// sets it today (ADR-0290). Zero keeps shading, so a zeroed light is still the
+// black one above, and that is what a scene with no light draws on its lit
+// surfaces (ADR-0287). It is the four bytes that used to be padding.
 typedef struct {
 	voe_math_float3 direction;
 	float intensity;
