@@ -5,22 +5,23 @@
 // table, how they are keyed and what a drop does.
 #include "scene_list.h"
 
+#include "drag_ghost.h"
 #include "inspector_place.h"
 
 #include <base/assert.h>
 #include <scene/identity_component.h>
 #include <scene/parent_component.h>
 #include <scene/parent_system.h>
+#include <scene/prefab_component.h>
 #include <scene/transform_component.h>
+
+#include <string.h>
 
 // How far each level of the tree is indented, in millimetres.
 #define INDENT_PER_DEPTH 4.0f
 
 // How wide the drop rim round every row and the heading is, in millimetres.
 #define RIM_WIDTH 0.5f
-
-// How far right of and below the pointer the ghost sits, in millimetres.
-#define GHOST_OFFSET 3.0f
 
 // No identity parent: a root.
 #define NO_PARENT UINT32_MAX
@@ -53,6 +54,25 @@ static bool same_entity(voe_ecs_entity a, voe_ecs_entity b)
 	return a.index == b.index && a.generation == b.generation;
 }
 
+// A part: made from a prefab for a placed copy other than itself (0283 point
+// 5). A copy's root names itself, so it is not one.
+static bool is_part(const voe_ecs_world *world, voe_ecs_entity entity)
+{
+	const voe_scene_prefab_part *part =
+		voe_scene_prefab_part_get(world, entity);
+
+	return part != NULL && !same_entity(part->instance, entity);
+}
+
+// The last name of a prefab's path, pointing into the row, which outlives the
+// frame as the identity's name does.
+static const char *prefab_file_name(const voe_scene_prefab *prefab)
+{
+	const char *slash = strrchr(prefab->path, '/');
+
+	return slash != NULL ? slash + 1 : prefab->path;
+}
+
 // Opens the keyed wrapper every row and the heading sit in: padded by the
 // rim, drawn only when `lit`, then under list_rim for its panel alone. Closed
 // by voe_ui_end.
@@ -82,6 +102,8 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 		voe_scene_identity_entities(scene->world);
 	const bool dim = scene->list_dragging &&
 			 same_entity(entities[index], scene->list_held);
+	const voe_scene_prefab *prefab =
+		voe_scene_prefab_get(scene->world, entities[index]);
 
 	if (dim)
 		voe_ui_theme_push(ui, &scene->list_dim);
@@ -106,7 +128,15 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 		ui, "entity", index,
 		voe_editor_scene_is_selected(scene, entities[index]));
 
-	voe_ui_label(ui, rows[index].name);
+	if (prefab == NULL) {
+		voe_ui_label(ui, rows[index].name);
+	} else {
+		voe_ui_row_begin(ui, (voe_ui_container){ .gap = 2.0f });
+		voe_ui_label(ui, rows[index].name);
+		voe_ui_label_role(ui, prefab_file_name(prefab),
+				  VOE_UI_TEXT_ROLE_SECONDARY);
+		voe_ui_end(ui);
+	}
 	voe_ui_end(ui);
 	voe_ui_end(ui);
 	voe_ui_end(ui);
@@ -219,7 +249,8 @@ static bool over(const voe_ui_context *ui, voe_ui_node node,
 // the drawn target both use: true with `target` a row's entity to parent onto,
 // or zeroed to unparent over the heading; false when it lands nowhere or is
 // refused (held dead or without a transform, onto itself or under it, onto a
-// row without a transform or already its parent, the heading for a root).
+// part, a row without a transform or already its parent, the heading for a
+// root).
 static bool drop_target(const voe_editor_scene *scene,
 			const voe_ui_context *ui, voe_ecs_entity held,
 			voe_math_float2 at, voe_ecs_entity *target)
@@ -244,6 +275,8 @@ static bool drop_target(const voe_editor_scene *scene,
 		// Onto itself or something under it would be a loop.
 		if (voe_scene_parent_within(scene->world, row, held))
 			return false;
+		if (is_part(scene->world, row))
+			return false;
 		if (voe_scene_transform_get(scene->world, row) == NULL)
 			return false;
 		if (parent != NULL && same_entity(parent->parent, row))
@@ -255,9 +288,12 @@ static bool drop_target(const voe_editor_scene *scene,
 }
 
 // One held frame: the start remembered on a newly held row, the threshold
-// crossed unless cancelled, and the target a release now would land on.
+// crossed unless cancelled, and the target a release now would land on, none
+// over the Assets panel; refused when dragging onto no target and not over an
+// Assets panel that takes it.
 static void drag_follow(voe_editor_scene *scene, const voe_ui_context *ui,
-			voe_ecs_entity row, voe_math_float2 at)
+			voe_ecs_entity row, voe_math_float2 at,
+			bool over_assets, bool assets_take)
 {
 	voe_ecs_entity target = { 0 };
 	bool lands;
@@ -270,21 +306,25 @@ static void drag_follow(voe_editor_scene *scene, const voe_ui_context *ui,
 	    voe_math_float2_length(voe_math_float2_sub(
 		    at, scene->list_from)) >= VOE_EDITOR_SCENE_DRAG_START)
 		scene->list_dragging = true;
-	lands = scene->list_dragging &&
+	lands = scene->list_dragging && !over_assets &&
 		drop_target(scene, ui, row, at, &target);
 	scene->list_target = lands ? target : (voe_ecs_entity){ 0 };
 	scene->list_target_heading =
 		lands && same_entity(target, (voe_ecs_entity){ 0 });
+	scene->list_refused = scene->list_dragging && !lands &&
+			      !(over_assets && assets_take);
 	VOE_BASE_ASSERT(!scene->list_dragging || !scene->list_cancelled,
 			"a cancelled drag still dragging");
 }
 
 void voe_editor_scene_list_drop(voe_editor_scene *scene,
 				const voe_ui_context *ui, bool down,
-				voe_math_float2 at)
+				voe_math_float2 at, bool over_assets,
+				bool assets_take)
 {
 	voe_ecs_entity held;
 	voe_ecs_entity target = { 0 };
+	bool dropped;
 	bool lands;
 
 	VOE_BASE_ASSERT(scene != NULL, "dropping a row on no scene");
@@ -294,7 +334,11 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 		if (scene->listed[i].node == VOE_UI_NODE_NONE)
 			continue;
 		if (voe_ui_button_action(ui, scene->listed[i].node).held) {
-			drag_follow(scene, ui, scene->listed[i].entity, at);
+			// A held part is only a click: it selects on release.
+			if (!is_part(scene->world, scene->listed[i].entity))
+				drag_follow(scene, ui,
+					    scene->listed[i].entity, at,
+					    over_assets, assets_take);
 			return;
 		}
 	}
@@ -302,14 +346,19 @@ void voe_editor_scene_list_drop(voe_editor_scene *scene,
 		return;
 
 	held = scene->list_held;
-	lands = scene->list_dragging && !scene->list_cancelled &&
+	dropped = scene->list_dragging && !scene->list_cancelled;
+	lands = dropped && !over_assets &&
 		drop_target(scene, ui, held, at, &target);
+	if (dropped && over_assets &&
+	    voe_ecs_entity_alive(scene->world, held))
+		scene->list_made = held;
 	scene->list_held = (voe_ecs_entity){ 0 };
 	scene->list_from = (voe_math_float2){ 0 };
 	scene->list_dragging = false;
 	scene->list_cancelled = false;
 	scene->list_target = (voe_ecs_entity){ 0 };
 	scene->list_target_heading = false;
+	scene->list_refused = false;
 	if (!lands)
 		return;
 	if (voe_scene_parent_set(scene->world, held, target))
@@ -327,6 +376,7 @@ bool voe_editor_scene_list_cancel(voe_editor_scene *scene)
 	scene->list_dragging = false;
 	scene->list_target = (voe_ecs_entity){ 0 };
 	scene->list_target_heading = false;
+	scene->list_refused = false;
 	VOE_BASE_ASSERT(!scene->list_dragging, "a cancelled drag still dragging");
 	return true;
 }
@@ -345,16 +395,6 @@ void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
 	identity = voe_scene_identity_get(scene->world, scene->list_held);
 	if (identity == NULL)
 		return;
-	// Not blocking the pointer, so the rows under it still answer it.
-	voe_ui_panel_begin(
-		ui, "scene_ghost", 0, VOE_UI_SURFACE_RAISED,
-		(voe_ui_container){
-			.pad = { RIM_WIDTH, RIM_WIDTH, RIM_WIDTH, RIM_WIDTH },
-			.anchor = { .anchored = true,
-				    .x = { VOE_UI_ACROSS_START,
-					   at.x + GHOST_OFFSET },
-				    .y = { VOE_UI_ACROSS_START,
-					   at.y + GHOST_OFFSET } } });
-	voe_ui_label(ui, identity->name);
-	voe_ui_end(ui);
+	voe_editor_drag_ghost_draw(ui, &scene->list_dim, identity->name,
+				   scene->list_refused, at);
 }

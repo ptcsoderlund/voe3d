@@ -118,7 +118,7 @@ typedef struct voe_editor_scene {
 	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
 	bool full;
 	// The Scene list's drag, owned by scene_list.c, kept across frames and
-	// not cleared with the rows; the release zeroes all six. `list_held` is
+	// not cleared with the rows; the release zeroes all seven. `list_held` is
 	// the row held down (a world swapped under it by New, Open or undo
 	// leaves it stale, which the release tests for), `list_from` where the
 	// pointer was when it was first held, `list_dragging` whether it has
@@ -132,6 +132,12 @@ typedef struct voe_editor_scene {
 	bool list_cancelled;
 	voe_ecs_entity list_target;
 	bool list_target_heading;
+	// Whether a release now would drop nothing: the release's own answer,
+	// worked out after the frame and drawn a frame late, as the target is.
+	bool list_refused;
+	// The entity a drag released over the Assets panel left for the caller
+	// to make a prefab of (interface.c), which clears it; zeroed if none.
+	voe_ecs_entity list_made;
 	// The themes the Scene list pushes for the held row's dim and the
 	// target's rim (ADR-0282), rebuilt by it from the palette each frame.
 	// Here because a pushed theme must outlive the frame it is drawn in.
@@ -238,15 +244,16 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 // why main.c calls these after the interface has drawn and not before.
 //
 // Queues the destruction of the selected entity and its tree and clears the
-// selection. Nothing selected does nothing, and neither does a tree holding the
+// selection. Nothing selected does nothing, nor does a prefab's part (0283
+// point 5; its placed copy's root deletes the tree), nor a tree holding the
 // camera's entity: the scene's one camera is never deleted (ADR-0218), from
 // either caller. Counts one in `structural`, or sets `full` when the
 // queue is full.
 void voe_editor_scene_delete(voe_editor_scene *scene);
 
 // Queues a copy of the selected entity (entities.h) and selects the copy.
-// Nothing selected does nothing, and neither does the camera's entity nor a
-// light's: a copy would be a second camera (ADR-0218) or a second sun
+// Nothing selected does nothing, nor does a prefab's part (0283 point 5), the
+// camera's entity or a light's: a copy would be a second camera (ADR-0218) or a second sun
 // (ADR-0273), from either caller. Counts one in `structural`, or sets `full`
 // when the world or the queue is full.
 void voe_editor_scene_duplicate(voe_editor_scene *scene);

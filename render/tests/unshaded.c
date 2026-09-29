@@ -1,7 +1,8 @@
 // A PASS WHOSE LIGHT SAYS `unshaded` DRAWS EVERY SURFACE IN ITS BASE COLOUR.
-// That is what a scene with no light looks like (ADR-0238), and the claim is
-// nine pictures of one lit cube, read at the centre of each, which is its +Z
-// face:
+// It proves the flag render still offers a pass that wants base colours
+// (ADR-0290), and that the zeroed light is black (case 2), which is what a scene
+// with no light now draws (ADR-0287). The claim is nine pictures of one lit
+// cube, read at the centre of each, which is its +Z face:
 //
 // 1. no sun at all (intensity 0) and `unshaded` set: the base colour times the
 //    object colour, encoded into the sRGB target, within a small tolerance;

@@ -1,5 +1,5 @@
 // The Assets panel's listing, its one frame of `ui` calls and the read of its
-// rows and Up afterwards. See the header for the arena, the once a second and
+// rows, a fired prefab row's path and Up afterwards. See the header for the arena, the once a second and
 // what a missing `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
 
@@ -11,6 +11,8 @@
 #include <platform/folder.h>
 #include <platform/path.h>
 
+#include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 // Block sizes, not limits, as browser.c's are.
@@ -95,6 +97,23 @@ static bool list_shown(const char *project, const char *shown,
 	return listed_into(path, scratch, listing);
 }
 
+// Whether `name` ends `.prefab`, in any case.
+static bool names_prefab(const char *name)
+{
+	static const char prefab[] = ".prefab";
+	size_t length;
+
+	VOE_BASE_ASSERT(name != NULL, "asking whether no name is a prefab");
+	length = strlen(name);
+	if (length < sizeof prefab - 1)
+		return false;
+	name += length - (sizeof prefab - 1);
+	for (size_t i = 0; i < sizeof prefab - 1; i++)
+		if (tolower((unsigned char)name[i]) != prefab[i])
+			return false;
+	return true;
+}
+
 // Folders in the first pass, files in the second, each in the listing's name
 // order, hidden ones left out, up to VOE_EDITOR_BROWSER_ROWS.
 static void rows_fill(voe_editor_assets *assets,
@@ -117,6 +136,7 @@ static void rows_fill(voe_editor_assets *assets,
 				.folder = e->folder,
 				.model = !e->folder &&
 					 voe_editor_browser_names_model(e->name),
+				.prefab = !e->folder && names_prefab(e->name),
 			};
 		}
 	}
@@ -215,14 +235,38 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 
-		// A model row is marked the way the Scene list marks its
-		// selected row: a choice drawn inverted (ADR-0194).
-		row->node = voe_ui_choice_begin(ui, "asset", i, row->model);
+		// A model or prefab row is marked the way the Scene list marks
+		// its selected row: a choice drawn inverted (ADR-0194).
+		row->node = voe_ui_choice_begin(ui, "asset", i,
+						row->model || row->prefab);
 		voe_ui_label(ui, row->name);
 		if (row->folder)
 			voe_ui_label(ui, "/");
 		voe_ui_end(ui);
 	}
+}
+
+// `name` in the shown folder as `Assets/...` into `opened`, `\` from a joined
+// subfolder made `/`; left "" when it does not fit, as assets_drag.c refuses.
+static void opened_set(voe_editor_assets *assets, const char *name)
+{
+	int length;
+
+	VOE_BASE_ASSERT(assets != NULL && assets->shown != NULL,
+			"opening a prefab from no listed panel");
+	VOE_BASE_ASSERT(name != NULL, "opening a prefab with no name");
+	length = assets->shown[0] == '\0' ?
+			 snprintf(assets->opened, sizeof assets->opened,
+				  "Assets/%s", name) :
+			 snprintf(assets->opened, sizeof assets->opened,
+				  "Assets/%s/%s", assets->shown, name);
+	if (length < 0 || (size_t)length >= sizeof assets->opened) {
+		assets->opened[0] = '\0';
+		return;
+	}
+	for (char *c = assets->opened; *c != '\0'; c++)
+		if (*c == '\\')
+			*c = '/';
 }
 
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
@@ -244,16 +288,23 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->held = NULL;
+	assets->held_prefab = false;
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 
-		if (row->model && row->node != VOE_UI_NODE_NONE &&
-		    voe_ui_button_action(ui, row->node).held)
+		if ((row->model || row->prefab) &&
+		    row->node != VOE_UI_NODE_NONE &&
+		    voe_ui_button_action(ui, row->node).held) {
 			assets->held = row->name;
+			assets->held_prefab = row->prefab;
+		}
 		if (entered == NULL && row->folder &&
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			entered = row->name;
+		if (row->prefab && row->node != VOE_UI_NODE_NONE &&
+		    voe_ui_button_action(ui, row->node).fired)
+			opened_set(assets, row->name);
 		row->node = VOE_UI_NODE_NONE;
 	}
 	if (up || entered != NULL)

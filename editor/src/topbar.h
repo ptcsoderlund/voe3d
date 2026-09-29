@@ -6,6 +6,10 @@
 // Stop; so are Refresh's (refresh.h), Refresh or Refreshing, and Ship's
 // (session.h), Ship or Shipping.
 //
+// THE BACK BUTTON is drawn first on the row while a prefab is open (0283
+// point 8), the caller's `back`, and answers VOE_EDITOR_COMMAND_BACK; the
+// caller then passes the prefab's file name as `name`.
+//
 // IT IS AT LEAST WHAT ITS BUTTONS AND LABELS MEASURED LAST FRAME (ADR-0225,
 // amended by ADR-0226). A larger text size needs a taller bar, but dock.c
 // divides a known height, so the bar's has to be a number before the frame is
@@ -15,7 +19,7 @@
 // view's room. Where the bar sits, above the dock tree, stretched to whatever
 // width it is given, is interface.c's decision.
 //
-// THE SEVEN BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
+// THE BUTTONS ARE RECORDED AND READ BACK, EXACTLY AS THE SCENE PANEL'S
 // ROWS ARE (scene.h). A `ui` widget answers what the pointer did to it only
 // after voe_ui_frame_end (ui/widgets.h), and this call returns long before
 // that, so voe_editor_topbar_draw records where each button is and
@@ -39,11 +43,12 @@
 // the surface's own millimetres.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's panel and seven buttons, recorded as they are drawn, and the height
+// The bar's panel and eight buttons, recorded as they are drawn, and the height
 // it is laid out at. Zeroed is a bar that has drawn nothing yet; `high` nought
 // means VOE_EDITOR_TOPBAR_HIGH, `wanted` nought means fit the content.
 typedef struct {
 	voe_ui_node panel;
+	voe_ui_node back_button;
 	voe_ui_node new_button;
 	voe_ui_node open_button;
 	voe_ui_node save_button;
@@ -70,19 +75,20 @@ float voe_editor_topbar_high(const voe_editor_topbar *bar, float surface_high);
 void voe_editor_topbar_measure(const voe_ui_context *ui,
 			       voe_editor_topbar *bar);
 
-// Draws the bar as one row: New, Open, Save, `play` as Play's label,
+// Draws the bar as one row: Back when `back`, New, Open, Save, `play` as Play's label,
 // `refresh` as Refresh's, `ship` as Ship's, Preferences, `gizmo` as a label,
 // then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
 // exactly as long as the row's labels are (ui/widgets.h). Records the
-// panel and the seven buttons into `bar`, laid out at
+// panel and the buttons into `bar`, Back as none when not drawn, laid out at
 // voe_editor_topbar_high(bar, surface_high).
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
 			   const char *ship, const char *gizmo,
-			   const char *name, bool unsaved, const char *notice);
+			   const char *name, bool unsaved, const char *notice,
+			   bool back);
 
 // Which button fired this frame, or VOE_EDITOR_COMMAND_NONE when none did.
 // Called after voe_ui_frame_end and before the frame's arena is rewound — the

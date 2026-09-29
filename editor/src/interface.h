@@ -18,6 +18,7 @@
 // buffer. One root today, one frame, one draw command.
 #pragma once
 
+#include "assets_drag.h"
 #include "browser.h"
 #include "dock.h"
 #include "preferences.h"
@@ -255,14 +256,25 @@
 // characters, a byte at least apiece, 7680; Close, two and five. 14682 + 7704 =
 // 22386 elements. AND ONE MORE SCROLL AREA, its lines': five.
 //
-// THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD THIRTY-FIVE NODES:
+// THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD THIRTY-SIX NODES:
 // a rim wrapper round each of VOE_EDITOR_SCENE_ROWS (32) rows and the heading,
-// thirty-three, and the ghost's panel and name label, two. 1179 + 35 = 1214
-// nodes. AND SIXTY-EIGHT ELEMENTS: the one lit rim's border and fill, two; the
-// ghost's border and fill, two, and its name's 64 characters. 22386 + 68 =
-// 22454 elements.
-#define VOE_EDITOR_INTERFACE_NODES 1214
-#define VOE_EDITOR_INTERFACE_ELEMENTS 22454
+// thirty-three, and the ghost's panel, name label and, refused, its second
+// label (drag_ghost.h; the panel is the column holding both), three. 1179 + 36
+// = 1215 nodes. AND EIGHTY-ONE ELEMENTS: the one lit rim's border and fill,
+// two; the ghost's border and fill, two, its name's 64 characters, and the 13
+// "Can't drop here" draws, its two spaces drawing nothing. 22386 + 81 = 22467.
+//
+// THE BAR'S BACK BUTTON (topbar.h), while a prefab is open, ADDS TWO NODES, a
+// button and its label, and SIX ELEMENTS: its border and fill, and "Back".
+// 1215 + 2 = 1217 nodes, 22467 + 6 = 22473 elements.
+//
+// THE ASSETS PANEL'S GHOST (assets_drag.h) ADDS NO NODES: one ghost is drawn
+// at a time, a Scene list drag's or an Assets one's, so the three above are
+// its. But its name, a file's, is up to VOE_EDITOR_ASSETS_DRAG_PATH (128)
+// less "Assets/" and the zero, 120 characters against the 64 counted, so
+// FIFTY-SIX ELEMENTS MORE. 22473 + 56 = 22529.
+#define VOE_EDITOR_INTERFACE_NODES 1217
+#define VOE_EDITOR_INTERFACE_ELEMENTS 22529
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -301,6 +313,8 @@ void voe_editor_interface_surface(voe_platform_size target,
 // were pushed out of (ui/widgets.h), and both of those are this function's.
 // `views` is handed through the same way, and where each scene view's picture
 // came to sit is read back into it in the same window, for the same reason.
+// `drag` is the Assets panel's (assets_drag.h), read only for its ghost, drawn
+// beside the Scene list's; at most one of the two is under way.
 //
 // EACH ROOT GETS THE TOP BAR ABOVE ITS DOCK TREE, DRAWN FROM `session`, FOR
 // THE SAME REASON AGAIN. The bar takes the height its content measured last
@@ -371,6 +385,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     const voe_editor_dock_root *roots,
 					     uint32_t count,
 					     voe_editor_scene *scene,
+					     const voe_editor_assets_drag *drag,
 					     voe_editor_views *views,
 					     voe_editor_session *session,
 					     voe_editor_topbar *bar,

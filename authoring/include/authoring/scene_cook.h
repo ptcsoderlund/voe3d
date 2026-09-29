@@ -24,7 +24,8 @@
 // identity, ascending by authored id, and beneath each every described type that
 // is not runtime-only — identity included — in the byte order of its key name. A
 // key's name is also its struct's name. KEPT SECTIONS ARE NOT COOKED: nothing in
-// the game reads them.
+// the game reads them. PREFAB PARTS ARE: the cook takes the world as the editor
+// holds it, copies expanded (ADR-0283 point 3), unlike the writer.
 //
 // FLOATS ARE HEX LITERALS, BECAUSE PLAY MUST SHOW THE EDITOR'S EXACT BYTES
 // (ADR-0188). `%a` round-trips every finite value bit for bit.

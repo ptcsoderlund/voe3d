@@ -1,7 +1,7 @@
 // The one list of component types a project's world holds, and the room it
-// has for each: transform, identity, parent, light, camera, mesh, material, panel,
-// shape, model, collider, body and the transforms' previous step (0254), registered
-// once on a fresh world.
+// has for each: transform, identity, parent, prefab, prefab part, light, camera,
+// mesh, material, panel, shape, model, collider, body and the transforms'
+// previous step (0254), registered once on a fresh world.
 //
 //     voe_ecs_world *world = voe_game_world_new(arena);
 //
@@ -28,16 +28,18 @@
 // How many entities may wear a mesh and a material, which is also the room
 // for shapes and models: every shape the shape system finds becomes one of each. A
 // device that draws the world is sized from the same number.
-#define VOE_GAME_WORLD_MAX_DRAWN 64
+#define VOE_GAME_WORLD_MAX_DRAWN 256
 
 // How many authored entities a world holds: its identities, and its lights,
-// which are only ever on an authored entity. The editor's Scene panel lists
-// exactly this many rows.
+// which are only ever on an authored entity, and its prefab rows, which are
+// only on an authored root and its parts. The editor's Scene panel lists
+// exactly this many rows. It stays small while the world grows because a thing
+// game code spawns carries no identity (0283 point 11).
 #define VOE_GAME_WORLD_AUTHORED 32
 
 // How many types the engine registers here; a project's come after them.
-#define VOE_GAME_WORLD_TYPES 13
+#define VOE_GAME_WORLD_TYPES 15
 
-// A fresh world with the thirteen types registered and nothing in it. Never NULL:
+// A fresh world with the fifteen types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
 voe_ecs_world *voe_game_world_new(voe_base_arena *arena);

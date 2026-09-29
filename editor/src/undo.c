@@ -1,5 +1,6 @@
-// The states pushed once, the compare a settled edit makes against the state
-// the world is, and the step a take moves by. See the header for what a step
+// The states pushed once, the two lines swapped, the compare a settled edit
+// makes against the state the world is, and the step a take moves by. See the
+// header for what a step
 // is, what bounds it, where in the frame a take belongs and why the selection
 // is re-found by authored id.
 #include "undo.h"
@@ -65,6 +66,51 @@ void voe_editor_undo_create(voe_editor_undo *undo, voe_base_arena *arena)
 	*undo = (voe_editor_undo){ 0 };
 	undo->states = voe_base_arena_push(
 		arena, VOE_EDITOR_UNDO_STEPS * sizeof(undo->states[0]));
+	undo->aside_states = voe_base_arena_push(
+		arena, VOE_EDITOR_UNDO_STEPS * sizeof(undo->states[0]));
+	VOE_BASE_ASSERT(undo->states != NULL && undo->aside_states != NULL,
+			"an undo created with no room for its lines");
+}
+
+// The line in force and the set-aside one change places.
+static void voe_editor_undo_swap(voe_editor_undo *undo)
+{
+	voe_editor_undo_state *states = undo->states;
+	uint32_t count = undo->count;
+	uint32_t at = undo->at;
+
+	undo->states = undo->aside_states;
+	undo->count = undo->aside_count;
+	undo->at = undo->aside_at;
+	undo->aside_states = states;
+	undo->aside_count = count;
+	undo->aside_at = at;
+}
+
+void voe_editor_undo_aside(voe_editor_undo *undo)
+{
+	VOE_BASE_ASSERT(undo != NULL, "setting no undo aside");
+	VOE_BASE_ASSERT(undo->states != NULL, "setting an uncreated undo aside");
+
+	voe_editor_undo_swap(undo);
+	undo->count = 0;
+	undo->at = 0;
+	undo->edited = false;
+	VOE_BASE_ASSERT(undo->states != undo->aside_states,
+			"a line set aside over itself");
+}
+
+void voe_editor_undo_restore(voe_editor_undo *undo)
+{
+	VOE_BASE_ASSERT(undo != NULL, "restoring no undo");
+	VOE_BASE_ASSERT(undo->states != NULL, "restoring an uncreated undo");
+
+	voe_editor_undo_swap(undo);
+	undo->aside_count = 0;
+	undo->aside_at = 0;
+	undo->edited = false;
+	VOE_BASE_ASSERT(undo->states != undo->aside_states,
+			"a line restored over itself");
 }
 
 void voe_editor_undo_edited(voe_editor_undo *undo)
@@ -82,6 +128,8 @@ void voe_editor_undo_forget(voe_editor_undo *undo)
 
 	undo->count = 0;
 	undo->at = 0;
+	undo->aside_count = 0;
+	undo->aside_at = 0;
 	undo->edited = false;
 }
 

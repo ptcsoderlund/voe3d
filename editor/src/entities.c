@@ -16,6 +16,7 @@
 
 #include <scene/identity_component.h>
 #include <scene/parent_component.h>
+#include <scene/prefab_component.h>
 #include <scene/parent_system.h>
 #include <scene/transform_component.h>
 
@@ -104,10 +105,12 @@ static bool queue_default(voe_ecs_world *world, voe_ecs_entity entity,
 }
 
 // Makes an entity named `base` by the rules in the header and queues its
-// identity, a transform at `position` and, when `model` is not NULL, that row.
+// identity, a transform at `position` and, when `key` is not NULL, `row` of
+// that type.
 static bool entity_make(voe_ecs_world *world, const char *base,
 			size_t base_length, voe_math_double3 position,
-			const voe_3d_model *model, voe_ecs_entity *out)
+			const struct voe_ecs_key *key, const void *row,
+			voe_ecs_entity *out)
 {
 	voe_scene_identity identity = { 0 };
 	voe_scene_transform transform;
@@ -116,6 +119,8 @@ static bool entity_make(voe_ecs_world *world, const char *base,
 		world, voe_ecs_component_type(world, &voe_scene_transform_key));
 
 	VOE_BASE_ASSERT(origin != NULL, "a transform with no default row");
+	VOE_BASE_ASSERT((key == NULL) == (row == NULL),
+			"a third row with no type, or a type with no row");
 	transform = *origin;
 	transform.position = position;
 	identity.id = next_id(world);
@@ -132,10 +137,9 @@ static bool entity_make(voe_ecs_world *world, const char *base,
 		    world,
 		    voe_ecs_component_type(world, &voe_scene_transform_key),
 		    entity, &transform) ||
-	    (model != NULL &&
-	     !voe_ecs_structure_add(
-		     world, voe_ecs_component_type(world, &voe_3d_model_key),
-		     entity, model))) {
+	    (key != NULL &&
+	     !voe_ecs_structure_add(world, voe_ecs_component_type(world, key),
+				    entity, row))) {
 		undo_create(world, entity);
 		return false;
 	}
@@ -152,21 +156,24 @@ bool voe_editor_entities_add(voe_ecs_world *world, voe_ecs_entity *out)
 	VOE_BASE_ASSERT(out != NULL, "adding an entity with nowhere to put it");
 
 	return entity_make(world, base, sizeof base - 1,
-			   (voe_math_double3){ 0 }, NULL, out);
+			   (voe_math_double3){ 0 }, NULL, NULL, out);
 }
 
-// The path's last name, less a trailing `.glb` in any case.
-static const char *model_base(const char *path, size_t *length)
+// The path's last name, less a trailing `suffix` (lower case, its dot
+// included) in any case.
+static const char *file_base(const char *path, const char *suffix,
+			     size_t *length)
 {
 	const char *slash = strrchr(path, '/');
 	const char *name = slash != NULL ? slash + 1 : path;
 	size_t n = strlen(name);
+	size_t s = strlen(suffix);
+	bool ends = n > s;
 
-	if (n > 4 && name[n - 4] == '.' && tolower((unsigned char)name[n - 3]) == 'g' &&
-	    tolower((unsigned char)name[n - 2]) == 'l' &&
-	    tolower((unsigned char)name[n - 1]) == 'b')
-		n -= 4;
-	*length = n;
+	VOE_BASE_ASSERT(s > 0 && length != NULL, "a base with no suffix or out");
+	for (size_t i = 0; ends && i < s; i++)
+		ends = tolower((unsigned char)name[n - s + i]) == suffix[i];
+	*length = ends ? n - s : n;
 	return name;
 }
 
@@ -185,8 +192,29 @@ bool voe_editor_entities_model_add(voe_ecs_world *world, const char *path,
 			"a model path longer than the row holds");
 
 	snprintf(model.path, sizeof model.path, "%s", path);
-	base = model_base(path, &length);
-	return entity_make(world, base, length, position, &model, out);
+	base = file_base(path, ".glb", &length);
+	return entity_make(world, base, length, position, &voe_3d_model_key,
+			   &model, out);
+}
+
+bool voe_editor_entities_prefab_add(voe_ecs_world *world, const char *path,
+				    voe_math_double3 position,
+				    voe_ecs_entity *out)
+{
+	voe_scene_prefab prefab = { 0 };
+	size_t length;
+	const char *base;
+
+	VOE_BASE_ASSERT(world != NULL, "adding a prefab to no world");
+	VOE_BASE_ASSERT(path != NULL && out != NULL,
+			"adding a prefab with no path or nowhere to put it");
+	VOE_BASE_ASSERT(strlen(path) < VOE_SCENE_PREFAB_PATH,
+			"a prefab path longer than the row holds");
+
+	snprintf(prefab.path, sizeof prefab.path, "%s", path);
+	base = file_base(path, ".prefab", &length);
+	return entity_make(world, base, length, position, &voe_scene_prefab_key,
+			   &prefab, out);
 }
 
 bool voe_editor_entities_component_add(voe_ecs_world *world,
@@ -234,12 +262,28 @@ bool voe_editor_entities_delete(voe_ecs_world *world, voe_ecs_entity entity)
 	return true;
 }
 
+// One of the four rows a placed copy's root is saved as (0283 point 3); the
+// rest of it is its prefab's, expanded onto the copy by the world step.
+static bool placed_copy_row(const voe_ecs_world *world, voe_ecs_type type)
+{
+	const struct voe_ecs_key *keys[] = {
+		&voe_scene_identity_key, &voe_scene_transform_key,
+		&voe_scene_parent_key, &voe_scene_prefab_key
+	};
+
+	for (size_t i = 0; i < sizeof keys / sizeof keys[0]; i++)
+		if (type.value == voe_ecs_component_type(world, keys[i]).value)
+			return true;
+	return false;
+}
+
 bool voe_editor_entities_duplicate(voe_ecs_world *world, voe_ecs_entity source,
 				   voe_ecs_entity *out)
 {
 	voe_ecs_type identity_type;
 	voe_ecs_entity entity;
 	bool ok = true;
+	bool placed_copy = voe_scene_prefab_get(world, source) != NULL;
 
 	VOE_BASE_ASSERT(world != NULL, "duplicating an entity in no world");
 	VOE_BASE_ASSERT(out != NULL,
@@ -255,7 +299,8 @@ bool voe_editor_entities_duplicate(voe_ecs_world *world, voe_ecs_entity source,
 		voe_ecs_type type = voe_ecs_component_type_at(world, i);
 		const void *row = voe_ecs_component_get(world, type, source);
 
-		if (row == NULL || voe_ecs_component_runtime_only(world, type))
+		if (row == NULL || voe_ecs_component_runtime_only(world, type) ||
+		    (placed_copy && !placed_copy_row(world, type)))
 			continue;
 
 		if (type.value == identity_type.value) {

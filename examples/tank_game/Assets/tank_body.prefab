@@ -1,0 +1,30 @@
+[4]
+name = "tank_body"
+[4.tank_hull]
+speed = 4
+turn = 90
+[4.voe_3d_model]
+path = "Assets/tank_body.glb"
+[4.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[5]
+name = "tank_head"
+[5.tank_gun]
+prefab = "shell"
+rate = 6
+muzzle = [0, 0.5, -3]
+wait = 0
+[5.tank_turret]
+turn = 180
+aim = 180
+[5.voe_3d_model]
+path = "Assets/tank_head.glb"
+[5.voe_scene_parent]
+parent = 4
+[5.voe_scene_transform]
+position = [-0.23866540581249832, -0.02859061211597691, 0.09467263823940603]
+rotation = [0, 1, 0, -4.371139e-08]
+scale = [1, 1, 1]

@@ -404,9 +404,19 @@ int main(int argc, char *argv[])
 		// so the rows a step puts back are given their meshes before
 		// anything draws them (undo.h). A step leaves the project
 		// unsaved and is never itself an edit to record.
+		// A prefab opened sets the level's line aside, and Back puts it
+		// back (0283 point 8).
 		if (session.replaced) {
 			session.replaced = false;
 			voe_editor_undo_forget(&undo);
+			voe_editor_views_focus_camera(&views, scene.world);
+		} else if (session.prefab_opened) {
+			session.prefab_opened = false;
+			voe_editor_undo_aside(&undo);
+			voe_editor_views_focus_camera(&views, scene.world);
+		} else if (session.prefab_closed) {
+			session.prefab_closed = false;
+			voe_editor_undo_restore(&undo);
 			voe_editor_views_focus_camera(&views, scene.world);
 		} else if ((step_back || step_forward) &&
 			   voe_editor_undo_take(&undo, session.project, &scene,
@@ -417,7 +427,9 @@ int main(int argc, char *argv[])
 		step_forward = false;
 
 		// The queue applied and every owning system run (world_step.h).
-		voe_editor_world_step(session.project->world, &shapes);
+		voe_editor_world_step(session.project->world, &shapes,
+				      session.project->folder, arena,
+				      &session.notice);
 
 		// THE STEP LAST FRAME'S EDIT SETTLES INTO, once the world holds
 		// it: an edit reaches it through an intent or the structural
@@ -698,7 +710,7 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &views, &session, &bar, &browser,
+				&scene, &drag, &views, &session, &bar, &browser,
 				&preferences, &themes,
 				escape_free);
 			// Only when the Inspector's own buttons changed nothing

@@ -1,7 +1,8 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, the sun's shadow passes fitted to each one's camera, then a pass begun
 // on each one's target with that camera and the shadows, the world and its
-// models drawn with the selection's outline, collider and gizmo and the scene camera's
+// models drawn with the selection's outline, collider and gizmo (none for a
+// prefab's part) and the scene camera's
 // and the sun's markers, and
 // the pass ended; and the preview's shadow passes and pass, drawn with the
 // world's camera while the selected entity has one.
@@ -109,6 +110,11 @@ bool voe_editor_view_passes_draw(
 		marker_colour(palette, camera_entity, selected);
 	voe_math_float3 sun_colour =
 		marker_colour(palette, sun_entity, selected);
+	// A prefab's part keeps its outline but has no gizmo (0283 point 5).
+	voe_ecs_entity gizmo_entity =
+		voe_editor_inspector_is_part(world, selected, NULL) ?
+			(voe_ecs_entity){ 0 } :
+			selected;
 
 	// A device made with a pass per view and one more does not refuse
 	// these; if it did, the caller still closes the frame and stops.
@@ -152,7 +158,7 @@ bool voe_editor_view_passes_draw(
 					.size = { (int)view->width,
 						  (int)view->height } },
 				.gizmo = {
-					.entity = voe_editor_scene_selected(scene),
+					.entity = gizmo_entity,
 					.material = shapes->outline,
 					.colour = voe_editor_view_gizmo_colour(
 						palette, false),

@@ -12,11 +12,24 @@
 //
 // NO MOVE: the editor steps nothing (0254). A body's velocity is drained into
 // its row and never integrated, so what is edited stays where it is put.
+//
+// PLACED COPIES ARE EXPANDED AFTER THE STEP (prefabs.h, 0283 point 4). A root
+// queued this frame — a drop, a duplicate, a made prefab — exists only once the
+// step has applied the queue, and expanding is a load that must come before
+// anything reads the world, so it goes after the step and before any draw.
 #pragma once
+
+#include "notice.h"
 
 #include <3d/shape_system.h>
 
+#include <base/arena.h>
+
 #include <ecs/world.h>
 
-// One frame's step of world, the shapes' GPU side read by the shape system.
-void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
+// One frame's step of world, the shapes' GPU side read by the shape system,
+// then its placed copies expanded from folder (NULL: none) with scratch, a
+// copy that will not expand said in why.
+void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes,
+			   const char *folder, voe_base_arena *scratch,
+			   voe_editor_notice *why);

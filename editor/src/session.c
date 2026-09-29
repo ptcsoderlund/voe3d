@@ -1,7 +1,7 @@
-// The refuse-once rule, the seven commands, a refresh started, polled and its
-// library swapped in, Ship started after it and polled, a failed build's
-// Errors panel shown, and what a browser
-// action does to the session. See the header for what each one does and why
+// The refuse-once rule, the eight commands, a prefab opened and left, a refresh
+// started, polled and its library swapped in, Ship started after it and
+// polled, a failed build's Errors panel shown, and what a browser action does
+// to the session. See the header for what each one does and why
 // only CLOSE ever answers true.
 #include "session.h"
 
@@ -104,6 +104,34 @@ static void session_refresh_end(voe_editor_session *session)
 	session->ship_after = false;
 	VOE_BASE_ASSERT(session->refresh.stage == VOE_EDITOR_REFRESH_IDLE,
 			"an ended refresh still runs");
+}
+
+// Whether a prefab is open in the level's place.
+static bool session_prefab_is_open(const voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session->project != NULL, "asking no project for a prefab");
+	return session->project->prefab[0] != '\0';
+}
+
+// Whether the project has unsaved work: the world in force, or the level set
+// aside while a prefab is open.
+static bool session_unsaved(const voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session->project != NULL, "asking no project if unsaved");
+	return session->project->unsaved ||
+	       (session_prefab_is_open(session) &&
+		session->project->level_unsaved);
+}
+
+// The selection cleared and the picker and dropdown closed: the world in force
+// now holds other entities.
+static void session_selection_drop(voe_editor_scene *scene)
+{
+	scene->selected = (voe_ecs_entity){ 0 };
+	voe_editor_scene_picker_close(scene);
+	voe_editor_scene_dropdown_close(scene);
+	VOE_BASE_ASSERT(!scene->picking.open && !scene->dropdown.open,
+			"a dropped selection left a list open");
 }
 
 // The entity carrying id among world's authored rows, or a zeroed one when
@@ -318,7 +346,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 
 	switch (command) {
 	case VOE_EDITOR_COMMAND_CLOSE:
-		if (session->project->unsaved && !repeat) {
+		if (session_unsaved(session) && !repeat) {
 			voe_editor_notice_set(
 				&session->notice,
 				"There are unsaved changes — close again to discard them");
@@ -335,6 +363,9 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// after the code it runs is in, and a second press is Stop.
 		if (session->play.stage != VOE_EDITOR_PLAY_IDLE) {
 			voe_editor_play_end(&session->play);
+		} else if (session_prefab_is_open(session)) {
+			voe_editor_notice_set(&session->notice,
+					      "A prefab is open — Back to the level to Play");
 		} else if (session_ship_busy(session)) {
 			voe_editor_notice_set(&session->notice,
 					      "Ship is building — Play once it is done");
@@ -365,7 +396,10 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// any other refresh is joined (ADR-0264 point 5).
 		if (session_ship_busy(session))
 			return false;
-		if (session->play.stage == VOE_EDITOR_PLAY_CONFIGURING ||
+		if (session_prefab_is_open(session)) {
+			voe_editor_notice_set(&session->notice,
+					      "A prefab is open — Back to the level to Ship");
+		} else if (session->play.stage == VOE_EDITOR_PLAY_CONFIGURING ||
 		    session->play.stage == VOE_EDITOR_PLAY_BUILDING ||
 		    (session->play_after &&
 		     session->refresh.stage != VOE_EDITOR_REFRESH_IDLE)) {
@@ -385,7 +419,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 	case VOE_EDITOR_COMMAND_NEW: {
 		voe_editor_project *fresh;
 
-		if (session->project->unsaved && !repeat) {
+		if (session_unsaved(session) && !repeat) {
 			voe_editor_notice_set(
 				&session->notice,
 				"There are unsaved changes — New again to discard them");
@@ -405,7 +439,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 	}
 
 	case VOE_EDITOR_COMMAND_OPEN:
-		if (session->project->unsaved && !repeat) {
+		if (session_unsaved(session) && !repeat) {
 			voe_editor_notice_set(
 				&session->notice,
 				"There are unsaved changes — Open again to discard them");
@@ -433,11 +467,57 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 						&session->notice);
 		return false;
 
+	case VOE_EDITOR_COMMAND_BACK:
+		// Only the prefab's own edits arm it: the level set aside comes
+		// back with its unsaved flag, so nothing of it is lost here.
+		if (!session_prefab_is_open(session))
+			return false;
+		if (session->project->unsaved && !repeat) {
+			voe_editor_notice_set(
+				&session->notice,
+				"The prefab has unsaved changes — Back again to discard them");
+			session->armed = VOE_EDITOR_COMMAND_BACK;
+			return false;
+		}
+		if (!voe_editor_project_prefab_back(session->project,
+						    &session->notice))
+			return false;
+		session_selection_drop(scene);
+		session->prefab_closed = true;
+		return false;
+
 	case VOE_EDITOR_COMMAND_NONE:
 		break;
 	}
 
 	return false;
+}
+
+void voe_editor_session_prefab_open(voe_editor_session *session,
+				    voe_editor_scene *scene, const char *path)
+{
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
+			"opening a prefab in a session with no project");
+	VOE_BASE_ASSERT(scene != NULL, "opening a prefab with no scene");
+	VOE_BASE_ASSERT(path != NULL, "opening no prefab");
+
+	voe_editor_notice_clear(&session->notice);
+	session->armed = VOE_EDITOR_COMMAND_NONE;
+
+	if (session_prefab_is_open(session)) {
+		voe_editor_notice_set(&session->notice,
+				      "A prefab is open — Back to the level first");
+		return;
+	}
+	if (!voe_editor_project_prefab_open(session->project, path,
+					    &session->notice))
+		return;
+	// A Play or Ship waiting on a refresh would cook the prefab as the
+	// level, which is what refusing them while one is open prevents.
+	session->play_after = false;
+	session->ship_after = false;
+	session_selection_drop(scene);
+	session->prefab_opened = true;
 }
 
 void voe_editor_session_browser_do(voe_editor_session *session,

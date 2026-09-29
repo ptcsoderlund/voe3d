@@ -106,6 +106,7 @@ typedef struct {
 // answer for the window.
 //
 // The light is `3d`'s answer (voe_3d_draw_system_light): the world's one light,
-// or unshaded when the world has none (ADR-0238), as the window's frame is.
+// or, when the world has none, the zeroed light that draws lit surfaces black
+// (ADR-0287), as the window's frame is.
 voe_3d_frame voe_dev_monitor_frame(const voe_dev_monitor *monitor,
 				   const voe_ecs_world *world);

@@ -12,12 +12,14 @@
 // A FIELD'S DIMENSIONS ARE WALKED BY RECURSION, one level per dimension, so at
 // most VOE_BASE_FIELD_RANK_MAX deep: the descriptions are compiled into the
 // engine, not read from a file, which is the data rule 14 allows it over.
+//
+// The machinery is shared with prefab_cook.c through cook_text.h; the scene's
+// cooked array is `e`, in authored order.
 #include <authoring/scene_cook.h>
 
-#include "authored.h"
+#include "cook_text.h"
 
 #include <base/assert.h>
-#include <base/describe.h>
 #include <base/report.h>
 #include <ecs/component.h>
 #include <scene/identity_component.h>
@@ -31,31 +33,7 @@
 
 #define MODULE "authoring"
 
-typedef struct {
-	const char *key;
-	voe_ecs_type type;
-	// NULL for a described type this build compiled out.
-	const voe_base_struct_description *description;
-} cook_type;
-
-typedef struct {
-	const voe_ecs_world *world;
-	voe_base_arena *arena;
-	char *bytes;
-	size_t size;
-	size_t capacity;
-	voe_ecs_type identity;
-	voe_authoring_authored *authored;
-	uint32_t authored_count;
-	cook_type *types;
-	uint32_t type_count;
-	// Where a refusal is, for its report.
-	uint64_t id;
-	const char *component;
-	const char *field;
-} cook;
-
-static void put(cook *c, const char *s, size_t n)
+static void put(voe_authoring_cook *c, const char *s, size_t n)
 {
 	if (c->size + n + 1 > c->capacity) {
 		size_t capacity = c->capacity * 2 > c->size + n + 1 ?
@@ -73,13 +51,13 @@ static void put(cook *c, const char *s, size_t n)
 	c->bytes[c->size] = '\0';
 }
 
-static void puts_(cook *c, const char *s)
+void voe_authoring_cook_put(voe_authoring_cook *c, const char *s)
 {
+	VOE_BASE_ASSERT(c != NULL && s != NULL, "a cook and a string");
 	put(c, s, strlen(s));
 }
 
-[[gnu::format(printf, 2, 3)]]
-static void putf(cook *c, const char *format, ...)
+void voe_authoring_cook_putf(voe_authoring_cook *c, const char *format, ...)
 {
 	char buffer[128];
 	va_list args;
@@ -92,7 +70,11 @@ static void putf(cook *c, const char *format, ...)
 	put(c, buffer, (size_t)n);
 }
 
-static bool put_float(cook *c, double value, bool single)
+// The short names this file spells its text with.
+#define puts_ voe_authoring_cook_put
+#define putf voe_authoring_cook_putf
+
+static bool put_float(voe_authoring_cook *c, double value, bool single)
 {
 	if (!isfinite(value)) {
 		VOE_BASE_ERROR(MODULE,
@@ -105,7 +87,7 @@ static bool put_float(cook *c, double value, bool single)
 	return true;
 }
 
-static bool put_floats(cook *c, const uint8_t *at, uint32_t count)
+static bool put_floats(voe_authoring_cook *c, const uint8_t *at, uint32_t count)
 {
 	puts_(c, "{ ");
 	for (uint32_t i = 0; i < count; i++) {
@@ -122,7 +104,7 @@ static bool put_floats(cook *c, const uint8_t *at, uint32_t count)
 }
 
 // Three doubles in one brace, `%a` without `f` (DOUBLE3, ADR-0250).
-static bool put_double3(cook *c, const uint8_t *at)
+static bool put_double3(voe_authoring_cook *c, const uint8_t *at)
 {
 	double value[3];
 
@@ -140,7 +122,7 @@ static bool put_double3(cook *c, const uint8_t *at)
 }
 
 // Bytes up to the first NUL, or all `size` of them.
-static void put_string(cook *c, const uint8_t *at, size_t size)
+static void put_string(voe_authoring_cook *c, const uint8_t *at, size_t size)
 {
 	puts_(c, "\"");
 	for (size_t i = 0; i < size && at[i] != '\0'; i++) {
@@ -154,7 +136,7 @@ static void put_string(cook *c, const uint8_t *at, size_t size)
 	puts_(c, "\"");
 }
 
-static void put_int32(cook *c, int32_t value)
+static void put_int32(voe_authoring_cook *c, int32_t value)
 {
 	if (value == INT32_MIN)
 		puts_(c, "(-2147483647 - 1)");
@@ -162,7 +144,13 @@ static void put_int32(cook *c, int32_t value)
 		putf(c, "%" PRId32, value);
 }
 
-static void put_entity(cook *c, const uint8_t *at)
+static uint32_t cooked_index(const voe_authoring_cook *c, uint32_t index)
+{
+	VOE_BASE_ASSERT(index < c->authored_count, "an authored index");
+	return c->order != NULL ? c->order[index] : index;
+}
+
+static void put_entity(voe_authoring_cook *c, const uint8_t *at)
 {
 	voe_ecs_entity target;
 
@@ -177,14 +165,15 @@ static void put_entity(cook *c, const uint8_t *at)
 							       identity->id) :
 				   NULL;
 	if (found != NULL)
-		putf(c, "e[%td]", found - c->authored);
+		putf(c, "%s[%" PRIu32 "]", c->array,
+		     cooked_index(c, (uint32_t)(found - c->authored)));
 	else
 		puts_(c, "{ 0 }");
 }
 
 // One element of a field: a scalar, a vector kind, or for CHAR the string that
 // is the innermost dimension (`size` bytes).
-static bool put_element(cook *c, voe_base_field_kind kind, const uint8_t *at,
+static bool put_element(voe_authoring_cook *c, voe_base_field_kind kind, const uint8_t *at,
 			size_t size)
 {
 	int64_t i64;
@@ -276,7 +265,7 @@ static bool put_element(cook *c, voe_base_field_kind kind, const uint8_t *at,
 // Dimension `level` of a field whose items at this level are `size` bytes in
 // all; one brace per dimension. A CHAR's innermost dimension is its string, and
 // a rank-0 CHAR is one byte, cooked as its integer.
-static bool put_dimension(cook *c, const voe_base_field_description *field,
+static bool put_dimension(voe_authoring_cook *c, const voe_base_field_description *field,
 			  const uint8_t *at, size_t size, uint32_t level)
 {
 	bool is_char = field->kind == VOE_BASE_FIELD_CHAR;
@@ -301,8 +290,11 @@ static bool put_dimension(cook *c, const voe_base_field_description *field,
 	return true;
 }
 
-static bool put_row(cook *c, uint32_t index, const cook_type *type)
+bool voe_authoring_cook_row(voe_authoring_cook *c, const char *call,
+			    uint32_t index, const voe_authoring_cook_type *type)
 {
+	VOE_BASE_ASSERT(c != NULL && call != NULL && type != NULL,
+			"a cook, a call and a type");
 	const uint8_t *row = voe_ecs_component_get(
 		c->world, type->type, c->authored[index].entity);
 
@@ -317,10 +309,9 @@ static bool put_row(cook *c, uint32_t index, const cook_type *type)
 			       c->id, type->key);
 		return false;
 	}
-	puts_(c, "\tif (!voe_ecs_component_add(world, voe_ecs_component_type("
-		 "world, &");
+	putf(c, "\tif (!%s(world, voe_ecs_component_type(world, &", call);
 	puts_(c, type->key);
-	putf(c, "_key), e[%" PRIu32 "], &(", index);
+	putf(c, "_key), %s[%" PRIu32 "], &(", c->array, cooked_index(c, index));
 	puts_(c, type->key);
 	puts_(c, "){ ");
 	for (uint32_t f = 0; f < type->description->field_count; f++) {
@@ -341,12 +332,13 @@ static bool put_row(cook *c, uint32_t index, const cook_type *type)
 
 // Every described type that is not runtime-only, ascending by key name; notes
 // the identity type. False when the world has no identity type.
-static bool collect_types(cook *c)
+static bool collect_types(voe_authoring_cook *c)
 {
 	uint32_t count = voe_ecs_component_type_count(c->world);
 	bool has_identity = false;
 
-	c->types = voe_base_arena_push(c->arena, (count + 1) * sizeof(cook_type));
+	c->types = voe_base_arena_push(c->arena, (count + 1) *
+						 sizeof(voe_authoring_cook_type));
 	for (uint32_t i = 0; i < count; i++) {
 		voe_ecs_type type = voe_ecs_component_type_at(c->world, i);
 		const struct voe_ecs_key *key =
@@ -358,7 +350,7 @@ static bool collect_types(cook *c)
 		}
 		if (voe_ecs_component_runtime_only(c->world, type))
 			continue;
-		cook_type item = {
+		voe_authoring_cook_type item = {
 			.key = key->name,
 			.type = type,
 			.description = voe_ecs_component_description(c->world, type),
@@ -372,7 +364,7 @@ static bool collect_types(cook *c)
 }
 
 // The identities, ascending by id; false on two with one id.
-static bool collect_authored(cook *c)
+static bool collect_authored(voe_authoring_cook *c)
 {
 	uint32_t count = voe_ecs_component_count(c->world, c->identity);
 	const voe_scene_identity *rows =
@@ -400,6 +392,13 @@ static bool collect_authored(cook *c)
 	return true;
 }
 
+bool voe_authoring_cook_collect(voe_authoring_cook *c)
+{
+	VOE_BASE_ASSERT(c != NULL && c->world != NULL && c->arena != NULL,
+			"a cook with a world and an arena");
+	return !collect_types(c) || collect_authored(c);
+}
+
 bool voe_authoring_scene_cook(const voe_ecs_world *world, const char *include,
 			      const char *function, voe_base_arena *arena,
 			      voe_authoring_text *out)
@@ -407,9 +406,9 @@ bool voe_authoring_scene_cook(const voe_ecs_world *world, const char *include,
 	VOE_BASE_ASSERT(world != NULL && include != NULL && function != NULL,
 			"no world, include or function");
 	VOE_BASE_ASSERT(arena != NULL && out != NULL, "no arena or out");
-	cook c = { .world = world, .arena = arena };
+	voe_authoring_cook c = { .world = world, .arena = arena, .array = "e" };
 
-	if (collect_types(&c) && !collect_authored(&c))
+	if (!voe_authoring_cook_collect(&c))
 		return false;
 	puts_(&c, "#include <");
 	puts_(&c, include);
@@ -429,7 +428,8 @@ bool voe_authoring_scene_cook(const voe_ecs_world *world, const char *include,
 	for (uint32_t i = 0; i < c.authored_count; i++) {
 		c.id = c.authored[i].id;
 		for (uint32_t t = 0; t < c.type_count; t++)
-			if (!put_row(&c, i, &c.types[t]))
+			if (!voe_authoring_cook_row(&c, "voe_ecs_component_add",
+						    i, &c.types[t]))
 				return false;
 	}
 	puts_(&c, "\treturn true;\n}\n");

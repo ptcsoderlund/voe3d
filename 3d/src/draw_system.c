@@ -38,8 +38,8 @@
 
 // The direction is the light entity's world rotation's -Z, unit length from
 // voe_scene_light_direction, and -Z itself with no transform (ADR-0273); the
-// fill is its colour times its strength. No light is `unshaded` and nothing
-// else (ADR-0238).
+// fill is its colour times its strength. No light is the zeroed light, which
+// draws lit surfaces black (ADR-0287, 0290 point 1).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "lighting no world");
@@ -47,7 +47,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 	VOE_BASE_ASSERT(count <= 1,
 			"a world to draw has at most one light — see 3d/draw_system.h");
 	if (count == 0)
-		return (voe_render_light){ .unshaded = 1 };
+		return (voe_render_light){ 0 };
 
 	voe_scene_light light = voe_scene_light_rows(world)[0];
 	voe_ecs_entity lit = voe_scene_light_entities(world)[0];
@@ -67,9 +67,10 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 	return sun;
 }
 
-// THE CAMERA IS REQUIRED AND THE SUN IS NOT. Row zero of the camera table,
-// because there is exactly one; the light is voe_3d_draw_system_light's, which
-// is unshaded for none — see voe_3d_draw_system_frame in 3d/draw_system.h for
+// THE CAMERA IS REQUIRED AND THE DIRECTIONAL LIGHT IS NOT. Row zero of the
+// camera table, because there is exactly one; the light is
+// voe_3d_draw_system_light's, which is zeroed and draws black for none
+// (ADR-0287) — see voe_3d_draw_system_frame in 3d/draw_system.h for
 // why more than one of either is a mistake rather than a choice.
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size, float lag)

@@ -44,6 +44,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
+#include <scene/prefab_component.h>
 
 #include <ui/colour.h>
 #include <ui/widgets.h>
@@ -376,11 +377,11 @@ static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
 static void component_panel(voe_ui_context *ui,
 			    voe_editor_inspector *inspector,
 			    voe_ecs_world *world, uint32_t index,
-			    voe_ecs_type type, bool removable,
+			    voe_ecs_type type, bool removable, bool part,
 			    const uint8_t *row)
 {
 	const voe_base_struct_description *description;
-	bool editable = voe_ecs_component_replace(world, type).set;
+	bool editable = !part && voe_ecs_component_replace(world, type).set;
 	voe_ecs_type needed;
 
 	voe_ui_panel_begin(ui, "component", index, VOE_UI_SURFACE_RAISED,
@@ -394,7 +395,7 @@ static void component_panel(voe_ui_context *ui,
 						 .gap = ROW_GAP,
 						 .wrap = true });
 	voe_ui_label(ui, heading(inspector->arena, world, type));
-	if (removable &&
+	if (removable && !part &&
 	    inspector->remove_count < VOE_EDITOR_INSPECTOR_SECTIONS) {
 		voe_ui_node node = voe_ui_button_begin(ui, "remove", 0);
 
@@ -617,12 +618,30 @@ void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
 	inspector->area = area;
 }
 
+bool voe_editor_inspector_is_part(const voe_ecs_world *world,
+				  voe_ecs_entity entity, voe_ecs_entity *root)
+{
+	const voe_scene_prefab_part *part;
+
+	VOE_BASE_ASSERT(world != NULL, "asking for a part in no world");
+
+	part = voe_scene_prefab_part_get(world, entity);
+	if (part == NULL || (part->instance.index == entity.index &&
+			     part->instance.generation == entity.generation))
+		return false;
+	if (root != NULL)
+		*root = part->instance;
+	return true;
+}
+
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count)
 {
 	uint32_t types;
+	voe_ecs_entity root = { 0 };
+	bool part;
 
 	VOE_BASE_ASSERT(ui != NULL, "drawing an inspector into no interface");
 	VOE_BASE_ASSERT(inspector != NULL, "drawing no inspector");
@@ -647,11 +666,23 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		ui, (voe_ui_container){ .across = VOE_UI_ACROSS_FILL,
 					.gap = CONTENT_GAP });
 
+	// A part says whose prefab it is and draws no button (inspector.h).
+	part = voe_editor_inspector_is_part(world, selected, &root);
+	if (part) {
+		const voe_scene_prefab *prefab =
+			voe_scene_prefab_get(world, root);
+
+		voe_ui_label(ui, text(inspector->arena,
+				      "Part of the prefab %s. Open it from the "
+				      "Assets panel to change it.",
+				      prefab != NULL ? prefab->path : "?"));
+	}
+
 	// No Duplicate and no Delete for the camera's entity: the scene's one
 	// camera is neither copied nor deleted (ADR-0218). No Duplicate for a
 	// light's either, as a copy would be a second sun (ADR-0273); it can
 	// still be deleted.
-	if (voe_scene_camera_get(world, selected) == NULL) {
+	if (!part && voe_scene_camera_get(world, selected) == NULL) {
 		voe_ui_row_begin(ui,
 				 (voe_ui_container){ .gap = COMPONENT_GAP });
 		if (voe_scene_light_get(world, selected) == NULL) {
@@ -681,8 +712,13 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		for (uint32_t k = 0; k < kept_count; k++)
 			removable = removable && type.value != kept[k].value;
 
-		component_panel(ui, inspector, world, i, type, removable,
+		component_panel(ui, inspector, world, i, type, removable, part,
 				(const uint8_t *)row);
+	}
+
+	if (part) {
+		voe_ui_end(ui);
+		return;
 	}
 
 	add_component(ui, inspector, world);

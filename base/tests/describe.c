@@ -27,6 +27,12 @@
 // first entry, so the two claims under test are that the names come back as they
 // went in and that a struct described the plain way has no names at all.
 //
+// `lever` NAMES ITS FIELD THROUGH A POINTER, AS LINUX'S STAND-IN FOR IMPORTED
+// DATA. On Windows a names array another module exports is dllimport data, whose
+// address is loaded at run time and is no constant (ADR-0284). `(*lever_names)`
+// is the same: sizeof still sees the array's bound, but its value is a load, so
+// a table that put it in a static initialiser would not compile here either.
+//
 // THE SWITCH IS TURNED ON HERE, WHATEVER THE BUILD SAID. A build that has not
 // asked for descriptions has no table, and check.cmake builds that way, so a test
 // that followed the build would test nothing on the one run that gates a card.
@@ -150,6 +156,15 @@ static const char *const dial_mode_names[] = { NULL, "One", "Two" };
 
 VOE_BASE_DESCRIBE_STRUCT_NAMED(dial, DIAL_FIELDS, DIAL_NAMES)
 
+// Not const, so dereferencing it is a load and never an address constant.
+static const char *const lever_position_names[] = { "Down", "Middle", "Up" };
+static const char *const (*lever_names)[3] = &lever_position_names;
+
+#define LEVER_FIELDS(F, F_READ_ONLY) F(uint32_t, position, UINT32)
+#define LEVER_NAMES(N) N(position, (*lever_names))
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED(lever, LEVER_FIELDS, LEVER_NAMES)
+
 static void check_name(const char *actual, const char *expected)
 {
 	VOE_TEST_CHECK(strcmp(actual, expected) == 0);
@@ -176,6 +191,30 @@ static void check_field(const voe_base_field_description *actual,
 		uint32_t expected_dim = i < rank ? dims[i] : 0;
 		VOE_TEST_CHECK_INT(actual->dims[i], expected_dim);
 	}
+}
+
+// Names reached through a load come back whole, and asking twice answers the
+// same table with the same names.
+static void check_names_bound_at_run_time(void)
+{
+	const voe_base_struct_description *lever_desc = lever_description();
+	const voe_base_field_names *position_names =
+		voe_base_names_find(lever_desc, "position");
+	uint32_t bound = sizeof(lever_position_names) /
+			 sizeof(lever_position_names[0]);
+
+	VOE_TEST_CHECK(position_names != NULL);
+	if (!position_names)
+		return;
+	check_name(position_names->field, "position");
+	VOE_TEST_CHECK_INT(position_names->value_count, bound);
+	for (uint32_t i = 0; i < bound && i < position_names->value_count; i++)
+		VOE_TEST_CHECK(position_names->values[i] ==
+			       lever_position_names[i]);
+
+	VOE_TEST_CHECK(lever_description() == lever_desc);
+	VOE_TEST_CHECK(voe_base_names_find(lever_description(), "position")
+				       ->values == lever_position_names);
 }
 
 int main(void)
@@ -274,6 +313,8 @@ int main(void)
 	VOE_TEST_CHECK(thing_desc->names == NULL);
 	VOE_TEST_CHECK_INT(thing_desc->names_count, 0);
 	VOE_TEST_CHECK(voe_base_names_find(thing_desc, "flags") == NULL);
+
+	check_names_bound_at_run_time();
 
 	return voe_test_result();
 }

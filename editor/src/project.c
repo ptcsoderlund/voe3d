@@ -3,7 +3,8 @@
 //
 // EVERY WORLD IS BUILT THE SAME WAY, WHETHER UNTITLED, READ OFF DISK OR
 // SWAPPED: world_make, so no two call sites can drift apart on what a
-// project's world holds.
+// project's world holds. voe_editor_project_world_new is it with the
+// project's own code; code_set calls it with the new code.
 //
 // THE UNTITLED SCENE'S THREE ENTITIES ARE BUILT HERE, NOT IN scene.c. scene.c is
 // the Scene panel's selection and the rows it drew; what a fresh project
@@ -13,6 +14,7 @@
 // none is given one and marked unsaved.
 #include "project.h"
 
+#include "prefabs.h"
 #include "scene.h"
 
 #include <3d/shape_component.h>
@@ -44,6 +46,7 @@
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
 #include <scene/light_system.h>
+#include <scene/parent_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
@@ -73,8 +76,14 @@ static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 #define LIGHT_X (-0.4f)
 #define LIGHT_Y (-1.0f)
 #define LIGHT_Z (-0.6f)
-#define LIGHT_INTENSITY 3.14159265f
 #define LIGHT_HEIGHT 4.0
+
+// The untitled light's colour, strength and fill, and so the preview light's
+// (0289): one value both read, so the two cannot drift.
+static const voe_scene_light untitled_light = {
+	.colour = { 1.0f, 1.0f, 1.0f },
+	.intensity = 3.14159265f,
+};
 
 // Where the scene camera is put: up and back from the origin, looking at it.
 #define CAMERA_Y 2.0
@@ -92,6 +101,14 @@ static voe_ecs_world *world_make(voe_base_arena *arena,
 	if (code->library != NULL)
 		code->register_types(world);
 	return world;
+}
+
+voe_ecs_world *voe_editor_project_world_new(const voe_editor_project *project,
+					    voe_base_arena *arena)
+{
+	VOE_BASE_ASSERT(project != NULL, "making a world for no project");
+	VOE_BASE_ASSERT(arena != NULL, "making a project's world in no arena");
+	return world_make(arena, &project->code);
 }
 
 // An entity a person authored: just the identity, whose presence is what says
@@ -180,17 +197,25 @@ static void build_untitled(voe_ecs_world *world)
 				.scale = { 1.0f, 1.0f, 1.0f } }),
 		"a project's transform table is too small for its own untitled scene");
 	VOE_BASE_ASSERT(
-		voe_scene_light_add(
-			world, light,
-			(voe_scene_light){
-				.colour = { 1.0f, 1.0f, 1.0f },
-				.intensity = LIGHT_INTENSITY }),
+		voe_scene_light_add(world, light, untitled_light),
 		"a project's light table is too small for its own untitled scene");
 
 	add_camera(world, 3);
 
 	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 3,
 			"an untitled scene is not the three identities it is written to be");
+}
+
+voe_render_light voe_editor_project_preview_light(void)
+{
+	return (voe_render_light){
+		.direction = voe_scene_light_direction(voe_scene_light_facing(
+			(voe_math_float3){ LIGHT_X, LIGHT_Y, LIGHT_Z })),
+		.intensity = untitled_light.intensity,
+		.colour = untitled_light.colour,
+		.fill = voe_math_float3_scale(untitled_light.fill_colour,
+					      untitled_light.fill_intensity),
+	};
 }
 
 voe_editor_project *voe_editor_project_new_untitled(void)
@@ -203,7 +228,7 @@ voe_editor_project *voe_editor_project_new_untitled(void)
 		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
 		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = world_make(project->world_arena, &project->code);
+	project->world = voe_editor_project_world_new(project, project->world_arena);
 	build_untitled(project->world);
 
 	return project;
@@ -279,7 +304,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 		.world_arena = voe_base_arena_new(PROJECT_WORLD_ARENA),
 		.scene_arena = voe_base_arena_new(PROJECT_SCENE_ARENA)
 	};
-	project->world = world_make(project->world_arena, &project->code);
+	project->world = voe_editor_project_world_new(project, project->world_arena);
 
 	voe_base_report_error_clear();
 	if (!voe_authoring_scene_read((const char *)scene_bytes, scene_size,
@@ -315,7 +340,53 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 		project->unsaved = true;
 	}
 
+	voe_editor_prefabs_expand(project->world, absolute, arena, why);
 	return project;
+}
+
+// The open prefab's world written to `<folder>/<prefab>`: refused unless it is
+// one tree whose root voe_editor_prefab_refused lets through (0283 point 1).
+static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
+{
+	const voe_ecs_entity *authored = voe_scene_identity_entities(project->world);
+	uint32_t count = voe_scene_identity_count(project->world);
+	voe_ecs_entity root = { 0 };
+	uint32_t roots = 0;
+	voe_base_arena *scratch;
+	voe_base_error error;
+	const char *path;
+	voe_authoring_text text;
+	bool saved = false;
+
+	VOE_BASE_ASSERT(project->folder != NULL && project->prefab[0] != '\0',
+			"saving a prefab with no prefab open");
+	for (uint32_t i = 0; i < count; i++) {
+		if (voe_scene_parent_get(project->world, authored[i]) == NULL) {
+			root = authored[i];
+			roots++;
+		}
+	}
+	if (roots != 1) {
+		voe_editor_notice_set(
+			why, "A prefab holds exactly one entity with no parent.");
+		return false;
+	}
+	if (voe_editor_prefab_refused(project->world, root, why))
+		return false;
+
+	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
+	path = voe_platform_path_join(scratch, project->folder, project->prefab);
+	voe_base_report_error_clear();
+	if (!voe_editor_project_scene_text(project, scratch, &text) ||
+	    !voe_platform_file_write(path, (const uint8_t *)text.text,
+				     text.size, &error)) {
+		voe_editor_notice_from_report(why, path);
+	} else {
+		project->unsaved = false;
+		saved = true;
+	}
+	voe_base_arena_destroy(scratch);
+	return saved;
 }
 
 bool voe_editor_project_save(voe_editor_project *project, const char *folder,
@@ -331,6 +402,9 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	VOE_BASE_ASSERT(why != NULL, "saving a project with nowhere to say why");
 	VOE_BASE_ASSERT((project->folder == NULL) == (folder != NULL),
 			"folder is required for an untitled project and refused for an opened one");
+
+	if (project->prefab[0] != '\0')
+		return prefab_save(project, why);
 
 	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
 
@@ -453,6 +527,8 @@ bool voe_editor_project_scene_set(voe_editor_project *project, const char *text,
 	}
 
 	project->kept = kept;
+	voe_editor_prefabs_expand(project->world, project->folder,
+				  project->scene_arena, why);
 	return true;
 }
 
@@ -492,6 +568,7 @@ bool voe_editor_project_code_set(voe_editor_project *project,
 		voe_editor_code_close(&code);
 		return false;
 	}
+	voe_editor_prefabs_expand(world, project->folder, scratch, why);
 
 	// THE OLD WORLD GOES BEFORE THE OLD CODE: it holds that code's keys.
 	voe_base_arena_destroy(project->world_arena);
@@ -504,6 +581,88 @@ bool voe_editor_project_code_set(voe_editor_project *project,
 	project->kept = kept;
 	project->code = code;
 	VOE_BASE_ASSERT(project->world == world, "the swap left the old world");
+	return true;
+}
+
+bool voe_editor_project_prefab_open(voe_editor_project *project,
+				    const char *path, voe_editor_notice *why)
+{
+	voe_base_arena *arena;
+	voe_base_error error;
+	voe_authoring_text level;
+	const char *absolute;
+	const uint8_t *bytes;
+	size_t size;
+	voe_editor_notice ignored;
+
+	VOE_BASE_ASSERT(project != NULL && path != NULL && why != NULL,
+			"opening a prefab with no project, path or notice");
+	VOE_BASE_ASSERT(project->folder != NULL, "opening a prefab untitled");
+	VOE_BASE_ASSERT(project->prefab[0] == '\0' &&
+				project->level_arena == NULL,
+			"opening a prefab while one is open");
+
+	if (strlen(path) >= sizeof project->prefab) {
+		voe_editor_notice_set(why, "The prefab's path is too long.");
+		return false;
+	}
+	arena = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
+	voe_base_report_error_clear();
+	if (!voe_editor_project_scene_text(project, arena, &level)) {
+		voe_editor_notice_from_report(why, "the scene");
+		voe_base_arena_destroy(arena);
+		return false;
+	}
+	absolute = voe_platform_path_join(arena, project->folder, path);
+	voe_base_report_error_clear();
+	bytes = voe_platform_file_read(absolute, arena, &size, &error);
+	if (bytes == NULL) {
+		voe_editor_notice_from_report(why, path);
+		voe_base_arena_destroy(arena);
+		return false;
+	}
+	if (!voe_editor_project_scene_set(project, (const char *)bytes, size,
+					  why)) {
+		// The world is half-loaded; the level's own text always fits
+		// back into the world it came from (scene_set).
+		bool restored = voe_editor_project_scene_set(
+			project, level.text, level.size, &ignored);
+
+		VOE_BASE_ASSERT(restored,
+				"the level did not read back after a refused prefab");
+		voe_base_arena_destroy(arena);
+		return false;
+	}
+
+	memcpy(project->prefab, path, strlen(path) + 1);
+	project->level_arena = arena;
+	project->level_text = level.text;
+	project->level_size = level.size;
+	project->level_unsaved = project->unsaved;
+	project->unsaved = false;
+	VOE_BASE_ASSERT(project->prefab[0] != '\0', "an open prefab with no path");
+	return true;
+}
+
+bool voe_editor_project_prefab_back(voe_editor_project *project,
+				    voe_editor_notice *why)
+{
+	VOE_BASE_ASSERT(project != NULL && why != NULL,
+			"going back from no project or with nowhere to say why");
+	VOE_BASE_ASSERT(project->prefab[0] != '\0' &&
+				project->level_arena != NULL,
+			"going back with no prefab open");
+
+	if (!voe_editor_project_scene_set(project, project->level_text,
+					  project->level_size, why))
+		return false;
+	project->unsaved = project->level_unsaved;
+	voe_base_arena_destroy(project->level_arena);
+	project->level_arena = NULL;
+	project->level_text = NULL;
+	project->level_size = 0;
+	project->prefab[0] = '\0';
+	VOE_BASE_ASSERT(project->level_arena == NULL, "a level left set aside");
 	return true;
 }
 
@@ -525,6 +684,8 @@ void voe_editor_project_destroy(voe_editor_project *project)
 	// The struct is in arena, so the code is copied out before it goes and
 	// closed after every arena, the world's included (code.h).
 	code = project->code;
+	if (project->level_arena != NULL)
+		voe_base_arena_destroy(project->level_arena);
 	voe_base_arena_destroy(project->scene_arena);
 	voe_base_arena_destroy(project->world_arena);
 	voe_base_arena_destroy(project->arena);

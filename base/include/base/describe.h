@@ -334,18 +334,29 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 	}
 
 // The count is the names array's own declared bound, so it is never a number
-// written twice.
+// written twice. `.values` is left out: VOE_BASE_DESCRIBE_NAMES_STORE_ sets it.
 #define VOE_BASE_DESCRIBE_NAMES_ROW_(field_, values_)                        \
 	{                                                                     \
 		.field = #field_,                                             \
-		.values = (values_),                                          \
 		.value_count = (uint32_t)(sizeof(values_) /                   \
 					  sizeof((values_)[0])),              \
 	},
 
+// The names list's second pass, inside the accessor: row by row, in the order
+// the rows were initialised, the array's address as the program sees it now.
+#define VOE_BASE_DESCRIBE_NAMES_STORE_(field_, values_) \
+	named[voe_base_describe_names_row_++].values = (values_);
+
 // Its own table macro rather than the plain one with an empty names list: an
 // empty initializer for a zero-length array is the GNU extension that
 // -Wpedantic -Werror refuses.
+//
+// A NAMES ARRAY'S ADDRESS IS STORED WHEN THE ACCESSOR RUNS, NEVER IN AN
+// INITIALISER. An array another module exports is, under VOE_BASE_IMPORTING,
+// an address read from the import table at load time and not a constant, so a
+// static initialiser naming it does not compile (ADR-0245, ADR-0284). `named` is
+// therefore static and not const, and every call writes the same pointers into
+// it again; the accessor is called from one thread at a time.
 #define VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)   \
 	static inline const voe_base_struct_description *                     \
 		struct_name##_description(void)                               \
@@ -355,7 +366,7 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 			field_list(VOE_BASE_DESCRIBE_ROW_,                    \
 				   VOE_BASE_DESCRIBE_ROW_READ_ONLY_)          \
 		};                                                            \
-		static const voe_base_field_names named[] = {                 \
+		static voe_base_field_names named[] = {                       \
 			names_list(VOE_BASE_DESCRIBE_NAMES_ROW_)              \
 		};                                                            \
 		static const voe_base_struct_description description = {      \
@@ -365,6 +376,8 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 			.names = named,                                       \
 			.names_count = sizeof(named) / sizeof(named[0]),      \
 		};                                                            \
+		uint32_t voe_base_describe_names_row_ = 0;                    \
+		names_list(VOE_BASE_DESCRIBE_NAMES_STORE_)                    \
 		return &description;                                          \
 	}
 

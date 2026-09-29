@@ -24,11 +24,13 @@
 //
 // ONE FIELD'S VALUE IS field_read.c's, which reads the text without recursing
 // over it; this file decides which field of which row a key is.
+//
+// PASS ONE IS SHARED through scene_scratch.h: prefab_read.c runs the same pass
+// and its own second one.
 #include <authoring/scene_read.h>
 
 #include "authored.h"
-#include "field_read.h"
-#include "key_span.h"
+#include "scene_scratch.h"
 
 #include <assets/sectioned.h>
 #include <base/assert.h>
@@ -42,43 +44,6 @@
 #include <string.h>
 
 #define MODULE "authoring"
-
-// What one section is, decided before any value is read.
-enum section_role {
-	ROLE_ENTITY,	// `[N]`
-	ROLE_COMPONENT, // `[N.<key>]`, a described type
-	ROLE_KEPT,	// `[N.<key>]`, a name nothing registered
-};
-
-struct section {
-	enum section_role role;
-	uint64_t id;
-	voe_ecs_type type;
-	const voe_base_struct_description *description;
-	// The scratch row; NULL for a kept section.
-	uint8_t *row;
-};
-
-struct reader {
-	voe_ecs_world *world;
-	voe_base_arena *arena;
-	voe_assets_sectioned doc;
-
-	// One per key, as the sectioned reader numbers them.
-	voe_authoring_span *key_span;
-
-	bool has_identity;
-	voe_ecs_type identity;
-
-	struct section *sections;
-
-	// One `[N]` each, ascending by id, the entities filled in pass two; and
-	// the references pass one holds.
-	voe_authoring_field_refs refs;
-
-	voe_authoring_kept_section *kept;
-	uint32_t kept_count;
-};
 
 // A decimal from 1, no sign, no leading zero, fitting 64 bits, running exactly
 // `size` bytes.
@@ -139,7 +104,7 @@ static size_t row_size(const voe_ecs_world *world, voe_ecs_type type,
 }
 
 // Pass one, first half: every section's role, its id, and its `[N]`.
-static bool classify(struct reader *reader)
+static bool classify(voe_authoring_scratch *reader)
 {
 	const voe_assets_sectioned *doc = &reader->doc;
 	uint32_t authored = 0;
@@ -148,7 +113,7 @@ static bool classify(struct reader *reader)
 		const char *name = doc->sections[s].name;
 		const char *dot = strchr(name, '.');
 		size_t digits = dot != NULL ? (size_t)(dot - name) : strlen(name);
-		struct section *section = &reader->sections[s];
+		voe_authoring_section *section = &reader->sections[s];
 
 		if (!authored_id(name, digits, &section->id) ||
 		    (dot != NULL && dot[1] == '\0')) {
@@ -172,7 +137,7 @@ static bool classify(struct reader *reader)
 				       voe_scene_identity_key.name);
 			return false;
 		}
-		section->role = ROLE_ENTITY;
+		section->role = VOE_AUTHORING_SECTION_ENTITY;
 		section->type = reader->identity;
 		section->description =
 			voe_ecs_component_description(reader->world,
@@ -189,7 +154,7 @@ static bool classify(struct reader *reader)
 	voe_authoring_authored_sort(reader->refs.authored, scratch, authored);
 
 	for (uint32_t s = 0; s < doc->section_count; s++) {
-		struct section *section = &reader->sections[s];
+		voe_authoring_section *section = &reader->sections[s];
 		const char *name = doc->sections[s].name;
 		const char *dot = strchr(name, '.');
 
@@ -210,7 +175,7 @@ static bool classify(struct reader *reader)
 		const char *key = dot + 1;
 
 		if (!type_by_name(reader->world, key, &section->type)) {
-			section->role = ROLE_KEPT;
+			section->role = VOE_AUTHORING_SECTION_KEPT;
 			continue;
 		}
 		if (reader->has_identity &&
@@ -231,7 +196,7 @@ static bool classify(struct reader *reader)
 				       reader->doc.sections[s].line, name, key);
 			return false;
 		}
-		section->role = ROLE_COMPONENT;
+		section->role = VOE_AUTHORING_SECTION_COMPONENT;
 		section->description =
 			voe_ecs_component_description(reader->world,
 						      section->type);
@@ -255,12 +220,12 @@ field_by_name(const voe_base_struct_description *description, const char *name,
 }
 
 // Pass one, second half, for one `[N]` or `[N.<key>]` of a registered type.
-static bool read_section(struct reader *reader, uint32_t s)
+static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 {
 	const voe_assets_sectioned_section *parsed = &reader->doc.sections[s];
-	struct section *section = &reader->sections[s];
+	voe_authoring_section *section = &reader->sections[s];
 	const voe_base_struct_description *description = section->description;
-	bool entity = section->role == ROLE_ENTITY;
+	bool entity = section->role == VOE_AUTHORING_SECTION_ENTITY;
 	voe_authoring_site site = {
 		.line = reader->doc.sections[s].line,
 		.section = parsed->name,
@@ -335,7 +300,7 @@ static bool read_section(struct reader *reader, uint32_t s)
 	return true;
 }
 
-static void keep_section(struct reader *reader, uint32_t s)
+static void keep_section(voe_authoring_scratch *reader, uint32_t s)
 {
 	const voe_assets_sectioned_section *parsed = &reader->doc.sections[s];
 	size_t size = 0;
@@ -365,14 +330,14 @@ static void keep_section(struct reader *reader, uint32_t s)
 
 // The most ENTITY elements the file's rows could hold, which is how many patches
 // pass one may make.
-static uint32_t patch_capacity(const struct reader *reader)
+static uint32_t patch_capacity(const voe_authoring_scratch *reader)
 {
 	uint32_t count = 0;
 
 	for (uint32_t s = 0; s < reader->doc.section_count; s++) {
-		const struct section *section = &reader->sections[s];
+		const voe_authoring_section *section = &reader->sections[s];
 
-		if (section->role == ROLE_KEPT || section->description == NULL)
+		if (section->role == VOE_AUTHORING_SECTION_KEPT || section->description == NULL)
 			continue;
 		for (uint32_t f = 0; f < section->description->field_count; f++)
 			if (section->description->fields[f].kind ==
@@ -382,7 +347,7 @@ static uint32_t patch_capacity(const struct reader *reader)
 	return count;
 }
 
-static void find_identity(struct reader *reader)
+static void find_identity(voe_authoring_scratch *reader)
 {
 	uint32_t count = voe_ecs_component_type_count(reader->world);
 
@@ -400,14 +365,14 @@ static void find_identity(struct reader *reader)
 }
 
 // Pass two. Only the world's capacity can fail it.
-static bool create(struct reader *reader)
+static bool create(voe_authoring_scratch *reader)
 {
 	const voe_assets_sectioned *doc = &reader->doc;
 
 	for (uint32_t s = 0; s < doc->section_count; s++) {
-		struct section *section = &reader->sections[s];
+		voe_authoring_section *section = &reader->sections[s];
 
-		if (section->role != ROLE_ENTITY)
+		if (section->role != VOE_AUTHORING_SECTION_ENTITY)
 			continue;
 
 		voe_authoring_authored *authored = voe_authoring_authored_find(
@@ -436,10 +401,10 @@ static bool create(struct reader *reader)
 	// The identities first, then every other row, each in file order.
 	for (uint32_t pass = 0; pass < 2; pass++) {
 		for (uint32_t s = 0; s < doc->section_count; s++) {
-			const struct section *section = &reader->sections[s];
+			const voe_authoring_section *section = &reader->sections[s];
 
-			if (section->role == ROLE_KEPT ||
-			    (section->role == ROLE_ENTITY) != (pass == 0))
+			if (section->role == VOE_AUTHORING_SECTION_KEPT ||
+			    (section->role == VOE_AUTHORING_SECTION_ENTITY) != (pass == 0))
 				continue;
 
 			voe_authoring_authored *authored =
@@ -464,13 +429,57 @@ static bool create(struct reader *reader)
 	return true;
 }
 
+bool voe_authoring_scratch_read(voe_authoring_scratch *reader,
+				const char *text, size_t size)
+{
+	VOE_BASE_ASSERT(text != NULL || size == 0, "reading NULL text");
+	VOE_BASE_ASSERT(reader != NULL && reader->world != NULL &&
+				reader->arena != NULL,
+			"reading with no world or arena");
+
+	voe_base_arena *arena = reader->arena;
+
+	find_identity(reader);
+	if (!voe_assets_sectioned_parse(text, size, arena, &reader->doc))
+		return false;
+
+	uint32_t sections = reader->doc.section_count;
+	uint32_t keys = reader->doc.key_count;
+
+	// One more than needed of each, so that an empty file pushes something.
+	reader->key_span =
+		voe_base_arena_push(arena, (keys + 1) * sizeof(*reader->key_span));
+	reader->sections = voe_base_arena_push(
+		arena, (sections + 1) * sizeof(*reader->sections));
+	memset(reader->sections, 0, (sections + 1) * sizeof(*reader->sections));
+	reader->refs.authored = voe_base_arena_push(
+		arena, (sections + 1) * sizeof(*reader->refs.authored));
+	reader->kept =
+		voe_base_arena_push(arena, (sections + 1) * sizeof(*reader->kept));
+
+	voe_authoring_key_spans(text, size, &reader->doc, reader->key_span);
+	if (!classify(reader))
+		return false;
+
+	reader->refs.patches = voe_base_arena_push(
+		arena, (patch_capacity(reader) + 1) * sizeof(*reader->refs.patches));
+
+	for (uint32_t s = 0; s < sections; s++) {
+		if (reader->sections[s].role == VOE_AUTHORING_SECTION_KEPT)
+			keep_section(reader, s);
+		else if (!read_section(reader, s))
+			return false;
+	}
+	VOE_BASE_ASSERT(reader->kept_count <= sections, "more kept than sections");
+	return true;
+}
+
 bool voe_authoring_scene_read(const char *text, size_t size,
 			      voe_ecs_world *world, voe_base_arena *arena,
 			      voe_authoring_kept *out_kept)
 {
-	struct reader reader = { .world = world, .arena = arena };
+	voe_authoring_scratch reader = { .world = world, .arena = arena };
 
-	VOE_BASE_ASSERT(text != NULL || size == 0, "reading NULL text");
 	VOE_BASE_ASSERT(world != NULL, "reading into a NULL world");
 	VOE_BASE_ASSERT(arena != NULL, "reading with a NULL arena");
 	VOE_BASE_ASSERT(out_kept != NULL, "nowhere to put the kept sections");
@@ -481,38 +490,8 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 			"loading a scene into a world that already holds an "
 			"authored entity");
 
-	if (!voe_assets_sectioned_parse(text, size, arena, &reader.doc))
-		return false;
-
-	uint32_t sections = reader.doc.section_count;
-	uint32_t keys = reader.doc.key_count;
-
-	// One more than needed of each, so that an empty file pushes something.
-	reader.key_span =
-		voe_base_arena_push(arena, (keys + 1) * sizeof(*reader.key_span));
-	reader.sections = voe_base_arena_push(
-		arena, (sections + 1) * sizeof(*reader.sections));
-	memset(reader.sections, 0, (sections + 1) * sizeof(*reader.sections));
-	reader.refs.authored = voe_base_arena_push(
-		arena, (sections + 1) * sizeof(*reader.refs.authored));
-	reader.kept =
-		voe_base_arena_push(arena, (sections + 1) * sizeof(*reader.kept));
-
-	voe_authoring_key_spans(text, size, &reader.doc, reader.key_span);
-	if (!classify(&reader))
-		return false;
-
-	reader.refs.patches = voe_base_arena_push(
-		arena, (patch_capacity(&reader) + 1) * sizeof(*reader.refs.patches));
-
-	for (uint32_t s = 0; s < sections; s++) {
-		if (reader.sections[s].role == ROLE_KEPT)
-			keep_section(&reader, s);
-		else if (!read_section(&reader, s))
-			return false;
-	}
-
-	if (!create(&reader))
+	if (!voe_authoring_scratch_read(&reader, text, size) ||
+	    !create(&reader))
 		return false;
 
 	*out_kept = (voe_authoring_kept){

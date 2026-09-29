@@ -10,9 +10,17 @@ carries it out.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
-- `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, and
-  why the editor runs no move.
-- `world_step.c` — the one call to `voe_game_world_step`.
+- `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, why
+  the editor runs no move, and why placed copies are expanded after it.
+- `world_step.c` — the one call to `voe_game_world_step`, then the expansion.
+- `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
+  ascending id, a load, with deterministic ids and a file that will not read said in the notice;
+  a tree dragged into the Assets panel made one, what refuses it, and the refusals asked per frame.
+- `prefab_expand.c` — the next unexpanded root found, its file read onto it, the ids carried, and a
+  refused root given its part row.
+- `prefab_make.c` — a tree's camera, light or prefab rows refused, and any while a prefab is open,
+  those refusals as one call without the file test, the file written under the shown folder unless
+  it exists, then the prefab and part rows queued.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -28,12 +36,12 @@ carries it out.
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
-  sections, the code its world was made with, its folder and whether it has unsaved changes
-  (ADR-0164), its scene handed out as text or read back in, and the swap to a world with new code.
-- `project.c` — opening, making and saving a project, the scene written out as text and a text read
-  back into the same world or a new one made with new code, and the untitled scene's cube, light and
-  camera, which are this file's decision and not `scene.c`'s.
+- `project.h` — the project being worked on: its three arenas, kept sections, code, folder and
+  unsaved flag (ADR-0164), where its worlds are made, its scene as text or read back and expanded,
+  the new-code swap, and a prefab opened with the level set aside.
+- `project.c` — opening, making and saving a project or its open prefab, the scene written out as
+  text and read back into the same world or a new one, each read expanded, a prefab opened and
+  Back, and the untitled scene's cube, light and camera.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
@@ -63,12 +71,12 @@ carries it out.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
-- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s three files, the
+- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s four files, the
   `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
   install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the world cooked into scene.c, each argument list in one struct, the release kind
-  and the shipped folder.
+  where they go, the world cooked into scene.c, every prefab found and cooked into prefabs.c, each
+  argument list in one struct, the release kind and the shipped folder.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
@@ -84,17 +92,17 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, the flag that
-  says a different project is in place, and the one armed command that makes closing the window,
-  New and Open each refuse once while there are unsaved changes and go ahead the second time.
-- `session.c` — the refuse-once rule, the seven commands with Play and Ship refreshing first and one
-  build at a time, a built library loaded and swapped in once a frame, and what a browser action
-  does to the session.
-- `topbar.h` — the bar across the top of the root surface: New, Open, Save, Play, Refresh, Ship,
-  Preferences, the gizmo's mode, the project's name and whether it is unsaved, then the session's
-  notice, at least as tall as its content measured last frame and as tall as the person made it.
+- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, a prefab
+  opened and Back, the flags that say a different project or world is in place, and the one armed
+  command that makes Close, New, Open and Back each refuse once over unsaved work.
+- `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
+  build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
+  once a frame, and what a browser action does to the session.
+- `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
+  Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its content
+  or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its seven buttons, Play, Refresh and Ship among them, afterwards.
+  the read of its buttons, Back, Play, Refresh and Ship among them, afterwards.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -110,25 +118,31 @@ carries it out.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
-  panel's length or the views' share, every seam's place (the reached one lit), and the walk.
+  panel's length or the views' share, every seam's place (the reached one lit), whether a point is
+  over a panel, and the walk.
 - `dock.c` — the arrangement, held lengths and the views' share clamped and set, the walk to one
   frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
   drag marks, the Inspector's call, and each scene view's camera preview.
-- `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree,
-  keyed by identity index; a drag past a 1 mm threshold dropped onto a row parents it, onto the
-  heading unparents it; a ghost, a dimmed row and an inverse rim show it; Escape cancels it.
+- `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
+  copy marked with its prefab's file; a drag parents, unparents or, onto the Assets panel, makes a
+  prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row and the heading in a rim wrapper, the drag's ghost, and the held row's drop.
-- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows, folders first, entered and gone
-  Up from but never above `Assets/`, listed again once a second in its own arena, `.glb` rows marked
-  as models, and Import copying a chosen `.glb` into the shown folder.
+  stack, each row in a rim wrapper, a copy's file name, the drag's ghost refused or not, and the
+  held row's drop.
+- `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
+  dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
+- `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
+- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
+  entered and Up but never above it, listed again once a second, model and prefab rows marked, a
+  fired prefab row left to open, and Import.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
-  the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the
-  import.
-- `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
-  the ray lands, over the Inspector swaps the selected thing's model, anywhere else nothing.
-- `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
-  rectangle from the dock tree, and the one undo step and unsaved mark.
+  the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
+  afterwards, and the import.
+- `assets_drag.h` — a held model or prefab row from the Assets panel: released over a scene view
+  it places a new thing or a copy where the ray lands, over the Inspector it swaps the selected
+  thing's model, elsewhere nothing.
+- `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
+  the release and the ghost, the drop point, the Inspector's rectangle, and the one undo step.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
@@ -137,15 +151,15 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the Scene list's drag ghost over its dock, the play state
-  and the ship polled once a frame, and the one read of the frame's clicks that carries out the top
-  bar's, the browser's and Preferences' commands and the colour picker's changes.
+- `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, play and ship polled once a frame, and
+  the one read of the frame's clicks carrying out the bar's, browser's and Preferences' commands,
+  the picker's changes, and a prefab made or opened.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
-  draws that list and reads what was picked from it.
-- `inspector.c` — the Duplicate and Delete row, the walk over the world's described component types,
-  each section's heading, Remove and "Needs" line, a wrapping row per described field, the record
-  each control leaves behind, the Add component button and its menu, and the open list.
+  draws that list and reads what was picked from it; a prefab's part is shown, never edited.
+- `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
+  section's heading, Remove and "Needs" line, a row per field, each control's record, Add component
+  and its menu, the open list, and a part shown read-only.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
@@ -157,7 +171,8 @@ carries it out.
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
   bytes, and the picker's colour and the open list's choice submitted the same way.
 - `inspector_buttons.c` — the fired buttons carried out through scene.h and entities.h, and the
-  open dropdown and Add component's lists and submenus opened, closed and placed each frame.
+  open dropdown and Add component's lists and submenus opened, closed and placed each frame; none
+  on a prefab's part.
 - `inspector_place.h` — the side-and-cap rule the open lists and submenus are placed by, and the
   rectangle test a press outside them is.
 - `inspector_place.c` — a list fitted below, above or capped on the roomier side, under its button
@@ -180,9 +195,9 @@ carries it out.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
   passes, with the world and its models, the selection's outline, its collider, its gizmo and the
   camera's and sun's markers, and the device capacities those passes need.
-- `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
-  walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with
-  the world's camera and sun marked, and ended, stopping at the first refused pass.
+- `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
+  view's shadow passes and pass through `3d`'s draw system, camera and sun marked, no gizmo on a
+  part, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.
@@ -192,8 +207,8 @@ carries it out.
   entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
   dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
   cancel.
-- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate
-  the sun), the gizmo's switch, the colour picker and dropdown opened, closed and placed where the
+- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse a part and the
+  camera, Duplicate the sun), the gizmo's switch, the colour picker and dropdown opened, closed and placed where the
   Inspector measured them, and the Scene panel's rows asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
   too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
@@ -201,18 +216,19 @@ carries it out.
   view's picture, and the selection set from whatever it met.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
   handle under the pointer, a press that grabs one, and the drag that submits its new position or
-  rotation.
+  rotation; a part has none.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
-  settled edit recorded as the whole scene's text, and Ctrl+Z or Ctrl+Y reading
-  a neighbouring one back into the project's world (ADR-0204).
-- `undo.c` — the states pushed once, the compare a settled edit makes against
+  settled edit recorded as the whole scene's text, Ctrl+Z or Ctrl+Y reading
+  a neighbouring one back into the project's world (ADR-0204), and the level's
+  line set aside while a prefab is open.
+- `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
-- `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities with their
-  trees, and giving or taking their components, all through the world's structural queue. Its header
-  says the id and name rules.
+- `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
+  entities with their trees, and giving or taking components, all through the world's structural
+  queue. Its header says the id and name rules.
 - `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
   undoes a half-made entity.

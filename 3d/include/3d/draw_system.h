@@ -294,7 +294,7 @@ typedef struct {
 // a gizmo, marking a camera or a sun, drawing a collider and drawing models are
 // the caller's choice and it sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
-// frame is unshaded — see below.
+// frame's light is the zeroed one and lit surfaces draw black — see below.
 //
 // THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE THE PASS, AND HANDED BACK.
 // The pass needs the view and the light and this system needs the view again for
@@ -311,12 +311,13 @@ typedef struct {
 // that introduces a viewport; until then a world with two of them has a mistake
 // in it and this says so.
 //
-// AND AT MOST ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE SUN. This engine
-// lights a frame with one directional light (render/device.h), so a second one
-// in the world would be silently ignored — which is worse than being told, and
-// this asserts on it. A world with none is a choice, not a mistake (ADR-0238):
-// a 2D game has no light to add, so every surface draws in its own material
-// colour, unshaded, instead of asserting. The light comes from
+// AND AT MOST ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE DIRECTIONAL
+// LIGHT. This engine lights a frame with one directional light
+// (render/device.h), so a second one in the world would be silently ignored —
+// which is worse than being told, and this asserts on it. A world with none is
+// still a choice and never asserts (ADR-0287): its light is the zeroed one, so
+// lit surfaces draw black while unlit materials, text and panels draw as
+// before, and it casts no shadow. The light comes from
 // voe_3d_draw_system_light below. Registering the table is part of building a
 // world that can be drawn, rows or none; see scene/light_system.h.
 //
@@ -335,20 +336,23 @@ typedef struct {
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size, float lag);
 
-// The world's one light in the shape `render` takes it; with none, a light with
-// `unshaded` set and every other field zero (ADR-0238). Asserts on more than
-// one, because render has one sun. The direction is the light entity's
+// The world's one light in the shape `render` takes it; with none, the zeroed
+// light, every field nought and `unshaded` too, which draws lit surfaces black
+// (ADR-0287, 0290). Asserts on more than one, because render has one
+// directional light. The direction is the light entity's
 // transform rotation's -Z (scene's voe_scene_light_direction), -Z with no
 // transform; the fill is fill_colour times fill_intensity (ADR-0273).
 //
-// IT IS PUBLIC SO EVERY PICTURE OF A SCENE MEANS THE SAME BY "NO LIGHT". The
-// editor's own views and dev's monitor light their passes with it rather than
-// reading the light table themselves, so a scene with no light is unshaded in
-// each of them exactly as it is in the game's frame.
+// IT IS PUBLIC SO EVERY PICTURE OF A SCENE MEANS THE SAME BY "NO LIGHT", AND
+// SO A VIEW CAN CHOOSE ANOTHER. Dev's monitor lights its passes with it rather
+// than reading the light table, so a scene with no light draws black there as
+// in the game's frame; the editor lights such a world with its own preview
+// light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
 // The sun's shadow passes for `frame`, opened between the frame's begin and the
-// view's pass (ADR-0258). With the light shaded and the frame not blind, it fits
+// view's pass (ADR-0258). With the directional light shaded and of some
+// strength, and the frame not blind, it fits
 // the four cascades to `frame->view`, `frame->eye` and the light's direction at
 // VOE_3D_SHADOW_TEXELS, sets `frame->shadow`, and opens one shadow pass per
 // cascade that draws every caster at the frame's lag; otherwise it leaves

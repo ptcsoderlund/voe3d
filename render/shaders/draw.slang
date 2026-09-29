@@ -106,9 +106,9 @@
 // a file that did not say, this one is a material that did.
 //
 // A PASS WITH NO SUN TAKES THE UNLIT EXIT FOR EVERY SURFACE. The light's
-// `unshaded` says a scene has no light (ADR-0238), and then each surface is its
-// base colour. Not ambient, which would draw a 2D game's colours dim, and not a
-// default light, which would shade surfaces with a light nobody added.
+// `unshaded` is a pass asking for base colours, and then each surface is its
+// base colour; no folder sets it today (ADR-0290). A scene with no light is not
+// that: it is the zeroed light, which draws lit surfaces black (ADR-0287).
 //
 // A NORMAL MAP TILTS THE SHADING NORMAL THROUGH A FRAME BUILT PER PIXEL
 // (ADR-0278). No tangent attribute: the tangent (+u) and bitangent (−v, glTF's

@@ -32,7 +32,15 @@
 // same area, and either showing closes it.
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
-// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks.
+// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
+// over the Assets leaf it makes a prefab (prefabs.h), one structural change;
+// whether the Assets leaf takes it is !voe_editor_prefab_make_refused for the
+// session's project, which the ghost shows as refused or not.
+//
+// A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT, through
+// voe_editor_session_prefab_open, beside where Import shows the browser; the
+// bar then names the prefab's file and draws Back, whose command reaches
+// voe_editor_session_do as the bar's others do.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
@@ -45,6 +53,7 @@
 #include "inspector.h"
 #include "inspector_edit.h"
 #include "notice.h"
+#include "prefabs.h"
 #include "preferences.h"
 #include "project.h"
 #include "scene_list.h"
@@ -52,6 +61,8 @@
 #include "topbar.h"
 
 #include <base/assert.h>
+
+#include <platform/path.h>
 
 #include <ui/colour.h>
 #include <ui/theme.h>
@@ -103,6 +114,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
 			       const voe_editor_dock_root *roots,
 			       uint32_t count, voe_editor_scene *scene,
+			       const voe_editor_assets_drag *drag,
 			       voe_editor_views *views,
 			       voe_editor_session *session,
 			       voe_editor_topbar *bar,
@@ -118,6 +130,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(arena != NULL, "drawing the interface without an arena");
 	VOE_BASE_ASSERT(roots != NULL, "drawing an interface with no roots");
 	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
+	VOE_BASE_ASSERT(drag != NULL, "drawing an interface with no drag");
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
 	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
 	VOE_BASE_ASSERT(bar != NULL, "drawing an interface with no top bar");
@@ -137,7 +150,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// above it — dock.c's own tree is untouched, only the size
 		// its walk divides out.
 		voe_editor_dock_root below_bar = *root;
-		const char *name = voe_editor_project_name(session->project);
+		// The open prefab's file in the project's place (0283 point 8).
+		bool prefab_open = session->project->prefab[0] != '\0';
+		const char *name =
+			prefab_open ?
+				voe_platform_path_name(session->project->prefab) :
+				voe_editor_project_name(session->project);
 		uint32_t first;
 		uint32_t records;
 		// Captured before anything is drawn, and used for every
@@ -157,6 +175,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_picking picked;
 		voe_ui_node picker = VOE_UI_NODE_NONE;
 		bool picking;
+		// Why a Scene list drag over Assets would be refused, never
+		// shown: the release's make says it in the session's notice.
+		voe_editor_notice unshown = { 0 };
 
 		if (browsing || preferring || erroring)
 			voe_editor_scene_picker_close(scene);
@@ -214,13 +235,16 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       scene->rings ? "Rotate" : "Move",
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
-				       session->notice.text);
+				       session->notice.text, prefab_open);
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views);
-		// A Scene list drag's ghost, anchored beside the pointer
-		// (ADR-0282); before the overlays, so they paint over it.
+		// A Scene list or Assets drag's ghost, anchored beside the
+		// pointer (ADR-0282, 0286); before the overlays, so they paint
+		// over it.
 		voe_editor_scene_list_ghost_draw(ui, scene, root->pointer.at);
+		voe_editor_assets_drag_ghost_draw(ui, &scene->list_dim, drag,
+						  root->pointer.at);
 		// ANCHORED, SO ITS PLACE IN THIS CALL ORDER DOES NOT MATTER TO
 		// WHERE IT PAINTS (ui/layout.h) — it is called here, after the
 		// tree, only because that is where browser.h's own state (the
@@ -298,12 +322,31 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
-		voe_editor_scene_list_drop(scene, ui, root->pointer.down,
-					   root->pointer.at);
+		voe_editor_scene_list_drop(
+			scene, ui, root->pointer.down, root->pointer.at,
+			voe_editor_dock_over_panel(
+				root, voe_editor_topbar_high(bar, root->size.y),
+				VOE_EDITOR_PANEL_ASSETS, root->pointer.at),
+			!voe_editor_prefab_make_refused(session->project,
+							scene->list_held,
+							&unshown));
+		if (scene->list_made.generation != 0) {
+			if (voe_editor_prefab_make(session->project,
+						   scene->list_made,
+						   scene->assets.shown, arena,
+						   &session->notice))
+				scene->structural++;
+			scene->list_made = (voe_ecs_entity){ 0 };
+		}
 		if (voe_editor_assets_clicks_read(ui, &scene->assets))
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT,
 						&session->notice);
+		if (scene->assets.opened[0] != '\0') {
+			voe_editor_session_prefab_open(session, scene,
+						       scene->assets.opened);
+			scene->assets.opened[0] = '\0';
+		}
 		voe_editor_views_rects_read(views, ui);
 		// Whatever the browser or Preferences show: the bar is drawn
 		// under both, and the next frame is laid out at this measure.

@@ -1,7 +1,8 @@
 // What a frame draws into the scene views: a pass per view the dock tree
 // shows, each preceded by the sun's shadow passes fitted to that view
 // (voe_3d_draw_system_shadows, ADR-0258) and onto that view's own target with
-// its own camera, the world's light and those shadows, the world and its models drawn by voe_3d_draw_system_run with the
+// its own camera, the light voe_editor_view_light gives (the world's or the
+// preview) and those shadows, the world and its models drawn by voe_3d_draw_system_run with the
 // selection's outline, a model's too (ADR-0203), its collider as lines (0253), its move
 // gizmo (ADR-0205), the scene camera's marker (0223) and the sun's (0274), and the pass ended; and before those, the preview's
 // shadow passes and one pass with the world's own camera (view.h). main.c calls both once a
