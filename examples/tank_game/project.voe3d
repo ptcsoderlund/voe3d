@@ -1,2 +1,7 @@
 [project]
 scene = "main.scene"
+
+[window]
+width = 1280
+height = 720
+fullscreen = false
