@@ -47,7 +47,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **More than one light in a scene**: a frame draws at most one today (sponsor, 2026-09-24).
   0238 makes none allowed.
 - **A developer's own shading**: custom materials or shaders for a game that lights things its own way
-  (sponsor, 2026-09-24). Until then, no light means unlit (0238).
+  (sponsor, 2026-09-24). Until then, no light means black in the game and the preview light in the editor (0287).
 - **GPU particles that collide with the world**: compute-shader particles colliding one way
   against an uploaded copy of the collider components or the depth buffer (0249 rule 4).
 - **Dynamic bodies**: things pushed by forces, stacking and tumbling, physics layer 3 of 0249;
