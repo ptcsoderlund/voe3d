@@ -29,9 +29,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
   a graphics card.
-- `no_light.c` — that a world with no light frames the zeroed light, drawing black, and not blind, one light frames as
-  itself, its direction its transform's -Z and its fill colour times strength. Needs no graphics
-  card.
+- `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
+  that one light frames as itself, its direction its transform's -Z and its fill colour times
+  strength. Needs no graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.

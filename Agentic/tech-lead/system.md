@@ -12,11 +12,11 @@ workflow replaced specs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
 - **platform** — the one OS-aware folder: window, input, files, clock, processes, libraries, sound.
-- **scene** — transform (double, relative to its parent, a step behind), parent, lens, sun, identity.
+- **scene** — transform (double, relative, a step behind), parent, prefab, lens, light, identity.
 - **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: sounds played by path, overlapping voices in float, pushed to the device.
-- **authoring** — scene and project text read and written, a world cooked to C; a game omits it.
+- **authoring** — scene, prefab and project text read and written; a world and prefabs cooked to C.
 - **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
@@ -24,8 +24,8 @@ workflow replaced specs.
 - **3d** — scene to draws: meshes, `.glb` models, shapes, picking, outlines, gizmos, shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **game** — a shipped game: world types, 1/60 s steps, a frame, code seam, `ui`, sound, models.
-- **editor** — top bar, Scene list, Assets, views, gizmo, Inspector, undo, Play, Refresh, Ship.
+- **game** — a shipped game: world types, 1/60 s steps, frames, code seam, spawns, sound, models.
+- **editor** — top bar, Scene list, Assets, prefabs, views, preview light, gizmo, Inspector, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
@@ -52,8 +52,8 @@ workflow replaced specs.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
 - 0189–0191, 0217, 0218, 0221 — An entity is a number; the world owns rows; a colour; one camera.
-- 0222, 0223, 0238, 0273–0276 — Placed by transform; camera and sun are markers; rotate rings; fill.
+- 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light, a preview or black.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
-- 0267, 0268, 0270–0272, 0277–0282 — 0.1 closed; 0.2 a tank game; `.glb` models, Assets; parenting.
+- 0267, 0268, 0270–0272, 0277–0286 — 0.1 closed; 0.2 a tank game; `.glb` models; parenting; prefabs.

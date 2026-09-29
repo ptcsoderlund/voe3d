@@ -151,9 +151,9 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, play and ship polled once a frame, and
-  the one read of the frame's clicks carrying out the bar's, browser's and Preferences' commands,
-  the picker's changes, and a prefab made or opened.
+- `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, Play and Ship
+  polled once a frame, and the one read of the frame's clicks carrying out the bar's, browser's and
+  Preferences' commands, the picker's changes, and a prefab made or opened.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
@@ -208,8 +208,9 @@ carries it out.
   dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
   cancel.
 - `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse a part and the
-  camera, Duplicate the sun), the gizmo's switch, the colour picker and dropdown opened, closed and placed where the
-  Inspector measured them, and the Scene panel's rows asked after the frame has ended.
+  camera, Duplicate a light), the gizmo's switch, the colour picker and dropdown opened, closed
+  and placed where the Inspector measured them, and the Scene panel's rows asked after the frame
+  has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
   too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
