@@ -36,12 +36,12 @@ carries it out.
   `--capture`'s path and `--size`'s picture, or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
-- `project.h` — the project being worked on: its three arenas, kept sections, code, folder and
-  unsaved flag (ADR-0164), where its worlds are made, its scene as text or read back and expanded,
-  the new-code swap, and a prefab opened with the level set aside.
-- `project.c` — opening, making and saving a project or its open prefab, the scene written out as
-  text and read back into the same world or a new one, each read expanded, a prefab opened and
-  Back, and the untitled scene's cube, light and camera.
+- `project.h` — the project being worked on: its three arenas, kept sections, project file with its
+  game window, code, folder and unsaved flag (ADR-0164), where its worlds are made, its scene as
+  text or read back and expanded, the new-code swap, and a prefab opened with the level set aside.
+- `project.c` — opening, making and saving a project or its open prefab, the game window set and
+  written at once, the scene written out as text and read back into the same world or a new one,
+  each read expanded, a prefab opened and Back, and the untitled scene's cube, light and camera.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
