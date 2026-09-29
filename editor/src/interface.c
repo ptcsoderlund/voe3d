@@ -114,6 +114,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
 			       const voe_editor_dock_root *roots,
 			       uint32_t count, voe_editor_scene *scene,
+			       const voe_editor_assets_drag *drag,
 			       voe_editor_views *views,
 			       voe_editor_session *session,
 			       voe_editor_topbar *bar,
@@ -129,6 +130,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(arena != NULL, "drawing the interface without an arena");
 	VOE_BASE_ASSERT(roots != NULL, "drawing an interface with no roots");
 	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
+	VOE_BASE_ASSERT(drag != NULL, "drawing an interface with no drag");
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
 	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
 	VOE_BASE_ASSERT(bar != NULL, "drawing an interface with no top bar");
@@ -237,9 +239,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views);
-		// A Scene list drag's ghost, anchored beside the pointer
-		// (ADR-0282); before the overlays, so they paint over it.
+		// A Scene list or Assets drag's ghost, anchored beside the
+		// pointer (ADR-0282, 0286); before the overlays, so they paint
+		// over it.
 		voe_editor_scene_list_ghost_draw(ui, scene, root->pointer.at);
+		voe_editor_assets_drag_ghost_draw(ui, &scene->list_dim, drag,
+						  root->pointer.at);
 		// ANCHORED, SO ITS PLACE IN THIS CALL ORDER DOES NOT MATTER TO
 		// WHERE IT PAINTS (ui/layout.h) — it is called here, after the
 		// tree, only because that is where browser.h's own state (the

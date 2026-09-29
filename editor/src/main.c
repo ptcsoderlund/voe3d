@@ -710,7 +710,7 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &views, &session, &bar, &browser,
+				&scene, &drag, &views, &session, &bar, &browser,
 				&preferences, &themes,
 				escape_free);
 			// Only when the Inspector's own buttons changed nothing

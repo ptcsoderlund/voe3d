@@ -1,13 +1,17 @@
-// The drag's start from the held row and its release into a view, onto the
-// Inspector or nowhere. See the header for the four outcomes, the point a
-// placed model lands at and why the Inspector drop replaces the path.
+// The drag's start from the held row, the outcome at the pointer each frame
+// for the ghost, and its release into a view, onto the Inspector or nowhere.
+// See the header for the four outcomes, the point a placed model lands at and
+// why the Inspector drop replaces the path.
 #include "assets_drag.h"
 
 #include "entities.h"
+#include "scene_list.h"
 
 #include <3d/pick.h>
 
 #include <base/assert.h>
+
+#include <platform/path.h>
 
 #include <stdio.h>
 
@@ -82,6 +86,59 @@ static bool drop_into_view(const voe_editor_assets_drag *drag,
 	return true;
 }
 
+// The header's four outcomes; NOTHING is the one a ghost shows refused.
+typedef enum {
+	OUTCOME_NOTHING,
+	OUTCOME_MODEL_INTO_VIEW,
+	OUTCOME_MODEL_ONTO_INSPECTOR,
+	OUTCOME_PREFAB_INTO_VIEW,
+} outcome_kind;
+
+// What a release at a pointer would do, the view and point it lands in, and,
+// for a prefab over a view while one is open, why nothing, for the notice.
+typedef struct {
+	outcome_kind kind;
+	uint32_t view;
+	voe_math_float2 point;
+	const char *why;
+} outcome;
+
+// The one answer the release and the ghost both read.
+static outcome outcome_at(const voe_editor_assets_drag *drag,
+			  const voe_editor_session *session,
+			  const voe_editor_scene *scene,
+			  const voe_editor_views *views,
+			  const voe_editor_dock_root *root,
+			  const voe_editor_topbar *bar, voe_math_float2 pointer,
+			  bool blocked)
+{
+	voe_ecs_entity selected = voe_editor_scene_selected(scene);
+	outcome out = { .kind = OUTCOME_NOTHING };
+
+	VOE_BASE_ASSERT(drag != NULL && session != NULL && scene != NULL,
+			"an outcome of no drag");
+	VOE_BASE_ASSERT(views != NULL && root != NULL && bar != NULL,
+			"an outcome over no editor");
+	if (blocked)
+		return out;
+	if (voe_editor_views_under(views, pointer, &out.view, &out.point)) {
+		if (!drag->prefab)
+			out.kind = OUTCOME_MODEL_INTO_VIEW;
+		else if (session->project->prefab[0] == '\0')
+			out.kind = OUTCOME_PREFAB_INTO_VIEW;
+		else
+			out.why = "A prefab is not placed while one is open.";
+	} else if (voe_editor_dock_over_panel(
+			   root, voe_editor_topbar_high(bar, root->size.y),
+			   VOE_EDITOR_PANEL_INSPECTOR, pointer) &&
+		   !drag->prefab &&
+		   !voe_editor_inspector_is_part(scene->world, selected, NULL) &&
+		   voe_3d_model_get(scene->world, selected) != NULL) {
+		out.kind = OUTCOME_MODEL_ONTO_INSPECTOR;
+	}
+	return out;
+}
+
 // The release: into a view, onto the Inspector, or nothing. Whether an edit
 // reached the project; a full queue says so in the notice.
 static void drop(const voe_editor_assets_drag *drag,
@@ -91,32 +148,24 @@ static void drop(const voe_editor_assets_drag *drag,
 		 const voe_3d_shape_geometries *geometries,
 		 const voe_3d_models *models, voe_math_float2 pointer)
 {
-	voe_ecs_entity selected = voe_editor_scene_selected(scene);
-	voe_3d_model_intent swap = { .entity = selected };
-	uint32_t view;
-	voe_math_float2 point;
+	outcome out = outcome_at(drag, session, scene, views, root, bar,
+				 pointer, false);
+	voe_3d_model_intent swap = { .entity =
+					     voe_editor_scene_selected(scene) };
 	bool done;
 
-	if (voe_editor_views_under(views, pointer, &view, &point)) {
-		if (drag->prefab && session->project->prefab[0] != '\0') {
-			voe_editor_notice_set(
-				&session->notice,
-				"A prefab is not placed while one is open.");
-			return;
-		}
-		done = drop_into_view(drag, scene, &views->views[view], point,
-				      geometries, models);
-	} else if (voe_editor_dock_over_panel(
-			   root, voe_editor_topbar_high(bar, root->size.y),
-			   VOE_EDITOR_PANEL_INSPECTOR, pointer) &&
-		   !drag->prefab &&
-		   !voe_editor_inspector_is_part(scene->world, selected, NULL) &&
-		   voe_3d_model_get(scene->world, selected) != NULL) {
+	if (out.kind == OUTCOME_NOTHING) {
+		if (out.why != NULL)
+			voe_editor_notice_set(&session->notice, "%s", out.why);
+		return;
+	}
+	if (out.kind == OUTCOME_MODEL_ONTO_INSPECTOR) {
 		snprintf(swap.model.path, sizeof swap.model.path, "%s",
 			 drag->path);
 		done = voe_3d_model_submit(scene->world, swap);
 	} else {
-		return;
+		done = drop_into_view(drag, scene, &views->views[out.view],
+				      out.point, geometries, models);
 	}
 	if (!done) {
 		voe_editor_notice_set(&session->notice, "The scene is full.");
@@ -144,12 +193,41 @@ void voe_editor_assets_drag_read(
 		drag->holding = down && !blocked &&
 				scene->assets.held != NULL &&
 				path_hold(drag, &scene->assets);
+		drag->from = pointer;
+		drag->dragging = false;
+		drag->refused = false;
 		return;
 	}
-	if (down)
+	if (down) {
+		if (voe_math_float2_length(voe_math_float2_sub(
+			    pointer, drag->from)) >= VOE_EDITOR_SCENE_DRAG_START)
+			drag->dragging = true;
+		drag->refused = drag->dragging &&
+				outcome_at(drag, session, scene, views, root,
+					   bar, pointer, blocked)
+						.kind == OUTCOME_NOTHING;
 		return;
+	}
 	drag->holding = false;
-	if (!blocked)
+	if (drag->dragging && !blocked)
 		drop(drag, session, undo, scene, views, root, bar, geometries,
 		     models, pointer);
+	drag->dragging = false;
+	drag->refused = false;
+}
+
+void voe_editor_assets_drag_ghost_draw(voe_ui_context *ui,
+				       const voe_ui_theme *dim,
+				       const voe_editor_assets_drag *drag,
+				       voe_math_float2 at)
+{
+	VOE_BASE_ASSERT(ui != NULL && dim != NULL && drag != NULL,
+			"a ghost of no drag");
+	VOE_BASE_ASSERT(!drag->dragging || drag->holding,
+			"dragging a row nothing holds");
+
+	if (drag->holding && drag->dragging)
+		voe_editor_drag_ghost_draw(ui, dim,
+					   voe_platform_path_name(drag->path),
+					   drag->refused, at);
 }

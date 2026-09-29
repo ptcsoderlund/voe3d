@@ -24,6 +24,10 @@
 //   selected, one undo step and unsaved as a model's is (0283 point 7); the
 //   world step expands it the next frame. Over the Inspector, nothing.
 // - Anywhere else, or while `blocked`: nothing.
+// The drag starts only past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from
+// the press, so a click opens a prefab and a release before it does nothing.
+// From then on voe_editor_assets_drag_ghost_draw shows the file's name beside
+// the pointer, refused (drag_ghost.h) wherever the release would do nothing.
 //
 // THE POINT is what the view's pick ray meets first; else where it crosses
 // y = 0 in front of the eye, because a person dropping onto empty space in a
@@ -43,6 +47,7 @@
 #pragma once
 
 #include "dock.h"
+#include "drag_ghost.h"
 #include "session.h"
 #include "topbar.h"
 #include "undo.h"
@@ -71,6 +76,12 @@ typedef struct {
 	bool prefab;
 	// The held row's path, `Assets/...` with `/` separators.
 	char path[VOE_EDITOR_ASSETS_DRAG_PATH];
+	// The pointer at the press.
+	voe_math_float2 from;
+	// Whether the pointer has moved past the start threshold since.
+	bool dragging;
+	// Whether a release at this frame's pointer would do nothing.
+	bool refused;
 } voe_editor_assets_drag;
 
 // This frame's button against the drag: a start from the Assets panel's held
@@ -83,3 +94,10 @@ void voe_editor_assets_drag_read(
 	const voe_editor_topbar *bar, const voe_3d_shape_geometries *geometries,
 	const voe_3d_models *models, voe_math_float2 pointer, bool down,
 	bool blocked);
+
+// While holding and dragging, the ghost named by the path's last segment,
+// refused or not, beside `at` in the root surface; `dim` as drag_ghost.h's.
+void voe_editor_assets_drag_ghost_draw(voe_ui_context *ui,
+				       const voe_ui_theme *dim,
+				       const voe_editor_assets_drag *drag,
+				       voe_math_float2 at);

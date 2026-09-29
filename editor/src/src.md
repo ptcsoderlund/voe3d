@@ -140,9 +140,10 @@ carries it out.
   afterwards, and the import.
 - `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
   the ray lands, over the Inspector swaps the selected thing's model unless it is a part; a held
-  prefab row over a view places a copy there unless a prefab is open; anywhere else nothing.
-- `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
-  rectangle from the dock tree, and the one undo step and unsaved mark.
+  prefab row over a view places a copy there unless a prefab is open; anywhere else nothing; past
+  the start threshold a ghost of the file's name, refused where it would do nothing.
+- `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
+  the release and the ghost, the drop point, the Inspector's rectangle, and the one undo step.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
@@ -151,7 +152,7 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences or the
   colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the drag ghost, play and ship polled once a frame, and
+- `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, play and ship polled once a frame, and
   the one read of the frame's clicks carrying out the bar's, browser's and Preferences' commands,
   the picker's changes, and a prefab made or opened.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
