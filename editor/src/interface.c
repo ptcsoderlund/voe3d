@@ -18,7 +18,8 @@
 // topbar.h's and browser.h's recorded buttons can be asked either. Only one of
 // the two is ever read in a given frame — see voe_editor_interface_draw's own
 // header on `browsing`. Preferences' Choose is carried out here too, through
-// themes.h, and its palette set on the context for the next frame.
+// themes.h, and its palette set on the context for the next frame; the
+// Project panel's changed window is written through project.h.
 //
 // THE COLOUR PICKER IS DRAWN HERE TOO, AND ITS RESULT READ HERE, for the same
 // reason: it is a `ui` widget answering after voe_ui_frame_end. While scene.h's
@@ -56,6 +57,7 @@
 #include "prefabs.h"
 #include "preferences.h"
 #include "project.h"
+#include "project_panel.h"
 #include "scene_list.h"
 #include "themes.h"
 #include "topbar.h"
@@ -120,6 +122,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_editor_topbar *bar,
 			       voe_editor_browser *browser,
 			       voe_editor_preferences *preferences,
+			       voe_editor_project_panel *project_panel,
 			       voe_editor_themes *themes, bool escape)
 {
 	struct voe_base_arena_mark mark;
@@ -137,6 +140,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(browser != NULL, "drawing an interface with no browser");
 	VOE_BASE_ASSERT(preferences != NULL,
 			"drawing an interface with no preferences");
+	VOE_BASE_ASSERT(project_panel != NULL,
+			"drawing an interface with no project panel");
 	VOE_BASE_ASSERT(themes != NULL, "drawing an interface with no themes");
 
 	// Once a frame, before any root is built, so every root's bar reads
@@ -169,6 +174,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		bool erroring = session->errors.showing && !browsing;
 		bool preferring = preferences->showing && !browsing &&
 				  !erroring;
+		// The Project panel, in the same place, under all three.
+		bool projecting = project_panel->showing && !browsing &&
+				  !erroring && !preferring;
 		// The picker, when it shows, and what it edits: the target as
 		// it was when drawn, whatever this frame's clicks do to it.
 		voe_math_float3 colour;
@@ -179,7 +187,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// shown: the release's make says it in the session's notice.
 		voe_editor_notice unshown = { 0 };
 
-		if (browsing || preferring || erroring)
+		if (browsing || preferring || erroring || projecting)
 			voe_editor_scene_picker_close(scene);
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
@@ -191,7 +199,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		}
 
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
-		if (browsing || preferring || erroring)
+		if (browsing || preferring || erroring || projecting)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -259,6 +267,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						    voe_editor_topbar_high(
 							    bar, root->size.y),
 						    below_bar.size);
+		if (projecting)
+			voe_editor_project_panel_draw(
+				ui, project_panel, session->project->file.window,
+				voe_editor_topbar_high(bar, root->size.y),
+				below_bar.size);
 		if (erroring)
 			voe_editor_errors_draw(ui, &session->errors,
 					       voe_editor_topbar_high(
@@ -372,8 +385,31 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			if (clicked != VOE_EDITOR_COMMAND_NONE)
 				voe_editor_session_do(session, scene, browser,
 						      clicked);
-			if (voe_editor_topbar_preferences_read(ui, bar))
+			// One of the Project panel and Preferences at a time.
+			if (voe_editor_topbar_project_read(ui, bar)) {
+				voe_editor_preferences_hide(preferences);
+				voe_editor_project_panel_show(project_panel);
+			}
+			if (voe_editor_topbar_preferences_read(ui, bar)) {
+				voe_editor_project_panel_hide(project_panel);
 				voe_editor_preferences_show(preferences);
+			}
+		}
+
+		// THE PROJECT PANEL, WHEN IT WAS DRAWN: a changed window is
+		// written at once (project.h), a failure said in the notice.
+		if (projecting) {
+			voe_editor_project_panel_result result =
+				voe_editor_project_panel_clicks_read(
+					ui, project_panel);
+
+			// A false has already said why in the notice.
+			if (result.changed)
+				(void)voe_editor_project_window_set(
+					session->project, result.window,
+					&session->notice);
+			if (result.closed)
+				voe_editor_project_panel_hide(project_panel);
 		}
 
 		// THE ERRORS PANEL, WHEN IT WAS DRAWN: Close hides it.
