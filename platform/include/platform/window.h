@@ -4,7 +4,7 @@
 // card that first needs one adds it. Input belongs to a window and is on the
 // next page: see platform/input.h.
 //
-//     voe_platform_window *w = voe_platform_window_new(960, 540, "voe3d");
+//     voe_platform_window *w = voe_platform_window_new(960, 540, false, "voe3d");
 //     if (w == NULL)
 //             return 1;                       // see "failure" below
 //     while (!voe_platform_window_should_close(w))
@@ -83,8 +83,15 @@ typedef struct {
 // width and height are the client area asked for; the window system may open the
 // window at a different size, so ask _size rather than assuming. title is UTF-8.
 // Returns NULL if the window could not be opened.
+//
+// FULLSCREEN COVERS A WHOLE SCREEN, AND THE SIZE IS THEN NOT THE WINDOW'S. width
+// and height are only what the window returns to if the system un-fullscreens
+// it; the screen's size arrives the way any size does, so ask _size, as ever.
+// Wayland asks for fullscreen on no named output before the first configure;
+// Windows opens a frameless popup over the primary monitor. There is no switch
+// while open: the choice is made here, once (rule 10).
 voe_platform_window *voe_platform_window_new(int width, int height,
-					     const char *title);
+					     bool fullscreen, const char *title);
 void voe_platform_window_destroy(voe_platform_window *window);
 
 void voe_platform_window_poll(voe_platform_window *window);

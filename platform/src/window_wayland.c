@@ -333,7 +333,7 @@ static voe_platform_window *open_failed(voe_platform_window *window)
 }
 
 voe_platform_window *voe_platform_window_new(int width, int height,
-					     const char *title)
+					     bool fullscreen, const char *title)
 {
 	voe_platform_window *window;
 
@@ -400,6 +400,12 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 		return open_failed(window);
 	xdg_toplevel_add_listener(window->toplevel, &toplevel_listener, window);
 	xdg_toplevel_set_title(window->toplevel, title);
+
+	// Asked before the first commit, so the first configure already carries
+	// the screen's size and toplevel_configure takes it like any resize; no
+	// windowed frame is ever drawn. NULL leaves the output to the compositor.
+	if (fullscreen)
+		xdg_toplevel_set_fullscreen(window->toplevel, NULL);
 
 	// Ask for a server-drawn frame. Asking is all a client can do; the reply
 	// comes back through decoration_configure and may say client-side. A

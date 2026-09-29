@@ -202,13 +202,31 @@ static bool class_ready(HINSTANCE instance)
 	return GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
 }
 
+// Fullscreen is a frameless popup covering the primary monitor's rectangle;
+// the rectangle is the outer size and the client area both. False if the
+// monitor cannot be asked, which is a failure to open like any other.
+// Written, not verified on Windows (ADR-0130).
+static bool fullscreen_rect(RECT *rect)
+{
+	MONITORINFO monitor = { .cbSize = sizeof(monitor) };
+	HMONITOR primary = MonitorFromPoint((POINT){ 0, 0 },
+					    MONITOR_DEFAULTTOPRIMARY);
+
+	if (!GetMonitorInfoW(primary, &monitor))
+		return false;
+	*rect = monitor.rcMonitor;
+	return true;
+}
+
 voe_platform_window *voe_platform_window_new(int width, int height,
-					     const char *title)
+					     bool fullscreen, const char *title)
 {
 	voe_platform_window *window;
 	wchar_t wide_title[TITLE_MAX];
 	RECT wanted = { 0, 0, width, height };
-	DWORD style = WS_OVERLAPPEDWINDOW;
+	DWORD style = fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW;
+	int x = CW_USEDEFAULT;
+	int y = CW_USEDEFAULT;
 
 	VOE_BASE_DEBUG_ASSERT(width > 0 && height > 0, "a window needs a size");
 	VOE_BASE_DEBUG_ASSERT(title != NULL, "a window needs a title");
@@ -232,11 +250,21 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	}
 
 	// width and height are the client area, and CreateWindowExW is given the
-	// outer size, so the decorations have to be added on.
-	AdjustWindowRect(&wanted, style, FALSE);
+	// outer size, so the decorations have to be added on. Fullscreen has
+	// none, and its place and size are the monitor's.
+	if (fullscreen) {
+		if (!fullscreen_rect(&wanted)) {
+			free(window);
+			return NULL;
+		}
+		x = wanted.left;
+		y = wanted.top;
+	} else {
+		AdjustWindowRect(&wanted, style, FALSE);
+	}
 
 	window->hwnd = CreateWindowExW(0, WINDOW_CLASS, wide_title, style,
-				       CW_USEDEFAULT, CW_USEDEFAULT,
+				       x, y,
 				       wanted.right - wanted.left,
 				       wanted.bottom - wanted.top,
 				       NULL, NULL, window->instance, NULL);
