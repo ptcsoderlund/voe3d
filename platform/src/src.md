@@ -62,9 +62,11 @@ header.
   says why a brace counter stands in for recursion here, and why a key body is
   read by its statements rather than by its first `[`.
 - `gamepad.h` — the four pad slots, attaching and detaching a pad, and a device's range onto −1..1
-  or 0..1, and evdev key and axis events onto a pad by the kernel's standard codes. OS-free, built
-  and tested on both platforms; its header says why, and why digital triggers yield to axes.
-- `gamepad.c` — its implementation, in double so no range overflows; evdev codes as numbers.
+  or 0..1, evdev events by the kernel's standard codes, and XInput state and HID values and buttons
+  onto a pad. OS-free, built and tested on both platforms; its header says why, why digital
+  triggers yield to axes, and why HID is PlayStation order.
+- `gamepad.c` — its implementation, in double so no range overflows; evdev codes, XInput bits and
+  HID usages as numbers.
 - `gamepad_wayland.c` — the Linux window's pads: `/dev/input/event*` found by scan and inotify,
   read through evdev into `gamepad.h`. Its header says why evdev, why attribute changes are
   watched, and why nothing in it is Wayland.

@@ -6,6 +6,10 @@
 // pad: stick up reads 1, centre 0, full ABS_RZ 1, BTN_SOUTH goes down and up,
 // the hat presses and releases left, BTN_TR2 counts only without trigger axes,
 // and an unknown code changes nothing. Codes are the kernel's, as numbers.
+// XInput with A and DPAD_LEFT, a full left trigger and left stick up reads
+// south, left, 1 and 1, and all zero reads at rest. HID: X at 255 of 0..255 is
+// left_x 1, Rz at 0 is right_y 1, hat 2 presses right only and 8 releases, and
+// buttons {2, 10} press south and start until {} lets them go.
 //
 // Needs no window, no display and no pad.
 #include "../src/gamepad.h"
@@ -124,11 +128,65 @@ static void check_evdev(void)
 	VOE_TEST_CHECK(memcmp(&pad, &before, sizeof(pad)) == 0);
 }
 
+static void check_xinput(void)
+{
+	voe_platform_gamepad pad = { 0 };
+
+	// XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_DPAD_LEFT
+	voe_platform_gamepad_xinput(&pad, 0x1000 | 0x0004, 255, 0, 0, 32767, 0, 0);
+	VOE_TEST_CHECK(pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_SOUTH]);
+	VOE_TEST_CHECK(pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_PAD_LEFT]);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_EAST]);
+	VOE_TEST_CHECK_FLOAT(pad.left_trigger, 1.0f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(pad.left_y, 1.0f, 1e-6f);
+
+	voe_platform_gamepad_xinput(&pad, 0, 0, 0, 0, 0, 0, 0);
+	for (int button = 0; button < VOE_PLATFORM_GAMEPAD_BUTTON_COUNT; button++)
+		VOE_TEST_CHECK(!pad.buttons[button]);
+	VOE_TEST_CHECK_FLOAT(pad.left_trigger, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(pad.right_trigger, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(pad.left_x, 0.0f, 1.0f / 32767.0f);
+	VOE_TEST_CHECK_FLOAT(pad.left_y, 0.0f, 1.0f / 32767.0f);
+	VOE_TEST_CHECK_FLOAT(pad.right_x, 0.0f, 1.0f / 32767.0f);
+	VOE_TEST_CHECK_FLOAT(pad.right_y, 0.0f, 1.0f / 32767.0f);
+}
+
+static void check_hid(void)
+{
+	const struct voe_platform_gamepad_range byte = { 0, 255 };
+	const struct voe_platform_gamepad_range hat = { 0, 7 };
+	const uint16_t south_start[] = { 2, 10 };
+	voe_platform_gamepad pad = { 0 };
+
+	voe_platform_gamepad_hid_value(&pad, 0x30, 255, byte); // X
+	VOE_TEST_CHECK_FLOAT(pad.left_x, 1.0f, 1e-6f);
+	voe_platform_gamepad_hid_value(&pad, 0x35, 0, byte); // Rz
+	VOE_TEST_CHECK_FLOAT(pad.right_y, 1.0f, 1e-6f);
+
+	voe_platform_gamepad_hid_value(&pad, 0x39, 2, hat); // hat switch, right
+	VOE_TEST_CHECK(pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_PAD_RIGHT]);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_PAD_UP]);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_PAD_DOWN]);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_PAD_LEFT]);
+	voe_platform_gamepad_hid_value(&pad, 0x39, 8, hat); // hat switch, released
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_PAD_RIGHT]);
+
+	voe_platform_gamepad_hid_buttons(&pad, south_start, 2);
+	VOE_TEST_CHECK(pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_SOUTH]);
+	VOE_TEST_CHECK(pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_START]);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_WEST]);
+	voe_platform_gamepad_hid_buttons(&pad, NULL, 0);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_SOUTH]);
+	VOE_TEST_CHECK(!pad.buttons[VOE_PLATFORM_GAMEPAD_BUTTON_START]);
+}
+
 int main(void)
 {
 	check_slots();
 	check_axis();
 	check_trigger();
 	check_evdev();
+	check_xinput();
+	check_hid();
 	return voe_test_result();
 }

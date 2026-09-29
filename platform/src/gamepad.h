@@ -24,6 +24,12 @@
 // there in full range and often also as BTN_TL2/BTN_TR2 once past a threshold;
 // taking both would snap an analogue trigger to 0 or 1. So the buttons move a
 // trigger only on a device with no trigger axes.
+//
+// HID IS READ IN PLAYSTATION ORDER (ADR-0292 point 5). XInput covers Xbox pads;
+// what reaches Windows as HID is mostly PlayStation pads, and HID names no
+// place for a button, only a number. So the numbers are read as a DualShock or
+// DualSense lays them out. A generic pad reads as that order says: its button
+// 1 is west and its Z/Rz the right stick, whatever is printed on it.
 #pragma once
 
 #include <platform/input.h>
@@ -80,3 +86,24 @@ void voe_platform_gamepad_evdev_key(voe_platform_gamepad *pad,
 void voe_platform_gamepad_evdev_abs(voe_platform_gamepad *pad,
 				    const struct voe_platform_gamepad_evdev *device,
 				    uint16_t code, int32_t value);
+
+// A whole XINPUT_GAMEPAD onto pad: A south, B east, X west, Y north, shoulders,
+// BACK, START, thumbs and DPAD; triggers over 0..255; sticks over
+// −32768..32767, whose Y is already up positive and so not inverted.
+void voe_platform_gamepad_xinput(voe_platform_gamepad *pad, uint16_t buttons,
+				 uint8_t left_trigger, uint8_t right_trigger, int16_t left_x,
+				 int16_t left_y, int16_t right_x, int16_t right_y);
+
+// One HID generic desktop value onto pad, over the range its report declares:
+// X/Y left and Z/Rz right stick with Y and Rz inverted, Rx/Ry the left and right
+// triggers, the hat switch (value − range.min of 0..7 clockwise from up) the
+// pad's four buttons, any other hat value releasing them. Other usages are
+// ignored.
+void voe_platform_gamepad_hid_value(voe_platform_gamepad *pad, uint16_t usage, int32_t value,
+				    struct voe_platform_gamepad_range range);
+
+// The HID button usages down now, count of them: 1 west, 2 south, 3 east,
+// 4 north, 5 and 6 shoulders, 9 back, 10 start, 11 and 12 sticks. Every one of
+// those not listed goes up; the pad's four buttons are the hat's, untouched.
+void voe_platform_gamepad_hid_buttons(voe_platform_gamepad *pad, const uint16_t *usages,
+				      uint32_t count);
