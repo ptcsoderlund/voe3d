@@ -13,10 +13,22 @@
 // as larger; the public header promises up positive,
 // so a backend negates what voe_platform_gamepad_axis gives back for such an
 // axis. The conversions themselves know nothing of direction.
+//
+// EVDEV CODES ARE THE KERNEL'S STANDARD GAMEPAD MAPPING (ADR-0292 point 4).
+// Every common pad's driver maps onto BTN_SOUTH.., ABS_X.. and ABS_HAT0X, so the
+// evdev functions below read those codes and nothing device-specific. They are
+// written as numbers with the kernel's names beside them, as keymap.c does, so
+// no linux/input.h is needed and this file still builds on Windows.
+//
+// DIGITAL TRIGGERS YIELD TO AXES. A pad with ABS_Z/ABS_RZ reports its triggers
+// there in full range and often also as BTN_TL2/BTN_TR2 once past a threshold;
+// taking both would snap an analogue trigger to 0 or 1. So the buttons move a
+// trigger only on a device with no trigger axes.
 #pragma once
 
 #include <platform/input.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // Every slot a window has, and the id the last attached pad was given. Lives in
@@ -41,3 +53,30 @@ float voe_platform_gamepad_axis(int32_t value, int32_t min, int32_t max);
 // value in min..max onto 0..1, clamped. A range of no width, or one backwards,
 // is 0.
 float voe_platform_gamepad_trigger(int32_t value, int32_t min, int32_t max);
+
+// One axis's range as the device reported it.
+struct voe_platform_gamepad_range {
+	int32_t min;
+	int32_t max;
+};
+
+// An evdev device's axis ranges by ABS_* code, filled by the backend from
+// EVIOCGABS, and whether it has ABS_Z/ABS_RZ.
+struct voe_platform_gamepad_evdev {
+	struct voe_platform_gamepad_range abs[64];
+	bool has_trigger_axes;
+};
+
+// An EV_KEY event onto pad: face buttons, shoulders, back, start, sticks and
+// BTN_DPAD_*; BTN_TL2/TR2 set a trigger to 0 or 1 only without trigger axes.
+// value 0 is up, anything else down. A code not listed is ignored.
+void voe_platform_gamepad_evdev_key(voe_platform_gamepad *pad,
+				    const struct voe_platform_gamepad_evdev *device,
+				    uint16_t code, int32_t value);
+
+// An EV_ABS event onto pad: ABS_X/Y left and ABS_RX/RY right stick with Y
+// inverted, ABS_Z/RZ the triggers, ABS_HAT0X/Y the pad's four buttons (−1 left
+// or up). Other codes are ignored.
+void voe_platform_gamepad_evdev_abs(voe_platform_gamepad *pad,
+				    const struct voe_platform_gamepad_evdev *device,
+				    uint16_t code, int32_t value);
