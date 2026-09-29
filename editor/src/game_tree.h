@@ -24,6 +24,11 @@
 // the project folder's name. The old shipped folder is removed only after a
 // build that succeeded, so a failed Ship leaves the last one as it was (0264).
 //
+// main.c CARRIES THE PROJECT'S GAME WINDOW (0291 point 3): voe_game_run gets
+// the name and a voe_game_window literal of width, height and fullscreen. They
+// are numbers in the source, not a file the game reads, because the game never
+// reads project text (0236); a changed setting changes main.c and rebuilds.
+//
 // CMakeLists.txt sets VOE_PROJECT_CODE to `Code/` and VOE_GAME_NAME to the
 // project's name, the installed program's, before including game.cmake;
 // scene.c includes every `.h` in `Code/`, sorted by name, before the cooked
