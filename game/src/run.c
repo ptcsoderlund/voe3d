@@ -83,7 +83,8 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 		if (frame.minimised)
 			continue;
 		lag = voe_game_steps_run(&steps, world, voe_app_window(app),
-					 sound->mixer, shapes, frame.tick.step,
+					 sound->mixer, NULL, shapes,
+					 frame.tick.step,
 					 voe_game_project_systems_run,
 					 voe_game_project_systems_after_move);
 		(void)voe_game_models_update(world, models->store,

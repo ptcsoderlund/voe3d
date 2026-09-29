@@ -39,11 +39,17 @@
 // reads its buttons. False ends the run. A project with no interface ends the
 // frame and returns true.
 //
+// SPAWN AND REMOVE LAND AT THE STEP'S STRUCTURAL APPLY: the entities exist at
+// once, their rows and a removal only then. They live in project.c because
+// the editor links it, so a loaded project library binds them (0283 point
+// 10); the table comes in the step, NULL in the editor and in tests.
+//
 // Constraints: at most VOE_GAME_PROJECT_TYPES types, each row at most
 // VOE_GAME_PROJECT_ROW bytes so its intent fits the Inspector's 256; each
 // replace queue holds VOE_GAME_WORLD_AUTHORED values a frame. The world is one
 // voe_game_world_new made, with nothing registered past the engine's types
-// but through here.
+// but through here. A removed tree is at most a world's 1024 parents; a full
+// queue may leave part of it queued.
 #pragma once
 
 #include <audio/mixer.h>
@@ -52,6 +58,8 @@
 
 #include <ecs/component.h>
 #include <ecs/world.h>
+
+#include <game/prefabs.h>
 
 #include <math/float2.h>
 
@@ -76,11 +84,13 @@
 
 // What one fixed step hands the project's systems. `window` is NULL headless;
 // `audio` is the game's mixer, where a system plays a sound (0266 point 4),
-// NULL only in a test whose systems play nothing.
+// NULL only in a test whose systems play nothing; `prefabs` is the table
+// spawns come from, NULL when there is nothing to spawn.
 typedef struct {
 	voe_ecs_world *world;
 	voe_platform_window *window;
 	voe_audio_mixer *audio;
+	const voe_game_prefabs *prefabs;
 	double seconds;
 } voe_game_project_step;
 
@@ -112,6 +122,21 @@ typedef struct {
 // Drains every project replace queue: a live entity with the row gets it
 // whole, any other value is dropped silently, and each queue ends empty.
 void voe_game_project_replaces_apply(voe_ecs_world *world);
+
+// Makes the prefab `name`'s entities and queues its rows, the root at
+// `position` and `rotation`, into `out_root`. False with nothing made when
+// the world or queue is full; an unknown name or no table is also a line on
+// stderr.
+[[nodiscard]] bool voe_game_project_spawn(const voe_game_project_step *step,
+					  const char *name,
+					  voe_math_double3 position,
+					  voe_math_quat rotation,
+					  voe_ecs_entity *out_root);
+
+// Queues destroying `entity` and everything under it. False when the queue
+// is full.
+[[nodiscard]] bool voe_game_project_remove(const voe_game_project_step *step,
+					   voe_ecs_entity entity);
 
 // Defined by the project, never by the engine.
 void voe_game_project_register(voe_ecs_world *world);

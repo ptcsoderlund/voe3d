@@ -3,6 +3,9 @@
 // game's own intent keys; N is how many types the world holds past the
 // engine's VOE_GAME_WORLD_TYPES, because ecs/intent.h can only assert on an
 // unregistered key and so cannot be asked which keys are free.
+//
+// A spawn finds its prefab by a linear scan of the table, which holds a
+// project's few prefabs; a sorted table would lift it.
 #include <game/project.h>
 
 #include <game/world.h>
@@ -11,9 +14,15 @@
 #include <base/report.h>
 
 #include <ecs/intent.h>
+#include <ecs/structure.h>
+
+#include <scene/parent_component.h>
 
 #include <stdalign.h>
 #include <string.h>
+
+// The most entities a removed tree holds: a game world's parents (world.c).
+#define TREE_MAX 1024
 
 // The entity at 0 and the row at the next boundary any type can sit on.
 #define ROW_OFFSET                                                    \
@@ -118,4 +127,71 @@ void voe_game_project_replaces_apply(voe_ecs_world *world)
 		}
 		voe_ecs_intent_clear(world, replace.intent);
 	}
+}
+
+// The prefab named `name` in `prefabs`, or NULL, reported.
+static const voe_game_prefab *prefab_find(const voe_game_prefabs *prefabs,
+					  const char *name)
+{
+	VOE_BASE_ASSERT(name != NULL, "a prefab with no name");
+	if (prefabs == NULL) {
+		VOE_BASE_ERROR("game", "%s: no prefabs to spawn from", name);
+		return NULL;
+	}
+	VOE_BASE_ASSERT(prefabs->count == 0 || prefabs->prefabs != NULL,
+			"a prefab table with no prefabs");
+	for (uint32_t i = 0; i < prefabs->count; i++)
+		if (strcmp(prefabs->prefabs[i].name, name) == 0)
+			return &prefabs->prefabs[i];
+	VOE_BASE_ERROR("game", "%s: no such prefab", name);
+	return NULL;
+}
+
+// The entities are destroyed at once on a refusal; whatever the build had
+// queued names them stale and is dropped at the apply (ecs/structure.h).
+bool voe_game_project_spawn(const voe_game_project_step *step,
+			    const char *name, voe_math_double3 position,
+			    voe_math_quat rotation, voe_ecs_entity *out_root)
+{
+	voe_ecs_entity entities[VOE_GAME_PREFAB_ENTITIES];
+	const voe_game_prefab *prefab;
+	uint32_t made = 0;
+
+	VOE_BASE_ASSERT(step != NULL && step->world != NULL && out_root != NULL,
+			"a spawn with no step, world or out");
+	prefab = prefab_find(step->prefabs, name);
+	if (prefab == NULL)
+		return false;
+	VOE_BASE_ASSERT(prefab->entities >= 1 &&
+				prefab->entities <= VOE_GAME_PREFAB_ENTITIES &&
+				prefab->build != NULL,
+			"a prefab of no entities, too many or no build");
+
+	while (made < prefab->entities &&
+	       voe_ecs_entity_create(step->world, &entities[made]))
+		made++;
+	if (made == prefab->entities &&
+	    prefab->build(step->world, entities, position, rotation)) {
+		*out_root = entities[0];
+		return true;
+	}
+	for (uint32_t i = 0; i < made; i++)
+		voe_ecs_entity_destroy(step->world, entities[i]);
+	return false;
+}
+
+bool voe_game_project_remove(const voe_game_project_step *step,
+			     voe_ecs_entity entity)
+{
+	voe_ecs_entity tree[TREE_MAX];
+	uint32_t count;
+
+	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
+			"a remove with no step or world");
+	count = voe_scene_parent_tree(step->world, entity, tree, TREE_MAX);
+	VOE_BASE_ASSERT(count >= 1, "a tree without its root");
+	for (uint32_t i = 0; i < count; i++)
+		if (!voe_ecs_structure_destroy(step->world, tree[i]))
+			return false;
+	return true;
 }

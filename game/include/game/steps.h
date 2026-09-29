@@ -2,7 +2,8 @@
 // of VOE_GAME_STEP_SECONDS run out of it, and the lag the draw sits behind.
 //
 //     voe_game_steps steps = { 0 };
-//     float lag = voe_game_steps_run(&steps, world, window, mixer, &shapes,
+//     float lag = voe_game_steps_run(&steps, world, window, mixer, prefabs,
+//                                    &shapes,
 //                                    frame.tick.step,
 //                                    voe_game_project_systems_run,
 //                                    voe_game_project_systems_after_move);
@@ -28,7 +29,8 @@
 //
 // Constraints: the world is one voe_game_world_new made, which registers the
 // previous transforms. `window` is NULL headless; `audio`, NULL only in a
-// test whose systems play nothing, is put in every step. `elapsed` is at least 0 and
+// test whose systems play nothing, and `prefabs`, NULL for none, are put in
+// every step. `elapsed` is at least 0 and
 // finite. The returned lag is in (0, 1]: 1 when nothing is left banked.
 #pragma once
 
@@ -54,6 +56,7 @@ typedef struct {
 // returns the lag: 1 − banked / step.
 float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,
 			 voe_platform_window *window, voe_audio_mixer *audio,
+			 const voe_game_prefabs *prefabs,
 			 const voe_3d_shapes *shapes, double elapsed,
 			 void (*systems)(const voe_game_project_step *),
 			 void (*after_move)(const voe_game_project_step *));
