@@ -17,4 +17,6 @@ the library the editor loads (0242).
 - `tank_enemy_system.c` — drives each enemy along its own forward and removes it, turret and all, when its life runs out.
 - `tank_camera.h` — the runtime-only camera fit row: the camera's authored field of view, kept so the level's width stays in view at any window shape.
 - `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
-- `project.c` — the four entry points: registers all seven types, runs the hull, turret, gun, shell, spawner, enemy, then camera before the move, nothing after, draws no interface.
+- `tank_control.h` — the runtime-only control row on the player's hull: drive, turn, aim, fire and whether the pad is in use.
+- `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
+- `project.c` — the four entry points: registers all eight types, runs the control, hull, turret, gun, shell, spawner, enemy, then camera before the move, nothing after, draws no interface.
