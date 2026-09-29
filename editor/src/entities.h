@@ -89,7 +89,10 @@
 					      voe_ecs_entity entity);
 
 // Makes an entity and queues a copy of every described row `source` has, the
-// identity's id and name replaced by the rules above. Writes the copy to `out`.
+// identity's id and name replaced by the rules above. A placed copy's root (a
+// prefab row) gives only its identity, transform, parent and prefab rows, the
+// four it is saved as (0283), so the world step expands the new copy from its
+// file the next frame (prefabs.h). Writes the copy to `out`.
 // False when the world or the queue is full, and then nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_duplicate(voe_ecs_world *world,
 						 voe_ecs_entity source,

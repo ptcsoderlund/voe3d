@@ -16,6 +16,7 @@
 
 #include <scene/identity_component.h>
 #include <scene/parent_component.h>
+#include <scene/prefab_component.h>
 #include <scene/parent_system.h>
 #include <scene/transform_component.h>
 
@@ -234,12 +235,28 @@ bool voe_editor_entities_delete(voe_ecs_world *world, voe_ecs_entity entity)
 	return true;
 }
 
+// One of the four rows a placed copy's root is saved as (0283 point 3); the
+// rest of it is its prefab's, expanded onto the copy by the world step.
+static bool placed_copy_row(const voe_ecs_world *world, voe_ecs_type type)
+{
+	const struct voe_ecs_key *keys[] = {
+		&voe_scene_identity_key, &voe_scene_transform_key,
+		&voe_scene_parent_key, &voe_scene_prefab_key
+	};
+
+	for (size_t i = 0; i < sizeof keys / sizeof keys[0]; i++)
+		if (type.value == voe_ecs_component_type(world, keys[i]).value)
+			return true;
+	return false;
+}
+
 bool voe_editor_entities_duplicate(voe_ecs_world *world, voe_ecs_entity source,
 				   voe_ecs_entity *out)
 {
 	voe_ecs_type identity_type;
 	voe_ecs_entity entity;
 	bool ok = true;
+	bool placed_copy = voe_scene_prefab_get(world, source) != NULL;
 
 	VOE_BASE_ASSERT(world != NULL, "duplicating an entity in no world");
 	VOE_BASE_ASSERT(out != NULL,
@@ -255,7 +272,8 @@ bool voe_editor_entities_duplicate(voe_ecs_world *world, voe_ecs_entity source,
 		voe_ecs_type type = voe_ecs_component_type_at(world, i);
 		const void *row = voe_ecs_component_get(world, type, source);
 
-		if (row == NULL || voe_ecs_component_runtime_only(world, type))
+		if (row == NULL || voe_ecs_component_runtime_only(world, type) ||
+		    (placed_copy && !placed_copy_row(world, type)))
 			continue;
 
 		if (type.value == identity_type.value) {

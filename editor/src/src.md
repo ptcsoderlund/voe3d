@@ -131,7 +131,8 @@ carries it out.
   the panel's one frame of `ui` calls, the read of its rows, Up and Import afterwards, and the
   import.
 - `assets_drag.h` — a held model row released over a scene view places a new thing wearing it where
-  the ray lands, over the Inspector swaps the selected thing's model, anywhere else nothing.
+  the ray lands, over the Inspector swaps the selected thing's model unless it is a part, anywhere
+  else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the drop point, the Inspector's
   rectangle from the dock tree, and the one undo step and unsaved mark.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
@@ -189,7 +190,8 @@ carries it out.
   camera's and sun's markers, and the device capacities those passes need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then the shown views
   walked in order, each one's shadow passes then its pass begun, drawn by `3d`'s draw system with
-  the world's camera and sun marked, and ended, stopping at the first refused pass.
+  the world's camera and sun marked and no gizmo on a part, and ended, stopping at the first refused
+  pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.
@@ -199,8 +201,8 @@ carries it out.
   entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
   dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
   cancel.
-- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse the camera, Duplicate
-  the sun), the gizmo's switch, the colour picker and dropdown opened, closed and placed where the
+- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse a part and the
+  camera, Duplicate the sun), the gizmo's switch, the colour picker and dropdown opened, closed and placed where the
   Inspector measured them, and the Scene panel's rows asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
   too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
@@ -208,7 +210,7 @@ carries it out.
   view's picture, and the selection set from whatever it met.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
   handle under the pointer, a press that grabs one, and the drag that submits its new position or
-  rotation.
+  rotation; a part has none.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
@@ -219,7 +221,7 @@ carries it out.
   the state the world is, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
 - `entities.h` — Add entity, a dropped model's thing, duplicating and deleting entities with their
-  trees, and giving or taking their components, all through the world's structural queue. Its header
-  says the id and name rules.
+  trees (a placed copy duplicated as its four saved rows), and giving or taking their components,
+  all through the world's structural queue. Its header says the id and name rules.
 - `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
   undoes a half-made entity.

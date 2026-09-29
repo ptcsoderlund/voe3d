@@ -6,6 +6,7 @@
 // ADR-0274); what is here is the pointer, the button and the entity. It is asked
 // before pick.h each frame, so a press this file takes is one picking never sees
 // (voe_editor_gizmo_taking). A switch of mode while a handle is held ends the drag.
+// A prefab's part is never hovered or grabbed: it has no gizmo (0283 point 5).
 //
 // THE MIDDLE BUTTON IS NEVER READ IN HERE, for pick.h's reason. The middle
 // button is the views' camera and the left is the interface's, and turning the

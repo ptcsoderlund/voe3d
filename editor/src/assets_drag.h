@@ -30,7 +30,8 @@
 // THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
 // entity has at most one row of a type, so a second model is not a thing to
 // add, and swapping what a placed thing wears is what dropping onto its panel
-// is for. A thing with no model is left alone; Add component gives it one.
+// is for. A thing with no model is left alone; Add component gives it one. A
+// prefab's part is left alone too: it is not the person's to edit (0283).
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
 // bar, as resize.c lays it out, not what `ui` drew, because the frame's nodes

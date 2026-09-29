@@ -119,6 +119,7 @@ static void drop(const voe_editor_assets_drag *drag,
 		done = drop_into_view(drag, scene, &views->views[view], point,
 				      geometries, models);
 	} else if (over_inspector(root, bar, pointer) &&
+		   !voe_editor_inspector_is_part(scene->world, selected, NULL) &&
 		   voe_3d_model_get(scene->world, selected) != NULL) {
 		snprintf(swap.model.path, sizeof swap.model.path, "%s",
 			 drag->path);

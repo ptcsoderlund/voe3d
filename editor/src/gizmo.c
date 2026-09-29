@@ -140,8 +140,11 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 	gizmo->hovered = VOE_3D_GIZMO_NONE;
 	gizmo->hovered_view = VOE_EDITOR_VIEW_NONE;
 
+	// A prefab's part is its prefab's to place (0283 point 5): no gizmo.
 	const voe_scene_transform *row =
-		scene->world == NULL ?
+		scene->world == NULL ||
+				voe_editor_inspector_is_part(
+					scene->world, scene->selected, NULL) ?
 			NULL :
 			voe_scene_transform_get(scene->world, scene->selected);
 	if (blocked || row == NULL || !down || gizmo->turning != scene->rings)
