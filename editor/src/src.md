@@ -147,10 +147,11 @@ carries it out.
   bar's, the browser's and Preferences' commands and the colour picker's changes.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
-  draws that list and reads what was picked from it.
+  draws that list and reads what was picked from it; a prefab's part is shown, never edited.
 - `inspector.c` — the Duplicate and Delete row, the walk over the world's described component types,
   each section's heading, Remove and "Needs" line, a wrapping row per described field, the record
-  each control leaves behind, the Add component button and its menu, and the open list.
+  each control leaves behind, the Add component button and its menu, the open list, and a part's
+  line naming its prefab with its fields as labels.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
@@ -162,7 +163,8 @@ carries it out.
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
   bytes, and the picker's colour and the open list's choice submitted the same way.
 - `inspector_buttons.c` — the fired buttons carried out through scene.h and entities.h, and the
-  open dropdown and Add component's lists and submenus opened, closed and placed each frame.
+  open dropdown and Add component's lists and submenus opened, closed and placed each frame; none
+  on a prefab's part.
 - `inspector_place.h` — the side-and-cap rule the open lists and submenus are placed by, and the
   rectangle test a press outside them is.
 - `inspector_place.c` — a list fitted below, above or capped on the roomier side, under its button

@@ -97,10 +97,16 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 {
 	bool pressed = down && !inspector->pointer_was_down;
 	bool on_menu;
+	bool part;
 
 	VOE_BASE_ASSERT(inspector != NULL, "reading the buttons of no inspector");
 	VOE_BASE_ASSERT(ui != NULL, "reading buttons out of no interface");
 	VOE_BASE_ASSERT(scene != NULL, "carrying out a button on no scene");
+
+	// NOTHING FIRED IS CARRIED OUT ON A PREFAB'S PART (inspector.h): its
+	// panel draws no button, and this guards a stale record reaching it.
+	part = voe_editor_inspector_is_part(scene->world, inspector->entity,
+					    NULL);
 
 	// A ROW OF THE OPEN LIST IS THE FIELD'S NEW VALUE AND CLOSES THE LIST,
 	// at most one of them firing. It is submitted on this frame's copy of
@@ -110,7 +116,9 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	for (uint32_t i = 0; i < inspector->row_count; i++) {
 		if (!action_of(ui, inspector->rows[i].node).fired)
 			continue;
-		if (inspector->dropdown.entities)
+		if (part)
+			voe_editor_scene_dropdown_close(scene);
+		else if (inspector->dropdown.entities)
 			voe_editor_inspector_entity_submit(
 				inspector, scene->world,
 				inspector->dropdown.entity,
@@ -127,9 +135,9 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 		voe_editor_scene_dropdown_close(scene);
 	}
 
-	if (action_of(ui, inspector->duplicate).fired)
+	if (!part && action_of(ui, inspector->duplicate).fired)
 		voe_editor_scene_duplicate(scene);
-	if (action_of(ui, inspector->remove).fired)
+	if (!part && action_of(ui, inspector->remove).fired)
 		voe_editor_scene_delete(scene);
 
 	// ADD COMPONENT'S LIST CLOSES the way the open dropdown's does: on a
@@ -168,7 +176,7 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 	// has nothing to give or take. It guards these four rather than
 	// returning, because a list left open on it is still closed and placed
 	// below — that is the frame in which its field went off the panel.
-	if (voe_ecs_entity_alive(scene->world, inspector->entity)) {
+	if (!part && voe_ecs_entity_alive(scene->world, inspector->entity)) {
 		// A fired swatch opens the picker on its row's colour, beside
 		// the column: the content column's left edge, not Duplicate's,
 		// because Duplicate is not drawn for the camera or the sun.

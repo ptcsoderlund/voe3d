@@ -49,6 +49,11 @@
 // what the picker changes comes back through
 // voe_editor_inspector_colour_submit, the same replace intent and the same
 // count in `replaced` a dragged number is.
+//
+// A PREFAB'S PART IS SHOWN AND NEVER EDITED (0283 point 5): one line naming its
+// root's prefab and the Assets panel, then every field as a label, with no
+// Duplicate, Delete, Remove or Add component. Its rows come from the file at
+// every read, so an edit would vanish. A copy's root is any entity.
 #pragma once
 
 #include <base/arena.h>
@@ -316,6 +321,12 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 // VOE_UI_NODE_NONE.
 void voe_editor_inspector_area_set(voe_editor_inspector *inspector,
 				   voe_ui_node area);
+
+// Whether `entity` is a prefab's part: its part row names another entity, the
+// copy's root (scene/prefab_component.h). A root names itself and is not one.
+// `root`, when not NULL, is set to that root.
+bool voe_editor_inspector_is_part(const voe_ecs_world *world,
+				  voe_ecs_entity entity, voe_ecs_entity *root);
 
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is
