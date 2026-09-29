@@ -417,7 +417,9 @@ int main(int argc, char *argv[])
 		step_forward = false;
 
 		// The queue applied and every owning system run (world_step.h).
-		voe_editor_world_step(session.project->world, &shapes);
+		voe_editor_world_step(session.project->world, &shapes,
+				      session.project->folder, arena,
+				      &session.notice);
 
 		// THE STEP LAST FRAME'S EDIT SETTLES INTO, once the world holds
 		// it: an edit reaches it through an intent or the structural

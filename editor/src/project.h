@@ -18,6 +18,11 @@
 // the new code, and only then are the old arenas destroyed and the old code
 // closed. A type the new code lacks survives as a kept section (0241).
 //
+// EVERY SCENE TEXT READ INTO A WORLD IS EXPANDED (prefabs.h): new_opened,
+// scene_set and code_set each expand every placed copy from the project's
+// folder right after a successful read. A prefab that will not read is said
+// in why and does not fail the call.
+//
 // voe_editor_project_new_opened READS project.voe3d, THEN THE SCENE IT NAMES.
 // Each step clears base/report.h's kept error first, so a failure's notice is
 // that step's own and not one left over from before it. A missing
@@ -96,7 +101,8 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 // Opens the project at folder. NULL on failure, with why naming the file the
 // failing step was on and what was wrong with it — see the header above. A
 // scene with no camera (written before 0218) is given one, with an id above
-// every id it holds, and the project comes back marked unsaved.
+// every id it holds, and the project comes back marked unsaved. Its placed
+// copies are then expanded; one that will not read is said in why.
 [[nodiscard]] voe_editor_project *voe_editor_project_new_opened(const char *folder,
 								 voe_editor_notice *why);
 
@@ -118,8 +124,9 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 
 // Makes the world hold what `size` bytes of `text` say: every authored entity
 // destroyed through the structural queue and applied, then the text read into
-// that same world. True with the world holding exactly what the text says;
-// false with why filled from the report.
+// that same world, then its placed copies expanded. True with the world holding
+// exactly what the text says, a copy that would not expand said in why; false
+// with why filled from the report.
 //
 // THIS IS THE ONE CALL IN THIS PROGRAM THAT EMPTIES A WORLD, AND IT IS NOT
 // New. Every registration, every table, the project's folder and its unsaved
@@ -139,7 +146,8 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 
 // The world swapped for one made with code, holding what the old one did: its
 // text, kept sections included, read into a new world in new arenas, then the
-// old arenas destroyed and the old code closed. The project takes code
+// old arenas destroyed and the old code closed; the new world's placed copies
+// are expanded, one that will not said in why. The project takes code
 // whatever happens; false, with why from the report, closes it and leaves the
 // project as it was. unsaved is untouched. Every entity handle is stale on
 // true, so the caller re-finds what it holds by authored id.

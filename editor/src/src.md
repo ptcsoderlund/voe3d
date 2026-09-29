@@ -10,9 +10,13 @@ carries it out.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
-- `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, and
-  why the editor runs no move.
-- `world_step.c` — the one call to `voe_game_world_step`.
+- `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, why
+  the editor runs no move, and why placed copies are expanded after it.
+- `world_step.c` — the one call to `voe_game_world_step`, then the expansion.
+- `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
+  ascending id, a load, with deterministic ids and a file that will not read said in the notice.
+- `prefab_expand.c` — the next unexpanded root found, its file read onto it, the ids carried, and a
+  refused root given its part row.
 - `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
 - `capture.c` — the count and the one write through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
@@ -30,10 +34,11 @@ carries it out.
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its own arena, the world's and a scene read's, the kept
   sections, the code its world was made with, its folder and whether it has unsaved changes
-  (ADR-0164), its scene handed out as text or read back in, and the swap to a world with new code.
+  (ADR-0164), its scene handed out as text or read back in, the swap to a world with new code, and
+  every read's placed copies expanded.
 - `project.c` — opening, making and saving a project, the scene written out as text and a text read
-  back into the same world or a new one made with new code, and the untitled scene's cube, light and
-  camera, which are this file's decision and not `scene.c`'s.
+  back into the same world or a new one made with new code, each read expanded, and the untitled
+  scene's cube, light and camera, which are this file's decision and not `scene.c`'s.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.

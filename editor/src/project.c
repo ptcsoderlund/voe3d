@@ -13,6 +13,7 @@
 // none is given one and marked unsaved.
 #include "project.h"
 
+#include "prefabs.h"
 #include "scene.h"
 
 #include <3d/shape_component.h>
@@ -315,6 +316,7 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 		project->unsaved = true;
 	}
 
+	voe_editor_prefabs_expand(project->world, absolute, arena, why);
 	return project;
 }
 
@@ -453,6 +455,8 @@ bool voe_editor_project_scene_set(voe_editor_project *project, const char *text,
 	}
 
 	project->kept = kept;
+	voe_editor_prefabs_expand(project->world, project->folder,
+				  project->scene_arena, why);
 	return true;
 }
 
@@ -492,6 +496,7 @@ bool voe_editor_project_code_set(voe_editor_project *project,
 		voe_editor_code_close(&code);
 		return false;
 	}
+	voe_editor_prefabs_expand(world, project->folder, scratch, why);
 
 	// THE OLD WORLD GOES BEFORE THE OLD CODE: it holds that code's keys.
 	voe_base_arena_destroy(project->world_arena);
