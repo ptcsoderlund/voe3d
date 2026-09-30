@@ -20,6 +20,9 @@ scale = [1, 1, 1]
 name = "Enemy turret"
 [2.voe_3d_model]
 path = "Assets/tank_head.glb"
+[2.tank_turret]
+turn = 60
+aim = 180
 [2.voe_scene_parent]
 parent = 1
 [2.voe_scene_transform]

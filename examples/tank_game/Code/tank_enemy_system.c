@@ -9,34 +9,50 @@
 // voe_ecs_component_set; an enemy whose life is spent neither fires nor moves
 // again.
 //
-// Firing (0294 point 5): the target is the tank_lives row's entity at its
-// world position. A ready enemy with the target within `range` and the
-// flattened way to it not nought fires through tank_shell_fire, so the shot
-// carries its tank_shot row: `owner` the enemy, `from` its position. `wait`
-// becomes 1 / `rate` only when the fire is not refused, so a refused one
-// tries again next step.
+// The aim (0297): the target is the tank_lives row's entity at its world
+// position. An enemy's turret is the first tank_turret row whose parent row
+// names the enemy; an enemy with none never fires. With the target within
+// `range` of the enemy, the turret turns toward it by tank_turret_turn_toward
+// for the step's seconds, which gives the barrel and the degrees left.
+//
+// The fire rule (0294 point 5, amended by 0297): `wait` counts down every
+// step; the enemy fires only when it is spent, the turn was not refused and
+// at most TANK_ENEMY_ON_TARGET degrees are left. The muzzle is turned by the
+// barrel and added to the turret's world position, and the shell spawns there
+// turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
+// position. `wait` becomes 1 / `rate` only when the fire is not refused, so a
+// refused one tries again next step.
 //
 // Constraints: runs headless as well, nothing here reads input. At most one
-// shot an enemy a step. A full transform queue leaves the rest of the enemies
-// where they were this step; a full structural queue leaves a spent enemy to
-// be removed next step.
+// shot an enemy a step. Finding a turret scans every turret row, enemies
+// times turrets a step; a turret field on the enemy row would lift it. A full
+// transform queue leaves the rest of the enemies where they were this step;
+// a full structural queue leaves a spent enemy to be removed next step.
 #include "tank_enemy.h"
 #include "tank_lives.h"
 #include "tank_shell.h"
+#include "tank_turret.h"
 
 #include <base/assert.h>
 
 #include <ecs/component.h>
 
+#include <game/world.h>
+
 #include <math/double3.h>
 #include <math/float3.h>
 #include <math/quat.h>
 
+#include <scene/parent_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
 #include <string.h>
+
+// The most degrees between the barrel and the way to the target that an
+// enemy still fires at.
+#define TANK_ENEMY_ON_TARGET 2.0f
 
 const struct voe_ecs_key tank_enemy_key = { "tank_enemy" };
 
@@ -115,36 +131,67 @@ static tank_enemy_target target_of(const voe_ecs_world *world)
 	return target;
 }
 
-// Fires the enemy's prefab at the target when within range along the level.
-// False when out of range, straight above or below, or refused.
-static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
-		 const tank_enemy *enemy, const tank_enemy_target *target)
+// The enemy's turret: the first tank_turret row whose parent row names the
+// enemy. False, `turret` untouched, with none.
+static bool turret_of(const voe_ecs_world *world, voe_ecs_entity enemy,
+		      voe_ecs_entity *turret)
+{
+	VOE_BASE_ASSERT(world != NULL && turret != NULL, "finding no turret");
+	const voe_ecs_type type = voe_ecs_component_type(world, &tank_turret_key);
+	const voe_ecs_entity *entities = voe_ecs_component_entities(world, type);
+	const uint32_t count = voe_ecs_component_count(world, type);
+
+	VOE_BASE_ASSERT(count <= VOE_GAME_WORLD_MAX_DRAWN,
+			"more tank turret rows than were registered");
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_scene_parent *parent =
+			voe_scene_parent_get(world, entities[i]);
+
+		if (parent != NULL && parent->parent.index == enemy.index &&
+		    parent->parent.generation == enemy.generation) {
+			*turret = entities[i];
+			return true;
+		}
+	}
+	return false;
+}
+
+// Turns the enemy's turret toward the target within range and, when `ready`
+// and on target, fires the enemy's prefab along the barrel. False when it
+// did not fire: no target or turret, out of range, a refused turn, not ready,
+// off target, or a refused fire.
+static bool aim_and_fire(const voe_game_project_step *step,
+			 voe_ecs_entity entity, const tank_enemy *enemy,
+			 const tank_enemy_target *target, bool ready)
 {
 	VOE_BASE_ASSERT(step != NULL && enemy != NULL && target != NULL,
-			"firing no enemy");
+			"aiming no enemy");
 	const voe_scene_transform *transform =
 		voe_scene_transform_get(step->world, entity);
+	voe_ecs_entity turret = { 0 };
 
 	if (!target->found || transform == NULL ||
-	    memchr(enemy->prefab, '\0', sizeof(enemy->prefab)) == NULL)
+	    !turret_of(step->world, entity, &turret))
 		return false;
 	const voe_math_float3 way = voe_math_double3_to_float3(
 		voe_math_double3_sub(target->position, transform->position));
 
 	if (voe_math_float3_length(way) > enemy->range)
 		return false;
-	const float flat = sqrtf(way.x * way.x + way.z * way.z);
+	voe_math_quat barrel = { 0 };
+	float left = 0.0f;
 
-	if (!(flat > 0.0f))
+	if (!tank_turret_turn_toward(step->world, turret, target->position,
+				     step->seconds, &barrel, &left) ||
+	    !ready || left > TANK_ENEMY_ON_TARGET ||
+	    memchr(enemy->prefab, '\0', sizeof(enemy->prefab)) == NULL ||
+	    voe_scene_transform_get(step->world, turret) == NULL)
 		return false;
-	// -Z turned by yaw about +Y is (-sin yaw, 0, -cos yaw).
-	const voe_math_quat turn = voe_math_quat_from_axis_angle(
-		(voe_math_float3){ 0.0f, 1.0f, 0.0f }, atan2f(-way.x, -way.z));
 	const voe_math_double3 muzzle = voe_math_double3_add(
-		transform->position,
-		voe_math_double3_from_float3(turned_by(turn, enemy->muzzle)));
+		voe_scene_transform_world(step->world, turret).position,
+		voe_math_double3_from_float3(turned_by(barrel, enemy->muzzle)));
 
-	return tank_shell_fire(step, enemy->prefab, muzzle, turn, entity,
+	return tank_shell_fire(step, enemy->prefab, muzzle, barrel, entity,
 			       transform->position);
 }
 
@@ -192,8 +239,8 @@ void tank_enemy_system_run(const voe_game_project_step *step)
 		next.life -= (float)step->seconds;
 		if (next.life > 0.0f) {
 			next.wait -= (float)step->seconds;
-			if (next.wait <= 0.0f && next.rate > 0.0f &&
-			    fire(step, entities[i], &next, &target))
+			if (aim_and_fire(step, entities[i], &next, &target,
+					 next.wait <= 0.0f && next.rate > 0.0f))
 				next.wait = 1.0f / next.rate;
 		}
 		const bool ok = voe_ecs_component_set(step->world, type,

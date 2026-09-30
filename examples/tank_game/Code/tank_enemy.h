@@ -15,11 +15,12 @@
 // 0.5, and at or below 0 never fires; `range` is metres, default 30. `wait` is
 // the seconds to the next shot, written only by the system.
 //
-// THE AIM IS ALONG THE LEVEL: the way to the player flattened onto the ground,
-// so a shot flies level whatever the heights. The fire frame is the turn
-// about +Y whose -Z points that way; `muzzle`, default (0, 0.5, -3), is in
-// that frame, added to the enemy's position. The turret does not turn yet: the
-// shot leaves toward the player whichever way the tank faces.
+// IT AIMS ITS TURRET FIRST (0297): its turret is its child with a tank_turret
+// row (tank_turret.h). With the player within range, the turret turns toward
+// the player at its row's `turn`, and the enemy fires only when the barrel is
+// on target; with no turret it never fires. `muzzle`, default (0, 0.5, -3), is
+// in the barrel's frame about the turret's world position, and the shot
+// leaves turned as the barrel.
 //
 // Constraints: at most TANK_ENEMY_ROWS rows; `prefab` at most 63 bytes.
 #pragma once
@@ -55,6 +56,7 @@ extern const struct voe_ecs_key tank_enemy_key;
 [[nodiscard]] bool tank_enemy_register(voe_ecs_world *world);
 
 // Drives every enemy along its own -Z for this step's seconds, counts its
-// life and wait down, fires each ready one at the player within range, and
+// life and wait down, turns each one's turret toward the player within
+// range, fires each ready one whose barrel is on target, and
 // removes it and its tree when its life reaches zero.
 void tank_enemy_system_run(const voe_game_project_step *step);

@@ -18,7 +18,7 @@ the library the editor loads (0242).
 - `tank_spawner.h` — the Tank / Spawner component: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, and the wait to the next spawn.
 - `tank_spawner_system.c` — spawns each ready spawner's prefab at it, turned as it is, while the world holds fewer enemies than its most.
 - `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, a life, default 20 s, a prefab to fire, default `shell`, a rate, default 0.5 a second, a range, default 30 m, a muzzle offset and the wait to the next shot.
-- `tank_enemy_system.c` — drives each enemy along its own forward, fires each ready one level toward the player's hull within range, and removes it, turret and all, when its life runs out.
+- `tank_enemy_system.c` — drives each enemy along its own forward, turns its turret toward the player's hull within range, fires along the barrel once on target, and removes it, turret and all, when its life runs out.
 - `tank_camera.h` — the runtime-only camera fit row: the camera's authored field of view, kept so the level's width stays in view at any window shape.
 - `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
 - `tank_control.h` — the runtime-only control row on the player's hull: drive, turn, aim, fire and whether the pad is in use.
