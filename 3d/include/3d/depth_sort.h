@@ -38,17 +38,19 @@
 // because further away is more negative.
 //
 // `order` IS AN OUTPUT AND NOT AN INPUT. It is written from nothing; whatever
-// was in it is ignored. It is the caller's array of `count` elements and this
-// allocates nothing.
+// was in it is ignored. `order` and `scratch` are the caller's arrays of `count`
+// elements each, `scratch` only worked in, and this still allocates nothing.
 //
 // EQUAL DEPTHS KEEP THE ORDER THEY CAME IN, which is what makes a frame with two
 // coplanar see-through things look the same as the frame before it rather than
-// flickering between two answers as an unstable sort reshuffles them.
+// flickering between two answers as an unstable sort reshuffles them. The merge
+// sort stays stable for that reason.
 //
 // A count of zero does nothing, which is what a scene with nothing see-through
-// in it wants — the caller need not branch. The sort is an insertion sort: a
-// blended pass holds a handful of objects and a nearly-sorted list is what a
-// camera moving smoothly hands it every frame, which is the case insertion sort
-// is fastest on. A scene where that measures slow is a later card with a number
-// attached.
-void voe_3d_depth_sort(const float *view_z, uint32_t count, uint32_t *order);
+// in it wants — the caller need not branch. The sort is a merge sort and not
+// the insertion sort it was: particles put thousands of blended objects into one
+// pass, rebuilt unsorted every frame (ADR-0298), and insertion sort is quadratic
+// on exactly that. Merge sort is n log n on any input, and the price is the
+// scratch array.
+void voe_3d_depth_sort(const float *view_z, uint32_t count, uint32_t *order,
+		       uint32_t *scratch);
