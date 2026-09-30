@@ -1,6 +1,6 @@
 // One voice read and summed into a mix, behind voice.h: linear interpolation
 // at the voice's pitch, a loop wrapped across its end, and the gain ramped
-// linearly across the call's frames.
+// linearly across the call's frames, each channel on its own.
 //
 // THE LOOP HAS NO SEAM. Past its last frame a loop interpolates into its first
 // and its position wraps by whole clip lengths, so the frame after the end is
@@ -36,13 +36,16 @@ void voe_audio_voice_sum(struct mixer_voice *voice, const struct mixer_clip *cli
 			"a sum needs a voice, its clip and somewhere to write");
 	VOE_BASE_ASSERT(clip->frames > 0, "a voice plays a clip with frames");
 	const double length = (double)clip->frames;
-	const float step = frames > 0 ? (voice->gain - voice->gain_from) / (float)frames : 0.0f;
+	float step[MIXER_CHANNELS];
 
+	for (uint32_t c = 0; c < MIXER_CHANNELS; c++)
+		step[c] = frames > 0 ? (voice->gain[c] - voice->gain_from[c]) / (float)frames : 0.0f;
 	for (uint32_t f = 0; f < frames && voice->busy; f++) {
-		const float gain = voice->gain_from + step * (float)(f + 1);
+		for (uint32_t c = 0; c < MIXER_CHANNELS; c++) {
+			const float gain = voice->gain_from[c] + step[c] * (float)(f + 1);
 
-		for (uint32_t c = 0; c < MIXER_CHANNELS; c++)
 			out[f * MIXER_CHANNELS + c] += gain * voice_sample(voice, clip, c);
+		}
 		voice->position += voice->pitch;
 		if (voice->position < length)
 			continue;
@@ -51,5 +54,6 @@ void voe_audio_voice_sum(struct mixer_voice *voice, const struct mixer_clip *cli
 		else
 			voice->busy = false;
 	}
-	voice->gain_from = voice->gain;
+	for (uint32_t c = 0; c < MIXER_CHANNELS; c++)
+		voice->gain_from[c] = voice->gain[c];
 }

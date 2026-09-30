@@ -27,8 +27,12 @@
 // not loop: the newest sound is the one the player just caused. When every
 // voice loops, the start is refused and returns 0.
 //
-// HELD VOICES ARE SWEPT. A voice started `held` must be tuned between two
-// _sweep calls or that sweep stops it, so a sound whose owner is gone ends.
+// HELD VOICES ARE SWEPT. A voice started `held` must be tuned or moved between
+// two _sweep calls or that sweep stops it, so a sound whose owner is gone ends.
+//
+// A VOICE MAY BE PLACED at a world point, heard from the listener _listen set
+// by the law in audio/place.h; it follows each _move, the new gains ramping in
+// as a volume does. With no listener, a placed voice plays unplaced.
 //
 // A LOAD IS LAZY, AND A FAILURE IS SILENCE PLUS ONE LINE (032: a broken file is
 // not a crash). The first play of a path reads, decodes and converts it to
@@ -50,6 +54,7 @@
 // are never unloaded; the clip list is a linear scan VOE_AUDIO_CLIPS keeps short.
 #pragma once
 
+#include <audio/place.h>
 #include <platform/sound.h>
 
 #include <stdint.h>
@@ -72,6 +77,8 @@ typedef struct {
 	bool held;
 	float volume;
 	float pitch;
+	bool placed;
+	voe_math_double3 where;
 } voe_audio_start;
 
 // A mixer reading relative paths from folder (copied). Long-lived, with its
@@ -87,6 +94,17 @@ voe_audio_voice voe_audio_mixer_start(voe_audio_mixer *mixer, voe_audio_start st
 // A one-shot of path: no loop, not held, volume 1, pitch 1.
 void voe_audio_mixer_play(voe_audio_mixer *mixer, const char *path);
 
+// A one-shot of path placed at where.
+voe_audio_voice voe_audio_mixer_play_at(voe_audio_mixer *mixer, const char *path,
+					voe_math_double3 where);
+
+// Hears placed voices from listener (copied); NULL is none.
+void voe_audio_mixer_listen(voe_audio_mixer *mixer, const voe_audio_listener *listener);
+
+// Places the voice at where and marks a held voice kept at the next sweep.
+void voe_audio_mixer_move(voe_audio_mixer *mixer, voe_audio_voice voice,
+			  voe_math_double3 where);
+
 // Ends the voice now; it is silent from the next mix.
 void voe_audio_mixer_stop(voe_audio_mixer *mixer, voe_audio_voice voice);
 
@@ -96,7 +114,8 @@ bool voe_audio_mixer_playing(const voe_audio_mixer *mixer, voe_audio_voice voice
 void voe_audio_mixer_tune(voe_audio_mixer *mixer, voe_audio_voice voice,
 			  float volume, float pitch);
 
-// Stops every held voice not tuned since the last sweep, then clears the marks.
+// Stops every held voice not tuned or moved since the last sweep, then clears
+// the marks.
 void voe_audio_mixer_sweep(voe_audio_mixer *mixer);
 
 // Writes frames stereo frames to out: every voice summed and clamped to ±1,

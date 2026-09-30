@@ -4,7 +4,8 @@
 // its length and fills both sides), overlap without cutting, the voice limit,
 // that a missing file is reported once and is silence, that "" is quiet, the
 // clamp at 1, and the voice handle: a seamless loop, pitch as read rate, a
-// ramped volume, stop and stale handles, the steal rule, and the held sweep.
+// ramped volume, stop and stale handles, the steal rule, the held sweep, and a
+// voice placed left of a listener heard louder on the left until it is cleared.
 //
 // Every clip is mono 16-bit, whose samples are exact in float, so the checks
 // can compare sums with a tight tolerance. The voice count is read through the
@@ -225,6 +226,28 @@ static void untuned_held_voice_stops_at_the_second_sweep(void)
 	voe_audio_mixer_destroy(mixer);
 }
 
+static void placed_left_is_louder_left_until_the_listener_goes(void)
+{
+	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
+	const voe_audio_listener ear = voe_audio_listener_make(
+		(voe_math_double3){ 0, 0, 0 }, (voe_math_float3){ 1, 0, 0 },
+		(voe_math_float3){ 0, 0, -1 }, 1.0f);
+
+	write_wav("steady.wav", 48000, 300, 8192, 0);
+	voe_audio_mixer_listen(mixer, &ear);
+	VOE_TEST_CHECK(voe_audio_mixer_play_at(mixer, "steady.wav",
+					       (voe_math_double3){ -3, 0, -3 }).id != 0);
+	voe_audio_mixer_mix(mixer, out, 10);
+	VOE_TEST_CHECK(left(0) > right(0));
+	VOE_TEST_CHECK(left(9) > right(9));
+	voe_audio_mixer_listen(mixer, NULL);
+	voe_audio_mixer_mix(mixer, out, 10);
+	voe_audio_mixer_mix(mixer, out, 10);
+	VOE_TEST_CHECK_FLOAT(left(0), right(0), TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(left(9), 0.25f, TOLERANCE);
+	voe_audio_mixer_destroy(mixer);
+}
+
 static void missing_file_reports_once_and_is_silent(void)
 {
 	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
@@ -275,5 +298,6 @@ int main(void)
 	stop_silences_and_stale_is_a_no_op();
 	all_looping_refuses_and_a_one_shot_takes_the_oldest();
 	untuned_held_voice_stops_at_the_second_sweep();
+	placed_left_is_louder_left_until_the_listener_goes();
 	return voe_test_result();
 }
