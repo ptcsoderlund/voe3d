@@ -22,3 +22,6 @@ read a transform, and `3d` draws them, so collision is neither folder's (0253).
   overlaps, each with its entity, push-out normal, depth and trigger flag.
 - `include/physics/shape.h` — a collider in the world: kind, double centre,
   rotation and half sizes with the transform's scale applied.
+- `include/physics/sweep.h` — the solid colliders gathered into the caller's
+  array, and the sweep: a sphere, or a ray at radius 0, moved against them to
+  the first hit, with its entity, fraction, point and normal.

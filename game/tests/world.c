@@ -8,17 +8,53 @@
 // and no component header of their own: a type game/world.h registers that
 // scene.h does not declare stops this test compiling. It never calls
 // voe_game_scene_build, so it links without a scene.c.
+//
+// COLLIDERS HAVE THE ROOM OF DRAWN THINGS (0293): a fresh world takes twice
+// VOE_GAME_WORLD_AUTHORED new entities, each a transform then a collider
+// queued through the structural queue, and has every collider after the apply.
 #include <game/scene.h>
 #include <game/world.h>
 
 #include <base/arena.h>
 
 #include <ecs/component.h>
+#include <ecs/structure.h>
 
 #include <testing/test.h>
 
 // The public keys; the previous table is the one more the world counts.
 #define TYPES 14
+
+// More colliders than the authored room, as spawned things carry.
+#define SPAWNED (2 * VOE_GAME_WORLD_AUTHORED)
+
+// A fresh world, SPAWNED entities each given a default transform and a default
+// collider through the structural queue, applied: every collider is there.
+static void colliders_case(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1 << 20);
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const voe_ecs_type transform =
+		voe_ecs_component_type(world, &voe_scene_transform_key);
+	const voe_ecs_type collider =
+		voe_ecs_component_type(world, &voe_physics_collider_key);
+
+	for (int i = 0; i < SPAWNED; i++) {
+		voe_ecs_entity entity;
+
+		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+		VOE_TEST_CHECK(voe_ecs_structure_add(
+			world, transform, entity,
+			voe_ecs_component_default(world, transform)));
+		VOE_TEST_CHECK(voe_ecs_structure_add(
+			world, collider, entity,
+			voe_ecs_component_default(world, collider)));
+	}
+	voe_ecs_structure_apply(world);
+	VOE_TEST_CHECK(voe_ecs_component_count(world, collider) == SPAWNED);
+
+	voe_base_arena_destroy(arena);
+}
 
 int main(void)
 {
@@ -45,5 +81,6 @@ int main(void)
 		       VOE_GAME_WORLD_TYPES);
 
 	voe_base_arena_destroy(arena);
+	colliders_case();
 	return voe_test_result();
 }

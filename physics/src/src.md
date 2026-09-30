@@ -15,3 +15,6 @@ every write to that table is in it, but for the body's move.
 - `overlap.c` — the query as a segment and radius against each collider's
   sphere, capsule or box.
 - `shape.c` — a collider and its transform turned into a shape in the world.
+- `sweep.c` — the gather, and the sweep as a segment and radius against each
+  obstacle's sphere or capsule, and against a box rounded by the radius: slab
+  test, then the edges as capsules.

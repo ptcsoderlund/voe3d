@@ -1,10 +1,16 @@
 [1]
 name = "Enemy"
+[1.tank_breakable]
+wreck = "enemy_wreck"
 [1.tank_enemy]
 speed = 2
 life = 20
 [1.voe_3d_model]
 path = "Assets/tank_body.glb"
+[1.voe_physics_collider]
+kind = 1
+size = [4.64, 4, 2.62]
+trigger = false
 [1.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]
@@ -14,6 +20,9 @@ scale = [1, 1, 1]
 name = "Enemy turret"
 [2.voe_3d_model]
 path = "Assets/tank_head.glb"
+[2.tank_turret]
+turn = 60
+aim = 180
 [2.voe_scene_parent]
 parent = 1
 [2.voe_scene_transform]

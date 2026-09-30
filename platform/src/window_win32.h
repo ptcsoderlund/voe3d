@@ -21,9 +21,11 @@
 #include <windows.h>
 
 // hidpi.h returns NTSTATUS, which windows.h leaves undefined in some SDKs; the
-// same typedef twice is allowed.
+// same typedef twice is allowed. Likewise it takes USAGE, and some SDKs'
+// hidpi.h expects hidusage.h, where USAGE is typedef'd, already included.
 typedef LONG NTSTATUS;
 
+#include <hidusage.h>
 #include <hidpi.h>
 #include <xinput.h>
 

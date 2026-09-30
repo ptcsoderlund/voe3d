@@ -11,12 +11,20 @@
 // a model that faces +Z, as `tank_head.glb` does. A turret needs a transform
 // to aim, and the world a camera with one to aim through.
 //
-// Constraints: at most VOE_GAME_WORLD_AUTHORED rows.
+// THE SYSTEM TURNS THE PLAYER'S TURRETS ONLY: those within the control row's
+// hull. Any other turret is its owner's to turn, with tank_turret_turn_toward
+// (0297).
+//
+// Constraints: at most VOE_GAME_WORLD_MAX_DRAWN rows, the drawn room, because
+// spawned enemies carry turrets.
 #pragma once
 
 #include <base/describe.h>
 
 #include <ecs/world.h>
+
+#include <math/double3.h>
+#include <math/quat.h>
 
 #include <platform/window.h>
 
@@ -34,8 +42,19 @@ extern const struct voe_ecs_key tank_turret_key;
 // when game refuses it.
 [[nodiscard]] bool tank_turret_register(voe_ecs_world *world);
 
-// For every turret with a transform, turns it toward the pointer's aim or
-// the pad's by at most its turn for this step's seconds. Does nothing with
+// Turns `turret` about +Y toward facing `at`, flattened to its height, with
+// its barrel, by at most its turn for `seconds`, through a transform intent.
+// Writes `barrel`, the barrel's world rotation after that turn, and `left`,
+// the degrees still between the barrel and the way to `at`, at or above 0.
+// False, nothing queued or written, with no turret row or transform, a flat
+// way nought, a barrel straight up or down, or a full queue.
+[[nodiscard]] bool tank_turret_turn_toward(voe_ecs_world *world,
+					   voe_ecs_entity turret,
+					   voe_math_double3 at, double seconds,
+					   voe_math_quat *barrel, float *left);
+
+// For every turret within the control row's hull, turns it toward the
+// pointer's aim or the pad's by at most its turn for this step's seconds. Does nothing with
 // no control row (headless, or before its first step), no camera, on the
 // pointer no pointer over the window, or on the pad no aim.
 void tank_turret_system_run(voe_ecs_world *world, voe_platform_window *window,

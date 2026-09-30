@@ -27,7 +27,9 @@
 
 // How many entities may wear a mesh and a material, which is also the room
 // for shapes and models: every shape the shape system finds becomes one of each. A
-// device that draws the world is sized from the same number.
+// device that draws the world is sized from the same number. Colliders have
+// this room too, because spawned things collide (0293); bodies keep the
+// authored room.
 #define VOE_GAME_WORLD_MAX_DRAWN 256
 
 // How many authored entities a world holds: its identities, and its lights,

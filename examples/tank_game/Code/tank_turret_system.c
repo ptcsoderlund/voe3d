@@ -1,7 +1,9 @@
-// The tank turret system: the control row (tank_control.h) into a turret's
-// aim, from the mouse pointer or the pad's right stick. Teaches turning a
-// child in the world: the aim is found in the world, and what is written is
-// the turret's own row, relative to the hull it sits on (0271).
+// The tank turret system: the control row (tank_control.h) into the aim of
+// the player's turrets, those within the control row's hull, from the mouse
+// pointer or the pad's right stick. Teaches turning a child in the world: the
+// aim is found in the world, and what is written is the turret's own row,
+// relative to the hull it sits on (0271). The turn itself is
+// tank_turret_turn_toward, which any owner calls for its own turret (0297).
 //
 // Without `pad`, the ray is the world's first camera's, through the pointer,
 // and the aim is where it crosses the level plane through the turret's world
@@ -42,6 +44,7 @@
 #include <platform/input.h>
 
 #include <scene/camera_component.h>
+#include <scene/parent_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
@@ -58,7 +61,7 @@ bool tank_turret_register(voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "registering tank turret in no world");
 	return voe_game_project_component(world, &(voe_game_project_type){
-		&tank_turret_key, sizeof(tank_turret), VOE_GAME_WORLD_AUTHORED,
+		&tank_turret_key, sizeof(tank_turret), VOE_GAME_WORLD_MAX_DRAWN,
 		VOE_GAME_PROJECT_DESCRIPTION(tank_turret), &tank_turret_default,
 		"Tank / Turret" });
 }
@@ -162,12 +165,14 @@ static float yaw_toward(float x, float z)
 
 // The turn about +Y, at most `limit` radians either way, that faces the
 // barrel toward the aim `(x, z)` away. `q` is the world rotation with the aim
-// offset applied first, so its -Z is the barrel, not the bare -Z. False when
-// that forward is straight up or down and has no heading to turn.
+// offset applied first, so its -Z is the barrel, not the bare -Z. `left` is
+// the radians still to turn after it, at or above 0. False when that forward
+// is straight up or down and has no heading to turn.
 static bool turn_toward(voe_math_quat q, float x, float z, float limit,
-			float *out)
+			float *out, float *left)
 {
-	VOE_BASE_ASSERT(out != NULL && limit >= 0.0f, "a turn into nothing");
+	VOE_BASE_ASSERT(out != NULL && left != NULL && limit >= 0.0f,
+			"a turn into nothing");
 	// (0, 0, -1) rotated by q: the third column of its matrix, negated.
 	const float fx = -2.0f * (q.x * q.z + q.w * q.y);
 	const float fz = -(1.0f - 2.0f * (q.x * q.x + q.y * q.y));
@@ -178,7 +183,53 @@ static bool turn_toward(voe_math_quat q, float x, float z, float limit,
 					TANK_TURRET_TWO_PI);
 
 	*out = fmaxf(-limit, fminf(limit, wanted));
+	*left = fabsf(wanted - *out);
 	VOE_BASE_DEBUG_ASSERT(fabsf(*out) <= limit, "a turn past its limit");
+	return true;
+}
+
+bool tank_turret_turn_toward(voe_ecs_world *world, voe_ecs_entity turret,
+			     voe_math_double3 at, double seconds,
+			     voe_math_quat *barrel, float *left)
+{
+	VOE_BASE_ASSERT(world != NULL && barrel != NULL && left != NULL,
+			"turning a turret into nothing");
+	VOE_BASE_ASSERT(seconds >= 0.0, "turning a turret back in time");
+	const tank_turret *found = voe_ecs_component_get(
+		world, voe_ecs_component_type(world, &tank_turret_key), turret);
+
+	if (found == NULL || voe_scene_transform_get(world, turret) == NULL)
+		return false;
+	const tank_turret row = *found;
+	voe_scene_transform placed = voe_scene_transform_world(world, turret);
+	// The barrel: -Z turned by the aim offset about the turret's own +Y.
+	const voe_math_quat aim = voe_math_quat_from_axis_angle(
+		(voe_math_float3){ 0.0f, 1.0f, 0.0f },
+		row.aim * TANK_TURRET_RADIANS_PER_DEGREE);
+	const double x = at.x - placed.position.x;
+	const double z = at.z - placed.position.z;
+	float turn;
+	float remaining;
+
+	if (x * x + z * z < 1e-6 ||
+	    !turn_toward(voe_math_quat_mul(placed.rotation, aim), (float)x,
+			 (float)z,
+			 row.turn * TANK_TURRET_RADIANS_PER_DEGREE *
+				 (float)seconds,
+			 &turn, &remaining))
+		return false;
+	placed.rotation = voe_math_quat_normalize(voe_math_quat_mul(
+		voe_math_quat_from_axis_angle(
+			(voe_math_float3){ 0.0f, 1.0f, 0.0f }, turn),
+		placed.rotation));
+	if (!voe_scene_transform_submit(
+		    world, (voe_scene_transform_intent){
+				   turret, voe_scene_transform_local(
+						   world, turret, placed) }))
+		return false;
+	*barrel = voe_math_quat_mul(placed.rotation, aim);
+	*left = remaining / TANK_TURRET_RADIANS_PER_DEGREE;
+	VOE_BASE_DEBUG_ASSERT(*left >= 0.0f, "a turn left below nought");
 	return true;
 }
 
@@ -206,26 +257,22 @@ void tank_turret_system_run(voe_ecs_world *world, voe_platform_window *window,
 		return;
 	}
 	const voe_ecs_type type = voe_ecs_component_type(world, &tank_turret_key);
-	const tank_turret *rows = voe_ecs_component_rows(world, type);
+	const voe_ecs_entity hull =
+		voe_ecs_component_entities(world, control_type)[0];
 	const voe_ecs_entity *entities = voe_ecs_component_entities(world, type);
 	const uint32_t count = voe_ecs_component_count(world, type);
 
-	VOE_BASE_ASSERT(count <= VOE_GAME_WORLD_AUTHORED,
+	VOE_BASE_ASSERT(count <= VOE_GAME_WORLD_MAX_DRAWN,
 			"more tank turret rows than were registered");
 	for (uint32_t i = 0; i < count; i++) {
-		if (voe_scene_transform_get(world, entities[i]) == NULL)
+		if (!voe_scene_parent_within(world, entities[i], hull) ||
+		    voe_scene_transform_get(world, entities[i]) == NULL)
 			continue;
-		voe_scene_transform placed =
+		const voe_scene_transform placed =
 			voe_scene_transform_world(world, entities[i]);
-		// The barrel: -Z turned by the aim offset about the turret's own +Y.
-		const voe_math_quat barrel = voe_math_quat_mul(
-			placed.rotation,
-			voe_math_quat_from_axis_angle(
-				(voe_math_float3){ 0.0f, 1.0f, 0.0f },
-				rows[i].aim * TANK_TURRET_RADIANS_PER_DEGREE));
-		float turn;
-		double x = offset.x;
-		double z = offset.z;
+		voe_math_double3 at = { placed.position.x + offset.x,
+					placed.position.y,
+					placed.position.z + offset.z };
 
 		if (!control->pad) {
 			const double along = (placed.position.y - ray.origin.y) /
@@ -234,28 +281,14 @@ void tank_turret_system_run(voe_ecs_world *world, voe_platform_window *window,
 			// Pointing away from the plane: no aim.
 			if (along <= 0.0)
 				continue;
-			x = ray.origin.x + ray.direction.x * along -
-			    placed.position.x;
-			z = ray.origin.z + ray.direction.z * along -
-			    placed.position.z;
+			at.x = ray.origin.x + ray.direction.x * along;
+			at.z = ray.origin.z + ray.direction.z * along;
 		}
-		if (x * x + z * z < 1e-6 ||
-		    !turn_toward(barrel, (float)x, (float)z,
-				 rows[i].turn * TANK_TURRET_RADIANS_PER_DEGREE *
-					 (float)seconds,
-				 &turn))
-			continue;
-		placed.rotation = voe_math_quat_normalize(voe_math_quat_mul(
-			voe_math_quat_from_axis_angle(
-				(voe_math_float3){ 0.0f, 1.0f, 0.0f }, turn),
-			placed.rotation));
-		if (!voe_scene_transform_submit(world,
-						(voe_scene_transform_intent){
-							entities[i],
-							voe_scene_transform_local(
-								world,
-								entities[i],
-								placed) }))
-			return;
+		voe_math_quat barrel;
+		float left;
+
+		// Nothing turned leaves this turret where it was.
+		(void)tank_turret_turn_toward(world, entities[i], at, seconds,
+					      &barrel, &left);
 	}
 }
