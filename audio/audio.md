@@ -14,3 +14,6 @@ device (ADR-0265). Effects belong here, never in a backend.
 - `include/audio/place.h` — the listener made from a camera and the left and
   right gains a world point gets from it. Its header says why pan is screen x
   and why the balance law.
+- `include/audio/sound_component.h` — a sound a thing carries at "Audio /
+  Sound": path, playing, loop, volume, pitch, its replace and control intents
+  and the runtime row holding its voice.
