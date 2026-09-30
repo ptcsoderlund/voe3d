@@ -22,7 +22,8 @@
 // turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
 // position. `wait` becomes 1 / `rate` only when the fire is not refused, so a
 // refused one tries again next step. Each shot bursts the turret's emitter,
-// the prefab's muzzle flash; a turret with none sends nothing.
+// the prefab's muzzle flash; a turret with none sends nothing. Each shot also
+// plays `Assets/sounds/shot.wav` at the muzzle through the step's mixer.
 //
 // The hum (0304 point 8): an enemy with no sound gets the hull's engine,
 // looping, quieter and lower. Its removal takes the sound with it (0304
@@ -205,6 +206,9 @@ static bool aim_and_fire(const voe_game_project_step *step,
 	if (!tank_shell_fire(step, enemy->prefab, muzzle, barrel, entity,
 			     transform->position))
 		return false;
+	if (step->audio != NULL)
+		(void)voe_audio_mixer_play_at(step->audio, "Assets/sounds/shot.wav",
+					      muzzle);
 	// The turret's own flash (0299 point 2); a full queue loses only it.
 	if (voe_3d_emitter_get(step->world, turret) != NULL)
 		(void)voe_3d_emitter_control_submit(
