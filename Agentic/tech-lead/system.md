@@ -21,7 +21,7 @@ workflow replaced specs.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, `.glb` models, shapes, picking, outlines, gizmos, shadows.
+- **3d** — scene to draws: meshes, models, shapes, particles, picking, outlines, gizmos, shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game in the window it is handed: world types, 1/60 s steps, code, sound.
