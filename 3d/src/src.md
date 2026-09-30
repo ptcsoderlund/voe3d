@@ -74,6 +74,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
+- `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
+  and held in it; internal.
+- `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
+  about the eye, and size, colour and alpha lerped at age over life.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
 - `draw_marks.c` — the camera and sun markers, the outline, a collider's lines and the gizmo's
   arrows or rings, each as transient quads.

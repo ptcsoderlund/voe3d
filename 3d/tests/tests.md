@@ -26,6 +26,8 @@ again, or to find where a claim that has started failing is written down.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
   or sun marker is one draw more. Skips without a graphics card.
+- `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
+  none with no store, and that a glowing one is unlit. Skips without a graphics card.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
   a graphics card.
