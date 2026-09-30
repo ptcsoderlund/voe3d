@@ -17,8 +17,9 @@
 //
 // WHICH ROWS AN ENTITY HOLDS IS CHANGED HERE TOO, THROUGH THE QUEUE (ADR-0190,
 // 0193). Every section has a Remove button except the kept types', which dock.c
-// hands in: the identity, because the Scene list is built from it, and the
-// transform, because every entity has one (ADR-0217). This panel names neither.
+// hands in — the identity, because the Scene list is built from it, and the
+// camera — and a type another row of the entity needs (0302), which is how the
+// transform stays while a shape is there. This panel names none of them.
 // Below the sections, Add component opens a list of the top level of
 // add_menu.h's tree, drawn and placed as the open dropdown's is, and a group
 // row opens its children beside it, to any depth; a second click, a type
