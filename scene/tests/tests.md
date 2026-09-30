@@ -13,9 +13,9 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `prefab.c` — that both prefab tables register, queued rows read back once
   applied, the part table is runtime-only and the prefab table is not, and it
   has no replace and no menu.
-- `identity.c` — that a rename lands only when the system runs, that an
-  unterminated name arrives cut and a replaced id arrives put back, and that the
-  field list a world hands back marks the id read-only. Its header says why half
+- `identity.c` — that a rename lands only when the system runs, that a fold lands and unfolds
+  through the replace and a new row is unfolded, that an unterminated name arrives cut and a
+  replaced id arrives put back, and that the field list a world hands back marks the id read-only. Its header says why half
   of it submits raw rather than through the typed call.
 - `camera.c` — what registration tells a tool, that the view of a pose is its
   inverse with roll kept and none when scaled to nothing, and that a whole-lens

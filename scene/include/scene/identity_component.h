@@ -1,4 +1,5 @@
-// Who a thing is: a 64-bit id and a name, on the entities a person authored.
+// Who a thing is: a 64-bit id, a name and whether its Scene list row is folded,
+// on the entities a person authored.
 // Read by anyone, const; written only through scene/identity_system.h.
 //
 // THE COMPONENT IS OPTIONAL AND ITS PRESENCE IS THE MEANING. An entity with an
@@ -23,6 +24,12 @@
 // F_READ_ONLY (base/describe.h), so an inspector shows it and offers no way to
 // change it; the drain enforces the same thing for a replace that arrives by
 // another route. A rename is ordinary and goes through the intent.
+//
+// FOLDED SAYS THE SCENE LIST SHOWS THIS ENTITY'S CHILDREN FOLDED AWAY (0300), and
+// nothing else about the entity changes with it. It lives here so it is saved,
+// undone and copied with the identity, with no table for one bit (0302). It goes
+// through the replace intent like the name, and the drain corrects nothing about
+// it. A file without it reads as false: unfolded.
 //
 // WHAT THE DRAIN SETTLES, AND WHY EACH IS A CORRECTION RATHER THAN A REFUSAL
 // (ADR-0138 — correct where one nearest valid value exists):
@@ -57,7 +64,8 @@
 
 #define VOE_SCENE_IDENTITY_FIELDS(F, F_READ_ONLY)         \
 	F_READ_ONLY(uint64_t, id, UINT64)                 \
-	F(char, name, CHAR, VOE_SCENE_IDENTITY_NAME)
+	F(char, name, CHAR, VOE_SCENE_IDENTITY_NAME)      \
+	F(bool, folded, BOOL)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_identity, VOE_SCENE_IDENTITY_FIELDS)
 
