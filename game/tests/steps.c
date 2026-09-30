@@ -3,15 +3,19 @@
 // runs the four at most and keeps under one step, and a capsule over a box
 // floor, pulled down by the test's systems, lands and stands after 60 steps,
 // and a follower set to a falling body's position after the move is where
-// the body is by the end of the same step.
+// the body is by the end of the same step, and an emitter of rate 60 on a
+// thing with a transform holds live particles after 60 steps.
 // Needs no window and no graphics card: nothing is shaped, so the shapes are
 // zeros.
 #include <game/steps.h>
 
 #include <game/world.h>
 
+#include <3d/emitter_component.h>
+
 #include <base/arena.h>
 
+#include <ecs/component.h>
 #include <ecs/world.h>
 
 #include <physics/body_component.h>
@@ -181,6 +185,34 @@ static void a_follower_keeps_up(voe_ecs_world *world,
 		       follower_at.z == body_at.z);
 }
 
+// An emitter of rate 60 and the default life on a thing at the origin: a
+// second of steps later its particles row holds live ones.
+static void an_emitter_spawns(voe_ecs_world *world, const voe_3d_shapes *shapes)
+{
+	voe_game_steps steps = { 0 };
+	voe_3d_emitter emitter = *(const voe_3d_emitter *)voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_3d_emitter_key));
+	voe_ecs_entity entity = { 0 };
+	const voe_3d_particles *particles;
+
+	seen.falling = false;
+	seen.following = false;
+	emitter.rate = 60.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){ .rotation = { 0, 0, 0, 1 },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_3d_emitter_add(world, entity, emitter));
+	for (int i = 0; i < 60; i++)
+		(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
+					 VOE_GAME_STEP_SECONDS, systems, after_move);
+	particles = voe_3d_particles_get(world, entity);
+	VOE_TEST_CHECK(particles != NULL);
+	if (particles != NULL)
+		VOE_TEST_CHECK(particles->count > 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 22);
@@ -190,6 +222,7 @@ int main(void)
 	steps_are_counted(world, &shapes);
 	a_body_lands(world, &shapes);
 	a_follower_keeps_up(world, &shapes);
+	an_emitter_spawns(world, &shapes);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

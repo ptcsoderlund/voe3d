@@ -4,6 +4,8 @@
 
 #include <game/frame.h>
 
+#include <3d/emitter_system.h>
+
 #include <base/assert.h>
 
 #include <physics/body_system.h>
@@ -29,6 +31,7 @@ static void step_once(voe_ecs_world *world, voe_platform_window *window,
 	voe_scene_transform_system_run(world);
 	after_move(&step);
 	voe_game_world_step(world, shapes);
+	voe_3d_emitter_system_run(world, (float)VOE_GAME_STEP_SECONDS);
 }
 
 float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,

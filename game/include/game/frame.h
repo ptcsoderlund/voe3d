@@ -33,6 +33,7 @@
 // draw; a minimised window is the caller's to skip.
 #pragma once
 
+#include <3d/emitter_component.h>
 #include <3d/models.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_system.h>
@@ -55,8 +56,9 @@
 // What the device must hold for one frame: the built-in shapes' geometry and
 // their two records, and the model store's room beside them (3d/models.h);
 // two objects per drawn entity, a shape's or a model part's, in the window
-// pass and in each cascade, every caster drawn once into each; the window pass and
-// one shadow pass per cascade; the sun's maps at VOE_3D_SHADOW_TEXELS a side.
+// pass and in each cascade, every caster drawn once into each; each emitter's
+// VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
+// shadow (0298 points 6 and 8); the window pass and one shadow pass per cascade; the sun's maps at VOE_3D_SHADOW_TEXELS a side.
 // the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
 // transient and no targets: the game draws no outline and nothing off screen.
 #define VOE_GAME_CAPACITIES                                                  \
@@ -67,7 +69,8 @@
 		.geometries = VOE_3D_SHAPES_GEOMETRIES +                      \
 			      VOE_3D_MODELS_GEOMETRIES,                       \
 		.objects = 2 * VOE_GAME_WORLD_MAX_DRAWN *                     \
-			   (1 + VOE_RENDER_SHADOW_CASCADES),                  \
+				   (1 + VOE_RENDER_SHADOW_CASCADES) +        \
+			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES,  \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,  \
 		.passes = 1 + VOE_RENDER_SHADOW_CASCADES,                     \
 		.elements = VOE_GAME_INTERFACE_ELEMENTS,                      \

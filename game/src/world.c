@@ -1,12 +1,14 @@
-// The fifteen registrations and the room behind them. The reasoning is in
+// The seventeen registrations and the room behind them. The reasoning is in
 // game/include/game/world.h; what is here is the numbers and the order, which
-// is transforms first because a parent, a prefab, a shape and a model need one
-// (3d/shape_component.h, 3d/model_component.h, scene/prefab_system.h), and a
+// is transforms first because a parent, a prefab, a shape, a model and an
+// emitter need one (3d/shape_component.h, 3d/model_component.h,
+// 3d/emitter_component.h, scene/prefab_system.h), and a
 // collider before a body, which needs one (physics/body_system.h).
 #include <game/world.h>
 
 #include <game/project.h>
 
+#include <3d/emitter_component.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
@@ -23,13 +25,14 @@
 #include <scene/prefab_system.h>
 #include <scene/transform_system.h>
 
-// Fifteen component types, eight of them with an intent queue, each with room for
-// a project's types and their replace intents behind it. The entities are room
-// for what a game spawns while it runs, shells and enemies by the hundred, each
-// a prefab's whole tree (0283 point 11).
+// Seventeen component types, nine of them with an intent queue and the emitter
+// with a second, its control, each with room for a project's types and their
+// replace intents behind it. The entities are room for what a game spawns while
+// it runs, shells and enemies by the hundred, each a prefab's whole tree (0283
+// point 11).
 #define MAX_ENTITIES 4096
 #define MAX_COMPONENT_TYPES (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
-#define MAX_INTENT_TYPES (10 + VOE_GAME_PROJECT_TYPES)
+#define MAX_INTENT_TYPES (12 + VOE_GAME_PROJECT_TYPES)
 
 // The structural queue (ecs/structure.h): room for a frame's Add, Delete,
 // Duplicate or component change many times over, and for the rows they carry:
@@ -70,6 +73,7 @@ voe_ecs_world *voe_game_world_new(voe_base_arena *arena)
 	voe_3d_panel_register(world, MAX_PANELS);
 	voe_3d_shape_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_3d_model_register(world, VOE_GAME_WORLD_MAX_DRAWN);
+	voe_3d_emitter_register(world, VOE_GAME_WORLD_EMITTERS);
 	voe_physics_collider_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_physics_body_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_transform_previous_register(world, MAX_TRANSFORMS);

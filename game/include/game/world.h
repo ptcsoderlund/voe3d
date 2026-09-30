@@ -1,7 +1,7 @@
 // The one list of component types a project's world holds, and the room it
 // has for each: transform, identity, parent, prefab, prefab part, light, camera,
-// mesh, material, panel, shape, model, collider, body and the transforms'
-// previous step (0254), registered once on a fresh world.
+// mesh, material, panel, shape, model, collider, body, emitter, its particles
+// and the transforms' previous step (0254), registered once on a fresh world.
 //
 //     voe_ecs_world *world = voe_game_world_new(arena);
 //
@@ -39,9 +39,14 @@
 // game code spawns carries no identity (0283 point 11).
 #define VOE_GAME_WORLD_AUTHORED 32
 
-// How many types the engine registers here; a project's come after them.
-#define VOE_GAME_WORLD_TYPES 15
+// How many emitters, and so particles rows, a world holds: the room of drawn
+// things, because an effect sits on a drawn thing and a spawned wreck keeps
+// its own (0298 point 8).
+#define VOE_GAME_WORLD_EMITTERS VOE_GAME_WORLD_MAX_DRAWN
 
-// A fresh world with the fifteen types registered and nothing in it. Never NULL:
+// How many types the engine registers here; a project's come after them.
+#define VOE_GAME_WORLD_TYPES 17
+
+// A fresh world with the seventeen types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
 voe_ecs_world *voe_game_world_new(voe_base_arena *arena);

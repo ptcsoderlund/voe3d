@@ -19,6 +19,7 @@
 // rows, and edits nothing it did not just make.
 #pragma once
 
+#include <3d/emitter_component.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
