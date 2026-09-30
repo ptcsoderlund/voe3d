@@ -15,7 +15,7 @@ workflow replaced specs.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, light, identity.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
-- **audio** — the mixer: voices by handle, looped, pitched, placed from the camera; the sound component.
+- **audio** — the mixer: voices by handle, looped, pitched, placed by the camera; sound component.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
 - **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
