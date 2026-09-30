@@ -1,6 +1,8 @@
 // The scene reader: that a file becomes a world and goes back out as the same
 // bytes, that a world goes out and comes back as the same rows, that a file wrong
 // anywhere creates nothing, and that a section nobody registered survives the trip.
+// A folded row is saved and read back folded; a scene with no `folded` key loads
+// unfolded.
 //
 // A REFUSAL IS CHECKED BY THE WORLD HOLDING NO ENTITY AFTERWARDS, and every refused
 // file puts its fault after at least one good section, so a reader that created as
