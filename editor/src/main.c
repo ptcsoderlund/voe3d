@@ -104,8 +104,8 @@
 // Startup's working memory, handed to `app` and kept by nothing.
 #define STARTUP_SCRATCH (1u * 1024u * 1024u)
 
-// The ceiling on a frame's step, in seconds. Nothing here integrates over time
-// yet, so it is `app`'s required policy and no more.
+// The ceiling on a frame's step, in seconds: `app`'s required policy, and the
+// most the emitters are run by in one frame (world_step.h).
 #define MAX_FRAME_SECONDS 0.25
 
 // How long a capture waits for the project's code to build before it gives up.
@@ -212,6 +212,10 @@ int main(int argc, char *argv[])
 	// Whether a view flew last frame, so the pointer's lock is asked for
 	// only on the frame that changes (platform/input.h).
 	bool flew = false;
+	// Last frame's step, clamped, which this frame's world step runs the
+	// emitters by: the step comes before this frame's clock is read. 0 on
+	// the first frame and in a capture, so its picture is the same each time.
+	float last_seconds = 0.0f;
 	// The built-in shapes' CPU side: the triangles a pick ray is cast
 	// against, built once into the kept arena because the store outlives
 	// every frame (3d/shape_geometry.h).
@@ -396,8 +400,8 @@ int main(int argc, char *argv[])
 
 		// The queue applied and every owning system run (world_step.h).
 		voe_editor_world_step(session.project->world, &shapes,
-				      session.project->folder, arena,
-				      &session.notice);
+				      last_seconds, session.project->folder,
+				      arena, &session.notice);
 
 		// THE STEP LAST FRAME'S EDIT SETTLES INTO, once the world holds
 		// it: an edit reaches it through an intent or the structural
@@ -408,6 +412,11 @@ int main(int argc, char *argv[])
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
 		opened = voe_app_frame_open(app);
+		last_seconds = options.capture != NULL ?
+				       0.0f :
+				       (float)(opened.tick.step > MAX_FRAME_SECONDS ?
+						       MAX_FRAME_SECONDS :
+						       opened.tick.step);
 		if (opened.closing) {
 			// A CLOSE THAT GOES AHEAD IS THE ONLY WAY OUT OF THIS
 			// LOOP BESIDES A FAILURE BELOW. A refused one takes the
