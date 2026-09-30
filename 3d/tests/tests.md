@@ -68,6 +68,5 @@ again, or to find where a claim that has started failing is written down.
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
   death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
-- `models.c` — the store: a model's parts and baked node transform, bad bytes and an unread
-  file kept as failed, a path loaded a hundred times on room for three, good then bad and bad
-  then good, a clear, a picture's two parts, garbage `.png`, the uncounted dot, and a model drawn only with the store and not hidden. Skips without a card.
+- `models.c` — the model store: loads, failures kept as failed, replace, clear, pictures and
+  the uncounted dot, and a model drawn only with the store. Skips without a card.
