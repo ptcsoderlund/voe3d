@@ -2,10 +2,10 @@
 
 The public headers, one entry each.
 
-- `world.h` — the seventeen component types a project's world registers, the room for each, and room for a project's own.
+- `world.h` — the nineteen component types a project's world registers, the sound and its voice row among them, the room for each, and room for a project's own.
 - `scene.h` — the include the cook is handed: `voe_game_scene_build`, defined by a project's cooked `scene.c`.
-- `frame.h` — the world step (structural queue, project replaces, every owning system) and one frame: that step, then one window pass a lag behind with the interface over it; the device capacities it needs.
-- `steps.h` — the fixed steps: elapsed time banked, up to four steps of 1/60 s a frame, the project's systems in two slots, before and after the bodies' move, the lag the draw sits behind, and the mixer put in every step.
+- `frame.h` — the world step (structural queue, project replaces, every owning system, the sounds last with no mixer) and one frame: that step, then one window pass a lag behind with the interface over it; the device capacities it needs.
+- `steps.h` — the fixed steps: elapsed time banked, up to four steps of 1/60 s a frame, the project's systems in two slots, before and after the bodies' move, the lag the draw sits behind, and the mixer put in every step and playing the sounds last.
 - `project.h` — the seam a project's code is written against: its types registered through game, the step with the mixer and prefab table, spawning a prefab by name and removing a tree, and the four entry points.
 - `prefabs.h` — the cooked prefab table a game spawns from, defined by a project's cooked `prefabs.c`, and the one include that file needs.
 - `interface.h` — the project's interface: font, theme and ui context, the 135 mm surface, and one frame begun with the pointer and handed to the project.

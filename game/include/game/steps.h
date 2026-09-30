@@ -12,11 +12,12 @@
 // ONE STEP, IN ORDER: the transforms remembered, `systems` with `seconds` the
 // step, the world step (game/frame.h), the bodies' move, the transform
 // system again so later queries see where the bodies went, `after_move` with
-// the same step, the world step again, then the emitter system a step on
-// (3d/emitter_system.h). The second world step drains what `after_move`
+// the same step, the world step again, the emitter system a step on
+// (3d/emitter_system.h), then, with a mixer, the sound system
+// (audio/sound_system.h). The second world step drains what `after_move`
 // submitted in this step, before the next remember, so a follow is drawn at
-// the bodies' lag and not a step behind (0257); the emitters run last, so a
-// burst either slot sent spawns in the same step.
+// the bodies' lag and not a step behind (0257); the emitters and sounds run
+// last, so a burst or a play either slot sent starts in the same step.
 //
 // WHY FIXED: a body's move and a project's gravity integrate by the step, so a
 // jump is as high at 30 frames a second as at 240, and a replay is the same.
@@ -32,7 +33,9 @@
 // Constraints: the world is one voe_game_world_new made, which registers the
 // previous transforms. `window` is NULL headless; `audio`, NULL only in a
 // test whose systems play nothing, and `prefabs`, NULL for none, are put in
-// every step. `elapsed` is at least 0 and
+// every step; with no mixer the sounds are applied and nothing plays. The
+// listener's aspect is the window's width over height, 1 when it is NULL or
+// has no height. `elapsed` is at least 0 and
 // finite. The returned lag is in (0, 1]: 1 when nothing is left banked.
 #pragma once
 
