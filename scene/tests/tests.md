@@ -8,7 +8,8 @@ module's promises from outside. None of them needs a window or a graphics card.
   the field list is the compiler's layout, and that a remembered step blends back by a lag.
 - `parent.c` — that a barrel's world place follows its hull, a world with no parent table answers
   the row, the walks go both ways, a loop ends, local then world round-trips, and parenting,
-  unparenting and re-parenting keep the world place.
+  unparenting and re-parenting keep the world place; and that a parent row needs no transform, a
+  bare child or bare parent is parented, and a bare link ends the chain.
 - `prefab.c` — that both prefab tables register, queued rows read back once
   applied, the part table is runtime-only and the prefab table is not, and it
   has no replace and no menu.
