@@ -12,7 +12,8 @@
 //
 // THE ORDER: the world step — the structural queue applied, the project's
 // replaces (game/project.h), the transform, identity and light systems, the
-// shape system, the model system, then the collider and body systems — then a draw opened, the
+// shape system, the model system, the collider and body systems, then the
+// sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
 // sun's shadow passes (voe_3d_draw_system_shadows, 0258), one pass onto the
 // window with voe_3d_draw_system_frame's camera, sun and shadow, the draw
 // system, depth cleared and the interface's element records drawn in one

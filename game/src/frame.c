@@ -4,6 +4,8 @@
 // once.
 #include <game/frame.h>
 
+#include <audio/sound_system.h>
+
 #include <3d/draw_system.h>
 #include <3d/model_component.h>
 
@@ -38,6 +40,8 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	voe_3d_model_system_run(world);
 	voe_physics_collider_system_run(world);
 	voe_physics_body_system_run(world);
+	// No mixer: replaces and controls applied, nothing played (0304 point 7).
+	voe_audio_sound_system_run(world, NULL, 1.0f);
 }
 
 // The interface's records submitted as one range and drawn in one command

@@ -4,6 +4,8 @@
 
 #include <game/frame.h>
 
+#include <audio/sound_system.h>
+
 #include <3d/emitter_system.h>
 
 #include <base/assert.h>
@@ -13,6 +15,20 @@
 #include <scene/transform_system.h>
 
 #include <math.h>
+
+// The window's width over its height, the listener's; 1 headless or with no
+// height.
+static float aspect_of(voe_platform_window *window)
+{
+	voe_platform_size size;
+
+	if (window == NULL)
+		return 1.0f;
+	size = voe_platform_window_size(window);
+	return size.height > 0 && size.width > 0
+		       ? (float)size.width / (float)size.height
+		       : 1.0f;
+}
 
 // One fixed step of the world.
 static void step_once(voe_ecs_world *world, voe_platform_window *window,
@@ -32,6 +48,8 @@ static void step_once(voe_ecs_world *world, voe_platform_window *window,
 	after_move(&step);
 	voe_game_world_step(world, shapes);
 	voe_3d_emitter_system_run(world, (float)VOE_GAME_STEP_SECONDS);
+	if (audio != NULL)
+		voe_audio_sound_system_run(world, audio, aspect_of(window));
 }
 
 float voe_game_steps_run(voe_game_steps *steps, voe_ecs_world *world,

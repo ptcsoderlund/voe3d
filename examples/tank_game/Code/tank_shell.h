@@ -14,7 +14,9 @@
 // once that step, past its `owner`. On a hit it stops: not moved, its shot
 // records `hit` and `target`, and it is removed. Only the player's shots
 // swap a target with a tank_breakable row for its wreck (tank_breakable.h,
-// 0296); any other shell stops and changes nothing.
+// 0296); any other shell stops and changes nothing. A hit is heard at its
+// point, `Assets/sounds/hit.wav`, or, when it swaps, as
+// `Assets/sounds/explosion.wav` where the broken thing stood.
 //
 // A SHOT CARRIES A tank_shot ROW (0294 point 1), runtime-only: never saved,
 // never in the Inspector, no menu. The one firing adds it, through

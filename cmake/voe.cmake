@@ -100,8 +100,10 @@ function(voe_allowed_deps folder out_var)
     elseif(folder STREQUAL "audio")
         # audio owns the mixer (ADR-0265): the mixing is ours, effects come
         # here, and the platform device only receives finished samples. It reads
-        # files through platform and decodes them through assets.
-        set(deps platform assets base)
+        # files through platform and decodes them through assets. The sound
+        # component and its system live here beside the mixer, as the emitter
+        # lives in 3d, and read the transform and camera through scene (0304).
+        set(deps scene ecs math platform assets base)
     elseif(folder STREQUAL "authoring")
         # authoring is the code that turns a world into a scene file and back,
         # and it is authoring-time code: a game's build does not link it. It

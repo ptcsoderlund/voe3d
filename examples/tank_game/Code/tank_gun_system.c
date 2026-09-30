@@ -19,6 +19,9 @@
 // flash queued onto it, added at run time and never saved, since agents do
 // not edit tank_body.prefab; each shot fired bursts it.
 //
+// The bang (0304 point 5): each shot fired plays `Assets/sounds/shot.wav` at
+// the world muzzle through the step's mixer, nothing with no mixer (tests).
+//
 // Constraints: the control row's `fire` (tank_control.h), level not edge; at
 // most one shot a gun a step, so a rate above the step rate fires at the step
 // rate. Nothing with no control row (headless, or before its first step). A
@@ -131,8 +134,13 @@ static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
 		placed.position,
 		voe_math_double3_from_float3(turned_by(barrel, gun->muzzle)));
 
-	return tank_shell_fire(step, gun->prefab, muzzle, barrel,
-			       root_of(step->world, entity), placed.position);
+	if (!tank_shell_fire(step, gun->prefab, muzzle, barrel,
+			     root_of(step->world, entity), placed.position))
+		return false;
+	if (step->audio != NULL)
+		(void)voe_audio_mixer_play_at(step->audio, "Assets/sounds/shot.wav",
+					      muzzle);
+	return true;
 }
 
 // Queues the muzzle flash onto a gun with a transform and no emitter, as the

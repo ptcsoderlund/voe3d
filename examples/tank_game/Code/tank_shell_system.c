@@ -24,6 +24,10 @@
 // tree. Swapped targets are a local list, so many shells hitting one thing
 // swap it once.
 //
+// THE SOUND (0304 point 5): a hit plays `Assets/sounds/hit.wav` at the hit
+// point through the step's mixer; a hit that swaps plays
+// `Assets/sounds/explosion.wav` at the broken thing's place instead.
+//
 // tank_shell_fire spawns a shot and queues its tank_shot row (tank_shell.h)
 // behind the spawn's rows on the structural queue.
 //
@@ -135,10 +139,11 @@ static bool swapped_has(const struct swapped *list, voe_ecs_entity entity)
 }
 
 // Spawns a breakable target's wreck at its world place and, when that is
-// not refused, removes the target. A target already swapped this step, not
-// breakable, with no transform or with an empty or unterminated wreck name
-// is left alone.
-static void swap_for_wreck(const voe_game_project_step *step,
+// not refused, removes the target and plays the explosion there. False, the
+// target left alone, when it was already swapped this step, is not
+// breakable, has no transform or an empty or unterminated wreck name, or the
+// spawn is refused.
+static bool swap_for_wreck(const voe_game_project_step *step,
 			   voe_ecs_entity target, struct swapped *list)
 {
 	VOE_BASE_ASSERT(step != NULL && list != NULL, "swapping in nothing");
@@ -151,19 +156,24 @@ static void swap_for_wreck(const voe_game_project_step *step,
 	    voe_scene_transform_get(step->world, target) == NULL ||
 	    breakable->wreck[0] == '\0' ||
 	    memchr(breakable->wreck, '\0', sizeof(breakable->wreck)) == NULL)
-		return;
+		return false;
 	const voe_scene_transform placed =
 		voe_scene_transform_world(step->world, target);
 	voe_ecs_entity wreck;
 
 	if (!voe_game_project_spawn(step, breakable->wreck, placed.position,
 				    placed.rotation, &wreck))
-		return;
+		return false;
 	// Refused: the queue is full, and the target stays until hit again.
 	(void)voe_game_project_remove(step, target);
 	VOE_BASE_ASSERT(list->count < TANK_SHELL_ROWS,
 			"more swaps than shells this step");
 	list->entities[list->count++] = target;
+	if (step->audio != NULL)
+		(void)voe_audio_mixer_play_at(step->audio,
+					      "Assets/sounds/explosion.wav",
+					      placed.position);
+	return true;
 }
 
 // Writes the shot row whole, when the shell has one.
@@ -219,9 +229,16 @@ static bool fly(const voe_game_project_step *step, voe_ecs_entity entity,
 		shot_write(step->world, entity, row != NULL, &shot);
 		// Refused: the queue is full, and next step tries again.
 		(void)voe_game_project_remove(step, entity);
-		if (row != NULL && player != NULL &&
-		    voe_scene_parent_within(step->world, *player, shot.owner))
+		const bool swapped =
+			row != NULL && player != NULL &&
+			voe_scene_parent_within(step->world, *player,
+						shot.owner) &&
 			swap_for_wreck(step, hit.entity, list);
+
+		if (!swapped && step->audio != NULL)
+			(void)voe_audio_mixer_play_at(step->audio,
+						      "Assets/sounds/hit.wav",
+						      hit.point);
 		return true;
 	}
 	voe_scene_transform flown = *transform;

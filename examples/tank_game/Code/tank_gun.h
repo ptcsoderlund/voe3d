@@ -12,7 +12,8 @@
 // barrel. `wait` is the seconds to the next shot, written only by the system.
 // A gun needs a transform to fire, and sits on a turret so it fires along its
 // aim. A gun with no emitter is given a muzzle flash at `muzzle`, along the
-// barrel, at run time (0299 point 2), and each shot bursts it.
+// barrel, at run time (0299 point 2), and each shot bursts it. Each shot is
+// heard: `Assets/sounds/shot.wav` at the muzzle, through the step's mixer.
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows; `prefab` at most 63
 // bytes.

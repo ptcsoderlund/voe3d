@@ -9,7 +9,16 @@
 // A clip is stored as 48 kHz stereo float, converted once at load, so mixing is
 // a plain add with no per-frame conversion. A failed path is a clip too, marked
 // failed, which is what keeps it from being read or reported twice.
+//
+// Each start in a slot bumps that slot's generation, which is what makes an
+// older handle to it stale. Reading and summing one voice is voice.c's.
+//
+// Each mix aims every busy voice first: its left and right targets are its
+// volume times what place.c gives for the listener and its place, so a move or
+// a new listener ramps in across that mix as a tuned volume does.
 #include <audio/mixer.h>
+
+#include "voice.h"
 
 #include <assets/sound.h>
 #include <base/arena.h>
@@ -20,25 +29,16 @@
 
 #include <string.h>
 
-#define MIXER_CHANNELS VOE_PLATFORM_SOUND_CHANNELS
 #define MIXER_NO_CLIP UINT32_MAX
 #define MIXER_SCRATCH_BLOCK (1u << 20)
 #define MIXER_KEEP_BLOCK (1u << 20)
+#define MIXER_SLOT_BITS 8u
+#define MIXER_GENERATION_MASK ((1u << (32u - MIXER_SLOT_BITS)) - 1u)
+#define MIXER_PITCH_MIN 0.25f
+#define MIXER_PITCH_MAX 4.0f
+#define MIXER_VOLUME_MAX 4.0f
 
-struct mixer_clip {
-	const char *path;
-	bool failed;
-	uint64_t frames;
-	const float *samples;
-};
-
-struct mixer_voice {
-	bool busy;
-	uint32_t clip;
-	uint64_t position;
-	// The play count when this voice started; the smallest is the oldest.
-	uint64_t started;
-};
+static_assert(VOE_AUDIO_VOICES <= (1u << MIXER_SLOT_BITS), "a slot fits its bits of a handle");
 
 struct voe_audio_mixer {
 	voe_base_arena *keep;
@@ -49,6 +49,8 @@ struct voe_audio_mixer {
 	bool full_reported;
 	struct mixer_voice voices[VOE_AUDIO_VOICES];
 	uint64_t plays;
+	bool listening;
+	voe_audio_listener listener;
 	float pumped[VOE_PLATFORM_SOUND_QUEUE * MIXER_CHANNELS];
 };
 
@@ -165,30 +167,165 @@ static uint32_t find_clip(voe_audio_mixer *mixer, const char *path)
 	return clip->failed ? MIXER_NO_CLIP : index;
 }
 
+// value within [low, high]; NaN, as from a broken component, gives low.
+static float clamp(float value, float low, float high)
+{
+	return value > high ? high : value >= low ? value : low;
+}
+
+// A free slot, else the oldest voice that does not loop; VOE_AUDIO_VOICES
+// when every voice loops.
+static uint32_t take_slot(const voe_audio_mixer *mixer)
+{
+	uint32_t oldest = VOE_AUDIO_VOICES;
+
+	for (uint32_t i = 0; i < VOE_AUDIO_VOICES; i++) {
+		const struct mixer_voice *voice = &mixer->voices[i];
+
+		if (!voice->busy)
+			return i;
+		if (!voice->loop && (oldest == VOE_AUDIO_VOICES ||
+				     voice->started < mixer->voices[oldest].started))
+			oldest = i;
+	}
+	return oldest;
+}
+
+// The slot a handle names while its voice plays; VOE_AUDIO_VOICES when stale.
+static uint32_t find_slot(const voe_audio_mixer *mixer, voe_audio_voice handle)
+{
+	const uint32_t slot = handle.id & ((1u << MIXER_SLOT_BITS) - 1u);
+
+	if (handle.id == 0 || slot >= VOE_AUDIO_VOICES)
+		return VOE_AUDIO_VOICES;
+	const struct mixer_voice *voice = &mixer->voices[slot];
+
+	if (!voice->busy || voice->generation != handle.id >> MIXER_SLOT_BITS)
+		return VOE_AUDIO_VOICES;
+	return slot;
+}
+
+// Sets the voice's per-channel target gains from its volume and, when placed
+// and a listener is set, its place.
+static void aim(const voe_audio_mixer *mixer, struct mixer_voice *voice)
+{
+	static_assert(MIXER_CHANNELS == 2, "placement gives a left and a right");
+	const voe_audio_gains gains = voice->placed && mixer->listening ?
+		voe_audio_place(&mixer->listener, voice->where) : voe_audio_unplaced();
+
+	voice->gain[0] = voice->volume * gains.left;
+	voice->gain[1] = voice->volume * gains.right;
+}
+
+voe_audio_voice voe_audio_mixer_start(voe_audio_mixer *mixer, voe_audio_start start)
+{
+	VOE_BASE_ASSERT(mixer != NULL && start.path != NULL, "start needs a mixer and a path");
+	const voe_audio_voice none = { 0 };
+
+	if (start.path[0] == '\0')
+		return none;
+	const uint32_t clip = find_clip(mixer, start.path);
+
+	if (clip == MIXER_NO_CLIP || mixer->clips[clip].frames == 0)
+		return none;
+	const uint32_t slot = take_slot(mixer);
+
+	if (slot == VOE_AUDIO_VOICES)
+		return none;
+	struct mixer_voice *voice = &mixer->voices[slot];
+	const uint32_t next = (voice->generation + 1u) & MIXER_GENERATION_MASK;
+	const uint32_t generation = next != 0 ? next : 1u;
+	*voice = (struct mixer_voice){
+		.busy = true, .loop = start.loop, .held = start.held, .touched = true,
+		.clip = clip, .generation = generation, .position = 0.0,
+		.pitch = clamp(start.pitch, MIXER_PITCH_MIN, MIXER_PITCH_MAX),
+		.volume = clamp(start.volume, 0.0f, MIXER_VOLUME_MAX),
+		.placed = start.placed, .where = start.where, .started = mixer->plays++,
+	};
+	// A new voice starts at its target: there is nothing to ramp from.
+	aim(mixer, voice);
+	memcpy(voice->gain_from, voice->gain, sizeof(voice->gain));
+	return (voe_audio_voice){ generation << MIXER_SLOT_BITS | slot };
+}
+
 void voe_audio_mixer_play(voe_audio_mixer *mixer, const char *path)
 {
 	VOE_BASE_ASSERT(mixer != NULL && path != NULL, "play needs a mixer and a path");
-	if (path[0] == '\0')
-		return;
-	const uint32_t clip = find_clip(mixer, path);
+	(void)voe_audio_mixer_start(mixer, (voe_audio_start){
+		.path = path, .volume = 1.0f, .pitch = 1.0f });
+}
 
-	if (clip == MIXER_NO_CLIP || mixer->clips[clip].frames == 0)
-		return;
-	struct mixer_voice *voice = &mixer->voices[0];
+voe_audio_voice voe_audio_mixer_play_at(voe_audio_mixer *mixer, const char *path,
+					voe_math_double3 where)
+{
+	VOE_BASE_ASSERT(mixer != NULL && path != NULL, "play needs a mixer and a path");
+	return voe_audio_mixer_start(mixer, (voe_audio_start){
+		.path = path, .volume = 1.0f, .pitch = 1.0f, .placed = true, .where = where });
+}
 
+void voe_audio_mixer_listen(voe_audio_mixer *mixer, const voe_audio_listener *listener)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "listen needs a mixer");
+	mixer->listening = listener != NULL;
+	if (listener != NULL)
+		mixer->listener = *listener;
+}
+
+void voe_audio_mixer_move(voe_audio_mixer *mixer, voe_audio_voice voice,
+			  voe_math_double3 where)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "move needs a mixer");
+	const uint32_t slot = find_slot(mixer, voice);
+
+	if (slot == VOE_AUDIO_VOICES)
+		return;
+	struct mixer_voice *moved = &mixer->voices[slot];
+
+	moved->placed = true;
+	moved->where = where;
+	moved->touched = true;
+}
+
+void voe_audio_mixer_stop(voe_audio_mixer *mixer, voe_audio_voice voice)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "stop needs a mixer");
+	const uint32_t slot = find_slot(mixer, voice);
+
+	if (slot != VOE_AUDIO_VOICES)
+		mixer->voices[slot].busy = false;
+}
+
+bool voe_audio_mixer_playing(const voe_audio_mixer *mixer, voe_audio_voice voice)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "playing needs a mixer");
+	return find_slot(mixer, voice) != VOE_AUDIO_VOICES;
+}
+
+void voe_audio_mixer_tune(voe_audio_mixer *mixer, voe_audio_voice voice,
+			  float volume, float pitch)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "tune needs a mixer");
+	const uint32_t slot = find_slot(mixer, voice);
+
+	if (slot == VOE_AUDIO_VOICES)
+		return;
+	struct mixer_voice *tuned = &mixer->voices[slot];
+
+	tuned->volume = clamp(volume, 0.0f, MIXER_VOLUME_MAX);
+	tuned->pitch = clamp(pitch, MIXER_PITCH_MIN, MIXER_PITCH_MAX);
+	tuned->touched = true;
+}
+
+void voe_audio_mixer_sweep(voe_audio_mixer *mixer)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "sweep needs a mixer");
 	for (uint32_t i = 0; i < VOE_AUDIO_VOICES; i++) {
-		struct mixer_voice *candidate = &mixer->voices[i];
+		struct mixer_voice *voice = &mixer->voices[i];
 
-		if (!candidate->busy) {
-			voice = candidate;
-			break;
-		}
-		if (candidate->started < voice->started)
-			voice = candidate;
+		if (voice->held && !voice->touched)
+			voice->busy = false;
+		voice->touched = false;
 	}
-	*voice = (struct mixer_voice){
-		.busy = true, .clip = clip, .position = 0, .started = mixer->plays++,
-	};
 }
 
 void voe_audio_mixer_mix(voe_audio_mixer *mixer, float *out, uint32_t frames)
@@ -202,15 +339,8 @@ void voe_audio_mixer_mix(voe_audio_mixer *mixer, float *out, uint32_t frames)
 
 		if (!voice->busy)
 			continue;
-		const struct mixer_clip *clip = &mixer->clips[voice->clip];
-		const uint64_t left = clip->frames - voice->position;
-		const uint64_t take = left < frames ? left : frames;
-		const float *from = clip->samples + voice->position * MIXER_CHANNELS;
-
-		for (size_t i = 0; i < take * MIXER_CHANNELS; i++)
-			out[i] += from[i];
-		voice->position += take;
-		voice->busy = voice->position < clip->frames;
+		aim(mixer, voice);
+		voe_audio_voice_sum(voice, &mixer->clips[voice->clip], out, frames);
 	}
 	for (size_t i = 0; i < count; i++)
 		out[i] = out[i] > 1.0f ? 1.0f : out[i] < -1.0f ? -1.0f : out[i];

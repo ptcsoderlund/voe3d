@@ -4,12 +4,16 @@
 // floor, pulled down by the test's systems, lands and stands after 60 steps,
 // and a follower set to a falling body's position after the move is where
 // the body is by the end of the same step, and an emitter of rate 60 on a
-// thing with a transform holds live particles after 60 steps.
-// Needs no window and no graphics card: nothing is shaped, so the shapes are
-// zeros.
+// thing with a transform holds live particles after 60 steps, and a looping
+// sound on a thing, a WAV the test writes in its working directory, plays
+// through a mixer on that folder after two steps.
+// Needs no window, no graphics card and no sound device: nothing is shaped,
+// so the shapes are zeros, and the mixer is never pumped.
 #include <game/steps.h>
 
 #include <game/world.h>
+
+#include <audio/sound_component.h>
 
 #include <3d/emitter_component.h>
 
@@ -23,12 +27,21 @@
 #include <physics/collider_component.h>
 #include <physics/collider_system.h>
 
+#include <platform/file.h>
+#include <platform/folder.h>
+
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
 #include <testing/test.h>
 
+#include <string.h>
+
 #define GRAVITY 9.81f
+
+// Where the test's WAV is written, and its length in frames.
+#define SOUND_FOLDER "game_steps_test"
+#define WAV_FRAMES 100
 
 // What the stub systems saw, the body they pull down when `falling`, and the
 // entity set to the body's position after the move when `following`.
@@ -213,6 +226,68 @@ static void an_emitter_spawns(voe_ecs_world *world, const voe_3d_shapes *shapes)
 		VOE_TEST_CHECK(particles->count > 0);
 }
 
+static void put_le(uint8_t *at, uint32_t value, uint32_t bytes)
+{
+	for (uint32_t i = 0; i < bytes; i++)
+		at[i] = (uint8_t)(value >> (8 * i));
+}
+
+// A constant mono 16-bit 48 kHz PCM WAV of WAV_FRAMES samples at SOUND_FOLDER/hum.wav.
+static void write_hum(void)
+{
+	static uint8_t bytes[44 + 2 * WAV_FRAMES];
+	voe_base_error error = VOE_BASE_OK;
+
+	// A folder left by an earlier run is taken as it is.
+	if (!voe_platform_folder_create(SOUND_FOLDER, &error))
+		VOE_TEST_CHECK(error == VOE_BASE_ERROR_REFUSED);
+	memcpy(bytes, "RIFF", 4);
+	put_le(bytes + 4, 36 + 2 * WAV_FRAMES, 4);
+	memcpy(bytes + 8, "WAVEfmt ", 8);
+	put_le(bytes + 16, 16, 4);
+	put_le(bytes + 20, 1, 2);
+	put_le(bytes + 22, 1, 2);
+	put_le(bytes + 24, 48000, 4);
+	put_le(bytes + 28, 48000 * 2, 4);
+	put_le(bytes + 32, 2, 2);
+	put_le(bytes + 34, 16, 2);
+	memcpy(bytes + 36, "data", 4);
+	put_le(bytes + 40, 2 * WAV_FRAMES, 4);
+	for (uint32_t i = 0; i < WAV_FRAMES; i++)
+		put_le(bytes + 44 + 2 * i, 8192, 2);
+	VOE_TEST_CHECK(voe_platform_file_write(SOUND_FOLDER "/hum.wav", bytes,
+					       sizeof(bytes), NULL));
+}
+
+// A looping sound on a thing at the origin, two steps through a mixer on the
+// folder: its voice row holds a voice the mixer plays.
+static void a_sound_plays(voe_ecs_world *world, const voe_3d_shapes *shapes)
+{
+	voe_game_steps steps = { 0 };
+	voe_audio_mixer *mixer;
+	voe_audio_sound sound = { .playing = true, .loop = true, .volume = 1,
+				  .pitch = 1 };
+	voe_ecs_entity entity = { 0 };
+	const voe_audio_sound_voice *voice;
+
+	write_hum();
+	mixer = voe_audio_mixer_new(SOUND_FOLDER);
+	strcpy(sound.path, "hum.wav");
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){ .rotation = { 0, 0, 0, 1 },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_audio_sound_add(world, entity, sound));
+	(void)voe_game_steps_run(&steps, world, NULL, mixer, NULL, shapes,
+				 2 * VOE_GAME_STEP_SECONDS, systems, after_move);
+	voice = voe_audio_sound_voice_get(world, entity);
+	VOE_TEST_CHECK(voice != NULL);
+	if (voice != NULL)
+		VOE_TEST_CHECK(voe_audio_mixer_playing(mixer, voice->voice));
+	voe_audio_mixer_destroy(mixer);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 22);
@@ -223,6 +298,7 @@ int main(void)
 	a_body_lands(world, &shapes);
 	a_follower_keeps_up(world, &shapes);
 	an_emitter_spawns(world, &shapes);
+	a_sound_plays(world, &shapes);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

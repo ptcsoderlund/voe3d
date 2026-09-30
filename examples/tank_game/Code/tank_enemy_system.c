@@ -22,7 +22,12 @@
 // turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
 // position. `wait` becomes 1 / `rate` only when the fire is not refused, so a
 // refused one tries again next step. Each shot bursts the turret's emitter,
-// the prefab's muzzle flash; a turret with none sends nothing.
+// the prefab's muzzle flash; a turret with none sends nothing. Each shot also
+// plays `Assets/sounds/shot.wav` at the muzzle through the step's mixer.
+//
+// The hum (0304 point 8): an enemy with no sound gets the hull's engine,
+// looping, quieter and lower. Its removal takes the sound with it (0304
+// point 4), so nothing here stops it.
 //
 // Constraints: runs headless as well, nothing here reads input. At most one
 // shot an enemy a step. Finding a turret scans every turret row, enemies
@@ -35,6 +40,8 @@
 #include "tank_turret.h"
 
 #include <3d/emitter_component.h>
+
+#include <audio/sound_component.h>
 
 #include <base/assert.h>
 
@@ -199,6 +206,9 @@ static bool aim_and_fire(const voe_game_project_step *step,
 	if (!tank_shell_fire(step, enemy->prefab, muzzle, barrel, entity,
 			     transform->position))
 		return false;
+	if (step->audio != NULL)
+		(void)voe_audio_mixer_play_at(step->audio, "Assets/sounds/shot.wav",
+					      muzzle);
 	// The turret's own flash (0299 point 2); a full queue loses only it.
 	if (voe_3d_emitter_get(step->world, turret) != NULL)
 		(void)voe_3d_emitter_control_submit(
@@ -228,6 +238,22 @@ static bool drive(const voe_game_project_step *step, voe_ecs_entity entity,
 			speed * (float)step->seconds)));
 	return voe_scene_transform_submit(
 		step->world, (voe_scene_transform_intent){ entity, driven });
+}
+
+// Gives an enemy with no sound the engine hum, looping, at volume 0.35 and
+// pitch 0.85. A refused add is left for the next step.
+static void hum(voe_ecs_world *world, voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(world != NULL, "humming in no world");
+	if (voe_audio_sound_get(world, entity) != NULL)
+		return;
+	const voe_audio_sound engine = {
+		.path = "Assets/sounds/engine.wav", .playing = true, .loop = true,
+		.volume = 0.35f, .pitch = 0.85f,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(engine.volume > 0.0f, "a hum never heard");
+	(void)voe_audio_sound_add(world, entity, engine);
 }
 
 void tank_enemy_system_run(const voe_game_project_step *step)
@@ -265,6 +291,7 @@ void tank_enemy_system_run(const voe_game_project_step *step)
 			(void)voe_game_project_remove(step, entities[i]);
 			continue;
 		}
+		hum(step->world, entities[i]);
 		if (!queue_full)
 			queue_full = !drive(step, entities[i], next.speed);
 	}
