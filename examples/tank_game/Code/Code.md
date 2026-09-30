@@ -4,7 +4,7 @@ The tank game's own components and systems, compiled into its game or into
 the library the editor loads (0242).
 
 - `tank_hull.h` — the Tank / Hull component: a drive speed, default 4 m/s, and a turn, default 90 deg/s.
-- `tank_hull_system.c` — turns each hull and drives it along its own forward as the control row says: W/A/S/D or the left stick; gives a hull with no emitter tread dust, played while it drives.
+- `tank_hull_system.c` — turns each hull and drives it along its own forward as the control row says: W/A/S/D or the left stick; gives a hull with no emitter tread dust, played while it drives, and one with no sound the engine hum, pitched up with the drive.
 - `tank_turret.h` — the Tank / Turret component: a turn, default 180 deg/s, and an aim offset, default 0; the call that turns any turret toward a point, for its owner.
 - `tank_turret_system.c` — turns the player's turrets about the world's up toward where the mouse pointer meets the ground, or the right stick's direction on screen, held when let go, through the exported turn call.
 - `tank_gun.h` — the Tank / Gun component: a prefab to fire, default `shell`, a rate, default 6 a second, a muzzle offset and the wait to the next shot.
@@ -18,7 +18,7 @@ the library the editor loads (0242).
 - `tank_spawner.h` — the Tank / Spawner component: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, and the wait to the next spawn.
 - `tank_spawner_system.c` — spawns each ready spawner's prefab at it, turned as it is, while the world holds fewer enemies than its most.
 - `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, a life, default 20 s, a prefab to fire, default `shell`, a rate, default 0.5 a second, a range, default 30 m, a muzzle offset and the wait to the next shot.
-- `tank_enemy_system.c` — drives each enemy along its own forward, turns its turret toward the player's hull within range, fires along the barrel once on target, bursting the turret's flash, and removes it, turret and all, when its life runs out.
+- `tank_enemy_system.c` — drives each enemy along its own forward, turns its turret toward the player's hull within range, fires along the barrel once on target, bursting the turret's flash, gives it a lower engine hum, and removes it, turret and all, when its life runs out.
 - `tank_camera.h` — the runtime-only camera fit row: the camera's authored field of view, kept so the level's width stays in view at any window shape.
 - `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
 - `tank_control.h` — the runtime-only control row on the player's hull: drive, turn, aim, fire and whether the pad is in use.

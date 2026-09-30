@@ -14,6 +14,11 @@
 // tank_body.prefab. It plays while the drive is past 0.1 either way and stops
 // otherwise, the control sent only on the change, read from its `playing`.
 //
+// The hum (0304 point 8): a hull with no sound gets the engine, looping. Its
+// pitch glides toward 1 + 0.6 × the drive's size at most 1 a second, read
+// from the row's own `pitch`, and a TUNE goes out only while the two differ
+// by more than 0.01.
+//
 // Constraints: one control row drives every hull. Nothing with no control
 // row (headless, or before its first step). A full transform queue leaves
 // the rest of the hulls where they were this step.
@@ -21,6 +26,8 @@
 #include "tank_hull.h"
 
 #include <3d/emitter_component.h>
+
+#include <audio/sound_component.h>
 
 #include <base/assert.h>
 
@@ -43,6 +50,13 @@
 
 // The drive, either way, past which the treads kick up dust.
 #define TANK_HULL_DUST_DRIVE 0.1f
+
+// The hum's volume, its pitch at full drive above 1, the most its pitch moves
+// a second, and the difference from the row's below which no TUNE is sent.
+#define TANK_HULL_HUM_VOLUME 0.6f
+#define TANK_HULL_HUM_RISE 0.6f
+#define TANK_HULL_HUM_GLIDE 1.0f
+#define TANK_HULL_HUM_EPSILON 0.01f
 
 const struct voe_ecs_key tank_hull_key = { "tank_hull" };
 
@@ -117,6 +131,41 @@ static void dust(voe_ecs_world *world, voe_ecs_entity entity, bool moving)
 		&row);
 }
 
+// Gives a hull with no sound the engine hum, looping. With one, moves its
+// pitch toward 1 + TANK_HULL_HUM_RISE × `drive` by at most
+// TANK_HULL_HUM_GLIDE a second and sends a TUNE while it is more than
+// TANK_HULL_HUM_EPSILON off. A refused add or control is left for the next
+// step.
+static void hum(voe_ecs_world *world, voe_ecs_entity entity, float drive,
+		float seconds)
+{
+	VOE_BASE_ASSERT(world != NULL, "humming in no world");
+	VOE_BASE_ASSERT(drive >= 0.0f && seconds >= 0.0f, "a hum run backwards");
+	const voe_audio_sound *sound = voe_audio_sound_get(world, entity);
+
+	if (sound == NULL) {
+		(void)voe_audio_sound_add(world, entity, (voe_audio_sound){
+			.path = "Assets/sounds/engine.wav", .playing = true,
+			.loop = true, .volume = TANK_HULL_HUM_VOLUME,
+			.pitch = 1.0f });
+		return;
+	}
+	const float goal = 1.0f + TANK_HULL_HUM_RISE * drive;
+	const float step = TANK_HULL_HUM_GLIDE * seconds;
+
+	if (fabsf(goal - sound->pitch) <= TANK_HULL_HUM_EPSILON)
+		return;
+	const float pitch = sound->pitch +
+			    fmaxf(-step, fminf(step, goal - sound->pitch));
+
+	VOE_BASE_DEBUG_ASSERT(isfinite(pitch), "a hum at no pitch");
+	(void)voe_audio_sound_control_submit(
+		world, (voe_audio_sound_control){ .entity = entity,
+						  .kind = VOE_AUDIO_SOUND_TUNE,
+						  .volume = sound->volume,
+						  .pitch = pitch });
+}
+
 void tank_hull_system_run(voe_ecs_world *world, double seconds)
 {
 	VOE_BASE_ASSERT(world != NULL, "driving hulls in no world");
@@ -147,6 +196,7 @@ void tank_hull_system_run(voe_ecs_world *world, double seconds)
 		if (transform == NULL)
 			continue;
 		dust(world, entities[i], moving);
+		hum(world, entities[i], fabsf(drive), (float)seconds);
 		voe_scene_transform driven = *transform;
 
 		driven.rotation = voe_math_quat_normalize(voe_math_quat_mul(

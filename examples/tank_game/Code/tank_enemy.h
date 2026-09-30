@@ -23,6 +23,9 @@
 // leaves turned as the barrel. Each shot bursts the turret's emitter, the
 // prefab's muzzle flash (0299 point 2); a turret with none flashes nothing.
 //
+// IT HUMS (0304 point 8): an enemy with no sound is given the looping engine
+// hum, quieter and lower than the player's, gone with it when it is removed.
+//
 // Constraints: at most TANK_ENEMY_ROWS rows; `prefab` at most 63 bytes.
 #pragma once
 
