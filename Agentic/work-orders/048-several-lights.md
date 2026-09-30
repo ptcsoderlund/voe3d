@@ -1,10 +1,10 @@
-# 043 — Several lights
+# 048 — Several lights
 
 ## What
 A scene can have point lights beside the sun: a colour, a strength and a reach each. They are placed,
 parented and seen in the editor like anything else, shown by a marker. A level can hold a hundred of
 them and stay smooth. Game code can light one for a moment, so shots and explosions flash light onto
-the ground around them. Point lights do not cast shadows in 0.2. The sun still does. The editor and
+the ground around them. Point lights cast no shadows until 050. The sun still does. The editor and
 the game look the same.
 
 ## Why
