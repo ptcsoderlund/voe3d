@@ -6,7 +6,11 @@ carries it out.
 
 - `main.c` — opens a project, the window and the device, makes the arena, font, themes and
   interface, uploads the shapes, opens the views on the scene's camera, and runs the loop until a
-  close goes ahead or the picture is written; Escape cancels a Scene list drag first.
+  close goes ahead or the picture is written.
+- `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
+  the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
+- `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
+  Ctrl+D, R and the edit marked after the interface has drawn.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.

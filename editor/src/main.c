@@ -21,15 +21,8 @@
 // view's camera and (in interface.c) the top bar's buttons are drawn but never
 // asked what the pointer did; a window close still asks session.h what it has.
 //
-// WHAT THIS FRAME'S KEYBOARD ASKED FOR IS ONE READ (shortcuts.h): the guards
-// this file holds go in, a flag per shortcut comes back, and every act on one
-// is below that read — the three commands through session.h, Delete and Ctrl+D
-// through scene.h, Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y through undo.h, whose step
-// is taken at the top of the next frame, before the structural queue is
-// applied. Escape's order is this file's (at the picker's close below).
-// Escape, Backspace, Enter, Tab and the text read since the last poll are the
-// interface's besides (dock.h, keys.h). A flying view keeps every key it reads
-// from the interface and the shortcuts, and the pointer from both (view.h).
+// WHAT THIS FRAME'S KEYBOARD ASKED FOR, THE ACTS ON IT AND ESCAPE'S ORDER ARE
+// frame_commands.h's, called at three points of the loop.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has:
 // the window's size, the loop and the one division that turns
@@ -53,6 +46,7 @@
 #include "browser.h"
 #include "capture.h"
 #include "dock.h"
+#include "frame_commands.h"
 #include "gizmo.h"
 #include "inspector_edit.h"
 #include "interface.h"
@@ -212,12 +206,9 @@ int main(int argc, char *argv[])
 	// `arena` below (undo.h). Beside the scene and the views because the
 	// history is the editor's and never the world's.
 	voe_editor_undo undo = { 0 };
-	// This frame's undo and redo edges, acted on at the top of the next
-	// frame, and whether the editor was at rest when they were read — the
-	// same rest a step is recorded at (undo.h).
-	bool step_back = false;
-	bool step_forward = false;
-	bool at_rest = false;
+	// The keyboard's commands and the edges they carry to the next frame
+	// (frame_commands.h), pointed at the parts above once they exist.
+	voe_editor_frame_commands commands = { 0 };
 	// Whether a view flew last frame, so the pointer's lock is asked for
 	// only on the frame that changes (platform/input.h).
 	bool flew = false;
@@ -336,6 +327,11 @@ int main(int argc, char *argv[])
 	voe_editor_dock_view_share_set(&roots[0].tree, panel_sizes.view_share);
 	bar.wanted = panel_sizes.topbar_high;
 
+	commands = (voe_editor_frame_commands){
+		.session = &session, .scene = &scene, .browser = &browser,
+		.preferences = &preferences, .project_panel = &project_panel,
+		.views = &views, .undo = &undo, .gizmo = &gizmo, .ui = ui };
+
 	voe_editor_startup_say_descriptions();
 	fflush(stdout);
 
@@ -358,12 +354,6 @@ int main(int argc, char *argv[])
 		voe_editor_keys_frame keyboard;
 		bool shift;
 		bool control;
-		// What this frame's keyboard asked for (shortcuts.h).
-		voe_editor_shortcuts shortcuts;
-		// This frame's Escape edge when neither typing nor the picker
-		// took it: the browser's Cancel and Preferences' Close. This
-		// file's own, because closing the picker spends the edge.
-		bool escape_free;
 		float pixels_per_millimetre;
 		bool drawing = false;
 		bool drawn = true;
@@ -401,32 +391,8 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		// A DIFFERENT PROJECT EMPTIES THE HISTORY, AND OTHERWISE LAST
-		// FRAME'S CTRL+Z OR CTRL+Y IS TAKEN HERE — before world_step.h,
-		// so the rows a step puts back are given their meshes before
-		// anything draws them (undo.h). A step leaves the project
-		// unsaved and is never itself an edit to record.
-		// A prefab opened sets the level's line aside, and Back puts it
-		// back (0283 point 8).
-		if (session.replaced) {
-			session.replaced = false;
-			voe_editor_undo_forget(&undo);
-			voe_editor_views_focus_camera(&views, scene.world);
-		} else if (session.prefab_opened) {
-			session.prefab_opened = false;
-			voe_editor_undo_aside(&undo);
-			voe_editor_views_focus_camera(&views, scene.world);
-		} else if (session.prefab_closed) {
-			session.prefab_closed = false;
-			voe_editor_undo_restore(&undo);
-			voe_editor_views_focus_camera(&views, scene.world);
-		} else if ((step_back || step_forward) &&
-			   voe_editor_undo_take(&undo, session.project, &scene,
-						&session.notice, step_forward)) {
-			voe_editor_session_edited(&session);
-		}
-		step_back = false;
-		step_forward = false;
+		// The history's step, before world_step.h (frame_commands.h).
+		voe_editor_frame_commands_history(&commands);
 
 		// The queue applied and every owning system run (world_step.h).
 		voe_editor_world_step(session.project->world, &shapes,
@@ -436,7 +402,8 @@ int main(int argc, char *argv[])
 		// THE STEP LAST FRAME'S EDIT SETTLES INTO, once the world holds
 		// it: an edit reaches it through an intent or the structural
 		// queue, so nothing above this line has it yet (undo.h).
-		voe_editor_undo_settle(&undo, session.project, arena, at_rest);
+		voe_editor_undo_settle(&undo, session.project, arena,
+				       commands.at_rest);
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
@@ -527,73 +494,11 @@ int main(int argc, char *argv[])
 			voe_platform_input_lock_pointer(window, flying);
 		flew = flying;
 
-		// WHICH EDGE MEANT WHICH COMMAND IS ANSWERED ONCE, HERE
-		// (shortcuts.h), out of the keyboard above and the guards this
-		// file is the one holding; everything below it is this file
-		// acting on a flag.
-		shortcuts = voe_editor_shortcuts_read(
-			&keyboard, (voe_editor_shortcuts_guards){
-					   .browser_showing = browser.showing,
-					   .typing = voe_ui_typing(ui),
-					   .picker_open = scene.picking.open,
-					   .dropdown_open = scene.dropdown.open,
-					   .pointer_down = left,
-					   .flying = flying });
-
-		// Ctrl+N, Ctrl+O and Ctrl+S are the bar's three commands.
-		if (shortcuts.new_project)
-			voe_editor_session_do(&session, &scene, &browser,
-					      VOE_EDITOR_COMMAND_NEW);
-		if (shortcuts.open)
-			voe_editor_session_do(&session, &scene, &browser,
-					      VOE_EDITOR_COMMAND_OPEN);
-		if (shortcuts.save)
-			voe_editor_session_do(&session, &scene, &browser,
-					      VOE_EDITOR_COMMAND_SAVE);
-
-		// Delete and Ctrl+D act after the interface has drawn, because
-		// the dock walk zeroes the scene's `structural` and `full` for
-		// the frame (scene.h); Ctrl+Z and Ctrl+Y at the top of the next
-		// frame, with the rest they were read at beside them.
-		at_rest = shortcuts.at_rest;
-		step_back = shortcuts.undo;
-		step_forward = shortcuts.redo;
-
-		// ESCAPE'S ORDER IS THIS FILE'S, out of the free edge that read
-		// leaves: a Scene list drag under way is cancelled first, then
-		// the picker closes and goes no further, otherwise it is the
-		// browser's Cancel or Preferences' Close.
-		escape_free = shortcuts.escape_free;
-		if (escape_free && voe_editor_scene_list_cancel(&scene))
-			escape_free = false;
-		if (escape_free && scene.picking.open) {
-			voe_editor_scene_picker_close(&scene);
-			escape_free = false;
-		}
-		// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
-		// Preferences and the Errors panel, which it does nothing else
-		// to. Neither while a person is typing: then it cancels that
-		// and nothing more.
-		if (escape_free && !browser.showing) {
-			voe_editor_preferences_hide(&preferences);
-			voe_editor_project_panel_hide(&project_panel);
-			voe_editor_errors_hide(&session.errors);
-		}
-
-		// BESIDE THE POINTER, AND FOR THE SAME REASON (dock.h): `ui`
-		// reads this for whichever field or number box is focused, and
-		// nothing here decides which one that is.
-		// A flying view keeps the keys it reads and the pointer: `ui`
-		// gets no text, no Backspace, Enter or Tab, and no pointer.
-		roots[0].keyboard = (voe_ui_keyboard){
-			.text = flying ? NULL : text.bytes,
-			.size = flying ? 0 : text.size,
-			.backspace = !flying &&
-				     keyboard.pressed[VOE_PLATFORM_KEY_BACKSPACE],
-			.enter = !flying && keyboard.pressed[VOE_PLATFORM_KEY_ENTER],
-			.escape = shortcuts.escape,
-			.tab = !flying && keyboard.pressed[VOE_PLATFORM_KEY_TAB],
-		};
+		// The shortcuts read and acted on, Escape's order, and the
+		// keyboard `ui` gets (frame_commands.h); a flying view keeps
+		// the pointer from `ui` too.
+		roots[0].keyboard = voe_editor_frame_commands_read(
+			&commands, &keyboard, &text, left, flying);
 		if (flying) {
 			roots[0].pointer.over = false;
 			roots[0].pointer.down = false;
@@ -719,29 +624,9 @@ int main(int argc, char *argv[])
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &drag, &views, &session, &bar, &browser,
 				&preferences, &project_panel, &themes,
-				escape_free);
-			// Only when the Inspector's own buttons changed nothing
-			// structural this frame: two changes before the queue is
-			// applied would be given one id (entities.h).
-			if (scene.structural == 0 && shortcuts.delete_entity)
-				voe_editor_scene_delete(&scene);
-			if (scene.structural == 0 && shortcuts.duplicate)
-				voe_editor_scene_duplicate(&scene);
-			if (shortcuts.gizmo_switch)
-				voe_editor_scene_gizmo_switch(&scene);
-			if (scene.full)
-				voe_editor_notice_set(&session.notice,
-						      "The scene is full.");
-			// AN EDIT REACHED THE PROJECT, AND NOTHING ABOVE ASKED
-			// FOR IT AS A COMMAND — an Inspector number dragged, an
-			// entity Add entity, Delete or Duplicate queued, a gizmo
-			// move: the other half of what marks the project
-			// unsaved (session.h, scene.h, gizmo.h).
-			if (scene.inspector.replaced > 0 ||
-			    scene.structural > 0 || gizmo.moved > 0) {
-				voe_editor_session_edited(&session);
-				voe_editor_undo_edited(&undo);
-			}
+				commands.escape_free);
+			// The acts that wait for the draw (frame_commands.h).
+			voe_editor_frame_commands_after_draw(&commands);
 			voe_render_pass_end(gpu);
 		}
 
