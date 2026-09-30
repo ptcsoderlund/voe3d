@@ -15,6 +15,10 @@
 // `wait` row is the only thing written here, whole, through
 // voe_ecs_component_set.
 //
+// The flash (0299 point 2): a gun with no emitter gets the enemy's muzzle
+// flash queued onto it, added at run time and never saved, since agents do
+// not edit tank_body.prefab; each shot fired bursts it.
+//
 // Constraints: the control row's `fire` (tank_control.h), level not edge; at
 // most one shot a gun a step, so a rate above the step rate fires at the step
 // rate. Nothing with no control row (headless, or before its first step). A
@@ -26,9 +30,12 @@
 #include "tank_shell.h"
 #include "tank_turret.h"
 
+#include <3d/emitter_component.h>
+
 #include <base/assert.h>
 
 #include <ecs/component.h>
+#include <ecs/structure.h>
 
 #include <game/world.h>
 
@@ -126,6 +133,58 @@ static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
 			       root_of(step->world, entity), placed.position);
 }
 
+// Queues the muzzle flash onto a gun with a transform and no emitter, as the
+// lives system adds its collider (0299 point 2): enemy_tank.prefab's numbers,
+// at the muzzle and along the barrel in the gun's own frame, so turned by its
+// turret's `aim`. Never played; each shot bursts it. A refused add is left
+// for the next step.
+static void add_flash(voe_ecs_world *world, voe_ecs_entity entity,
+		      const tank_gun *gun)
+{
+	VOE_BASE_ASSERT(world != NULL && gun != NULL, "a flash on no gun");
+	if (voe_3d_emitter_get(world, entity) != NULL ||
+	    voe_scene_transform_get(world, entity) == NULL)
+		return;
+	const tank_turret *turret = voe_ecs_component_get(
+		world, voe_ecs_component_type(world, &tank_turret_key), entity);
+	const voe_math_quat aim = voe_math_quat_from_axis_angle(
+		(voe_math_float3){ 0.0f, 1.0f, 0.0f },
+		(turret != NULL ? turret->aim : 0.0f) *
+			TANK_GUN_RADIANS_PER_DEGREE);
+	const voe_3d_emitter flash = {
+		.playing = false,
+		.burst = 12,
+		.life = 0.12f,
+		.speed = 2.0f,
+		.spread = 30.0f,
+		.offset = turned_by(aim, gun->muzzle),
+		.direction = turned_by(aim, (voe_math_float3){ 0.0f, 0.0f, -1.0f }),
+		.size_start = 0.9f,
+		.size_end = 0.3f,
+		.colour_start = { 1.0f, 0.9f, 0.7f },
+		.colour_end = { 1.0f, 0.5f, 0.1f },
+		.alpha_start = 1.0f,
+		.alpha_end = 0.0f,
+		.glow = 1.0f,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(isfinite(flash.direction.x), "a flash nowhere");
+	(void)voe_ecs_structure_add(
+		world, voe_ecs_component_type(world, &voe_3d_emitter_key), entity,
+		&flash);
+}
+
+// Bursts the gun's flash for a shot; nothing when it has none yet. A full
+// control queue loses this one flash, not the shot.
+static void burst_flash(voe_ecs_world *world, voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(world != NULL, "flashing in no world");
+	if (voe_3d_emitter_get(world, entity) == NULL)
+		return;
+	(void)voe_3d_emitter_control_submit(world, (voe_3d_emitter_control){
+		.entity = entity, .kind = VOE_3D_EMITTER_BURST, .count = 0 });
+}
+
 void tank_gun_system_run(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
@@ -151,10 +210,13 @@ void tank_gun_system_run(const voe_game_project_step *step)
 	for (uint32_t i = 0; i < count; i++) {
 		tank_gun next = rows[i];
 
+		add_flash(step->world, entities[i], &next);
 		next.wait -= (float)step->seconds;
 		if (held && next.wait <= 0.0f && next.rate > 0.0f &&
-		    fire(step, entities[i], &next))
+		    fire(step, entities[i], &next)) {
 			next.wait = 1.0f / next.rate;
+			burst_flash(step->world, entities[i]);
+		}
 		const bool ok = voe_ecs_component_set(step->world, type,
 						      entities[i], &next);
 
