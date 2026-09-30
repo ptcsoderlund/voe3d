@@ -2,7 +2,8 @@
 // and one draw per drawable into the frame the loop has opened.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
-// BY ENTITY; a model row's parts come from the frame's store. That is what
+// BY ENTITY; a model row's parts come from the frame's store, and the
+// particles are draw_particles.c's. That is what
 // a flat-table ECS with no archetypes costs and it is the trade this engine
 // took: each walk is linear and each lookup is one load (ecs/component.h). If
 // that ever measures slow it is a later card with a number attached, and nothing
@@ -21,6 +22,7 @@
 // draw_marks.c's; this file walks and orders them.
 #include "draw_group.h"
 #include "draw_marks.h"
+#include "draw_particles.h"
 
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
@@ -364,7 +366,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// group a thing lands in is not known until both walks have finished —
 	// the same bound voe_3d_draw_group_new explains.
 	world_blended = voe_3d_draw_group_new(
-		arena, count + panel_count + model_part_count(world, frame.models),
+		arena, count + panel_count + model_part_count(world, frame.models) +
+			       voe_3d_draw_particles_count(world, frame.models),
 		true);
 	overlay_solid = voe_3d_draw_group_new(arena, count, false);
 	overlay_blended = voe_3d_draw_group_new(arena, count + panel_count, true);
@@ -432,6 +435,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// The model rows' parts, world layer only (0277 point 3); a refused
 	// draw stops this walk and not the frame.
 	(void)draw_models(world, device, &frame, &world_blended);
+	// Every live particle, held blended in the world (0298 point 6).
+	voe_3d_draw_particles_hold(world, &frame, &world_blended);
 
 	// THE SECOND TABLE, AND EVERY ROW IN IT IS HELD BACK. A panel is drawn
 	// by the element pipeline, which is blended, tests depth and writes

@@ -5,6 +5,25 @@ wreck = "enemy_wreck"
 [1.tank_enemy]
 speed = 2
 life = 20
+[1.voe_3d_emitter]
+playing = true
+rate = 12
+burst = 0
+life = 1
+speed = 0.5
+spread = 50
+offset = [0, -1.7, 1.4]
+direction = [0, 1, 0]
+rise = 0.3
+drag = 1
+size_start = 0.4
+size_end = 1.4
+colour_start = [0.45, 0.35, 0.22]
+colour_end = [0.45, 0.35, 0.22]
+alpha_start = 0.5
+alpha_end = 0
+glow = 0
+texture = ""
 [1.voe_3d_model]
 path = "Assets/tank_body.glb"
 [1.voe_physics_collider]
@@ -18,6 +37,25 @@ scale = [1, 1, 1]
 
 [2]
 name = "Enemy turret"
+[2.voe_3d_emitter]
+playing = false
+rate = 0
+burst = 12
+life = 0.12
+speed = 2
+spread = 30
+offset = [0, 0.5, 3]
+direction = [0, 0, 1]
+rise = 0
+drag = 0
+size_start = 0.9
+size_end = 0.3
+colour_start = [1, 0.9, 0.7]
+colour_end = [1, 0.5, 0.1]
+alpha_start = 1
+alpha_end = 0
+glow = 1
+texture = ""
 [2.voe_3d_model]
 path = "Assets/tank_head.glb"
 [2.tank_turret]

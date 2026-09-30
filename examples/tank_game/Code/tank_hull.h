@@ -6,7 +6,9 @@
 //     tank_hull_system_run(world, seconds);     // after the control, before the move
 //
 // `speed` is metres a second, default 4; `turn` is degrees a second,
-// default 90. A hull needs a transform to drive.
+// default 90. A hull needs a transform to drive. A hull with no emitter is
+// given tread dust at its rear at run time (0299 point 3), which plays while
+// the drive is past 0.1 either way and stops when it falls back.
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows.
 #pragma once

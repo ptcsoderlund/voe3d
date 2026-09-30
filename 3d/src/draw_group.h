@@ -66,14 +66,15 @@ struct voe_3d_deferred {
 // One group of draws that could not be issued as the mesh table was walked,
 // because it has to wait for a sort, for the depth clear, or for both.
 //
-// `depths` AND `order` ARE BOTH THERE OR BOTH ABSENT, AND THAT IS WHAT SAYS
-// WHICH KIND OF GROUP THIS IS. A group with them sorts and draws blended; a
+// `depths`, `order` AND `scratch` ARE ALL THERE OR ALL ABSENT, AND THAT IS WHAT
+// SAYS WHICH KIND OF GROUP THIS IS. A group with them sorts and draws blended; a
 // group without them draws solid, in the order it was filled, which is table
-// order. One field would do and two is what the sort already takes.
+// order. One field would do and three is what the sort already takes.
 struct voe_3d_draw_group {
 	struct voe_3d_deferred *deferred;
 	float *depths;
 	uint32_t *order;
+	uint32_t *scratch;
 	uint32_t count;
 	// What it was sized for, kept so that _hold can say so. It is not read
 	// anywhere else: the arrays are filled once and walked once, and `count`

@@ -1,9 +1,11 @@
-// The model loader of game/include/game/models.h: a path joined onto the
-// folder, stamped, read into scratch and handed to the store, each failure one
-// line on stderr and counted. Scratch is rewound to where it stood after each
+// The model loader of game/include/game/models.h: a model row's path or an
+// emitter's texture joined onto the folder, stamped, read into scratch and
+// handed to the store, the soft dot loaded when any emitter is there, each
+// failure one line on stderr and counted. Scratch is rewound to where it stood after each
 // file, so a caller's own scratch data survives the call.
 #include <game/models.h>
 
+#include <3d/emitter_component.h>
 #include <3d/model_component.h>
 
 #include <base/assert.h>
@@ -26,8 +28,11 @@ static void count_failure(voe_game_models_failures *failures,
 	VOE_BASE_ASSERT(path != NULL, "counting a failure with no path");
 	VOE_BASE_ERROR("game", "could not read the model %s: %s", path,
 		       voe_base_error_string(error));
+	// The dot keeps no failed entry; its "" is a literal, valid for ever.
 	if (failures->count == 0 && entry != NULL)
 		failures->first = entry->path;
+	else if (failures->count == 0 && path[0] == '\0')
+		failures->first = "";
 	failures->count++;
 }
 
@@ -67,6 +72,26 @@ static bool load_changed(voe_3d_models *models, voe_render_device *device,
 	return loaded;
 }
 
+// Loads `path` when it is not empty and the store lacks it, counting a
+// failure. False when the store is full, which ends the update.
+static bool load_new(voe_3d_models *models, voe_render_device *device,
+		     const char *folder, const char *path,
+		     voe_base_arena *scratch,
+		     voe_game_models_failures *failures)
+{
+	voe_base_error error;
+
+	VOE_BASE_ASSERT(path != NULL, "loading no path");
+	VOE_BASE_ASSERT(failures != NULL, "counting into no failures");
+	if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
+		return true;
+	if (voe_3d_models_count(models) == VOE_3D_MODELS)
+		return false;
+	if (!load_changed(models, device, folder, path, 0, scratch, &error))
+		count_failure(failures, models, path, error);
+	return true;
+}
+
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
@@ -74,23 +99,24 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_base_arena *scratch)
 {
 	const voe_3d_model *rows = voe_3d_model_rows(world);
+	const voe_3d_emitter *emitters = voe_3d_emitter_rows(world);
 	voe_game_models_failures failures = { 0 };
+	bool room = true;
+	voe_base_error error;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
-	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
-		const char *path = rows[row].path;
-		voe_base_error error;
-
-		if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
-			continue;
-		if (voe_3d_models_count(models) == VOE_3D_MODELS)
-			break;
-		if (!load_changed(models, device, folder, path, 0, scratch,
-				  &error))
-			count_failure(&failures, models, path, error);
-	}
+	for (uint32_t row = 0; room && row < voe_3d_model_count(world); row++)
+		room = load_new(models, device, folder, rows[row].path, scratch,
+				&failures);
+	for (uint32_t row = 0; room && row < voe_3d_emitter_count(world); row++)
+		room = load_new(models, device, folder, emitters[row].texture,
+				scratch, &failures);
+	if (voe_3d_emitter_count(world) > 0 &&
+	    voe_3d_models_find(models, "") == NULL &&
+	    !voe_3d_models_load_dot(models, device, &error))
+		count_failure(&failures, models, "", error);
 	return failures;
 }
 

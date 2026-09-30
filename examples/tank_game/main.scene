@@ -32,7 +32,7 @@ fill_colour = [0.8992056, 0.7447454, 0.335389]
 fill_intensity = 0.09
 [3.voe_scene_transform]
 position = [0, 8, 0]
-rotation = [-0.36514837, 0.18257418, 0, 0.91287094]
+rotation = [-0.31563857, -0.346564, -0.29888624, 0.8312236]
 scale = [1, 1, 1]
 
 [4]
@@ -55,3 +55,29 @@ wait = 0
 position = [4.0978193283081055e-08, 2, -15.000000476837158]
 rotation = [0, 1, 0, 0]
 scale = [1, 1, 1]
+
+[8]
+name = "Particles"
+[8.voe_3d_emitter]
+playing = true
+rate = 2
+burst = 23
+life = 10
+speed = 1.6883482
+spread = 40
+offset = [0, 0, 0]
+direction = [0, 1, 0]
+rise = 0
+drag = 0
+size_start = 1
+size_end = 2
+colour_start = [1, 1, 1]
+colour_end = [1, 1, 1]
+alpha_start = 1
+alpha_end = 0
+glow = 0
+texture = "Assets/images/P.png"
+[8.voe_scene_transform]
+position = [-1.0663643479347229e-07, 4.330971518531442, -6.705522537231445e-08]
+rotation = [0, 0, 0, 1]
+scale = [2, 2, 2]

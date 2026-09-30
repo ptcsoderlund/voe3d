@@ -97,21 +97,31 @@ static bool list_shown(const char *project, const char *shown,
 	return listed_into(path, scratch, listing);
 }
 
-// Whether `name` ends `.prefab`, in any case.
-static bool names_prefab(const char *name)
+// Whether `name` ends `ending`, lower case, in any case.
+static bool name_ends(const char *name, const char *ending)
 {
-	static const char prefab[] = ".prefab";
 	size_t length;
+	size_t tail;
 
-	VOE_BASE_ASSERT(name != NULL, "asking whether no name is a prefab");
+	VOE_BASE_ASSERT(name != NULL && ending != NULL,
+			"asking whether no name ends in something");
 	length = strlen(name);
-	if (length < sizeof prefab - 1)
+	tail = strlen(ending);
+	if (length < tail)
 		return false;
-	name += length - (sizeof prefab - 1);
-	for (size_t i = 0; i < sizeof prefab - 1; i++)
-		if (tolower((unsigned char)name[i]) != prefab[i])
+	name += length - tail;
+	for (size_t i = 0; i < tail; i++)
+		if (tolower((unsigned char)name[i]) != ending[i])
 			return false;
 	return true;
+}
+
+// Whether `name` ends `.png`, `.jpg` or `.jpeg`, in any case.
+static bool names_picture(const char *name)
+{
+	VOE_BASE_ASSERT(name != NULL, "asking whether no name is a picture");
+	return name_ends(name, ".png") || name_ends(name, ".jpg") ||
+	       name_ends(name, ".jpeg");
 }
 
 // Folders in the first pass, files in the second, each in the listing's name
@@ -136,7 +146,9 @@ static void rows_fill(voe_editor_assets *assets,
 				.folder = e->folder,
 				.model = !e->folder &&
 					 voe_editor_browser_names_model(e->name),
-				.prefab = !e->folder && names_prefab(e->name),
+				.prefab = !e->folder &&
+					  name_ends(e->name, ".prefab"),
+				.picture = !e->folder && names_picture(e->name),
 			};
 		}
 	}
@@ -235,10 +247,11 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 
-		// A model or prefab row is marked the way the Scene list marks
-		// its selected row: a choice drawn inverted (ADR-0194).
+		// A model, prefab or picture row is marked the way the Scene
+		// list marks its selected row: a choice drawn inverted (ADR-0194).
 		row->node = voe_ui_choice_begin(ui, "asset", i,
-						row->model || row->prefab);
+						row->model || row->prefab ||
+							row->picture);
 		voe_ui_label(ui, row->name);
 		if (row->folder)
 			voe_ui_label(ui, "/");
@@ -289,14 +302,16 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->held = NULL;
 	assets->held_prefab = false;
+	assets->held_picture = false;
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 
-		if ((row->model || row->prefab) &&
+		if ((row->model || row->prefab || row->picture) &&
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).held) {
 			assets->held = row->name;
 			assets->held_prefab = row->prefab;
+			assets->held_picture = row->picture;
 		}
 		if (entered == NULL && row->folder &&
 		    row->node != VOE_UI_NODE_NONE &&

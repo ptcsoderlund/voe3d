@@ -10,8 +10,12 @@
 // system reads a table (ADR-0193), and every owning system still runs every
 // frame whether anything submitted or not (ADR-0134 point 7).
 //
-// NO MOVE: the editor steps nothing (0254). A body's velocity is drained into
+// NO MOVE: the editor steps no body (0254). A body's velocity is drained into
 // its row and never integrated, so what is edited stays where it is put.
+//
+// EMITTERS RUN WHILE EDITING (0298 point 4), so an effect is seen as it is
+// tuned: voe_3d_emitter_system_run gets `seconds` after game's step. It is the
+// one thing the editor steps by time; `seconds` of 0 spawns and moves nothing.
 //
 // PLACED COPIES ARE EXPANDED AFTER THE STEP (prefabs.h, 0283 point 4). A root
 // queued this frame — a drop, a duplicate, a made prefab — exists only once the
@@ -28,8 +32,8 @@
 #include <ecs/world.h>
 
 // One frame's step of world, the shapes' GPU side read by the shape system,
-// then its placed copies expanded from folder (NULL: none) with scratch, a
-// copy that will not expand said in why.
+// its emitters run `seconds` on (>= 0), then its placed copies expanded from
+// folder (NULL: none) with scratch, a copy that will not expand said in why.
 void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes,
-			   const char *folder, voe_base_arena *scratch,
-			   voe_editor_notice *why);
+			   float seconds, const char *folder,
+			   voe_base_arena *scratch, voe_editor_notice *why);

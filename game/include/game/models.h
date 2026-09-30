@@ -11,13 +11,17 @@
 // `folder` joined with the row's path, its stamp taken, the file read and
 // loaded. A file with no stamp, or one that will not read, is kept as a failed
 // entry at stamp 0; one that will not parse is kept failed at its stamp. So a
-// broken file is read once, not once a frame. Empty paths are skipped.
+// broken file is read once, not once a frame. Empty paths are skipped. Every
+// emitter row's texture is read the same way, the store making a picture of a
+// `.png` or `.jpg` (0298 point 5); when the world has any emitter, the soft dot
+// is loaded at "" if the store lacks it, a failure counted with first "".
 //
-// WATCH asks every entry's file for its stamp again. A stamp that differs from
-// the entry's is read and loaded again: a success replaces the parts, a failure
-// keeps them (3d/models.h). A failed entry whose file now has a stamp differs
-// from its 0, so it is tried again; a loaded file that has gone is kept, failed
-// at 0, and tried again when it comes back.
+// WATCH asks every entry's file for its stamp again, pictures as models. A
+// stamp that differs from the entry's is read and loaded again: a success
+// replaces the parts, a failure keeps them (3d/models.h). A failed entry whose
+// file now has a stamp differs from its 0, so it is tried again; a loaded file
+// that has gone is kept, failed at 0, and tried again when it comes back. The
+// dot is made in code and not watched.
 //
 // BOTH RETURN how many paths failed in the call and the first one's path, the
 // store's own copy, valid until that entry is loaded again or the store is
@@ -53,7 +57,8 @@ typedef struct {
 	const char *first;
 } voe_game_models_failures;
 
-// Reads and loads every model row's path the store lacks. See the header.
+// Reads and loads every model row's path and emitter's texture the store
+// lacks, and the dot for any emitter. See the header.
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,

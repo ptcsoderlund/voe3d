@@ -14,17 +14,19 @@
 #include <platform/path.h>
 
 #include <stdio.h>
+#include <string.h>
 
 // How far along the ray a model lands that meets nothing and no ground.
 #define DROP_METRES 10.0
 
 // The held row's path into `drag`, `\` from a joined subfolder made `/`, and
-// whether it is a prefab. False when it does not fit its kind's row.
+// its kind. False when it does not fit its kind's row.
 static bool path_hold(voe_editor_assets_drag *drag,
 		      const voe_editor_assets *assets)
 {
-	size_t room = assets->held_prefab ? VOE_SCENE_PREFAB_PATH :
-					    VOE_3D_MODEL_PATH;
+	size_t room = assets->held_prefab  ? VOE_SCENE_PREFAB_PATH :
+		      assets->held_picture ? VOE_3D_EMITTER_TEXTURE :
+					     VOE_3D_MODEL_PATH;
 	int length = assets->shown[0] == '\0' ?
 			     snprintf(drag->path, sizeof drag->path,
 				      "Assets/%s", assets->held) :
@@ -36,6 +38,7 @@ static bool path_hold(voe_editor_assets_drag *drag,
 	if (length < 0 || (size_t)length >= room)
 		return false;
 	drag->prefab = assets->held_prefab;
+	drag->picture = assets->held_picture;
 	for (int i = 0; i < length; i++)
 		if (drag->path[i] == '\\')
 			drag->path[i] = '/';
@@ -86,12 +89,13 @@ static bool drop_into_view(const voe_editor_assets_drag *drag,
 	return true;
 }
 
-// The header's four outcomes; NOTHING is the one a ghost shows refused.
+// The header's five outcomes; NOTHING is the one a ghost shows refused.
 typedef enum {
 	OUTCOME_NOTHING,
 	OUTCOME_MODEL_INTO_VIEW,
 	OUTCOME_MODEL_ONTO_INSPECTOR,
 	OUTCOME_PREFAB_INTO_VIEW,
+	OUTCOME_PICTURE_ONTO_INSPECTOR,
 } outcome_kind;
 
 // What a release at a pointer would do, the view and point it lands in, and,
@@ -122,21 +126,41 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 	if (blocked)
 		return out;
 	if (voe_editor_views_under(views, pointer, &out.view, &out.point)) {
-		if (!drag->prefab)
+		if (!drag->prefab && !drag->picture)
 			out.kind = OUTCOME_MODEL_INTO_VIEW;
-		else if (session->project->prefab[0] == '\0')
+		else if (drag->prefab && session->project->prefab[0] == '\0')
 			out.kind = OUTCOME_PREFAB_INTO_VIEW;
-		else
+		else if (drag->prefab)
 			out.why = "A prefab is not placed while one is open.";
 	} else if (voe_editor_dock_over_panel(
 			   root, voe_editor_topbar_high(bar, root->size.y),
 			   VOE_EDITOR_PANEL_INSPECTOR, pointer) &&
 		   !drag->prefab &&
-		   !voe_editor_inspector_is_part(scene->world, selected, NULL) &&
-		   voe_3d_model_get(scene->world, selected) != NULL) {
-		out.kind = OUTCOME_MODEL_ONTO_INSPECTOR;
+		   !voe_editor_inspector_is_part(scene->world, selected, NULL)) {
+		if (drag->picture &&
+		    voe_3d_emitter_get(scene->world, selected) != NULL)
+			out.kind = OUTCOME_PICTURE_ONTO_INSPECTOR;
+		else if (!drag->picture &&
+			 voe_3d_model_get(scene->world, selected) != NULL)
+			out.kind = OUTCOME_MODEL_ONTO_INSPECTOR;
 	}
 	return out;
+}
+
+// The selected emitter's row with `path` as its texture, submitted whole.
+static bool texture_swap(voe_ecs_world *world, voe_ecs_entity entity,
+			 const char *path)
+{
+	const voe_3d_emitter *emitter = voe_3d_emitter_get(world, entity);
+	voe_3d_emitter_intent intent = { .entity = entity };
+
+	VOE_BASE_ASSERT(emitter != NULL, "a texture for no emitter");
+	VOE_BASE_ASSERT(path != NULL && strlen(path) < VOE_3D_EMITTER_TEXTURE,
+			"a texture path longer than its room");
+	intent.emitter = *emitter;
+	snprintf(intent.emitter.texture, sizeof intent.emitter.texture, "%s",
+		 path);
+	return voe_3d_emitter_submit(world, intent);
 }
 
 // The release: into a view, onto the Inspector, or nothing. Whether an edit
@@ -163,6 +187,8 @@ static void drop(const voe_editor_assets_drag *drag,
 		snprintf(swap.model.path, sizeof swap.model.path, "%s",
 			 drag->path);
 		done = voe_3d_model_submit(scene->world, swap);
+	} else if (out.kind == OUTCOME_PICTURE_ONTO_INSPECTOR) {
+		done = texture_swap(scene->world, swap.entity, drag->path);
 	} else {
 		done = drop_into_view(drag, scene, &views->views[out.view],
 				      out.point, geometries, models);

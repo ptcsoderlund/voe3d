@@ -404,7 +404,15 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // world layer, white in its object record, solid or blended by the part's
 // material. An empty path, a path the store lacks, a failed entry and a NULL
 // store draw nothing. THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
-// names is not drawn however complete it is, mesh, panel or model.
+// names is not drawn however complete it is, mesh, panel, model or particle.
+//
+// EACH LIVE PARTICLE IS ONE BLENDED DRAW FROM `frame.models` (ADR-0298 point
+// 6): its emitter's texture's picture entry, the soft dot at "" for an empty
+// one, part 1 when it glows and part 0 otherwise, facing the camera, sized and
+// coloured at its age, sorted with the rest of the world's blended group and
+// casting no shadow. A NULL store, or no loaded picture, draws none of that
+// emitter's; a world with no emitter table draws none. The device needs room
+// for VOE_3D_EMITTER_PARTICLES objects per emitter per world pass.
 //
 // A DRAWN OBJECT'S COLOUR IS ITS SHAPE'S, OR WHITE (ADR-0191). The per-object
 // record carries a colour the shader multiplies into the material's base
@@ -477,7 +485,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // over scratch; this rewinds every frame to exactly what it was handed, keeps
 // nothing, and a caller may pass the same arena it uses for anything else. What
 // it takes is bounded by the number of drawables in the world, each loaded part
-// of each model row counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
+// of each model row and each live particle counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
 // have finished and each of them therefore has room for all of them.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame);

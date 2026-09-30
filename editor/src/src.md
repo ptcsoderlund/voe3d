@@ -6,13 +6,18 @@ carries it out.
 
 - `main.c` — opens a project, the window and the device, makes the arena, font, themes and
   interface, uploads the shapes, opens the views on the scene's camera, and runs the loop until a
-  close goes ahead or the picture is written; Escape cancels a Scene list drag first.
+  close goes ahead or the picture is written.
+- `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
+  the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
+- `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
+  Ctrl+D, R and the edit marked after the interface has drawn.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
 - `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, why
-  the editor runs no move, and why placed copies are expanded after it.
-- `world_step.c` — the one call to `voe_game_world_step`, then the expansion.
+  the editor runs no move but runs emitters by the frame's seconds, and why placed copies are
+  expanded after it.
+- `world_step.c` — the one call to `voe_game_world_step`, the emitters' run, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
   ascending id, a load, with deterministic ids and a file that will not read said in the notice;
   a tree dragged into the Assets panel made one, what refuses it, and the refusals asked per frame.
@@ -137,16 +142,16 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
-  entered and Up but never above it, listed again once a second, model and prefab rows marked, a
+  entered and Up but never above it, listed again once a second, model, prefab and picture rows marked, a
   fired prefab row left to open, and Import.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
   afterwards, and the import.
-- `assets_drag.h` — a held model or prefab row from the Assets panel: released over a scene view
-  it places a new thing or a copy where the ray lands, over the Inspector it swaps the selected
-  thing's model, elsewhere nothing.
+- `assets_drag.h` — a held model, prefab or picture row from the Assets panel: released over a
+  scene view it places a new thing or a copy where the ray lands, over the Inspector it swaps the
+  selected thing's model or its emitter's texture, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the drop point, the Inspector's rectangle, and the one undo step.
+  the release and the ghost, the drop point, the Inspector's rectangle, the texture swap, and the one undo step.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).

@@ -9,15 +9,23 @@
 // touches them. Each hull gets one transform intent a step, turn and drive
 // together.
 //
+// The dust (0299 point 3): a hull with no emitter gets the enemy's tread dust
+// queued onto it, added at run time and never saved, since agents do not edit
+// tank_body.prefab. It plays while the drive is past 0.1 either way and stops
+// otherwise, the control sent only on the change, read from its `playing`.
+//
 // Constraints: one control row drives every hull. Nothing with no control
 // row (headless, or before its first step). A full transform queue leaves
 // the rest of the hulls where they were this step.
 #include "tank_control.h"
 #include "tank_hull.h"
 
+#include <3d/emitter_component.h>
+
 #include <base/assert.h>
 
 #include <ecs/component.h>
+#include <ecs/structure.h>
 
 #include <game/project.h>
 #include <game/world.h>
@@ -28,7 +36,12 @@
 
 #include <scene/transform_system.h>
 
+#include <math.h>
+
 #define TANK_HULL_RADIANS_PER_DEGREE (3.14159265358979323846f / 180.0f)
+
+// The drive, either way, past which the treads kick up dust.
+#define TANK_HULL_DUST_DRIVE 0.1f
 
 const struct voe_ecs_key tank_hull_key = { "tank_hull" };
 
@@ -58,6 +71,49 @@ static voe_math_float3 forward_of(voe_math_quat q)
 	return forward;
 }
 
+// Queues the tread dust onto a hull with no emitter, as the lives system adds
+// its collider (0299 point 3): enemy_tank.prefab's dust, not playing. With
+// one, sends PLAY or STOP only when `moving` differs from its `playing`. A
+// refused add or control is left for the next step.
+static void dust(voe_ecs_world *world, voe_ecs_entity entity, bool moving)
+{
+	VOE_BASE_ASSERT(world != NULL, "dust in no world");
+	const voe_3d_emitter *emitter = voe_3d_emitter_get(world, entity);
+
+	if (emitter != NULL) {
+		if (emitter->playing != moving)
+			(void)voe_3d_emitter_control_submit(
+				world, (voe_3d_emitter_control){
+					.entity = entity,
+					.kind = moving ? VOE_3D_EMITTER_PLAY :
+							 VOE_3D_EMITTER_STOP });
+		return;
+	}
+	const voe_3d_emitter row = {
+		.playing = false,
+		.rate = 12.0f,
+		.life = 1.0f,
+		.speed = 0.5f,
+		.spread = 50.0f,
+		.offset = { 0.0f, -1.7f, 1.4f },
+		.direction = { 0.0f, 1.0f, 0.0f },
+		.rise = 0.3f,
+		.drag = 1.0f,
+		.size_start = 0.4f,
+		.size_end = 1.4f,
+		.colour_start = { 0.45f, 0.35f, 0.22f },
+		.colour_end = { 0.45f, 0.35f, 0.22f },
+		.alpha_start = 0.5f,
+		.alpha_end = 0.0f,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(row.rate > 0.0f && row.life > 0.0f,
+			      "dust that never shows");
+	(void)voe_ecs_structure_add(
+		world, voe_ecs_component_type(world, &voe_3d_emitter_key), entity,
+		&row);
+}
+
 void tank_hull_system_run(voe_ecs_world *world, double seconds)
 {
 	VOE_BASE_ASSERT(world != NULL, "driving hulls in no world");
@@ -71,6 +127,7 @@ void tank_hull_system_run(voe_ecs_world *world, double seconds)
 		voe_ecs_component_rows(world, control_type);
 	const float drive = control->drive;
 	const float turn = control->turn;
+	const bool moving = fabsf(drive) > TANK_HULL_DUST_DRIVE;
 	const voe_ecs_type type = voe_ecs_component_type(world, &tank_hull_key);
 	const voe_ecs_type transform_type =
 		voe_ecs_component_type(world, &voe_scene_transform_key);
@@ -86,6 +143,7 @@ void tank_hull_system_run(voe_ecs_world *world, double seconds)
 
 		if (transform == NULL)
 			continue;
+		dust(world, entities[i], moving);
 		voe_scene_transform driven = *transform;
 
 		driven.rotation = voe_math_quat_normalize(voe_math_quat_mul(

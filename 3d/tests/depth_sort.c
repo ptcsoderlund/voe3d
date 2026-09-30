@@ -2,7 +2,7 @@
 // first, where further away is more negative view-space z.
 //
 // THE SIGN IS THE ONLY THING WORTH TESTING HERE AND IT IS THE ONLY THING THIS
-// CAN GET WRONG. An insertion sort that sorted the other way is still a correct
+// CAN GET WRONG. A merge sort that sorted the other way is still a correct
 // sort — it produces a total order, every element appears once, and nothing
 // crashes — so no check about permutations or lengths would notice. Every case
 // below therefore states which object has to come first by name, and the first
@@ -31,10 +31,39 @@ static void check_order(const float *view_z, uint32_t count,
 			const uint32_t *expected)
 {
 	uint32_t order[8] = { 0 };
+	uint32_t scratch[8] = { 0 };
 
-	voe_3d_depth_sort(view_z, count, order);
+	voe_3d_depth_sort(view_z, count, order, scratch);
 	for (uint32_t i = 0; i < count; i++)
 		VOE_TEST_CHECK_INT(order[i], expected[i]);
+}
+
+// A particle pass's worth: 4096 depths from a fixed seed, drawn from 64 values
+// so that ties are everywhere. The answer has to come out ascending, and where
+// two depths are equal the one with the smaller index — the one that came in
+// first — has to come out first.
+static void check_many(void)
+{
+	enum { many = 4096 };
+	static float view_z[many];
+	static uint32_t order[many];
+	static uint32_t scratch[many];
+	uint32_t seed = 12345u;
+
+	for (uint32_t i = 0; i < many; i++) {
+		seed = seed * 1664525u + 1013904223u;
+		view_z[i] = -1.0f - (float)((seed >> 16) % 64u);
+	}
+
+	voe_3d_depth_sort(view_z, many, order, scratch);
+	for (uint32_t i = 1; i < many; i++) {
+		float before = view_z[order[i - 1]];
+		float after = view_z[order[i]];
+
+		VOE_TEST_CHECK(before <= after);
+		if (before == after)
+			VOE_TEST_CHECK(order[i - 1] < order[i]);
+	}
 }
 
 int main(void)
@@ -90,7 +119,9 @@ int main(void)
 
 	// Nothing see-through in the scene: no reads, no writes, no branch at
 	// the call site. Passing null arrays is what says so.
-	voe_3d_depth_sort(NULL, 0, NULL);
+	voe_3d_depth_sort(NULL, 0, NULL, NULL);
+
+	check_many();
 
 	return voe_test_result();
 }

@@ -11,7 +11,8 @@
 // its turret's `aim`, default (0, 0.3, -1.2); the shot flies along the
 // barrel. `wait` is the seconds to the next shot, written only by the system.
 // A gun needs a transform to fire, and sits on a turret so it fires along its
-// aim.
+// aim. A gun with no emitter is given a muzzle flash at `muzzle`, along the
+// barrel, at run time (0299 point 2), and each shot bursts it.
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows; `prefab` at most 63
 // bytes.

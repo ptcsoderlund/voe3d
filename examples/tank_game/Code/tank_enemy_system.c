@@ -21,7 +21,8 @@
 // barrel and added to the turret's world position, and the shell spawns there
 // turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
 // position. `wait` becomes 1 / `rate` only when the fire is not refused, so a
-// refused one tries again next step.
+// refused one tries again next step. Each shot bursts the turret's emitter,
+// the prefab's muzzle flash; a turret with none sends nothing.
 //
 // Constraints: runs headless as well, nothing here reads input. At most one
 // shot an enemy a step. Finding a turret scans every turret row, enemies
@@ -32,6 +33,8 @@
 #include "tank_lives.h"
 #include "tank_shell.h"
 #include "tank_turret.h"
+
+#include <3d/emitter_component.h>
 
 #include <base/assert.h>
 
@@ -191,8 +194,16 @@ static bool aim_and_fire(const voe_game_project_step *step,
 		voe_scene_transform_world(step->world, turret).position,
 		voe_math_double3_from_float3(turned_by(barrel, enemy->muzzle)));
 
-	return tank_shell_fire(step, enemy->prefab, muzzle, barrel, entity,
-			       transform->position);
+	if (!tank_shell_fire(step, enemy->prefab, muzzle, barrel, entity,
+			     transform->position))
+		return false;
+	// The turret's own flash (0299 point 2); a full queue loses only it.
+	if (voe_3d_emitter_get(step->world, turret) != NULL)
+		(void)voe_3d_emitter_control_submit(
+			step->world, (voe_3d_emitter_control){
+				.entity = turret, .kind = VOE_3D_EMITTER_BURST,
+				.count = 0 });
+	return true;
 }
 
 // Moves the enemy along its own -Z for the step. False when the transform

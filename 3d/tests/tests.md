@@ -26,6 +26,8 @@ again, or to find where a claim that has started failing is written down.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
   or sun marker is one draw more. Skips without a graphics card.
+- `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
+  none with no store, and that a glowing one is unlit. Skips without a graphics card.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
   a graphics card.
@@ -62,6 +64,9 @@ again, or to find where a claim that has started failing is written down.
   card; the upload half skips without one.
 - `model_component.c` — the model's one CHAR field `path` of 128, a submitted path read back after a
   run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
-- `models.c` — the store: a model's parts and baked node transform, bad bytes and an unread
-  file kept as failed, a path loaded a hundred times on room for three, good then bad and bad
-  then good, a clear, and a model drawn only with the store and not hidden. Skips without a card.
+- `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
+  the particles runtime-only, and both submits taken. Needs no graphics card.
+- `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
+  death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
+- `models.c` — the model store: loads, failures kept as failed, replace, clear, pictures and
+  the uncounted dot, and a model drawn only with the store. Skips without a card.

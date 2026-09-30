@@ -86,8 +86,9 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 }
 
 // Room in the arena for one group, sized for the whole mesh table — see below
-// for why that bound and not a measured one. A sorted group gets the two
-// arrays the sort works in; an unsorted one has nothing to sort and gets neither.
+// for why that bound and not a measured one. A sorted group gets the three
+// arrays the sort works in — the keys, the order and the merge sort's scratch;
+// an unsorted one has nothing to sort and gets none of them.
 //
 // A TABLE WITH NOTHING IN IT PUSHES NOTHING. voe_base_arena_push asserts on a
 // size of nought (base/arena.h), so an empty group is the zeroed struct and the
@@ -116,6 +117,8 @@ struct voe_3d_draw_group voe_3d_draw_group_new(voe_base_arena *arena,
 			arena, (size_t)capacity * sizeof(*group.depths));
 		group.order = voe_base_arena_push(
 			arena, (size_t)capacity * sizeof(*group.order));
+		group.scratch = voe_base_arena_push(
+			arena, (size_t)capacity * sizeof(*group.scratch));
 	}
 	return group;
 }
@@ -166,7 +169,8 @@ bool voe_3d_draw_group_draw(voe_render_device *device,
 	bool sorted = group->order != NULL;
 
 	if (sorted)
-		voe_3d_depth_sort(group->depths, group->count, group->order);
+		voe_3d_depth_sort(group->depths, group->count, group->order,
+				  group->scratch);
 
 	for (uint32_t i = 0; i < group->count; i++) {
 		const struct voe_3d_deferred *drawn =

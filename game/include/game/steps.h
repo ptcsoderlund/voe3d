@@ -12,9 +12,11 @@
 // ONE STEP, IN ORDER: the transforms remembered, `systems` with `seconds` the
 // step, the world step (game/frame.h), the bodies' move, the transform
 // system again so later queries see where the bodies went, `after_move` with
-// the same step, then the world step again. The second world step drains what
-// `after_move` submitted in this step, before the next remember, so a follow
-// is drawn at the bodies' lag and not a step behind (0257).
+// the same step, the world step again, then the emitter system a step on
+// (3d/emitter_system.h). The second world step drains what `after_move`
+// submitted in this step, before the next remember, so a follow is drawn at
+// the bodies' lag and not a step behind (0257); the emitters run last, so a
+// burst either slot sent spawns in the same step.
 //
 // WHY FIXED: a body's move and a project's gravity integrate by the step, so a
 // jump is as high at 30 frames a second as at 240, and a replay is the same.

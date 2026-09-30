@@ -20,7 +20,8 @@
 // the player at its row's `turn`, and the enemy fires only when the barrel is
 // on target; with no turret it never fires. `muzzle`, default (0, 0.5, -3), is
 // in the barrel's frame about the turret's world position, and the shot
-// leaves turned as the barrel.
+// leaves turned as the barrel. Each shot bursts the turret's emitter, the
+// prefab's muzzle flash (0299 point 2); a turret with none flashes nothing.
 //
 // Constraints: at most TANK_ENEMY_ROWS rows; `prefab` at most 63 bytes.
 #pragma once

@@ -20,6 +20,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   call, the reads and the collider that fits each kind.
 - `model_component.c` — the model table: its key, its registration, the reads, the
   intent's submit and the drain that cuts a path with no end.
+- `emitter_component.c` — the emitter and particles tables: their keys, the registration with
+  0298's defaults, the reads and the two submits.
+- `emitter_system.c` — the two drains, the particles rows added and dropped, the births in a
+  cone through the world matrix from a xorshift, and the step that moves and kills.
 - `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
   repoints a changed kind and drops both once the shape is gone.
@@ -61,7 +65,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   room; internal.
 - `gizmo_quads.c` — a build's arrays in the arena, each normal towards the eye, each triangle wound
   to face it, and a quad as two of them.
-- `depth_sort.c` — the insertion sort, where the sign is the whole of it.
+- `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
+  is the whole of it.
 - `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model
   parts from the frame's store and panels, the world's solids drawn as found, the held-back groups and the marks in their order.
 - `draw_shadows.c` — the sun's shadow passes: the cascades fitted to the frame, and every caster,
@@ -69,6 +74,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
+- `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
+  and held in it; internal.
+- `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
+  about the eye, and size, colour and alpha lerped at age over life.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
 - `draw_marks.c` — the camera and sun markers, the outline, a collider's lines and the gizmo's
   arrows or rings, each as transient quads.
@@ -83,4 +92,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill, and the mirrored node's turned triangles.
 - `models.c` — the store's table of entries with an arena each, and the load that reads,
-  bakes, uploads and gives back what a failure made.
+  bakes, uploads and gives back what a failure made; pictures on the quad, the dot apart.
+- `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
+  texture and two blended materials; internal.
+- `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
+  materials on one COLOUR texture.

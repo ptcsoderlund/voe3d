@@ -33,7 +33,9 @@
 // marker, one for the sun's and one for the selection's collider, times the room for views, and the drawn entities once more for the
 // preview's pass, which draws the world alone; and every caster once per
 // cascade, VOE_GAME_WORLD_MAX_DRAWN × VOE_RENDER_SHADOW_CASCADES, per view and
-// for the preview. `passes` is a pass per view, the preview's and the
+// for the preview; and every emitter's particles, VOE_GAME_WORLD_EMITTERS ×
+// VOE_3D_EMITTER_PARTICLES, an object each in every view's pass and the
+// preview's (0298 point 8). `passes` is a pass per view, the preview's and the
 // interface's, and a shadow pass per cascade for each view and the preview
 // (`shadow_size` is VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h), and
 // `targets` a target per view and the preview's — both from the room for views, not the two in use, so a
@@ -56,6 +58,7 @@
 #include "view.h"
 
 #include <3d/draw_system.h>
+#include <3d/emitter_component.h>
 #include <3d/models.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_geometry.h>
@@ -109,6 +112,8 @@
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
 				   VOE_RENDER_SHADOW_CASCADES *                \
+				   (VOE_EDITOR_VIEWS + 1) +                    \
+			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1),                     \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
