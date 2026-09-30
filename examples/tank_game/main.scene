@@ -90,4 +90,10 @@ scale = [2, 2, 2]
 
 [10]
 name = "GameState"
+folded = true
+
+[12]
+name = "PauseState"
 folded = false
+[12.voe_scene_parent]
+parent = 10
