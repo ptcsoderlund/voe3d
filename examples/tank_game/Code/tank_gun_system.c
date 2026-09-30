@@ -65,7 +65,7 @@ bool tank_gun_register(voe_ecs_world *world)
 	return voe_game_project_component(world, &(voe_game_project_type){
 		&tank_gun_key, sizeof(tank_gun), VOE_GAME_WORLD_AUTHORED,
 		VOE_GAME_PROJECT_DESCRIPTION(tank_gun), &tank_gun_default,
-		"Tank / Gun" });
+		"Tank / Gun", &voe_scene_transform_key });
 }
 
 // v turned by the unit quaternion q: v + 2w(u x v) + 2u x (u x v).

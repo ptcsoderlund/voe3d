@@ -1,5 +1,7 @@
 // The tank breakable's key and registration. What a hit does to it is the
 // shell system's (tank_shell_system.c); this file only makes the type.
+// It needs no transform: it is data a shell's hit reads, so a bare entity
+// may carry it.
 //
 // Constraints: none past tank_breakable.h's.
 #include "tank_breakable.h"
