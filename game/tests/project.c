@@ -2,9 +2,10 @@
 // world: its menu and default read back, a replace in the layout
 // voe_ecs_component_replace gives lands whole, one for a destroyed entity is
 // dropped with the queue empty after, and a row of 241 bytes is refused. A
-// type registered needing the transform answers it as needed; one with no
-// needs answers none. A
-// hand-written two-entity prefab spawned lands with its child under its
+// type of six positional members (the pre-043 shape, which this file building
+// under -Wextra -Werror proves) answers no need until
+// voe_game_project_component_needs names the transform; a second call, an
+// unregistered key and an engine type as the key are refused. A hand-written two-entity prefab spawned lands with its child under its
 // root, an unknown name is refused, a remove takes both, and a thousand
 // rounds leave the world's entity count where it began.
 // Needs no window and no graphics card.
@@ -121,7 +122,7 @@ int main(void)
 		world, &(voe_game_project_type){
 			       &speed_key, sizeof(speed), 4,
 			       VOE_GAME_PROJECT_DESCRIPTION(speed), &start,
-			       "Game / Speed", NULL }));
+			       "Game / Speed" }));
 	type = voe_ecs_component_type(world, &speed_key);
 	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
 			      "Game / Speed") == 0);
@@ -151,19 +152,28 @@ int main(void)
 	VOE_TEST_CHECK(voe_game_project_component(
 		world, &(voe_game_project_type){
 			       &follow_key, sizeof(speed), 4,
-			       VOE_GAME_PROJECT_DESCRIPTION(speed), NULL, NULL,
-			       &voe_scene_transform_key }));
+			       VOE_GAME_PROJECT_DESCRIPTION(speed), NULL, NULL }));
+	VOE_TEST_CHECK(!voe_ecs_component_needs(
+		world, voe_ecs_component_type(world, &follow_key), &needed));
+	VOE_TEST_CHECK(voe_game_project_component_needs(
+		world, &follow_key, &voe_scene_transform_key));
 	VOE_TEST_CHECK(voe_ecs_component_needs(
 		world, voe_ecs_component_type(world, &follow_key), &needed));
 	VOE_TEST_CHECK_INT(
 		needed.value,
 		voe_ecs_component_type(world, &voe_scene_transform_key).value);
+	VOE_TEST_CHECK(!voe_game_project_component_needs(
+		world, &follow_key, &voe_scene_transform_key));
+	VOE_TEST_CHECK(!voe_game_project_component_needs(
+		world, &wide_key, &voe_scene_transform_key));
+	VOE_TEST_CHECK(!voe_game_project_component_needs(
+		world, &voe_scene_transform_key, &voe_scene_parent_key));
 
 	VOE_TEST_CHECK(!voe_game_project_component(
 		world, &(voe_game_project_type){ &wide_key,
 						 VOE_GAME_PROJECT_ROW + 1, 4,
 						 &voe_ecs_runtime_only, NULL,
-						 NULL, NULL }));
+						 NULL }));
 
 	spawned_and_removed(world);
 	voe_base_arena_destroy(arena);

@@ -6,16 +6,18 @@
 //     {
 //             voe_game_project_component(world, &(voe_game_project_type){
 //                     &player_key, sizeof(player), 1,
-//                     VOE_GAME_PROJECT_DESCRIPTION(player), NULL, "Game / Player",
-//                     &voe_scene_transform_key });
+//                     VOE_GAME_PROJECT_DESCRIPTION(player), NULL, "Game / Player" });
+//             voe_game_project_component_needs(world, &player_key,
+//                                              &voe_scene_transform_key);
 //     }
 //
 // KEY AND STRUCT SHARE ONE NAME: the struct `player`, its key `player_key`
 // named "player", because the cook names both from the key.
 //
 // A REFUSAL IS REPORTED, NOT ASSERTED: a row over VOE_GAME_PROJECT_ROW, a
-// type past VOE_GAME_PROJECT_TYPES or a zero size is a line on stderr and
-// false, because a project's code is not the engine's to assert on.
+// type past VOE_GAME_PROJECT_TYPES, a zero size, and a need for a key that is
+// no project type, of a key not registered or a second time, are a line on
+// stderr and false, because a project's code is not the engine's to assert on.
 //
 // GAME IS THE ONE WRITER OF A PROJECT ROW FROM OUTSIDE. Each type gets a
 // replace intent of game's own (the entity at 0, the row at the next
@@ -106,10 +108,6 @@ typedef struct {
 } voe_game_project_frame;
 
 // One project type. `default_row` NULL is zeros; `menu` NULL is no menu path.
-// `needs` is the key of a type a row of this one does nothing without, such as
-// voe_scene_transform_key, told to ecs so Add component brings it and the
-// Inspector keeps it (0302); NULL for none. It must be an engine type or a
-// project type registered before this one.
 typedef struct {
 	const struct voe_ecs_key *key;
 	size_t size;
@@ -117,13 +115,21 @@ typedef struct {
 	const voe_base_struct_description *description;
 	const void *default_row;
 	const char *menu;
-	const struct voe_ecs_key *needs;
 } voe_game_project_type;
 
 // Registers the table, its replace intent, default and menu. False, reported,
 // when refused as the header says.
 [[nodiscard]] bool voe_game_project_component(voe_ecs_world *world,
 					      const voe_game_project_type *type);
+
+// Says rows of the project type `key` do nothing without a row of `needed`
+// (0303), so Add component brings it and the Inspector keeps it. `needed` is
+// an engine type or a project type registered before; no call, no need.
+// False, reported, when `key` is no project type, `needed` is not registered
+// or `key` already has a need.
+[[nodiscard]] bool voe_game_project_component_needs(
+	voe_ecs_world *world, const struct voe_ecs_key *key,
+	const struct voe_ecs_key *needed);
 
 // Drains every project replace queue: a live entity with the row gets it
 // whole, any other value is dropped silently, and each queue ends empty.
