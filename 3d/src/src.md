@@ -22,6 +22,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   intent's submit and the drain that cuts a path with no end.
 - `emitter_component.c` — the emitter and particles tables: their keys, the registration with
   0298's defaults, the reads and the two submits.
+- `emitter_system.c` — the two drains, the particles rows added and dropped, the births in a
+  cone through the world matrix from a xorshift, and the step that moves and kills.
 - `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
   repoints a changed kind and drops both once the shape is gone.
