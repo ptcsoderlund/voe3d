@@ -62,6 +62,8 @@ again, or to find where a claim that has started failing is written down.
   card; the upload half skips without one.
 - `model_component.c` — the model's one CHAR field `path` of 128, a submitted path read back after a
   run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
+- `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
+  the particles runtime-only, and both submits taken. Needs no graphics card.
 - `models.c` — the store: a model's parts and baked node transform, bad bytes and an unread
   file kept as failed, a path loaded a hundred times on room for three, good then bad and bad
   then good, a clear, and a model drawn only with the store and not hidden. Skips without a card.
