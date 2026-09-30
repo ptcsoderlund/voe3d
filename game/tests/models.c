@@ -6,13 +6,20 @@
 // failure and a loaded entry; a second row naming a missing file gives one
 // failure, named, while the first is left alone; the file rewritten as text
 // makes a watch report one failure and keeps the entry loaded; rewritten
-// valid, a watch reports none and the entry is loaded at the new stamp.
+// valid, a watch reports none and the entry is loaded at the new stamp. That
+// world has no emitter, so no dot is loaded.
+//
+// THE PICTURES, on a second world and store: an emitter naming a 1x1 PNG,
+// inline bytes since `game` does not link `assets`, loads a picture entry at
+// its path and the dot at ""; a second emitter naming a missing file is one
+// failure, named.
 //
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
 #include <game/world.h>
 
+#include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
 
@@ -38,10 +45,25 @@
 #define GOOD "good.glb"
 #define MISSING "missing.glb"
 #define GOOD_ON_DISK FOLDER "/" GOOD
+#define PICTURE "puff.png"
+#define NO_PICTURE "missing.png"
+#define PICTURE_ON_DISK FOLDER "/" PICTURE
 
+// Room for the triangle twice over a reload, the pictures' quad, and the
+// shadings of the triangle, the picture and the dot.
 static const voe_render_capacities CAPACITIES = {
-	.vertices = 8, .indices = 8, .geometries = 4,
-	.objects = 1,  .shadings = 4, .passes = 1,
+	.vertices = 16, .indices = 16, .geometries = 4,
+	.objects = 1,   .shadings = 8, .passes = 1,
+};
+
+// A 1x1 white RGBA PNG: signature, IHDR, one zlib IDAT row, IEND.
+static const uint8_t PNG[] = {
+	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+	0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+	0x0b, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0x0f, 0x04, 0x00,
+	0x09, 0xfb, 0x03, 0xfd, 0xfb, 0x5e, 0x6b, 0x2b, 0x00, 0x00, 0x00, 0x00,
+	0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 };
 
 static const char JSON[] =
@@ -83,21 +105,65 @@ static uint32_t glb_build(uint8_t *out, size_t room)
 	return total;
 }
 
-// A thing at the origin wearing `path`.
-static void wear(voe_ecs_world *world, const char *path)
+// A new thing at the origin.
+static voe_ecs_entity place(voe_ecs_world *world)
 {
 	voe_scene_transform pose = {
 		.rotation = voe_math_quat_from_axis_angle(
 			(voe_math_float3){ 0.0f, 1.0f, 0.0f }, 0.0f),
 		.scale = { 1.0f, 1.0f, 1.0f },
 	};
-	voe_3d_model model = { 0 };
 	voe_ecs_entity thing;
 
-	strcpy(model.path, path);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, thing, pose));
-	VOE_TEST_CHECK(voe_3d_model_add(world, thing, model));
+	return thing;
+}
+
+// A thing at the origin wearing `path`.
+static void wear(voe_ecs_world *world, const char *path)
+{
+	voe_3d_model model = { 0 };
+
+	strcpy(model.path, path);
+	VOE_TEST_CHECK(voe_3d_model_add(world, place(world), model));
+}
+
+// A thing at the origin emitting with the texture `path`.
+static void emit(voe_ecs_world *world, const char *path)
+{
+	voe_3d_emitter emitter = { .playing = true };
+
+	strcpy(emitter.texture, path);
+	VOE_TEST_CHECK(voe_3d_emitter_add(world, place(world), emitter));
+}
+
+static void check_pictures(voe_ecs_world *world, voe_render_device *device,
+			   voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	const voe_3d_model_entry *entry;
+	voe_game_models_failures failures;
+
+	// ---- an emitter naming a PNG: a picture entry and the dot
+	emit(world, PICTURE);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	entry = voe_3d_models_find(models, PICTURE);
+	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->picture);
+	entry = voe_3d_models_find(models, "");
+	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->picture);
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 1);
+
+	// ---- an emitter naming a missing file: one failure, named
+	emit(world, NO_PICTURE);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 1);
+	VOE_TEST_CHECK(failures.first != NULL &&
+		       strcmp(failures.first, NO_PICTURE) == 0);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
 }
 
 static bool loaded_at(const voe_3d_models *models, uint64_t *stamp)
@@ -124,6 +190,7 @@ static void check_files(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(failures.first == NULL);
 	VOE_TEST_CHECK(loaded_at(models, &first));
+	VOE_TEST_CHECK(voe_3d_models_find(models, "") == NULL);
 
 	// ---- a row naming a missing file: one failure, named
 	wear(world, MISSING);
@@ -175,11 +242,16 @@ int main(void)
 	}
 	// A folder left by a run that crashed goes first.
 	remove(GOOD_ON_DISK);
+	remove(PICTURE_ON_DISK);
 	remove(FOLDER);
 	VOE_TEST_CHECK(voe_platform_folder_create(FOLDER, NULL));
 	VOE_TEST_CHECK(voe_platform_file_write(GOOD_ON_DISK, glb, length, NULL));
+	VOE_TEST_CHECK(voe_platform_file_write(PICTURE_ON_DISK, PNG,
+					       sizeof(PNG), NULL));
 	check_files(voe_game_world_new(arena), device, scratch, glb, length);
+	check_pictures(voe_game_world_new(arena), device, scratch);
 	remove(GOOD_ON_DISK);
+	remove(PICTURE_ON_DISK);
 	remove(FOLDER);
 	voe_render_device_destroy(device);
 released:
