@@ -17,3 +17,6 @@ device (ADR-0265). Effects belong here, never in a backend.
 - `include/audio/sound_component.h` — a sound a thing carries at "Audio /
   Sound": path, playing, loop, volume, pitch, its replace and control intents
   and the runtime row holding its voice.
+- `include/audio/sound_system.h` — the run that drains the sound intents,
+  keeps a voice row per sound and, with a mixer, plays each through a
+  listener from the camera; NULL mixer is the editor's case.
