@@ -149,6 +149,7 @@ static void test_three_entities(void)
 	CHECK_TEXT(text, size,
 		   "[1]\n"
 		   "name = \"Cube\"\n"
+		   "folded = false\n"
 		   "[1.voe_scene_transform]\n"
 		   "position = [1, 2.5, -3]\n"
 		   "rotation = [0, 0, 0, 1]\n"
@@ -156,13 +157,15 @@ static void test_three_entities(void)
 		   "\n"
 		   "[3]\n"
 		   "name = \"Floor \\\"big\\\"\"\n"
+		   "folded = false\n"
 		   "[3.voe_scene_transform]\n"
 		   "position = [0, -0.5, 0]\n"
 		   "rotation = [0, 0, 0, 1]\n"
 		   "scale = [10, 0.1, 10]\n"
 		   "\n"
 		   "[7]\n"
-		   "name = \"Sun\"\n");
+		   "name = \"Sun\"\n"
+		   "folded = false\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -187,6 +190,7 @@ static void test_far_position(void)
 	CHECK_TEXT(text, size,
 		   "[4]\n"
 		   "name = \"Far\"\n"
+		   "folded = false\n"
 		   "[4.voe_scene_transform]\n"
 		   "position = [100000.123456789, -0.05, 10000000.001]\n"
 		   "rotation = [0, 0, 0, 1]\n"
@@ -270,6 +274,7 @@ static void test_every_kind(void)
 	CHECK_TEXT(text, size,
 		   "[1]\n"
 		   "name = \"Every\"\n"
+		   "folded = false\n"
 		   "[1.test_every]\n"
 		   "i8 = -8\n"
 		   "i16 = -1600\n"
@@ -293,7 +298,8 @@ static void test_every_kind(void)
 		   "pair = [2, 0]\n"
 		   "\n"
 		   "[2]\n"
-		   "name = \"Other\"\n");
+		   "name = \"Other\"\n"
+		   "folded = false\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -328,7 +334,7 @@ static void check_floats(float f, double d, const char *f_digits,
 	size_t size;
 
 	(void)snprintf(expected, sizeof(expected),
-		       "[1]\nname = \"F\"\n[1.test_floats]\nf = %s\nd = %s\n",
+		       "[1]\nname = \"F\"\nfolded = false\n[1.test_floats]\nf = %s\nd = %s\n",
 		       f_digits, d_digits);
 	const char *text = written(world, arena, &size);
 
@@ -370,7 +376,9 @@ static void test_ascending_ids(void)
 	const char *text = written(world, arena, &size);
 
 	CHECK_TEXT(text, size,
-		   "[1]\nname = \"a\"\n\n[2]\nname = \"b\"\n\n[3]\nname = \"c\"\n");
+		   "[1]\nname = \"a\"\nfolded = false\n\n"
+		   "[2]\nname = \"b\"\nfolded = false\n\n"
+		   "[3]\nname = \"c\"\nfolded = false\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -397,7 +405,8 @@ static void test_entity_without_identity(void)
 	const char *text = written(world, arena, &size);
 
 	CHECK_TEXT(text, size,
-		   "[4]\nname = \"Source\"\n[4.test_link]\ntarget = 0\n");
+		   "[4]\nname = \"Source\"\nfolded = false\n"
+		   "[4.test_link]\ntarget = 0\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -451,6 +460,7 @@ static void test_shapes(void)
 	CHECK_TEXT(text, size,
 		   "[1]\n"
 		   "name = \"Shapes\"\n"
+		   "folded = false\n"
 		   "[1.test_shapes]\n"
 		   "pair = [[1, 2, 3], [4, 5, 6]]\n"
 		   "points = [[0, 0, 0], [1, 2.5, -3]]\n"
@@ -461,7 +471,8 @@ static void test_shapes(void)
 		   "links = [3, 0]\n"
 		   "\n"
 		   "[3]\n"
-		   "name = \"Ref\"\n");
+		   "name = \"Ref\"\n"
+		   "folded = false\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -640,6 +651,7 @@ static void test_kept_sections(void)
 	CHECK_TEXT(out.text != NULL ? out.text : "", out.size,
 		   "[2]\n"
 		   "name = \"Cube\"\n"
+		   "folded = false\n"
 		   "[2.aa_before]\n"
 		   "a = 1\n"
 		   "x = \"y\"\n"
@@ -652,6 +664,7 @@ static void test_kept_sections(void)
 		   "\n"
 		   "[5]\n"
 		   "name = \"Lamp\"\n"
+		   "folded = false\n"
 		   "[5.voe_game_glow]\n");
 
 	// A kept section under a name that has since been registered.
@@ -729,6 +742,7 @@ static void test_placed_copy(void)
 	CHECK_TEXT(text, size,
 		   "[1]\n"
 		   "name = \"Tank\"\n"
+		   "folded = false\n"
 		   "[1.voe_scene_prefab]\n"
 		   "path = \"Assets/tank.prefab\"\n"
 		   "[1.voe_scene_transform]\n"
@@ -738,6 +752,7 @@ static void test_placed_copy(void)
 		   "\n"
 		   "[3]\n"
 		   "name = \"Aim\"\n"
+		   "folded = false\n"
 		   "[3.test_link]\n"
 		   "target = 0\n");
 
@@ -745,6 +760,7 @@ static void test_placed_copy(void)
 	CHECK_TEXT(text, size,
 		   "[1]\n"
 		   "name = \"Tank\"\n"
+		   "folded = false\n"
 		   "[1.test_ball]\n"
 		   "radius = 2\n"
 		   "[1.voe_scene_prefab]\n"
@@ -756,6 +772,7 @@ static void test_placed_copy(void)
 		   "\n"
 		   "[2]\n"
 		   "name = \"Turret\"\n"
+		   "folded = false\n"
 		   "[2.voe_scene_parent]\n"
 		   "parent = 1\n"
 		   "[2.voe_scene_transform]\n"
@@ -765,6 +782,7 @@ static void test_placed_copy(void)
 		   "\n"
 		   "[3]\n"
 		   "name = \"Aim\"\n"
+		   "folded = false\n"
 		   "[3.test_link]\n"
 		   "target = 2\n");
 
