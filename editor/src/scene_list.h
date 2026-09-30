@@ -18,21 +18,22 @@
 // at VOE_SCENE_PARENT_DEPTH_MAX, each indented by a fixed-size spacer per level.
 // One in a loop or past the cap is listed after the rest at depth 0.
 //
+// ANY ROW WITH CHILDREN FOLDS AND OPENS by a button before its name. The state
+// is the identity's `folded`, saved with the scene and undone (0302); a folded
+// row's tree is not listed, and a selection inside it stays selected.
+//
 // EVERY ROW IS KEYED BY ONE NAME AND ITS IDENTITY-TABLE INDEX, so each row is
 // its own button and its highlight follows its entity when the order changes.
 // Its label points into the table, which outlives the frame. Add entity sits
-// above the list and is asked after the frame, as the rows are (ADR-0217).
-//
-// A PLACED COPY'S ROOT SHOWS ITS PREFAB'S FILE NAME after its name, in the
-// secondary text role, so it reads as a prefab at a glance; its parts are
-// listed under it as any tree (0283 point 5).
+// above the list and is asked after the frame, as the rows are (ADR-0217). A
+// copy's root shows its prefab's file name after its name, in the secondary
+// role; its parts are listed under it as any tree (0283 point 5).
 //
 // A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7): over another row it
 // becomes its child, unless it already is or that row is itself or under it;
-// over the heading (scene.heading) a root; elsewhere nothing. Any row, with or
-// without a transform, parents and takes children (0300); a child with a
-// transform under a bare row keeps its world place and its row. The drop is read after voe_ui_frame_end, when a button says it is
-// held. A set counts one in `structural`; a full queue sets `full`.
+// over the heading (scene.heading) a root; elsewhere nothing. Any row parents
+// and takes children, a transform or not (0300). The drop is read after
+// voe_ui_frame_end; a set counts one in `structural`, a full queue sets `full`.
 //
 // A PART IS NEVER DRAGGED OR DROPPED ONTO (0283 point 5): a press on one only
 // selects, and no rim or drop lands on its row. A part is the prefab's, and a

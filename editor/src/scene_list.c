@@ -25,10 +25,12 @@
 // No identity parent: a root.
 #define NO_PARENT UINT32_MAX
 
-// A row waiting on the walk's stack, and how deep it sits.
+// A row waiting on the walk's stack, how deep it sits, and whether a folded
+// row above it hides it.
 struct pending {
 	uint32_t index;
 	uint32_t depth;
+	bool hidden;
 };
 
 // The identity-table index of the row `entity`'s parent is, or NO_PARENT when
@@ -93,9 +95,12 @@ static voe_ui_node rim_begin(voe_ui_context *ui, voe_editor_scene *scene,
 	return rim;
 }
 
+// `children` is whether the row has any, which gives it a fold button keyed
+// by the identity index, "+" folded and "-" open.
 static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
-		     uint32_t index, uint32_t depth)
+		     uint32_t index, uint32_t depth, bool children)
 {
+	voe_ui_node fold = VOE_UI_NODE_NONE;
 	const voe_scene_identity *rows = voe_scene_identity_rows(scene->world);
 	const voe_ecs_entity *entities =
 		voe_scene_identity_entities(scene->world);
@@ -116,6 +121,11 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 				    .size = { .along = { VOE_UI_SIZE_FIXED,
 							 INDENT_PER_DEPTH *
 								 (float)depth } } });
+		voe_ui_end(ui);
+	}
+	if (children) {
+		fold = voe_ui_button_begin(ui, "fold", index);
+		voe_ui_label(ui, rows[index].folded ? "+" : "-");
 		voe_ui_end(ui);
 	}
 
@@ -145,7 +155,17 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	// The click is answered after voe_ui_frame_end and this function has
 	// to have returned by then, so the node is handed to the scene to be
 	// asked later. See scene.h.
-	voe_editor_scene_row_add(scene, row, entities[index]);
+	voe_editor_scene_row_add(scene, row, entities[index], fold);
+}
+
+// Whether any row's parent is `index`.
+static bool has_children(const uint32_t *parents, uint32_t count,
+			 uint32_t index)
+{
+	for (uint32_t j = 0; j < count; j++)
+		if (parents[j] == index)
+			return true;
+	return false;
 }
 
 // The drag's two themes, copies of `palette` rebuilt each frame (ADR-0282):
@@ -172,6 +192,7 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 				voe_editor_scene *scene)
 {
 	const voe_ecs_entity *entities;
+	const voe_scene_identity *rows;
 	uint32_t parents[VOE_EDITOR_SCENE_ROWS];
 	bool listed[VOE_EDITOR_SCENE_ROWS] = { 0 };
 	// Each entity has one parent, so each is pushed at most once.
@@ -199,6 +220,7 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 
 	count = voe_scene_identity_count(scene->world);
 	entities = voe_scene_identity_entities(scene->world);
+	rows = voe_scene_identity_rows(scene->world);
 	VOE_BASE_ASSERT(count <= VOE_EDITOR_SCENE_ROWS,
 			"more identities than the Scene list has rows");
 
@@ -211,20 +233,26 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 
 		if (parents[root] != NO_PARENT)
 			continue;
-		stack[top++] = (struct pending){ root, 0 };
+		stack[top++] = (struct pending){ root, 0, false };
 		while (top > 0) {
-			uint32_t index = stack[--top].index;
-			uint32_t depth = stack[top].depth;
+			const struct pending at = stack[--top];
+			const bool hides = at.hidden || rows[at.index].folded;
 
-			listed[index] = true;
-			row_draw(ui, scene, index, depth);
-			if (depth + 1 >= VOE_SCENE_PARENT_DEPTH_MAX)
+			// A folded tree is still walked, undrawn, so its rows
+			// count as listed and are not listed flat below.
+			listed[at.index] = true;
+			if (!at.hidden)
+				row_draw(ui, scene, at.index, at.depth,
+					 has_children(parents, count,
+						      at.index));
+			if (at.depth + 1 >= VOE_SCENE_PARENT_DEPTH_MAX)
 				continue;
 			// Pushed last to first, so popped in table order.
 			for (uint32_t j = count; j-- > 0;)
-				if (parents[j] == index)
-					stack[top++] =
-						(struct pending){ j, depth + 1 };
+				if (parents[j] == at.index)
+					stack[top++] = (struct pending){
+						j, at.depth + 1, hides
+					};
 		}
 	}
 
@@ -232,7 +260,8 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 	// no authored entity goes missing.
 	for (uint32_t i = 0; i < count; i++)
 		if (!listed[i])
-			row_draw(ui, scene, i, 0);
+			row_draw(ui, scene, i, 0,
+				 has_children(parents, count, i));
 }
 
 // Whether `at` is on `node` as drawn, for a node the frame had room for.

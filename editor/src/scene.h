@@ -91,6 +91,9 @@ typedef struct {
 typedef struct {
 	voe_ui_node node;
 	voe_ecs_entity entity;
+	// The row's fold button as drawn, or VOE_UI_NODE_NONE for a row with
+	// no children.
+	voe_ui_node fold;
 } voe_editor_scene_row;
 
 // The editor's scene: the current project's world, what is selected in it,
@@ -111,7 +114,7 @@ typedef struct voe_editor_scene {
 	// VOE_UI_NODE_NONE when it was not.
 	voe_ui_node heading;
 	// How many structural changes this panel and the Inspector's buttons
-	// made this frame. Zeroed with
+	// made this frame, a row folded or opened among them. Zeroed with
 	// the rows, every frame.
 	uint32_t structural;
 	// Whether a Delete, Duplicate, Remove or Add component was refused
@@ -215,15 +218,18 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene);
 // Records the Add entity button the panel just drew.
 void voe_editor_scene_add_record(voe_editor_scene *scene, voe_ui_node add);
 
-// Records one row the Scene panel just drew. Silently keeps nothing past
+// Records one row the Scene panel just drew, with its fold button or
+// VOE_UI_NODE_NONE. Silently keeps nothing past
 // VOE_EDITOR_SCENE_ROWS — the identity table is that size, so a further row is
 // not something a caller can cause.
 void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
-			      voe_ecs_entity entity);
+			      voe_ecs_entity entity, voe_ui_node fold);
 
 // Moves the selection to whichever recorded row fired this frame, unless the
 // Scene list's drag is under way or was cancelled (a release that ends a drag
-// is no click; this runs before voe_editor_scene_list_drop zeroes both), and carries
+// is no click; this runs before voe_editor_scene_list_drop zeroes both); flips
+// the identity's `folded` of a row whose fold fired, counting one in
+// `structural` or setting `full` when the queue refuses it; and carries
 // out Add entity: when it fired, adds an entity through entities.h, selects it
 // and counts one in `structural`. Called after voe_ui_frame_end and before the
 // frame's arena is rewound, which is the one window in which a widget will
