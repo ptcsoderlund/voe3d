@@ -68,4 +68,4 @@ again, or to find where a claim that has started failing is written down.
   death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
 - `models.c` — the store: a model's parts and baked node transform, bad bytes and an unread
   file kept as failed, a path loaded a hundred times on room for three, good then bad and bad
-  then good, a clear, and a model drawn only with the store and not hidden. Skips without a card.
+  then good, a clear, a picture's two parts, garbage `.png`, the uncounted dot, and a model drawn only with the store and not hidden. Skips without a card.

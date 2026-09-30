@@ -1,7 +1,7 @@
 // The model store: the hand-built `.glb` of model_data.inc loaded by path, bytes
 // that are no model kept as a failed entry, a file that could not be read kept
 // the same way, a path never asked for not there, a path loaded again replacing
-// itself, a clear, and a model drawn.
+// itself, a clear, pictures and the soft dot, and a model drawn.
 //
 // THE DEVICE HOLDS THREE COPIES OF THE MODEL: 6 vertices, 6 indices, 2
 // geometries and 2 shading records each. So a hundred loads of one path pass
@@ -28,6 +28,7 @@
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
+#include <assets/image.h>
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -51,12 +52,14 @@
 #define SIDE 64
 #define TOLERANCE 1e-5f
 
+// The three copies, and the pictures' quad with a picture's and the dot's two
+// records each.
 static const voe_render_capacities CAPACITIES = {
-	.vertices = 3 * 6,
-	.indices = 3 * 6,
-	.geometries = 3 * 2,
+	.vertices = 3 * 6 + 4,
+	.indices = 3 * 6 + 6,
+	.geometries = 3 * 2 + 1,
 	.objects = 8,
-	.shadings = 3 * 2,
+	.shadings = 3 * 2 + 4,
 	.passes = 1,
 };
 
@@ -115,6 +118,61 @@ static void check_replace(voe_3d_models *models, voe_render_device *device)
 	VOE_TEST_CHECK_INT(entry->parts[0].geometry.generation,
 			   before.generation);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), count + 1);
+}
+
+// A 2 x 2 PNG loads as a picture of two BLENDED parts on one quad, the second
+// unlit; garbage `.png` bytes fail and are kept; the dot loaded twice is one
+// entry at "" and not counted; a clear empties both.
+static void check_pictures(voe_3d_models *models, voe_render_device *device,
+			   voe_base_arena *arena)
+{
+	uint8_t pixels[2 * 2 * 4] = { 255, 0, 0, 255, 0, 255, 0, 128,
+				      0, 0, 255, 64, 255, 255, 255, 0 };
+	voe_assets_image image = { .width = 2, .height = 2, .pixels = pixels };
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_entry *entry;
+	voe_assets_bytes png = { 0 };
+	uint32_t count = voe_3d_models_count(models);
+
+	VOE_TEST_CHECK(voe_assets_png_encode(arena, image, &png, &error));
+	VOE_TEST_CHECK(voe_3d_models_load(models, device, "Assets/Spark.PNG", 2,
+					  png.bytes, png.count, &error));
+	entry = voe_3d_models_find(models, "Assets/Spark.PNG");
+	VOE_TEST_CHECK(entry != NULL);
+	if (entry != NULL) {
+		VOE_TEST_CHECK(entry->loaded && entry->picture);
+		VOE_TEST_CHECK_INT(entry->part_count, 2);
+		VOE_TEST_CHECK_INT(entry->shape.vertex_count, 0);
+		for (uint32_t p = 0; p < 2; p++)
+			VOE_TEST_CHECK_INT(entry->parts[p].material.alpha_mode,
+					   VOE_RENDER_ALPHA_BLENDED);
+		VOE_TEST_CHECK(!entry->parts[0].material.unlit);
+		VOE_TEST_CHECK(entry->parts[1].material.unlit);
+		VOE_TEST_CHECK_INT(entry->parts[0].geometry.index,
+				   entry->parts[1].geometry.index);
+	}
+
+	error = VOE_BASE_OK;
+	VOE_TEST_CHECK(!voe_3d_models_load(models, device, "Assets/junk.png", 5,
+					   NOT_A_GLB, sizeof(NOT_A_GLB),
+					   &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_MALFORMED);
+	entry = voe_3d_models_find(models, "Assets/junk.png");
+	VOE_TEST_CHECK(entry != NULL && !entry->loaded);
+	VOE_TEST_CHECK(entry != NULL && entry->part_count == 0);
+
+	VOE_TEST_CHECK(voe_3d_models_find(models, "") == NULL);
+	VOE_TEST_CHECK(voe_3d_models_load_dot(models, device, &error));
+	VOE_TEST_CHECK(voe_3d_models_load_dot(models, device, &error));
+	entry = voe_3d_models_find(models, "");
+	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->picture);
+	VOE_TEST_CHECK(entry != NULL && entry->part_count == 2);
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), count + 2);
+
+	voe_3d_models_clear(models, device);
+	VOE_TEST_CHECK(voe_3d_models_find(models, "") == NULL);
+	VOE_TEST_CHECK(voe_3d_models_find(models, "Assets/Spark.PNG") == NULL);
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);
 }
 
 // Every vertex of the shape is the file's own, in walk order, baked.
@@ -329,6 +387,10 @@ int main(void)
 	voe_3d_models_clear(models, device);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);
 	check_replace(models, device);
+
+	// ---- pictures and the soft dot, on an empty store
+	voe_3d_models_clear(models, device);
+	check_pictures(models, device, arena);
 
 	// ---- clear: nothing found, and a load after it works
 	voe_3d_models_clear(models, device);

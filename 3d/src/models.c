@@ -20,11 +20,18 @@
 // give it back and move the old entry's stamp. So a replace needs room on the
 // card for both copies at once, and a failed re-export never loses the model.
 //
+// A PICTURE IS A LOAD OF ITS OWN, chosen by the path's extension: decoded and
+// uploaded by model_picture.h, its two parts on the store's one quad, which is
+// made on the first picture or dot and freed at clear; releasing a picture entry
+// never touches it. The dot is an entry and its held memory kept beside the
+// table, so the table's count and indices never see it.
+//
 // CONSTRAINTS: _find is a scan over the entries by string compare, which at
 // VOE_3D_MODELS entries is nothing; a hash of the path would lift it if the
 // store ever grows by orders of magnitude. A full store refuses a new path, and
 // _fail says so on stderr rather than keeping it.
 #include "model_bake.h"
+#include "model_picture.h"
 #include "model_upload.h"
 
 #include <3d/models.h>
@@ -55,6 +62,13 @@ struct voe_3d_models {
 	voe_3d_model_entry entries[VOE_3D_MODELS];
 	entry_held held[VOE_3D_MODELS];
 	uint32_t count;
+	// The quad every picture's parts are drawn on, when `has_quad`.
+	voe_render_geometry quad;
+	bool has_quad;
+	// The soft dot, found at "", when `has_dot`.
+	voe_3d_model_entry dot;
+	entry_held dot_held;
+	bool has_dot;
 };
 
 voe_3d_models *voe_3d_models_new(void)
@@ -65,11 +79,12 @@ voe_3d_models *voe_3d_models_new(void)
 	return models;
 }
 
-// Everything `entry` put on the card and its memory, given back.
+// Everything `entry` put on the card and its memory, given back; a picture's
+// parts are on the store's quad, which is not the entry's to free.
 static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 		    const entry_held *held)
 {
-	for (uint32_t i = 0; i < entry->part_count; i++)
+	for (uint32_t i = 0; !entry->picture && i < entry->part_count; i++)
 		(void)voe_render_geometry_destroy(device,
 						  entry->parts[i].geometry);
 	for (uint32_t i = 0; i < held->shading_count; i++)
@@ -87,6 +102,12 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device)
 	for (uint32_t i = 0; i < models->count; i++)
 		release(device, &models->entries[i], &models->held[i]);
 	models->count = 0;
+	if (models->has_dot)
+		release(device, &models->dot, &models->dot_held);
+	models->has_dot = false;
+	if (models->has_quad)
+		(void)voe_render_geometry_destroy(device, models->quad);
+	models->has_quad = false;
 }
 
 void voe_3d_models_destroy(voe_3d_models *models)
@@ -95,6 +116,8 @@ void voe_3d_models_destroy(voe_3d_models *models)
 		return;
 	for (uint32_t i = 0; i < models->count; i++)
 		voe_base_arena_destroy(models->held[i].memory);
+	if (models->has_dot)
+		voe_base_arena_destroy(models->dot_held.memory);
 	free(models);
 }
 
@@ -242,17 +265,84 @@ static void hold_upload(const voe_3d_model_upload *upload, entry_held *held)
 	held->shading_count = upload->shading_count;
 }
 
+// Reads, bakes and uploads a `.glb` into `entry`; on failure what it made is
+// given back.
+static bool load_glb(voe_render_device *device, voe_base_arena *scratch,
+		     const uint8_t *bytes, size_t size,
+		     voe_3d_model_entry *entry, entry_held *held,
+		     voe_base_error *error)
+{
+	voe_3d_model_upload upload = { 0 };
+	voe_3d_model_bake bake;
+	voe_assets_model model;
+	uint32_t made = 0;
+	bool loaded;
+
+	loaded = voe_assets_model_read_glb(bytes, size, scratch, &model,
+					   error) &&
+		 voe_3d_model_bake_create(scratch, &model, &bake, error) &&
+		 voe_3d_model_upload_create(device, scratch, &model, &upload,
+					    error) &&
+		 upload_parts(device, &bake, &upload, entry, &made, error);
+
+	if (loaded) {
+		build_shape(held->memory, &bake, &entry->shape);
+		hold_upload(&upload, held);
+		entry->part_count = bake.part_count;
+		entry->loaded = true;
+	} else {
+		give_back(device, &upload, entry, made);
+	}
+	return loaded;
+}
+
+// The store's quad, made on its first picture or dot.
+static bool quad_ready(voe_3d_models *models, voe_render_device *device,
+		       voe_base_error *error)
+{
+	if (models->has_quad)
+		return true;
+	models->has_quad =
+		voe_3d_model_picture_quad(device, &models->quad, error);
+	return models->has_quad;
+}
+
+// Uploads a decoded picture into `entry` as its two parts on the quad; on
+// failure what it made is given back.
+static bool upload_picture(voe_3d_models *models, voe_render_device *device,
+			   voe_base_arena *scratch,
+			   const voe_assets_image *image,
+			   voe_3d_model_entry *entry, entry_held *held,
+			   voe_base_error *error)
+{
+	voe_3d_model_upload upload = { 0 };
+
+	entry->picture = true;
+	if (!quad_ready(models, device, error) ||
+	    !voe_3d_model_picture_upload(device, scratch, image, &upload,
+					 error)) {
+		give_back(device, &upload, entry, 0);
+		return false;
+	}
+	for (uint32_t p = 0; p < 2; p++)
+		entry->parts[p] = (voe_3d_model_part){
+			.geometry = models->quad,
+			.material = upload.materials[p],
+		};
+	hold_upload(&upload, held);
+	entry->part_count = 2;
+	entry->loaded = true;
+	return true;
+}
+
 bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 			const char *path, uint64_t stamp, const uint8_t *bytes,
 			size_t size, voe_base_error *error)
 {
-	voe_3d_model_upload upload = { 0 };
 	voe_3d_model_entry entry;
-	voe_3d_model_bake bake;
-	voe_assets_model model;
 	voe_base_arena *scratch;
+	voe_assets_image image;
 	entry_held held;
-	uint32_t made = 0;
 	bool loaded;
 
 	VOE_BASE_ASSERT(models != NULL, "loading a model into no store");
@@ -270,25 +360,47 @@ bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 
 	entry_new(path, stamp, &entry, &held);
 	scratch = voe_base_arena_new(SCRATCH_BLOCK);
-	loaded = voe_assets_model_read_glb(bytes, size, scratch, &model,
-					   error) &&
-		 voe_3d_model_bake_create(scratch, &model, &bake, error) &&
-		 voe_3d_model_upload_create(device, scratch, &model, &upload,
-					    error) &&
-		 upload_parts(device, &bake, &upload, &entry, &made, error);
-
-	if (loaded) {
-		build_shape(held.memory, &bake, &entry.shape);
-		hold_upload(&upload, &held);
-		entry.part_count = bake.part_count;
-		entry.loaded = true;
+	if (voe_3d_model_picture_is(path)) {
+		entry.picture = true;
+		loaded = voe_3d_model_picture_decode(path, bytes, size, scratch,
+						     &image, error) &&
+			 upload_picture(models, device, scratch, &image, &entry,
+					&held, error);
 	} else {
-		VOE_BASE_ERROR("3d", "could not load the model %s", path);
-		give_back(device, &upload, &entry, made);
+		loaded = load_glb(device, scratch, bytes, size, &entry, &held,
+				  error);
 	}
+	if (!loaded)
+		VOE_BASE_ERROR("3d", "could not load the model %s", path);
 
 	voe_base_arena_destroy(scratch);
 	(void)keep(models, device, &entry, &held);
+	return loaded;
+}
+
+bool voe_3d_models_load_dot(voe_3d_models *models, voe_render_device *device,
+			    voe_base_error *error)
+{
+	voe_assets_image image;
+	voe_base_arena *scratch;
+	bool loaded;
+
+	VOE_BASE_ASSERT(models != NULL, "loading the dot into no store");
+	VOE_BASE_ASSERT(device != NULL, "loading the dot with no device");
+
+	if (models->has_dot)
+		return true;
+	entry_new("", 0, &models->dot, &models->dot_held);
+	scratch = voe_base_arena_new(SCRATCH_BLOCK);
+	image = voe_3d_model_picture_dot(scratch);
+	loaded = upload_picture(models, device, scratch, &image, &models->dot,
+				&models->dot_held, error);
+	voe_base_arena_destroy(scratch);
+	if (!loaded) {
+		VOE_BASE_ERROR("3d", "could not load the soft dot");
+		voe_base_arena_destroy(models->dot_held.memory);
+	}
+	models->has_dot = loaded;
 	return loaded;
 }
 
@@ -315,6 +427,8 @@ const voe_3d_model_entry *voe_3d_models_find(const voe_3d_models *models,
 	VOE_BASE_ASSERT(models != NULL, "finding a model in no store");
 	VOE_BASE_ASSERT(path != NULL, "finding a model with no path");
 
+	if (path[0] == '\0')
+		return models->has_dot ? &models->dot : NULL;
 	index = find(models, path);
 	return index == VOE_3D_MODELS ? NULL : &models->entries[index];
 }

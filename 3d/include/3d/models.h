@@ -38,6 +38,16 @@
 //
 // THE STORE IS CHANGED ONLY BETWEEN FRAMES, never while one is recorded: every
 // upload and every free waits for the card to go idle.
+//
+// PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
+// is a picture entry, so the loaders, the re-read on a changed stamp and the
+// failure notice serve a particle's texture unchanged. It has two parts on the
+// store's one quad, both BLENDED on the picture: part 0 lit, part 1 unlit, the
+// glow, since `render` has no additive blend. Its shape is empty.
+//
+// THE SOFT DOT IS HELD APART, loaded by _load_dot and found at the empty path:
+// it is made in code and never re-read from a file, so it is not in _count or
+// _at, which is what the watch walks.
 #pragma once
 
 #include <3d/material_component.h>
@@ -56,10 +66,11 @@
 
 // The device room the store's models are given, which a program adds to its
 // own capacities: 2 M vertices, 6 M indices, and 512 geometries and shading
-// records, four parts for each of the VOE_3D_MODELS files.
+// records, four parts for each of the VOE_3D_MODELS files, and one geometry more
+// for the pictures' quad.
 #define VOE_3D_MODELS_VERTICES (1u << 21)
 #define VOE_3D_MODELS_INDICES (3u << 21)
-#define VOE_3D_MODELS_GEOMETRIES 512
+#define VOE_3D_MODELS_GEOMETRIES 513
 #define VOE_3D_MODELS_SHADINGS 512
 
 // One material's worth of a model, in model space.
@@ -73,6 +84,8 @@ typedef struct {
 	const char *path;
 	uint64_t stamp;
 	bool loaded;
+	// A picture: its parts are 0 lit and 1 glow on the store's quad.
+	bool picture;
 	voe_3d_model_part parts[VOE_3D_MODEL_PARTS];
 	uint32_t part_count;
 	// The whole model on the CPU, model space, edges welded, for the ray
@@ -88,8 +101,10 @@ void voe_3d_models_destroy(voe_3d_models *models);
 // and takes loads again.
 void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 
-// Reads `bytes` as a `.glb` and uploads it as `path`'s entry. False, with the
-// entry kept as failed at `stamp` and `error` set: MALFORMED for bytes that are
+// Reads `bytes` as a picture when `path` ends `.png`, `.jpg` or `.jpeg` in any
+// case, else as a `.glb`, and uploads it as `path`'s entry. False, with the
+// entry kept as failed at `stamp` and `error` set: for a picture, MALFORMED or
+// UNSUPPORTED as the decoder says; MALFORMED for bytes that are
 // not a model, UNSUPPORTED for more than VOE_3D_MODEL_PARTS materials or nodes
 // nested past VOE_3D_IMPORT_MAX_DEPTH, REFUSED when the device or the store has
 // no room. What a failed load had put on the card is given back. A path already
@@ -100,12 +115,20 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 				      const uint8_t *bytes, size_t size,
 				      voe_base_error *error);
 
+// Uploads the built-in soft dot as a picture entry apart from the others: not
+// in _count or _at, found by _find at "", freed by _clear. True at once when it
+// is already there; false, `error` set, when the device has no room.
+[[nodiscard]] bool voe_3d_models_load_dot(voe_3d_models *models,
+					  voe_render_device *device,
+					  voe_base_error *error);
+
 // Keeps `path` as a failed entry at `stamp`: a file that could not be read. A
 // path already held keeps what it had, at `stamp`.
 void voe_3d_models_fail(voe_3d_models *models, const char *path,
 			uint64_t stamp);
 
-// `path`'s entry, loaded or failed; NULL when it was never asked for.
+// `path`'s entry, loaded or failed; NULL when it was never asked for. The empty
+// path is the soft dot, NULL until _load_dot.
 const voe_3d_model_entry *voe_3d_models_find(const voe_3d_models *models,
 					     const char *path);
 
