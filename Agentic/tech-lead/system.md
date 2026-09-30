@@ -51,10 +51,10 @@ workflow replaced specs.
 - 0192, 0193, 0195, 0198–0200 — Structure via the queue; one focus; dropdowns; overlays fit.
 - 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
-- 0189–0191, 0217, 0218, 0221 — An entity is a number; the world owns rows; a colour; one camera.
+- 0189–0191, 0217, 0218, 0221, 0300, 0302, 0303 — A bare entity; needs brought along; one camera.
 - 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light: preview, black.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
-- 0298, 0299 — Particles: CPU emitters in `3d`, pictures in the model store; the tank's effects.
+- 0298, 0299, 0301 — Particles: CPU emitters in `3d`; the tank's effects; shadows cast by choice.

@@ -89,13 +89,9 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   too big for now.
 - Explicit system ordering (Bevy-style `.before`/`.after`, system sets) for when a slot's systems
   run on several threads; until then list order within a slot is enough (0256).
-- **Entity groups in the Scene list** (sponsor, 2026-09-26): a flat list means a lot of
-  scrolling. Recommended first step: editor-only folders, collapsible, saved in the scene, with
-  no effect on transforms or the game, plus a filter box at the top of the list. The cost is
-  small and leaves transforms alone; transform parenting is 0271's, not this idea's.
-  Answered 2026-09-26: editor-only folders, definitely, and a folder can hold folders to any
-  depth. Still open: whether selecting a folder selects what is in it (move the whole group
-  with the gizmo).
+- **Entity groups in the Scene list** (sponsor, 2026-09-26): a filter box at the top of the list, and
+  whether selecting a group selects what is in it (move the whole group with the gizmo). The groups
+  themselves became 0300: a bare entity parents others and its row folds.
 - Split a multi-object `.glb` into a tree of things on import (a body with a head child), so moving
   parts need not be exported one file each. Set aside for 0.2 by 0280; worth it once parenting (037)
   exists and exporting parts one by one becomes a chore.
