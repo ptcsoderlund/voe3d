@@ -1,6 +1,8 @@
 // The identity: that a name and an id round-trip, that the only way to change
 // one is an intent the system drains, and that the drain corrects rather than
 // refuses — a name that was not terminated, and an id that may not be replaced.
+// Also that the fold lands and unfolds through the replace, a new row arrives
+// unfolded, and the field list a world hands back marks the id read-only.
 //
 // THE RAW SUBMIT IS THE POINT OF HALF THIS FILE. The typed calls assert a
 // terminated name, so a test that only used them could never reach the drain's
