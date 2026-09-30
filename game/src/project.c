@@ -96,6 +96,9 @@ bool voe_game_project_component(voe_ecs_world *world,
 		type->default_row != NULL ? type->default_row : zeros);
 	if (type->menu != NULL)
 		voe_ecs_component_menu_set(world, table, type->menu);
+	if (type->needs != NULL)
+		voe_ecs_component_needs_set(
+			world, table, voe_ecs_component_type(world, type->needs));
 	return true;
 }
 

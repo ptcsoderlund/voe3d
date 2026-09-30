@@ -6,7 +6,8 @@
 //     {
 //             voe_game_project_component(world, &(voe_game_project_type){
 //                     &player_key, sizeof(player), 1,
-//                     VOE_GAME_PROJECT_DESCRIPTION(player), NULL, "Game / Player" });
+//                     VOE_GAME_PROJECT_DESCRIPTION(player), NULL, "Game / Player",
+//                     &voe_scene_transform_key });
 //     }
 //
 // KEY AND STRUCT SHARE ONE NAME: the struct `player`, its key `player_key`
@@ -105,6 +106,10 @@ typedef struct {
 } voe_game_project_frame;
 
 // One project type. `default_row` NULL is zeros; `menu` NULL is no menu path.
+// `needs` is the key of a type a row of this one does nothing without, such as
+// voe_scene_transform_key, told to ecs so Add component brings it and the
+// Inspector keeps it (0302); NULL for none. It must be an engine type or a
+// project type registered before this one.
 typedef struct {
 	const struct voe_ecs_key *key;
 	size_t size;
@@ -112,6 +117,7 @@ typedef struct {
 	const voe_base_struct_description *description;
 	const void *default_row;
 	const char *menu;
+	const struct voe_ecs_key *needs;
 } voe_game_project_type;
 
 // Registers the table, its replace intent, default and menu. False, reported,

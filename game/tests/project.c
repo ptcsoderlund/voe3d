@@ -2,6 +2,8 @@
 // world: its menu and default read back, a replace in the layout
 // voe_ecs_component_replace gives lands whole, one for a destroyed entity is
 // dropped with the queue empty after, and a row of 241 bytes is refused. A
+// type registered needing the transform answers it as needed; one with no
+// needs answers none. A
 // hand-written two-entity prefab spawned lands with its child under its
 // root, an unknown name is refused, a remove takes both, and a thousand
 // rounds leave the world's entity count where it began.
@@ -27,6 +29,7 @@ VOE_BASE_DESCRIBE_STRUCT(speed, SPEED_FIELDS)
 
 static const struct voe_ecs_key speed_key = { "speed" };
 static const struct voe_ecs_key wide_key = { "wide" };
+static const struct voe_ecs_key follow_key = { "follow" };
 
 // Submits a replace of `entity`'s speed as a caller knowing only the layout.
 static void submit(voe_ecs_world *world, voe_ecs_type type,
@@ -112,12 +115,13 @@ int main(void)
 	voe_ecs_entity kept;
 	voe_ecs_entity gone;
 	voe_ecs_type type;
+	voe_ecs_type needed;
 
 	VOE_TEST_CHECK(voe_game_project_component(
 		world, &(voe_game_project_type){
 			       &speed_key, sizeof(speed), 4,
 			       VOE_GAME_PROJECT_DESCRIPTION(speed), &start,
-			       "Game / Speed" }));
+			       "Game / Speed", NULL }));
 	type = voe_ecs_component_type(world, &speed_key);
 	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
 			      "Game / Speed") == 0);
@@ -143,11 +147,23 @@ int main(void)
 			world, voe_ecs_component_replace(world, type).intent),
 		0);
 
+	VOE_TEST_CHECK(!voe_ecs_component_needs(world, type, &needed));
+	VOE_TEST_CHECK(voe_game_project_component(
+		world, &(voe_game_project_type){
+			       &follow_key, sizeof(speed), 4,
+			       VOE_GAME_PROJECT_DESCRIPTION(speed), NULL, NULL,
+			       &voe_scene_transform_key }));
+	VOE_TEST_CHECK(voe_ecs_component_needs(
+		world, voe_ecs_component_type(world, &follow_key), &needed));
+	VOE_TEST_CHECK_INT(
+		needed.value,
+		voe_ecs_component_type(world, &voe_scene_transform_key).value);
+
 	VOE_TEST_CHECK(!voe_game_project_component(
 		world, &(voe_game_project_type){ &wide_key,
 						 VOE_GAME_PROJECT_ROW + 1, 4,
 						 &voe_ecs_runtime_only, NULL,
-						 NULL }));
+						 NULL, NULL }));
 
 	spawned_and_removed(world);
 	voe_base_arena_destroy(arena);
