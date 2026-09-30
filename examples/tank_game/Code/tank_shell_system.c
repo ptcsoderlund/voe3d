@@ -79,8 +79,9 @@ bool tank_shell_register(voe_ecs_world *world)
 		&(voe_game_project_type){
 			&tank_shell_key, sizeof(tank_shell), TANK_SHELL_ROWS,
 			VOE_GAME_PROJECT_DESCRIPTION(tank_shell),
-			&tank_shell_default, "Tank / Shell",
-			&voe_scene_transform_key });
+			&tank_shell_default, "Tank / Shell" }) &&
+		voe_game_project_component_needs(world, &tank_shell_key,
+						 &voe_scene_transform_key);
 	const bool shot = voe_game_project_component(world,
 		&(voe_game_project_type){
 			&tank_shot_key, sizeof(tank_shot), TANK_SHELL_ROWS,

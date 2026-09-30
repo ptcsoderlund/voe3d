@@ -54,7 +54,9 @@ bool tank_hull_register(voe_ecs_world *world)
 	return voe_game_project_component(world, &(voe_game_project_type){
 		&tank_hull_key, sizeof(tank_hull), VOE_GAME_WORLD_AUTHORED,
 		VOE_GAME_PROJECT_DESCRIPTION(tank_hull), &tank_hull_default,
-		"Tank / Hull", &voe_scene_transform_key });
+		"Tank / Hull" }) &&
+	       voe_game_project_component_needs(world, &tank_hull_key,
+						&voe_scene_transform_key);
 }
 
 // (0, 0, -1) rotated by the unit quaternion q: the third column of its
