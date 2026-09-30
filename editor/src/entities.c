@@ -105,7 +105,7 @@ static bool queue_default(voe_ecs_world *world, voe_ecs_entity entity,
 }
 
 // Makes an entity named `base` by the rules in the header and queues its
-// identity, a transform at `position` and, when `key` is not NULL, `row` of
+// identity and, when `key` is not NULL, a transform at `position` and `row` of
 // that type.
 static bool entity_make(voe_ecs_world *world, const char *base,
 			size_t base_length, voe_math_double3 position,
@@ -133,10 +133,11 @@ static bool entity_make(voe_ecs_world *world, const char *base,
 		    world,
 		    voe_ecs_component_type(world, &voe_scene_identity_key),
 		    entity, &identity) ||
-	    !voe_ecs_structure_add(
-		    world,
-		    voe_ecs_component_type(world, &voe_scene_transform_key),
-		    entity, &transform) ||
+	    (key != NULL &&
+	     !voe_ecs_structure_add(
+		     world,
+		     voe_ecs_component_type(world, &voe_scene_transform_key),
+		     entity, &transform)) ||
 	    (key != NULL &&
 	     !voe_ecs_structure_add(world, voe_ecs_component_type(world, key),
 				    entity, row))) {
@@ -217,12 +218,13 @@ bool voe_editor_entities_prefab_add(voe_ecs_world *world, const char *path,
 			   &prefab, out);
 }
 
-bool voe_editor_entities_component_add(voe_ecs_world *world,
-				       voe_ecs_entity entity, voe_ecs_type type)
+// The type's default row, or for a collider on an entity with a shape the one
+// fitting it (0253).
+static bool queue_row(voe_ecs_world *world, voe_ecs_entity entity,
+		      voe_ecs_type type)
 {
-	VOE_BASE_ASSERT(world != NULL, "adding a component in no world");
-
 	const voe_3d_shape *shape = voe_3d_shape_get(world, entity);
+
 	if (shape != NULL &&
 	    type.value ==
 		    voe_ecs_component_type(world, &voe_physics_collider_key)
@@ -231,6 +233,50 @@ bool voe_editor_entities_component_add(voe_ecs_world *world,
 		return voe_ecs_structure_add(world, type, entity, &fitted);
 	}
 	return queue_default(world, entity, type);
+}
+
+// Walks from `type` along what each type needs while the entity has no row of
+// the needed one, at most `limit` links. Writes the type reached to `reached`
+// and returns the links taken.
+static uint32_t needs_walk(const voe_ecs_world *world, voe_ecs_entity entity,
+			   voe_ecs_type type, uint32_t limit,
+			   voe_ecs_type *reached)
+{
+	uint32_t links = 0;
+	voe_ecs_type needed;
+
+	VOE_BASE_ASSERT(reached != NULL, "a needs walk with nowhere to stop");
+	*reached = type;
+	while (links < limit &&
+	       voe_ecs_component_needs(world, *reached, &needed) &&
+	       voe_ecs_component_get(world, needed, entity) == NULL) {
+		*reached = needed;
+		links++;
+	}
+	VOE_BASE_ASSERT(links <= limit, "a needs walk past its limit");
+	return links;
+}
+
+// The chain is walked again for each depth rather than kept in an array, so
+// no buffer is sized to the world's types; it is a few links long.
+bool voe_editor_entities_component_add(voe_ecs_world *world,
+				       voe_ecs_entity entity, voe_ecs_type type)
+{
+	uint32_t types;
+	uint32_t depth;
+	voe_ecs_type needed;
+
+	VOE_BASE_ASSERT(world != NULL, "adding a component in no world");
+
+	types = voe_ecs_component_type_count(world);
+	depth = needs_walk(world, entity, type, types, &needed);
+	VOE_BASE_ASSERT(depth < types, "a loop in the types' needs");
+	for (uint32_t d = depth; d > 0; d--) {
+		(void)needs_walk(world, entity, type, d, &needed);
+		if (!queue_row(world, entity, needed))
+			return false;
+	}
+	return queue_row(world, entity, type);
 }
 
 bool voe_editor_entities_component_remove(voe_ecs_world *world,

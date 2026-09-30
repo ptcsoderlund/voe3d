@@ -41,8 +41,8 @@
 // its picture in view.h's struct instead, because a view is not the scene's.
 //
 // ADD ENTITY IS ONE BUTTON AND THE ONE WAY TO MAKE SOMETHING (ADR-0217). It
-// makes an entity with only an identity and a transform at the origin; its
-// other components come from the Inspector's Add component. A fired Add entity
+// makes an entity with only an identity (0300); its components come from the
+// Inspector's Add component. A fired Add entity
 // is an entity added, selected, and counted in `structural`, which main.c reads
 // to mark the project unsaved. The Scene list's drag is held here too, across
 // frames, in the `list_` fields.
