@@ -1,6 +1,7 @@
-// What a held model or prefab row does (0277 point 8, 0283 point 7): a press
-// on a `.glb` or `.prefab` row in the Assets panel starts a drag holding its project-relative path, and where the
-// button comes up decides what happens. main.c calls it once a frame, beside
+// What a held model, prefab or picture row does (0277 point 8, 0283 point 7,
+// 0298 point 5): a press on a `.glb`, `.prefab`, `.png`, `.jpg` or `.jpeg` row
+// in the Assets panel starts a drag holding its project-relative path, and
+// where the button comes up decides what happens. main.c calls it once a frame, beside
 // voe_editor_pick_read and with the same `blocked`, and while it holds, the
 // pick is blocked too:
 //
@@ -13,7 +14,7 @@
 // started anywhere else never becomes a drag, and the row is drawn held by
 // `ui` for as long as the button is down.
 //
-// FOUR OUTCOMES, AT THE RELEASE.
+// FIVE OUTCOMES, AT THE RELEASE.
 // - Over a scene view: a new thing named after the file, wearing it, at the
 //   point below; it is selected, and it is one undo step and unsaved, marked
 //   the way Add entity marks them.
@@ -24,6 +25,9 @@
 //   selected, one undo step and unsaved as a model's is (0283 point 7); the
 //   world step expands it the next frame. Over the Inspector, or while a
 //   prefab is open, nothing.
+// - A picture over the Inspector while the selected thing has an emitter: its
+//   texture is replaced through voe_3d_emitter_submit, the rest of the row
+//   kept, one undo step and unsaved as a model's is. Over a view, nothing.
 // - Anywhere else, or while `blocked`: nothing.
 // The drag starts only past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from
 // the press, so a click opens a prefab and a release before it does nothing.
@@ -38,8 +42,9 @@
 // THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
 // entity has at most one row of a type, so a second model is not a thing to
 // add, and swapping what a placed thing wears is what dropping onto its panel
-// is for. A thing with no model is left alone; Add component gives it one. A
-// prefab's part is left alone too: it is not the person's to edit (0283).
+// is for. A thing with no model (or emitter, for a picture) is left alone; Add
+// component gives it one. A prefab's part is left alone too: it is not the
+// person's to edit (0283). A path longer than its field's room is no drag.
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
 // bar, as resize.c lays it out, not what `ui` drew, because the frame's nodes
@@ -54,6 +59,7 @@
 #include "undo.h"
 #include "view.h"
 
+#include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/shape_geometry.h>
@@ -64,17 +70,22 @@
 
 #include <stdbool.h>
 
-// The larger of a model row's and a prefab row's path.
-#define VOE_EDITOR_ASSETS_DRAG_PATH                    \
-	(VOE_3D_MODEL_PATH > VOE_SCENE_PREFAB_PATH ? \
-		 VOE_3D_MODEL_PATH :                  \
-		 VOE_SCENE_PREFAB_PATH)
+// The larger of two sizes, for the drag's path.
+#define VOE_EDITOR_ASSETS_DRAG_LARGER(a, b) ((a) > (b) ? (a) : (b))
+
+// The largest of a model row's, a prefab row's and an emitter's texture path.
+#define VOE_EDITOR_ASSETS_DRAG_PATH                                    \
+	VOE_EDITOR_ASSETS_DRAG_LARGER(                                 \
+		VOE_EDITOR_ASSETS_DRAG_LARGER(VOE_3D_MODEL_PATH,       \
+					      VOE_SCENE_PREFAB_PATH), \
+		VOE_3D_EMITTER_TEXTURE)
 
 // What a drag remembers between frames. Zeroed is no drag.
 typedef struct {
 	bool holding;
-	// Whether the held row is a prefab rather than a model.
+	// Whether the held row is a prefab or a picture rather than a model.
 	bool prefab;
+	bool picture;
 	// The held row's path, `Assets/...` with `/` separators.
 	char path[VOE_EDITOR_ASSETS_DRAG_PATH];
 	// The pointer at the press.
@@ -86,8 +97,8 @@ typedef struct {
 } voe_editor_assets_drag;
 
 // This frame's button against the drag: a start from the Assets panel's held
-// model or prefab row, or at the release one of the four outcomes above. `pointer` is
-// in `root`'s millimetres and `down` is its primary button.
+// model, prefab or picture row, or at the release one of the five outcomes
+// above. `pointer` is in `root`'s millimetres and `down` is its primary button.
 void voe_editor_assets_drag_read(
 	voe_editor_assets_drag *drag, voe_editor_session *session,
 	voe_editor_undo *undo, voe_editor_scene *scene,

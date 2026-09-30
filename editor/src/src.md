@@ -142,16 +142,16 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
-  entered and Up but never above it, listed again once a second, model and prefab rows marked, a
+  entered and Up but never above it, listed again once a second, model, prefab and picture rows marked, a
   fired prefab row left to open, and Import.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
   afterwards, and the import.
-- `assets_drag.h` — a held model or prefab row from the Assets panel: released over a scene view
-  it places a new thing or a copy where the ray lands, over the Inspector it swaps the selected
-  thing's model, elsewhere nothing.
+- `assets_drag.h` — a held model, prefab or picture row from the Assets panel: released over a
+  scene view it places a new thing or a copy where the ray lands, over the Inspector it swaps the
+  selected thing's model or its emitter's texture, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the drop point, the Inspector's rectangle, and the one undo step.
+  the release and the ghost, the drop point, the Inspector's rectangle, the texture swap, and the one undo step.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).

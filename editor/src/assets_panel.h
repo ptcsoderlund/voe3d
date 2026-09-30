@@ -33,6 +33,10 @@
 // the read leaves its project-relative path, `/` between, in `opened`, a field
 // the caller reads and clears; a path too long for it is not reported.
 //
+// A PICTURE ROW is a file whose name ends `.png`, `.jpg` or `.jpeg`, in any
+// case (0298 point 5): drawn marked and held as a model row is, so
+// assets_drag.h can make it an emitter's texture.
+//
 // A FAILED LISTING KEEPS THE OLD ROWS for the same project, as browser.h's
 // does, and says why on stderr through platform/folder.h. `Assets/` is looked
 // for in the project's own listing first, so a project without one, or an
@@ -57,13 +61,14 @@
 #include <stdint.h>
 
 // One listed entry: its name in the panel's arena, whether it is a folder,
-// whether it is a model or a prefab, and the row drawn for it.
+// whether it is a model, a prefab or a picture, and the row drawn for it.
 typedef struct {
 	voe_ui_node node;
 	const char *name;
 	bool folder;
 	bool model;
 	bool prefab;
+	bool picture;
 } voe_editor_assets_row;
 
 // The panel's whole state. Zeroed is a panel never listed.
@@ -84,12 +89,13 @@ typedef struct {
 	uint32_t row_count;
 	voe_ui_node up_button;
 	voe_ui_node import_button;
-	// The model or prefab row the pointer went down on and still holds, as
-	// the last read found it, NULL for none: its name in `arena`, valid
-	// until the next listing, and whether it is a prefab. What
-	// assets_drag.h starts a drag from.
+	// The model, prefab or picture row the pointer went down on and still
+	// holds, as the last read found it, NULL for none: its name in `arena`,
+	// valid until the next listing, and whether it is a prefab or a
+	// picture. What assets_drag.h starts a drag from.
 	const char *held;
 	bool held_prefab;
+	bool held_picture;
 	// The prefab row fired at the last read, `Assets/...` under the
 	// project, "" for none. The caller clears it once it has opened it.
 	char opened[VOE_SCENE_PREFAB_PATH];
@@ -107,8 +113,8 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
 // After voe_ui_frame_end: a folder row fired is entered, Up fired goes up a
-// level; either lists at once. `held` is set to the model or prefab row held,
-// if any, and `opened` to a prefab row fired. True when Import fired, which
+// level; either lists at once. `held` is set to the model, prefab or picture
+// row held, if any, and `opened` to a prefab row fired. True when Import fired, which
 // the caller answers by showing the browser in IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets);
