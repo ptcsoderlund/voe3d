@@ -1,6 +1,12 @@
 // The selection, the colour picker's and the open dropdown's targets, the
-// gizmo's mode, and the rows the Scene panel drew. See the header for why building a project's entities is not this
-// file's job, and why the rows outlive the call that drew them.
+// gizmo's mode, and the rows the Scene panel drew. See the header for why
+// building a project's entities is not this file's job, and why the rows
+// outlive the call that drew them.
+//
+// Delete takes a whole tree and Duplicate one entity; both refuse a part and
+// the camera, and Duplicate refuses a light. The colour picker and dropdown
+// open, close and are placed where the Inspector measured them. A fold is
+// submitted as the entity's identity with `folded` flipped.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
 // nodes because that is what a widget answers through, and it asks `ui` exactly

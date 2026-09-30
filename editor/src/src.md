@@ -216,10 +216,8 @@ carries it out.
   entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
   dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
   cancel.
-- `scene.c` — the selection, Delete of a whole tree and Duplicate (both refuse a part and the
-  camera, Duplicate a light), the gizmo's switch, the colour picker and dropdown opened, closed
-  and placed where the Inspector measured them, and the Scene panel's rows and folds asked after
-  the frame has ended, a fold submitted as the identity with `folded` flipped.
+- `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and
+  dropdown targets, and the Scene panel's rows and folds, asked after the frame has ended.
 - `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
   too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
