@@ -5,6 +5,9 @@
 // AN ENTITY WITH NO ROW IS A ROOT (0281 point 1). Its transform row is then its
 // world place, as every transform was before parenting existed.
 //
+// AN ENTITY WITHOUT A TRANSFORM MAY BE A PARENT OR A CHILD (0300), so a bare
+// entity such as "Lamps" groups a hundred lights under it.
+//
 // IT IS A ROW OF ITS OWN AND NOT A FIELD ON THE TRANSFORM, so every scene saved
 // before parenting reads with no warning, and scene text, undo and the cook
 // carry the ENTITY field as an authored id with nothing new.

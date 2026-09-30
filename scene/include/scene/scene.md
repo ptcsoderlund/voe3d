@@ -15,8 +15,8 @@ stays on `scene/scene.md`.
 - `camera_component.h` — eye, yaw, pitch, field of view, the two planes, and the
   view matrix.
 - `camera_system.h` — the two camera intents, absolute and relative.
-- `identity_component.h` — a 64-bit id and a 64-byte name on the entities a
-  person authored.
+- `identity_component.h` — a 64-bit id, a name and whether its row is folded on
+  the entities a person authored.
 - `identity_system.h` — the intent that renames one, and the direct call that
   creates one.
 - `light_component.h` — the sun: which way its light travels, its colour and its

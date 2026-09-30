@@ -3,6 +3,9 @@
 // within and tree walk the chain both ways, that a loop written by hand ends the
 // walk instead of hanging, that local then world round-trips, and that
 // parenting, unparenting and re-parenting through _set keep the world place.
+// Then entities without a transform (0300): the parent row needs none, a bare
+// child under a bare parent comes and goes, lamps under a bare group keep their
+// rows exactly, and a bare link ends the chain above a lamp.
 //
 // THE TANK'S ROWS ARE WRITTEN STRAIGHT WITH voe_ecs_component_add, so the reads
 // are checked over rows that exist apart from the call that writes them.
@@ -254,6 +257,106 @@ static void re_parenting_lands_in_one_frame(voe_base_arena *arena)
 			   second.index);
 }
 
+static voe_ecs_entity bare(voe_ecs_world *world)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	return entity;
+}
+
+static void a_parent_row_needs_nothing(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, true);
+	voe_ecs_type needed;
+
+	VOE_TEST_CHECK(!voe_ecs_component_needs(
+		world, voe_ecs_component_type(world, &voe_scene_parent_key),
+		&needed));
+}
+
+static void a_bare_child_under_a_bare_parent(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, true);
+	voe_ecs_entity lamps = bare(world);
+	voe_ecs_entity note = bare(world);
+
+	VOE_TEST_CHECK(voe_scene_parent_set(world, note, lamps));
+	frame(world);
+	VOE_TEST_CHECK(voe_scene_parent_get(world, note) != NULL);
+	VOE_TEST_CHECK_INT(voe_scene_parent_get(world, note)->parent.index,
+			   lamps.index);
+	VOE_TEST_CHECK(voe_scene_transform_get(world, note) == NULL);
+
+	VOE_TEST_CHECK(voe_scene_parent_set(world, note, (voe_ecs_entity){ 0 }));
+	frame(world);
+	VOE_TEST_CHECK(voe_scene_parent_get(world, note) == NULL);
+}
+
+static void check_same_row(voe_scene_transform a, voe_scene_transform b)
+{
+	VOE_TEST_CHECK(a.position.x == b.position.x);
+	VOE_TEST_CHECK(a.position.y == b.position.y);
+	VOE_TEST_CHECK(a.position.z == b.position.z);
+	VOE_TEST_CHECK(a.rotation.y == b.rotation.y);
+	VOE_TEST_CHECK(a.rotation.w == b.rotation.w);
+	VOE_TEST_CHECK(a.scale.x == b.scale.x);
+}
+
+// Three lamps grouped under a bare "Lamps": none of them moves at all.
+static void lamps_under_a_bare_group_stay_put(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, true);
+	voe_ecs_entity group = bare(world);
+	voe_ecs_entity lamps[3];
+	voe_scene_transform rows[3];
+	uint32_t i;
+
+	lamps[0] = placed(world, at(1.0, 2.0, 3.0));
+	lamps[1] = placed(world, at(-4.0, 0.5, 7.0));
+	lamps[2] = placed(world, at(0.0, 9.0, -1.0));
+	for (i = 0; i < 3; i++) {
+		rows[i] = *voe_scene_transform_get(world, lamps[i]);
+		VOE_TEST_CHECK(voe_scene_parent_set(world, lamps[i], group));
+	}
+	frame(world);
+	for (i = 0; i < 3; i++) {
+		VOE_TEST_CHECK_INT(
+			voe_scene_parent_get(world, lamps[i])->parent.index,
+			group.index);
+		check_same_row(*voe_scene_transform_get(world, lamps[i]),
+			       rows[i]);
+		check_same_row(voe_scene_transform_world(world, lamps[i]),
+			       rows[i]);
+	}
+}
+
+// A moved hull, a bare group under it, a lamp under the group: the chain ends
+// at the group, so the lamp's world place is its own row.
+static void a_bare_link_ends_the_chain(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, true);
+	voe_ecs_entity hull = placed(world, at(0.0, 0.0, 0.0));
+	voe_ecs_entity group = bare(world);
+	voe_ecs_entity lamp = placed(world, at(3.0, 4.0, 5.0));
+
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){
+			       .entity = hull, .transform = at(10.0, 0.0, 5.0) }));
+	VOE_TEST_CHECK(voe_scene_parent_set(world, group, hull));
+	frame(world);
+	VOE_TEST_CHECK(voe_scene_parent_set(world, lamp, group));
+	frame(world);
+
+	VOE_TEST_CHECK_INT(voe_scene_parent_get(world, group)->parent.index,
+			   hull.index);
+	VOE_TEST_CHECK_INT(voe_scene_parent_get(world, lamp)->parent.index,
+			   group.index);
+	check_position(*voe_scene_transform_get(world, lamp), 3.0, 4.0, 5.0);
+	check_same_place(voe_scene_transform_world(world, lamp),
+			 *voe_scene_transform_get(world, lamp));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
@@ -266,6 +369,10 @@ int main(void)
 	local_then_world_round_trips(arena);
 	parenting_keeps_the_world_place(arena);
 	re_parenting_lands_in_one_frame(arena);
+	a_parent_row_needs_nothing(arena);
+	a_bare_child_under_a_bare_parent(arena);
+	lamps_under_a_bare_group_stay_put(arena);
+	a_bare_link_ends_the_chain(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

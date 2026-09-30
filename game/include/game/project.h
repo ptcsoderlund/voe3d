@@ -7,14 +7,17 @@
 //             voe_game_project_component(world, &(voe_game_project_type){
 //                     &player_key, sizeof(player), 1,
 //                     VOE_GAME_PROJECT_DESCRIPTION(player), NULL, "Game / Player" });
+//             voe_game_project_component_needs(world, &player_key,
+//                                              &voe_scene_transform_key);
 //     }
 //
 // KEY AND STRUCT SHARE ONE NAME: the struct `player`, its key `player_key`
 // named "player", because the cook names both from the key.
 //
 // A REFUSAL IS REPORTED, NOT ASSERTED: a row over VOE_GAME_PROJECT_ROW, a
-// type past VOE_GAME_PROJECT_TYPES or a zero size is a line on stderr and
-// false, because a project's code is not the engine's to assert on.
+// type past VOE_GAME_PROJECT_TYPES, a zero size, and a need for a key that is
+// no project type, of a key not registered or a second time, are a line on
+// stderr and false, because a project's code is not the engine's to assert on.
 //
 // GAME IS THE ONE WRITER OF A PROJECT ROW FROM OUTSIDE. Each type gets a
 // replace intent of game's own (the entity at 0, the row at the next
@@ -118,6 +121,15 @@ typedef struct {
 // when refused as the header says.
 [[nodiscard]] bool voe_game_project_component(voe_ecs_world *world,
 					      const voe_game_project_type *type);
+
+// Says rows of the project type `key` do nothing without a row of `needed`
+// (0303), so Add component brings it and the Inspector keeps it. `needed` is
+// an engine type or a project type registered before; no call, no need.
+// False, reported, when `key` is no project type, `needed` is not registered
+// or `key` already has a need.
+[[nodiscard]] bool voe_game_project_component_needs(
+	voe_ecs_world *world, const struct voe_ecs_key *key,
+	const struct voe_ecs_key *needed);
 
 // Drains every project replace queue: a live entity with the row gets it
 // whole, any other value is dropped silently, and each queue ends empty.

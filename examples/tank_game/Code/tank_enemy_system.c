@@ -82,7 +82,9 @@ bool tank_enemy_register(voe_ecs_world *world)
 	return voe_game_project_component(world, &(voe_game_project_type){
 		&tank_enemy_key, sizeof(tank_enemy), TANK_ENEMY_ROWS,
 		VOE_GAME_PROJECT_DESCRIPTION(tank_enemy), &tank_enemy_default,
-		"Tank / Enemy" });
+		"Tank / Enemy" }) &&
+	       voe_game_project_component_needs(world, &tank_enemy_key,
+						&voe_scene_transform_key);
 }
 
 // (0, 0, -1) rotated by the unit quaternion q: the third column of its

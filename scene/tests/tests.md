@@ -6,16 +6,13 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `transform.c` — that the matrix is translate·rotate·scale and changes only through a drained
   intent, that a child composes under its parent and back, that a rotation arrives unit length, that
   the field list is the compiler's layout, and that a remembered step blends back by a lag.
-- `parent.c` — that a barrel's world place follows its hull, a world with no parent table answers
-  the row, the walks go both ways, a loop ends, local then world round-trips, and parenting,
-  unparenting and re-parenting keep the world place.
+- `parent.c` — that a child's world place follows its parent, the walks go both ways and end on a
+  loop, reparenting keeps the world place, and entities without a transform parent and end chains.
 - `prefab.c` — that both prefab tables register, queued rows read back once
   applied, the part table is runtime-only and the prefab table is not, and it
   has no replace and no menu.
-- `identity.c` — that a rename lands only when the system runs, that an
-  unterminated name arrives cut and a replaced id arrives put back, and that the
-  field list a world hands back marks the id read-only. Its header says why half
-  of it submits raw rather than through the typed call.
+- `identity.c` — that a name, id and fold change only through a drained intent, the drain cuts an
+  unterminated name and puts back a replaced id, and the field list marks the id read-only.
 - `camera.c` — what registration tells a tool, that the view of a pose is its
   inverse with roll kept and none when scaled to nothing, and that a whole-lens
   intent applies a good lens and keeps the row over a bad one.

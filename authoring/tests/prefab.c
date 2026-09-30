@@ -145,6 +145,7 @@ static void test_tree(void)
 	check_text(out.text != NULL ? out.text : "", out.size,
 		   "[1]\n"
 		   "name = \"Hull\"\n"
+		   "folded = false\n"
 		   "[1.voe_scene_transform]\n"
 		   "position = [0, 0, 0]\n"
 		   "rotation = [0, 0, 0, 1]\n"
@@ -152,6 +153,7 @@ static void test_tree(void)
 		   "\n"
 		   "[2]\n"
 		   "name = \"Turret\"\n"
+		   "folded = false\n"
 		   "[2.voe_scene_parent]\n"
 		   "parent = 1\n"
 		   "[2.voe_scene_transform]\n"
@@ -161,6 +163,7 @@ static void test_tree(void)
 		   "\n"
 		   "[3]\n"
 		   "name = \"Barrel\"\n"
+		   "folded = false\n"
 		   "[3.test_link]\n"
 		   "target = 0\n"
 		   "[3.voe_scene_parent]\n"

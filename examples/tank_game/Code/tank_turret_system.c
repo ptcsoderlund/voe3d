@@ -45,6 +45,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/parent_component.h>
+#include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
 #include <math.h>
@@ -63,7 +64,9 @@ bool tank_turret_register(voe_ecs_world *world)
 	return voe_game_project_component(world, &(voe_game_project_type){
 		&tank_turret_key, sizeof(tank_turret), VOE_GAME_WORLD_MAX_DRAWN,
 		VOE_GAME_PROJECT_DESCRIPTION(tank_turret), &tank_turret_default,
-		"Tank / Turret" });
+		"Tank / Turret" }) &&
+	       voe_game_project_component_needs(world, &tank_turret_key,
+						&voe_scene_transform_key);
 }
 
 // The first camera's ray through the pointer. False when there is no

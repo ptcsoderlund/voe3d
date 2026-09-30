@@ -18,20 +18,22 @@
 // at VOE_SCENE_PARENT_DEPTH_MAX, each indented by a fixed-size spacer per level.
 // One in a loop or past the cap is listed after the rest at depth 0.
 //
+// ANY ROW WITH CHILDREN FOLDS AND OPENS by a button before its name. The state
+// is the identity's `folded`, saved with the scene and undone (0302); a folded
+// row's tree is not listed, and a selection inside it stays selected.
+//
 // EVERY ROW IS KEYED BY ONE NAME AND ITS IDENTITY-TABLE INDEX, so each row is
 // its own button and its highlight follows its entity when the order changes.
 // Its label points into the table, which outlives the frame. Add entity sits
-// above the list and is asked after the frame, as the rows are (ADR-0217).
-//
-// A PLACED COPY'S ROOT SHOWS ITS PREFAB'S FILE NAME after its name, in the
-// secondary text role, so it reads as a prefab at a glance; its parts are
-// listed under it as any tree (0283 point 5).
+// above the list and is asked after the frame, as the rows are (ADR-0217). A
+// copy's root shows its prefab's file name after its name, in the secondary
+// role; its parts are listed under it as any tree (0283 point 5).
 //
 // A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7): over another row it
 // becomes its child, unless it already is or that row is itself or under it;
-// over the heading (scene.heading) a root; elsewhere nothing. The world place
-// is kept. The drop is read after voe_ui_frame_end, when a button says it is
-// held. A set counts one in `structural`; a full queue sets `full`.
+// over the heading (scene.heading) a root; elsewhere nothing. Any row parents
+// and takes children, a transform or not (0300). The drop is read after
+// voe_ui_frame_end; a set counts one in `structural`, a full queue sets `full`.
 //
 // A PART IS NEVER DRAGGED OR DROPPED ONTO (0283 point 5): a press on one only
 // selects, and no rim or drop lands on its row. A part is the prefab's, and a
@@ -78,8 +80,7 @@ void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
 // Follows the held row in scene's `list_` fields — its start, the threshold and
 // the target at `at`, the root's millimetres — and on the first frame none is
 // held and `down` is false, drops it there if it was dragged and not cancelled,
-// then zeroes them. A held entity no longer alive, or either one without a
-// transform, does nothing. `over_assets` is whether `at` is over the Assets
+// then zeroes them. A held entity no longer alive does nothing. `over_assets` is whether `at` is over the Assets
 // panel: no target then, and a drop there sets `list_made` instead.
 // `assets_take` is whether a make there would go ahead; while dragging it and
 // the target set `list_refused`, and the release ignores it.

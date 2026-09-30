@@ -52,9 +52,9 @@
 #include <stdint.h>
 
 // Registers the table, its description, the intent queue, the intent as the
-// component's replace, and the default row: id 0 and an empty name. The default
-// row is what "add at default" gives (0190). Call it once per world, before
-// anything adds an identity.
+// component's replace, and the default row: id 0, an empty name, unfolded. The
+// default row is what "add at default" gives (0190). Call it once per world,
+// before anything adds an identity.
 // capacity is how many identities the world may hold and also how many intents
 // may be waiting at once: one submission per identity per frame is what that
 // sizing assumes.

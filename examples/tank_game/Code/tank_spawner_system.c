@@ -40,7 +40,9 @@ bool tank_spawner_register(voe_ecs_world *world)
 	return voe_game_project_component(world, &(voe_game_project_type){
 		&tank_spawner_key, sizeof(tank_spawner), VOE_GAME_WORLD_AUTHORED,
 		VOE_GAME_PROJECT_DESCRIPTION(tank_spawner),
-		&tank_spawner_default, "Tank / Spawner" });
+		&tank_spawner_default, "Tank / Spawner" }) &&
+	       voe_game_project_component_needs(world, &tank_spawner_key,
+						&voe_scene_transform_key);
 }
 
 // Spawns the spawner's prefab at its world transform. False when the spawn

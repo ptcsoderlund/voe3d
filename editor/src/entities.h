@@ -7,13 +7,16 @@
 //     if (!voe_editor_entities_add(world, &made))
 //             ...                     // "The scene is full."
 //
-// AN ADD MAKES AN IDENTITY AND A TRANSFORM AND NOTHING ELSE (ADR-0217). There
-// is no shortcut that makes an entity with other components on it; everything
-// else comes from Add component afterwards. The other makes are a model
-// dropped into a view (assets_drag.h): an identity, a transform where it
-// landed and the model row naming the file, as 0277 point 8 asks; and a prefab
-// dropped the same way: the prefab row instead (0283 point 7), the rest of the
-// copy expanded onto it by the world step (prefabs.h).
+// AN ADD MAKES AN IDENTITY ALONE (0300). An entity without a transform is data:
+// listed in the Scene list, in no view. Everything else comes from Add
+// component. The other makes are a model dropped into a view (assets_drag.h):
+// an identity, a transform where it landed and the model row naming the file
+// (0277 point 8); and a prefab dropped the same way: the prefab row instead
+// (0283 point 7), the rest expanded onto it by the world step (prefabs.h).
+//
+// ADD COMPONENT BRINGS WHAT A TYPE NEEDS (0302 point 3). A type needing one the
+// entity lacks (voe_ecs_component_needs) gets that type's default row first,
+// and so on up the chain, deepest first; mostly a transform at the origin.
 //
 // A NEW COLLIDER STARTS OUT FITTING THE SHAPE (0253). Added to an entity with
 // a shape, it is voe_3d_shape_collider's row for that shape's kind, not the
@@ -55,10 +58,9 @@
 
 #include <math/double3.h>
 
-// Makes an entity and queues its two rows: an identity with a new id and the
-// name "Entity" by the rules above, and the transform's default row (the
-// origin). Writes the entity to `out`. False when the world or the queue is
-// full, and then nothing is left of it.
+// Makes an entity and queues its one row, an identity with a new id and the
+// name "Entity" by the rules above: no transform. Writes the entity to `out`.
+// False when the world or the queue is full, and then nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_add(voe_ecs_world *world,
 					   voe_ecs_entity *out);
 
@@ -80,8 +82,9 @@
 						  voe_ecs_entity *out);
 
 // Queues that type's default row onto the entity, or for a collider on an
-// entity with a shape the one fitting it. False when the queue is full.
-// A type with no default row is the caller's bug and asserts.
+// entity with a shape the one fitting it, after the rows of the types it needs
+// that the entity lacks. False when the queue is full. A type, or a needed
+// type, with no default row is the caller's bug and asserts.
 [[nodiscard]] bool voe_editor_entities_component_add(voe_ecs_world *world,
 						     voe_ecs_entity entity,
 						     voe_ecs_type type);

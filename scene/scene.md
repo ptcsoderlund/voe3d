@@ -31,10 +31,10 @@ space is.
 - `include/scene/camera_system.h` — the whole-lens intent, registered as the
   camera's replace, and the transform a camera needs. Its header says why the
   intent is whole, what lens is refused, and why Add component never offers one.
-- `include/scene/identity_component.h` — a 64-bit id and a 64-byte name on the
-  entities a person authored, the id read-only. Its header says why the
-  component's presence is the whole of what "authored" means, why the id is
-  unique within a file, not a world, and what its drain corrects.
+- `include/scene/identity_component.h` — a 64-bit id, a name and whether its row is folded on
+  the entities a person authored, the id read-only. Its header says why its
+  presence is what "authored" means, why the id is unique within a file, and
+  what its drain corrects.
 - `include/scene/identity_system.h` — the intent that renames one, and the
   direct call that creates one. Its header says why creation is not an intent,
   which of the two checks is an assert and which a correction, and why the

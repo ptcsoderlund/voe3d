@@ -1,6 +1,8 @@
 // The identity: that a name and an id round-trip, that the only way to change
 // one is an intent the system drains, and that the drain corrects rather than
 // refuses — a name that was not terminated, and an id that may not be replaced.
+// Also that the fold lands and unfolds through the replace, a new row arrives
+// unfolded, and the field list a world hands back marks the id read-only.
 //
 // THE RAW SUBMIT IS THE POINT OF HALF THIS FILE. The typed calls assert a
 // terminated name, so a test that only used them could never reach the drain's
@@ -245,15 +247,16 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK_INT(actual->read_only, read_only);
 }
 
-// Two fields, in the order they are declared: the id read-only, because nothing
-// but creation may set it, and the name sixty-four characters that may be edited.
+// Three fields, in the order they are declared: the id read-only, because nothing
+// but creation may set it, the name sixty-four characters that may be edited, and
+// the fold, one editable bool.
 static void check_description(const voe_base_struct_description *description)
 {
 	const voe_base_field_description *fields = description->fields;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_identity") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 2);
-	if (description->field_count != 2)
+	VOE_TEST_CHECK_INT(description->field_count, 3);
+	if (description->field_count != 3)
 		return;
 
 	check_field(&fields[0], "id", VOE_BASE_FIELD_UINT64,
@@ -261,6 +264,36 @@ static void check_description(const voe_base_struct_description *description)
 	check_field(&fields[1], "name", VOE_BASE_FIELD_CHAR,
 		    offsetof(voe_scene_identity, name),
 		    VOE_SCENE_IDENTITY_NAME, false);
+	check_field(&fields[2], "folded", VOE_BASE_FIELD_BOOL,
+		    offsetof(voe_scene_identity, folded), 1, false);
+}
+
+// The Scene list's fold rides the replace intent whole, like the name: true
+// lands when the system runs, and false lands back.
+static void a_fold_lands_and_unfolds_through_the_replace(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity thing = authored(world, 7, "Cube");
+	voe_scene_identity row = named(7, "Cube");
+	const voe_scene_identity *read = voe_scene_identity_get(world, thing);
+
+	VOE_TEST_CHECK(read != NULL && !read->folded);
+
+	row.folded = true;
+	VOE_TEST_CHECK(submit_raw(world, thing, row));
+	read = voe_scene_identity_get(world, thing);
+	VOE_TEST_CHECK(read != NULL && !read->folded);
+	voe_scene_identity_system_run(world);
+	read = voe_scene_identity_get(world, thing);
+	VOE_TEST_CHECK(read != NULL && read->folded);
+
+	row.folded = false;
+	VOE_TEST_CHECK(submit_raw(world, thing, row));
+	voe_scene_identity_system_run(world);
+	read = voe_scene_identity_get(world, thing);
+	VOE_TEST_CHECK(read != NULL && !read->folded);
+	if (read != NULL)
+		check_name(read->name, "Cube");
 }
 
 static void the_description_is_the_struct_the_compiler_laid_out(void)
@@ -319,8 +352,8 @@ static void a_quiet_drain(voe_base_arena *arena)
 	voe_scene_identity_system_run(world_of(arena));
 }
 
-// What "add at default" gives (ADR-0190): id 0 and an empty name, every byte of
-// the name zero so no stale text follows the terminator.
+// What "add at default" gives (ADR-0190): id 0, an empty name with every byte
+// zero so no stale text follows the terminator, and the row unfolded.
 static void the_default_is_id_zero_with_no_name(voe_base_arena *arena)
 {
 	static const char nothing[VOE_SCENE_IDENTITY_NAME] = { 0 };
@@ -333,6 +366,7 @@ static void the_default_is_id_zero_with_no_name(voe_base_arena *arena)
 		return;
 	VOE_TEST_CHECK_INT((long long)row->id, 0);
 	VOE_TEST_CHECK(memcmp(row->name, nothing, sizeof(nothing)) == 0);
+	VOE_TEST_CHECK(!row->folded);
 }
 
 int main(void)
@@ -345,6 +379,7 @@ int main(void)
 	an_identity_round_trips_through_the_table(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_an_unauthored_entity_is_dropped(arena);
+	a_fold_lands_and_unfolds_through_the_replace(arena);
 
 	an_unterminated_name_arrives_cut(arena);
 	a_quiet_drain(arena);

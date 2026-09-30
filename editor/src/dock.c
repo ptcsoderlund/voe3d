@@ -64,7 +64,6 @@
 
 #include <scene/camera_component.h>
 #include <scene/identity_component.h>
-#include <scene/transform_component.h>
 
 #include <ui/colour.h>
 
@@ -644,15 +643,15 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 // WHAT IS ON THE INSPECTOR IS ONE CALL AND NOT A SECOND SCENE PANEL. It is
 // handed the world, the selection and the types it keeps and nothing else,
 // because what it lists is the world's own component types and not anything this
-// folder knows the name of — see inspector.h. The identity and the transform are
+// folder knows the name of — see inspector.h. The identity and the camera are
 // the ones it is told of, never removable: the Scene list is built from the
-// first, and every entity has the second (ADR-0217). The camera is the third:
-// the scene's one camera keeps its component (ADR-0218).
+// first, and the scene's one camera keeps its component (ADR-0218). The
+// transform is not among them: it is an ordinary component, removable when no
+// other row of the entity needs it (0300, 0302), which the Inspector decides.
 static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 {
 	const voe_ecs_type kept[] = {
 		voe_ecs_component_type(scene->world, &voe_scene_identity_key),
-		voe_ecs_component_type(scene->world, &voe_scene_transform_key),
 		voe_ecs_component_type(scene->world, &voe_scene_camera_key),
 	};
 

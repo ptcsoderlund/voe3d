@@ -1,5 +1,6 @@
 [1]
 name = "Ground"
+folded = false
 [1.voe_3d_shape]
 kind = 1
 colour = [0.35, 0.4, 0.3]
@@ -14,6 +15,7 @@ scale = [40, 0.1, 40]
 
 [2]
 name = "Camera"
+folded = false
 [2.voe_scene_camera]
 fov_y = 1.0471976
 near_plane = 0.1
@@ -25,6 +27,7 @@ scale = [1, 1, 1]
 
 [3]
 name = "Sun"
+folded = false
 [3.voe_scene_light]
 colour = [0.95097667, 0.7098251, 0.7098251]
 intensity = 4
@@ -37,6 +40,7 @@ scale = [1, 1, 1]
 
 [4]
 name = "tank_body"
+folded = false
 [4.voe_scene_prefab]
 path = "Assets/tank_body.prefab"
 [4.voe_scene_transform]
@@ -46,6 +50,7 @@ scale = [1, 1, 1]
 
 [6]
 name = "Spawner"
+folded = false
 [6.tank_spawner]
 prefab = "enemy_tank"
 every = 4
@@ -58,6 +63,7 @@ scale = [1, 1, 1]
 
 [8]
 name = "Particles"
+folded = false
 [8.voe_3d_emitter]
 playing = true
 rate = 2
@@ -81,3 +87,13 @@ texture = "Assets/images/P.png"
 position = [-1.0663643479347229e-07, 4.330971518531442, -6.705522537231445e-08]
 rotation = [0, 0, 0, 1]
 scale = [2, 2, 2]
+
+[10]
+name = "GameState"
+folded = true
+
+[12]
+name = "PauseState"
+folded = false
+[12.voe_scene_parent]
+parent = 10

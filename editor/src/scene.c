@@ -1,6 +1,12 @@
 // The selection, the colour picker's and the open dropdown's targets, the
-// gizmo's mode, and the rows the Scene panel drew. See the header for why building a project's entities is not this
-// file's job, and why the rows outlive the call that drew them.
+// gizmo's mode, and the rows the Scene panel drew. See the header for why
+// building a project's entities is not this file's job, and why the rows
+// outlive the call that drew them.
+//
+// Delete takes a whole tree and Duplicate one entity; both refuse a part and
+// the camera, and Duplicate refuses a light. The colour picker and dropdown
+// open, close and are placed where the Inspector measured them. A fold is
+// submitted as the entity's identity with `folded` flipped.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
 // nodes because that is what a widget answers through, and it asks `ui` exactly
@@ -14,6 +20,7 @@
 #include <base/assert.h>
 
 #include <scene/camera_component.h>
+#include <scene/identity_system.h>
 #include <scene/light_component.h>
 #include <scene/parent_component.h>
 
@@ -83,15 +90,38 @@ static voe_ui_action action_of(const voe_ui_context *ui, voe_ui_node node)
 }
 
 void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
-			      voe_ecs_entity entity)
+			      voe_ecs_entity entity, voe_ui_node fold)
 {
 	VOE_BASE_ASSERT(scene != NULL, "recording a row on no scene");
 
 	if (scene->listed_count == VOE_EDITOR_SCENE_ROWS)
 		return;
 
-	scene->listed[scene->listed_count++] =
-		(voe_editor_scene_row){ .node = node, .entity = entity };
+	scene->listed[scene->listed_count++] = (voe_editor_scene_row){
+		.node = node, .entity = entity, .fold = fold
+	};
+}
+
+// A fired fold: the entity's identity row submitted whole with `folded`
+// flipped, one structural change so it is an undo step and unsaved.
+static void fold_flip(voe_editor_scene *scene, voe_ecs_entity entity)
+{
+	const voe_scene_identity *identity =
+		voe_scene_identity_get(scene->world, entity);
+	voe_scene_identity flipped;
+
+	VOE_BASE_ASSERT(scene->world != NULL, "folding a row of no world");
+	if (identity == NULL)
+		return;
+	flipped = *identity;
+	flipped.folded = !flipped.folded;
+	if (!voe_scene_identity_submit(scene->world,
+				       (voe_scene_identity_intent){
+					       .entity = entity,
+					       .identity = flipped }))
+		scene->full = true;
+	else
+		scene->structural++;
 }
 
 bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
@@ -112,6 +142,8 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 		if (voe_ui_button_action(ui, scene->listed[i].node).fired &&
 		    !scene->list_dragging && !scene->list_cancelled)
 			scene->selected = scene->listed[i].entity;
+		if (action_of(ui, scene->listed[i].fold).fired)
+			fold_flip(scene, scene->listed[i].entity);
 	}
 
 	if (!action_of(ui, scene->add).fired)

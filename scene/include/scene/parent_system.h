@@ -38,17 +38,18 @@
 
 #include <stdint.h>
 
-// Registers the table, its description, the default row (no parent) and the
-// transform it needs. Call it once per world, after the transform table (it
-// asserts on none). capacity is how many entities may have a parent.
+// Registers the table, its description and the default row (no parent). Call it
+// once per world, after the transform table (it asserts on none). capacity is
+// how many entities may have a parent.
 void voe_scene_parent_register(voe_ecs_world *world, uint32_t capacity);
 
 // Queues the removal of the child's parent row, then for a non-zeroed `parent`
 // an add naming it, then a transform intent whose row keeps the child's world
-// place under it. A zeroed parent unparents. False when a queue is full; what
-// was already queued stands. Asserts the table is registered, the child has a
-// transform, a non-zeroed parent is alive with a transform, and the parent is
-// not the child or under it.
+// place under it. A zeroed parent unparents. Either may lack a transform
+// (0300): a bare child gets no transform intent, and a child under a bare
+// parent gets its world place as it is now as its row. False when a queue is
+// full; what was already queued stands. Asserts the table is registered, a
+// non-zeroed parent is alive, and the parent is not the child or under it.
 [[nodiscard]] bool voe_scene_parent_set(voe_ecs_world *world,
 					voe_ecs_entity child,
 					voe_ecs_entity parent);

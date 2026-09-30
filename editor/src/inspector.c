@@ -579,6 +579,27 @@ static void dropdown_list(voe_ui_context *ui, voe_editor_inspector *inspector,
 	voe_ui_end(ui);
 }
 
+// Whether another row `entity` holds names `type` as needed (0302 point 4), so
+// that removing `type` would leave that row doing nothing. A runtime-only row
+// counts too: it is not shown, but it still needs the place.
+static bool needed_by_another(const voe_ecs_world *world,
+			      voe_ecs_entity entity, voe_ecs_type type)
+{
+	uint32_t types = voe_ecs_component_type_count(world);
+
+	for (uint32_t i = 0; i < types; i++) {
+		voe_ecs_type other = voe_ecs_component_type_at(world, i);
+		voe_ecs_type needed;
+
+		if (other.value != type.value &&
+		    voe_ecs_component_needs(world, other, &needed) &&
+		    needed.value == type.value &&
+		    voe_ecs_component_get(world, other, entity) != NULL)
+			return true;
+	}
+	return false;
+}
+
 // ----------------------------------------------------------- the surface
 
 void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
@@ -711,6 +732,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 
 		for (uint32_t k = 0; k < kept_count; k++)
 			removable = removable && type.value != kept[k].value;
+		removable = removable && !needed_by_another(world, selected, type);
 
 		component_panel(ui, inspector, world, i, type, removable, part,
 				(const uint8_t *)row);

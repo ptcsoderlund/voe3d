@@ -99,6 +99,57 @@ bool voe_game_project_component(voe_ecs_world *world,
 	return true;
 }
 
+// The index of the type registered against `key`, or the count when none
+// was: voe_ecs_component_type would assert, and a project's key is not the
+// engine's to assert on.
+static uint32_t type_index(const voe_ecs_world *world,
+			   const struct voe_ecs_key *key)
+{
+	uint32_t count = voe_ecs_component_type_count(world);
+	uint32_t i;
+
+	for (i = 0; i < count; i++)
+		if (voe_ecs_component_key(
+			    world, voe_ecs_component_type_at(world, i)) == key)
+			break;
+	VOE_BASE_ASSERT(i <= count, "a type index past the count");
+	return i;
+}
+
+bool voe_game_project_component_needs(voe_ecs_world *world,
+				      const struct voe_ecs_key *key,
+				      const struct voe_ecs_key *needed)
+{
+	uint32_t count;
+	uint32_t index;
+	uint32_t needed_index;
+	voe_ecs_type table;
+	voe_ecs_type already;
+
+	VOE_BASE_ASSERT(world != NULL && key != NULL && needed != NULL,
+			"a need with no world or key");
+	count = voe_ecs_component_type_count(world);
+	index = type_index(world, key);
+	needed_index = type_index(world, needed);
+	if (index < VOE_GAME_WORLD_TYPES || index >= count) {
+		VOE_BASE_ERROR("game", "%s: not a project type", key->name);
+		return false;
+	}
+	if (needed_index >= count) {
+		VOE_BASE_ERROR("game", "%s: needs %s, which is not registered",
+			       key->name, needed->name);
+		return false;
+	}
+	table = voe_ecs_component_type_at(world, index);
+	if (voe_ecs_component_needs(world, table, &already)) {
+		VOE_BASE_ERROR("game", "%s: already needs a type", key->name);
+		return false;
+	}
+	voe_ecs_component_needs_set(
+		world, table, voe_ecs_component_type_at(world, needed_index));
+	return true;
+}
+
 // Rows go through voe_ecs_component_set, which refuses an entity that is gone
 // or has no row: that refusal is the silent drop.
 void voe_game_project_replaces_apply(voe_ecs_world *world)
