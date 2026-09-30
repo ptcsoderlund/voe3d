@@ -13,7 +13,7 @@ workflow replaced specs.
 - **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
 - **platform** — the one OS-aware folder: window, keys, mouse and pads, files, clock, processes, libraries, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, light, identity.
-- **physics** — colliders, the overlap query and the kinematic body's move; `physics/physics.md`.
+- **physics** — colliders, the overlap and sweep queries and the kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: sounds played by path, overlapping voices in float, pushed to the device.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
@@ -55,5 +55,5 @@ workflow replaced specs.
 - 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light: preview, black.
 - 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
-- 0249, 0253–0257 — Colliders, overlap, a kinematic body; 60 steps a second; systems in two slots.
-- 0267, 0268, 0270–0272, 0277–0286, 0291, 0292 — 0.1 closed; tank game; models; prefabs; pads.
+- 0249, 0253–0257, 0293 — Colliders, overlap, sweep, a kinematic body; 60 steps a second; systems in two slots.
+- 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; prefabs; pads; hits.
