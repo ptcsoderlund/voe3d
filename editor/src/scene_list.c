@@ -13,7 +13,6 @@
 #include <scene/parent_component.h>
 #include <scene/parent_system.h>
 #include <scene/prefab_component.h>
-#include <scene/transform_component.h>
 
 #include <string.h>
 
@@ -248,9 +247,9 @@ static bool over(const voe_ui_context *ui, voe_ui_node node,
 // What a release of `held` at `at` would do, the one answer the release and
 // the drawn target both use: true with `target` a row's entity to parent onto,
 // or zeroed to unparent over the heading; false when it lands nowhere or is
-// refused (held dead or without a transform, onto itself or under it, onto a
-// part, a row without a transform or already its parent, the heading for a
-// root).
+// refused (held dead, onto itself or under it, onto a part or already its
+// parent, the heading for a root). Either may lack a transform (0300):
+// voe_scene_parent_set keeps a child's world place under a bare parent.
 static bool drop_target(const voe_editor_scene *scene,
 			const voe_ui_context *ui, voe_ecs_entity held,
 			voe_math_float2 at, voe_ecs_entity *target)
@@ -259,8 +258,7 @@ static bool drop_target(const voe_editor_scene *scene,
 
 	VOE_BASE_ASSERT(target != NULL, "a drop target into nowhere");
 	// A zeroed entity is never alive, so no drag in flight ends here too.
-	if (!voe_ecs_entity_alive(scene->world, held) ||
-	    voe_scene_transform_get(scene->world, held) == NULL)
+	if (!voe_ecs_entity_alive(scene->world, held))
 		return false;
 	parent = voe_scene_parent_get(scene->world, held);
 	if (over(ui, scene->heading, at)) {
@@ -276,8 +274,6 @@ static bool drop_target(const voe_editor_scene *scene,
 		if (voe_scene_parent_within(scene->world, row, held))
 			return false;
 		if (is_part(scene->world, row))
-			return false;
-		if (voe_scene_transform_get(scene->world, row) == NULL)
 			return false;
 		if (parent != NULL && same_entity(parent->parent, row))
 			return false;

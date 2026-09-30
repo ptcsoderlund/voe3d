@@ -29,8 +29,9 @@
 //
 // A ROW DRAGGED AND RELEASED PARENTS IT (ADR-0281 point 7): over another row it
 // becomes its child, unless it already is or that row is itself or under it;
-// over the heading (scene.heading) a root; elsewhere nothing. The world place
-// is kept. The drop is read after voe_ui_frame_end, when a button says it is
+// over the heading (scene.heading) a root; elsewhere nothing. Any row, with or
+// without a transform, parents and takes children (0300); a child with a
+// transform under a bare row keeps its world place and its row. The drop is read after voe_ui_frame_end, when a button says it is
 // held. A set counts one in `structural`; a full queue sets `full`.
 //
 // A PART IS NEVER DRAGGED OR DROPPED ONTO (0283 point 5): a press on one only
@@ -78,8 +79,7 @@ void voe_editor_scene_list_ghost_draw(voe_ui_context *ui,
 // Follows the held row in scene's `list_` fields — its start, the threshold and
 // the target at `at`, the root's millimetres — and on the first frame none is
 // held and `down` is false, drops it there if it was dragged and not cancelled,
-// then zeroes them. A held entity no longer alive, or either one without a
-// transform, does nothing. `over_assets` is whether `at` is over the Assets
+// then zeroes them. A held entity no longer alive does nothing. `over_assets` is whether `at` is over the Assets
 // panel: no target then, and a drop there sets `list_made` instead.
 // `assets_take` is whether a make there would go ahead; while dragging it and
 // the target set `list_refused`, and the release ignores it.
