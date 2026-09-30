@@ -15,7 +15,7 @@ workflow replaced specs.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, light, identity.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
-- **audio** — the mixer: sounds played by path, overlapping voices in float, pushed to the device.
+- **audio** — the mixer: voices by handle, looped, pitched, placed from the camera; the sound component.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
 - **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
@@ -57,4 +57,4 @@ workflow replaced specs.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
-- 0298, 0299, 0301 — Particles: CPU emitters in `3d`; the tank's effects; shadows cast by choice.
+- 0298, 0299, 0301, 0304 — Particles in `3d`; the tank's effects; shadows by choice; placed sounds.
