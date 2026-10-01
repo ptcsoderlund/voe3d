@@ -2,7 +2,7 @@
 // larger: the pass block, the buffers and pools and the geometry slots are
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's; the bounce map
-// is bounce_map.c's; the bounce grid is target.c's; the swapchain
+// is bounce_map.c's; the bounce grid is target.c's, its updates bounce_grid.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -14,6 +14,7 @@
 // never this. Nothing outside render/src sees either.
 #pragma once
 
+#include "bounce_schedule.h"
 #include "loader.h"
 
 #include <render/device.h>
@@ -46,7 +47,8 @@
 // `bounce` IS THE PASS'S BOUNCE GRID (ADR-0308 point 3): `grid` the first of its
 // three entries at binding 6, VOE_RENDER_NO_BOUNCE for none; `corner` its lowest
 // corner about the eye, `cell` its lowest cell mod VOE_RENDER_BOUNCE_PROBES, and
-// `spacing` the metres between probes. Every pass writes no bounce for now.
+// `spacing` the metres between probes. Only a camera pass whose grid this frame
+// slot updated names one.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
@@ -273,7 +275,7 @@ struct voe_render_bounce_map {
 
 // What one frame slot's frame did to a bounce grid: whether it updated it, and
 // the lowest cell and corner of that update (ADR-0308 point 3).
-struct voe_render_bounce_update {
+struct voe_render_bounce_mark {
 	bool updated;
 	int32_t cell[3];
 	float corner[3];
@@ -285,11 +287,13 @@ struct voe_render_bounce_update {
 // resize. ONE COPY, NOT PER FRAME SLOT, which is why `updates` is: each frame
 // slot's record of what its frame did to this grid, indexed by the slot.
 // `descriptor` is the first of its three entries at binding 6, grid index × 3 —
-// the window's 0, target n's 3n.
+// the window's 0, target n's 3n. `schedule` is which probes its next update
+// refreshes, bounce_grid.c's, zeroed with the grid.
 struct voe_render_bounce_grid {
 	struct voe_render_allocated_image sh[3];
 	uint32_t descriptor;
-	struct voe_render_bounce_update updates[VOE_RENDER_FRAMES_IN_FLIGHT];
+	struct voe_render_bounce_mark updates[VOE_RENDER_FRAMES_IN_FLIGHT];
+	voe_render_bounce_schedule schedule;
 };
 
 // What a voe_render_target id names: a target of the caller's own, which is the
@@ -374,6 +378,15 @@ struct voe_render_frame {
 	voe_render_view bounce_view;
 	voe_render_light bounce_sun;
 	bool bounced;
+
+	// bounce_grid.c's, per slot for the same reason: the map reduced to
+	// VPLs, device-local; the probe lists, mapped, one band per grid; a set
+	// per grid; and whether this frame's last bounce pass is reduced yet.
+	struct voe_render_buffer vpls;
+	struct voe_render_buffer probe_lists;
+	void *probe_lists_mapped;
+	VkDescriptorSet *bounce_sets;
+	bool reduced;
 
 	// capacities.passes blocks, device->pass_stride bytes apart — the
 	// stride is the block rounded up to the card's uniform offset alignment.

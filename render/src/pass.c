@@ -17,7 +17,8 @@
 //
 // A BOUNCE PASS (voe_render_bounce_pass_begin, ADR-0308) is one more pass of
 // the sun onto the slot's bounce map, through the bounce pipeline; the next
-// pass, a _pass_end or the frame's end closes it.
+// pass, a _pass_end or the frame's end closes it. A camera pass names its
+// target's bounce grid in its block only when this frame slot updated it.
 //
 // voe_render_frame_copy_depth (ADR-0305) splits a camera pass's block in two
 // round a copy of its depth into the sampled copy beside it, and names the copy's
@@ -258,6 +259,30 @@ static void start_pass(voe_render_device *device,
 	device->pass_count++;
 }
 
+// The bounce record of a camera pass onto the target owning `grid`: the grid,
+// its corner and its cell mod VOE_RENDER_BOUNCE_PROBES when frame slot `slot`
+// updated it this frame, left at VOE_RENDER_NO_BOUNCE otherwise (ADR-0308
+// point 6: a grid is read only in a frame that updated it).
+static void name_grid(struct voe_render_frame_bounce *bounce,
+		      const struct voe_render_bounce_grid *grid, uint32_t slot)
+{
+	const struct voe_render_bounce_mark *mark;
+
+	VOE_BASE_DEBUG_ASSERT(bounce != NULL && grid != NULL,
+			      "naming no bounce grid");
+	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT,
+			      "naming a bounce grid for no frame slot");
+	mark = &grid->updates[slot];
+	if (!mark->updated)
+		return;
+	bounce->grid = grid->descriptor;
+	for (uint32_t a = 0; a < 3; a++) {
+		bounce->corner[a] = mark->corner[a];
+		bounce->cell[a] = (uint32_t)mark->cell[a] &
+				  (VOE_RENDER_BOUNCE_PROBES - 1u);
+	}
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -325,6 +350,10 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
 	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+	if (camera != NULL)
+		name_grid(&block.bounce, own != NULL ? &own->grid :
+						       &device->window_grid,
+			  device->slot);
 
 	// The window's pair or this frame slot's pair of the target, each with
 	// its own clear rule and its own size. A frame in slot n draws into slot
@@ -483,6 +512,7 @@ bool voe_render_bounce_pass_begin(voe_render_device *device,
 	frame->bounce_view = *light;
 	frame->bounce_sun = *sun;
 	frame->bounced = true;
+	frame->reduced = false;
 	return true;
 }
 

@@ -54,6 +54,9 @@ which file to open — what each one owns, and where the seams between them run.
   views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
   images, 512 square, the bounce pass's rendering, and its barriers to compute read.
+- `bounce_grid.c` — the bounce update: its two compute pipelines, set layout, pool, VPL and probe
+  list buffers, and the call that runs a grid's schedule, reduces the map once a frame, gathers
+  and marks the grid updated in the frame slot.
 - `bounce_schedule.h` — which bounce probes an update refreshes and how much: entered cells, then
   stale spheres, then a strided cycle, in toroidal indices. Pure CPU.
 - `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.

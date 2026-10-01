@@ -1,6 +1,6 @@
 // Every target's bounce grid (ADR-0308 point 3): that the window and each caller
 // target own one, built with them, kept through a resize and freed with them, and
-// that drawing still works around them. Two claims; both read pixels.
+// that drawing still works around them, and the update into them. Three claims.
 //
 // TWO TARGETS, MADE, RESIZED AND FREED TWICE. A device with `targets` 2 makes
 // both, each with its grid built; resizes both, and the next frame applies the
@@ -9,6 +9,13 @@
 // frees every grid. Twice, on two devices one after the other.
 //
 // THE WINDOW DRAWS A RED CUBE TOO, with its own grid built by the device.
+//
+// THE UPDATE (ADR-0308 point 4), two frames on the two live targets: false with
+// no bounce pass yet and inside a camera pass; after one, true on a target,
+// false a second time on it, true on the other and on the window, false for an
+// id whose generation names no live target (render has no target destroy, so a
+// stale id is what a destroyed one would be). A camera pass then names the
+// updated grid in its block, and the one before the update named none.
 //
 // With the validation layer present, a wrong layout, clear or descriptor write in
 // any of these is a message on stderr; the frames ending true is the rest.
@@ -28,7 +35,7 @@
 #define SIDE 16
 #define WIDE 24
 #define TARGETS 2
-#define PASSES (TARGETS + 1)
+#define PASSES (TARGETS + 4)
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 8,
@@ -44,6 +51,17 @@ static const voe_render_shading_values RED = {
 	.base_colour = { 1.0f, 0.0f, 0.0f, 1.0f },
 	.roughness = 1.0f,
 	.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
+};
+
+static const voe_render_light SUN = {
+	.direction = { 0.0f, -1.0f, 0.0f },
+	.intensity = 1.0f,
+	.colour = { 1.0f, 1.0f, 1.0f },
+};
+
+static const struct voe_render_bounce_update UPDATE = {
+	.cell = { -16, -16, -16 },
+	.corner = { -32.0f, -32.0f, -32.0f },
 };
 
 // A cube half a unit a side, well inside an identity camera's clip volume.
@@ -135,6 +153,64 @@ static void draw_frames(voe_render_device *device,
 	}
 }
 
+// The grid the block of the pass just begun names.
+static uint32_t named_grid(const voe_render_device *device)
+{
+	const struct voe_render_frame *frame = voe_render_frame_current(device);
+	const struct voe_render_frame_block *block =
+		(const void *)((const char *)frame->uniforms_mapped +
+			       (device->pass_count - 1) * device->pass_stride);
+
+	return block->bounce.grid;
+}
+
+// One frame of the update's claims on the two live `targets`.
+static void one_update_frame(voe_render_device *device,
+			     const voe_render_target *targets,
+			     voe_render_geometry cube, voe_render_shading red)
+{
+	voe_render_pass_camera camera = {
+		.view = { .view = voe_math_float4x4_identity(),
+			  .projection = voe_math_float4x4_identity() },
+		.light = SUN,
+	};
+	voe_render_object object = {
+		.world = voe_math_float4x4_identity(),
+		.normal = voe_math_float4x4_identity(),
+		.shading = red.index,
+		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+	};
+	voe_render_target stale = targets[1];
+	voe_platform_size size = { SIDE, SIDE };
+	bool drawing = false;
+
+	stale.generation++;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return;
+	VOE_TEST_CHECK(!voe_render_bounce_update(device, targets[0], &UPDATE));
+	VOE_TEST_CHECK(voe_render_pass_begin(device, targets[0], &camera));
+	VOE_TEST_CHECK_INT(named_grid(device), VOE_RENDER_NO_BOUNCE);
+	VOE_TEST_CHECK(!voe_render_bounce_update(device, targets[0], &UPDATE));
+	voe_render_pass_end(device);
+
+	VOE_TEST_CHECK(voe_render_bounce_pass_begin(device, &camera.view, &SUN));
+	VOE_TEST_CHECK(voe_render_frame_draw(device, cube, object));
+	VOE_TEST_CHECK(voe_render_bounce_update(device, targets[0], &UPDATE));
+	VOE_TEST_CHECK(!voe_render_bounce_update(device, targets[0], &UPDATE));
+	VOE_TEST_CHECK(voe_render_bounce_update(device, targets[1], &UPDATE));
+	VOE_TEST_CHECK(!voe_render_bounce_update(device, stale, &UPDATE));
+	VOE_TEST_CHECK(voe_render_bounce_update(device, VOE_RENDER_TARGET_WINDOW,
+						&UPDATE));
+
+	VOE_TEST_CHECK(voe_render_pass_begin(device, targets[0], &camera));
+	VOE_TEST_CHECK_INT(named_grid(device), device->targets[0].grid.descriptor);
+	VOE_TEST_CHECK(voe_render_frame_draw(device, cube, object));
+	voe_render_pass_end(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
 static void two_targets_keep_their_grids(voe_render_device *device,
 					 voe_render_geometry cube,
 					 voe_render_shading red,
@@ -161,6 +237,8 @@ static void two_targets_keep_their_grids(voe_render_device *device,
 		VOE_TEST_CHECK(device->targets[i].grid.sh[2].image == kept[i]);
 		reads_red(device, targets[i], WIDE, arena);
 	}
+	for (int frame = 0; frame < 2; frame++)
+		one_update_frame(device, targets, cube, red);
 }
 
 static void the_window_draws_red(voe_render_device *device,

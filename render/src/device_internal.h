@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, bounce_map.c its bounce map, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -170,6 +170,13 @@ struct voe_render_device {
 	// The bounce pass's: the solid one's vertex stage, a fragment writing
 	// flux and normal into two RGBA16F attachments, culling as shadow's.
 	VkPipeline pipeline_bounce;
+	// The bounce grid update's, bounce_grid.c's: its own set layout, layout
+	// and pool, and the two compute pipelines, reduce and gather.
+	VkDescriptorSetLayout bounce_set_layout;
+	VkPipelineLayout bounce_layout;
+	VkDescriptorPool bounce_pool;
+	VkPipeline bounce_reduce;
+	VkPipeline bounce_gather;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -487,6 +494,12 @@ void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 void voe_render_bounce_shutdown(voe_render_device *device);
 void voe_render_bounce_open(const struct voe_render_frame *frame);
 void voe_render_bounce_to_read(const struct voe_render_frame *frame);
+
+// bounce_grid.c. The update's pipelines, set layout, pool, sets and every
+// slot's VPL and probe list buffers; startup's, after the frame objects. False
+// with a message; _shutdown is safe on a device that never got that far.
+[[nodiscard]] bool voe_render_bounce_grid_startup(voe_render_device *device);
+void voe_render_bounce_grid_shutdown(voe_render_device *device);
 
 // target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.

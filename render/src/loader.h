@@ -146,6 +146,9 @@ typedef struct {
 	PFN_vkCreatePipelineLayout create_pipeline_layout;
 	PFN_vkDestroyPipelineLayout destroy_pipeline_layout;
 	PFN_vkCreateGraphicsPipelines create_graphics_pipelines;
+	// The bounce grid's two compute pipelines and their dispatches.
+	PFN_vkCreateComputePipelines create_compute_pipelines;
+	PFN_vkCmdDispatch cmd_dispatch;
 	PFN_vkDestroyPipeline destroy_pipeline;
 	PFN_vkCmdBindPipeline cmd_bind_pipeline;
 	PFN_vkCmdSetViewport cmd_set_viewport;

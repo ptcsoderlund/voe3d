@@ -372,10 +372,14 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	device->pass_camera = false;
 	device->pass_bounce = false;
 	frame->bounced = false;
+	frame->reduced = false;
 	device->pass_count = 0;
 	device->window_cleared = false;
-	for (uint32_t i = 0; i < device->capacities.targets; i++)
+	device->window_grid.updates[device->slot].updated = false;
+	for (uint32_t i = 0; i < device->capacities.targets; i++) {
 		device->targets[i].cleared = false;
+		device->targets[i].grid.updates[device->slot].updated = false;
+	}
 	device->object_count = 0;
 	// Both start again with the frame: the elements because this slot's
 	// record buffer is written from the top, and the draw count because it

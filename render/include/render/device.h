@@ -1154,6 +1154,34 @@ typedef struct {
 // asserts.
 void voe_render_pass_end(voe_render_device *device);
 
+// What a bounce update needs from the caller (ADR-0308 point 4). `cell` is the
+// grid's lowest world cell at VOE_RENDER_BOUNCE_SPACING, `corner` that cell's
+// lowest corner about the eye; `stale` holds `stale_count` spheres about the
+// eye, xyz centre and w radius, whose probes are refreshed early. A struct tag
+// and no typedef, because the call below has the name and C has one name space
+// for both.
+struct voe_render_bounce_update {
+	int32_t cell[3];
+	voe_math_float3 corner;
+	const voe_math_float4 *stale;
+	uint32_t stale_count;
+};
+
+// Refreshes `target`'s bounce grid from this frame's last bounce pass: the map
+// reduced to virtual point lights once a frame, then the probes the grid's
+// schedule lists gathered from them and blended in. Recorded between passes;
+// an open bounce pass is closed first.
+//
+// A CAMERA PASS ON THAT TARGET LATER THIS FRAME READS THE GRID; one on a target
+// with no update this frame reads no bounce.
+//
+// False, with a line, outside a frame, inside a camera or shadow pass, with no
+// bounce pass this frame, for a target that is not live, and on a second call
+// for one target in one frame: at most once a target a frame.
+[[nodiscard]] bool voe_render_bounce_update(voe_render_device *device,
+					    voe_render_target target,
+					    const struct voe_render_bounce_update *update);
+
 // Whether a pass is open: true from a _pass_begin that returned true until its
 // _pass_end. It exists so that a caller which issues draws on behalf of another —
 // the draw system in `3d` — can assert the same thing every draw here asserts,
