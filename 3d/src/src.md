@@ -6,7 +6,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `projection.c` — the projection arithmetic, written out, because the signs are
   the whole thing, and the render view a pose and a lens become.
 - `shadow_cascades.c` — the splits, each slice's sphere from the inverted
-  projection, the snap to whole texels in double, and the light's view and box.
+  projection, and each cascade's snapped light view and box.
+- `light_box.h` — the sun's basis, the snap to whole texels in double and the
+  look from the sun, shared by the cascades and the bounce grid; internal.
+- `light_box.c` — those three, moved out of shadow_cascades.c unchanged.
+- `bounce_grid.c` — forward out of the view, the grid's whole cells in double,
+  its corner about the eye, and the sun's view of its sphere snapped to blocks.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,

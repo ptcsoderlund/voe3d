@@ -10,6 +10,10 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
+- `bounce_grid.c` — that the grid stands 32 m ahead in whole cells, its corner
+  is its cell about the eye 10 km out, 2 m along x is one cell, its corners lie
+  in the light box and a 1 cm move keeps the origin on its 8-texel block. Needs
+  no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
