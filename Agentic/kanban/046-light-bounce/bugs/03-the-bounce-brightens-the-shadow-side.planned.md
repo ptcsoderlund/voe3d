@@ -12,7 +12,7 @@ ground, close to the box, is lit up by the bounce, so shadows near a sunlit obje
 As decision 0312 says. A sunlit surface bounces light only to the side its lit face looks at:
 1. Lit side: the ground at the foot of a sunlit, strongly coloured box's lit face reads at least 12/255 more
    in the box's colour than open ground 8 m away, fading with distance (0310, unchanged).
-2. Shadow side: the ground inside the box's sun shadow, right at the foot of its shadowed face, reads within
+2. Shadow side (amended by 0315: 8/255, SHADOW SIDE 4/255): the ground inside the box's sun shadow, right at the foot of its shadowed face, reads within
    2/255 in every channel of the same pixels drawn with the bounce off. The box's colour does not appear
    there at all.
 3. No dark spots anywhere (bug 01).

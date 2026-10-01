@@ -95,3 +95,5 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - Split a multi-object `.glb` into a tree of things on import (a body with a head child), so moving
   parts need not be exported one file each. Set aside for 0.2 by 0280; worth it once parenting (037)
   exists and exporting parts one by one becomes a chore.
+- A second, finer (1 m) bounce probe grid around the eye, to halve how far a lit face's colour leaks past
+  it into its own shadow. Only if the faint trace 0315 allows shows in play.
