@@ -142,7 +142,7 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
-  entered and Up but never above it, listed again once a second, model, prefab and picture rows marked, a
+  entered and Up but never above it, listed again once a second, a
   fired prefab row left to open, and Import.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
