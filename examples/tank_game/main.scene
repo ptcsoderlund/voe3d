@@ -3,7 +3,7 @@ name = "Ground"
 folded = false
 [1.voe_3d_shape]
 kind = 1
-colour = [0.35, 0.4, 0.3]
+colour = [0.07648844, 0.07648844, 0.07648844]
 [1.voe_physics_collider]
 kind = 1
 size = [1, 1, 1]
@@ -29,13 +29,13 @@ scale = [1, 1, 1]
 name = "Sun"
 folded = false
 [3.voe_scene_light]
-colour = [0.95097667, 0.7098251, 0.7098251]
-intensity = 1
-fill_colour = [0.8992056, 0.7447454, 0.335389]
-fill_intensity = 0.09
+colour = [1, 0.668971, 0.668971]
+intensity = 3.14
+fill_colour = [1, 0.3966965, 0.24429816]
+fill_intensity = 0.3
 [3.voe_scene_transform]
 position = [0, 8, 0]
-rotation = [0.27648017, -2.3593456e-09, 6.787788e-10, -0.96101964]
+rotation = [0.44260988, 0.3291428, 0.10670445, -0.8272701]
 scale = [1, 1, 1]
 
 [4]
@@ -44,7 +44,7 @@ folded = false
 [4.voe_scene_prefab]
 path = "Assets/tank_body.prefab"
 [4.voe_scene_transform]
-position = [-0.39108024519407536, 2.0123750560368308, 7.019761270746017]
+position = [-7.113180208769677, 2.012375097015024, 11.300133152767444]
 rotation = [0, -1.1920929e-07, 0, 1]
 scale = [1, 1, 1]
 
@@ -121,8 +121,8 @@ folded = false
 kind = 1
 colour = [0.44778705, 0.13911381, 0.49138713]
 [16.voe_scene_transform]
-position = [-4.09268469568633, 5.000000238418579, 6.006197586655617]
-rotation = [0, 0, 0, 1]
+position = [-8.179616930152406, 5.000000290572643, 7.211908042430878]
+rotation = [0, -0.40307653, 0, 0.91516626]
 scale = [2, 10, 1]
 
 [17]
@@ -132,6 +132,6 @@ folded = false
 kind = 1
 colour = [0.5003842, 0.5003842, 0.5003842]
 [17.voe_scene_transform]
-position = [-5.646278244632413, 5.000000074505806, 4.620647169649601]
+position = [-5.89795537032478, 5.000000040978193, 5.549801917746663]
 rotation = [0, 0.12585333, 0, 0.99204886]
 scale = [2, 10, 1]
