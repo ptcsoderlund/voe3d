@@ -18,7 +18,10 @@
 // by the same rule, its material the part's, in the world layer as every part is.
 //
 // Each caster's record is draw_group.c's, the object's matrix about the frame's
-// eye at its lag, exactly as the view draws it; only the world matrix is read.
+// eye at its lag, exactly as the view draws it; a cascade reads only the world
+// matrix. The record carries the shape's colour as the view's does, because the
+// bounce map's flux is the base colour times it: without it every shape bounced
+// white, and a red box tinted nothing (bug 01).
 // The mesh table is walked once per cascade: four linear walks, the same cost
 // as the view's own walk, and a culled list per cascade is a later card.
 //
@@ -90,6 +93,8 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
 	const voe_ecs_entity *owners = voe_3d_mesh_entities(world);
 	uint32_t count = voe_3d_mesh_count(world);
+	voe_ecs_type shapes;
+	bool has_shapes = voe_3d_draw_group_shape_type(world, &shapes);
 
 	VOE_BASE_ASSERT(voe_render_pass_is_open(device),
 			"drawing casters with no shadow pass open");
@@ -107,8 +112,13 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 		// Where it was `lag` of a step ago, as the view draws it (0254).
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
 		if (!voe_render_frame_draw(device, meshes[row].geometry,
-					   voe_3d_draw_group_object_of(&drawn, material,
-								       NULL, frame->eye)))
+					   voe_3d_draw_group_object_of(
+						   &drawn, material,
+						   has_shapes ? voe_ecs_component_get(
+								world, shapes,
+								owners[row]) :
+							      NULL,
+						   frame->eye)))
 			return false;
 	}
 	return frame->models == NULL || draw_model_casters(world, device, frame);

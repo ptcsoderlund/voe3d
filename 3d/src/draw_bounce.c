@@ -7,6 +7,9 @@
 // so q and −q are one rotation and a normalised copy of a still caster is still.
 // A scale change marks nothing; the cycle catches it up.
 //
+// THE CASTERS WEAR THEIR SHAPE'S COLOUR in the bounce map, as in the view: the
+// walk is draw_shadows.c's, and it once drew every shape white (bug 01).
+//
 // Constraints: at most STALE_ROOM spheres a frame, on the stack, because the
 // shadows call takes no arena. Sixty-four spheres of 6 m already list more
 // than VOE_RENDER_BOUNCE_BUDGET probes, so more would refresh nothing sooner;

@@ -41,3 +41,6 @@ The test `3d/bounce_scene` passes, and `3d/bounce`, `3d/bounce_grid` and
 The human, in the editor on Windows (bug 01, How to reproduce): the scene
 of the screenshot shows the ground at the red box's foot visibly redder
 than open ground, and no gray spots anywhere.
+
+## Blocked
+Fixed in 3d: `voe_3d_draw_casters` (draw_shadows.c) drew every shape white into the bounce map, so a red box bounced neutral light; it now carries the shape colour. `3d/bounce_scene` still fails THE TINT, and the sun 9 makes it impossible: the sunlit beige ground clips, near (14, 0, −6) 255 254 219 and far (12, 0, −14) 255 253 219, so red over green cannot rise. At sun π, fill 0 it measures 195 159 136 against 191 158 136 (+0.017, not 0.03). NO SPOTS passes. `3d/shadows` also fails, before this card's change too: under the cube 0 at the origin, 47 at 100 km (32 with the fix), likely history from earlier frames on the same device's window grid. Unblock: a card with a TINT condition that does not clip (sun π, or a tone map in render), and a decision on whether `3d/shadows`' 100 km case should allow bounce light under the cube.
