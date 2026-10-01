@@ -357,7 +357,14 @@ typedef struct {
 	// would be averaged into mush. The two go together and nothing checks
 	// it.
 	uint32_t base_colour_distance_field;
-	uint32_t reserved_c[2];
+	// Non-zero: the water path (ADR-0305). The surface is a plane whose
+	// normal is bent by four sine waves out of the object record's `waves`,
+	// lit by the pass's sun with roughness 0.05, reflecting toward the
+	// object's `sky` and faded by its thickness over the pass's depth copy.
+	// Zero is every other surface, drawn as before. The second word that
+	// used to be reserved_c; draw it blended.
+	uint32_t water;
+	uint32_t reserved_c;
 	// Which rectangle of the base colour texture this record reads: `xy` is
 	// the offset added and `zw` the scale multiplied, so the fragment stage
 	// samples `uv * zw + xy`. One multiply-add, applied to the base colour
@@ -525,6 +532,16 @@ typedef struct {
 	uint32_t shading;
 	uint32_t reserved[3];
 	voe_math_float4 colour;
+	// Read only when the shading record is `water`; zero everywhere else.
+	// `waves` is (height m, length m, seconds, deep m): the tallest wave's
+	// height and length, the clock, and the thickness at which the water is
+	// nearly opaque. The clock is kept below 60, because every wave's
+	// frequency is a whole multiple of 2π/60 and so seconds 0 and 60 are the
+	// same picture, while a float clock counting up for hours loses the
+	// precision the waves need. `sky` is a linear rgb the surface reflects
+	// toward at a grazing angle; w is reserved.
+	voe_math_float4 waves;
+	voe_math_float4 sky;
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second

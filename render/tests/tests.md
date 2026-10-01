@@ -39,6 +39,9 @@ by reading the offscreen colour image back.
 - `depth_copy.c` — the copy of a pass's depth refused outside a camera pass, a cube behind one
   drawn before the copy still hidden after it, and colour drawn before it kept, on the window and
   on a target. Headless.
+- `water.c` — water over a depth copy: clear at the shore and darkened in the deep, waves that move
+  with seconds and wrap at 60, the sun's glint at the mirror angle, a shadow on it, and `water` 0
+  drawing as an ordinary blended surface. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.

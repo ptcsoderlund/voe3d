@@ -127,6 +127,11 @@
 // there is a standing watch to reconsider the whole arrangement at the fourth,
 // so the next person to want one reports it rather than adding it.
 //
+// WATER IS THE FOURTH, AND IT WAS REPORTED (ADR-0305). A `water` record is a
+// blended plane: four sine waves bend its normal and move no vertex, it is lit
+// by the same sun, shadow and fill, and its thickness over the pass's depth copy
+// sets its coverage and darkens it. Its own function, voe_render_water.
+//
 // WHAT THE BRANCH DOES: the sheet's three channels are three signed distances to
 // the outline, each measured to a different subset of its edges. Their MEDIAN is
 // the distance the shape actually has — which is the whole trick, because at a
@@ -229,7 +234,7 @@ struct voe_render_shadow {
 // that matches it, asserts on both structs' sizes and offsets, and pass.c
 // writes one of these per pass, bound at that pass's dynamic offset.
 // depth_copy is the pass's depth copy texture slot, ~0u until it copied;
-// nothing here reads it yet.
+// only the water path reads it.
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
@@ -263,7 +268,8 @@ Sampler2D voe_render_textures[1024];
 // One drawn object. Matches voe_render_object in render/device.h field for
 // field, padding included: the two matrices fill the first hundred and
 // twenty-eight bytes, the four uints after them fill to a hundred and
-// forty-four and the colour ends it at a hundred and sixty, so every layout rule
+// forty-four, the colour to a hundred and sixty and the water's two float4s end
+// it at a hundred and ninety-two, so every layout rule
 // a structured buffer might be given puts every member in the same place. The
 // colour is linear and multiplies the shading record's base colour factor,
 // alpha included.
@@ -287,6 +293,10 @@ struct voe_render_object {
 	uint reserved1;
 	uint reserved2;
 	float4 colour;
+	// Read only by a water record: (height, length, seconds, deep) and the
+	// sky's linear rgb. See voe_render_object in render/device.h.
+	float4 waves;
+	float4 sky;
 };
 
 // Set 0, binding 2: this frame's records, one per draw. Read by both stages —
@@ -320,8 +330,9 @@ struct voe_render_shading {
 	// texel rather than a picture. In the first of the three words that used
 	// to be reserved_c, for the alignment reason above.
 	uint base_colour_distance_field;
-	uint reserved_c1;
-	uint reserved_c2;
+	// Non-zero: the water path (ADR-0305). The second word of reserved_c.
+	uint water;
+	uint reserved_c;
 	// Which rectangle of the base colour texture to read: xy is the offset,
 	// zw the scale. It lands on a sixteen-byte boundary where C put it, so
 	// it is a float4 on both sides and needs no padding in front of it.
@@ -367,6 +378,8 @@ struct voe_render_draw_vertex_out {
 	float3 world : POSITION;
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD;
+	// The model's own x and y, which the water path measures its waves over.
+	float2 plane : TEXCOORD1;
 };
 
 [shader("vertex")]
@@ -389,6 +402,7 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	out.world = world.xyz;
 	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
+	out.plane = vertex.position.xy;
 	return out;
 }
 
@@ -541,6 +555,136 @@ float3 voe_render_mapped_normal(float3 normal, float3 texel, float3 world_dx,
 	return normalize(mapped);
 }
 
+// ---- Water (ADR-0305) ----
+
+// The four waves: wavelengths and amplitudes as fractions of the longest, and
+// the fixed unit directions they travel over the plane.
+static const float VOE_WATER_SCALES[4] = { 1.0, 0.61, 0.37, 0.23 };
+static const float2 VOE_WATER_DIRECTIONS[4] = {
+	float2(0.8, 0.6), float2(-0.6, 0.8), float2(0.28, -0.96),
+	float2(-0.96, -0.28)
+};
+static const float VOE_WATER_GRAVITY = 9.81;
+// A whole number of turns in 60 s, so seconds 0 and 60 are the same picture.
+static const float VOE_WATER_CLOCK_STEP = 2.0 * VOE_PI / 60.0;
+static const float VOE_WATER_ROUGHNESS = 0.05;
+static const float VOE_WATER_REFLECTANCE = 0.02;
+// Coverage and the body colour's factor at `deep` and past it.
+static const float VOE_WATER_DEEP_COVERAGE = 0.95;
+static const float VOE_WATER_DEEP_DARKENING = 0.4;
+
+// The deep-water dispersion ω = √(g·k), rounded to the clock's step and never
+// below one step, so no wave stands still.
+float voe_water_frequency(float k)
+{
+	float steps = round(sqrt(VOE_WATER_GRAVITY * k) / VOE_WATER_CLOCK_STEP);
+
+	return max(steps, 1.0) * VOE_WATER_CLOCK_STEP;
+}
+
+// The surface height's slope (dh/dx, dh/dy) at `metres` on the plane at
+// `seconds`: the four sines' derivatives, summed.
+float2 voe_water_slope(float2 metres, float4 waves)
+{
+	float2 slope = float2(0.0, 0.0);
+
+	for (int i = 0; i < 4; i++) {
+		float k = 2.0 * VOE_PI / max(waves.y * VOE_WATER_SCALES[i], VOE_LEAST);
+		float amplitude = waves.x * VOE_WATER_SCALES[i];
+		float phase = k * dot(VOE_WATER_DIRECTIONS[i], metres) -
+			      voe_water_frequency(k) * waves.z;
+
+		slope += amplitude * k * cos(phase) * VOE_WATER_DIRECTIONS[i];
+	}
+	return slope;
+}
+
+// The plane's metres: model x and y times the world matrix's first two columns'
+// lengths, so the waves keep their size however the quad is scaled.
+float2 voe_water_metres(voe_render_object object, float2 plane)
+{
+	float3 across = mul(object.world, float4(1.0, 0.0, 0.0, 0.0)).xyz;
+	float3 along = mul(object.world, float4(0.0, 1.0, 0.0, 0.0)).xyz;
+
+	return plane * float2(length(across), length(along));
+}
+
+// The plane's own normal, out of the normal matrix rather than the vertex.
+float3 voe_water_plane_normal(voe_render_object object)
+{
+	return normalize(mul(object.normal, float4(0.0, 0.0, 1.0, 0.0)).xyz);
+}
+
+// The plane's normal bent by the slope along its two world tangents.
+float3 voe_water_normal(voe_render_object object, float2 slope)
+{
+	float3 up = voe_water_plane_normal(object);
+	float3 across = normalize(mul(object.world, float4(1.0, 0.0, 0.0, 0.0)).xyz);
+	float3 along = normalize(mul(object.world, float4(0.0, 1.0, 0.0, 0.0)).xyz);
+
+	return normalize(up - slope.x * across - slope.y * along);
+}
+
+// How far in front of the eye, along the view axis, a stored depth is: the
+// projection's z and w rows solved for the eye's z on that axis, which holds
+// for a perspective projection and an orthographic one alike.
+float voe_water_view_distance(float depth)
+{
+	float4x4 p = voe_render_frame.camera.projection;
+	float z = (p[2][3] - depth * p[3][3]) /
+		  (depth * p[3][2] - p[2][2]);
+
+	return -z;
+}
+
+// How much of `deep` the water is thick at this pixel, nought to one: from its
+// own depth to the ground's in the pass's copy. No copy reads as deep.
+float voe_water_depth_share(float4 position, float deep)
+{
+	uint slot = voe_render_frame.depth_copy;
+
+	if (slot == ~0u)
+		return 1.0;
+	float ground = voe_render_textures[slot].Load(int3(int2(position.xy), 0)).r;
+	float thickness = voe_water_view_distance(ground) -
+			  voe_water_view_distance(position.z);
+
+	return saturate(thickness / max(deep, VOE_LEAST));
+}
+
+// The water's colour: the body darkened with depth and lit by the sun, its
+// shadow and the fill, the sun's glint at roughness 0.05, and the sky taking
+// the share Schlick's fresnel from 0.02 gives it; coverage rises with depth.
+float4 voe_render_water(voe_render_object object, voe_render_draw_vertex_out vertex,
+			float3 colour)
+{
+	voe_render_light sun = voe_render_frame.light;
+	float share = voe_water_depth_share(vertex.position, object.waves.w);
+	float3 body = colour * lerp(1.0, VOE_WATER_DEEP_DARKENING, share);
+	float3 n = voe_water_normal(object,
+		voe_water_slope(voe_water_metres(object, vertex.plane), object.waves));
+	float3 v = normalize(voe_render_frame.camera.eye - vertex.world);
+	float3 l = -sun.direction;
+	float3 h = normalize(l + v);
+	float n_dot_l = saturate(dot(n, l));
+	float n_dot_v = saturate(dot(n, v));
+	float alpha = VOE_WATER_ROUGHNESS * VOE_WATER_ROUGHNESS;
+	float3 glint = voe_render_fresnel(float3(VOE_WATER_REFLECTANCE),
+					  saturate(dot(v, h))) *
+		       voe_render_distribution(saturate(dot(n, h)), alpha) *
+		       voe_render_visibility(n_dot_l, n_dot_v, alpha);
+	float sky_share = voe_render_fresnel(float3(VOE_WATER_REFLECTANCE), n_dot_v).x;
+	float reach = n_dot_l * voe_render_sunlight(vertex.world,
+						    voe_water_plane_normal(object));
+	float3 radiance = sun.colour * sun.intensity * reach;
+	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+	float3 lit = (1.0 - sky_share) * (body * radiance / VOE_PI +
+					  fill_weight * sun.fill * body) +
+		     sky_share * object.sky.rgb + glint * radiance;
+
+	return voe_render_premultiplied(lit, VOE_WATER_DEEP_COVERAGE * share);
+}
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -666,6 +810,11 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// A pass with no sun: every surface unshaded. See the header.
 	if (sun.unshaded != 0)
 		return voe_render_premultiplied(base.rgb, coverage);
+
+	// THE FOURTH UNIFORM BRANCH: water, before the vertex normal is read,
+	// because the plane's normal comes from its matrices. See the header.
+	if (shading.water != 0)
+		return voe_render_water(object, vertex, base.rgb);
 
 	// A normal of nothing: unlit rather than NaN. See the header.
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
