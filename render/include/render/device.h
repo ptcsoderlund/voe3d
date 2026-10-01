@@ -89,7 +89,8 @@ typedef struct voe_render_device voe_render_device;
 //
 // passes IS PER FRAME SLOT AND AT LEAST ONE. It bounds how many passes one frame
 // may open, and each costs one camera-and-sun block in the slot's uniform buffer.
-// Nought asserts: a device that can open no pass can draw nothing at all.
+// A frame with shadows spends one per cascade, one on the bounce map and one per
+// camera pass. Nought asserts: a device that can open no pass can draw nothing.
 //
 // AND IT IS SPENT ON LETTERS AS WELL AS ON FILLS, WHICH IS WHAT MAKES IT LARGER
 // THAN IT LOOKS. A glyph is an element, so a forty-character label is forty of
@@ -128,6 +129,10 @@ typedef struct {
 // How many depth maps the sun renders into, near to far: the layers of one frame
 // slot's shadow image, and the range voe_render_shadow_pass_begin's cascade is in.
 #define VOE_RENDER_SHADOW_CASCADES 4
+
+// Texels a side of the sun's bounce map, per frame slot (ADR-0308): what
+// voe_render_bounce_pass_begin draws into. 512² × 20 bytes × frame slots.
+#define VOE_RENDER_BOUNCE_TEXELS 512
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
@@ -1097,7 +1102,7 @@ typedef struct {
 // opens no pass onto the window still presents the clear colour.
 //
 // PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
-// and so does a _frame_end.
+// and so does a _frame_end — except an open bounce pass, which either closes.
 [[nodiscard]] bool voe_render_pass_begin(voe_render_device *device,
 					 voe_render_target target,
 					 const voe_render_pass_camera *camera);
@@ -1118,7 +1123,25 @@ typedef struct {
 						uint32_t cascade,
 						const voe_render_view *light);
 
-// Closes the open pass, a shadow pass included. Without one open it asserts.
+// Opens a bounce pass: one more pass of the sun, after the cascades, onto this
+// frame slot's bounce map (ADR-0308), VOE_RENDER_BOUNCE_TEXELS square, flux,
+// normal and depth cleared. `light` is the view the map is drawn from and `sun`
+// the light whose flux it holds. The draws in it are the casters, recorded as in
+// a shadow pass with the same voe_render_frame_draw, each writing the sun's colour
+// × intensity × its base colour and its world normal; they count against
+// `objects`, and the pass against `passes`.
+//
+// THE NEXT PASS OR THE FRAME'S END CLOSES IT; voe_render_pass_end may as well.
+// The last one this frame is what a bounce update reads.
+//
+// False, with a line, inside no frame or when the frame's passes are spent;
+// nothing is open then. With another kind of pass open it asserts.
+[[nodiscard]] bool voe_render_bounce_pass_begin(voe_render_device *device,
+						const voe_render_view *light,
+						const voe_render_light *sun);
+
+// Closes the open pass, a shadow or bounce pass included. Without one open it
+// asserts.
 void voe_render_pass_end(voe_render_device *device);
 
 // Whether a pass is open: true from a _pass_begin that returned true until its
@@ -1154,7 +1177,8 @@ void voe_render_pass_end(voe_render_device *device);
 //
 // IN A SHADOW PASS IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
 // vertex stage, no fragment stage, nothing culled, depth biased away from the
-// sun. The record's world matrix is all that is read.
+// sun. The record's world matrix is all that is read. IN A BOUNCE PASS it draws
+// through the bounce pipeline, nothing culled, into the bounce map.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
@@ -1173,7 +1197,7 @@ void voe_render_pass_end(voe_render_device *device);
 // an opaque one draws solid. Both are the caller's mistake and neither fails.
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
-// asserts — and one more: in a shadow pass it asserts, because nothing
+// asserts — and one more: in a shadow or bounce pass it asserts, because nothing
 // see-through casts.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
@@ -1213,7 +1237,7 @@ void voe_render_pass_end(voe_render_device *device);
 //
 // Calling this with no pass open, or in a pass opened with no camera, is the
 // caller's bug and asserts — the same mistakes voe_render_frame_draw asserts on.
-// So is calling it in a shadow pass, whose depth is the map being drawn.
+// So is calling it in a shadow or bounce pass, whose depth is the map being drawn.
 void voe_render_frame_clear_depth(voe_render_device *device);
 
 // Copies the open pass's depth, as it stands, into the sampled depth copy every
@@ -1221,7 +1245,7 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // camera block; until a pass copies, that word is ~0u.
 //
 // ONLY INSIDE AN OPEN CAMERA PASS. With no pass open, in a pass opened with no
-// camera, or in a shadow pass — whose depth is the map itself — it draws
+// camera, or in a shadow or bounce pass — whose depth is the map itself — it draws
 // nothing, writes a line on stderr and returns false.
 //
 // IT SPLITS THE PASS'S RENDERING BLOCK. It ends the block, copies with a barrier
@@ -1239,8 +1263,8 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 [[nodiscard]] bool voe_render_frame_is_open(const voe_render_device *device);
 
 // Ends the recording, submits it, and — where there is a window — copies the
-// target into the acquired swapchain image and presents it. A pass still open is
-// the caller's bug and asserts.
+// target into the acquired swapchain image and presents it. An open bounce pass
+// is closed first; any other pass still open is the caller's bug and asserts.
 //
 // False means the driver refused something no retry will fix. A swapchain that
 // went stale is handled here and returns true, with the rebuild happening at the
@@ -1334,8 +1358,8 @@ voe_render_frame_elements_submitted(const voe_render_device *device);
 //
 // It needs a pass open and does not need that pass to have a camera: the
 // transform is the whole of what places the elements. Calling it with no pass
-// open, or in a shadow pass, which has no colour to blend into, is the caller's
-// bug and asserts.
+// open, or in a shadow or bounce pass, which has no colour to blend into, is the
+// caller's bug and asserts.
 [[nodiscard]] bool
 voe_render_frame_draw_elements(voe_render_device *device,
 			       voe_math_float4x4 transform, uint32_t first,

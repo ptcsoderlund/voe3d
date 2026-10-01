@@ -23,10 +23,10 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, TWO ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with both entry points in it, and device.c names them by the names
+// ONE FILE, THREE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the third the bounce map's fragment), and device.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
-// keeps those two strings true.
+// keeps those strings true.
 //
 // THE MATRICES ARE READ ROW-MAJOR AND THAT COSTS A FLAG. slangc is invoked with
 // -matrix-layout-row-major, so float4x4 here has the layout voe_math_float4x4
@@ -460,4 +460,36 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 		     voe_render_fill(reach, base.rgb) + shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);
+}
+
+// The bounce map's two targets (ADR-0308 point 1), in the pipeline's order.
+struct voe_render_bounce_out {
+	float4 flux : SV_Target0;
+	float4 normal : SV_Target1;
+};
+
+// THE BOUNCE PASS'S FRAGMENT: what light leaves this caster towards the sun's
+// view, before any N·L — the reflector's own facing is the gather's to weigh.
+// Flux is the sun's colour times its intensity times the base colour (factor,
+// sheet and object colour), alpha one; normal is the world normal in xyz, nought
+// for a normal of nothing. The pass's `light` is the sun the caller handed in.
+[shader("fragment")]
+voe_render_bounce_out voe_render_draw_bounce(voe_render_draw_vertex_out vertex)
+{
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_shading shading = voe_render_shadings[object.shading];
+	float4 factor = shading.base_colour * object.colour;
+	float2 base_uv = vertex.uv * shading.base_colour_uv_rect.zw +
+			 shading.base_colour_uv_rect.xy;
+	float4 sheet =
+		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
+	voe_render_light sun = voe_render_frame.light;
+	float3 n = dot(vertex.normal, vertex.normal) < VOE_LEAST ?
+			   float3(0.0, 0.0, 0.0) :
+			   normalize(vertex.normal);
+	voe_render_bounce_out result;
+
+	result.flux = float4(sun.colour * sun.intensity * (factor * sheet).rgb, 1.0);
+	result.normal = float4(n, 1.0);
+	return result;
 }

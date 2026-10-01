@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, bounce_map.c its bounce map, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -167,6 +167,9 @@ struct voe_render_device {
 	// The shadow pass's: the solid one's vertex stage and nothing after it
 	// but a biased depth write. pipeline.c builds it with the other two.
 	VkPipeline pipeline_shadow;
+	// The bounce pass's: the solid one's vertex stage, a fragment writing
+	// flux and normal into two RGBA16F attachments, culling as shadow's.
+	VkPipeline pipeline_bounce;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -260,6 +263,10 @@ struct voe_render_device {
 	// false.
 	bool pass_shadow;
 	uint32_t pass_cascade;
+	// Whether the open pass is a bounce pass: the draws read it to pick the
+	// bounce pipeline, _pass_end to hand the map to compute, and the next
+	// pass or the frame's end to close it.
+	bool pass_bounce;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -452,6 +459,16 @@ void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
 				     uint32_t cascade);
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 			       uint32_t cascade);
+
+// bounce_map.c. Every frame slot's bounce map, made and settled where compute
+// reads it; startup's, after the frame objects. False with a message; _shutdown
+// is safe on a device that never got that far. _open records the barriers into
+// the attachments and begins the cleared rendering with viewport and scissor;
+// _to_read the barriers back after the rendering ends.
+[[nodiscard]] bool voe_render_bounce_startup(voe_render_device *device);
+void voe_render_bounce_shutdown(voe_render_device *device);
+void voe_render_bounce_open(const struct voe_render_frame *frame);
+void voe_render_bounce_to_read(const struct voe_render_frame *frame);
 
 // target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.

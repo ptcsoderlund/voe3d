@@ -1,4 +1,4 @@
-// The three mesh pipelines, solid, blended and shadow, and the pipeline layout every
+// The four mesh pipelines, solid, blended, shadow and bounce, and the pipeline layout every
 // pipeline in this folder shares. A step of startup; device.c's open_device
 // calls voe_render_pipelines_create once, after the descriptors — see startup.h.
 //
@@ -13,11 +13,12 @@
 // voe_render_vertex — which is why voe_render_descriptors_build runs before this
 // in open_device and not after it.
 //
-// THERE ARE THREE OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
+// THERE ARE FOUR OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
 // does not blend; the blended one tests depth the same way, writes none, and
 // blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
 // the colour attachment, culls nothing, and biases the depth it writes away from
-// the sun. The shader module, the vertex input, the layout are shared, which is
+// the sun. The bounce one (ADR-0308) culls as shadow does and writes flux and
+// normal into two RGBA16F attachments, unblended. The shader module, the vertex input, the layout are shared, which is
 // what keeps them from drifting apart: create_pipeline's `kind` is the whole of
 // the difference.
 //
@@ -60,9 +61,14 @@ static alignas(uint32_t) const unsigned char draw_spv[] = {
 // keeps these two strings true.
 #define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
 #define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
+#define DRAW_BOUNCE_ENTRY "voe_render_draw_bounce"
 
-// Which of the three create_pipeline builds.
-enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW };
+// Which of the four create_pipeline builds.
+enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_BOUNCE };
+
+// The bounce map's two colour attachments, flux and normal (bounce_map.c).
+static const VkFormat bounce_formats[2] = { VK_FORMAT_R16G16B16A16_SFLOAT,
+					    VK_FORMAT_R16G16B16A16_SFLOAT };
 
 // THE SHADOW PIPELINE'S DEPTH BIAS, AND BOTH ARE NEGATIVE BECAUSE DEPTH RUNS
 // BACKWARDS. Bias exists to push a caster's stored depth away from the sun, so a
@@ -84,6 +90,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 {
 	const bool blended = kind == MESH_BLENDED;
 	const bool shadow = kind == MESH_SHADOW;
+	const bool bounce = kind == MESH_BOUNCE;
+	const uint32_t colours = shadow ? 0 : bounce ? 2 : 1;
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.codeSize = sizeof(draw_spv),
@@ -173,11 +181,13 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	//
 	// THE SHADOW PIPELINE CULLS NOTHING: a plane or an open mesh seen from the
 	// sun's side may be wound away from it and still casts, and its depth is
-	// biased rather than front- or back-face picked.
+	// biased rather than front- or back-face picked. The bounce one culls as
+	// it does, for the same casters, and is not biased: it is not compared.
 	VkPipelineRasterizationStateCreateInfo raster = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = shadow ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT,
+		.cullMode = shadow || bounce ? VK_CULL_MODE_NONE :
+					       VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.depthBiasEnable = shadow ? VK_TRUE : VK_FALSE,
 		.depthBiasConstantFactor = shadow ? SHADOW_BIAS_CONSTANT : 0.0f,
@@ -234,6 +244,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	//
 	// The solid pipeline writes rather than blends: everything it draws is
 	// fully solid and there is nothing underneath it but the clear.
+	VkPipelineColorBlendAttachmentState attachments[2];
 	VkPipelineColorBlendAttachmentState attachment = {
 		.blendEnable = blended ? VK_TRUE : VK_FALSE,
 		.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
@@ -249,8 +260,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	};
 	VkPipelineColorBlendStateCreateInfo blend = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-		.attachmentCount = shadow ? 0 : 1,
-		.pAttachments = &attachment,
+		.attachmentCount = colours,
+		.pAttachments = attachments,
 	};
 	// So that a resize rebuilds the targets and the swapchain and nothing
 	// else. A pipeline baked at one size would have to be built again on
@@ -275,11 +286,13 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// declared here instead. They have to match what frame.c attaches, and a
 	// depth format declared with no depth attachment — or the other way
 	// round — is invalid rather than merely wrong. A shadow pass attaches
-	// depth alone, the map's layer, in the same D32 format.
+	// depth alone, the map's layer, in the same D32 format; a bounce pass
+	// two RGBA16F colours and D32.
 	VkPipelineRenderingCreateInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-		.colorAttachmentCount = shadow ? 0 : 1,
-		.pColorAttachmentFormats = &device->format.format,
+		.colorAttachmentCount = colours,
+		.pColorAttachmentFormats = bounce ? bounce_formats :
+						    &device->format.format,
 		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
 	// One set holding everything the shader reads, and one push constant
@@ -358,8 +371,11 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 		.module = module,
-		.pName = DRAW_FRAGMENT_ENTRY,
+		.pName = bounce ? DRAW_BOUNCE_ENTRY : DRAW_FRAGMENT_ENTRY,
 	};
+	// Neither of the bounce map's two attachments blends.
+	attachments[0] = attachment;
+	attachments[1] = attachment;
 
 	// ONE LAYOUT FOR ALL THREE PIPELINES, MADE BY WHICHEVER GETS HERE FIRST.
 	// All describe the same set and the same push constant, and the probe
@@ -387,7 +403,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	if (result != VK_SUCCESS) {
 		VOE_BASE_ERROR("render",
 			       "vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)",
-			       shadow ? "shadow" : blended ? "blended" : "solid",
+			       shadow ? "shadow" : bounce ? "bounce" :
+			       blended ? "blended" : "solid",
 			       (int)result);
 		*out = VK_NULL_HANDLE;
 		return false;
@@ -401,5 +418,6 @@ bool voe_render_pipelines_create(voe_render_device *device)
 {
 	return create_pipeline(device, MESH_SOLID, &device->pipeline) &&
 	       create_pipeline(device, MESH_BLENDED, &device->pipeline_blended) &&
-	       create_pipeline(device, MESH_SHADOW, &device->pipeline_shadow);
+	       create_pipeline(device, MESH_SHADOW, &device->pipeline_shadow) &&
+	       create_pipeline(device, MESH_BOUNCE, &device->pipeline_bounce);
 }

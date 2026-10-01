@@ -1,5 +1,5 @@
 // The steps of startup that live beside device.c: create the instance, choose
-// the graphics card and say which, create the three mesh pipelines. Internal to
+// the graphics card and say which, create the four mesh pipelines. Internal to
 // render; device.c's open_device is the only caller of each, once per device.
 // voe_render_card_rank is also called by tests/card.c, which needs no card.
 //
@@ -52,6 +52,6 @@ uint32_t voe_render_card_rank(const voe_render_card_facts *cards, uint32_t count
 [[nodiscard]] bool voe_render_card_choose(voe_render_device *device,
 					  voe_base_arena *arena);
 
-// Fills device->pipeline, device->pipeline_blended, device->pipeline_shadow
-// and device->layout.
+// Fills device->pipeline, device->pipeline_blended, device->pipeline_shadow,
+// device->pipeline_bounce and device->layout.
 [[nodiscard]] bool voe_render_pipelines_create(voe_render_device *device);
