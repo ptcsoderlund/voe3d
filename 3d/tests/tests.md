@@ -70,5 +70,7 @@ again, or to find where a claim that has started failing is written down.
   death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
 - `water_component.c` — both tables registered, the waves runtime-only, the default row as 0305
   says, every field named with its kind, and a replace queued. Needs no graphics card.
+- `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
+  colour, and a removed water's row gone. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, pictures and
   the uncounted dot, and a model drawn only with the store. Skips without a card.

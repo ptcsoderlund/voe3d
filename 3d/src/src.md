@@ -26,6 +26,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   cone through the world matrix from a xorshift, and the step that moves and kills.
 - `water_component.c` — the water and waves tables: their keys, the registration with 0305's
   defaults, the reads and the replace submit.
+- `water_system.c` — the replace drain, the waves rows added and dropped, and the clock stepped
+  in double and wrapped with fmod.
 - `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
   repoints a changed kind and drops both once the shape is gone.
