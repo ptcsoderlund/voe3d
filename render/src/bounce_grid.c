@@ -22,6 +22,11 @@
 // n's band at n × VOE_RENDER_BOUNCE_PROBES³ in each. The schedule writes into
 // it directly; the submit makes the writes visible.
 //
+// TWO VIEWS IN ONE FRAME (bounce_scene.c proves it): each bounce pass followed
+// by an update is reduced again, its VPLs about that pass's eye; the next
+// pass's map writes wait on compute (bounce_map.c's barrier), the next reduce's
+// VPL writes on the last gather's reads; each grid has its own set and band.
+//
 // CONSTRAINTS. The reduce runs once per bounce pass however many grids update;
 // gather's naive loop is named in bounce.slang. The update records between
 // passes, so it closes an open bounce pass and refuses inside any other.
