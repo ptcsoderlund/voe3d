@@ -105,7 +105,8 @@ typedef struct voe_render_device voe_render_device;
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs two texture slots of the
 // 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
-// the window's depth copy takes one more.
+// the window's depth copy takes one more. Each target also costs a probe grid
+// of 3 × 32³ × 8 bytes, about 786 kB (ADR-0308), and the window has one too.
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It

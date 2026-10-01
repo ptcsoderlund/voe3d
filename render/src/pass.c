@@ -323,6 +323,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		block.shadow = camera->shadow;
 	}
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
 
 	// The window's pair or this frame slot's pair of the target, each with
 	// its own clear rule and its own size. A frame in slot n draws into slot
@@ -409,6 +411,8 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 			       device->capacities.shadow_size };
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
 	depth.imageView = frame->shadow.layers[cascade];
 	rendering.renderArea.extent = extent;
 	scissor.extent = extent;
@@ -465,6 +469,8 @@ bool voe_render_bounce_pass_begin(voe_render_device *device,
 	block.camera = *light;
 	block.light = *sun;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
 
 	voe_render_bounce_open(frame);
 	device->pass_target = NULL;

@@ -29,9 +29,9 @@ which file to open — what each one owns, and where the seams between them run.
   that says which and why.
 - `pipeline.c` — the four mesh pipelines, solid, blended, shadow and bounce, with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: six bindings,
+- `descriptors.c` — everything the shader reads and the one layout that describes it: seven bindings,
   one set, one camera buffer holding a block per pass, one object buffer, one element buffer and the
-  shadow maps per frame slot.
+  shadow maps per frame slot, and every bounce grid with its trilinear repeat sampler.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -44,9 +44,10 @@ which file to open — what each one owns, and where the seams between them run.
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, and the image build, settle and teardown every target shares.
+  depth with its sampled copy, the image build, settle and teardown every target shares, and the
+  bounce grids, built cleared.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
+  GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps its bounce grid through a resize.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its

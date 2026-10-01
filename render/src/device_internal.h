@@ -193,6 +193,10 @@ struct voe_render_device {
 	// The comparison sampler every slot's shadow maps are read through at
 	// binding 5. shadow.c makes and destroys it.
 	VkSampler shadow_sampler;
+	// The trilinear, repeating sampler the bounce grids are read through at
+	// binding 6, repeat because a grid is addressed toroidally (ADR-0308).
+	// descriptors.c makes and destroys it.
+	VkSampler bounce_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -276,6 +280,10 @@ struct voe_render_device {
 	// The texture slot that shows the window's depth copy, each frame slot
 	// its own; claimed by the first voe_render_target_build, never freed.
 	uint32_t window_depth_texture;
+	// The window's bounce grid, grid index 0: built by the first
+	// voe_render_target_build, kept through every resize, freed by
+	// voe_render_targets_shutdown.
+	struct voe_render_bounce_grid window_grid;
 
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
@@ -437,6 +445,16 @@ voe_render_target_depth_copy_build(voe_render_device *device,
 [[nodiscard]] uint32_t
 voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
 
+// target.c, for target_own.c too. One bounce grid, grid index `index` (the
+// window 0, target n n): its three images built, cleared to nought in GENERAL
+// and named at binding 6. Idles. False with a message, nothing left behind.
+// _teardown is safe on a zeroed grid and leaves it zeroed; it does not wait.
+[[nodiscard]] bool voe_render_bounce_grid_build(voe_render_device *device,
+						struct voe_render_bounce_grid *grid,
+						uint32_t index);
+void voe_render_bounce_grid_teardown(voe_render_device *device,
+				     struct voe_render_bounce_grid *grid);
+
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds
 // given back at shutdown. _startup allocates no image; _shutdown is safe on a
@@ -571,6 +589,13 @@ void voe_render_buffer_teardown(voe_render_device *device,
 // down whatever was built before a failure.
 [[nodiscard]] bool voe_render_descriptors_build(voe_render_device *device);
 void voe_render_descriptors_teardown(voe_render_device *device);
+
+// descriptors.c. Names `grid`'s three images, through the bounce sampler, at
+// binding 6's entries 3 × index to 3 × index + 2 of every slot's set. No frame
+// may be reading the sets: a grid is built outside one, and its build idles.
+void voe_render_descriptors_write_grid(voe_render_device *device,
+				       const struct voe_render_bounce_grid *grid,
+				       uint32_t index);
 
 // descriptors.c. Points a slot's set at the shared shading buffer. Called once
 // per slot at startup, after the buffer exists; a record written later needs no

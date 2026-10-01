@@ -2,7 +2,7 @@
 // larger: the pass block, the buffers and pools and the geometry slots are
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's; the bounce map
-// is bounce_map.c's; the swapchain
+// is bounce_map.c's; the bounce grid is target.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -42,15 +42,29 @@
 // VOE_RENDER_NO_DEPTH_COPY until voe_render_frame_copy_depth runs in the pass,
 // then the texture slot of the copy. The three words after it pad the block to
 // sixteen bytes, as the shader's layout rule would.
+//
+// `bounce` IS THE PASS'S BOUNCE GRID (ADR-0308 point 3): `grid` the first of its
+// three entries at binding 6, VOE_RENDER_NO_BOUNCE for none; `corner` its lowest
+// corner about the eye, `cell` its lowest cell mod VOE_RENDER_BOUNCE_PROBES, and
+// `spacing` the metres between probes. Every pass writes no bounce for now.
+struct voe_render_frame_bounce {
+	float corner[3];
+	uint32_t grid;
+	uint32_t cell[3];
+	float spacing;
+};
+
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
 	voe_render_shadow shadow;
 	uint32_t depth_copy;
 	uint32_t reserved[3];
+	struct voe_render_frame_bounce bounce;
 };
 
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
+#define VOE_RENDER_NO_BOUNCE (~0u)
 
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
@@ -257,6 +271,27 @@ struct voe_render_bounce_map {
 	struct voe_render_allocated_image normal;
 };
 
+// What one frame slot's frame did to a bounce grid: whether it updated it, and
+// the lowest cell and corner of that update (ADR-0308 point 3).
+struct voe_render_bounce_update {
+	bool updated;
+	int32_t cell[3];
+	float corner[3];
+};
+
+// One bounce grid, target.c's (ADR-0308 point 3): L1 SH RGB in three RGBA16F 3D
+// images of VOE_RENDER_BOUNCE_PROBES³, storage and sampled, cleared to nought and
+// resting in GENERAL. The window and each caller target own one; it outlives a
+// resize. ONE COPY, NOT PER FRAME SLOT, which is why `updates` is: each frame
+// slot's record of what its frame did to this grid, indexed by the slot.
+// `descriptor` is the first of its three entries at binding 6, grid index × 3 —
+// the window's 0, target n's 3n.
+struct voe_render_bounce_grid {
+	struct voe_render_allocated_image sh[3];
+	uint32_t descriptor;
+	struct voe_render_bounce_update updates[VOE_RENDER_FRAMES_IN_FLIGHT];
+};
+
 // What a voe_render_target id names: a target of the caller's own, which is the
 // window's pair above made once per frame slot at a size of its own, plus the
 // texture slot that shows it. See target_own.c.
@@ -277,6 +312,8 @@ struct voe_render_target_slot {
 	// copy. Neither changes.
 	uint32_t texture;
 	uint32_t depth_texture;
+	// Built with the target and kept through every resize.
+	struct voe_render_bounce_grid grid;
 	uint32_t generation;
 	bool live;
 	// The clear rule: false until the first pass onto this target in a

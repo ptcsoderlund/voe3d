@@ -8,8 +8,8 @@ in; getting it wrong transposes every transform without failing to compile.
 
 A `.slangh` is a part, included by a shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block,
-  object and shading records, set 0's bindings and the push constant, each
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block
+  with its bounce record, object and shading records, the bounce grids at binding 6, set 0's bindings and the push constant, each
   matching its C struct.
 - `draw.slang` — the mesh pipelines' entry points, the bounce map's fragment
   among them, the only place a matrix is

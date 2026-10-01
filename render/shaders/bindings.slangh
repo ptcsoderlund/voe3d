@@ -54,7 +54,16 @@ struct voe_render_shadow {
 // that matches it, asserts on both structs' sizes and offsets, and pass.c
 // writes one of these per pass, bound at that pass's dynamic offset.
 // depth_copy is the pass's depth copy texture slot, ~0u until it copied;
-// only the water path reads it.
+// only the water path reads it. bounce is the pass's bounce grid (ADR-0308):
+// grid the first of its three entries at binding 6, ~0u for none; corner its
+// lowest corner about the eye; cell its lowest cell mod 32. Nothing reads it yet.
+struct voe_render_frame_bounce {
+	float3 corner;
+	uint grid;
+	uint3 cell;
+	float spacing;
+};
+
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
@@ -63,6 +72,7 @@ struct voe_render_frame_block {
 	uint reserved3;
 	uint reserved4;
 	uint reserved5;
+	voe_render_frame_bounce bounce;
 };
 
 [[vk::binding(0, 0)]]
@@ -72,6 +82,14 @@ ConstantBuffer<voe_render_frame_block> voe_render_frame;
 // comparison sampler whose border is lit (render/src/shadow.c).
 [[vk::binding(5, 0)]]
 Sampler2DArrayShadow voe_render_shadow_maps;
+
+// Set 0, binding 6: every bounce grid, three images each (L1 SH red, green,
+// blue), the window's first, read trilinear with repeat (render/src/target.c).
+// UNSIZED because the C side's length is (capacities.targets + 1) × 3, a
+// runtime number; a shader that reads it needs runtimeDescriptorArray, which
+// render/src/device.c does not enable. Nothing reads it yet.
+[[vk::binding(6, 0)]]
+Sampler3D voe_render_bounce_grids[];
 
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.
