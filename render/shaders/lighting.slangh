@@ -9,7 +9,7 @@
 // same direction with the same strength. What is not the sun is the indirect
 // term, `base colour × max(gain × E/π, fill weight × fill)` per channel: E the
 // bounce's irradiance out of the pass's probe grid (ADR-0307, 0308 point 6),
-// the gain VOE_BOUNCE_GAIN, 6, raising it past the physical until it shows in
+// the gain VOE_BOUNCE_GAIN, 10, raising it past the physical until it shows in
 // the tank scene (ADR-0310, 0311), and the fill (ADR-0273) now a floor under
 // it (0307 amends 0275). The fill weight is
 // whole where the sun does not reach, fading out as N·L × shadow rises and gone
@@ -179,8 +179,9 @@ float3 voe_render_bounce_irradiance(float3 world, float3 n)
 // How many times its measured E/π the bounce is read (ADR-0310, 0311): a cheat
 // beyond the physical, the lowest whole number at which the tank project's
 // main.scene, at sun 1 and π, tints the ground at a sunlit box's foot 12/255
-// over open ground 8 m off. A later tone map can lower it here alone.
-static const float VOE_BOUNCE_GAIN = 6.0;
+// over open ground 8 m off with bounce.slang's allowance 0.25 m (ADR-0314,
+// 0315). A later tone map can lower it here alone.
+static const float VOE_BOUNCE_GAIN = 10.0;
 
 // What lights `colour` besides the sun: the bounce, with the fill as a floor
 // under it where the sun does not reach — whole at a reach of nought, faded

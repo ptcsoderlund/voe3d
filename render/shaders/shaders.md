@@ -29,6 +29,6 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `bounce.slang` — the bounce grid update's two compute entries: `reduce`, the
   bounce map to 64×64 virtual point lights, and `gather`, the listed probes'
   L1 SH from them, each VPL weighted by how far the probe stands in front of
-  its face (0313), one within 1 mm skipped, blended into a grid's three images.
+  its face plus an allowance of 0.25 m (0313, 0314), one within 1 mm skipped, blended into a grid's three images.
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

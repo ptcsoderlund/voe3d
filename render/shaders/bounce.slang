@@ -14,10 +14,12 @@
 // 1024z of the probe's world cell mod 32, and is also where it is stored in the
 // grid's images. Each VPL's radiance toward the probe is flux × max(0, n·−ω) ×
 // w / (π × max(d², 1)), ω the unit direction from the probe to the VPL, d the
-// distance and w = saturate(n · (probe − VPL) / spacing), n its unit normal:
-// the probe's standoff in front of the VPL's face (ADR-0313), nothing on or
-// behind its plane, whole one cell in front, so a face lights nothing behind
-// it. It is projected into L1 SH and blended into the old value with the
+// distance and w = saturate((n · (probe − VPL) + o) / spacing), n its unit
+// normal: the probe's standoff in front of the VPL's face (ADR-0313) plus the
+// allowance o, VOE_BOUNCE_STANDOFF, 0.25 m (ADR-0314), so a probe up to o
+// behind the face's plane still takes a share and one cell less o in front
+// takes it whole; the shadow side's faint trace that leaves is ADR-0315's
+// bound. It is projected into L1 SH and blended into the old value with the
 // listed blend. A VPL nearer the probe than 1 mm adds nothing, its direction
 // undefined, so no NaN reaches the grid, where the blend would keep it. Each
 // of the three images is one colour, R, G, B, holding (c0, cx, cy, cz):
@@ -35,6 +37,9 @@ static const uint VPLS_SIDE = TEXELS / BLOCK;
 static const uint SIDE = 32;
 static const uint VPLS = VPLS_SIDE * VPLS_SIDE;
 static const float PI = 3.14159265;
+// How far behind a VPL's face, in metres, a probe still takes its light
+// (ADR-0314): the probe serving a box's foot sits just behind its face.
+static const float VOE_BOUNCE_STANDOFF = 0.25;
 
 struct vpl {
 	float4 position;
@@ -157,7 +162,8 @@ void gather(uint3 id: SV_DispatchThreadID)
 		if (light.position.w <= 0.0 || d2 < 1e-6)
 			continue;
 		w = v * rsqrt(d2);
-		standoff = saturate(dot(light.normal.xyz, -v) /
+		standoff = saturate((dot(light.normal.xyz, -v) +
+				     VOE_BOUNCE_STANDOFF) /
 				    bounce_current.spacing);
 		radiance = light.flux.rgb * max(0.0, dot(light.normal.xyz, -w)) *
 			   standoff / (PI * max(d2, 1.0));

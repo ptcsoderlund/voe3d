@@ -18,8 +18,8 @@
 // OFF THE ORIGIN THE WALL STILL REDDENS THE GROUND: sun π, fill 0, with the
 // update the ground 1 m from the wall has red over green greater than the
 // ground 10 m away by at least 0.05. The bounce is read at lighting.slangh's
-// VOE_BOUNCE_GAIN, 6 (ADR-0311), each VPL weighted by the probe's standoff
-// (ADR-0313): near 192 164 164, far 171 163 163.
+// VOE_BOUNCE_GAIN, 10 (ADR-0311), each VPL weighted by the probe's standoff
+// plus 0.25 m (ADR-0314): near 215 168 168, far 180 167 167.
 //
 // THE BOUNCE NEVER DARKENS: sun 9, fill 0.09, at a 7 × 7 lattice of ground
 // points across the wall's sunlit side and its shadow, every channel with the
@@ -40,8 +40,8 @@
 // SHADOW SIDE (ADR-0312): at sun 1 and π, fill 0.09, each on a device of its
 // own so the first update fills the whole grid, the eye 8 m along −x of the
 // scene's, the camera sees the wall's shadowed face. The ground 0.25 m and
-// 0.75 m out from it, in its sun shadow, reads within 2/255 a channel of the
-// same pixel with no update.
+// 0.75 m out from it, in its sun shadow, reads within 4/255 a channel of the
+// same pixel with no update: the faint trace ADR-0315 allows a 2 m grid.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO.
 #include <render/device.h>
@@ -78,6 +78,7 @@
 #define SCROLL_FRAMES 12
 #define VIEWS_APART 40.0f
 #define VIEWS_WITHIN 2
+#define SHADE_WITHIN 4
 
 static const voe_render_shading_values GREY = {
 	.base_colour = { 0.5f, 0.5f, 0.5f, 1.0f },
@@ -535,13 +536,13 @@ static const uint8_t *near_pixel(const voe_render_picture *picture,
 	return p;
 }
 
-// `both` against `alone`, every channel within VIEWS_WITHIN.
-static void check_alike(const uint8_t *both, const uint8_t *alone)
+// `both` against `alone`, every channel within `within`.
+static void check_alike(const uint8_t *both, const uint8_t *alone, int within)
 {
 	if (both == NULL || alone == NULL)
 		return;
 	for (int c = 0; c < 3; c++)
-		VOE_TEST_CHECK(abs((int)both[c] - (int)alone[c]) <= VIEWS_WITHIN);
+		VOE_TEST_CHECK(abs((int)both[c] - (int)alone[c]) <= within);
 }
 
 // A frame with `first`'s bounce pass and update, then `second`'s when not
@@ -590,8 +591,10 @@ static void two_views_in_one_frame(voe_base_arena *arena)
 	views_frame(&scene, &b, NULL);
 	voe_render_picture alone_b = read_look(&scene, &b, arena);
 
-	check_alike(near_pixel(&both_a, &a), near_pixel(&alone_a, &a));
-	check_alike(near_pixel(&both_b, &b), near_pixel(&alone_b, &b));
+	check_alike(near_pixel(&both_a, &a), near_pixel(&alone_a, &a),
+		    VIEWS_WITHIN);
+	check_alike(near_pixel(&both_b, &b), near_pixel(&alone_b, &b),
+		    VIEWS_WITHIN);
 	voe_render_device_destroy(scene.device);
 }
 
@@ -626,7 +629,7 @@ static void the_shadow_side_stays_dark(float sun, voe_base_arena *arena)
 		printf("  %g m: %d %d %d against %d %d %d\n",
 		       -0.1f - SHADE_GROUND[i].x, b[0], b[1], b[2], p[0], p[1],
 		       p[2]);
-		check_alike(b, p);
+		check_alike(b, p, SHADE_WITHIN);
 	}
 	voe_render_device_destroy(scene.device);
 }
