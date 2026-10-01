@@ -18,8 +18,8 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   third for a pass with no sun; it includes the three parts.
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,
   its shadow by cascades, its radiance, the bounce read from the pass's probe
-  grid, a non-finite one read as nought, and the fill, now a floor under the
-  bounce (0307 amends 0275).
+  grid times `VOE_BOUNCE_GAIN` (0311), a non-finite one read as nought, and the
+  fill, now a floor under the bounce (0307 amends 0275).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per

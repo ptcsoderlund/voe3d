@@ -7,9 +7,11 @@
 // ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
 // sun arrives with the camera, once a frame, and every surface is lit from the
 // same direction with the same strength. What is not the sun is the indirect
-// term, `base colour × max(E/π, fill weight × fill)` per channel: E the bounce's
-// irradiance out of the pass's probe grid (ADR-0307, 0308 point 6), and the
-// fill (ADR-0273) now a floor under it (0307 amends 0275). The fill weight is
+// term, `base colour × max(gain × E/π, fill weight × fill)` per channel: E the
+// bounce's irradiance out of the pass's probe grid (ADR-0307, 0308 point 6),
+// the gain VOE_BOUNCE_GAIN, 6, raising it past the physical until it shows in
+// the tank scene (ADR-0310, 0311), and the fill (ADR-0273) now a floor under
+// it (0307 amends 0275). The fill weight is
 // whole where the sun does not reach, fading out as N·L × shadow rises and gone
 // from a reach of 0.3 (ADR-0276); a fill of zero is no floor.
 //
@@ -174,13 +176,20 @@ float3 voe_render_bounce_irradiance(float3 world, float3 n)
 	return max(e, 0.0) * fade;
 }
 
+// How many times its measured E/π the bounce is read (ADR-0310, 0311): a cheat
+// beyond the physical, the lowest whole number at which the tank project's
+// main.scene, at sun 1 and π, tints the ground at a sunlit box's foot 12/255
+// over open ground 8 m off. A later tone map can lower it here alone.
+static const float VOE_BOUNCE_GAIN = 6.0;
+
 // What lights `colour` besides the sun: the bounce, with the fill as a floor
 // under it where the sun does not reach — whole at a reach of nought, faded
 // along a smoothstep, gone from VOE_FILL_FADE_REACH. See the header.
 float3 voe_render_indirect(float reach, float3 world, float3 n, float3 colour)
 {
 	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
-	float3 bounce = voe_render_bounce_irradiance(world, n) / VOE_PI;
+	float3 bounce =
+		VOE_BOUNCE_GAIN * voe_render_bounce_irradiance(world, n) / VOE_PI;
 
 	return colour * max(bounce, fill_weight * voe_render_frame.light.fill);
 }

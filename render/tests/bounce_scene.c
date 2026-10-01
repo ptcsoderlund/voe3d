@@ -17,7 +17,8 @@
 //
 // OFF THE ORIGIN THE WALL STILL REDDENS THE GROUND: sun π, fill 0, with the
 // update the ground 1 m from the wall has red over green greater than the
-// ground 10 m away by at least 0.05.
+// ground 10 m away by at least 0.05. The bounce is read at lighting.slangh's
+// VOE_BOUNCE_GAIN, 6 (ADR-0311): near 223 167 167, far 163 160 160.
 //
 // THE BOUNCE NEVER DARKENS: sun 9, fill 0.09, at a 7 × 7 lattice of ground
 // points across the wall's sunlit side and its shadow, every channel with the
