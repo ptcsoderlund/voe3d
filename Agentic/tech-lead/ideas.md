@@ -69,21 +69,6 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   where the camera is heading; and one VRAM budget replaces a per-game mode: a low-poly game fits
   entirely and never streams, a high-detail game streams. A game can ask to preload around a
   place before teleporting there.
-- **Dynamic lighting with the same philosophy** (sponsor, 2026-09-25): no baked lightmaps and
-  no editor bake step; lighting computed at run time and cached. Starts from 0252's sun shadows.
-  The sponsor's shape for the bounce: **a lit surface becomes a light** — surfaces the sun hits
-  store what they received (times their colour; dark surfaces send less) in a surface cache and
-  light what they see, a slice of surfaces re-lit per frame so the whole cycle takes ~50 ms. This
-  is radiosity, the shape of Enlighten and of Lumen's surface cache. The open question is who
-  sees whom: traced at run time (hardware ray tracing or a distance field of the world), or a
-  per-surface visibility baked automatically and kept in `Cache/` like the LOD idea, with moving
-  things lit from probes. Neither needs ray-tracing cards: cached visibility and distance fields
-  run on any card. The sponsor also proposed **light-blocking volumes** a developer places
-  (static, so never re-checked): light does not pass them either way. Recommended as a hand
-  touch-up for the leaks the automatic visibility misses (thin walls, coarse probe grids), like
-  Unity's probe adjustment volumes, and as rooms and portals (a room lit only by what is inside
-  and what comes through its doors and windows), not as the main mechanism. One bounce first,
-  more by feeding the cache back into itself. After the coin game, unless a game needs it sooner.
 - **A sky** (sponsor, 2026-09-26): a sky that is drawn, i.e. a panorama or sky dome and later
   volumetric clouds, which could also feed the fill light and the bounce. Wanted sooner or later;
   too big for now.

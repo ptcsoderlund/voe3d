@@ -17,11 +17,11 @@ workflow replaced specs.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera; sound component.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
+- **render** — the GPU layer, the only folder naming Vulkan: card, resources, passes, shadows, bounce.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, models, shapes, particles, water, picks, outlines, shadows.
+- **3d** — scene to draws: meshes, models, shapes, particles, water, picks, outlines, light.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game in the window it is handed: world types, 1/60 s steps, code, sound.
@@ -47,14 +47,13 @@ workflow replaced specs.
 - 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
 - 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
-- 0197, 0219, 0220, 0224–0226, 0228, 0229 — Text scale by theme; fit; panels in mm, views a share.
-- 0192, 0193, 0195, 0198–0200 — Structure via the queue; one focus; dropdowns; overlays fit.
-- 0202–0207 — Pick by ray; outline quads; undo is scene texts; the gizmo is `3d`'s.
+- 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306 — Text scale by theme; fit; mm panels; PC monitor.
+- 0192, 0193, 0195, 0198–0200, 0202–0207 — Queue; focus; dropdowns; overlays; picks; undo; gizmo.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
 - 0189–0191, 0217, 0218, 0221, 0300, 0302, 0303 — A bare entity; needs brought along; one camera.
 - 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light: preview, black.
-- 0239–0243, 0245 — A project's logic is its C in `Code/`, a library the editor loads and Refreshes.
-- 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
+- 0239–0248, 0263 — A project's C in `Code/`, loaded, Refreshed; `examples/`; `engine_assets/`.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305 — Particles in `3d`; the tank's effects; shadows; sounds; water.
+- 0307, 0308, 0310–0315 — Bounce light: a VRAM probe grid fed by a fifth sun pass, lit side only.
