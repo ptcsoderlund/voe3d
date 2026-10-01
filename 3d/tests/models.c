@@ -1,7 +1,7 @@
 // The model store: the hand-built `.glb` of model_data.inc loaded by path, bytes
 // that are no model kept as a failed entry, a file that could not be read kept
 // the same way, a path never asked for not there, a path loaded again replacing
-// itself, a clear, pictures and the soft dot, and a model drawn.
+// itself, a clear, pictures, the soft dot and the water, and a model drawn.
 //
 // THE DEVICE HOLDS THREE COPIES OF THE MODEL: 6 vertices, 6 indices, 2
 // geometries and 2 shading records each. So a hundred loads of one path pass
@@ -53,13 +53,13 @@
 #define TOLERANCE 1e-5f
 
 // The three copies, and the pictures' quad with a picture's and the dot's two
-// records each.
+// records each and the water's one.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 3 * 6 + 4,
 	.indices = 3 * 6 + 6,
 	.geometries = 3 * 2 + 1,
 	.objects = 8,
-	.shadings = 3 * 2 + 4,
+	.shadings = 3 * 2 + 4 + 1,
 	.passes = 1,
 };
 
@@ -120,6 +120,35 @@ static void check_replace(voe_3d_models *models, voe_render_device *device)
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), count + 1);
 }
 
+// The water, NULL before, loaded twice is one record on the quad the dot's
+// parts are on: BLENDED, roughness 0.05.
+static void check_water(voe_3d_models *models, voe_render_device *device)
+{
+	const voe_3d_model_entry *dot = voe_3d_models_find(models, "");
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_part *water;
+	voe_render_shading first;
+
+	VOE_TEST_CHECK(voe_3d_models_water(models) == NULL);
+	VOE_TEST_CHECK(voe_3d_models_load_water(models, device, &error));
+	water = voe_3d_models_water(models);
+	VOE_TEST_CHECK(water != NULL && dot != NULL);
+	if (water == NULL || dot == NULL)
+		return;
+	first = water->material.shading;
+	VOE_TEST_CHECK(voe_3d_models_load_water(models, device, &error));
+	VOE_TEST_CHECK(voe_3d_models_water(models) == water);
+	VOE_TEST_CHECK_INT(water->material.shading.index, first.index);
+	VOE_TEST_CHECK_INT(water->material.shading.generation,
+			   first.generation);
+	VOE_TEST_CHECK_INT(water->geometry.index, dot->parts[0].geometry.index);
+	VOE_TEST_CHECK_INT(water->geometry.generation,
+			   dot->parts[0].geometry.generation);
+	VOE_TEST_CHECK_INT(water->material.alpha_mode,
+			   VOE_RENDER_ALPHA_BLENDED);
+	VOE_TEST_CHECK_FLOAT(water->material.roughness, 0.05f, TOLERANCE);
+}
+
 // A 2 x 2 PNG loads as a picture of two BLENDED parts on one quad, the second
 // unlit; garbage `.png` bytes fail and are kept; the dot loaded twice is one
 // entry at "" and not counted; a clear empties both.
@@ -169,7 +198,10 @@ static void check_pictures(voe_3d_models *models, voe_render_device *device,
 	VOE_TEST_CHECK(entry != NULL && entry->part_count == 2);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), count + 2);
 
+	check_water(models, device);
+
 	voe_3d_models_clear(models, device);
+	VOE_TEST_CHECK(voe_3d_models_water(models) == NULL);
 	VOE_TEST_CHECK(voe_3d_models_find(models, "") == NULL);
 	VOE_TEST_CHECK(voe_3d_models_find(models, "Assets/Spark.PNG") == NULL);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);

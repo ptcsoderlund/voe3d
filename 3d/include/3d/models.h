@@ -48,6 +48,10 @@
 // THE SOFT DOT IS HELD APART, loaded by _load_dot and found at the empty path:
 // it is made in code and never re-read from a file, so it is not in _count or
 // _at, which is what the watch walks.
+//
+// THE WATER RECORD IS HELD APART AS THE DOT IS (ADR-0305 point 6): one part, the
+// store's quad and one BLENDED `water` shading record, made in code by
+// _load_water, read by _water, never re-read and freed by _clear.
 #pragma once
 
 #include <3d/material_component.h>
@@ -66,12 +70,12 @@
 
 // The device room the store's models are given, which a program adds to its
 // own capacities: 2 M vertices, 6 M indices, and 512 geometries and shading
-// records, four parts for each of the VOE_3D_MODELS files, and one geometry more
-// for the pictures' quad.
+// records, four parts for each of the VOE_3D_MODELS files, one geometry more for
+// the pictures' quad and one shading record more for the water.
 #define VOE_3D_MODELS_VERTICES (1u << 21)
 #define VOE_3D_MODELS_INDICES (3u << 21)
 #define VOE_3D_MODELS_GEOMETRIES 513
-#define VOE_3D_MODELS_SHADINGS 512
+#define VOE_3D_MODELS_SHADINGS 513
 
 // One material's worth of a model, in model space.
 typedef struct {
@@ -121,6 +125,16 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 [[nodiscard]] bool voe_3d_models_load_dot(voe_3d_models *models,
 					  voe_render_device *device,
 					  voe_base_error *error);
+
+// Makes the store's quad if not yet made and one shading record for water:
+// BLENDED, `water` set, white, metallic 0, roughness 0.05. True at once when it
+// is already there; false, `error` set, when the device has no room.
+[[nodiscard]] bool voe_3d_models_load_water(voe_3d_models *models,
+					    voe_render_device *device,
+					    voe_base_error *error);
+
+// The water's part, the quad and its record; NULL until _load_water.
+const voe_3d_model_part *voe_3d_models_water(const voe_3d_models *models);
 
 // Keeps `path` as a failed entry at `stamp`: a file that could not be read. A
 // path already held keeps what it had, at `stamp`.

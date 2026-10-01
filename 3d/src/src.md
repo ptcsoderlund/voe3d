@@ -96,7 +96,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill, and the mirrored node's turned triangles.
 - `models.c` — the store's table of entries with an arena each, and the load that reads,
-  bakes, uploads and gives back what a failure made; pictures on the quad, the dot apart.
+  bakes, uploads and gives back what a failure made; pictures on the quad, the dot and the water apart.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
