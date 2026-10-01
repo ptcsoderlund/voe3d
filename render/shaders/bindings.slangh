@@ -1,0 +1,180 @@
+// What draw.slang's two stages read: the frame block (camera, sun, cascades,
+// depth copy), the object and shading records, the bindings of set 0 and the
+// push constant that names the object. A part (ADR-0308): included first by
+// draw.slang, never compiled alone.
+//
+// EVERY STRUCT HERE MATCHES A C STRUCT FIELD FOR FIELD, PADDING INCLUDED, and
+// nothing in this file checks it: descriptors.c asserts on the frame block's
+// sizes and offsets, the records match render/device.h by being written the
+// same way. Change one side, change the other.
+//
+// elements.slang does not include this. It declares its own view of set 0, the
+// texture array's length among it (see voe_render_textures below).
+
+// The camera. One per frame, and the same one for every draw in it.
+struct voe_render_view {
+	float4x4 view;
+	float4x4 projection;
+	// Where the eye is, in world space: half of the direction a surface is
+	// being looked from, which is what a specular highlight needs.
+	float3 eye;
+	float reserved;
+};
+
+// The sun. `direction` is where the light travels — a sun overhead is
+// (0, -1, 0) — and it arrives unit length, because whoever owns the light is
+// where a direction of nothing is a bug worth hearing about.
+struct voe_render_light {
+	float3 direction;
+	float intensity;
+	float3 colour;
+	// Non-zero: this pass has no sun, and every surface takes the unlit exit.
+	uint unshaded;
+	// Linear, colour times strength: added to every lit surface, unshadowed.
+	float3 fill;
+	float reserved;
+};
+
+// Where the sun's cascades are: voe_render_shadow in render/device.h. The C
+// side's `float splits[4]` and `float texels[4]` are float4s here, because a
+// uniform block gives every element of a scalar array sixteen bytes and a
+// float4 is the same sixteen bytes C has. `count` nought is no shadow.
+struct voe_render_shadow {
+	float4x4 cascades[4];
+	float4 splits;
+	float4 texels;
+	uint count;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
+};
+
+// Set 0, binding 0. Matches struct voe_render_frame_block in
+// render/src/device_parts.h field for field: descriptors.c builds the layout
+// that matches it, asserts on both structs' sizes and offsets, and pass.c
+// writes one of these per pass, bound at that pass's dynamic offset.
+// depth_copy is the pass's depth copy texture slot, ~0u until it copied;
+// only the water path reads it.
+struct voe_render_frame_block {
+	voe_render_view camera;
+	voe_render_light light;
+	voe_render_shadow shadow;
+	uint depth_copy;
+	uint reserved3;
+	uint reserved4;
+	uint reserved5;
+};
+
+[[vk::binding(0, 0)]]
+ConstantBuffer<voe_render_frame_block> voe_render_frame;
+
+// Set 0, binding 5: this frame slot's cascades, one layer each, read through a
+// comparison sampler whose border is lit (render/src/shadow.c).
+[[vk::binding(5, 0)]]
+Sampler2DArrayShadow voe_render_shadow_maps;
+
+// Set 0, binding 1: every texture at once, indexed by a number out of a shading
+// record.
+//
+// THE LENGTH IS VOE_RENDER_MAX_TEXTURES AND IT IS WRITTEN DOWN IN FOUR PLACES —
+// device_internal.h, the layout in descriptors.c, elements.slang and here. A
+// descriptor array has a fixed length in all four and they have to agree; there is
+// no way to say "as many as the C side thinks" from a shader. Every element is
+// always written, slots nothing has claimed pointing at a one-pixel white texture,
+// because Vulkan requires the whole array to be valid whether or not this samples it.
+[[vk::binding(1, 0)]]
+Sampler2D voe_render_textures[1024];
+
+// One drawn object. Matches voe_render_object in render/device.h field for
+// field, padding included: the two matrices fill the first hundred and
+// twenty-eight bytes, the four uints after them fill to a hundred and
+// forty-four, the colour to a hundred and sixty and the water's two float4s end
+// it at a hundred and ninety-two, so every layout rule
+// a structured buffer might be given puts every member in the same place. The
+// colour is linear and multiplies the shading record's base colour factor,
+// alpha included.
+//
+// THE NORMAL MATRIX IS A SECOND MATRIX AND NOT A LUXURY. Under a non-uniform
+// scale the world matrix tilts a normal off the surface it belongs to, and what
+// that looks like is lighting sliding across a solid object rather than a wrong
+// matrix. The CPU hands over the inverse transpose; see voe_3d_normal_matrix.
+//
+// THE PADDING IS THREE SCALARS AND NOT A uint3, AND THAT IS NOT A STYLE CHOICE.
+// A three-component vector has a sixteen-byte alignment in every buffer layout
+// rule there is, so a uint3 after a single uint would start at a hundred and
+// forty-four rather than a hundred and thirty-two and the record would be a
+// different size on this side. Three uints have a four-byte alignment each and
+// land where C puts them. The same applies to the shading record below.
+struct voe_render_object {
+	float4x4 world;
+	float4x4 normal;
+	uint shading;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
+	float4 colour;
+	// Read only by a water record: (height, length, seconds, deep) and the
+	// sky's linear rgb. See voe_render_object in render/device.h.
+	float4 waves;
+	float4 sky;
+};
+
+// Set 0, binding 2: this frame's records, one per draw. Read by both stages —
+// the vertex stage wants the matrices and the fragment stage wants the shading
+// index.
+[[vk::binding(2, 0)]]
+StructuredBuffer<voe_render_object> voe_render_objects;
+
+// How a surface is shaded. Matches voe_render_shading_values in
+// render/device.h, padding included, for the reason above.
+struct voe_render_shading {
+	float4 base_colour;
+	float metallic;
+	float roughness;
+	// The alpha mode and the cutoff cutout reads, in the eight bytes that
+	// used to be reserved_a. A uint and a float and not a float2, for the
+	// alignment reason above: a two-component vector would be realigned and
+	// two scalars land where C puts them.
+	uint alpha_mode;
+	float alpha_cutoff;
+	float3 emissive;
+	// Non-zero: skip the lighting entirely and write the base colour. In the
+	// four bytes that used to be reserved_b, for the alignment reason above.
+	uint unlit;
+	uint base_colour_texture;
+	uint metallic_roughness_texture;
+	uint normal_texture;
+	uint occlusion_texture;
+	uint emissive_texture;
+	// Non-zero: the base colour texture holds three signed distances per
+	// texel rather than a picture. In the first of the three words that used
+	// to be reserved_c, for the alignment reason above.
+	uint base_colour_distance_field;
+	// Non-zero: the water path (ADR-0305). The second word of reserved_c.
+	uint water;
+	uint reserved_c;
+	// Which rectangle of the base colour texture to read: xy is the offset,
+	// zw the scale. It lands on a sixteen-byte boundary where C put it, so
+	// it is a float4 on both sides and needs no padding in front of it.
+	float4 base_colour_uv_rect;
+};
+
+// Set 0, binding 3: every shading record, shared by every frame slot because
+// nothing rewrites one after it is made.
+[[vk::binding(3, 0)]]
+StructuredBuffer<voe_render_shading> voe_render_shadings;
+
+// voe_render_alpha_mode in render/include/render/device.h, and these three
+// numbers are that enum's three values. Opaque is 0 so a zeroed record is an
+// opaque one.
+static const uint VOE_RENDER_ALPHA_OPAQUE = 0;
+static const uint VOE_RENDER_ALPHA_CUTOUT = 1;
+static const uint VOE_RENDER_ALPHA_BLENDED = 2;
+
+// Which object this draw is. Four bytes, and the whole of the push constant.
+struct voe_render_draw_push {
+	uint object;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<voe_render_draw_push> voe_render_draw_current;

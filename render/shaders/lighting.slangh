@@ -1,0 +1,139 @@
+// The sun and what it lights by: glTF's BRDF terms, the shadow lookup over the
+// cascades, the sun's radiance and the fill. A part (ADR-0308): included by
+// draw.slang after bindings.slangh, whose frame block, light and cascades it
+// reads; never compiled alone. draw.slang's fragment stage and water.slangh
+// both light through it.
+//
+// ONE DIRECTIONAL LIGHT AND A FILL FOR ITS SHADE, NO IMAGE-BASED ANYTHING. The
+// sun arrives with the camera, once a frame, and every surface is lit from the
+// same direction with the same strength. The fill is the one term that is not
+// the sun (ADR-0273) and it lifts only the shade (ADR-0275): `fill × base
+// colour`, whole where the sun does not reach, fading out as N·L × shadow
+// rises and gone from a reach of 0.3 (ADR-0276) — black when it is zero.
+//
+// THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
+// `count` above nought, a lit surface picks the first cascade whose split is past
+// its view distance, pushes its position one texel along its normal so it does
+// not shadow itself, projects it into that cascade and averages a 3×3 of
+// comparison lookups; past the last split it is fully lit. The sun's direct
+// term is multiplied by the result, and so is the sun's reach that turns the
+// fill away, so a shadowed surface still reads its fill and nothing more.
+//
+// METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
+// base colour, the metalness, the roughness and the occlusion come out of the
+// shading record and the three maps; a second shading model would mean
+// converting every file this engine can read, so there is one.
+//
+// THE ARITHMETIC IS THE glTF SPECIFICATION'S BRDF, WRITTEN OUT. A GGX
+// distribution, Smith's height-correlated visibility with the specular
+// denominator folded into it, and Schlick's Fresnel; the diffuse half is
+// Lambert, scaled by what the Fresnel term did not reflect. The one place to
+// look when a highlight is wrong is `roughness * roughness`: alpha is roughness
+// squared and using roughness directly is the classic mistake — it makes every
+// surface too shiny and no maths goes wrong to say so.
+
+static const float VOE_PI = 3.14159265358979;
+
+// What a non-metal reflects head-on: four per cent, which is glass, plastic,
+// stone, skin and very nearly everything else that is not a metal. A metal's
+// answer is its own base colour instead, which is what metalness interpolates
+// towards.
+static const float VOE_DIELECTRIC_REFLECTANCE = 0.04;
+
+// Nothing here divides by a number that came out of a file without this under
+// it. A grazing angle sends the visibility term's denominator to zero and one
+// NaN fragment is a black or white speck that moves with the camera.
+static const float VOE_LEAST = 1e-7;
+
+// The sun's reach, N·L times its shadow, at which the fill is gone (ADR-0276).
+// Below it the fill fades in along a smoothstep, so neither a shadow's soft
+// edge nor the terminator shows a seam; above it a surface is the sun's alone.
+static const float VOE_FILL_FADE_REACH = 0.3;
+
+// Schlick's approximation: how much more a surface reflects at a grazing angle
+// than head-on. The fifth power is the approximation and not a tunable.
+float3 voe_render_fresnel(float3 f0, float cosine)
+{
+	float factor = pow(saturate(1.0 - cosine), 5.0);
+
+	return f0 + (1.0 - f0) * factor;
+}
+
+// Trowbridge-Reitz, which everyone calls GGX: how much of the surface's
+// microscopic facets point at the half vector. `alpha` is roughness squared —
+// see the note at the top of this file.
+float voe_render_distribution(float n_dot_h, float alpha)
+{
+	float a2 = alpha * alpha;
+	float d = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
+
+	return a2 / max(VOE_PI * d * d, VOE_LEAST);
+}
+
+// Smith's height-correlated visibility, which is the shadowing-masking term with
+// the specular denominator 4·(n·l)·(n·v) folded into it. Folded because the two
+// cancel: written separately they are a division by something that goes to zero
+// at exactly the angles where the other factor does.
+float voe_render_visibility(float n_dot_l, float n_dot_v, float alpha)
+{
+	float a2 = alpha * alpha;
+	float lambda_l = n_dot_l * sqrt(n_dot_v * n_dot_v * (1.0 - a2) + a2);
+	float lambda_v = n_dot_v * sqrt(n_dot_l * n_dot_l * (1.0 - a2) + a2);
+
+	return 0.5 / max(lambda_l + lambda_v, VOE_LEAST);
+}
+
+// How much of the sun reaches `world`, nought to one. See the header's cascade
+// paragraph; one is the answer with no cascades and past the last split.
+//
+// THE ONE Y FLIP: clip +y is row 0 of the map, because the shadow pass drew
+// through the engine's flipped viewport, so v runs opposite to clip y.
+float voe_render_sunlight(float3 world, float3 normal)
+{
+	voe_render_shadow shadow = voe_render_frame.shadow;
+	float distance = -mul(voe_render_frame.camera.view, float4(world, 1.0)).z;
+	uint cascade = 0;
+
+	while (cascade < shadow.count && distance > shadow.splits[cascade])
+		cascade++;
+	if (cascade >= shadow.count)
+		return 1.0;
+
+	float3 pushed = world + normal * shadow.texels[cascade];
+	float4 clip = mul(shadow.cascades[cascade], float4(pushed, 1.0));
+	float3 ndc = clip.xyz / clip.w;
+	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+	float width;
+	float height;
+	float layers;
+
+	voe_render_shadow_maps.GetDimensions(width, height, layers);
+	float2 step = float2(1.0 / width, 1.0 / height);
+	float lit = 0.0;
+
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			float3 at = float3(uv + float2(x, y) * step, cascade);
+			lit += voe_render_shadow_maps.SampleCmpLevelZero(at, ndc.z);
+		}
+	}
+	return lit / 9.0;
+}
+
+// The sun's direct light at a surface it reaches by `reach`, N·L times its
+// shadow: its colour times its strength times that.
+float3 voe_render_sun_radiance(float reach)
+{
+	voe_render_light sun = voe_render_frame.light;
+
+	return sun.colour * sun.intensity * reach;
+}
+
+// The fill on `colour`, only where the sun does not reach: whole at a reach of
+// nought, faded along a smoothstep, gone from VOE_FILL_FADE_REACH. See the header.
+float3 voe_render_fill(float reach, float3 colour)
+{
+	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+
+	return fill_weight * voe_render_frame.light.fill * colour;
+}

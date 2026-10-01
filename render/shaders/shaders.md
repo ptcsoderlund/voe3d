@@ -6,11 +6,19 @@ from disk at run time and a shipped build carries no shader source. `slangc` is
 invoked with `-matrix-layout-row-major`, the layout the engine stores matrices
 in; getting it wrong transposes every transform without failing to compile.
 
+A `.slangh` is a part, included by a shader and never compiled alone.
+
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block,
+  object and shading records, set 0's bindings and the push constant, each
+  matching its C struct.
 - `draw.slang` — the two pipelines' two entry points, the only place a matrix is
-  applied to a position, the three numbers a draw finds everything by, and the
-  whole of this engine's lighting: one sun, its shadows by cascades, glTF's
-  metalness-roughness BRDF, three unlit exits, the third for a pass with no sun,
-  and water: wave normals faded over the pass's depth copy.
+  applied to a position, the three numbers a draw finds everything by, the
+  normal map, the distance field, the alpha modes and three unlit exits, the
+  third for a pass with no sun; it includes the three parts.
+- `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,
+  its shadow by cascades, its radiance and the fill that lifts its shade.
+- `water.slangh` — the water path: wave normals, fresnel to the sky and
+  coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
   instance built from a vertex index, a clip test, and a glyph's coverage across
   one pixel around an edge that moves out for a thin stroke, not a wide one. It
