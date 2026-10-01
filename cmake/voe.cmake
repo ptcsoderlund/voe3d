@@ -382,6 +382,12 @@ endfunction()
 # nothing generated is committed. shaders/ is globbed for the same reason src/
 # is, so adding a shader needs no edit here.
 #
+# A .slangh in shaders/ is a part: code shared between shaders, pulled in by
+# #include "x.slangh" (slangc finds it beside the including shader), never
+# compiled alone, since the *.slang glob does not match it. Every shader depends
+# on every part, so editing one rebuilds them all; naming which shader includes
+# which would put that knowledge here instead of in the shaders.
+#
 # THE SPIR-V IS NOT COMPILED, IT IS EMBEDDED. Nothing links it and nothing reads
 # it from disk at run time: a C file #embeds the .spv and the bytes end up in the
 # binary (ADR-0046). That is why the generated directory comes back to be handed
@@ -422,6 +428,7 @@ function(voe_render_shaders folder_dir out_compiled out_include)
     file(MAKE_DIRECTORY ${generated})
 
     file(GLOB shaders CONFIGURE_DEPENDS ${folder_dir}/shaders/*.slang)
+    file(GLOB slangh_parts CONFIGURE_DEPENDS ${folder_dir}/shaders/*.slangh)
     if(NOT shaders)
         message(FATAL_ERROR "voe_render_shaders: no shaders in ${folder_dir}/shaders")
     endif()
@@ -438,7 +445,7 @@ function(voe_render_shaders folder_dir out_compiled out_include)
                     -matrix-layout-row-major
                     -fvk-use-entrypoint-name
                     -o ${spv}
-            DEPENDS ${shader}
+            DEPENDS ${shader} ${slangh_parts}
             COMMENT "slangc: ${name}"
             VERBATIM)
 

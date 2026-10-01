@@ -1,0 +1,48 @@
+// The sun's bounce pass and the spheres of the grid that went stale (ADR-0308
+// points 1, 4 and 7). Internal to 3d: voe_3d_draw_system_shadows calls
+// voe_3d_draw_bounce after its cascades; the test reads the spheres.
+//
+//     if (!voe_3d_draw_bounce(world, device, frame))
+//             return false;                   // render said why on stderr
+//
+// THE CASTERS ARE THE CASCADES' AND SO IS THE WALK. draw_shadows.c owns who
+// casts and how a caster is drawn; it is declared here, not copied, so the
+// bounce map and the shadow maps can never disagree about what stands in the sun.
+//
+// A STALE SPHERE IS WHERE A CASTER WAS AND IS. A caster whose transform at lag 1
+// (the previous table's) differs from lag 0 in position or rotation marks a
+// sphere of VOE_3D_BOUNCE_REACH at each place, about the frame's eye. A world
+// with no previous table, or a caster never remembered, blends as its current
+// row and marks nothing: the grid's strided cycle catches it up.
+#pragma once
+
+#include <3d/draw_system.h>
+#include <3d/material_component.h>
+#include <ecs/world.h>
+#include <math/float4.h>
+#include <render/device.h>
+
+#include <stdbool.h>
+#include <stdint.h>
+
+// Whether a material casts: lit, and not blended (0258 point 5). draw_shadows.c.
+bool voe_3d_draw_casts(const voe_3d_material *material);
+
+// Every caster drawn into the sun's pass that is open, at the frame's lag about
+// its eye. False when render refuses a draw. draw_shadows.c.
+bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
+			 const voe_3d_frame *frame);
+
+// The stale spheres of this step into `spheres`, xyz about the frame's eye and
+// w VOE_3D_BOUNCE_REACH, two for each caster that moved; the count, never past
+// `room`. A moved caster that does not fit is left to the cycle.
+uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
+			     const voe_3d_frame *frame, voe_math_float4 *spheres,
+			     uint32_t room);
+
+// Fits the bounce grid to the frame's view, eye and sun, opens the bounce pass,
+// draws the casters into it and updates `frame->target`'s grid with this step's
+// stale spheres. False when the pass, a draw or the update is refused.
+[[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,
+				      voe_render_device *device,
+				      voe_3d_frame *frame);

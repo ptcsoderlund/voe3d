@@ -39,7 +39,9 @@
 // IT CAN ALSO BE STARTED TO WRITE ONE PICTURE AND LEAVE. `--capture <path>`
 // (options.h) opens the device with no window at all (voe_app_new_headless),
 // builds the same world, font, themes, interface and scene, runs the loop body
-// twice and writes the picture, both counted and written by capture.h. It first
+// `--frames` times (two by default) and writes the window's picture, and with
+// `--capture-view` the first scene view's too, all counted and written by
+// capture.h. It first
 // waits out a running refresh (session.h), for at most 120 s of the frame clock.
 // EVERY READ OF THE WINDOW IS GUARDED.
 #include "assets_drag.h"
@@ -668,7 +670,8 @@ int main(int argc, char *argv[])
 				status = 1;
 				break;
 			}
-		} else if (voe_editor_capture_enough(options.capture, &frames)) {
+		} else if (voe_editor_capture_enough(options.capture, &frames,
+						     (unsigned)options.frames)) {
 			break;
 		}
 	}
@@ -677,6 +680,10 @@ stop:
 	// Between frames, where the loop above left off; capture.h says what
 	// refused.
 	if (status == 0 && !voe_editor_capture_write(app, options.capture))
+		status = 1;
+	if (status == 0 &&
+	    !voe_editor_capture_write_view(app, views.views[0].target,
+					   options.capture_view))
 		status = 1;
 
 	// The device and the window, then the arena — the app struct lives in

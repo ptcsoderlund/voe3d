@@ -23,10 +23,10 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, TWO ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with both entry points in it, and device.c names them by the names
+// ONE FILE, THREE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the third the bounce map's fragment), and device.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
-// keeps those two strings true.
+// keeps those strings true.
 //
 // THE MATRICES ARE READ ROW-MAJOR AND THAT COSTS A FLAG. slangc is invoked with
 // -matrix-layout-row-major, so float4x4 here has the layout voe_math_float4x4
@@ -49,35 +49,15 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// ---- THE LIGHTING, AND EVERY DECISION IN IT ----
+// THREE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// bindings.slangh first: the frame block, the records and the bindings both
+// stages read. lighting.slangh next: the sun, its cascades, the fill and the
+// BRDF terms, with the decisions behind them in its header. water.slangh last,
+// after the vertex stage and voe_render_premultiplied, which it uses. A part is
+// never compiled alone, and cmake/voe.cmake rebuilds every shader when one
+// changes.
 //
-// ONE DIRECTIONAL LIGHT AND A FILL FOR ITS SHADE, NO IMAGE-BASED ANYTHING. The
-// sun arrives with the camera, once a frame, and every surface is lit from the
-// same direction with the same strength. The fill is the one term that is not
-// the sun (ADR-0273) and it lifts only the shade (ADR-0275): `fill × base
-// colour`, whole where the sun does not reach, fading out as N·L × shadow
-// rises and gone from a reach of 0.3 (ADR-0276) — black when it is zero.
-//
-// THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
-// `count` above nought, a lit surface picks the first cascade whose split is past
-// its view distance, pushes its position one texel along its normal so it does
-// not shadow itself, projects it into that cascade and averages a 3×3 of
-// comparison lookups; past the last split it is fully lit. The sun's direct
-// term is multiplied by the result, and so is the sun's reach that turns the
-// fill away, so a shadowed surface still reads its fill and nothing more.
-//
-// METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
-// base colour, the metalness, the roughness and the occlusion come out of the
-// shading record and the three maps; a second shading model would mean
-// converting every file this engine can read, so there is one.
-//
-// THE ARITHMETIC IS THE glTF SPECIFICATION'S BRDF, WRITTEN OUT. A GGX
-// distribution, Smith's height-correlated visibility with the specular
-// denominator folded into it, and Schlick's Fresnel; the diffuse half is
-// Lambert, scaled by what the Fresnel term did not reflect. The one place to
-// look when a highlight is wrong is `roughness * roughness`: alpha is roughness
-// squared and using roughness directly is the classic mistake — it makes every
-// surface too shiny and no maths goes wrong to say so.
+// ---- THE FRAGMENT STAGE'S EXITS, AND EVERY DECISION IN THEM ----
 //
 // A SURFACE WITH NO NORMAL IS DRAWN UNLIT, AND THIS IS THE CARD THAT DECIDED IT.
 // A file without normals leaves them at nothing (3d/src/import.c), and
@@ -130,7 +110,8 @@
 // WATER IS THE FOURTH, AND IT WAS REPORTED (ADR-0305). A `water` record is a
 // blended plane: four sine waves bend its normal and move no vertex, it is lit
 // by the same sun, shadow and fill, and its thickness over the pass's depth copy
-// sets its coverage and darkens it. Its own function, voe_render_water.
+// sets its coverage and darkens it. Its own function, voe_render_water, in
+// water.slangh.
 //
 // WHAT THE BRANCH DOES: the sheet's three channels are three signed distances to
 // the outline, each measured to a different subset of its edges. Their MEDIAN is
@@ -191,173 +172,8 @@
 // NOTHING IS TONE MAPPED, SO A BRIGHT ENOUGH LIGHT CLIPS TO WHITE. Expected, and
 // on the later list; see render/include/render/device.h.
 
-// The camera. One per frame, and the same one for every draw in it.
-struct voe_render_view {
-	float4x4 view;
-	float4x4 projection;
-	// Where the eye is, in world space: half of the direction a surface is
-	// being looked from, which is what a specular highlight needs.
-	float3 eye;
-	float reserved;
-};
-
-// The sun. `direction` is where the light travels — a sun overhead is
-// (0, -1, 0) — and it arrives unit length, because whoever owns the light is
-// where a direction of nothing is a bug worth hearing about.
-struct voe_render_light {
-	float3 direction;
-	float intensity;
-	float3 colour;
-	// Non-zero: this pass has no sun, and every surface takes the unlit exit.
-	uint unshaded;
-	// Linear, colour times strength: added to every lit surface, unshadowed.
-	float3 fill;
-	float reserved;
-};
-
-// Where the sun's cascades are: voe_render_shadow in render/device.h. The C
-// side's `float splits[4]` and `float texels[4]` are float4s here, because a
-// uniform block gives every element of a scalar array sixteen bytes and a
-// float4 is the same sixteen bytes C has. `count` nought is no shadow.
-struct voe_render_shadow {
-	float4x4 cascades[4];
-	float4 splits;
-	float4 texels;
-	uint count;
-	uint reserved0;
-	uint reserved1;
-	uint reserved2;
-};
-
-// Set 0, binding 0. Matches struct voe_render_frame_block in
-// render/src/device_parts.h field for field: descriptors.c builds the layout
-// that matches it, asserts on both structs' sizes and offsets, and pass.c
-// writes one of these per pass, bound at that pass's dynamic offset.
-// depth_copy is the pass's depth copy texture slot, ~0u until it copied;
-// only the water path reads it.
-struct voe_render_frame_block {
-	voe_render_view camera;
-	voe_render_light light;
-	voe_render_shadow shadow;
-	uint depth_copy;
-	uint reserved3;
-	uint reserved4;
-	uint reserved5;
-};
-
-[[vk::binding(0, 0)]]
-ConstantBuffer<voe_render_frame_block> voe_render_frame;
-
-// Set 0, binding 5: this frame slot's cascades, one layer each, read through a
-// comparison sampler whose border is lit (render/src/shadow.c).
-[[vk::binding(5, 0)]]
-Sampler2DArrayShadow voe_render_shadow_maps;
-
-// Set 0, binding 1: every texture at once, indexed by a number out of a shading
-// record.
-//
-// THE LENGTH IS VOE_RENDER_MAX_TEXTURES AND IT IS WRITTEN DOWN IN FOUR PLACES —
-// device_internal.h, the layout in descriptors.c, elements.slang and here. A
-// descriptor array has a fixed length in all four and they have to agree; there is
-// no way to say "as many as the C side thinks" from a shader. Every element is
-// always written, slots nothing has claimed pointing at a one-pixel white texture,
-// because Vulkan requires the whole array to be valid whether or not this samples it.
-[[vk::binding(1, 0)]]
-Sampler2D voe_render_textures[1024];
-
-// One drawn object. Matches voe_render_object in render/device.h field for
-// field, padding included: the two matrices fill the first hundred and
-// twenty-eight bytes, the four uints after them fill to a hundred and
-// forty-four, the colour to a hundred and sixty and the water's two float4s end
-// it at a hundred and ninety-two, so every layout rule
-// a structured buffer might be given puts every member in the same place. The
-// colour is linear and multiplies the shading record's base colour factor,
-// alpha included.
-//
-// THE NORMAL MATRIX IS A SECOND MATRIX AND NOT A LUXURY. Under a non-uniform
-// scale the world matrix tilts a normal off the surface it belongs to, and what
-// that looks like is lighting sliding across a solid object rather than a wrong
-// matrix. The CPU hands over the inverse transpose; see voe_3d_normal_matrix.
-//
-// THE PADDING IS THREE SCALARS AND NOT A uint3, AND THAT IS NOT A STYLE CHOICE.
-// A three-component vector has a sixteen-byte alignment in every buffer layout
-// rule there is, so a uint3 after a single uint would start at a hundred and
-// forty-four rather than a hundred and thirty-two and the record would be a
-// different size on this side. Three uints have a four-byte alignment each and
-// land where C puts them. The same applies to the shading record below.
-struct voe_render_object {
-	float4x4 world;
-	float4x4 normal;
-	uint shading;
-	uint reserved0;
-	uint reserved1;
-	uint reserved2;
-	float4 colour;
-	// Read only by a water record: (height, length, seconds, deep) and the
-	// sky's linear rgb. See voe_render_object in render/device.h.
-	float4 waves;
-	float4 sky;
-};
-
-// Set 0, binding 2: this frame's records, one per draw. Read by both stages —
-// the vertex stage wants the matrices and the fragment stage wants the shading
-// index.
-[[vk::binding(2, 0)]]
-StructuredBuffer<voe_render_object> voe_render_objects;
-
-// How a surface is shaded. Matches voe_render_shading_values in
-// render/device.h, padding included, for the reason above.
-struct voe_render_shading {
-	float4 base_colour;
-	float metallic;
-	float roughness;
-	// The alpha mode and the cutoff cutout reads, in the eight bytes that
-	// used to be reserved_a. A uint and a float and not a float2, for the
-	// alignment reason above: a two-component vector would be realigned and
-	// two scalars land where C puts them.
-	uint alpha_mode;
-	float alpha_cutoff;
-	float3 emissive;
-	// Non-zero: skip the lighting entirely and write the base colour. In the
-	// four bytes that used to be reserved_b, for the alignment reason above.
-	uint unlit;
-	uint base_colour_texture;
-	uint metallic_roughness_texture;
-	uint normal_texture;
-	uint occlusion_texture;
-	uint emissive_texture;
-	// Non-zero: the base colour texture holds three signed distances per
-	// texel rather than a picture. In the first of the three words that used
-	// to be reserved_c, for the alignment reason above.
-	uint base_colour_distance_field;
-	// Non-zero: the water path (ADR-0305). The second word of reserved_c.
-	uint water;
-	uint reserved_c;
-	// Which rectangle of the base colour texture to read: xy is the offset,
-	// zw the scale. It lands on a sixteen-byte boundary where C put it, so
-	// it is a float4 on both sides and needs no padding in front of it.
-	float4 base_colour_uv_rect;
-};
-
-// Set 0, binding 3: every shading record, shared by every frame slot because
-// nothing rewrites one after it is made.
-[[vk::binding(3, 0)]]
-StructuredBuffer<voe_render_shading> voe_render_shadings;
-
-// voe_render_alpha_mode in render/include/render/device.h, and these three
-// numbers are that enum's three values. Opaque is 0 so a zeroed record is an
-// opaque one.
-static const uint VOE_RENDER_ALPHA_OPAQUE = 0;
-static const uint VOE_RENDER_ALPHA_CUTOUT = 1;
-static const uint VOE_RENDER_ALPHA_BLENDED = 2;
-
-// Which object this draw is. Four bytes, and the whole of the push constant.
-struct voe_render_draw_push {
-	uint object;
-};
-
-[[vk::push_constant]]
-ConstantBuffer<voe_render_draw_push> voe_render_draw_current;
+#include "bindings.slangh"
+#include "lighting.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same three numbers in its VkVertexInputAttributeDescription and
@@ -406,57 +222,6 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	return out;
 }
 
-static const float VOE_PI = 3.14159265358979;
-
-// What a non-metal reflects head-on: four per cent, which is glass, plastic,
-// stone, skin and very nearly everything else that is not a metal. A metal's
-// answer is its own base colour instead, which is what metalness interpolates
-// towards.
-static const float VOE_DIELECTRIC_REFLECTANCE = 0.04;
-
-// Nothing here divides by a number that came out of a file without this under
-// it. A grazing angle sends the visibility term's denominator to zero and one
-// NaN fragment is a black or white speck that moves with the camera.
-static const float VOE_LEAST = 1e-7;
-
-// The sun's reach, N·L times its shadow, at which the fill is gone (ADR-0276).
-// Below it the fill fades in along a smoothstep, so neither a shadow's soft
-// edge nor the terminator shows a seam; above it a surface is the sun's alone.
-static const float VOE_FILL_FADE_REACH = 0.3;
-
-// Schlick's approximation: how much more a surface reflects at a grazing angle
-// than head-on. The fifth power is the approximation and not a tunable.
-float3 voe_render_fresnel(float3 f0, float cosine)
-{
-	float factor = pow(saturate(1.0 - cosine), 5.0);
-
-	return f0 + (1.0 - f0) * factor;
-}
-
-// Trowbridge-Reitz, which everyone calls GGX: how much of the surface's
-// microscopic facets point at the half vector. `alpha` is roughness squared —
-// see the note at the top of this file.
-float voe_render_distribution(float n_dot_h, float alpha)
-{
-	float a2 = alpha * alpha;
-	float d = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
-
-	return a2 / max(VOE_PI * d * d, VOE_LEAST);
-}
-
-// Smith's height-correlated visibility, which is the shadowing-masking term with
-// the specular denominator 4·(n·l)·(n·v) folded into it. Folded because the two
-// cancel: written separately they are a division by something that goes to zero
-// at exactly the angles where the other factor does.
-float voe_render_visibility(float n_dot_l, float n_dot_v, float alpha)
-{
-	float a2 = alpha * alpha;
-	float lambda_l = n_dot_l * sqrt(n_dot_v * n_dot_v * (1.0 - a2) + a2);
-	float lambda_v = n_dot_v * sqrt(n_dot_l * n_dot_l * (1.0 - a2) + a2);
-
-	return 0.5 / max(lambda_l + lambda_v, VOE_LEAST);
-}
-
 // THE LAST ACT OF EVERY PATH OUT OF THE FRAGMENT STAGE, AND THE ENGINE'S
 // CONTRACT IN ONE LINE: the colour target holds premultiplied colour, so a
 // fragment leaves here with its rgb already multiplied by its own alpha. The
@@ -482,43 +247,6 @@ float4 voe_render_premultiplied(float3 colour, float coverage)
 float voe_render_median(float3 field)
 {
 	return max(min(field.r, field.g), min(max(field.r, field.g), field.b));
-}
-
-// How much of the sun reaches `world`, nought to one. See the header's lighting
-// section; one is the answer with no cascades and past the last split.
-//
-// THE ONE Y FLIP: clip +y is row 0 of the map, because the shadow pass drew
-// through the engine's flipped viewport, so v runs opposite to clip y.
-float voe_render_sunlight(float3 world, float3 normal)
-{
-	voe_render_shadow shadow = voe_render_frame.shadow;
-	float distance = -mul(voe_render_frame.camera.view, float4(world, 1.0)).z;
-	uint cascade = 0;
-
-	while (cascade < shadow.count && distance > shadow.splits[cascade])
-		cascade++;
-	if (cascade >= shadow.count)
-		return 1.0;
-
-	float3 pushed = world + normal * shadow.texels[cascade];
-	float4 clip = mul(shadow.cascades[cascade], float4(pushed, 1.0));
-	float3 ndc = clip.xyz / clip.w;
-	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-	float width;
-	float height;
-	float layers;
-
-	voe_render_shadow_maps.GetDimensions(width, height, layers);
-	float2 step = float2(1.0 / width, 1.0 / height);
-	float lit = 0.0;
-
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
-			float3 at = float3(uv + float2(x, y) * step, cascade);
-			lit += voe_render_shadow_maps.SampleCmpLevelZero(at, ndc.z);
-		}
-	}
-	return lit / 9.0;
 }
 
 // Slot 0, the white pixel: voe_render_texture in render/device.h.
@@ -555,135 +283,7 @@ float3 voe_render_mapped_normal(float3 normal, float3 texel, float3 world_dx,
 	return normalize(mapped);
 }
 
-// ---- Water (ADR-0305) ----
-
-// The four waves: wavelengths and amplitudes as fractions of the longest, and
-// the fixed unit directions they travel over the plane.
-static const float VOE_WATER_SCALES[4] = { 1.0, 0.61, 0.37, 0.23 };
-static const float2 VOE_WATER_DIRECTIONS[4] = {
-	float2(0.8, 0.6), float2(-0.6, 0.8), float2(0.28, -0.96),
-	float2(-0.96, -0.28)
-};
-static const float VOE_WATER_GRAVITY = 9.81;
-// A whole number of turns in 60 s, so seconds 0 and 60 are the same picture.
-static const float VOE_WATER_CLOCK_STEP = 2.0 * VOE_PI / 60.0;
-static const float VOE_WATER_ROUGHNESS = 0.05;
-static const float VOE_WATER_REFLECTANCE = 0.02;
-// Coverage and the body colour's factor at `deep` and past it.
-static const float VOE_WATER_DEEP_COVERAGE = 0.95;
-static const float VOE_WATER_DEEP_DARKENING = 0.4;
-
-// The deep-water dispersion ω = √(g·k), rounded to the clock's step and never
-// below one step, so no wave stands still.
-float voe_water_frequency(float k)
-{
-	float steps = round(sqrt(VOE_WATER_GRAVITY * k) / VOE_WATER_CLOCK_STEP);
-
-	return max(steps, 1.0) * VOE_WATER_CLOCK_STEP;
-}
-
-// The surface height's slope (dh/dx, dh/dy) at `metres` on the plane at
-// `seconds`: the four sines' derivatives, summed.
-float2 voe_water_slope(float2 metres, float4 waves)
-{
-	float2 slope = float2(0.0, 0.0);
-
-	for (int i = 0; i < 4; i++) {
-		float k = 2.0 * VOE_PI / max(waves.y * VOE_WATER_SCALES[i], VOE_LEAST);
-		float amplitude = waves.x * VOE_WATER_SCALES[i];
-		float phase = k * dot(VOE_WATER_DIRECTIONS[i], metres) -
-			      voe_water_frequency(k) * waves.z;
-
-		slope += amplitude * k * cos(phase) * VOE_WATER_DIRECTIONS[i];
-	}
-	return slope;
-}
-
-// The plane's metres: model x and y times the world matrix's first two columns'
-// lengths, so the waves keep their size however the quad is scaled.
-float2 voe_water_metres(voe_render_object object, float2 plane)
-{
-	float3 across = mul(object.world, float4(1.0, 0.0, 0.0, 0.0)).xyz;
-	float3 along = mul(object.world, float4(0.0, 1.0, 0.0, 0.0)).xyz;
-
-	return plane * float2(length(across), length(along));
-}
-
-// The plane's own normal, out of the normal matrix rather than the vertex.
-float3 voe_water_plane_normal(voe_render_object object)
-{
-	return normalize(mul(object.normal, float4(0.0, 0.0, 1.0, 0.0)).xyz);
-}
-
-// The plane's normal bent by the slope along its two world tangents.
-float3 voe_water_normal(voe_render_object object, float2 slope)
-{
-	float3 up = voe_water_plane_normal(object);
-	float3 across = normalize(mul(object.world, float4(1.0, 0.0, 0.0, 0.0)).xyz);
-	float3 along = normalize(mul(object.world, float4(0.0, 1.0, 0.0, 0.0)).xyz);
-
-	return normalize(up - slope.x * across - slope.y * along);
-}
-
-// How far in front of the eye, along the view axis, a stored depth is: the
-// projection's z and w rows solved for the eye's z on that axis, which holds
-// for a perspective projection and an orthographic one alike.
-float voe_water_view_distance(float depth)
-{
-	float4x4 p = voe_render_frame.camera.projection;
-	float z = (p[2][3] - depth * p[3][3]) /
-		  (depth * p[3][2] - p[2][2]);
-
-	return -z;
-}
-
-// How much of `deep` the water is thick at this pixel, nought to one: from its
-// own depth to the ground's in the pass's copy. No copy reads as deep.
-float voe_water_depth_share(float4 position, float deep)
-{
-	uint slot = voe_render_frame.depth_copy;
-
-	if (slot == ~0u)
-		return 1.0;
-	float ground = voe_render_textures[slot].Load(int3(int2(position.xy), 0)).r;
-	float thickness = voe_water_view_distance(ground) -
-			  voe_water_view_distance(position.z);
-
-	return saturate(thickness / max(deep, VOE_LEAST));
-}
-
-// The water's colour: the body darkened with depth and lit by the sun, its
-// shadow and the fill, the sun's glint at roughness 0.05, and the sky taking
-// the share Schlick's fresnel from 0.02 gives it; coverage rises with depth.
-float4 voe_render_water(voe_render_object object, voe_render_draw_vertex_out vertex,
-			float3 colour)
-{
-	voe_render_light sun = voe_render_frame.light;
-	float share = voe_water_depth_share(vertex.position, object.waves.w);
-	float3 body = colour * lerp(1.0, VOE_WATER_DEEP_DARKENING, share);
-	float3 n = voe_water_normal(object,
-		voe_water_slope(voe_water_metres(object, vertex.plane), object.waves));
-	float3 v = normalize(voe_render_frame.camera.eye - vertex.world);
-	float3 l = -sun.direction;
-	float3 h = normalize(l + v);
-	float n_dot_l = saturate(dot(n, l));
-	float n_dot_v = saturate(dot(n, v));
-	float alpha = VOE_WATER_ROUGHNESS * VOE_WATER_ROUGHNESS;
-	float3 glint = voe_render_fresnel(float3(VOE_WATER_REFLECTANCE),
-					  saturate(dot(v, h))) *
-		       voe_render_distribution(saturate(dot(n, h)), alpha) *
-		       voe_render_visibility(n_dot_l, n_dot_v, alpha);
-	float sky_share = voe_render_fresnel(float3(VOE_WATER_REFLECTANCE), n_dot_v).x;
-	float reach = n_dot_l * voe_render_sunlight(vertex.world,
-						    voe_water_plane_normal(object));
-	float3 radiance = sun.colour * sun.intensity * reach;
-	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
-	float3 lit = (1.0 - sky_share) * (body * radiance / VOE_PI +
-					  fill_weight * sun.fill * body) +
-		     sky_share * object.sky.rgb + glint * radiance;
-
-	return voe_render_premultiplied(lit, VOE_WATER_DEEP_COVERAGE * share);
-}
+#include "water.slangh"
 
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
@@ -853,12 +453,44 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
 
 	float reach = n_dot_l * voe_render_sunlight(vertex.world, surface);
-	float3 radiance = sun.colour * sun.intensity * reach;
-	// The fill, only where the sun does not reach: see the header.
-	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
-	// Emission last, unshadowed and unoccluded (ADR-0278).
+	float3 radiance = voe_render_sun_radiance(reach);
+	// The bounce with the fill as its floor, and emission last, unshadowed
+	// and unoccluded (ADR-0278).
 	float3 lit = (diffuse + specular) * radiance * occlusion +
-		     fill_weight * sun.fill * base.rgb + shading.emissive * glow;
+		     voe_render_indirect(reach, vertex.world, n, base.rgb) +
+		     shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);
+}
+
+// The bounce map's two targets (ADR-0308 point 1), in the pipeline's order.
+struct voe_render_bounce_out {
+	float4 flux : SV_Target0;
+	float4 normal : SV_Target1;
+};
+
+// THE BOUNCE PASS'S FRAGMENT: what light leaves this caster towards the sun's
+// view, before any N·L — the reflector's own facing is the gather's to weigh.
+// Flux is the sun's colour times its intensity times the base colour (factor,
+// sheet and object colour), alpha one; normal is the world normal in xyz, nought
+// for a normal of nothing. The pass's `light` is the sun the caller handed in.
+[shader("fragment")]
+voe_render_bounce_out voe_render_draw_bounce(voe_render_draw_vertex_out vertex)
+{
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_shading shading = voe_render_shadings[object.shading];
+	float4 factor = shading.base_colour * object.colour;
+	float2 base_uv = vertex.uv * shading.base_colour_uv_rect.zw +
+			 shading.base_colour_uv_rect.xy;
+	float4 sheet =
+		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
+	voe_render_light sun = voe_render_frame.light;
+	float3 n = dot(vertex.normal, vertex.normal) < VOE_LEAST ?
+			   float3(0.0, 0.0, 0.0) :
+			   normalize(vertex.normal);
+	voe_render_bounce_out result;
+
+	result.flux = float4(sun.colour * sun.intensity * (factor * sheet).rgb, 1.0);
+	result.normal = float4(n, 1.0);
+	return result;
 }

@@ -283,7 +283,14 @@ typedef struct {
 	// (0277 point 3): with NULL no model draws and the model table is not
 	// read. _frame leaves it NULL; the caller sets it.
 	const voe_3d_models *models;
+	// The target this frame draws to, whose bounce grid the shadows call
+	// updates (0308 point 7). Zero, VOE_RENDER_TARGET_WINDOW, is the
+	// window, so a caller that sets nothing is unchanged; _frame sets that.
+	voe_render_target target;
 } voe_3d_frame;
+
+// Metres about a moved caster whose bounce probes go stale (0308 point 7).
+#define VOE_3D_BOUNCE_REACH 6.0f
 
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
@@ -367,6 +374,14 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // material the part's. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
 // passes and 4 × the drawn objects more per view: every caster is drawn once
 // into each cascade.
+//
+// AND ONE BOUNCE PASS AFTER THE CASCADES (0308), only when it drew cascades: it
+// fits the bounce grid, draws the casters once more into the bounce map and
+// updates `frame->target`'s grid. So a caller's `passes` needs 1 + cascades + 1
+// and its `objects` one more draw per caster; false as before when any call
+// fails. Stale spheres are marked where a caster moved this step (lag 1 against
+// lag 0), so a world without a previous table marks none and the grid catches
+// up by its cycle.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);

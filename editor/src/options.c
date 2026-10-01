@@ -43,7 +43,7 @@ static const char *number(const char *text, int *out)
 static bool usage(void)
 {
 	fprintf(stderr,
-		"usage: voe_editor [<folder>] [--capture <path> [--size <W>x<H>]]\n");
+		"usage: voe_editor [<folder>] [--capture <path> [--size <W>x<H>] [--frames <n>] [--capture-view <path>]]\n");
 	return false;
 }
 
@@ -52,13 +52,16 @@ bool voe_editor_options_read(voe_platform_arguments arguments,
 {
 	const char *const *values = arguments.values;
 	int count = arguments.count;
-	bool sized = false;
+	// Whether an argument that means nothing without --capture was given.
+	bool capture_only = false;
 
 	VOE_BASE_ASSERT(values != NULL, "reading no argument list");
 	VOE_BASE_ASSERT(out != NULL, "reading the command line into nothing");
 
 	out->folder = NULL;
 	out->capture = NULL;
+	out->frames = 2;
+	out->capture_view = NULL;
 
 	// `values[a + 1]` is parsed in full before `a` moves, which the old code
 	// did not need to do inside its `&&` chain.
@@ -77,8 +80,19 @@ bool voe_editor_options_read(voe_platform_arguments arguments,
 				return usage();
 			out->wide = w;
 			out->high = h;
-			sized = true;
+			capture_only = true;
 			a++;
+		} else if (strcmp(values[a], "--frames") == 0 && a + 1 < count) {
+			const char *rest = number(values[a + 1], &out->frames);
+
+			if (rest == NULL || *rest != '\0' || out->frames < 2)
+				return usage();
+			capture_only = true;
+			a++;
+		} else if (strcmp(values[a], "--capture-view") == 0 &&
+			   a + 1 < count) {
+			out->capture_view = values[++a];
+			capture_only = true;
 		} else if (values[a][0] != '-' && out->folder == NULL) {
 			out->folder = values[a];
 		} else {
@@ -87,8 +101,9 @@ bool voe_editor_options_read(voe_platform_arguments arguments,
 	}
 	// A size with nothing to size: the window's is the window system's
 	// answer and not this program's to name (app.h), so the only picture
-	// --size could mean is one nobody asked for.
-	if (sized && out->capture == NULL)
+	// --size could mean is one nobody asked for. A frame count or a view
+	// picture with no capture is the same nothing.
+	if (capture_only && out->capture == NULL)
 		return usage();
 
 	return true;

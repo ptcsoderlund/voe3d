@@ -5,7 +5,9 @@
 // prefab's part) and the scene camera's
 // and the sun's markers, and
 // the pass ended; and the preview's shadow passes and pass, drawn with the
-// world's camera while the selected entity has one.
+// world's camera while the selected entity has one. Each shadow call is handed
+// its own target, the view's or the preview's, so its bounce updates that
+// target's probe grid and no view reads a grid another view scrolled (0308).
 #include "view_passes.h"
 
 #include <base/assert.h>
@@ -70,6 +72,7 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 		return true;
 	frame.light = light;
 	frame.models = models;
+	frame.target = views->preview_target;
 	if (!voe_3d_draw_system_shadows(world, gpu, &frame))
 		return false;
 
@@ -132,7 +135,8 @@ bool voe_editor_view_passes_draw(
 		frame = (voe_3d_frame){ .view = camera.view,
 					.light = camera.light,
 					.eye = view->eye,
-					.models = models };
+					.models = models,
+					.target = view->target };
 		if (!voe_3d_draw_system_shadows(world, gpu, &frame))
 			return false;
 		camera.shadow = frame.shadow;

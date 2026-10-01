@@ -103,9 +103,16 @@ static bool create_device(voe_render_device *device)
 	// The second half of the same question, and it is a different feature
 	// from the one below rather than a stronger spelling of it. See the
 	// paragraph under it.
+	//
+	// The bounce grids at binding 6 are an unsized array whose entries for
+	// targets not yet made are never written (ADR-0308): reading it needs
+	// runtimeDescriptorArray and descriptorBindingPartiallyBound, both among
+	// the descriptor-indexing features Vulkan 1.3 requires, so not queried.
 	VkPhysicalDeviceVulkan12Features features12 = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &features13,
+		.runtimeDescriptorArray = VK_TRUE,
+		.descriptorBindingPartiallyBound = VK_TRUE,
 	};
 	// What the same query has to be handed in order to answer about a 1.2
 	// feature: get_physical_device_features2 fills only what is chained onto
@@ -486,6 +493,10 @@ static void close_down(voe_render_device *device)
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_bounce != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_bounce,
+						       NULL);
 		if (device->pipeline_shadow != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_shadow,
@@ -509,6 +520,8 @@ static void close_down(voe_render_device *device)
 		voe_render_shading_shutdown(device);
 		voe_render_descriptors_teardown(device);
 		voe_render_shadow_shutdown(device);
+		voe_render_bounce_grid_shutdown(device);
+		voe_render_bounce_shutdown(device);
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
@@ -627,6 +640,10 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// The shadow maps are settled through the command pool and named by the
 	// descriptors, so they sit between the two.
 	if (!voe_render_shadow_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_bounce_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_bounce_grid_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
 	if (!voe_render_descriptors_build(device))

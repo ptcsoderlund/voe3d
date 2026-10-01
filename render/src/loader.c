@@ -225,6 +225,7 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	// Core 1.0, and the overlay layer's whole cost on this side: one command
 	// that clears depth in the middle of the block the two above open.
 	DEVICE_FUNCTION(cmd_clear_attachments, vkCmdClearAttachments);
+	DEVICE_FUNCTION(cmd_clear_color_image, vkCmdClearColorImage);
 	DEVICE_FUNCTION(queue_submit2, vkQueueSubmit2);
 
 	// The timestamps. Core, so they resolve on a headless device too, and
@@ -243,6 +244,8 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(create_pipeline_layout, vkCreatePipelineLayout);
 	DEVICE_FUNCTION(destroy_pipeline_layout, vkDestroyPipelineLayout);
 	DEVICE_FUNCTION(create_graphics_pipelines, vkCreateGraphicsPipelines);
+	DEVICE_FUNCTION(create_compute_pipelines, vkCreateComputePipelines);
+	DEVICE_FUNCTION(cmd_dispatch, vkCmdDispatch);
 	DEVICE_FUNCTION(destroy_pipeline, vkDestroyPipeline);
 	DEVICE_FUNCTION(cmd_bind_pipeline, vkCmdBindPipeline);
 	DEVICE_FUNCTION(cmd_set_viewport, vkCmdSetViewport);

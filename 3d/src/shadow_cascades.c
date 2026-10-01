@@ -15,19 +15,17 @@
 // THE LIGHT VIEW'S TRANSLATION IS TAKEN FROM THE CENTRE, NOT FROM THE PULLED
 // BACK EYE. Across and up, the pull along forward is nothing, so the centre's
 // few metres give those rows their precision rather than the eye's two hundred.
-#include <3d/projection.h>
+//
+// The basis, the snap and the look are light_box.h's, shared with the bounce
+// grid's light view.
+#include "light_box.h"
+
 #include <3d/shadow_cascades.h>
 #include <base/assert.h>
 #include <math/float4.h>
 #include <math/float4x4.h>
 
 #include <math.h>
-
-typedef struct {
-	voe_math_float3 right;
-	voe_math_float3 up;
-	voe_math_float3 forward;
-} light_basis;
 
 typedef struct {
 	voe_math_float3 centre;
@@ -90,67 +88,6 @@ static slice_sphere bound_slice(voe_render_view view, voe_math_float4x4 unprojec
 	};
 }
 
-static light_basis basis_of(voe_math_float3 direction)
-{
-	voe_math_float3 world_up = { 0.0f, 1.0f, 0.0f };
-	light_basis basis = { .forward = direction };
-
-	if (fabsf(direction.y) > 0.99f)
-		world_up = (voe_math_float3){ 0.0f, 0.0f, 1.0f };
-	basis.right = voe_math_float3_normalize(
-		voe_math_float3_cross(direction, world_up));
-	basis.up = voe_math_float3_cross(basis.right, direction);
-	VOE_BASE_ASSERT(isfinite(basis.right.x) && isfinite(basis.up.y),
-			"a light basis that is not one");
-	return basis;
-}
-
-// The centre moved to the nearest whole texel of the light's two axes, the
-// axes taken through the world origin in double; returned eye-relative.
-static voe_math_float3 snap(voe_math_float3 centre, voe_math_double3 eye,
-			    light_basis basis, double texel)
-{
-	voe_math_double3 world = voe_math_double3_add(
-		eye, voe_math_double3_from_float3(centre));
-	voe_math_double3 right = voe_math_double3_from_float3(basis.right);
-	voe_math_double3 up = voe_math_double3_from_float3(basis.up);
-	double across = world.x * right.x + world.y * right.y + world.z * right.z;
-	double upward = world.x * up.x + world.y * up.y + world.z * up.z;
-	float shift_across = (float)(round(across / texel) * texel - across);
-	float shift_up = (float)(round(upward / texel) * texel - upward);
-
-	VOE_BASE_ASSERT(texel > 0.0, "a snap to texels of no size");
-	return voe_math_float3_add(
-		centre, voe_math_float3_add(
-				voe_math_float3_scale(basis.right, shift_across),
-				voe_math_float3_scale(basis.up, shift_up)));
-}
-
-// Looking along forward from `pull` metres short of the centre: rows right, up
-// and -forward, so forward is -Z as every camera's is.
-static voe_render_view look_from_the_sun(voe_math_float3 centre, float half,
-					 float radius, light_basis basis)
-{
-	float pull = radius + VOE_3D_SHADOW_CASTER_REACH;
-	voe_render_view light = { .eye = voe_math_float3_sub(
-		centre, voe_math_float3_scale(basis.forward, pull)) };
-	voe_math_float3 rows[3] = { basis.right, basis.up,
-				    voe_math_float3_neg(basis.forward) };
-
-	for (int row = 0; row < 3; row++) {
-		light.view.m[row][0] = rows[row].x;
-		light.view.m[row][1] = rows[row].y;
-		light.view.m[row][2] = rows[row].z;
-		light.view.m[row][3] = -voe_math_float3_dot(rows[row], centre);
-	}
-	light.view.m[2][3] -= pull;
-	light.view.m[3][3] = 1.0f;
-	light.projection = voe_3d_projection_orthographic(half, half, 0.0f,
-							  pull + radius);
-	VOE_BASE_ASSERT(light.reserved == 0.0f, "a light view with padding written");
-	return light;
-}
-
 voe_3d_shadow_cascades voe_3d_shadow_cascades_fit(voe_render_view view,
 						  voe_math_double3 eye,
 						  voe_math_float3 direction,
@@ -162,7 +99,7 @@ voe_3d_shadow_cascades voe_3d_shadow_cascades_fit(voe_render_view view,
 	float near_plane = depth_offset / (1.0f + depth_scale);
 	float far_plane = depth_offset / depth_scale;
 	voe_math_float4x4 unproject = voe_math_float4x4_inverse(view.projection);
-	light_basis basis;
+	struct voe_3d_light_basis basis;
 	float from = near_plane;
 
 	VOE_BASE_ASSERT(texels > 1u, "cascades of fewer than two texels");
@@ -171,7 +108,7 @@ voe_3d_shadow_cascades voe_3d_shadow_cascades_fit(voe_render_view view,
 	VOE_BASE_ASSERT(fabsf(voe_math_float3_length(direction) - 1.0f) < 1e-3f,
 			"a sun whose direction is not unit length");
 
-	basis = basis_of(direction);
+	basis = voe_3d_light_box_basis(direction);
 	split_distances(near_plane, fminf(far_plane, VOE_3D_SHADOW_REACH),
 			fit.shadow.splits);
 	for (int i = 0; i < VOE_RENDER_SHADOW_CASCADES; i++) {
@@ -179,9 +116,10 @@ voe_3d_shadow_cascades voe_3d_shadow_cascades_fit(voe_render_view view,
 						  fit.shadow.splits[i]);
 		float half = sphere.radius * (float)texels / (float)(texels - 1u);
 		float texel = 2.0f * half / (float)texels;
-		voe_math_float3 centre = snap(sphere.centre, eye, basis, texel);
+		voe_math_float3 centre =
+			voe_3d_light_box_snap(sphere.centre, eye, basis, texel);
 
-		fit.light[i] = look_from_the_sun(centre, half, sphere.radius, basis);
+		fit.light[i] = voe_3d_light_box_look(centre, half, sphere.radius, basis);
 		fit.shadow.cascades[i] = voe_math_float4x4_mul(fit.light[i].projection,
 							       fit.light[i].view);
 		fit.shadow.texels[i] = texel;

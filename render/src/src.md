@@ -27,11 +27,11 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the three mesh pipelines, solid, blended and shadow, with their embedded shader, depth and blend state, and the
+- `pipeline.c` — the four mesh pipelines, solid, blended, shadow and bounce, with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: six bindings,
+- `descriptors.c` — everything the shader reads and the one layout that describes it: seven bindings,
   one set, one camera buffer holding a block per pass, one object buffer, one element buffer and the
-  shadow maps per frame slot.
+  shadow maps per frame slot, and every bounce grid with its trilinear repeat sampler.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -44,13 +44,23 @@ which file to open — what each one owns, and where the seams between them run.
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, and the image build, settle and teardown every target shares.
+  depth with its sampled copy, the image build, settle and teardown every target shares, and the
+  bounce grids, built cleared.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
+  GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps its bounce grid through a resize.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
   views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
+- `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
+  images, 512 square, the bounce pass's rendering, and its barriers to compute read.
+- `bounce_grid.c` — the bounce update: its two compute pipelines, set layout, pool, VPL and probe
+  list buffers, and the call that runs a grid's schedule, reduces the map once a frame, gathers
+  and marks the grid updated in the frame slot.
+- `bounce_schedule.h` — which bounce probes an update refreshes and how much: entered cells, then
+  stale spheres, then a strided cycle, in toroidal indices, and the one wrap of a world cell into
+  0..31 that pass.c and bounce_grid.c send shaders. Pure CPU.
+- `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built

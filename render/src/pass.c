@@ -15,6 +15,11 @@
 // cascade of the slot's shadow map instead: depth only, always cleared, drawn
 // through the shadow pipeline, and closed by the same _pass_end.
 //
+// A BOUNCE PASS (voe_render_bounce_pass_begin, ADR-0308) is one more pass of
+// the sun onto the slot's bounce map, through the bounce pipeline; the next
+// pass, a _pass_end or the frame's end closes it. A camera pass names its
+// target's bounce grid in its block only when this frame slot updated it.
+//
 // voe_render_frame_copy_depth (ADR-0305) splits a camera pass's block in two
 // round a copy of its depth into the sampled copy beside it, and names the copy's
 // texture slot in the pass's camera block.
@@ -254,6 +259,29 @@ static void start_pass(voe_render_device *device,
 	device->pass_count++;
 }
 
+// The bounce record of a camera pass onto the target owning `grid`: the grid,
+// its corner and its cell mod VOE_RENDER_BOUNCE_PROBES when frame slot `slot`
+// updated it this frame, left at VOE_RENDER_NO_BOUNCE otherwise (ADR-0308
+// point 6: a grid is read only in a frame that updated it).
+static void name_grid(struct voe_render_frame_bounce *bounce,
+		      const struct voe_render_bounce_grid *grid, uint32_t slot)
+{
+	const struct voe_render_bounce_mark *mark;
+
+	VOE_BASE_DEBUG_ASSERT(bounce != NULL && grid != NULL,
+			      "naming no bounce grid");
+	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT,
+			      "naming a bounce grid for no frame slot");
+	mark = &grid->updates[slot];
+	if (!mark->updated)
+		return;
+	bounce->grid = grid->descriptor;
+	for (uint32_t a = 0; a < 3; a++) {
+		bounce->corner[a] = mark->corner[a];
+		bounce->cell[a] = voe_render_bounce_wrap(mark->cell[a]);
+	}
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -289,6 +317,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	VOE_BASE_ASSERT(device != NULL, "opening a pass on no device");
 	VOE_BASE_ASSERT(device->recording,
 			"opening a pass with no frame open — voe_render_frame_begin said there was nothing to draw into, or _end has already run");
+	if (device->pass_open && device->pass_bounce)
+		voe_render_pass_end(device);
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a pass while one is already open — passes do not nest, and every _pass_begin needs its _pass_end");
 	if (target.index != VOE_RENDER_TARGET_WINDOW.index ||
@@ -317,6 +347,12 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		block.shadow = camera->shadow;
 	}
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+	if (camera != NULL)
+		name_grid(&block.bounce, own != NULL ? &own->grid :
+						       &device->window_grid,
+			  device->slot);
 
 	// The window's pair or this frame slot's pair of the target, each with
 	// its own clear rule and its own size. A frame in slot n draws into slot
@@ -342,6 +378,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	start_pass(device, frame, &block, device->pipeline);
 	device->pass_camera = camera != NULL;
 	device->pass_shadow = false;
+	device->pass_bounce = false;
 	return true;
 }
 
@@ -381,6 +418,8 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 	VOE_BASE_ASSERT(light != NULL, "opening a shadow pass with no light view");
 	VOE_BASE_ASSERT(device->recording,
 			"opening a shadow pass with no frame open");
+	if (device->pass_open && device->pass_bounce)
+		voe_render_pass_end(device);
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a shadow pass while a pass is already open — passes do not nest");
 	VOE_BASE_ASSERT(cascade < VOE_RENDER_SHADOW_CASCADES,
@@ -400,6 +439,8 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 			       device->capacities.shadow_size };
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
 	depth.imageView = frame->shadow.layers[cascade];
 	rendering.renderArea.extent = extent;
 	scissor.extent = extent;
@@ -415,12 +456,67 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 	start_pass(device, frame, &block, device->pipeline_shadow);
 	device->pass_camera = true;
 	device->pass_shadow = true;
+	device->pass_bounce = false;
 	device->pass_cascade = cascade;
 	return true;
 }
 
-// Either kind of pass: the rendering block ended, and a shadow pass's layer handed
-// back to where the shader reads it.
+// A BOUNCE PASS IS ONE MORE PASS OF THE SUN, ONTO THIS SLOT'S BOUNCE MAP
+// (ADR-0308). It counts against `passes`, its block is the light's view and the
+// sun, and its draws, the cascades' casters, go through the bounce pipeline and
+// count against `objects`. The view and the sun are kept on the slot, last one
+// wins, for the update that reads the map. False, not an assert, with no frame
+// open: the caller asks for one whether or not a frame is.
+bool voe_render_bounce_pass_begin(voe_render_device *device,
+				  const voe_render_view *light,
+				  const voe_render_light *sun)
+{
+	struct voe_render_frame *frame;
+	struct voe_render_frame_block block = { 0 };
+
+	VOE_BASE_ASSERT(device != NULL, "opening a bounce pass on no device");
+	VOE_BASE_ASSERT(light != NULL, "opening a bounce pass with no light view");
+	VOE_BASE_ASSERT(sun != NULL, "opening a bounce pass with no sun");
+	if (!device->recording) {
+		VOE_BASE_ERROR("render", "opening a bounce pass with no frame open");
+		return false;
+	}
+	if (device->pass_open && device->pass_bounce)
+		voe_render_pass_end(device);
+	VOE_BASE_ASSERT(!device->pass_open,
+			"opening a bounce pass while a pass is already open — passes do not nest");
+
+	if (device->pass_count >= device->capacities.passes) {
+		VOE_BASE_ERROR("render",
+			       "this frame has already opened %u of %u passes, so a bounce pass does not fit; `passes` is too small for what this frame draws",
+			       device->pass_count, device->capacities.passes);
+		return false;
+	}
+
+	frame = voe_render_frame_at(device, device->slot);
+	block.camera = *light;
+	block.light = *sun;
+	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+
+	voe_render_bounce_open(frame);
+	device->pass_target = NULL;
+	device->pass_extent = (VkExtent2D){ VOE_RENDER_BOUNCE_TEXELS,
+					    VOE_RENDER_BOUNCE_TEXELS };
+	start_pass(device, frame, &block, device->pipeline_bounce);
+	device->pass_camera = true;
+	device->pass_shadow = false;
+	device->pass_bounce = true;
+	frame->bounce_view = *light;
+	frame->bounce_sun = *sun;
+	frame->bounced = true;
+	frame->reduced = false;
+	return true;
+}
+
+// Any kind of pass: the rendering block ended, and a shadow pass's layer or a
+// bounce pass's map handed back to where a shader reads it.
 void voe_render_pass_end(voe_render_device *device)
 {
 	struct voe_render_frame *frame;
@@ -433,9 +529,12 @@ void voe_render_pass_end(voe_render_device *device)
 	voe_render_vk.cmd_end_rendering(frame->commands);
 	if (device->pass_shadow)
 		voe_render_shadow_to_read(frame, device->pass_cascade);
+	if (device->pass_bounce)
+		voe_render_bounce_to_read(frame);
 	device->pass_open = false;
 	device->pass_camera = false;
 	device->pass_shadow = false;
+	device->pass_bounce = false;
 	device->pass_target = NULL;
 }
 
@@ -563,9 +662,10 @@ bool voe_render_frame_copy_depth(voe_render_device *device)
 	};
 
 	VOE_BASE_ASSERT(device != NULL, "copying depth on no device");
-	if (!device->pass_open || !device->pass_camera || device->pass_shadow) {
+	if (!device->pass_open || !device->pass_camera || device->pass_shadow ||
+	    device->pass_bounce) {
 		VOE_BASE_ERROR("render",
-			       "copying depth outside an open camera pass — a shadow pass's depth is the map itself");
+			       "copying depth outside an open camera pass — a shadow or bounce pass's depth is the map itself");
 		return false;
 	}
 

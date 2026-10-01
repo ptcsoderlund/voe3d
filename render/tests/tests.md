@@ -53,3 +53,18 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
+- `bounce_map.c` — the sun's bounce pass: false outside a frame, four cascades, a bounce pass and a
+  window pass in one frame with one more pass refused, and a red cube still red in the camera pass
+  after it. Headless.
+- `bounce_grid.c` — every target's probe grid built, kept and freed, and the update's refusals.
+  Headless.
+- `bounce.c` — lit surfaces reading the bounce: a red wall reddening the ground near it and not far
+  off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
+  wall's shadow. Headless.
+- `bounce_scene.c` — the bounce as the editor runs it, off the origin about the eye, holding
+  through scrolling and with two views in one frame, and the ground on the wall's shadow side
+  within 4/255 of unlit by it. Headless.
+- `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
+  negative cell too, a cycle
+  of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
+  a changed light restarting it, and a small room truncating.

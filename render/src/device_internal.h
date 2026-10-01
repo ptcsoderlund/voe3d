@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -167,6 +167,16 @@ struct voe_render_device {
 	// The shadow pass's: the solid one's vertex stage and nothing after it
 	// but a biased depth write. pipeline.c builds it with the other two.
 	VkPipeline pipeline_shadow;
+	// The bounce pass's: the solid one's vertex stage, a fragment writing
+	// flux and normal into two RGBA16F attachments, culling as shadow's.
+	VkPipeline pipeline_bounce;
+	// The bounce grid update's, bounce_grid.c's: its own set layout, layout
+	// and pool, and the two compute pipelines, reduce and gather.
+	VkDescriptorSetLayout bounce_set_layout;
+	VkPipelineLayout bounce_layout;
+	VkDescriptorPool bounce_pool;
+	VkPipeline bounce_reduce;
+	VkPipeline bounce_gather;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -190,6 +200,10 @@ struct voe_render_device {
 	// The comparison sampler every slot's shadow maps are read through at
 	// binding 5. shadow.c makes and destroys it.
 	VkSampler shadow_sampler;
+	// The trilinear, repeating sampler the bounce grids are read through at
+	// binding 6, repeat because a grid is addressed toroidally (ADR-0308).
+	// descriptors.c makes and destroys it.
+	VkSampler bounce_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -260,6 +274,10 @@ struct voe_render_device {
 	// false.
 	bool pass_shadow;
 	uint32_t pass_cascade;
+	// Whether the open pass is a bounce pass: the draws read it to pick the
+	// bounce pipeline, _pass_end to hand the map to compute, and the next
+	// pass or the frame's end to close it.
+	bool pass_bounce;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -269,6 +287,10 @@ struct voe_render_device {
 	// The texture slot that shows the window's depth copy, each frame slot
 	// its own; claimed by the first voe_render_target_build, never freed.
 	uint32_t window_depth_texture;
+	// The window's bounce grid, grid index 0: built by the first
+	// voe_render_target_build, kept through every resize, freed by
+	// voe_render_targets_shutdown.
+	struct voe_render_bounce_grid window_grid;
 
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
@@ -430,6 +452,16 @@ voe_render_target_depth_copy_build(voe_render_device *device,
 [[nodiscard]] uint32_t
 voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
 
+// target.c, for target_own.c too. One bounce grid, grid index `index` (the
+// window 0, target n n): its three images built, cleared to nought in GENERAL
+// and named at binding 6. Idles. False with a message, nothing left behind.
+// _teardown is safe on a zeroed grid and leaves it zeroed; it does not wait.
+[[nodiscard]] bool voe_render_bounce_grid_build(voe_render_device *device,
+						struct voe_render_bounce_grid *grid,
+						uint32_t index);
+void voe_render_bounce_grid_teardown(voe_render_device *device,
+				     struct voe_render_bounce_grid *grid);
+
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds
 // given back at shutdown. _startup allocates no image; _shutdown is safe on a
@@ -452,6 +484,22 @@ void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
 				     uint32_t cascade);
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 			       uint32_t cascade);
+
+// bounce_map.c. Every frame slot's bounce map, made and settled where compute
+// reads it; startup's, after the frame objects. False with a message; _shutdown
+// is safe on a device that never got that far. _open records the barriers into
+// the attachments and begins the cleared rendering with viewport and scissor;
+// _to_read the barriers back after the rendering ends.
+[[nodiscard]] bool voe_render_bounce_startup(voe_render_device *device);
+void voe_render_bounce_shutdown(voe_render_device *device);
+void voe_render_bounce_open(const struct voe_render_frame *frame);
+void voe_render_bounce_to_read(const struct voe_render_frame *frame);
+
+// bounce_grid.c. The update's pipelines, set layout, pool, sets and every
+// slot's VPL and probe list buffers; startup's, after the frame objects. False
+// with a message; _shutdown is safe on a device that never got that far.
+[[nodiscard]] bool voe_render_bounce_grid_startup(voe_render_device *device);
+void voe_render_bounce_grid_shutdown(voe_render_device *device);
 
 // target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.
@@ -554,6 +602,13 @@ void voe_render_buffer_teardown(voe_render_device *device,
 // down whatever was built before a failure.
 [[nodiscard]] bool voe_render_descriptors_build(voe_render_device *device);
 void voe_render_descriptors_teardown(voe_render_device *device);
+
+// descriptors.c. Names `grid`'s three images, through the bounce sampler, at
+// binding 6's entries 3 × index to 3 × index + 2 of every slot's set. No frame
+// may be reading the sets: a grid is built outside one, and its build idles.
+void voe_render_descriptors_write_grid(voe_render_device *device,
+				       const struct voe_render_bounce_grid *grid,
+				       uint32_t index);
 
 // descriptors.c. Points a slot's set at the shared shading buffer. Called once
 // per slot at startup, after the buffer exists; a record written later needs no

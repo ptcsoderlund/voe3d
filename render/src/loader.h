@@ -139,11 +139,16 @@ typedef struct {
 	// It is here rather than beside the draws because what it clears is an
 	// attachment of that block and it is meaningless outside one.
 	PFN_vkCmdClearAttachments cmd_clear_attachments;
+	// The bounce grids' clear to nought, once, as each grid is built.
+	PFN_vkCmdClearColorImage cmd_clear_color_image;
 	PFN_vkCreateShaderModule create_shader_module;
 	PFN_vkDestroyShaderModule destroy_shader_module;
 	PFN_vkCreatePipelineLayout create_pipeline_layout;
 	PFN_vkDestroyPipelineLayout destroy_pipeline_layout;
 	PFN_vkCreateGraphicsPipelines create_graphics_pipelines;
+	// The bounce grid's two compute pipelines and their dispatches.
+	PFN_vkCreateComputePipelines create_compute_pipelines;
+	PFN_vkCmdDispatch cmd_dispatch;
 	PFN_vkDestroyPipeline destroy_pipeline;
 	PFN_vkCmdBindPipeline cmd_bind_pipeline;
 	PFN_vkCmdSetViewport cmd_set_viewport;
