@@ -17,11 +17,11 @@ workflow replaced specs.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera; sound component.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows.
+- **render** — the GPU layer and the only folder naming Vulkan: card, resources, passes, shadows, depth copies.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, models, shapes, particles, picking, outlines, gizmos, shadows.
+- **3d** — scene to draws: meshes, models, shapes, particles, water, picking, outlines, gizmos, shadows.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game in the window it is handed: world types, 1/60 s steps, code, sound.
@@ -57,4 +57,4 @@ workflow replaced specs.
 - 0244, 0246–0248, 0263 — Root `examples/`, structure-checked, UTF-8; `engine_assets/` the human's.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
-- 0298, 0299, 0301, 0304 — Particles in `3d`; the tank's effects; shadows by choice; placed sounds.
+- 0298, 0299, 0301, 0304, 0305 — Particles in `3d`; the tank's effects; shadows; sounds; water.
