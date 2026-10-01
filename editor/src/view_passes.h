@@ -35,10 +35,13 @@
 // cascade, VOE_GAME_WORLD_MAX_DRAWN × VOE_RENDER_SHADOW_CASCADES, per view and
 // for the preview; and every emitter's particles, VOE_GAME_WORLD_EMITTERS ×
 // VOE_3D_EMITTER_PARTICLES, an object each in every view's pass and the
-// preview's (0298 point 8). `passes` is a pass per view, the preview's and the
+// preview's (0298 point 8); and every water, VOE_GAME_WORLD_WATERS, an object
+// each in every view's pass and the preview's — water casts no shadow, so it
+// adds nothing per cascade (0305). `passes` is a pass per view, the preview's and the
 // interface's, and a shadow pass per cascade for each view and the preview
 // (`shadow_size` is VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h), and
-// `targets` a target per view and the preview's — both from the room for views, not the two in use, so a
+// `targets` a target per view and the preview's, each costing two texture
+// slots now, its colour and its depth copy (0305 point 1) — both from the room for views, not the two in use, so a
 // third view is a leaf and not a capacity. The three transient numbers are
 // what the selection outline's quads are copied into: one outline per view's
 // pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
@@ -114,7 +117,8 @@
 				   VOE_RENDER_SHADOW_CASCADES *                \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
-				   (VOE_EDITOR_VIEWS + 1),                     \
+				   (VOE_EDITOR_VIEWS + 1) +                    \
+			   VOE_GAME_WORLD_WATERS * (VOE_EDITOR_VIEWS + 1),     \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2 +                               \

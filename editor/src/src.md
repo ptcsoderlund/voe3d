@@ -17,7 +17,7 @@ carries it out.
 - `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, why
   the editor runs no move but runs emitters by the frame's seconds, and why placed copies are
   expanded after it.
-- `world_step.c` — the one call to `voe_game_world_step`, the emitters' run, then the expansion.
+- `world_step.c` — the one call to `voe_game_world_step`, the emitters' and the water's runs, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
   ascending id, a load, with deterministic ids and a file that will not read said in the notice;
   a tree dragged into the Assets panel made one, what refuses it, and the refusals asked per frame.

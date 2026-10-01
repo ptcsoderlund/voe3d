@@ -14,8 +14,10 @@
 // its row and never integrated, so what is edited stays where it is put.
 //
 // EMITTERS RUN WHILE EDITING (0298 point 4), so an effect is seen as it is
-// tuned: voe_3d_emitter_system_run gets `seconds` after game's step. It is the
-// one thing the editor steps by time; `seconds` of 0 spawns and moves nothing.
+// tuned: voe_3d_emitter_system_run gets `seconds` after game's step, and so
+// does voe_3d_water_system_run after it, so water moves in edit and play alike
+// (0305 point 5). They are the only things the editor steps by time; `seconds`
+// of 0 spawns and moves nothing.
 //
 // PLACED COPIES ARE EXPANDED AFTER THE STEP (prefabs.h, 0283 point 4). A root
 // queued this frame — a drop, a duplicate, a made prefab — exists only once the
