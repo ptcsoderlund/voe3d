@@ -228,10 +228,16 @@ struct voe_render_shadow {
 // render/src/device_parts.h field for field: descriptors.c builds the layout
 // that matches it, asserts on both structs' sizes and offsets, and pass.c
 // writes one of these per pass, bound at that pass's dynamic offset.
+// depth_copy is the pass's depth copy texture slot, ~0u until it copied;
+// nothing here reads it yet.
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
 	voe_render_shadow shadow;
+	uint depth_copy;
+	uint reserved3;
+	uint reserved4;
+	uint reserved5;
 };
 
 [[vk::binding(0, 0)]]

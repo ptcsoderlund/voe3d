@@ -71,7 +71,7 @@ static_assert(sizeof(voe_render_light) == 48,
 	      "voe_render_light no longer matches the shader's light block");
 static_assert(sizeof(voe_render_shadow) == 304,
 	      "voe_render_shadow no longer matches the shader's shadow block");
-static_assert(sizeof(struct voe_render_frame_block) == 496,
+static_assert(sizeof(struct voe_render_frame_block) == 512,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
 
 // And the offsets, because the sizes above can stay right while the order goes
@@ -95,6 +95,8 @@ static_assert(offsetof(struct voe_render_frame_block, light) == 144,
 	      "the sun moved inside the per-pass block; draw.slang has it at 144");
 static_assert(offsetof(struct voe_render_frame_block, shadow) == 192,
 	      "the shadow record moved inside the per-pass block; draw.slang has it at 192");
+static_assert(offsetof(struct voe_render_frame_block, depth_copy) == 496,
+	      "the depth copy slot moved inside the per-pass block; draw.slang has it at 496");
 static_assert(offsetof(voe_render_shadow, splits) == 256,
 	      "the shadow record's splits moved; draw.slang has them at 256");
 static_assert(offsetof(voe_render_shadow, texels) == 272,

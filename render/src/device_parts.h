@@ -36,11 +36,20 @@
 // draw.slang declares the same three structs in the same order at binding 0.
 // descriptors.c asserts on the sizes and the offsets, so a member that moves is
 // a build error rather than a frame lit from the wrong direction.
+//
+// `depth_copy` IS THE OPEN TARGET'S DEPTH COPY SLOT, render's own (ADR-0305):
+// VOE_RENDER_NO_DEPTH_COPY until voe_render_frame_copy_depth runs in the pass,
+// then the texture slot of the copy. The three words after it pad the block to
+// sixteen bytes, as the shader's layout rule would.
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
 	voe_render_shadow shadow;
+	uint32_t depth_copy;
+	uint32_t reserved[3];
 };
+
+#define VOE_RENDER_NO_DEPTH_COPY (~0u)
 
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
@@ -167,9 +176,15 @@ struct voe_render_texture_slot {
 	// memory or view — all three stay VK_NULL_HANDLE — because the target has
 	// one image per frame slot and the descriptor write picks the frame
 	// slot's. See voe_render_texture_write_descriptors.
+	//
+	// `depth` says the slot shows the target's depth copy instead of its
+	// colour, and `target` is then VOE_RENDER_WINDOW_DEPTH for the window's.
 	bool is_target;
+	bool depth;
 	uint32_t target;
 };
+
+#define VOE_RENDER_WINDOW_DEPTH UINT32_MAX
 
 // One swapchain image and the two things that belong to it for its whole life.
 //
@@ -211,9 +226,14 @@ struct voe_render_allocated_image {
 // There is no extent in here because there is only ever one: every slot's target
 // is built at the same size, and that size is device->resolution below. Two
 // copies of one number is two chances for them to disagree.
+//
+// `depth_copy` IS WHAT A PASS COPIES DEPTH INTO (ADR-0305): D32, sampled through
+// a depth-aspect view, resting in SHADER_READ_ONLY_OPTIMAL from its build on and
+// moved to TRANSFER_DST only for voe_render_frame_copy_depth's copy.
 struct voe_render_target {
 	struct voe_render_allocated_image colour;
 	struct voe_render_allocated_image depth;
+	struct voe_render_allocated_image depth_copy;
 };
 
 // One frame slot's shadow map, shadow.c's: one D32 image of
@@ -243,8 +263,10 @@ struct voe_render_target_slot {
 	// the next frame, which builds `wanted` and makes the two agree.
 	VkExtent2D extent;
 	VkExtent2D wanted;
-	// Which of device->textures shows this target. Never changes.
+	// Which of device->textures shows this target, and which its depth
+	// copy. Neither changes.
 	uint32_t texture;
+	uint32_t depth_texture;
 	uint32_t generation;
 	bool live;
 	// The clear rule: false until the first pass onto this target in a

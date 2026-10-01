@@ -266,6 +266,10 @@ struct voe_render_device {
 	// live from the create that claimed it until the device closes.
 	struct voe_render_target_slot *targets;
 
+	// The texture slot that shows the window's depth copy, each frame slot
+	// its own; claimed by the first voe_render_target_build, never freed.
+	uint32_t window_depth_texture;
+
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
 	// dynamic offset that is not a multiple of it is invalid. Chosen by
@@ -409,6 +413,22 @@ voe_render_target_image_build(voe_render_device *device,
 			      const char *what);
 void voe_render_target_image_teardown(voe_render_device *device,
 				      struct voe_render_allocated_image *image);
+
+// target.c, for target_own.c too. _depth_copy_build makes one D32 sampled copy
+// image (transfer-dst, depth-aspect view). _settle submits `count` barriers in a
+// one-shot command buffer and waits idle; _settle_copy is the barrier that moves
+// a copy from UNDEFINED to SHADER_READ_ONLY_OPTIMAL, where it rests. _free_texture
+// is the lowest unclaimed texture slot from 1 that is not `skip`, or 0 if none.
+[[nodiscard]] bool
+voe_render_target_depth_copy_build(voe_render_device *device,
+				   struct voe_render_allocated_image *out,
+				   VkExtent2D extent, const char *what);
+[[nodiscard]] bool voe_render_target_settle(voe_render_device *device,
+					    const VkImageMemoryBarrier2 *barriers,
+					    uint32_t count);
+[[nodiscard]] VkImageMemoryBarrier2 voe_render_target_settle_copy(VkImage image);
+[[nodiscard]] uint32_t
+voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
 
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds

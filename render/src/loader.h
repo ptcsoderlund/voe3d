@@ -102,6 +102,9 @@ typedef struct {
 	PFN_vkAllocateMemory allocate_memory;
 	PFN_vkFreeMemory free_memory;
 	PFN_vkCmdBlitImage cmd_blit_image;
+	// A pass's depth copied into its sampled twin; see
+	// voe_render_frame_copy_depth in pass.c.
+	PFN_vkCmdCopyImage cmd_copy_image;
 
 	PFN_vkCreateImageView create_image_view;
 	PFN_vkDestroyImageView destroy_image_view;

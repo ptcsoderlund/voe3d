@@ -43,10 +43,10 @@ which file to open — what each one owns, and where the seams between them run.
 - `shading.c` — the record buffer the fragment stage reads by index, and the
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
-- `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, and the
-  image build and teardown every target shares.
+- `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
+  depth with its sampled copy, and the image build, settle and teardown every target shares.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them.
+  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
@@ -62,7 +62,7 @@ which file to open — what each one owns, and where the seams between them run.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, the
-  clear colour, the first-clears-later-load rule, and the one Y flip in the viewport.
+  clear colour, the first-clears-later-load rule, the depth copy, and the one Y flip in the viewport.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, the depth
   clear between them, and the rebinds only when pipeline or pool pair changes.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is

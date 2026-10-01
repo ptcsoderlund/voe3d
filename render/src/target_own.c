@@ -10,7 +10,9 @@
 // SLOT'S IMAGE. There is already a set per frame slot, each holding the whole
 // texture table, so no new binding, set or shader change was needed: the
 // descriptor write reads the frame slot it is writing and names that slot's
-// image for a target's texture. See voe_render_texture_write_descriptors.
+// image for a target's texture. See voe_render_texture_write_descriptors. A
+// second slot shows the depth copy beside each depth image the same way
+// (ADR-0305), so a target costs two.
 //
 // The images themselves are built and torn down by target.c's
 // voe_render_target_image_build and _teardown, so a caller's target and the
@@ -43,6 +45,8 @@ static void teardown_target_images(voe_render_device *device,
 				   struct voe_render_target_slot *target)
 {
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		voe_render_target_image_teardown(device,
+						 &target->images[i].depth_copy);
 		voe_render_target_image_teardown(device,
 						 &target->images[i].depth);
 		voe_render_target_image_teardown(device,
@@ -112,37 +116,20 @@ struct voe_render_target_slot *voe_render_target_at(voe_render_device *device,
 // actually samples the target it is drawing into is a feedback loop Vulkan leaves
 // undefined, and the layers stay quiet about it here too; that is what the debug
 // asserts in frame.c and element.c are for.
+//
+// The depth copies settle in the same submit, into SHADER_READ_ONLY_OPTIMAL.
 static bool settle(voe_render_device *device,
 		   const struct voe_render_target_slot *target)
 {
-	VkImageMemoryBarrier2 barriers[VOE_RENDER_FRAMES_IN_FLIGHT];
-	VkDependencyInfo dependency = {
-		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-		.imageMemoryBarrierCount = VOE_RENDER_FRAMES_IN_FLIGHT,
-		.pImageMemoryBarriers = barriers,
-	};
-	VkCommandBufferAllocateInfo allocate = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = device->pool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
-	};
-	VkCommandBuffer commands = VK_NULL_HANDLE;
-	VkCommandBufferBeginInfo begin = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	};
-	VkCommandBufferSubmitInfo submit_commands = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-	};
-	VkSubmitInfo2 submit = {
-		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-		.commandBufferInfoCount = 1,
-		.pCommandBufferInfos = &submit_commands,
-	};
-	VkResult result;
+	VkImageMemoryBarrier2 barriers[2 * VOE_RENDER_FRAMES_IN_FLIGHT];
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "settling a target on no device");
+	VOE_BASE_DEBUG_ASSERT(target != NULL, "settling no target");
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		barriers[VOE_RENDER_FRAMES_IN_FLIGHT + i] =
+			voe_render_target_settle_copy(
+				target->images[i].depth_copy.image);
 		barriers[i] = (VkImageMemoryBarrier2){
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 			.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -162,32 +149,8 @@ static bool settle(voe_render_device *device,
 		};
 	}
 
-	result = voe_render_vk.allocate_command_buffers(device->device,
-							&allocate, &commands);
-	if (result != VK_SUCCESS) {
-		VOE_BASE_ERROR("render",
-			       "vkAllocateCommandBuffers failed settling a target (VkResult %d)",
-			       (int)result);
-		return false;
-	}
-
-	voe_render_vk.begin_command_buffer(commands, &begin);
-	voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
-	voe_render_vk.end_command_buffer(commands);
-
-	submit_commands.commandBuffer = commands;
-	result = voe_render_vk.queue_submit2(device->queue, 1, &submit,
-					     VK_NULL_HANDLE);
-	if (result == VK_SUCCESS)
-		voe_render_vk.device_wait_idle(device->device);
-	else
-		VOE_BASE_ERROR("render",
-			       "vkQueueSubmit2 failed settling a target (VkResult %d)",
-			       (int)result);
-
-	voe_render_vk.free_command_buffers(device->device, device->pool, 1,
-					   &commands);
-	return result == VK_SUCCESS;
+	return voe_render_target_settle(device, barriers,
+					2 * VOE_RENDER_FRAMES_IN_FLIGHT);
 }
 
 // Every frame slot's pair for one target, at `extent`, settled. On failure
@@ -212,8 +175,12 @@ static bool build_target_images(voe_render_device *device,
 		    !voe_render_target_image_build(
 			    device, &target->images[i].depth, extent,
 			    VOE_RENDER_DEPTH_FORMAT,
-			    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-			    VK_IMAGE_ASPECT_DEPTH_BIT, "caller's depth")) {
+			    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+				    VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			    VK_IMAGE_ASPECT_DEPTH_BIT, "caller's depth") ||
+		    !voe_render_target_depth_copy_build(
+			    device, &target->images[i].depth_copy, extent,
+			    "caller's depth copy")) {
 			teardown_target_images(device, target);
 			return false;
 		}
@@ -236,8 +203,10 @@ bool voe_render_target_create(voe_render_device *device, uint32_t width,
 {
 	struct voe_render_target_slot *target = NULL;
 	struct voe_render_texture_slot *texture = NULL;
+	struct voe_render_texture_slot *depth = NULL;
 	uint32_t target_index = 0;
 	uint32_t texture_index = 0;
+	uint32_t depth_index = 0;
 
 	VOE_BASE_ASSERT(device != NULL, "making a target on no device");
 	VOE_BASE_ASSERT(out_target != NULL && out_texture != NULL,
@@ -265,27 +234,26 @@ bool voe_render_target_create(voe_render_device *device, uint32_t width,
 		goto refused;
 	}
 
-	// The same search voe_render_texture_create makes, from 1 because slot 0
-	// is the white default.
-	for (uint32_t i = 1; i < VOE_RENDER_MAX_TEXTURES; i++) {
-		if (!device->textures[i].live) {
-			texture_index = i;
-			texture = &device->textures[i];
-			break;
-		}
-	}
-	if (texture == NULL) {
+	// Two slots: the picture and the depth copy (ADR-0305).
+	texture_index = voe_render_target_free_texture(device, 0);
+	if (texture_index != 0)
+		depth_index = voe_render_target_free_texture(device,
+							     texture_index);
+	if (depth_index == 0) {
 		VOE_BASE_ERROR("render",
-			       "all %d texture slots are taken, and a target needs one to be shown through",
+			       "all %d texture slots are taken, and a target needs two: its picture and its depth copy",
 			       VOE_RENDER_MAX_TEXTURES);
 		goto refused;
 	}
+	texture = &device->textures[texture_index];
+	depth = &device->textures[depth_index];
 
 	if (!build_target_images(device, target,
 				 (VkExtent2D){ width, height }))
 		goto refused;
 
 	target->texture = texture_index;
+	target->depth_texture = depth_index;
 	target->generation++;
 	target->live = true;
 	target->cleared = false;
@@ -295,9 +263,16 @@ bool voe_render_target_create(voe_render_device *device, uint32_t width,
 	// otherwise wrap and read a texel from the opposite side.
 	texture->sampling = VOE_RENDER_SAMPLING_SHARP;
 	texture->is_target = true;
+	texture->depth = false;
 	texture->target = target_index;
 	texture->generation++;
 	texture->live = true;
+	depth->sampling = VOE_RENDER_SAMPLING_SHARP;
+	depth->is_target = true;
+	depth->depth = true;
+	depth->target = target_index;
+	depth->generation++;
+	depth->live = true;
 
 	// settle() has idled the card, so no frame is reading the sets.
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)

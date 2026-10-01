@@ -23,9 +23,13 @@
 // BECAUSE IT IS READ LATER. The GPU may still be drawing the frame before last,
 // and two frames in flight sharing one depth buffer would have one frame's
 // depth test rejecting the other frame's fragments. It is the cheaper resource
-// to share and it is still wrong to share. Nothing ever copies it anywhere:
-// unlike the colour image it is written, tested against, and thrown away inside
-// one frame.
+// to share and it is still wrong to share.
+//
+// EVERY DEPTH IMAGE HAS A SAMPLED COPY BESIDE IT (ADR-0305), filled only by
+// voe_render_frame_copy_depth in pass.c and shown through one texture slot per
+// target, the window's claimed by the first build here. The copy rests in
+// SHADER_READ_ONLY_OPTIMAL from the moment it is made, so every descriptor naming
+// it agrees with its image.
 //
 // The targets of a caller's own are target_own.c's and the read back into an
 // arena is target_read.c's; both build on the image helpers here.
@@ -187,14 +191,168 @@ static bool build_one(voe_render_device *device,
 					   VK_IMAGE_ASPECT_COLOR_BIT, "colour"))
 		return false;
 
-	// DEPTH_STENCIL_ATTACHMENT and nothing else. No TRANSFER_SRC, because
-	// nothing copies a depth image anywhere in this engine, and no SAMPLED,
-	// because nothing reads one — a shadow map or a depth-aware post process
-	// is the card that adds one of those, and it adds it here.
-	return voe_render_target_image_build(device, &target->depth, extent,
+	// DEPTH_STENCIL_ATTACHMENT, and TRANSFER_SRC because a pass may copy it
+	// into the sampled copy beside it. Nothing samples it directly.
+	if (!voe_render_target_image_build(device, &target->depth, extent,
+					   VOE_RENDER_DEPTH_FORMAT,
+					   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+						   VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+					   VK_IMAGE_ASPECT_DEPTH_BIT, "depth"))
+		return false;
+
+	return voe_render_target_depth_copy_build(device, &target->depth_copy,
+						  extent, "depth copy");
+}
+
+bool voe_render_target_depth_copy_build(voe_render_device *device,
+					struct voe_render_allocated_image *out,
+					VkExtent2D extent, const char *what)
+{
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a depth copy on no device");
+	VOE_BASE_DEBUG_ASSERT(out != NULL, "building a depth copy into nothing");
+
+	// D32 is required of every implementation as a sampled image, so there
+	// is nothing to ask the card.
+	return voe_render_target_image_build(device, out, extent,
 					     VOE_RENDER_DEPTH_FORMAT,
-					     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-					     VK_IMAGE_ASPECT_DEPTH_BIT, "depth");
+					     VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+						     VK_IMAGE_USAGE_SAMPLED_BIT,
+					     VK_IMAGE_ASPECT_DEPTH_BIT, what);
+}
+
+VkImageMemoryBarrier2 voe_render_target_settle_copy(VkImage image)
+{
+	VkImageMemoryBarrier2 barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+		.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+		.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = image,
+		.subresourceRange = {
+			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+		},
+	};
+
+	VOE_BASE_DEBUG_ASSERT(image != VK_NULL_HANDLE, "settling no depth copy");
+	VOE_BASE_DEBUG_ASSERT(barrier.image == image, "settling the wrong image");
+	return barrier;
+}
+
+// The one-shot shape copy_into_image in texture.c has, with its blunt masks for
+// the reason that file gives: nothing else is on the queue, and this idles.
+bool voe_render_target_settle(voe_render_device *device,
+			      const VkImageMemoryBarrier2 *barriers,
+			      uint32_t count)
+{
+	VkDependencyInfo dependency = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.imageMemoryBarrierCount = count,
+		.pImageMemoryBarriers = barriers,
+	};
+	VkCommandBufferAllocateInfo allocate = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = device->pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+	VkCommandBuffer commands = VK_NULL_HANDLE;
+	VkCommandBufferBeginInfo begin = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	};
+	VkCommandBufferSubmitInfo submit_commands = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+	};
+	VkSubmitInfo2 submit = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		.commandBufferInfoCount = 1,
+		.pCommandBufferInfos = &submit_commands,
+	};
+	VkResult result;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "settling images on no device");
+	VOE_BASE_DEBUG_ASSERT(barriers != NULL && count > 0,
+			      "settling no images");
+
+	result = voe_render_vk.allocate_command_buffers(device->device,
+							&allocate, &commands);
+	if (result != VK_SUCCESS) {
+		VOE_BASE_ERROR("render",
+			       "vkAllocateCommandBuffers failed settling a target (VkResult %d)",
+			       (int)result);
+		return false;
+	}
+
+	result = voe_render_vk.begin_command_buffer(commands, &begin);
+	if (result == VK_SUCCESS) {
+		voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
+		result = voe_render_vk.end_command_buffer(commands);
+	}
+	if (result == VK_SUCCESS) {
+		submit_commands.commandBuffer = commands;
+		result = voe_render_vk.queue_submit2(device->queue, 1, &submit,
+						     VK_NULL_HANDLE);
+	}
+	if (result == VK_SUCCESS)
+		result = voe_render_vk.device_wait_idle(device->device);
+	if (result != VK_SUCCESS)
+		VOE_BASE_ERROR("render",
+			       "settling a target's images failed (VkResult %d)",
+			       (int)result);
+
+	voe_render_vk.free_command_buffers(device->device, device->pool, 1,
+					   &commands);
+	return result == VK_SUCCESS;
+}
+
+uint32_t voe_render_target_free_texture(const voe_render_device *device,
+					uint32_t skip)
+{
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "searching no device's textures");
+	VOE_BASE_DEBUG_ASSERT(device->textures[0].live,
+			      "searching textures before the white default exists");
+
+	// From 1, the search voe_render_texture_create makes: slot 0 is white.
+	for (uint32_t i = 1; i < VOE_RENDER_MAX_TEXTURES; i++)
+		if (!device->textures[i].live && i != skip)
+			return i;
+	return 0;
+}
+
+// The window's copy slot, claimed once: it names each frame slot's own copy, so
+// a rebuild only rewrites the descriptors. False with a line if none is free.
+static bool claim_window_depth_texture(voe_render_device *device)
+{
+	struct voe_render_texture_slot *texture;
+	uint32_t index;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "claiming a slot on no device");
+	if (device->window_depth_texture != 0)
+		return true;
+
+	index = voe_render_target_free_texture(device, 0);
+	if (index == 0) {
+		VOE_BASE_ERROR("render",
+			       "all %d texture slots are taken, and the window's depth copy needs one",
+			       VOE_RENDER_MAX_TEXTURES);
+		return false;
+	}
+	texture = &device->textures[index];
+	VOE_BASE_DEBUG_ASSERT(!texture->live, "claiming a live texture slot");
+	texture->sampling = VOE_RENDER_SAMPLING_SHARP;
+	texture->is_target = true;
+	texture->depth = true;
+	texture->target = VOE_RENDER_WINDOW_DEPTH;
+	texture->generation++;
+	texture->live = true;
+	device->window_depth_texture = index;
+	return true;
 }
 
 // One image's three handles, in the order that respects what lives inside what.
@@ -230,6 +388,7 @@ void voe_render_target_teardown(voe_render_device *device)
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		struct voe_render_target *target = &device->frames[i].target;
 
+		voe_render_target_image_teardown(device, &target->depth_copy);
 		voe_render_target_image_teardown(device, &target->depth);
 		voe_render_target_image_teardown(device, &target->colour);
 	}
@@ -241,20 +400,36 @@ void voe_render_target_teardown(voe_render_device *device)
 	device->frame_ended = false;
 }
 
+// The window's copy slot named in every frame slot's set: its own copy, or white
+// while there is none. Idle already, because teardown waited.
+static void write_window_descriptors(voe_render_device *device)
+{
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "writing no device's descriptors");
+	VOE_BASE_DEBUG_ASSERT(device->window_depth_texture != 0,
+			      "writing descriptors before the window's copy slot");
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		voe_render_texture_write_descriptors(device, i);
+}
+
 bool voe_render_target_build(voe_render_device *device, voe_platform_size size)
 {
+	VkImageMemoryBarrier2 settles[VOE_RENDER_FRAMES_IN_FLIGHT];
 	VkExtent2D extent;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a target for nothing");
 
 	voe_render_target_teardown(device);
+	if (!claim_window_depth_texture(device))
+		return false;
 
 	// A window with no area is a window nothing can be drawn for, and it is
 	// not a failure — the same answer swapchain.c gives, for the same
 	// reason. Nothing is built and the resolution stays zero, which is what
 	// frame.c reads to know there is nothing to do.
-	if (size.width <= 0 || size.height <= 0)
+	if (size.width <= 0 || size.height <= 0) {
+		write_window_descriptors(device);
 		return true;
+	}
 
 	extent.width = (uint32_t)size.width;
 	extent.height = (uint32_t)size.height;
@@ -262,10 +437,20 @@ bool voe_render_target_build(voe_render_device *device, voe_platform_size size)
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		if (!build_one(device, &device->frames[i].target, extent)) {
 			voe_render_target_teardown(device);
+			write_window_descriptors(device);
 			return false;
 		}
+		settles[i] = voe_render_target_settle_copy(
+			device->frames[i].target.depth_copy.image);
+	}
+	if (!voe_render_target_settle(device, settles,
+				      VOE_RENDER_FRAMES_IN_FLIGHT)) {
+		voe_render_target_teardown(device);
+		write_window_descriptors(device);
+		return false;
 	}
 
 	device->resolution = extent;
+	write_window_descriptors(device);
 	return true;
 }
