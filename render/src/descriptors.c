@@ -61,7 +61,7 @@
 // sixteen-byte boundary so that the two shader layout rules cannot disagree
 // about them. These are what turns "somebody removed the padding" into a build
 // error rather than a picture that is wrong in a way nobody can see.
-static_assert(sizeof(voe_render_object) == 160,
+static_assert(sizeof(voe_render_object) == 192,
 	      "voe_render_object no longer matches the shader's per-object record");
 static_assert(sizeof(voe_render_shading_values) == 96,
 	      "voe_render_shading_values no longer matches the shader's shading record");
@@ -71,7 +71,7 @@ static_assert(sizeof(voe_render_light) == 48,
 	      "voe_render_light no longer matches the shader's light block");
 static_assert(sizeof(voe_render_shadow) == 304,
 	      "voe_render_shadow no longer matches the shader's shadow block");
-static_assert(sizeof(struct voe_render_frame_block) == 496,
+static_assert(sizeof(struct voe_render_frame_block) == 512,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
 
 // And the offsets, because the sizes above can stay right while the order goes
@@ -83,6 +83,10 @@ static_assert(offsetof(voe_render_object, shading) == 128,
 	      "the object record's shading index moved; draw.slang has it at 128");
 static_assert(offsetof(voe_render_object, colour) == 144,
 	      "the object record's colour moved; draw.slang has it at 144");
+static_assert(offsetof(voe_render_object, waves) == 160,
+	      "the object record's waves moved; draw.slang has them at 160");
+static_assert(offsetof(voe_render_object, sky) == 176,
+	      "the object record's sky moved; draw.slang has it at 176");
 static_assert(offsetof(voe_render_view, eye) == 128,
 	      "the camera block's eye moved; draw.slang has it at 128");
 static_assert(offsetof(voe_render_light, colour) == 16,
@@ -95,6 +99,8 @@ static_assert(offsetof(struct voe_render_frame_block, light) == 144,
 	      "the sun moved inside the per-pass block; draw.slang has it at 144");
 static_assert(offsetof(struct voe_render_frame_block, shadow) == 192,
 	      "the shadow record moved inside the per-pass block; draw.slang has it at 192");
+static_assert(offsetof(struct voe_render_frame_block, depth_copy) == 496,
+	      "the depth copy slot moved inside the per-pass block; draw.slang has it at 496");
 static_assert(offsetof(voe_render_shadow, splits) == 256,
 	      "the shadow record's splits moved; draw.slang has them at 256");
 static_assert(offsetof(voe_render_shadow, texels) == 272,
@@ -105,6 +111,8 @@ static_assert(offsetof(voe_render_shading_values, emissive) == 32,
 	      "the shading record's emissive colour moved; draw.slang has it at 32");
 static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
 	      "the shading record's texture ids moved; draw.slang has them at 48");
+static_assert(offsetof(voe_render_shading_values, water) == 72,
+	      "the shading record's water flag moved; draw.slang has it at 72");
 static_assert(offsetof(voe_render_shading_values, base_colour_uv_rect) == 80,
 	      "the shading record's UV rect moved; draw.slang has it at 80");
 

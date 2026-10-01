@@ -102,8 +102,9 @@ typedef struct voe_render_device voe_render_device;
 // targets IS THE THIRD NUMBER THAT MAY BE NOUGHT, and unlike the others it is
 // not per frame slot: it is how many voe_render_target_create may make over the
 // device's life, because nothing destroys one. A device made with none refuses
-// the first create with a message. Each target costs one texture slot of the
-// 1024 as well as its images.
+// the first create with a message. Each target costs two texture slots of the
+// 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
+// the window's depth copy takes one more.
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
@@ -356,7 +357,14 @@ typedef struct {
 	// would be averaged into mush. The two go together and nothing checks
 	// it.
 	uint32_t base_colour_distance_field;
-	uint32_t reserved_c[2];
+	// Non-zero: the water path (ADR-0305). The surface is a plane whose
+	// normal is bent by four sine waves out of the object record's `waves`,
+	// lit by the pass's sun with roughness 0.05, reflecting toward the
+	// object's `sky` and faded by its thickness over the pass's depth copy.
+	// Zero is every other surface, drawn as before. The second word that
+	// used to be reserved_c; draw it blended.
+	uint32_t water;
+	uint32_t reserved_c;
 	// Which rectangle of the base colour texture this record reads: `xy` is
 	// the offset added and `zw` the scale multiplied, so the fragment stage
 	// samples `uv * zw + xy`. One multiply-add, applied to the base colour
@@ -524,6 +532,16 @@ typedef struct {
 	uint32_t shading;
 	uint32_t reserved[3];
 	voe_math_float4 colour;
+	// Read only when the shading record is `water`; zero everywhere else.
+	// `waves` is (height m, length m, seconds, deep m): the tallest wave's
+	// height and length, the clock, and the thickness at which the water is
+	// nearly opaque. The clock is kept below 60, because every wave's
+	// frequency is a whole multiple of 2π/60 and so seconds 0 and 60 are the
+	// same picture, while a float clock counting up for hours loses the
+	// precision the waves need. `sky` is a linear rgb the surface reflects
+	// toward at a grazing angle; w is reserved.
+	voe_math_float4 waves;
+	voe_math_float4 sky;
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second
@@ -954,7 +972,7 @@ typedef struct {
 // and draws whatever the card does.
 //
 // FALSE, WITH A LINE ON stderr, WHEN `targets` ARE ALL TAKEN — including on a
-// device made with none — WHEN NO TEXTURE SLOT IS LEFT, OR WHEN THE CARD REFUSES
+// device made with none — WHEN TWO TEXTURE SLOTS ARE NOT LEFT, OR WHEN THE CARD REFUSES
 // THE IMAGES. A width or height of zero is the caller's bug and asserts.
 //
 // IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION, for the reason
@@ -1197,6 +1215,23 @@ void voe_render_pass_end(voe_render_device *device);
 // caller's bug and asserts — the same mistakes voe_render_frame_draw asserts on.
 // So is calling it in a shadow pass, whose depth is the map being drawn.
 void voe_render_frame_clear_depth(voe_render_device *device);
+
+// Copies the open pass's depth, as it stands, into the sampled depth copy every
+// target keeps (ADR-0305), and names the copy's texture slot in the pass's
+// camera block; until a pass copies, that word is ~0u.
+//
+// ONLY INSIDE AN OPEN CAMERA PASS. With no pass open, in a pass opened with no
+// camera, or in a shadow pass — whose depth is the map itself — it draws
+// nothing, writes a line on stderr and returns false.
+//
+// IT SPLITS THE PASS'S RENDERING BLOCK. It ends the block, copies with a barrier
+// on either side, and resumes in a block that loads colour and depth, so
+// everything drawn before it stays and keeps occluding. Draws after it read the
+// copy; a draw does not read the depth it is writing.
+//
+// CALLING IT AT MOST ONCE A PASS IS THE CALLER'S BUSINESS. Nothing stops a
+// second call, and each call costs a full copy of the depth image.
+[[nodiscard]] bool voe_render_frame_copy_depth(voe_render_device *device);
 
 // Whether a frame is open for drawing: true from a _begin whose `drawing` came
 // back true until its _end. Not a way to ask whether to begin a frame: the loop

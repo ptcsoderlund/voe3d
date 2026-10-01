@@ -1,12 +1,14 @@
 // The model loader of game/include/game/models.h: a model row's path or an
 // emitter's texture joined onto the folder, stamped, read into scratch and
-// handed to the store, the soft dot loaded when any emitter is there, each
+// handed to the store, the soft dot loaded when any emitter is there and the
+// water record when any water is, each
 // failure one line on stderr and counted. Scratch is rewound to where it stood after each
 // file, so a caller's own scratch data survives the call.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
+#include <3d/water_component.h>
 
 #include <base/assert.h>
 #include <base/error.h>
@@ -116,6 +118,10 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	if (voe_3d_emitter_count(world) > 0 &&
 	    voe_3d_models_find(models, "") == NULL &&
 	    !voe_3d_models_load_dot(models, device, &error))
+		count_failure(&failures, models, "", error);
+	if (voe_3d_water_count(world) > 0 &&
+	    voe_3d_models_water(models) == NULL &&
+	    !voe_3d_models_load_water(models, device, &error))
 		count_failure(&failures, models, "", error);
 	return failures;
 }

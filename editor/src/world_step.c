@@ -1,5 +1,6 @@
-// The world's step once a frame: game's step, then the emitters run by the
-// frame's seconds, then every placed copy queued since expanded (world_step.h).
+// The world's step once a frame: game's step, then the emitters and the water
+// system run by the frame's seconds, then every placed copy queued since
+// expanded (world_step.h).
 //
 // Constraints: every call runs every system, unconditionally, and no move.
 #include "world_step.h"
@@ -7,6 +8,7 @@
 #include "prefabs.h"
 
 #include <3d/emitter_system.h>
+#include <3d/water_system.h>
 
 #include <base/assert.h>
 
@@ -22,5 +24,6 @@ void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes,
 			"stepping with no scratch or nowhere to say why");
 	voe_game_world_step(world, shapes);
 	voe_3d_emitter_system_run(world, seconds);
+	voe_3d_water_system_run(world, seconds);
 	voe_editor_prefabs_expand(world, folder, scratch, why);
 }

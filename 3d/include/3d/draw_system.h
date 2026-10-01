@@ -414,6 +414,16 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // emitter's; a world with no emitter table draws none. The device needs room
 // for VOE_3D_EMITTER_PARTICLES objects per emitter per world pass.
 //
+// EACH WATER WITH A TRANSFORM AND A WAVES ROW IS ONE BLENDED DRAW (ADR-0305
+// point 7): the store's quad and water record (voe_3d_models_water), turned to
+// face +Y and scaled to the row's width and length, its colour, waves and sky in
+// the object record, sorted with the world's blended group and casting no
+// shadow. A NULL store, or one with no water record, draws none; one object per
+// water per world pass. WHEN ANY WATER IS HELD, THE PASS'S DEPTH IS COPIED ONCE
+// (voe_render_frame_copy_depth), after the world's solids and the markers and
+// before its blended group, so the water fades against what stands under it; a
+// refused copy stops that group as a refused draw does, said on stderr.
+//
 // A DRAWN OBJECT'S COLOUR IS ITS SHAPE'S, OR WHITE (ADR-0191). The per-object
 // record carries a colour the shader multiplies into the material's base
 // colour: the entity's shape colour with alpha 1 when it has a shape, and
@@ -485,7 +495,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // over scratch; this rewinds every frame to exactly what it was handed, keeps
 // nothing, and a caller may pass the same arena it uses for anything else. What
 // it takes is bounded by the number of drawables in the world, each loaded part
-// of each model row and each live particle counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
+// of each model row, each live particle and each water counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
 // have finished and each of them therefore has room for all of them.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame);

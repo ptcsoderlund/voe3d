@@ -14,6 +14,9 @@
 // its path and the dot at ""; a second emitter naming a missing file is one
 // failure, named.
 //
+// THE WATER, on a third world and store: with no water an update loads no
+// water record; with one, it loads it.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
@@ -22,6 +25,7 @@
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
+#include <3d/water_component.h>
 
 #include <base/arena.h>
 #include <base/error.h>
@@ -166,6 +170,29 @@ static void check_pictures(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+static void check_water(voe_ecs_world *world, voe_render_device *device,
+			voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures;
+
+	// ---- no water: no record
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(voe_3d_models_water(models) == NULL);
+
+	// ---- one water: the record
+	VOE_TEST_CHECK(voe_3d_water_add(world, place(world),
+					(voe_3d_water){ .width = 20.0f,
+							.length = 20.0f }));
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(voe_3d_models_water(models) != NULL);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static bool loaded_at(const voe_3d_models *models, uint64_t *stamp)
 {
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, GOOD);
@@ -250,6 +277,7 @@ int main(void)
 					       sizeof(PNG), NULL));
 	check_files(voe_game_world_new(arena), device, scratch, glb, length);
 	check_pictures(voe_game_world_new(arena), device, scratch);
+	check_water(voe_game_world_new(arena), device, scratch);
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(FOLDER);

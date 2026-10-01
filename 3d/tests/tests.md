@@ -28,6 +28,9 @@ again, or to find where a claim that has started failing is written down.
   or sun marker is one draw more. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, and that a glowing one is unlit. Skips without a graphics card.
+- `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
+  and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
+  or without it. Skips without a graphics card.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
   a graphics card.
@@ -68,5 +71,9 @@ again, or to find where a claim that has started failing is written down.
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
   death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
+- `water_component.c` — both tables registered, the waves runtime-only, the default row as 0305
+  says, every field named with its kind, and a replace queued. Needs no graphics card.
+- `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
+  colour, and a removed water's row gone. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, pictures and
   the uncounted dot, and a model drawn only with the store. Skips without a card.

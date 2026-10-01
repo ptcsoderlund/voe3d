@@ -24,7 +24,8 @@
 // uploaded by model_picture.h, its two parts on the store's one quad, which is
 // made on the first picture or dot and freed at clear; releasing a picture entry
 // never touches it. The dot is an entry and its held memory kept beside the
-// table, so the table's count and indices never see it.
+// table, so the table's count and indices never see it; the water's one part
+// and record are kept beside it too.
 //
 // CONSTRAINTS: _find is a scan over the entries by string compare, which at
 // VOE_3D_MODELS entries is nothing; a hash of the path would lift it if the
@@ -69,6 +70,9 @@ struct voe_3d_models {
 	voe_3d_model_entry dot;
 	entry_held dot_held;
 	bool has_dot;
+	// The water's part on the quad, its record the store's, when `has_water`.
+	voe_3d_model_part water;
+	bool has_water;
 };
 
 voe_3d_models *voe_3d_models_new(void)
@@ -105,6 +109,10 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device)
 	if (models->has_dot)
 		release(device, &models->dot, &models->dot_held);
 	models->has_dot = false;
+	if (models->has_water)
+		(void)voe_render_shading_destroy(device,
+						 models->water.material.shading);
+	models->has_water = false;
 	if (models->has_quad)
 		(void)voe_render_geometry_destroy(device, models->quad);
 	models->has_quad = false;
@@ -402,6 +410,59 @@ bool voe_3d_models_load_dot(voe_3d_models *models, voe_render_device *device,
 	}
 	models->has_dot = loaded;
 	return loaded;
+}
+
+bool voe_3d_models_load_water(voe_3d_models *models, voe_render_device *device,
+			      voe_base_error *error)
+{
+	const voe_render_texture none = { .index = VOE_RENDER_NO_TEXTURE };
+	voe_3d_material material = {
+		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+		.metallic = 0.0f,
+		.roughness = 0.05f,
+		.alpha_mode = VOE_RENDER_ALPHA_BLENDED,
+		.alpha_cutoff = 0.5f,
+		.base_colour_uv_scale = { 1.0f, 1.0f },
+		.base_colour_texture = none,
+		.metallic_roughness_texture = none,
+		.normal_texture = none,
+		.occlusion_texture = none,
+		.emissive_texture = none,
+	};
+	voe_render_shading_values values = {
+		.base_colour = material.base_colour,
+		.metallic = material.metallic,
+		.roughness = material.roughness,
+		.alpha_mode = (uint32_t)material.alpha_mode,
+		.alpha_cutoff = material.alpha_cutoff,
+		.water = 1u,
+		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
+	};
+
+	VOE_BASE_ASSERT(models != NULL, "loading the water into no store");
+	VOE_BASE_ASSERT(device != NULL, "loading the water with no device");
+
+	if (models->has_water)
+		return true;
+	// The record is made here and not by voe_3d_material_upload, because
+	// `water` is a field of the record and not of the material.
+	if (!quad_ready(models, device, error) ||
+	    !voe_render_shading_create(device, values, &material.shading,
+				       error)) {
+		VOE_BASE_ERROR("3d", "could not load the water");
+		return false;
+	}
+	models->water = (voe_3d_model_part){ .geometry = models->quad,
+					     .material = material };
+	models->has_water = true;
+	return true;
+}
+
+const voe_3d_model_part *voe_3d_models_water(const voe_3d_models *models)
+{
+	VOE_BASE_ASSERT(models != NULL, "reading the water of no store");
+
+	return models->has_water ? &models->water : NULL;
 }
 
 void voe_3d_models_fail(voe_3d_models *models, const char *path,

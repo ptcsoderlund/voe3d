@@ -200,6 +200,7 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(allocate_memory, vkAllocateMemory);
 	DEVICE_FUNCTION(free_memory, vkFreeMemory);
 	DEVICE_FUNCTION(cmd_blit_image, vkCmdBlitImage);
+	DEVICE_FUNCTION(cmd_copy_image, vkCmdCopyImage);
 
 	DEVICE_FUNCTION(create_sampler, vkCreateSampler);
 	DEVICE_FUNCTION(destroy_sampler, vkDestroySampler);

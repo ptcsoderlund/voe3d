@@ -266,6 +266,10 @@ struct voe_render_device {
 	// live from the create that claimed it until the device closes.
 	struct voe_render_target_slot *targets;
 
+	// The texture slot that shows the window's depth copy, each frame slot
+	// its own; claimed by the first voe_render_target_build, never freed.
+	uint32_t window_depth_texture;
+
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
 	// dynamic offset that is not a multiple of it is invalid. Chosen by
@@ -397,7 +401,36 @@ void voe_render_swapchain_teardown(voe_render_device *device);
 					   voe_platform_size size);
 void voe_render_target_teardown(voe_render_device *device);
 
-// target.c. The targets of the caller's own, as distinct from the window's pair
+// target.c, and used by target_own.c as well: one device-local image, its memory
+// and its view, with `what` naming it in the messages; false with a message.
+// _teardown gives back whatever a build made, is safe on a zeroed struct and on
+// one whose build stopped part way, and leaves it zeroed. Neither waits.
+[[nodiscard]] bool
+voe_render_target_image_build(voe_render_device *device,
+			      struct voe_render_allocated_image *out,
+			      VkExtent2D extent, VkFormat format,
+			      VkImageUsageFlags usage, VkImageAspectFlags aspect,
+			      const char *what);
+void voe_render_target_image_teardown(voe_render_device *device,
+				      struct voe_render_allocated_image *image);
+
+// target.c, for target_own.c too. _depth_copy_build makes one D32 sampled copy
+// image (transfer-dst, depth-aspect view). _settle submits `count` barriers in a
+// one-shot command buffer and waits idle; _settle_copy is the barrier that moves
+// a copy from UNDEFINED to SHADER_READ_ONLY_OPTIMAL, where it rests. _free_texture
+// is the lowest unclaimed texture slot from 1 that is not `skip`, or 0 if none.
+[[nodiscard]] bool
+voe_render_target_depth_copy_build(voe_render_device *device,
+				   struct voe_render_allocated_image *out,
+				   VkExtent2D extent, const char *what);
+[[nodiscard]] bool voe_render_target_settle(voe_render_device *device,
+					    const VkImageMemoryBarrier2 *barriers,
+					    uint32_t count);
+[[nodiscard]] VkImageMemoryBarrier2 voe_render_target_settle_copy(VkImage image);
+[[nodiscard]] uint32_t
+voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
+
+// target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds
 // given back at shutdown. _startup allocates no image; _shutdown is safe on a
 // device that never got as far as _startup.
@@ -420,12 +453,12 @@ void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 			       uint32_t cascade);
 
-// target.c. What a target id names, or NULL when it names nothing — the window's
+// target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.
 [[nodiscard]] struct voe_render_target_slot *
 voe_render_target_at(voe_render_device *device, voe_render_target target);
 
-// target.c. Every resize voe_render_target_resize recorded, applied: the device
+// target_own.c. Every resize voe_render_target_resize recorded, applied: the device
 // goes idle, the images of each target whose wanted size differs are made again
 // and settled into the layout they rest in, and the descriptor sets are pointed
 // at them. Does nothing, and does not wait, when no size differs. False when the

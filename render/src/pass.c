@@ -15,6 +15,10 @@
 // cascade of the slot's shadow map instead: depth only, always cleared, drawn
 // through the shadow pipeline, and closed by the same _pass_end.
 //
+// voe_render_frame_copy_depth (ADR-0305) splits a camera pass's block in two
+// round a copy of its depth into the sampled copy beside it, and names the copy's
+// texture slot in the pass's camera block.
+//
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
@@ -101,8 +105,8 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // A TARGET'S COLOUR IMAGE LIVES IN GENERAL, AND `own` SAYS WHICH KIND THIS IS.
 // It is an attachment here and a sampled image in every descriptor set, and
 // GENERAL is the one layout that is valid for both, so the image never changes
-// layout after target.c settled it and loading it needs no barrier either. See
-// target.c for why one layout rather than a barrier each way.
+// layout after target_own.c settled it and loading it needs no barrier either.
+// See target_own.c for why one layout rather than a barrier each way.
 //
 // DEPTH RUNS BACKWARDS AND THE CLEAR IS THE HALF OF IT THAT LIVES HERE. The
 // buffer is cleared to VOE_RENDER_DEPTH_CLEAR, which is 0, which is this
@@ -113,10 +117,11 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // and voe_render_frame_clear_depth's in draw.c — read that one constant, and the
 // number never leaves this folder: no caller supplies it and none is told it.
 //
-// THE DEPTH IMAGE IS STORED AND NEVER COPIED. Its storeOp is STORE because a
-// later pass onto the same target in the same frame loads it — that is what lets
-// something drawn in the first pass hide something drawn in the second. Nothing
-// reads it after the frame: it is rebuilt from the clear on the next.
+// THE DEPTH IMAGE IS STORED. Its storeOp is STORE because a later pass onto the
+// same target in the same frame loads it — that is what lets something drawn in
+// the first pass hide something drawn in the second — and because
+// voe_render_frame_copy_depth reopens a block that loads it. Nothing reads it
+// after the frame: it is rebuilt from the clear on the next.
 void voe_render_open_rendering(VkCommandBuffer commands,
 			       const struct voe_render_target *images,
 			       VkExtent2D extent, bool clear, bool own)
@@ -311,6 +316,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		block.light = camera->light;
 		block.shadow = camera->shadow;
 	}
+	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 
 	// The window's pair or this frame slot's pair of the target, each with
 	// its own clear rule and its own size. A frame in slot n draws into slot
@@ -393,6 +399,7 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 	extent = (VkExtent2D){ device->capacities.shadow_size,
 			       device->capacities.shadow_size };
 	block.camera = *light;
+	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	depth.imageView = frame->shadow.layers[cascade];
 	rendering.renderArea.extent = extent;
 	scissor.extent = extent;
@@ -430,6 +437,168 @@ void voe_render_pass_end(voe_render_device *device)
 	device->pass_camera = false;
 	device->pass_shadow = false;
 	device->pass_target = NULL;
+}
+
+// The depth image to TRANSFER_SRC and its copy to TRANSFER_DST after the block's
+// last depth write and any earlier read of the copy (`before`), or both back,
+// the copy to where shaders read it and the colour attachment's writes made
+// visible to the block that loads it (!`before`).
+static void depth_copy_barriers(VkCommandBuffer commands,
+				const struct voe_render_target *images,
+				bool before)
+{
+	const VkImageSubresourceRange depth_range = {
+		.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+		.levelCount = 1,
+		.layerCount = 1,
+	};
+	const VkPipelineStageFlags2 tests =
+		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+		VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	const VkPipelineStageFlags2 shaders =
+		VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT |
+		VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	const VkAccessFlags2 attachment =
+		VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+		VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	VkImageMemoryBarrier2 barriers[2] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = tests,
+			.srcAccessMask = attachment,
+			.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+			.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = images->depth.image,
+			.subresourceRange = depth_range,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = shaders,
+			.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+			.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = images->depth_copy.image,
+			.subresourceRange = depth_range,
+		},
+	};
+	VkMemoryBarrier2 colour = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+		.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT |
+				 VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+	};
+	VkDependencyInfo dependency = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.imageMemoryBarrierCount = 2,
+		.pImageMemoryBarriers = barriers,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(images != NULL, "copying depth of no target");
+	VOE_BASE_DEBUG_ASSERT(images->depth_copy.image != VK_NULL_HANDLE,
+			      "copying depth into a target with no depth copy");
+
+	if (!before) {
+		barriers[0] = (VkImageMemoryBarrier2){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+			.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+			.dstStageMask = tests,
+			.dstAccessMask = attachment,
+			.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = images->depth.image,
+			.subresourceRange = depth_range,
+		};
+		barriers[1] = (VkImageMemoryBarrier2){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+			.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+			.dstStageMask = shaders,
+			.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = images->depth_copy.image,
+			.subresourceRange = depth_range,
+		};
+		dependency.memoryBarrierCount = 1;
+		dependency.pMemoryBarriers = &colour;
+	}
+	voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
+}
+
+// ONE BLOCK BECOMES TWO, AND THE SECOND LOADS. The draws after the copy are in
+// a rendering block of their own that loads colour and depth, which is what
+// keeps what came before; the bound pipeline, set and pools outlive the split,
+// and the viewport and scissor are set again by the reopen.
+//
+// THE SLOT IS WRITTEN INTO THE PASS'S ONE BLOCK, so every draw of the pass reads
+// it, those before the copy too. Nothing reads it yet; the reader that comes
+// will draw only after the copy.
+bool voe_render_frame_copy_depth(voe_render_device *device)
+{
+	struct voe_render_frame *frame;
+	const struct voe_render_target *images;
+	struct voe_render_frame_block *block;
+	VkExtent2D extent;
+	uint32_t texture;
+	VkImageCopy region = {
+		.srcSubresource = { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+				    .layerCount = 1 },
+		.dstSubresource = { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+				    .layerCount = 1 },
+	};
+
+	VOE_BASE_ASSERT(device != NULL, "copying depth on no device");
+	if (!device->pass_open || !device->pass_camera || device->pass_shadow) {
+		VOE_BASE_ERROR("render",
+			       "copying depth outside an open camera pass — a shadow pass's depth is the map itself");
+		return false;
+	}
+
+	frame = voe_render_frame_at(device, device->slot);
+	if (device->pass_target == NULL) {
+		images = &frame->target;
+		texture = device->window_depth_texture;
+	} else {
+		images = &device->pass_target->images[device->slot];
+		texture = device->pass_target->depth_texture;
+	}
+	extent = device->pass_extent;
+	region.extent = (VkExtent3D){ extent.width, extent.height, 1 };
+	VOE_BASE_DEBUG_ASSERT(texture != 0, "copying depth with no copy slot");
+
+	voe_render_vk.cmd_end_rendering(frame->commands);
+	depth_copy_barriers(frame->commands, images, true);
+	voe_render_vk.cmd_copy_image(frame->commands, images->depth.image,
+				     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				     images->depth_copy.image,
+				     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+				     &region);
+	depth_copy_barriers(frame->commands, images, false);
+	voe_render_open_rendering(frame->commands, images, extent, false,
+				  device->pass_target != NULL);
+
+	// The open pass's block is the one before pass_count, start_pass's.
+	block = (struct voe_render_frame_block *)((unsigned char *)
+							  frame->uniforms_mapped +
+						  (device->pass_count - 1) *
+							  device->pass_stride);
+	block->depth_copy = texture;
+	return true;
 }
 
 bool voe_render_pass_is_open(const voe_render_device *device)

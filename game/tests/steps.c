@@ -6,7 +6,8 @@
 // the body is by the end of the same step, and an emitter of rate 60 on a
 // thing with a transform holds live particles after 60 steps, and a looping
 // sound on a thing, a WAV the test writes in its working directory, plays
-// through a mixer on that folder after two steps.
+// through a mixer on that folder after two steps, and one step advances a
+// water's clock, added by the step before, by the step.
 // Needs no window, no graphics card and no sound device: nothing is shaped,
 // so the shapes are zeros, and the mixer is never pumped.
 #include <game/steps.h>
@@ -16,6 +17,7 @@
 #include <audio/sound_component.h>
 
 #include <3d/emitter_component.h>
+#include <3d/water_component.h>
 
 #include <base/arena.h>
 
@@ -226,6 +228,40 @@ static void an_emitter_spawns(voe_ecs_world *world, const voe_3d_shapes *shapes)
 		VOE_TEST_CHECK(particles->count > 0);
 }
 
+// A water on a thing at the origin: the first step adds its clock and steps
+// it, so the second moves it on by exactly one step.
+static void a_water_keeps_time(voe_ecs_world *world,
+			       const voe_3d_shapes *shapes)
+{
+	voe_game_steps steps = { 0 };
+	voe_3d_water water = *(const voe_3d_water *)voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_3d_water_key));
+	voe_ecs_entity entity = { 0 };
+	const voe_3d_waves *waves;
+	double before;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){ .rotation = { 0, 0, 0, 1 },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_3d_water_add(world, entity, water));
+	(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
+				 VOE_GAME_STEP_SECONDS, systems, after_move);
+	waves = voe_3d_waves_get(world, entity);
+	VOE_TEST_CHECK(waves != NULL);
+	if (waves == NULL)
+		return;
+	before = waves->seconds;
+	(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
+				 VOE_GAME_STEP_SECONDS, systems, after_move);
+	waves = voe_3d_waves_get(world, entity);
+	VOE_TEST_CHECK(waves != NULL);
+	if (waves != NULL)
+		VOE_TEST_CHECK_FLOAT((float)(waves->seconds - before),
+				     (float)VOE_GAME_STEP_SECONDS, 1e-6f);
+}
+
 static void put_le(uint8_t *at, uint32_t value, uint32_t bytes)
 {
 	for (uint32_t i = 0; i < bytes; i++)
@@ -299,6 +335,7 @@ int main(void)
 	a_follower_keeps_up(world, &shapes);
 	an_emitter_spawns(world, &shapes);
 	a_sound_plays(world, &shapes);
+	a_water_keeps_time(world, &shapes);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

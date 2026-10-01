@@ -7,6 +7,7 @@
 #include <audio/sound_system.h>
 
 #include <3d/emitter_system.h>
+#include <3d/water_system.h>
 
 #include <base/assert.h>
 
@@ -48,6 +49,7 @@ static void step_once(voe_ecs_world *world, voe_platform_window *window,
 	after_move(&step);
 	voe_game_world_step(world, shapes);
 	voe_3d_emitter_system_run(world, (float)VOE_GAME_STEP_SECONDS);
+	voe_3d_water_system_run(world, (float)VOE_GAME_STEP_SECONDS);
 	if (audio != NULL)
 		voe_audio_sound_system_run(world, audio, aspect_of(window));
 }

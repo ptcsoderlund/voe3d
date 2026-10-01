@@ -24,6 +24,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   0298's defaults, the reads and the two submits.
 - `emitter_system.c` — the two drains, the particles rows added and dropped, the births in a
   cone through the world matrix from a xorshift, and the step that moves and kills.
+- `water_component.c` — the water and waves tables: their keys, the registration with 0305's
+  defaults, the reads and the replace submit.
+- `water_system.c` — the replace drain, the waves rows added and dropped, and the clock stepped
+  in double and wrapped with fmod.
 - `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
   repoints a changed kind and drops both once the shape is gone.
@@ -78,6 +82,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and held in it; internal.
 - `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
   about the eye, and size, colour and alpha lerped at age over life.
+- `draw_water.h` — every water as one blended world draw, counted for the group's room and held
+  in it, why the quad is turned and why it casts no shadow; internal.
+- `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
+  waves at its clock and sky in the object record.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
 - `draw_marks.c` — the camera and sun markers, the outline, a collider's lines and the gizmo's
   arrows or rings, each as transient quads.
@@ -92,7 +100,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill, and the mirrored node's turned triangles.
 - `models.c` — the store's table of entries with an arena each, and the load that reads,
-  bakes, uploads and gives back what a failure made; pictures on the quad, the dot apart.
+  bakes, uploads and gives back what a failure made; pictures on the quad, the dot and the water apart.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow

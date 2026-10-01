@@ -2,8 +2,8 @@
 // and one draw per drawable into the frame the loop has opened.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
-// BY ENTITY; a model row's parts come from the frame's store, and the
-// particles are draw_particles.c's. That is what
+// BY ENTITY; a model row's parts come from the frame's store, the particles
+// are draw_particles.c's and the water draw_water.c's. That is what
 // a flat-table ECS with no archetypes costs and it is the trade this engine
 // took: each walk is linear and each lookup is one load (ecs/component.h). If
 // that ever measures slow it is a later card with a number attached, and nothing
@@ -23,6 +23,7 @@
 #include "draw_group.h"
 #include "draw_marks.h"
 #include "draw_particles.h"
+#include "draw_water.h"
 
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
@@ -332,6 +333,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// Whether the depth buffer has been emptied yet, which the overlay does
 	// and the outline needs.
 	bool cleared = false;
+	// How many waters the world's blended group holds, which decides the
+	// depth copy before it (ADR-0305 point 7).
+	uint32_t waters;
 
 	VOE_BASE_ASSERT(world != NULL, "drawing no world");
 	VOE_BASE_ASSERT(device != NULL, "drawing to no device");
@@ -367,7 +371,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// the same bound voe_3d_draw_group_new explains.
 	world_blended = voe_3d_draw_group_new(
 		arena, count + panel_count + model_part_count(world, frame.models) +
-			       voe_3d_draw_particles_count(world, frame.models),
+			       voe_3d_draw_particles_count(world, frame.models) +
+			       voe_3d_draw_water_count(world, frame.models),
 		true);
 	overlay_solid = voe_3d_draw_group_new(arena, count, false);
 	overlay_blended = voe_3d_draw_group_new(arena, count + panel_count, true);
@@ -437,6 +442,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	(void)draw_models(world, device, &frame, &world_blended);
 	// Every live particle, held blended in the world (0298 point 6).
 	voe_3d_draw_particles_hold(world, &frame, &world_blended);
+	// Every water, held blended in the world (0305 point 7).
+	waters = voe_3d_draw_water_hold(world, &frame, &world_blended);
 
 	// THE SECOND TABLE, AND EVERY ROW IN IT IS HELD BACK. A panel is drawn
 	// by the element pipeline, which is blended, tests depth and writes
@@ -495,7 +502,12 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// blended group.
 	voe_3d_draw_marks_camera(world, device, arena, frame);
 	voe_3d_draw_marks_sun(world, device, arena, frame);
-	(void)voe_3d_draw_group_draw(device, &world_blended);
+	// The world's solids are all down, so the depth the water fades against
+	// is copied now, once, and only when water is held (0305 point 7). A
+	// refused copy stops the blended group as a refused draw stops its own:
+	// render has said why on stderr.
+	if (waters == 0 || voe_render_frame_copy_depth(device))
+		(void)voe_3d_draw_group_draw(device, &world_blended);
 
 	// The world is finished and the overlay starts on an empty depth buffer,
 	// which is the whole of what a layer is. The colour the world was drawn

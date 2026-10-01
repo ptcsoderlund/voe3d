@@ -27,6 +27,7 @@
 #include <3d/model_component.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
+#include <3d/water_component.h>
 
 #include <physics/body_component.h>
 #include <physics/collider_component.h>
