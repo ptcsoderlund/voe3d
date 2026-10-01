@@ -41,10 +41,8 @@ again, or to find where a claim that has started failing is written down.
 - `bounce.c` — that the shadows call is true with five passes and false with four, and that a wall
   moved a metre marks two stale spheres at its two places, none with no previous table or unmoved,
   and one in a room of one. Skips without a graphics card.
-- `bounce_scene.c` — bug 01 through the editor's calls, at sun 1 and π: the tank game's sunlit red
-  box makes the ground 1 m from its lit face 12/255 redder than open ground, its shadow side takes at
-  most 8/255 of its red, and the bounce darkens no ground pixel against a frame that reads none.
-  Skips without a graphics card.
+- `bounce_scene.c` — bug 01 through the editor's calls at sun 1 and π: the red box tints nearby
+  ground while its own shadow stays faint and no ground darkens. Skips without a graphics card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
