@@ -56,9 +56,7 @@ by reading the offscreen colour image back.
 - `bounce_map.c` — the sun's bounce pass: false outside a frame, four cascades, a bounce pass and a
   window pass in one frame with one more pass refused, and a red cube still red in the camera pass
   after it. Headless.
-- `bounce_grid.c` — every target's probe grid: the window's and two targets' built, kept through a
-  resize and freed with the device, twice, each still drawing a red cube; the update refused with
-  no bounce pass, inside a pass, twice a frame and for a stale id, else named by a camera pass.
+- `bounce_grid.c` — every target's probe grid built, kept and freed, and the update's refusals.
   Headless.
 - `bounce.c` — lit surfaces reading the bounce: a red wall reddening the ground near it and not far
   off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
