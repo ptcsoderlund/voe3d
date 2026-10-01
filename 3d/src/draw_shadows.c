@@ -21,6 +21,11 @@
 // eye at its lag, exactly as the view draws it; only the world matrix is read.
 // The mesh table is walked once per cascade: four linear walks, the same cost
 // as the view's own walk, and a culled list per cascade is a later card.
+//
+// THE BOUNCE PASS FOLLOWS THE CASCADES (0308 point 1): draw_bounce.c opens it,
+// draws the same casters through this file's walk, and updates the frame's
+// target's grid. Only when cascades were drawn; a failure there is the call's.
+#include "draw_bounce.h"
 #include "draw_group.h"
 
 #include <3d/draw_system.h>
@@ -34,7 +39,7 @@
 #include <scene/transform_system.h>
 
 // Whether a material casts: lit, and not blended (0258 point 5).
-static bool casts(const voe_3d_material *material)
+bool voe_3d_draw_casts(const voe_3d_material *material)
 {
 	VOE_BASE_ASSERT(material != NULL, "casting with no material");
 	return !material->unlit && material->alpha_mode != VOE_RENDER_ALPHA_BLENDED;
@@ -65,7 +70,7 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 		for (uint32_t part = 0; part < model->part_count; part++) {
 			const voe_3d_model_part *piece = &model->parts[part];
 
-			if (casts(&piece->material) &&
+			if (voe_3d_draw_casts(&piece->material) &&
 			    !voe_render_frame_draw(device, piece->geometry,
 						   voe_3d_draw_group_object_of(
 							   &drawn, &piece->material,
@@ -76,9 +81,10 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 	return true;
 }
 
-// Every caster in the world, drawn into the shadow pass that is open. False
-// when render refuses a draw, which it has already said on stderr.
-static bool draw_casters(voe_ecs_world *world, voe_render_device *device,
+// Every caster in the world, drawn into the sun's pass that is open, a cascade
+// or the bounce map. False when render refuses a draw, which it has already
+// said on stderr.
+bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame)
 {
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
@@ -95,7 +101,7 @@ static bool draw_casters(voe_ecs_world *world, voe_render_device *device,
 		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
-		if (material == NULL || !casts(material) ||
+		if (material == NULL || !voe_3d_draw_casts(material) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		// Where it was `lag` of a step ago, as the view draws it (0254).
@@ -134,11 +140,15 @@ bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
 		if (!voe_render_shadow_pass_begin(device, cascade,
 						  &cascades.light[cascade]))
 			return false;
-		drawn = draw_casters(world, device, frame);
+		drawn = voe_3d_draw_casters(world, device, frame);
 		voe_render_pass_end(device);
 		if (!drawn)
 			return false;
 	}
+	// The bounce pass after the cascades, only when there were cascades
+	// (0308 point 1; no sun, 0287: neither).
+	if (!voe_3d_draw_bounce(world, device, frame))
+		return false;
 	frame->shadow = cascades.shadow;
 	VOE_BASE_ASSERT(frame->shadow.count <= VOE_RENDER_SHADOW_CASCADES,
 			"more cascades than render has");

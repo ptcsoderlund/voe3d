@@ -38,6 +38,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
   a graphics card.
+- `bounce.c` — that the shadows call is true with five passes and false with four, and that a wall
+  moved a metre marks two stale spheres at its two places, none with no previous table or unmoved,
+  and one in a room of one. Skips without a graphics card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.

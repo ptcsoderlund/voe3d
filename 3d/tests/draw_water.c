@@ -50,15 +50,15 @@
 #define SIDE 32
 
 // The shapes, the store's quad and water record; the ground and the water, each
-// drawn once more into each of the four cascades at most; four shadow passes
-// before the view's one.
+// drawn once more into each of the four cascades and the bounce map at most;
+// four shadow passes and the bounce pass before the view's one.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES + 4,
 	.indices = VOE_3D_SHAPES_INDICES + 6,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES + 1,
-	.objects = 2 + VOE_RENDER_SHADOW_CASCADES * 2,
+	.objects = 2 + (VOE_RENDER_SHADOW_CASCADES + 1) * 2,
 	.shadings = VOE_3D_SHAPES_SHADINGS + 1,
-	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,
+	.passes = 2 + VOE_RENDER_SHADOW_CASCADES,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
 

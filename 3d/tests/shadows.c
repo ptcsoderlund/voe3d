@@ -71,16 +71,16 @@
 #define FAR_OUT 100000.0
 
 // Three drawn objects at most (the floor and the model's two parts), each
-// drawn once more into each of the four cascades, and the four shadow passes
-// before the view's one; room for the model's 6 vertices, 6 indices, 2
-// geometries and 2 shading records.
+// drawn once more into each of the four cascades and the bounce map, and the
+// four shadow passes and the bounce pass before the view's one; room for the
+// model's 6 vertices, 6 indices, 2 geometries and 2 shading records.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES + 6,
 	.indices = VOE_3D_SHAPES_INDICES + 6,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES + 2,
-	.objects = 3 + VOE_RENDER_SHADOW_CASCADES * 3,
+	.objects = 3 + (VOE_RENDER_SHADOW_CASCADES + 1) * 3,
 	.shadings = VOE_3D_SHAPES_SHADINGS + 2,
-	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,
+	.passes = 2 + VOE_RENDER_SHADOW_CASCADES,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
 
@@ -237,7 +237,7 @@ static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
 
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
-	VOE_TEST_CHECK_INT(added, VOE_RENDER_SHADOW_CASCADES * 2);
+	VOE_TEST_CHECK_INT(added, (VOE_RENDER_SHADOW_CASCADES + 1) * 2);
 	VOE_TEST_CHECK(pixels.under + 32 < pixels.beside);
 	voe_base_arena_destroy(arena);
 	return pixels;
@@ -298,7 +298,7 @@ static void the_model_shadows_the_floor(voe_render_device *device,
 					  sizeof(TWO_PRIMITIVES_GLB), &error));
 	pixels = a_frame(world, device, arena, models, &count, &added);
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
-	VOE_TEST_CHECK_INT(added, VOE_RENDER_SHADOW_CASCADES * 3);
+	VOE_TEST_CHECK_INT(added, (VOE_RENDER_SHADOW_CASCADES + 1) * 3);
 	VOE_TEST_CHECK(pixels.under + 32 < pixels.beside);
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
