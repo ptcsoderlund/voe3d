@@ -14,7 +14,8 @@
 // THE RED WALL REDDENS THE GROUND NEAR IT. With the update, the ground 1 m from
 // the wall has red over green greater than the ground 10 m away, and greater
 // than the same pixel in a frame with no update. The bounce is read at
-// lighting.slangh's VOE_BOUNCE_GAIN, 6 (ADR-0311): near 229 160 160, far 163.
+// lighting.slangh's VOE_BOUNCE_GAIN, 6 (ADR-0311), each VPL weighted by the
+// probe's standoff (ADR-0313): near 200 160 160, far 168.
 //
 // NO UPDATE IS NO BOUNCE: the ground is grey, red within 2/255 of green.
 //

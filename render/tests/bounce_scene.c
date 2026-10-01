@@ -18,7 +18,8 @@
 // OFF THE ORIGIN THE WALL STILL REDDENS THE GROUND: sun π, fill 0, with the
 // update the ground 1 m from the wall has red over green greater than the
 // ground 10 m away by at least 0.05. The bounce is read at lighting.slangh's
-// VOE_BOUNCE_GAIN, 6 (ADR-0311): near 223 167 167, far 163 160 160.
+// VOE_BOUNCE_GAIN, 6 (ADR-0311), each VPL weighted by the probe's standoff
+// (ADR-0313): near 192 164 164, far 171 163 163.
 //
 // THE BOUNCE NEVER DARKENS: sun 9, fill 0.09, at a 7 × 7 lattice of ground
 // points across the wall's sunlit side and its shadow, every channel with the
@@ -35,6 +36,12 @@
 // and update, B's bounce pass and update, a camera pass on each. Each target's
 // ground pixel 1 m from the wall is, within 2/255 a channel, the one it shows
 // in a frame where only its own bounce pass and update ran.
+//
+// SHADOW SIDE (ADR-0312): at sun 1 and π, fill 0.09, each on a device of its
+// own so the first update fills the whole grid, the eye 8 m along −x of the
+// scene's, the camera sees the wall's shadowed face. The ground 0.25 m and
+// 0.75 m out from it, in its sun shadow, reads within 2/255 a channel of the
+// same pixel with no update.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO.
 #include <render/device.h>
@@ -136,6 +143,11 @@ static const voe_math_float3 NEAR = { 1.0f, 0.0f, 0.0f };
 static const voe_math_float3 FAR = { 10.0f, 0.0f, 0.0f };
 static const voe_math_float3 LOOK_AT = { 4.0f, 0.0f, 0.0f };
 static const voe_math_float3 LIGHT_AT = { 3.0f, 0.0f, 0.0f };
+// SHADOW SIDE's eye in world metres, and the ground 0.25 m and 0.75 m out from
+// the wall's shadowed face at x = −0.1.
+static const voe_math_float3 SHADE_EYE = { -75.0f, 10.0f, -31.0f };
+static const voe_math_float3 SHADE_GROUND[2] = { { -0.35f, 0.0f, 0.0f },
+						 { -0.85f, 0.0f, 0.0f } };
 
 // One view of the scene: its eye in world metres, the target it draws onto,
 // its camera, its bounce light and its grid's update.
@@ -583,6 +595,42 @@ static void two_views_in_one_frame(voe_base_arena *arena)
 	voe_render_device_destroy(scene.device);
 }
 
+// SHADOW SIDE at `sun`, on a device of its own: its first update lists the
+// whole grid at a blend of one, so nothing from an earlier sun is left in it.
+static void the_shadow_side_stays_dark(float sun, voe_base_arena *arena)
+{
+	struct scene scene = { 0 };
+	voe_render_picture bounced;
+	voe_render_picture plain;
+
+	if (!open_device(&scene, 0, arena))
+		return;
+	scene.shadow = scene_light(SHADE_EYE, LIGHT_AT, SHADOW_HALF);
+	scene.window = open_look(SHADE_EYE, VOE_RENDER_TARGET_WINDOW,
+				 LOWEST_CELL, LIGHT_AT, &scene.shadow, SHADE_EYE);
+	scene.window.camera.light.intensity = sun;
+	scene.window.camera.light.fill = (voe_math_float3){ DIM_FILL, DIM_FILL,
+							    DIM_FILL };
+	bounced = draw_frame(&scene, true, arena);
+	plain = draw_frame(&scene, false, arena);
+	printf("shadow side, sun %g:\n", sun);
+	for (int i = 0; i < 2; i++) {
+		const uint8_t *b = pixel_at(&bounced, &scene.window,
+					    SHADE_GROUND[i]);
+		const uint8_t *p = pixel_at(&plain, &scene.window,
+					    SHADE_GROUND[i]);
+
+		VOE_TEST_CHECK(b != NULL && p != NULL);
+		if (b == NULL || p == NULL)
+			continue;
+		printf("  %g m: %d %d %d against %d %d %d\n",
+		       -0.1f - SHADE_GROUND[i].x, b[0], b[1], b[2], p[0], p[1],
+		       p[2]);
+		check_alike(b, p);
+	}
+	voe_render_device_destroy(scene.device);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(8 * 1024 * 1024);
@@ -594,6 +642,8 @@ int main(void)
 		scrolling_keeps_both_claims(&scene, arena);
 		voe_render_device_destroy(scene.device);
 		two_views_in_one_frame(arena);
+		the_shadow_side_stays_dark(1.0f, arena);
+		the_shadow_side_stays_dark(3.14159265f, arena);
 	}
 
 	voe_base_arena_destroy(arena);

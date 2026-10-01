@@ -62,7 +62,8 @@ by reading the offscreen colour image back.
   off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
   wall's shadow. Headless.
 - `bounce_scene.c` — the bounce as the editor runs it, off the origin about the eye, holding
-  through scrolling and with two views in one frame. Headless.
+  through scrolling and with two views in one frame, and the ground on the wall's shadow side
+  unlit by it. Headless.
 - `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
   negative cell too, a cycle
   of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,

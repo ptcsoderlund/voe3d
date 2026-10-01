@@ -53,3 +53,26 @@ The tests `render/bounce_scene`, `render/bounce`, `render/bounce_grid`,
 build. The commit message gives the card from the render line, the gain,
 and for both suns, before and after: the 1 m, 4 m, 8 m and S pixels with
 the bounce on and off, and SHADOW SIDE's failing then passing pixels.
+
+## Blocked
+No gain meets 0310's tint with S holding point 2, and "4 m between" fails at
+every gain, because the standoff weight drops the 1 m point's near probe
+(x −5, 0.09 m behind the −x face) to nothing. Measured on the RTX 4070 Laptop GPU,
+view 0's Camera moved to x −2.84 in both copies (the tank hides S otherwise);
+bounce off: sun 1 1 m/4 m/8 m (62,57,49), S (47,45,24); sun π (108,100,87),
+S (47,45,24). Before the fix (gain 6): sun 1 1 m (79,69,64) 4 m (70,63,56)
+8 m (62,57,50) S (47,45,29); sun π (135,119,111) (121,110,99) (108,100,89)
+S (69,56,55). SHADOW SIDE before: sun 1 0.25 m 102 60 60, 0.75 m 88 60 60;
+sun π 173 71 71, 150 68 68; all against 60 60 60. After the fix, 8 m stays
+(62,57,49) / (108,100,88), sun 1 then sun π, 1 m; 4 m; S:
+gain 6: (70,63,56) (71,64,57) (47,45,24); (121,110,99) (123,112,100) (47,45,24).
+gain 10: (75,66,60) (77,69,62) (47,45,24); (129,116,106) (133,119,108) (47,45,25).
+gain 11: (76,67,61) (78,70,63) (47,45,24); (131,117,108) (135,121,110) (47,45,27).
+gain 12: (77,68,62) (80,71,64) (47,45,24); (133,118,109) (137,123,112) (47,45,28).
+gain 20: (86,75,70) (89,79,72) (47,45,24); (147,129,121) (152,135,125) (50,45,38).
+gain 50: (112,94,92) (117,102,96) (47,45,33); (189,161,156) (198,173,163) (79,66,62).
+Gain 10 holds S but gives blue +11 at sun 1; 11 gives +12 but S's blue +3 at π
+(blue rises first because the fill floor is weakest in blue). Committed: the fix
+at gain 6 and SHADOW SIDE (passing, 60 60 60 at both suns and points); render
+tests pass. Unblock: a decision on the near-face loss (e.g. w per receiver, or
+an offset in w) or on dropping "4 m between" and the S margin.
