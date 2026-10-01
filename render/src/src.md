@@ -53,6 +53,9 @@ which file to open — what each one owns, and where the seams between them run.
   views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
   images, 512 square, the bounce pass's rendering, and its barriers to compute read.
+- `bounce_schedule.h` — which bounce probes an update refreshes and how much: entered cells, then
+  stale spheres, then a strided cycle, in toroidal indices. Pure CPU.
+- `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built

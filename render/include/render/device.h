@@ -134,6 +134,15 @@ typedef struct {
 // voe_render_bounce_pass_begin draws into. 512² × 20 bytes × frame slots.
 #define VOE_RENDER_BOUNCE_TEXELS 512
 
+// Probes a side of a target's bounce grid, addressed toroidally (ADR-0308).
+#define VOE_RENDER_BOUNCE_PROBES 32
+// Metres between neighbouring probes of the bounce grid.
+#define VOE_RENDER_BOUNCE_SPACING 2.0f
+// Probes one bounce update refreshes beyond the cells a scroll brings in.
+#define VOE_RENDER_BOUNCE_BUDGET 4096
+// How much of a refreshed probe is new light, for one not just brought in.
+#define VOE_RENDER_BOUNCE_BLEND 0.5f
+
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
 // because the shader has to agree with it.
