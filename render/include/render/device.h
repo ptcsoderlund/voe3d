@@ -51,6 +51,12 @@
 // to write it down. A picture that holds numbers rather than colour —
 // metalness, roughness, occlusion, a normal map — is uploaded as
 // VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
+//
+// A frame's camera passes come after the sun's shadow cascades and its bounce
+// pass; VOE_RENDER_BOUNCE_* size the bounce grid, voe_render_bounce_update
+// refreshes a target's grid from the bounce map, a pass may copy its depth
+// (voe_render_frame_copy_depth), and a shading record may be water, with waves
+// and sky in the object record.
 #pragma once
 
 #include <base/arena.h>
