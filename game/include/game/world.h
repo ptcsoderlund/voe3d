@@ -1,8 +1,8 @@
 // The one list of component types a project's world holds, and the room it
 // has for each: transform, identity, parent, prefab, prefab part, light, camera,
 // mesh, material, panel, shape, model, collider, body, emitter, its particles,
-// the transforms' previous step (0254), sound and its voice row (0304),
-// registered once on a fresh world.
+// the transforms' previous step (0254), sound and its voice row (0304), water
+// and its waves (0305), registered once on a fresh world.
 //
 //     voe_ecs_world *world = voe_game_world_new(arena);
 //
@@ -49,9 +49,15 @@
 // because a sound sits on a thing and spawned ones carry theirs (0304).
 #define VOE_GAME_WORLD_SOUNDS VOE_GAME_WORLD_MAX_DRAWN
 
-// How many types the engine registers here; a project's come after them.
-#define VOE_GAME_WORLD_TYPES 19
+// How many waters, and so waves rows, a world holds: a scene's few lakes and
+// seas, and room for a spawned thing to carry its own, as an emitter's
+// reasoning goes (0298 point 8), without the room of every drawn thing, since
+// each is one large plane (0305).
+#define VOE_GAME_WORLD_WATERS 16
 
-// A fresh world with the nineteen types registered and nothing in it. Never NULL:
+// How many types the engine registers here; a project's come after them.
+#define VOE_GAME_WORLD_TYPES 21
+
+// A fresh world with the twenty-one types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
 voe_ecs_world *voe_game_world_new(voe_base_arena *arena);

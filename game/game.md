@@ -1,6 +1,6 @@
 # game
 
-The loop a shipped game runs: the nineteen types a project's world holds,
+The loop a shipped game runs: the twenty-one types a project's world holds,
 one frame drawn through the scene's camera, and the whole run with its sound (0237). A game
 tree builds this folder from the engine source through `cmake/game.cmake` (0235),
 and a project's `Code/` with it (0242).
