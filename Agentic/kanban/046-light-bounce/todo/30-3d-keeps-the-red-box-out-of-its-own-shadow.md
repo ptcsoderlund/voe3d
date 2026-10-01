@@ -1,10 +1,10 @@
-# 28 — 3d keeps the red box's colour out of its own shadow
+# 30 — 3d keeps the red box's colour out of its own shadow
 folder: 3d
-after: 27
-decisions: 0168, 0310, 0312, 0313
+after: 29
+decisions: 0168, 0310, 0312, 0313, 0314
 
 ## Change
-Bug 03 through 3d's calls: card 27 keeps a face's bounce on its lit side in
+Bug 03 through 3d's calls: cards 27 and 29 keep a face's bounce on its lit side in
 render; this holds it where the editor draws. Read `3d/tests/bounce_scene.c`
 and `3d/tests/tests.md`.
 
@@ -16,8 +16,8 @@ and `3d/tests/tests.md`.
   colour is barred: the green box's lit face looks into that shadow, and
   0312 lets it light it. The header gains the case and says why the claim is
   the colour, not the brightness.
-- THE TINT and NO SPOTS keep their claims at the gain card 27 chose; if THE
-  TINT fails while card 27's tank captures met 0310, block with the measured
+- THE TINT and NO SPOTS keep their claims at the gain card 29 chose; if THE
+  TINT fails while card 29's tank captures met 0310, block with the measured
   pixels.
 - `3d/tests/tests.md`: the `bounce_scene.c` entry names the shadow side.
 
