@@ -82,6 +82,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and held in it; internal.
 - `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
   about the eye, and size, colour and alpha lerped at age over life.
+- `draw_water.h` — every water as one blended world draw, counted for the group's room and held
+  in it, why the quad is turned and why it casts no shadow; internal.
+- `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
+  waves at its clock and sky in the object record.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
 - `draw_marks.c` — the camera and sun markers, the outline, a collider's lines and the gizmo's
   arrows or rings, each as transient quads.

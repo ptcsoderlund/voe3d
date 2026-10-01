@@ -28,6 +28,9 @@ again, or to find where a claim that has started failing is written down.
   or sun marker is one draw more. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, and that a glowing one is unlit. Skips without a graphics card.
+- `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
+  and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
+  or without it. Skips without a graphics card.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out and for a model. Skips without
   a graphics card.
