@@ -24,8 +24,11 @@
 // black, the floor lit by the zeroed light.
 //
 // 100 KM OUT (0250) the camera, floor and cube all stand 100 km along X and the
-// same two pixels read as they did: the cascades are fitted about the eye and
-// snapped in double, so nothing is lost to a float's reach.
+// same two pixels read as they did at the origin: the cascades are fitted about
+// the eye and snapped in double, so nothing is lost to a float's reach. Both
+// pictures are drawn with the bounce off (0310), the shadows call naming a
+// second target, not the window the pass draws into, so the claim is the
+// cascades' alone and no bounce under the cube is read.
 //
 // A MODEL CASTS AS A MESH DOES (0277 point 3): the cube swapped for a thing
 // wearing model_data.inc's model, turned a quarter turn about +Z so the file's
@@ -81,6 +84,7 @@ static const voe_render_capacities CAPACITIES = {
 	.objects = 3 + (VOE_RENDER_SHADOW_CASCADES + 1) * 3,
 	.shadings = VOE_3D_SHAPES_SHADINGS + 2,
 	.passes = 2 + VOE_RENDER_SHADOW_CASCADES,
+	.targets = 1,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
 
@@ -184,9 +188,12 @@ typedef struct {
 
 // One frame of `world` with its shadows, and the floor's two pixels. `count` is
 // the shadow's cascade count; `added` how many draws the shadow call made.
+// `bounced` is the target whose bounce grid the shadows call updates: the
+// window to read the bounce, another to draw with it off.
 static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, const voe_3d_models *models,
-			    uint32_t *count, uint32_t *added)
+			    voe_render_target bounced, uint32_t *count,
+			    uint32_t *added)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
@@ -199,6 +206,7 @@ static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 
 	VOE_TEST_CHECK_INT(frame.shadow.count, 0);
 	frame.models = models;
+	frame.target = bounced;
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
@@ -225,16 +233,19 @@ static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 	return pixels;
 }
 
-// The floor under the cube is in its shadow; the floor beside it is not.
+// The floor under the cube is in its shadow; the floor beside it is not. The
+// bounce grid updated is `bounced`'s.
 static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 					       const voe_3d_shapes *shapes,
-					       double x)
+					       double x,
+					       voe_render_target bounced)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_ecs_world *world = a_world(arena, shapes, x, true, 0.0f, NULL);
 	uint32_t count = 0;
 	uint32_t added = 0;
-	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
+	floor_pixels pixels =
+		a_frame(world, device, arena, NULL, bounced, &count, &added);
 
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
 	VOE_TEST_CHECK_INT(added, (VOE_RENDER_SHADOW_CASCADES + 1) * 2);
@@ -251,7 +262,8 @@ static void no_light_casts_nothing(voe_render_device *device,
 	voe_ecs_world *world = a_world(arena, shapes, 0.0, false, 0.0f, NULL);
 	uint32_t count = 1;
 	uint32_t added = 1;
-	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
+	floor_pixels pixels = a_frame(world, device, arena, NULL,
+				      VOE_RENDER_TARGET_WINDOW, &count, &added);
 
 	VOE_TEST_CHECK_INT(count, 0);
 	VOE_TEST_CHECK_INT(added, 0);
@@ -271,7 +283,8 @@ static void a_fill_lifts_the_shadow(voe_render_device *device,
 	voe_ecs_world *world = a_world(arena, shapes, 0.0, true, 0.2f, NULL);
 	uint32_t count = 0;
 	uint32_t added = 0;
-	floor_pixels pixels = a_frame(world, device, arena, NULL, &count, &added);
+	floor_pixels pixels = a_frame(world, device, arena, NULL,
+				      VOE_RENDER_TARGET_WINDOW, &count, &added);
 
 	VOE_TEST_CHECK(pixels.under > unfilled.under);
 	VOE_TEST_CHECK(pixels.under < pixels.beside);
@@ -296,7 +309,8 @@ static void the_model_shadows_the_floor(voe_render_device *device,
 	VOE_TEST_CHECK(voe_3d_models_load(models, device, "Assets/two.glb", 1,
 					  TWO_PRIMITIVES_GLB,
 					  sizeof(TWO_PRIMITIVES_GLB), &error));
-	pixels = a_frame(world, device, arena, models, &count, &added);
+	pixels = a_frame(world, device, arena, models, VOE_RENDER_TARGET_WINDOW,
+			 &count, &added);
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
 	VOE_TEST_CHECK_INT(added, (VOE_RENDER_SHADOW_CASCADES + 1) * 3);
 	VOE_TEST_CHECK(pixels.under + 32 < pixels.beside);
@@ -312,6 +326,8 @@ int main(void)
 	voe_base_error error = VOE_BASE_OK;
 	voe_render_device *device =
 		voe_render_device_new_headless(arena, size, CAPACITIES, &error);
+	voe_render_target other;
+	voe_render_texture shown;
 	voe_3d_shapes shapes;
 	floor_pixels near;
 	floor_pixels far;
@@ -326,11 +342,15 @@ int main(void)
 		return voe_test_result();
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+	VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &other, &shown,
+						&error));
 
-	near = the_cube_shadows_the_floor(device, &shapes, 0.0);
+	near = the_cube_shadows_the_floor(device, &shapes, 0.0,
+					  VOE_RENDER_TARGET_WINDOW);
 	no_light_casts_nothing(device, &shapes);
 	a_fill_lifts_the_shadow(device, &shapes, near);
-	far = the_cube_shadows_the_floor(device, &shapes, FAR_OUT);
+	near = the_cube_shadows_the_floor(device, &shapes, 0.0, other);
+	far = the_cube_shadows_the_floor(device, &shapes, FAR_OUT, other);
 	VOE_TEST_CHECK(abs((int)far.under - (int)near.under) <= 2);
 	VOE_TEST_CHECK(abs((int)far.beside - (int)near.beside) <= 2);
 	the_model_shadows_the_floor(device, &shapes);

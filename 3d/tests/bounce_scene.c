@@ -4,22 +4,27 @@
 //
 // THE SCENE, lit as examples/tank_game/main.scene: beige ground (a flat box
 // 60 m wide, top at y 0, base 0.8, 0.7, 0.5), a red box 2 m a side at
-// (12, 1, -6) and a green one 6 m from it at (6, 1, -6); a sun of 9 in
+// (12, 1, -6) and a green one 6 m from it at (6, 1, -6); a sun in
 // (0.95, 0.71, 0.71) shining down at 45 degrees along -x onto the red box's
 // +x face, fill 0.09. The eye stands 8 m up and 14 m back (+z) from the red
 // box, looking at its foot.
 //
+// TWO SUNS, 1 AND π (0310), each its own world, not the project's 9: with no
+// tone map yet a sun of 9 clips the lit ground to white, and a clipped pixel
+// shows no tint; that is a work order after 046. The bounce's strength is
+// render's gain, VOE_BOUNCE_GAIN (0311), not this test's.
+//
 // TEN FRAMES of: frame begin, voe_3d_draw_system_shadows with `frame.target`
 // the window, the view's pass and the run, frame end; then the window read.
 //
-// THE TINT: the ground 1 m out from the red box's lit face, (14, 0, -6), has
-// red over green greater than the ground 8 m from both boxes, (12, 0, -14),
-// by at least 0.03.
+// THE TINT (0310): the ground 1 m out from the red box's lit face,
+// (14, 0, -6), reads at least 12/255 more red, in 8-bit, than the ground 8 m
+// from both boxes, (12, 0, -14).
 //
-// NO SPOTS: at a 7 x 7 lattice of ground points about both boxes, sunlit and
-// in their shadows, every channel is at least the same pixel, less 1/255, in a
-// reference frame whose shadows call names a second target, so the window's
-// pass reads no bounce.
+// NO SPOTS, at both suns: at a 7 x 7 lattice of ground points about both
+// boxes, sunlit and in their shadows, every channel is at least the same
+// pixel, less 1/255, in a reference frame whose shadows call names a second
+// target, so the window's pass reads no bounce.
 //
 // Pixels are found by projecting a world point, about the frame's eye,
 // through the frame's view, with the engine's one Y flip.
@@ -54,7 +59,7 @@
 #define SCRATCH (16 * 1024 * 1024)
 #define SIDE 128
 #define FRAMES 10
-#define REDDER_BY 0.03f
+#define REDDER_BY 12
 #define LATTICE 7
 // Three shapes, each drawn into four cascades, the bounce map and the view.
 #define SHAPES 3
@@ -90,8 +95,9 @@ static void add_a_shape(voe_ecs_world *world, voe_math_double3 at,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE, .colour = colour }));
 }
 
-// The camera, the sun, the ground and the two boxes, as the header says.
-static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes)
+// The camera, a sun of `sun`, the ground and the two boxes, as the header says.
+static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
+			      float sun)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -137,7 +143,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, entity,
 		(voe_scene_light){ .colour = { 0.95097667f, 0.7098251f, 0.7098251f },
-				   .intensity = 9.0f,
+				   .intensity = sun,
 				   .fill_colour = { 0.8992056f, 0.7447454f, 0.335389f },
 				   .fill_intensity = 0.09f }));
 	add_a_shape(world, (voe_math_double3){ 0.0, -0.05, 0.0 },
@@ -211,25 +217,25 @@ static const uint8_t *pixel_at(const voe_render_picture *picture,
 				4];
 }
 
-// Red over green at `at`, or -1 off the picture or where green is nought.
-static float redness(const voe_render_picture *picture,
-		     const voe_3d_frame *frame, voe_math_float3 at)
+// The 8-bit red at `at`, or -1 off the picture.
+static int red_at(const voe_render_picture *picture, const voe_3d_frame *frame,
+		  voe_math_float3 at)
 {
 	const uint8_t *p = pixel_at(picture, frame, at);
 
-	if (p == NULL || p[1] == 0)
-		return -1.0f;
+	if (p == NULL)
+		return -1;
 	printf("(%g, %g, %g): %d %d %d\n", at.x, at.y, at.z, p[0], p[1], p[2]);
-	return (float)p[0] / (float)p[1];
+	return p[0];
 }
 
 static void the_red_box_tints_the_ground(const voe_render_picture *bounced,
 					 const voe_3d_frame *frame)
 {
-	float near = redness(bounced, frame, NEAR);
-	float far = redness(bounced, frame, FAR);
+	int near = red_at(bounced, frame, NEAR);
+	int far = red_at(bounced, frame, FAR);
 
-	VOE_TEST_CHECK(far >= 0.0f);
+	VOE_TEST_CHECK(far >= 0);
 	VOE_TEST_CHECK(near >= far + REDDER_BY);
 }
 
@@ -260,6 +266,28 @@ static void no_spots(const voe_render_picture *bounced,
 	VOE_TEST_CHECK_INT(darker, 0);
 }
 
+// The scene at a sun of `sun`: ten frames bounced, one plain, both claims.
+static void at_a_sun(voe_render_device *device, const voe_3d_shapes *shapes,
+		     voe_render_target other, float sun)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_ecs_world *world = a_world(arena, shapes, sun);
+	voe_render_picture bounced;
+	voe_render_picture plain;
+	voe_3d_frame frame = { 0 };
+
+	printf("sun %g\n", sun);
+	for (int f = 0; f < FRAMES; f++)
+		frame = a_frame(world, device, arena, VOE_RENDER_TARGET_WINDOW);
+	bounced = read_window(device, arena);
+	(void)a_frame(world, device, arena, other);
+	plain = read_window(device, arena);
+
+	the_red_box_tints_the_ground(&bounced, &frame);
+	no_spots(&bounced, &plain, &frame);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -269,11 +297,7 @@ int main(void)
 		voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	voe_render_target other;
 	voe_render_texture shown;
-	voe_render_picture bounced;
-	voe_render_picture plain;
 	voe_3d_shapes shapes;
-	voe_ecs_world *world;
-	voe_3d_frame frame;
 
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
@@ -287,16 +311,8 @@ int main(void)
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
 	VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &other, &shown,
 						&error));
-	world = a_world(arena, &shapes);
-
-	for (int f = 0; f < FRAMES; f++)
-		frame = a_frame(world, device, arena, VOE_RENDER_TARGET_WINDOW);
-	bounced = read_window(device, arena);
-	(void)a_frame(world, device, arena, other);
-	plain = read_window(device, arena);
-
-	the_red_box_tints_the_ground(&bounced, &frame);
-	no_spots(&bounced, &plain, &frame);
+	at_a_sun(device, &shapes, other, 1.0f);
+	at_a_sun(device, &shapes, other, 3.14159265f);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
