@@ -1,6 +1,6 @@
-// The capture's frame count and its one write, as capture.h gives them.
+// The capture's frame count and its two writers, as capture.h gives them.
 //
-// Constraints: the write's scratch arena is made and destroyed inside the
+// Constraints: each write's scratch arena is made and destroyed inside the
 // call; nothing it holds outlives the file.
 #include "capture.h"
 
@@ -15,17 +15,16 @@
 // its own.
 #define CAPTURE_SCRATCH (4u * 1024u * 1024u)
 
-// How many frames a capture runs before it writes; capture.h says why two.
-#define CAPTURE_FRAMES 2
-
-bool voe_editor_capture_enough(const char *path, unsigned *frames)
+bool voe_editor_capture_enough(const char *path, unsigned *frames,
+			       unsigned reach)
 {
-	return path != NULL && ++*frames == CAPTURE_FRAMES;
+	return path != NULL && ++*frames == reach;
 }
 
 // Nothing is printed on a failure: the readback, the encoder and the file write
 // each say on stderr what refused.
-bool voe_editor_capture_write(voe_app *app, const char *path)
+bool voe_editor_capture_write_view(voe_app *app, voe_render_target target,
+				   const char *path)
 {
 	voe_base_error error;
 	voe_base_arena *scratch;
@@ -34,8 +33,13 @@ bool voe_editor_capture_write(voe_app *app, const char *path)
 	if (path == NULL)
 		return true;
 	scratch = voe_base_arena_new(CAPTURE_SCRATCH);
-	written = voe_app_capture_png(app, VOE_RENDER_TARGET_WINDOW, scratch,
-				      path, &error);
+	written = voe_app_capture_png(app, target, scratch, path, &error);
 	voe_base_arena_destroy(scratch);
 	return written;
+}
+
+bool voe_editor_capture_write(voe_app *app, const char *path)
+{
+	return voe_editor_capture_write_view(app, VOE_RENDER_TARGET_WINDOW,
+					     path);
 }

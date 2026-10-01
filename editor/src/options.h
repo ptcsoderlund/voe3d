@@ -1,6 +1,7 @@
 // The command line, read once before anything is opened, so a mistyped
 // argument costs nothing and says so straight away. `voe_editor [<folder>]
-// [--capture <path> [--size <W>x<H>]]` is the whole of it, and one usage line
+// [--capture <path> [--size <W>x<H>] [--frames <n>] [--capture-view <path>]]`
+// is the whole of it, and one usage line
 // on stderr is what every way of getting it wrong answers with: there is one
 // form to state, and stating it twice in different words would be two forms to
 // keep in step.
@@ -14,7 +15,10 @@
 // how big that picture is. The size defaults to the one the caller put in
 // `*out` — the size the window would have opened at — and means nothing without
 // `--capture`, so it is refused there rather than quietly ignored. A missing
-// value and any unknown argument are the same refusal.
+// value and any unknown argument are the same refusal. `--frames <n>` is how
+// many frames are drawn before writing, a whole number of at least 2 and 2
+// when absent; `--capture-view <path>` writes the first scene view's picture
+// there as well (capture.h). Both are refused without `--capture`, as the size is.
 //
 // THE SIZE IS PARSED HERE AND NOT BY THE C LIBRARY (ADR-0159: Windows' runtime
 // deprecates `sscanf` under -Werror and rule 8 forbids silencing that
@@ -37,6 +41,8 @@ typedef struct {
 	const char *capture; // --capture's path, or NULL
 	int wide;            // --size's, or what the caller put here
 	int high;
+	int frames;                // --frames', or 2
+	const char *capture_view;  // --capture-view's path, or NULL
 } voe_editor_options;
 
 // Reads the arguments into `*out`, which arrives holding the size to use when

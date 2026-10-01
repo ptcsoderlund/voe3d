@@ -26,8 +26,9 @@ carries it out.
 - `prefab_make.c` — a tree's camera, light or prefab rows refused, and any while a prefab is open,
   those refusals as one call without the file test, the file written under the shown folder unless
   it exists, then the prefab and part rows queued.
-- `capture.h` — `--capture`'s drawn frames counted to two and the window's picture written as a PNG.
-- `capture.c` — the count and the one write through its own scratch arena.
+- `capture.h` — `--capture`'s drawn frames counted to `--frames`, two by default, and the window's
+  picture and a scene view's own target written as PNGs.
+- `capture.c` — the count and the two writes, each through its own scratch arena.
 - `keys.h` — this frame's keyboard: the level `platform` reports for every key and the down edge of
   each against last frame's, which is where every key edge in the program is found.
 - `keys.c` — the one read of every key, once a frame, and the levels it
@@ -38,7 +39,8 @@ carries it out.
 - `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the
   rest a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
-  `--capture`'s path and `--size`'s picture, or one usage line on stderr.
+  `--capture`'s path, `--size`'s picture, `--frames`' count and `--capture-view`'s path, or one
+  usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its three arenas, kept sections, project file with its
