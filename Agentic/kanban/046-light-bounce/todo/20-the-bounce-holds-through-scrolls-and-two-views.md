@@ -1,20 +1,20 @@
-# 17 — The bounce holds through scrolls and two views
+# 20 — The bounce holds through scrolls and two views
 folder: render
-after: 16
+after: 19
 decisions: 0168, 0307, 0308
 
 ## Change
-Bug 01, the half of the editor's conditions card 16 does not reach: the grid
+Bug 01, the half of the editor's conditions cards 16 and 19 do not reach: the grid
 scrolls frame after frame with blend 0.5, and each editor view runs its own
 bounce pass and update into the one per-slot bounce map in the same frame.
-Read `render/tests/bounce_scene.c` (card 16), `render/src/bounce_grid.c`
+Read `render/tests/bounce_scene.c` (cards 16, 19), `render/src/bounce_grid.c`
 (when the reduce runs, the VPL buffer and the sets per slot and grid),
 `render/src/bounce_map.c`, `render/src/pass.c`, `render/tests/tests.md`.
 
 - `render/tests/bounce_scene.c`, cases added (header comment gains each):
   - SCROLLING: twelve frames, both frame slots in turn, the lowest cell
     moving +1 in x each frame and the corner with it, the eye fixed; after
-    them card 16's off-origin and never-darker claims still hold.
+    them the file's off-origin and never-darker claims still hold.
   - TWO VIEWS, ONE FRAME: a device with `targets` 2; in one frame a bounce
     pass from light view A and the update of target A, then a bounce pass
     from a light view B 40 m away (a different eye and grid) and the update

@@ -1,7 +1,7 @@
-# 18 — The sun reddens the ground by a red box, through 3d
+# 21 — The sun reddens the ground by a red box, through 3d
 folder: 3d
-after: 17
-decisions: 0168, 0307, 0308
+after: 20
+decisions: 0168, 0307, 0308, 0309
 read: feature.md
 
 ## Change
@@ -30,7 +30,7 @@ comments in `3d/include/3d/draw_system.h`, and `3d/tests/tests.md`.
 - If a case fails, the 3d owners are `bounce_grid.c` (the fit: the grid
   about the boxes, its light view holding them) and `draw_bounce.c` (the
   pass, casters and update, all about the frame's eye); fix it there and say
-  it in the file's header comment. A fault in render (cards 16, 17's cases
+  it in the file's header comment. A fault in render (cards 19, 20's cases
   pass but this fails through render) is a block with the measured pixels.
 - `3d/tests/tests.md`: the entry for `bounce_scene.c`.
 
