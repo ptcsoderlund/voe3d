@@ -35,7 +35,7 @@ fill_colour = [0.8992056, 0.7447454, 0.335389]
 fill_intensity = 0.09
 [3.voe_scene_transform]
 position = [0, 8, 0]
-rotation = [-0.31563857, -0.346564, -0.29888624, 0.8312236]
+rotation = [0.059765212, 0.45846266, 0.39455506, -0.79408216]
 scale = [1, 1, 1]
 
 [4]
@@ -84,7 +84,7 @@ alpha_end = 0
 glow = 0
 texture = "Assets/images/P.png"
 [8.voe_scene_transform]
-position = [-1.0663643479347229e-07, 4.330971518531442, -6.705522537231445e-08]
+position = [-8.168715675827116, 4.3309711162000895, 9.122587330639362]
 rotation = [0, 0, 0, 1]
 scale = [2, 2, 2]
 
@@ -97,3 +97,19 @@ name = "PauseState"
 folded = false
 [12.voe_scene_parent]
 parent = 10
+
+[14]
+name = "Water"
+folded = false
+[14.voe_3d_water]
+width = 1000
+length = 1000
+wave_height = 5
+wave_length = 20
+deep = 10
+colour = [0.02816211, 0.19784218, 0.2430466]
+sky = [0.45237142, 0.52699345, 0.53262705]
+[14.voe_scene_transform]
+position = [1.755543053150177e-07, -0.11231513880193233, -4.544854164123535e-07]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
