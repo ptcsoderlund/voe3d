@@ -26,6 +26,14 @@
 // pixel, less 1/255, in a reference frame whose shadows call names a second
 // target, so the window's pass reads no bounce.
 //
+// SHADOW SIDE, at both suns (0312, 0315): the ground 0.25 m and 0.75 m out
+// from the red box's shadowed -x face, at its z, which the sun does not reach,
+// has its red less its green at most 8/255 above the same pixel's in that
+// reference frame. The claim is the colour, not the brightness: the green
+// box's lit +x face looks into that shadow and 0312 lets it light it, so only
+// the red box's colour there is bounded. 8/255 is 0315's faint trace, the
+// bound a 2 m probe grid can hold while the lit side keeps THE TINT.
+//
 // Pixels are found by projecting a world point, about the frame's eye,
 // through the frame's view, with the engine's one Y flip.
 //
@@ -61,6 +69,7 @@
 #define FRAMES 10
 #define REDDER_BY 12
 #define LATTICE 7
+#define TRACE 8
 // Three shapes, each drawn into four cascades, the bounce map and the view.
 #define SHAPES 3
 
@@ -266,7 +275,30 @@ static void no_spots(const voe_render_picture *bounced,
 	VOE_TEST_CHECK_INT(darker, 0);
 }
 
-// The scene at a sun of `sun`: ten frames bounced, one plain, both claims.
+// The red box's shadowed foot, 0.25 m and 0.75 m out from its -x face: red
+// less green in `bounced` at most `plain`'s plus TRACE.
+static void the_shadow_side_stays_faint(const voe_render_picture *bounced,
+					const voe_render_picture *plain,
+					const voe_3d_frame *frame)
+{
+	static const float OUT[] = { 0.25f, 0.75f };
+
+	for (size_t i = 0; i < sizeof(OUT) / sizeof(OUT[0]); i++) {
+		voe_math_float3 at = { 11.0f - OUT[i], 0.0f, -6.0f };
+		const uint8_t *b = pixel_at(bounced, frame, at);
+		const uint8_t *p = pixel_at(plain, frame, at);
+
+		VOE_TEST_CHECK(b != NULL && p != NULL);
+		if (b == NULL || p == NULL)
+			continue;
+		printf("shadow (%g, %g): %d %d %d against %d %d %d\n", at.x,
+		       at.z, b[0], b[1], b[2], p[0], p[1], p[2]);
+		VOE_TEST_CHECK((int)b[0] - (int)b[1] <=
+			       (int)p[0] - (int)p[1] + TRACE);
+	}
+}
+
+// The scene at a sun of `sun`: ten frames bounced, one plain, the three claims.
 static void at_a_sun(voe_render_device *device, const voe_3d_shapes *shapes,
 		     voe_render_target other, float sun)
 {
@@ -285,6 +317,7 @@ static void at_a_sun(voe_render_device *device, const voe_3d_shapes *shapes,
 
 	the_red_box_tints_the_ground(&bounced, &frame);
 	no_spots(&bounced, &plain, &frame);
+	the_shadow_side_stays_faint(&bounced, &plain, &frame);
 	voe_base_arena_destroy(arena);
 }
 
