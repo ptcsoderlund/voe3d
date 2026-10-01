@@ -229,10 +229,10 @@ struct voe_render_shadow_map {
 
 // What a voe_render_target id names: a target of the caller's own, which is the
 // window's pair above made once per frame slot at a size of its own, plus the
-// texture slot that shows it. See target.c.
+// texture slot that shows it. See target_own.c.
 //
 // ITS COLOUR IMAGES ARE IN GENERAL AND THE WINDOW'S ARE NOT. A target's colour
-// image is an attachment and a sampled image at once, and target.c says why it is
+// image is an attachment and a sampled image at once, and target_own.c says why it is
 // given the one layout valid for both rather than moved between two. The depth
 // images stay in their attachment layout once a pass has put them there, as the
 // window's do.

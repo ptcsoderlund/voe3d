@@ -105,7 +105,7 @@ static void transition(VkCommandBuffer commands, VkImage image,
 	voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
 }
 
-// The image, its memory and its view. Close kin to build_image in target.c and
+// The image, its memory and its view. Close kin to voe_render_target_image_build and
 // deliberately not shared with it: that one is a render target, always one level,
 // always device-local-and-nothing-else, and merging the two would make a
 // function with a parameter for every way they differ.
@@ -318,7 +318,7 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 		// A target's picture: this frame slot's own colour image, which
 		// is the whole of how a frame in slot n comes to read slot n's
 		// picture through an id that is the same in every slot — and in
-		// GENERAL, the one layout that image is ever in. See target.c.
+		// GENERAL, the one layout that image is ever in. See target_own.c.
 		if (texture->is_target) {
 			view = device->targets[texture->target]
 				       .images[slot]

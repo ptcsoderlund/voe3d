@@ -118,7 +118,7 @@ typedef struct {
 	// this table: a finished target's colour image copied into a
 	// host-visible buffer. Core 1.0, so it resolves on a headless device
 	// too — which is the device the picture is usually taken on. See
-	// voe_render_target_read in target.c.
+	// voe_render_target_read in target_read.c.
 	PFN_vkCmdCopyImageToBuffer cmd_copy_image_to_buffer;
 	PFN_vkCreateCommandPool create_command_pool;
 	PFN_vkDestroyCommandPool destroy_command_pool;

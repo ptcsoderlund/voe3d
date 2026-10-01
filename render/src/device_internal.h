@@ -397,7 +397,20 @@ void voe_render_swapchain_teardown(voe_render_device *device);
 					   voe_platform_size size);
 void voe_render_target_teardown(voe_render_device *device);
 
-// target.c. The targets of the caller's own, as distinct from the window's pair
+// target.c, and used by target_own.c as well: one device-local image, its memory
+// and its view, with `what` naming it in the messages; false with a message.
+// _teardown gives back whatever a build made, is safe on a zeroed struct and on
+// one whose build stopped part way, and leaves it zeroed. Neither waits.
+[[nodiscard]] bool
+voe_render_target_image_build(voe_render_device *device,
+			      struct voe_render_allocated_image *out,
+			      VkExtent2D extent, VkFormat format,
+			      VkImageUsageFlags usage, VkImageAspectFlags aspect,
+			      const char *what);
+void voe_render_target_image_teardown(voe_render_device *device,
+				      struct voe_render_allocated_image *image);
+
+// target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds
 // given back at shutdown. _startup allocates no image; _shutdown is safe on a
 // device that never got as far as _startup.
@@ -420,12 +433,12 @@ void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 			       uint32_t cascade);
 
-// target.c. What a target id names, or NULL when it names nothing — the window's
+// target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.
 [[nodiscard]] struct voe_render_target_slot *
 voe_render_target_at(voe_render_device *device, voe_render_target target);
 
-// target.c. Every resize voe_render_target_resize recorded, applied: the device
+// target_own.c. Every resize voe_render_target_resize recorded, applied: the device
 // goes idle, the images of each target whose wanted size differs are made again
 // and settled into the layout they rest in, and the descriptor sets are pointed
 // at them. Does nothing, and does not wait, when no size differs. False when the

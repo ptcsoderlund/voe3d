@@ -43,9 +43,12 @@ which file to open — what each one owns, and where the seams between them run.
 - `shading.c` — the record buffer the fragment stage reads by index, and the
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
-- `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot; the
-  targets of a caller's own, shown through one texture slot; and the read that copies a finished
-  picture into an arena as RGBA8.
+- `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, and the
+  image build and teardown every target shares.
+- `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
+  GENERAL that lets one texture slot show them.
+- `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
+  into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
   views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the

@@ -101,8 +101,8 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // A TARGET'S COLOUR IMAGE LIVES IN GENERAL, AND `own` SAYS WHICH KIND THIS IS.
 // It is an attachment here and a sampled image in every descriptor set, and
 // GENERAL is the one layout that is valid for both, so the image never changes
-// layout after target.c settled it and loading it needs no barrier either. See
-// target.c for why one layout rather than a barrier each way.
+// layout after target_own.c settled it and loading it needs no barrier either.
+// See target_own.c for why one layout rather than a barrier each way.
 //
 // DEPTH RUNS BACKWARDS AND THE CLEAR IS THE HALF OF IT THAT LIVES HERE. The
 // buffer is cleared to VOE_RENDER_DEPTH_CLEAR, which is 0, which is this
