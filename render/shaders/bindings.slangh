@@ -56,7 +56,8 @@ struct voe_render_shadow {
 // depth_copy is the pass's depth copy texture slot, ~0u until it copied;
 // only the water path reads it. bounce is the pass's bounce grid (ADR-0308):
 // grid the first of its three entries at binding 6, ~0u for none; corner its
-// lowest corner about the eye; cell its lowest cell mod 32. Nothing reads it yet.
+// lowest corner about the eye; cell its lowest cell mod 32. lighting.slangh
+// reads it.
 struct voe_render_frame_bounce {
 	float3 corner;
 	uint grid;
@@ -86,8 +87,8 @@ Sampler2DArrayShadow voe_render_shadow_maps;
 // Set 0, binding 6: every bounce grid, three images each (L1 SH red, green,
 // blue), the window's first, read trilinear with repeat (render/src/target.c).
 // UNSIZED because the C side's length is (capacities.targets + 1) × 3, a
-// runtime number; a shader that reads it needs runtimeDescriptorArray, which
-// render/src/device.c does not enable. Nothing reads it yet.
+// runtime number; reading it needs runtimeDescriptorArray, and the entries of
+// targets not yet made are partially bound — render/src/device.c enables both.
 [[vk::binding(6, 0)]]
 Sampler3D voe_render_bounce_grids[];
 

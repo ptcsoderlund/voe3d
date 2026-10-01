@@ -6,7 +6,7 @@
 //
 // A BLENDED PLANE WHOSE VERTICES DO NOT MOVE. Four sine waves bend its normal,
 // measured in metres over the model's own x and y so they keep their size
-// however the quad is scaled. It is lit by the same sun, shadow and fill as any
+// however the quad is scaled. It is lit by the same sun, shadow, bounce and fill as any
 // surface, glints at roughness 0.05, takes the record's sky in the share
 // Schlick's fresnel from 0.02 gives it, and its thickness over the pass's depth
 // copy sets its coverage and darkens its body. No depth copy reads as deep.
@@ -135,7 +135,8 @@ float4 voe_render_water(voe_render_object object, voe_render_draw_vertex_out ver
 						    voe_water_plane_normal(object));
 	float3 radiance = voe_render_sun_radiance(reach);
 	float3 lit = (1.0 - sky_share) * (body * radiance / VOE_PI +
-					  voe_render_fill(reach, body)) +
+					  voe_render_indirect(reach, vertex.world,
+							      n, body)) +
 		     sky_share * object.sky.rgb + glint * radiance;
 
 	return voe_render_premultiplied(lit, VOE_WATER_DEEP_COVERAGE * share);

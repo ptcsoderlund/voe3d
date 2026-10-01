@@ -454,10 +454,11 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 
 	float reach = n_dot_l * voe_render_sunlight(vertex.world, surface);
 	float3 radiance = voe_render_sun_radiance(reach);
-	// The fill, only where the sun does not reach, and emission last,
-	// unshadowed and unoccluded (ADR-0278).
+	// The bounce with the fill as its floor, and emission last, unshadowed
+	// and unoccluded (ADR-0278).
 	float3 lit = (diffuse + specular) * radiance * occlusion +
-		     voe_render_fill(reach, base.rgb) + shading.emissive * glow;
+		     voe_render_indirect(reach, vertex.world, n, base.rgb) +
+		     shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);
 }

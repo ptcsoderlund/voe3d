@@ -204,8 +204,19 @@ static bool build_layout(voe_render_device *device)
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
 	};
+	// The grids of targets not yet made are never written, so binding 6 is
+	// partially bound: only the grid a pass names has to be valid.
+	const VkDescriptorBindingFlags flags[7] = {
+		[6] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+	};
+	VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+		.bindingCount = 7,
+		.pBindingFlags = flags,
+	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.pNext = &binding_flags,
 		.bindingCount = 7,
 		.pBindings = bindings,
 	};

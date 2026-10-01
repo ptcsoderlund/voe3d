@@ -103,9 +103,16 @@ static bool create_device(voe_render_device *device)
 	// The second half of the same question, and it is a different feature
 	// from the one below rather than a stronger spelling of it. See the
 	// paragraph under it.
+	//
+	// The bounce grids at binding 6 are an unsized array whose entries for
+	// targets not yet made are never written (ADR-0308): reading it needs
+	// runtimeDescriptorArray and descriptorBindingPartiallyBound, both among
+	// the descriptor-indexing features Vulkan 1.3 requires, so not queried.
 	VkPhysicalDeviceVulkan12Features features12 = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &features13,
+		.runtimeDescriptorArray = VK_TRUE,
+		.descriptorBindingPartiallyBound = VK_TRUE,
 	};
 	// What the same query has to be handed in order to answer about a 1.2
 	// feature: get_physical_device_features2 fills only what is chained onto

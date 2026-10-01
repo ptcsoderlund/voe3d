@@ -60,6 +60,9 @@ by reading the offscreen colour image back.
   resize and freed with the device, twice, each still drawing a red cube; the update refused with
   no bounce pass, inside a pass, twice a frame and for a stale id, else named by a camera pass.
   Headless.
+- `bounce.c` — lit surfaces reading the bounce: a red wall reddening the ground near it and not far
+  off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
+  wall's shadow. Headless.
 - `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, a cycle
   of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
   a changed light restarting it, and a small room truncating.
