@@ -14,7 +14,9 @@
 // 1024z of the probe's world cell mod 32, and is also where it is stored in the
 // grid's images. Each VPL's radiance toward the probe is flux × max(0, n·−ω) /
 // (π × max(d², 1)), ω the unit direction from the probe to the VPL and d the
-// distance; it is projected into L1 SH and blended into the old value with the
+// distance, both taken from the VPL moved back along its unit normal by half
+// the spacing (ADR-0309), so a probe on a lit face's plane still sees it; a
+// normal too short to normalize is not moved. It is projected into L1 SH and blended into the old value with the
 // listed blend. A VPL nearer the probe than 1 mm adds nothing, its direction
 // undefined, so no NaN reaches the grid, where the blend would keep it. Each of the three images is one colour, R, G, B, holding
 // (c0, cx, cy, cz): c0 = Σ L × 0.282095 and c(xyz) = Σ L × 0.488603 × ω.xyz.
@@ -144,7 +146,11 @@ void gather(uint3 id: SV_DispatchThreadID)
 
 	for (uint i = 0; i < VPLS; i++) {
 		vpl light = bounce_vpls[i];
-		float3 v = light.position.xyz - centre;
+		float n2 = dot(light.normal.xyz, light.normal.xyz);
+		float3 back = n2 > 1e-12 ? light.normal.xyz * rsqrt(n2) *
+						   (0.5 * bounce_current.spacing) :
+					   float3(0.0);
+		float3 v = light.position.xyz - back - centre;
 		float d2 = dot(v, v);
 		float3 w;
 		float3 radiance;

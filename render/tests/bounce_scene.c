@@ -6,7 +6,8 @@
 // are copied.
 //
 // THE SCENE: grey ground (a 40 m flat box, base 0.5) and a red wall (base 1,
-// 0, 0) on it at world (−71, 0, −45), its red face to +x; the eye 10 m above
+// 0, 0) on it at world (−71, 0, −45), its red face to +x, on a probe plane on
+// purpose; the eye 10 m above
 // at (−67, 10, −31), every position handed to render as world − eye. A sun
 // from +x at 45°; four cascades through a 32 m orthographic box along it, the
 // bounce pass through one 112 m across; the window's grid updated at lowest
