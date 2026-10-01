@@ -25,7 +25,7 @@ workflow replaced specs.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game in the window it is handed: world types, 1/60 s steps, code, sound.
-- **editor** — top bar, Project panel, Scene list, Assets, prefabs, views, gizmo, Inspector, Play.
+- **editor** — top bar, Project panel, Scene list, Assets and import, prefabs, views, gizmo, Inspector, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
