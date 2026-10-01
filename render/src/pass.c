@@ -278,8 +278,7 @@ static void name_grid(struct voe_render_frame_bounce *bounce,
 	bounce->grid = grid->descriptor;
 	for (uint32_t a = 0; a < 3; a++) {
 		bounce->corner[a] = mark->corner[a];
-		bounce->cell[a] = (uint32_t)mark->cell[a] &
-				  (VOE_RENDER_BOUNCE_PROBES - 1u);
+		bounce->cell[a] = voe_render_bounce_wrap(mark->cell[a]);
 	}
 }
 

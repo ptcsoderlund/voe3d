@@ -18,7 +18,8 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   third for a pass with no sun; it includes the three parts.
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,
   its shadow by cascades, its radiance, the bounce read from the pass's probe
-  grid, and the fill, now a floor under the bounce (0307 amends 0275).
+  grid, a non-finite one read as nought, and the fill, now a floor under the
+  bounce (0307 amends 0275).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
@@ -27,6 +28,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   copies the field's spread, the face's thinnest stroke and the median.
 - `bounce.slang` — the bounce grid update's two compute entries: `reduce`, the
   bounce map to 64×64 virtual point lights, and `gather`, the listed probes'
-  L1 SH from them, blended into a grid's three images.
+  L1 SH from them, a VPL within 1 mm skipped, blended into a grid's three
+  images.
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

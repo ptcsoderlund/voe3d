@@ -50,3 +50,6 @@ files named here, block with the measured pixels.
 The tests `render/bounce_scene` and `render/bounce_schedule` pass, and
 `render/bounce`, `render/bounce_grid` and `render/bounce_map` still pass,
 after the folder's build.
+
+## Blocked
+All three fixes are in (one cell wrap shared by the schedule, `pass.c` and `bounce_grid.c`, the 1 mm VPL skip, non-finite E as 0). `render/bounce_schedule`, `bounce`, `bounce_grid` and `bounce_map` pass, and NEVER DARKER passes on all 49 points. OFF THE ORIGIN still fails: ground 1 m from the wall reads 167 161 161 and 10 m away 162 161 161, a red/green of 1.037 against 1.006, so 0.031 where 0.05 is asked. The cause is not the wrap, NaN or origin. Probe centres sit at odd world metres, so a wall at x = −71 has a probe inside it that sees only the back of its red face, and trilinear blending halves the tint 1 m out. Moved to −70 the same case reads 175 against 161, and bounce.c's wall moved to x = 1 drops to 166. Lifting it is a design call outside these files (ADR-0307/0308): probe relocation, visibility-weighted interpolation or a finer grid, or a case that does not put the wall on a probe plane.

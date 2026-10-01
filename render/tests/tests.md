@@ -61,6 +61,10 @@ by reading the offscreen colour image back.
 - `bounce.c` — lit surfaces reading the bounce: a red wall reddening the ground near it and not far
   off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
   wall's shadow. Headless.
-- `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, a cycle
+- `bounce_scene.c` — the bounce where the editor runs it, off the origin about the eye under a
+  112 m bounce view: the wall still reddening the ground near it, and the update never darkening a
+  pixel across the lit side and the shadow. Headless.
+- `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
+  negative cell too, a cycle
   of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
   a changed light restarting it, and a small room truncating.

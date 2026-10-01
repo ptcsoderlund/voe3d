@@ -412,8 +412,7 @@ static void record_update(voe_render_device *device,
 	VOE_BASE_ASSERT(count <= VOE_RENDER_BOUNCE_PROBES_ALL, "a list past its band");
 	memcpy(push.unproject, unproject.m, sizeof(push.unproject));
 	for (uint32_t a = 0; a < 3; a++)
-		push.cell[a] = (uint32_t)update->cell[a] &
-			       (VOE_RENDER_BOUNCE_PROBES - 1u);
+		push.cell[a] = voe_render_bounce_wrap(update->cell[a]);
 
 	write_set(device, frame, grid, set);
 	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,

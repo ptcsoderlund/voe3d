@@ -1,7 +1,8 @@
 // Which bounce probes an update refreshes (ADR-0308 point 5), with no graphics
 // card: the schedule is plain arithmetic over a 32³ toroidal grid.
 //
-// THE FIRST CALL IS THE WHOLE GRID: all 32768 indices, blend 1, each once.
+// THE FIRST CALL IS THE WHOLE GRID: all 32768 indices, blend 1, each once —
+// at lowest cell (−37, −5, −23) too, negative and no multiple of 32.
 //
 // NOTHING CHANGED IS THE CYCLE: 4096 indices, none twice, and eight such calls
 // visit every cell.
@@ -87,6 +88,19 @@ static void first_call_is_the_whole_grid(void)
 	for (uint32_t i = 0; i < n; i++)
 		all_one = all_one && blends[i] == 1.0f;
 	VOE_TEST_CHECK(all_one);
+}
+
+// Negative and no multiple of 32: the wrap must still give every index once.
+static void a_negative_first_call_is_the_whole_grid(void)
+{
+	voe_render_bounce_schedule s = { 0 };
+	const int32_t cell[3] = { -37, -5, -23 };
+	const uint32_t n = next(&s, cell, &SUN, NULL, 0);
+
+	memset(seen, 0, sizeof(seen));
+	VOE_TEST_CHECK_INT(n, ALL);
+	VOE_TEST_CHECK(note(n));
+	VOE_TEST_CHECK_INT(count_seen(), ALL);
 }
 
 static void nothing_changed_cycles(void)
@@ -202,6 +216,7 @@ static void a_small_room_truncates(void)
 int main(void)
 {
 	first_call_is_the_whole_grid();
+	a_negative_first_call_is_the_whole_grid();
 	nothing_changed_cycles();
 	a_move_lists_the_entered_cells_first();
 	a_stale_sphere_comes_before_the_cycle();

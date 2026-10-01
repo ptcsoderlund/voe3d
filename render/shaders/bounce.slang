@@ -15,7 +15,8 @@
 // grid's images. Each VPL's radiance toward the probe is flux × max(0, n·−ω) /
 // (π × max(d², 1)), ω the unit direction from the probe to the VPL and d the
 // distance; it is projected into L1 SH and blended into the old value with the
-// listed blend. Each of the three images is one colour, R, G, B, holding
+// listed blend. A VPL nearer the probe than 1 mm adds nothing, its direction
+// undefined, so no NaN reaches the grid, where the blend would keep it. Each of the three images is one colour, R, G, B, holding
 // (c0, cx, cy, cz): c0 = Σ L × 0.282095 and c(xyz) = Σ L × 0.488603 × ω.xyz.
 //
 // The push block matches struct bounce_push in bounce_grid.c, offsets and all.
@@ -148,7 +149,7 @@ void gather(uint3 id: SV_DispatchThreadID)
 		float3 w;
 		float3 radiance;
 
-		if (light.position.w <= 0.0 || d2 < 1e-8)
+		if (light.position.w <= 0.0 || d2 < 1e-6)
 			continue;
 		w = v * rsqrt(d2);
 		radiance = light.flux.rgb * max(0.0, dot(light.normal.xyz, -w)) /

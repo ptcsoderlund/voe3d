@@ -35,11 +35,12 @@ struct listing {
 static uint32_t toroidal(const int32_t cell[3], uint32_t x, uint32_t y,
 			 uint32_t z)
 {
-	const uint32_t m = SIDE - 1;
+	const uint32_t probe = voe_render_bounce_wrap((int64_t)cell[0] + x) +
+			       SIDE * voe_render_bounce_wrap((int64_t)cell[1] + y) +
+			       SIDE * SIDE * voe_render_bounce_wrap((int64_t)cell[2] + z);
 
-	return (((uint32_t)cell[0] + x) & m) +
-	       SIDE * (((uint32_t)cell[1] + y) & m) +
-	       SIDE * SIDE * (((uint32_t)cell[2] + z) & m);
+	assert(probe < ALL);
+	return probe;
 }
 
 // Lists `probe` unless it is listed already or there is no room; true if it was.

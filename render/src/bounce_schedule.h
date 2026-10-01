@@ -13,6 +13,8 @@
 // A PROBE INDEX IS TOROIDAL: x mod 32 + 32 × (y mod 32) + 1024 × (z mod 32) of
 // its world cell, so a grid that scrolls keeps every probe it still covers
 // where it was, and the cells it brings in take the slots of those it left.
+// voe_render_bounce_wrap is that mod, the one wrap of a world cell into 0..31,
+// negative cells included; the index and every cell sent to a shader use it.
 //
 // THE ORDER IS THE POINT. First every cell the move from the last call's lowest
 // cell brings in, blend 1, whatever the budget — the first call, or a move of 32
@@ -40,6 +42,16 @@
 #define VOE_RENDER_BOUNCE_PROBES_ALL                                  \
 	(VOE_RENDER_BOUNCE_PROBES * VOE_RENDER_BOUNCE_PROBES *        \
 	 VOE_RENDER_BOUNCE_PROBES)
+
+// World cell `cell` mod VOE_RENDER_BOUNCE_PROBES, in 0..31 for a negative cell
+// too: the one place a cell becomes a probe coordinate, so writer and reader
+// cannot disagree.
+static inline uint32_t voe_render_bounce_wrap(int64_t cell)
+{
+	const int64_t side = VOE_RENDER_BOUNCE_PROBES;
+
+	return (uint32_t)(((cell % side) + side) % side);
+}
 
 // One target's schedule. Zeroed is "no update yet"; only
 // voe_render_bounce_schedule_next writes it.

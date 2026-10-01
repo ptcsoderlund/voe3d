@@ -58,7 +58,8 @@ which file to open — what each one owns, and where the seams between them run.
   list buffers, and the call that runs a grid's schedule, reduces the map once a frame, gathers
   and marks the grid updated in the frame slot.
 - `bounce_schedule.h` — which bounce probes an update refreshes and how much: entered cells, then
-  stale spheres, then a strided cycle, in toroidal indices. Pure CPU.
+  stale spheres, then a strided cycle, in toroidal indices, and the one wrap of a world cell into
+  0..31 that pass.c and bounce_grid.c send shaders. Pure CPU.
 - `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.

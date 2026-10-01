@@ -18,7 +18,8 @@
 // L1 SH is sampled trilinear with repeat at the surface's place in the space
 // the draws place vertices in (about the eye, in 3d), and fades to nothing over
 // the outer cell on each side, from the outermost probe in, so the repeat never
-// wraps the far side of the grid into a surface past its edge.
+// wraps the far side of the grid into a surface past its edge. A non-finite E
+// is nought, so the indirect term is never below the fill floor.
 //
 // THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
 // `count` above nought, a lit surface picks the first cascade whose split is past
@@ -164,9 +165,12 @@ float3 voe_render_bounce_irradiance(float3 world, float3 n)
 	float4 basis = float4(VOE_BOUNCE_BAND0, VOE_BOUNCE_BAND1 * n);
 	float3 e;
 
-	for (uint c = 0; c < 3; c++)
+	for (uint c = 0; c < 3; c++) {
 		e[c] = dot(voe_render_bounce_grids[bounce.grid + c].SampleLevel(uvw, 0.0),
 			   basis);
+		if (!isfinite(e[c]))
+			e[c] = 0.0;
+	}
 	return max(e, 0.0) * fade;
 }
 
