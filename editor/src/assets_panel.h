@@ -23,19 +23,22 @@
 // the panel is the project's files, and the rest of the disk is the
 // browser's (browser.h).
 //
-// A MODEL ROW is a file whose name ends `.glb`, in any case: the one kind a
-// thing can draw in 0.2 (0270). It is drawn marked, as the Scene list marks
-// its selected row; other files are only listed.
+// EVERY ROW IS DRAWN ALIKE, an unselected choice in the theme's text colour:
+// the kind is shown by the name's ending alone, never by colour (0194).
 //
-// A PREFAB ROW is a file whose name ends `.prefab`, in any case (0283): drawn
-// marked as a model row is, and held as one is, so assets_drag.h places it.
-// Pressed and released on the row, which a drag to a view never is, it fires:
-// the read leaves its project-relative path, `/` between, in `opened`, a field
-// the caller reads and clears; a path too long for it is not reported.
+// A MODEL ROW is a file whose name ends `.glb`, in any case: the one kind a
+// thing can draw in 0.2 (0270). It is held so assets_drag.h places it; other
+// files are only listed.
+//
+// A PREFAB ROW is a file whose name ends `.prefab`, in any case (0283): held
+// as a model row is, so assets_drag.h places it. Pressed and released on the
+// row, which a drag to a view never is, it fires: the read leaves its
+// project-relative path, `/` between, in `opened`, a field the caller reads
+// and clears; a path too long for it is not reported.
 //
 // A PICTURE ROW is a file whose name ends `.png`, `.jpg` or `.jpeg`, in any
-// case (0298 point 5): drawn marked and held as a model row is, so
-// assets_drag.h can make it an emitter's texture.
+// case (0298 point 5): held as a model row is, so assets_drag.h can make it
+// an emitter's texture.
 //
 // A FAILED LISTING KEEPS THE OLD ROWS for the same project, as browser.h's
 // does, and says why on stderr through platform/folder.h. `Assets/` is looked

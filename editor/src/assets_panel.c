@@ -247,11 +247,7 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 
-		// A model, prefab or picture row is marked the way the Scene
-		// list marks its selected row: a choice drawn inverted (ADR-0194).
-		row->node = voe_ui_choice_begin(ui, "asset", i,
-						row->model || row->prefab ||
-							row->picture);
+		row->node = voe_ui_choice_begin(ui, "asset", i, false);
 		voe_ui_label(ui, row->name);
 		if (row->folder)
 			voe_ui_label(ui, "/");
