@@ -30,7 +30,7 @@ name = "Sun"
 folded = false
 [3.voe_scene_light]
 colour = [0.95097667, 0.7098251, 0.7098251]
-intensity = 9
+intensity = 1
 fill_colour = [0.8992056, 0.7447454, 0.335389]
 fill_intensity = 0.09
 [3.voe_scene_transform]
