@@ -1,4 +1,5 @@
-// The systems, the shadow passes and the window pass with the interface over
+// The systems, the shadow passes (which also feed the bounce, the frame's
+// target left zero, the window's) and the window pass with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
 // once.
