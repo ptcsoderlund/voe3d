@@ -1,7 +1,8 @@
-// The point light: what registration tells a tool, that a refused replace keeps
-// the row, that an accepted one lands after one run, and that a falloff of
-// exactly either bound is accepted. Cast shadows is off by default, listed last,
-// and lands either way.
+// The point light: what registration tells a tool (falloff 1 by default), that
+// a refused replace keeps the row, a falloff past either bound included, that an
+// accepted one changes falloff and intensity after one run, and that a falloff
+// of exactly either bound is accepted. Cast shadows is off by default, listed
+// last as a BOOL, and lands either way.
 //
 // EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
 // after each, so a refusal that let one field through shows as that field.
