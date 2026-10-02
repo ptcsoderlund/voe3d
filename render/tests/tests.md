@@ -68,3 +68,6 @@ by reading the offscreen colour image back.
   negative cell too, a cycle
   of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
   a changed light restarting it, and a small room truncating.
+- `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
+  one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
+  and slices rising from NEAR to FAR.

@@ -61,6 +61,10 @@ which file to open — what each one owns, and where the seams between them run.
   stale spheres, then a strided cycle, in toroidal indices, and the one wrap of a world cell into
   0..31 that pass.c and bounce_grid.c send shaders. Pure CPU.
 - `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
+- `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
+  a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
+- `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
+  rectangle of its box's corners.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built

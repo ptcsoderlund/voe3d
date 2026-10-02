@@ -491,6 +491,37 @@ typedef struct {
 	float reserved;
 } voe_render_light;
 
+// The most point lights one pass carries (ADR-0320).
+#define VOE_RENDER_POINT_LIGHTS 256
+
+// One point light, for one pass (ADR-0320).
+//
+// `position` IS IN THE SPACE THE PASS'S DRAWS PLACE VERTICES IN — about the eye,
+// as 3d's are — and `colour` is linear and already times the light's strength.
+//
+// IT CASTS NO SHADOW AND IT ENDS AT `range`. A surface d metres off is lit by
+// colour × saturate(1 − (d/range)²)²: no inverse square, so a colour means what
+// the sun's colour × intensity does, and past `range` the light is nothing.
+//
+// A pass carries at most VOE_RENDER_POINT_LIGHTS. Padded to 32 bytes because the
+// shader reads an array of them.
+typedef struct {
+	voe_math_float3 position;
+	float range;
+	voe_math_float3 colour;
+	float reserved;
+} voe_render_point_light;
+
+static_assert(sizeof(voe_render_point_light) == 32,
+	      "a point light is two float4s, as the shader reads it");
+
+// A pass's point lights: `count` of them at `lights`, at most
+// VOE_RENDER_POINT_LIGHTS. NULL and nought is none.
+typedef struct {
+	const voe_render_point_light *lights;
+	uint32_t count;
+} voe_render_point_lights;
+
 // Where the sun's shadow maps are, for one pass that reads them (ADR-0258).
 //
 // THE NUMBERS ARE 3d's. `cascades[i]` takes a position in the world the objects'
