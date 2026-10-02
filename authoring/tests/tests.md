@@ -16,9 +16,9 @@ file; the rest hand the writer a world and the reader text held in memory.
   still load, and fields of every shape from rank 0 to 7.
 - `scene_read_unsaid.c` — a field a section does not mention read from the
   type's unsaid row, else its default, a said field kept, and a light with no
-  `cast_shadows` reading true.
-- `scene_cook.c` — the exact source for a small scene, the sun's bounces and
-  `cast_shadows` included, that source compiled by `clang`, the refusals leaving
+  `cast_shadows` reading true, and an 047 light keeping bounces 1 at strength 1.
+- `scene_cook.c` — the exact source for a small scene, the sun's bounces,
+  `cast_shadows` and `bounce_strength` included, that source compiled by `clang`, the refusals leaving
   `*out` untouched, and an empty world.
 - `project.c` — the exact bytes the writer emits, a round trip through the
   reader, every refusal with the line it names, and an unknown key that warns and

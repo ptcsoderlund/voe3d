@@ -3,7 +3,8 @@
 // has none, and that a field the section says keeps what it says. Proven on a
 // test-only type whose two rows differ in one field, and on scene's real light,
 // whose unsaid row casts shadows where its default does not — so a light saved
-// before 049 keeps its sun's shadows.
+// before 049 keeps its sun's shadows. A light as 047 saved it, bounces 1 and no
+// bounce_strength, reads bounces 1 and strength 1, so its bounce stays (0326).
 //
 // THE TEST-ONLY TYPES ARE DECLARED THROUGH VOE_BASE_DESCRIBE_STRUCT, as
 // scene_read.c's test declares its own; this file is its own program, kept apart
@@ -175,11 +176,32 @@ static void test_light_cast_shadows(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A light as 047 saved it: bounces said, bounce_strength not yet a field.
+static void test_light_047_bounce(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_ecs_world *world = read_scene(arena, "[1]\n"
+					   "name = \"047 sun\"\n"
+					   "folded = false\n"
+					   "[1.voe_scene_light]\n"
+					   "intensity = 2\n"
+					   "bounces = 1\n");
+	const voe_scene_light *light = row_of(world, &voe_scene_light_key, 1);
+
+	VOE_TEST_CHECK(light != NULL);
+	if (light != NULL) {
+		VOE_TEST_CHECK_INT(light->bounces, 1);
+		VOE_TEST_CHECK(light->bounce_strength == 1.0f);
+	}
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	test_missing_field_reads_unsaid();
 	test_no_unsaid_row_reads_default();
 	test_said_field_keeps_what_it_says();
 	test_light_cast_shadows();
+	test_light_047_bounce();
 	return voe_test_result();
 }
