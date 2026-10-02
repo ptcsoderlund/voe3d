@@ -3,7 +3,8 @@ name = "Ground"
 folded = false
 [1.voe_3d_shape]
 kind = 1
-colour = [0.18859027, 0.18859027, 0.18859027]
+colour = [0.42473766, 0.42473766, 0.42473766]
+cast_shadows = true
 [1.voe_physics_collider]
 kind = 1
 size = [1, 1, 1]
@@ -34,6 +35,7 @@ intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
 fill_intensity = 0.15375003
 bounces = 0
+cast_shadows = true
 [3.voe_scene_transform]
 position = [0, 8, 0]
 rotation = [0.0767836, 0.2594808, 0.22888981, -0.93508476]
@@ -41,7 +43,7 @@ scale = [1, 1, 1]
 
 [4]
 name = "tank_body"
-folded = false
+folded = true
 [4.voe_scene_prefab]
 path = "Assets/tank_body.prefab"
 [4.voe_scene_transform]
@@ -121,6 +123,7 @@ folded = false
 [16.voe_3d_shape]
 kind = 1
 colour = [0.44778705, 0.13911381, 0.49138713]
+cast_shadows = true
 [16.voe_scene_transform]
 position = [-8.179616930152406, 5.000000290572643, 7.211908042430878]
 rotation = [0, -0.40307653, 0, 0.91516626]
@@ -132,6 +135,7 @@ folded = false
 [17.voe_3d_shape]
 kind = 1
 colour = [0.5003842, 0.5003842, 0.5003842]
+cast_shadows = true
 [17.voe_scene_transform]
 position = [-5.89795537032478, 5.000000040978193, 5.549801917746663]
 rotation = [0, 0.12585333, 0, 0.99204886]
@@ -148,11 +152,11 @@ folded = false
 parent = 19
 [20.voe_scene_point_light]
 colour = [0, 0.31905842, 1]
-intensity = 9
-range = 20
-falloff = 4
+intensity = 20
+range = 5
+falloff = 3
 [20.voe_scene_transform]
-position = [-2.691522426903248, 2.4922564923763275, 5.935012263245881]
+position = [2.965726683905814, 0.7417545174248517, 1.95614057010971]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -178,10 +182,102 @@ folded = false
 parent = 19
 [23.voe_scene_point_light]
 colour = [0, 1, 0.17092332]
-intensity = 1
+intensity = 4
 range = 20
-falloff = 1
+falloff = 0.3
 [23.voe_scene_transform]
 position = [9.27141073718667, 1.3129289839416742, 9.3649026369676]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
+
+[25]
+name = "House"
+folded = false
+[25.voe_scene_transform]
+position = [-5.438923835754395e-07, 1.5, -4.470348358154297e-07]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[26]
+name = "BackWall"
+folded = false
+[26.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[26.voe_scene_parent]
+parent = 25
+[26.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [4, 3, 0.3]
+
+[27]
+name = "Sidewall1"
+folded = false
+[27.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[27.voe_scene_parent]
+parent = 25
+[27.voe_scene_transform]
+position = [-2.151859300211072, 3.5390257835388184e-07, 1.857134710997343]
+rotation = [0, -0.7071067, 0, 0.7071069]
+scale = [4, 3, 0.3]
+
+[28]
+name = "Sidewall1 2"
+folded = false
+[28.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[28.voe_scene_parent]
+parent = 25
+[28.voe_scene_transform]
+position = [2.1646672263741493, 2.0116567611694336e-07, 1.857134860008955]
+rotation = [0, -0.7071067, 0, 0.7071069]
+scale = [4, 3, 0.3]
+
+[29]
+name = "roof"
+folded = false
+[29.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[29.voe_scene_parent]
+parent = 25
+[29.voe_scene_transform]
+position = [0.014467987246462144, 1.6505936495959759, 1.8571347780525684]
+rotation = [0.49999994, -0.49999997, 0.50000006, 0.5000001]
+scale = [4, 5, 0.3]
+
+[31]
+name = "frontwall1"
+folded = false
+[31.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[31.voe_scene_parent]
+parent = 25
+[31.voe_scene_transform]
+position = [-1.1216283533722162, 5.755573511123657e-07, 3.6880256002768874]
+rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
+scale = [1.7641829, 3, 0.3]
+
+[32]
+name = "frontwall1 2"
+folded = false
+[32.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[32.voe_scene_parent]
+parent = 25
+[32.voe_scene_transform]
+position = [1.5990546906739473, 5.159527063369751e-07, 3.6880259355530143]
+rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
+scale = [0.860047, 3, 0.3]
