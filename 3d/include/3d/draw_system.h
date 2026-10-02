@@ -7,9 +7,9 @@
 //     if (!voe_render_frame_begin(gpu, size, &drawing))
 //             break;                          // the GPU stopped answering
 //     if (drawing) {
+//             (void)voe_3d_draw_system_point_lights(world, &frame, scratch);
 //             (void)voe_3d_draw_system_shadows(world, gpu, &frame);
 //                                             // false: unshadowed, said on stderr
-//             (void)voe_3d_draw_system_point_lights(world, &frame, scratch);
 //             voe_render_pass_camera camera = { .view = frame.view,
 //                     .light = frame.light, .shadow = frame.shadow,
 //                     .points = frame.points };
@@ -24,8 +24,9 @@
 //
 // THE LOOP OWNS THE FRAME AND THIS SYSTEM DRAWS INTO IT (ADR-0098). Begin and
 // end are the program's calls, made from its loop exactly as render's own header
-// shows, and the phases inside a frame are ordered there: begin; the sun's
-// shadow passes, one per cascade (voe_3d_draw_system_shadows); build what
+// shows, and the phases inside a frame are ordered there: begin; the point
+// lights (voe_3d_draw_system_point_lights); the shadow passes, the sun's one
+// per cascade and the lamps' one (voe_3d_draw_system_shadows); build what
 // changes this frame — a readout, a user interface — which is the only world
 // write after the systems have run; a pass opened with the frame's camera; this
 // system walks the world; the pass closed; end, which presents. That order exists because geometry built for one frame
@@ -219,8 +220,9 @@ typedef struct {
 	// to the pass beside `view` and `light` (ADR-0258).
 	voe_render_shadow shadow;
 	// The point lights the pass is lit by (0320); zero is none. _frame
-	// leaves it zeroed, voe_3d_draw_system_point_lights fills it, and the
-	// loop hands it to the pass camera beside `shadow`.
+	// leaves it zeroed, voe_3d_draw_system_point_lights fills it before
+	// voe_3d_draw_system_shadows reads its slots, and the loop hands it to
+	// the pass camera beside `shadow`.
 	voe_render_point_lights points;
 	// The camera's world position, in double, that `view` is about
 	// (ADR-0250): every object's matrix, the sort and every mark is taken
@@ -331,6 +333,10 @@ typedef struct {
 // shadow starts fading (0325 point 5).
 #define VOE_3D_POINT_SHADOW_FADE 0.75f
 
+// Texels a side of one point-shadow cube face: the `point_shadow_size` a
+// device is given (0325 point 1), 25 MiB a frame slot.
+#define VOE_3D_POINT_SHADOW_TEXELS 256u
+
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
@@ -431,7 +437,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // the four cascades to `frame->view`, `frame->eye` and the light's direction at
 // VOE_3D_SHADOW_TEXELS, sets `frame->shadow`, and opens one shadow pass per
 // cascade that draws every caster at the frame's lag; otherwise it leaves
-// `shadow` zeroed and opens nothing: a world with no light row casts nothing,
+// `shadow` zeroed and opens none of the sun's passes: a world with no light row casts nothing,
 // so neither does the editor's preview light. A caller that never calls it draws as
 // before, with no shadow. False when a pass or a draw is refused, with render's
 // line on stderr; `shadow` is zeroed then, so the view draws unshadowed. Called
@@ -454,6 +460,13 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // caster; false as before when any call fails. Stale spheres are marked where a caster moved this step (lag 1 against
 // lag 0), so a world without a previous table marks none and the grid catches
 // up by its cycle.
+//
+// THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun cast: when
+// voe_render_point_shadows_ready and a light in `frame->points` has a slot, it
+// opens the pass for those lights and draws the same casters into it, so
+// `frame->points` is filled before this call. That is one more pass and at most
+// one more object per caster, a device's `point_shadow_size`
+// VOE_3D_POINT_SHADOW_TEXELS; false as before when render refuses.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);
