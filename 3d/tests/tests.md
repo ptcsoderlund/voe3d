@@ -39,8 +39,9 @@ again, or to find where a claim that has started failing is written down.
   intensity with the authored falloff, dark and unplaced ones left out, a parented one carried,
   and that one lights the ground under it and not a far corner. Skips without a graphics card.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
-  the shadow, no light casts nothing, and the same holds 100 km out, both pictures with the bounce
-  off, and for a model. Skips without a graphics card.
+  the shadow, no light casts nothing, a light or a cube whose `cast_shadows` is off leaves the floor
+  lit, and the same holds 100 km out, both pictures with the bounce off, and for a model. Skips
+  without a graphics card.
 - `bounce.c` — the shadows call's pass count with and without bounces, and the stale spheres a
   moved wall marks. Skips without a graphics card.
 - `bounce_scene.c` — bug 01 through the editor's calls at sun 1 and π: the red box tints nearby

@@ -4,7 +4,8 @@
 //
 // ONE WORLD. A camera at the origin looks along -Z; a grey ground lies a metre
 // below, a red wall stands two metres to the right and five out, and a sun
-// shines down and to the left onto it.
+// shines down and to the left onto it. The sun and both shapes say
+// `cast_shadows = true`, since a literal's zero casts nothing (0324).
 //
 // THE PASS COUNTS. The sun has bounces 1, so four cascades and the bounce pass
 // are five: the shadows call is true on a device with five passes and false on
@@ -77,7 +78,9 @@ static voe_ecs_entity add_a_shape(voe_ecs_world *world, voe_math_double3 at,
 				       .scale = scale }));
 	VOE_TEST_CHECK(voe_3d_shape_add(
 		world, entity,
-		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE, .colour = colour }));
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = colour,
+				.cast_shadows = true }));
 	return entity;
 }
 
@@ -129,7 +132,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 		world, entity,
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f,
-				   .bounces = bounces }));
+				   .bounces = bounces,
+				   .cast_shadows = true }));
 	(void)add_a_shape(world, (voe_math_double3){ 0.0, -1.0, -5.0 },
 			  (voe_math_float3){ 20.0f, 0.1f, 20.0f },
 			  (voe_math_float3){ 0.5f, 0.5f, 0.5f });

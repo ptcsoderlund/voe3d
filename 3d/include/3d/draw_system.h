@@ -412,11 +412,13 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
 // The sun's shadow passes for `frame`, opened between the frame's begin and the
 // view's pass (ADR-0258). With the directional light shaded and of some
-// strength, and the frame not blind, it fits
+// strength, the frame not blind, and the world's light row, the one
+// voe_3d_draw_system_light reads, casting (`cast_shadows`, 0324), it fits
 // the four cascades to `frame->view`, `frame->eye` and the light's direction at
 // VOE_3D_SHADOW_TEXELS, sets `frame->shadow`, and opens one shadow pass per
 // cascade that draws every caster at the frame's lag; otherwise it leaves
-// `shadow` zeroed and opens nothing. A caller that never calls it draws as
+// `shadow` zeroed and opens nothing: a world with no light row casts nothing,
+// so neither does the editor's preview light. A caller that never calls it draws as
 // before, with no shadow. False when a pass or a draw is refused, with render's
 // line on stderr; `shadow` is zeroed then, so the view draws unshadowed. Called
 // with a pass open, it asserts.
@@ -424,7 +426,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
 // frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
 // nothing. A model part in `frame->models` casts under the same rule, its
-// material the part's. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
+// material the part's. A mesh whose shape, or a model whose row, has
+// `cast_shadows` false is no caster, though still drawn and shadowed. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
 // passes and 4 × the drawn objects more per view: every caster is drawn once
 // into each cascade.
 //

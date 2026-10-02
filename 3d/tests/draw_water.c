@@ -14,7 +14,8 @@
 // as many draws as the world with no water, and its centre is the same.
 //
 // WATER CASTS NO SHADOW: the shadow passes issue as many draws with the water
-// as without it.
+// as without it. The sun and the ground say `cast_shadows = true`, so the
+// passes draw the ground and the count means something (0324).
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_system.c does.
@@ -112,7 +113,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f,
 				   .fill_colour = { 1.0f, 1.0f, 1.0f },
-				   .fill_intensity = 0.2f }));
+				   .fill_intensity = 0.2f,
+				   .cast_shadows = true }));
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
@@ -123,7 +125,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	VOE_TEST_CHECK(voe_3d_shape_add(
 		world, entity,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
-				.colour = { 0.5f, 0.5f, 0.5f } }));
+				.colour = { 0.5f, 0.5f, 0.5f },
+				.cast_shadows = true }));
 	voe_3d_shape_system_run(world, shapes);
 
 	if (water) {
