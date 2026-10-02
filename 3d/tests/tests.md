@@ -76,11 +76,12 @@ again, or to find where a claim that has started failing is written down.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.
-- `shape.c` — the shape table's description, default row, intents and runs, each kind's own
+- `shape.c` — the shape table's description, default row casting, intents (cast_shadows false
+  among them) and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
-- `model_component.c` — the model's one CHAR field `path` of 128, a submitted path read back after a
-  run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
+- `model_component.c` — the model's CHAR field `path` of 128 and BOOL `cast_shadows`, the default
+  casting and an intent turning it off, a submitted path read back after a run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,

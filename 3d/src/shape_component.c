@@ -45,7 +45,8 @@ void voe_3d_shape_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_default_set(
 		world, type,
 		&(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
-				 .colour = VOE_3D_SHAPE_GREY });
+				 .colour = VOE_3D_SHAPE_GREY,
+				 .cast_shadows = true });
 	voe_ecs_component_needs_set(
 		world, type,
 		voe_ecs_component_type(world, &voe_scene_transform_key));

@@ -19,7 +19,14 @@
 // format, and one file loaded once serves every thing that names it.
 //
 // IT NEEDS A TRANSFORM (the draw has nowhere to put it without one), so the
-// world registers transforms before models. The default row is the empty path.
+// world registers transforms before models. The default row is the empty path,
+// casting.
+//
+// CAST_SHADOWS FALSE LEAVES EVERY PART OF THE MODEL OUT OF EVERY SHADOW AND
+// BOUNCE MAP while it is still drawn, lit and shadowed (0301, 0324). True by
+// default and in a file without it; zero is false, so a row built from a
+// literal names it.
+//
 // It sits at "Rendering / Model" in Add component (ecs/component.h, 0221), and
 // its intent is its replace, the whole row, as the shape's is
 // (3d/shape_system.h).
@@ -43,7 +50,9 @@
 // The path's bytes, terminating NUL included.
 #define VOE_3D_MODEL_PATH 128
 
-#define VOE_3D_MODEL_FIELDS(F, F_READ_ONLY) F(char, path, CHAR, VOE_3D_MODEL_PATH)
+#define VOE_3D_MODEL_FIELDS(F, F_READ_ONLY)        \
+	F(char, path, CHAR, VOE_3D_MODEL_PATH) \
+	F(bool, cast_shadows, BOOL)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_3d_model, VOE_3D_MODEL_FIELDS)
 
@@ -56,7 +65,7 @@ typedef struct {
 	voe_3d_model model;
 } voe_3d_model_intent;
 
-// Registers the table, its default row (the empty path), that a model needs a
+// Registers the table, its default row (the empty path, casting), that a model needs a
 // transform, its menu path, and the intent as its replace with room for
 // `capacity` intents. Once per world, after transforms are registered.
 void voe_3d_model_register(voe_ecs_world *world, uint32_t capacity);
