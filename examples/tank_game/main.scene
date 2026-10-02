@@ -150,8 +150,7 @@ parent = 19
 colour = [0, 0.31905842, 1]
 intensity = 7
 range = 20
-flash = 0
-flash_when_made = false
+falloff = 1
 [20.voe_scene_transform]
 position = [-1.30385160446167e-07, 1.3129296191036701, 1.2665987014770508e-07]
 rotation = [0, 0, 0, 1]
