@@ -56,11 +56,6 @@ by reading the offscreen colour image back.
 - `bounce_map.c` — the sun's bounce pass: false outside a frame, four cascades, a bounce pass and a
   window pass in one frame with one more pass refused, and a red cube still red in the camera pass
   after it. Headless.
-- `bounce_grid.c` — every target's probe grid built, kept and freed, and the update's refusals.
-  Headless.
-- `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
-  negative cell too, a cycle of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
-  a changed light restarting it, and a small room truncating.
 - `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, the
   16 nearest taken first, a one-cell move queuing 288, −1 wrapping to 23, a stale sphere queuing
   only within, a relight only on change, and the 17th bouncing lamp left out.

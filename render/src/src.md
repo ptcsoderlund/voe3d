@@ -45,11 +45,9 @@ which file to open — what each one owns, and where the seams between them run.
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, the image build, settle and teardown every target shares, and 046's
-  bounce grids, built cleared.
+  depth with its sampled copy, the image build, settle and teardown every target shares.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps
-  its bounce grid through a resize.
+  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
@@ -59,13 +57,6 @@ which file to open — what each one owns, and where the seams between them run.
   layered point-shadow pass onto every layer with its lights by slot.
 - `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
   images, 512 square, the bounce pass's rendering, and its barriers to compute read.
-- `bounce_grid.c` — the bounce update: its two compute pipelines, set layout, pool, VPL and probe
-  list buffers, and the call that runs a grid's schedule, reduces the map once a frame, gathers
-  and marks the grid updated in the frame slot.
-- `bounce_schedule.h` — which bounce probes an update refreshes and how much: entered cells, then
-  stale spheres, then a strided cycle, in toroidal indices, and the one wrap of a world cell into
-  0..31 that pass.c and bounce_grid.c send shaders. Pure CPU.
-- `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
   which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place, nearest-first take, relight-needed and relit calls over bit sets.

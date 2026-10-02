@@ -54,9 +54,9 @@
 // Passes onto the window or a target follow the sun's cascades and bounce pass,
 // lit by the sun and the pass's point lights (range, falloff; shadows per
 // point_shadow_size and voe_render_point_shadows_ready); a pass may copy its
-// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the bounce
-// grid, voe_render_bounce_update refreshes a target's grid from the bounce
-// map; a shading record may be water, with waves and sky in the object record.
+// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the probe
+// volume voe_render_bounce_begin builds, captures and relights per target;
+// a shading record may be water, with waves and sky in the object record.
 #pragma once
 
 #include <base/arena.h>
@@ -111,9 +111,7 @@ typedef struct voe_render_device voe_render_device;
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs two texture slots of the
 // 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
-// the window's depth copy takes one more. Each target also costs a probe grid
-// of 3 × 32³ × 8 bytes, about 786 kB (ADR-0308), and the window has one too.
-// A target or the window that voe_render_bounce_begin has begun also holds a
+// the window's depth copy takes one more. A target or the window that voe_render_bounce_begin has begun also holds a
 // probe volume (ADR-0326) until 300 frames pass with no begin: three 1152 × 2304
 // atlases of 4, 8 and 4 bytes a texel and 22 3D images of 24 × 12 × 24, about
 // 43.6 MB. One that is never begun costs nothing (ADR-0316).
@@ -164,14 +162,8 @@ typedef struct {
 // voe_render_bounce_pass_begin draws into. 512² × 20 bytes × frame slots.
 #define VOE_RENDER_BOUNCE_TEXELS 512
 
-// Probes a side of a target's bounce grid, addressed toroidally (ADR-0308).
-#define VOE_RENDER_BOUNCE_PROBES 32
 // Metres between neighbouring probes of the bounce grid.
 #define VOE_RENDER_BOUNCE_SPACING 2.0f
-// Probes one bounce update refreshes beyond the cells a scroll brings in.
-#define VOE_RENDER_BOUNCE_BUDGET 4096
-// How much of a refreshed probe is new light, for one not just brought in.
-#define VOE_RENDER_BOUNCE_BLEND 0.5f
 // Probes along x and along z of a target's captured bounce grid (ADR-0326).
 #define VOE_RENDER_BOUNCE_PROBES_XZ 24
 // Probes along y of a target's captured bounce grid (ADR-0326).
@@ -1304,7 +1296,6 @@ void voe_render_bounce_relight(voe_render_device *device);
 // `objects`, and the pass against `passes`.
 //
 // THE NEXT PASS OR THE FRAME'S END CLOSES IT; voe_render_pass_end may as well.
-// The last one this frame is what a bounce update reads.
 //
 // False, with a line, inside no frame or when the frame's passes are spent;
 // nothing is open then. With another kind of pass open it asserts.
@@ -1316,41 +1307,14 @@ void voe_render_bounce_relight(voe_render_device *device);
 // asserts.
 void voe_render_pass_end(voe_render_device *device);
 
-// What a bounce update needs from the caller (ADR-0308 point 4). `cell` is the
-// grid's lowest world cell at VOE_RENDER_BOUNCE_SPACING, `corner` that cell's
-// lowest corner about the eye; `stale` holds `stale_count` spheres about the
-// eye, xyz centre and w radius, whose probes are refreshed early. A struct tag
-// and no typedef, because the call below has the name and C has one name space
-// for both.
-struct voe_render_bounce_update {
-	int32_t cell[3];
-	voe_math_float3 corner;
-	const voe_math_float4 *stale;
-	uint32_t stale_count;
-};
-
-// Refreshes `target`'s bounce grid from this frame's last bounce pass: the map
-// reduced to virtual point lights once a frame, then the probes the grid's
-// schedule lists gathered from them and blended in. Recorded between passes;
-// an open bounce pass is closed first.
-//
-// A CAMERA PASS ON THAT TARGET LATER THIS FRAME READS THE GRID; one on a target
-// with no update this frame reads no bounce.
-//
-// False, with a line, outside a frame, inside a camera or shadow pass, with no
-// bounce pass this frame, for a target that is not live, and on a second call
-// for one target in one frame: at most once a target a frame.
-[[nodiscard]] bool voe_render_bounce_update(voe_render_device *device,
-					    voe_render_target target,
-					    const struct voe_render_bounce_update *update);
-
 // What one target's bounce is this frame (ADR-0326 point 8). `cell` is the
 // volume's lowest world cell at VOE_RENDER_BOUNCE_SPACING and `corner` its lowest
 // corner about the eye; `stale` holds `stale_count` spheres about the eye, xyz
 // centre and w radius, whose probes are captured again. `sun` bounces
 // `sun_bounces` times, scaled by `sun_strength`, shadowed through `shadow`;
 // `points` are the frame's point lights, the first VOE_RENDER_BOUNCE_LAMPS with
-// bounces bouncing. A tag and no typedef, as voe_render_bounce_update.
+// bounces bouncing. A struct tag and no typedef, because the call below has the
+// name and C has one name space for both.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;

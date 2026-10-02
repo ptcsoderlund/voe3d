@@ -35,10 +35,6 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   instance built from a vertex index, a clip test, and a glyph's coverage across
   one pixel around an edge that moves out for a thin stroke, not a wide one. It
   copies the field's spread, the face's thinnest stroke and the median.
-- `bounce.slang` — the bounce grid update's two compute entries: `reduce`, the
-  bounce map to 64×64 virtual point lights, and `gather`, the listed probes'
-  L1 SH from them, each VPL weighted by how far the probe stands in front of
-  its face plus an allowance of 0.25 m (0313, 0314), one within 1 mm skipped, blended into a grid's three images.
 - `bounce_relight.slang` — the relight's compute: `settle`, a listed probe's validity, nought with no
   picture or over a quarter of its texels on back faces, and each texel's distance moments over its 3×3;
   `relight`, a probe's picture lit by a chain's lights or the level below into a level's L1 SH; `sum` (0326).

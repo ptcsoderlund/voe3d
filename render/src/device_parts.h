@@ -3,8 +3,7 @@
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
 // map point_shadow.c's; the bounce map
-// is bounce_map.c's; the bounce grid is target.c's, its updates bounce_grid.c's;
-// the probe volume bounce_volume.c's, the capture scratch bounce_capture.c's; the swapchain
+// is bounce_map.c's; the probe volume bounce_volume.c's, the capture scratch bounce_capture.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -17,7 +16,6 @@
 #pragma once
 
 #include "bounce_probes.h"
-#include "bounce_schedule.h"
 #include "loader.h"
 
 #include <render/device.h>
@@ -308,29 +306,6 @@ struct voe_render_bounce_map {
 	struct voe_render_allocated_image normal;
 };
 
-// What one frame slot's frame did to a bounce grid: whether it updated it, and
-// the lowest cell and corner of that update (ADR-0308 point 3).
-struct voe_render_bounce_mark {
-	bool updated;
-	int32_t cell[3];
-	float corner[3];
-};
-
-// One bounce grid, target.c's (ADR-0308 point 3): L1 SH RGB in three RGBA16F 3D
-// images of VOE_RENDER_BOUNCE_PROBES³, storage and sampled, cleared to nought and
-// resting in GENERAL. The window and each caller target own one; it outlives a
-// resize. ONE COPY, NOT PER FRAME SLOT, which is why `updates` is: each frame
-// slot's record of what its frame did to this grid, indexed by the slot.
-// `descriptor` is the first of its three entries at binding 6, grid index × 3 —
-// the window's 0, target n's 3n. `schedule` is which probes its next update
-// refreshes, bounce_grid.c's, zeroed with the grid.
-struct voe_render_bounce_grid {
-	struct voe_render_allocated_image sh[3];
-	uint32_t descriptor;
-	struct voe_render_bounce_mark updates[VOE_RENDER_FRAMES_IN_FLIGHT];
-	voe_render_bounce_schedule schedule;
-};
-
 // Whether one frame slot's frame began a probe volume, and the lowest cell and
 // corner that begin placed it at (ADR-0326 point 7).
 struct voe_render_bounce_begun {
@@ -381,8 +356,6 @@ struct voe_render_target_slot {
 	// copy. Neither changes.
 	uint32_t texture;
 	uint32_t depth_texture;
-	// Built with the target and kept through every resize.
-	struct voe_render_bounce_grid grid;
 	// Built on the first begin onto the target, kept through a resize.
 	struct voe_render_bounce_volume volume;
 	uint32_t generation;
@@ -444,20 +417,11 @@ struct voe_render_frame {
 
 	// The sun's bounce map, per slot for the same reason, and this frame's
 	// last bounce pass: its light view, its sun, and whether one ran. Reset
-	// by voe_render_frame_begin; an update reads them (ADR-0308).
+	// by voe_render_frame_begin (ADR-0308).
 	struct voe_render_bounce_map bounce;
 	voe_render_view bounce_view;
 	voe_render_light bounce_sun;
 	bool bounced;
-
-	// bounce_grid.c's, per slot for the same reason: the map reduced to
-	// VPLs, device-local; the probe lists, mapped, one band per grid; a set
-	// per grid; and whether this frame's last bounce pass is reduced yet.
-	struct voe_render_buffer vpls;
-	struct voe_render_buffer probe_lists;
-	void *probe_lists_mapped;
-	VkDescriptorSet *bounce_sets;
-	bool reduced;
 
 	// capacities.passes blocks, device->pass_stride bytes apart — the
 	// stride is the block rounded up to the card's uniform offset alignment.

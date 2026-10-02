@@ -612,7 +612,6 @@ bool voe_render_bounce_pass_begin(voe_render_device *device,
 	frame->bounce_view = *light;
 	frame->bounce_sun = *sun;
 	frame->bounced = true;
-	frame->reduced = false;
 	return true;
 }
 
