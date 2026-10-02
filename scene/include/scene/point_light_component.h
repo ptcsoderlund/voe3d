@@ -28,7 +28,11 @@
 //
 // IT CASTS A SHADOW WHEN cast_shadows, off by default (0316), and 3d chooses
 // which casting lamps cast this frame (0325 point 5). A scene saved before it
-// reads false. It still bounces nothing (0301).
+// reads false.
+//
+// IT BOUNCES AS THE SUN DOES (0326 point 1): bounces is the sun's named count,
+// at most VOE_SCENE_LIGHT_BOUNCES_MAX, 0 by default and costing nothing then
+// (0316); bounce_strength scales the bounce only, 1 by default, not negative.
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), as the
 // sun's is. Every field is authored and none is read-only.
@@ -42,19 +46,29 @@
 
 #include <math/float3.h>
 
+#include <scene/light_component.h>
+
 #include <stdint.h>
 
 // The colour a linear multiplier, (1, 1, 1) white; intensity not negative,
-// range above nought, falloff within LEAST..MOST, cast_shadows off unless said
-// — see the header.
+// range above nought, falloff within LEAST..MOST, cast_shadows off unless said,
+// bounces at most the sun's maximum, bounce_strength not negative — see the
+// header.
 #define VOE_SCENE_POINT_LIGHT_FIELDS(F, F_READ_ONLY) \
 	F(voe_math_float3, colour, COLOUR)           \
 	F(float, intensity, FLOAT32)                 \
 	F(float, range, FLOAT32)                     \
 	F(float, falloff, FLOAT32)                   \
-	F(bool, cast_shadows, BOOL)
+	F(bool, cast_shadows, BOOL)                  \
+	F(uint32_t, bounces, UINT32)                 \
+	F(float, bounce_strength, FLOAT32)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_scene_point_light, VOE_SCENE_POINT_LIGHT_FIELDS)
+// The sun's names, so the Inspector offers the same dropdown.
+#define VOE_SCENE_POINT_LIGHT_NAMES(N) N(bounces, voe_scene_light_bounces_names)
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_point_light,
+			       VOE_SCENE_POINT_LIGHT_FIELDS,
+			       VOE_SCENE_POINT_LIGHT_NAMES)
 
 // The bounds a falloff lies within, both accepted (0322 point 2): exponents 8
 // to 0.5. Past them the pool is a ring or a dot.

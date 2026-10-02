@@ -23,10 +23,12 @@
 // before the fill existed.
 //
 // BOUNCES IS HOW MANY TIMES THIS LIGHT'S OWN LIGHT BOUNCES BACK OFF WHAT IT LIT
-// (0317, 0319): 0 is none and costs nothing (0316), 1 is the bounce of 046, and
-// 051 raises VOE_SCENE_LIGHT_BOUNCES_MAX. It is per light, not per scene. Its
-// values are named, so a tool offers exactly the allowed counts and the scene
-// text still holds the number; a count past the maximum is a bad light.
+// (0317, 0319, 0326): 0 is none and costs nothing (0316), and each one up to
+// VOE_SCENE_LIGHT_BOUNCES_MAX, 3, carries the light one surface further. It is
+// per light, not per scene. Its values are named, so a tool offers exactly the
+// allowed counts and the scene text still holds the number; a count past the
+// maximum is a bad light. BOUNCE_STRENGTH scales the bounce only, never the
+// direct light: 1 is the honest light, and it may not be negative.
 //
 // CAST_SHADOWS IS WHETHER THIS LIGHT'S SHADOWS ARE DRAWN AT ALL (0324): false
 // costs nothing (0316) and is what a new light has; a file saved before the
@@ -60,18 +62,19 @@
 
 // The colours are linear multipliers, (1, 1, 1) white; the intensities are
 // not negative. The fill lifts only the shade, bounces is at most
-// VOE_SCENE_LIGHT_BOUNCES_MAX, and cast_shadows is off unless said — see the
-// header.
+// VOE_SCENE_LIGHT_BOUNCES_MAX, cast_shadows is off unless said, and
+// bounce_strength is not negative — see the header.
 #define VOE_SCENE_LIGHT_FIELDS(F, F_READ_ONLY)      \
 	F(voe_math_float3, colour, COLOUR)          \
 	F(float, intensity, FLOAT32)                \
 	F(voe_math_float3, fill_colour, COLOUR)     \
 	F(float, fill_intensity, FLOAT32)           \
 	F(uint32_t, bounces, UINT32)                \
-	F(bool, cast_shadows, BOOL)
+	F(bool, cast_shadows, BOOL)                 \
+	F(float, bounce_strength, FLOAT32)
 
 // The most bounces a light may ask for.
-#define VOE_SCENE_LIGHT_BOUNCES_MAX 1u
+#define VOE_SCENE_LIGHT_BOUNCES_MAX 3u
 
 // The name of each allowed count, indexed by the count itself.
 extern VOE_BASE_IMPORTED const char

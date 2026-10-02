@@ -51,7 +51,9 @@ void voe_scene_point_light_register(voe_ecs_world *world, uint32_t capacity)
 					  .intensity = 1.0f,
 					  .range = 5.0f,
 					  .falloff = 1.0f,
-					  .cast_shadows = false });
+					  .cast_shadows = false,
+					  .bounces = 0,
+					  .bounce_strength = 1.0f });
 	voe_ecs_component_needs_set(world, type, transform);
 	voe_ecs_component_menu_set(world, type, "Rendering / Point light");
 }
@@ -76,6 +78,10 @@ static const char *refused_field(voe_scene_point_light light)
 	if (!(light.falloff >= VOE_SCENE_POINT_LIGHT_FALLOFF_LEAST &&
 	      light.falloff <= VOE_SCENE_POINT_LIGHT_FALLOFF_MOST))
 		return "falloff";
+	if (light.bounces > VOE_SCENE_LIGHT_BOUNCES_MAX)
+		return "bounces";
+	if (!isfinite(light.bounce_strength) || light.bounce_strength < 0.0f)
+		return "bounce_strength";
 	return NULL;
 }
 
@@ -84,7 +90,7 @@ bool voe_scene_point_light_add(voe_ecs_world *world, voe_ecs_entity entity,
 {
 	VOE_BASE_DEBUG_ASSERT(world != NULL, "adding a point light to no world");
 	VOE_BASE_DEBUG_ASSERT(refused_field(light) == NULL,
-			      "a point light with a colour outside [0, 1], a negative intensity, a range of nought or less, a falloff outside its bounds or a number that is not finite");
+			      "a point light with a colour outside [0, 1], a negative intensity, a range of nought or less, a falloff outside its bounds, too many bounces, a negative bounce strength or a number that is not finite");
 
 	return voe_ecs_component_add(
 		world, voe_ecs_component_type(world, &voe_scene_point_light_key),
