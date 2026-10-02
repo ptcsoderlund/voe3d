@@ -27,7 +27,10 @@
 //
 // THE BOUNCE PASS FOLLOWS THE CASCADES (0308 point 1): draw_bounce.c opens it,
 // draws the same casters through this file's walk, and updates the frame's
-// target's grid. Only when cascades were drawn; a failure there is the call's.
+// target's grid. Only when cascades were drawn and the world's light, the row
+// voe_3d_draw_system_light reads, has `bounces` of 1 or more (0319 point 3): at
+// 0, or with no light, there is no bounce pass, draw or update. A failure there
+// is the call's.
 #include "draw_bounce.h"
 #include "draw_group.h"
 
@@ -38,6 +41,7 @@
 #include <3d/models.h>
 #include <3d/shadow_cascades.h>
 #include <base/assert.h>
+#include <scene/light_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -124,6 +128,17 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 	return frame->models == NULL || draw_model_casters(world, device, frame);
 }
 
+// Whether the world's light, row zero as voe_3d_draw_system_light reads it,
+// bounces (0319 point 3). No light never does.
+static bool light_bounces(const voe_ecs_world *world)
+{
+	VOE_BASE_ASSERT(world != NULL, "bouncing no world");
+	VOE_BASE_ASSERT(voe_scene_light_count(world) <= 1,
+			"a world to draw has at most one light — see 3d/draw_system.h");
+	return voe_scene_light_count(world) == 1 &&
+	       voe_scene_light_rows(world)[0].bounces >= 1;
+}
+
 bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
 				voe_3d_frame *frame)
 {
@@ -156,8 +171,8 @@ bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
 			return false;
 	}
 	// The bounce pass after the cascades, only when there were cascades
-	// (0308 point 1; no sun, 0287: neither).
-	if (!voe_3d_draw_bounce(world, device, frame))
+	// (0308 point 1; no sun, 0287: neither) and the light bounces (0319).
+	if (light_bounces(world) && !voe_3d_draw_bounce(world, device, frame))
 		return false;
 	frame->shadow = cascades.shadow;
 	VOE_BASE_ASSERT(frame->shadow.count <= VOE_RENDER_SHADOW_CASCADES,

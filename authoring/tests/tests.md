@@ -14,8 +14,8 @@ file; the rest hand the writer a world and the reader text held in memory.
 - `scene_read.c` — a canonical file read and written back byte for byte, a world
   round-tripped row for row, every refusal creating nothing, the warnings that
   still load, and fields of every shape from rank 0 to 7.
-- `scene_cook.c` — the exact source for a small scene, that source compiled by
-  `clang`, the refusals leaving `*out` untouched, and an empty world.
+- `scene_cook.c` — the exact source for a small scene, the sun's bounces
+  included, that source compiled by `clang`, the refusals leaving `*out` untouched, and an empty world.
 - `project.c` — the exact bytes the writer emits, a round trip through the
   reader, every refusal with the line it names, and an unknown key that warns and
   still loads.

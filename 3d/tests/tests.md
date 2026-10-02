@@ -38,9 +38,8 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out, both pictures with the bounce
   off, and for a model. Skips without a graphics card.
-- `bounce.c` — that the shadows call is true with five passes and false with four, and that a wall
-  moved a metre marks two stale spheres at its two places, none with no previous table or unmoved,
-  and one in a room of one. Skips without a graphics card.
+- `bounce.c` — the shadows call's pass count with and without bounces, and the stale spheres a
+  moved wall marks. Skips without a graphics card.
 - `bounce_scene.c` — bug 01 through the editor's calls at sun 1 and π: the red box tints nearby
   ground while its own shadow stays faint and no ground darkens. Skips without a graphics card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and

@@ -1,6 +1,6 @@
 // The sun: what registration tells a tool, that an intent lands only when the
 // system runs and a bad one keeps the row, and that a rotation and the direction
-// it shines convert both ways.
+// it shines convert both ways. Bounces lands up to its maximum and is named.
 //
 // THE CONVERSIONS ARE THE CLAIM WORTH MOST. Everything that draws the sun reads
 // its direction through voe_scene_light_direction, and a sign wrong there lights
@@ -67,7 +67,8 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 }
 
 // Every field neither white, one nor nought, so that a field copied from the
-// wrong place shows up as a wrong number rather than as the default.
+// wrong place shows up as a wrong number rather than as the default. Bounces
+// has only nought and one, and takes the one that is not the default.
 static voe_scene_light known(void)
 {
 	return (voe_scene_light){
@@ -75,6 +76,7 @@ static voe_scene_light known(void)
 		.intensity = 2.5f,
 		.fill_colour = { 0.25f, 0.5f, 0.75f },
 		.fill_intensity = 0.3f,
+		.bounces = 1,
 	};
 }
 
@@ -88,6 +90,7 @@ static void check_light(const voe_scene_light *read, voe_scene_light expected)
 	check_vector(read->fill_colour, expected.fill_colour);
 	VOE_TEST_CHECK_FLOAT(read->fill_intensity, expected.fill_intensity,
 			     0.0f);
+	VOE_TEST_CHECK_INT(read->bounces, expected.bounces);
 }
 
 static void a_light_arrives_as_given(voe_base_arena *arena)
@@ -142,9 +145,9 @@ static void a_refused_intent_keeps_the_row(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity sun = { 0 };
-	voe_scene_light bad[7];
+	voe_scene_light bad[8];
 
-	for (int i = 0; i < 7; i++)
+	for (int i = 0; i < 8; i++)
 		bad[i] = known();
 	bad[0].colour.x = 1.5f;
 	bad[1].colour.y = -0.1f;
@@ -153,17 +156,44 @@ static void a_refused_intent_keeps_the_row(voe_base_arena *arena)
 	bad[4].fill_colour.z = NAN;
 	bad[5].fill_colour.x = 2.0f;
 	bad[6].fill_intensity = -0.5f;
+	bad[7].bounces = VOE_SCENE_LIGHT_BOUNCES_MAX + 1;
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
 
-	for (int i = 0; i < 7; i++) {
+	for (int i = 0; i < 8; i++) {
 		VOE_TEST_CHECK(voe_scene_light_submit(
 			world, (voe_scene_light_intent){ .entity = sun,
 							 .light = bad[i] }));
 		voe_scene_light_system_run(world);
 		check_light(voe_scene_light_get(world, sun), known());
 	}
+}
+
+// A light with none asks for one through an intent and gets it; asking for two,
+// past the maximum, is refused and the one stays.
+static void bounces_lands_up_to_the_maximum(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity sun = { 0 };
+	voe_scene_light none = known();
+	voe_scene_light one = known();
+	voe_scene_light two = known();
+
+	none.bounces = 0;
+	two.bounces = 2;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(world, sun, none));
+
+	VOE_TEST_CHECK(voe_scene_light_submit(
+		world, (voe_scene_light_intent){ .entity = sun, .light = one }));
+	voe_scene_light_system_run(world);
+	check_light(voe_scene_light_get(world, sun), one);
+
+	VOE_TEST_CHECK(voe_scene_light_submit(
+		world, (voe_scene_light_intent){ .entity = sun, .light = two }));
+	voe_scene_light_system_run(world);
+	check_light(voe_scene_light_get(world, sun), one);
 }
 
 // An entity that dies between the submit and the drain takes its intent with
@@ -204,15 +234,33 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK(!actual->read_only);
 }
 
-// Four fields, in the order they are declared, each kinded as declared and each
+// The one named field: bounces, its counts named "0" and "1".
+static void check_bounces_names(const voe_base_struct_description *description)
+{
+	const voe_base_field_names *names =
+		voe_base_names_find(description, "bounces");
+
+	VOE_TEST_CHECK_INT(description->names_count, 1);
+	VOE_TEST_CHECK(names != NULL);
+	if (names == NULL)
+		return;
+	VOE_TEST_CHECK_INT(names->value_count, 2);
+	if (names->value_count != 2)
+		return;
+	VOE_TEST_CHECK(strcmp(names->values[0], "0") == 0);
+	VOE_TEST_CHECK(strcmp(names->values[1], "1") == 0);
+}
+
+// Five fields, in the order they are declared, each kinded as declared and each
 // at the offset and size the compiler gave it. None is read-only.
 static void check_description(const voe_base_struct_description *description)
 {
 	const voe_base_field_description *fields = description->fields;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_light") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 4);
-	if (description->field_count != 4)
+	check_bounces_names(description);
+	VOE_TEST_CHECK_INT(description->field_count, 5);
+	if (description->field_count != 5)
 		return;
 
 	check_field(&fields[0], "colour", VOE_BASE_FIELD_COLOUR,
@@ -224,12 +272,14 @@ static void check_description(const voe_base_struct_description *description)
 		    sizeof(voe_math_float3));
 	check_field(&fields[3], "fill_intensity", VOE_BASE_FIELD_FLOAT32,
 		    offsetof(voe_scene_light, fill_intensity), sizeof(float));
+	check_field(&fields[4], "bounces", VOE_BASE_FIELD_UINT32,
+		    offsetof(voe_scene_light, bounces), sizeof(uint32_t));
 }
 
 // What a tool sees: the replace, the default row (0190: white of strength one,
-// a white fill of nought), the transform it needs, the menu path and the field
-// list, which in a describing build is scene/src's own copy and so is checked
-// field by field and never by address.
+// a white fill of nought, no bounces), the transform it needs, the menu path and
+// the field list, which in a describing build is scene/src's own copy and so is
+// checked field by field and never by address.
 static void registration_says_what_a_light_is(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
@@ -251,7 +301,8 @@ static void registration_says_what_a_light_is(voe_base_arena *arena)
 	check_light(row, (voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					    .intensity = 1.0f,
 					    .fill_colour = { 1.0f, 1.0f, 1.0f },
-					    .fill_intensity = 0.0f });
+					    .fill_intensity = 0.0f,
+					    .bounces = 0 });
 
 	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
 	VOE_TEST_CHECK(voe_ecs_component_key(world, needed) ==
@@ -322,6 +373,7 @@ int main(void)
 	a_light_arrives_as_given(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	a_refused_intent_keeps_the_row(arena);
+	bounces_lands_up_to_the_maximum(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
 	a_rotation_becomes_the_direction_it_shines();
 	a_direction_becomes_a_rotation_and_back();

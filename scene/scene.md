@@ -39,10 +39,10 @@ space is.
   direct call that creates one. Its header says why creation is not an intent,
   which of the two checks is an assert and which a correction, and why the
   report's state is per process.
-- `include/scene/light_component.h` — the directional light: its linear colour and strength
-  and a fill of the shade, as a described field list, and the conversions
-  between a rotation and the direction it shines. Its header says why the
-  direction is the transform's -Z and what the fill is.
+- `include/scene/light_component.h` — the directional light: its linear colour
+  and strength, a fill of the shade and a named count of bounces, as a described
+  field list, and the conversions between a rotation and its direction. Its
+  header says why that is the transform's -Z.
 - `include/scene/light_system.h` — the whole-light intent, registered as the
   light's replace, the direct call that creates one, and the transform it needs.
   Its header says what light is refused and why a drawn world needs the table.
