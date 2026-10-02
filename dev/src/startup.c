@@ -279,6 +279,9 @@ bool voe_dev_start(struct voe_dev_program *program)
 	// surface facing a white light of one comes back at about a third of its
 	// albedo; π is what makes "one" mean "as bright as the texture". With no
 	// exposure control or tone mapping yet, it is a number that looks right.
+	//
+	// It casts because dev shows what the engine can do, shadows included; a
+	// light's default casts none, since every costly look is opt-in (0316).
 	if (!voe_ecs_entity_create(program->world, &program->sun) ||
 	    !voe_scene_transform_add(program->world, program->sun,
 				     voe_dev_sun_pose(0.0f)) ||
@@ -286,6 +289,7 @@ bool voe_dev_start(struct voe_dev_program *program)
 				 (voe_scene_light){
 					 .colour = { 1.0f, 1.0f, 1.0f },
 					 .intensity = 3.14159265f,
+					 .cast_shadows = true,
 				 })) {
 		VOE_BASE_ERROR("dev", "could not make a sun");
 		return false;

@@ -24,7 +24,8 @@ it. Nothing here names a GPU resource, a file or a graphics API.
   whole lens or keeps the row over one that cannot project.
 - `light_component.c` — the key, the reads, and the conversions between a
   rotation and the direction it shines.
-- `light_system.c` — registration, creation, and the drain that applies a whole
+- `light_system.c` — registration with its default and unsaid rows, creation,
+  and the drain that applies a whole
   light or keeps the row over one it refuses.
 - `point_light_component.c` — the key and the reads.
 - `point_light_system.c` — registration, creation, and the run that applies whole

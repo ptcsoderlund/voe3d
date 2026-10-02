@@ -31,7 +31,11 @@
 // material, because a material's record is written once and a colour changes
 // while a person drags (3d/draw_system.h).
 //
-// THE DEFAULT ROW IS A GREY CUBE, and a shape needs a transform: without one
+// CAST_SHADOWS FALSE LEAVES THE SHAPE OUT OF EVERY SHADOW AND BOUNCE MAP while
+// it is still drawn, lit and shadowed (0301, 0324). True by default and in a
+// file without it; zero is false, so a row built from a literal names it.
+//
+// THE DEFAULT ROW IS A GREY CUBE THAT CASTS, and a shape needs a transform: without one
 // the draw system has nowhere to put it (0193). voe_3d_shape_register finds the
 // transform's type by its key, so the world must have registered transforms
 // before it registers shapes.
@@ -74,7 +78,8 @@ extern VOE_BASE_IMPORTED const char *const voe_3d_shape_kind_names[4];
 
 #define VOE_3D_SHAPE_FIELDS(F, F_READ_ONLY) \
 	F(uint32_t, kind, UINT32)           \
-	F(voe_math_float3, colour, COLOUR)
+	F(voe_math_float3, colour, COLOUR)  \
+	F(bool, cast_shadows, BOOL)
 
 #define VOE_3D_SHAPE_NAMES(N) N(kind, voe_3d_shape_kind_names)
 
@@ -84,7 +89,7 @@ VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_3d_shape, VOE_3D_SHAPE_FIELDS,
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_shape_key;
 
-// Registers the table, its default row (a grey cube), that a shape needs a
+// Registers the table, its default row (a grey cube that casts), that a shape needs a
 // transform, and the shape's intent as its replace (3d/shape_system.h), with
 // room for `capacity` intents. Once per world, after transforms are registered
 // and before anything adds a shape.

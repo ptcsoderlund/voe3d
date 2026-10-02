@@ -1,6 +1,8 @@
 // The sun: what registration tells a tool, that an intent lands only when the
-// system runs and a bad one keeps the row, and that a rotation and the direction
-// it shines convert both ways. Bounces lands up to its maximum and is named.
+// system runs and a refused one keeps the row, and that a rotation and the
+// direction it shines convert both ways. Bounces lands up to its maximum and is
+// named "0" and "1".
+// Cast shadows is off by default, on in the unsaid row, and lands either way.
 //
 // THE CONVERSIONS ARE THE CLAIM WORTH MOST. Everything that draws the sun reads
 // its direction through voe_scene_light_direction, and a sign wrong there lights
@@ -68,7 +70,8 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 
 // Every field neither white, one nor nought, so that a field copied from the
 // wrong place shows up as a wrong number rather than as the default. Bounces
-// has only nought and one, and takes the one that is not the default.
+// and cast_shadows have two values each, and take the one that is not the
+// default.
 static voe_scene_light known(void)
 {
 	return (voe_scene_light){
@@ -77,6 +80,7 @@ static voe_scene_light known(void)
 		.fill_colour = { 0.25f, 0.5f, 0.75f },
 		.fill_intensity = 0.3f,
 		.bounces = 1,
+		.cast_shadows = true,
 	};
 }
 
@@ -91,6 +95,7 @@ static void check_light(const voe_scene_light *read, voe_scene_light expected)
 	VOE_TEST_CHECK_FLOAT(read->fill_intensity, expected.fill_intensity,
 			     0.0f);
 	VOE_TEST_CHECK_INT(read->bounces, expected.bounces);
+	VOE_TEST_CHECK(read->cast_shadows == expected.cast_shadows);
 }
 
 static void a_light_arrives_as_given(voe_base_arena *arena)
@@ -196,6 +201,29 @@ static void bounces_lands_up_to_the_maximum(voe_base_arena *arena)
 	check_light(voe_scene_light_get(world, sun), one);
 }
 
+// A light that casts nothing is switched on by an intent, and off by the next.
+static void cast_shadows_lands_either_way(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity sun = { 0 };
+	voe_scene_light off = known();
+	voe_scene_light on = known();
+
+	off.cast_shadows = false;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(world, sun, off));
+
+	VOE_TEST_CHECK(voe_scene_light_submit(
+		world, (voe_scene_light_intent){ .entity = sun, .light = on }));
+	voe_scene_light_system_run(world);
+	check_light(voe_scene_light_get(world, sun), on);
+
+	VOE_TEST_CHECK(voe_scene_light_submit(
+		world, (voe_scene_light_intent){ .entity = sun, .light = off }));
+	voe_scene_light_system_run(world);
+	check_light(voe_scene_light_get(world, sun), off);
+}
+
 // An entity that dies between the submit and the drain takes its intent with
 // it, and that is ordinary rather than an error.
 static void an_intent_for_a_destroyed_entity_is_dropped(voe_base_arena *arena)
@@ -251,7 +279,7 @@ static void check_bounces_names(const voe_base_struct_description *description)
 	VOE_TEST_CHECK(strcmp(names->values[1], "1") == 0);
 }
 
-// Five fields, in the order they are declared, each kinded as declared and each
+// Six fields, in the order they are declared, each kinded as declared and each
 // at the offset and size the compiler gave it. None is read-only.
 static void check_description(const voe_base_struct_description *description)
 {
@@ -259,8 +287,8 @@ static void check_description(const voe_base_struct_description *description)
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_light") == 0);
 	check_bounces_names(description);
-	VOE_TEST_CHECK_INT(description->field_count, 5);
-	if (description->field_count != 5)
+	VOE_TEST_CHECK_INT(description->field_count, 6);
+	if (description->field_count != 6)
 		return;
 
 	check_field(&fields[0], "colour", VOE_BASE_FIELD_COLOUR,
@@ -274,18 +302,28 @@ static void check_description(const voe_base_struct_description *description)
 		    offsetof(voe_scene_light, fill_intensity), sizeof(float));
 	check_field(&fields[4], "bounces", VOE_BASE_FIELD_UINT32,
 		    offsetof(voe_scene_light, bounces), sizeof(uint32_t));
+	check_field(&fields[5], "cast_shadows", VOE_BASE_FIELD_BOOL,
+		    offsetof(voe_scene_light, cast_shadows), sizeof(bool));
 }
 
 // What a tool sees: the replace, the default row (0190: white of strength one,
-// a white fill of nought, no bounces), the transform it needs, the menu path and
-// the field list, which in a describing build is scene/src's own copy and so is
-// checked field by field and never by address.
+// a white fill of nought, no bounces, no shadows), the unsaid row (0324: the
+// default casting), the transform it needs, the menu path and the field list,
+// which in a describing build is scene/src's own copy and so is checked field
+// by field and never by address.
 static void registration_says_what_a_light_is(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_type type = voe_ecs_component_type(world, &voe_scene_light_key);
 	voe_ecs_replace replace = voe_ecs_component_replace(world, type);
 	const voe_scene_light *row = voe_ecs_component_default(world, type);
+	const voe_scene_light *unsaid = voe_ecs_component_unsaid(world, type);
+	voe_scene_light expected = { .colour = { 1.0f, 1.0f, 1.0f },
+				     .intensity = 1.0f,
+				     .fill_colour = { 1.0f, 1.0f, 1.0f },
+				     .fill_intensity = 0.0f,
+				     .bounces = 0,
+				     .cast_shadows = false };
 	voe_ecs_type needed = { 0 };
 	const voe_base_struct_description *found =
 		voe_ecs_component_description(world, type);
@@ -298,11 +336,9 @@ static void registration_says_what_a_light_is(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT((long long)replace.value_size,
 			   (long long)sizeof(voe_scene_light_intent));
 
-	check_light(row, (voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
-					    .intensity = 1.0f,
-					    .fill_colour = { 1.0f, 1.0f, 1.0f },
-					    .fill_intensity = 0.0f,
-					    .bounces = 0 });
+	check_light(row, expected);
+	expected.cast_shadows = true;
+	check_light(unsaid, expected);
 
 	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
 	VOE_TEST_CHECK(voe_ecs_component_key(world, needed) ==
@@ -374,6 +410,7 @@ int main(void)
 	an_intent_lands_only_when_the_system_runs(arena);
 	a_refused_intent_keeps_the_row(arena);
 	bounces_lands_up_to_the_maximum(arena);
+	cast_shadows_lands_either_way(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
 	a_rotation_becomes_the_direction_it_shines();
 	a_direction_becomes_a_rotation_and_back();

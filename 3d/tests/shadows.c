@@ -5,6 +5,8 @@
 // flattened cube lies a metre below as the floor, and a cube stands a metre
 // above the floor's middle five metres out, lit by a sun straight down with
 // bounces 1 (0319), so each caster is also drawn into the bounce map. The
+// sun, both shapes and the model are built from literals that say
+// `cast_shadows = true`, since zero casts nothing (0324). The
 // floor pixel straight under the cube is in its shadow, and with no fill a
 // shadowed surface is black; the floor pixel two metres to the side is lit.
 // So the first reads darker than the second.
@@ -23,6 +25,14 @@
 // NO LIGHT CASTS NOTHING (ADR-0287): the call opens no pass, draws nothing,
 // leaves `shadow` zeroed and still returns true, and the two pixels are both
 // black, the floor lit by the zeroed light.
+//
+// WHAT DOES NOT CAST LEAVES THE FLOOR LIT (0324 points 4 and 5). With the
+// sun's `cast_shadows` false no pass opens and nothing is drawn into one; with
+// the sun casting and the cube's shape's false, only the floor is drawn into
+// each cascade and the bounce map. Either way the floor under the cube reads
+// within LIT_ALIKE of the floor beside it, and the view still draws the cube.
+// Both run first, bouncing into a second target, so no earlier frame's bounce
+// sits in the window's grid.
 //
 // 100 KM OUT (0250) the camera, floor and cube all stand 100 km along X and the
 // same two pixels read as they did at the origin: the cascades are fitted about
@@ -73,6 +83,8 @@
 #define BESIDE_X 54
 #define FLOOR_Y 42
 #define FAR_OUT 100000.0
+// How far apart, in 8-bit levels, two pixels of the same lit floor may read.
+#define LIT_ALIKE 4
 
 // Three drawn objects at most (the floor and the model's two parts), each
 // drawn once more into each of the four cascades and the bounce map, and the
@@ -89,9 +101,10 @@ static const voe_render_capacities CAPACITIES = {
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
 
-// One grey shape standing `x` metres along X at `y` and `z`, scaled by `scale`.
+// One grey shape standing `x` metres along X at `y` and `z`, scaled by `scale`,
+// casting when `casts`.
 static void add_a_shape(voe_ecs_world *world, double x, double y, double z,
-			voe_math_float3 scale)
+			voe_math_float3 scale, bool casts)
 {
 	voe_ecs_entity entity = { 0 };
 	voe_scene_transform transform = {
@@ -105,14 +118,25 @@ static void add_a_shape(voe_ecs_world *world, double x, double y, double z,
 	VOE_TEST_CHECK(voe_3d_shape_add(
 		world, entity,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
-				.colour = { 0.5f, 0.5f, 0.5f } }));
+				.colour = { 0.5f, 0.5f, 0.5f },
+				.cast_shadows = casts }));
 }
 
+// Who casts in a world: the sun, and the standing cube. The floor always does.
+typedef struct {
+	bool sun;
+	bool cube;
+} casting;
+
+static const casting ALL_CAST = { .sun = true, .cube = true };
+
 // The camera, the floor and the cube, all `x` metres along X, and the sun
-// straight down when `lit`, with a white fill of `fill`. With `model` the cube
-// is a thing wearing it instead, placed as the header says.
+// straight down when `lit`, with a white fill of `fill`, each casting as `casts`
+// says. With `model` the cube is a thing wearing it instead, casting, placed as
+// the header says.
 static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
-			      double x, bool lit, float fill, const char *model)
+			      double x, bool lit, float fill, const char *model,
+			      casting casts)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -158,14 +182,16 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 					   .intensity = 3.0f,
 					   .fill_colour = { 1.0f, 1.0f, 1.0f },
 					   .fill_intensity = fill,
-					   .bounces = 1 }));
+					   .bounces = 1,
+					   .cast_shadows = casts.sun }));
 	}
-	add_a_shape(world, x, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f });
+	add_a_shape(world, x, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f },
+		    true);
 	if (model == NULL) {
 		add_a_shape(world, x, 1.0, -5.0,
-			    (voe_math_float3){ 1.0f, 1.0f, 1.0f });
+			    (voe_math_float3){ 1.0f, 1.0f, 1.0f }, casts.cube);
 	} else {
-		voe_3d_model row = { 0 };
+		voe_3d_model row = { .cast_shadows = true };
 
 		// The green part lies at (-2,1,0) (-2,1,2) (0,1,0) once turned.
 		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
@@ -182,10 +208,12 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	return world;
 }
 
-// The two floor pixels of one picture: under the cube and beside it.
+// The two floor pixels of one picture, under the cube and beside it, and how
+// many draws the view's pass made.
 typedef struct {
 	uint8_t under;
 	uint8_t beside;
+	uint32_t drawn;
 } floor_pixels;
 
 // One frame of `world` with its shadows, and the floor's two pixels. `count` is
@@ -222,7 +250,9 @@ static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 					   .shadow = frame.shadow };
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
+	before = voe_render_frame_draw_count(device);
 	voe_3d_draw_system_run(world, device, arena, frame);
+	pixels.drawn = voe_render_frame_draw_count(device) - before;
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 
@@ -245,7 +275,8 @@ static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 					       voe_render_target bounced)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, x, true, 0.0f, NULL);
+	voe_ecs_world *world =
+		a_world(arena, shapes, x, true, 0.0f, NULL, ALL_CAST);
 	uint32_t count = 0;
 	uint32_t added = 0;
 	floor_pixels pixels =
@@ -263,7 +294,8 @@ static void no_light_casts_nothing(voe_render_device *device,
 				   const voe_3d_shapes *shapes)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, 0.0, false, 0.0f, NULL);
+	voe_ecs_world *world =
+		a_world(arena, shapes, 0.0, false, 0.0f, NULL, ALL_CAST);
 	uint32_t count = 1;
 	uint32_t added = 1;
 	floor_pixels pixels = a_frame(world, device, arena, NULL,
@@ -276,6 +308,32 @@ static void no_light_casts_nothing(voe_render_device *device,
 	voe_base_arena_destroy(arena);
 }
 
+// The floor under the cube as lit as beside it, within LIT_ALIKE, when `casts`
+// leaves the sun or the cube out: with the sun out no pass and no draw, with
+// the cube out the floor alone drawn into each cascade and the bounce map. The
+// cube is drawn in the view either way, beside the floor. `bounced` as for
+// the_cube_shadows_the_floor.
+static void nothing_cast_leaves_the_floor_lit(voe_render_device *device,
+					      const voe_3d_shapes *shapes,
+					      casting casts,
+					      voe_render_target bounced)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_ecs_world *world =
+		a_world(arena, shapes, 0.0, true, 0.0f, NULL, casts);
+	uint32_t count = 1;
+	uint32_t added = 1;
+	floor_pixels pixels =
+		a_frame(world, device, arena, NULL, bounced, &count, &added);
+
+	VOE_TEST_CHECK_INT(count, casts.sun ? VOE_RENDER_SHADOW_CASCADES : 0);
+	VOE_TEST_CHECK_INT(added, casts.sun ? VOE_RENDER_SHADOW_CASCADES + 1 : 0);
+	VOE_TEST_CHECK_INT(pixels.drawn, 2);
+	VOE_TEST_CHECK(abs((int)pixels.under - (int)pixels.beside) <= LIT_ALIKE);
+	VOE_TEST_CHECK(pixels.beside > 32);
+	voe_base_arena_destroy(arena);
+}
+
 // A white fill of 0.2 lifts the floor under the cube above `unfilled`'s and
 // leaves it darker than the lit floor beside it; that lit floor reads as
 // `unfilled`'s, since the fill fades out where the sun reaches (ADR-0276).
@@ -284,7 +342,8 @@ static void a_fill_lifts_the_shadow(voe_render_device *device,
 				    floor_pixels unfilled)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, 0.0, true, 0.2f, NULL);
+	voe_ecs_world *world =
+		a_world(arena, shapes, 0.0, true, 0.2f, NULL, ALL_CAST);
 	uint32_t count = 0;
 	uint32_t added = 0;
 	floor_pixels pixels = a_frame(world, device, arena, NULL,
@@ -302,8 +361,8 @@ static void the_model_shadows_the_floor(voe_render_device *device,
 					const voe_3d_shapes *shapes)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world =
-		a_world(arena, shapes, 0.0, true, 0.0f, "Assets/two.glb");
+	voe_ecs_world *world = a_world(arena, shapes, 0.0, true, 0.0f,
+				       "Assets/two.glb", ALL_CAST);
 	voe_3d_models *models = voe_3d_models_new();
 	voe_base_error error = VOE_BASE_OK;
 	uint32_t count = 0;
@@ -349,6 +408,11 @@ int main(void)
 	VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &other, &shown,
 						&error));
 
+	// First, while no frame has bounced into the window's grid.
+	nothing_cast_leaves_the_floor_lit(
+		device, &shapes, (casting){ .sun = false, .cube = true }, other);
+	nothing_cast_leaves_the_floor_lit(
+		device, &shapes, (casting){ .sun = true, .cube = false }, other);
 	near = the_cube_shadows_the_floor(device, &shapes, 0.0,
 					  VOE_RENDER_TARGET_WINDOW);
 	no_light_casts_nothing(device, &shapes);

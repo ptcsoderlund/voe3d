@@ -2,7 +2,8 @@
 //
 // PASS ONE READS EVERYTHING INTO SCRATCH. Every section's rows are pushed zeroed
 // and filled from the text — a field the text does not mention from the type's
-// default row (voe_ecs_component_default), when it has one — every entity reference is held as an authored id, and
+// unsaid row (voe_ecs_component_unsaid), else its default row, else zero — every
+// entity reference is held as an authored id, and
 // every kept section is copied out — so every refusal happens while the world is
 // still exactly as it was handed over. Pass two creates the entities, maps the ids
 // to them, patches the references and adds the rows, and can only fail on the
@@ -269,8 +270,17 @@ static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 			return false;
 	}
 
+	// The unsaid row first (0324): what an old file meant may differ from
+	// what a new row is.
 	const uint8_t *fallback =
-		voe_ecs_component_default(reader->world, section->type);
+		voe_ecs_component_unsaid(reader->world, section->type);
+	const char *fallback_name = "its unsaid value";
+
+	if (fallback == NULL) {
+		fallback = voe_ecs_component_default(reader->world,
+						     section->type);
+		fallback_name = fallback != NULL ? "its default" : "zero";
+	}
 
 	for (uint32_t f = 0; f < description->field_count; f++) {
 		const voe_base_field_description *field = &description->fields[f];
@@ -286,8 +296,7 @@ static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 		VOE_BASE_WARNING(MODULE,
 				 "line %u: [%s] does not say %s; loaded as %s",
 				 reader->doc.sections[s].line, parsed->name,
-				 field->name,
-				 fallback != NULL ? "its default" : "zero");
+				 field->name, fallback_name);
 	}
 
 	if (entity) {

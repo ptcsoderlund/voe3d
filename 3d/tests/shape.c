@@ -1,9 +1,9 @@
 // The shape component and the system that turns it into a mesh and a
 // material: that kind is described, editable and named by its three kinds and
-// colour is a described colour with no names, that the default row is a grey
-// cube and a shape needs a transform,
+// colour is a described colour with no names, that cast_shadows is a BOOL, that
+// the default row is a grey cube that casts and a shape needs a transform,
 // that the intent's new kind lands and re-points the mesh while an unknown one
-// is put back and a colour clamped, that a run gives
+// is put back and a colour clamped, that cast_shadows false lands, that a run gives
 // a shaped entity exactly one mesh and material and a second run adds nothing,
 // that an entity without a shape is untouched, that an unknown kind gets
 // nothing, that each kind gets its own geometry, that a removed shape's mesh
@@ -129,22 +129,25 @@ static void check_field(const voe_base_field_description *actual,
 }
 
 // Kind, editable and named by its three kinds, then colour, an editable colour
-// with no names: see 3d/shape_component.h.
-static void the_description_is_kind_then_colour(void)
+// with no names, then cast_shadows, a BOOL: see 3d/shape_component.h.
+static void the_description_is_kind_colour_and_cast_shadows(void)
 {
 	const voe_base_struct_description *description =
 		voe_3d_shape_description();
 	const voe_base_field_names *kinds;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_shape") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 2);
-	if (description->field_count != 2)
+	VOE_TEST_CHECK_INT(description->field_count, 3);
+	if (description->field_count != 3)
 		return;
 
 	check_field(&description->fields[0], "kind", VOE_BASE_FIELD_UINT32,
 		    offsetof(voe_3d_shape, kind), 1, false);
 	check_field(&description->fields[1], "colour", VOE_BASE_FIELD_COLOUR,
 		    offsetof(voe_3d_shape, colour), 1, false);
+	check_field(&description->fields[2], "cast_shadows",
+		    VOE_BASE_FIELD_BOOL, offsetof(voe_3d_shape, cast_shadows), 1,
+		    false);
 
 	VOE_TEST_CHECK_INT(description->names_count, 1);
 	kinds = voe_base_names_find(description, "kind");
@@ -160,8 +163,8 @@ static void the_description_is_kind_then_colour(void)
 	VOE_TEST_CHECK(voe_base_names_find(description, "colour") == NULL);
 }
 
-// The default row is a grey cube, a shape needs a transform, and the intent is
-// the shape's replace with the row after the entity.
+// The default row is a grey cube that casts, a shape needs a transform, and the
+// intent is the shape's replace with the row after the entity.
 static void the_default_row_and_the_needs(voe_base_arena *arena)
 {
 	voe_ecs_world *world = a_world(arena);
@@ -176,6 +179,7 @@ static void the_default_row_and_the_needs(voe_base_arena *arena)
 		VOE_TEST_CHECK_FLOAT(row->colour.x, 0.7f, 1e-6f);
 		VOE_TEST_CHECK_FLOAT(row->colour.y, 0.7f, 1e-6f);
 		VOE_TEST_CHECK_FLOAT(row->colour.z, 0.7f, 1e-6f);
+		VOE_TEST_CHECK(row->cast_shadows);
 	}
 
 	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
@@ -194,8 +198,9 @@ static void the_default_row_and_the_needs(voe_base_arena *arena)
 
 // An intent naming a kind that is none of the three lands with kind put back to
 // the entity's own and its colour applied; a colour out of range lands clamped;
-// an intent for an entity with no shape changes nothing. A new kind that is one
-// of the three is an_intents_new_kind_re_points_the_mesh's.
+// cast_shadows false lands as it is; an intent for an entity with no shape
+// changes nothing. A new kind that is one of the three is
+// an_intents_new_kind_re_points_the_mesh's.
 static void an_intent_lands_with_an_unknown_kind_put_back(
 	voe_base_arena *arena)
 {
@@ -243,6 +248,26 @@ static void an_intent_lands_with_an_unknown_kind_put_back(
 		VOE_TEST_CHECK_FLOAT(row->colour.y, 0.0f, 1e-6f);
 		VOE_TEST_CHECK_FLOAT(row->colour.z, 0.5f, 1e-6f);
 	}
+
+	VOE_TEST_CHECK(voe_3d_shape_submit(
+		world, (voe_3d_shape_intent){
+			       .entity = cube,
+			       .shape = { .kind = VOE_3D_SHAPE_CUBE,
+					  .colour = VOE_3D_SHAPE_GREY,
+					  .cast_shadows = true } }));
+	voe_3d_shape_system_run(world, &shapes);
+	row = voe_3d_shape_get(world, cube);
+	VOE_TEST_CHECK(row != NULL && row->cast_shadows);
+
+	VOE_TEST_CHECK(voe_3d_shape_submit(
+		world, (voe_3d_shape_intent){
+			       .entity = cube,
+			       .shape = { .kind = VOE_3D_SHAPE_CUBE,
+					  .colour = VOE_3D_SHAPE_GREY,
+					  .cast_shadows = false } }));
+	voe_3d_shape_system_run(world, &shapes);
+	row = voe_3d_shape_get(world, cube);
+	VOE_TEST_CHECK(row != NULL && !row->cast_shadows);
 
 	// A run with nothing corrected closes the report's run.
 	voe_3d_shape_system_run(world, &shapes);
@@ -621,7 +646,7 @@ int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
-	the_description_is_kind_then_colour();
+	the_description_is_kind_colour_and_cast_shadows();
 	the_type_is_described_and_not_runtime_only(arena);
 	the_default_row_and_the_needs(arena);
 	an_intent_lands_with_an_unknown_kind_put_back(arena);

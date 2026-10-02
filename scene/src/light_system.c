@@ -37,6 +37,12 @@ void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_type type;
 	voe_ecs_type transform;
 	voe_ecs_intent intent;
+	voe_scene_light row = { .colour = { 1.0f, 1.0f, 1.0f },
+				.intensity = 1.0f,
+				.fill_colour = { 1.0f, 1.0f, 1.0f },
+				.fill_intensity = 0.0f,
+				.bounces = 0,
+				.cast_shadows = false };
 
 	VOE_BASE_ASSERT(world != NULL, "registering lights in no world");
 
@@ -50,13 +56,10 @@ void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 					 capacity);
 	voe_ecs_component_replace_set(world, type, intent,
 				      offsetof(voe_scene_light_intent, light));
-	voe_ecs_component_default_set(
-		world, type,
-		&(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
-				    .intensity = 1.0f,
-				    .fill_colour = { 1.0f, 1.0f, 1.0f },
-				    .fill_intensity = 0.0f,
-				    .bounces = 0 });
+	voe_ecs_component_default_set(world, type, &row);
+	// A file saved before cast_shadows existed meant a sun that cast (0324).
+	row.cast_shadows = true;
+	voe_ecs_component_unsaid_set(world, type, &row);
 	voe_ecs_component_needs_set(world, type, transform);
 	voe_ecs_component_menu_set(world, type, "Rendering / Light");
 }

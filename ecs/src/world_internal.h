@@ -50,10 +50,12 @@ struct voe_ecs_table {
 	bool replace_set;
 
 	// The type's default row, `size` bytes pushed when it is set, NULL until
-	// then. And the type its rows need beside them, stored and never read
-	// here; needs_set tells "none" from type zero. And where a tool offers
-	// the type, the declaring folder's string, NULL until set, never read.
+	// then, and its unsaid row the same way. And the type its rows need
+	// beside them, stored and never read here; needs_set tells "none" from
+	// type zero. And where a tool offers the type, the declaring folder's
+	// string, NULL until set, never read.
 	unsigned char *default_row;
+	unsigned char *unsaid_row;
 	voe_ecs_type needs;
 	bool needs_set;
 	const char *menu;

@@ -46,8 +46,9 @@
 
 // Registers the table, the intent queue as its replace, the transform it needs
 // and the default row: white of strength one, a white fill of nought, no
-// bounces. The
-// default row is what "add at default" gives (0190). Call it once per world,
+// bounces, no shadows cast. The default row is what "add at default" gives
+// (0190). The unsaid row, what a file that does not mention a field means, is
+// the default row casting shadows (0324). Call it once per world,
 // after the transform table (it asserts on none) and before anything adds a
 // light. capacity is how many lights the world may hold and also how many
 // intents may be waiting at once.

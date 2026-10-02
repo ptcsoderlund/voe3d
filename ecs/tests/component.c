@@ -3,8 +3,8 @@
 // entity are both refused rather than answered, that the world can say what an
 // entity is made of without anyone naming a type, and that the two markers a
 // registration passes instead of a description answer differently. And that a
-// default row and a needed type come back as they were set, and as nothing when
-// they were not.
+// default row, an unsaid row and a needed type come back as they were set, and
+// as nothing when they were not.
 //
 // THE ITERATION CHECK IS THE ONE THAT WOULD CATCH A BROKEN REMOVAL. A removal
 // swaps the last row into the hole, so the way to get it wrong is to leave the
@@ -506,6 +506,43 @@ static void a_default_comes_back_as_it_was_set(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_ecs_component_default(world, types[1]) == NULL);
 }
 
+// The unsaid row is unset as NULL, comes back byte for byte from memory of its
+// own, and setting it leaves the default row as it was.
+static void an_unsaid_row_comes_back_as_it_was_set(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+	static const unsigned char fallback[sizeof(struct marker)] = {
+		0x01, 0x02, 0x03, 0x04
+	};
+	unsigned char row[sizeof(struct marker)] = { 0x05, 0x06, 0x07, 0x08 };
+	static const unsigned char expected[sizeof(struct marker)] = {
+		0x05, 0x06, 0x07, 0x08
+	};
+	const unsigned char *read;
+	const unsigned char *fallback_read;
+
+	register_three(world, types);
+	VOE_TEST_CHECK(voe_ecs_component_unsaid(world, types[0]) == NULL);
+
+	voe_ecs_component_default_set(world, types[0], fallback);
+	voe_ecs_component_unsaid_set(world, types[0], row);
+	memset(row, 0, sizeof row);
+
+	read = voe_ecs_component_unsaid(world, types[0]);
+	fallback_read = voe_ecs_component_default(world, types[0]);
+	VOE_TEST_CHECK(read != NULL);
+	VOE_TEST_CHECK(read != fallback_read);
+	if (read != NULL)
+		for (size_t i = 0; i < sizeof expected; i++)
+			VOE_TEST_CHECK_INT(read[i], expected[i]);
+	VOE_TEST_CHECK(fallback_read != NULL);
+	if (fallback_read != NULL)
+		for (size_t i = 0; i < sizeof fallback; i++)
+			VOE_TEST_CHECK_INT(fallback_read[i], fallback[i]);
+	VOE_TEST_CHECK(voe_ecs_component_unsaid(world, types[1]) == NULL);
+}
+
 // Type zero is the one needed, so a "needs" that came back as a zeroed type
 // without being set would look right — which the unset types' false rules out.
 static void a_need_comes_back_as_it_was_set(voe_base_arena *arena)
@@ -555,6 +592,7 @@ int main(void)
 	a_type_without_one_says_so_and_nothing_else(arena);
 	a_row_is_edited_through_its_replace_intent(arena);
 	a_default_comes_back_as_it_was_set(arena);
+	an_unsaid_row_comes_back_as_it_was_set(arena);
 	a_need_comes_back_as_it_was_set(arena);
 	menu_path(arena);
 

@@ -217,6 +217,21 @@ void voe_ecs_component_default_set(voe_ecs_world *world, voe_ecs_type type,
 const void *voe_ecs_component_default(const voe_ecs_world *world,
 				      voe_ecs_type type);
 
+// A DESCRIBED TYPE MAY ALSO HAVE AN UNSAID ROW (0324): what a field a file does
+// not mention stands for. It differs from the default row only where what a new
+// row is and what an old file meant part ways — a light added today casts no
+// shadow, a light saved before the field existed did. Optional; a type without
+// one reads its default row. ecs never reads it; the reader of files does.
+//
+// Copies `row` — the type's registered size — as the type's unsaid row, into
+// memory the world pushes for it. Once per type: a second call asserts.
+void voe_ecs_component_unsaid_set(voe_ecs_world *world, voe_ecs_type type,
+				  const void *row);
+
+// The unsaid row, or NULL when none was set. Valid as long as the world.
+const void *voe_ecs_component_unsaid(const voe_ecs_world *world,
+				     voe_ecs_type type);
+
 // A DESCRIBED TYPE MAY ALSO NAME ONE TYPE ITS ROWS NEED (0193): a shape does
 // nothing without a transform on the same entity. Stored and handed back like the
 // rest, never read by ecs, never enforced — a tool shows it; nothing here refuses

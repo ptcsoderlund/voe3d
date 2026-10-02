@@ -16,8 +16,8 @@ and read through the description its own folder registered.
 - `value_write.c` — the numbers, floats, strings, references and a field's
   nested brackets. Its header says why the split falls at one field.
 - `scene_read.c` — the reader's two passes. Its header says why only the second
-  touches the world and why it walks the text beside the sectioned reader for
-  key spans.
+  touches the world, where a missing field's bytes come from, and why it walks
+  the text beside the sectioned reader for key spans.
 - `scene_scratch.h` — the reader's first pass, text into scratch with the world
   untouched, shared by `scene_read.c` and `prefab_read.c`.
 - `prefab_read.c` — the prefab reader: checks the text is one tree a prefab may

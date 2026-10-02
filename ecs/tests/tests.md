@@ -7,7 +7,7 @@ module's promises from outside.
   case where its slot is live again.
 - `component.c` — a row in and out, iteration seeing each live row once across a removal, a
   full table, an entity's makeup from every registered type, runtime-only registration, the editor's
-  typed intent round trip, a default row read back set and unset, and a menu path.
+  typed intent round trip, a default and an unsaid row read back set and unset, and a menu path.
 - `intent.c` — two submitters in one queue in submission order, and a full
   queue.
 - `structure.c` — structural requests landing only at apply, in submission

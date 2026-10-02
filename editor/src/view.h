@@ -173,7 +173,7 @@ void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 // The light every view and the preview are shown with, once a frame: the
 // world's directional light as `3d` gives it (voe_3d_draw_system_light). A
 // world (level or open prefab) with no light is shown by the preview light
-// (voe_editor_project_preview_light), shadows included, and a light added
+// (voe_editor_project_preview_light), which casts no shadows, and a light added
 // replaces it at once; Play and the game draw such a world black (0287).
 voe_render_light voe_editor_view_light(const voe_ecs_world *world);
 

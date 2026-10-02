@@ -14,9 +14,11 @@
 // Both at lag 0, the current transforms. Between them a replace intent for the
 // cube's collider is submitted, and the second frame's world step drains it.
 //
-// THE SHADOW CASE: a capsule set over the cube casts onto it, so both are
-// drawn into every cascade and the window pass; with VOE_GAME_CAPACITIES every
-// pass and object fits and the frame comes back true, lit or not (0258).
+// THE SHADOW CASE: a capsule set over the cube casts onto it. The light, the
+// cube and the capsule all say cast_shadows (literals cast nothing, 0324), so
+// both shapes are drawn into every cascade and the window pass; with
+// VOE_GAME_CAPACITIES every pass and object fits and the frame comes back
+// true, lit or not (0258).
 //
 // THE INTERFACE CASE: a context holding a label, laid out as
 // tests/interface.c lays one out, is drawn over the world and the frame comes
@@ -100,14 +102,16 @@ static voe_ecs_entity build(voe_ecs_world *world, bool lit)
 		VOE_TEST_CHECK(voe_scene_light_add(
 			world, light,
 			(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
-					   .intensity = 3.0f }));
+					   .intensity = 3.0f,
+					   .cast_shadows = true }));
 	}
 	VOE_TEST_CHECK(
 		voe_scene_transform_add(world, cube, placed(0.0f, 0.0f, 0.0f)));
 	VOE_TEST_CHECK(voe_3d_shape_add(
 		world, cube,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
-				.colour = VOE_3D_SHAPE_GREY }));
+				.colour = VOE_3D_SHAPE_GREY,
+				.cast_shadows = true }));
 	VOE_TEST_CHECK(voe_physics_collider_add(
 		world, cube,
 		(voe_physics_collider){ .kind = VOE_PHYSICS_COLLIDER_BOX,
@@ -172,7 +176,8 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_3d_shape_add(
 		world, capsule,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CAPSULE,
-				.colour = VOE_3D_SHAPE_GREY }));
+				.colour = VOE_3D_SHAPE_GREY,
+				.cast_shadows = true }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
 				      0.0f, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,

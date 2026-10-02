@@ -38,9 +38,8 @@ again, or to find where a claim that has started failing is written down.
 - `point_lights.c` — that a frame's point lights are the table's about the eye, colour times
   intensity with the authored falloff, dark and unplaced ones left out, a parented one carried,
   and that one lights the ground under it and not a far corner. Skips without a graphics card.
-- `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
-  the shadow, no light casts nothing, and the same holds 100 km out, both pictures with the bounce
-  off, and for a model. Skips without a graphics card.
+- `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
+  100 km out. Skips without a graphics card.
 - `bounce.c` — the shadows call's pass count with and without bounces, and the stale spheres a
   moved wall marks. Skips without a graphics card.
 - `bounce_scene.c` — bug 01 through the editor's calls at sun 1 and π: the red box tints nearby
@@ -76,11 +75,12 @@ again, or to find where a claim that has started failing is written down.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.
-- `shape.c` — the shape table's description, default row, intents and runs, each kind's own
+- `shape.c` — the shape table's description, default row casting, intents (cast_shadows false
+  among them) and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
-- `model_component.c` — the model's one CHAR field `path` of 128, a submitted path read back after a
-  run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
+- `model_component.c` — the model's CHAR field `path` of 128 and BOOL `cast_shadows`, the default
+  casting and an intent turning it off, a submitted path read back after a run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
