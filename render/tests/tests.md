@@ -78,4 +78,4 @@ by reading the offscreen colour image back.
   behind it. Headless.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: lit only where they
   reach, none when unshaded, falloff ordering brightness, and a shadow slot ignored with no point
-  shadows. Headless.
+  shadows, and bounces and bounce strength lighting nothing directly. Headless.

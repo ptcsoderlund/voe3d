@@ -344,6 +344,11 @@ static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 					light->shadow_strength >= 0.0f &&
 					light->shadow_strength <= 1.0f,
 				"a point light whose shadow strength is not finite or not 0 to 1");
+		VOE_BASE_ASSERT(light->bounces <= VOE_RENDER_BOUNCES_MAX,
+				"a point light whose bounces are past VOE_RENDER_BOUNCES_MAX");
+		VOE_BASE_ASSERT(isfinite(light->bounce_strength) &&
+					light->bounce_strength >= 0.0f,
+				"a point light whose bounce strength is not finite or below nought");
 		if (light->shadow != 0 && light->shadow <= VOE_RENDER_POINT_SHADOWS)
 			slots[light->shadow] = true;
 	}

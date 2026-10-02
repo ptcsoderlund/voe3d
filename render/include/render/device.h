@@ -513,6 +513,9 @@ typedef struct {
 // The most point lights one pass carries (ADR-0320).
 #define VOE_RENDER_POINT_LIGHTS 256
 
+// The most bounces a light may have (ADR-0317).
+#define VOE_RENDER_BOUNCES_MAX 3
+
 // One point light, for one pass (ADR-0320).
 //
 // `position` IS IN THE SPACE THE PASS'S DRAWS PLACE VERTICES IN — about the eye,
@@ -537,6 +540,12 @@ typedef struct {
 // VOE_RENDER_POINT_SHADOWS, a slot two of a pass's lights name, and a strength
 // not finite or outside 0 to 1.
 //
+// `bounces` IS HOW MANY BOUNCES THIS LAMP'S LIGHT MAKES, 0 none, at most
+// VOE_RENDER_BOUNCES_MAX; `bounce_strength` scales its bounce and never its
+// direct light (ADR-0326). Zero is no bounce, so every initializer that names
+// neither draws as before. voe_render_pass_begin asserts bounces past
+// VOE_RENDER_BOUNCES_MAX and a strength not finite or below nought.
+//
 // A pass carries at most VOE_RENDER_POINT_LIGHTS. Padded to 48 bytes because the
 // shader reads an array of them.
 typedef struct {
@@ -546,7 +555,8 @@ typedef struct {
 	float falloff;
 	uint32_t shadow;
 	float shadow_strength;
-	uint32_t reserved[2];
+	uint32_t bounces;
+	float bounce_strength;
 } voe_render_point_light;
 
 static_assert(sizeof(voe_render_point_light) == 48,

@@ -92,7 +92,8 @@ struct voe_render_point_light {
 	float falloff;
 	uint shadow;
 	float shadow_strength;
-	uint2 reserved;
+	uint bounces;
+	float bounce_strength;
 };
 
 // Set 0, binding 7: this frame slot's point lights, VOE_RENDER_POINT_LIGHTS
