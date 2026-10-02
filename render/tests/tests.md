@@ -69,6 +69,8 @@ by reading the offscreen colour image back.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, and a red cube in the albedo atlas.
   Headless.
+- `bounce_settle.c` — captured probes settling: beside a cube, validity 1 and a moments mean to its
+  face; inside it, validity 0; a settled frame dispatching nothing. Headless.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,

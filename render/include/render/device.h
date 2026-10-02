@@ -1284,6 +1284,17 @@ typedef struct {
 [[nodiscard]] bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 							bool *opened);
 
+// Relights the target voe_render_bounce_begin began (ADR-0326 points 5 and 6),
+// after its capture passes, between passes: each probe captured or emptied since
+// the last relight gets its validity and distance moments, and (from card 09)
+// the grid is relit when a probe changed or the bouncing lights did. On a settled frame it
+// records nothing at all and only the read runs (ADR-0317 point 4); on a volume
+// not built, or a card without shaderOutputLayer, nothing either.
+//
+// Outside a frame, with a pass open, or with no bounce begin this frame it
+// asserts.
+void voe_render_bounce_relight(voe_render_device *device);
+
 // Opens a bounce pass: one more pass of the sun, after the cascades, onto this
 // frame slot's bounce map (ADR-0308), VOE_RENDER_BOUNCE_TEXELS square, flux,
 // normal and depth cleared. `light` is the view the map is drawn from and `sun`

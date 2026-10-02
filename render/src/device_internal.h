@@ -2,7 +2,7 @@
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
 // drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates,
-// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, swapchain.c builds the images the window is made of, element.c
+// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -185,6 +185,18 @@ struct voe_render_device {
 	VkDescriptorPool bounce_pool;
 	VkPipeline bounce_reduce;
 	VkPipeline bounce_gather;
+	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
+	// settle pipeline; per frame slot a mapped list buffer and one set per
+	// volume (targets + 1, calloc'd); and how many settles it has dispatched.
+	// All nought without output_layer.
+	VkDescriptorSetLayout relight_set_layout;
+	VkPipelineLayout relight_layout;
+	VkDescriptorPool relight_pool;
+	VkPipeline relight_settle;
+	struct voe_render_buffer relight_lists[VOE_RENDER_FRAMES_IN_FLIGHT];
+	void *relight_mapped[VOE_RENDER_FRAMES_IN_FLIGHT];
+	VkDescriptorSet *relight_sets[VOE_RENDER_FRAMES_IN_FLIGHT];
+	uint32_t relight_dispatches;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -539,6 +551,13 @@ voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target)
 [[nodiscard]] bool voe_render_bounce_capture_startup(voe_render_device *device);
 void voe_render_bounce_capture_shutdown(voe_render_device *device);
 void voe_render_bounce_capture_end(voe_render_device *device);
+
+// bounce_relight.c. The relight's pipeline, set layout, pool, sets and every
+// slot's list buffer on a device with output_layer, none without; startup's,
+// after the capture scratch. False with a message; _shutdown is safe on a device
+// that never got that far.
+[[nodiscard]] bool voe_render_bounce_relight_startup(voe_render_device *device);
+void voe_render_bounce_relight_shutdown(voe_render_device *device);
 
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds
