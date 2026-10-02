@@ -11,6 +11,10 @@
 
 const struct voe_ecs_key voe_scene_light_key = { "voe_scene_light" };
 
+// In the counts' own order: the index is the count.
+const char *const voe_scene_light_bounces_names[VOE_SCENE_LIGHT_BOUNCES_MAX +
+						1] = { "0", "1" };
+
 const voe_scene_light *voe_scene_light_get(const voe_ecs_world *world,
 					   voe_ecs_entity entity)
 {

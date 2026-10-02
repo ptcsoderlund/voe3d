@@ -22,6 +22,12 @@
 // whatever the fill. 0 is no fill, and a scene with none draws as it did
 // before the fill existed.
 //
+// BOUNCES IS HOW MANY TIMES THIS LIGHT'S OWN LIGHT BOUNCES BACK OFF WHAT IT LIT
+// (0317, 0319): 0 is none and costs nothing (0316), 1 is the bounce of 046, and
+// 051 raises VOE_SCENE_LIGHT_BOUNCES_MAX. It is per light, not per scene. Its
+// values are named, so a tool offers exactly the allowed counts and the scene
+// text still holds the number; a count past the maximum is a bad light.
+//
 // INTENSITY IS A MULTIPLIER AND NOT A PHYSICAL UNIT. There is no exposure or
 // tone mapping yet, so a number here is whatever looks right; 1 with white is
 // what an unlit-looking scene turns into. Neither intensity may be negative.
@@ -48,14 +54,26 @@
 #include <stdint.h>
 
 // The colours are linear multipliers, (1, 1, 1) white; the intensities are
-// not negative. The fill lifts only the shade — see the header.
+// not negative. The fill lifts only the shade, and bounces is at most
+// VOE_SCENE_LIGHT_BOUNCES_MAX — see the header.
 #define VOE_SCENE_LIGHT_FIELDS(F, F_READ_ONLY)      \
 	F(voe_math_float3, colour, COLOUR)          \
 	F(float, intensity, FLOAT32)                \
 	F(voe_math_float3, fill_colour, COLOUR)     \
-	F(float, fill_intensity, FLOAT32)
+	F(float, fill_intensity, FLOAT32)           \
+	F(uint32_t, bounces, UINT32)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_scene_light, VOE_SCENE_LIGHT_FIELDS)
+// The most bounces a light may ask for.
+#define VOE_SCENE_LIGHT_BOUNCES_MAX 1u
+
+// The name of each allowed count, indexed by the count itself.
+extern VOE_BASE_IMPORTED const char
+	*const voe_scene_light_bounces_names[VOE_SCENE_LIGHT_BOUNCES_MAX + 1];
+
+#define VOE_SCENE_LIGHT_NAMES(N) N(bounces, voe_scene_light_bounces_names)
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_light, VOE_SCENE_LIGHT_FIELDS,
+			       VOE_SCENE_LIGHT_NAMES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_light_key;
