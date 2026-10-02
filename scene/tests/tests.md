@@ -16,11 +16,8 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `camera.c` — what registration tells a tool, that the view of a pose is its
   inverse with roll kept and none when scaled to nothing, and that a whole-lens
   intent applies a good lens and keeps the row over a bad one.
-- `light.c` — what registration tells a tool, that an intent lands only when
-  the system runs and a refused one keeps the row, that bounces lands up to its
-  maximum and is named "0" and "1", that cast shadows is off by default, on in
-  the unsaid row and lands either way, and that a rotation and the direction it
-  shines convert both ways, +Z included.
+- `light.c` — the sun's registration, intents, bounces, cast shadows, and the
+  conversions between a rotation and the direction it shines.
 - `point_light.c` — what registration tells a tool (falloff 1 by default), that
   a refused replace keeps the row, a falloff past either bound included, that an
   accepted one changes falloff and intensity after one run, and that a falloff

@@ -1,6 +1,7 @@
 // The sun: what registration tells a tool, that an intent lands only when the
-// system runs and a bad one keeps the row, and that a rotation and the direction
-// it shines convert both ways. Bounces lands up to its maximum and is named.
+// system runs and a refused one keeps the row, and that a rotation and the
+// direction it shines convert both ways. Bounces lands up to its maximum and is
+// named "0" and "1".
 // Cast shadows is off by default, on in the unsaid row, and lands either way.
 //
 // THE CONVERSIONS ARE THE CLAIM WORTH MOST. Everything that draws the sun reads
