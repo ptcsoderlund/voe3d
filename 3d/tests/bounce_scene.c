@@ -28,7 +28,9 @@
 //
 // THE SHADOW (step 3, 0312): the ground 0.25 m out from the shadowed -x face,
 // in the box's shadow at its foot, within SHADOW/255 of the reference in every
-// channel: the lit face does not light its own shadow.
+// channel: the lit face does not light its own shadow. It holds because of
+// 0327: a probe's six-axis irradiance gives flat ground nothing from below its
+// own plane, where L1 SH lit the foot from the sunlit ground ring.
 //
 // EVEN GROUND (step 2, 0326's reasoning): five points of open ground along
 // x = -6, 2 m apart in z, within EVEN/255 of each other in every channel; and
