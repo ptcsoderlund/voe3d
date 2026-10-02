@@ -6,7 +6,8 @@
 // markers, and the pass ended; and the preview's shadow passes and pass, drawn
 // with the world's camera while the selected entity has one and marking
 // nothing. Every pass is lit by the world's point lights (0320 point 6), their
-// array in `arena` only until the pass is open. Each shadow call is handed
+// array in `arena` from before the shadow call, whose lamps' pass reads their
+// slots (0325 point 6), until the pass is open. Each shadow call is handed
 // its own target, the view's or the preview's, so its bounce updates that
 // target's probe grid and no view reads a grid another view scrolled (0308).
 #include "view_passes.h"
@@ -77,12 +78,15 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	frame.light = light;
 	frame.models = models;
 	frame.target = views->preview_target;
-	if (!voe_3d_draw_system_shadows(world, gpu, &frame))
-		return false;
 
 	mark = voe_base_arena_mark(arena);
 	// False leaves the preview unlit by points, which is no failed frame.
+	// Before the shadows: their point-shadow pass reads the slots (0325).
 	(void)voe_3d_draw_system_point_lights(world, &frame, arena);
+	if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
+		voe_base_arena_rewind(arena, mark);
+		return false;
+	}
 	camera = (voe_render_pass_camera){ .view = frame.view,
 					   .light = frame.light,
 					   .shadow = frame.shadow,
@@ -148,13 +152,16 @@ bool voe_editor_view_passes_draw(
 					.eye = view->eye,
 					.models = models,
 					.target = view->target };
-		if (!voe_3d_draw_system_shadows(world, gpu, &frame))
-			return false;
-		camera.shadow = frame.shadow;
-		// The points live until the pass has taken them; a false leaves
-		// this pass unlit by points, which is no failed frame.
+		// The points live until the pass has taken them, and come before
+		// the shadows, whose point-shadow pass reads their slots (0325); a
+		// false leaves this pass unlit by points, which is no failed frame.
 		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 		(void)voe_3d_draw_system_point_lights(world, &frame, arena);
+		if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
+			voe_base_arena_rewind(arena, mark);
+			return false;
+		}
+		camera.shadow = frame.shadow;
 		camera.points = frame.points;
 		bool passed = voe_render_pass_begin(gpu, view->target, &camera);
 		voe_base_arena_rewind(arena, mark);
