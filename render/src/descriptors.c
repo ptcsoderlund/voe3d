@@ -22,7 +22,8 @@
 //   5  the slot's shadow maps as one array, through shadow.c's comparison
 //      sampler, written once at startup. One per slot because each slot draws
 //      its own maps while the card may still be reading the other's
-//   6  the probe volumes' sums, four images each (three SH, the validity),
+//   6  the probe volumes' sums, four images each (the x, y and z axis
+//      images of six-axis irradiance, then the validity),
 //      (targets + 1) × 4 entries, the window's first; written as each volume
 //      is built (ADR-0326 point 7), partially bound until then
 //   7  the point lights, 8 their tile and slice masks (ADR-0320): storage
@@ -645,7 +646,7 @@ void voe_render_descriptors_write_volume(
 	for (uint32_t k = 0; k < 4; k++)
 		sums[k] = (VkDescriptorImageInfo){
 			.sampler = device->bounce_sampler,
-			.imageView = k < 3 ? volume->sh[6][k].view :
+			.imageView = k < 3 ? volume->irradiance[6][k].view :
 					     volume->validity.view,
 			.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
 		};

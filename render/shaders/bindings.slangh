@@ -133,8 +133,9 @@ Sampler2DArrayShadow voe_render_shadow_maps;
 [[vk::binding(9, 0)]]
 Sampler2DArrayShadow voe_render_point_shadow_maps;
 
-// Set 0, binding 6: every probe volume's sum, four images each (L1 SH red,
-// green, blue, then the validity), the window's first; binding 10: every
+// Set 0, binding 6: every probe volume's sum, four images each (six-axis
+// irradiance's x, y and z axis images, then the validity), the window's first;
+// binding 10: every
 // volume's moments atlas, one each, through a linear, clamping sampler
 // (render/src/descriptors.c). UNSIZED because the C side's lengths are
 // (capacities.targets + 1) × 4 and + 1, runtime numbers; reading them needs

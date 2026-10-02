@@ -24,10 +24,17 @@
 //   point, lit outside them; a lamp faded as lighting.slangh's falloff, and
 //   with its slot's compare when the point shadows are ready;
 // - level k > 1: bounce_read.slangh's E of level (chain, k − 1) / π;
-// projected to L1 SH, (Y0, Y1 · direction), and reduced in group memory. An
+// summed as six-axis irradiance (ADR-0327): per axis a, radiance ×
+// max(0, direction_a) into E(+a) and × max(0, −direction_a) into E(−a), six RGB
+// values reduced in group memory. That is the exact clamped-cosine irradiance
+// along each axis, so flat ground and walls take nothing from behind their own
+// plane, where first-order harmonics lit an upward normal from a ring below
+// its horizon. An
 // invalid probe writes nought.
-// sum: one thread per probe, grid 6 = the sum of grids 0 to 5; a level not in
-// use is nought, bounce_relight.c clears it.
+// THE TEXELS. Grid g's image 3g + a is axis a (x, y, z), 48 × 12 × 24: probe
+// t's E(+a) at (2t.x, t.y, t.z), E(−a) at (2t.x + 1, t.y, t.z), RGB, alpha 0.
+// sum: one thread per texel of the 48-wide images, grid 6 = the sum of grids 0
+// to 5; a level not in use is nought, bounce_relight.c clears it.
 //
 // The push block matches struct relight_push in bounce_relight.c, the record at
 // binding 11 its struct relight_record: the structs below repeat bindings.slangh's
@@ -51,8 +58,6 @@ static const uint LAMPS = 16;
 static const uint LEVELS = 6;
 static const float REACH = 24.0;
 static const float PI = 3.14159265358979;
-static const float SH0 = 0.282095;
-static const float SH1 = 0.488603;
 
 struct relight_push {
 	uint first;
@@ -138,7 +143,7 @@ ConstantBuffer<relight_record> relight_lights;
 ConstantBuffer<relight_push> relight_current;
 
 groupshared uint settle_back_faces;
-groupshared float4 relight_sums[3][GROUP];
+groupshared float3 relight_sums[6][GROUP];
 
 // The probe-relative direction of face `face`'s view `view`, the inverse of
 // point_shadow.slangh's voe_render_point_shadow_basis.
@@ -311,15 +316,22 @@ float3 level_below(float3 world, float3 n)
 	       PI;
 }
 
-// Grid `grid`'s three images at `t`, by constant index.
-void store_grid(uint grid, uint3 t, float4 red, float4 green, float4 blue)
+// Probe `t`'s six-axis irradiance `e` (+x, −x, +y, −y, +z, −z) into grid
+// `grid`'s three images, by constant index, at the header's texels.
+void store_grid(uint grid, uint3 t, float3 e[6])
 {
+	uint3 positive = uint3(2 * t.x, t.y, t.z);
+	uint3 negative = positive + uint3(1, 0, 0);
+
 	[ForceUnroll]
 	for (uint g = 0; g < LEVELS + 1; g++)
 		if (g == grid) {
-			relight_grids[3 * g][t] = red;
-			relight_grids[3 * g + 1][t] = green;
-			relight_grids[3 * g + 2][t] = blue;
+			[ForceUnroll]
+			for (uint a = 0; a < 3; a++) {
+				relight_grids[3 * g + a][positive] = float4(e[2 * a], 0.0);
+				relight_grids[3 * g + a][negative] =
+					float4(e[2 * a + 1], 0.0);
+			}
 		}
 }
 
@@ -333,8 +345,10 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 	uint3 placed = (t + SIZE - relight_lights.cell % SIZE) % SIZE;
 	float3 centre = relight_lights.corner +
 			(float3(placed) + 0.5) * relight_lights.spacing;
-	float4 sh[3] = { float4(0.0), float4(0.0), float4(0.0) };
+	float3 e[6];
 
+	for (uint d = 0; d < 6; d++)
+		e[d] = float3(0.0);
 	if (relight_validity[t] > 0.5)
 		for (uint i = thread; i < TEXELS; i += GROUP) {
 			uint face = i / (FACE * FACE);
@@ -353,40 +367,46 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 							 level_below(world, n);
 			float3 radiance = relight_albedo.Load(int3(texel, 0)).rgb *
 					  light * texel_solid_angle(at);
-			float4 basis = float4(SH0, SH1 * direction);
 
-			sh[0] += radiance.r * basis;
-			sh[1] += radiance.g * basis;
-			sh[2] += radiance.b * basis;
+			for (uint a = 0; a < 3; a++) {
+				e[2 * a] += radiance * max(0.0, direction[a]);
+				e[2 * a + 1] += radiance * max(0.0, -direction[a]);
+			}
 		}
-	for (uint c = 0; c < 3; c++)
-		relight_sums[c][thread] = sh[c];
+	for (uint c = 0; c < 6; c++)
+		relight_sums[c][thread] = e[c];
 	GroupMemoryBarrierWithGroupSync();
 	for (uint stride = GROUP / 2; stride > 0; stride /= 2) {
 		if (thread < stride)
-			for (uint c = 0; c < 3; c++)
+			for (uint c = 0; c < 6; c++)
 				relight_sums[c][thread] += relight_sums[c][thread + stride];
 		GroupMemoryBarrierWithGroupSync();
 	}
-	if (thread == 0)
+	if (thread == 0) {
+		for (uint c = 0; c < 6; c++)
+			e[c] = relight_sums[c][0];
 		store_grid(push.chain * (push.chain - 1) / 2 + push.level - 1, t,
-			   relight_sums[0][0], relight_sums[1][0], relight_sums[2][0]);
+			   e);
+	}
 }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void sum(uint3 id: SV_DispatchThreadID)
 {
-	if (id.x >= TOTAL)
+	if (id.x >= 2 * TOTAL)
 		return;
-	uint3 t = probe_coordinate(id.x);
-	float4 sh[3] = { float4(0.0), float4(0.0), float4(0.0) };
+	uint3 t = uint3(id.x % (2 * SIZE.x), id.x / (2 * SIZE.x) % SIZE.y,
+			id.x / (2 * SIZE.x * SIZE.y));
+	float4 axes[3] = { float4(0.0), float4(0.0), float4(0.0) };
 
 	[ForceUnroll]
 	for (uint g = 0; g < LEVELS; g++) {
-		sh[0] += relight_grids[3 * g][t];
-		sh[1] += relight_grids[3 * g + 1][t];
-		sh[2] += relight_grids[3 * g + 2][t];
+		axes[0] += relight_grids[3 * g][t];
+		axes[1] += relight_grids[3 * g + 1][t];
+		axes[2] += relight_grids[3 * g + 2][t];
 	}
-	store_grid(LEVELS, t, sh[0], sh[1], sh[2]);
+	relight_grids[3 * LEVELS][t] = axes[0];
+	relight_grids[3 * LEVELS + 1][t] = axes[1];
+	relight_grids[3 * LEVELS + 2][t] = axes[2];
 }

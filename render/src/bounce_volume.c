@@ -3,7 +3,9 @@
 // target's bounce for the frame.
 //
 // WHAT IT OWNS. Per volume, the three atlases and the 22 3D images of struct
-// voe_render_bounce_volume, every one storage, sampled and transfer-dst (and
+// voe_render_bounce_volume: the validity, 24 × 12 × 24, and the 21 grid images
+// of six-axis irradiance (ADR-0327), twice as wide, a probe's + and − texels
+// side by side along x. Every one storage, sampled and transfer-dst (and
 // -src, which a test reads one back through), cleared to nought and resting in
 // GENERAL; card 04's probe bookkeeping lives beside
 // them. The albedo atlas is sRGB, which no card stores to, so it is made
@@ -37,26 +39,33 @@
 #define ATLAS_HEIGHT                                                           \
 	(VOE_RENDER_BOUNCE_FACE * VOE_RENDER_BOUNCE_PROBES_Y *                 \
 	 VOE_RENDER_BOUNCE_PROBES_XZ)
-// The atlases, the validity and 7 × 3 SH images.
+// The atlases, the validity and 7 × 3 grid images, one an axis.
 #define VOLUME_IMAGES (4u + 7u * 3u)
+
+// The kinds of image list_images holds.
+enum image_kind { ATLAS, VALIDITY, GRID };
 
 static_assert(ATLAS_WIDTH == 1152 && ATLAS_HEIGHT == 2304,
 	      "the atlas ADR-0326 point 3 lays out");
 
-// One image: 2D at the atlas size or 3D at the grid's, `format`, with `flags`;
-// `view_usage` non-zero narrows the view's usage to it. Messages name `what`.
+// One image: 2D at the atlas size, or 3D a texel a probe (the validity) or two
+// along x (a grid), `format`, with `flags`; `view_usage` non-zero narrows the
+// view's usage to it. Messages name `what`.
 static bool build_image(voe_render_device *device,
-			struct voe_render_allocated_image *out, bool atlas,
-			VkFormat format, VkImageCreateFlags flags,
-			VkImageUsageFlags view_usage, const char *what)
+			struct voe_render_allocated_image *out,
+			enum image_kind kind, VkFormat format,
+			VkImageCreateFlags flags, VkImageUsageFlags view_usage,
+			const char *what)
 {
+	const bool atlas = kind == ATLAS;
 	VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.flags = flags,
 		.imageType = atlas ? VK_IMAGE_TYPE_2D : VK_IMAGE_TYPE_3D,
 		.format = format,
 		.extent = atlas ? (VkExtent3D){ ATLAS_WIDTH, ATLAS_HEIGHT, 1 }
-				: (VkExtent3D){ VOE_RENDER_BOUNCE_PROBES_XZ,
+				: (VkExtent3D){ (kind == GRID ? 2u : 1u) *
+							VOE_RENDER_BOUNCE_PROBES_XZ,
 						VOE_RENDER_BOUNCE_PROBES_Y,
 						VOE_RENDER_BOUNCE_PROBES_XZ },
 		.mipLevels = 1,
@@ -140,7 +149,7 @@ static bool build_image(voe_render_device *device,
 }
 
 // Every image of `volume`, in build order: the three atlases, the validity,
-// then the SH grids.
+// then the grids, image a of a grid axis a.
 static void list_images(struct voe_render_bounce_volume *volume,
 			struct voe_render_allocated_image **images)
 {
@@ -152,7 +161,7 @@ static void list_images(struct voe_render_bounce_volume *volume,
 	images[3] = &volume->validity;
 	for (uint32_t g = 0; g < 7; g++)
 		for (uint32_t k = 0; k < 3; k++)
-			images[4 + 3 * g + k] = &volume->sh[g][k];
+			images[4 + 3 * g + k] = &volume->irradiance[g][k];
 }
 
 // Image `i` of list_images built.
@@ -161,7 +170,7 @@ static bool build_listed(voe_render_device *device,
 {
 	switch (i) {
 	case 0:
-		return build_image(device, image, true,
+		return build_image(device, image, ATLAS,
 				   VK_FORMAT_R8G8B8A8_SRGB,
 				   VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
 					   VK_IMAGE_CREATE_EXTENDED_USAGE_BIT,
@@ -169,19 +178,19 @@ static bool build_listed(voe_render_device *device,
 					   VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 				   "albedo atlas");
 	case 1:
-		return build_image(device, image, true,
+		return build_image(device, image, ATLAS,
 				   VK_FORMAT_R16G16B16A16_SFLOAT, 0, 0,
 				   "normal and distance atlas");
 	case 2:
-		return build_image(device, image, true, VK_FORMAT_R16G16_SFLOAT,
+		return build_image(device, image, ATLAS, VK_FORMAT_R16G16_SFLOAT,
 				   0, 0, "moments atlas");
 	case 3:
-		return build_image(device, image, false, VK_FORMAT_R16_SFLOAT, 0,
-				   0, "validity");
+		return build_image(device, image, VALIDITY, VK_FORMAT_R16_SFLOAT,
+				   0, 0, "validity");
 	default:
-		return build_image(device, image, false,
+		return build_image(device, image, GRID,
 				   VK_FORMAT_R16G16B16A16_SFLOAT, 0, 0,
-				   "SH grid");
+				   "six-axis irradiance grid");
 	}
 }
 

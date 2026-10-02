@@ -57,7 +57,8 @@ by reading the offscreen colour image back.
   16 nearest taken first, a one-cell move queuing 288, −1 wrapping to 23, a stale sphere queuing
   only within, a relight only on change, and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
-  window's and a target's apart, and freed after 300 frames with no begin. Headless.
+  window's and a target's apart, a sum image 48 wide, and freed after 300 frames with no begin.
+  Headless.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, and a red cube in the albedo atlas.
   Headless.
@@ -66,7 +67,7 @@ by reading the offscreen colour image back.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, in the picture: a red wall's bounce on
-  its lit side and not in its shadow, even open ground, bounce strength, a closed room dark, a
+  its lit side and not in its shadow, a red box's shadow unlit, even open ground, bounce strength, a closed room dark, a
   doorway's second bounce, a lamp's bounce past its reach, a settled frame dispatching nothing. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,

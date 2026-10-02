@@ -19,10 +19,14 @@
 //   0; strength 2 redder by the wall than 1, open ground within 1/255 at both.
 //   The first picture, nothing changed since settling, opens no capture pass
 //   and dispatches nothing.
+// - A red box (0.6), 1 m a side at (0, 0.5, 0.5), sun 2, fill 0 (0.1 hid this
+//   leak): the ground in its shadow 0.25 m from its foot within 4/255 of
+//   bounces 0 (0312).
 // - A closed room (8 m, walls and roof 0.5 m thick), sun 10, fill 0, camera
 //   inside: the floor's middle within 2/255 of bounces 0. A doorway 2 × 3 m in
-//   the +z wall, out of the sun: the floor before it brighter at bounces 1 than
-//   at 0, and the corner beside it, (3, 0, 3), brighter at bounces 2 than at 1.
+//   the +z wall, out of the sun: the back wall facing it brighter at bounces 1
+//   than at 0, and the corner beside it, (3, 0, 3), brighter at bounces 2 than
+//   at 1.
 // - A white wall (0.9) under a dim sun (0.05), a lamp of range 3 m 2 m before
 //   it: the wall 4.5 m from the lamp, past its reach, brighter at lamp bounces 1
 //   than at 0.
@@ -124,6 +128,10 @@ struct box {
 static const struct box WALL_SCENE[] = {
 	GROUND,
 	{ { 0.0f, 2.0f, 0.0f }, { 0.5f, 4.0f, 12.0f }, RED },
+};
+static const struct box BOX_SCENE[] = {
+	GROUND,
+	{ { 0.0f, 0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, RED },
 };
 static const struct box CLOSED_ROOM[] = {
 	ROOM_SIDES,
@@ -428,10 +436,36 @@ static void a_red_wall(struct scene *s)
 	VOE_TEST_CHECK(redness_at(s, &twice, lit) > redness_at(s, &one, lit));
 }
 
+// The box's shadow on the ground runs x 0.5 to 1.25 m along the sun, z 0 to 1.
+static void a_red_box(struct scene *s)
+{
+	const voe_math_float3 shade = { 0.75f, 0.0f, 0.5f };
+	voe_render_picture one, none;
+	int a[3];
+	int b[3];
+
+	s->camera.view = look_at((voe_math_float3){ 2.0f, 6.0f, -2.0f }, shade,
+				 NARROW);
+	s->camera.light.intensity = 2.0f;
+	s->camera.light.fill = (voe_math_float3){ 0.0f, 0.0f, 0.0f };
+	s->bounce.sun = s->camera.light;
+	s->bounce.sun_bounces = 1;
+	s->bounce.sun_strength = 1.0f;
+	settle(s, BOX_SCENE, 2);
+	one = picture_of(s);
+	s->bounce.sun_bounces = 0;
+	none = picture_of(s);
+	rgb_at(s, &one, shade, a);
+	rgb_at(s, &none, shade, b);
+	printf("box: its shadow 0.25 m from its foot %d %d %d at bounces 1, %d %d %d at 0\n",
+	       a[0], a[1], a[2], b[0], b[1], b[2]);
+	VOE_TEST_CHECK(gap_at(s, &one, &none, shade) <= 4);
+}
+
 static void a_room(struct scene *s)
 {
 	const voe_math_float3 middle = { 0.0f, 0.0f, 0.0f };
-	const voe_math_float3 before_door = { 0.0f, 0.0f, 3.0f };
+	const voe_math_float3 facing_door = { 0.0f, 1.5f, -3.75f };
 	const voe_math_float3 corner = { 3.0f, 0.0f, 3.0f };
 	voe_render_picture one, none, two;
 
@@ -455,14 +489,24 @@ static void a_room(struct scene *s)
 	one = picture_of(s);
 	s->bounce.sun_bounces = 2;
 	two = picture_of(s);
-	printf("doorway: before it %d at 0, %d at 1; corner %d at 1, %d at 2\n",
-	       brightness_at(s, &none, before_door),
-	       brightness_at(s, &one, before_door),
+	printf("doorway: corner %d at 1, %d at 2\n",
 	       brightness_at(s, &one, corner), brightness_at(s, &two, corner));
-	VOE_TEST_CHECK(brightness_at(s, &one, before_door) >
-		       brightness_at(s, &none, before_door));
 	VOE_TEST_CHECK(brightness_at(s, &two, corner) >
 		       brightness_at(s, &one, corner));
+
+	// The floor takes nothing from the sunlit ground outside, below its
+	// plane (0327); the back wall, which faces the doorway, does.
+	s->camera.view = look_at((voe_math_float3){ 0.0f, 2.0f, 2.0f },
+				 facing_door, WIDE);
+	s->bounce.sun_bounces = 0;
+	none = picture_of(s);
+	s->bounce.sun_bounces = 1;
+	one = picture_of(s);
+	printf("doorway: the wall facing it %d at 0, %d at 1\n",
+	       brightness_at(s, &none, facing_door),
+	       brightness_at(s, &one, facing_door));
+	VOE_TEST_CHECK(brightness_at(s, &one, facing_door) >
+		       brightness_at(s, &none, facing_door));
 }
 
 static void a_lamp_by_a_white_wall(struct scene *s)
@@ -529,6 +573,7 @@ static void run(struct scene *s)
 		.shadow = s->camera.shadow,
 	};
 	a_red_wall(s);
+	a_red_box(s);
 	a_room(s);
 	a_lamp_by_a_white_wall(s);
 }

@@ -436,11 +436,11 @@ static void write_set(voe_render_device *device,
 	storage[2].imageView = volume->validity.view;
 	for (uint32_t i = 0; i < GRID_IMAGES; i++) {
 		storage[3 + i] = storage[0];
-		storage[3 + i].imageView = volume->sh[i / 3][i % 3].view;
+		storage[3 + i].imageView = volume->irradiance[i / 3][i % 3].view;
 	}
 	for (uint32_t i = 0; i < LEVEL_IMAGES; i++)
 		levels[i] = (VkDescriptorImageInfo){
-			device->bounce_sampler, volume->sh[i / 3][i % 3].view,
+			device->bounce_sampler, volume->irradiance[i / 3][i % 3].view,
 			VK_IMAGE_LAYOUT_GENERAL
 		};
 	for (uint32_t i = 0; i < BINDINGS; i++)
@@ -515,7 +515,7 @@ static void record_clear_chain(VkCommandBuffer commands,
 		for (uint32_t c = 0; c < 3; c++)
 			voe_render_vk.cmd_clear_color_image(
 				commands,
-				volume->sh[level_grid(chain, level)][c].image,
+				volume->irradiance[level_grid(chain, level)][c].image,
 				VK_IMAGE_LAYOUT_GENERAL, &nought, 1, &range);
 }
 
@@ -546,8 +546,9 @@ static void record_levels(voe_render_device *device, VkCommandBuffer commands,
 				       VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, compute,
 				       reads);
 	}
+	// One thread a texel: two a probe along x (ADR-0327).
 	record_dispatch(device, commands, device->relight_sum, set, &push,
-			(VOE_RENDER_BOUNCE_PROBES_TOTAL + GROUP - 1) / GROUP);
+			(2 * VOE_RENDER_BOUNCE_PROBES_TOTAL + GROUP - 1) / GROUP);
 	record_barrier(commands, compute, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
 		       compute | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, reads);
 }

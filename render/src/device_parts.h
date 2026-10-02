@@ -306,8 +306,10 @@ struct voe_render_bounce_begun {
 
 // One target's probe volume, bounce_volume.c's (ADR-0326 points 2 to 6): the
 // albedo (RGBA8 sRGB), normal-and-distance (RGBA16F) and moments (RG16F) atlases,
-// 1152 × 2304; the validity (R16F) and seven SH grids of three RGBA16F images
-// each, levels L(n, k) then the sum, 24 × 12 × 24. Every image storage, sampled,
+// 1152 × 2304; the validity (R16F), 24 × 12 × 24; and seven grids of six-axis
+// irradiance (ADR-0327), levels L(n, k) then the sum, three RGBA16F images each,
+// image a axis a, probe (i, j, k) at (2i, j, k) for + and (2i + 1, j, k) for −,
+// 48 × 12 × 24. Every image storage, sampled,
 // transfer-dst and -src, cleared to nought, resting in GENERAL. `wanted` is set by a
 // begin, `built` when the images exist, `idle` the frame tops since the last
 // begin; `chains_lit` bit n while chain n's levels may hold light, the relight's.
@@ -317,7 +319,7 @@ struct voe_render_bounce_volume {
 	struct voe_render_allocated_image normal;
 	struct voe_render_allocated_image moments;
 	struct voe_render_allocated_image validity;
-	struct voe_render_allocated_image sh[7][3];
+	struct voe_render_allocated_image irradiance[7][3];
 	uint32_t chains_lit;
 	bool built;
 	bool wanted;

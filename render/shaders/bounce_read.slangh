@@ -26,15 +26,19 @@
 // The sum is divided by the weights' sum; a sum of nought or not finite reads
 // nought, so a volume with nothing captured reads no bounce.
 //
-// E FROM L1 SH: per channel dot(coefficients, (A0 c0, A1 c1 n)), the clamped
-// cosine's bands A0 = π and A1 = 2π/3 with the basis constants folded in, as
-// 046's gather stored them. Never below nought.
+// E FROM SIX-AXIS IRRADIANCE (ADR-0327): a probe's E(n) = Σ_a n_a² ×
+// E(sign(n_a), axis a), from image a of the three at (2t.x, t.y, t.z) for + and
+// (2t.x + 1, t.y, t.z) for −, RGB. Along an axis that is the exact clamped
+// cosine, so a surface facing an axis takes nothing from behind its own plane:
+// flat ground under sunlit ground reads no light from below its horizon, which
+// first-order harmonics gave it. Never below nought.
 //
 // THE EDGE. E fades to nothing over the grid's outer cell on each side, from the
 // outermost probe in, and a probe outside the grid weighs nothing, so the
 // toroidal index never reads the far side into a surface past the edge.
 //
-// CONSTRAINTS. Eight probes, eight bilinear moment taps and 32 loads a call; no
+// CONSTRAINTS. Eight probes, eight bilinear moment taps and 32 loads a call
+// (validity and the three axes, the side n faces on each); no
 // probe beyond the eight, so a grid of mostly invalid probes reads dark where
 // DDGI would search further.
 
@@ -42,8 +46,6 @@ static const uint3 VOE_BOUNCE_READ_SIZE = uint3(24, 12, 24);
 static const float VOE_BOUNCE_READ_FACE = 8.0;
 static const float2 VOE_BOUNCE_READ_ATLAS = float2(1152.0, 2304.0);
 static const float VOE_BOUNCE_READ_PUSH = 0.25;
-static const float VOE_BOUNCE_READ_BAND0 = 3.14159265358979 * 0.282095;
-static const float VOE_BOUNCE_READ_BAND1 = 2.09439510239320 * 0.488603;
 
 // The bilinear mean and mean² of probe `t`'s distances along `d`, d its
 // probe-to-surface vector, from the moments atlas.
@@ -71,10 +73,10 @@ float voe_render_bounce_read_visibility(float2 moments, float reach)
 	return variance / (variance + beyond * beyond);
 }
 
-// E(n) at `world` facing unit `n` from the volume whose SH are `red`, `green`,
-// `blue`, validity `validity` and moments `moments`, placed at `corner`, `cell`
-// and `spacing`. See the header.
-float3 voe_render_bounce_read(Sampler3D red, Sampler3D green, Sampler3D blue,
+// E(n) at `world` facing unit `n` from the volume whose six-axis irradiance is
+// in `x_axis`, `y_axis` and `z_axis`, validity `validity` and moments
+// `moments`, placed at `corner`, `cell` and `spacing`. See the header.
+float3 voe_render_bounce_read(Sampler3D x_axis, Sampler3D y_axis, Sampler3D z_axis,
 			      Sampler3D validity, Sampler2D moments,
 			      float3 corner, uint3 cell, float spacing,
 			      float3 world, float3 n)
@@ -86,7 +88,9 @@ float3 voe_render_bounce_read(Sampler3D red, Sampler3D green, Sampler3D blue,
 	float3 g = u - 0.5;
 	float3 low = floor(g);
 	float3 f = g - low;
-	float4 basis = float4(VOE_BOUNCE_READ_BAND0, VOE_BOUNCE_READ_BAND1 * n);
+	float3 squared = n * n;
+	// The x texel of the side n faces on each axis: + at 2i, − at 2i + 1.
+	int3 side = int3(n.x < 0.0 ? 1 : 0, n.y < 0.0 ? 1 : 0, n.z < 0.0 ? 1 : 0);
 	float3 sum = float3(0.0, 0.0, 0.0);
 	float weights = 0.0;
 
@@ -111,9 +115,10 @@ float3 voe_render_bounce_read(Sampler3D red, Sampler3D green, Sampler3D blue,
 			continue;
 		w *= voe_render_bounce_read_visibility(
 			voe_render_bounce_read_moments(moments, t, d), far);
-		int4 at = int4(int3(t), 0);
-		sum += w * float3(dot(red.Load(at), basis), dot(green.Load(at), basis),
-				  dot(blue.Load(at), basis));
+		int4 at = int4(2 * int(t.x), int(t.y), int(t.z), 0);
+		sum += w * (squared.x * x_axis.Load(at + int4(side.x, 0, 0, 0)).rgb +
+			    squared.y * y_axis.Load(at + int4(side.y, 0, 0, 0)).rgb +
+			    squared.z * z_axis.Load(at + int4(side.z, 0, 0, 0)).rgb);
 		weights += w;
 	}
 	if (!(weights > 0.0) || !isfinite(weights))

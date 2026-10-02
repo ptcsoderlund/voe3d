@@ -5,7 +5,7 @@
 // volume wanted and not built; the next frame's top builds it, and a begin then
 // places its probes. A begin onto a target that frame leaves the target's wanted
 // and not built while the window's is built: the two are apart, and once both
-// are built their images differ.
+// are built their images differ. A sum image is 48 wide: two texels a probe.
 //
 // UNUSED, FREED. After VOE_RENDER_BOUNCE_IDLE (300) frames with no begin both are
 // still built; the top of the frame after frees them, and wants nothing more.
@@ -61,6 +61,23 @@ static void one_frame(voe_render_device *device, bool window, bool target,
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
+// The sum's x image holds two RGBA16F texels a probe along x (ADR-0327): its
+// memory at least 48 × 12 × 24 × 8 bytes, which a 24-wide image never needs.
+static void sum_is_wide(voe_render_device *device,
+			const struct voe_render_bounce_volume *volume)
+{
+	VkMemoryRequirements requirements = { 0 };
+
+	voe_render_vk.get_image_memory_requirements(
+		device->device, volume->irradiance[6][0].image, &requirements);
+	printf("a sum image takes %llu bytes\n",
+	       (unsigned long long)requirements.size);
+	VOE_TEST_CHECK(requirements.size >=
+		       (VkDeviceSize)2 * VOE_RENDER_BOUNCE_PROBES_XZ *
+			       VOE_RENDER_BOUNCE_PROBES_Y *
+			       VOE_RENDER_BOUNCE_PROBES_XZ * 8);
+}
+
 static void built_on_first_use(voe_render_device *device, voe_render_target id)
 {
 	const struct voe_render_bounce_volume *window = &device->window_volume;
@@ -72,7 +89,8 @@ static void built_on_first_use(voe_render_device *device, voe_render_target id)
 
 	one_frame(device, true, true, id);
 	VOE_TEST_CHECK(window->built && window->albedo.image != VK_NULL_HANDLE);
-	VOE_TEST_CHECK(window->sh[6][2].image != VK_NULL_HANDLE);
+	VOE_TEST_CHECK(window->irradiance[6][2].image != VK_NULL_HANDLE);
+	sum_is_wide(device, window);
 	VOE_TEST_CHECK(window->probes.placed);
 	VOE_TEST_CHECK(own->wanted && !own->built && !own->probes.placed);
 
