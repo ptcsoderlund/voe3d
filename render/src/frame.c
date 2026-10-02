@@ -281,7 +281,8 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	// Beside the window's rebuild and for the same reason: the top of a
 	// frame is where nothing is recording, and it waits for the card only
 	// when a target's size has actually changed.
-	if (!voe_render_targets_apply_resizes(device))
+	if (!voe_render_targets_apply_resizes(device) ||
+	    !voe_render_bounce_volumes_apply(device))
 		return false;
 	if (!device->headless && device->swapchain == VK_NULL_HANDLE)
 		return true;
@@ -376,9 +377,12 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	device->pass_count = 0;
 	device->window_cleared = false;
 	device->window_grid.updates[device->slot].updated = false;
+	device->window_volume.begun[device->slot].begun = false;
+	device->bounce_begun = false;
 	for (uint32_t i = 0; i < device->capacities.targets; i++) {
 		device->targets[i].cleared = false;
 		device->targets[i].grid.updates[device->slot].updated = false;
+		device->targets[i].volume.begun[device->slot].begun = false;
 	}
 	device->object_count = 0;
 	// Both start again with the frame: the elements because this slot's

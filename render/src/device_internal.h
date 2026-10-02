@@ -1,7 +1,8 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates,
+// bounce_volume.c the probe volumes, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -307,6 +308,17 @@ struct voe_render_device {
 	// voe_render_target_build, kept through every resize, freed by
 	// voe_render_targets_shutdown.
 	struct voe_render_bounce_grid window_grid;
+	// The window's probe volume, built on the first begin onto the window.
+	struct voe_render_bounce_volume window_volume;
+
+	// This frame's last voe_render_bounce_begin, bounce_volume.c's: whether
+	// there was one, its target, and a copy of its record whose `stale` is
+	// none and whose `points` are `bounce_lamps`, the bouncing lamps — none
+	// while the target's volume is not built. Reset by voe_render_frame_begin.
+	bool bounce_begun;
+	voe_render_target bounce_target;
+	struct voe_render_bounce_frame bounce_frame;
+	voe_render_point_light bounce_lamps[VOE_RENDER_BOUNCE_LAMPS];
 
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
@@ -477,6 +489,27 @@ voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
 						uint32_t index);
 void voe_render_bounce_grid_teardown(voe_render_device *device,
 				     struct voe_render_bounce_grid *grid);
+
+// target.c: _settle's one-shot submit, then each of `clears` cleared to nought
+// in GENERAL, and idle. False with a message.
+[[nodiscard]] bool voe_render_target_settle_cleared(
+	voe_render_device *device, const VkImageMemoryBarrier2 *barriers,
+	uint32_t count, const VkImage *clears, uint32_t clear_count);
+
+// bounce_volume.c. _build makes one probe volume's images, cleared in GENERAL,
+// and idles; false with a message, nothing left behind. _teardown is safe on an
+// unbuilt volume, leaves it zeroed and does not wait. _apply, at the top of a
+// frame beside voe_render_targets_apply_resizes, builds every wanted volume and
+// frees every one with no begin for VOE_RENDER_BOUNCE_IDLE frames, over the
+// window and every live target, idling once only when one does; false when a
+// build failed.
+#define VOE_RENDER_BOUNCE_IDLE 300
+[[nodiscard]] bool
+voe_render_bounce_volume_build(voe_render_device *device,
+			       struct voe_render_bounce_volume *volume);
+void voe_render_bounce_volume_teardown(voe_render_device *device,
+				       struct voe_render_bounce_volume *volume);
+[[nodiscard]] bool voe_render_bounce_volumes_apply(voe_render_device *device);
 
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds

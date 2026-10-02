@@ -68,6 +68,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
   which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place, nearest-first take, relight-needed and relit calls over bit sets.
+- `bounce_volume.c` — a target's probe volume: its atlases and 3D images built at the top of the
+  frame after the first `voe_render_bounce_begin`, freed after 300 frames unbegun, and that begin.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC

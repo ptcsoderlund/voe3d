@@ -3,7 +3,8 @@
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
 // map point_shadow.c's; the bounce map
-// is bounce_map.c's; the bounce grid is target.c's, its updates bounce_grid.c's; the swapchain
+// is bounce_map.c's; the bounce grid is target.c's, its updates bounce_grid.c's;
+// the probe volume bounce_volume.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -15,6 +16,7 @@
 // never this. Nothing outside render/src sees either.
 #pragma once
 
+#include "bounce_probes.h"
 #include "bounce_schedule.h"
 #include "loader.h"
 
@@ -319,6 +321,34 @@ struct voe_render_bounce_grid {
 	voe_render_bounce_schedule schedule;
 };
 
+// Whether one frame slot's frame began a probe volume, and the lowest cell and
+// corner that begin placed it at (ADR-0326 point 7).
+struct voe_render_bounce_begun {
+	bool begun;
+	int32_t cell[3];
+	float corner[3];
+};
+
+// One target's probe volume, bounce_volume.c's (ADR-0326 points 2 to 6): the
+// albedo (RGBA8 sRGB), normal-and-distance (RGBA16F) and moments (RG16F) atlases,
+// 1152 × 2304; the validity (R16F) and seven SH grids of three RGBA16F images
+// each, levels L(n, k) then the sum, 24 × 12 × 24. Every image storage, sampled
+// and transfer-dst, cleared to nought, resting in GENERAL. `wanted` is set by a
+// begin, `built` when the images exist, `idle` the frame tops since the last
+// begin. ONE COPY, NOT PER FRAME SLOT, which is why `begun` is.
+struct voe_render_bounce_volume {
+	struct voe_render_allocated_image albedo;
+	struct voe_render_allocated_image normal;
+	struct voe_render_allocated_image moments;
+	struct voe_render_allocated_image validity;
+	struct voe_render_allocated_image sh[7][3];
+	bool built;
+	bool wanted;
+	uint32_t idle;
+	voe_render_bounce_probes probes;
+	struct voe_render_bounce_begun begun[VOE_RENDER_FRAMES_IN_FLIGHT];
+};
+
 // What a voe_render_target id names: a target of the caller's own, which is the
 // window's pair above made once per frame slot at a size of its own, plus the
 // texture slot that shows it. See target_own.c.
@@ -341,6 +371,8 @@ struct voe_render_target_slot {
 	uint32_t depth_texture;
 	// Built with the target and kept through every resize.
 	struct voe_render_bounce_grid grid;
+	// Built on the first begin onto the target, kept through a resize.
+	struct voe_render_bounce_volume volume;
 	uint32_t generation;
 	bool live;
 	// The clear rule: false until the first pass onto this target in a

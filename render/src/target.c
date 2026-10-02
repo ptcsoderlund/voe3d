@@ -363,6 +363,14 @@ bool voe_render_target_settle(voe_render_device *device,
 	return submit_once(device, barriers, count, NULL, 0);
 }
 
+bool voe_render_target_settle_cleared(voe_render_device *device,
+				      const VkImageMemoryBarrier2 *barriers,
+				      uint32_t count, const VkImage *clears,
+				      uint32_t clear_count)
+{
+	return submit_once(device, barriers, count, clears, clear_count);
+}
+
 // One of a grid's three images: RGBA16F, VOE_RENDER_BOUNCE_PROBES³, storage and
 // sampled, and a transfer destination for its one clear. The 3D counterpart of
 // voe_render_target_image_build, with the same messages.

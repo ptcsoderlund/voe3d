@@ -70,6 +70,8 @@ by reading the offscreen colour image back.
 - `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, the
   16 nearest taken first, a one-cell move queuing 288, −1 wrapping to 23, a stale sphere queuing
   only within, a relight only on change, and the 17th bouncing lamp left out.
+- `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
+  window's and a target's apart, and freed after 300 frames with no begin. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.

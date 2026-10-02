@@ -113,6 +113,10 @@ typedef struct voe_render_device voe_render_device;
 // 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
 // the window's depth copy takes one more. Each target also costs a probe grid
 // of 3 × 32³ × 8 bytes, about 786 kB (ADR-0308), and the window has one too.
+// A target or the window that voe_render_bounce_begin has begun also holds a
+// probe volume (ADR-0326) until 300 frames pass with no begin: three 1152 × 2304
+// atlases of 4, 8 and 4 bytes a texel and 22 3D images of 24 × 12 × 24, about
+// 43.6 MB. One that is never begun costs nothing (ADR-0316).
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
@@ -178,6 +182,10 @@ typedef struct {
 #define VOE_RENDER_BOUNCE_CAPTURE_PASSES 4
 // The most point lights that bounce in one update, the first ones (ADR-0326).
 #define VOE_RENDER_BOUNCE_LAMPS 16
+// Texels a side of each of a probe's six cube faces (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_FACE 8
+// Metres a probe sees out to; past it a face holds nothing (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_REACH 24.0f
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
@@ -1305,6 +1313,38 @@ struct voe_render_bounce_update {
 [[nodiscard]] bool voe_render_bounce_update(voe_render_device *device,
 					    voe_render_target target,
 					    const struct voe_render_bounce_update *update);
+
+// What one target's bounce is this frame (ADR-0326 point 8). `cell` is the
+// volume's lowest world cell at VOE_RENDER_BOUNCE_SPACING and `corner` its lowest
+// corner about the eye; `stale` holds `stale_count` spheres about the eye, xyz
+// centre and w radius, whose probes are captured again. `sun` bounces
+// `sun_bounces` times, scaled by `sun_strength`, shadowed through `shadow`;
+// `points` are the frame's point lights, the first VOE_RENDER_BOUNCE_LAMPS with
+// bounces bouncing. A tag and no typedef, as voe_render_bounce_update.
+struct voe_render_bounce_frame {
+	int32_t cell[3];
+	voe_math_float3 corner;
+	const voe_math_float4 *stale;
+	uint32_t stale_count;
+	voe_render_light sun;
+	uint32_t sun_bounces;
+	float sun_strength;
+	voe_render_shadow shadow;
+	voe_render_point_lights points;
+};
+
+// Records `target`'s bounce for this frame, between passes; the arrays are
+// copied, so the caller's are its own again when this returns.
+//
+// THE FIRST BEGIN ONTO A TARGET BUILDS ITS PROBE VOLUME AT THE TOP OF THE NEXT
+// FRAME, the GPU idling once as a resize does, and this frame bounces nothing. A
+// volume with no begin for 300 frames is freed the same way (ADR-0316). On a card
+// without shaderOutputLayer nothing bounces and no volume is built.
+//
+// Outside a frame, with a pass open, on a target not live, for a target already
+// begun this frame, or with `sun_bounces` past VOE_RENDER_BOUNCES_MAX it asserts.
+void voe_render_bounce_begin(voe_render_device *device, voe_render_target target,
+			     const struct voe_render_bounce_frame *frame);
 
 // Whether a pass is open: true from a _pass_begin that returned true until its
 // _pass_end. It exists so that a caller which issues draws on behalf of another —
