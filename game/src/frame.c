@@ -1,5 +1,6 @@
 // The systems, the shadow passes (which also feed the bounce, the frame's
-// target left zero, the window's) and the window pass with the interface over
+// target left zero, the window's), the point lights in `scratch`, rewound
+// once the pass has copied them, and the window pass with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
 // once.
@@ -77,6 +78,7 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	voe_render_device *device;
 	voe_render_pass_camera camera;
 	voe_3d_frame frame;
+	struct voe_base_arena_mark mark;
 	bool drawing;
 	bool shadowed;
 	bool passed;
@@ -98,10 +100,16 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	frame = voe_3d_draw_system_frame(world, size, lag);
 	frame.models = models;
 	shadowed = voe_3d_draw_system_shadows(world, device, &frame);
-	camera = (voe_render_pass_camera){ frame.view, frame.light,
-					   frame.shadow };
+	mark = voe_base_arena_mark(scratch);
+	// False leaves the frame unlit by points, which is no failed frame.
+	(void)voe_3d_draw_system_point_lights(world, &frame, scratch);
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light,
+					   .shadow = frame.shadow,
+					   .points = frame.points };
 	passed = voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 				       &camera);
+	voe_base_arena_rewind(scratch, mark);
 	if (passed) {
 		voe_3d_draw_system_run(world, device, scratch, frame);
 		passed = draw_interface(device, ui, size);

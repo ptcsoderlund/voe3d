@@ -3,9 +3,9 @@
 `game`'s implementation, one file per public header except `scene.h` and
 `prefabs.h`, which a project's cooked `scene.c` and `prefabs.c` define.
 
-- `world.c` — the twenty-one registrations, the emitter, its particles, the sound, its voice row, the water and its waves among them, their capacities and the room for a project's types.
-- `frame.c` — the world step's drains in order, the sounds last with no mixer, and the frame: that step, the sun's shadow passes, then the window pass with the interface's records over the world.
-- `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, waters, sounds with the window's aspect), the mixer in each step, and the bank the steps are drawn from.
+- `world.c` — the twenty-three registrations, the emitter, its particles, the sound, its voice row, the water, its waves, the point light and its glow among them, their capacities and the room for a project's types.
+- `frame.c` — the world step's drains in order, the sounds last with no mixer, and the frame: that step, the sun's shadow passes, the point lights, then the window pass lit by them with the interface's records over the world.
+- `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them.
 - `run.c` — the run's steps in the handed window and their refusals, the interface each frame and its end of the run, the mixer and a sound device pumped or silent; the only file naming `voe_game_scene_build`, `voe_game_prefabs_cooked` and the project's entry points.

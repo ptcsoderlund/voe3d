@@ -13,12 +13,13 @@
 // step, the world step (game/frame.h), the bodies' move, the transform
 // system again so later queries see where the bodies went, `after_move` with
 // the same step, the world step again, the emitter system a step on
-// (3d/emitter_system.h), the water system a step on (3d/water_system.h), then,
-// with a mixer, the sound system (audio/sound_system.h). The second world step
-// drains what `after_move` submitted in this step, before the next remember,
-// so a follow is drawn at the bodies' lag and not a step behind (0257); the
-// emitters, waters and sounds run last, so a burst, an edit or a play either
-// slot sent takes in the same step.
+// (3d/emitter_system.h), the point light system a step on
+// (scene/point_light_system.h), the water system a step on (3d/water_system.h),
+// then, with a mixer, the sound system (audio/sound_system.h). The second world
+// step drains what `after_move` submitted in this step, before the next
+// remember, so a follow is drawn at the bodies' lag and not a step behind
+// (0257); the emitters, point lights, waters and sounds run last, so a burst, a
+// flash, an edit or a play either slot sent takes in the same step.
 //
 // WHY FIXED: a body's move and a project's gravity integrate by the step, so a
 // jump is as high at 30 frames a second as at 240, and a replay is the same.
