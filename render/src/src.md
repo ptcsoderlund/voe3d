@@ -65,6 +65,9 @@ which file to open — what each one owns, and where the seams between them run.
   stale spheres, then a strided cycle, in toroidal indices, and the one wrap of a world cell into
   0..31 that pass.c and bounce_grid.c send shaders. Pure CPU.
 - `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
+- `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
+  which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
+- `bounce_probes.c` — its place, nearest-first take, relight-needed and relit calls over bit sets.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC

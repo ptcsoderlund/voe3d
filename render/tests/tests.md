@@ -67,6 +67,9 @@ by reading the offscreen colour image back.
 - `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
   negative cell too, a cycle of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
   a changed light restarting it, and a small room truncating.
+- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, the
+  16 nearest taken first, a one-cell move queuing 288, −1 wrapping to 23, a stale sphere queuing
+  only within, a relight only on change, and the 17th bouncing lamp left out.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.

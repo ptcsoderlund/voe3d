@@ -168,6 +168,16 @@ typedef struct {
 #define VOE_RENDER_BOUNCE_BUDGET 4096
 // How much of a refreshed probe is new light, for one not just brought in.
 #define VOE_RENDER_BOUNCE_BLEND 0.5f
+// Probes along x and along z of a target's captured bounce grid (ADR-0326).
+#define VOE_RENDER_BOUNCE_PROBES_XZ 24
+// Probes along y of a target's captured bounce grid (ADR-0326).
+#define VOE_RENDER_BOUNCE_PROBES_Y 12
+// Probes one bounce capture pass captures (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_CAPTURE 16
+// Bounce capture passes a frame may open at most (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_CAPTURE_PASSES 4
+// The most point lights that bounce in one update, the first ones (ADR-0326).
+#define VOE_RENDER_BOUNCE_LAMPS 16
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
