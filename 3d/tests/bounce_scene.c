@@ -6,7 +6,8 @@
 // 60 m wide, top at y 0, base 0.8, 0.7, 0.5), a red box 2 m a side at
 // (12, 1, -6) and a green one 6 m from it at (6, 1, -6); a sun in
 // (0.95, 0.71, 0.71) shining down at 45 degrees along -x onto the red box's
-// +x face, fill 0.09. The eye stands 8 m up and 14 m back (+z) from the red
+// +x face, fill 0.09, bounces 1 (0319). The eye stands 8 m up and 14 m back
+// (+z) from the red
 // box, looking at its foot.
 //
 // TWO SUNS, 1 AND π (0310), each its own world, not the project's 9: with no
@@ -154,7 +155,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 		(voe_scene_light){ .colour = { 0.95097667f, 0.7098251f, 0.7098251f },
 				   .intensity = sun,
 				   .fill_colour = { 0.8992056f, 0.7447454f, 0.335389f },
-				   .fill_intensity = 0.09f }));
+				   .fill_intensity = 0.09f,
+				   .bounces = 1 }));
 	add_a_shape(world, (voe_math_double3){ 0.0, -0.05, 0.0 },
 		    (voe_math_float3){ 60.0f, 0.1f, 60.0f },
 		    (voe_math_float3){ 0.8f, 0.7f, 0.5f });

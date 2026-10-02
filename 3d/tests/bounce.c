@@ -6,9 +6,11 @@
 // below, a red wall stands two metres to the right and five out, and a sun
 // shines down and to the left onto it.
 //
-// THE PASS COUNTS. Four cascades and the bounce pass are five: the shadows call
-// is true on a device with five passes and false on one with four, where the
-// bounce pass is refused after the cascades.
+// THE PASS COUNTS. The sun has bounces 1, so four cascades and the bounce pass
+// are five: the shadows call is true on a device with five passes and false on
+// one with four, where the bounce pass is refused after the cascades. The same
+// world at bounces 0 opens no bounce pass (0319 point 3): true on four, with
+// `frame.shadow` set to the four cascades.
 //
 // THE STALE SPHERES. With no previous table nothing moved, so none. With one,
 // the wall remembered and then moved a metre along X marks two spheres of
@@ -79,10 +81,11 @@ static voe_ecs_entity add_a_shape(voe_ecs_world *world, voe_math_double3 at,
 	return entity;
 }
 
-// The camera, the sun, the ground and the wall, whose entity goes to `wall`;
-// with `previous` the world keeps a previous table.
+// The camera, the sun of `bounces`, the ground and the wall, whose entity goes
+// to `wall`; with `previous` the world keeps a previous table.
 static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
-			      bool previous, voe_ecs_entity *wall)
+			      bool previous, uint32_t bounces,
+			      voe_ecs_entity *wall)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -124,7 +127,9 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, entity,
-		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f }, .intensity = 3.0f }));
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 3.0f,
+				   .bounces = bounces }));
 	(void)add_a_shape(world, (voe_math_double3){ 0.0, -1.0, -5.0 },
 			  (voe_math_float3){ 20.0f, 0.1f, 20.0f },
 			  (voe_math_float3){ 0.5f, 0.5f, 0.5f });
@@ -135,9 +140,10 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	return world;
 }
 
-// What the shadows call answers on a fresh device with `passes`; true when no
-// device could be made, which the caller has already skipped for.
-static bool shadows_with(uint32_t passes)
+// What the shadows call answers on a fresh device with `passes` for a sun of
+// `bounces`, the frame's cascade count into `cascades`; true when no device
+// could be made, which the caller has already skipped for.
+static bool shadows_with(uint32_t passes, uint32_t bounces, uint32_t *cascades)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_platform_size size = { SIDE, SIDE };
@@ -151,13 +157,14 @@ static bool shadows_with(uint32_t passes)
 	bool drawing = false;
 	bool answer = false;
 
+	*cascades = 0;
 	VOE_TEST_CHECK(device != NULL);
 	if (device == NULL) {
 		voe_base_arena_destroy(arena);
 		return true;
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
-	world = a_world(arena, &shapes, false, &wall);
+	world = a_world(arena, &shapes, false, bounces, &wall);
 	frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
@@ -165,6 +172,7 @@ static bool shadows_with(uint32_t passes)
 		answer = voe_3d_draw_system_shadows(world, device, &frame);
 		VOE_TEST_CHECK(voe_render_frame_end(device));
 	}
+	*cascades = frame.shadow.count;
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
 	return answer;
@@ -186,13 +194,13 @@ static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
 	voe_platform_size size = { SIDE, SIDE };
 	voe_math_float4 spheres[8] = { 0 };
 	voe_ecs_entity wall;
-	voe_ecs_world *world = a_world(arena, shapes, false, &wall);
+	voe_ecs_world *world = a_world(arena, shapes, false, 1, &wall);
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_scene_transform moved;
 
 	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, spheres, 8), 0);
 
-	world = a_world(arena, shapes, true, &wall);
+	world = a_world(arena, shapes, true, 1, &wall);
 	frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_scene_transform_remember(world);
 	moved = *voe_scene_transform_get(world, wall);
@@ -218,6 +226,7 @@ int main(void)
 	voe_render_device *device =
 		voe_render_device_new_headless(arena, size, capacities(5), &error);
 	voe_3d_shapes shapes;
+	uint32_t cascades = 0;
 
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
@@ -233,7 +242,9 @@ int main(void)
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
 
-	VOE_TEST_CHECK(shadows_with(5));
-	VOE_TEST_CHECK(!shadows_with(4));
+	VOE_TEST_CHECK(shadows_with(5, 1, &cascades));
+	VOE_TEST_CHECK(!shadows_with(4, 1, &cascades));
+	VOE_TEST_CHECK(shadows_with(4, 0, &cascades));
+	VOE_TEST_CHECK_INT(cascades, VOE_RENDER_SHADOW_CASCADES);
 	return voe_test_result();
 }

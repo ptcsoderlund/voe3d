@@ -1,6 +1,7 @@
 // The sun's bounce pass and the spheres of the grid that went stale (ADR-0308
 // points 1, 4 and 7). Internal to 3d: voe_3d_draw_system_shadows calls
-// voe_3d_draw_bounce after its cascades; the test reads the spheres.
+// voe_3d_draw_bounce after its cascades when the light bounces (0319); the test
+// reads the spheres.
 //
 //     if (!voe_3d_draw_bounce(world, device, frame))
 //             return false;                   // render said why on stderr

@@ -375,11 +375,13 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // passes and 4 × the drawn objects more per view: every caster is drawn once
 // into each cascade.
 //
-// AND ONE BOUNCE PASS AFTER THE CASCADES (0308), only when it drew cascades: it
-// fits the bounce grid, draws the casters once more into the bounce map and
-// updates `frame->target`'s grid. So a caller's `passes` needs 1 + cascades + 1
-// and its `objects` one more draw per caster; false as before when any call
-// fails. Stale spheres are marked where a caster moved this step (lag 1 against
+// AND ONE BOUNCE PASS AFTER THE CASCADES (0308), only when it drew cascades and
+// the world's light, the row voe_3d_draw_system_light reads, has `bounces` of 1
+// or more (0319): it fits the bounce grid, draws the casters once more into the
+// bounce map and updates `frame->target`'s grid. At 0, or with no light, there
+// is no bounce pass, draw or update. Only for a light that bounces does a
+// caller's `passes` need 1 + cascades + 1 and its `objects` one more draw per
+// caster; false as before when any call fails. Stale spheres are marked where a caster moved this step (lag 1 against
 // lag 0), so a world without a previous table marks none and the grid catches
 // up by its cycle.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,

@@ -79,11 +79,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model
   parts from the frame's store and panels, the world's solids drawn as found, the held-back groups and the marks in their order.
 - `draw_shadows.c` — the sun's shadow passes: the cascades fitted to the frame, and every caster,
-  mesh or model part, drawn into each, then the bounce pass, and why this is its own call and who
-  casts.
+  mesh or model part, drawn into each, then the bounce pass when the light bounces, and why this is
+  its own call and who casts.
 - `draw_bounce.h` — the sun's bounce pass, this step's stale spheres and the cascades' caster walk
   it shares; internal.
-- `draw_bounce.c` — the grid fitted, the casters drawn into the bounce map, a caster moved between
+- `draw_bounce.c` — run only for a light with bounces: the grid fitted, the casters drawn into the bounce map, a caster moved between
   lag 1 and lag 0 marked at both places, and the frame's target's grid updated.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted

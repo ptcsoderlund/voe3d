@@ -3,7 +3,8 @@
 //
 // ONE PICTURE, TWO FLOOR PIXELS. A camera at the origin looks along -Z; a
 // flattened cube lies a metre below as the floor, and a cube stands a metre
-// above the floor's middle five metres out, lit by a sun straight down. The
+// above the floor's middle five metres out, lit by a sun straight down with
+// bounces 1 (0319), so each caster is also drawn into the bounce map. The
 // floor pixel straight under the cube is in its shadow, and with no fill a
 // shadowed surface is black; the floor pixel two metres to the side is lit.
 // So the first reads darker than the second.
@@ -156,7 +157,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 			(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					   .intensity = 3.0f,
 					   .fill_colour = { 1.0f, 1.0f, 1.0f },
-					   .fill_intensity = fill }));
+					   .fill_intensity = fill,
+					   .bounces = 1 }));
 	}
 	add_a_shape(world, x, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f });
 	if (model == NULL) {
