@@ -513,7 +513,7 @@ typedef struct {
 // `position` IS IN THE SPACE THE PASS'S DRAWS PLACE VERTICES IN — about the eye,
 // as 3d's are — and `colour` is linear and already times the light's strength.
 //
-// IT CASTS NO SHADOW AND IT ENDS AT `range`. A surface d metres off is lit by
+// IT ENDS AT `range`. A surface d metres off is lit by
 // colour × saturate(1 − (d/range)^(2/falloff))² (ADR-0322): no inverse square,
 // so a colour means what the sun's colour × intensity does, and past `range` the
 // light is nothing. Falloff 1 is the old (1 − (d/range)²)²; below 1 an even pool
@@ -522,17 +522,27 @@ typedef struct {
 // `falloff` IS AS THE SCENE AUTHORED IT, finite and above nought or
 // voe_render_pass_begin asserts.
 //
-// A pass carries at most VOE_RENDER_POINT_LIGHTS. Padded to 32 bytes because the
+// `shadow` IS THE LIGHT'S POINT SHADOW SLOT, 1 to VOE_RENDER_POINT_SHADOWS, or 0
+// for none (ADR-0325); `shadow_strength`, 0 to 1, is how far its shadow darkens
+// what it lights. Zero is no shadow, so every initializer that names neither
+// draws as before. voe_render_pass_begin asserts a slot past
+// VOE_RENDER_POINT_SHADOWS, a slot two of a pass's lights name, and a strength
+// not finite or outside 0 to 1.
+//
+// A pass carries at most VOE_RENDER_POINT_LIGHTS. Padded to 48 bytes because the
 // shader reads an array of them.
 typedef struct {
 	voe_math_float3 position;
 	float range;
 	voe_math_float3 colour;
 	float falloff;
+	uint32_t shadow;
+	float shadow_strength;
+	uint32_t reserved[2];
 } voe_render_point_light;
 
-static_assert(sizeof(voe_render_point_light) == 32,
-	      "a point light is two float4s, as the shader reads it");
+static_assert(sizeof(voe_render_point_light) == 48,
+	      "a point light is three float4s, as the shader reads it");
 
 // A pass's point lights: `count` of them at `lights`, at most
 // VOE_RENDER_POINT_LIGHTS. NULL and nought is none.
@@ -1136,8 +1146,8 @@ typedef struct {
 //
 // `points` LIGHT THE PASS'S LIT SURFACES (ADR-0320): binned into the pass's
 // screen tiles and depth slices as it opens, then added to the sun's direct light
-// on every lit surface each one reaches — not in an unshaded pass, not on water,
-// and casting no shadow. They are copied at _pass_begin, so the caller's array is
+// on every lit surface each one reaches — not in an unshaded pass, not on
+// water. They are copied at _pass_begin, so the caller's array is
 // its own again when that returns. Zero is none; more than
 // VOE_RENDER_POINT_LIGHTS, or NULL with a count, asserts.
 typedef struct {

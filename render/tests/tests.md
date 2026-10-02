@@ -78,4 +78,5 @@ by reading the offscreen colour image back.
   0 not, each drawing two frames of a lit cube. Headless.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: red under one and black
   5 m off, black with none, the base colour when unshaded, two lights lighting two pools, and
-  falloff 0.25 brighter near the rim than 1, 1 than 4. Headless.
+  falloff 0.25 brighter near the rim than 1, 1 than 4, and a light with shadow slot 3 the same as
+  with none. Headless.

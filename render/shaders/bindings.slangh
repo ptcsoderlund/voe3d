@@ -82,14 +82,17 @@ struct voe_render_frame_block {
 [[vk::binding(0, 0)]]
 ConstantBuffer<voe_render_frame_block> voe_render_frame;
 
-// One point light: voe_render_point_light in render/device.h, thirty-two bytes.
-// A float3 and a float pack into sixteen in every layout, so the two halves land
-// where C puts them.
+// One point light: voe_render_point_light in render/device.h, forty-eight bytes.
+// A float3 and a float pack into sixteen in every layout, as do four scalars, so
+// the three quarters land where C puts them. shadow is the slot, 0 none.
 struct voe_render_point_light {
 	float3 position;
 	float range;
 	float3 colour;
 	float falloff;
+	uint shadow;
+	float shadow_strength;
+	uint2 reserved;
 };
 
 // Set 0, binding 7: this frame slot's point lights, VOE_RENDER_POINT_LIGHTS
