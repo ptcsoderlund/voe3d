@@ -22,7 +22,8 @@
 // turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
 // position. `wait` becomes 1 / `rate` only when the fire is not refused, so a
 // refused one tries again next step. Each shot bursts the turret's emitter,
-// the prefab's muzzle flash; a turret with none sends nothing. Each shot also
+// the prefab's muzzle flash, and flashes its point light, the flash's light;
+// a turret with neither sends nothing. Each shot also
 // plays `Assets/sounds/shot.wav` at the muzzle through the step's mixer.
 //
 // The hum (0304 point 8): an enemy with no sound gets the hull's engine,
@@ -54,6 +55,7 @@
 #include <math/quat.h>
 
 #include <scene/parent_component.h>
+#include <scene/point_light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -209,12 +211,15 @@ static bool aim_and_fire(const voe_game_project_step *step,
 	if (step->audio != NULL)
 		(void)voe_audio_mixer_play_at(step->audio, "Assets/sounds/shot.wav",
 					      muzzle);
-	// The turret's own flash (0299 point 2); a full queue loses only it.
+	// The turret's own flash (0299 point 2) and its light; a full queue
+	// loses only that flash.
 	if (voe_3d_emitter_get(step->world, turret) != NULL)
 		(void)voe_3d_emitter_control_submit(
 			step->world, (voe_3d_emitter_control){
 				.entity = turret, .kind = VOE_3D_EMITTER_BURST,
 				.count = 0 });
+	if (voe_scene_point_light_get(step->world, turret) != NULL)
+		(void)voe_scene_point_light_flash_submit(step->world, turret);
 	return true;
 }
 
