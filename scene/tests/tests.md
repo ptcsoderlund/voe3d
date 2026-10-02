@@ -21,4 +21,5 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `point_light.c` — what registration tells a tool (falloff 1 by default), that
   a refused replace keeps the row, a falloff past either bound included, that an
   accepted one changes falloff and intensity after one run, and that a falloff
-  of exactly either bound is accepted.
+  of exactly either bound is accepted; cast shadows off by default, listed last
+  as a BOOL, and landing either way.

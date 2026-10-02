@@ -37,8 +37,8 @@
 
 #include <stdint.h>
 
-// Registers the table (default row white, intensity 1, range 5 m, falloff 1;
-// the transform it needs; its menu path; the whole-row intent as its replace)
+// Registers the table (default row white, intensity 1, range 5 m, falloff 1,
+// cast_shadows false; the transform it needs; its menu path; the whole-row intent as its replace)
 // with room for `capacity`. Once per world, after the transform table (it
 // asserts on none).
 void voe_scene_point_light_register(voe_ecs_world *world, uint32_t capacity);

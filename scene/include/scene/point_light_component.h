@@ -26,7 +26,9 @@
 // THE COLOUR IS LINEAR, each channel 0 to 1, multiplied into what the light
 // does, like every colour that reaches the GPU.
 //
-// IT CASTS NO SHADOW AND BOUNCES NOTHING (0301): it has no option for either.
+// IT CASTS A SHADOW WHEN cast_shadows, off by default (0316), and 3d chooses
+// which casting lamps cast this frame (0325 point 5). A scene saved before it
+// reads false. It still bounces nothing (0301).
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), as the
 // sun's is. Every field is authored and none is read-only.
@@ -43,12 +45,14 @@
 #include <stdint.h>
 
 // The colour a linear multiplier, (1, 1, 1) white; intensity not negative,
-// range above nought, falloff within LEAST..MOST — see the header.
+// range above nought, falloff within LEAST..MOST, cast_shadows off unless said
+// — see the header.
 #define VOE_SCENE_POINT_LIGHT_FIELDS(F, F_READ_ONLY) \
 	F(voe_math_float3, colour, COLOUR)           \
 	F(float, intensity, FLOAT32)                 \
 	F(float, range, FLOAT32)                     \
-	F(float, falloff, FLOAT32)
+	F(float, falloff, FLOAT32)                   \
+	F(bool, cast_shadows, BOOL)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_point_light, VOE_SCENE_POINT_LIGHT_FIELDS)
 
