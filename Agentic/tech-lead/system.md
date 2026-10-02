@@ -17,7 +17,7 @@ workflow replaced specs.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera; sound component.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — the GPU layer, the only folder naming Vulkan: card, resources, passes, shadows, bounce.
+- **render** — the GPU layer, the only one naming Vulkan: card, resources, passes, shadows, bounce.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -57,4 +57,4 @@ workflow replaced specs.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305 — Particles in `3d`; the tank's effects; shadows; sounds; water.
 - 0307, 0308, 0310–0315 — Bounce light: a VRAM probe grid fed by a fifth sun pass, lit side only.
-- 0316–0318 — Performance first, costly looks opt-in, pre-ray-tracing PC cards the floor; bounce rebuilt per light.
+- 0316–0318 — Fast by default; costly looks opt-in; low end before ray tracing; bounce per light.

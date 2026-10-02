@@ -80,9 +80,3 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - Split a multi-object `.glb` into a tree of things on import (a body with a head child), so moving
   parts need not be exported one file each. Set aside for 0.2 by 0280; worth it once parenting (037)
   exists and exporting parts one by one becomes a chore.
-- **Revisit lighting and the light bounce once there is more geometry** (sponsor, 2026-10-01, accepting 046):
-  "I need more geometry to know if it's good or bad as it is now." The red box, green box and ground are too
-  thin a scene to judge it. Look again in a richer scene (the tank game, 052, or several lights, 048) at: the
-  faint trace on the shadow side that 0315 allows; the 0.25 m standoff and gain 10, picked on the first try
-  against that one scene; and sun 1, where the green box added nothing to the red box's shadow. Answered on
-  2026-10-02: the bounce is rebuilt (0317, work order 051).
