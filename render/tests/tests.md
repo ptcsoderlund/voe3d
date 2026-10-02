@@ -71,6 +71,9 @@ by reading the offscreen colour image back.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
+- `point_shadow_faces.c` — which cube faces a caster's sphere reaches, with no card: along +X bit 0,
+  the +X/+Y diagonal bits 0 and 2, about the light all six, beyond range none, a cube's sphere, and
+  one moved and scaled by a matrix.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: red under one and black
   5 m off, black with none, the base colour when unshaded, two lights lighting two pools, and
   falloff 0.25 brighter near the rim than 1, 1 than 4. Headless.

@@ -65,6 +65,8 @@ which file to open — what each one owns, and where the seams between them run.
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
+- `point_shadow_faces.h`, `.c` — a caster's bounding sphere from its vertices, moved under a world
+  matrix, and the 6-bit mask of a point light's cube faces it reaches, +X −X +Y −Y +Z −Z. Pure CPU.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built
