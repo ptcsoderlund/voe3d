@@ -61,12 +61,15 @@ path = "Assets/tank_head.glb"
 [2.tank_turret]
 turn = 60
 aim = 180
+[2.tank_light_fade]
+peak = 4
+seconds = 0.12
+left = 0
 [2.voe_scene_point_light]
 colour = [1, 0.7, 0.35]
-intensity = 4
+intensity = 0
 range = 6
-flash = 0.12
-flash_when_made = false
+falloff = 1
 [2.voe_scene_parent]
 parent = 1
 [2.voe_scene_transform]
