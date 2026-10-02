@@ -113,7 +113,7 @@ voe_editor_project *voe_editor_project_new_untitled(void);
 // The preview light of 0287/0289, as `render` takes it: the untitled scene's
 // light, direction, colour, strength and fill. Never an entity and never saved;
 // it is one set of values with the untitled light, so changing one changes the
-// other.
+// other. It casts no shadows (0316, 0324): a world with no light row casts none.
 voe_render_light voe_editor_project_preview_light(void);
 
 // Opens the project at folder. NULL on failure, with why naming the file the

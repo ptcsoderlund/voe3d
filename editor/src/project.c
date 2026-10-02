@@ -79,10 +79,13 @@ static_assert(VOE_EDITOR_SCENE_ROWS <= VOE_GAME_WORLD_AUTHORED);
 #define LIGHT_HEIGHT 4.0
 
 // The untitled light's colour, strength and fill, and so the preview light's
-// (0289): one value both read, so the two cannot drift.
+// (0289): one value both read, so the two cannot drift. A new scene casts
+// nothing until a person ticks the box (0316); the preview light casts none
+// either way, since a world with no light row casts none (0324).
 static const voe_scene_light untitled_light = {
 	.colour = { 1.0f, 1.0f, 1.0f },
 	.intensity = 3.14159265f,
+	.cast_shadows = false,
 };
 
 // Where the scene camera is put: up and back from the origin, looking at it.
@@ -179,7 +182,8 @@ static void build_untitled(voe_ecs_world *world)
 	VOE_BASE_ASSERT(
 		voe_3d_shape_add(world, cube,
 				 (voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
-						 .colour = VOE_3D_SHAPE_GREY }),
+						 .colour = VOE_3D_SHAPE_GREY,
+						 .cast_shadows = true }),
 		"a project's shape table is too small for its own untitled scene");
 
 	// THE LIGHT'S TRANSFORM TURNS IT (ADR-0273): its rotation is the
