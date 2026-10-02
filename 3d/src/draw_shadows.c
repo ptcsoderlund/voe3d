@@ -1,6 +1,6 @@
 // The shadow passes: the sun's cascades fitted to the frame's view, every
 // caster drawn once into each of the four (ADR-0258), and the point lights'
-// one pass. The contract is
+// one pass, then the probe bounce when a light bounces. The contract is
 // voe_3d_draw_system_shadows's in 3d/draw_system.h.
 //
 // IT IS ITS OWN CALL AND NOT A STEP INSIDE _run, BECAUSE A PASS DOES NOT NEST.
@@ -25,19 +25,11 @@
 //
 // Each caster's record is draw_group.c's, the object's matrix about the frame's
 // eye at its lag, exactly as the view draws it; a cascade reads only the world
-// matrix. The record carries the shape's colour as the view's does, because the
-// bounce map's flux is the base colour times it: without it every shape bounced
+// matrix. The record carries the shape's colour as the view's does, because a
+// probe's picture is the base colour times it: without it every shape bounced
 // white, and a red box tinted nothing (bug 01).
 // The mesh table is walked once per cascade: four linear walks, the same cost
 // as the view's own walk, and a culled list per cascade is a later card.
-//
-// THE BOUNCE PASS FOLLOWS THE CASCADES (0308 point 1): draw_bounce.c opens it,
-// draws the same casters through this file's walk, and updates the frame's
-// target's grid. Only when cascades were drawn and the world's light, the row
-// voe_3d_draw_system_light reads, has `bounces` of 1 or more (0319 point 3): at
-// 0, or with no light, there is no bounce pass, draw or update; following the
-// cascades, a light that casts nothing bounces nothing. A failure there is the
-// call's.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun casts: when
 // the device's maps are ready and a light in the frame's points has a slot, the
@@ -45,6 +37,15 @@
 // each over the faces render finds. A lamp's shadow is of what the sun's is of
 // (0324 point 5), so a shape or model with `cast_shadows` false casts for no
 // lamp either; sharing the walk is what keeps the two from disagreeing.
+//
+// THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun casts:
+// draw_bounce.c begins the frame's target's bounce, draws the same casters into
+// each capture pass render opens, and relights. Who bounces: the world's light
+// row, the one voe_3d_draw_system_light reads, with `bounces` of 1 or more while
+// the frame's light has intensity above nought and is not `unshaded`; or any
+// light in the frame's points with `bounces` of 1 or more. A blind frame bounces
+// nothing. When nothing bounces nothing is called, so it costs nothing (0316):
+// no begin, no volume, no pass. A failure there is the call's.
 #include "draw_bounce.h"
 #include "draw_group.h"
 
@@ -104,8 +105,8 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 	return true;
 }
 
-// Every caster in the world, drawn into the shadow pass that is open, a cascade,
-// the bounce map or the point-shadow pass. False when render refuses a draw, which it has already
+// Every caster in the world, drawn into the pass that is open, a cascade, the
+// point-shadow pass or a capture pass. False when render refuses a draw, which it has already
 // said on stderr.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame)
@@ -146,15 +147,26 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 	return frame->models == NULL || draw_model_casters(world, device, frame);
 }
 
-// Whether the world's light, row zero as voe_3d_draw_system_light reads it,
-// bounces (0319 point 3). No light never does.
-static bool light_bounces(const voe_ecs_world *world)
+// Whether anything bounces this frame (0326 point 8): the world's light, row
+// zero as voe_3d_draw_system_light reads it, with bounces and a frame light of
+// some strength that is shaded, or a frame point light with bounces. A blind
+// frame never does.
+static bool anything_bounces(const voe_ecs_world *world,
+			     const voe_3d_frame *frame)
 {
 	VOE_BASE_ASSERT(world != NULL, "bouncing no world");
 	VOE_BASE_ASSERT(voe_scene_light_count(world) <= 1,
 			"a world to draw has at most one light — see 3d/draw_system.h");
-	return voe_scene_light_count(world) == 1 &&
-	       voe_scene_light_rows(world)[0].bounces >= 1;
+	if (frame->blind)
+		return false;
+	if (voe_scene_light_count(world) == 1 &&
+	    voe_scene_light_rows(world)[0].bounces >= 1 &&
+	    frame->light.intensity > 0.0f && !frame->light.unshaded)
+		return true;
+	for (uint32_t i = 0; i < frame->points.count; i++)
+		if (frame->points.lights[i].bounces >= 1)
+			return true;
+	return false;
 }
 
 // Whether the world's light, the same row, casts (0324 point 4). No light
@@ -167,7 +179,7 @@ static bool light_casts(const voe_ecs_world *world)
 	       voe_scene_light_rows(world)[0].cast_shadows;
 }
 
-// The sun's cascades and its bounce pass, setting `frame->shadow`, or nothing
+// The sun's cascades, setting `frame->shadow`, or nothing
 // when the sun does not cast. False when render refuses, `shadow` left zeroed.
 static bool draw_sun_shadows(voe_ecs_world *world, voe_render_device *device,
 			     voe_3d_frame *frame)
@@ -195,10 +207,6 @@ static bool draw_sun_shadows(voe_ecs_world *world, voe_render_device *device,
 		if (!drawn)
 			return false;
 	}
-	// The bounce pass after the cascades, only when there were cascades
-	// (0308 point 1; no sun, 0287: neither) and the light bounces (0319).
-	if (light_bounces(world) && !voe_3d_draw_bounce(world, device, frame))
-		return false;
 	frame->shadow = cascades.shadow;
 	VOE_BASE_ASSERT(frame->shadow.count <= VOE_RENDER_SHADOW_CASCADES,
 			"more cascades than render has");
@@ -240,7 +248,9 @@ bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
 			"the shadow passes go before the view's pass — see 3d/draw_system.h");
 	frame->shadow = (voe_render_shadow){ 0 };
 	if (!draw_sun_shadows(world, device, frame) ||
-	    !draw_point_shadows(world, device, frame)) {
+	    !draw_point_shadows(world, device, frame) ||
+	    (anything_bounces(world, frame) &&
+	     !voe_3d_draw_bounce(world, device, frame))) {
 		frame->shadow = (voe_render_shadow){ 0 };
 		return false;
 	}

@@ -1,7 +1,7 @@
 // How the sun frames a box of the world: its basis, the snap of a centre to
 // whole texels about the world origin, and the orthographic view looking at
-// that centre. Internal to 3d: both the shadow cascades (shadow_cascades.c)
-// and the bounce grid's light view (bounce_grid.c) frame the sun with them.
+// that centre. Internal to 3d: the shadow cascades (shadow_cascades.c) frame
+// the sun with them.
 //
 //     struct voe_3d_light_basis basis = voe_3d_light_box_basis(direction);
 //     centre = voe_3d_light_box_snap(centre, eye, basis, texel);

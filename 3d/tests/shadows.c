@@ -4,8 +4,8 @@
 // ONE PICTURE, TWO FLOOR PIXELS. A camera at the origin looks along -Z; a
 // flattened cube lies a metre below as the floor, and a cube stands a metre
 // above the floor's middle five metres out, lit by a sun straight down with
-// bounces 1 (0319), so each caster is also drawn into the bounce map. The
-// sun, both shapes and the model are built from literals that say
+// bounces 0, since the test is about shadows and nothing bounces. The sun,
+// both shapes and the model are built from literals that say
 // `cast_shadows = true`, since zero casts nothing (0324). The
 // floor pixel straight under the cube is in its shadow, and with no fill a
 // shadowed surface is black; the floor pixel two metres to the side is lit.
@@ -29,17 +29,14 @@
 // WHAT DOES NOT CAST LEAVES THE FLOOR LIT (0324 points 4 and 5). With the
 // sun's `cast_shadows` false no pass opens and nothing is drawn into one; with
 // the sun casting and the cube's shape's false, only the floor is drawn into
-// each cascade and the bounce map. Either way the floor under the cube reads
-// within LIT_ALIKE of the floor beside it, and the view still draws the cube.
-// Both run first, bouncing into a second target, so no earlier frame's bounce
-// sits in the window's grid.
+// each cascade. Either way the floor under the cube reads within LIT_ALIKE of
+// the floor beside it, and the view still draws the cube.
 //
 // 100 KM OUT (0250) the camera, floor and cube all stand 100 km along X and the
 // same two pixels read as they did at the origin: the cascades are fitted about
 // the eye and snapped in double, so nothing is lost to a float's reach. Both
-// pictures are drawn with the bounce off (0310), the shadows call naming a
-// second target, not the window the pass draws into, so the claim is the
-// cascades' alone and no bounce under the cube is read.
+// pictures name a second target for the frame, as every case may, and with
+// nothing bouncing the claim is the cascades' alone.
 //
 // A MODEL CASTS AS A MESH DOES (0277 point 3): the cube swapped for a thing
 // wearing model_data.inc's model, turned a quarter turn about +Z so the file's
@@ -96,8 +93,8 @@
 #define LIT_ALIKE 4
 
 // Three drawn objects at most (the floor and the model's two parts), each
-// drawn once more into each of the four cascades and the bounce map, and the
-// four shadow passes, the bounce pass and the point-shadow pass before the
+// drawn once more into each of the four cascades, with one share over, and the
+// four shadow passes and the point-shadow pass, with one over, before the
 // view's one, which the lamp case's two casters fit beside; room for the
 // model's 6 vertices, 6 indices, 2 geometries and 2 shading records.
 static const voe_render_capacities CAPACITIES = {
@@ -205,7 +202,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 					   .intensity = 3.0f,
 					   .fill_colour = { 1.0f, 1.0f, 1.0f },
 					   .fill_intensity = fill,
-					   .bounces = 1,
+					   .bounces = 0,
 					   .cast_shadows = casts.sun }));
 	}
 	add_a_shape(world, x, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f },
@@ -241,8 +238,7 @@ typedef struct {
 
 // One frame of `world` with its point lights and shadows, and the two pixels at
 // `spots`. `count` is the shadow's cascade count; `added` how many draws the
-// shadow call made. `bounced` is the target whose bounce grid the shadows call
-// updates: the window to read the bounce, another to draw with it off.
+// shadow call made. `bounced` is the frame's target, the window or another.
 static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, const voe_3d_models *models,
 			    voe_render_target bounced, pixel_spots spots,
@@ -294,7 +290,7 @@ static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 }
 
 // The floor under the cube is in its shadow; the floor beside it is not. The
-// bounce grid updated is `bounced`'s.
+// frame's target is `bounced`.
 static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 					       const voe_3d_shapes *shapes,
 					       double x,
@@ -310,7 +306,7 @@ static floor_pixels the_cube_shadows_the_floor(voe_render_device *device,
 			&count, &added);
 
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
-	VOE_TEST_CHECK_INT(added, (VOE_RENDER_SHADOW_CASCADES + 1) * 2);
+	VOE_TEST_CHECK_INT(added, VOE_RENDER_SHADOW_CASCADES * 2);
 	VOE_TEST_CHECK(pixels.under + 32 < pixels.beside);
 	voe_base_arena_destroy(arena);
 	return pixels;
@@ -338,7 +334,7 @@ static void no_light_casts_nothing(voe_render_device *device,
 
 // The floor under the cube as lit as beside it, within LIT_ALIKE, when `casts`
 // leaves the sun or the cube out: with the sun out no pass and no draw, with
-// the cube out the floor alone drawn into each cascade and the bounce map. The
+// the cube out the floor alone drawn into each cascade. The
 // cube is drawn in the view either way, beside the floor. `bounced` as for
 // the_cube_shadows_the_floor.
 static void nothing_cast_leaves_the_floor_lit(voe_render_device *device,
@@ -356,7 +352,7 @@ static void nothing_cast_leaves_the_floor_lit(voe_render_device *device,
 			&count, &added);
 
 	VOE_TEST_CHECK_INT(count, casts.sun ? VOE_RENDER_SHADOW_CASCADES : 0);
-	VOE_TEST_CHECK_INT(added, casts.sun ? VOE_RENDER_SHADOW_CASCADES + 1 : 0);
+	VOE_TEST_CHECK_INT(added, casts.sun ? VOE_RENDER_SHADOW_CASCADES : 0);
 	VOE_TEST_CHECK_INT(pixels.drawn, 2);
 	VOE_TEST_CHECK(abs((int)pixels.under - (int)pixels.beside) <= LIT_ALIKE);
 	VOE_TEST_CHECK(pixels.beside > 32);
@@ -405,7 +401,7 @@ static void the_model_shadows_the_floor(voe_render_device *device,
 	pixels = a_frame(world, device, arena, models, VOE_RENDER_TARGET_WINDOW,
 			 SUN_SPOTS, &count, &added);
 	VOE_TEST_CHECK_INT(count, VOE_RENDER_SHADOW_CASCADES);
-	VOE_TEST_CHECK_INT(added, (VOE_RENDER_SHADOW_CASCADES + 1) * 3);
+	VOE_TEST_CHECK_INT(added, VOE_RENDER_SHADOW_CASCADES * 3);
 	VOE_TEST_CHECK(pixels.under + 32 < pixels.beside);
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
@@ -559,7 +555,6 @@ int main(void)
 	VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &other, &shown,
 						&error));
 
-	// First, while no frame has bounced into the window's grid.
 	nothing_cast_leaves_the_floor_lit(
 		device, &shapes, (casting){ .sun = false, .cube = true }, other);
 	nothing_cast_leaves_the_floor_lit(

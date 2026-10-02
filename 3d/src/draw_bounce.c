@@ -1,20 +1,21 @@
-// The sun's bounce pass and this step's stale spheres (ADR-0308 points 1, 4 and
-// 7). The contract is draw_bounce.h's; voe_3d_draw_system_shadows in
+// The frame's probe bounce and this step's stale spheres (ADR-0326 points 2, 4
+// and 8). The contract is draw_bounce.h's; voe_3d_draw_system_shadows in
 // 3d/draw_system.h states what the caller pays for it.
 //
 // A CASTER MOVED WHEN LAG 1 AND LAG 0 DIFFER: its position by more than a
 // micrometre on an axis, or its rotation by more than 1e-6 off |q0 · q1| = 1,
 // so q and −q are one rotation and a normalised copy of a still caster is still.
-// A scale change marks nothing; the cycle catches it up.
+// A scale change marks nothing.
 //
-// THE CASTERS WEAR THEIR SHAPE'S COLOUR in the bounce map, as in the view: the
-// walk is draw_shadows.c's, and it once drew every shape white (bug 01).
+// THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
+// view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
 //
 // Constraints: at most STALE_ROOM spheres a frame, on the stack, because the
-// shadows call takes no arena. Sixty-four spheres of 6 m already list more
-// than VOE_RENDER_BOUNCE_BUDGET probes, so more would refresh nothing sooner;
-// an arena on the frame would lift it. The walk is linear over the mesh and
-// model tables, as the cascades' is.
+// shadows call takes no arena. Sixty-four spheres of 6 m already queue more
+// probes than VOE_RENDER_BOUNCE_CAPTURE_PASSES × VOE_RENDER_BOUNCE_CAPTURE
+// capture in a frame, so more would capture nothing sooner; an arena on the
+// frame would lift it. The walk is linear over the mesh and model tables, as
+// the cascades' is.
 #include "draw_bounce.h"
 #include "draw_group.h"
 
@@ -23,6 +24,7 @@
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <base/assert.h>
+#include <scene/light_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -139,26 +141,40 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 {
 	voe_math_float4 spheres[STALE_ROOM];
 	voe_3d_bounce_grid grid;
-	struct voe_render_bounce_update update;
-	bool drawn;
+	struct voe_render_bounce_frame bounce;
+	bool opened = true;
 
 	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
 			"bouncing with no world, device or frame");
 	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
-			"the bounce pass goes after the cascades, none open");
-	grid = voe_3d_bounce_grid_fit(frame->view, frame->eye,
-				      frame->light.direction);
-	if (!voe_render_bounce_pass_begin(device, &grid.light, &frame->light))
-		return false;
-	drawn = voe_3d_draw_casters(world, device, frame);
-	voe_render_pass_end(device);
-	if (!drawn)
-		return false;
-	update = (struct voe_render_bounce_update){
+			"the bounce goes between passes, none open");
+	grid = voe_3d_bounce_grid_fit(frame->view, frame->eye);
+	bounce = (struct voe_render_bounce_frame){
 		.cell = { grid.cell[0], grid.cell[1], grid.cell[2] },
 		.corner = grid.corner,
 		.stale = spheres,
 		.stale_count = voe_3d_bounce_stale(world, frame, spheres, STALE_ROOM),
+		.sun = frame->light,
+		.shadow = frame->shadow,
+		.points = frame->points,
 	};
-	return voe_render_bounce_update(device, frame->target, &update);
+	if (voe_scene_light_count(world) == 1) {
+		bounce.sun_bounces = voe_scene_light_rows(world)[0].bounces;
+		bounce.sun_strength = voe_scene_light_rows(world)[0].bounce_strength;
+	}
+	voe_render_bounce_begin(device, frame->target, &bounce);
+	while (opened) {
+		bool drawn;
+
+		if (!voe_render_bounce_capture_pass_begin(device, &opened))
+			return false;
+		if (!opened)
+			break;
+		drawn = voe_3d_draw_casters(world, device, frame);
+		voe_render_pass_end(device);
+		if (!drawn)
+			return false;
+	}
+	voe_render_bounce_relight(device);
+	return true;
 }

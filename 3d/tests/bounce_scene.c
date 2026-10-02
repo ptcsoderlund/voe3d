@@ -6,21 +6,19 @@
 // 60 m wide, top at y 0, base 0.8, 0.7, 0.5), a red box 2 m a side at
 // (12, 1, -6) and a green one 6 m from it at (6, 1, -6); a sun in
 // (0.95, 0.71, 0.71) shining down at 45 degrees along -x onto the red box's
-// +x face, fill 0.09, bounces 1 (0319). The sun and the three shapes say
+// +x face, fill 0.09, bounces 1 and strength 1 (0326). The sun and the three shapes say
 // `cast_shadows = true`, as the scene's file reads (0324). The eye stands 8 m
 // up and 14 m back (+z) from the red box, looking at its foot.
 //
 // TWO SUNS, 1 AND π (0310), each its own world, not the project's 9: with no
 // tone map yet a sun of 9 clips the lit ground to white, and a clipped pixel
-// shows no tint; that is a work order after 046. The bounce's strength is
-// render's gain, VOE_BOUNCE_GAIN (0311), not this test's.
+// shows no tint; that is a work order after 046.
 //
 // TEN FRAMES of: frame begin, voe_3d_draw_system_shadows with `frame.target`
 // the window, the view's pass and the run, frame end; then the window read.
-//
-// THE TINT (0310): the ground 1 m out from the red box's lit face,
-// (14, 0, -6), reads at least 12/255 more red, in 8-bit, than the ground 8 m
-// from both boxes, (12, 0, -14).
+// Room for the four capture passes the probe bounce opens a frame (0326).
+// 0310's tint, at least 12/255 redder beside the red box, was measured with
+// 046's gain; with none (0326 point 7) it is not claimed here.
 //
 // NO SPOTS, at both suns: at a 7 x 7 lattice of ground points about both
 // boxes, sunlit and in their shadows, every channel is at least the same
@@ -68,22 +66,19 @@
 #define SCRATCH (16 * 1024 * 1024)
 #define SIDE 128
 #define FRAMES 10
-#define REDDER_BY 12
 #define LATTICE 7
 #define TRACE 8
-// Three shapes, each drawn into four cascades, the bounce map and the view.
+// Three shapes, each drawn into four cascades, four capture passes and the view.
 #define SHAPES 3
-
-static const voe_math_float3 NEAR = { 14.0f, 0.0f, -6.0f };
-static const voe_math_float3 FAR = { 12.0f, 0.0f, -14.0f };
+#define PASSES (VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES,
 	.indices = VOE_3D_SHAPES_INDICES,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES,
-	.objects = SHAPES * (VOE_RENDER_SHADOW_CASCADES + 2),
+	.objects = SHAPES * PASSES,
 	.shadings = VOE_3D_SHAPES_SHADINGS,
-	.passes = VOE_RENDER_SHADOW_CASCADES + 2,
+	.passes = PASSES,
 	.targets = 1,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
@@ -159,6 +154,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 				   .fill_colour = { 0.8992056f, 0.7447454f, 0.335389f },
 				   .fill_intensity = 0.09f,
 				   .bounces = 1,
+				   .bounce_strength = 1.0f,
 				   .cast_shadows = true }));
 	add_a_shape(world, (voe_math_double3){ 0.0, -0.05, 0.0 },
 		    (voe_math_float3){ 60.0f, 0.1f, 60.0f },
@@ -233,28 +229,6 @@ static const uint8_t *pixel_at(const voe_render_picture *picture,
 				4];
 }
 
-// The 8-bit red at `at`, or -1 off the picture.
-static int red_at(const voe_render_picture *picture, const voe_3d_frame *frame,
-		  voe_math_float3 at)
-{
-	const uint8_t *p = pixel_at(picture, frame, at);
-
-	if (p == NULL)
-		return -1;
-	printf("(%g, %g, %g): %d %d %d\n", at.x, at.y, at.z, p[0], p[1], p[2]);
-	return p[0];
-}
-
-static void the_red_box_tints_the_ground(const voe_render_picture *bounced,
-					 const voe_3d_frame *frame)
-{
-	int near = red_at(bounced, frame, NEAR);
-	int far = red_at(bounced, frame, FAR);
-
-	VOE_TEST_CHECK(far >= 0);
-	VOE_TEST_CHECK(near >= far + REDDER_BY);
-}
-
 // Every lattice point's channels in `bounced` at least `plain`'s less 1/255.
 static void no_spots(const voe_render_picture *bounced,
 		     const voe_render_picture *plain, const voe_3d_frame *frame)
@@ -305,7 +279,7 @@ static void the_shadow_side_stays_faint(const voe_render_picture *bounced,
 	}
 }
 
-// The scene at a sun of `sun`: ten frames bounced, one plain, the three claims.
+// The scene at a sun of `sun`: ten frames bounced, one plain, the two claims.
 static void at_a_sun(voe_render_device *device, const voe_3d_shapes *shapes,
 		     voe_render_target other, float sun)
 {
@@ -322,7 +296,6 @@ static void at_a_sun(voe_render_device *device, const voe_3d_shapes *shapes,
 	(void)a_frame(world, device, arena, other);
 	plain = read_window(device, arena);
 
-	the_red_box_tints_the_ground(&bounced, &frame);
 	no_spots(&bounced, &plain, &frame);
 	the_shadow_side_stays_faint(&bounced, &plain, &frame);
 	voe_base_arena_destroy(arena);

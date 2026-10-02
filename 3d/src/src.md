@@ -8,10 +8,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `shadow_cascades.c` — the splits, each slice's sphere from the inverted
   projection, and each cascade's snapped light view and box.
 - `light_box.h` — the sun's basis, the snap to whole texels in double and the
-  look from the sun, shared by the cascades and the bounce grid; internal.
+  look from the sun, used by the cascades; internal.
 - `light_box.c` — those three, moved out of shadow_cascades.c unchanged.
-- `bounce_grid.c` — forward out of the view, the grid's whole cells in double,
-  its corner about the eye, and the sun's view of its sphere snapped to blocks.
+- `bounce_grid.c` — forward out of the view, the probe volume's whole cells in
+  double 24 m ahead, and its corner about the eye.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,
@@ -81,16 +81,16 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model
   parts from the frame's store and panels, the world's solids drawn as found, the held-back groups and the marks in their order.
 - `draw_shadows.c` — the shadow passes: the cascades fitted to the frame, and every caster,
-  mesh or model part, drawn into each when the light casts, then the bounce pass when it bounces,
-  then the one point-shadow pass when a lamp has a slot, and why this is its own call and who casts.
+  mesh or model part, drawn into each when the light casts, then the one point-shadow pass when a
+  lamp has a slot, then the probe bounce when a light bounces, and why this is its own call and who
+  casts and bounces.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
-- `draw_bounce.h` — the sun's bounce pass, this step's stale spheres and the cascades' caster walk
-  it shares; internal.
-- `draw_bounce.c` — run only for a light with bounces: the grid fitted, the casters drawn into the
-  bounce map, a caster moved between lag 1 and lag 0 marked at both places, and the frame's
-  target's grid updated.
+- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the cascades' caster
+  walk it shares; internal.
+- `draw_bounce.c` — run only when a light bounces: the volume fitted, the target's bounce begun
+  with the lights and stale spheres, the casters drawn into each capture pass, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.

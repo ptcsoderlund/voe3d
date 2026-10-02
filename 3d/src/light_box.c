@@ -1,5 +1,5 @@
 // The sun's basis, the snap to whole texels in double, and the orthographic
-// look from the sun, shared by the cascades and the bounce grid. See
+// look from the sun, used by the cascades. See
 // light_box.h for why each step is there.
 #include "light_box.h"
 

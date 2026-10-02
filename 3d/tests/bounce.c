@@ -1,17 +1,22 @@
-// The sun feeds the bounce (ADR-0308 points 1, 4 and 7): the shadows call opens
-// one bounce pass after its cascades, and a caster that moved this step marks
-// the grid stale where it was and where it is.
+// The shadows call drives the probe bounce (ADR-0326 point 8): after its
+// point-shadow pass it begins the window's bounce, opens capture passes and
+// relights, and a caster that moved this step marks the volume stale where it
+// was and where it is.
 //
 // ONE WORLD. A camera at the origin looks along -Z; a grey ground lies a metre
 // below, a red wall stands two metres to the right and five out, and a sun
 // shines down and to the left onto it. The sun and both shapes say
-// `cast_shadows = true`, since a literal's zero casts nothing (0324).
+// `cast_shadows = true`, since a literal's zero casts nothing (0324). A lamp,
+// when there is one, casts nothing, so no point-shadow pass opens.
 //
-// THE PASS COUNTS. The sun has bounces 1, so four cascades and the bounce pass
-// are five: the shadows call is true on a device with five passes and false on
-// one with four, where the bounce pass is refused after the cascades. The same
-// world at bounces 0 opens no bounce pass (0319 point 3): true on four, with
-// `frame.shadow` set to the four cascades.
+// THE PASS COUNTS, TWO FRAMES ON ONE DEVICE. With the sun at bounces 1, frame
+// one only asks for the volume and opens no capture pass: true on the four
+// cascades' passes alone. Frame two captures four times: true with exactly
+// four cascades and four capture passes, false with one fewer. At bounces 0
+// and no lamp that bounces nothing is begun: both frames true on four, with
+// `frame.shadow` the four cascades. A lamp of bounces 1 under a sun of 0
+// bounces as the sun did. A card without shaderOutputLayer, read here as point
+// shadows not ready, captures nothing: frame two true on four, and said.
 //
 // THE STALE SPHERES. With no previous table nothing moved, so none. With one,
 // the wall remembered and then moved a metre along X marks two spheres of
@@ -39,6 +44,8 @@
 #include <scene/camera_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
+#include <scene/point_light_component.h>
+#include <scene/point_light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -50,19 +57,25 @@
 #define SCRATCH (4 * 1024 * 1024)
 #define SIDE 32
 
-// The two casters drawn into four cascades and the bounce map, with room over.
+// The two casters drawn into four cascades and four capture passes, with room
+// over; point shadows sized so their readiness says whether the card has
+// shaderOutputLayer.
 static voe_render_capacities capacities(uint32_t passes)
 {
 	return (voe_render_capacities){
 		.vertices = VOE_3D_SHAPES_VERTICES,
 		.indices = VOE_3D_SHAPES_INDICES,
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,
-		.objects = 16,
+		.objects = 32,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
 		.passes = passes,
 		.shadow_size = VOE_3D_SHADOW_TEXELS,
+		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,
 	};
 }
+
+// The passes of four cascades and four capture passes.
+#define ALL_PASSES (VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES)
 
 // One coloured cube `at`, scaled by `scale`; the entity.
 static voe_ecs_entity add_a_shape(voe_ecs_world *world, voe_math_double3 at,
@@ -84,18 +97,40 @@ static voe_ecs_entity add_a_shape(voe_ecs_world *world, voe_math_double3 at,
 	return entity;
 }
 
+// A lamp of `bounces` at (0, 1.5, -3) that casts nothing.
+static void add_a_lamp(voe_ecs_world *world, uint32_t bounces)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){ .position = { 0.0, 1.5, -3.0 },
+				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_point_light_add(
+		world, entity,
+		(voe_scene_point_light){ .colour = { 1.0f, 1.0f, 1.0f },
+					 .intensity = 3.0f,
+					 .range = 6.0f,
+					 .falloff = 1.0f,
+					 .bounces = bounces,
+					 .bounce_strength = 1.0f }));
+}
+
 // The camera, the sun of `bounces`, the ground and the wall, whose entity goes
-// to `wall`; with `previous` the world keeps a previous table.
+// to `wall`, and a lamp of `lamp_bounces` when that is above nought; with
+// `previous` the world keeps a previous table.
 static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
 			      bool previous, uint32_t bounces,
-			      voe_ecs_entity *wall)
+			      uint32_t lamp_bounces, voe_ecs_entity *wall)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
 		.component_types = 16,
-		.intent_types = 8,
-		.structure_requests = 8,
-		.structure_bytes = 256,
+		.intent_types = 16,
+		.structure_requests = 16,
+		.structure_bytes = 1024,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 	voe_ecs_entity entity = { 0 };
@@ -105,6 +140,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 		voe_scene_transform_previous_register(world, 8);
 	voe_scene_camera_register(world, 2);
 	voe_scene_light_register(world, 2);
+	voe_scene_point_light_register(world, 2);
 	voe_3d_mesh_register(world, 8);
 	voe_3d_material_register(world, 8);
 	voe_3d_panel_register(world, 8);
@@ -133,6 +169,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f,
 				   .bounces = bounces,
+				   .bounce_strength = 1.0f,
 				   .cast_shadows = true }));
 	(void)add_a_shape(world, (voe_math_double3){ 0.0, -1.0, -5.0 },
 			  (voe_math_float3){ 20.0f, 0.1f, 20.0f },
@@ -140,46 +177,78 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	*wall = add_a_shape(world, (voe_math_double3){ 2.0, 0.0, -5.0 },
 			    (voe_math_float3){ 0.2f, 2.0f, 4.0f },
 			    (voe_math_float3){ 1.0f, 0.0f, 0.0f });
+	if (lamp_bounces > 0)
+		add_a_lamp(world, lamp_bounces);
 	voe_3d_shape_system_run(world, shapes);
 	return world;
 }
 
-// What the shadows call answers on a fresh device with `passes` for a sun of
-// `bounces`, the frame's cascade count into `cascades`; true when no device
-// could be made, which the caller has already skipped for.
-static bool shadows_with(uint32_t passes, uint32_t bounces, uint32_t *cascades)
+// What the shadows call answered in each of two frames on one fresh device.
+typedef struct {
+	bool first;
+	bool second;
+	uint32_t cascades;
+} two_answers;
+
+// Two frames on a fresh device with `passes`, for a sun of `bounces` and a lamp
+// of `lamp_bounces`; the cascades are the second frame's. Both answers true
+// when no device could be made, which the caller has already skipped for.
+static two_answers two_frames(uint32_t passes, uint32_t bounces,
+			      uint32_t lamp_bounces)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_platform_size size = { SIDE, SIDE };
 	voe_base_error error = VOE_BASE_OK;
 	voe_render_device *device = voe_render_device_new_headless(
 		arena, size, capacities(passes), &error);
+	two_answers answers = { true, true, 0 };
 	voe_3d_shapes shapes;
 	voe_ecs_entity wall;
 	voe_ecs_world *world;
-	voe_3d_frame frame;
-	bool drawing = false;
-	bool answer = false;
 
-	*cascades = 0;
 	VOE_TEST_CHECK(device != NULL);
 	if (device == NULL) {
 		voe_base_arena_destroy(arena);
-		return true;
+		return answers;
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
-	world = a_world(arena, &shapes, false, bounces, &wall);
-	frame = voe_3d_draw_system_frame(world, size, 0.0f);
-	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
-	VOE_TEST_CHECK(drawing);
-	if (drawing) {
-		answer = voe_3d_draw_system_shadows(world, device, &frame);
-		VOE_TEST_CHECK(voe_render_frame_end(device));
+	world = a_world(arena, &shapes, false, bounces, lamp_bounces, &wall);
+	for (int step = 0; step < 2; step++) {
+		voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+		bool drawing = false;
+		bool answer = false;
+
+		VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
+		VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+		VOE_TEST_CHECK(drawing);
+		if (drawing) {
+			answer = voe_3d_draw_system_shadows(world, device, &frame);
+			VOE_TEST_CHECK(voe_render_frame_end(device));
+		}
+		*(step == 0 ? &answers.first : &answers.second) = answer;
+		answers.cascades = frame.shadow.count;
 	}
-	*cascades = frame.shadow.count;
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
-	return answer;
+	return answers;
+}
+
+// A sun of `bounces` and a lamp of `lamp_bounces` that bounce between them:
+// frame one true on the cascades' passes alone, and frame two, with
+// shaderOutputLayer (`captures`), true on ALL_PASSES and false on one fewer;
+// without, true on the cascades' passes.
+static void it_bounces(uint32_t bounces, uint32_t lamp_bounces, bool captures)
+{
+	two_answers cascades_only =
+		two_frames(VOE_RENDER_SHADOW_CASCADES, bounces, lamp_bounces);
+
+	VOE_TEST_CHECK(cascades_only.first);
+	if (!captures) {
+		VOE_TEST_CHECK(cascades_only.second);
+		return;
+	}
+	VOE_TEST_CHECK(two_frames(ALL_PASSES, bounces, lamp_bounces).second);
+	VOE_TEST_CHECK(!two_frames(ALL_PASSES - 1, bounces, lamp_bounces).second);
 }
 
 // Whether `sphere` is centred at `x`, 0, -5 with the reach for its radius.
@@ -198,13 +267,13 @@ static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
 	voe_platform_size size = { SIDE, SIDE };
 	voe_math_float4 spheres[8] = { 0 };
 	voe_ecs_entity wall;
-	voe_ecs_world *world = a_world(arena, shapes, false, 1, &wall);
+	voe_ecs_world *world = a_world(arena, shapes, false, 1, 0, &wall);
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_scene_transform moved;
 
 	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, spheres, 8), 0);
 
-	world = a_world(arena, shapes, true, 1, &wall);
+	world = a_world(arena, shapes, true, 1, 0, &wall);
 	frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_scene_transform_remember(world);
 	moved = *voe_scene_transform_get(world, wall);
@@ -227,10 +296,11 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_platform_size size = { SIDE, SIDE };
 	voe_base_error error = VOE_BASE_OK;
-	voe_render_device *device =
-		voe_render_device_new_headless(arena, size, capacities(5), &error);
+	voe_render_device *device = voe_render_device_new_headless(
+		arena, size, capacities(ALL_PASSES), &error);
 	voe_3d_shapes shapes;
-	uint32_t cascades = 0;
+	two_answers still;
+	bool captures;
 
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
@@ -243,12 +313,16 @@ int main(void)
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
 	moved_casters_mark_spheres(&shapes);
+	captures = voe_render_point_shadows_ready(device);
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
+	if (!captures)
+		printf("note: no shaderOutputLayer, so nothing is captured\n");
 
-	VOE_TEST_CHECK(shadows_with(5, 1, &cascades));
-	VOE_TEST_CHECK(!shadows_with(4, 1, &cascades));
-	VOE_TEST_CHECK(shadows_with(4, 0, &cascades));
-	VOE_TEST_CHECK_INT(cascades, VOE_RENDER_SHADOW_CASCADES);
+	it_bounces(1, 0, captures);
+	still = two_frames(VOE_RENDER_SHADOW_CASCADES, 0, 0);
+	VOE_TEST_CHECK(still.first && still.second);
+	VOE_TEST_CHECK_INT(still.cascades, VOE_RENDER_SHADOW_CASCADES);
+	it_bounces(0, 1, captures);
 	return voe_test_result();
 }
