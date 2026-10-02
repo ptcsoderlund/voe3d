@@ -118,6 +118,14 @@ typedef struct voe_render_device voe_render_device;
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
 // costs shadow_size² × 4 bytes × cascades × frame slots — 2048 is 128 MiB over
 // two slots. Nought is no shadow pass at all; one texel stays for the binding.
+//
+// point_shadow_size IS THE FIFTH THAT MAY BE NOUGHT: texels a side of one cube
+// face of a point light's shadow, VOE_RENDER_POINT_SHADOWS lights of six faces
+// per frame slot (ADR-0325). It costs 6 × 16 × point_shadow_size² × 4 bytes a
+// frame slot — 256 is 25 MiB. Drawing the maps needs the card's
+// shaderOutputLayer; on a card without it the device says so once and takes
+// nought. Nought is no point shadows; one texel stays for the binding, and
+// voe_render_point_shadows_ready says which.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -131,11 +139,17 @@ typedef struct {
 	uint32_t passes;
 	uint32_t targets;
 	uint32_t shadow_size;
+	uint32_t point_shadow_size;
 } voe_render_capacities;
 
 // How many depth maps the sun renders into, near to far: the layers of one frame
 // slot's shadow image, and the range voe_render_shadow_pass_begin's cascade is in.
 #define VOE_RENDER_SHADOW_CASCADES 4
+
+// How many point lights cast a shadow at once, the slots 1 to 16 of a frame
+// slot's point shadow image: slot s's six faces, +X −X +Y −Y +Z −Z, are its
+// layers 6(s − 1) to 6(s − 1) + 5 (ADR-0325).
+#define VOE_RENDER_POINT_SHADOWS 16
 
 // Texels a side of the sun's bounce map, per frame slot (ADR-0308): what
 // voe_render_bounce_pass_begin draws into. 512² × 20 bytes × frame slots.
@@ -1182,6 +1196,10 @@ typedef struct {
 [[nodiscard]] bool voe_render_shadow_pass_begin(voe_render_device *device,
 						uint32_t cascade,
 						const voe_render_view *light);
+
+// Whether this device has point shadow maps to draw and read: false when
+// point_shadow_size was nought or the card has no shaderOutputLayer (ADR-0325).
+[[nodiscard]] bool voe_render_point_shadows_ready(const voe_render_device *device);
 
 // Opens a bounce pass: one more pass of the sun, after the cascades, onto this
 // frame slot's bounce map (ADR-0308), VOE_RENDER_BOUNCE_TEXELS square, flux,

@@ -123,6 +123,12 @@ static const uint VOE_RENDER_LIGHT_REGION =
 [[vk::binding(5, 0)]]
 Sampler2DArrayShadow voe_render_shadow_maps;
 
+// Set 0, binding 9: this frame slot's point shadow maps, 6 × 16 layers, slot s
+// (1-based) face f at layer 6(s − 1) + f, faces +X −X +Y −Y +Z −Z, read through
+// binding 5's comparison sampler (render/src/point_shadow.c, ADR-0325).
+[[vk::binding(9, 0)]]
+Sampler2DArrayShadow voe_render_point_shadow_maps;
+
 // Set 0, binding 6: every bounce grid, three images each (L1 SH red, green,
 // blue), the window's first, read trilinear with repeat (render/src/target.c).
 // UNSIZED because the C side's length is (capacities.targets + 1) × 3, a

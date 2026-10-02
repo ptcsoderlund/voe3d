@@ -2,7 +2,7 @@
 
 The GPU, and the only folder that names Vulkan. A device opened onto a window, a
 swapchain, two geometry pools and a transient pair per frame slot, textures,
-shading records, four pipelines, the sun's shadow maps and a frame — nothing above them.
+shading records, four pipelines, the sun's and point lights' shadow maps and a frame — nothing above them.
 
 - `include` — the public header, in `include/render/`. See
   `include/render/render.md`.

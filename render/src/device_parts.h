@@ -1,7 +1,8 @@
 // The records voe_render_device is built of, each one a part of something
 // larger: the pass block, the buffers and pools and the geometry slots are
 // geometry.c's and descriptors.c's; the shading and texture slots are
-// shading.c's and texture.c's; the shadow map is shadow.c's; the bounce map
+// shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
+// map point_shadow.c's; the bounce map
 // is bounce_map.c's; the bounce grid is target.c's, its updates bounce_grid.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
@@ -270,6 +271,17 @@ struct voe_render_shadow_map {
 	VkImageView layers[VOE_RENDER_SHADOW_CASCADES];
 };
 
+// One frame slot's point shadow maps, point_shadow.c's (ADR-0325): one D32 image
+// of 6 × VOE_RENDER_POINT_SHADOWS layers, the memory under it, a sampled 2D-array
+// view of every layer for binding 9 and an attachment view of the same layers for
+// the layered pass. Rests in SHADER_READ_ONLY_OPTIMAL outside that pass.
+struct voe_render_point_shadow_map {
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView sampled;
+	VkImageView attachment;
+};
+
 // One frame slot's bounce map, bounce_map.c's (ADR-0308): D32 depth, RGBA16F flux
 // and RGBA16F normal, VOE_RENDER_BOUNCE_TEXELS square, the colour two sampled
 // and storage-readable. Rests where compute reads it outside a bounce pass.
@@ -376,6 +388,8 @@ struct voe_render_frame {
 	// may still be reading the frame before last's. Startup's; a resize
 	// leaves them alone.
 	struct voe_render_shadow_map shadow;
+	// The point lights' maps, per slot and startup's for the same reasons.
+	struct voe_render_point_shadow_map point_shadow;
 
 	// The sun's bounce map, per slot for the same reason, and this frame's
 	// last bounce pass: its light view, its sun, and whether one ran. Reset

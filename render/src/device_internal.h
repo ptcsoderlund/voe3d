@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -183,6 +183,12 @@ struct voe_render_device {
 	// full of. capacities.shadow_size is the shadow maps' side, nought for
 	// none, and is read from here.
 	voe_render_capacities capacities;
+	// Whether the card had shaderOutputLayer and create_device enabled it, and
+	// the point shadow maps' side: capacities.point_shadow_size, or nought
+	// when the feature is missing. device.c settles both; read this side, not
+	// the capacity's.
+	bool output_layer;
+	uint32_t point_shadow_size;
 
 	// The textures and the samplers they are read through: one per
 	// voe_render_sampling, made once at startup and indexed by a slot's own
@@ -484,6 +490,13 @@ void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
 				     uint32_t cascade);
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 			       uint32_t cascade);
+
+// point_shadow.c. Every frame slot's point shadow maps, made and settled where the
+// shader reads them; one texel a side when device->point_shadow_size is nought.
+// Startup's, after the sun's maps and before the descriptors. False with a
+// message; _shutdown is safe on a device that never got that far.
+[[nodiscard]] bool voe_render_point_shadow_startup(voe_render_device *device);
+void voe_render_point_shadow_shutdown(voe_render_device *device);
 
 // bounce_map.c. Every frame slot's bounce map, made and settled where compute
 // reads it; startup's, after the frame objects. False with a message; _shutdown
