@@ -327,6 +327,10 @@ typedef struct {
 // Metres about a moved caster whose bounce probes go stale (0308 point 7).
 #define VOE_3D_BOUNCE_REACH 6.0f
 
+// The share of D, the 17th casting lamp's distance, where a point light's
+// shadow starts fading (0325 point 5).
+#define VOE_3D_POINT_SHADOW_FADE 0.75f
+
 
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
@@ -404,8 +408,18 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // (base/arena.h), so today it is always true.
 //
 // ONE CALL PER PASS'S FRAME, AND EVERY PICTURE OF A WORLD MAKES IT. The editor's
-// views and the game both call it, so a lamp lights the same in both. The lights
-// are not shadowed: the sun's cascades and bounce ignore them (0320 point 3).
+// views and the game both call it, so a lamp lights the same in both.
+//
+// THE NEAREST SIXTEEN CASTING LAMPS GET A SHADOW SLOT (0325 point 5). Among the
+// kept lights whose row has `cast_shadows` (intensity above nought, as every
+// kept one has), ranked by the eye's distance to the light's sphere,
+// max(0, |position| − range), the nearest 16 get `shadow` 1..16 nearest first
+// and `shadow_strength` 1 − smoothstep(FADE·D, D, distance), FADE being
+// VOE_3D_POINT_SHADOW_FADE and D the 17th's distance, unbounded with 16 or
+// fewer, so every one is at 1. One at strength 0 gets no slot; every other
+// light's `shadow` is 0. It cannot pop: D moves continuously with the eye and
+// the 16th's strength is 0 by the time the 17th overtakes it, so a shadow has
+// faded out before its lamp loses its slot, with no state across frames.
 [[nodiscard]] bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
 						   voe_3d_frame *frame,
 						   voe_base_arena *arena);

@@ -37,7 +37,8 @@ again, or to find where a claim that has started failing is written down.
   or without it. Skips without a graphics card.
 - `point_lights.c` — that a frame's point lights are the table's about the eye, colour times
   intensity with the authored falloff, dark and unplaced ones left out, a parented one carried,
-  and that one lights the ground under it and not a far corner. Skips without a graphics card.
+  the nearest 16 casting lamps slotted in order and faded with no jump along a walk, and that one
+  lights the ground under it and not a far corner. Skips without a graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out. Skips without a graphics card.
 - `bounce.c` — the shadows call's pass count with and without bounces, and the stale spheres a

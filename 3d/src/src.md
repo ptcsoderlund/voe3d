@@ -85,7 +85,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and why this is its own call and who casts.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
-  those past 256 left out.
+  those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `draw_bounce.h` — the sun's bounce pass, this step's stale spheres and the cascades' caster walk
   it shares; internal.
 - `draw_bounce.c` — run only for a light with bounces: the grid fitted, the casters drawn into the
