@@ -35,10 +35,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
   and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
   or without it. Skips without a graphics card.
-- `point_lights.c` — that a frame's point lights are the table's about the eye, colour times
-  intensity with the authored falloff, dark and unplaced ones left out, a parented one carried,
-  the nearest 16 casting lamps slotted in order and faded with no jump along a walk, and that one
-  lights the ground under it and not a far corner. Skips without a graphics card.
+- `point_lights.c` — that a frame's point lights are the table's about the eye, the nearest 16
+  casting lamps take the shadow slots, and one lights the ground under it. The picture skips
+  without a graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
