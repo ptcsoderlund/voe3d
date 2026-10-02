@@ -396,10 +396,9 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
 // Fills `frame->points` from every point light whose entity has a transform
 // (0320 point 6): its world place at `frame->lag`, about `frame->eye` in float
-// (ADR-0250); its range as authored; its colour times
-// voe_scene_point_light_strength. A strength of 0, a flash faded or never
-// flashed, is left out, and past VOE_RENDER_POINT_LIGHTS the rest are left out
-// in table order. The array is in `arena`. A world with no point light table
+// (ADR-0250); its range and its falloff as authored (0322); its colour times
+// its intensity. A light of intensity 0 is left out, and past
+// VOE_RENDER_POINT_LIGHTS the rest are left out in table order. The array is in `arena`. A world with no point light table
 // fills none and returns true. False with `points` zeroed when the arena is
 // full — which base's arena never is, since its push aborts rather than fails
 // (base/arena.h), so today it is always true.

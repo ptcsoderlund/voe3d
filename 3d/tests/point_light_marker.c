@@ -121,7 +121,8 @@ static voe_ecs_entity add_a_lamp(voe_ecs_world *world, float z)
 		world, lamp,
 		(voe_scene_point_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					 .intensity = 1.0f,
-					 .range = 5.0f }));
+					 .range = 5.0f,
+					 .falloff = 1.0f }));
 	return lamp;
 }
 

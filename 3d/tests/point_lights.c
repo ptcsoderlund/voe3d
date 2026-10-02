@@ -2,14 +2,14 @@
 // voe_3d_draw_system_point_lights.
 //
 // THE TABLE INTO THE PASS'S LIGHTS, NO GRAPHICS CARD: a steady light at
-// (10, 2, -3) seen from an eye at (4, 0, 1) is at (6, 2, -4) with its range and
-// its colour times its intensity; a flashing light never flashed is left out,
-// and is in after a flash and a system run; a light with no transform is left
-// out; a light 1 m over a parent moved to (20, 0, 0) is at (20, 1, 0) less the
-// eye; a world with no point light table fills none and returns true; and an
-// arena of 64-byte blocks still holds them all, because base's arena push gets
-// a block of its own rather than fails (base/arena.h) — the false return the
-// header names has no path today.
+// (10, 2, -3) seen from an eye at (4, 0, 1) is at (6, 2, -4) with its range, its
+// falloff of 1 and its colour times its intensity; a light of intensity 0 is
+// left out; a light of falloff 2.5 gives a record of falloff 2.5; a light with
+// no transform is left out; a light 1 m over a parent moved to (20, 0, 0) is at
+// (20, 1, 0) less the eye; a world with no point light table fills none and
+// returns true; and an arena of 64-byte blocks still holds them all, because
+// base's arena push gets a block of its own rather than fails (base/arena.h) —
+// the false return the header names has no path today.
 //
 // AND ONE PICTURE: a camera four metres over a grey ground cube, a sun of
 // intensity 0 and no fill, one white point light half a metre over the ground
@@ -85,8 +85,9 @@ static voe_ecs_entity lamp_of(voe_ecs_world *world, voe_scene_point_light light,
 }
 
 static void check_light(voe_render_point_light light, voe_math_float3 position,
-			float range, voe_math_float3 colour)
+			float range, float falloff, voe_math_float3 colour)
 {
+	VOE_TEST_CHECK_FLOAT(light.falloff, falloff, 0.0f);
 	VOE_TEST_CHECK_FLOAT(light.position.x, position.x, 1e-5f);
 	VOE_TEST_CHECK_FLOAT(light.position.y, position.y, 1e-5f);
 	VOE_TEST_CHECK_FLOAT(light.position.z, position.z, 1e-5f);
@@ -96,43 +97,39 @@ static void check_light(voe_render_point_light light, voe_math_float3 position,
 	VOE_TEST_CHECK_FLOAT(light.colour.z, colour.z, 1e-6f);
 }
 
-// Steady, flashing, unplaced and parented lights, in that table order.
+// Steady, dark, soft, unplaced and parented lights, in that table order.
 static void the_table_becomes_the_passs_lights(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_scene_point_light steady = { .colour = { 1.0f, 0.8f, 0.5f },
 					 .intensity = 2.0f,
-					 .range = 3.0f };
-	voe_scene_point_light flashing = steady;
-	voe_ecs_entity flasher;
+					 .range = 3.0f,
+					 .falloff = 1.0f };
+	voe_scene_point_light dark = steady;
+	voe_scene_point_light soft = steady;
 	voe_ecs_entity parent = { 0 };
 	voe_ecs_entity child;
 	voe_scene_transform moved = UNMOVED;
 	voe_3d_frame frame = { .eye = { 4.0, 0.0, 1.0 } };
 	voe_math_float3 lit = { 2.0f, 1.6f, 1.0f };
 
-	flashing.flash = 2.0f;
+	dark.intensity = 0.0f;
+	soft.falloff = 2.5f;
 	(void)lamp_of(world, steady, true, (voe_math_double3){ 10.0, 2.0, -3.0 });
-	flasher = lamp_of(world, flashing, true,
-			  (voe_math_double3){ 0.0, 0.0, 0.0 });
+	(void)lamp_of(world, dark, true, (voe_math_double3){ 1.0, 0.0, 0.0 });
+	(void)lamp_of(world, soft, true, (voe_math_double3){ 0.0, 0.0, 0.0 });
 	(void)lamp_of(world, steady, false, (voe_math_double3){ 0 });
-	voe_scene_point_light_system_run(world, 0.0f);
 
-	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
-	VOE_TEST_CHECK_INT(frame.points.count, 1);
-	if (frame.points.count == 1)
-		check_light(frame.points.lights[0],
-			    (voe_math_float3){ 6.0f, 2.0f, -4.0f }, 3.0f, lit);
-
-	// Flashed, it is in at full strength: a flash given this run is not
-	// counted down this run.
-	VOE_TEST_CHECK(voe_scene_point_light_flash_submit(world, flasher));
-	voe_scene_point_light_system_run(world, 0.0f);
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
 	VOE_TEST_CHECK_INT(frame.points.count, 2);
-	if (frame.points.count == 2)
+	if (frame.points.count == 2) {
+		check_light(frame.points.lights[0],
+			    (voe_math_float3){ 6.0f, 2.0f, -4.0f }, 3.0f, 1.0f,
+			    lit);
 		check_light(frame.points.lights[1],
-			    (voe_math_float3){ -4.0f, 0.0f, -1.0f }, 3.0f, lit);
+			    (voe_math_float3){ -4.0f, 0.0f, -1.0f }, 3.0f, 2.5f,
+			    lit);
+	}
 
 	// A lamp 1 m over a parent at the origin, then the parent moved.
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
@@ -146,12 +143,12 @@ static void the_table_becomes_the_passs_lights(voe_base_arena *arena)
 		world, (voe_scene_transform_intent){ .entity = parent,
 						     .transform = moved }));
 	voe_scene_transform_system_run(world);
-	voe_scene_point_light_system_run(world, 0.0f);
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
 	VOE_TEST_CHECK_INT(frame.points.count, 3);
 	if (frame.points.count == 3)
 		check_light(frame.points.lights[2],
-			    (voe_math_float3){ 16.0f, 1.0f, -1.0f }, 3.0f, lit);
+			    (voe_math_float3){ 16.0f, 1.0f, -1.0f }, 3.0f, 1.0f,
+			    lit);
 }
 
 // No table: none, and true. A small-block arena: all of them, and true.
@@ -165,7 +162,8 @@ static void no_table_and_a_small_arena(voe_base_arena *arena)
 	voe_base_arena *small = voe_base_arena_new(64);
 	voe_scene_point_light steady = { .colour = { 1.0f, 1.0f, 1.0f },
 					 .intensity = 1.0f,
-					 .range = 5.0f };
+					 .range = 5.0f,
+					 .falloff = 1.0f };
 	voe_3d_frame frame = { 0 };
 
 	voe_scene_transform_register(bare, 4);
@@ -244,9 +242,9 @@ static voe_ecs_world *a_lit_world(voe_base_arena *arena,
 	(void)lamp_of(world,
 		      (voe_scene_point_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					       .intensity = 2.0f,
-					       .range = 2.0f },
+					       .range = 2.0f,
+					       .falloff = 1.0f },
 		      true, (voe_math_double3){ 0.0, -0.45, 0.0 });
-	voe_scene_point_light_system_run(world, 0.0f);
 	return world;
 }
 

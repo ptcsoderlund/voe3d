@@ -5,7 +5,9 @@
 // One walk of the table in its order into one array pushed at the table's count,
 // capped at VOE_RENDER_POINT_LIGHTS, so a dark or unplaced light costs room it
 // does not use. Each kept light's place is voe_scene_transform_between at the
-// frame's lag, taken about the eye in double before it is narrowed (ADR-0250).
+// frame's lag, taken about the eye in double before it is narrowed (ADR-0250);
+// its colour is the row's times its intensity and its falloff the row's, as
+// authored (0321, 0322). A light of intensity 0 is left out.
 //
 // Constraints: the table is looked for by a walk of the world's types, as
 // pick.c's has_store does, because voe_ecs_component_type asserts on a key
@@ -59,9 +61,9 @@ bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
 	uint32_t filled = 0;
 
 	for (uint32_t i = 0; i < count && filled < room; i++) {
-		float strength = voe_scene_point_light_strength(world, owners[i]);
+		float intensity = rows[i].intensity;
 
-		if (!(strength > 0.0f) ||
+		if (!(intensity > 0.0f) ||
 		    voe_scene_transform_get(world, owners[i]) == NULL)
 			continue;
 		voe_scene_transform place = voe_scene_transform_between(
@@ -70,7 +72,8 @@ bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
 			.position = voe_math_double3_to_float3(
 				voe_math_double3_sub(place.position, frame->eye)),
 			.range = rows[i].range,
-			.colour = voe_math_float3_scale(rows[i].colour, strength),
+			.colour = voe_math_float3_scale(rows[i].colour, intensity),
+			.falloff = rows[i].falloff,
 		};
 	}
 
