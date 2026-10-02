@@ -11,6 +11,12 @@
 // base's arena push gets a block of its own rather than fails (base/arena.h) —
 // the false return the header names has no path today.
 //
+// THE SHADOW SLOTS (0325 point 5): of 20 casting lamps of range 5 along +X, 10 m
+// apart, the nearest 16 take slots 1..16 in order, the first at strength 1 and
+// the 16th below; a nearer lamp not casting, or casting at intensity 0, takes
+// none; 16 casting lamps are all at 1; and a 20 m walk of the eye in 0.1 m steps
+// moves no lamp's effective strength by more than 0.05 a step.
+//
 // AND ONE PICTURE: a camera four metres over a grey ground cube, a sun of
 // intensity 0 and no fill, one white point light half a metre over the ground
 // with a range of 2 m. Drawn through _frame, _point_lights and _run with
@@ -52,10 +58,11 @@ static const voe_scene_transform UNMOVED = { .rotation = { 0.0f, 0.0f, 0.0f,
 							   1.0f },
 					     .scale = { 1.0f, 1.0f, 1.0f } };
 
-static voe_ecs_world *world_of(voe_base_arena *arena)
+// A world of room for `rows` lamps.
+static voe_ecs_world *world_of(voe_base_arena *arena, uint32_t rows)
 {
 	voe_ecs_limits limits = {
-		.entities = 8,
+		.entities = rows,
 		.component_types = 8,
 		.intent_types = 8,
 		.structure_requests = 16,
@@ -63,9 +70,9 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
-	voe_scene_transform_register(world, 8);
-	voe_scene_parent_register(world, 8);
-	voe_scene_point_light_register(world, 8);
+	voe_scene_transform_register(world, rows);
+	voe_scene_parent_register(world, rows);
+	voe_scene_point_light_register(world, rows);
 	return world;
 }
 
@@ -100,7 +107,7 @@ static void check_light(voe_render_point_light light, voe_math_float3 position,
 // Steady, dark, soft, unplaced and parented lights, in that table order.
 static void the_table_becomes_the_passs_lights(voe_base_arena *arena)
 {
-	voe_ecs_world *world = world_of(arena);
+	voe_ecs_world *world = world_of(arena, 8);
 	voe_scene_point_light steady = { .colour = { 1.0f, 0.8f, 0.5f },
 					 .intensity = 2.0f,
 					 .range = 3.0f,
@@ -158,7 +165,7 @@ static void no_table_and_a_small_arena(voe_base_arena *arena)
 				  .component_types = 4,
 				  .intent_types = 4 };
 	voe_ecs_world *bare = voe_ecs_world_new(arena, limits);
-	voe_ecs_world *world = world_of(arena);
+	voe_ecs_world *world = world_of(arena, 8);
 	voe_base_arena *small = voe_base_arena_new(64);
 	voe_scene_point_light steady = { .colour = { 1.0f, 1.0f, 1.0f },
 					 .intensity = 1.0f,
@@ -177,6 +184,113 @@ static void no_table_and_a_small_arena(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, small));
 	VOE_TEST_CHECK_INT(frame.points.count, 4);
 	voe_base_arena_destroy(small);
+}
+
+static const voe_scene_point_light CASTING = { .colour = { 1.0f, 1.0f, 1.0f },
+					       .intensity = 1.0f,
+					       .range = 5.0f,
+					       .falloff = 1.0f,
+					       .cast_shadows = true };
+
+// `count` casting lamps along +X, 10 m apart from x = 10, after the table's.
+static void lamps_along_x(voe_ecs_world *world, uint32_t count)
+{
+	for (uint32_t i = 0; i < count; i++)
+		(void)lamp_of(world, CASTING, true,
+			      (voe_math_double3){ 10.0 + 10.0 * i, 0.0, 0.0 });
+}
+
+// What a light's shadow darkens by: its strength when slotted, else 0.
+static float effective(voe_render_point_light light)
+{
+	return light.shadow != 0 ? light.shadow_strength : 0.0f;
+}
+
+// Twenty lamps: the nearest 16 slotted 1..16 in order, faded by the 17th.
+static void the_nearest_sixteen_are_slotted(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, 32);
+	voe_3d_frame frame = { 0 };
+
+	lamps_along_x(world, 20);
+	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
+	VOE_TEST_CHECK_INT(frame.points.count, 20);
+	if (frame.points.count != 20)
+		return;
+	for (uint32_t i = 0; i < 20; i++) {
+		voe_render_point_light light = frame.points.lights[i];
+
+		VOE_TEST_CHECK_INT(light.shadow, i < 16 ? i + 1 : 0);
+		VOE_TEST_CHECK(light.shadow_strength >= 0.0f &&
+			       light.shadow_strength <= 1.0f);
+	}
+	VOE_TEST_CHECK_FLOAT(frame.points.lights[0].shadow_strength, 1.0f,
+			     0.0f);
+	VOE_TEST_CHECK(frame.points.lights[15].shadow_strength < 1.0f);
+}
+
+// A nearer lamp not casting, and a nearer casting one of intensity 0: no slot.
+static void only_lit_casting_lamps_are_slotted(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, 32);
+	voe_scene_point_light quiet = CASTING;
+	voe_scene_point_light dark = CASTING;
+	voe_3d_frame frame = { 0 };
+
+	quiet.cast_shadows = false;
+	dark.intensity = 0.0f;
+	(void)lamp_of(world, quiet, true, (voe_math_double3){ 1.0, 0.0, 0.0 });
+	(void)lamp_of(world, dark, true, (voe_math_double3){ 2.0, 0.0, 0.0 });
+	lamps_along_x(world, 20);
+	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
+	VOE_TEST_CHECK_INT(frame.points.count, 21);
+	if (frame.points.count != 21)
+		return;
+	VOE_TEST_CHECK_INT(frame.points.lights[0].shadow, 0);
+	VOE_TEST_CHECK_INT(frame.points.lights[1].shadow, 1);
+	VOE_TEST_CHECK_INT(frame.points.lights[16].shadow, 16);
+	VOE_TEST_CHECK_INT(frame.points.lights[17].shadow, 0);
+}
+
+// Sixteen casting lamps or fewer: every one at full strength.
+static void sixteen_or_fewer_are_all_full(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, 32);
+	voe_3d_frame frame = { 0 };
+
+	lamps_along_x(world, 16);
+	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
+	VOE_TEST_CHECK_INT(frame.points.count, 16);
+	for (uint32_t i = 0; i < frame.points.count; i++) {
+		VOE_TEST_CHECK_INT(frame.points.lights[i].shadow, i + 1);
+		VOE_TEST_CHECK_FLOAT(frame.points.lights[i].shadow_strength,
+				     1.0f, 0.0f);
+	}
+}
+
+// A 20 m walk along +X in 0.1 m steps: no lamp's strength jumps.
+static void a_walk_changes_strength_smoothly(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, 32);
+	voe_3d_frame frame = { 0 };
+	float before[20];
+
+	lamps_along_x(world, 20);
+	for (int step = 0; step <= 200; step++) {
+		frame.eye = (voe_math_double3){ 0.1 * step, 0.0, 0.0 };
+		VOE_TEST_CHECK(
+			voe_3d_draw_system_point_lights(world, &frame, arena));
+		VOE_TEST_CHECK_INT(frame.points.count, 20);
+		if (frame.points.count != 20)
+			return;
+		for (uint32_t i = 0; i < 20; i++) {
+			float now = effective(frame.points.lights[i]);
+
+			if (step > 0)
+				VOE_TEST_CHECK_FLOAT(now, before[i], 0.05f);
+			before[i] = now;
+		}
+	}
 }
 
 // The camera four metres up looking down, a sun of nothing, the ground cube
@@ -320,6 +434,10 @@ int main(void)
 
 	the_table_becomes_the_passs_lights(arena);
 	no_table_and_a_small_arena(arena);
+	the_nearest_sixteen_are_slotted(arena);
+	only_lit_casting_lamps_are_slotted(arena);
+	sixteen_or_fewer_are_all_full(arena);
+	a_walk_changes_strength_smoothly(arena);
 
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	if (device == NULL) {

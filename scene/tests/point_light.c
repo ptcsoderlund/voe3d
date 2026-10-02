@@ -1,13 +1,22 @@
-// The point light: what registration tells a tool, that a refused replace keeps
-// the row, that an accepted one lands after one run, and that a falloff of
-// exactly either bound is accepted.
+// The point light: what registration tells a tool (falloff 1 by default), that
+// a refused replace keeps the row, a falloff past either bound included, that an
+// accepted one changes falloff and intensity after one run, and that a falloff
+// of exactly either bound is accepted. Cast shadows is off by default, listed
+// last as a BOOL, and lands either way.
 //
 // EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
 // after each, so a refusal that let one field through shows as that field.
 //
 // THE NUMBERS ARE CHOSEN TO BE EXACT, so every field is compared with no
 // tolerance.
+//
+// THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
+// scene/tests/transform.c gives at length; only this file's own copy is read.
+#undef VOE_BASE_DESCRIPTIONS
+#define VOE_BASE_DESCRIPTIONS 1
+
 #include <base/arena.h>
+#include <base/describe.h>
 #include <ecs/component.h>
 #include <ecs/world.h>
 #include <scene/point_light_component.h>
@@ -59,6 +68,41 @@ static void check_light(const voe_scene_point_light *read,
 	VOE_TEST_CHECK_FLOAT(read->intensity, expected.intensity, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->range, expected.range, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->falloff, expected.falloff, 0.0f);
+	VOE_TEST_CHECK(read->cast_shadows == expected.cast_shadows);
+}
+
+static void check_field(const voe_base_field_description *actual,
+			const char *name, voe_base_field_kind kind,
+			size_t offset, size_t size)
+{
+	VOE_TEST_CHECK(strcmp(actual->name, name) == 0);
+	VOE_TEST_CHECK_INT(actual->kind, kind);
+	VOE_TEST_CHECK_INT((long long)actual->offset, (long long)offset);
+	VOE_TEST_CHECK_INT((long long)actual->size, (long long)size);
+	VOE_TEST_CHECK(!actual->read_only);
+}
+
+// Five fields in declared order, cast_shadows a BOOL last.
+static void the_description_lists_cast_shadows_last(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_point_light_description();
+	const voe_base_field_description *fields = description->fields;
+
+	VOE_TEST_CHECK_INT(description->field_count, 5);
+	if (description->field_count != 5)
+		return;
+	check_field(&fields[0], "colour", VOE_BASE_FIELD_COLOUR,
+		    offsetof(voe_scene_point_light, colour),
+		    sizeof(voe_math_float3));
+	check_field(&fields[1], "intensity", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_point_light, intensity), sizeof(float));
+	check_field(&fields[2], "range", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_point_light, range), sizeof(float));
+	check_field(&fields[3], "falloff", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_point_light, falloff), sizeof(float));
+	check_field(&fields[4], "cast_shadows", VOE_BASE_FIELD_BOOL,
+		    offsetof(voe_scene_point_light, cast_shadows), sizeof(bool));
 }
 
 static voe_ecs_entity lamp_of(voe_ecs_world *world, voe_scene_point_light light)
@@ -79,7 +123,7 @@ static void replace_and_run(voe_ecs_world *world, voe_ecs_entity lamp,
 	voe_scene_point_light_system_run(world);
 }
 
-// The replace, the default row (white, 1, 5 m, falloff 1), the transform it
+// The replace, the default row (white, 1, 5 m, falloff 1, no shadow), the transform it
 // needs, the menu path, and the table saved, not runtime-only.
 static void registration_says_what_a_point_light_is(voe_base_arena *arena)
 {
@@ -97,7 +141,8 @@ static void registration_says_what_a_point_light_is(voe_base_arena *arena)
 		    (voe_scene_point_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					     .intensity = 1.0f,
 					     .range = 5.0f,
-					     .falloff = 1.0f });
+					     .falloff = 1.0f,
+					     .cast_shadows = false });
 	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
 	VOE_TEST_CHECK(voe_ecs_component_key(world, needed) ==
 		       &voe_scene_transform_key);
@@ -166,6 +211,21 @@ static void a_falloff_at_either_bound_is_accepted(voe_base_arena *arena)
 	check_light(voe_scene_point_light_get(world, lamp), most);
 }
 
+static void cast_shadows_lands_either_way(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity lamp = lamp_of(world, lamp_light());
+	voe_scene_point_light on = lamp_light();
+	voe_scene_point_light off = lamp_light();
+
+	on.cast_shadows = true;
+	off.cast_shadows = false;
+	replace_and_run(world, lamp, on);
+	check_light(voe_scene_point_light_get(world, lamp), on);
+	replace_and_run(world, lamp, off);
+	check_light(voe_scene_point_light_get(world, lamp), off);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -174,6 +234,8 @@ int main(void)
 	a_refused_replace_keeps_the_row(arena);
 	an_accepted_replace_lands_after_one_run(arena);
 	a_falloff_at_either_bound_is_accepted(arena);
+	cast_shadows_lands_either_way(arena);
+	the_description_lists_cast_shadows_last();
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

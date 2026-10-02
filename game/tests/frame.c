@@ -20,6 +20,10 @@
 // VOE_GAME_CAPACITIES every pass and object fits and the frame comes back
 // true, lit or not (0258).
 //
+// THE LAMP CASE: a cube, a floor under it and a point light with
+// cast_shadows beside them; the lamp takes slot 1, the point-shadow pass
+// opens after the sun's, and both frames come back true (0325).
+//
 // THE INTERFACE CASE: a context holding a label, laid out as
 // tests/interface.c lays one out, is drawn over the world and the frame comes
 // back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
@@ -49,6 +53,7 @@
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
 #include <scene/light_system.h>
+#include <scene/point_light_system.h>
 #include <scene/transform_system.h>
 
 #include <3d/model_component.h>
@@ -184,6 +189,41 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 				      0.0f, NULL));
 }
 
+// A fresh lit world with a floor under the cube and a casting lamp beside
+// them, two frames, both true: the point-shadow pass and its casters fit.
+static void lamp_case(voe_app *app, voe_base_arena *arena,
+		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_scene_transform flat = placed(0.0f, -1.0f, 0.0f);
+	voe_ecs_entity floor, lamp;
+
+	(void)build(world, true);
+	flat.scale = (voe_math_float3){ 6.0f, 0.1f, 6.0f };
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &floor));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, floor, flat));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, floor,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = VOE_3D_SHAPE_GREY,
+				.cast_shadows = true }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &lamp));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, lamp,
+					       placed(1.5f, 0.5f, 0.0f)));
+	VOE_TEST_CHECK(voe_scene_point_light_add(
+		world, lamp,
+		(voe_scene_point_light){ .colour = { 1.0f, 0.8f, 0.6f },
+					 .intensity = 2.0f,
+					 .range = 5.0f,
+					 .falloff = 1.0f,
+					 .cast_shadows = true }));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
+}
+
 // A fresh lit world with a thing wearing a path an empty store lacks, two
 // frames drawn with that store, both true.
 static void model_case(voe_app *app, voe_base_arena *arena,
@@ -272,6 +312,7 @@ int main(void)
 	draw_case(app, arena, scratch, &shapes, false);
 	shadow_case(app, arena, scratch, &shapes, true);
 	shadow_case(app, arena, scratch, &shapes, false);
+	lamp_case(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);
 	model_case(app, arena, scratch, &shapes);
 

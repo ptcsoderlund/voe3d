@@ -1,5 +1,6 @@
-// The sun's shadow passes: the cascades fitted to the frame's view, and every
-// caster drawn once into each of the four (ADR-0258). The contract is
+// The shadow passes: the sun's cascades fitted to the frame's view, every
+// caster drawn once into each of the four (ADR-0258), and the point lights'
+// one pass. The contract is
 // voe_3d_draw_system_shadows's in 3d/draw_system.h.
 //
 // IT IS ITS OWN CALL AND NOT A STEP INSIDE _run, BECAUSE A PASS DOES NOT NEST.
@@ -37,6 +38,13 @@
 // 0, or with no light, there is no bounce pass, draw or update; following the
 // cascades, a light that casts nothing bounces nothing. A failure there is the
 // call's.
+//
+// THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun casts: when
+// the device's maps are ready and a light in the frame's points has a slot, the
+// same casters are drawn into it through the same walk, one instanced draw
+// each over the faces render finds. A lamp's shadow is of what the sun's is of
+// (0324 point 5), so a shape or model with `cast_shadows` false casts for no
+// lamp either; sharing the walk is what keeps the two from disagreeing.
 #include "draw_bounce.h"
 #include "draw_group.h"
 
@@ -96,8 +104,8 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 	return true;
 }
 
-// Every caster in the world, drawn into the sun's pass that is open, a cascade
-// or the bounce map. False when render refuses a draw, which it has already
+// Every caster in the world, drawn into the shadow pass that is open, a cascade,
+// the bounce map or the point-shadow pass. False when render refuses a draw, which it has already
 // said on stderr.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame)
@@ -159,16 +167,13 @@ static bool light_casts(const voe_ecs_world *world)
 	       voe_scene_light_rows(world)[0].cast_shadows;
 }
 
-bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
-				voe_3d_frame *frame)
+// The sun's cascades and its bounce pass, setting `frame->shadow`, or nothing
+// when the sun does not cast. False when render refuses, `shadow` left zeroed.
+static bool draw_sun_shadows(voe_ecs_world *world, voe_render_device *device,
+			     voe_3d_frame *frame)
 {
 	voe_3d_shadow_cascades cascades;
 
-	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
-			"shadowing with no world, device or frame");
-	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
-			"the sun's shadow passes go before the view's pass — see 3d/draw_system.h");
-	frame->shadow = (voe_render_shadow){ 0 };
 	// A light of no strength casts nothing, and a zeroed one's direction
 	// cannot orient cascades (0290 point 2); nor does an unshaded one, and
 	// a blind camera draws no world, nor a light that does not cast (0324).
@@ -197,5 +202,47 @@ bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
 	frame->shadow = cascades.shadow;
 	VOE_BASE_ASSERT(frame->shadow.count <= VOE_RENDER_SHADOW_CASCADES,
 			"more cascades than render has");
+	return true;
+}
+
+// Whether any of the frame's point lights has a shadow slot (0325 point 5).
+static bool any_point_slotted(const voe_render_point_lights *points)
+{
+	for (uint32_t i = 0; i < points->count; i++)
+		if (points->lights[i].shadow != 0)
+			return true;
+	return false;
+}
+
+// The one point-shadow pass, the casters drawn into it, when the device has
+// the maps and a light has a slot (0325 point 6); nothing otherwise.
+static bool draw_point_shadows(voe_ecs_world *world, voe_render_device *device,
+			       const voe_3d_frame *frame)
+{
+	bool drawn;
+
+	if (!voe_render_point_shadows_ready(device) ||
+	    !any_point_slotted(&frame->points))
+		return true;
+	if (!voe_render_point_shadow_pass_begin(device, &frame->points))
+		return false;
+	drawn = voe_3d_draw_casters(world, device, frame);
+	voe_render_pass_end(device);
+	return drawn;
+}
+
+bool voe_3d_draw_system_shadows(voe_ecs_world *world, voe_render_device *device,
+				voe_3d_frame *frame)
+{
+	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
+			"shadowing with no world, device or frame");
+	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
+			"the shadow passes go before the view's pass — see 3d/draw_system.h");
+	frame->shadow = (voe_render_shadow){ 0 };
+	if (!draw_sun_shadows(world, device, frame) ||
+	    !draw_point_shadows(world, device, frame)) {
+		frame->shadow = (voe_render_shadow){ 0 };
+		return false;
+	}
 	return true;
 }

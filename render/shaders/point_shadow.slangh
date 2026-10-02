@@ -1,0 +1,60 @@
+// A point light's six cube faces (ADR-0325 points 1 and 3): which face a
+// light-relative vector falls on, and the clip position of a light-relative
+// point drawn onto face f. A part, included by lighting.slangh, after
+// bindings.slangh; never compiled alone.
+//
+// ONE FUNCTION FOR THE DRAW AND THE LOOKUP. The point-shadow vertex stage places
+// a caster with voe_render_point_shadow_clip, and lighting.slangh's lookup projects the
+// surface it shades with the same function on the face voe_render_point_shadow_face
+// picks, so the two cannot disagree about where a face's texels are.
+//
+// FACES IN THE ORDER +X −X +Y −Y +Z −Z, f from 0, as render/src/point_shadow_faces.h
+// numbers its mask bits and render/src/point_shadow.c its layers. Each face is a
+// 90° perspective looking along its axis: clip x and y are the vector's two other
+// components in the face's basis below, w its distance along the axis.
+//
+// DEPTH IS REVERSED like every other in the engine: 1 at the near plane,
+// VOE_RENDER_POINT_SHADOW_NEAR (render/device.h holds the same number), 0 at the
+// far plane, the light's range. The pass draws through the engine's one flipped
+// viewport, so a lookup reads texel v as (1 − y/w) / 2 and u as (1 + x/w) / 2.
+//
+// CONSTRAINTS. `far` must be above the near plane; a light with a smaller range
+// has a degenerate projection.
+
+static const float VOE_RENDER_POINT_SHADOW_NEAR = 0.05;
+
+// The face `v` points through by its major axis, ties to the lower axis.
+uint voe_render_point_shadow_face(float3 v)
+{
+	float3 a = abs(v);
+
+	if (a.x >= a.y && a.x >= a.z)
+		return v.x >= 0.0 ? 0 : 1;
+	if (a.y >= a.z)
+		return v.y >= 0.0 ? 2 : 3;
+	return v.z >= 0.0 ? 4 : 5;
+}
+
+// `v` (light-relative) in face f's view: (right, up, forward).
+float3 voe_render_point_shadow_basis(float3 v, uint face)
+{
+	switch (face) {
+	case 0: return float3(-v.z, v.y, v.x);
+	case 1: return float3(v.z, v.y, -v.x);
+	case 2: return float3(v.x, -v.z, v.y);
+	case 3: return float3(v.x, v.z, -v.y);
+	case 4: return float3(v.x, v.y, v.z);
+	default: return float3(-v.x, v.y, -v.z);
+	}
+}
+
+// The clip position of light-relative `v` on face `face` with far plane `far`:
+// z/w is n(f − d) / (d(f − n)), 1 at d = n and 0 at d = f.
+float4 voe_render_point_shadow_clip(float3 v, uint face, float far)
+{
+	float3 view = voe_render_point_shadow_basis(v, face);
+	float near = VOE_RENDER_POINT_SHADOW_NEAR;
+	float z = near * (far - view.z) / (far - near);
+
+	return float4(view.x, view.y, z, view.z);
+}

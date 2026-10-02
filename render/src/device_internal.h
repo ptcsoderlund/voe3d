@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -167,6 +167,9 @@ struct voe_render_device {
 	// The shadow pass's: the solid one's vertex stage and nothing after it
 	// but a biased depth write. pipeline.c builds it with the other two.
 	VkPipeline pipeline_shadow;
+	// The point-shadow pass's: its own vertex stage writing the layer, then
+	// the shadow one's biased depth write. VK_NULL_HANDLE without output_layer.
+	VkPipeline pipeline_point_shadow;
 	// The bounce pass's: the solid one's vertex stage, a fragment writing
 	// flux and normal into two RGBA16F attachments, culling as shadow's.
 	VkPipeline pipeline_bounce;
@@ -183,6 +186,12 @@ struct voe_render_device {
 	// full of. capacities.shadow_size is the shadow maps' side, nought for
 	// none, and is read from here.
 	voe_render_capacities capacities;
+	// Whether the card had shaderOutputLayer and create_device enabled it, and
+	// the point shadow maps' side: capacities.point_shadow_size, or nought
+	// when the feature is missing. device.c settles both; read this side, not
+	// the capacity's.
+	bool output_layer;
+	uint32_t point_shadow_size;
 
 	// The textures and the samplers they are read through: one per
 	// voe_render_sampling, made once at startup and indexed by a slot's own
@@ -278,6 +287,13 @@ struct voe_render_device {
 	// bounce pipeline, _pass_end to hand the map to compute, and the next
 	// pass or the frame's end to close it.
 	bool pass_bounce;
+	// Whether the open pass is the point-shadow pass (ADR-0325): the draws read
+	// it to pick that pipeline and cull by face, _pass_end to hand the maps
+	// back. `pass_casters` is its lights by slot − 1, `pass_slots` bit s − 1
+	// for each slot a light holds.
+	bool pass_point_shadow;
+	voe_render_point_light pass_casters[VOE_RENDER_POINT_SHADOWS];
+	uint32_t pass_slots;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -484,6 +500,13 @@ void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
 				     uint32_t cascade);
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 			       uint32_t cascade);
+
+// point_shadow.c. Every frame slot's point shadow maps, made and settled where the
+// shader reads them; one texel a side when device->point_shadow_size is nought.
+// Startup's, after the sun's maps and before the descriptors. False with a
+// message; _shutdown is safe on a device that never got that far.
+[[nodiscard]] bool voe_render_point_shadow_startup(voe_render_device *device);
+void voe_render_point_shadow_shutdown(voe_render_device *device);
 
 // bounce_map.c. Every frame slot's bounce map, made and settled where compute
 // reads it; startup's, after the frame objects. False with a message; _shutdown

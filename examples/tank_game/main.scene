@@ -155,6 +155,7 @@ colour = [0, 0.31905842, 1]
 intensity = 20
 range = 5
 falloff = 3
+cast_shadows = true
 [20.voe_scene_transform]
 position = [2.965726683905814, 0.7417545174248517, 1.95614057010971]
 rotation = [0, 0, 0, 1]
@@ -170,6 +171,7 @@ colour = [0.27353722, 0, 1]
 intensity = 1
 range = 20
 falloff = 1
+cast_shadows = false
 [22.voe_scene_transform]
 position = [-12.646546136587858, 1.3129296340048313, -12.013619443401694]
 rotation = [0, 0, 0, 1]
@@ -185,6 +187,7 @@ colour = [0, 1, 0.17092332]
 intensity = 4
 range = 20
 falloff = 0.3
+cast_shadows = false
 [23.voe_scene_transform]
 position = [9.27141073718667, 1.3129289839416742, 9.3649026369676]
 rotation = [0, 0, 0, 1]

@@ -46,7 +46,11 @@
 // leaves no hole big enough is a returned failure, lifted only by a compacting
 // pass that rewrites every slot. The transient path frees nothing because it
 // empties everything.
+//
+// BOTH CREATES KEEP THE RANGE'S BOUNDING SPHERE, from point_shadow_faces.h, for
+// the point-shadow draw's face culling (ADR-0325 point 2).
 #include "device_internal.h"
+#include "point_shadow_faces.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -450,6 +454,7 @@ bool voe_render_geometry_create(voe_render_device *device,
 	pool_take(&device->vertices, vertex_at, vertex_count);
 	pool_take(&device->indices, index_at, index_count);
 
+	slot->sphere = voe_render_point_shadow_sphere(vertices, vertex_count);
 	slot->first_vertex = first_vertex;
 	slot->first_index = first_index;
 	slot->index_count = index_count;
@@ -588,6 +593,7 @@ bool voe_render_geometry_create_transient(voe_render_device *device,
 	// The generation is the one the slot already carries: the reset at the
 	// top of the next frame is what moves it on, and it is what makes this
 	// id stale then. See the header.
+	slot->sphere = voe_render_point_shadow_sphere(vertices, vertex_count);
 	slot->first_vertex = vertex_pool->pool.used;
 	slot->first_index = index_pool->pool.used;
 	slot->index_count = index_count;

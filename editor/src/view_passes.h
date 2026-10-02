@@ -1,12 +1,13 @@
-// What a frame draws into the scene views: a pass per view the dock tree
-// shows, each preceded by the sun's shadow passes fitted to that view
-// (voe_3d_draw_system_shadows, ADR-0258) and onto that view's own target with
-// its own camera, the light voe_editor_view_light gives (the world's or the
-// preview) and those shadows, the world and its models drawn by voe_3d_draw_system_run with the
-// selection's outline, a model's too (ADR-0203), its collider as lines (0253), its move
-// gizmo (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every point light's (0320), and the pass ended; and before those, the preview's
-// shadow passes and one pass with the world's own camera (view.h); every pass lit by the point lights. main.c calls both once a
-// frame, between opening the draw and the window's pass:
+// What a frame draws into the scene views: per view the dock tree shows, the
+// sun's shadow passes fitted to it (voe_3d_draw_system_shadows, ADR-0258),
+// then a pass onto that view's target with its own camera, the light
+// voe_editor_view_light gives (the world's or the preview) and those shadows:
+// the world and its models (voe_3d_draw_system_run), the selection's outline,
+// a model's too (ADR-0203), its collider as lines (0253), its move gizmo
+// (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every
+// point light's (0320). Before those, the preview's shadow passes and one pass
+// with the world's own camera (view.h). The point lights light every pass.
+// main.c calls both each frame, between opening the draw and the window pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
 //                                            light, &scene, models);
@@ -32,14 +33,17 @@
 // marker, one for the sun's, one for the selection's collider and two for the
 // point lights' markers, times the room for views, and the drawn entities once more for the
 // preview's pass, which draws the world alone; and every caster once per
-// cascade and once more for the bounce map, VOE_GAME_WORLD_MAX_DRAWN ×
-// (VOE_RENDER_SHADOW_CASCADES + 1), per view and for the preview (0308); and every emitter's particles, VOE_GAME_WORLD_EMITTERS ×
+// cascade, once for the bounce map and once for the lamps' point-shadow pass,
+// VOE_GAME_WORLD_MAX_DRAWN × (VOE_RENDER_SHADOW_CASCADES + 2), per view and
+// for the preview (0308, 0325 point 7); and every emitter's particles, VOE_GAME_WORLD_EMITTERS ×
 // VOE_3D_EMITTER_PARTICLES, an object each in every view's pass and the
 // preview's (0298 point 8); and every water, VOE_GAME_WORLD_WATERS, an object
 // each in every view's pass and the preview's — water casts no shadow, so it
 // adds nothing per cascade (0305). `passes` is a pass per view, the preview's and the
-// interface's, and a shadow pass per cascade and one bounce pass for each view
-// and the preview (`shadow_size` is VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h), and
+// interface's, and a shadow pass per cascade, one bounce pass and one
+// point-shadow pass for each view and the preview (`shadow_size` is
+// VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h, `point_shadow_size`
+// VOE_3D_POINT_SHADOW_TEXELS), and
 // `targets` a target per view and the preview's, each with its own probe grid
 // (0308 point 3), each two texture slots now, its colour and its depth copy
 // (0305 point 1) — both from the room for views, not the two in use, so a
@@ -118,7 +122,7 @@
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
-				   (VOE_RENDER_SHADOW_CASCADES + 1) *          \
+				   (VOE_RENDER_SHADOW_CASCADES + 2) *          \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
@@ -126,9 +130,10 @@
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2 +                               \
-			  (VOE_RENDER_SHADOW_CASCADES + 1) *                   \
+			  (VOE_RENDER_SHADOW_CASCADES + 2) *                   \
 				  (VOE_EDITOR_VIEWS + 1),                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
+		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,               \
 		.targets = VOE_EDITOR_VIEWS + 1,                               \
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
 				       VOE_EDITOR_GIZMO_VERTICES +             \

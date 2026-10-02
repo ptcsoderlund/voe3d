@@ -4,7 +4,7 @@
 // place that order is written; the steps that grew too long for this file are
 // beside it, declared in startup.h: the instance and validation in instance.c,
 // the card and the `render` line in card.c, the three mesh pipelines, the shader
-// bytes and depth in pipeline.c, the shadow maps in shadow.c. This file keeps the logical device, the format,
+// bytes and depth in pipeline.c, the shadow maps in shadow.c and point_shadow.c. This file keeps the logical device, the format,
 // timing, present modes, the frame objects and close-down. The parts that happen
 // again live in target.c, swapchain.c and frame.c — see device_internal.h for
 // why the split is where it is.
@@ -186,6 +186,18 @@ static bool create_device(voe_render_device *device)
 	else
 		VOE_BASE_ERROR("render",
 			       "this graphics card cannot index a texture array differently per element; text drawn as elements will be wrong where a frame uses more than one sheet");
+
+	// What the point shadow pass's vertex stage needs to pick a layer
+	// (ADR-0325). Queried for the same reason: a card without it runs
+	// everything else, with the point shadow maps' side taken as nought.
+	device->output_layer = available12.shaderOutputLayer == VK_TRUE;
+	features12.shaderOutputLayer = available12.shaderOutputLayer;
+	device->point_shadow_size = device->output_layer ?
+					    device->capacities.point_shadow_size :
+					    0;
+	if (!device->output_layer && device->capacities.point_shadow_size > 0)
+		VOE_BASE_ERROR("render",
+			       "this graphics card cannot write a layer from a vertex shader (shaderOutputLayer); point lights will cast no shadow");
 
 	result = voe_render_vk.create_device(device->physical, &info, NULL,
 					     &device->device);
@@ -493,6 +505,10 @@ static void close_down(voe_render_device *device)
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_point_shadow != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_point_shadow,
+						       NULL);
 		if (device->pipeline_bounce != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_bounce,
@@ -520,6 +536,7 @@ static void close_down(voe_render_device *device)
 		voe_render_shading_shutdown(device);
 		voe_render_descriptors_teardown(device);
 		voe_render_shadow_shutdown(device);
+		voe_render_point_shadow_shutdown(device);
 		voe_render_bounce_grid_shutdown(device);
 		voe_render_bounce_shutdown(device);
 		// The command buffers are not freed one at a time: destroying the
@@ -640,6 +657,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// The shadow maps are settled through the command pool and named by the
 	// descriptors, so they sit between the two.
 	if (!voe_render_shadow_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_point_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_bounce_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);

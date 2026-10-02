@@ -10,18 +10,22 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block
   with its bounce record and point light count, object and shading records, the bounce grids at
-  binding 6, the point lights and their bins at 7 and 8, set 0's bindings and the push constant,
+  binding 6, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
+  bindings and the push constant, the object and a 96-bit face mask,
   each matching its C struct.
 - `draw.slang` — the mesh pipelines' entry points, the bounce map's fragment
   among them, the only place a matrix is
   applied to a position, the three numbers a draw finds everything by, the
   normal map, the distance field, the alpha modes and three unlit exits, the
-  third for a pass with no sun; its lit exit adds the point lights.
+  third for a pass with no sun; its lit exit adds the point lights; and the point-shadow vertex
+  stage, one instance per face writing its layer.
+- `point_shadow.slangh` — a point light's cube faces: the face of a vector by its major axis and the
+  90° reversed-depth clip position on a face, near 0.05 m, far the light's range; draw and lookup share it.
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,
   its shadow by cascades, its radiance, the bounce read from the pass's probe
   grid times `VOE_BOUNCE_GAIN` (0311), a non-finite one read as nought, the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each
-  fading to its range by its falloff (0322).
+  fading to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per

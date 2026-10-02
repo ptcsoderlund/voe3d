@@ -50,7 +50,8 @@ void voe_scene_point_light_register(voe_ecs_world *world, uint32_t capacity)
 		&(voe_scene_point_light){ .colour = { 1.0f, 1.0f, 1.0f },
 					  .intensity = 1.0f,
 					  .range = 5.0f,
-					  .falloff = 1.0f });
+					  .falloff = 1.0f,
+					  .cast_shadows = false });
 	voe_ecs_component_needs_set(world, type, transform);
 	voe_ecs_component_menu_set(world, type, "Rendering / Point light");
 }

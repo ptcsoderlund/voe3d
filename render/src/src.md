@@ -27,16 +27,16 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the four mesh pipelines, solid, blended, shadow and bounce, with their embedded shader, depth and blend state, and the
-  layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: nine bindings,
+- `pipeline.c` — the five mesh pipelines, solid, blended, shadow, bounce and point shadow, with their
+  embedded shader, depth and blend state, and the layout every pipeline shares.
+- `descriptors.c` — everything the shader reads and the one layout that describes it: ten bindings,
   one set, a camera buffer holding a block per pass, object, element, point light and light bin
-  buffers and the shadow maps per frame slot, and every bounce grid with its trilinear sampler.
+  buffers, the shadow and point shadow maps per frame slot, and every bounce grid with its sampler.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
 - `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
-  pair in every frame slot, and the ranges into all of them.
+  pair in every frame slot, and the ranges into all of them, each with its bounding sphere.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.
@@ -52,6 +52,9 @@ which file to open — what each one owns, and where the seams between them run.
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
   views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
+- `point_shadow.c` — the point lights' shadow maps: one D32 array image of 6 × 16 layers per frame
+  slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
+  layered point-shadow pass onto every layer with its lights by slot.
 - `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
   images, 512 square, the bounce pass's rendering, and its barriers to compute read.
 - `bounce_grid.c` — the bounce update: its two compute pipelines, set layout, pool, VPL and probe
@@ -65,21 +68,26 @@ which file to open — what each one owns, and where the seams between them run.
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
+- `point_shadow_faces.h` — a caster's bounding sphere from its vertices, moved under a world
+  matrix, and the 6-bit mask of a point light's cube faces it reaches, +X −X +Y −Y +Z −Z. Pure CPU.
+- `point_shadow_faces.c` — those three calls: a box-centred sphere, its move under a world matrix,
+  and the face mask against one light's widened pyramids; plain arithmetic, no state.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
   two samplers, and the slot table the ids name.
 - `swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, draw.c and present.c make across one another;
-  included by those four only.
+- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c and point_shadow.c make across
+  one another; included by those five only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block and its
   point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
   copy, and the one Y flip in the viewport.
-- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, the depth
-  clear between them, and the rebinds only when pipeline or pool pair changes.
+- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, in the
+  point-shadow pass one instance per cube face reached, the depth clear between them, and the
+  rebinds only when pipeline or pool pair changes.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built

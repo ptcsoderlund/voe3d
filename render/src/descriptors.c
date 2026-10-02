@@ -4,7 +4,7 @@
 // mapped buffers of per-object records, element records, point lights and their
 // bins, and the slot's shadow maps; and the bounce grids' sampler.
 //
-// NINE BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// TEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
 //   0  the camera, the sun and its shadow record, one block per pass in one
 //      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
@@ -26,6 +26,8 @@
 //      window's first; written as each grid is built (ADR-0308 point 3)
 //   7  the point lights, 8 their tile and slice masks (ADR-0320): storage
 //      buffers per frame slot, one region per pass, written as each pass opens
+//   9  the slot's point shadow maps, all 96 layers, through binding 5's
+//      comparison sampler, written once at startup (ADR-0325)
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
@@ -155,7 +157,7 @@ static_assert(offsetof(voe_render_element, sheet) == 64,
 static bool build_layout(voe_render_device *device)
 {
 	const uint32_t grid_entries = (device->capacities.targets + 1) * 3;
-	VkDescriptorSetLayoutBinding bindings[9] = {
+	VkDescriptorSetLayoutBinding bindings[10] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -215,7 +217,10 @@ static bool build_layout(voe_render_device *device)
 			.binding = 7,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			// The vertex stage too: the point-shadow pass places
+			// casters about its lights (ADR-0325).
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+				      VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
 		{
 			.binding = 8,
@@ -223,21 +228,28 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
+		{
+			.binding = 9,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
 	// The grids of targets not yet made are never written, so binding 6 is
 	// partially bound: only the grid a pass names has to be valid.
-	const VkDescriptorBindingFlags flags[9] = {
+	const VkDescriptorBindingFlags flags[10] = {
 		[6] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 	};
 	VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.bindingCount = 9,
+		.bindingCount = 10,
 		.pBindingFlags = flags,
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 		.pNext = &binding_flags,
-		.bindingCount = 9,
+		.bindingCount = 10,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -246,11 +258,12 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT,
 		},
 		{
-			// The texture array, the shadow maps and the grids.
+			// The texture array, the shadow maps, the grids and the
+			// point shadow maps.
 			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT *
 					   (VOE_RENDER_MAX_TEXTURES + 1 +
-					    grid_entries),
+					    grid_entries + 1),
 		},
 		{
 			// Five per set: the objects, the shadings, the
@@ -398,6 +411,11 @@ static bool build_slots(voe_render_device *device)
 			.imageView = frame->shadow.array,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
+		VkDescriptorImageInfo point_shadow = {
+			.sampler = device->shadow_sampler,
+			.imageView = frame->point_shadow.sampled,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
 		// One region per pass in each, region = the pass's number.
 		VkDescriptorBufferInfo lights = {
 			.offset = 0,
@@ -410,7 +428,7 @@ static bool build_slots(voe_render_device *device)
 			.range = (VkDeviceSize)device->capacities.passes *
 				 sizeof(struct voe_render_light_bins),
 		};
-		VkWriteDescriptorSet writes[6] = {
+		VkWriteDescriptorSet writes[7] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstBinding = 0,
@@ -459,6 +477,14 @@ static bool build_slots(voe_render_device *device)
 					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.pBufferInfo = &bins,
 			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 9,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &point_shadow,
+			},
 		};
 
 		frame->uniforms_mapped = build_mapped(
@@ -495,9 +521,9 @@ static bool build_slots(voe_render_device *device)
 		elements.buffer = frame->elements.buffer;
 		lights.buffer = frame->point_lights.buffer;
 		bins.buffer = frame->light_bins.buffer;
-		for (uint32_t w = 0; w < 6; w++)
+		for (uint32_t w = 0; w < 7; w++)
 			writes[w].dstSet = frame->descriptor;
-		voe_render_vk.update_descriptor_sets(device->device, 6, writes,
+		voe_render_vk.update_descriptor_sets(device->device, 7, writes,
 						     0, NULL);
 	}
 
