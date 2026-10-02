@@ -9,17 +9,18 @@ in; getting it wrong transposes every transform without failing to compile.
 A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block
-  with its bounce record, object and shading records, the bounce grids at binding 6, set 0's bindings and the push constant, each
-  matching its C struct.
+  with its bounce record and point light count, object and shading records, the bounce grids at
+  binding 6, the point lights and their bins at 7 and 8, set 0's bindings and the push constant,
+  each matching its C struct.
 - `draw.slang` — the mesh pipelines' entry points, the bounce map's fragment
   among them, the only place a matrix is
   applied to a position, the three numbers a draw finds everything by, the
   normal map, the distance field, the alpha modes and three unlit exits, the
-  third for a pass with no sun; it includes the three parts.
+  third for a pass with no sun; its lit exit adds the point lights.
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,
   its shadow by cascades, its radiance, the bounce read from the pass's probe
-  grid times `VOE_BOUNCE_GAIN` (0311), a non-finite one read as nought, and the
-  fill, now a floor under the bounce (0307 amends 0275).
+  grid times `VOE_BOUNCE_GAIN` (0311), a non-finite one read as nought, the
+  fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per

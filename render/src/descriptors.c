@@ -1,11 +1,10 @@
 // Everything the shader reads, and the one layout that describes it: the
 // descriptor set layout, the pool, and per frame slot one set, one mapped
-// uniform buffer holding a camera, a sun and a shadow record for every pass, one
-// mapped buffer of per-object records, one mapped buffer of element records, and
-// the slot's shadow maps; and the bounce grids' sampler.
-// This was the front half of cube.c until card 018 took the cube out of render.
+// uniform buffer holding a camera, a sun and a shadow record for every pass,
+// mapped buffers of per-object records, element records, point lights and their
+// bins, and the slot's shadow maps; and the bounce grids' sampler.
 //
-// SEVEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// NINE BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
 //   0  the camera, the sun and its shadow record, one block per pass in one
 //      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
@@ -25,6 +24,8 @@
 //      its own maps while the card may still be reading the other's
 //   6  the bounce grids, three images each, (targets + 1) × 3 entries, the
 //      window's first; written as each grid is built (ADR-0308 point 3)
+//   7  the point lights, 8 their tile and slice masks (ADR-0320): storage
+//      buffers per frame slot, one region per pass, written as each pass opens
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
@@ -42,8 +43,8 @@
 // are allocated once at startup and freed by destroying the pool; no set is
 // destroyed on its own anywhere in this folder.
 //
-// EVERY PER-SLOT BUFFER STAYS MAPPED FOR ITS WHOLE LIFE. All three are
-// host-visible and coherent and all three are written every frame, so mapping
+// EVERY PER-SLOT BUFFER STAYS MAPPED FOR ITS WHOLE LIFE. All of them are
+// host-visible and coherent and all are written every frame, so mapping
 // and unmapping around each write would be two driver calls to say what one
 // pointer already says.
 //
@@ -52,6 +53,7 @@
 // slot's own buffers, which the GPU may have been reading until that fence was
 // signalled — and the fence is waited on before anything here is touched.
 #include "device_internal.h"
+#include "light_bins.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -103,6 +105,12 @@ static_assert(offsetof(struct voe_render_frame_block, shadow) == 192,
 	      "the shadow record moved inside the per-pass block; draw.slang has it at 192");
 static_assert(offsetof(struct voe_render_frame_block, depth_copy) == 496,
 	      "the depth copy slot moved inside the per-pass block; draw.slang has it at 496");
+static_assert(offsetof(struct voe_render_frame_block, lights) == 500,
+	      "the point light count moved inside the per-pass block; draw.slang has it at 500");
+static_assert(offsetof(struct voe_render_frame_block, region) == 504,
+	      "the point light region moved inside the per-pass block; draw.slang has it at 504");
+static_assert(sizeof(struct voe_render_light_bins) == 1408 * 4,
+	      "the light bins no longer match the 1408 words draw.slang reads at binding 8");
 static_assert(offsetof(struct voe_render_frame_block, bounce) == 512,
 	      "the bounce record moved inside the per-pass block; draw.slang has it at 512");
 static_assert(offsetof(struct voe_render_frame_bounce, grid) == 12,
@@ -147,7 +155,7 @@ static_assert(offsetof(voe_render_element, sheet) == 64,
 static bool build_layout(voe_render_device *device)
 {
 	const uint32_t grid_entries = (device->capacities.targets + 1) * 3;
-	VkDescriptorSetLayoutBinding bindings[7] = {
+	VkDescriptorSetLayoutBinding bindings[9] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -203,21 +211,33 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = grid_entries,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
+		{
+			.binding = 7,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
+		{
+			.binding = 8,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
 	// The grids of targets not yet made are never written, so binding 6 is
 	// partially bound: only the grid a pass names has to be valid.
-	const VkDescriptorBindingFlags flags[7] = {
+	const VkDescriptorBindingFlags flags[9] = {
 		[6] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 	};
 	VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.bindingCount = 7,
+		.bindingCount = 9,
 		.pBindingFlags = flags,
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 		.pNext = &binding_flags,
-		.bindingCount = 7,
+		.bindingCount = 9,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -233,10 +253,10 @@ static bool build_layout(voe_render_device *device)
 					    grid_entries),
 		},
 		{
-			// Three per set: the objects, the shadings and the
-			// elements.
+			// Five per set: the objects, the shadings, the
+			// elements, the point lights and their bins.
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT * 3,
+			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT * 5,
 		},
 	};
 	VkDescriptorPoolCreateInfo pool = {
@@ -378,7 +398,19 @@ static bool build_slots(voe_render_device *device)
 			.imageView = frame->shadow.array,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
-		VkWriteDescriptorSet writes[4] = {
+		// One region per pass in each, region = the pass's number.
+		VkDescriptorBufferInfo lights = {
+			.offset = 0,
+			.range = (VkDeviceSize)device->capacities.passes *
+				 VOE_RENDER_POINT_LIGHTS *
+				 sizeof(voe_render_point_light),
+		};
+		VkDescriptorBufferInfo bins = {
+			.offset = 0,
+			.range = (VkDeviceSize)device->capacities.passes *
+				 sizeof(struct voe_render_light_bins),
+		};
+		VkWriteDescriptorSet writes[6] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstBinding = 0,
@@ -411,6 +443,22 @@ static bool build_slots(voe_render_device *device)
 					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 				.pImageInfo = &shadow,
 			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 7,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &lights,
+			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 8,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &bins,
+			},
 		};
 
 		frame->uniforms_mapped = build_mapped(
@@ -430,16 +478,26 @@ static bool build_slots(voe_render_device *device)
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		if (frame->elements_mapped == NULL)
 			return false;
+		frame->point_lights_mapped = build_mapped(
+			device, &frame->point_lights, lights.range,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		if (frame->point_lights_mapped == NULL)
+			return false;
+		frame->light_bins_mapped = build_mapped(
+			device, &frame->light_bins, bins.range,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		if (frame->light_bins_mapped == NULL)
+			return false;
 
 		frame->descriptor = sets[i];
 		camera.buffer = frame->uniforms.buffer;
 		objects.buffer = frame->objects.buffer;
 		elements.buffer = frame->elements.buffer;
-		writes[0].dstSet = frame->descriptor;
-		writes[1].dstSet = frame->descriptor;
-		writes[2].dstSet = frame->descriptor;
-		writes[3].dstSet = frame->descriptor;
-		voe_render_vk.update_descriptor_sets(device->device, 4, writes,
+		lights.buffer = frame->point_lights.buffer;
+		bins.buffer = frame->light_bins.buffer;
+		for (uint32_t w = 0; w < 6; w++)
+			writes[w].dstSet = frame->descriptor;
+		voe_render_vk.update_descriptor_sets(device->device, 6, writes,
 						     0, NULL);
 	}
 
@@ -554,6 +612,20 @@ void voe_render_descriptors_teardown(voe_render_device *device)
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		struct voe_render_frame *frame = &device->frames[i];
+
+		if (frame->light_bins_mapped != NULL) {
+			voe_render_vk.unmap_memory(device->device,
+						   frame->light_bins.memory);
+			frame->light_bins_mapped = NULL;
+		}
+		voe_render_buffer_teardown(device, &frame->light_bins);
+
+		if (frame->point_lights_mapped != NULL) {
+			voe_render_vk.unmap_memory(device->device,
+						   frame->point_lights.memory);
+			frame->point_lights_mapped = NULL;
+		}
+		voe_render_buffer_teardown(device, &frame->point_lights);
 
 		if (frame->elements_mapped != NULL) {
 			voe_render_vk.unmap_memory(device->device,

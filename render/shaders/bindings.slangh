@@ -1,6 +1,7 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
-// depth copy), the object and shading records, the bindings of set 0 and the
-// push constant that names the object. A part (ADR-0308): included first by
+// depth copy, point lights), the object and shading records, the point lights
+// and their bins, the bindings of set 0 and the push constant that names the
+// object. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
 //
 // EVERY STRUCT HERE MATCHES A C STRUCT FIELD FOR FIELD, PADDING INCLUDED, and
@@ -57,7 +58,9 @@ struct voe_render_shadow {
 // only the water path reads it. bounce is the pass's bounce grid (ADR-0308):
 // grid the first of its three entries at binding 6, ~0u for none; corner its
 // lowest corner about the eye; cell its lowest cell mod 32. lighting.slangh
-// reads it.
+// reads it. lights is how many point lights the pass carries, 0 for none, and
+// region the pass's number, which picks its records at binding 7 and its bins
+// at binding 8 (ADR-0320).
 struct voe_render_frame_bounce {
 	float3 corner;
 	uint grid;
@@ -70,14 +73,50 @@ struct voe_render_frame_block {
 	voe_render_light light;
 	voe_render_shadow shadow;
 	uint depth_copy;
-	uint reserved3;
-	uint reserved4;
+	uint lights;
+	uint region;
 	uint reserved5;
 	voe_render_frame_bounce bounce;
 };
 
 [[vk::binding(0, 0)]]
 ConstantBuffer<voe_render_frame_block> voe_render_frame;
+
+// One point light: voe_render_point_light in render/device.h, thirty-two bytes.
+// A float3 and a float pack into sixteen in every layout, so the two halves land
+// where C puts them.
+struct voe_render_point_light {
+	float3 position;
+	float range;
+	float3 colour;
+	float reserved;
+};
+
+// Set 0, binding 7: this frame slot's point lights, VOE_RENDER_POINT_LIGHTS
+// records per pass, the pass's region first.
+[[vk::binding(7, 0)]]
+StructuredBuffer<voe_render_point_light> voe_render_point_lights;
+
+// Set 0, binding 8: this frame slot's bins, VOE_RENDER_LIGHT_REGION words per
+// pass: struct voe_render_light_bins in render/src/light_bins.h read as words,
+// tile (x + 16 y)'s word w at tile × 8 + w, then slice s's at
+// VOE_RENDER_LIGHT_SLICE_WORDS + s × 8 + w. Light i is bit i % 32 of word i / 32.
+[[vk::binding(8, 0)]]
+StructuredBuffer<uint> voe_render_light_bins;
+
+// light_bins.h's numbers, which these must equal; descriptors.c asserts the
+// region's size on the C side.
+static const uint VOE_RENDER_POINT_LIGHTS = 256;
+static const uint VOE_RENDER_LIGHT_TILES_X = 16;
+static const uint VOE_RENDER_LIGHT_TILES_Y = 9;
+static const uint VOE_RENDER_LIGHT_SLICES = 32;
+static const uint VOE_RENDER_LIGHT_WORDS = 8;
+static const float VOE_RENDER_LIGHT_SLICE_NEAR = 0.1;
+static const float VOE_RENDER_LIGHT_SLICE_FAR = 1000.0;
+static const uint VOE_RENDER_LIGHT_SLICE_WORDS =
+	VOE_RENDER_LIGHT_TILES_X * VOE_RENDER_LIGHT_TILES_Y * VOE_RENDER_LIGHT_WORDS;
+static const uint VOE_RENDER_LIGHT_REGION =
+	VOE_RENDER_LIGHT_SLICE_WORDS + VOE_RENDER_LIGHT_SLICES * VOE_RENDER_LIGHT_WORDS;
 
 // Set 0, binding 5: this frame slot's cascades, one layer each, read through a
 // comparison sampler whose border is lit (render/src/shadow.c).

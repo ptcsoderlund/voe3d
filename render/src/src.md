@@ -29,9 +29,9 @@ which file to open — what each one owns, and where the seams between them run.
   that says which and why.
 - `pipeline.c` — the four mesh pipelines, solid, blended, shadow and bounce, with their embedded shader, depth and blend state, and the
   layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: seven bindings,
-  one set, one camera buffer holding a block per pass, one object buffer, one element buffer and the
-  shadow maps per frame slot, and every bounce grid with its trilinear repeat sampler.
+- `descriptors.c` — everything the shader reads and the one layout that describes it: nine bindings,
+  one set, a camera buffer holding a block per pass, object, element, point light and light bin
+  buffers and the shadow maps per frame slot, and every bounce grid with its trilinear sampler.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -75,8 +75,9 @@ which file to open — what each one owns, and where the seams between them run.
   included by those four only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
-- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, the
-  clear colour, the first-clears-later-load rule, the depth copy, and the one Y flip in the viewport.
+- `pass.c` — a pass: one rendering block onto the window or a target with its camera block and its
+  point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
+  copy, and the one Y flip in the viewport.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, the depth
   clear between them, and the rebinds only when pipeline or pool pair changes.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is

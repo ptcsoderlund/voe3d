@@ -1,9 +1,8 @@
 // The engine's two pipelines: a vertex out of the shared pool, placed by three matrices —
 // two of them the camera's, shared by every draw in a frame, and one of them the
 // object's, read out of a buffer by the object's own number — lit by one
-// directional light and shaded by a record read the same way. It replaced
-// cube.slang, which had the cube's two entry points in it and a per-object
-// matrix in a push constant.
+// directional light and the pass's point lights, and shaded by a record read
+// the same way.
 //
 // ONE FILE, TWO PIPELINES. The solid one and the blended one are built from this
 // same module (device.c); which of them a draw goes through is decided on the
@@ -51,8 +50,9 @@
 //
 // THREE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // bindings.slangh first: the frame block, the records and the bindings both
-// stages read. lighting.slangh next: the sun, its cascades, the fill and the
-// BRDF terms, with the decisions behind them in its header. water.slangh last,
+// stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
+// terms and voe_render_points, the point lights the lit exit adds to the sun's
+// direct term and the unshaded one does not, with the decisions in its header. water.slangh last,
 // after the vertex stage and voe_render_premultiplied, which it uses. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
@@ -454,9 +454,12 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 
 	float reach = n_dot_l * voe_render_sunlight(vertex.world, surface);
 	float3 radiance = voe_render_sun_radiance(reach);
-	// The bounce with the fill as its floor, and emission last, unshadowed
-	// and unoccluded (ADR-0278).
-	float3 lit = (diffuse + specular) * radiance * occlusion +
+	// The point lights beside the sun (ADR-0320), the bounce with the fill
+	// as its floor, and emission last, unshadowed and unoccluded (ADR-0278).
+	float3 direct = (diffuse + specular) * radiance +
+			voe_render_points(vertex.world, n, v, diffuse_colour, f0,
+					  alpha);
+	float3 lit = direct * occlusion +
 		     voe_render_indirect(reach, vertex.world, n, base.rgb) +
 		     shading.emissive * glow;
 

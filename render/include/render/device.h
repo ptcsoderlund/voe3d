@@ -1111,13 +1111,21 @@ typedef struct {
 					  voe_render_picture *out,
 					  voe_base_error *error);
 
-// The camera, the sun and the sun's shadow one pass draws with. Handed over
-// together because they land in one block the shader reads, and a pass that has
-// one has all three; a zeroed `shadow` is none.
+// The camera, the sun, the sun's shadow and the point lights one pass draws with.
+// Handed over together because the shader reads them for the whole pass, and a
+// pass that has one has all of them; a zeroed `shadow` is none.
+//
+// `points` LIGHT THE PASS'S LIT SURFACES (ADR-0320): binned into the pass's
+// screen tiles and depth slices as it opens, then added to the sun's direct light
+// on every lit surface each one reaches — not in an unshaded pass, not on water,
+// and casting no shadow. They are copied at _pass_begin, so the caller's array is
+// its own again when that returns. Zero is none; more than
+// VOE_RENDER_POINT_LIGHTS, or NULL with a count, asserts.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
 	voe_render_shadow shadow;
+	voe_render_point_lights points;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass

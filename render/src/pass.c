@@ -24,9 +24,14 @@
 // round a copy of its depth into the sampled copy beside it, and names the copy's
 // texture slot in the pass's camera block.
 //
+// A CAMERA PASS'S POINT LIGHTS (ADR-0320) are copied into its region of the
+// slot's light buffer and binned into its region of the bins buffer as it opens;
+// its block names how many and the region, which is the pass's number.
+//
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
+#include "light_bins.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -282,6 +287,36 @@ static void name_grid(struct voe_render_frame_bounce *bounce,
 	}
 }
 
+// `points` into pass `region`'s records at binding 7 and its bins at binding 8,
+// and the count and region into `block`; none writes 0 and bins nothing. The
+// bins are filled on the stack and copied whole, because the fill reads back
+// what it ORs into and the mapped memory may be write-combined.
+static void place_lights(const struct voe_render_frame *frame, uint32_t region,
+			 const voe_render_view *view,
+			 voe_render_point_lights points,
+			 struct voe_render_frame_block *block)
+{
+	struct voe_render_light_bins bins;
+
+	VOE_BASE_ASSERT(points.count <= VOE_RENDER_POINT_LIGHTS,
+			"a pass with more point lights than VOE_RENDER_POINT_LIGHTS");
+	VOE_BASE_ASSERT(points.lights != NULL || points.count == 0,
+			"a pass with a point light count and no lights");
+	block->region = region;
+	block->lights = points.count;
+	if (points.count == 0)
+		return;
+	VOE_BASE_DEBUG_ASSERT(frame->point_lights_mapped != NULL &&
+				      frame->light_bins_mapped != NULL,
+			      "placing point lights in buffers that are not mapped");
+	memcpy((voe_render_point_light *)frame->point_lights_mapped +
+		       (size_t)region * VOE_RENDER_POINT_LIGHTS,
+	       points.lights, points.count * sizeof(*points.lights));
+	voe_render_light_bins_fill(view, points.lights, points.count, &bins);
+	memcpy((struct voe_render_light_bins *)frame->light_bins_mapped + region,
+	       &bins, sizeof(bins));
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -349,10 +384,13 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
 	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
-	if (camera != NULL)
+	if (camera != NULL) {
 		name_grid(&block.bounce, own != NULL ? &own->grid :
 						       &device->window_grid,
 			  device->slot);
+		place_lights(frame, device->pass_count, &camera->view,
+			     camera->points, &block);
+	}
 
 	// The window's pair or this frame slot's pair of the target, each with
 	// its own clear rule and its own size. A frame in slot n draws into slot
