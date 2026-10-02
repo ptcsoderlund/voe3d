@@ -1,7 +1,7 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
 // depth copy, point lights), the object and shading records, the point lights
 // and their bins, the bindings of set 0 and the push constant that names the
-// object. A part (ADR-0308): included first by
+// object and a point-shadow draw's faces. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
 //
 // EVERY STRUCT HERE MATCHES A C STRUCT FIELD FOR FIELD, PADDING INCLUDED, and
@@ -238,9 +238,16 @@ static const uint VOE_RENDER_ALPHA_OPAQUE = 0;
 static const uint VOE_RENDER_ALPHA_CUTOUT = 1;
 static const uint VOE_RENDER_ALPHA_BLENDED = 2;
 
-// Which object this draw is. Four bytes, and the whole of the push constant.
+// Which object this draw is, and in a point-shadow pass the faces it is drawn
+// onto: a 96-bit mask in three words, bit 6(s − 1) + f for slot s's face f, bit
+// b in word b / 32 (ADR-0325 point 2); nought in every other pass. Sixteen bytes,
+// the whole of a mesh draw's push constant. Three scalars, not a uint3, so they
+// land at 4, 8 and 12 where C pushes them.
 struct voe_render_draw_push {
 	uint object;
+	uint faces0;
+	uint faces1;
+	uint faces2;
 };
 
 [[vk::push_constant]]

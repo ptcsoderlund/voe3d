@@ -167,6 +167,9 @@ struct voe_render_device {
 	// The shadow pass's: the solid one's vertex stage and nothing after it
 	// but a biased depth write. pipeline.c builds it with the other two.
 	VkPipeline pipeline_shadow;
+	// The point-shadow pass's: its own vertex stage writing the layer, then
+	// the shadow one's biased depth write. VK_NULL_HANDLE without output_layer.
+	VkPipeline pipeline_point_shadow;
 	// The bounce pass's: the solid one's vertex stage, a fragment writing
 	// flux and normal into two RGBA16F attachments, culling as shadow's.
 	VkPipeline pipeline_bounce;
@@ -284,6 +287,13 @@ struct voe_render_device {
 	// bounce pipeline, _pass_end to hand the map to compute, and the next
 	// pass or the frame's end to close it.
 	bool pass_bounce;
+	// Whether the open pass is the point-shadow pass (ADR-0325): the draws read
+	// it to pick that pipeline and cull by face, _pass_end to hand the maps
+	// back. `pass_casters` is its lights by slot − 1, `pass_slots` bit s − 1
+	// for each slot a light holds.
+	bool pass_point_shadow;
+	voe_render_point_light pass_casters[VOE_RENDER_POINT_SHADOWS];
+	uint32_t pass_slots;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is

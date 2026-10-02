@@ -151,6 +151,11 @@ typedef struct {
 // layers 6(s − 1) to 6(s − 1) + 5 (ADR-0325).
 #define VOE_RENDER_POINT_SHADOWS 16
 
+// The near plane of every point shadow face, metres from the light; the far
+// plane is the light's range (ADR-0325 point 3). shaders/point_shadow.slangh
+// holds the same number.
+#define VOE_RENDER_POINT_SHADOW_NEAR 0.05f
+
 // Texels a side of the sun's bounce map, per frame slot (ADR-0308): what
 // voe_render_bounce_pass_begin draws into. 512² × 20 bytes × frame slots.
 #define VOE_RENDER_BOUNCE_TEXELS 512
@@ -1211,6 +1216,22 @@ typedef struct {
 // point_shadow_size was nought or the card has no shaderOutputLayer (ADR-0325).
 [[nodiscard]] bool voe_render_point_shadows_ready(const voe_render_device *device);
 
+// Opens the point-shadow pass: one pass onto every layer of this frame slot's
+// point shadow maps, depth cleared to the far plane, no colour (ADR-0325). The
+// lights of `lights` with a shadow slot are what it casts for, each face a 90°
+// view from the light out to its range; the rest are ignored. Mesh draws in it
+// write depth only, one instanced draw per caster over the faces it reaches;
+// closed by voe_render_pass_end like any pass.
+//
+// IT IS A PASS AND COUNTS AGAINST `passes`, its draws against `objects`. False,
+// with a line, when the frame's passes are spent; nothing is open then.
+//
+// Calling this outside a frame, with a pass already open, on a device whose
+// point shadows are not ready, or with no light slotted is the caller's bug and
+// asserts, as are a slot past VOE_RENDER_POINT_SHADOWS and one named twice.
+[[nodiscard]] bool voe_render_point_shadow_pass_begin(voe_render_device *device,
+						      const voe_render_point_lights *lights);
+
 // Opens a bounce pass: one more pass of the sun, after the cascades, onto this
 // frame slot's bounce map (ADR-0308), VOE_RENDER_BOUNCE_TEXELS square, flux,
 // normal and depth cleared. `light` is the view the map is drawn from and `sun`
@@ -1294,7 +1315,10 @@ struct voe_render_bounce_update {
 // IN A SHADOW PASS IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
 // vertex stage, no fragment stage, nothing culled, depth biased away from the
 // sun. The record's world matrix is all that is read. IN A BOUNCE PASS it draws
-// through the bounce pipeline, nothing culled, into the bounce map.
+// through the bounce pipeline, nothing culled, into the bounce map. IN A
+// POINT-SHADOW PASS it is one instanced draw over every slotted light's faces the
+// geometry's bounding sphere reaches under the world matrix, and none when it
+// reaches none: true then, with no object spent.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
@@ -1313,8 +1337,8 @@ struct voe_render_bounce_update {
 // an opaque one draws solid. Both are the caller's mistake and neither fails.
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
-// asserts — and one more: in a shadow or bounce pass it asserts, because nothing
-// see-through casts.
+// asserts — and one more: in a shadow, point-shadow or bounce pass it asserts,
+// because nothing see-through casts.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
 // OUTPUTS PREMULTIPLIED COLOUR. A fragment's rgb is already multiplied by its

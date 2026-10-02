@@ -4,9 +4,15 @@
 // a pass is open, and a mesh draw that the pass was opened with a camera.
 //
 // ONE OBJECT RECORD PER DRAW. A draw writes its voe_render_object into the
-// slot's object buffer at device->object_count and pushes that number as the
-// only push constant; the shader reads its own record with it. The buffer holds
-// capacities.objects records, and a draw past that is a returned failure.
+// slot's object buffer at device->object_count and pushes that number, with
+// three words of face mask, as the push constant; the shader reads its own
+// record with it. The buffer holds capacities.objects records, and a draw past
+// that is a returned failure.
+//
+// IN THE POINT-SHADOW PASS (ADR-0325 point 2) the mask is every slotted light's
+// faces the geometry's sphere reaches under the world matrix, bit 6(s − 1) + f,
+// and the draw is one instance per set bit; a mask of nought draws nothing and
+// spends no object. In every other pass the mask is nought.
 //
 // WHICH PIPELINE IS BOUND, AND WHICH POOLS. A pass opens with the solid
 // pipeline and the static pools bound (pass.c). A blended draw needs the other
@@ -14,13 +20,15 @@
 // only when it differs from what device->bound and device->bound_transient say
 // was bound last, so a run of draws of one kind costs one bind and a caller that
 // interleaves them is still drawn right. In a shadow pass (pass.c) every mesh draw
-// goes through the shadow pipeline, in a bounce pass through the bounce one; a
-// blended draw and the depth clear assert in either. The element pipeline (element.c) is
+// goes through the shadow pipeline, in a bounce pass through the bounce one, in
+// the point-shadow pass through that one; a blended draw and the depth clear
+// assert in each. The element pipeline (element.c) is
 // never bound here; it leaves `bound` different, and the next mesh rebinds.
 //
 // THIS FILE DOES NOT SORT. The order the blended draws arrive in is the order
 // they are recorded in, and getting it right is voe_3d_draw_system_run's.
 #include "frame_internal.h"
+#include "point_shadow_faces.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -86,6 +94,41 @@ void voe_render_bind_pools(voe_render_device *device,
 	       values.emissive_texture == texture;
 }
 
+// The faces of every slotted light of the open point-shadow pass that `slot`'s
+// sphere reaches under `world`, into `mask` (bit 6(s − 1) + f of 96); returns how
+// many bits are set, the draw's instance count.
+static uint32_t caster_faces(const voe_render_device *device,
+			     const struct voe_render_geometry_slot *slot,
+			     voe_math_float4x4 world, uint32_t mask[3])
+{
+	const voe_math_float4 sphere =
+		voe_render_point_shadow_sphere_moved(slot->sphere, world);
+	uint32_t count = 0;
+
+	VOE_BASE_DEBUG_ASSERT(device->pass_point_shadow,
+			      "culling by face outside the point-shadow pass");
+	for (uint32_t s = 0; s < VOE_RENDER_POINT_SHADOWS; s++) {
+		const voe_render_point_light *light = &device->pass_casters[s];
+		uint32_t faces;
+
+		if ((device->pass_slots & (1u << s)) == 0)
+			continue;
+		faces = voe_render_point_shadow_faces(sphere, light->position,
+						      light->range);
+		for (uint32_t f = 0; f < 6; f++) {
+			const uint32_t bit = 6 * s + f;
+
+			if ((faces & (1u << f)) == 0)
+				continue;
+			mask[bit / 32] |= 1u << (bit % 32);
+			count++;
+		}
+	}
+	VOE_BASE_DEBUG_ASSERT(count <= 6 * VOE_RENDER_POINT_SHADOWS,
+			      "more faces than the point shadow maps have");
+	return count;
+}
+
 // The whole of both draw calls; `pipeline` is the only thing that differs
 // between them.
 //
@@ -99,6 +142,9 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 {
 	const struct voe_render_geometry_slot *slot;
 	struct voe_render_frame *frame;
+	// The object's number and the face mask: the sixteen bytes pushed.
+	uint32_t push[4] = { 0 };
+	uint32_t instances = 1;
 
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
 	VOE_BASE_ASSERT(device->pass_open,
@@ -118,6 +164,13 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		return false;
 	}
 
+	// A caster no slotted light's face reaches draws nothing and is true.
+	if (device->pass_point_shadow) {
+		instances = caster_faces(device, slot, object.world, &push[1]);
+		if (instances == 0)
+			return true;
+	}
+
 	if (device->object_count >= device->capacities.objects) {
 		VOE_BASE_ERROR("render",
 			       "this frame already holds %u objects, which is what the device was made for",
@@ -129,6 +182,8 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 	// A shadow pass draws depth alone, whichever draw call asked.
 	if (device->pass_shadow)
 		pipeline = device->pipeline_shadow;
+	else if (device->pass_point_shadow)
+		pipeline = device->pipeline_point_shadow;
 	else if (device->pass_bounce)
 		pipeline = device->pipeline_bounce;
 
@@ -152,21 +207,22 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		       (size_t)device->object_count * sizeof(object),
 	       &object, sizeof(object));
 
-	// The object's number, and the only push constant left in this engine.
-	// The shader reads its own record out of the buffer with it — which is
-	// also why this stops being a push constant the day the draws become
+	// The object's number and the face mask, the whole push constant. The
+	// shader reads its own record out of the buffer with the number — which
+	// is also why this stops being a push constant the day the draws become
 	// indirect: an indirect draw's shader reads the same number out of its
 	// instance index instead.
+	push[0] = device->object_count;
 	voe_render_vk.cmd_push_constants(frame->commands, device->layout,
 					 VK_SHADER_STAGE_VERTEX_BIT |
 						 VK_SHADER_STAGE_FRAGMENT_BIT,
-					 0, sizeof(device->object_count),
-					 &device->object_count);
+					 0, sizeof(push), push);
 
 	// first_vertex is the vertexOffset rather than something added to the
 	// indices on the way in, which is what lets a mesh keep the numbering
 	// its file gave it.
-	voe_render_vk.cmd_draw_indexed(frame->commands, slot->index_count, 1,
+	voe_render_vk.cmd_draw_indexed(frame->commands, slot->index_count,
+				       instances,
 				       slot->first_index,
 				       (int32_t)slot->first_vertex, 0);
 
@@ -201,6 +257,8 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 			"drawing a blended mesh in a shadow pass — nothing see-through casts");
 	VOE_BASE_ASSERT(!device->pass_bounce,
 			"drawing a blended mesh in a bounce pass — nothing see-through bounces");
+	VOE_BASE_ASSERT(!device->pass_point_shadow,
+			"drawing a blended mesh in a point-shadow pass — nothing see-through casts");
 	return draw_with(device, geometry, object, device->pipeline_blended);
 }
 
@@ -256,6 +314,8 @@ void voe_render_frame_clear_depth(voe_render_device *device)
 			"clearing depth in a shadow pass — its depth is the map being drawn");
 	VOE_BASE_ASSERT(!device->pass_bounce,
 			"clearing depth in a bounce pass — its depth is the map being drawn");
+	VOE_BASE_ASSERT(!device->pass_point_shadow,
+			"clearing depth in a point-shadow pass — its depth is the maps being drawn");
 
 	rect.rect.extent = device->pass_extent;
 

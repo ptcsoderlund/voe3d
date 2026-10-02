@@ -22,8 +22,9 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, THREE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with all of them in it (the third the bounce map's fragment), and device.c names them by the names
+// ONE FILE, FOUR ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the bounce map's fragment, and the
+// point-shadow pass's vertex stage, which writes the layer), and device.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps those strings true.
 //
@@ -48,11 +49,12 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// THREE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// FOUR PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
-// direct term and the unshaded one does not, with the decisions in its header. water.slangh last,
+// direct term and the unshaded one does not, with the decisions in its header.
+// point_shadow.slangh then: a cube face's pick and projection. water.slangh last,
 // after the vertex stage and voe_render_premultiplied, which it uses. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
@@ -174,6 +176,7 @@
 
 #include "bindings.slangh"
 #include "lighting.slangh"
+#include "point_shadow.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same three numbers in its VkVertexInputAttributeDescription and
@@ -219,6 +222,56 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
 	out.plane = vertex.position.xy;
+	return out;
+}
+
+// What the point-shadow vertex stage hands the rasteriser: the clip position on
+// one face and the layer that face is (ADR-0325 point 2).
+struct voe_render_point_shadow_out {
+	float4 position : SV_Position;
+	uint layer : SV_RenderTargetArrayIndex;
+};
+
+// The `n`-th set bit of the push constant's 96-bit face mask, counting from the
+// lowest; the CPU draws exactly as many instances as bits are set.
+uint voe_render_point_shadow_layer(uint n)
+{
+	uint words[3] = { voe_render_draw_current.faces0,
+			  voe_render_draw_current.faces1,
+			  voe_render_draw_current.faces2 };
+
+	for (uint w = 0; w < 3; w++) {
+		uint bits = words[w];
+		uint count = countbits(bits);
+
+		if (n < count) {
+			for (uint i = 0; i < n; i++)
+				bits &= bits - 1;
+			return w * 32 + firstbitlow(bits);
+		}
+		n -= count;
+	}
+	return 0;
+}
+
+// THE POINT-SHADOW PASS'S VERTEX STAGE: instance n draws onto the layer of the
+// mask's n-th set bit, slot layer / 6 + 1's face layer % 6, the light read from
+// this pass's region at index slot − 1. No fragment stage follows.
+[shader("vertex")]
+voe_render_point_shadow_out
+voe_render_point_shadow_vertex(voe_render_draw_vertex_in vertex,
+			       uint instance : SV_InstanceID)
+{
+	voe_render_point_shadow_out out;
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	uint layer = voe_render_point_shadow_layer(instance);
+	voe_render_point_light light = voe_render_point_lights[
+		voe_render_frame.region * VOE_RENDER_POINT_LIGHTS + layer / 6];
+	float4 world = mul(object.world, float4(vertex.position, 1.0));
+
+	out.position = voe_render_point_shadow_clip(world.xyz - light.position,
+						    layer % 6, light.range);
+	out.layer = layer;
 	return out;
 }
 

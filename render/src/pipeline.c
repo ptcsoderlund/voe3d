@@ -1,4 +1,4 @@
-// The four mesh pipelines, solid, blended, shadow and bounce, and the pipeline layout every
+// The five mesh pipelines, solid, blended, shadow, bounce and point shadow, and the pipeline layout every
 // pipeline in this folder shares. A step of startup; device.c's open_device
 // calls voe_render_pipelines_create once, after the descriptors — see startup.h.
 //
@@ -13,12 +13,14 @@
 // voe_render_vertex — which is why voe_render_descriptors_build runs before this
 // in open_device and not after it.
 //
-// THERE ARE FOUR OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
+// THERE ARE FIVE OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
 // does not blend; the blended one tests depth the same way, writes none, and
 // blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
 // the colour attachment, culls nothing, and biases the depth it writes away from
 // the sun. The bounce one (ADR-0308) culls as shadow does and writes flux and
-// normal into two RGBA16F attachments, unblended. The shader module, the vertex input, the layout are shared, which is
+// normal into two RGBA16F attachments, unblended. The point-shadow one (ADR-0325)
+// is the shadow one with its own vertex stage, which writes the layer; it is
+// built only on a device with shaderOutputLayer. The shader module, the vertex input, the layout are shared, which is
 // what keeps them from drifting apart: create_pipeline's `kind` is the whole of
 // the difference.
 //
@@ -62,9 +64,11 @@ static alignas(uint32_t) const unsigned char draw_spv[] = {
 #define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
 #define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
 #define DRAW_BOUNCE_ENTRY "voe_render_draw_bounce"
+#define POINT_SHADOW_VERTEX_ENTRY "voe_render_point_shadow_vertex"
 
-// Which of the four create_pipeline builds.
-enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_BOUNCE };
+// Which of the five create_pipeline builds.
+enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_BOUNCE,
+		 MESH_POINT_SHADOW };
 
 // The bounce map's two colour attachments, flux and normal (bounce_map.c).
 static const VkFormat bounce_formats[2] = { VK_FORMAT_R16G16B16A16_SFLOAT,
@@ -89,7 +93,9 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			    VkPipeline *out)
 {
 	const bool blended = kind == MESH_BLENDED;
-	const bool shadow = kind == MESH_SHADOW;
+	// The point-shadow pipeline is the shadow one but for its vertex entry.
+	const bool point_shadow = kind == MESH_POINT_SHADOW;
+	const bool shadow = kind == MESH_SHADOW || point_shadow;
 	const bool bounce = kind == MESH_BOUNCE;
 	const uint32_t colours = shadow ? 0 : bounce ? 2 : 1;
 	VkShaderModuleCreateInfo module_info = {
@@ -137,7 +143,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = 1,
 		.pVertexBindingDescriptions = &binding,
-		.vertexAttributeDescriptionCount = 3,
+		// Position alone for the point-shadow stage, which reads no other.
+		.vertexAttributeDescriptionCount = point_shadow ? 1 : 3,
 		.pVertexAttributeDescriptions = attributes,
 	};
 	VkPipelineInputAssemblyStateCreateInfo assembly = {
@@ -306,7 +313,9 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// in it. A range that named one stage would make the other's read
 	// invalid.
 	//
-	// IT IS A MATRIX WIDE THOUGH A MESH DRAW STILL PUSHES FOUR BYTES, AND
+	// IT IS A MATRIX WIDE THOUGH A MESH DRAW PUSHES SIXTEEN BYTES — the
+	// object and a point-shadow draw's three words of face mask, nought in
+	// every other pass, the same sixteen through every mesh pipeline — AND
 	// THAT IS THE ELEMENT PIPELINE'S DOING. shaders/elements.slang pushes a
 	// sixty-four-byte surface transform through this same range, because
 	// that pipeline shares this layout — and it shares it so that the
@@ -365,7 +374,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_VERTEX_BIT,
 		.module = module,
-		.pName = DRAW_VERTEX_ENTRY,
+		.pName = point_shadow ? POINT_SHADOW_VERTEX_ENTRY : DRAW_VERTEX_ENTRY,
 	};
 	stages[1] = (VkPipelineShaderStageCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -403,6 +412,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	if (result != VK_SUCCESS) {
 		VOE_BASE_ERROR("render",
 			       "vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)",
+			       point_shadow ? "point shadow" :
 			       shadow ? "shadow" : bounce ? "bounce" :
 			       blended ? "blended" : "solid",
 			       (int)result);
@@ -419,5 +429,8 @@ bool voe_render_pipelines_create(voe_render_device *device)
 	return create_pipeline(device, MESH_SOLID, &device->pipeline) &&
 	       create_pipeline(device, MESH_BLENDED, &device->pipeline_blended) &&
 	       create_pipeline(device, MESH_SHADOW, &device->pipeline_shadow) &&
-	       create_pipeline(device, MESH_BOUNCE, &device->pipeline_bounce);
+	       create_pipeline(device, MESH_BOUNCE, &device->pipeline_bounce) &&
+	       (!device->output_layer ||
+		create_pipeline(device, MESH_POINT_SHADOW,
+				&device->pipeline_point_shadow));
 }

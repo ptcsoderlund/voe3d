@@ -217,7 +217,10 @@ static bool build_layout(voe_render_device *device)
 			.binding = 7,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			// The vertex stage too: the point-shadow pass places
+			// casters about its lights (ADR-0325).
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+				      VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
 		{
 			.binding = 8,

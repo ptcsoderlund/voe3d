@@ -20,6 +20,9 @@
 // pass, a _pass_end or the frame's end closes it. A camera pass names its
 // target's bounce grid in its block only when this frame slot updated it.
 //
+// THE POINT-SHADOW PASS (ADR-0325) opens in point_shadow.c through this file's
+// start and light copy, and is closed by the same _pass_end.
+//
 // voe_render_frame_copy_depth (ADR-0305) splits a camera pass's block in two
 // round a copy of its depth into the sampled copy beside it, and names the copy's
 // texture slot in the pass's camera block.
@@ -242,10 +245,10 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 // Every static mesh is a range inside them, which is what makes one bind serve
 // all of those; a transient range makes draw_with (draw.c) bind the other pair,
 // and `bound_transient` is what keeps that to one bind per run.
-static void start_pass(voe_render_device *device,
-		       const struct voe_render_frame *frame,
-		       const struct voe_render_frame_block *block,
-		       VkPipeline pipeline)
+void voe_render_pass_start(voe_render_device *device,
+			   const struct voe_render_frame *frame,
+			   const struct voe_render_frame_block *block,
+			   VkPipeline pipeline)
 {
 	const uint32_t offset = device->pass_count * (uint32_t)device->pass_stride;
 
@@ -265,6 +268,7 @@ static void start_pass(voe_render_device *device,
 
 	device->pass_open = true;
 	device->pass_count++;
+	device->pass_point_shadow = false;
 }
 
 // The bounce record of a camera pass onto the target owning `grid`: the grid,
@@ -288,6 +292,22 @@ static void name_grid(struct voe_render_frame_bounce *bounce,
 		bounce->corner[a] = mark->corner[a];
 		bounce->cell[a] = voe_render_bounce_wrap(mark->cell[a]);
 	}
+}
+
+// `count` lights into pass `region`'s records at binding 7 from index `first`:
+// the one copy every pass's lights take, the point-shadow pass's by slot.
+void voe_render_pass_copy_lights(const struct voe_render_frame *frame,
+				 uint32_t region, uint32_t first,
+				 const voe_render_point_light *lights,
+				 uint32_t count)
+{
+	VOE_BASE_DEBUG_ASSERT(frame->point_lights_mapped != NULL,
+			      "copying point lights into a buffer that is not mapped");
+	VOE_BASE_DEBUG_ASSERT(first + count <= VOE_RENDER_POINT_LIGHTS,
+			      "copying point lights past a pass's region");
+	memcpy((voe_render_point_light *)frame->point_lights_mapped +
+		       (size_t)region * VOE_RENDER_POINT_LIGHTS + first,
+	       lights, count * sizeof(*lights));
 }
 
 // `points` into pass `region`'s records at binding 7 and its bins at binding 8,
@@ -326,12 +346,10 @@ static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 	block->lights = points.count;
 	if (points.count == 0)
 		return;
-	VOE_BASE_DEBUG_ASSERT(frame->point_lights_mapped != NULL &&
-				      frame->light_bins_mapped != NULL,
-			      "placing point lights in buffers that are not mapped");
-	memcpy((voe_render_point_light *)frame->point_lights_mapped +
-		       (size_t)region * VOE_RENDER_POINT_LIGHTS,
-	       points.lights, points.count * sizeof(*points.lights));
+	VOE_BASE_DEBUG_ASSERT(frame->light_bins_mapped != NULL,
+			      "placing point lights in a bin buffer that is not mapped");
+	voe_render_pass_copy_lights(frame, region, 0, points.lights,
+				    points.count);
 	voe_render_light_bins_fill(view, points.lights, points.count, &bins);
 	memcpy((struct voe_render_light_bins *)frame->light_bins_mapped + region,
 	       &bins, sizeof(bins));
@@ -433,7 +451,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	// The solid pipeline, because a pass's opaque and cutout draws come
 	// first; a blended draw binds the other one and `bound` is what keeps a
 	// run of either kind to a single bind.
-	start_pass(device, frame, &block, device->pipeline);
+	voe_render_pass_start(device, frame, &block, device->pipeline);
 	device->pass_camera = camera != NULL;
 	device->pass_shadow = false;
 	device->pass_bounce = false;
@@ -511,7 +529,7 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 
 	device->pass_target = NULL;
 	device->pass_extent = extent;
-	start_pass(device, frame, &block, device->pipeline_shadow);
+	voe_render_pass_start(device, frame, &block, device->pipeline_shadow);
 	device->pass_camera = true;
 	device->pass_shadow = true;
 	device->pass_bounce = false;
@@ -562,7 +580,7 @@ bool voe_render_bounce_pass_begin(voe_render_device *device,
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ VOE_RENDER_BOUNCE_TEXELS,
 					    VOE_RENDER_BOUNCE_TEXELS };
-	start_pass(device, frame, &block, device->pipeline_bounce);
+	voe_render_pass_start(device, frame, &block, device->pipeline_bounce);
 	device->pass_camera = true;
 	device->pass_shadow = false;
 	device->pass_bounce = true;
@@ -573,8 +591,9 @@ bool voe_render_bounce_pass_begin(voe_render_device *device,
 	return true;
 }
 
-// Any kind of pass: the rendering block ended, and a shadow pass's layer or a
-// bounce pass's map handed back to where a shader reads it.
+// Any kind of pass: the rendering block ended, and a shadow pass's layer, a
+// bounce pass's map or the point-shadow pass's maps handed back to where a
+// shader reads it.
 void voe_render_pass_end(voe_render_device *device)
 {
 	struct voe_render_frame *frame;
@@ -589,10 +608,13 @@ void voe_render_pass_end(voe_render_device *device)
 		voe_render_shadow_to_read(frame, device->pass_cascade);
 	if (device->pass_bounce)
 		voe_render_bounce_to_read(frame);
+	if (device->pass_point_shadow)
+		voe_render_point_shadow_to_read(frame);
 	device->pass_open = false;
 	device->pass_camera = false;
 	device->pass_shadow = false;
 	device->pass_bounce = false;
+	device->pass_point_shadow = false;
 	device->pass_target = NULL;
 }
 
@@ -721,7 +743,7 @@ bool voe_render_frame_copy_depth(voe_render_device *device)
 
 	VOE_BASE_ASSERT(device != NULL, "copying depth on no device");
 	if (!device->pass_open || !device->pass_camera || device->pass_shadow ||
-	    device->pass_bounce) {
+	    device->pass_bounce || device->pass_point_shadow) {
 		VOE_BASE_ERROR("render",
 			       "copying depth outside an open camera pass — a shadow or bounce pass's depth is the map itself");
 		return false;
@@ -750,7 +772,7 @@ bool voe_render_frame_copy_depth(voe_render_device *device)
 	voe_render_open_rendering(frame->commands, images, extent, false,
 				  device->pass_target != NULL);
 
-	// The open pass's block is the one before pass_count, start_pass's.
+	// The open pass's block is the one before pass_count, voe_render_pass_start's.
 	block = (struct voe_render_frame_block *)((unsigned char *)
 							  frame->uniforms_mapped +
 						  (device->pass_count - 1) *

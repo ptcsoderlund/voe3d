@@ -1,8 +1,14 @@
 // The point lights' shadow maps (ADR-0325 point 1): per frame slot one D32 2D-array
 // image of 6 × VOE_RENDER_POINT_SHADOWS layers, a sampled view of every layer for
 // binding 9 and an attachment view of the same layers for the layered pass that
-// draws them, and voe_render_point_shadows_ready. binding 9 reads them through
-// shadow.c's comparison sampler; nothing here makes a sampler of its own.
+// draws them, voe_render_point_shadows_ready, and that pass (ADR-0325 point 2).
+// binding 9 reads them through shadow.c's comparison sampler; nothing here
+// makes a sampler of its own.
+//
+// THE PASS is opened here through pass.c's start and light copy and closed by
+// its _pass_end, which calls voe_render_point_shadow_to_read. Its camera block
+// is a shadow pass's with no view: the vertex stage reads only the lights,
+// written into the pass's region at index slot − 1, so layer / 6 finds its own.
 //
 // THE LAYER OF SLOT s FACE f. Slot s is 1-based (0 is no shadow), faces are in
 // the order +X −X +Y −Y +Z −Z, f from 0: layer 6(s − 1) + f.
@@ -20,8 +26,10 @@
 // the layer count the shader is written for; it costs 384 bytes a slot, and
 // voe_render_point_shadows_ready says false.
 //
-// THE RESTING LAYOUT IS SHADER_READ_ONLY_OPTIMAL, settled at startup.
-#include "device_internal.h"
+// THE RESTING LAYOUT IS SHADER_READ_ONLY_OPTIMAL, settled at startup; the pass
+// moves every layer to the depth attachment layout, from UNDEFINED because it
+// clears them all, and back.
+#include "frame_internal.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -211,4 +219,140 @@ bool voe_render_point_shadows_ready(const voe_render_device *device)
 			      "point shadow maps on a device that cannot draw them");
 
 	return device->point_shadow_size > 0;
+}
+
+// Every layer of `frame`'s maps into the depth attachment layout (`to_attachment`)
+// or back to where the fragment stage samples them, recorded.
+static void record_layout(const struct voe_render_frame *frame,
+			  bool to_attachment)
+{
+	const VkPipelineStageFlags2 tests =
+		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+		VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	const VkAccessFlags2 write = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	VkImageMemoryBarrier2 barrier = settle_barrier(frame->point_shadow.image);
+	VkDependencyInfo dependency = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.imageMemoryBarrierCount = 1,
+		.pImageMemoryBarriers = &barrier,
+	};
+
+	if (to_attachment) {
+		barrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		barrier.dstStageMask = tests;
+		barrier.dstAccessMask =
+			VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | write;
+		barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	} else {
+		barrier.srcStageMask = tests;
+		barrier.srcAccessMask = write;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	}
+	VOE_BASE_DEBUG_ASSERT(barrier.oldLayout != barrier.newLayout,
+			      "a point shadow barrier that moves nothing");
+	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
+}
+
+void voe_render_point_shadow_to_read(const struct voe_render_frame *frame)
+{
+	VOE_BASE_ASSERT(frame != NULL, "a point shadow barrier on no frame slot");
+	record_layout(frame, false);
+}
+
+// The slotted lights of `lights` into the device's pass record, by slot − 1,
+// and into pass `region` of the slot's light buffer at the same index.
+static void place_casters(voe_render_device *device,
+			  const struct voe_render_frame *frame, uint32_t region,
+			  const voe_render_point_lights *lights)
+{
+	VOE_BASE_ASSERT(lights->count <= VOE_RENDER_POINT_LIGHTS,
+			"a point-shadow pass with more lights than VOE_RENDER_POINT_LIGHTS");
+	VOE_BASE_ASSERT(lights->lights != NULL || lights->count == 0,
+			"a point-shadow pass with a light count and no lights");
+	device->pass_slots = 0;
+	for (uint32_t i = 0; i < lights->count; i++) {
+		const voe_render_point_light *light = &lights->lights[i];
+		const uint32_t slot = light->shadow;
+
+		if (slot == 0)
+			continue;
+		VOE_BASE_ASSERT(slot <= VOE_RENDER_POINT_SHADOWS,
+				"a point light whose shadow slot is past VOE_RENDER_POINT_SHADOWS");
+		VOE_BASE_ASSERT((device->pass_slots & (1u << (slot - 1))) == 0,
+				"two point lights in one pass naming the same shadow slot");
+		device->pass_slots |= 1u << (slot - 1);
+		device->pass_casters[slot - 1] = *light;
+		voe_render_pass_copy_lights(frame, region, slot - 1, light, 1);
+	}
+	VOE_BASE_ASSERT(device->pass_slots != 0,
+			"opening a point-shadow pass with no light holding a shadow slot");
+}
+
+bool voe_render_point_shadow_pass_begin(voe_render_device *device,
+					const voe_render_point_lights *lights)
+{
+	struct voe_render_frame *frame;
+	struct voe_render_frame_block block = { 0 };
+	VkExtent2D extent;
+	VkRenderingAttachmentInfo depth = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.clearValue = { .depthStencil = { .depth = VOE_RENDER_DEPTH_CLEAR } },
+	};
+	VkRenderingInfo rendering = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.layerCount = LAYERS,
+		.pDepthAttachment = &depth,
+	};
+	VkViewport viewport;
+	VkRect2D scissor = { 0 };
+
+	VOE_BASE_ASSERT(device != NULL, "opening a point-shadow pass on no device");
+	VOE_BASE_ASSERT(lights != NULL, "opening a point-shadow pass with no lights");
+	VOE_BASE_ASSERT(device->recording,
+			"opening a point-shadow pass with no frame open");
+	if (device->pass_open && device->pass_bounce)
+		voe_render_pass_end(device);
+	VOE_BASE_ASSERT(!device->pass_open,
+			"opening a point-shadow pass while a pass is already open — passes do not nest");
+	VOE_BASE_ASSERT(voe_render_point_shadows_ready(device),
+			"opening a point-shadow pass on a device whose point shadows are not ready");
+
+	if (device->pass_count >= device->capacities.passes) {
+		VOE_BASE_ERROR("render",
+			       "this frame has already opened %u of %u passes, so a point-shadow pass does not fit; `passes` is too small for what this frame draws",
+			       device->pass_count, device->capacities.passes);
+		return false;
+	}
+
+	frame = voe_render_frame_at(device, device->slot);
+	place_casters(device, frame, device->pass_count, lights);
+	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
+	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+	block.region = device->pass_count;
+	block.lights = VOE_RENDER_POINT_SHADOWS;
+	extent = (VkExtent2D){ device->point_shadow_size,
+			       device->point_shadow_size };
+	depth.imageView = frame->point_shadow.attachment;
+	rendering.renderArea.extent = extent;
+	scissor.extent = extent;
+	viewport = voe_render_frame_viewport(extent);
+
+	record_layout(frame, true);
+	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
+	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
+	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
+
+	device->pass_target = NULL;
+	device->pass_extent = extent;
+	voe_render_pass_start(device, frame, &block,
+			      device->pipeline_point_shadow);
+	device->pass_camera = true;
+	device->pass_shadow = false;
+	device->pass_bounce = false;
+	device->pass_point_shadow = true;
+	return true;
 }

@@ -75,7 +75,9 @@ by reading the offscreen colour image back.
   the +X/+Y diagonal bits 0 and 2, about the light all six, beyond range none, a cube's sphere, and
   one moved and scaled by a matrix.
 - `point_shadows.c` — the point shadow maps: a device with `point_shadow_size` 64 ready and one with
-  0 not, each drawing two frames of a lit cube. Headless.
+  0 not, each drawing two frames of a lit cube; on the ready one the point-shadow pass draws a cube
+  2 m from a slotted light once and one 100 m off not at all, and a pass past `passes` is refused.
+  Headless.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: red under one and black
   5 m off, black with none, the base colour when unshaded, two lights lighting two pools, and
   falloff 0.25 brighter near the rim than 1, 1 than 4, and a light with shadow slot 3 the same as
