@@ -74,12 +74,9 @@ by reading the offscreen colour image back.
 - `point_shadow_faces.c` — which cube faces a caster's sphere reaches, with no card: along +X bit 0,
   the +X/+Y diagonal bits 0 and 2, about the light all six, beyond range none, a cube's sphere, and
   one moved and scaled by a matrix.
-- `point_shadows.c` — the point shadow maps: a device with `point_shadow_size` 64 ready and one with
-  0 not, each drawing two frames of a lit cube; on the ready one the point-shadow pass draws a cube
-  2 m from a slotted light once and one 100 m off not at all, and a pass past `passes` is refused;
-  a lamp beside a cube darkening the ground behind it and not before it, swinging with the lamp,
-  none at slot 0, strength 0 or on the device not ready. Headless.
-- `point_lights.c` — a pass's point lights on a ground quad under a dark sun: red under one and black
-  5 m off, black with none, the base colour when unshaded, two lights lighting two pools, and
-  falloff 0.25 brighter near the rim than 1, 1 than 4, and a light with shadow slot 3 the same as
-  with none on a device with no point shadows. Headless.
+- `point_shadows.c` — the point shadow maps: ready with `point_shadow_size` and not without, the
+  point-shadow pass drawing a caster once or not at all, and a lamp's cube darkening the ground
+  behind it. Headless.
+- `point_lights.c` — a pass's point lights on a ground quad under a dark sun: lit only where they
+  reach, none when unshaded, falloff ordering brightness, and a shadow slot ignored with no point
+  shadows. Headless.
