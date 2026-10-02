@@ -1,43 +1,50 @@
-// Bug 01 end to end: the tank game's scene drawn through the calls the editor
-// and the game make (frame, shadows call, view's pass, run), not a hand-fitted
-// grid, so the fit, the casters and the update are 3d's own.
+// The probe bounce as the editor and the game draw it (feature 051, How to test
+// steps 2, 3 and 8), through 3d's own calls a frame: voe_3d_draw_system_frame,
+// _point_lights, _shadows with `frame.target` the window, the window's pass,
+// _run, frame end; then the window read. Nothing hand-fitted: the grid, the
+// casters, the stale spheres and the relight are 3d's and render's.
 //
-// THE SCENE, lit as examples/tank_game/main.scene: beige ground (a flat box
-// 60 m wide, top at y 0, base 0.8, 0.7, 0.5), a red box 2 m a side at
-// (12, 1, -6) and a green one 6 m from it at (6, 1, -6); a sun in
-// (0.95, 0.71, 0.71) shining down at 45 degrees along -x onto the red box's
-// +x face, fill 0.09, bounces 1 and strength 1 (0326). The sun and the three shapes say
-// `cast_shadows = true`, as the scene's file reads (0324). The eye stands 8 m
-// up and 14 m back (+z) from the red box, looking at its foot.
+// THE WORLD. Grey ground (a flat box 60 m wide, top at y 0, 0.5 grey); a box
+// 2 m a side, strongly red, standing at (0.5, 1, 0.5), off the probe lattice's
+// odd metres so no probe sits on its faces; a sun of 1 shining down at 45
+// degrees along -x onto the box's +x face, bounces 1 and strength 1, no fill,
+// casting, as are both shapes (0324). The eye stands 8 m up and 14 m back
+// (+z), looking down at the origin. The same world at bounces 0 is the
+// reference: its shadows call begins no bounce, so its window reads none.
 //
-// TWO SUNS, 1 AND π (0310), each its own world, not the project's 9: with no
-// tone map yet a sun of 9 clips the lit ground to white, and a clipped pixel
-// shows no tint; that is a work order after 046.
+// SETTLED, AND COUNTED AS bounce.c COUNTS: by `passes`. A full frame has room
+// for the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and the
+// window's. A probing frame first opens DUMMIES empty passes, so the cascades
+// spend the rest: a shadows call that would open a capture pass returns false
+// there (render says so on a line; that noise is the measurement), and true
+// when nothing is queued. Frames alternate full and probing until a probing one
+// is true, within BOUND pairs or the test fails: the whole grid is 6912 probes
+// at 64 a full frame.
 //
-// TEN FRAMES of: frame begin, voe_3d_draw_system_shadows with `frame.target`
-// the window, the view's pass and the run, frame end; then the window read.
-// Room for the four capture passes the probe bounce opens a frame (0326).
-// 0310's tint, at least 12/255 redder beside the red box, was measured with
-// 046's gain; with none (0326 point 7) it is not claimed here.
+// THE LIT SIDE (step 2): the ground 0.25 m out from the box's sunlit +x face
+// has its red less its green above the reference's by at least TINT/255, and
+// 3 m out by less than half that: the box's colour reaches the ground it faces,
+// and fades.
 //
-// NO SPOTS, at both suns: at a 7 x 7 lattice of ground points about both
-// boxes, sunlit and in their shadows, every channel is at least the same
-// pixel, less 1/255, in a reference frame whose shadows call names a second
-// target, so the window's pass reads no bounce.
+// THE SHADOW (step 3, 0312): the ground 0.25 m out from the shadowed -x face,
+// in the box's shadow at its foot, within SHADOW/255 of the reference in every
+// channel: the lit face does not light its own shadow.
 //
-// SHADOW SIDE, at both suns (0312, 0315): the ground 0.25 m and 0.75 m out
-// from the red box's shadowed -x face, at its z, which the sun does not reach,
-// has its red less its green at most 8/255 above the same pixel's in that
-// reference frame. The claim is the colour, not the brightness: the green
-// box's lit +x face looks into that shadow and 0312 lets it light it, so only
-// the red box's colour there is bounded. 8/255 is 0315's faint trace, the
-// bound a 2 m probe grid can hold while the lit side keeps THE TINT.
+// EVEN GROUND (step 2, 0326's reasoning): five points of open ground along
+// x = -6, 2 m apart in z, within EVEN/255 of each other in every channel; and
+// again after the sun is turned 5 degrees higher, each point's green having
+// risen with it, so the evenness is not an unlit floor's.
 //
-// Pixels are found by projecting a world point, about the frame's eye,
-// through the frame's view, with the engine's one Y flip.
+// SETTLING (step 8): with nothing changed the next probing frame opens no
+// capture pass; the box moved 1 m along x by its transform, with a previous
+// table remembered as a stepping game does, makes the next one open one (its
+// stale spheres queue probes), and within BOUND it settles again.
 //
-// IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
-// 3d/tests/shadows.c does.
+// Pixels are found by projecting a world point, about the frame's eye, through
+// the frame's view, with the engine's one Y flip.
+//
+// IT NEEDS A GRAPHICS CARD WITH shaderOutputLayer AND SKIPS WITH A REASON
+// WITHOUT ONE, as 3d/tests/shadows.c does: without it nothing is captured.
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -55,6 +62,8 @@
 #include <scene/camera_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
+#include <scene/point_light_component.h>
+#include <scene/point_light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -62,30 +71,45 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define SCRATCH (16 * 1024 * 1024)
 #define SIDE 128
-#define FRAMES 10
-#define LATTICE 7
-#define TRACE 8
-// Three shapes, each drawn into four cascades, four capture passes and the view.
-#define SHAPES 3
-#define PASSES (VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
+#define BOUND 160
+#define TINT 3
+#define SHADOW 4
+#define EVEN 2
+#define OPEN 5
+#define PASSES \
+	(VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
+// Leaves the cascades' passes and not one more.
+#define DUMMIES (VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES,
 	.indices = VOE_3D_SHAPES_INDICES,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES,
-	.objects = SHAPES * PASSES,
+	.objects = 2 * PASSES + 8,
 	.shadings = VOE_3D_SHAPES_SHADINGS,
 	.passes = PASSES,
-	.targets = 1,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
+	.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,
 };
 
-// One cube `at`, scaled by `scale`, in `colour`.
-static void add_a_shape(voe_ecs_world *world, voe_math_double3 at,
-			voe_math_float3 scale, voe_math_float3 colour)
+// One world, the device it is drawn on and the arenas: `scratch` rewound each
+// frame, `keep` for the pictures read back.
+typedef struct {
+	voe_ecs_world *world;
+	voe_ecs_entity box;
+	voe_ecs_entity sun;
+	voe_render_device *device;
+	voe_base_arena *scratch;
+	voe_base_arena *keep;
+} scene;
+
+// One cube `at`, scaled by `scale`, in `colour`, casting; the entity.
+static voe_ecs_entity add_a_shape(voe_ecs_world *world, voe_math_double3 at,
+				  voe_math_float3 scale, voe_math_float3 colour)
 {
 	voe_ecs_entity entity = { 0 };
 
@@ -100,119 +124,170 @@ static void add_a_shape(voe_ecs_world *world, voe_math_double3 at,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
 				.colour = colour,
 				.cast_shadows = true }));
+	return entity;
 }
 
-// The camera, a sun of `sun`, the ground and the two boxes, as the header says.
-static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
-			      float sun)
+// The sun's rotation shining along -x, `elevation` radians down.
+static voe_math_quat sun_at(float elevation)
+{
+	return voe_scene_light_facing(
+		(voe_math_float3){ -cosf(elevation), -sinf(elevation), 0.0f });
+}
+
+// The world of the header with a sun of `bounces`, remembered once.
+static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
 		.component_types = 16,
-		.intent_types = 8,
-		.structure_requests = 8,
-		.structure_bytes = 256,
+		.intent_types = 16,
+		.structure_requests = 16,
+		.structure_bytes = 1024,
 	};
-	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 	voe_ecs_entity entity = { 0 };
-	// Pitched down about X by atan(8 / 14), onto the red box's foot.
 	float pitch = atan2f(8.0f, 14.0f);
 
-	voe_scene_transform_register(world, 8);
-	voe_scene_camera_register(world, 2);
-	voe_scene_light_register(world, 2);
-	voe_3d_mesh_register(world, 8);
-	voe_3d_material_register(world, 8);
-	voe_3d_panel_register(world, 8);
-	voe_3d_shape_register(world, 8);
-	voe_3d_model_register(world, 8);
+	s->world = voe_ecs_world_new(s->keep, limits);
+	voe_scene_transform_register(s->world, 8);
+	voe_scene_transform_previous_register(s->world, 8);
+	voe_scene_camera_register(s->world, 2);
+	voe_scene_light_register(s->world, 2);
+	voe_scene_point_light_register(s->world, 2);
+	voe_3d_mesh_register(s->world, 8);
+	voe_3d_material_register(s->world, 8);
+	voe_3d_panel_register(s->world, 8);
+	voe_3d_shape_register(s->world, 8);
+	voe_3d_model_register(s->world, 8);
 
-	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_ecs_entity_create(s->world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
-		world, entity,
+		s->world, entity,
 		(voe_scene_transform){
-			.position = { 12.0, 8.0, 8.0 },
+			.position = { 0.0, 8.0, 14.0 },
 			.rotation = { -sinf(pitch * 0.5f), 0.0f, 0.0f,
 				      cosf(pitch * 0.5f) },
 			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_camera_add(
-		world, entity,
+		s->world, entity,
 		(voe_scene_camera){ .fov_y = 1.0471976f,
 				    .near_plane = 0.1f,
 				    .far_plane = 100.0f }));
-	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_ecs_entity_create(s->world, &s->sun));
 	VOE_TEST_CHECK(voe_scene_transform_add(
-		world, entity,
-		(voe_scene_transform){
-			.rotation = voe_scene_light_facing(
-				(voe_math_float3){ -0.70710678f, -0.70710678f, 0.0f }),
-			.scale = { 1.0f, 1.0f, 1.0f } }));
+		s->world, s->sun,
+		(voe_scene_transform){ .rotation = sun_at(0.78539816f),
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
-		world, entity,
-		(voe_scene_light){ .colour = { 0.95097667f, 0.7098251f, 0.7098251f },
-				   .intensity = sun,
-				   .fill_colour = { 0.8992056f, 0.7447454f, 0.335389f },
-				   .fill_intensity = 0.09f,
-				   .bounces = 1,
+		s->world, s->sun,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 1.0f,
+				   .bounces = bounces,
 				   .bounce_strength = 1.0f,
 				   .cast_shadows = true }));
-	add_a_shape(world, (voe_math_double3){ 0.0, -0.05, 0.0 },
-		    (voe_math_float3){ 60.0f, 0.1f, 60.0f },
-		    (voe_math_float3){ 0.8f, 0.7f, 0.5f });
-	add_a_shape(world, (voe_math_double3){ 12.0, 1.0, -6.0 },
-		    (voe_math_float3){ 2.0f, 2.0f, 2.0f },
-		    (voe_math_float3){ 1.0f, 0.0f, 0.0f });
-	add_a_shape(world, (voe_math_double3){ 6.0, 1.0, -6.0 },
-		    (voe_math_float3){ 2.0f, 2.0f, 2.0f },
-		    (voe_math_float3){ 0.0f, 1.0f, 0.0f });
-	voe_3d_shape_system_run(world, shapes);
-	return world;
+	(void)add_a_shape(s->world, (voe_math_double3){ 0.0, -0.05, 0.0 },
+			  (voe_math_float3){ 60.0f, 0.1f, 60.0f },
+			  (voe_math_float3){ 0.5f, 0.5f, 0.5f });
+	s->box = add_a_shape(s->world, (voe_math_double3){ 0.5, 1.0, 0.5 },
+			     (voe_math_float3){ 2.0f, 2.0f, 2.0f },
+			     (voe_math_float3){ 1.0f, 0.02f, 0.02f });
+	voe_3d_shape_system_run(s->world, shapes);
+	voe_scene_transform_remember(s->world);
 }
 
-// One frame of the world whose shadows call updates `target`'s grid, the
-// window drawn; the frame, for its view and eye.
-static voe_3d_frame a_frame(voe_ecs_world *world, voe_render_device *device,
-			    voe_base_arena *arena, voe_render_target target)
+// The frame's view and lights, as the loop takes them each frame.
+static voe_3d_frame begin_a_frame(scene *s, bool *drawing)
 {
 	voe_platform_size size = { SIDE, SIDE };
-	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
-	voe_render_pass_camera camera;
-	bool drawing = false;
+	voe_3d_frame frame = voe_3d_draw_system_frame(s->world, size, 0.0f);
 
-	frame.target = target;
-	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
-	VOE_TEST_CHECK(drawing);
-	if (!drawing)
-		return frame;
-	VOE_TEST_CHECK(voe_3d_draw_system_shadows(world, device, &frame));
-	camera = (voe_render_pass_camera){ .view = frame.view,
-					   .light = frame.light,
-					   .shadow = frame.shadow };
-	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
-					     &camera));
-	voe_3d_draw_system_run(world, device, arena, frame);
-	voe_render_pass_end(device);
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	frame.target = VOE_RENDER_TARGET_WINDOW;
+	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(s->world, &frame,
+						       s->scratch));
+	*drawing = false;
+	VOE_TEST_CHECK(voe_render_frame_begin(s->device, size, drawing));
+	VOE_TEST_CHECK(*drawing);
 	return frame;
 }
 
-static voe_render_picture read_window(voe_render_device *device,
-				      voe_base_arena *arena)
+// One frame as the editor and the game draw it; the frame, for its view.
+static voe_3d_frame a_full_frame(scene *s)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(s->scratch);
+	bool drawing;
+	voe_3d_frame frame = begin_a_frame(s, &drawing);
+	voe_render_pass_camera camera;
+
+	if (drawing) {
+		VOE_TEST_CHECK(voe_3d_draw_system_shadows(s->world, s->device,
+							  &frame));
+		camera = (voe_render_pass_camera){ .view = frame.view,
+						   .light = frame.light,
+						   .shadow = frame.shadow,
+						   .points = frame.points };
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			s->device, VOE_RENDER_TARGET_WINDOW, &camera));
+		voe_3d_draw_system_run(s->world, s->device, s->scratch, frame);
+		voe_render_pass_end(s->device);
+		VOE_TEST_CHECK(voe_render_frame_end(s->device));
+	}
+	voe_base_arena_rewind(s->scratch, mark);
+	return frame;
+}
+
+// A probing frame: DUMMIES empty passes, then the shadows call on what is
+// left. Whether it would have opened a capture pass.
+static bool a_capture_was_wanted(scene *s)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(s->scratch);
+	bool drawing;
+	voe_3d_frame frame = begin_a_frame(s, &drawing);
+	bool wanted = false;
+
+	if (drawing) {
+		for (int i = 0; i < DUMMIES; i++) {
+			VOE_TEST_CHECK(voe_render_pass_begin(
+				s->device, VOE_RENDER_TARGET_WINDOW, NULL));
+			voe_render_pass_end(s->device);
+		}
+		wanted = !voe_3d_draw_system_shadows(s->world, s->device, &frame);
+		VOE_TEST_CHECK(voe_render_frame_end(s->device));
+	}
+	voe_base_arena_rewind(s->scratch, mark);
+	return wanted;
+}
+
+// Full and probing frames until a probing one wants no capture; whether that
+// came within BOUND.
+static bool settles(scene *s)
+{
+	for (int pair = 0; pair < BOUND; pair++) {
+		(void)a_full_frame(s);
+		if (!a_capture_was_wanted(s)) {
+			printf("settled after %d pairs\n", pair + 1);
+			return true;
+		}
+	}
+	return false;
+}
+
+static voe_render_picture read_window(scene *s)
 {
 	voe_render_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;
 
-	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
-					      arena, &picture, &error));
+	VOE_TEST_CHECK(voe_render_target_read(s->device, VOE_RENDER_TARGET_WINDOW,
+					      s->keep, &picture, &error));
 	VOE_TEST_CHECK(picture.pixels != NULL);
 	return picture;
 }
 
 // The pixel world point `at` lands on: about the frame's eye, through its view
-// to clip, and clip +y is row 0. NULL off the picture.
+// to clip, and clip +y is row 0. A black pixel's worth of zeros off the picture,
+// with the check failed.
 static const uint8_t *pixel_at(const voe_render_picture *picture,
 			       const voe_3d_frame *frame, voe_math_float3 at)
 {
+	static const uint8_t NONE[4] = { 0 };
 	voe_math_float4 clip = voe_math_float4x4_mul_float4(
 		voe_math_float4x4_mul(frame->view.projection, frame->view.view),
 		(voe_math_float4){ at.x - (float)frame->eye.x,
@@ -220,114 +295,146 @@ static const uint8_t *pixel_at(const voe_render_picture *picture,
 				   at.z - (float)frame->eye.z, 1.0f });
 	float column = (clip.x / clip.w * 0.5f + 0.5f) * (float)picture->width;
 	float row = (0.5f - clip.y / clip.w * 0.5f) * (float)picture->height;
+	bool off = picture->pixels == NULL || clip.w <= 0.0f || column < 0.0f ||
+		   row < 0.0f || column >= (float)picture->width ||
+		   row >= (float)picture->height;
 
-	if (picture->pixels == NULL || clip.w <= 0.0f || column < 0.0f ||
-	    row < 0.0f || column >= (float)picture->width ||
-	    row >= (float)picture->height)
-		return NULL;
+	VOE_TEST_CHECK(!off);
+	if (off)
+		return NONE;
 	return &picture->pixels[((size_t)row * picture->width + (size_t)column) *
 				4];
 }
 
-// Every lattice point's channels in `bounced` at least `plain`'s less 1/255.
-static void no_spots(const voe_render_picture *bounced,
-		     const voe_render_picture *plain, const voe_3d_frame *frame)
+// Red less green at `at` in `bounced` above the same in `plain`.
+static int redder_by(const voe_render_picture *bounced,
+		     const voe_render_picture *plain, const voe_3d_frame *frame,
+		     voe_math_float3 at)
 {
-	int darker = 0;
+	const uint8_t *b = pixel_at(bounced, frame, at);
+	const uint8_t *p = pixel_at(plain, frame, at);
 
-	for (int i = 0; i < LATTICE * LATTICE; i++) {
-		// x across both boxes and their shadows, z before and behind.
-		voe_math_float3 at = { 4.5f + 2.0f * (float)(i % LATTICE), 0.0f,
-				       -12.0f + 1.5f * (float)(i / LATTICE) };
-		const uint8_t *b = pixel_at(bounced, frame, at);
-		const uint8_t *p = pixel_at(plain, frame, at);
+	printf("(%g, %g): %d %d %d against %d %d %d\n", at.x, at.z, b[0], b[1],
+	       b[2], p[0], p[1], p[2]);
+	return ((int)b[0] - (int)b[1]) - ((int)p[0] - (int)p[1]);
+}
 
-		VOE_TEST_CHECK(b != NULL && p != NULL);
-		if (b == NULL || p == NULL)
-			continue;
+// The lit side's tint and its fade; the shadow at the foot unchanged.
+static void the_box_colours_its_lit_side_only(const voe_render_picture *bounced,
+					      const voe_render_picture *plain,
+					      const voe_3d_frame *frame)
+{
+	int near = redder_by(bounced, plain, frame,
+			     (voe_math_float3){ 1.75f, 0.0f, 0.5f });
+	int far = redder_by(bounced, plain, frame,
+			    (voe_math_float3){ 4.5f, 0.0f, 0.5f });
+	voe_math_float3 foot = { -0.75f, 0.0f, 0.5f };
+	const uint8_t *b = pixel_at(bounced, frame, foot);
+	const uint8_t *p = pixel_at(plain, frame, foot);
+
+	VOE_TEST_CHECK(near >= TINT);
+	VOE_TEST_CHECK(2 * far < near);
+	printf("foot: %d %d %d against %d %d %d\n", b[0], b[1], b[2], p[0],
+	       p[1], p[2]);
+	for (int c = 0; c < 3; c++)
+		VOE_TEST_CHECK(abs((int)b[c] - (int)p[c]) <= SHADOW);
+}
+
+// The five open points' pixels into `pixels`, checked even.
+static void open_ground_is_even(const voe_render_picture *picture,
+				const voe_3d_frame *frame,
+				uint8_t pixels[OPEN][3])
+{
+	for (int i = 0; i < OPEN; i++) {
+		const uint8_t *p = pixel_at(
+			picture, frame,
+			(voe_math_float3){ -6.0f, 0.0f, -6.0f + 2.0f * (float)i });
+
+		printf("open %d: %d %d %d\n", i, p[0], p[1], p[2]);
 		for (int c = 0; c < 3; c++)
-			if ((int)b[c] < (int)p[c] - 1) {
-				printf("darker at (%g, %g): %d %d %d against %d %d %d\n",
-				       at.x, at.z, b[0], b[1], b[2], p[0], p[1], p[2]);
-				darker++;
-				break;
-			}
+			pixels[i][c] = p[c];
 	}
-	VOE_TEST_CHECK_INT(darker, 0);
+	for (int i = 1; i < OPEN; i++)
+		for (int c = 0; c < 3; c++)
+			VOE_TEST_CHECK(abs((int)pixels[i][c] - (int)pixels[0][c]) <=
+				       EVEN);
 }
 
-// The red box's shadowed foot, 0.25 m and 0.75 m out from its -x face: red
-// less green in `bounced` at most `plain`'s plus TRACE.
-static void the_shadow_side_stays_faint(const voe_render_picture *bounced,
-					const voe_render_picture *plain,
-					const voe_3d_frame *frame)
+// `entity` given `transform` by an intent and the transform system's run.
+static void place(scene *s, voe_ecs_entity entity, voe_scene_transform transform)
 {
-	static const float OUT[] = { 0.25f, 0.75f };
-
-	for (size_t i = 0; i < sizeof(OUT) / sizeof(OUT[0]); i++) {
-		voe_math_float3 at = { 11.0f - OUT[i], 0.0f, -6.0f };
-		const uint8_t *b = pixel_at(bounced, frame, at);
-		const uint8_t *p = pixel_at(plain, frame, at);
-
-		VOE_TEST_CHECK(b != NULL && p != NULL);
-		if (b == NULL || p == NULL)
-			continue;
-		printf("shadow (%g, %g): %d %d %d against %d %d %d\n", at.x,
-		       at.z, b[0], b[1], b[2], p[0], p[1], p[2]);
-		VOE_TEST_CHECK((int)b[0] - (int)b[1] <=
-			       (int)p[0] - (int)p[1] + TRACE);
-	}
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		s->world, (voe_scene_transform_intent){ entity, transform }));
+	voe_scene_transform_system_run(s->world);
 }
 
-// The scene at a sun of `sun`: ten frames bounced, one plain, the two claims.
-static void at_a_sun(voe_render_device *device, const voe_3d_shapes *shapes,
-		     voe_render_target other, float sun)
+// The claims, on a device with shaderOutputLayer.
+static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 {
-	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes, sun);
+	scene plain = *s;
 	voe_render_picture bounced;
-	voe_render_picture plain;
-	voe_3d_frame frame = { 0 };
+	voe_render_picture reference;
+	voe_render_picture turned;
+	voe_scene_transform moved;
+	voe_3d_frame frame;
+	uint8_t before[OPEN][3];
+	uint8_t after[OPEN][3];
 
-	printf("sun %g\n", sun);
-	for (int f = 0; f < FRAMES; f++)
-		frame = a_frame(world, device, arena, VOE_RENDER_TARGET_WINDOW);
-	bounced = read_window(device, arena);
-	(void)a_frame(world, device, arena, other);
-	plain = read_window(device, arena);
+	a_world(s, shapes, 1);
+	a_world(&plain, shapes, 0);
+	VOE_TEST_CHECK(settles(s));
+	frame = a_full_frame(s);
+	bounced = read_window(s);
+	(void)a_full_frame(&plain);
+	(void)a_full_frame(&plain);
+	reference = read_window(&plain);
+	the_box_colours_its_lit_side_only(&bounced, &reference, &frame);
+	open_ground_is_even(&bounced, &frame, before);
 
-	no_spots(&bounced, &plain, &frame);
-	the_shadow_side_stays_faint(&bounced, &plain, &frame);
-	voe_base_arena_destroy(arena);
+	moved = *voe_scene_transform_get(s->world, s->sun);
+	moved.rotation = sun_at(0.87266463f);
+	place(s, s->sun, moved);
+	for (int f = 0; f < 3; f++)
+		frame = a_full_frame(s);
+	turned = read_window(s);
+	open_ground_is_even(&turned, &frame, after);
+	for (int i = 0; i < OPEN; i++)
+		VOE_TEST_CHECK(after[i][1] > before[i][1]);
+
+	VOE_TEST_CHECK(!a_capture_was_wanted(s));
+	voe_scene_transform_remember(s->world);
+	moved = *voe_scene_transform_get(s->world, s->box);
+	moved.position.x += 1.0;
+	place(s, s->box, moved);
+	VOE_TEST_CHECK(a_capture_was_wanted(s));
+	voe_scene_transform_remember(s->world);
+	VOE_TEST_CHECK(settles(s));
 }
 
 int main(void)
 {
-	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	scene s = { .keep = voe_base_arena_new(SCRATCH),
+		    .scratch = voe_base_arena_new(SCRATCH) };
 	voe_platform_size size = { SIDE, SIDE };
 	voe_base_error error = VOE_BASE_OK;
-	voe_render_device *device =
-		voe_render_device_new_headless(arena, size, CAPACITIES, &error);
-	voe_render_target other;
-	voe_render_texture shown;
 	voe_3d_shapes shapes;
 
-	if (device == NULL) {
+	s.device = voe_render_device_new_headless(s.keep, size, CAPACITIES, &error);
+	if (s.device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
 		    error == VOE_BASE_ERROR_UNSUPPORTED)
 			printf("skip: %s\n", voe_base_error_string(error));
 		else
-			VOE_TEST_CHECK(device != NULL);
-		voe_base_arena_destroy(arena);
-		return voe_test_result();
+			VOE_TEST_CHECK(s.device != NULL);
+	} else if (!voe_render_point_shadows_ready(s.device)) {
+		printf("skip: no shaderOutputLayer, so nothing is captured\n");
+	} else {
+		VOE_TEST_CHECK(voe_3d_shapes_upload(s.device, &shapes, &error));
+		the_bounce(&s, &shapes);
 	}
-	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
-	VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &other, &shown,
-						&error));
-	at_a_sun(device, &shapes, other, 1.0f);
-	at_a_sun(device, &shapes, other, 3.14159265f);
-
-	voe_render_device_destroy(device);
-	voe_base_arena_destroy(arena);
+	if (s.device != NULL)
+		voe_render_device_destroy(s.device);
+	voe_base_arena_destroy(s.scratch);
+	voe_base_arena_destroy(s.keep);
 	return voe_test_result();
 }

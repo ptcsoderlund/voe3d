@@ -23,3 +23,13 @@ make: `voe_3d_draw_system_frame`, `_point_lights`, `_shadows`, a window pass, `_
 
 ## Done when
 `ctest --test-dir build/debug -R "^3d/bounce_scene$"` passes.
+
+## Blocked
+The test is written. On the RTX 4070 every claim holds except step 3's: the ground in the box's shadow
+at its foot reads 23 23 23 with bounces 1 against 0 0 0 at bounces 0 (the read-back is linear, so that is
+about a quarter of the lit ground's 94). It is grey, not red, so the box's lit face is not what lights it.
+The sunlit ground around the shadow strip does, through the probes' L1 SH, which gives an upward normal
+light from a ring of radiance below the horizon. The other results: lit side +10 red at 0.25 m and +4 at
+3 m, open ground 93 everywhere and 97 after the turn, settled in 109 pairs and again in 2 after the move.
+To unblock: a render card that keeps lit ground out of the read for upward normals (in the relight or in
+`bounce_read.slangh`), or a decision that changes step 3's bound or gives the scene a fill floor.
