@@ -1,6 +1,5 @@
-// The GPU, opened onto a window. Create one, hand it geometry, textures and
-// shading records at startup, then ask it for a frame every time round the loop
-// and tell it what to draw.
+// The GPU, opened onto a window. Hand it geometry, textures and shading records
+// at startup, then every loop ask it for a frame and tell it what to draw.
 //
 //     voe_base_arena *scratch = voe_base_arena_new(64 * 1024);
 //     voe_base_error error;
@@ -52,11 +51,12 @@
 // metalness, roughness, occlusion, a normal map — is uploaded as
 // VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
 //
-// A frame's camera passes come after the sun's shadow cascades and its bounce
-// pass; VOE_RENDER_BOUNCE_* size the bounce grid, voe_render_bounce_update
-// refreshes a target's grid from the bounce map, a pass may copy its depth
-// (voe_render_frame_copy_depth), and a shading record may be water, with waves
-// and sky in the object record.
+// Passes onto the window or a target follow the sun's cascades and bounce pass,
+// lit by the sun and the pass's point lights (range, falloff; shadows per
+// point_shadow_size and voe_render_point_shadows_ready); a pass may copy its
+// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the bounce
+// grid, voe_render_bounce_update refreshes a target's grid from the bounce
+// map; a shading record may be water, with waves and sky in the object record.
 #pragma once
 
 #include <base/arena.h>
