@@ -1,6 +1,6 @@
-# 16 — The editor's views have room for the capture passes
+# 19 — The editor's views have room for the capture passes
 folder: editor
-after: 12, 15
+after: 15, 18
 decisions: 0168, 0326
 read: feature.md
 
