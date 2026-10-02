@@ -16,6 +16,7 @@
 
 #include <game/world.h>
 
+#include <scene/parent_component.h>
 #include <scene/point_light_system.h>
 
 #include <math.h>
@@ -57,6 +58,30 @@ bool tank_light_fade_start(voe_ecs_world *world, voe_ecs_entity entity)
 
 	VOE_BASE_ASSERT(ok, "a tank light fade row vanished while starting it");
 	return ok;
+}
+
+bool tank_light_fade_under(const voe_ecs_world *world, voe_ecs_entity parent,
+			   voe_ecs_entity *out)
+{
+	VOE_BASE_ASSERT(world != NULL && out != NULL, "finding no light fade");
+	const voe_ecs_type type =
+		voe_ecs_component_type(world, &tank_light_fade_key);
+	const voe_ecs_entity *entities = voe_ecs_component_entities(world, type);
+	const uint32_t count = voe_ecs_component_count(world, type);
+
+	VOE_BASE_ASSERT(count <= VOE_GAME_WORLD_POINT_LIGHTS,
+			"more tank light fade rows than were registered");
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_scene_parent *row =
+			voe_scene_parent_get(world, entities[i]);
+
+		if (row != NULL && row->parent.index == parent.index &&
+		    row->parent.generation == parent.generation) {
+			*out = entities[i];
+			return true;
+		}
+	}
+	return false;
 }
 
 // The intensity a fade shows: peak × left / seconds, dark with no seconds.

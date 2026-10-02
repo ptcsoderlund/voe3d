@@ -17,11 +17,11 @@
 //
 // The flash (0299 point 2): a gun with no emitter gets the enemy's muzzle
 // flash queued onto it, added at run time and never saved, since agents do
-// not edit tank_body.prefab; each shot fired bursts it. A gun with no point
-// light gets the muzzle flash's light the same way, warm orange at the gun's
-// own place, and a gun with no tank_light_fade row its fade (0322 point 6):
-// the light rests dark, and each shot fired restarts the fade, which lights
-// it from full.
+// not edit tank_body.prefab; each shot fired bursts it. The flash's light is
+// a child at the flash (0323), carried by the barrel: a gun with no
+// tank_light_fade_under child gets one made the same way, warm orange with
+// its fade (0322 point 6). The light rests dark, and each shot fired restarts
+// the child's fade, which lights it from full.
 //
 // The bang (0304 point 5): each shot fired plays `Assets/sounds/shot.wav` at
 // the world muzzle through the step's mixer, nothing with no mixer (tests).
@@ -149,6 +149,22 @@ static bool fire(const voe_game_project_step *step, voe_ecs_entity entity,
 	return true;
 }
 
+// The turn about the gun's own +Y by the `aim` of its turret, none with no
+// turret: the gun's own frame to the barrel's.
+static voe_math_quat aim_of(const voe_ecs_world *world, voe_ecs_entity entity)
+{
+	VOE_BASE_ASSERT(world != NULL, "aiming in no world");
+	const tank_turret *turret = voe_ecs_component_get(
+		world, voe_ecs_component_type(world, &tank_turret_key), entity);
+	const voe_math_quat aim = voe_math_quat_from_axis_angle(
+		(voe_math_float3){ 0.0f, 1.0f, 0.0f },
+		(turret != NULL ? turret->aim : 0.0f) *
+			TANK_GUN_RADIANS_PER_DEGREE);
+
+	VOE_BASE_DEBUG_ASSERT(isfinite(aim.w), "an aim turned to nowhere");
+	return aim;
+}
+
 // Queues the muzzle flash onto a gun with a transform and no emitter, as the
 // lives system adds its collider (0299 point 2): enemy_tank.prefab's numbers,
 // at the muzzle and along the barrel in the gun's own frame, so turned by its
@@ -161,12 +177,7 @@ static void add_flash(voe_ecs_world *world, voe_ecs_entity entity,
 	if (voe_3d_emitter_get(world, entity) != NULL ||
 	    voe_scene_transform_get(world, entity) == NULL)
 		return;
-	const tank_turret *turret = voe_ecs_component_get(
-		world, voe_ecs_component_type(world, &tank_turret_key), entity);
-	const voe_math_quat aim = voe_math_quat_from_axis_angle(
-		(voe_math_float3){ 0.0f, 1.0f, 0.0f },
-		(turret != NULL ? turret->aim : 0.0f) *
-			TANK_GUN_RADIANS_PER_DEGREE);
+	const voe_math_quat aim = aim_of(world, entity);
 	const voe_3d_emitter flash = {
 		.playing = false,
 		.burst = 12,
@@ -190,16 +201,29 @@ static void add_flash(voe_ecs_world *world, voe_ecs_entity entity,
 		&flash);
 }
 
-// Queues the muzzle flash's light onto a gun with a transform and no point
-// light, as add_flash does its emitter: enemy_tank.prefab's turret colour and
-// range, resting dark. Then, the same way, its fade onto a gun with no fade
-// row, queued after the light so the fade's need of one is met. A refused add
-// is left for the next step.
-static void add_flash_light(voe_ecs_world *world, voe_ecs_entity entity)
+// Makes the muzzle flash's light, a child of a gun with a transform and no
+// tank_light_fade_under child (0323 point 3): a new entity at the flash's
+// offset, its parent row naming the gun, enemy_tank.prefab's turret colour
+// and range resting dark, and its fade, queued in the order a prefab spawn
+// queues them. A full world makes none this step; a refused add queues the
+// new entity's destroy, to try again next step.
+static void add_flash_light(voe_ecs_world *world, voe_ecs_entity entity,
+			    const tank_gun *gun)
 {
-	VOE_BASE_ASSERT(world != NULL, "a flash light on no gun");
-	if (voe_scene_transform_get(world, entity) == NULL)
+	VOE_BASE_ASSERT(world != NULL && gun != NULL, "a flash light on no gun");
+	voe_ecs_entity child = { 0 };
+
+	if (voe_scene_transform_get(world, entity) == NULL ||
+	    tank_light_fade_under(world, entity, &child) ||
+	    !voe_ecs_entity_create(world, &child))
 		return;
+	const voe_math_float3 at = turned_by(aim_of(world, entity), gun->muzzle);
+	const voe_scene_transform place = {
+		.position = voe_math_double3_from_float3(at),
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	const voe_scene_parent parent = { .parent = entity };
 	const voe_scene_point_light light = {
 		.colour = { 1.0f, 0.7f, 0.35f },
 		.intensity = 0.0f,
@@ -207,18 +231,23 @@ static void add_flash_light(voe_ecs_world *world, voe_ecs_entity entity)
 		.falloff = 1.0f,
 	};
 	const tank_light_fade fade = { .peak = 4.0f, .seconds = 0.12f, .left = 0.0f };
-	const voe_ecs_type fade_type =
-		voe_ecs_component_type(world, &tank_light_fade_key);
 
 	VOE_BASE_DEBUG_ASSERT(light.range > 0.0f && fade.seconds > 0.0f,
 			      "a flash light reaching nothing");
-	if (voe_scene_point_light_get(world, entity) == NULL)
-		(void)voe_ecs_structure_add(
-			world,
-			voe_ecs_component_type(world, &voe_scene_point_light_key),
-			entity, &light);
-	if (voe_ecs_component_get(world, fade_type, entity) == NULL)
-		(void)voe_ecs_structure_add(world, fade_type, entity, &fade);
+	if (!voe_ecs_structure_add(
+		    world, voe_ecs_component_type(world, &voe_scene_transform_key),
+		    child, &place) ||
+	    !voe_ecs_structure_add(
+		    world, voe_ecs_component_type(world, &voe_scene_parent_key),
+		    child, &parent) ||
+	    !voe_ecs_structure_add(
+		    world,
+		    voe_ecs_component_type(world, &voe_scene_point_light_key),
+		    child, &light) ||
+	    !voe_ecs_structure_add(
+		    world, voe_ecs_component_type(world, &tank_light_fade_key),
+		    child, &fade))
+		(void)voe_ecs_structure_destroy(world, child);
 }
 
 // Bursts the gun's flash for a shot; nothing when it has none yet. A full
@@ -258,14 +287,17 @@ void tank_gun_system_run(const voe_game_project_step *step)
 		tank_gun next = rows[i];
 
 		add_flash(step->world, entities[i], &next);
-		add_flash_light(step->world, entities[i]);
+		add_flash_light(step->world, entities[i], &next);
 		next.wait -= (float)step->seconds;
 		if (held && next.wait <= 0.0f && next.rate > 0.0f &&
 		    fire(step, entities[i], &next)) {
+			voe_ecs_entity light = { 0 };
+
 			next.wait = 1.0f / next.rate;
 			burst_flash(step->world, entities[i]);
-			// Nothing when it has no fade row yet.
-			(void)tank_light_fade_start(step->world, entities[i]);
+			// Nothing when its light is not made yet.
+			if (tank_light_fade_under(step->world, entities[i], &light))
+				(void)tank_light_fade_start(step->world, light);
 		}
 		const bool ok = voe_ecs_component_set(step->world, type,
 						      entities[i], &next);

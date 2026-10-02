@@ -18,9 +18,14 @@
 // The light is set only through its replace, and only when its intensity
 // differs, so a resting lamp costs no intent.
 //
+// A shot's light is a child at its muzzle flash (0323), since a light shines
+// from its own transform: tank_light_fade_under finds it under its gun or
+// turret.
+//
 // Constraints: at most VOE_GAME_WORLD_POINT_LIGHTS rows, one a light. A full
 // point light queue skips that step's fade; `left` still counts down, so the
-// fade ends on time. A negative `peak` is the drain's to refuse.
+// fade ends on time. A negative `peak` is the drain's to refuse. The finder
+// scans the fade rows.
 #pragma once
 
 #include <base/describe.h>
@@ -47,6 +52,11 @@ extern const struct voe_ecs_key tank_light_fade_key;
 // Restarts the entity's fade from full: `left` becomes `seconds`. False when
 // it has no fade row.
 bool tank_light_fade_start(voe_ecs_world *world, voe_ecs_entity entity);
+
+// The first fade row whose parent row names `parent` into `out`. False, `out`
+// untouched, with none.
+bool tank_light_fade_under(const voe_ecs_world *world, voe_ecs_entity parent,
+			   voe_ecs_entity *out);
 
 // Sets every faded light to this step's intensity, then counts each `left`
 // down by the step's seconds.
