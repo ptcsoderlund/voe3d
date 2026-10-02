@@ -6,7 +6,8 @@
 //
 // POINT LIGHTS ADD TO THE SUN'S DIRECT TERM (ADR-0320): voe_render_points, the
 // same BRDF towards each light, times N·L, its colour and saturate(1 −
-// (d/range)²)², over the lights both its tile's mask and its slice's mask hold
+// (d/range)^(2/falloff))² (ADR-0322; falloff 1 is (1 − (d/range)²)²), over the
+// lights both its tile's mask and its slice's mask hold
 // (binding 8, binned by render/src/light_bins.c). No shadow, no part in the
 // fill's fade, none in the bounce, and the water path does not call it.
 //
@@ -226,8 +227,8 @@ uint voe_render_light_tile(float ndc, uint tiles)
 
 // What the pass's point lights add to the direct light at `world`, facing `n`
 // and seen along `v`: the BRDF of each light its tile and slice both mark, times
-// N·L, its colour and saturate(1 − (d/range)²)². Nought with no lights. See the
-// header.
+// N·L, its colour and saturate(1 − (d/range)^(2/falloff))², the light's falloff
+// bending its reach. Nought with no lights. See the header.
 float3 voe_render_points(float3 world, float3 n, float3 v, float3 diffuse_colour,
 			 float3 f0, float alpha)
 {
@@ -274,11 +275,11 @@ float3 voe_render_points(float3 world, float3 n, float3 v, float3 diffuse_colour
 				voe_render_distribution(saturate(dot(n, h)), alpha) *
 				voe_render_visibility(n_dot_l, n_dot_v, alpha);
 			float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
-			float q = d / light.range;
-			float falloff = saturate(1.0 - q * q);
+			float fade = saturate(
+				1.0 - pow(d / light.range, 2.0 / light.falloff));
 
 			sum += (diffuse + specular) * light.colour * n_dot_l *
-			       falloff * falloff;
+			       fade * fade;
 		}
 	}
 	return sum;

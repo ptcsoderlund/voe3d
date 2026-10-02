@@ -1,6 +1,6 @@
 // A PASS'S POINT LIGHTS LIGHT ITS SURFACES, AND ONLY WHERE THEY REACH (ADR-0320).
 // A grey ground quad seen straight down from 10 m, a sun of intensity 0 and no
-// fill, so whatever is not black is a point light's. Four pictures:
+// fill, so whatever is not black is a point light's. Five cases:
 //
 // 1. one red light 1 m above the quad's middle, range 3: the pixel under it red
 //    above 0.2 with green and blue near nought, and a pixel 5 m off black;
@@ -8,7 +8,13 @@
 // 3. an unshaded pass with the light: the unshaded picture, the base colour,
 //    because the unshaded exit adds no point light;
 // 4. two lights, 4 m either side of the middle: both pools red, and the middle,
-//    4 m from each and past their range, black.
+//    4 m from each and past their range, black;
+// 5. the first light at falloff 0.25, 1 and 4 (ADR-0322): a pixel 2.3 m along
+//    the ground, about 0.85 of the reach, brighter at 0.25 than at 1 and at 1
+//    than at 4, and the pixel under the light no darker at 0.25 than at 1.
+//
+// Every light is falloff 1 but case 5's others, so cases 1 to 4 keep the
+// numbers they had before falloff.
 //
 // The material is lit, fully rough and not metallic. Built the way unshaded.c
 // builds its device and reads its target back, and it includes render's
@@ -31,7 +37,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 4
+#define CASES 7
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -252,14 +258,16 @@ int main(void)
 	voe_render_light unshaded = dark;
 	const voe_render_point_light middle[1] = {
 		{ .position = { 0.0f, 1.0f, 0.0f }, .range = 3.0f,
-		  .colour = { 3.0f, 0.0f, 0.0f } },
+		  .colour = { 3.0f, 0.0f, 0.0f }, .falloff = 1.0f },
 	};
 	const voe_render_point_light sides[2] = {
 		{ .position = { 4.0f, 1.0f, 0.0f }, .range = 3.0f,
-		  .colour = { 3.0f, 0.0f, 0.0f } },
+		  .colour = { 3.0f, 0.0f, 0.0f }, .falloff = 1.0f },
 		{ .position = { -4.0f, 1.0f, 0.0f }, .range = 3.0f,
-		  .colour = { 3.0f, 0.0f, 0.0f } },
+		  .colour = { 3.0f, 0.0f, 0.0f }, .falloff = 1.0f },
 	};
+	const float falloffs[3] = { 0.25f, 1.0f, 4.0f };
+	voe_render_point_light bent[3];
 	const voe_render_point_lights one = { middle, 1 };
 	const voe_render_point_lights none = { 0 };
 	const voe_render_point_lights two = { sides, 2 };
@@ -308,6 +316,13 @@ int main(void)
 		  IMAGE_BYTES * 2);
 	draw_case(device, ground, shading, dark, two, readback.buffer,
 		  IMAGE_BYTES * 3);
+	for (int f = 0; f < 3; f++) {
+		bent[f] = middle[0];
+		bent[f].falloff = falloffs[f];
+		draw_case(device, ground, shading, dark,
+			  (voe_render_point_lights){ &bent[f], 1 },
+			  readback.buffer, IMAGE_BYTES * (VkDeviceSize)(4 + f));
+	}
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -323,6 +338,13 @@ int main(void)
 		check_red(pixel_at(mapped, 3, 44, SIDE / 2));
 		check_red(pixel_at(mapped, 3, 19, SIDE / 2));
 		check_black(pixel_at(mapped, 3, SIDE / 2, SIDE / 2));
+		// Column 39 is 2.3 m along +X, 2.55 m from the light.
+		VOE_TEST_CHECK(pixel_at(mapped, 4, SIDE / 2 + 7, SIDE / 2)[RED] >
+			       pixel_at(mapped, 5, SIDE / 2 + 7, SIDE / 2)[RED]);
+		VOE_TEST_CHECK(pixel_at(mapped, 5, SIDE / 2 + 7, SIDE / 2)[RED] >
+			       pixel_at(mapped, 6, SIDE / 2 + 7, SIDE / 2)[RED]);
+		VOE_TEST_CHECK(pixel_at(mapped, 4, SIDE / 2, SIDE / 2)[RED] >=
+			       pixel_at(mapped, 5, SIDE / 2, SIDE / 2)[RED]);
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 

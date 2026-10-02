@@ -26,7 +26,8 @@
 //
 // A CAMERA PASS'S POINT LIGHTS (ADR-0320) are copied into its region of the
 // slot's light buffer and binned into its region of the bins buffer as it opens;
-// its block names how many and the region, which is the pass's number.
+// its block names how many and the region, which is the pass's number. A light
+// whose falloff is not finite or not above nought asserts there (ADR-0322).
 //
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
@@ -36,6 +37,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <math.h>
 #include <string.h>
 
 // The colour behind everything drawn. It is deliberately none of the colours a
@@ -302,6 +304,10 @@ static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 			"a pass with more point lights than VOE_RENDER_POINT_LIGHTS");
 	VOE_BASE_ASSERT(points.lights != NULL || points.count == 0,
 			"a pass with a point light count and no lights");
+	for (uint32_t i = 0; i < points.count; i++)
+		VOE_BASE_ASSERT(isfinite(points.lights[i].falloff) &&
+					points.lights[i].falloff > 0.0f,
+				"a point light whose falloff is not finite or not above nought");
 	block->region = region;
 	block->lights = points.count;
 	if (points.count == 0)

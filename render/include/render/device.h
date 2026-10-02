@@ -500,8 +500,13 @@ typedef struct {
 // as 3d's are — and `colour` is linear and already times the light's strength.
 //
 // IT CASTS NO SHADOW AND IT ENDS AT `range`. A surface d metres off is lit by
-// colour × saturate(1 − (d/range)²)²: no inverse square, so a colour means what
-// the sun's colour × intensity does, and past `range` the light is nothing.
+// colour × saturate(1 − (d/range)^(2/falloff))² (ADR-0322): no inverse square,
+// so a colour means what the sun's colour × intensity does, and past `range` the
+// light is nothing. Falloff 1 is the old (1 − (d/range)²)²; below 1 an even pool
+// with a soft rim, above 1 a bright core that dims quickly.
+//
+// `falloff` IS AS THE SCENE AUTHORED IT, finite and above nought or
+// voe_render_pass_begin asserts.
 //
 // A pass carries at most VOE_RENDER_POINT_LIGHTS. Padded to 32 bytes because the
 // shader reads an array of them.
@@ -509,7 +514,7 @@ typedef struct {
 	voe_math_float3 position;
 	float range;
 	voe_math_float3 colour;
-	float reserved;
+	float falloff;
 } voe_render_point_light;
 
 static_assert(sizeof(voe_render_point_light) == 32,

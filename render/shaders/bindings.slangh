@@ -89,7 +89,7 @@ struct voe_render_point_light {
 	float3 position;
 	float range;
 	float3 colour;
-	float reserved;
+	float falloff;
 };
 
 // Set 0, binding 7: this frame slot's point lights, VOE_RENDER_POINT_LIGHTS
