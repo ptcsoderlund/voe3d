@@ -20,3 +20,6 @@ module's promises from outside. None of them needs a window or a graphics card.
   the system runs and a refused one keeps the row, that bounces lands up to its
   maximum and is named "0" and "1", and that a rotation and the direction it
   shines convert both ways, +Z included.
+- `point_light.c` — what registration tells a tool, that a refused replace keeps
+  the row, and the strength: steady, dark until flashed, fading to nought, full
+  when made, re-flashed by a replace, and unchanged by a flash it cannot take.

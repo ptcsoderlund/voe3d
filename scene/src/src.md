@@ -26,3 +26,7 @@ it. Nothing here names a GPU resource, a file or a graphics API.
   rotation and the direction it shines.
 - `light_system.c` — registration, creation, and the drain that applies a whole
   light or keeps the row over one it refuses.
+- `point_light_component.c` — the two keys, the reads, and the strength a reader
+  draws with.
+- `point_light_system.c` — registration, creation, and the run that applies whole
+  lights and flashes, keeps one glow per light and fades them.

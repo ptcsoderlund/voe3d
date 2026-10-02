@@ -23,3 +23,7 @@ stays on `scene/scene.md`.
   strength.
 - `light_system.h` — the intent that turns it, and the direct call that creates
   one.
+- `point_light_component.h` — a lamp: its colour, intensity, range and flash,
+  and the strength it shines with now.
+- `point_light_system.h` — the replace and flash intents, the direct call that
+  creates one, and the run that fades it.

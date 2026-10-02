@@ -46,3 +46,10 @@ space is.
 - `include/scene/light_system.h` — the whole-light intent, registered as the
   light's replace, the direct call that creates one, and the transform it needs.
   Its header says what light is refused and why a drawn world needs the table.
+- `include/scene/point_light_component.h` — a lamp beside the sun: linear colour,
+  intensity, range and a flash, as a described field list, the runtime-only glow
+  row and the strength a reader draws with. Its header says where it shines from
+  and what starts a flash.
+- `include/scene/point_light_system.h` — the whole-light intent as its replace,
+  the flash intent, the direct call that creates one, and the run that drains
+  both and fades the glows. Its header says what is refused and why both queue.
