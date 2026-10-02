@@ -59,6 +59,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   for their quads and the slab test against the box.
 - `sun_marker.c` — the sun's circle, shaft and head in its own space under its pose unscaled, and
   its cube's hit.
+- `point_light_marker.c` — a point light's three circles of 12 in world axes about its position,
+  and its world-axis cube's hit.
 - `marker_lines.h` — the markers' shared line quads and box slab test, and why they are outline.h's
   quads; internal.
 - `marker_lines.c` — each segment's quad with a half width per end and its winding towards the eye,

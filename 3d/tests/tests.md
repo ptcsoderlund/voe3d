@@ -61,6 +61,9 @@ again, or to find where a claim that has started failing is written down.
 - `sun_marker.c` — the marker's twenty-nine edges, a turned sun's arrow tip a metre along its
   turned -Z, a scaled sun building the same quads, and a ray meeting the cube square on, turned and
   not at all. Needs no graphics card.
+- `point_light_marker.c` — the marker's thirty-six edges seen off-axis, no area building nothing,
+  a ray meeting the cube 0.25 m short and missing beside it, and a pick answering a lamp and the
+  nearer of a lamp and a cube. Needs no graphics card.
 - `collider_marker.c` — a box's twelve edges, a sphere's and a capsule's counts, a box twice the
   size twice as far out, quads about the eye 100 km out, and the collider that fits each shape.
   Needs no graphics card.

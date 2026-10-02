@@ -6,7 +6,7 @@
 //     voe_ecs_entity hit = voe_3d_pick(world, &geometries, models, ray,
 //                                      &distance);
 //     if (hit.generation != 0)
-//             ... // the frontmost shape, model, camera or sun it met
+//             ... // the frontmost shape, model, camera, sun or lamp it met
 //
 // IT IS THIS FOLDER'S QUESTION AND NOT THE EDITOR'S. Answering it needs the
 // shape table, the transform table and the projection matrix, and this is the
@@ -15,15 +15,14 @@
 // that wants a click named calls this, the way it already calls
 // voe_3d_draw_system_frame to draw.
 //
-// IT WALKS THE SHAPES, THE MODELS, THE CAMERAS AND THE SUNS (ADR-0202, 0223,
-// 0274, 0277). A mesh is runtime-only (3d/mesh_component.h); the mesh table's
-// turn has come as models, each tested on its loaded entry's own triangles
-// (3d/models.h) as a shape is, and a NULL store walks none. A camera is hit on
-// its marker's box (3d/camera_marker.h), never its frustum lines, a sun on its
-// marker's cube (3d/sun_marker.h), never its circle or arrow, and all of them
-// compete on distance; a world
-// with no camera or light store walks none of that kind, nor a light with no
-// transform.
+// IT WALKS THE SHAPES, THE MODELS, THE CAMERAS, THE SUNS AND THE POINT LIGHTS
+// (ADR-0202, 0223, 0274, 0277, 0320). A mesh is runtime-only; models are tested
+// on their loaded entry's own triangles (3d/models.h) as a shape is, and a NULL
+// store walks none. A camera is hit on its marker's box (3d/camera_marker.h), a
+// sun and a point light on their marker's cube (3d/sun_marker.h,
+// 3d/point_light_marker.h), never their lines, and all compete on distance; a
+// world with no camera, light or point light store walks none of that kind, nor
+// a light or lamp with no transform.
 //
 // HOW A HIT IS MEASURED. The matrix of the entity's world place about the ray's
 // origin (ADR-0250: the origin is double, the test float about it) is inverted

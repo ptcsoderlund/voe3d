@@ -62,6 +62,7 @@
 #include <3d/gizmo_rings.h>
 #include <3d/models.h>
 #include <3d/outline.h>
+#include <3d/point_light_marker.h>
 #include <3d/sun_marker.h>
 #include <base/arena.h>
 #include <ecs/world.h>
@@ -162,6 +163,31 @@ typedef struct {
 	// The size of that picture, in pixels.
 	voe_platform_size size;
 } voe_3d_sun_marked;
+
+// The point lights a pass draws as markers (0320 point 7): three wire circles
+// each, voe_3d_point_light_marker_quads', in the world layer inside the world's
+// depth. Only an editor's view sets it. When `shown`, every point light with a
+// transform is marked, the `selected` one in `selected_colour` and the rest in
+// `colour`, as two transient geometries — the rest together, the selected one
+// alone — so the pool needs VOE_3D_POINT_LIGHT_MARKER_VERTICES and _INDICES per
+// light, two ranges and two objects; a pool too small draws none, as the
+// outline does.
+typedef struct {
+	// False marks none, which is what a zeroed record is.
+	bool shown;
+	// The lamp drawn in `selected_colour`, zeroed for none.
+	voe_ecs_entity selected;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear: the gizmo's rest colour, for every lamp but the selected one.
+	voe_math_float3 colour;
+	// Linear: the outline's colour, for the selected lamp (0274's rule).
+	voe_math_float3 selected_colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_point_lights_marked;
 
 // The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
 // It is drawn after the outline, behind the outline's depth clear, with the
@@ -273,6 +299,9 @@ typedef struct {
 	// _INDICES, one more range and one more object; a pool too small draws
 	// nothing, as the outline does.
 	voe_3d_sun_marked sun;
+	// EVERY POINT LIGHT, MARKED (0320 point 7), drawn as the sun's marker is
+	// and right after it (voe_3d_point_lights_marked above).
+	voe_3d_point_lights_marked point_lights;
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
@@ -303,8 +332,9 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `collider` and `points` all come back zeroed and `models` NULL — hiding,
-// outlining, standing a gizmo, marking a camera or a sun, drawing a collider,
+// `point_lights`, `collider` and `points` all come back zeroed and `models` NULL
+// — hiding, outlining, standing a gizmo, marking a camera, a sun or the point
+// lights, drawing a collider,
 // lighting by point lights and drawing models are the caller's choice and it
 // sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
