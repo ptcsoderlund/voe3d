@@ -9,8 +9,11 @@
 // is held, then the shells, which fly, hit and run out, then the lives,
 // which count this step's hits on the player before the hit shells go, then
 // the spawner, which makes enemies on a timer, then the enemies, which drive,
-// fire at the lives' hull and run out, then the camera, which fits its lens to the window's shape
-// (0291). The gun is after the turret so it fires along this step's aim. The
+// fire at the lives' hull and run out, then the light fade, which dims each
+// flashed light (0322 point 6), then the camera, which fits its lens to the
+// window's shape (0291). The gun is after the turret so it fires along this
+// step's aim; the light fade is after the gun and the enemy so a shot fired
+// this step shows full this step. The
 // breakable has no system: the shells swap a hit one for its wreck.
 // systems_after_move has nothing yet. interface runs once a frame, after
 // the steps (0259): the lives' HUD, which ends the ui frame game began and
@@ -21,13 +24,15 @@
 // loads this code as a library and calls only register (0242).
 //
 // Constraints: before the move, the control, hull, turret, gun, shell, lives,
-// spawner, enemy, then camera; after it, nothing. The order is the data flow.
+// spawner, enemy, light fade, then camera; after it, nothing. The order is the
+// data flow.
 #include "tank_breakable.h"
 #include "tank_camera.h"
 #include "tank_control.h"
 #include "tank_enemy.h"
 #include "tank_gun.h"
 #include "tank_hull.h"
+#include "tank_light_fade.h"
 #include "tank_lives.h"
 #include "tank_shell.h"
 #include "tank_spawner.h"
@@ -51,6 +56,7 @@ void voe_game_project_register(voe_ecs_world *world)
 	(void)tank_lives_register(world);
 	(void)tank_enemy_register(world);
 	(void)tank_spawner_register(world);
+	(void)tank_light_fade_register(world);
 	(void)tank_camera_register(world);
 }
 
@@ -66,6 +72,7 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 	tank_lives_run(step);
 	tank_spawner_system_run(step);
 	tank_enemy_system_run(step);
+	tank_light_fade_system_run(step);
 	tank_camera_run(step);
 }
 

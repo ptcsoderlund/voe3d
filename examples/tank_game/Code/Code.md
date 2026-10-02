@@ -23,4 +23,6 @@ the library the editor loads (0242).
 - `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
 - `tank_control.h` — the runtime-only control row on the player's hull: drive, turn, aim, fire and whether the pad is in use.
 - `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
-- `project.c` — the four entry points: registers all eleven types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, then camera before the move, nothing after; the interface is the lives' HUD.
+- `tank_light_fade.h` — the Tank / Light fade component: a peak, default 4, the seconds it fades, default 0.12, and the seconds left; the call that restarts a fade from full, per shot.
+- `tank_light_fade_system.c` — sets each faded point light to peak × left / seconds through its replace, only when it differs, then counts left down to 0.
+- `project.c` — the four entry points: registers all twelve types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, light fade, then camera before the move, nothing after; the interface is the lives' HUD.
