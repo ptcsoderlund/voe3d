@@ -1,7 +1,7 @@
 // The component tables: registration, the two directions between an entity and
 // its row, and what a removal does to the order. Also what a registration is
 // given afterwards and only hands back: the replace intent, the default row, the
-// type a type needs and the menu path.
+// unsaid row, the type a type needs and the menu path.
 //
 // A ROW IS FOUND BY INDEXING TWICE AND NOT BY SEARCHING. row_of[entity.index] is
 // the row, and owners[row] is the entity — one load each way, no hashing and no
@@ -122,6 +122,7 @@ voe_ecs_type voe_ecs_component_register(
 	table->replace_row_offset = 0;
 	table->replace_set = false;
 	table->default_row = NULL;
+	table->unsaid_row = NULL;
 	table->needs = (voe_ecs_type){ 0 };
 	table->needs_set = false;
 	table->menu = NULL;
@@ -265,6 +266,26 @@ const void *voe_ecs_component_default(const voe_ecs_world *world,
 				      voe_ecs_type type)
 {
 	return table_at(world, type)->default_row;
+}
+
+void voe_ecs_component_unsaid_set(voe_ecs_world *world, voe_ecs_type type,
+				  const void *row)
+{
+	struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_ASSERT(row != NULL, "setting a component's unsaid row from nothing");
+	VOE_BASE_ASSERT(table->unsaid_row == NULL,
+			"giving a component type a second unsaid row");
+
+	// Copied into the world's arena, as the default row is.
+	table->unsaid_row = voe_base_arena_push(world->arena, table->size);
+	memcpy(table->unsaid_row, row, table->size);
+}
+
+const void *voe_ecs_component_unsaid(const voe_ecs_world *world,
+				     voe_ecs_type type)
+{
+	return table_at(world, type)->unsaid_row;
 }
 
 void voe_ecs_component_needs_set(voe_ecs_world *world, voe_ecs_type type,
