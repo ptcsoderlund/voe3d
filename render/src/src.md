@@ -47,7 +47,8 @@ which file to open — what each one owns, and where the seams between them run.
   depth with its sampled copy, the image build, settle and teardown every target shares, and the
   bounce grids, built cleared.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps its bounce grid through a resize.
+  GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps
+  its bounce grid through a resize.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
@@ -85,8 +86,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block and its
   point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
   copy, and the one Y flip in the viewport.
-- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, in the
-  point-shadow pass one instance per cube face reached, the depth clear between them, and the
+- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
+  the point-shadow pass one instance per cube face reached, the depth clear between them, and the
   rebinds only when pipeline or pool pair changes.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.

@@ -65,8 +65,7 @@ by reading the offscreen colour image back.
   through scrolling and with two views in one frame, and the ground on the wall's shadow side
   within 4/255 of unlit by it. Headless.
 - `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
-  negative cell too, a cycle
-  of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
+  negative cell too, a cycle of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
   a changed light restarting it, and a small room truncating.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,

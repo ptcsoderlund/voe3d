@@ -10,14 +10,14 @@ workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
-- **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path and unsaid row.
+- **ecs** — entities, component tables, intent queues, a structural queue, a type's menu and unsaid row.
 - **platform** — the one OS-aware folder: window, input, pads, files, clock, processes, libs, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, identity.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera; sound component.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — the one layer naming Vulkan: card, resources, passes, shadows, bounce, point lights.
+- **render** — the one layer naming Vulkan: card, resources, passes, lights, shadows, bounce.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -55,5 +55,5 @@ workflow replaced specs.
 - 0239–0248, 0263 — A project's C in `Code/`, loaded, Refreshed; `examples/`; `engine_assets/`.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
-- 0298, 0299, 0301, 0304, 0305, 0321, 0324 — Particles; effects; shadows; sounds; water; falloff.
+- 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0308, 0310–0319 — Probe-grid bounce, lit side, per light; costly looks opt-in; the low end.

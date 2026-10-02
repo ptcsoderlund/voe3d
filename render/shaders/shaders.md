@@ -11,8 +11,8 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block
   with its bounce record and point light count, object and shading records, the bounce grids at
   binding 6, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
-  bindings and the push constant, the object and a 96-bit face mask,
-  each matching its C struct.
+  bindings and the push constant, which holds the object and a 96-bit face
+  mask, each matching its C struct.
 - `draw.slang` — the mesh pipelines' entry points, the bounce map's fragment
   among them, the only place a matrix is
   applied to a position, the three numbers a draw finds everything by, the
