@@ -14,8 +14,9 @@
 // replaces (game/project.h), the transform, identity and light systems, the
 // shape system, the model system, the collider and body systems, then the
 // sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
-// sun's shadow passes (voe_3d_draw_system_shadows, 0258), the point lights
-// (voe_3d_draw_system_point_lights, 0320), one pass onto the window with
+// point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,
+// 0325), the sun's shadow passes and the lamps' one (voe_3d_draw_system_shadows,
+// 0258, 0325), one pass onto the window with
 // voe_3d_draw_system_frame's camera, sun, shadow and point lights, the draw
 // system, depth cleared and the interface's element records drawn in one
 // command over the surface of game/interface.h, the pass and the draw closed. The world step is its own call too, so
@@ -35,6 +36,7 @@
 // draw; a minimised window is the caller's to skip.
 #pragma once
 
+#include <3d/draw_system.h>
 #include <3d/emitter_component.h>
 #include <3d/models.h>
 #include <3d/shadow_cascades.h>
@@ -58,14 +60,15 @@
 // What the device must hold for one frame: the built-in shapes' geometry and
 // their two records, and the model store's room beside them (3d/models.h);
 // two objects per drawn entity, a shape's or a model part's, in the window
-// pass, in each cascade and in the bounce pass, every caster drawn once into
-// each; each emitter's
+// pass, in each cascade, in the bounce pass and in the point-shadow pass, every
+// caster drawn once into each; each emitter's
 // VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
 // shadow (0298 points 6 and 8); one per water, VOE_GAME_WORLD_WATERS, in the
 // window pass alone, since water casts no shadow (0305 point 7); the window
-// pass, one shadow pass per cascade and the bounce pass of the casters after
-// the cascades, one draw each (0308 point 1); the sun's maps at
-// VOE_3D_SHADOW_TEXELS a side; the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
+// pass, one shadow pass per cascade, the bounce pass of the casters after
+// the cascades, one draw each (0308 point 1), and the lamps' point-shadow pass
+// (0325 point 7); the sun's maps at VOE_3D_SHADOW_TEXELS a side and the lamps'
+// faces at VOE_3D_POINT_SHADOW_TEXELS; the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
 // transient and no targets: the game draws no outline and nothing off screen.
 #define VOE_GAME_CAPACITIES                                                  \
 	(voe_render_capacities)                                              \
@@ -75,13 +78,14 @@
 		.geometries = VOE_3D_SHAPES_GEOMETRIES +                      \
 			      VOE_3D_MODELS_GEOMETRIES,                       \
 		.objects = 2 * VOE_GAME_WORLD_MAX_DRAWN *                     \
-				   (2 + VOE_RENDER_SHADOW_CASCADES) +        \
+				   (3 + VOE_RENDER_SHADOW_CASCADES) +        \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES + \
 			   VOE_GAME_WORLD_WATERS,                               \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,  \
-		.passes = 1 + VOE_RENDER_SHADOW_CASCADES + 1,                 \
+		.passes = 1 + VOE_RENDER_SHADOW_CASCADES + 1 + 1,             \
 		.elements = VOE_GAME_INTERFACE_ELEMENTS,                      \
-		.shadow_size = VOE_3D_SHADOW_TEXELS                           \
+		.shadow_size = VOE_3D_SHADOW_TEXELS,                          \
+		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS               \
 	}
 
 // Drains every intent in the frame's order: the structural queue, the project's
