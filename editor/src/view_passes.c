@@ -8,8 +8,9 @@
 // nothing. Every pass is lit by the world's point lights (0320 point 6), their
 // array in `arena` from before the shadow call, whose lamps' pass reads their
 // slots (0325 point 6), until the pass is open. Each shadow call is handed
-// its own target, the view's or the preview's, so its bounce updates that
-// target's probe grid and no view reads a grid another view scrolled (0308).
+// its own target, the view's or the preview's, so its bounce is that target's
+// probe volume, begun, captured and relit by that call, and no view reads a
+// volume another view moved (0326 point 8).
 #include "view_passes.h"
 
 #include <base/assert.h>
