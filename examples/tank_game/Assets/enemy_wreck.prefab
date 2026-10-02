@@ -23,6 +23,12 @@ texture = ""
 kind = 1
 size = [4.64, 4, 2.62]
 trigger = false
+[1.voe_scene_point_light]
+colour = [1, 0.55, 0.15]
+intensity = 6
+range = 10
+flash = 0.6
+flash_when_made = true
 [1.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]
