@@ -83,8 +83,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   its own call and who casts.
 - `draw_bounce.h` — the sun's bounce pass, this step's stale spheres and the cascades' caster walk
   it shares; internal.
-- `draw_bounce.c` — run only for a light with bounces: the grid fitted, the casters drawn into the bounce map, a caster moved between
-  lag 1 and lag 0 marked at both places, and the frame's target's grid updated.
+- `draw_bounce.c` — run only for a light with bounces: the grid fitted, the casters drawn into the
+  bounce map, a caster moved between lag 1 and lag 0 marked at both places, and the frame's
+  target's grid updated.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
