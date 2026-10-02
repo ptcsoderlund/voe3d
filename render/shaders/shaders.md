@@ -25,7 +25,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   its shadow by cascades, its radiance, the bounce read from the pass's probe
   grid times `VOE_BOUNCE_GAIN` (0311), a non-finite one read as nought, the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each
-  fading to its range by its falloff (0322).
+  fading to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per

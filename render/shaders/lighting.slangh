@@ -1,15 +1,18 @@
 // The sun and what it lights by: glTF's BRDF terms, the shadow lookup over the
 // cascades, the sun's radiance, the bounce, the fill and the point lights. A part
 // (ADR-0308): included by draw.slang after bindings.slangh, whose frame block,
-// light, cascades, bounce grids and point lights it reads; never compiled alone.
+// light, cascades, bounce grids and point lights it reads, and includes
+// point_shadow.slangh; never compiled alone.
 // draw.slang's fragment stage and water.slangh both light through it.
 //
 // POINT LIGHTS ADD TO THE SUN'S DIRECT TERM (ADR-0320): voe_render_points, the
 // same BRDF towards each light, times N·L, its colour and saturate(1 −
 // (d/range)^(2/falloff))² (ADR-0322; falloff 1 is (1 − (d/range)²)²), over the
 // lights both its tile's mask and its slice's mask hold
-// (binding 8, binned by render/src/light_bins.c). No shadow, no part in the
-// fill's fade, none in the bounce, and the water path does not call it.
+// (binding 8, binned by render/src/light_bins.c). Point lights cast now (0325):
+// a slotted light's term times lerp(1, visibility, strength), one compare on
+// its face (point_shadow.slangh) at binding 9. No part in the fill's fade, none
+// in the bounce, and the water path does not call it.
 //
 // ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
 // sun arrives with the camera, once a frame, and every surface is lit from the
@@ -50,6 +53,8 @@
 // look when a highlight is wrong is `roughness * roughness`: alpha is roughness
 // squared and using roughness directly is the classic mistake — it makes every
 // surface too shiny and no maths goes wrong to say so.
+
+#include "point_shadow.slangh"
 
 static const float VOE_PI = 3.14159265358979;
 
@@ -225,12 +230,41 @@ uint voe_render_light_tile(float ndc, uint tiles)
 	return uint(clamp(t, 0.0, float(tiles - 1)));
 }
 
+// How much of slotted point light `light` reaches `world`, nought to one: the
+// face (surface − light) points through, the surface pushed one texel along its
+// geometric normal `surface` — a face texel spans 2·d / size metres at distance
+// d along the face's axis, the size the map's own — so it does not shadow
+// itself, then one hardware-filtered compare on layer 6(slot − 1) + face. The
+// v flip is point_shadow.slangh's.
+float voe_render_point_visibility(voe_render_point_light light, float3 world,
+				  float3 surface)
+{
+	float width;
+	float height;
+	float layers;
+
+	voe_render_point_shadow_maps.GetDimensions(width, height, layers);
+	float3 to = world - light.position;
+	float3 a = abs(to);
+	float d = max(a.x, max(a.y, a.z));
+	float3 pushed = to + surface * (2.0 * d / width);
+	uint face = voe_render_point_shadow_face(pushed);
+	float4 clip = voe_render_point_shadow_clip(pushed, face, light.range);
+	float3 ndc = clip.xyz / clip.w;
+	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+	float layer = float(6 * (light.shadow - 1) + face);
+
+	return voe_render_point_shadow_maps.SampleCmpLevelZero(float3(uv, layer),
+							      ndc.z);
+}
+
 // What the pass's point lights add to the direct light at `world`, facing `n`
-// and seen along `v`: the BRDF of each light its tile and slice both mark, times
-// N·L, its colour and saturate(1 − (d/range)^(2/falloff))², the light's falloff
-// bending its reach. Nought with no lights. See the header.
-float3 voe_render_points(float3 world, float3 n, float3 v, float3 diffuse_colour,
-			 float3 f0, float alpha)
+// (`surface` its geometric normal, which places a shadow lookup) and seen along
+// `v`: the BRDF of each light its tile and slice both mark, times N·L, its
+// colour and saturate(1 − (d/range)^(2/falloff))², the light's falloff bending
+// its reach, and a slotted light's shadow. Nought with no lights. See the header.
+float3 voe_render_points(float3 world, float3 surface, float3 n, float3 v,
+			 float3 diffuse_colour, float3 f0, float alpha)
 {
 	uint count = voe_render_frame.lights;
 
@@ -277,9 +311,15 @@ float3 voe_render_points(float3 world, float3 n, float3 v, float3 diffuse_colour
 			float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
 			float fade = saturate(
 				1.0 - pow(d / light.range, 2.0 / light.falloff));
+			float shade = 1.0;
 
+			if (light.shadow != 0 && light.shadow_strength > 0.0)
+				shade = lerp(1.0,
+					     voe_render_point_visibility(
+						     light, world, surface),
+					     light.shadow_strength);
 			sum += (diffuse + specular) * light.colour * n_dot_l *
-			       fade * fade;
+			       fade * fade * shade;
 		}
 	}
 	return sum;

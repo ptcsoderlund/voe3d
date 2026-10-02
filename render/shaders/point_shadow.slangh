@@ -1,10 +1,10 @@
 // A point light's six cube faces (ADR-0325 points 1 and 3): which face a
 // light-relative vector falls on, and the clip position of a light-relative
-// point drawn onto face f. A part, included by draw.slang after bindings.slangh;
-// never compiled alone.
+// point drawn onto face f. A part, included by lighting.slangh, after
+// bindings.slangh; never compiled alone.
 //
 // ONE FUNCTION FOR THE DRAW AND THE LOOKUP. The point-shadow vertex stage places
-// a caster with voe_render_point_shadow_clip, and card 05's lookup projects the
+// a caster with voe_render_point_shadow_clip, and lighting.slangh's lookup projects the
 // surface it shades with the same function on the face voe_render_point_shadow_face
 // picks, so the two cannot disagree about where a face's texels are.
 //

@@ -53,8 +53,8 @@
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
-// direct term and the unshaded one does not, with the decisions in its header.
-// point_shadow.slangh then: a cube face's pick and projection. water.slangh last,
+// direct term and the unshaded one does not, with the decisions in its header;
+// it includes point_shadow.slangh, a cube face's pick and projection. water.slangh last,
 // after the vertex stage and voe_render_premultiplied, which it uses. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
@@ -176,7 +176,6 @@
 
 #include "bindings.slangh"
 #include "lighting.slangh"
-#include "point_shadow.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same three numbers in its VkVertexInputAttributeDescription and
@@ -510,8 +509,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// The point lights beside the sun (ADR-0320), the bounce with the fill
 	// as its floor, and emission last, unshadowed and unoccluded (ADR-0278).
 	float3 direct = (diffuse + specular) * radiance +
-			voe_render_points(vertex.world, n, v, diffuse_colour, f0,
-					  alpha);
+			voe_render_points(vertex.world, surface, n, v,
+					  diffuse_colour, f0, alpha);
 	float3 lit = direct * occlusion +
 		     voe_render_indirect(reach, vertex.world, n, base.rgb) +
 		     shading.emissive * glow;

@@ -32,6 +32,8 @@
 // its block names how many and the region, which is the pass's number. A light
 // whose falloff is not finite or not above nought asserts there (ADR-0322), as
 // does a shadow slot out of range or named twice, or a strength outside 0 to 1.
+// On a device whose point shadows are not ready every slot is copied as 0, so
+// no surface reads a map nothing drew.
 //
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
@@ -313,12 +315,15 @@ void voe_render_pass_copy_lights(const struct voe_render_frame *frame,
 // `points` into pass `region`'s records at binding 7 and its bins at binding 8,
 // and the count and region into `block`; none writes 0 and bins nothing. The
 // bins are filled on the stack and copied whole, because the fill reads back
-// what it ORs into and the mapped memory may be write-combined.
+// what it ORs into and the mapped memory may be write-combined. Without
+// `shadows` every copied record's slot is then written 0, never read back.
 static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 			 const voe_render_view *view,
-			 voe_render_point_lights points,
+			 voe_render_point_lights points, bool shadows,
 			 struct voe_render_frame_block *block)
 {
+	voe_render_point_light *copied;
+
 	struct voe_render_light_bins bins;
 	bool slots[VOE_RENDER_POINT_SHADOWS + 1] = { false };
 
@@ -350,6 +355,10 @@ static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 			      "placing point lights in a bin buffer that is not mapped");
 	voe_render_pass_copy_lights(frame, region, 0, points.lights,
 				    points.count);
+	copied = (voe_render_point_light *)frame->point_lights_mapped +
+		 (size_t)region * VOE_RENDER_POINT_LIGHTS;
+	for (uint32_t i = 0; !shadows && i < points.count; i++)
+		copied[i].shadow = 0;
 	voe_render_light_bins_fill(view, points.lights, points.count, &bins);
 	memcpy((struct voe_render_light_bins *)frame->light_bins_mapped + region,
 	       &bins, sizeof(bins));
@@ -427,7 +436,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 						       &device->window_grid,
 			  device->slot);
 		place_lights(frame, device->pass_count, &camera->view,
-			     camera->points, &block);
+			     camera->points,
+			     voe_render_point_shadows_ready(device), &block);
 	}
 
 	// The window's pair or this frame slot's pair of the target, each with

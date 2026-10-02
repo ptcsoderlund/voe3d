@@ -530,7 +530,10 @@ typedef struct {
 // `shadow` IS THE LIGHT'S POINT SHADOW SLOT, 1 to VOE_RENDER_POINT_SHADOWS, or 0
 // for none (ADR-0325); `shadow_strength`, 0 to 1, is how far its shadow darkens
 // what it lights. Zero is no shadow, so every initializer that names neither
-// draws as before. voe_render_pass_begin asserts a slot past
+// draws as before. A slotted light's term on a lit surface is times
+// lerp(1, visibility, strength), read from its slot's maps as the frame's
+// point-shadow pass drew them; on a device whose point shadows are not ready it
+// reads none. voe_render_pass_begin asserts a slot past
 // VOE_RENDER_POINT_SHADOWS, a slot two of a pass's lights name, and a strength
 // not finite or outside 0 to 1.
 //
@@ -1152,7 +1155,9 @@ typedef struct {
 // `points` LIGHT THE PASS'S LIT SURFACES (ADR-0320): binned into the pass's
 // screen tiles and depth slices as it opens, then added to the sun's direct light
 // on every lit surface each one reaches — not in an unshaded pass, not on
-// water. They are copied at _pass_begin, so the caller's array is
+// water. A light with a shadow slot shadows its term from the slot's maps,
+// so the frame's point-shadow pass comes first; on a device whose point
+// shadows are not ready it reads none. They are copied at _pass_begin, so the caller's array is
 // its own again when that returns. Zero is none; more than
 // VOE_RENDER_POINT_LIGHTS, or NULL with a count, asserts.
 typedef struct {

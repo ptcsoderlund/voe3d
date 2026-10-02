@@ -13,7 +13,7 @@
 //    the ground, about 0.85 of the reach, brighter at 0.25 than at 1 and at 1
 //    than at 4, and the pixel under the light no darker at 0.25 than at 1;
 // 6. the first light with `shadow` 3 and strength 1 (ADR-0325): the ground lit
-//    exactly as case 1, because nothing looks the slot up yet.
+//    exactly as case 1, because this device has no point shadows.
 //
 // Every light is falloff 1 but case 5's others, so cases 1 to 4 keep the
 // numbers they had before falloff.
