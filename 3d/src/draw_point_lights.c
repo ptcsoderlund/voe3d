@@ -7,7 +7,8 @@
 // does not use. Each kept light's place is voe_scene_transform_between at the
 // frame's lag, taken about the eye in double before it is narrowed (ADR-0250);
 // its colour is the row's times its intensity and its falloff the row's, as
-// authored (0321, 0322). A light of intensity 0 is left out.
+// authored (0321, 0322), its bounces and bounce strength copied as authored
+// (0326 point 1). A light of intensity 0 is left out.
 //
 // Then the shadow slots (0325 point 5): among the kept lights whose row casts,
 // ranked by the eye's distance to the light's sphere, max(0, |position| −
@@ -142,6 +143,8 @@ bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
 			.colour = voe_math_float3_scale(rows[i].colour, intensity),
 			.falloff = rows[i].falloff,
 			.shadow = rows[i].cast_shadows ? 1u : 0u,
+			.bounces = rows[i].bounces,
+			.bounce_strength = rows[i].bounce_strength,
 		};
 	}
 	choose_shadows(lights, filled);

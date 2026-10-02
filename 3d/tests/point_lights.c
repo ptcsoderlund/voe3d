@@ -9,7 +9,8 @@
 // (20, 1, 0) less the eye; a world with no point light table fills none and
 // returns true; and an arena of 64-byte blocks still holds them all, because
 // base's arena push gets a block of its own rather than fails (base/arena.h) —
-// the false return the header names has no path today.
+// the false return the header names has no path today. A lamp of bounces 2 and
+// strength 0.5 frames with both; one of bounces 0 frames with 0 (0326 point 1).
 //
 // THE SHADOW SLOTS (0325 point 5): of 20 casting lamps of range 5 along +X, 10 m
 // apart, the nearest 16 take slots 1..16 in order, the first at strength 1 and
@@ -184,6 +185,33 @@ static void no_table_and_a_small_arena(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, small));
 	VOE_TEST_CHECK_INT(frame.points.count, 4);
 	voe_base_arena_destroy(small);
+}
+
+// A lamp of bounces 2 and strength 0.5, then one of bounces 0: both as authored.
+static void bounces_are_carried(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, 4);
+	voe_scene_point_light bouncing = { .colour = { 1.0f, 1.0f, 1.0f },
+					   .intensity = 1.0f,
+					   .range = 5.0f,
+					   .falloff = 1.0f,
+					   .bounces = 2,
+					   .bounce_strength = 0.5f };
+	voe_scene_point_light still = bouncing;
+	voe_3d_frame frame = { 0 };
+
+	still.bounces = 0;
+	still.bounce_strength = 1.0f;
+	(void)lamp_of(world, bouncing, true, (voe_math_double3){ 1.0, 0.0, 0.0 });
+	(void)lamp_of(world, still, true, (voe_math_double3){ 2.0, 0.0, 0.0 });
+	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
+	VOE_TEST_CHECK_INT(frame.points.count, 2);
+	if (frame.points.count != 2)
+		return;
+	VOE_TEST_CHECK_INT(frame.points.lights[0].bounces, 2);
+	VOE_TEST_CHECK_FLOAT(frame.points.lights[0].bounce_strength, 0.5f,
+			     0.0f);
+	VOE_TEST_CHECK_INT(frame.points.lights[1].bounces, 0);
 }
 
 static const voe_scene_point_light CASTING = { .colour = { 1.0f, 1.0f, 1.0f },
@@ -434,6 +462,7 @@ int main(void)
 
 	the_table_becomes_the_passs_lights(arena);
 	no_table_and_a_small_arena(arena);
+	bounces_are_carried(arena);
 	the_nearest_sixteen_are_slotted(arena);
 	only_lit_casting_lamps_are_slotted(arena);
 	sixteen_or_fewer_are_all_full(arena);
