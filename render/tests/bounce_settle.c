@@ -299,7 +299,7 @@ static void settle(voe_render_device *device)
 		before = device->relight_dispatches;
 		if (one_frame(device, cube, grey) == 0)
 			break;
-		VOE_TEST_CHECK_INT(device->relight_dispatches, before + 1);
+		VOE_TEST_CHECK(device->relight_dispatches > before);
 	}
 	printf("captured every probe in %u frames\n", frames);
 	VOE_TEST_CHECK(frames > 0 && frames < FRAMES_MAX);

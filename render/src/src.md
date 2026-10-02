@@ -74,8 +74,8 @@ which file to open — what each one owns, and where the seams between them run.
   frames unbegun, and that begin.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
   depth, sixteen queued probes drawn into it as one layered pass, then copied into the atlases.
-- `bounce_relight.c` — the relight: its compute pipeline, set layout, pool and per-slot probe
-  lists, and the call that settles each changed probe's validity and distance moments.
+- `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
+  lists and lights records, and the call that settles changed probes, relights each level in use and sums them.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC

@@ -40,6 +40,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   L1 SH from them, each VPL weighted by how far the probe stands in front of
   its face plus an allowance of 0.25 m (0313, 0314), one within 1 mm skipped, blended into a grid's three images.
 - `bounce_relight.slang` — the relight's compute: `settle`, a listed probe's validity, nought with no
-  picture or over a quarter of its texels on back faces, and each texel's distance moments over its 3×3 (0326).
+  picture or over a quarter of its texels on back faces, and each texel's distance moments over its 3×3;
+  `relight`, a probe's picture lit by a chain's lights or the level below into a level's L1 SH; `sum` (0326).
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

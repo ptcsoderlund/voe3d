@@ -345,13 +345,15 @@ struct voe_render_bounce_begun {
 // each, levels L(n, k) then the sum, 24 × 12 × 24. Every image storage, sampled,
 // transfer-dst and -src, cleared to nought, resting in GENERAL. `wanted` is set by a
 // begin, `built` when the images exist, `idle` the frame tops since the last
-// begin. ONE COPY, NOT PER FRAME SLOT, which is why `begun` is.
+// begin; `chains_lit` bit n while chain n's levels may hold light, the relight's.
+// ONE COPY, NOT PER FRAME SLOT, which is why `begun` is.
 struct voe_render_bounce_volume {
 	struct voe_render_allocated_image albedo;
 	struct voe_render_allocated_image normal;
 	struct voe_render_allocated_image moments;
 	struct voe_render_allocated_image validity;
 	struct voe_render_allocated_image sh[7][3];
+	uint32_t chains_lit;
 	bool built;
 	bool wanted;
 	uint32_t idle;
