@@ -1,6 +1,7 @@
 // The systems, the point lights in `scratch`, rewound once the window pass
-// has copied them, the shadow passes (the sun's, which also feed the bounce,
-// the frame's target left zero, the window's, and the lamps'), and the window pass with the interface over
+// has copied them, the shadow passes (the sun's, the frame's target left zero,
+// the window's, and the lamps'), then the bounce's capture passes and relight
+// when a light bounces, and the window pass with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
 // once.
