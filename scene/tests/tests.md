@@ -18,7 +18,8 @@ module's promises from outside. None of them needs a window or a graphics card.
   intent applies a good lens and keeps the row over a bad one.
 - `light.c` — what registration tells a tool, that an intent lands only when
   the system runs and a refused one keeps the row, that bounces lands up to its
-  maximum and is named "0" and "1", and that a rotation and the direction it
+  maximum and is named "0" and "1", that cast shadows is off by default, on in
+  the unsaid row and lands either way, and that a rotation and the direction it
   shines convert both ways, +Z included.
 - `point_light.c` — what registration tells a tool (falloff 1 by default), that
   a refused replace keeps the row, a falloff past either bound included, that an

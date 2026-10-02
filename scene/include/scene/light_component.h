@@ -28,6 +28,11 @@
 // values are named, so a tool offers exactly the allowed counts and the scene
 // text still holds the number; a count past the maximum is a bad light.
 //
+// CAST_SHADOWS IS WHETHER THIS LIGHT'S SHADOWS ARE DRAWN AT ALL (0324): false
+// costs nothing (0316) and is what a new light has; a file saved before the
+// field existed reads true, so an old scene keeps its sun's shadows. Which
+// things cast is their own flag, on 3d's shape and model.
+//
 // INTENSITY IS A MULTIPLIER AND NOT A PHYSICAL UNIT. There is no exposure or
 // tone mapping yet, so a number here is whatever looks right; 1 with white is
 // what an unlit-looking scene turns into. Neither intensity may be negative.
@@ -54,14 +59,16 @@
 #include <stdint.h>
 
 // The colours are linear multipliers, (1, 1, 1) white; the intensities are
-// not negative. The fill lifts only the shade, and bounces is at most
-// VOE_SCENE_LIGHT_BOUNCES_MAX — see the header.
+// not negative. The fill lifts only the shade, bounces is at most
+// VOE_SCENE_LIGHT_BOUNCES_MAX, and cast_shadows is off unless said — see the
+// header.
 #define VOE_SCENE_LIGHT_FIELDS(F, F_READ_ONLY)      \
 	F(voe_math_float3, colour, COLOUR)          \
 	F(float, intensity, FLOAT32)                \
 	F(voe_math_float3, fill_colour, COLOUR)     \
 	F(float, fill_intensity, FLOAT32)           \
-	F(uint32_t, bounces, UINT32)
+	F(uint32_t, bounces, UINT32)                \
+	F(bool, cast_shadows, BOOL)
 
 // The most bounces a light may ask for.
 #define VOE_SCENE_LIGHT_BOUNCES_MAX 1u
