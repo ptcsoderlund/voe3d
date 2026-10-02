@@ -18,8 +18,8 @@ file; the rest hand the writer a world and the reader text held in memory.
   type's unsaid row, else its default, a said field kept, and a light with no
   `cast_shadows` reading true.
 - `scene_cook.c` — the exact source for a small scene, the sun's bounces and
-  cast_shadows flag included, that source compiled by `clang`, the refusals leaving `*out`
-  untouched, and an empty world.
+  `cast_shadows` included, that source compiled by `clang`, the refusals leaving
+  `*out` untouched, and an empty world.
 - `project.c` — the exact bytes the writer emits, a round trip through the
   reader, every refusal with the line it names, and an unknown key that warns and
   still loads.

@@ -25,8 +25,7 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `light_component.c` — the key, the reads, and the conversions between a
   rotation and the direction it shines.
 - `light_system.c` — registration with its default and unsaid rows, creation,
-  and the drain that applies a whole
-  light or keeps the row over one it refuses.
+  and the drain that applies a whole light or keeps the row over one it refuses.
 - `point_light_component.c` — the key and the reads.
 - `point_light_system.c` — registration, creation, and the run that applies whole
   lights, falloff included, or keeps the row over one it refuses.

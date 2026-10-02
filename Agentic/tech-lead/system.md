@@ -10,7 +10,7 @@ workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
-- **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path.
+- **ecs** — entities, component tables, intent queues, a structural queue, a type's menu path and unsaid row.
 - **platform** — the one OS-aware folder: window, input, pads, files, clock, processes, libs, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, identity.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
@@ -55,5 +55,5 @@ workflow replaced specs.
 - 0239–0248, 0263 — A project's C in `Code/`, loaded, Refreshed; `examples/`; `engine_assets/`.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
-- 0298, 0299, 0301, 0304, 0305, 0321 — Particles; tank effects; shadows; sounds; water; falloff.
+- 0298, 0299, 0301, 0304, 0305, 0321, 0324 — Particles; effects; shadows; sounds; water; falloff.
 - 0307, 0308, 0310–0319 — Probe-grid bounce, lit side, per light; costly looks opt-in; the low end.

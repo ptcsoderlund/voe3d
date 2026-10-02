@@ -17,7 +17,8 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
   root sits at the origin, and why a read may add rows.
 - `include/authoring/scene_read.h` — scene text read into a world. Its header says
   why a load may create rows, that a file is validated whole first, what a missing
-  field reads as, and what is kept rather than read; the file says what a world that runs out of room is left as.
+  field reads as, and what is kept rather than read; the file says what a world
+  that runs out of room is left as.
 - `include/authoring/scene_cook.h` — a world cooked into C source the game compiles in.
   Its header says what is cooked, why floats are hex and why the cooked function may
   create rows; the file says how every field kind is spelled and what it refuses.
