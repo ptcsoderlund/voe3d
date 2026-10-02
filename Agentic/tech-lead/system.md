@@ -57,3 +57,4 @@ workflow replaced specs.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305 — Particles in `3d`; the tank's effects; shadows; sounds; water.
 - 0307, 0308, 0310–0315 — Bounce light: a VRAM probe grid fed by a fifth sun pass, lit side only.
+- 0316–0318 — Performance first, costly looks opt-in, pre-ray-tracing PC cards the floor; bounce rebuilt per light.

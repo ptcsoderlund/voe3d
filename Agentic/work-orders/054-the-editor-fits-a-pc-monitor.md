@@ -1,4 +1,4 @@
-# 052 — The editor fits a PC monitor
+# 054 — The editor fits a PC monitor
 
 ## What
 The editor looks made for a PC monitor, not a touch panel or a smartphone. Its

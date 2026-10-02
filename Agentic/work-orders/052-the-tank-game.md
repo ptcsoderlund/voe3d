@@ -1,4 +1,4 @@
-# 047 — The tank game
+# 052 — The tank game
 
 ## What
 `examples/tank_game/` is a whole game, shipped. By now it drives, shoots, hits and explodes (0272).

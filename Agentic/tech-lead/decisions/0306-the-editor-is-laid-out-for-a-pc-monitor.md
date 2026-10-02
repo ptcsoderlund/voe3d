@@ -4,7 +4,7 @@ by: tech-lead
 
 ## Decision
 The editor is laid out for a PC monitor at desktop viewing distance, not for touch. Its text at the
-text-size slider's 100 % is 80 % of the size it had before 052, and its spacing (padding, row and
+text-size slider's 100 % is 80 % of the size it had before 054, and its spacing (padding, row and
 button heights, gaps between widgets) is 65 % of what it was. The new sizes are the editor's 100 %:
 the slider still reads 100 % by default, and a remembered text scale keeps its number and so shrinks
 with the base. A game's interface keeps its sizes, and the default panel widths and minimums stay as

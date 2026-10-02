@@ -1,4 +1,4 @@
-# 051 — Open starts beside the current project
+# 053 — Open starts beside the current project
 
 ## What
 When I press Open in the editor, the file browser starts in the folder that
