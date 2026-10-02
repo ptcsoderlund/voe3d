@@ -1,12 +1,13 @@
-// What a frame draws into the scene views: a pass per view the dock tree
-// shows, each preceded by the sun's shadow passes fitted to that view
-// (voe_3d_draw_system_shadows, ADR-0258) and onto that view's own target with
-// its own camera, the light voe_editor_view_light gives (the world's or the
-// preview) and those shadows, the world and its models drawn by voe_3d_draw_system_run with the
-// selection's outline, a model's too (ADR-0203), its collider as lines (0253), its move
-// gizmo (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every point light's (0320), and the pass ended; and before those, the preview's
-// shadow passes and one pass with the world's own camera (view.h); every pass lit by the point lights. main.c calls both once a
-// frame, between opening the draw and the window's pass:
+// What a frame draws into the scene views: per view the dock tree shows, the
+// sun's shadow passes fitted to it (voe_3d_draw_system_shadows, ADR-0258),
+// then a pass onto that view's target with its own camera, the light
+// voe_editor_view_light gives (the world's or the preview) and those shadows:
+// the world and its models (voe_3d_draw_system_run), the selection's outline,
+// a model's too (ADR-0203), its collider as lines (0253), its move gizmo
+// (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every
+// point light's (0320). Before those, the preview's shadow passes and one pass
+// with the world's own camera (view.h). The point lights light every pass.
+// main.c calls both each frame, between opening the draw and the window pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
 //                                            light, &scene, models);
