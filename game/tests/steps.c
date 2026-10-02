@@ -7,9 +7,8 @@
 // thing with a transform holds live particles after 60 steps, and a looping
 // sound on a thing, a WAV the test writes in its working directory, plays
 // through a mixer on that folder after two steps, and one step advances a
-// water's clock, added by the step before, by the step, and a point light with
-// a flash, flashed, has its full strength after one step and none once enough
-// steps have outlasted the flash.
+// water's clock, added by the step before, by the step, and a point light's
+// replace, as game code fading it sends, takes in one step.
 // Needs no window, no graphics card and no sound device: nothing is shaped,
 // so the shapes are zeros, and the mixer is never pumped.
 #include <game/steps.h>
@@ -265,38 +264,40 @@ static void a_water_keeps_time(voe_ecs_world *world,
 				     (float)VOE_GAME_STEP_SECONDS, 1e-6f);
 }
 
-// A lamp of intensity 2 with a flash of ten steps on a thing at the origin,
-// flashed: one step makes its glow and flashes it, full because a flash is not
-// counted down in the run that gives it, and twelve steps later it is dark.
-static void a_point_light_flashes(voe_ecs_world *world,
-				  const voe_3d_shapes *shapes)
+// A lamp of intensity 2 and falloff 1 on a thing at the origin, and a replace
+// of intensity 0.5 and falloff 3 submitted, as game code fading a light does:
+// after one step its row reads the replace's.
+static void a_point_light_replace_takes(voe_ecs_world *world,
+					const voe_3d_shapes *shapes)
 {
 	voe_game_steps steps = { 0 };
 	voe_ecs_entity entity = { 0 };
+	const voe_scene_point_light lamp = { .colour = { 1.0f, 1.0f, 1.0f },
+					     .intensity = 2.0f,
+					     .range = 5.0f,
+					     .falloff = 1.0f };
+	voe_scene_point_light faded = lamp;
+	const voe_scene_point_light *row;
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, entity,
 		(voe_scene_transform){ .rotation = { 0, 0, 0, 1 },
 				       .scale = { 1.0f, 1.0f, 1.0f } }));
-	VOE_TEST_CHECK(voe_scene_point_light_add(
-		world, entity,
-		(voe_scene_point_light){
-			.colour = { 1.0f, 1.0f, 1.0f },
-			.intensity = 2.0f,
-			.range = 5.0f,
-			.flash = (float)(10 * VOE_GAME_STEP_SECONDS) }));
-	VOE_TEST_CHECK(voe_scene_point_light_flash_submit(world, entity));
+	VOE_TEST_CHECK(voe_scene_point_light_add(world, entity, lamp));
+	faded.intensity = 0.5f;
+	faded.falloff = 3.0f;
+	VOE_TEST_CHECK(voe_scene_point_light_submit(
+		world,
+		(voe_scene_point_light_intent){ .entity = entity, .light = faded }));
 	(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
 				 VOE_GAME_STEP_SECONDS, systems, after_move);
-	VOE_TEST_CHECK_FLOAT(voe_scene_point_light_strength(world, entity),
-			     2.0f, 1e-5f);
-	for (int i = 0; i < 12; i++)
-		(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
-					 VOE_GAME_STEP_SECONDS, systems,
-					 after_move);
-	VOE_TEST_CHECK_FLOAT(voe_scene_point_light_strength(world, entity),
-			     0.0f, 0.0f);
+	row = voe_scene_point_light_get(world, entity);
+	VOE_TEST_CHECK(row != NULL);
+	if (row == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(row->intensity, 0.5f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(row->falloff, 3.0f, 0.0f);
 }
 
 static void put_le(uint8_t *at, uint32_t value, uint32_t bytes)
@@ -373,7 +374,7 @@ int main(void)
 	an_emitter_spawns(world, &shapes);
 	a_sound_plays(world, &shapes);
 	a_water_keeps_time(world, &shapes);
-	a_point_light_flashes(world, &shapes);
+	a_point_light_replace_takes(world, &shapes);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

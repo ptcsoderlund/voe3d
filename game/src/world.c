@@ -1,4 +1,4 @@
-// The twenty-three registrations and the room behind them. The reasoning is in
+// The twenty-two registrations and the room behind them. The reasoning is in
 // game/include/game/world.h; what is here is the numbers and the order, which
 // is transforms first because a parent, a prefab, a point light, a shape, a
 // model, an emitter and a water need one (3d/shape_component.h,
@@ -30,15 +30,14 @@
 #include <scene/prefab_system.h>
 #include <scene/transform_system.h>
 
-// Twenty-three component types, twelve of them with an intent queue and the
-// emitter, the sound and the point light with a second, their control or
-// flash, fifteen in all, each with room for a project's types and their
+// Twenty-two component types, twelve of them with an intent queue and the
+// emitter and the sound with a second, their control, fourteen in all, each with room for a project's types and their
 // replace intents behind it. The entities are room for what a game spawns while
 // it runs, shells and enemies by the hundred, each a prefab's whole tree (0283
 // point 11).
 #define MAX_ENTITIES 4096
 #define MAX_COMPONENT_TYPES (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
-#define MAX_INTENT_TYPES (15 + VOE_GAME_PROJECT_TYPES)
+#define MAX_INTENT_TYPES (14 + VOE_GAME_PROJECT_TYPES)
 
 // The structural queue (ecs/structure.h): room for a frame's Add, Delete,
 // Duplicate or component change many times over, and for the rows they carry:

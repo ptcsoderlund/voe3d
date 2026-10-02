@@ -3,7 +3,7 @@
 `game`'s implementation, one file per public header except `scene.h` and
 `prefabs.h`, which a project's cooked `scene.c` and `prefabs.c` define.
 
-- `world.c` — the twenty-three registrations, the emitter, its particles, the sound, its voice row, the water, its waves, the point light and its glow among them, their capacities and the room for a project's types.
+- `world.c` — the twenty-two registrations and fourteen intent queues, the emitter, its particles, the sound, its voice row, the water, its waves and the point light among them, their capacities and the room for a project's types.
 - `frame.c` — the world step's drains in order, the sounds last with no mixer, and the frame: that step, the sun's shadow passes, the point lights, then the window pass lit by them with the interface's records over the world.
 - `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
