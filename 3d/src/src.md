@@ -59,6 +59,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   for their quads and the slab test against the box.
 - `sun_marker.c` — the sun's circle, shaft and head in its own space under its pose unscaled, and
   its cube's hit.
+- `point_light_marker.c` — a point light's three circles of 12 in world axes about its position,
+  and its world-axis cube's hit.
 - `marker_lines.h` — the markers' shared line quads and box slab test, and why they are outline.h's
   quads; internal.
 - `marker_lines.c` — each segment's quad with a half width per end and its winding towards the eye,
@@ -81,6 +83,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_shadows.c` — the sun's shadow passes: the cascades fitted to the frame, and every caster,
   mesh or model part, drawn into each, then the bounce pass when the light bounces, and why this is
   its own call and who casts.
+- `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
+  frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
+  those past 256 left out.
 - `draw_bounce.h` — the sun's bounce pass, this step's stale spheres and the cascades' caster walk
   it shares; internal.
 - `draw_bounce.c` — run only for a light with bounces: the grid fitted, the casters drawn into the

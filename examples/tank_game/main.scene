@@ -3,7 +3,7 @@ name = "Ground"
 folded = false
 [1.voe_3d_shape]
 kind = 1
-colour = [0.07648844, 0.07648844, 0.07648844]
+colour = [0.18859027, 0.18859027, 0.18859027]
 [1.voe_physics_collider]
 kind = 1
 size = [1, 1, 1]
@@ -29,13 +29,14 @@ scale = [1, 1, 1]
 name = "Sun"
 folded = false
 [3.voe_scene_light]
-colour = [1, 0.668971, 0.668971]
+colour = [1, 0.58921766, 0.28265268]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
-fill_intensity = 0.3
+fill_intensity = 0.15375003
+bounces = 0
 [3.voe_scene_transform]
 position = [0, 8, 0]
-rotation = [0.44260988, 0.3291428, 0.10670445, -0.8272701]
+rotation = [0.0767836, 0.2594808, 0.22888981, -0.93508476]
 scale = [1, 1, 1]
 
 [4]
@@ -135,3 +136,52 @@ colour = [0.5003842, 0.5003842, 0.5003842]
 position = [-5.89795537032478, 5.000000040978193, 5.549801917746663]
 rotation = [0, 0.12585333, 0, 0.99204886]
 scale = [2, 10, 1]
+
+[19]
+name = "Lights"
+folded = false
+
+[20]
+name = "Point1"
+folded = false
+[20.voe_scene_parent]
+parent = 19
+[20.voe_scene_point_light]
+colour = [0, 0.31905842, 1]
+intensity = 9
+range = 20
+falloff = 4
+[20.voe_scene_transform]
+position = [-2.691522426903248, 2.4922564923763275, 5.935012263245881]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[22]
+name = "Point1 2"
+folded = false
+[22.voe_scene_parent]
+parent = 19
+[22.voe_scene_point_light]
+colour = [0.27353722, 0, 1]
+intensity = 1
+range = 20
+falloff = 1
+[22.voe_scene_transform]
+position = [-12.646546136587858, 1.3129296340048313, -12.013619443401694]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[23]
+name = "Point1 3"
+folded = false
+[23.voe_scene_parent]
+parent = 19
+[23.voe_scene_point_light]
+colour = [0, 1, 0.17092332]
+intensity = 1
+range = 20
+falloff = 1
+[23.voe_scene_transform]
+position = [9.27141073718667, 1.3129289839416742, 9.3649026369676]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]

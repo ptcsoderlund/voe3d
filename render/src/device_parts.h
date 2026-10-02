@@ -20,15 +20,20 @@
 #include <render/device.h>
 
 // Everything one pass is drawn with that is not a per-object record: the camera,
-// the sun and the sun's shadow record, in one block. There is one block per pass per frame slot, all of
+// the sun and the sun's shadow record, in one block, and where its point lights
+// are. There is one block per pass per frame slot, all of
 // them in the slot's one uniform buffer, `pass_stride` bytes apart.
 //
 // IT IS ONE BLOCK AND NOT TWO BINDINGS BECAUSE THEY HAVE THE SAME LIFETIME.
 // Both are written once by voe_render_pass_begin and read by both stages for
 // every draw in the pass, so splitting them would be a second buffer, a second
-// descriptor and a second pool entry to say what one memcpy says. It is internal
-// only in name: voe_render_pass_camera is the same three members in the same
-// order, and a pass's block is a copy of it.
+// descriptor and a second pool entry to say what one memcpy says. Its first three
+// members are voe_render_pass_camera's, in that order.
+//
+// `lights` AND `region` ARE THE PASS'S POINT LIGHTS (ADR-0320): `lights` how many
+// it carries, 0 for none, and `region` the pass's number, which picks its
+// VOE_RENDER_POINT_LIGHTS records at binding 7 and its struct
+// voe_render_light_bins at binding 8. The word after them is padding.
 //
 // ONE BUFFER AND A DYNAMIC OFFSET, NOT A SET PER PASS. Binding 0 is a dynamic
 // uniform buffer, so opening a pass binds the slot's one set with the offset of
@@ -41,8 +46,7 @@
 //
 // `depth_copy` IS THE OPEN TARGET'S DEPTH COPY SLOT, render's own (ADR-0305):
 // VOE_RENDER_NO_DEPTH_COPY until voe_render_frame_copy_depth runs in the pass,
-// then the texture slot of the copy. The three words after it pad the block to
-// sixteen bytes, as the shader's layout rule would.
+// then the texture slot of the copy.
 //
 // `bounce` IS THE PASS'S BOUNCE GRID (ADR-0308 point 3): `grid` the first of its
 // three entries at binding 6, VOE_RENDER_NO_BOUNCE for none; `corner` its lowest
@@ -61,7 +65,9 @@ struct voe_render_frame_block {
 	voe_render_light light;
 	voe_render_shadow shadow;
 	uint32_t depth_copy;
-	uint32_t reserved[3];
+	uint32_t lights;
+	uint32_t region;
+	uint32_t reserved;
 	struct voe_render_frame_bounce bounce;
 };
 
@@ -416,6 +422,16 @@ struct voe_render_frame {
 	// capacity is what refuses a submit, not whether the buffer exists.
 	struct voe_render_buffer elements;
 	void *elements_mapped;
+
+	// This slot's point lights and their bins (ADR-0320), one region per
+	// pass: capacities.passes × VOE_RENDER_POINT_LIGHTS records, and
+	// capacities.passes × one struct voe_render_light_bins. Written by
+	// voe_render_pass_begin and never read back; per slot and safe to
+	// overwrite for the object buffer's reasons.
+	struct voe_render_buffer point_lights;
+	void *point_lights_mapped;
+	struct voe_render_buffer light_bins;
+	void *light_bins_mapped;
 
 	// This slot's transient geometry: the vertex pool and the index pool
 	// that voe_render_geometry_create_transient writes and the frame then

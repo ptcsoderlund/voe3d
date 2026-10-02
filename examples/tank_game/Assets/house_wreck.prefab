@@ -19,6 +19,15 @@ alpha_start = 1
 alpha_end = 0
 glow = 1
 texture = ""
+[1.tank_light_fade]
+peak = 6
+seconds = 0.6
+left = 0.6
+[1.voe_scene_point_light]
+colour = [1, 0.55, 0.15]
+intensity = 6
+range = 10
+falloff = 1
 [1.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]

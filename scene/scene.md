@@ -46,3 +46,10 @@ space is.
 - `include/scene/light_system.h` — the whole-light intent, registered as the
   light's replace, the direct call that creates one, and the transform it needs.
   Its header says what light is refused and why a drawn world needs the table.
+- `include/scene/point_light_component.h` — a lamp beside the sun: linear colour,
+  intensity, range and falloff, as a described field list, and the falloff's
+  bounds. Its header says where it shines from, what falloff does and why it
+  does not flash.
+- `include/scene/point_light_system.h` — the whole-light intent as its replace,
+  the direct call that creates one, and the run that drains it. Its header says
+  what is refused and how game code fades a light.

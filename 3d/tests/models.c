@@ -311,7 +311,9 @@ static uint32_t centre_pixel(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
 		return 0;
-	camera = (voe_render_pass_camera){ frame.view, frame.light, frame.shadow };
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light,
+					   .shadow = frame.shadow };
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
 	voe_3d_draw_system_run(world, device, arena, frame);

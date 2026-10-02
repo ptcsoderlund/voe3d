@@ -1,8 +1,15 @@
 // The sun and what it lights by: glTF's BRDF terms, the shadow lookup over the
-// cascades, the sun's radiance, the bounce and the fill. A part (ADR-0308):
-// included by draw.slang after bindings.slangh, whose frame block, light,
-// cascades and bounce grids it reads; never compiled alone. draw.slang's
-// fragment stage and water.slangh both light through it.
+// cascades, the sun's radiance, the bounce, the fill and the point lights. A part
+// (ADR-0308): included by draw.slang after bindings.slangh, whose frame block,
+// light, cascades, bounce grids and point lights it reads; never compiled alone.
+// draw.slang's fragment stage and water.slangh both light through it.
+//
+// POINT LIGHTS ADD TO THE SUN'S DIRECT TERM (ADR-0320): voe_render_points, the
+// same BRDF towards each light, times N·L, its colour and saturate(1 −
+// (d/range)^(2/falloff))² (ADR-0322; falloff 1 is (1 − (d/range)²)²), over the
+// lights both its tile's mask and its slice's mask hold
+// (binding 8, binned by render/src/light_bins.c). No shadow, no part in the
+// fill's fade, none in the bounce, and the water path does not call it.
 //
 // ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
 // sun arrives with the camera, once a frame, and every surface is lit from the
@@ -193,4 +200,87 @@ float3 voe_render_indirect(float reach, float3 world, float3 n, float3 colour)
 		VOE_BOUNCE_GAIN * voe_render_bounce_irradiance(world, n) / VOE_PI;
 
 	return colour * max(bounce, fill_weight * voe_render_frame.light.fill);
+}
+
+// The depth slice of view distance `distance`: voe_render_light_slice in
+// render/src/light_bins.c, the same exponential and the same clamps.
+uint voe_render_light_slice(float distance)
+{
+	if (!(distance > VOE_RENDER_LIGHT_SLICE_NEAR))
+		return 0;
+	if (distance >= VOE_RENDER_LIGHT_SLICE_FAR)
+		return VOE_RENDER_LIGHT_SLICES - 1;
+	float s = log(distance / VOE_RENDER_LIGHT_SLICE_NEAR) /
+		  log(VOE_RENDER_LIGHT_SLICE_FAR / VOE_RENDER_LIGHT_SLICE_NEAR) *
+		  float(VOE_RENDER_LIGHT_SLICES);
+	return s >= float(VOE_RENDER_LIGHT_SLICES - 1) ? VOE_RENDER_LIGHT_SLICES - 1 :
+							 uint(s);
+}
+
+// One tile's or slice's index along an axis of `tiles`, from an NDC coordinate.
+uint voe_render_light_tile(float ndc, uint tiles)
+{
+	float t = (ndc + 1.0) * 0.5 * float(tiles);
+
+	return uint(clamp(t, 0.0, float(tiles - 1)));
+}
+
+// What the pass's point lights add to the direct light at `world`, facing `n`
+// and seen along `v`: the BRDF of each light its tile and slice both mark, times
+// N·L, its colour and saturate(1 − (d/range)^(2/falloff))², the light's falloff
+// bending its reach. Nought with no lights. See the header.
+float3 voe_render_points(float3 world, float3 n, float3 v, float3 diffuse_colour,
+			 float3 f0, float alpha)
+{
+	uint count = voe_render_frame.lights;
+
+	if (count == 0)
+		return float3(0.0, 0.0, 0.0);
+	float4 eye = mul(voe_render_frame.camera.view, float4(world, 1.0));
+	float4 clip = mul(voe_render_frame.camera.projection, eye);
+	float2 ndc = clip.xy / clip.w;
+	uint tile = voe_render_light_tile(ndc.x, VOE_RENDER_LIGHT_TILES_X) +
+		    VOE_RENDER_LIGHT_TILES_X *
+			    voe_render_light_tile(ndc.y, VOE_RENDER_LIGHT_TILES_Y);
+	uint slice = voe_render_light_slice(-eye.z);
+	uint base = voe_render_frame.region * VOE_RENDER_LIGHT_REGION;
+	uint tile_at = base + tile * VOE_RENDER_LIGHT_WORDS;
+	uint slice_at = base + VOE_RENDER_LIGHT_SLICE_WORDS +
+			slice * VOE_RENDER_LIGHT_WORDS;
+	uint first = voe_render_frame.region * VOE_RENDER_POINT_LIGHTS;
+	float n_dot_v = saturate(dot(n, v));
+	float3 sum = float3(0.0, 0.0, 0.0);
+
+	for (uint w = 0; w < (count + 31) / 32 && w < VOE_RENDER_LIGHT_WORDS; w++) {
+		uint bits = voe_render_light_bins[tile_at + w] &
+			    voe_render_light_bins[slice_at + w];
+
+		// At most 32 rounds: each clears the lowest set bit.
+		while (bits != 0) {
+			uint b = firstbitlow(bits);
+			bits &= bits - 1;
+			voe_render_point_light light =
+				voe_render_point_lights[first + w * 32 + b];
+			float3 to = light.position - world;
+			float d = length(to);
+
+			if (d >= light.range || d < VOE_LEAST)
+				continue;
+			float3 l = to / d;
+			float3 h = normalize(l + v);
+			float n_dot_l = saturate(dot(n, l));
+			float3 fresnel = voe_render_fresnel(f0, saturate(dot(v, h)));
+			float3 specular =
+				fresnel *
+				voe_render_distribution(saturate(dot(n, h)), alpha) *
+				voe_render_visibility(n_dot_l, n_dot_v, alpha);
+			float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
+			float fade = saturate(
+				1.0 - pow(d / light.range, 2.0 / light.falloff));
+
+			sum += (diffuse + specular) * light.colour * n_dot_l *
+			       fade * fade;
+		}
+	}
+	return sum;
 }

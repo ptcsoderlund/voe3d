@@ -4,12 +4,13 @@
 // The view's two matrices are inverted once per pick. The walk carries the ray
 // into each shape's or model's own space, from its world place, and tests its
 // triangles; the triangle test is written out once, its derivation in a comment
-// above it. The cameras' marker boxes and the suns' marker cubes are tested
-// after the shapes and the models, on the same distance.
+// above it. The cameras' marker boxes, the suns' marker cubes and the point
+// lights' are tested after the shapes and the models, on the same distance.
 #include <3d/camera_marker.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/pick.h>
+#include <3d/point_light_marker.h>
 #include <3d/shape_component.h>
 #include <3d/sun_marker.h>
 
@@ -22,6 +23,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
+#include <scene/point_light_component.h>
 #include <scene/transform_component.h>
 
 #include <stddef.h>
@@ -287,6 +289,29 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 			if (voe_scene_transform_get(world, owners[i]) == NULL ||
 			    !voe_3d_sun_marker_hit(
 				    voe_scene_transform_world(world, owners[i]),
+				    ray, &t))
+				continue;
+			if (hit.generation != 0 && t >= nearest)
+				continue;
+			nearest = t;
+			hit = owners[i];
+		}
+	}
+
+	// And the point lights, on their marker's world-axis cube at their world
+	// place (0320 point 7, 3d/point_light_marker.h).
+	if (has_store(world, &voe_scene_point_light_key)) {
+		uint32_t lamps = voe_scene_point_light_count(world);
+		const voe_ecs_entity *owners =
+			voe_scene_point_light_entities(world);
+
+		for (uint32_t i = 0; i < lamps; i++) {
+			float t;
+
+			if (voe_scene_transform_get(world, owners[i]) == NULL ||
+			    !voe_3d_point_light_marker_hit(
+				    voe_scene_transform_world(world, owners[i])
+					    .position,
 				    ray, &t))
 				continue;
 			if (hit.generation != 0 && t >= nearest)

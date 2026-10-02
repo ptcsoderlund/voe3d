@@ -35,6 +35,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
   and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
   or without it. Skips without a graphics card.
+- `point_lights.c` — that a frame's point lights are the table's about the eye, colour times
+  intensity with the authored falloff, dark and unplaced ones left out, a parented one carried,
+  and that one lights the ground under it and not a far corner. Skips without a graphics card.
 - `shadows.c` — that a cube under a sun straight down shadows the floor beneath it, a fill lifts
   the shadow, no light casts nothing, and the same holds 100 km out, both pictures with the bounce
   off, and for a model. Skips without a graphics card.
@@ -58,6 +61,9 @@ again, or to find where a claim that has started failing is written down.
 - `sun_marker.c` — the marker's twenty-nine edges, a turned sun's arrow tip a metre along its
   turned -Z, a scaled sun building the same quads, and a ray meeting the cube square on, turned and
   not at all. Needs no graphics card.
+- `point_light_marker.c` — the marker's thirty-six edges seen off-axis, no area building nothing,
+  a ray meeting the cube 0.25 m short and missing beside it, and a pick answering a lamp and the
+  nearer of a lamp and a cube. Needs no graphics card.
 - `collider_marker.c` — a box's twelve edges, a sphere's and a capsule's counts, a box twice the
   size twice as far out, quads about the eye 100 km out, and the collider that fits each shape.
   Needs no graphics card.

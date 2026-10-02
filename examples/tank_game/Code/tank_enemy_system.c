@@ -22,7 +22,9 @@
 // turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
 // position. `wait` becomes 1 / `rate` only when the fire is not refused, so a
 // refused one tries again next step. Each shot bursts the turret's emitter,
-// the prefab's muzzle flash; a turret with none sends nothing. Each shot also
+// the prefab's muzzle flash, and restarts the fade of the flash's light, the
+// turret's tank_light_fade_under child at its flash (0323); a turret with
+// neither sends nothing. Each shot also
 // plays `Assets/sounds/shot.wav` at the muzzle through the step's mixer.
 //
 // The hum (0304 point 8): an enemy with no sound gets the hull's engine,
@@ -35,6 +37,7 @@
 // transform queue leaves the rest of the enemies where they were this step;
 // a full structural queue leaves a spent enemy to be removed next step.
 #include "tank_enemy.h"
+#include "tank_light_fade.h"
 #include "tank_lives.h"
 #include "tank_shell.h"
 #include "tank_turret.h"
@@ -209,12 +212,17 @@ static bool aim_and_fire(const voe_game_project_step *step,
 	if (step->audio != NULL)
 		(void)voe_audio_mixer_play_at(step->audio, "Assets/sounds/shot.wav",
 					      muzzle);
-	// The turret's own flash (0299 point 2); a full queue loses only it.
+	// The turret's own flash (0299 point 2) and its light child's fade; a
+	// full queue loses only that flash, and no light child sends nothing.
+	voe_ecs_entity light = { 0 };
+
 	if (voe_3d_emitter_get(step->world, turret) != NULL)
 		(void)voe_3d_emitter_control_submit(
 			step->world, (voe_3d_emitter_control){
 				.entity = turret, .kind = VOE_3D_EMITTER_BURST,
 				.count = 0 });
+	if (tank_light_fade_under(step->world, turret, &light))
+		(void)tank_light_fade_start(step->world, light);
 	return true;
 }
 

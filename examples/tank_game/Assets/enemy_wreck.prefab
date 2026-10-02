@@ -23,6 +23,15 @@ texture = ""
 kind = 1
 size = [4.64, 4, 2.62]
 trigger = false
+[1.tank_light_fade]
+peak = 6
+seconds = 0.6
+left = 0.6
+[1.voe_scene_point_light]
+colour = [1, 0.55, 0.15]
+intensity = 6
+range = 10
+falloff = 1
 [1.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]

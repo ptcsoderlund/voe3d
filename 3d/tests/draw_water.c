@@ -168,7 +168,9 @@ static voe_render_picture a_frame(voe_ecs_world *world, voe_render_device *devic
 		return picture;
 	VOE_TEST_CHECK(voe_3d_draw_system_shadows(world, device, &frame));
 	*cast = voe_render_frame_draw_count(device);
-	camera = (voe_render_pass_camera){ frame.view, frame.light, frame.shadow };
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light,
+					   .shadow = frame.shadow };
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
 	before = voe_render_frame_draw_count(device);
