@@ -17,7 +17,8 @@ carries it out.
 - `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, why
   the editor runs no move but runs emitters by the frame's seconds, and why placed copies are
   expanded after it.
-- `world_step.c` — the one call to `voe_game_world_step`, the emitters' and the water's runs, then the expansion.
+- `world_step.c` — the one call to `voe_game_world_step`, the emitters', the point lights' and the
+  water's runs, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
   ascending id, a load, with deterministic ids and a file that will not read said in the notice;
   a tree dragged into the Assets panel made one, what refuses it, and the refusals asked per frame.
@@ -205,11 +206,11 @@ carries it out.
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
-  passes, with the world and its models, the selection's outline, its collider, its gizmo and the
-  camera's and sun's markers, and the device capacities those passes need.
+  passes, lit by the point lights, with the world and its models, the selection's outline, collider
+  and gizmo, the camera's, sun's and point lights' markers, and the device capacities they need.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
-  view's shadow passes and pass through `3d`'s draw system, camera and sun marked, no gizmo on a
-  part, stopping at the first refused pass.
+  view's shadow passes and pass through `3d`'s draw system, each lit by the point lights, camera,
+  sun and point lights marked, no gizmo on a part, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.

@@ -4,8 +4,8 @@
 // its own camera, the light voe_editor_view_light gives (the world's or the
 // preview) and those shadows, the world and its models drawn by voe_3d_draw_system_run with the
 // selection's outline, a model's too (ADR-0203), its collider as lines (0253), its move
-// gizmo (ADR-0205), the scene camera's marker (0223) and the sun's (0274), and the pass ended; and before those, the preview's
-// shadow passes and one pass with the world's own camera (view.h). main.c calls both once a
+// gizmo (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every point light's (0320), and the pass ended; and before those, the preview's
+// shadow passes and one pass with the world's own camera (view.h); every pass lit by the point lights. main.c calls both once a
 // frame, between opening the draw and the window's pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
@@ -15,9 +15,8 @@
 //                                         &shapes, palette, &gizmo, ppmm);
 //
 // A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
-// view is begun and the call returns
-// false, which is what the caller's `drawn` becomes. The frame is still the
-// caller's to close.
+// view is begun and the call returns false, the caller's `drawn`, and the frame
+// is still the caller's to close.
 //
 // WHAT THE DEVICE'S CAPACITIES MUST COVER is VOE_EDITOR_CAPACITIES below, kept
 // beside the passes so the next capacity a pass needs is added here. The
@@ -30,7 +29,8 @@
 // material, so a device that draws one is sized from the same number), one more for the selected
 // entity's outline, which is drawn into every view's pass too, and two more
 // for the gizmo's handles at rest and its marked one, one for the camera's
-// marker, one for the sun's and one for the selection's collider, times the room for views, and the drawn entities once more for the
+// marker, one for the sun's, one for the selection's collider and two for the
+// point lights' markers, times the room for views, and the drawn entities once more for the
 // preview's pass, which draws the world alone; and every caster once per
 // cascade and once more for the bounce map, VOE_GAME_WORLD_MAX_DRAWN ×
 // (VOE_RENDER_SHADOW_CASCADES + 1), per view and for the preview (0308); and every emitter's particles, VOE_GAME_WORLD_EMITTERS ×
@@ -40,9 +40,9 @@
 // adds nothing per cascade (0305). `passes` is a pass per view, the preview's and the
 // interface's, and a shadow pass per cascade and one bounce pass for each view
 // and the preview (`shadow_size` is VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h), and
-// `targets` a target per view and the preview's, each also carrying its own
-// probe grid (0308 point 3), each costing two texture
-// slots now, its colour and its depth copy (0305 point 1) — both from the room for views, not the two in use, so a
+// `targets` a target per view and the preview's, each with its own probe grid
+// (0308 point 3), each two texture slots now, its colour and its depth copy
+// (0305 point 1) — both from the room for views, not the two in use, so a
 // third view is a leaf and not a capacity. The three transient numbers are
 // what the selection outline's quads are copied into: one outline per view's
 // pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
@@ -51,7 +51,9 @@
 // mode fits (ADR-0205, 0274, 3d/draw_system.h). So do the camera marker's:
 // one marker per view's pass, one range and one draw, sized the same way
 // (0223, 3d/camera_marker.h), the sun marker's (0274, 3d/sun_marker.h) and
-// the collider's, one more of each (0253, 3d/collider_marker.h).
+// the collider's, one more of each (0253, 3d/collider_marker.h), and the point
+// light markers': VOE_GAME_WORLD_POINT_LIGHTS lamps a view, in two ranges and
+// draws, the rest and the selected one (0320 point 9, 3d/point_light_marker.h).
 #pragma once
 
 #include "dock.h"
@@ -64,6 +66,7 @@
 #include <3d/draw_system.h>
 #include <3d/emitter_component.h>
 #include <3d/models.h>
+#include <3d/point_light_marker.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
@@ -111,7 +114,7 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 6) *                \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 8) *                \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
@@ -131,15 +134,19 @@
 				       VOE_EDITOR_GIZMO_VERTICES +             \
 				       VOE_3D_CAMERA_MARKER_VERTICES +         \
 				       VOE_3D_SUN_MARKER_VERTICES +            \
-				       VOE_3D_COLLIDER_MARKER_VERTICES) *      \
+				       VOE_3D_COLLIDER_MARKER_VERTICES +       \
+				       VOE_3D_POINT_LIGHT_MARKER_VERTICES *    \
+					       VOE_GAME_WORLD_POINT_LIGHTS) *  \
 				      VOE_EDITOR_VIEWS,                        \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
 				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
 				      VOE_3D_SUN_MARKER_INDICES +              \
-				      VOE_3D_COLLIDER_MARKER_INDICES) *        \
+				      VOE_3D_COLLIDER_MARKER_INDICES +         \
+				      VOE_3D_POINT_LIGHT_MARKER_INDICES *      \
+					      VOE_GAME_WORLD_POINT_LIGHTS) *   \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 6 * VOE_EDITOR_VIEWS                   \
+		.transient_geometries = 8 * VOE_EDITOR_VIEWS                   \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

@@ -2,10 +2,11 @@
 // show, the sun's shadow passes fitted to each one's camera, then a pass begun
 // on each one's target with that camera and the shadows, the world and its
 // models drawn with the selection's outline, collider and gizmo (none for a
-// prefab's part) and the scene camera's
-// and the sun's markers, and
-// the pass ended; and the preview's shadow passes and pass, drawn with the
-// world's camera while the selected entity has one. Each shadow call is handed
+// prefab's part) and the scene camera's, the sun's and every point light's
+// markers, and the pass ended; and the preview's shadow passes and pass, drawn
+// with the world's camera while the selected entity has one and marking
+// nothing. Every pass is lit by the world's point lights (0320 point 6), their
+// array in `arena` only until the pass is open. Each shadow call is handed
 // its own target, the view's or the preview's, so its bounce updates that
 // target's probe grid and no view reads a grid another view scrolled (0308).
 #include "view_passes.h"
@@ -16,7 +17,8 @@
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 
-// A marker's colour, the camera's and the sun's alike (0223, 0274): the
+// A marker's colour, the camera's and the sun's alike (0223, 0274), and the rule
+// the point light markers are given as their two colours (0320 point 7): the
 // outline's while `marked` is the selection, the gizmo's rest colour otherwise.
 static voe_math_float3 marker_colour(const voe_ui_theme *palette,
 				     voe_ecs_entity marked,
@@ -50,6 +52,8 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 {
 	voe_3d_frame frame;
 	voe_render_pass_camera camera;
+	struct voe_base_arena_mark mark;
+	bool passed;
 
 	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL,
 			"drawing the preview with no device, arena or world");
@@ -76,9 +80,16 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	if (!voe_3d_draw_system_shadows(world, gpu, &frame))
 		return false;
 
-	camera = (voe_render_pass_camera){ frame.view, frame.light,
-					   frame.shadow };
-	if (!voe_render_pass_begin(gpu, views->preview_target, &camera))
+	mark = voe_base_arena_mark(arena);
+	// False leaves the preview unlit by points, which is no failed frame.
+	(void)voe_3d_draw_system_point_lights(world, &frame, arena);
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light,
+					   .shadow = frame.shadow,
+					   .points = frame.points };
+	passed = voe_render_pass_begin(gpu, views->preview_target, &camera);
+	voe_base_arena_rewind(arena, mark);
+	if (!passed)
 		return false;
 	voe_3d_draw_system_run(world, gpu, arena, frame);
 	voe_render_pass_end(gpu);
@@ -140,7 +151,14 @@ bool voe_editor_view_passes_draw(
 		if (!voe_3d_draw_system_shadows(world, gpu, &frame))
 			return false;
 		camera.shadow = frame.shadow;
-		if (!voe_render_pass_begin(gpu, view->target, &camera))
+		// The points live until the pass has taken them; a false leaves
+		// this pass unlit by points, which is no failed frame.
+		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+		(void)voe_3d_draw_system_point_lights(world, &frame, arena);
+		camera.points = frame.points;
+		bool passed = voe_render_pass_begin(gpu, view->target, &camera);
+		voe_base_arena_rewind(arena, mark);
+		if (!passed)
 			return false;
 		voe_3d_draw_system_run(
 			world, gpu, arena,
@@ -186,6 +204,19 @@ bool voe_editor_view_passes_draw(
 					.entity = sun_entity,
 					.material = shapes->outline,
 					.colour = sun_colour,
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
+				.point_lights = {
+					.shown = true,
+					.selected = selected,
+					.material = shapes->outline,
+					.colour = voe_editor_view_gizmo_colour(
+						palette, false),
+					.selected_colour =
+						voe_editor_view_outline_colour(
+							palette),
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,
