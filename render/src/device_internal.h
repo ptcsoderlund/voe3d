@@ -214,10 +214,12 @@ struct voe_render_device {
 	// The comparison sampler every slot's shadow maps are read through at
 	// binding 5. shadow.c makes and destroys it.
 	VkSampler shadow_sampler;
-	// The trilinear, repeating sampler the bounce grids are read through at
-	// binding 6, repeat because a grid is addressed toroidally (ADR-0308).
-	// descriptors.c makes and destroys it.
+	// The linear, repeating sampler the probe volumes' sums are read through
+	// at binding 6, repeat because a volume is addressed toroidally, and the
+	// linear, clamping one their moments are read through at binding 10
+	// (ADR-0326). descriptors.c makes and destroys both.
 	VkSampler bounce_sampler;
+	VkSampler moments_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -495,8 +497,8 @@ voe_render_target_depth_copy_build(voe_render_device *device,
 voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
 
 // target.c, for target_own.c too. One bounce grid, grid index `index` (the
-// window 0, target n n): its three images built, cleared to nought in GENERAL
-// and named at binding 6. Idles. False with a message, nothing left behind.
+// window 0, target n n): its three images built and cleared to nought in
+// GENERAL. Idles. False with a message, nothing left behind.
 // _teardown is safe on a zeroed grid and leaves it zeroed; it does not wait.
 [[nodiscard]] bool voe_render_bounce_grid_build(voe_render_device *device,
 						struct voe_render_bounce_grid *grid,
@@ -686,12 +688,14 @@ void voe_render_buffer_teardown(voe_render_device *device,
 [[nodiscard]] bool voe_render_descriptors_build(voe_render_device *device);
 void voe_render_descriptors_teardown(voe_render_device *device);
 
-// descriptors.c. Names `grid`'s three images, through the bounce sampler, at
-// binding 6's entries 3 × index to 3 × index + 2 of every slot's set. No frame
-// may be reading the sets: a grid is built outside one, and its build idles.
-void voe_render_descriptors_write_grid(voe_render_device *device,
-				       const struct voe_render_bounce_grid *grid,
-				       uint32_t index);
+// descriptors.c. Names built `volume`'s sum and validity at binding 6's entries
+// 4 × index to 4 × index + 3, and its moments atlas at binding 10's entry
+// `index`, of every slot's set: volume index 0 the window's, n target n's. No
+// frame may be reading the sets: a volume is built outside one, and its build
+// idles.
+void voe_render_descriptors_write_volume(
+	voe_render_device *device, const struct voe_render_bounce_volume *volume,
+	uint32_t index);
 
 // descriptors.c. Points a slot's set at the shared shading buffer. Called once
 // per slot at startup, after the buffer exists; a record written later needs no

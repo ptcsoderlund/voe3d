@@ -8,7 +8,8 @@
 // GENERAL; card 04's probe bookkeeping lives beside
 // them. The albedo atlas is sRGB, which no card stores to, so it is made
 // mutable with extended usage and viewed sampled only. The window's volume is
-// the device's, each target's its slot's; device.c tears them down.
+// the device's, each target's its slot's; device.c tears them down. A build
+// names it at bindings 6 and 10, the window's as volume 0, target n's as n.
 //
 // THE LIFETIME. A begin wants the volume and zeroes its idle count; the top of
 // the next frame builds it, and from then each frame top counts one idle frame.
@@ -242,16 +243,19 @@ bool voe_render_bounce_volume_build(voe_render_device *device,
 	return true;
 }
 
-// One volume's top of frame: built when wanted, counted idle when built, and
-// freed past VOE_RENDER_BOUNCE_IDLE. `idle` says whether the card is idle yet.
+// One volume's top of frame: built when wanted and named at volume `index` of
+// every set, counted idle when built, and freed past VOE_RENDER_BOUNCE_IDLE.
+// `idle` says whether the card is idle yet.
 static bool apply_one(voe_render_device *device,
-		      struct voe_render_bounce_volume *volume, bool *idle)
+		      struct voe_render_bounce_volume *volume, uint32_t index,
+		      bool *idle)
 {
 	VOE_BASE_DEBUG_ASSERT(volume != NULL && idle != NULL,
 			      "applying no volume");
 	if (volume->wanted && !volume->built) {
 		if (!voe_render_bounce_volume_build(device, volume))
 			return false;
+		voe_render_descriptors_write_volume(device, volume, index);
 		*idle = true;
 	}
 	if (volume->built && ++volume->idle > VOE_RENDER_BOUNCE_IDLE) {
@@ -273,11 +277,11 @@ bool voe_render_bounce_volumes_apply(voe_render_device *device)
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "applying volumes on no device");
 	VOE_BASE_DEBUG_ASSERT(!device->recording,
 			      "applying volumes inside an open frame");
-	if (!apply_one(device, &device->window_volume, &idle))
+	if (!apply_one(device, &device->window_volume, 0, &idle))
 		return false;
 	for (uint32_t i = 0; i < device->capacities.targets; i++)
 		if (device->targets[i].live &&
-		    !apply_one(device, &device->targets[i].volume, &idle))
+		    !apply_one(device, &device->targets[i].volume, i + 1, &idle))
 			return false;
 	return true;
 }

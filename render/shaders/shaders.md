@@ -9,8 +9,8 @@ in; getting it wrong transposes every transform without failing to compile.
 A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block
-  with its bounce record and point light count, object and shading records, the bounce grids at
-  binding 6, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
+  with its bounce record and point light count, object and shading records, the probe volumes'
+  sums at binding 6 and moments at 10, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
   bindings and the push constant, which holds the object and a 96-bit face
   mask, each matching its C struct.
 - `draw.slang` — the mesh pipelines' entry points, the bounce map's fragment
@@ -22,9 +22,11 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   with distance from the probe.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector by its major axis and the
   90° reversed-depth clip position on a face, near 0.05 m, far the light's range; draw and lookup share it.
+- `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume passed in: eight probes
+  weighted by trilinear, validity, facing and Chebyshev visibility, normalised, faded at the edge (0326).
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,
   its shadow by cascades, its radiance, the bounce read from the pass's probe
-  grid times `VOE_BOUNCE_GAIN` (0311), a non-finite one read as nought, the
+  volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each
   fading to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and

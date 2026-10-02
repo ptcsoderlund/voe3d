@@ -14,8 +14,9 @@
 // no bounce pass yet and inside a camera pass; after one, true on a target,
 // false a second time on it, true on the other and on the window, false for an
 // id whose generation names no live target (render has no target destroy, so a
-// stale id is what a destroyed one would be). A camera pass then names the
-// updated grid in its block, and the one before the update named none.
+// stale id is what a destroyed one would be). A camera pass names no bounce in
+// its block before the update or after it: lit passes read the probe volume
+// now (ADR-0326 point 7), never 046's grid.
 //
 // With the validation layer present, a wrong layout, clear or descriptor write in
 // any of these is a message on stderr; the frames ending true is the rest.
@@ -205,7 +206,7 @@ static void one_update_frame(voe_render_device *device,
 						&UPDATE));
 
 	VOE_TEST_CHECK(voe_render_pass_begin(device, targets[0], &camera));
-	VOE_TEST_CHECK_INT(named_grid(device), device->targets[0].grid.descriptor);
+	VOE_TEST_CHECK_INT(named_grid(device), VOE_RENDER_NO_BOUNCE);
 	VOE_TEST_CHECK(voe_render_frame_draw(device, cube, object));
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));

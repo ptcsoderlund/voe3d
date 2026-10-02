@@ -55,10 +55,10 @@ struct voe_render_shadow {
 // that matches it, asserts on both structs' sizes and offsets, and pass.c
 // writes one of these per pass, bound at that pass's dynamic offset.
 // depth_copy is the pass's depth copy texture slot, ~0u until it copied;
-// only the water path reads it. bounce is the pass's bounce grid (ADR-0308):
-// grid the first of its three entries at binding 6, ~0u for none; corner its
-// lowest corner about the eye; cell its lowest cell mod 32. lighting.slangh
-// reads it. lights is how many point lights the pass carries, 0 for none, and
+// only the water path reads it. bounce is the pass's probe volume (ADR-0326):
+// grid the first of its four entries at binding 6, ~0u for none, its moments at
+// binding 10's grid / 4; corner its lowest corner about the eye; cell its
+// lowest cell wrapped per axis into 24 × 12 × 24. lighting.slangh reads it. lights is how many point lights the pass carries, 0 for none, and
 // region the pass's number, which picks its records at binding 7 and its bins
 // at binding 8 (ADR-0320).
 struct voe_render_frame_bounce {
@@ -133,13 +133,18 @@ Sampler2DArrayShadow voe_render_shadow_maps;
 [[vk::binding(9, 0)]]
 Sampler2DArrayShadow voe_render_point_shadow_maps;
 
-// Set 0, binding 6: every bounce grid, three images each (L1 SH red, green,
-// blue), the window's first, read trilinear with repeat (render/src/target.c).
-// UNSIZED because the C side's length is (capacities.targets + 1) × 3, a
-// runtime number; reading it needs runtimeDescriptorArray, and the entries of
-// targets not yet made are partially bound — render/src/device.c enables both.
+// Set 0, binding 6: every probe volume's sum, four images each (L1 SH red,
+// green, blue, then the validity), the window's first; binding 10: every
+// volume's moments atlas, one each, through a linear, clamping sampler
+// (render/src/descriptors.c). UNSIZED because the C side's lengths are
+// (capacities.targets + 1) × 4 and + 1, runtime numbers; reading them needs
+// runtimeDescriptorArray, and the entries of volumes not built are partially
+// bound — render/src/device.c enables both.
 [[vk::binding(6, 0)]]
 Sampler3D voe_render_bounce_grids[];
+
+[[vk::binding(10, 0)]]
+Sampler2D voe_render_bounce_moments[];
 
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.

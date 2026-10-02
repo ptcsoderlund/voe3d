@@ -29,9 +29,10 @@ which file to open — what each one owns, and where the seams between them run.
   that says which and why.
 - `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture, with their
   embedded shader, depth and blend state, and the layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: ten bindings,
-  one set, a camera buffer holding a block per pass, object, element, point light and light bin
-  buffers, the shadow and point shadow maps per frame slot, and every bounce grid with its sampler.
+- `descriptors.c` — everything the shader reads and the one layout that describes it: eleven
+  bindings, one set, a camera buffer holding a block per pass, object, element, point light and
+  light bin buffers, the shadow and point shadow maps per frame slot, and every probe volume's sum
+  and moments with their two samplers.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -44,7 +45,7 @@ which file to open — what each one owns, and where the seams between them run.
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, the image build, settle and teardown every target shares, and the
+  depth with its sampled copy, the image build, settle and teardown every target shares, and 046's
   bounce grids, built cleared.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
   GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps
@@ -69,7 +70,8 @@ which file to open — what each one owns, and where the seams between them run.
   which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place, nearest-first take, relight-needed and relit calls over bit sets.
 - `bounce_volume.c` — a target's probe volume: its atlases and 3D images built at the top of the
-  frame after the first `voe_render_bounce_begin`, freed after 300 frames unbegun, and that begin.
+  frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10, freed after 300
+  frames unbegun, and that begin.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
   depth, sixteen queued probes drawn into it as one layered pass, then copied into the atlases.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
@@ -90,8 +92,8 @@ which file to open — what each one owns, and where the seams between them run.
   bounce_capture.c make across one another; included by those six only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
-- `pass.c` — a pass: one rendering block onto the window or a target with its camera block and its
-  point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
+- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
+  begun probe volume, and its point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
   copy, and the one Y flip in the viewport.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
   the point-shadow pass one instance per cube face reached, the depth clear between them, and the

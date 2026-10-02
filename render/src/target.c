@@ -32,8 +32,8 @@
 // it agrees with its image.
 //
 // EVERY TARGET HAS A BOUNCE GRID (ADR-0308 point 3), built here: three RGBA16F
-// 3D images cleared to nought in one one-off command and left in GENERAL, then
-// named at binding 6. One copy, not per slot. The window's is built by the
+// 3D images cleared to nought in one one-off command and left in GENERAL, which
+// 046's update writes and no lit pass reads. One copy, not per slot. The window's is built by the
 // first voe_render_target_build and outlives every resize; target_own.c frees it.
 //
 // The targets of a caller's own are target_own.c's and the read back into an
@@ -505,24 +505,16 @@ bool voe_render_bounce_grid_build(voe_render_device *device,
 		return false;
 	}
 	grid->descriptor = 3 * index;
-	voe_render_descriptors_write_grid(device, grid, index);
 	return true;
 }
 
-// The window's grid, built once by the first voe_render_target_build. Its
-// views fill every grid's entries until that grid is built, so the whole of
-// binding 6 is valid descriptors from here on.
+// The window's grid, built once by the first voe_render_target_build.
 static bool build_window_grid(voe_render_device *device)
 {
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "a window grid on no device");
 	if (device->window_grid.sh[0].image != VK_NULL_HANDLE)
 		return true;
-	if (!voe_render_bounce_grid_build(device, &device->window_grid, 0))
-		return false;
-	for (uint32_t i = 1; i <= device->capacities.targets; i++)
-		voe_render_descriptors_write_grid(device, &device->window_grid,
-						  i);
-	return true;
+	return voe_render_bounce_grid_build(device, &device->window_grid, 0);
 }
 
 uint32_t voe_render_target_free_texture(const voe_render_device *device,

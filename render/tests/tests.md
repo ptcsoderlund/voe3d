@@ -58,12 +58,6 @@ by reading the offscreen colour image back.
   after it. Headless.
 - `bounce_grid.c` — every target's probe grid built, kept and freed, and the update's refusals.
   Headless.
-- `bounce.c` — lit surfaces reading the bounce: a red wall reddening the ground near it and not far
-  off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
-  wall's shadow. Headless.
-- `bounce_scene.c` — the bounce as the editor runs it, off the origin about the eye, holding
-  through scrolling and with two views in one frame, and the ground on the wall's shadow side
-  within 4/255 of unlit by it. Headless.
 - `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
   negative cell too, a cycle of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
   a changed light restarting it, and a small room truncating.
@@ -75,6 +69,8 @@ by reading the offscreen colour image back.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, and a red cube in the albedo atlas.
   Headless.
+- `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
+  a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.

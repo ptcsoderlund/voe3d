@@ -18,7 +18,8 @@
 // A BOUNCE PASS (voe_render_bounce_pass_begin, ADR-0308) is one more pass of
 // the sun onto the slot's bounce map, through the bounce pipeline; the next
 // pass, a _pass_end or the frame's end closes it. A camera pass names its
-// target's bounce grid in its block only when this frame slot updated it.
+// target's probe volume in its block only when this frame slot's frame began
+// it and it is built (ADR-0326 point 7).
 //
 // THE POINT-SHADOW PASS (ADR-0325) opens in point_shadow.c through this file's
 // start and light copy, and is closed by the same _pass_end. A capture pass
@@ -275,26 +276,31 @@ void voe_render_pass_start(voe_render_device *device,
 	device->pass_capture = false;
 }
 
-// The bounce record of a camera pass onto the target owning `grid`: the grid,
-// its corner and its cell mod VOE_RENDER_BOUNCE_PROBES when frame slot `slot`
-// updated it this frame, left at VOE_RENDER_NO_BOUNCE otherwise (ADR-0308
-// point 6: a grid is read only in a frame that updated it).
-static void name_grid(struct voe_render_frame_bounce *bounce,
-		      const struct voe_render_bounce_grid *grid, uint32_t slot)
+// The bounce record of a camera pass onto the target owning `volume`, volume
+// `index`: its first entry at binding 6, the corner and the lowest cell wrapped
+// per axis of frame slot `slot`'s begin, when that begin happened and the
+// volume is built; left at VOE_RENDER_NO_BOUNCE otherwise (ADR-0326 point 7).
+static void name_volume(struct voe_render_frame_bounce *bounce,
+			const struct voe_render_bounce_volume *volume,
+			uint32_t index, uint32_t slot)
 {
-	const struct voe_render_bounce_mark *mark;
+	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
+				   VOE_RENDER_BOUNCE_PROBES_Y,
+				   VOE_RENDER_BOUNCE_PROBES_XZ };
+	const struct voe_render_bounce_begun *begun;
 
-	VOE_BASE_DEBUG_ASSERT(bounce != NULL && grid != NULL,
-			      "naming no bounce grid");
+	VOE_BASE_DEBUG_ASSERT(bounce != NULL && volume != NULL,
+			      "naming no probe volume");
 	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT,
-			      "naming a bounce grid for no frame slot");
-	mark = &grid->updates[slot];
-	if (!mark->updated)
+			      "naming a probe volume for no frame slot");
+	begun = &volume->begun[slot];
+	if (!begun->begun || !volume->built)
 		return;
-	bounce->grid = grid->descriptor;
+	bounce->grid = 4 * index;
 	for (uint32_t a = 0; a < 3; a++) {
-		bounce->corner[a] = mark->corner[a];
-		bounce->cell[a] = voe_render_bounce_wrap(mark->cell[a]);
+		bounce->corner[a] = begun->corner[a];
+		bounce->cell[a] =
+			voe_render_bounce_probe_wrap(begun->cell[a], size[a]);
 	}
 }
 
@@ -439,9 +445,11 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
 	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
 	if (camera != NULL) {
-		name_grid(&block.bounce, own != NULL ? &own->grid :
-						       &device->window_grid,
-			  device->slot);
+		name_volume(&block.bounce,
+			    own != NULL ? &own->volume : &device->window_volume,
+			    own != NULL ? (uint32_t)(own - device->targets) + 1 :
+					  0,
+			    device->slot);
 		place_lights(frame, device->pass_count, &camera->view,
 			     camera->points,
 			     voe_render_point_shadows_ready(device), &block);

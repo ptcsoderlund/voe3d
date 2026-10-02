@@ -104,10 +104,11 @@ static bool create_device(voe_render_device *device)
 	// from the one below rather than a stronger spelling of it. See the
 	// paragraph under it.
 	//
-	// The bounce grids at binding 6 are an unsized array whose entries for
-	// targets not yet made are never written (ADR-0308): reading it needs
-	// runtimeDescriptorArray and descriptorBindingPartiallyBound, both among
-	// the descriptor-indexing features Vulkan 1.3 requires, so not queried.
+	// The probe volumes at bindings 6 and 10 are unsized arrays whose entries
+	// for volumes not built are unwritten or name freed images (ADR-0326):
+	// reading them needs runtimeDescriptorArray and
+	// descriptorBindingPartiallyBound, both among the descriptor-indexing
+	// features Vulkan 1.3 requires, so not queried.
 	VkPhysicalDeviceVulkan12Features features12 = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &features13,

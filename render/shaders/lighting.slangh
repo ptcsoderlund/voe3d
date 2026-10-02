@@ -1,8 +1,8 @@
 // The sun and what it lights by: glTF's BRDF terms, the shadow lookup over the
 // cascades, the sun's radiance, the bounce, the fill and the point lights. A part
 // (ADR-0308): included by draw.slang after bindings.slangh, whose frame block,
-// light, cascades, bounce grids and point lights it reads, and includes
-// point_shadow.slangh; never compiled alone.
+// light, cascades, bounce volumes and point lights it reads, and includes
+// point_shadow.slangh and bounce_read.slangh; never compiled alone.
 // draw.slang's fragment stage and water.slangh both light through it.
 //
 // POINT LIGHTS ADD TO THE SUN'S DIRECT TERM (ADR-0320): voe_render_points, the
@@ -17,21 +17,18 @@
 // ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
 // sun arrives with the camera, once a frame, and every surface is lit from the
 // same direction with the same strength. What is not the sun is the indirect
-// term, `base colour × max(gain × E/π, fill weight × fill)` per channel: E the
-// bounce's irradiance out of the pass's probe grid (ADR-0307, 0308 point 6),
-// the gain VOE_BOUNCE_GAIN, 10, raising it past the physical until it shows in
-// the tank scene (ADR-0310, 0311), and the fill (ADR-0273) now a floor under
-// it (0307 amends 0275). The fill weight is
+// term, `base colour × max(E/π, fill weight × fill)` per channel: E the
+// bounce's irradiance out of the pass's probe volume (ADR-0307 point 5, 0326
+// point 7), no gain (0317 point 5), and the fill (ADR-0273) a floor under it
+// (0307 amends 0275). The fill weight is
 // whole where the sun does not reach, fading out as N·L × shadow rises and gone
 // from a reach of 0.3 (ADR-0276); a fill of zero is no floor.
 //
-// THE BOUNCE IS READ ONLY WHEN THE PASS NAMES A GRID: the record's grid ~0u, as
-// on every pass whose target had no update this frame, is no bounce. The grid's
-// L1 SH is sampled trilinear with repeat at the surface's place in the space
-// the draws place vertices in (about the eye, in 3d), and fades to nothing over
-// the outer cell on each side, from the outermost probe in, so the repeat never
-// wraps the far side of the grid into a surface past its edge. A non-finite E
-// is nought, so the indirect term is never below the fill floor.
+// THE BOUNCE IS READ ONLY WHEN THE PASS NAMES A VOLUME: the record's grid ~0u,
+// as on every pass whose target was not begun this frame or is not built, is no
+// bounce. Otherwise bounce_read.slangh reads the volume's sum at binding 6's
+// four entries from `grid` and its moments at binding 10's entry grid / 4, with
+// visibility, so the bounce stays on the lit side (ADR-0312).
 //
 // THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
 // `count` above nought, a lit surface picks the first cascade whose split is past
@@ -55,6 +52,7 @@
 // surface too shiny and no maths goes wrong to say so.
 
 #include "point_shadow.slangh"
+#include "bounce_read.slangh"
 
 static const float VOE_PI = 3.14159265358979;
 
@@ -153,47 +151,22 @@ float3 voe_render_sun_radiance(float reach)
 	return sun.colour * sun.intensity * reach;
 }
 
-// Probes a side of a bounce grid, VOE_RENDER_BOUNCE_PROBES in render/device.h.
-static const float VOE_BOUNCE_PROBES = 32.0;
-// The clamped cosine's L0 and L1 bands, A0 = π and A1 = 2π/3, each times its
-// SH basis constant (0.282095, 0.488603), which bounce.slang's gather folded
-// into the coefficients it stored.
-static const float VOE_BOUNCE_BAND0 = 3.14159265358979 * 0.282095;
-static const float VOE_BOUNCE_BAND1 = 2.09439510239320 * 0.488603;
-
 // The bounce's irradiance E(n) at `world` facing `n`, per channel, never below
-// nought; nought with no grid named. A probe stands at the middle of its cell,
-// corner + (i + 0.5) × spacing, stored at texel (cell + i) mod 32, so the
-// texture coordinate is (cell + (p − corner) / spacing) / 32. SampleLevel and
-// not Sample: the images have one level, and it may sit behind a branch.
+// nought; nought with no volume named. See the header.
 float3 voe_render_bounce_irradiance(float3 world, float3 n)
 {
 	voe_render_frame_bounce bounce = voe_render_frame.bounce;
 
 	if (bounce.grid == ~0u)
 		return float3(0.0, 0.0, 0.0);
-	float3 g = (world - bounce.corner) / bounce.spacing;
-	float3 edge = saturate(min(g, VOE_BOUNCE_PROBES - g) - 0.5);
-	float fade = edge.x * edge.y * edge.z;
-	float3 uvw = (float3(bounce.cell) + g) / VOE_BOUNCE_PROBES;
-	float4 basis = float4(VOE_BOUNCE_BAND0, VOE_BOUNCE_BAND1 * n);
-	float3 e;
-
-	for (uint c = 0; c < 3; c++) {
-		e[c] = dot(voe_render_bounce_grids[bounce.grid + c].SampleLevel(uvw, 0.0),
-			   basis);
-		if (!isfinite(e[c]))
-			e[c] = 0.0;
-	}
-	return max(e, 0.0) * fade;
+	return voe_render_bounce_read(voe_render_bounce_grids[bounce.grid],
+				      voe_render_bounce_grids[bounce.grid + 1],
+				      voe_render_bounce_grids[bounce.grid + 2],
+				      voe_render_bounce_grids[bounce.grid + 3],
+				      voe_render_bounce_moments[bounce.grid / 4],
+				      bounce.corner, bounce.cell, bounce.spacing,
+				      world, n);
 }
-
-// How many times its measured E/π the bounce is read (ADR-0310, 0311): a cheat
-// beyond the physical, the lowest whole number at which the tank project's
-// main.scene, at sun 1 and π, tints the ground at a sunlit box's foot 12/255
-// over open ground 8 m off with bounce.slang's allowance 0.25 m (ADR-0314,
-// 0315). A later tone map can lower it here alone.
-static const float VOE_BOUNCE_GAIN = 10.0;
 
 // What lights `colour` besides the sun: the bounce, with the fill as a floor
 // under it where the sun does not reach — whole at a reach of nought, faded
@@ -201,8 +174,7 @@ static const float VOE_BOUNCE_GAIN = 10.0;
 float3 voe_render_indirect(float reach, float3 world, float3 n, float3 colour)
 {
 	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
-	float3 bounce =
-		VOE_BOUNCE_GAIN * voe_render_bounce_irradiance(world, n) / VOE_PI;
+	float3 bounce = voe_render_bounce_irradiance(world, n) / VOE_PI;
 
 	return colour * max(bounce, fill_weight * voe_render_frame.light.fill);
 }

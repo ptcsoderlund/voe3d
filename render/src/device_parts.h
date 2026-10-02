@@ -51,11 +51,11 @@
 // VOE_RENDER_NO_DEPTH_COPY until voe_render_frame_copy_depth runs in the pass,
 // then the texture slot of the copy.
 //
-// `bounce` IS THE PASS'S BOUNCE GRID (ADR-0308 point 3): `grid` the first of its
-// three entries at binding 6, VOE_RENDER_NO_BOUNCE for none; `corner` its lowest
-// corner about the eye, `cell` its lowest cell mod VOE_RENDER_BOUNCE_PROBES, and
-// `spacing` the metres between probes. Only a camera pass whose grid this frame
-// slot updated names one.
+// `bounce` IS THE PASS'S PROBE VOLUME (ADR-0326 point 7): `grid` the first of
+// its four entries at binding 6, 4 × its volume index, VOE_RENDER_NO_BOUNCE for
+// none; `corner` its lowest corner about the eye, `cell` its lowest cell wrapped
+// per axis into 24 × 12 × 24, and `spacing` the metres between probes. Only a
+// camera pass whose volume this frame slot began and is built names one.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
