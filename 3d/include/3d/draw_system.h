@@ -9,8 +9,10 @@
 //     if (drawing) {
 //             (void)voe_3d_draw_system_shadows(world, gpu, &frame);
 //                                             // false: unshadowed, said on stderr
-//             voe_render_pass_camera camera = { frame.view, frame.light,
-//                                               frame.shadow };
+//             (void)voe_3d_draw_system_point_lights(world, &frame, scratch);
+//             voe_render_pass_camera camera = { .view = frame.view,
+//                     .light = frame.light, .shadow = frame.shadow,
+//                     .points = frame.points };
 //             ...                             // build what changes this frame
 //             if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
 //                     voe_3d_draw_system_run(world, gpu, scratch, frame);
@@ -190,6 +192,10 @@ typedef struct {
 	// zeroed, voe_3d_draw_system_shadows fills it, and the loop hands it
 	// to the pass beside `view` and `light` (ADR-0258).
 	voe_render_shadow shadow;
+	// The point lights the pass is lit by (0320); zero is none. _frame
+	// leaves it zeroed, voe_3d_draw_system_point_lights fills it, and the
+	// loop hands it to the pass camera beside `shadow`.
+	voe_render_point_lights points;
 	// The camera's world position, in double, that `view` is about
 	// (ADR-0250): every object's matrix, the sort and every mark is taken
 	// about this point. _frame sets it; a frame built by hand sets it too.
@@ -296,10 +302,11 @@ typedef struct {
 // The camera and the sun out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
-// matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun` and
-// `collider` all come back zeroed and `models` NULL — hiding, outlining, standing
-// a gizmo, marking a camera or a sun, drawing a collider and drawing models are
-// the caller's choice and it sets the field on the answer. Asserts on a world
+// matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
+// `collider` and `points` all come back zeroed and `models` NULL — hiding,
+// outlining, standing a gizmo, marking a camera or a sun, drawing a collider,
+// lighting by point lights and drawing models are the caller's choice and it
+// sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
 // frame's light is the zeroed one and lit surfaces draw black — see below.
 //
@@ -356,6 +363,23 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // in the game's frame; the editor lights such a world with its own preview
 // light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
+
+// Fills `frame->points` from every point light whose entity has a transform
+// (0320 point 6): its world place at `frame->lag`, about `frame->eye` in float
+// (ADR-0250); its range as authored; its colour times
+// voe_scene_point_light_strength. A strength of 0, a flash faded or never
+// flashed, is left out, and past VOE_RENDER_POINT_LIGHTS the rest are left out
+// in table order. The array is in `arena`. A world with no point light table
+// fills none and returns true. False with `points` zeroed when the arena is
+// full — which base's arena never is, since its push aborts rather than fails
+// (base/arena.h), so today it is always true.
+//
+// ONE CALL PER PASS'S FRAME, AND EVERY PICTURE OF A WORLD MAKES IT. The editor's
+// views and the game both call it, so a lamp lights the same in both. The lights
+// are not shadowed: the sun's cascades and bounce ignore them (0320 point 3).
+[[nodiscard]] bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
+						   voe_3d_frame *frame,
+						   voe_base_arena *arena);
 
 // The sun's shadow passes for `frame`, opened between the frame's begin and the
 // view's pass (ADR-0258). With the directional light shaded and of some

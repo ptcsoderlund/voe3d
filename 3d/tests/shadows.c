@@ -217,7 +217,9 @@ static floor_pixels a_frame(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(voe_3d_draw_system_shadows(world, device, &frame));
 	*added = voe_render_frame_draw_count(device) - before;
 	*count = frame.shadow.count;
-	camera = (voe_render_pass_camera){ frame.view, frame.light, frame.shadow };
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light,
+					   .shadow = frame.shadow };
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
 	voe_3d_draw_system_run(world, device, arena, frame);
