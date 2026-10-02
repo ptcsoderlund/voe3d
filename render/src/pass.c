@@ -21,7 +21,8 @@
 // target's bounce grid in its block only when this frame slot updated it.
 //
 // THE POINT-SHADOW PASS (ADR-0325) opens in point_shadow.c through this file's
-// start and light copy, and is closed by the same _pass_end.
+// start and light copy, and is closed by the same _pass_end. A capture pass
+// (ADR-0326) opens the same way in bounce_capture.c; _pass_end calls its copy.
 //
 // voe_render_frame_copy_depth (ADR-0305) splits a camera pass's block in two
 // round a copy of its depth into the sampled copy beside it, and names the copy's
@@ -271,6 +272,7 @@ void voe_render_pass_start(voe_render_device *device,
 	device->pass_open = true;
 	device->pass_count++;
 	device->pass_point_shadow = false;
+	device->pass_capture = false;
 }
 
 // The bounce record of a camera pass onto the target owning `grid`: the grid,
@@ -608,7 +610,7 @@ bool voe_render_bounce_pass_begin(voe_render_device *device,
 
 // Any kind of pass: the rendering block ended, and a shadow pass's layer, a
 // bounce pass's map or the point-shadow pass's maps handed back to where a
-// shader reads it.
+// shader reads it, or a capture pass's pictures copied into its atlases.
 void voe_render_pass_end(voe_render_device *device)
 {
 	struct voe_render_frame *frame;
@@ -625,11 +627,14 @@ void voe_render_pass_end(voe_render_device *device)
 		voe_render_bounce_to_read(frame);
 	if (device->pass_point_shadow)
 		voe_render_point_shadow_to_read(frame);
+	if (device->pass_capture)
+		voe_render_bounce_capture_end(device);
 	device->pass_open = false;
 	device->pass_camera = false;
 	device->pass_shadow = false;
 	device->pass_bounce = false;
 	device->pass_point_shadow = false;
+	device->pass_capture = false;
 	device->pass_target = NULL;
 }
 
@@ -758,9 +763,10 @@ bool voe_render_frame_copy_depth(voe_render_device *device)
 
 	VOE_BASE_ASSERT(device != NULL, "copying depth on no device");
 	if (!device->pass_open || !device->pass_camera || device->pass_shadow ||
-	    device->pass_bounce || device->pass_point_shadow) {
+	    device->pass_bounce || device->pass_point_shadow ||
+	    device->pass_capture) {
 		VOE_BASE_ERROR("render",
-			       "copying depth outside an open camera pass — a shadow or bounce pass's depth is the map itself");
+			       "copying depth outside an open camera pass — a shadow, bounce or capture pass's depth is the map itself");
 		return false;
 	}
 

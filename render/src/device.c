@@ -512,6 +512,10 @@ static void close_down(voe_render_device *device)
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_capture != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_capture,
+						       NULL);
 		if (device->pipeline_point_shadow != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_point_shadow,
@@ -544,6 +548,7 @@ static void close_down(voe_render_device *device)
 		voe_render_descriptors_teardown(device);
 		voe_render_shadow_shutdown(device);
 		voe_render_point_shadow_shutdown(device);
+		voe_render_bounce_capture_shutdown(device);
 		voe_render_bounce_grid_shutdown(device);
 		voe_render_bounce_shutdown(device);
 		// The command buffers are not freed one at a time: destroying the
@@ -666,6 +671,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	if (!voe_render_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_point_shadow_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	if (!voe_render_bounce_capture_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_bounce_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);

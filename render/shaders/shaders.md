@@ -17,8 +17,9 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   among them, the only place a matrix is
   applied to a position, the three numbers a draw finds everything by, the
   normal map, the distance field, the alpha modes and three unlit exits, the
-  third for a pass with no sun; its lit exit adds the point lights; and the point-shadow vertex
-  stage, one instance per face writing its layer.
+  third for a pass with no sun; its lit exit adds the point lights; the point-shadow vertex
+  stage, one instance per face writing its layer; and the capture pass's two, albedo and normal
+  with distance from the probe.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector by its major axis and the
   90° reversed-depth clip position on a face, near 0.05 m, far the light's range; draw and lookup share it.
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms,

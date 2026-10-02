@@ -22,9 +22,10 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, FOUR ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with all of them in it (the bounce map's fragment, and the
-// point-shadow pass's vertex stage, which writes the layer), and device.c names them by the names
+// ONE FILE, SIX ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the bounce map's fragment, the
+// point-shadow pass's vertex stage, which writes the layer, and the capture
+// pass's two), and pipeline.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps those strings true.
 //
@@ -547,5 +548,80 @@ voe_render_bounce_out voe_render_draw_bounce(voe_render_draw_vertex_out vertex)
 
 	result.flux = float4(sun.colour * sun.intensity * (factor * sheet).rgb, 1.0);
 	result.normal = float4(n, 1.0);
+	return result;
+}
+
+// How far a probe's picture reaches: VOE_RENDER_BOUNCE_REACH in render/device.h.
+static const float VOE_RENDER_BOUNCE_REACH = 24.0;
+
+// What the capture vertex stage hands on (ADR-0326 point 3): the clip position
+// on one probe's face, the world normal, the position about the probe, the uv,
+// and the layer last, so the fragment's input below matches the rest in order.
+struct voe_render_capture_out {
+	float4 position : SV_Position;
+	float3 normal : NORMAL;
+	float3 about : POSITION;
+	float2 uv : TEXCOORD;
+	uint layer : SV_RenderTargetArrayIndex;
+};
+
+// The same as the fragment stage reads it, without the layer.
+struct voe_render_capture_in {
+	float4 position : SV_Position;
+	float3 normal : NORMAL;
+	float3 about : POSITION;
+	float2 uv : TEXCOORD;
+};
+
+// The capture scratch's two targets, in the pipeline's order.
+struct voe_render_capture_targets {
+	float4 albedo : SV_Target0;
+	float4 normal : SV_Target1;
+};
+
+// THE CAPTURE PASS'S VERTEX STAGE: the point-shadow one with the pass's probes
+// as its lights, slot layer / 6 + 1 read at index layer / 6 of this pass's
+// region, its face layer % 6, out to VOE_RENDER_BOUNCE_REACH.
+[shader("vertex")]
+voe_render_capture_out
+voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
+			  uint instance : SV_InstanceID)
+{
+	voe_render_capture_out out;
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	uint layer = voe_render_point_shadow_layer(instance);
+	voe_render_point_light probe = voe_render_point_lights[
+		voe_render_frame.region * VOE_RENDER_POINT_LIGHTS + layer / 6];
+	float4 world = mul(object.world, float4(vertex.position, 1.0));
+
+	out.about = world.xyz - probe.position;
+	out.position = voe_render_point_shadow_clip(out.about, layer % 6,
+						    VOE_RENDER_BOUNCE_REACH);
+	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
+	out.uv = vertex.uv;
+	out.layer = layer;
+	return out;
+}
+
+// THE CAPTURE PASS'S FRAGMENT: linear albedo, the base factor × texture × object
+// colour as the bounce map's fragment takes it, alpha one; and the world normal,
+// nought for a normal of nothing, with the distance from the probe in w.
+[shader("fragment")]
+voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in vertex)
+{
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_shading shading = voe_render_shadings[object.shading];
+	float4 factor = shading.base_colour * object.colour;
+	float2 base_uv = vertex.uv * shading.base_colour_uv_rect.zw +
+			 shading.base_colour_uv_rect.xy;
+	float4 sheet =
+		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
+	float3 n = dot(vertex.normal, vertex.normal) < VOE_LEAST ?
+			   float3(0.0, 0.0, 0.0) :
+			   normalize(vertex.normal);
+	voe_render_capture_targets result;
+
+	result.albedo = float4((factor * sheet).rgb, 1.0);
+	result.normal = float4(n, length(vertex.about));
 	return result;
 }

@@ -1265,6 +1265,25 @@ typedef struct {
 [[nodiscard]] bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 						      const voe_render_point_lights *lights);
 
+// Opens a bounce capture pass (ADR-0326 point 3): takes up to
+// VOE_RENDER_BOUNCE_CAPTURE queued probes of the target voe_render_bounce_begin
+// began this frame, nearest the eye first, and opens one pass drawing their six
+// faces each — albedo, and world normal with distance, out to
+// VOE_RENDER_BOUNCE_REACH — copied into the target's probe pictures when
+// voe_render_pass_end closes it. Draw the casters into it as into the
+// point-shadow pass.
+//
+// `opened` IS FALSE, and true is returned with nothing open, when no probe is
+// queued, the volume is not built, the card has no shaderOutputLayer, or
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES have run this frame. IT IS A PASS AND COUNTS
+// AGAINST `passes`, its draws against `objects`: false, with a line, when the
+// frame's passes are spent.
+//
+// Calling this outside a frame, with a pass open, or with no bounce begin this
+// frame is the caller's bug and asserts.
+[[nodiscard]] bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
+							bool *opened);
+
 // Opens a bounce pass: one more pass of the sun, after the cascades, onto this
 // frame slot's bounce map (ADR-0308), VOE_RENDER_BOUNCE_TEXELS square, flux,
 // normal and depth cleared. `light` is the view the map is drawn from and `sun`
@@ -1383,7 +1402,9 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 // through the bounce pipeline, nothing culled, into the bounce map. IN A
 // POINT-SHADOW PASS it is one instanced draw over every slotted light's faces the
 // geometry's bounding sphere reaches under the world matrix, and none when it
-// reaches none: true then, with no object spent.
+// reaches none: true then, with no object spent. IN A CAPTURE PASS, as in a
+// point-shadow pass, it is one instanced draw over the probes' faces the sphere
+// reaches within VOE_RENDER_BOUNCE_REACH.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);

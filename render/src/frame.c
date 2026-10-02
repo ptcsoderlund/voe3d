@@ -379,6 +379,7 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	device->window_grid.updates[device->slot].updated = false;
 	device->window_volume.begun[device->slot].begun = false;
 	device->bounce_begun = false;
+	device->capture_passes = 0;
 	for (uint32_t i = 0; i < device->capacities.targets; i++) {
 		device->targets[i].cleared = false;
 		device->targets[i].grid.updates[device->slot].updated = false;

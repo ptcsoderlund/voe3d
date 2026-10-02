@@ -2,7 +2,7 @@
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
 // drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates,
-// bounce_volume.c the probe volumes, swapchain.c builds the images the window is made of, element.c
+// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -171,6 +171,10 @@ struct voe_render_device {
 	// The point-shadow pass's: its own vertex stage writing the layer, then
 	// the shadow one's biased depth write. VK_NULL_HANDLE without output_layer.
 	VkPipeline pipeline_point_shadow;
+	// The capture pass's: its own vertex stage writing the layer, a fragment
+	// writing albedo and normal with distance, nothing culled, no bias.
+	// VK_NULL_HANDLE without output_layer.
+	VkPipeline pipeline_capture;
 	// The bounce pass's: the solid one's vertex stage, a fragment writing
 	// flux and normal into two RGBA16F attachments, culling as shadow's.
 	VkPipeline pipeline_bounce;
@@ -295,6 +299,16 @@ struct voe_render_device {
 	bool pass_point_shadow;
 	voe_render_point_light pass_casters[VOE_RENDER_POINT_SHADOWS];
 	uint32_t pass_slots;
+	// Whether the open pass is a capture pass (ADR-0326 point 3): the draws
+	// read it to pick that pipeline and cull by face over `pass_casters`, its
+	// probes by slot; _pass_end to copy `capture_count` probes, toroidal
+	// indices in `capture_probes` by slot, into `capture_volume`'s atlases.
+	// `capture_passes` counts this frame's, reset by voe_render_frame_begin.
+	bool pass_capture;
+	struct voe_render_bounce_volume *capture_volume;
+	uint32_t capture_probes[VOE_RENDER_BOUNCE_CAPTURE];
+	uint32_t capture_count;
+	uint32_t capture_passes;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -510,6 +524,19 @@ voe_render_bounce_volume_build(voe_render_device *device,
 void voe_render_bounce_volume_teardown(voe_render_device *device,
 				       struct voe_render_bounce_volume *volume);
 [[nodiscard]] bool voe_render_bounce_volumes_apply(voe_render_device *device);
+// bounce_volume.c. The volume `target` names, the window's or a live target's;
+// asserts on a target id that names none.
+struct voe_render_bounce_volume *
+voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target);
+
+// bounce_capture.c. Every frame slot's capture scratch on a device with
+// output_layer, none without; startup's, after the point shadow maps. False with
+// a message; _shutdown is safe on a device that never got that far. _end, from
+// voe_render_pass_end once the capture pass's rendering has ended, copies its
+// probes' faces into their volume's atlases.
+[[nodiscard]] bool voe_render_bounce_capture_startup(voe_render_device *device);
+void voe_render_bounce_capture_shutdown(voe_render_device *device);
+void voe_render_bounce_capture_end(voe_render_device *device);
 
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds

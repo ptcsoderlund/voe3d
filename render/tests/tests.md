@@ -72,6 +72,9 @@ by reading the offscreen colour image back.
   only within, a relight only on change, and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
   window's and a target's apart, and freed after 300 frames with no begin. Headless.
+- `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
+  fifth in a frame not open, refused with `passes` spent, and a red cube in the albedo atlas.
+  Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.

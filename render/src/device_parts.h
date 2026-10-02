@@ -4,7 +4,7 @@
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
 // map point_shadow.c's; the bounce map
 // is bounce_map.c's; the bounce grid is target.c's, its updates bounce_grid.c's;
-// the probe volume bounce_volume.c's; the swapchain
+// the probe volume bounce_volume.c's, the capture scratch bounce_capture.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -289,6 +289,16 @@ struct voe_render_point_shadow_map {
 	VkImageView attachment;
 };
 
+// One frame slot's capture scratch, bounce_capture.c's (ADR-0326 point 3): albedo
+// (RGBA8 sRGB), normal and distance (RGBA16F) and D32 depth, each of
+// 6 × VOE_RENDER_BOUNCE_CAPTURE layers VOE_RENDER_BOUNCE_FACE square with a view of
+// every layer. Zeroed on a device without shaderOutputLayer.
+struct voe_render_bounce_scratch {
+	struct voe_render_allocated_image albedo;
+	struct voe_render_allocated_image normal;
+	struct voe_render_allocated_image depth;
+};
+
 // One frame slot's bounce map, bounce_map.c's (ADR-0308): D32 depth, RGBA16F flux
 // and RGBA16F normal, VOE_RENDER_BOUNCE_TEXELS square, the colour two sampled
 // and storage-readable. Rests where compute reads it outside a bounce pass.
@@ -332,8 +342,8 @@ struct voe_render_bounce_begun {
 // One target's probe volume, bounce_volume.c's (ADR-0326 points 2 to 6): the
 // albedo (RGBA8 sRGB), normal-and-distance (RGBA16F) and moments (RG16F) atlases,
 // 1152 × 2304; the validity (R16F) and seven SH grids of three RGBA16F images
-// each, levels L(n, k) then the sum, 24 × 12 × 24. Every image storage, sampled
-// and transfer-dst, cleared to nought, resting in GENERAL. `wanted` is set by a
+// each, levels L(n, k) then the sum, 24 × 12 × 24. Every image storage, sampled,
+// transfer-dst and -src, cleared to nought, resting in GENERAL. `wanted` is set by a
 // begin, `built` when the images exist, `idle` the frame tops since the last
 // begin. ONE COPY, NOT PER FRAME SLOT, which is why `begun` is.
 struct voe_render_bounce_volume {
@@ -427,6 +437,8 @@ struct voe_render_frame {
 	struct voe_render_shadow_map shadow;
 	// The point lights' maps, per slot and startup's for the same reasons.
 	struct voe_render_point_shadow_map point_shadow;
+	// The capture pass's scratch, per slot and startup's for the same reasons.
+	struct voe_render_bounce_scratch capture;
 
 	// The sun's bounce map, per slot for the same reason, and this frame's
 	// last bounce pass: its light view, its sun, and whether one ran. Reset

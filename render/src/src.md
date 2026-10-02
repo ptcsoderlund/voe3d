@@ -27,7 +27,7 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the five mesh pipelines, solid, blended, shadow, bounce and point shadow, with their
+- `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture, with their
   embedded shader, depth and blend state, and the layout every pipeline shares.
 - `descriptors.c` — everything the shader reads and the one layout that describes it: ten bindings,
   one set, a camera buffer holding a block per pass, object, element, point light and light bin
@@ -70,6 +70,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_probes.c` — its place, nearest-first take, relight-needed and relit calls over bit sets.
 - `bounce_volume.c` — a target's probe volume: its atlases and 3D images built at the top of the
   frame after the first `voe_render_bounce_begin`, freed after 300 frames unbegun, and that begin.
+- `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
+  depth, sixteen queued probes drawn into it as one layered pass, then copied into the atlases.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
@@ -84,8 +86,8 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c and point_shadow.c make across
-  one another; included by those five only.
+- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c, point_shadow.c and
+  bounce_capture.c make across one another; included by those six only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block and its

@@ -3,8 +3,9 @@
 // target's bounce for the frame.
 //
 // WHAT IT OWNS. Per volume, the three atlases and the 22 3D images of struct
-// voe_render_bounce_volume, every one storage, sampled and transfer-dst, cleared
-// to nought and resting in GENERAL; card 04's probe bookkeeping lives beside
+// voe_render_bounce_volume, every one storage, sampled and transfer-dst (and
+// -src, which a test reads one back through), cleared to nought and resting in
+// GENERAL; card 04's probe bookkeeping lives beside
 // them. The albedo atlas is sRGB, which no card stores to, so it is made
 // mutable with extended usage and viewed sampled only. The window's volume is
 // the device's, each target's its slot's; device.c tears them down.
@@ -62,7 +63,8 @@ static bool build_image(voe_render_device *device,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
 		.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-			 VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			 VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+			 VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
@@ -280,9 +282,8 @@ bool voe_render_bounce_volumes_apply(voe_render_device *device)
 	return true;
 }
 
-// The volume `target` names; asserts on one not live.
-static struct voe_render_bounce_volume *
-volume_of(voe_render_device *device, voe_render_target target)
+struct voe_render_bounce_volume *
+voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target)
 {
 	struct voe_render_target_slot *own;
 
@@ -314,7 +315,7 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	VOE_BASE_ASSERT(frame->sun_bounces <= VOE_RENDER_BOUNCES_MAX,
 			"a bounce begin whose sun bounces past VOE_RENDER_BOUNCES_MAX");
 
-	volume = volume_of(device, target);
+	volume = voe_render_bounce_volume_of(device, target);
 	begun = &volume->begun[device->slot];
 	VOE_BASE_ASSERT(!begun->begun,
 			"a second bounce begin for one target in one frame");
