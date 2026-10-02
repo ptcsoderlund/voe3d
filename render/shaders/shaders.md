@@ -13,8 +13,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   sums at binding 6 and moments at 10, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
   bindings and the push constant, which holds the object and a 96-bit face
   mask, each matching its C struct.
-- `draw.slang` — the mesh pipelines' entry points, the bounce map's fragment
-  among them, the only place a matrix is
+- `draw.slang` — the mesh pipelines' entry points, the only place a matrix is
   applied to a position, the three numbers a draw finds everything by, the
   normal map, the distance field, the alpha modes and three unlit exits, the
   third for a pass with no sun; its lit exit adds the point lights; the point-shadow vertex

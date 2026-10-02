@@ -53,9 +53,6 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
-- `bounce_map.c` — the sun's bounce pass: false outside a frame, four cascades, a bounce pass and a
-  window pass in one frame with one more pass refused, and a red cube still red in the camera pass
-  after it. Headless.
 - `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, the
   16 nearest taken first, a one-cell move queuing 288, −1 wrapping to 23, a stale sphere queuing
   only within, a relight only on change, and the 17th bouncing lamp left out.

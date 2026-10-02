@@ -347,7 +347,6 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	voe_render_pass_start(device, frame, &block, device->pipeline_capture);
 	device->pass_camera = true;
 	device->pass_shadow = false;
-	device->pass_bounce = false;
 	device->pass_capture = true;
 	device->capture_volume = volume;
 	device->capture_passes++;

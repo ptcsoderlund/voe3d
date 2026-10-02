@@ -2,9 +2,8 @@
 // larger: the pass block, the buffers and pools and the geometry slots are
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
-// map point_shadow.c's; the bounce map
-// is bounce_map.c's; the probe volume bounce_volume.c's, the capture scratch bounce_capture.c's; the swapchain
-// image is swapchain.c's; the
+// map point_shadow.c's; the probe volume bounce_volume.c's, the capture scratch
+// bounce_capture.c's; the swapchain image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
 //
@@ -297,15 +296,6 @@ struct voe_render_bounce_scratch {
 	struct voe_render_allocated_image depth;
 };
 
-// One frame slot's bounce map, bounce_map.c's (ADR-0308): D32 depth, RGBA16F flux
-// and RGBA16F normal, VOE_RENDER_BOUNCE_TEXELS square, the colour two sampled
-// and storage-readable. Rests where compute reads it outside a bounce pass.
-struct voe_render_bounce_map {
-	struct voe_render_allocated_image depth;
-	struct voe_render_allocated_image flux;
-	struct voe_render_allocated_image normal;
-};
-
 // Whether one frame slot's frame began a probe volume, and the lowest cell and
 // corner that begin placed it at (ADR-0326 point 7).
 struct voe_render_bounce_begun {
@@ -414,14 +404,6 @@ struct voe_render_frame {
 	struct voe_render_point_shadow_map point_shadow;
 	// The capture pass's scratch, per slot and startup's for the same reasons.
 	struct voe_render_bounce_scratch capture;
-
-	// The sun's bounce map, per slot for the same reason, and this frame's
-	// last bounce pass: its light view, its sun, and whether one ran. Reset
-	// by voe_render_frame_begin (ADR-0308).
-	struct voe_render_bounce_map bounce;
-	voe_render_view bounce_view;
-	voe_render_light bounce_sun;
-	bool bounced;
 
 	// capacities.passes blocks, device->pass_stride bytes apart — the
 	// stride is the block rounded up to the card's uniform offset alignment.

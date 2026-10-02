@@ -313,8 +313,6 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 	VOE_BASE_ASSERT(lights != NULL, "opening a point-shadow pass with no lights");
 	VOE_BASE_ASSERT(device->recording,
 			"opening a point-shadow pass with no frame open");
-	if (device->pass_open && device->pass_bounce)
-		voe_render_pass_end(device);
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a point-shadow pass while a pass is already open — passes do not nest");
 	VOE_BASE_ASSERT(voe_render_point_shadows_ready(device),
@@ -352,7 +350,6 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 			      device->pipeline_point_shadow);
 	device->pass_camera = true;
 	device->pass_shadow = false;
-	device->pass_bounce = false;
 	device->pass_point_shadow = true;
 	return true;
 }

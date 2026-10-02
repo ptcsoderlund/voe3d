@@ -361,8 +361,6 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 			"drawing elements with no pass open — every draw is inside a voe_render_pass_begin and its _pass_end");
 	VOE_BASE_ASSERT(!device->pass_shadow,
 			"drawing elements in a shadow pass — it has no colour to blend them into");
-	VOE_BASE_ASSERT(!device->pass_bounce,
-			"drawing elements in a bounce pass — its colour is light, not a picture");
 	VOE_BASE_ASSERT(!device->pass_capture,
 			"drawing elements in a capture pass — its colour is a probe's picture of the world");
 

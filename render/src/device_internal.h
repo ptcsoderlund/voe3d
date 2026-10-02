@@ -1,7 +1,7 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map,
+// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights',
 // bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
@@ -175,9 +175,6 @@ struct voe_render_device {
 	// writing albedo and normal with distance, nothing culled, no bias.
 	// VK_NULL_HANDLE without output_layer.
 	VkPipeline pipeline_capture;
-	// The bounce pass's: the solid one's vertex stage, a fragment writing
-	// flux and normal into two RGBA16F attachments, culling as shadow's.
-	VkPipeline pipeline_bounce;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
 	// a mapped lights record and one set per volume (targets + 1, calloc'd);
@@ -299,10 +296,6 @@ struct voe_render_device {
 	// false.
 	bool pass_shadow;
 	uint32_t pass_cascade;
-	// Whether the open pass is a bounce pass: the draws read it to pick the
-	// bounce pipeline, _pass_end to hand the map to compute, and the next
-	// pass or the frame's end to close it.
-	bool pass_bounce;
 	// Whether the open pass is the point-shadow pass (ADR-0325): the draws read
 	// it to pick that pipeline and cull by face, _pass_end to hand the maps
 	// back. `pass_casters` is its lights by slot − 1, `pass_slots` bit s − 1
@@ -571,16 +564,6 @@ void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 // message; _shutdown is safe on a device that never got that far.
 [[nodiscard]] bool voe_render_point_shadow_startup(voe_render_device *device);
 void voe_render_point_shadow_shutdown(voe_render_device *device);
-
-// bounce_map.c. Every frame slot's bounce map, made and settled where compute
-// reads it; startup's, after the frame objects. False with a message; _shutdown
-// is safe on a device that never got that far. _open records the barriers into
-// the attachments and begins the cleared rendering with viewport and scissor;
-// _to_read the barriers back after the rendering ends.
-[[nodiscard]] bool voe_render_bounce_startup(voe_render_device *device);
-void voe_render_bounce_shutdown(voe_render_device *device);
-void voe_render_bounce_open(const struct voe_render_frame *frame);
-void voe_render_bounce_to_read(const struct voe_render_frame *frame);
 
 // target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.

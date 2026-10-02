@@ -371,8 +371,6 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	// the first pass onto it will.
 	device->pass_open = false;
 	device->pass_camera = false;
-	device->pass_bounce = false;
-	frame->bounced = false;
 	device->pass_count = 0;
 	device->window_cleared = false;
 	device->window_volume.begun[device->slot].begun = false;
@@ -416,9 +414,6 @@ bool voe_render_frame_end(voe_render_device *device)
 	VOE_BASE_ASSERT(device != NULL, "ending a frame on no device");
 	VOE_BASE_ASSERT(device->recording,
 			"ending a frame that was never begun");
-	// A bounce pass left open is closed here, as the next pass would close it.
-	if (device->pass_open && device->pass_bounce)
-		voe_render_pass_end(device);
 	VOE_BASE_ASSERT(!device->pass_open,
 			"ending a frame with a pass still open — every _pass_begin needs its _pass_end first");
 

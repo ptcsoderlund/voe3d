@@ -55,8 +55,6 @@ which file to open — what each one owns, and where the seams between them run.
 - `point_shadow.c` — the point lights' shadow maps: one D32 array image of 6 × 16 layers per frame
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.
-- `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
-  images, 512 square, the bounce pass's rendering, and its barriers to compute read.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
   which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place, nearest-first take, relight-needed and relit calls over bit sets.
