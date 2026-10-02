@@ -29,10 +29,7 @@ which file to open — what each one owns, and where the seams between them run.
   that says which and why.
 - `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture, with their
   embedded shader, depth and blend state, and the layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: eleven
-  bindings, one set, a camera buffer holding a block per pass, object, element, point light and
-  light bin buffers, the shadow and point shadow maps per frame slot, and every probe volume's sum
-  and moments with their two samplers.
+- `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
