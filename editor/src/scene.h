@@ -144,6 +144,9 @@ typedef struct voe_editor_scene {
 	// The themes the Scene list pushes for the held row's dim and the
 	// target's rim (ADR-0282), rebuilt by it from the palette each frame.
 	// Here because a pushed theme must outlive the frame it is drawn in.
+	// `list_row` is the palette at the rows' own spacing, pushed round
+	// every entity row.
+	voe_ui_theme list_row;
 	voe_ui_theme list_dim;
 	voe_ui_theme list_rim;
 	// What the Inspector panel drew this frame, and the arena its labels

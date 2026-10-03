@@ -138,8 +138,8 @@ carries it out.
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row in a rim wrapper, a copy's file name, the drag's ghost refused or not, and the
-  held row's drop.
+  stack, rows tightly padded in one gapless column, each in a rim wrapper, a copy's file name,
+  the drag's ghost refused or not, and the held row's drop.
 - `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
