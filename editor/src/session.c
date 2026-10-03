@@ -1,6 +1,7 @@
 // The refuse-once rule, the eight commands, a prefab opened and left, a refresh
 // started, polled and its library swapped in, Ship started after it and
-// polled, a failed build's Errors panel shown, and what a browser action does
+// polled, a failed build's Errors panel shown, Open and Save's browser shown
+// beside a folder, and what a browser action does
 // to the session. See the header for what each one does and why
 // only CLOSE ever answers true.
 #include "session.h"
@@ -35,6 +36,31 @@ static bool session_has_code(const voe_editor_project *project)
 	has = voe_editor_game_tree_has_code(project->folder, scratch);
 	voe_base_arena_destroy(scratch);
 	return has;
+}
+
+// The browser shown in mode beside the project's folder or, for an untitled
+// scene, the last project's, or NULL when it reads none (0343). The browser
+// copies `beside`, so the scratch the last project was read into goes at once.
+static void session_browser_show(voe_editor_session *session,
+				 voe_editor_browser *browser,
+				 voe_editor_browser_mode mode)
+{
+	voe_base_arena *scratch;
+
+	VOE_BASE_ASSERT(session->project != NULL, "browsing beside no project");
+	if (session->project->folder != NULL) {
+		voe_editor_browser_show(browser, mode, session->project->folder,
+					&session->notice);
+		VOE_BASE_ASSERT(browser->showing, "a shown browser hides");
+		return;
+	}
+	scratch = voe_base_arena_new(SESSION_SCRATCH);
+	VOE_BASE_ASSERT(scratch != NULL, "no scratch to read the last project in");
+	voe_editor_browser_show(browser, mode,
+				voe_editor_last_project_read(scratch),
+				&session->notice);
+	voe_base_arena_destroy(scratch);
+	VOE_BASE_ASSERT(browser->showing, "a shown browser hides");
 }
 
 // The Errors panel shown from the project's Build/build.log. A project with
@@ -449,8 +475,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// Allowed, once past the refusal above. What a chosen folder
 		// does to the project is voe_editor_session_browser_do's, on
 		// the browser's own Confirm.
-		voe_editor_browser_show(browser, VOE_EDITOR_BROWSER_OPEN, NULL,
-					&session->notice);
+		session_browser_show(session, browser, VOE_EDITOR_BROWSER_OPEN);
 		return false;
 
 	case VOE_EDITOR_COMMAND_SAVE:
@@ -462,9 +487,8 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 			(void)voe_editor_project_save(session->project, NULL,
 						      &session->notice);
 		else
-			voe_editor_browser_show(browser,
-						VOE_EDITOR_BROWSER_SAVE, NULL,
-						&session->notice);
+			session_browser_show(session, browser,
+					     VOE_EDITOR_BROWSER_SAVE);
 		return false;
 
 	case VOE_EDITOR_COMMAND_BACK:
@@ -559,7 +583,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 	case VOE_EDITOR_BROWSER_CONFIRM:
 		if (browser->mode == VOE_EDITOR_BROWSER_OPEN) {
 			voe_editor_project *opened = voe_editor_project_new_opened(
-				browser->folder, &session->notice);
+				browser->target, &session->notice);
 
 			if (opened == NULL)
 				return;

@@ -10,10 +10,13 @@
 // and OPEN count the open prefab and the level set aside for it (0283 point 8).
 //
 // NEW, ONCE ALLOWED, puts a fresh untitled project in place of the old one
-// (project.h) and clears `scene`'s selection. OPEN only shows the browser in
-// OPEN mode; its Confirm is voe_editor_session_browser_do's. Either ends a
-// running refresh and ship. SAVE NEVER ARMS: an opened project (or its open
-// prefab) is written over itself; an untitled one shows the browser in SAVE.
+// (project.h) and clears `scene`'s selection; its first Save is where it
+// browses. OPEN shows the browser in OPEN mode beside the project's folder,
+// or for an untitled scene the last project, its row chosen (0343); its
+// Confirm is voe_editor_session_browser_do's. Either ends a running refresh
+// and ship. SAVE NEVER ARMS: an opened project (or its open prefab) is written
+// over itself; an untitled one shows the browser in SAVE, starting as OPEN's
+// does, and Save here still means the shown folder.
 //
 // A PREFAB IS OPENED BY voe_editor_session_prefab_open, refused while one is
 // open, and left by BACK, refused once while it is unsaved; with none open BACK
@@ -177,7 +180,7 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // file into the Assets panel's shown folder (voe_editor_assets_import, a
 // failure in the notice) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
 // BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
-// voe_editor_project_new_opened on browser->folder, and on success
+// voe_editor_project_new_opened on browser->target, and on success
 // session->project, scene->world and scene->selected are replaced exactly as
 // NEW replaces them, the last project is remembered (a failure to write that
 // is a notice and not a refusal), a refresh is due, and the browser hides; on
