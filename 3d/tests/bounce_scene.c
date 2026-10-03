@@ -1,61 +1,55 @@
 // The probe bounce as the editor and the game draw it (feature 051, How to test
 // steps 2, 3 and 8), through 3d's own calls a frame: voe_3d_draw_system_frame,
 // _point_lights, _shadows with `frame.target` the window, the window's pass,
-// _run, frame end; then the window read. Nothing hand-fitted: the grid, the
-// casters, the stale spheres and the relight are 3d's and render's.
+// _run, frame end; then the window read. Nothing hand-fitted.
 //
 // THE WORLD. Grey ground (a flat box 40 m wide, top at y 0, 0.5 grey, so the
-// grid fitted to it stays at 2 m as in the tank game's); a box
-// 2 m a side, strongly red, standing at (0.5, 1, 0.5), off the probe lattice's
-// odd metres so no probe sits on its faces; a sun of 1 shining down at 45
-// degrees along -x onto the box's +x face, bounces 1 and strength 1, no fill,
-// casting, as are both shapes (0324). The eye stands 8 m up and 14 m back
-// (+z), looking down at the origin. The same world at bounces 0 is the
+// grid stays at 2 m as in the tank game's); a box 2 m a side, strongly red, at
+// (0.5, 1, 0.5), off the probe lattice's odd metres; a sun of 1 shining down
+// at 45 degrees along -x onto the box's +x face, bounces 1, strength 1, no
+// fill, casting, as are both shapes (0324). The eye stands 8 m up and 14 m
+// back (+z), looking down at the origin. The same world at bounces 0 is the
 // reference: its shadows call begins no bounce, so its window reads none.
 //
-// SETTLED, AND COUNTED AS bounce.c COUNTS: by `passes`. A full frame has room
-// for the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes, the
-// relight's sun map (0329) and the window's. A probing frame first opens
-// DUMMIES empty passes, so the cascades spend the rest: a shadows call that
-// would open a capture pass or the sun map returns false there (render says so
-// on a line; that noise is the measurement), and true when nothing is queued
-// and nothing is to be relit. Frames alternate full and probing until a probing one
-// is true, within BOUND pairs or the test fails: the whole grid is 6912 probes
-// at 64 a full frame.
+// SETTLED, COUNTED AS bounce.c COUNTS: by `passes`. A full frame has room for
+// the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes, the relight's
+// sun map (0329) and the window's. A probing frame first opens DUMMIES empty
+// passes, so a shadows call that would open a capture pass or the sun map
+// returns false there (render says so on a line; that noise is the
+// measurement), and true when nothing is queued or to be relit. Full and
+// probing frames alternate until a probing one is true, within BOUND pairs.
 //
-// THE LIT SIDE (step 2): the ground 0.25 m out from the box's sunlit +x face
-// has its red less its green above the reference's by at least TINT/255, and
-// 3 m out by less than half that: the box's colour reaches the ground it faces,
-// and fades.
+// THE LIT SIDE (step 2): the ground 0.25 m out from the sunlit +x face has its
+// red less its green above the reference's by at least TINT/255, and 3 m out
+// by less than half that. THE SHADOW (step 3, 0312, 0327): the ground 0.25 m
+// out from the shadowed -x face, at the foot, within SHADOW/255 of the
+// reference in every channel. EVEN GROUND (step 2, 0326): five points along
+// x = -6, 2 m apart in z, within EVEN/255 of each other; again after the sun
+// is turned 5 degrees higher, each one's green risen with it.
 //
-// THE SHADOW (step 3, 0312): the ground 0.25 m out from the shadowed -x face,
-// in the box's shadow at its foot, within SHADOW/255 of the reference in every
-// channel: the lit face does not light its own shadow. It holds because of
-// 0327: a probe's six-axis irradiance gives flat ground nothing from below its
-// own plane, where L1 SH lit the foot from the sunlit ground ring.
-//
-// EVEN GROUND (step 2, 0326's reasoning): five points of open ground along
-// x = -6, 2 m apart in z, within EVEN/255 of each other in every channel; and
-// again after the sun is turned 5 degrees higher, each point's green having
-// risen with it, so the evenness is not an unlit floor's.
-//
-// SETTLING (step 8): with nothing changed the next probing frame opens no
-// capture pass; the box moved 1 m along x by its transform, with a previous
-// table remembered as a stepping game does, makes the next one open one (its
-// stale spheres queue probes), and within BOUND it settles again.
+// SETTLING (step 8): unchanged, the next probing frame opens no capture pass;
+// the box moved 1 m along x, a previous table remembered as a stepping game
+// does, makes the next one open one, and within BOUND it settles again.
 //
 // TURN (bug 01) AND LOOKING AWAY (0328, 0329): settled, the camera turned 90
 // degrees about Y in place for TURNED probing frames, each opening no capture
-// pass; then turned 180 degrees and, facing away, the sun's bounce strength set
-// to 2 and settled, back to 1 and settled. Each time turned back, the lit-side,
-// shadow-foot and five open-ground pixels are each within 1/255 of their values
-// before the turn: turning moves no probe, and a relight shadows the sun by the
-// volume's own map, not the view's cascades that lit the room unshadowed.
-// Pixels are found by projecting a world point, about the frame's eye, through
-// the frame's view, with the engine's one Y flip.
+// pass; then turned 180 degrees and, facing away, the bounce strength set to 2
+// and settled, back to 1 and settled. Turned back each time, the lit-side,
+// shadow-foot and open-ground pixels are each within 1/255 of before: a
+// relight shadows the sun by the volume's own map, not the view's cascades.
 //
-// IT NEEDS A GRAPHICS CARD WITH shaderOutputLayer AND SKIPS WITH A REASON
-// WITHOUT ONE, as 3d/tests/shadows.c does: without it nothing is captured.
+// MOVE (bug 03, 0331): settled, the eye moved 6 m along -x and 3 m up for
+// TURNED probing frames, each opening no capture pass and relighting nothing,
+// then moved back, the same pixels within 1/255: the grid is the level's.
+//
+// FAR (bug 03, 0331): the eye 40 m further back along +z, still looking at the
+// origin, for TURNED probing frames, each true; the lit side, projected from
+// there, redder than the reference at the same eye by at least half of
+// TINT/255: distance from the camera does not take the bounce away.
+//
+// Pixels are a world point projected about the frame's eye through its view,
+// with the engine's one Y flip. IT NEEDS A GRAPHICS CARD WITH shaderOutputLayer
+// AND SKIPS WITH A REASON WITHOUT ONE, as shadows.c does.
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -404,23 +398,19 @@ static void the_pixels_looked_at(const voe_render_picture *picture,
 	VOE_TEST_CHECK(LOOKED == 2 + OPEN);
 }
 
-// TURN: a quarter turn about Y in place and back opens no capture pass and
-// leaves every looked-at pixel within 1/255.
-static void turning_moves_nothing(scene *s)
+// The camera at `away` for TURNED probing frames, each opening no capture pass,
+// then back: every looked-at pixel within 1/255 of before; `what` on each line.
+static void away_and_back_changes_nothing(scene *s, voe_scene_transform away,
+					  const char *what)
 {
 	voe_scene_transform pose = *voe_scene_transform_get(s->world, s->camera);
-	voe_scene_transform turned = pose;
 	voe_3d_frame frame = a_full_frame(s);
 	voe_render_picture picture = read_window(s);
 	uint8_t before[LOOKED][3];
 	uint8_t after[LOOKED][3];
 
 	the_pixels_looked_at(&picture, &frame, before);
-	turned.rotation = voe_math_quat_mul(
-		voe_math_quat_from_axis_angle((voe_math_float3){ 0.0f, 1.0f, 0.0f },
-					      1.5707963f),
-		pose.rotation);
-	place(s, s->camera, turned);
+	place(s, s->camera, away);
 	for (int f = 0; f < TURNED; f++)
 		VOE_TEST_CHECK(!a_capture_was_wanted(s));
 	place(s, s->camera, pose);
@@ -428,12 +418,65 @@ static void turning_moves_nothing(scene *s)
 	picture = read_window(s);
 	the_pixels_looked_at(&picture, &frame, after);
 	for (int i = 0; i < LOOKED; i++) {
-		printf("turned %d: %d %d %d against %d %d %d\n", i, after[i][0],
-		       after[i][1], after[i][2], before[i][0], before[i][1],
-		       before[i][2]);
+		printf("%s %d: %d %d %d against %d %d %d\n", what, i,
+		       after[i][0], after[i][1], after[i][2], before[i][0],
+		       before[i][1], before[i][2]);
 		for (int c = 0; c < 3; c++)
 			VOE_TEST_CHECK(abs((int)after[i][c] - (int)before[i][c]) <= 1);
 	}
+}
+
+// TURN: a quarter turn about Y in place and back.
+static void turning_moves_nothing(scene *s)
+{
+	voe_scene_transform turned = *voe_scene_transform_get(s->world, s->camera);
+
+	turned.rotation = voe_math_quat_mul(
+		voe_math_quat_from_axis_angle((voe_math_float3){ 0.0f, 1.0f, 0.0f },
+					      1.5707963f),
+		turned.rotation);
+	away_and_back_changes_nothing(s, turned, "turned");
+}
+
+// MOVE: 6 m along -x and 3 m up and back.
+static void moving_moves_nothing(scene *s)
+{
+	voe_scene_transform moved = *voe_scene_transform_get(s->world, s->camera);
+
+	moved.position.x -= 6.0;
+	moved.position.y += 3.0;
+	away_and_back_changes_nothing(s, moved, "moved");
+}
+
+// FAR: both worlds' eyes 40 m further back along +z, looking down at the
+// origin; no capture pass opens there, and the ground 0.25 m out from the
+// box's +x face where it now stands, from there, is redder than the
+// reference's by at least half of TINT/255.
+static void far_keeps_the_bounce(scene *s, scene *plain)
+{
+	float pitch = atan2f(8.0f, 54.0f);
+	voe_scene_transform far = *voe_scene_transform_get(s->world, s->camera);
+	const voe_scene_transform *box = voe_scene_transform_get(s->world, s->box);
+	voe_math_float3 lit_side = { (float)box->position.x + 1.25f, 0.0f,
+				     (float)box->position.z };
+	voe_render_picture bounced;
+	voe_render_picture reference;
+	voe_3d_frame frame;
+
+	far.position.z += 40.0;
+	far.rotation = (voe_math_quat){ -sinf(pitch * 0.5f), 0.0f, 0.0f,
+					cosf(pitch * 0.5f) };
+	place(s, s->camera, far);
+	place(plain, plain->camera, far);
+	for (int f = 0; f < TURNED; f++)
+		VOE_TEST_CHECK(!a_capture_was_wanted(s));
+	frame = a_full_frame(s);
+	bounced = read_window(s);
+	(void)a_full_frame(plain);
+	(void)a_full_frame(plain);
+	reference = read_window(plain);
+	VOE_TEST_CHECK(2 * redder_by(&bounced, &reference, &frame, lit_side) >=
+		       TINT);
 }
 
 // The sun's bounce strength set to `strength` by an intent and the light
@@ -526,6 +569,8 @@ static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 	VOE_TEST_CHECK(settles(s));
 	turning_moves_nothing(s);
 	looking_away_relights_the_same(s);
+	moving_moves_nothing(s);
+	far_keeps_the_bounce(s, &plain);
 }
 
 int main(void)
