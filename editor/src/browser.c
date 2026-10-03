@@ -3,6 +3,8 @@
 // failed listing changes nothing.
 #include "browser.h"
 
+#include "themes.h"
+
 #include <authoring/project.h>
 
 #include <base/arena.h>
@@ -28,8 +30,8 @@
 
 // The plate behind the browser is the theme's RAISED surface — a floating
 // panel covering another, exactly what that role is for (ui/theme.h).
-#define BROWSER_PAD 3.0f
-#define BROWSER_GAP 2.0f
+#define BROWSER_PAD (3.0f * VOE_EDITOR_SPACING)
+#define BROWSER_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // What a marked row's label ends in.
 #define PROJECT_MARK " — project"

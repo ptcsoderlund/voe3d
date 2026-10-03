@@ -2,11 +2,13 @@
 // choice per identity row, drawn depth-first and indented by depth, each node
 // handed to the scene to be asked after the frame, and the held row's drop
 // read after it. See scene_list.h for the order, why the rows are the identity
-// table, how they are keyed and what a drop does.
+// table, how they are keyed and what a drop does. The rows sit in one gapless
+// column under the rows' spacing.
 #include "scene_list.h"
 
 #include "drag_ghost.h"
 #include "inspector_place.h"
+#include "themes.h"
 
 #include <base/assert.h>
 #include <scene/identity_component.h>
@@ -17,10 +19,18 @@
 #include <string.h>
 
 // How far each level of the tree is indented, in millimetres.
-#define INDENT_PER_DEPTH 4.0f
+#define INDENT_PER_DEPTH (4.0f * VOE_EDITOR_SPACING)
+
+// The gap between an entity's name and its prefab's file name, in millimetres.
+#define PREFAB_NAME_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // How wide the drop rim round every row and the heading is, in millimetres.
 #define RIM_WIDTH 0.5f
+
+// The `spacing` of the theme the entity rows are drawn under, so a row's
+// button pad is 0.5 mm, the rim's width, and rows sit a text line apart
+// (ADR-0344).
+#define LIST_ROW_SPACING 0.2f
 
 // No identity parent: a root.
 #define NO_PARENT UINT32_MAX
@@ -109,8 +119,7 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	const voe_scene_prefab *prefab =
 		voe_scene_prefab_get(scene->world, entities[index]);
 
-	if (dim)
-		voe_ui_theme_push(ui, &scene->list_dim);
+	voe_ui_theme_push(ui, dim ? &scene->list_dim : &scene->list_row);
 	rim_begin(ui, scene, "row_rim", index,
 		  same_entity(entities[index], scene->list_target));
 	voe_ui_row_begin(ui, (voe_ui_container){ 0 });
@@ -140,7 +149,7 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	if (prefab == NULL) {
 		voe_ui_label(ui, rows[index].name);
 	} else {
-		voe_ui_row_begin(ui, (voe_ui_container){ .gap = 2.0f });
+		voe_ui_row_begin(ui, (voe_ui_container){ .gap = PREFAB_NAME_GAP });
 		voe_ui_label(ui, rows[index].name);
 		voe_ui_label_role(ui, prefab_file_name(prefab),
 				  VOE_UI_TEXT_ROLE_SECONDARY);
@@ -149,8 +158,7 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	voe_ui_end(ui);
 	voe_ui_end(ui);
 	voe_ui_end(ui);
-	if (dim)
-		voe_ui_theme_pop(ui);
+	voe_ui_theme_pop(ui);
 
 	// The click is answered after voe_ui_frame_end and this function has
 	// to have returned by then, so the node is handed to the scene to be
@@ -168,13 +176,17 @@ static bool has_children(const uint32_t *parents, uint32_t count,
 	return false;
 }
 
-// The drag's two themes, copies of `palette` rebuilt each frame (ADR-0282):
-// the held row reads as a flat control with the dimmest text; the rim is
-// `inverse` all through, and its text is `inverse_ink` so the heading's label,
-// which has no fill of its own, reads on it.
+// The rows' theme and the drag's two, copies of `palette` rebuilt each frame
+// (ADR-0282): rows at LIST_ROW_SPACING; the held row from that, so it keeps
+// its height, as a flat control with the dimmest text; the rim is `inverse`
+// all through, and its text is `inverse_ink` so the heading's label, which has
+// no fill of its own, reads on it.
 static void marks_derive(voe_editor_scene *scene, const voe_ui_theme *palette)
 {
-	scene->list_dim = *palette;
+	scene->list_row = *palette;
+	scene->list_row.spacing = LIST_ROW_SPACING;
+
+	scene->list_dim = scene->list_row;
 	scene->list_dim.inverse = palette->control;
 	scene->list_dim.control_hovered = palette->control;
 	scene->list_dim.text_primary = palette->text_disabled;
@@ -228,6 +240,11 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 		parents[i] = parent_index(scene->world, entities, count,
 					  entities[i]);
 
+	// One gapless column round both walks, so no panel gap sits between
+	// rows.
+	voe_ui_column_begin(ui, (voe_ui_container){
+					.gap = 0, .across = VOE_UI_ACROSS_FILL });
+
 	for (uint32_t root = 0; root < count; root++) {
 		uint32_t top = 0;
 
@@ -262,6 +279,7 @@ void voe_editor_scene_list_draw(voe_ui_context *ui,
 		if (!listed[i])
 			row_draw(ui, scene, i, 0,
 				 has_children(parents, count, i));
+	voe_ui_end(ui);
 }
 
 // Whether `at` is on `node` as drawn, for a node the frame had room for.

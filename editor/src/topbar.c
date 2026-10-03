@@ -11,6 +11,7 @@
 #include "topbar.h"
 
 #include "dock.h"
+#include "themes.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -24,8 +25,8 @@
 // as a strip of something else drawn over it.
 
 // Inside the bar's four edges, and between the things on it. Millimetres.
-#define BAR_PAD 2.0f
-#define BAR_GAP 3.0f
+#define BAR_PAD (2.0f * VOE_EDITOR_SPACING)
+#define BAR_GAP (3.0f * VOE_EDITOR_SPACING)
 
 // "<name> (unsaved)", formatted into arena. Measured first and written
 // second, exactly as inspector.c's own text() does: the length of a project's

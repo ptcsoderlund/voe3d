@@ -253,5 +253,6 @@ voe_ui_theme voe_ui_theme_derive(const voe_ui_theme_inputs *inputs,
 		.inverse_ink = inverse_ink,
 		.font = font,
 		.text_size = inputs->text_size,
+		.spacing = 1.0f,
 	};
 }

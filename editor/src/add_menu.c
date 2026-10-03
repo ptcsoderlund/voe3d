@@ -6,6 +6,7 @@
 #include "add_menu.h"
 
 #include "inspector_value.h"
+#include "themes.h"
 
 #include <base/assert.h>
 
@@ -17,7 +18,7 @@
 // Round the list's rows and between them, and the right padding a capped list
 // keeps for its Y scrollbar: inspector.c's LIST_PAD and LIST_BAR, so the two
 // lists look alike. Millimetres.
-#define LIST_PAD 1.0f
+#define LIST_PAD (1.0f * VOE_EDITOR_SPACING)
 #define LIST_BAR 3.5f
 
 // Copies the trimmed part of `path` starting at `*at` into `label` and moves

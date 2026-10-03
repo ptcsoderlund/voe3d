@@ -161,6 +161,12 @@ typedef struct {
 	// a theme derived with no font in hand carries until a caller sets one.
 	const voe_text_font *font;
 	float text_size;
+	// A multiplier on every millimetre a widget puts round its content: a
+	// button's, number box's and field's pad, the number box's refused gap,
+	// the colour picker's pad and gap. 1 from voe_ui_theme_derive. Not
+	// authored, so not in voe_ui_theme_inputs: a caller wanting a tighter
+	// interface sets it on the derived palette (ADR-0344).
+	float spacing;
 } voe_ui_theme;
 
 // The built-in theme's inputs: near-black, a grey `hue` (#808080, so Near

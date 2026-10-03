@@ -47,7 +47,7 @@ workflow replaced specs.
 - 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
 - 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
-- 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306 — Text scale by theme; fit; mm panels; PC monitor.
+- 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306, 0344 — Text scale; fit; mm panels; PC sizes.
 - 0192, 0193, 0195, 0198–0200, 0202–0207 — Queue; focus; dropdowns; overlays; picks; undo; gizmo.
 - 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
 - 0189–0191, 0217, 0218, 0221, 0300, 0302, 0303 — A bare entity; needs brought along; one camera.

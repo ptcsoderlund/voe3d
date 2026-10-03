@@ -70,7 +70,7 @@
 #include <ui/theme.h>
 
 // Between the picker and the Inspector column, and below the bar. Millimetres.
-#define PICKER_GAP 1.0f
+#define PICKER_GAP (1.0f * VOE_EDITOR_SPACING)
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
 					 const voe_ui_theme *theme)

@@ -68,7 +68,7 @@ voe_ui_node voe_ui_button_begin(voe_ui_context *ui, const char *name,
 	node = voe_ui_row_begin(ui, (voe_ui_container){
 					   .along = VOE_UI_ALONG_CENTER,
 					   .across = VOE_UI_ACROSS_CENTER,
-					   .pad = BUTTON_PAD });
+					   .pad = button_pad(theme) });
 	if (node != VOE_UI_NODE_NONE) {
 		ui->widgets[node].kind = VOE_UI_WIDGET_BUTTON;
 		ui->widgets[node].key = key;
@@ -129,7 +129,7 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 					   .along = open ? VOE_UI_ALONG_START
 							 : VOE_UI_ALONG_CENTER,
 					   .across = VOE_UI_ACROSS_CENTER,
-					   .pad = BUTTON_PAD });
+					   .pad = button_pad(theme) });
 	if (node != VOE_UI_NODE_NONE) {
 		ui->widgets[node].kind = VOE_UI_WIDGET_NUMBER;
 		ui->widgets[node].key = key;
@@ -145,7 +145,8 @@ voe_ui_node voe_ui_number_begin(voe_ui_context *ui, const char *name,
 	if (open) {
 		voe_ui_row_begin(ui, (voe_ui_container){
 					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = NUMBER_REFUSED_GAP });
+					     .gap = NUMBER_REFUSED_GAP *
+						    theme->spacing });
 		label = voe_ui_label(ui, ui->field_buffer);
 		if (ui->number_refused)
 			voe_ui_label_role(ui, "not a number",
@@ -461,7 +462,7 @@ bool voe_ui_control_inverted(const voe_ui_context *ui, uint32_t node)
 
 // The three states, for a button and for a number box alike — control at
 // rest, control_hovered under the pointer, and `inverse` where the control is
-// inverted. They look the same on purpose — see BUTTON_PAD.
+// inverted. They look the same on purpose — see button_pad.
 static voe_math_float4 state_colour(const voe_ui_context *ui, uint32_t node)
 {
 	const struct voe_ui_widget_record *w = &ui->widgets[node];

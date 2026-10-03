@@ -35,8 +35,9 @@
 // WHAT A PERSON SET IS REMEMBERED PER THEME, NOT IN THE THEME FILE
 // (ADR-0197, ADR-0224). Every entry carries the two scalars and the text
 // scale it is drawn with, and its palette is derived with those: the pair
-// instead of the one in `theme.inputs`, and a text size of the theme's own
-// `text_size` times the scale. They are the theme's own two and 1.0 until a
+// instead of the one in `theme.inputs`, a text size of the theme's own
+// `text_size` times VOE_EDITOR_TEXT_BASE times the scale, and a spacing of
+// VOE_EDITOR_SPACING. They are the theme's own two and 1.0 until a
 // line in theme_scalars.h's file, or a call to voe_editor_themes_adjust,
 // replaces them. A remembered line replaces them at load and at every live
 // re-read, so an edit to the file changes everything but what a person has
@@ -61,6 +62,12 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+// The editor's 100 % text is 80 % of a theme's own `text_size` and its spacing
+// 65 % of ui's, for a PC monitor (ADR-0306, ADR-0344); a game's interface
+// keeps both at 1.
+#define VOE_EDITOR_TEXT_BASE 0.8f
+#define VOE_EDITOR_SPACING 0.65f
 
 // One theme the editor can draw in.
 typedef struct {

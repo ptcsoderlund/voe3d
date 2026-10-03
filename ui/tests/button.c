@@ -17,7 +17,8 @@
 // Those cases put a label on a control and so measure a string, which needs a
 // real font and so a device — a headless one, with no window and no compositor,
 // and a skip naming what did not run where there is no driver at all
-// (ADR-0106).
+// (ADR-0106). The last case pins that a button's pad follows the theme's
+// spacing (ADR-0344).
 //
 // ---- WHY THE CLICK CASES ARE THE ONES THAT MATTER ----
 //
@@ -713,7 +714,34 @@ static void a_selected_choice_is_inverted(voe_ui_context *ui,
 		      TEST_THEME.text_primary);
 }
 
-// The device and the font the three cases above need, and the skip that stands
+// THE THEME'S SPACING SCALES A BUTTON'S PAD (ADR-0344): the same labelled
+// button under a copy of the theme with spacing 0.5 has 1.25 of pad a side
+// rather than 2.5, so it is 2.5 narrower and 2.5 shorter.
+static void button_pad_follows_spacing(voe_ui_context *ui,
+				       voe_base_arena *arena)
+{
+	voe_ui_theme tight = TEST_THEME;
+	voe_ui_rect wide;
+	voe_ui_rect narrow;
+	voe_ui_node b;
+
+	tight.spacing = 0.5f;
+
+	b = build_labelled(ui, arena, CONTROL_BUTTON, false, 1.0f, false,
+			   false);
+	wide = voe_ui_node_rect(ui, b);
+
+	voe_ui_theme_set(ui, &tight);
+	b = build_labelled(ui, arena, CONTROL_BUTTON, false, 1.0f, false,
+			   false);
+	narrow = voe_ui_node_rect(ui, b);
+	voe_ui_theme_set(ui, &TEST_THEME);
+
+	VOE_TEST_CHECK_FLOAT(wide.size.x - narrow.size.x, 2.5f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(wide.size.y - narrow.size.y, 2.5f, 0.001f);
+}
+
+// The device and the font the four cases above need, and the skip that stands
 // in for them where there is no driver.
 static void the_inverted_states(voe_base_arena *arena)
 {
@@ -744,7 +772,8 @@ static void the_inverted_states(voe_base_arena *arena)
 			// why it did.
 			printf("skip: no graphics driver — the held-button, "
 			       "dragged-number-box and selected-choice "
-			       "inversion checks did not run\n");
+			       "inversion checks and the spacing check did "
+			       "not run\n");
 			return;
 		}
 		VOE_TEST_CHECK(device != NULL);
@@ -768,6 +797,7 @@ static void the_inverted_states(voe_base_arena *arena)
 	a_held_button_is_inverted(ui, arena);
 	a_dragged_number_box_is_inverted(ui, arena);
 	a_selected_choice_is_inverted(ui, arena);
+	button_pad_follows_spacing(ui, arena);
 
 	voe_text_font_destroy(font);
 	voe_render_device_destroy(device);

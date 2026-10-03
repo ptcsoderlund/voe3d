@@ -55,6 +55,7 @@
 
 #include "inspector.h"
 #include "scene_list.h"
+#include "themes.h"
 
 #include <base/assert.h>
 
@@ -74,8 +75,8 @@
 // is no role for it besides (ui/theme.h, ADR-0171).
 
 // Inside a panel's four edges, and between the things on it. Millimetres.
-#define PANEL_PAD 3.0f
-#define PANEL_GAP 2.0f
+#define PANEL_PAD (3.0f * VOE_EDITOR_SPACING)
+#define PANEL_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // The space between the two children of a split. See the header note above.
 #define SEAM 1.0f
@@ -669,7 +670,7 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 // target is, so a view that has not sat anywhere yet shows none; its node is not
 // kept, so a click on it is a click on the view (0223).
 #define PREVIEW_SHARE 0.3f
-#define PREVIEW_INSET 1.0f
+#define PREVIEW_INSET (1.0f * VOE_EDITOR_SPACING)
 
 static void scene_view_panel(voe_ui_context *ui, uint32_t view,
 			     voe_editor_views *views)

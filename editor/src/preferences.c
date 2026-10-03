@@ -3,6 +3,8 @@
 // why Choose is carried out elsewhere.
 #include "preferences.h"
 
+#include "themes.h"
+
 #include <base/assert.h>
 
 #include <ui/slider.h>
@@ -12,8 +14,8 @@
 
 // The same plate, padding and gaps browser.c's panel uses, so the two
 // floating panels read as one kind of thing. Millimetres.
-#define PREFERENCES_PAD 3.0f
-#define PREFERENCES_GAP 2.0f
+#define PREFERENCES_PAD (3.0f * VOE_EDITOR_SPACING)
+#define PREFERENCES_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // What the row of the theme in force ends in.
 #define IN_FORCE_MARK "(in force)"

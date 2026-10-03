@@ -60,9 +60,8 @@ carries it out.
   `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
-- `themes.h` — Near black and Near white, then one theme per `*.theme` file in
-  `<settings>/voe3d/themes/`, the chosen one remembered in `<settings>/voe3d/theme` and re-read once
-  a second, each carrying the two scalars and the text scale it is drawn with.
+- `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
+  remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
   remembered file read and written as its one line, the chosen file's once-a-second re-read, and
   each theme derived at its own text scale.
@@ -139,8 +138,8 @@ carries it out.
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, each row in a rim wrapper, a copy's file name, the drag's ghost refused or not, and the
-  held row's drop.
+  stack, rows tightly padded in one gapless column, each in a rim wrapper, a copy's file name,
+  the drag's ghost refused or not, and the held row's drop.
 - `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.

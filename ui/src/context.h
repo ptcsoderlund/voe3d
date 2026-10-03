@@ -109,9 +109,14 @@ enum voe_ui_bar {
 //
 // A NUMBER BOX AND A FIELD USE IT TOO, because both are meant to look like a
 // button — a thing you put the pointer on and press. Here rather than in one of
-// them because button.c and field.c must pad alike for that to hold.
-#define BUTTON_PAD                                                             \
-	((voe_ui_pad){ 2.5f, 2.5f, 2.5f, 2.5f })
+// them because button.c and field.c must pad alike for that to hold. The
+// theme's spacing scales it (ADR-0344).
+static inline voe_ui_pad button_pad(const voe_ui_theme *theme)
+{
+	float mm = 2.5f * theme->spacing;
+
+	return (voe_ui_pad){ mm, mm, mm, mm };
+}
 
 // What the pointer is on, the last in paint order winning. button.c works it
 // out for the widgets and asks scroll.c for the bars, and hands it to field.c

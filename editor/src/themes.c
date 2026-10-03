@@ -99,6 +99,20 @@ static const char *read_choice(const char *path, voe_base_arena *arena)
 	return text[0] == '\0' ? NULL : text;
 }
 
+// The one way an editor palette is derived: `inputs`' own `text_size` times
+// VOE_EDITOR_TEXT_BASE times `text_scale`, and spacing VOE_EDITOR_SPACING, so
+// the editor fits a PC monitor while the slider still reads 100 % (ADR-0344).
+static voe_ui_theme derive_editor(voe_ui_theme_inputs inputs, float text_scale,
+				  const voe_text_font *font)
+{
+	voe_ui_theme palette;
+
+	inputs.text_size *= VOE_EDITOR_TEXT_BASE * text_scale;
+	palette = voe_ui_theme_derive(&inputs, font);
+	palette.spacing = VOE_EDITOR_SPACING;
+	return palette;
+}
+
 // Reads `size` bytes of theme file `file`, already pushed into `arena`, into
 // `entry`, which then owns `arena`. False, with `entry` untouched and the
 // reason already reported, when they will not read; `arena` is the caller's
@@ -124,7 +138,7 @@ static bool derive_one(voe_editor_theme *entry, const char *file,
 		.contrast_strength = theme.inputs.contrast_strength,
 		.surface_separation = theme.inputs.surface_separation,
 		.text_scale = 1.0f,
-		.palette = voe_ui_theme_derive(&theme.inputs, font),
+		.palette = derive_editor(theme.inputs, 1.0f, font),
 		.bytes = bytes,
 		.size = size,
 		.arena = arena,
@@ -193,8 +207,7 @@ static void derive_in_force(voe_editor_theme *entry, const voe_text_font *font)
 			"deriving a theme with no text scale");
 	inputs.contrast_strength = entry->contrast_strength;
 	inputs.surface_separation = entry->surface_separation;
-	inputs.text_size *= entry->text_scale;
-	entry->palette = voe_ui_theme_derive(&inputs, font);
+	entry->palette = derive_editor(inputs, entry->text_scale, font);
 }
 
 // Puts the pair and the text scale remembered for `entry`'s theme in force and
@@ -274,7 +287,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		.contrast_strength = defaults.contrast_strength,
 		.surface_separation = defaults.surface_separation,
 		.text_scale = 1.0f,
-		.palette = voe_ui_theme_derive(&defaults, font),
+		.palette = derive_editor(defaults, 1.0f, font),
 	};
 	themes->entries[1] = (voe_editor_theme){
 		.name = "Near white",
@@ -285,7 +298,7 @@ bool voe_editor_themes_load(voe_editor_themes *themes,
 		.contrast_strength = light.contrast_strength,
 		.surface_separation = light.surface_separation,
 		.text_scale = 1.0f,
-		.palette = voe_ui_theme_derive(&light, font),
+		.palette = derive_editor(light, 1.0f, font),
 	};
 	themes->count = THEMES_BUILT_IN;
 	apply_remembered(themes, &themes->entries[0]);

@@ -3,6 +3,8 @@
 // what a missing `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
 
+#include "themes.h"
+
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/report.h>
@@ -21,7 +23,7 @@
 #define ASSETS_FOLDER "Assets"
 #define LIST_SECONDS 1.0
 #define MISSING_LINE "No Assets folder in this project."
-#define ASSETS_GAP 2.0f
+#define ASSETS_GAP (2.0f * VOE_EDITOR_SPACING)
 
 static char *copy_string(voe_base_arena *arena, const char *text)
 {
