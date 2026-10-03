@@ -27,8 +27,8 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture, with their
-  embedded shader, depth and blend state, and the layout every pipeline shares.
+- `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture,
+  with their embedded shader, depth and blend state, and the layout every pipeline shares.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
@@ -49,7 +49,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
-  views, the barriers either side of a shadow pass, and the comparison sampler they are read through.
+  views, the barriers either side of a shadow pass, and the comparison sampler they are read
+  through.
 - `point_shadow.c` — the point lights' shadow maps: one D32 array image of 6 × 16 layers per frame
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.
@@ -57,9 +58,9 @@ which file to open — what each one owns, and where the seams between them run.
   which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
   about the corner, so an eye that moves relights nothing) and relit calls over bit sets.
-- `bounce_volume.c` — a target's probe volume: its atlases and six-axis irradiance 3D images, built at the top of the
-  frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10, freed after 300
-  frames unbegun, and that begin, which keeps its spacing per frame slot.
+- `bounce_volume.c` — a target's probe volume: its atlases and six-axis irradiance 3D images, built
+  at the top of the frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10,
+  freed after 300 frames unbegun, and that begin, which keeps its spacing per frame slot.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
   depth, sixteen queued probes drawn into it as one layered pass at the volume's spacing and out
   to its reach, twelve cells, then copied into the atlases.
@@ -87,8 +88,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
-  begun probe volume, and its point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
-  copy, and the one Y flip in the viewport.
+  begun probe volume, and its point lights copied and binned, the clear colour, the
+  first-clears-later-load rule, the depth copy, and the one Y flip in the viewport.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
   the point-shadow pass one instance per cube face reached, the depth clear between them, and the
   rebinds only when pipeline or pool pair changes.

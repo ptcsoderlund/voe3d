@@ -10,10 +10,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
-- `bounce_grid.c` — that the probe volume fits the level's box, not the eye:
-  the same cell and spacing from three eyes, a centre
-  across a cell edge one cell on, no box about the origin, and a sun view that
-  holds the volume and grows with the spacing. Needs no graphics card.
+- `bounce_grid.c` — that the probe volume fits the level's box, not the eye: the same cell and
+  spacing from three eyes, a centre across a cell edge one cell on, no box about the origin, and a
+  sun view that holds the volume and grows with the spacing. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -35,19 +34,18 @@ again, or to find where a claim that has started failing is written down.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
   and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
   or without it. Skips without a graphics card.
-- `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces, the nearest 16
-  casting lamps take the shadow slots, and one lights the ground under it. The picture skips
-  without a graphics card.
+- `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
+  the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
+  picture skips without a graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
 - `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
-  that bounces, two views in one frame each drawing their sun map, and the stale spheres a moved
-  wall marks, and the still casters' box at two eyes and turned. Skips without a card.
-- `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
-  the ground it faces, open ground stays even, the grid
-  settles, and camera turns and moves change nothing, nor does a far eye take the bounce. Skips
-  without a card.
+  that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
+  marks, and the still casters' box from two eyes and a turned one. Skips without a card.
+- `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints the
+  ground it faces, open ground stays even, the grid settles, and camera turns and moves change
+  nothing, nor does a far eye take the bounce. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
@@ -56,8 +54,8 @@ again, or to find where a claim that has started failing is written down.
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, camera box, sun cube, model or child at the
   right distance and nothing where nothing is, and that a drawn pixel the cube covers picks it.
-- `outline.c` — the silhouette edge counts, the quads' corners, width and winding for cubes, children
-  and models, and that a hidden cube's outline shows through when drawn.
+- `outline.c` — the silhouette edge counts, the quads' corners, width and winding for cubes,
+  children and models, and that a hidden cube's outline shows through when drawn.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
   building nothing and not hit, and a ray meeting the box square on, turned and not at all. Needs
   no graphics card.
@@ -84,7 +82,8 @@ again, or to find where a claim that has started failing is written down.
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
 - `model_component.c` — the model's CHAR field `path` of 128 and BOOL `cast_shadows`, the default
-  casting and an intent turning it off, a submitted path read back after a run, a dead entity's intent dropped and a path with no end cut. Needs no graphics card.
+  casting and an intent turning it off, a submitted path read back after a run, a dead entity's
+  intent dropped and a path with no end cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,

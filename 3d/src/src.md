@@ -79,8 +79,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
-- `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model
-  parts from the frame's store and panels, the world's solids drawn as found, the held-back groups and the marks in their order.
+- `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model parts
+  from the frame's store and panels, the world's solids drawn as found, the held-back groups and the
+  marks in their order.
 - `draw_shadows.c` — the shadow passes as one call: the sun's cascades, the point-shadow pass
   and the probe bounce.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
@@ -88,9 +89,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
-- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the target's bounce begun
-  with the lights and stale spheres, the casters drawn into each capture pass and a casting sun's
-  own map, and the relight; and the still casters' world box.
+- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the
+  target's bounce begun with the lights and stale spheres, the casters drawn into each capture pass
+  and a casting sun's own map, and the relight; and the still casters' world box.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
@@ -115,8 +116,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   into one part per material; internal.
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill, and the mirrored node's turned triangles.
-- `models.c` — the store's table of entries with an arena each, and the load that reads,
-  bakes, uploads and gives back what a failure made; pictures on the quad, the dot and the water apart.
+- `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
+  uploads and gives back what a failure made; pictures on the quad, the dot and the water apart.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow

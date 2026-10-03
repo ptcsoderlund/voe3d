@@ -56,4 +56,4 @@ workflow replaced specs.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
-- 0307, 0308, 0310–0319 — Probe-grid bounce, lit side, per light; costly looks opt-in; the low end.
+- 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
