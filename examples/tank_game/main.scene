@@ -32,16 +32,16 @@ scale = [1, 1, 1]
 name = "Sun"
 folded = false
 [3.voe_scene_light]
-colour = [1, 0.58921766, 0.28265268]
+colour = [1, 0.6759507, 0.4082015]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
 fill_intensity = 0.10823958
-bounces = 2
+bounces = 1
 cast_shadows = true
-bounce_strength = 1
+bounce_strength = 0.5
 [3.voe_scene_transform]
 position = [8.605420589447021e-07, 5.138881284743547, 7.879768788814545]
-rotation = [0.36317888, 0.009024888, -0.5412938, -0.75830126]
+rotation = [0.25219268, 0.102768585, -0.57972324, -0.7679574]
 scale = [1, 1, 1]
 
 [4]
@@ -156,13 +156,13 @@ parent = 19
 [20.voe_scene_point_light]
 colour = [0, 0.31905842, 1]
 intensity = 10
-range = 3.0574996
-falloff = 4
+range = 3.4933777
+falloff = 1.7691213
 cast_shadows = true
 bounces = 0
 bounce_strength = 1
 [20.voe_scene_transform]
-position = [13.94373351946706, 1.151716602500528, 1.2226342482026666]
+position = [14.608392466732766, 1.9286628845147789, -30.226486993720755]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -180,7 +180,7 @@ cast_shadows = true
 bounces = 0
 bounce_strength = 1
 [22.voe_scene_transform]
-position = [-10.01682921324391, 0.8198165143840015, -40.0421191919595]
+position = [-10.275887691532262, 2.194356573279947, -40.04211907275021]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -193,12 +193,12 @@ parent = 19
 colour = [0, 1, 0.17092332]
 intensity = 4
 range = 5
-falloff = 0.3
-cast_shadows = true
+falloff = 0.752378
+cast_shadows = false
 bounces = 0
 bounce_strength = 1
 [23.voe_scene_transform]
-position = [12.080669453367591, 3.3207585206255317, -29.43719005677849]
+position = [0.597023387439549, 2.3556890129111707, -35.85241048131138]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -292,6 +292,6 @@ folded = false
 [80.tank_goal]
 points = 1000
 [80.voe_scene_transform]
-position = [-1.5222305328934453, -2.466142177581787e-06, -38.61915572732687]
+position = [0.3771847666357644, -3.5800039768218994e-06, -36.52986656539724]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
