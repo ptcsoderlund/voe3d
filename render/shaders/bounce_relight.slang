@@ -20,9 +20,10 @@
 // its solid angle; no hit (distance at the reach) or a back face is nought;
 // else at the surface point (probe + direction × distance) radiance = albedo ×
 // - level 1: the chain's lights, colour × intensity × bounce strength ×
-//   max(0, n·l) × shadow: the sun with the first cascade whose box holds the
-//   point, lit outside them; a lamp faded as lighting.slangh's falloff, and
-//   with its slot's compare when the point shadows are ready;
+//   max(0, n·l) × shadow: the sun by the volume's own map (ADR-0329), one
+//   compare pushed a texel along n, lit outside its box and when this frame
+//   drew none; a lamp faded as lighting.slangh's falloff, and with its slot's
+//   compare when the point shadows are ready;
 // - level k > 1: bounce_read.slangh's E of level (chain, k − 1) / π;
 // summed as six-axis irradiance (ADR-0327): per axis a, radiance ×
 // max(0, direction_a) into E(+a) and × max(0, −direction_a) into E(−a), six RGB
@@ -38,7 +39,7 @@
 //
 // The push block matches struct relight_push in bounce_relight.c, the record at
 // binding 11 its struct relight_record: the structs below repeat bindings.slangh's
-// light, shadow and point light, which this file cannot include (its set 0).
+// light and point light, which this file cannot include (its set 0).
 //
 // CONSTRAINTS. A workgroup of 64, under Vulkan's guaranteed 128. The grids are
 // written with unrolled constant indices: the device enables no dynamic
@@ -79,16 +80,6 @@ struct relight_light {
 	float reserved;
 };
 
-struct relight_shadow {
-	float4x4 cascades[4];
-	float4 splits;
-	float4 texels;
-	uint count;
-	uint reserved0;
-	uint reserved1;
-	uint reserved2;
-};
-
 struct relight_lamp {
 	float3 position;
 	float range;
@@ -102,7 +93,11 @@ struct relight_lamp {
 
 struct relight_record {
 	relight_light sun;
-	relight_shadow shadow;
+	float4x4 sun_map;
+	float sun_texel;
+	uint sun_drawn;
+	uint reserved0;
+	uint reserved1;
 	float3 corner;
 	float sun_strength;
 	uint3 cell;
@@ -133,7 +128,7 @@ Sampler2D relight_moments_read;
 [[vk::binding(8, 0)]]
 Texture2D<float4> relight_albedo;
 [[vk::binding(9, 0)]]
-Sampler2DArrayShadow relight_sun_shadow;
+Sampler2DShadow relight_sun_shadow;
 [[vk::binding(10, 0)]]
 Sampler2DArrayShadow relight_point_shadow;
 [[vk::binding(11, 0)]]
@@ -225,23 +220,20 @@ float texel_solid_angle(int2 at)
 		   area_element(high.x, low.y) + area_element(high.x, high.y));
 }
 
-// How much of the sun reaches `world` facing `n`: one compare on the first
-// cascade whose box holds it, pushed a texel along n; 1 outside every one.
+// How much of the sun reaches `world` facing `n`: one compare in the volume's
+// map, pushed a texel along n; 1 outside its box or when this frame drew none.
 float sun_visibility(float3 world, float3 n)
 {
-	relight_shadow shadow = relight_lights.shadow;
+	if (relight_lights.sun_drawn == 0)
+		return 1.0;
+	float3 pushed = world + n * relight_lights.sun_texel;
+	float4 clip = mul(relight_lights.sun_map, float4(pushed, 1.0));
+	float3 ndc = clip.xyz / clip.w;
 
-	for (uint c = 0; c < shadow.count && c < 4; c++) {
-		float3 pushed = world + n * shadow.texels[c];
-		float4 clip = mul(shadow.cascades[c], float4(pushed, 1.0));
-		float3 ndc = clip.xyz / clip.w;
-
-		if (any(abs(ndc.xy) > 1.0) || ndc.z < 0.0 || ndc.z > 1.0)
-			continue;
-		float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-		return relight_sun_shadow.SampleCmpLevelZero(float3(uv, c), ndc.z);
-	}
-	return 1.0;
+	if (any(abs(ndc.xy) > 1.0) || ndc.z < 0.0 || ndc.z > 1.0)
+		return 1.0;
+	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+	return relight_sun_shadow.SampleCmpLevelZero(uv, ndc.z);
 }
 
 // lighting.slangh's voe_render_point_visibility on this file's binding.

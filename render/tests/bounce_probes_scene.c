@@ -4,9 +4,11 @@
 //
 // A FRAME: begin, the scene into cascade 0 of the sun's shadow map through an
 // orthographic view along the sun (as shadow.c draws), voe_render_bounce_begin
-// with that shadow record about the origin (lowest cell (−12, −6, −12)),
-// capture passes drawing the scene until one does not open, relight, then a
-// camera pass of the scene read back. A scene is settled by such frames until
+// about the origin (lowest cell (−12, −6, −12)), capture passes drawing the
+// scene until one does not open, the bounce shadow pass (a view down the sun at
+// the volume's centre, VOLUME_HALF either side) with the scene drawn into it
+// when it opens, relight, then a camera pass of the scene, shadowed by the
+// cascade, read back. A scene is settled by such frames until
 // one opens no capture pass; a new scene is queued whole by a stale sphere.
 // Every probe is captured, nearest the origin first, in about 108 frames.
 //
@@ -54,6 +56,8 @@
 // The sun's orthographic box: LIGHT_HALF metres either side of the origin,
 // from LIGHT_DISTANCE back along the sun, depth LIGHT_NEAR to LIGHT_FAR.
 #define LIGHT_HALF 30.0f
+// The bounce shadow map's box, the same view about the volume's centre.
+#define VOLUME_HALF 60.0f
 #define LIGHT_DISTANCE 60.0f
 #define LIGHT_NEAR 1.0f
 #define LIGHT_FAR 120.0f
@@ -156,6 +160,7 @@ struct scene {
 	const struct box *boxes;
 	uint32_t box_count;
 	voe_render_view light;
+	voe_render_view volume_light;
 	voe_render_pass_camera camera;
 	struct voe_render_bounce_frame bounce;
 	voe_render_point_light lamp;
@@ -199,16 +204,18 @@ static voe_render_view look_at(voe_math_float3 eye, voe_math_float3 target,
 	return view;
 }
 
-// The sun's view: from LIGHT_DISTANCE back along it, orthographic, reverse-Z.
-static voe_render_view sun_view(void)
+// The sun's view at `at`: from LIGHT_DISTANCE back along it, orthographic over
+// `half` either side, reverse-Z.
+static voe_render_view sun_view(voe_math_float3 at, float half)
 {
 	voe_render_view light = view_from(
-		voe_math_float3_scale(SUN_DIRECTION, -LIGHT_DISTANCE),
+		voe_math_float3_add(at, voe_math_float3_scale(SUN_DIRECTION,
+							       -LIGHT_DISTANCE)),
 		voe_math_float3_scale(SUN_DIRECTION, -1.0f));
 	float span = LIGHT_FAR - LIGHT_NEAR;
 
-	light.projection.m[0][0] = 1.0f / LIGHT_HALF;
-	light.projection.m[1][1] = 1.0f / LIGHT_HALF;
+	light.projection.m[0][0] = 1.0f / half;
+	light.projection.m[1][1] = 1.0f / half;
 	light.projection.m[2][2] = 1.0f / span;
 	light.projection.m[2][3] = LIGHT_FAR / span;
 	light.projection.m[3][3] = 1.0f;
@@ -267,6 +274,12 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 		draw_boxes(s);
 		voe_render_pass_end(s->device);
 		passes++;
+	}
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(
+		s->device, &s->volume_light, &opened));
+	if (opened) {
+		draw_boxes(s);
+		voe_render_pass_end(s->device);
 	}
 	voe_render_bounce_relight(s->device);
 	VOE_TEST_CHECK(voe_render_pass_begin(s->device, VOE_RENDER_TARGET_WINDOW,
@@ -557,7 +570,7 @@ static void run(struct scene *s)
 	VOE_TEST_CHECK(voe_render_geometry_create(s->device, CUBE_VERTICES, 24,
 						  CUBE_INDICES, 36, &s->cube,
 						  &error));
-	s->light = sun_view();
+	s->light = sun_view((voe_math_float3){ 0.0f, 0.0f, 0.0f }, LIGHT_HALF);
 	s->camera.light = (voe_render_light){ .direction = SUN_DIRECTION,
 					      .colour = { 1.0f, 1.0f, 1.0f } };
 	s->camera.shadow = (voe_render_shadow){
@@ -570,8 +583,16 @@ static void run(struct scene *s)
 	s->bounce = (struct voe_render_bounce_frame){
 		.cell = { -12, -6, -12 },
 		.corner = { -24.0f, -12.0f, -24.0f },
-		.shadow = s->camera.shadow,
 	};
+	s->volume_light = sun_view(
+		voe_math_float3_add(
+			s->bounce.corner,
+			voe_math_float3_scale(
+				(voe_math_float3){ VOE_RENDER_BOUNCE_PROBES_XZ,
+						   VOE_RENDER_BOUNCE_PROBES_Y,
+						   VOE_RENDER_BOUNCE_PROBES_XZ },
+				0.5f * VOE_RENDER_BOUNCE_SPACING)),
+		VOLUME_HALF);
 	a_red_wall(s);
 	a_red_box(s);
 	a_room(s);

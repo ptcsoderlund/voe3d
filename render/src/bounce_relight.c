@@ -19,8 +19,8 @@
 // atlas, 1 the moments, 2 the validity, storage; 3 the list; 4 the seven grids'
 // 21 images, storage; 5 the six levels' 18, 6 the validity and 7 the moments,
 // sampled through the device's bounce and moments samplers; 8 the albedo atlas,
-// sampled; 9 and 10 the slot's sun and point shadow maps through the shadow
-// sampler; 11 the slot's lights record. The volume's images rest in GENERAL,
+// sampled; 9 the slot's bounce shadow map (bounce_shadow.c's) and 10 its point
+// shadow maps, through the shadow sampler; 11 the slot's lights record. The volume's images rest in GENERAL,
 // the maps where the shader reads them. One set per frame slot and volume (the
 // window 0, target n n), rewritten by every relight: a slot's fence says its
 // last use has finished, and a volume may have been rebuilt since.
@@ -29,8 +29,10 @@
 // making them visible: the list buffer, (targets + 1) ×
 // VOE_RENDER_BOUNCE_PROBES_TOTAL words, volume n's band at n × the total, a
 // word a toroidal probe index with bit 31 set when it holds a picture; and one
-// struct relight_record, the uniform the relight reads: the begun sun, its
-// strength and shadow record, the volume's placement and the bouncing lamps.
+// struct relight_record, the uniform the relight reads: the begun sun, the bounce
+// shadow map's view × projection, its texel (the box's width over
+// VOE_RENDER_BOUNCE_SHADOW_TEXELS) and whether this frame drew it, the sun's
+// strength, the volume's placement and the bouncing lamps.
 //
 // device->relight_dispatches counts every dispatch recorded, for a test to read.
 //
@@ -43,6 +45,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,7 +78,10 @@ struct relight_push {
 // bounce_relight.slang's struct relight_record at binding 11, std140.
 struct relight_record {
 	voe_render_light sun;
-	voe_render_shadow shadow;
+	voe_math_float4x4 sun_map;
+	float sun_texel;
+	uint32_t sun_drawn;
+	uint32_t reserved[2];
 	float corner[3];
 	float sun_strength;
 	uint32_t cell[3];
@@ -84,11 +90,13 @@ struct relight_record {
 };
 
 static_assert(sizeof(struct relight_push) == 32, "relight push size");
-static_assert(offsetof(struct relight_record, shadow) == 48 &&
-		      offsetof(struct relight_record, corner) == 352 &&
-		      offsetof(struct relight_record, cell) == 368 &&
-		      offsetof(struct relight_record, lamps) == 384 &&
-		      sizeof(struct relight_record) == 1152,
+static_assert(offsetof(struct relight_record, sun_map) == 48 &&
+		      offsetof(struct relight_record, sun_texel) == 112 &&
+		      offsetof(struct relight_record, sun_drawn) == 116 &&
+		      offsetof(struct relight_record, corner) == 128 &&
+		      offsetof(struct relight_record, cell) == 144 &&
+		      offsetof(struct relight_record, lamps) == 160 &&
+		      sizeof(struct relight_record) == 928,
 	      "the relight record as bounce_relight.slang lays it out");
 static_assert(VOE_RENDER_BOUNCE_PROBES_TOTAL < HOLDS,
 	      "a probe index leaves bit 31 for the holds flag");
@@ -374,18 +382,29 @@ static uint32_t list_changed(const voe_render_bounce_probes *p, uint32_t *words)
 	return count;
 }
 
-// This slot's lights record from the begin: `lights`, its shadow record and
-// the volume's placement.
+// This slot's lights record from the begin: `lights`, the slot's bounce shadow
+// map and the volume's placement. The map's texel is the box's width over its
+// texels: the orthographic projection's x scale is 2 / width, and row 0 of view
+// × projection is that scale times a unit row of the view's rotation.
 static void write_record(voe_render_device *device,
 			 const voe_render_bounce_lights *lights)
 {
 	const struct voe_render_bounce_frame *begun = &device->bounce_frame;
+	const struct voe_render_bounce_shadow *map =
+		&device->frames[device->slot].bounce_shadow;
+	const float *row = map->light.m[0];
+	const float scale = sqrtf(row[0] * row[0] + row[1] * row[1] +
+				  row[2] * row[2]);
 	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
 				   VOE_RENDER_BOUNCE_PROBES_Y,
 				   VOE_RENDER_BOUNCE_PROBES_XZ };
 	struct relight_record record = {
 		.sun = lights->sun,
-		.shadow = begun->shadow,
+		.sun_map = map->light,
+		.sun_drawn = map->drawn ? 1u : 0u,
+		.sun_texel = map->drawn && scale > 0.0f ?
+				     2.0f / (scale * VOE_RENDER_BOUNCE_SHADOW_TEXELS) :
+				     0.0f,
 		.corner = { begun->corner.x, begun->corner.y, begun->corner.z },
 		.sun_strength = lights->sun_strength,
 		.spacing = VOE_RENDER_BOUNCE_SPACING,
@@ -414,7 +433,7 @@ static void write_set(voe_render_device *device,
 		{ device->moments_sampler, volume->moments.view,
 		  VK_IMAGE_LAYOUT_GENERAL },
 		{ VK_NULL_HANDLE, volume->albedo.view, VK_IMAGE_LAYOUT_GENERAL },
-		{ device->shadow_sampler, frame->shadow.array,
+		{ device->shadow_sampler, frame->bounce_shadow.map.view,
 		  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
 		{ device->shadow_sampler, frame->point_shadow.sampled,
 		  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },

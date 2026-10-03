@@ -1297,7 +1297,9 @@ typedef struct {
 // the last relight gets its validity and distance moments, and (from card 09)
 // the grid is relit when a probe changed or the bouncing lights did. On a settled frame it
 // records nothing at all and only the read runs (ADR-0317 point 4); on a volume
-// not built, or a card without shaderOutputLayer, nothing either.
+// not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
+// shadowed by this frame's bounce shadow map when one was drawn, lit outside its
+// box, and unshadowed when none was; never by the cascades (ADR-0329).
 //
 // Outside a frame, with a pass open, or with no bounce begin this frame it
 // asserts.
@@ -1310,10 +1312,10 @@ void voe_render_pass_end(voe_render_device *device);
 // volume's lowest world cell at VOE_RENDER_BOUNCE_SPACING and `corner` its lowest
 // corner about the eye; `stale` holds `stale_count` spheres about the eye, xyz
 // centre and w radius, whose probes are captured again. `sun` bounces
-// `sun_bounces` times, scaled by `sun_strength`, shadowed through `shadow`;
-// `points` are the frame's point lights, the first VOE_RENDER_BOUNCE_LAMPS with
-// bounces bouncing. A struct tag and no typedef, because the call below has the
-// name and C has one name space for both.
+// `sun_bounces` times, scaled by `sun_strength`; `points` are the frame's point
+// lights, the first VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag
+// and no typedef, because the call below has the name and C has one name space
+// for both.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1322,12 +1324,16 @@ struct voe_render_bounce_frame {
 	voe_render_light sun;
 	uint32_t sun_bounces;
 	float sun_strength;
-	voe_render_shadow shadow;
 	voe_render_point_lights points;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
 // copied, so the caller's are its own again when this returns.
+//
+// THE SUN IS SHADOWED IN THE RELIGHT BY THIS FRAME'S BOUNCE SHADOW MAP when
+// voe_render_bounce_shadow_pass_begin opened it, lit outside its box, and
+// unshadowed when none was drawn (a sun that does not cast). The cascades never
+// reach the relight (ADR-0329).
 //
 // THE FIRST BEGIN ONTO A TARGET BUILDS ITS PROBE VOLUME AT THE TOP OF THE NEXT
 // FRAME, the GPU idling once as a resize does, and this frame bounces nothing. A
