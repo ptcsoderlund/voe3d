@@ -1,11 +1,14 @@
 // The model store: the hand-built `.glb` of model_data.inc loaded by path, bytes
 // that are no model kept as a failed entry, a file that could not be read kept
 // the same way, a path never asked for not there, a path loaded again replacing
-// itself, a clear, pictures, the soft dot and the water, and a model drawn.
+// itself, a clear, each part's blended twin, pictures, the soft dot and the
+// water, and a model drawn.
 //
 // THE DEVICE HOLDS THREE COPIES OF THE MODEL: 6 vertices, 6 indices, 2
-// geometries and 2 shading records each. So a hundred loads of one path pass
-// only if each replace frees the copy before it; a leak runs out on the third.
+// geometries and 4 shading records each, two parts' own and their two blended
+// twins. So a hundred loads of one path pass only if each replace frees the
+// copy before it, twins too; a leak runs out on the third, and three paths
+// loaded after a clear fit only if the clear freed every twin.
 //
 // THE NODE TRANSFORM IS CHECKED ON THE SHAPE'S VERTICES, which are what a load
 // bakes. 3d/tests/import.c says what the file holds: a parent at (1,0,0) turned
@@ -52,14 +55,14 @@
 #define SIDE 64
 #define TOLERANCE 1e-5f
 
-// The three copies, and the pictures' quad with a picture's and the dot's two
-// records each and the water's one.
+// The three copies with their twins, and the pictures' quad with a picture's
+// and the dot's two records each and the water's one.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 3 * 6 + 4,
 	.indices = 3 * 6 + 6,
 	.geometries = 3 * 2 + 1,
 	.objects = 8,
-	.shadings = 3 * 2 + 4 + 1,
+	.shadings = 3 * 4 + 4 + 1,
 	.passes = 1,
 };
 
@@ -179,6 +182,14 @@ static void check_pictures(voe_3d_models *models, voe_render_device *device,
 		VOE_TEST_CHECK(entry->parts[1].material.unlit);
 		VOE_TEST_CHECK_INT(entry->parts[0].geometry.index,
 				   entry->parts[1].geometry.index);
+		for (uint32_t p = 0; p < 2; p++) {
+			const voe_3d_model_part *part = &entry->parts[p];
+
+			VOE_TEST_CHECK_INT(part->faded.index,
+					   part->material.shading.index);
+			VOE_TEST_CHECK_INT(part->faded.generation,
+					   part->material.shading.generation);
+		}
 	}
 
 	error = VOE_BASE_OK;
@@ -205,6 +216,34 @@ static void check_pictures(voe_3d_models *models, voe_render_device *device,
 	VOE_TEST_CHECK(voe_3d_models_find(models, "") == NULL);
 	VOE_TEST_CHECK(voe_3d_models_find(models, "Assets/Spark.PNG") == NULL);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);
+}
+
+// Each part of a loaded `.glb`, none of them BLENDED, has a twin of its own:
+// `faded` is a record apart from its material's.
+static void check_twins(const voe_3d_model_entry *entry)
+{
+	VOE_TEST_CHECK(entry->part_count > 0);
+	for (uint32_t p = 0; p < entry->part_count; p++) {
+		const voe_3d_model_part *part = &entry->parts[p];
+
+		VOE_TEST_CHECK(part->material.alpha_mode !=
+			       VOE_RENDER_ALPHA_BLENDED);
+		VOE_TEST_CHECK(part->faded.index !=
+				       part->material.shading.index ||
+			       part->faded.generation !=
+				       part->material.shading.generation);
+	}
+}
+
+// After a replace and a clear the device has room for three copies again, so
+// neither leaked a twin.
+static void check_no_twin_leaked(voe_3d_models *models,
+				 voe_render_device *device)
+{
+	VOE_TEST_CHECK(load(models, device, "Assets/a.glb", 1, true));
+	VOE_TEST_CHECK(load(models, device, "Assets/b.glb", 1, true));
+	VOE_TEST_CHECK(load(models, device, "Assets/c.glb", 1, true));
+	voe_3d_models_clear(models, device);
 }
 
 // Every vertex of the shape is the file's own, in walk order, baked.
@@ -379,6 +418,7 @@ int main(void)
 		VOE_TEST_CHECK(entry->loaded);
 		VOE_TEST_CHECK_INT(entry->stamp, 7);
 		check_baked(arena, entry);
+		check_twins(entry);
 	}
 
 	// ---- bytes that are no model: false, MALFORMED, a failed entry
@@ -422,8 +462,11 @@ int main(void)
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);
 	check_replace(models, device);
 
-	// ---- pictures and the soft dot, on an empty store
+	// ---- a replace then a clear leaked no twin
 	voe_3d_models_clear(models, device);
+	check_no_twin_leaked(models, device);
+
+	// ---- pictures and the soft dot, on an empty store
 	check_pictures(models, device, arena);
 
 	// ---- clear: nothing found, and a load after it works

@@ -410,7 +410,8 @@ static void a_model_outlines_to_quads(voe_base_arena *arena,
 		.indices = 12,
 		.geometries = 1,
 		.objects = 1,
-		.shadings = 1,
+		// The part's own record and its blended twin.
+		.shadings = 2,
 		.passes = 1,
 	};
 	voe_render_device *device =

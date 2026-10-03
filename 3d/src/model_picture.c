@@ -9,6 +9,9 @@
 //
 // BOTH MATERIALS ARE WHITE, NOT METALLIC AND FULLY ROUGH: the picture is the
 // whole of the colour, and the object's colour (0298 point 6) tints it.
+//
+// AND BOTH ARE BLENDED ALREADY, so a picture has no twin (ADR-0336 point 2):
+// each of its parts' `faded` is that part's own `shading`, set by models.c.
 #include "model_picture.h"
 
 #include <base/assert.h>
