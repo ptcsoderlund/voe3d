@@ -1,13 +1,16 @@
-// Tank spawner: a place enemies come from. Every `every` seconds it spawns a
-// prefab at itself, while the world holds fewer than `most` enemies.
+// Tank spawner: a wave, a place enemies come from (0334 point 3). It sleeps
+// until the scroll's `top` reaches its world z; awake, every `every` seconds
+// it spawns a prefab at itself, while the world holds fewer than `most`
+// enemies, `count` in all, 0 never ending. With no scroll row it is awake.
 //
 //     tank_spawner_register(world);        // in voe_game_project_register
 //     tank_spawner_system_run(step);       // after the shells, before the enemies
 //
 // `prefab` is the name of a cooked prefab, its path under `Assets/` less
 // `.prefab`, default `enemy_tank`. `every` is seconds between spawns, default
-// 4. `most` is the most `tank_enemy` rows the world holds, default 6. `wait`
-// is the seconds to the next spawn, written only by the system. A spawner
+// 4. `most` is the most `tank_enemy` rows the world holds, default 6. `count`
+// is the spawns in all, default 4. `wait` is the seconds to the next spawn and
+// `made` the spawns so far, both written only by the system. A spawner
 // needs a transform: the spawned root takes its world position and rotation.
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows; `prefab` at most 63
@@ -29,7 +32,9 @@
 	F(char, prefab, CHAR, TANK_SPAWNER_PREFAB)      \
 	F(float, every, FLOAT32)                        \
 	F(uint32_t, most, UINT32)                       \
-	F_READ_ONLY(float, wait, FLOAT32)
+	F(uint32_t, count, UINT32)                      \
+	F_READ_ONLY(float, wait, FLOAT32)               \
+	F_READ_ONLY(uint32_t, made, UINT32)
 
 VOE_BASE_DESCRIBE_STRUCT(tank_spawner, TANK_SPAWNER_FIELDS)
 
@@ -39,7 +44,7 @@ extern const struct voe_ecs_key tank_spawner_key;
 // reported, when game refuses it.
 [[nodiscard]] bool tank_spawner_register(voe_ecs_world *world);
 
-// Counts every spawner's wait down by the step's seconds and spawns each
-// ready one's prefab at it while the world holds fewer than its `most`
-// enemies.
+// Counts every awake spawner's wait down by the step's seconds and spawns
+// each ready one's prefab at it while the world holds fewer than its `most`
+// enemies and its wave is not done.
 void tank_spawner_system_run(const voe_game_project_step *step);

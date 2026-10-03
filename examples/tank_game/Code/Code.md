@@ -15,8 +15,8 @@ the library the editor loads (0242).
 - `tank_breakable.c` — the breakable's key and registration; it has no system.
 - `tank_lives.h` — the runtime-only lives row on the player's hull: 3 at the start, one off per shot that hits the hull, never below 0; the enemies read it for whom to fire at; the hull is made solid when it has no collider.
 - `tank_lives_system.c` — adds the lives row to the first hull, makes it solid with the enemy's box when it has no collider, takes a life for each shot that hit it this step, and draws `Lives N` in a HUD panel at the top left.
-- `tank_spawner.h` — the Tank / Spawner component: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, and the wait to the next spawn.
-- `tank_spawner_system.c` — spawns each ready spawner's prefab at it, turned as it is, while the world holds fewer enemies than its most.
+- `tank_spawner.h` — the Tank / Spawner component, a wave: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, a count, default 4, 0 never ending, the wait to the next spawn and the spawns made.
+- `tank_spawner_system.c` — wakes each wave when the screen's top reaches its z, then spawns its prefab at it, turned as it is, while the world holds fewer enemies than its most, until it has made its count.
 - `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, a life, default 20 s, a prefab to fire, default `shell`, a rate, default 0.5 a second, a range, default 30 m, a muzzle offset and the wait to the next shot.
 - `tank_enemy_system.c` — drives each enemy forward, aims its turret at the player's hull in range, fires once on target with flash, the fade of its light child at the flash, and shot sound, gives it a lower engine hum, and removes it, turret and all, when its life runs out.
 - `tank_camera.h` — the runtime-only camera fit row: the camera's authored field of view, kept so the level's width stays in view at any window shape.
