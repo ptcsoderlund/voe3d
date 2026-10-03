@@ -60,14 +60,17 @@
 // What the device must hold for one frame: the built-in shapes' geometry and
 // their two records, and the model store's room beside them (3d/models.h);
 // two objects per drawn entity, a shape's or a model part's, in the window
-// pass, in each cascade, in the point-shadow pass and in each of the bounce's
-// capture passes, every caster drawn at most once into each; each emitter's
+// pass, in each cascade, in the point-shadow pass, in each of the bounce's
+// capture passes and in its shadow pass, every caster drawn at most once
+// into each; each emitter's
 // VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
 // shadow (0298 points 6 and 8); one per water, VOE_GAME_WORLD_WATERS, in the
 // window pass alone, since water casts no shadow (0305 point 7); the window
 // pass, one shadow pass per cascade, the lamps' point-shadow pass (0325 point
 // 7), and up to VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes after it, the
-// bounce map pass gone (0326 points 3 and 8); the sun's maps at VOE_3D_SHADOW_TEXELS a side and the lamps'
+// bounce map pass gone (0326 points 3 and 8), then the bounce shadow pass,
+// the relight's sun map, on a frame that relights a casting sun (0329 point
+// 3); the sun's maps at VOE_3D_SHADOW_TEXELS a side and the lamps'
 // faces at VOE_3D_POINT_SHADOW_TEXELS; the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
 // transient and no targets: the game draws no outline and nothing off screen.
 #define VOE_GAME_CAPACITIES                                                  \
@@ -78,13 +81,13 @@
 		.geometries = VOE_3D_SHAPES_GEOMETRIES +                      \
 			      VOE_3D_MODELS_GEOMETRIES,                       \
 		.objects = 2 * VOE_GAME_WORLD_MAX_DRAWN *                     \
-				   (2 + VOE_RENDER_SHADOW_CASCADES +         \
+				   (3 + VOE_RENDER_SHADOW_CASCADES +         \
 				    VOE_RENDER_BOUNCE_CAPTURE_PASSES) +      \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES + \
 			   VOE_GAME_WORLD_WATERS,                               \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,  \
 		.passes = 1 + VOE_RENDER_SHADOW_CASCADES + 1 +                \
-			  VOE_RENDER_BOUNCE_CAPTURE_PASSES,                   \
+			  VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1,               \
 		.elements = VOE_GAME_INTERFACE_ELEMENTS,                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                          \
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS               \
