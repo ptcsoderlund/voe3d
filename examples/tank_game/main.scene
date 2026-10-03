@@ -3,7 +3,7 @@ name = "Ground"
 folded = false
 [1.voe_3d_shape]
 kind = 1
-colour = [1, 1, 1]
+colour = [0.31996205, 0.31996205, 0.31996205]
 cast_shadows = true
 [1.voe_physics_collider]
 kind = 1
@@ -33,13 +33,13 @@ folded = false
 colour = [1, 0.58921766, 0.28265268]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
-fill_intensity = 0.00012197842
-bounces = 3
+fill_intensity = 0.10823958
+bounces = 2
 cast_shadows = true
-bounce_strength = 0.35693637
+bounce_strength = 1
 [3.voe_scene_transform]
 position = [8.605420589447021e-07, 5.138881284743547, 7.879768788814545]
-rotation = [0.3537199, 0.0037900507, 0.03783802, -0.93457806]
+rotation = [0.36317888, 0.009024888, -0.5412938, -0.75830126]
 scale = [1, 1, 1]
 
 [4]
@@ -127,7 +127,7 @@ colour = [0.44778705, 0.13911381, 0.49138713]
 cast_shadows = true
 [16.voe_scene_transform]
 position = [-8.179616930152406, 5.000000290572643, 7.211908042430878]
-rotation = [0, -0.40307653, 0, 0.91516626]
+rotation = [0.056250136, -0.29467446, 0.032848693, 0.95337504]
 scale = [2, 10, 1]
 
 [17]
@@ -160,7 +160,7 @@ cast_shadows = true
 bounces = 0
 bounce_strength = 1
 [20.voe_scene_transform]
-position = [13.943733450549189, 2.391948784701526, 1.2226342258509248]
+position = [13.94373351946706, 1.151716602500528, 1.2226342482026666]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -229,5 +229,5 @@ folded = false
 path = "Assets/prefabs/House.prefab"
 [36.voe_scene_transform]
 position = [-15.191090548750708, 1.5410072884569672, 6.581703119564736]
-rotation = [0, 0.53202236, 0, 0.84673035]
+rotation = [0, 0.118344694, 0, 0.9929726]
 scale = [1, 1, 1]
