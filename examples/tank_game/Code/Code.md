@@ -4,7 +4,7 @@ The tank game's own components and systems, compiled into its game or into
 the library the editor loads (0242).
 
 - `tank_hull.h` — the Tank / Hull component: a drive speed, default 4 m/s, and a turn, default 90 deg/s.
-- `tank_hull_system.c` — turns each hull and drives it along its own forward as the control row says: W/A/S/D or the left stick; gives a hull with no emitter tread dust, played while it drives, and one with no sound the engine hum, pitched up with the drive.
+- `tank_hull_system.c` — drives and turns each hull as the control row says, never backing out past 3 m short of the screen's bottom once the scroll row exists; gives a hull with no emitter tread dust, played while it drives, and one with no sound the engine hum, pitched up with the drive.
 - `tank_turret.h` — the Tank / Turret component: a turn, default 180 deg/s, and an aim offset, default 0; the call that turns any turret toward a point, for its owner.
 - `tank_turret_system.c` — turns the player's turrets about the world's up toward where the mouse pointer meets the ground, or the right stick's direction on screen, held when let go, through the exported turn call.
 - `tank_gun.h` — the Tank / Gun component: a prefab to fire, default `shell`, a rate, default 6 a second, a muzzle offset and the wait to the next shot.

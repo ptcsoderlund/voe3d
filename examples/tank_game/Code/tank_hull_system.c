@@ -19,11 +19,20 @@
 // from the row's own `pitch`, and a TUNE goes out only while the two differ
 // by more than 0.01.
 //
+// The screen's bottom (0334 point 2): the camera follows the tank forward and
+// never back, so a hull backing up would leave the screen. With a scroll row,
+// the driven z is held to at most the larger of the z before the drive and
+// `bottom` less TANK_HULL_MARGIN, about half the hull's length, so the whole
+// tank stays in view. A hull already past is not pulled in, only kept from
+// going further: a jump forward would look like a teleport. x and the turn are
+// untouched; with no scroll row nothing is held.
+//
 // Constraints: one control row drives every hull. Nothing with no control
 // row (headless, or before its first step). A full transform queue leaves
 // the rest of the hulls where they were this step.
 #include "tank_control.h"
 #include "tank_hull.h"
+#include "tank_scroll.h"
 
 #include <3d/emitter_component.h>
 
@@ -57,6 +66,10 @@
 #define TANK_HULL_HUM_RISE 0.6f
 #define TANK_HULL_HUM_GLIDE 1.0f
 #define TANK_HULL_HUM_EPSILON 0.01f
+
+// Metres short of the screen's bottom a hull's z may reach: about half its
+// length, so all of it stays on screen.
+#define TANK_HULL_MARGIN 3.0
 
 const struct voe_ecs_key tank_hull_key = { "tank_hull" };
 
@@ -186,6 +199,7 @@ void tank_hull_system_run(voe_ecs_world *world, double seconds)
 	const tank_hull *rows = voe_ecs_component_rows(world, type);
 	const voe_ecs_entity *entities = voe_ecs_component_entities(world, type);
 	const uint32_t count = voe_ecs_component_count(world, type);
+	const tank_scroll *scroll = tank_scroll_get(world);
 
 	VOE_BASE_ASSERT(count <= VOE_GAME_WORLD_AUTHORED,
 			"more tank hull rows than were registered");
@@ -211,6 +225,11 @@ void tank_hull_system_run(voe_ecs_world *world, double seconds)
 			voe_math_double3_from_float3(voe_math_float3_scale(
 				forward_of(driven.rotation),
 				drive * rows[i].speed * (float)seconds)));
+		if (scroll != NULL)
+			driven.position.z = fmin(
+				driven.position.z,
+				fmax(transform->position.z,
+				     scroll->bottom - TANK_HULL_MARGIN));
 		if (!voe_scene_transform_submit(world,
 						(voe_scene_transform_intent){
 							entities[i], driven }))
