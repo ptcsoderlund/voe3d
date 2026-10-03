@@ -46,13 +46,15 @@
 	} while (0)
 
 #ifdef NDEBUG
-// sizeof does not evaluate its operand, so the check costs nothing at run time
-// while both arguments stay compiled and type-checked, and anything used only
-// inside a debug assert still counts as used.
+// The whole check sits in a branch that is never taken, so nothing in it runs,
+// while both arguments stay compiled and type-checked exactly as in Debug.
+// A branch and not sizeof: Clang does not count a static function named only
+// inside sizeof as used, and -Wunneeded-internal-declaration then fails the
+// Release build (052 bug 04, ADR-0340). Inside `if (0)` it does count.
 #define VOE_BASE_DEBUG_ASSERT(expression, message)                            \
 	do {                                                                  \
-		(void)sizeof((expression) ? 1 : 0);                           \
-		(void)sizeof(message);                                        \
+		if (0)                                                        \
+			VOE_BASE_ASSERT(expression, message);                 \
 	} while (0)
 #else
 #define VOE_BASE_DEBUG_ASSERT(expression, message)                            \
