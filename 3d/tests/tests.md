@@ -41,9 +41,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
-- `bounce.c` — the shadows call's passes over two frames: none captured on the first, four and the
-  sun map on the second, for a sun or a lamp that bounces, no sun map for a sun that does not
-  cast, none when nothing does; and the stale spheres a moved wall marks. Skips without a card.
+- `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
+  that bounces, two views in one frame each drawing their sun map, and the stale spheres a moved
+  wall marks. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
   the ground it faces, its foot's shadow stays as at bounces 0, open ground stays even, the grid
   settles, and camera turns change nothing. Skips without a card.

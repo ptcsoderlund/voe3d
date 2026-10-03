@@ -23,6 +23,13 @@
 // read here as point shadows not ready, captures nothing: frame two true on
 // the cascades' passes, and said.
 //
+// TWO VIEWS IN ONE FRAME, as the editor draws them: 051's bug 02, a second
+// view's sun map asserting. Each frame calls the shadows call for the window
+// and again for a made target, its eye 3 m along X, the sun at bounces 1. Frame
+// one is true on both. Frame two opens each view's four cascades and its own
+// sun map (0330), and the capture passes the frame's budget of four gives,
+// all the first view's: true on exactly those, false on one fewer.
+//
 // THE STALE SPHERES. With no previous table nothing moved, so none. With one,
 // the wall remembered and then moved a metre along X marks two spheres of
 // VOE_3D_BOUNCE_REACH, at (2, 0, -5) and (3, 0, -5) about the eye; a room of
@@ -74,6 +81,7 @@ static voe_render_capacities capacities(uint32_t passes)
 		.objects = 32,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
 		.passes = passes,
+		.targets = 1,
 		.shadow_size = VOE_3D_SHADOW_TEXELS,
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,
 	};
@@ -198,10 +206,11 @@ typedef struct {
 
 // Two frames on a fresh device with `passes`, for a sun of `bounces` that casts
 // when `casts` and a lamp of `lamp_bounces`; the cascades are the second
-// frame's. Both answers true when no device could be made, which the caller has
-// already skipped for.
+// frame's. With `two_views` each frame calls the shadows call again, for a made
+// target seen from 3 m along X, and an answer is both calls'. Both answers true
+// when no device could be made, which the caller has already skipped for.
 static two_answers two_frames(uint32_t passes, uint32_t bounces, bool casts,
-			      uint32_t lamp_bounces)
+			      uint32_t lamp_bounces, bool two_views)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_platform_size size = { SIDE, SIDE };
@@ -209,6 +218,8 @@ static two_answers two_frames(uint32_t passes, uint32_t bounces, bool casts,
 	voe_render_device *device = voe_render_device_new_headless(
 		arena, size, capacities(passes), &error);
 	two_answers answers = { true, true, 0 };
+	voe_render_target target = VOE_RENDER_TARGET_WINDOW;
+	voe_render_texture picture;
 	voe_3d_shapes shapes;
 	voe_ecs_entity wall;
 	voe_ecs_world *world;
@@ -219,17 +230,27 @@ static two_answers two_frames(uint32_t passes, uint32_t bounces, bool casts,
 		return answers;
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+	if (two_views)
+		VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &target,
+							&picture, &error));
 	world = a_world(arena, &shapes, false, bounces, casts, lamp_bounces, &wall);
 	for (int step = 0; step < 2; step++) {
 		voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+		voe_3d_frame other = frame;
 		bool drawing = false;
 		bool answer = false;
 
+		other.target = target;
+		other.eye.x += 3.0;
 		VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &frame, arena));
+		VOE_TEST_CHECK(voe_3d_draw_system_point_lights(world, &other, arena));
 		VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 		VOE_TEST_CHECK(drawing);
 		if (drawing) {
 			answer = voe_3d_draw_system_shadows(world, device, &frame);
+			if (two_views &&
+			    !voe_3d_draw_system_shadows(world, device, &other))
+				answer = false;
 			VOE_TEST_CHECK(voe_render_frame_end(device));
 		}
 		*(step == 0 ? &answers.first : &answers.second) = answer;
@@ -252,15 +273,32 @@ static void it_bounces(uint32_t bounces, bool casts, uint32_t lamp_bounces,
 	uint32_t wanted = cascades + VOE_RENDER_BOUNCE_CAPTURE_PASSES +
 			  (casts && bounces >= 1 ? 1 : 0);
 	two_answers cascades_only = two_frames(cascades > 0 ? cascades : 1,
-					       bounces, casts, lamp_bounces);
+					       bounces, casts, lamp_bounces, false);
 
 	VOE_TEST_CHECK(cascades_only.first);
 	if (!captures) {
 		VOE_TEST_CHECK(cascades_only.second);
 		return;
 	}
-	VOE_TEST_CHECK(two_frames(wanted, bounces, casts, lamp_bounces).second);
-	VOE_TEST_CHECK(!two_frames(wanted - 1, bounces, casts, lamp_bounces).second);
+	VOE_TEST_CHECK(
+		two_frames(wanted, bounces, casts, lamp_bounces, false).second);
+	VOE_TEST_CHECK(
+		!two_frames(wanted - 1, bounces, casts, lamp_bounces, false).second);
+}
+
+// Two views of a sun at bounces 1 that casts: frame one true, and frame two
+// true on both views' cascades and sun maps and the frame's capture passes and
+// false on one fewer; without shaderOutputLayer true on the cascades' alone.
+static void it_bounces_in_two_views(bool captures)
+{
+	uint32_t cascades = 2 * VOE_RENDER_SHADOW_CASCADES;
+	uint32_t wanted = cascades + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2;
+	two_answers enough =
+		two_frames(captures ? wanted : cascades, 1, true, 0, true);
+
+	VOE_TEST_CHECK(enough.first && enough.second);
+	if (captures)
+		VOE_TEST_CHECK(!two_frames(wanted - 1, 1, true, 0, true).second);
 }
 
 // Whether `sphere` is centred at `x`, 0, -5 with the reach for its radius.
@@ -332,10 +370,11 @@ int main(void)
 		printf("note: no shaderOutputLayer, so nothing is captured\n");
 
 	it_bounces(1, true, 0, captures);
-	still = two_frames(VOE_RENDER_SHADOW_CASCADES, 0, true, 0);
+	still = two_frames(VOE_RENDER_SHADOW_CASCADES, 0, true, 0, false);
 	VOE_TEST_CHECK(still.first && still.second);
 	VOE_TEST_CHECK_INT(still.cascades, VOE_RENDER_SHADOW_CASCADES);
 	it_bounces(0, true, 1, captures);
 	it_bounces(1, false, 0, captures);
+	it_bounces_in_two_views(captures);
 	return voe_test_result();
 }
