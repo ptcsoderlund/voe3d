@@ -5,7 +5,8 @@
 // registration passes instead of a description answer differently. And that a
 // default row, an unsaid row and a needed type come back as they were set, and
 // as nothing when they were not. And that a type says the capacity it was
-// registered with, which its count reaching is the next add refused.
+// registered with, which its count reaching is the next add refused, and that a
+// menu path is unset until set and then set on that type only.
 //
 // THE ITERATION CHECK IS THE ONE THAT WOULD CATCH A BROKEN REMOVAL. A removal
 // swaps the last row into the hole, so the way to get it wrong is to leave the
