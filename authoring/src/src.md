@@ -21,7 +21,8 @@ and read through the description its own folder registered.
 - `scene_scratch.h` — the reader's first pass, text into scratch with the world
   untouched, shared by `scene_read.c` and `prefab_read.c`.
 - `prefab_read.c` — the prefab reader: checks the text is one tree a prefab may
-  hold, then adds it onto a placed root.
+  hold and that the identity table has room for it, then adds it onto a placed
+  root.
 - `field_read.h` — one field's value read from the text into a row, and how an
   entity reference is held until the entity exists.
 - `field_read.c` — the tokens, numbers, brackets and strings. Its header says why

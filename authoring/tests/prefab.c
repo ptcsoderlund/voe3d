@@ -3,7 +3,8 @@
 // the tree and nothing else, the root at the origin with no parent section —
 // and that a dead root or one with no identity is refused.
 // The prefab reader: that text read back onto a placed root (0283 point 4), and
-// a text with two roots, a camera or a prefab section creating nothing.
+// a text with two roots, a camera or a prefab section, or more entities than
+// the identity table has room for, creating nothing.
 // The prefab cook: a hull and turret read into a world and cooked into a
 // spawning function (0283 point 9), and two roots refused.
 //
@@ -47,7 +48,9 @@ VOE_BASE_DESCRIBE_STRUCT(test_shape, TEST_SHAPE_FIELDS)
 
 static const struct voe_ecs_key test_shape_key = { "test_shape" };
 
-static voe_ecs_world *world_of(voe_base_arena *arena)
+// A world with room for `identities` identities and ENTITIES of the rest.
+static voe_ecs_world *world_with_identities(voe_base_arena *arena,
+					    uint32_t identities)
 {
 	voe_ecs_world *world = voe_ecs_world_new(arena, (voe_ecs_limits){
 		.entities = ENTITIES,
@@ -56,7 +59,7 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	});
 
 	voe_scene_transform_register(world, ENTITIES);
-	voe_scene_identity_register(world, ENTITIES);
+	voe_scene_identity_register(world, identities);
 	voe_scene_parent_register(world, ENTITIES);
 	voe_scene_prefab_register(world, ENTITIES);
 	voe_ecs_component_register(world, &link_key, sizeof(link), ENTITIES,
@@ -64,6 +67,11 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 	voe_ecs_component_register(world, &test_shape_key, sizeof(test_shape),
 				   ENTITIES, test_shape_description());
 	return world;
+}
+
+static voe_ecs_world *world_of(voe_base_arena *arena)
+{
+	return world_with_identities(arena, ENTITIES);
 }
 
 static voe_ecs_entity entity_of(voe_ecs_world *world)
@@ -299,6 +307,46 @@ static void test_read_refusals(void)
 			   "[1.voe_scene_prefab]\npath = \"Assets/a.prefab\"\n");
 }
 
+// A three-entity prefab makes two; a world with the root's identity and room
+// for one more refuses it whole, and one with room for two reads it.
+static void test_read_identity_room(void)
+{
+	const char *text = "[1]\nname = \"Hull\"\n"
+			   "[1.voe_scene_transform]\n"
+			   "[2]\nname = \"Turret\"\n"
+			   "[2.voe_scene_parent]\nparent = 1\n"
+			   "[2.voe_scene_transform]\n"
+			   "[3]\nname = \"Barrel\"\n"
+			   "[3.voe_scene_parent]\nparent = 2\n"
+			   "[3.voe_scene_transform]\n";
+
+	for (uint32_t room = 1; room <= 2; room++) {
+		voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+		voe_ecs_world *world = world_with_identities(arena, 1 + room);
+		voe_ecs_entity root = placed(world, 7, "Tank", at(0, 0, 0), NULL);
+		uint32_t entities = voe_ecs_entity_count(world);
+		uint64_t next = 12345;
+		bool read = voe_authoring_prefab_read(text, strlen(text), world,
+						      root, 100, arena, &next);
+
+		if (room == 1) {
+			VOE_TEST_CHECK(!read);
+			VOE_TEST_CHECK_INT(voe_ecs_entity_count(world), entities);
+			VOE_TEST_CHECK_INT(voe_scene_identity_count(world), 1);
+			VOE_TEST_CHECK_INT(next, 12345);
+			VOE_TEST_CHECK(voe_scene_prefab_part_get(world, root) ==
+				       NULL);
+		} else {
+			VOE_TEST_CHECK(read);
+			VOE_TEST_CHECK_INT(voe_ecs_entity_count(world),
+					   entities + 2);
+			VOE_TEST_CHECK_INT(voe_scene_identity_count(world), 3);
+			VOE_TEST_CHECK_INT(next, 102);
+		}
+		voe_base_arena_destroy(arena);
+	}
+}
+
 static bool holds(const voe_authoring_text *text, const char *part)
 {
 	return text->text != NULL && strstr(text->text, part) != NULL;
@@ -362,6 +410,7 @@ int main(void)
 	test_refusals();
 	test_read();
 	test_read_refusals();
+	test_read_identity_room();
 	test_cook();
 	return voe_test_result();
 }

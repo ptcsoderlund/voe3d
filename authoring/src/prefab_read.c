@@ -3,7 +3,8 @@
 //
 // THE SHAPE IS CHECKED BEFORE ANYTHING IS CREATED: exactly one `[N]` with no
 // `[N.voe_scene_parent]`, and no camera, light, prefab or part section, whether
-// or not this world registered the type. So a refused text creates nothing.
+// or not this world registered the type; and room in the identity table for
+// every entity it makes. So a refused text creates nothing.
 //
 // THE ROOT IS ONLY ADDED TO. Its file rows go on as rows it lacks; its identity,
 // transform and parent are the placed copy's own and are never taken.
@@ -96,6 +97,26 @@ static bool check_shape(voe_authoring_scratch *scratch, uint32_t *out_root)
 		       "the prefab has %u entities with no parent, and a prefab "
 		       "is one tree with exactly one root; nothing was loaded",
 		       roots);
+	return false;
+}
+
+// Whether the identity table can take every entity the read would make, the
+// file's less its root. Checked before any is made, because an editor entity
+// always has an identity (0335, 0337 point 4).
+static bool check_identity_room(const voe_authoring_scratch *scratch)
+{
+	voe_ecs_type type = voe_ecs_component_type(scratch->world,
+						   &voe_scene_identity_key);
+	uint32_t made = scratch->refs.authored_count - 1;
+	uint32_t count = voe_ecs_component_count(scratch->world, type);
+	uint32_t capacity = voe_ecs_component_capacity(scratch->world, type);
+
+	if (count <= capacity && made <= capacity - count)
+		return true;
+	VOE_BASE_ERROR(MODULE,
+		       "the world has no room for the prefab's %u identities "
+		       "(%u of %u held); nothing was loaded",
+		       made, count, capacity);
 	return false;
 }
 
@@ -241,7 +262,8 @@ bool voe_authoring_prefab_read(const char *text, size_t size,
 			"transform");
 
 	if (!voe_authoring_scratch_read(&scratch, text, size) ||
-	    !check_shape(&scratch, &root_index))
+	    !check_shape(&scratch, &root_index) ||
+	    !check_identity_room(&scratch))
 		return false;
 	warn_kept(&scratch);
 	if (!create_entities(&scratch, root_index, root) ||

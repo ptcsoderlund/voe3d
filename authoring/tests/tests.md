@@ -10,7 +10,8 @@ file; the rest hand the writer a world and the reader text held in memory.
   copy written as its root alone.
 - `prefab.c` — the prefab writer's exact bytes for a placed three-deep tree,
   the reader putting that text onto a placed root, the cook turning a hull and
-  turret into a spawning function, and each one's refusals.
+  turret into a spawning function, and each one's refusals, a read without
+  room for its identities among them.
 - `scene_read.c` — a canonical file read and written back byte for byte, a world
   round-tripped row for row, every refusal creating nothing, the warnings that
   still load, and fields of every shape from rank 0 to 7.
