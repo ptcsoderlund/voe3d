@@ -1,0 +1,91 @@
+[25]
+name = "House"
+folded = true
+[25.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[26]
+name = "BackWall"
+folded = false
+[26.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[26.voe_scene_parent]
+parent = 25
+[26.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [4, 3.2059386, 0.3]
+
+[27]
+name = "Sidewall1"
+folded = false
+[27.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[27.voe_scene_parent]
+parent = 25
+[27.voe_scene_transform]
+position = [-2.151859300211072, 3.5390257835388184e-07, 1.857134710997343]
+rotation = [0, -0.7071067, 0, 0.7071069]
+scale = [4, 3.1641927, 0.3]
+
+[28]
+name = "Sidewall1 2"
+folded = false
+[28.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[28.voe_scene_parent]
+parent = 25
+[28.voe_scene_transform]
+position = [2.1646672263741493, 2.0116567611694336e-07, 1.857134860008955]
+rotation = [0, -0.7071067, 0, 0.7071069]
+scale = [4, 3.1584337, 0.3]
+
+[29]
+name = "roof"
+folded = false
+[29.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[29.voe_scene_parent]
+parent = 25
+[29.voe_scene_transform]
+position = [0.014467987246462144, 1.6505936495959759, 1.8571347780525684]
+rotation = [0.49999994, -0.49999997, 0.50000006, 0.5000001]
+scale = [4, 5, 0.3]
+
+[31]
+name = "frontwall1"
+folded = false
+[31.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[31.voe_scene_parent]
+parent = 25
+[31.voe_scene_transform]
+position = [-1.1216283533722162, 5.755573511123657e-07, 3.6880256002768874]
+rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
+scale = [1.7641829, 3.1469207, 0.40084815]
+
+[32]
+name = "frontwall1 2"
+folded = false
+[32.voe_3d_shape]
+kind = 1
+colour = [0.7, 0.7, 0.7]
+cast_shadows = true
+[32.voe_scene_parent]
+parent = 25
+[32.voe_scene_transform]
+position = [1.5990546906739473, 5.159527063369751e-07, 3.6880259355530143]
+rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
+scale = [0.92778, 3.1253288, 0.36773926]
