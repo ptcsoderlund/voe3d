@@ -409,6 +409,12 @@ uint32_t voe_ecs_component_count(const voe_ecs_world *world, voe_ecs_type type)
 	return table_at(world, type)->count;
 }
 
+uint32_t voe_ecs_component_capacity(const voe_ecs_world *world,
+				    voe_ecs_type type)
+{
+	return table_at(world, type)->capacity;
+}
+
 const void *voe_ecs_component_rows(const voe_ecs_world *world,
 				   voe_ecs_type type)
 {
