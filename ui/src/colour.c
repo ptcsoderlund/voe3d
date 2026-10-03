@@ -218,16 +218,23 @@ voe_ui_node voe_ui_colour_picker(voe_ui_context *ui, const char *name,
 	struct voe_ui_colour_picker *p;
 	voe_math_float3 srgb;
 	voe_ui_node node;
+	const voe_ui_theme *theme = voe_ui_theme_current(ui);
+	float pad;
 
 	VOE_BASE_ASSERT(ui != NULL, "opening a colour picker on no context");
 	VOE_BASE_ASSERT(name != NULL,
 			"a colour picker with no name has no identity");
+	VOE_BASE_ASSERT(theme != NULL,
+			"a colour picker needs a theme: see "
+			"voe_ui_theme_set/voe_ui_theme_push");
 
+	// The pad and gap follow the theme's spacing; the square, the strip,
+	// the markers and the cells do not.
+	pad = PICKER_PAD * theme->spacing;
 	node = voe_ui_panel_begin(
 		ui, name, index, VOE_UI_SURFACE_RAISED,
-		(voe_ui_container){ .gap = PICKER_GAP,
-				    .pad = { PICKER_PAD, PICKER_PAD, PICKER_PAD,
-					     PICKER_PAD } });
+		(voe_ui_container){ .gap = PICKER_GAP * theme->spacing,
+				    .pad = { pad, pad, pad, pad } });
 	// A panel refused for want of a node refuses the frame; nothing inside
 	// it is built, and the memory is left as it was.
 	if (node == VOE_UI_NODE_NONE) {

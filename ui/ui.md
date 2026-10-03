@@ -24,7 +24,8 @@ pointer and the keyboard are values it is given.
   `voe_ui_slider_result`, `VOE_UI_SLIDER_HEIGHT`, `VOE_UI_SLIDER_THUMB`): a
   track of a given width with a thumb at the value's place in a range.
 - `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
-  `voe_ui_theme` (the derived palette of roles), `voe_ui_theme_default_inputs`
+  `voe_ui_theme` (the derived palette of roles and the `spacing` that scales
+  widget pads and gaps), `voe_ui_theme_default_inputs`
   and `voe_ui_theme_derive`, which turns the one into the other in OKLab.
 - `include/ui/widgets.h` — the theme set on the context or pushed over a
   subtree, the panel, the label, the button, the choice, the number box, the

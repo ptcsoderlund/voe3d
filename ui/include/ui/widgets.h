@@ -501,7 +501,7 @@ typedef struct {
 void voe_ui_keyboard_set(voe_ui_context *ui, voe_ui_keyboard keyboard);
 
 // A single line of editable text: a keyed container built as a button is —
-// BUTTON_PAD round it and the three state colours a button has, plus a
+// a button's pad round it and the three state colours a button has, plus a
 // fourth for focused — except that its run sits along START rather than
 // centred, so its text begins at the left edge and grows rightward.
 //

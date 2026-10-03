@@ -198,7 +198,7 @@ voe_ui_node voe_ui_field(voe_ui_context *ui, const char *name, uint32_t index,
 	node = voe_ui_row_begin(ui, (voe_ui_container){ .size = sizing,
 							.along = VOE_UI_ALONG_START,
 							.across = VOE_UI_ACROSS_CENTER,
-							.pad = BUTTON_PAD });
+							.pad = button_pad(theme) });
 	if (node != VOE_UI_NODE_NONE) {
 		ui->widgets[node].kind = VOE_UI_WIDGET_FIELD;
 		ui->widgets[node].key = key;
