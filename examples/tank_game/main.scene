@@ -22,7 +22,7 @@ fov_y = 1.0471976
 near_plane = 0.1
 far_plane = 100
 [2.voe_scene_transform]
-position = [-1.2579535855911672, 10.887444194406271, 14.62900831875595]
+position = [-1.2579528554342687, 11.943397925118916, 21.01424760324153]
 rotation = [-0.38268346, 0, 0, 0.9238796]
 scale = [1, 1, 1]
 
@@ -33,13 +33,13 @@ folded = false
 colour = [1, 0.58921766, 0.28265268]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
-fill_intensity = 0
-bounces = 2
+fill_intensity = 0.00012197842
+bounces = 3
 cast_shadows = true
-bounce_strength = 1
+bounce_strength = 0.35693637
 [3.voe_scene_transform]
-position = [0, 8, 0]
-rotation = [0.34252137, 0.31435513, 0.14457415, -0.87347484]
+position = [8.605420589447021e-07, 5.138881284743547, 7.879768788814545]
+rotation = [0.3537199, 0.0037900507, 0.03783802, -0.93457806]
 scale = [1, 1, 1]
 
 [4]
@@ -144,7 +144,7 @@ scale = [2, 10, 1]
 
 [19]
 name = "Lights"
-folded = false
+folded = true
 
 [20]
 name = "Point1"
@@ -153,14 +153,14 @@ folded = false
 parent = 19
 [20.voe_scene_point_light]
 colour = [0, 0.31905842, 1]
-intensity = 20
-range = 5
-falloff = 3
+intensity = 10
+range = 3.0574996
+falloff = 4
 cast_shadows = true
 bounces = 0
 bounce_strength = 1
 [20.voe_scene_transform]
-position = [9.381500949210022, 1.4835876119323075, 1.9561404658015817]
+position = [13.943733450549189, 2.391948784701526, 1.2226342258509248]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -192,20 +192,20 @@ colour = [0, 1, 0.17092332]
 intensity = 4
 range = 5
 falloff = 0.3
-cast_shadows = false
+cast_shadows = true
 bounces = 0
 bounce_strength = 1
 [23.voe_scene_transform]
-position = [9.27141073718667, 1.3129289839416742, 9.3649026369676]
+position = [13.99125094525516, 3.320757689885795, 10.800229988060892]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
 [25]
 name = "House"
-folded = false
+folded = true
 [25.voe_scene_transform]
-position = [-5.438923835754395e-07, 1.5, -4.470348358154297e-07]
-rotation = [0, 0, 0, 1]
+position = [15.887809079140425, 1.4999985918402672, 1.6072136163711548]
+rotation = [0, -0.40903267, 0, 0.91251975]
 scale = [1, 1, 1]
 
 [26]
@@ -291,3 +291,15 @@ parent = 25
 position = [1.5990546906739473, 5.159527063369751e-07, 3.6880259355530143]
 rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
 scale = [0.92778, 3.1253288, 0.36773926]
+
+[34]
+name = "Obstacle 3"
+folded = false
+[34.voe_3d_shape]
+kind = 1
+colour = [0.5003842, 0.5003842, 0.5003842]
+cast_shadows = true
+[34.voe_scene_transform]
+position = [15.433657566827605, 5.000000001862645, 8.580536024644971]
+rotation = [0, 0.12585333, 0, 0.99204886]
+scale = [2, 10, 1]
