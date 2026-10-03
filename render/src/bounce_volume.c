@@ -355,8 +355,9 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 		return;
 
 	voe_render_bounce_probes_place(&volume->probes, frame->cell,
-				       frame->corner, frame->stale,
-				       frame->stale_count, &frame->sun,
+				       frame->corner, VOE_RENDER_BOUNCE_SPACING,
+				       frame->stale, frame->stale_count,
+				       &frame->sun,
 				       frame->sun_bounces, frame->sun_strength,
 				       &frame->points, &lights);
 	memcpy(device->bounce_lamps, lights.lamps, sizeof(device->bounce_lamps));

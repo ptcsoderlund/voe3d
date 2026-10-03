@@ -54,20 +54,20 @@ static bool outside(int64_t w, int32_t last, uint32_t size)
 	return w < last || w >= (int64_t)last + size;
 }
 
-static voe_math_float3 centre_of(voe_math_float3 corner, uint32_t x,
+static voe_math_float3 centre_of(voe_math_float3 corner, float s, uint32_t x,
 				 uint32_t y, uint32_t z)
 {
-	const float s = VOE_RENDER_BOUNCE_SPACING;
-
 	assert(x < XZ && y < H && z < XZ);
+	assert(s > 0.0f);
 	return (voe_math_float3){ corner.x + ((float)x + 0.5f) * s,
 				  corner.y + ((float)y + 0.5f) * s,
 				  corner.z + ((float)z + 0.5f) * s };
 }
 
-static void enter(voe_render_bounce_probes *p, const int32_t cell[3])
+static void enter(voe_render_bounce_probes *p, const int32_t cell[3],
+		  float spacing)
 {
-	bool whole = !p->placed;
+	bool whole = !p->placed || spacing != p->spacing;
 	const uint32_t size[3] = { XZ, H, XZ };
 
 	for (int a = 0; a < 3 && !whole; a++) {
@@ -93,7 +93,8 @@ static void enter(voe_render_bounce_probes *p, const int32_t cell[3])
 }
 
 static void queue_sphere(voe_render_bounce_probes *p, const int32_t cell[3],
-			 voe_math_float3 corner, voe_math_float4 sphere)
+			 voe_math_float3 corner, float spacing,
+			 voe_math_float4 sphere)
 {
 	assert(p != NULL && cell != NULL);
 	if (!(sphere.w >= 0.0f) || !isfinite(sphere.w))
@@ -101,7 +102,8 @@ static void queue_sphere(voe_render_bounce_probes *p, const int32_t cell[3],
 	for (uint32_t z = 0; z < XZ; z++)
 		for (uint32_t y = 0; y < H; y++)
 			for (uint32_t x = 0; x < XZ; x++) {
-				const voe_math_float3 c = centre_of(corner, x, y, z);
+				const voe_math_float3 c =
+					centre_of(corner, spacing, x, y, z);
 				const float dx = c.x - sphere.x;
 				const float dy = c.y - sphere.y;
 				const float dz = c.z - sphere.z;
@@ -131,7 +133,7 @@ static void pick_lights(const voe_render_light *sun, uint32_t sun_bounces,
 
 void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 				    const int32_t cell[3], voe_math_float3 corner,
-				    const voe_math_float4 *stale,
+				    float spacing, const voe_math_float4 *stale,
 				    uint32_t stale_count,
 				    const voe_render_light *sun,
 				    uint32_t sun_bounces, float sun_strength,
@@ -139,15 +141,17 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 				    voe_render_bounce_lights *lights)
 {
 	assert(p != NULL && cell != NULL && sun != NULL && lights != NULL);
+	assert(spacing > 0.0f && isfinite(spacing));
 	assert(stale != NULL || stale_count == 0);
 	assert(point_lights != NULL &&
 	       (point_lights->lights != NULL || point_lights->count == 0));
 
-	enter(p, cell);
+	enter(p, cell, spacing);
 	for (uint32_t i = 0; i < stale_count; i++)
-		queue_sphere(p, cell, corner, stale[i]);
+		queue_sphere(p, cell, corner, spacing, stale[i]);
 	memcpy(p->cell, cell, sizeof(p->cell));
 	p->corner = corner;
+	p->spacing = spacing;
 	p->placed = true;
 	pick_lights(sun, sun_bounces, sun_strength, point_lights, lights);
 }
@@ -166,7 +170,7 @@ static uint32_t nearest_queued(const voe_render_bounce_probes *p)
 				if (!bit(p->queued, probe))
 					continue;
 				const voe_math_float3 c =
-					centre_of(p->corner, x, y, z);
+					centre_of(p->corner, p->spacing, x, y, z);
 				const float d = c.x * c.x + c.y * c.y + c.z * c.z;
 
 				if (d < best_d || (d == best_d && probe < best)) {
@@ -198,14 +202,46 @@ uint32_t voe_render_bounce_probes_take(voe_render_bounce_probes *p,
 	return n;
 }
 
+// Whether `a` about corner `ca` lights the bounce as `b` about `cb` did. The
+// position is about the corner, not the eye, and the shadow slot only by
+// whether there is one: an eye that moves shifts both and reorders slots.
+static bool lamp_same(const voe_render_point_light *a, voe_math_float3 ca,
+		      const voe_render_point_light *b, voe_math_float3 cb)
+{
+	const float mm = 0.001f;
+
+	assert(a != NULL && b != NULL);
+	return fabsf((a->position.x - ca.x) - (b->position.x - cb.x)) <= mm &&
+	       fabsf((a->position.y - ca.y) - (b->position.y - cb.y)) <= mm &&
+	       fabsf((a->position.z - ca.z) - (b->position.z - cb.z)) <= mm &&
+	       a->range == b->range && a->colour.x == b->colour.x &&
+	       a->colour.y == b->colour.y && a->colour.z == b->colour.z &&
+	       a->falloff == b->falloff && (a->shadow != 0) == (b->shadow != 0) &&
+	       a->shadow_strength == b->shadow_strength &&
+	       a->bounces == b->bounces &&
+	       a->bounce_strength == b->bounce_strength;
+}
+
 bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 					     const voe_render_bounce_lights *lights)
 {
 	assert(p != NULL && lights != NULL);
+	assert(lights->lamp_count <= VOE_RENDER_BOUNCE_LAMPS);
+	const voe_render_bounce_lights *r = &p->relit;
+
 	for (uint32_t i = 0; i < TOTAL / 32; i++)
 		if (p->changed[i] != 0)
 			return true;
-	return memcmp(&p->relit, lights, sizeof(*lights)) != 0;
+	if (memcmp(&r->sun, &lights->sun, sizeof(r->sun)) != 0 ||
+	    r->sun_bounces != lights->sun_bounces ||
+	    r->sun_strength != lights->sun_strength ||
+	    r->lamp_count != lights->lamp_count)
+		return true;
+	for (uint32_t i = 0; i < lights->lamp_count; i++)
+		if (!lamp_same(&lights->lamps[i], p->corner, &r->lamps[i],
+			       p->relit_corner))
+			return true;
+	return false;
 }
 
 void voe_render_bounce_probes_relit(voe_render_bounce_probes *p,
@@ -214,5 +250,6 @@ void voe_render_bounce_probes_relit(voe_render_bounce_probes *p,
 	assert(p != NULL && lights != NULL);
 	memset(p->changed, 0, sizeof(p->changed));
 	p->relit = *lights;
+	p->relit_corner = p->corner;
 	assert(!voe_render_bounce_probes_relight_needed(p, lights));
 }

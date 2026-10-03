@@ -12,10 +12,15 @@
 //
 // CELL −1 WRAPS TO 23, and the index is x + 24·y + 288·z of the wrapped cell.
 //
-// A STALE SPHERE OF 6 m QUEUES ONLY THE PROBES WHOSE CENTRE IS WITHIN IT.
+// A STALE SPHERE OF 6 m QUEUES ONLY THE PROBES WHOSE CENTRE IS WITHIN IT, at
+// 2 m and at 4 m between probes.
+//
+// A NEW SPACING AT THE SAME CELL QUEUES ALL 6912 again.
 //
 // NOTHING CHANGED AND THE SAME LIGHTS NEED NO RELIGHT; a lamp's bounce
-// strength changed does.
+// strength changed does. AN EYE MOVED 7.3 m, every lamp and the corner shifted
+// alike and two lamps' shadow slots swapped, needs none; a lamp moved 1 cm
+// about the corner, or one losing its slot, does.
 //
 // THE 17th BOUNCING LAMP IS LEFT OUT, and lamps with no bounces are skipped.
 //
@@ -43,12 +48,23 @@ static const voe_render_point_lights NONE = { 0 };
 
 static voe_render_bounce_lights lights;
 
+static void place_at(voe_render_bounce_probes *p, voe_math_float3 corner,
+		     float spacing, const voe_math_float4 *stale,
+		     uint32_t stale_count, const voe_render_point_lights *lamps)
+{
+	voe_render_bounce_probes_place(p, CELL, corner, spacing, stale,
+				       stale_count, &SUN, 1, 1.0f, lamps,
+				       &lights);
+}
+
 static void place(voe_render_bounce_probes *p, const int32_t cell[3],
 		  const voe_math_float4 *stale, uint32_t stale_count,
 		  const voe_render_point_lights *lamps)
 {
-	voe_render_bounce_probes_place(p, cell, CORNER, stale, stale_count, &SUN,
-				       1, 1.0f, lamps, &lights);
+	voe_render_bounce_probes_place(p, cell, CORNER,
+				       VOE_RENDER_BOUNCE_SPACING, stale,
+				       stale_count, &SUN, 1, 1.0f, lamps,
+				       &lights);
 }
 
 static uint32_t count(const uint32_t *bits)
@@ -145,7 +161,10 @@ static void minus_one_wraps(void)
 	VOE_TEST_CHECK_INT(voe_render_bounce_probe_index(-25, 12, 24), 23);
 }
 
-static void a_stale_sphere_queues_within(void)
+// A 6 m sphere placed into a captured grid at `spacing` with lowest corner
+// `corner` queues exactly the probes whose centres at that spacing lie in it.
+static void a_stale_sphere_queues_within_at(voe_math_float3 corner,
+					    float spacing)
 {
 	static voe_render_bounce_probes p;
 	const voe_math_float4 sphere = { 3.0f, -1.0f, 5.0f, 6.0f };
@@ -153,15 +172,15 @@ static void a_stale_sphere_queues_within(void)
 	bool only_within = true;
 
 	memset(&p, 0, sizeof(p));
-	place(&p, CELL, NULL, 0, &NONE);
+	place_at(&p, corner, spacing, NULL, 0, &NONE);
 	capture_all(&p);
-	place(&p, CELL, &sphere, 1, &NONE);
+	place_at(&p, corner, spacing, &sphere, 1, &NONE);
 	for (uint32_t z = 0; z < XZ; z++)
 		for (uint32_t y = 0; y < H; y++)
 			for (uint32_t x = 0; x < XZ; x++) {
-				const float dx = CORNER.x + (x + 0.5f) * 2.0f - sphere.x;
-				const float dy = CORNER.y + (y + 0.5f) * 2.0f - sphere.y;
-				const float dz = CORNER.z + (z + 0.5f) * 2.0f - sphere.z;
+				const float dx = corner.x + (x + 0.5f) * spacing - sphere.x;
+				const float dy = corner.y + (y + 0.5f) * spacing - sphere.y;
+				const float dz = corner.z + (z + 0.5f) * spacing - sphere.z;
 				const bool in = dx * dx + dy * dy + dz * dz <= 36.0f;
 				const uint32_t probe = voe_render_bounce_probe_index(
 					(int64_t)CELL[0] + x, (int64_t)CELL[1] + y, (int64_t)CELL[2] + z);
@@ -172,6 +191,68 @@ static void a_stale_sphere_queues_within(void)
 	VOE_TEST_CHECK(within > 0);
 	VOE_TEST_CHECK_INT(count(p.queued), within);
 	VOE_TEST_CHECK(only_within);
+}
+
+static void a_stale_sphere_queues_within(void)
+{
+	const voe_math_float3 corner4 = { 2.0f * CORNER.x, 2.0f * CORNER.y,
+					  2.0f * CORNER.z };
+
+	a_stale_sphere_queues_within_at(CORNER, VOE_RENDER_BOUNCE_SPACING);
+	a_stale_sphere_queues_within_at(corner4, 4.0f);
+}
+
+static void a_new_spacing_queues_all(void)
+{
+	static voe_render_bounce_probes p;
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &NONE);
+	capture_all(&p);
+	voe_render_bounce_probes_relit(&p, &lights);
+	place_at(&p, CORNER, 4.0f, NULL, 0, &NONE);
+	VOE_TEST_CHECK_INT(count(p.queued), TOTAL);
+	VOE_TEST_CHECK_INT(count(p.changed), TOTAL);
+	VOE_TEST_CHECK_INT(count(p.holds), 0);
+}
+
+static voe_math_float3 shifted(voe_math_float3 v, voe_math_float3 by)
+{
+	return (voe_math_float3){ v.x + by.x, v.y + by.y, v.z + by.z };
+}
+
+static void an_eye_that_moves_relights_nothing(void)
+{
+	static voe_render_bounce_probes p;
+	const voe_math_float3 eye = { 7.3f, 0.0f, 0.0f };
+	const voe_math_float3 moved = shifted(CORNER, eye);
+	voe_render_point_light two[2] = {
+		{ .position = { 1.0f, 2.0f, 3.0f }, .range = 5.0f,
+		  .colour = { 1, 1, 1 }, .falloff = 1.0f, .shadow = 1,
+		  .shadow_strength = 1.0f, .bounces = 1, .bounce_strength = 1.0f },
+		{ .position = { -4.0f, 1.0f, 6.0f }, .range = 8.0f,
+		  .colour = { 1, 0, 0 }, .falloff = 1.0f, .shadow = 2,
+		  .shadow_strength = 1.0f, .bounces = 1, .bounce_strength = 1.0f },
+	};
+	const voe_render_point_lights lamps = { two, 2 };
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &lamps);
+	capture_all(&p);
+	voe_render_bounce_probes_relit(&p, &lights);
+	for (uint32_t i = 0; i < 2; i++) {
+		two[i].position = shifted(two[i].position, eye);
+		two[i].shadow = 2 - i;
+	}
+	place_at(&p, moved, VOE_RENDER_BOUNCE_SPACING, NULL, 0, &lamps);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	two[0].position.y += 0.01f;
+	place_at(&p, moved, VOE_RENDER_BOUNCE_SPACING, NULL, 0, &lamps);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	two[0].position.y -= 0.01f;
+	two[1].shadow = 0;
+	place_at(&p, moved, VOE_RENDER_BOUNCE_SPACING, NULL, 0, &lamps);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
 }
 
 static void relight_follows_changes_and_lights(void)
@@ -221,7 +302,9 @@ int main(void)
 	a_move_queues_the_entered_slab();
 	minus_one_wraps();
 	a_stale_sphere_queues_within();
+	a_new_spacing_queues_all();
 	relight_follows_changes_and_lights();
+	an_eye_that_moves_relights_nothing();
 	the_17th_bouncing_lamp_is_left_out();
 	return voe_test_result();
 }
