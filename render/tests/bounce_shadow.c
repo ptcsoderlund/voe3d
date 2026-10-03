@@ -14,6 +14,14 @@
 // the sun does not bounce. Then, the sun bouncing again, a frame whose `passes`
 // are spent: false, and nothing opened.
 //
+// TWO TARGETS (ADR-0330). A target made and its volume built beside the
+// window's. One frame begins the window, captures, opens the pass (the cube one
+// draw) and relights; then begins the target, opens it again, opened with the
+// cube one draw, and relights: no assert, and both volumes' relight records say
+// drawn. The next frame does the same but begins the target with a sun of
+// bounces 0 and a lamp of bounces 1: its pass does not open and its record says
+// not drawn.
+//
 // A card without shaderOutputLayer opens nothing: checked instead, and said. A
 // machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -43,7 +51,8 @@ static const voe_render_capacities CAPACITIES = {
 	.geometries = 1,
 	.objects = 8,
 	.shadings = 1,
-	.passes = VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1,
+	.passes = VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2,
+	.targets = 1,
 };
 
 static const voe_render_shading_values GREY = {
@@ -155,19 +164,35 @@ static void not_opened(voe_render_device *device,
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
-// The frame that captures: the capture passes with the cube, then the bounce
-// shadow pass with it, one draw, and the relight. Returns the frame's slot.
-static uint32_t captures(voe_render_device *device, voe_render_geometry cube,
+// The bounce shadow pass asked for: opened when `expected`, the cube one draw.
+static void shadow_pass(voe_render_device *device, voe_render_geometry cube,
+			voe_render_shading grey, bool expected)
+{
+	const voe_render_view light = sun_view();
+	bool opened = !expected;
+	uint32_t before;
+
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, &light, &opened));
+	VOE_TEST_CHECK(opened == expected);
+	if (!opened)
+		return;
+	before = voe_render_frame_draw_count(device);
+	VOE_TEST_CHECK(voe_render_frame_draw(device, cube, cube_object(grey)));
+	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), before + 1);
+	voe_render_pass_end(device);
+}
+
+// A frame begun with the window's bounce under a sun that bounces once, the
+// capture passes with the cube, the bounce shadow pass with it, one draw, and
+// the relight; the frame left open. False when it is not drawing.
+static bool window_relit(voe_render_device *device, voe_render_geometry cube,
 			 voe_render_shading grey)
 {
 	const struct voe_render_bounce_frame frame = bounce(1, false);
-	const voe_render_view light = sun_view();
-	const uint32_t slot = device->slot;
-	bool opened = true;
-	uint32_t before;
+	bool opened = false;
 
 	if (!open_frame(device, &frame))
-		return slot;
+		return false;
 	VOE_TEST_CHECK(device->window_volume.built);
 	for (int i = 0; i < VOE_RENDER_BOUNCE_CAPTURE_PASSES; i++) {
 		VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
@@ -177,19 +202,75 @@ static uint32_t captures(voe_render_device *device, voe_render_geometry cube,
 		VOE_TEST_CHECK(voe_render_frame_draw(device, cube, cube_object(grey)));
 		voe_render_pass_end(device);
 	}
-	opened = false;
-	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, &light, &opened));
-	VOE_TEST_CHECK(opened);
-	if (opened) {
-		before = voe_render_frame_draw_count(device);
-		VOE_TEST_CHECK(voe_render_frame_draw(device, cube, cube_object(grey)));
-		VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), before + 1);
-		voe_render_pass_end(device);
-	}
-	VOE_TEST_CHECK(device->frames[slot].bounce_shadow.drawn);
+	shadow_pass(device, cube, grey, true);
+	VOE_TEST_CHECK(device->frames[device->slot].bounce_shadow.drawn);
 	voe_render_bounce_relight(device);
-	VOE_TEST_CHECK(voe_render_frame_end(device));
+	return true;
+}
+
+// The frame that captures, window_relit and ended. Returns the frame's slot.
+static uint32_t captures(voe_render_device *device, voe_render_geometry cube,
+			 voe_render_shading grey)
+{
+	const uint32_t slot = device->slot;
+
+	if (window_relit(device, cube, grey))
+		VOE_TEST_CHECK(voe_render_frame_end(device));
 	return slot;
+}
+
+// Volume `index`'s region of the open slot's relight record buffer says the sun
+// map drawn when `drawn`.
+static void region_says(const voe_render_device *device, uint32_t index,
+			bool drawn)
+{
+	const struct voe_render_relight_record *record =
+		(const void *)((const unsigned char *)
+				       device->relight_records_mapped[device->slot] +
+			       index * device->relight_record_stride);
+
+	VOE_TEST_CHECK_INT(record->sun_drawn, drawn ? 1u : 0u);
+}
+
+// The window and a target each opening the pass in one frame, then the target
+// with only a lamp bouncing.
+static void two_targets(voe_render_device *device, voe_render_geometry cube,
+			voe_render_shading grey)
+{
+	const struct voe_render_bounce_frame sun = bounce(1, false);
+	const struct voe_render_bounce_frame lamp = bounce(0, true);
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_texture texture;
+	voe_render_target id;
+	const bool made = voe_render_target_create(device, SIDE, SIDE, &id,
+						   &texture, &error);
+
+	VOE_TEST_CHECK(made);
+	if (!made)
+		return;
+	// The target's volume wanted, and built at the next frame's top.
+	if (open_frame(device, &sun)) {
+		voe_render_bounce_begin(device, id, &sun);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+	}
+	if (!window_relit(device, cube, grey))
+		return;
+	VOE_TEST_CHECK(device->targets[0].volume.built);
+	voe_render_bounce_begin(device, id, &sun);
+	shadow_pass(device, cube, grey, true);
+	voe_render_bounce_relight(device);
+	region_says(device, 0, true);
+	region_says(device, id.index, true);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+
+	if (!window_relit(device, cube, grey))
+		return;
+	voe_render_bounce_begin(device, id, &lamp);
+	shadow_pass(device, cube, grey, false);
+	voe_render_bounce_relight(device);
+	region_says(device, 0, true);
+	region_says(device, id.index, false);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
 // Slot `slot`'s map into `readback`, once the card is idle, and back where it
@@ -358,6 +439,7 @@ static void sun_map(voe_render_device *device)
 	not_opened(device, &sun);
 	not_opened(device, &lamp);
 	passes_spent(device);
+	two_targets(device, cube, grey);
 }
 
 static void nothing_without_output_layer(voe_render_device *device)

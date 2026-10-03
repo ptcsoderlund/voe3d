@@ -96,7 +96,8 @@ typedef struct voe_render_device voe_render_device;
 // passes IS PER FRAME SLOT AND AT LEAST ONE. It bounds how many passes one frame
 // may open, and each costs one camera-and-sun block in the slot's uniform buffer.
 // A frame with shadows spends one per cascade, one per capture pass and one per
-// camera pass, and one more on a frame that relights a casting sun (ADR-0329).
+// camera pass, and one more for each begin whose relight shadows a casting sun
+// (ADR-0329, ADR-0330).
 // Nought asserts: a device that can open no pass can draw nothing.
 //
 // AND IT IS SPENT ON LETTERS AS WELL AS ON FILLS, WHICH IS WHAT MAKES IT LARGER
@@ -1283,11 +1284,14 @@ typedef struct {
 //
 // `opened` IS FALSE, and true is returned with nothing open, when the volume is
 // not built, the begun sun has no bounces, no intensity or is unshaded, or no
-// relight is needed this frame. IT IS A PASS AND COUNTS AGAINST `passes`, its
+// relight is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its
 // draws against `objects`: false, with a line, when the frame's passes are spent.
+// It may open once after each voe_render_bounce_begin, so every view draws this
+// begin's map for its own volume (ADR-0330).
 //
 // Calling this outside a frame, with a pass open, with no bounce begin this frame,
-// or a second time in a frame is the caller's bug and asserts.
+// or a second time after one bounce begin is the caller's bug and asserts; once
+// per begin, not once per frame.
 [[nodiscard]] bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 						       const voe_render_view *light,
 						       bool *opened);
@@ -1298,7 +1302,7 @@ typedef struct {
 // the grid is relit when a probe changed or the bouncing lights did. On a settled frame it
 // records nothing at all and only the read runs (ADR-0317 point 4); on a volume
 // not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
-// shadowed by this frame's bounce shadow map when one was drawn, lit outside its
+// shadowed by this begin's bounce shadow map when one was drawn, lit outside its
 // box, and unshadowed when none was; never by the cascades (ADR-0329).
 //
 // Outside a frame, with a pass open, or with no bounce begin this frame it
@@ -1330,7 +1334,7 @@ struct voe_render_bounce_frame {
 // Records `target`'s bounce for this frame, between passes; the arrays are
 // copied, so the caller's are its own again when this returns.
 //
-// THE SUN IS SHADOWED IN THE RELIGHT BY THIS FRAME'S BOUNCE SHADOW MAP when
+// THE SUN IS SHADOWED IN THE RELIGHT BY THIS BEGIN'S BOUNCE SHADOW MAP when
 // voe_render_bounce_shadow_pass_begin opened it, lit outside its box, and
 // unshadowed when none was drawn (a sun that does not cast). The cascades never
 // reach the relight (ADR-0329).

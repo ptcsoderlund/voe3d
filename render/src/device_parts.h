@@ -302,9 +302,9 @@ struct voe_render_bounce_scratch {
 
 // One frame slot's relight sun map, bounce_shadow.c's (ADR-0329): a D32 image
 // VOE_RENDER_BOUNCE_SHADOW_TEXELS square with its view, resting in
-// SHADER_READ_ONLY_OPTIMAL; `light` the view × projection this frame drew it with
-// and `drawn` whether it did, cleared as each frame opens. Zeroed without
-// shaderOutputLayer.
+// SHADER_READ_ONLY_OPTIMAL; `light` the view × projection it was last drawn with
+// and `drawn` whether the current begin drew it, cleared by each
+// voe_render_bounce_begin (ADR-0330). Zeroed without shaderOutputLayer.
 struct voe_render_bounce_shadow {
 	struct voe_render_allocated_image map;
 	voe_math_float4x4 light;

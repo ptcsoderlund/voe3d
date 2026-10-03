@@ -14,17 +14,23 @@
 // with one view. Built at startup beside the capture scratch on a device with
 // shaderOutputLayer, none without, and settled into SHADER_READ_ONLY_OPTIMAL, where
 // it rests, so a descriptor naming it is valid on a frame that drew none. The slot
-// keeps the light's view × projection and whether this frame drew it; frame.c
-// clears that flag as each frame opens.
+// keeps the light's view × projection and whether the current begin drew it:
+// that flag is per begin (ADR-0330 point 1), cleared by each
+// voe_render_bounce_begin, so every view the editor shows draws the map for its
+// own volume, and a second open after one begin asserts.
 //
-// THE BEGIN opens only when this frame will relight (card 04's call) and the
-// begun sun bounces, shines and is shaded: the map from UNDEFINED into its
+// THE BEGIN opens only when the begun target will relight (card 04's call) and
+// the begun sun bounces, shines and is shaded: the map from UNDEFINED into its
 // attachment layout, depth cleared to the far plane, the shadow pipeline, the
-// viewport and scissor at the map's side, `light` as the pass's camera. THE END
+// viewport and scissor at the map's side, `light` as the pass's camera. Its
+// barrier out of UNDEFINED waits on the fragment tests and on the compute stage
+// as well: the slot has one map, so a second view's pass follows the previous
+// view's relight reading it this frame, and overwrites it only after. THE END
 // moves it back to SHADER_READ_ONLY_OPTIMAL before a compute read.
 //
-// COST. 4 MiB of depth a frame slot, 8 MiB over two. At most one pass a frame
-// and one object per caster drawn into it; nothing on a settled frame.
+// COST. 4 MiB of depth a frame slot, 8 MiB over two. At most one pass per begun
+// target (ADR-0330 point 3) and one object per caster drawn into each; nothing
+// on a settled frame.
 #include "frame_internal.h"
 
 #include <base/assert.h>
@@ -142,9 +148,12 @@ static void record_open(const struct voe_render_frame *frame)
 
 	VOE_BASE_DEBUG_ASSERT(depth.imageView != VK_NULL_HANDLE,
 			      "opening a bounce sun map that was never built");
+	// After the last pass onto it and the last relight that read it, the
+	// previous view's this frame included.
 	move(frame, VK_IMAGE_LAYOUT_UNDEFINED,
 	     VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-	     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_NONE, tests,
+	     tests | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_NONE,
+	     tests,
 	     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
 		     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
@@ -170,7 +179,7 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 			"opening a bounce shadow pass with no voe_render_bounce_begin this frame");
 	frame = voe_render_frame_at(device, device->slot);
 	VOE_BASE_ASSERT(!frame->bounce_shadow.drawn,
-			"opening a second bounce shadow pass in one frame");
+			"opening a second bounce shadow pass after one voe_render_bounce_begin — it opens once per begin");
 	*opened = false;
 	if (!device->bounce_begun || !wanted(device))
 		return true;

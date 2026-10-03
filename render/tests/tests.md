@@ -64,7 +64,7 @@ by reading the offscreen colour image back.
   Headless.
 - `bounce_shadow.c` — the relight's sun map: opened after a frame's captures with a cube one draw
   and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
-  spent. Headless.
+  spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
 - `bounce_settle.c` — captured probes settling: beside a cube, validity 1 and a moments mean to its
   face; inside it, validity 0; a settled frame dispatching nothing. Headless.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and

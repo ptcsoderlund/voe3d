@@ -62,7 +62,7 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
   depth, sixteen queued probes drawn into it as one layered pass, then copied into the atlases.
 - `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
-  shadow pass that draws it once a frame that relights a casting sun.
+  shadow pass that draws it once per bounce begin that relights a casting sun.
 - `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
   lists and one record per volume, and the call that settles changed probes, relights each level in
   use and sums them.
