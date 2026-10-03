@@ -1,6 +1,7 @@
 // The frame's probe bounce and this step's stale spheres (ADR-0326 points 2, 4
-// and 8). The contract is draw_bounce.h's; voe_3d_draw_system_shadows in
-// 3d/draw_system.h states what the caller pays for it.
+// and 8), and the relight's own sun map (0329 point 2). The contract is
+// draw_bounce.h's; voe_3d_draw_system_shadows in 3d/draw_system.h states what
+// the caller pays for it.
 //
 // A CASTER MOVED WHEN LAG 1 AND LAG 0 DIFFER: its position by more than a
 // micrometre on an axis, or its rotation by more than 1e-6 off |q0 · q1| = 1,
@@ -136,6 +137,26 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 	return count;
 }
 
+// The relight's own sun map (0329 point 2): the bounce shadow pass with the sun
+// view of `grid`, the casters drawn into it when render opens it. False when
+// the pass or a draw is refused.
+static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
+			 const voe_3d_frame *frame, voe_3d_bounce_grid grid)
+{
+	voe_render_view light = voe_3d_bounce_grid_sun(grid, frame->eye,
+						       frame->light.direction);
+	bool opened = false;
+	bool drawn;
+
+	if (!voe_render_bounce_shadow_pass_begin(device, &light, &opened))
+		return false;
+	if (!opened)
+		return true;
+	drawn = voe_3d_draw_casters(world, device, frame);
+	voe_render_pass_end(device);
+	return drawn;
+}
+
 bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			voe_3d_frame *frame)
 {
@@ -155,7 +176,6 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		.stale = spheres,
 		.stale_count = voe_3d_bounce_stale(world, frame, spheres, STALE_ROOM),
 		.sun = frame->light,
-		.shadow = frame->shadow,
 		.points = frame->points,
 	};
 	if (voe_scene_light_count(world) == 1) {
@@ -175,6 +195,9 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		if (!drawn)
 			return false;
 	}
+	if (voe_3d_draw_light_casts(world) &&
+	    !draw_sun_map(world, device, frame, grid))
+		return false;
 	voe_render_bounce_relight(device);
 	return true;
 }

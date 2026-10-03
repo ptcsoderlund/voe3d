@@ -35,6 +35,10 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame);
 
+// Whether the world's light row casts (0324 point 4); no row never does.
+// draw_shadows.c.
+bool voe_3d_draw_light_casts(const voe_ecs_world *world);
+
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and
 // w VOE_3D_BOUNCE_REACH, two for each caster that moved; the count, never past
 // `room`. A moved caster that does not fit is left out.
@@ -44,9 +48,12 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 
 // Fits the probe volume to the frame's eye, not its view, begins `frame->target`'s
 // bounce with this step's stale spheres, the frame's light with the light row's
-// `bounces` and `bounce_strength` (nought with no row), `frame->shadow` and
-// `frame->points`; then opens capture passes while render opens one, drawing
-// the casters into each, and relights. False when a pass or a draw is refused.
+// `bounces` and `bounce_strength` (nought with no row) and `frame->points`;
+// then opens capture passes while render opens one, drawing the casters into
+// each. When the light row casts it opens the bounce shadow pass with the sun
+// view of the fitted grid (voe_3d_bounce_grid_sun) and, when render opens it,
+// draws the casters into it (0329); then relights. False when a pass or a draw
+// is refused.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,
 				      voe_render_device *device,
 				      voe_3d_frame *frame);

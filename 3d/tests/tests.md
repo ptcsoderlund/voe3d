@@ -12,7 +12,8 @@ again, or to find where a claim that has started failing is written down.
   near the origin and 100 km out. Needs no graphics card.
 - `bounce_grid.c` — that the probe volume stands on the eye's cell in whole
   cells, its corner is its cell about the eye 10 km out, 2 m along x is one
-  cell and a move inside the cell keeps it. Needs no graphics card.
+  cell, a move inside the cell keeps it, and the sun view holds the volume.
+  Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -40,13 +41,14 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
-- `bounce.c` — the shadows call's passes over two frames: none captured on the first, four on the
-  second, for a sun or a lamp that bounces, none when nothing does; and the stale spheres a moved
-  wall marks. Skips without a graphics card.
+- `bounce.c` — the shadows call's passes over two frames: none captured on the first, four and the
+  sun map on the second, for a sun or a lamp that bounces, no sun map for a sun that does not
+  cast, none when nothing does; and the stale spheres a moved wall marks. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
   the ground it faces and fades, leaves its foot's shadow as at bounces 0, open ground stays even
-  as the sun turns, the grid settles, again after the box moves, and a turn of the camera
-  captures nothing and changes no pixel. Skips without a card.
+  as the sun turns, the grid settles, again after the box moves, a turn of the camera
+  captures nothing and changes no pixel, and a relight while looking away changes none. Skips
+  without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.

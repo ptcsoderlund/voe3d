@@ -13,11 +13,12 @@
 // reference: its shadows call begins no bounce, so its window reads none.
 //
 // SETTLED, AND COUNTED AS bounce.c COUNTS: by `passes`. A full frame has room
-// for the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and the
-// window's. A probing frame first opens DUMMIES empty passes, so the cascades
-// spend the rest: a shadows call that would open a capture pass returns false
-// there (render says so on a line; that noise is the measurement), and true
-// when nothing is queued. Frames alternate full and probing until a probing one
+// for the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes, the
+// relight's sun map (0329) and the window's. A probing frame first opens
+// DUMMIES empty passes, so the cascades spend the rest: a shadows call that
+// would open a capture pass or the sun map returns false there (render says so
+// on a line; that noise is the measurement), and true when nothing is queued
+// and nothing is to be relit. Frames alternate full and probing until a probing one
 // is true, within BOUND pairs or the test fails: the whole grid is 6912 probes
 // at 64 a full frame.
 //
@@ -46,6 +47,13 @@
 // place for TURNED probing frames, each opening no capture pass, then turned
 // back: the lit-side, shadow-foot and five open-ground pixels each within 1/255
 // of their values before the turn. Turning moves no probe and lights nothing.
+//
+// LOOKING AWAY (0328, 0329): settled, the camera turned 180 degrees in place;
+// facing away, the sun's bounce strength set to 2 and settled, set back to 1
+// and settled; turned back, the same seven pixels each within 1/255 of their
+// values before the turn. A relight made while the room is behind the camera
+// shadows the sun by the volume's own map, so it lights the room as one made
+// facing it does; with the view's cascades it lit the room unshadowed.
 //
 // Pixels are found by projecting a world point, about the frame's eye, through
 // the frame's view, with the engine's one Y flip.
@@ -91,10 +99,11 @@
 #define TURNED 3
 // The pixels TURN compares: the lit side, the shadow's foot and the open ground.
 #define LOOKED (2 + OPEN)
+// The cascades, the capture passes, the bounce shadow pass and the window's.
 #define PASSES \
-	(VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
+	(VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2)
 // Leaves the cascades' passes and not one more.
-#define DUMMIES (VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
+#define DUMMIES (VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2)
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES,
@@ -431,6 +440,53 @@ static void turning_moves_nothing(scene *s)
 	}
 }
 
+// The sun's bounce strength set to `strength` by an intent and the light
+// system's run.
+static void bounce_strength(scene *s, float strength)
+{
+	voe_scene_light light = *voe_scene_light_get(s->world, s->sun);
+
+	light.bounce_strength = strength;
+	VOE_TEST_CHECK(voe_scene_light_submit(
+		s->world, (voe_scene_light_intent){ s->sun, light }));
+	voe_scene_light_system_run(s->world);
+}
+
+// LOOKING AWAY: relit twice facing away, then turned back, every looked-at
+// pixel within 1/255 of before the turn.
+static void looking_away_relights_the_same(scene *s)
+{
+	voe_scene_transform pose = *voe_scene_transform_get(s->world, s->camera);
+	voe_scene_transform turned = pose;
+	voe_3d_frame frame = a_full_frame(s);
+	voe_render_picture picture = read_window(s);
+	uint8_t before[LOOKED][3];
+	uint8_t after[LOOKED][3];
+
+	the_pixels_looked_at(&picture, &frame, before);
+	turned.rotation = voe_math_quat_mul(
+		voe_math_quat_from_axis_angle((voe_math_float3){ 0.0f, 1.0f, 0.0f },
+					      3.14159265f),
+		pose.rotation);
+	place(s, s->camera, turned);
+	VOE_TEST_CHECK(settles(s));
+	bounce_strength(s, 2.0f);
+	VOE_TEST_CHECK(settles(s));
+	bounce_strength(s, 1.0f);
+	VOE_TEST_CHECK(settles(s));
+	place(s, s->camera, pose);
+	frame = a_full_frame(s);
+	picture = read_window(s);
+	the_pixels_looked_at(&picture, &frame, after);
+	for (int i = 0; i < LOOKED; i++) {
+		printf("looked away %d: %d %d %d against %d %d %d\n", i,
+		       after[i][0], after[i][1], after[i][2], before[i][0],
+		       before[i][1], before[i][2]);
+		for (int c = 0; c < 3; c++)
+			VOE_TEST_CHECK(abs((int)after[i][c] - (int)before[i][c]) <= 1);
+	}
+}
+
 // The claims, on a device with shaderOutputLayer.
 static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 {
@@ -473,6 +529,7 @@ static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 	voe_scene_transform_remember(s->world);
 	VOE_TEST_CHECK(settles(s));
 	turning_moves_nothing(s);
+	looking_away_relights_the_same(s);
 }
 
 int main(void)

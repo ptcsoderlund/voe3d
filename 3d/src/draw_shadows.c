@@ -40,7 +40,8 @@
 //
 // THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun casts:
 // draw_bounce.c begins the frame's target's bounce, draws the same casters into
-// each capture pass render opens, and relights. Who bounces: the world's light
+// each capture pass render opens and, for a casting sun, into the relight's own
+// sun map (0329), and relights. Who bounces: the world's light
 // row, the one voe_3d_draw_system_light reads, with `bounces` of 1 or more while
 // the frame's light has intensity above nought and is not `unshaded`; or any
 // light in the frame's points with `bounces` of 1 or more. A blind frame bounces
@@ -171,7 +172,7 @@ static bool anything_bounces(const voe_ecs_world *world,
 
 // Whether the world's light, the same row, casts (0324 point 4). No light
 // never does.
-static bool light_casts(const voe_ecs_world *world)
+bool voe_3d_draw_light_casts(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(voe_scene_light_count(world) <= 1,
 			"a world to draw has at most one light — see 3d/draw_system.h");
@@ -190,7 +191,7 @@ static bool draw_sun_shadows(voe_ecs_world *world, voe_render_device *device,
 	// cannot orient cascades (0290 point 2); nor does an unshaded one, and
 	// a blind camera draws no world, nor a light that does not cast (0324).
 	if (frame->light.unshaded || frame->light.intensity <= 0.0f ||
-	    frame->blind || !light_casts(world))
+	    frame->blind || !voe_3d_draw_light_casts(world))
 		return true;
 
 	cascades = voe_3d_shadow_cascades_fit(frame->view, frame->eye,

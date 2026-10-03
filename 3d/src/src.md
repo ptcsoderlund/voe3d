@@ -11,7 +11,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   look from the sun, used by the cascades; internal.
 - `light_box.c` — those three, moved out of shadow_cascades.c unchanged.
 - `bounce_grid.c` — the eye's cell in double, the probe volume's lowest cell
-  below it, and its corner about the eye.
+  below it, its corner about the eye, and the relight's sun view of the volume.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,
@@ -86,9 +86,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the cascades' caster
-  walk it shares; internal.
+  walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted, the target's bounce begun
-  with the lights and stale spheres, the casters drawn into each capture pass, and the relight.
+  with the lights and stale spheres, the casters drawn into each capture pass and a casting sun's
+  own map, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.

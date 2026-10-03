@@ -467,7 +467,10 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // `frame->eye`, begins `frame->target`'s bounce, opens capture passes while
 // render has probes to capture, drawing the casters into each, and relights.
 // That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
-// objects per caster. The first frame after a light starts bouncing builds the
+// objects per caster. On a frame that relights a sun that bounces and casts it
+// opens one more pass, and one more object per caster: the relight's own sun
+// map, fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
+// so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
 // volume and shows none. Stale spheres are marked where a caster moved this
 // step (lag 1 against lag 0), so a world without a previous table marks none.
 // When nothing bounces nothing is begun, built or drawn (0316); false as before
