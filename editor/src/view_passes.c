@@ -10,7 +10,9 @@
 // slots (0325 point 6), until the pass is open. Each shadow call is handed
 // its own target, the view's or the preview's, so its bounce is that target's
 // probe volume, begun, captured and relit by that call, and no view reads a
-// volume another view moved (0326 point 8).
+// volume another view moved (0326 point 8). That volume stands on the view's
+// eye, so turning never moves it, and its relight shadows the sun by a sun
+// map of its own, never the view's cascades (0329 points 1 and 2).
 #include "view_passes.h"
 
 #include <base/assert.h>
