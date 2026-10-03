@@ -21,8 +21,10 @@ the library the editor loads (0242).
 - `tank_enemy_system.c` — drives each enemy forward, aims its turret at the player's hull in range, fires once on target with flash, the fade of its light child at the flash, and shot sound, gives it a lower engine hum, and removes it, turret and all, when its life runs out.
 - `tank_camera.h` — the runtime-only camera fit row: the camera's authored field of view, kept so the level's width stays in view at any window shape.
 - `tank_camera_system.c` — widens the camera's lens when the window is narrower than 16:9, so the width framed at 16:9 stays in view.
+- `tank_scroll.h` — the runtime-only scroll row on the camera: its lead on the first hull's z, and the z where the screen's bottom and top meet the hull's ground; the level runs along −Z.
+- `tank_scroll_system.c` — after the move, moves the camera forward, never back, to the hull's z plus the lead, and finds the screen's bottom and top edges on the ground from its pose and lens.
 - `tank_control.h` — the runtime-only control row on the player's hull: drive, turn, aim, fire and whether the pad is in use.
 - `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
 - `tank_light_fade.h` — the Tank / Light fade component: a peak, default 4, the seconds it fades, default 0.12, and the seconds left; the call that restarts a fade from full, per shot, and the finder of the fade under a parent.
 - `tank_light_fade_system.c` — sets each faded point light to peak × left / seconds through its replace, only when it differs, then counts left down to 0.
-- `project.c` — the four entry points: registers all twelve types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, light fade, then camera before the move, nothing after; the interface is the lives' HUD.
+- `project.c` — the four entry points: registers all thirteen types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, light fade, then camera before the move, the scroll after; the interface is the lives' HUD.

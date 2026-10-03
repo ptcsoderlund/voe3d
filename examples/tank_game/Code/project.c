@@ -15,7 +15,9 @@
 // step's aim; the light fade is after the gun and the enemy so a shot fired
 // this step shows full this step. The
 // breakable has no system: the shells swap a hit one for its wreck.
-// systems_after_move has nothing yet. interface runs once a frame, after
+// systems_after_move is the scroll, which moves the camera forward with
+// where the hull went this step and finds the screen's edges on the ground
+// (0334 point 1). interface runs once a frame, after
 // the steps (0259): the lives' HUD, which ends the ui frame game began and
 // returns true.
 //
@@ -24,8 +26,8 @@
 // loads this code as a library and calls only register (0242).
 //
 // Constraints: before the move, the control, hull, turret, gun, shell, lives,
-// spawner, enemy, light fade, then camera; after it, nothing. The order is the
-// data flow.
+// spawner, enemy, light fade, then camera; after it, the scroll. The order is
+// the data flow.
 #include "tank_breakable.h"
 #include "tank_camera.h"
 #include "tank_control.h"
@@ -34,6 +36,7 @@
 #include "tank_hull.h"
 #include "tank_light_fade.h"
 #include "tank_lives.h"
+#include "tank_scroll.h"
 #include "tank_shell.h"
 #include "tank_spawner.h"
 #include "tank_turret.h"
@@ -58,6 +61,7 @@ void voe_game_project_register(voe_ecs_world *world)
 	(void)tank_spawner_register(world);
 	(void)tank_light_fade_register(world);
 	(void)tank_camera_register(world);
+	(void)tank_scroll_register(world);
 }
 
 void voe_game_project_systems_run(const voe_game_project_step *step)
@@ -80,6 +84,7 @@ void voe_game_project_systems_after_move(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
+	tank_scroll_run(step);
 }
 
 bool voe_game_project_interface(const voe_game_project_frame *frame)
