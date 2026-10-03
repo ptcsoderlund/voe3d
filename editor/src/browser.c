@@ -142,18 +142,53 @@ static bool relist(voe_editor_browser *browser, const char *candidate,
 	}
 
 	browser->folder = folder_copy;
+	// EVERY NAVIGATION LANDS HERE, so this is where a choice is cleared.
+	browser->chosen = VOE_EDITOR_BROWSER_NO_ROW;
+	browser->target = browser->folder;
 	return true;
 }
 
+// Lists beside's parent and chooses beside's row in it. False, with nothing
+// said, when there is no parent, it will not list or it holds no such row:
+// the caller then starts as a first showing does. beside is scratch's own
+// copy, so the relist clearing browser->arena cannot take it away.
+static bool choose_beside(voe_editor_browser *browser, const char *beside,
+			  voe_base_arena *scratch)
+{
+	const char *parent = voe_platform_path_parent(scratch, beside);
+	const char *name = voe_platform_path_name(beside);
+	voe_editor_notice unsaid = { 0 };
+
+	VOE_BASE_ASSERT(beside != NULL, "choosing beside no folder");
+	if (parent == NULL || !relist(browser, parent, scratch, &unsaid))
+		return false;
+
+	for (uint32_t i = 0; i < browser->row_count; i++) {
+		if (browser->rows[i].file ||
+		    strcmp(browser->rows[i].name, name) != 0)
+			continue;
+		browser->chosen = i;
+		if (browser->mode == VOE_EDITOR_BROWSER_OPEN)
+			browser->target = voe_platform_path_join(
+				browser->arena, browser->folder, name);
+		VOE_BASE_ASSERT(browser->target != NULL,
+				"a chosen row with no folder to act on");
+		return true;
+	}
+	return false;
+}
+
 void voe_editor_browser_show(voe_editor_browser *browser,
-			     voe_editor_browser_mode mode,
+			     voe_editor_browser_mode mode, const char *beside,
 			     voe_editor_notice *why)
 {
 	VOE_BASE_ASSERT(browser != NULL, "showing no browser");
 	VOE_BASE_ASSERT(why != NULL, "showing a browser with nowhere to say why");
 
-	if (browser->arena == NULL)
+	if (browser->arena == NULL) {
 		browser->arena = voe_base_arena_new(VOE_EDITOR_BROWSER_ARENA);
+		browser->chosen = VOE_EDITOR_BROWSER_NO_ROW;
+	}
 
 	browser->mode = mode;
 	browser->showing = true;
@@ -163,13 +198,22 @@ void voe_editor_browser_show(voe_editor_browser *browser,
 	// showing typed, the same "for the session" the folder already gets.
 	browser->focus_name = mode == VOE_EDITOR_BROWSER_SAVE;
 
-	// THE FIRST SHOWING EVER PICKS A FOLDER; EVERY OTHER ONE KEEPS WHAT IT
-	// HAD (the header's "across showings, for the session") and lists it
-	// again in this mode.
+	// A SHOWING BESIDE A FOLDER STARTS IN ITS PARENT, or as a first one
+	// does when it cannot; THE FIRST SHOWING EVER PICKS A FOLDER; EVERY
+	// OTHER ONE KEEPS WHAT IT HAD (the header's "across showings, for the
+	// session") and lists it again in this mode.
 	voe_base_arena *scratch = voe_base_arena_new(VOE_EDITOR_BROWSER_SCRATCH);
 	voe_base_error error;
 	const char *start = browser->folder;
 
+	if (beside != NULL) {
+		if (choose_beside(browser, copy_string(scratch, beside),
+				  scratch)) {
+			voe_base_arena_destroy(scratch);
+			return;
+		}
+		start = NULL;
+	}
 	if (start == NULL)
 		start = voe_platform_folder_home(scratch);
 	if (start == NULL)
@@ -265,7 +309,8 @@ void voe_editor_browser_draw(voe_ui_context *ui, voe_editor_browser *browser,
 				     .gap = BROWSER_GAP },
 		(voe_ui_scroll_axes){ .y = true });
 	for (uint32_t i = 0; i < browser->row_count; i++) {
-		browser->rows[i].node = voe_ui_button_begin(ui, "row", i);
+		browser->rows[i].node = voe_ui_choice_begin(
+			ui, "row", i, i == browser->chosen);
 		voe_ui_label(ui, browser->rows[i].name);
 		if (browser->rows[i].project)
 			voe_ui_label(ui, PROJECT_MARK);

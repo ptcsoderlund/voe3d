@@ -449,7 +449,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// Allowed, once past the refusal above. What a chosen folder
 		// does to the project is voe_editor_session_browser_do's, on
 		// the browser's own Confirm.
-		voe_editor_browser_show(browser, VOE_EDITOR_BROWSER_OPEN,
+		voe_editor_browser_show(browser, VOE_EDITOR_BROWSER_OPEN, NULL,
 					&session->notice);
 		return false;
 
@@ -463,7 +463,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 						      &session->notice);
 		else
 			voe_editor_browser_show(browser,
-						VOE_EDITOR_BROWSER_SAVE,
+						VOE_EDITOR_BROWSER_SAVE, NULL,
 						&session->notice);
 		return false;
 
