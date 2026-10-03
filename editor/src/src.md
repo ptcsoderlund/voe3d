@@ -60,10 +60,8 @@ carries it out.
   `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
-- `themes.h` — Near black and Near white, then one theme per `*.theme` file in
-  `<settings>/voe3d/themes/`, the chosen one remembered in `<settings>/voe3d/theme` and re-read once
-  a second, each carrying the two scalars and the text scale it is drawn with, at the editor's base
-  text size and spacing.
+- `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
+  remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
   remembered file read and written as its one line, the chosen file's once-a-second re-read, and
   each theme derived at its own text scale.
