@@ -5,7 +5,7 @@
 tank and the pillar. This is in editor. Something is screen spaced, if not maybe it is being not drawn or
 something when out of screen? I am only guessing."
 
-`03-before.png` and `03-after.png` beside this file, taken about half a minute apart in the editor's scene view
+`03-before.png` and `03-after.png`, once beside this file and now in commit a9d40fbe, taken about half a minute apart in the editor's scene view
 of `examples/tank_game`. Nothing in the scene moved between them, only the camera. In `03-before.png` the green
 tank's faces and the shaded sides of the red and tan pillars are nearly black. In `03-after.png` the same faces
 are lit, much brighter, and the tank reads clearly green.
