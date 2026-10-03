@@ -43,18 +43,13 @@
 // table remembered as a stepping game does, makes the next one open one (its
 // stale spheres queue probes), and within BOUND it settles again.
 //
-// TURN (bug 01, 0328, 0329): settled, the camera turned 90 degrees about Y in
-// place for TURNED probing frames, each opening no capture pass, then turned
-// back: the lit-side, shadow-foot and five open-ground pixels each within 1/255
-// of their values before the turn. Turning moves no probe and lights nothing.
-//
-// LOOKING AWAY (0328, 0329): settled, the camera turned 180 degrees in place;
-// facing away, the sun's bounce strength set to 2 and settled, set back to 1
-// and settled; turned back, the same seven pixels each within 1/255 of their
-// values before the turn. A relight made while the room is behind the camera
-// shadows the sun by the volume's own map, so it lights the room as one made
-// facing it does; with the view's cascades it lit the room unshadowed.
-//
+// TURN (bug 01) AND LOOKING AWAY (0328, 0329): settled, the camera turned 90
+// degrees about Y in place for TURNED probing frames, each opening no capture
+// pass; then turned 180 degrees and, facing away, the sun's bounce strength set
+// to 2 and settled, back to 1 and settled. Each time turned back, the lit-side,
+// shadow-foot and five open-ground pixels are each within 1/255 of their values
+// before the turn: turning moves no probe, and a relight shadows the sun by the
+// volume's own map, not the view's cascades that lit the room unshadowed.
 // Pixels are found by projecting a world point, about the frame's eye, through
 // the frame's view, with the engine's one Y flip.
 //

@@ -45,10 +45,8 @@ again, or to find where a claim that has started failing is written down.
   sun map on the second, for a sun or a lamp that bounces, no sun map for a sun that does not
   cast, none when nothing does; and the stale spheres a moved wall marks. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
-  the ground it faces and fades, leaves its foot's shadow as at bounces 0, open ground stays even
-  as the sun turns, the grid settles, again after the box moves, a turn of the camera
-  captures nothing and changes no pixel, and a relight while looking away changes none. Skips
-  without a card.
+  the ground it faces, its foot's shadow stays as at bounces 0, open ground stays even, the grid
+  settles, and camera turns change nothing. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
