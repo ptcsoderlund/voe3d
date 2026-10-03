@@ -10,9 +10,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
-- `bounce_grid.c` — that the probe volume stands 24 m ahead in whole cells, its
-  corner is its cell about the eye 10 km out, and 2 m along x is one cell. Needs
-  no graphics card.
+- `bounce_grid.c` — that the probe volume stands on the eye's cell in whole
+  cells, its corner is its cell about the eye 10 km out, 2 m along x is one
+  cell and a move inside the cell keeps it. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -45,7 +45,8 @@ again, or to find where a claim that has started failing is written down.
   wall marks. Skips without a graphics card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
   the ground it faces and fades, leaves its foot's shadow as at bounces 0, open ground stays even
-  as the sun turns, and the grid settles, again after the box moves. Skips without a card.
+  as the sun turns, the grid settles, again after the box moves, and a turn of the camera
+  captures nothing and changes no pixel. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.

@@ -10,8 +10,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `light_box.h` — the sun's basis, the snap to whole texels in double and the
   look from the sun, used by the cascades; internal.
 - `light_box.c` — those three, moved out of shadow_cascades.c unchanged.
-- `bounce_grid.c` — forward out of the view, the probe volume's whole cells in
-  double 24 m ahead, and its corner about the eye.
+- `bounce_grid.c` — the eye's cell in double, the probe volume's lowest cell
+  below it, and its corner about the eye.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,

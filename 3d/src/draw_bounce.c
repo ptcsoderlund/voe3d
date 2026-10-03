@@ -148,7 +148,7 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			"bouncing with no world, device or frame");
 	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
 			"the bounce goes between passes, none open");
-	grid = voe_3d_bounce_grid_fit(frame->view, frame->eye);
+	grid = voe_3d_bounce_grid_fit(frame->eye);
 	bounce = (struct voe_render_bounce_frame){
 		.cell = { grid.cell[0], grid.cell[1], grid.cell[2] },
 		.corner = grid.corner,

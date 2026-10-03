@@ -42,6 +42,11 @@
 // table remembered as a stepping game does, makes the next one open one (its
 // stale spheres queue probes), and within BOUND it settles again.
 //
+// TURN (bug 01, 0328, 0329): settled, the camera turned 90 degrees about Y in
+// place for TURNED probing frames, each opening no capture pass, then turned
+// back: the lit-side, shadow-foot and five open-ground pixels each within 1/255
+// of their values before the turn. Turning moves no probe and lights nothing.
+//
 // Pixels are found by projecting a world point, about the frame's eye, through
 // the frame's view, with the engine's one Y flip.
 //
@@ -59,6 +64,7 @@
 #include <base/error.h>
 #include <ecs/world.h>
 #include <math/float4x4.h>
+#include <math/quat.h>
 #include <render/device.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
@@ -82,6 +88,9 @@
 #define SHADOW 4
 #define EVEN 2
 #define OPEN 5
+#define TURNED 3
+// The pixels TURN compares: the lit side, the shadow's foot and the open ground.
+#define LOOKED (2 + OPEN)
 #define PASSES \
 	(VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
 // Leaves the cascades' passes and not one more.
@@ -102,6 +111,7 @@ static const voe_render_capacities CAPACITIES = {
 // frame, `keep` for the pictures read back.
 typedef struct {
 	voe_ecs_world *world;
+	voe_ecs_entity camera;
 	voe_ecs_entity box;
 	voe_ecs_entity sun;
 	voe_render_device *device;
@@ -146,7 +156,6 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 		.structure_requests = 16,
 		.structure_bytes = 1024,
 	};
-	voe_ecs_entity entity = { 0 };
 	float pitch = atan2f(8.0f, 14.0f);
 
 	s->world = voe_ecs_world_new(s->keep, limits);
@@ -161,16 +170,16 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 	voe_3d_shape_register(s->world, 8);
 	voe_3d_model_register(s->world, 8);
 
-	VOE_TEST_CHECK(voe_ecs_entity_create(s->world, &entity));
+	VOE_TEST_CHECK(voe_ecs_entity_create(s->world, &s->camera));
 	VOE_TEST_CHECK(voe_scene_transform_add(
-		s->world, entity,
+		s->world, s->camera,
 		(voe_scene_transform){
 			.position = { 0.0, 8.0, 14.0 },
 			.rotation = { -sinf(pitch * 0.5f), 0.0f, 0.0f,
 				      cosf(pitch * 0.5f) },
 			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_camera_add(
-		s->world, entity,
+		s->world, s->camera,
 		(voe_scene_camera){ .fov_y = 1.0471976f,
 				    .near_plane = 0.1f,
 				    .far_plane = 100.0f }));
@@ -370,6 +379,58 @@ static void place(scene *s, voe_ecs_entity entity, voe_scene_transform transform
 	voe_scene_transform_system_run(s->world);
 }
 
+// The LOOKED pixels of `picture` into `pixels`: lit side, foot, open ground.
+static void the_pixels_looked_at(const voe_render_picture *picture,
+				 const voe_3d_frame *frame,
+				 uint8_t pixels[LOOKED][3])
+{
+	voe_math_float3 at[LOOKED] = { { 1.75f, 0.0f, 0.5f },
+				       { -0.75f, 0.0f, 0.5f } };
+
+	VOE_TEST_CHECK(picture != NULL && frame != NULL);
+	for (int i = 0; i < OPEN; i++)
+		at[2 + i] = (voe_math_float3){ -6.0f, 0.0f, -6.0f + 2.0f * (float)i };
+	for (int i = 0; i < LOOKED; i++) {
+		const uint8_t *p = pixel_at(picture, frame, at[i]);
+
+		for (int c = 0; c < 3; c++)
+			pixels[i][c] = p[c];
+	}
+	VOE_TEST_CHECK(LOOKED == 2 + OPEN);
+}
+
+// TURN: a quarter turn about Y in place and back opens no capture pass and
+// leaves every looked-at pixel within 1/255.
+static void turning_moves_nothing(scene *s)
+{
+	voe_scene_transform pose = *voe_scene_transform_get(s->world, s->camera);
+	voe_scene_transform turned = pose;
+	voe_3d_frame frame = a_full_frame(s);
+	voe_render_picture picture = read_window(s);
+	uint8_t before[LOOKED][3];
+	uint8_t after[LOOKED][3];
+
+	the_pixels_looked_at(&picture, &frame, before);
+	turned.rotation = voe_math_quat_mul(
+		voe_math_quat_from_axis_angle((voe_math_float3){ 0.0f, 1.0f, 0.0f },
+					      1.5707963f),
+		pose.rotation);
+	place(s, s->camera, turned);
+	for (int f = 0; f < TURNED; f++)
+		VOE_TEST_CHECK(!a_capture_was_wanted(s));
+	place(s, s->camera, pose);
+	frame = a_full_frame(s);
+	picture = read_window(s);
+	the_pixels_looked_at(&picture, &frame, after);
+	for (int i = 0; i < LOOKED; i++) {
+		printf("turned %d: %d %d %d against %d %d %d\n", i, after[i][0],
+		       after[i][1], after[i][2], before[i][0], before[i][1],
+		       before[i][2]);
+		for (int c = 0; c < 3; c++)
+			VOE_TEST_CHECK(abs((int)after[i][c] - (int)before[i][c]) <= 1);
+	}
+}
+
 // The claims, on a device with shaderOutputLayer.
 static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 {
@@ -411,6 +472,7 @@ static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 	VOE_TEST_CHECK(a_capture_was_wanted(s));
 	voe_scene_transform_remember(s->world);
 	VOE_TEST_CHECK(settles(s));
+	turning_moves_nothing(s);
 }
 
 int main(void)

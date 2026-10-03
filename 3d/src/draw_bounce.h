@@ -42,7 +42,7 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 			     const voe_3d_frame *frame, voe_math_float4 *spheres,
 			     uint32_t room);
 
-// Fits the probe volume to the frame's view and eye, begins `frame->target`'s
+// Fits the probe volume to the frame's eye, not its view, begins `frame->target`'s
 // bounce with this step's stale spheres, the frame's light with the light row's
 // `bounces` and `bounce_strength` (nought with no row), `frame->shadow` and
 // `frame->points`; then opens capture passes while render opens one, drawing
