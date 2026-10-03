@@ -32,7 +32,8 @@
 //
 // Constraints: an untitled project (folder NULL) expands nothing. Each root is
 // found by a scan of the prefab table, so a world of n roots costs n² checks;
-// a sorted copy of the table would lift it, and 32 identities make it moot.
+// a sorted copy of the table would lift it, and the world's authored room
+// (VOE_GAME_WORLD_AUTHORED) makes it moot.
 #pragma once
 
 #include "notice.h"
