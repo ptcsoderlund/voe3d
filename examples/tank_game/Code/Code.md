@@ -9,9 +9,9 @@ the library the editor loads (0242).
 - `tank_turret_system.c` — turns the player's turrets about the world's up toward where the mouse pointer meets the ground, or the right stick's direction on screen, held when let go, through the exported turn call.
 - `tank_gun.h` — the Tank / Gun component: a prefab to fire, default `shell`, a rate, default 6 a second, a muzzle offset and the wait to the next shot.
 - `tank_gun_system.c` — while fire holds, fires each ready gun's prefab at its muzzle along its turret's barrel; each shot bursts the gun's muzzle flash and restarts the fade of its light, a child at the flash, and plays the shot sound at the muzzle.
-- `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, a life, default 3 s, and a radius, default 0.1 m; the runtime-only shot row: owner, where the sweep starts, and what it hit.
-- `tank_shell_system.c` — flies each shell, stops it where it hits, swaps a breakable the player hit for its wreck, and removes it on a hit or when its life runs out, playing the hit sound, or the explosion at a wreck.
-- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, that only the player's shell's hit swaps the thing for, once a step; an enemy's shell changes nothing.
+- `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, a life, default 3 s, and a radius, default 0.1 m; the runtime-only shot row: owner, where the sweep starts, what it hit, and the points of a breakable it wrecked.
+- `tank_shell_system.c` — flies each shell, stops it where it hits, swaps a breakable the player hit for its wreck, its shot row carrying the breakable's points, and removes it on a hit or when its life runs out, playing the hit sound, or the explosion at a wreck.
+- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, and the points the player scores for wrecking it, default 100, that only the player's shell's hit swaps the thing for, once a step; an enemy's shell changes nothing.
 - `tank_breakable.c` — the breakable's key and registration; it has no system.
 - `tank_lives.h` — the runtime-only lives row on the player's hull: 3 at the start, one off per shot that hits the hull, never below 0; the enemies read it for whom to fire at; the hull is made solid when it has no collider.
 - `tank_lives_system.c` — adds the lives row to the first hull, makes it solid with the enemy's box when it has no collider, takes a life for each shot that hit it this step, and draws `Lives N` in a HUD panel at the top left.
