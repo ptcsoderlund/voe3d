@@ -83,9 +83,8 @@ again, or to find where a claim that has started failing is written down.
   among them) and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
-- `model_component.c` — the model's CHAR field `path` of 128, BOOL `cast_shadows` and FLOAT32
-  `fade`, the default casting unfaded and an intent turning it off, a fade of 0.5 and a submitted path read back after a run, a dead entity's
-  intent dropped and a path with no end cut. Needs no graphics card.
+- `model_component.c` — the model component's fields, its default and intents read back after a
+  run, a dead entity's intent dropped and a long path cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
