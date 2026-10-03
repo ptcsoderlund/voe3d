@@ -9,5 +9,5 @@ The public headers, one entry each.
 - `project.h` — the seam a project's code is written against: its types registered through game, the step with the mixer and prefab table, spawning a prefab by name and removing a tree, the interface's asks to pause and restart, and the four entry points.
 - `prefabs.h` — the cooked prefab table a game spawns from, defined by a project's cooked `prefabs.c`, and the one include that file needs.
 - `interface.h` — the project's interface: font, theme and ui context, the 135 mm surface, and one frame begun with the pointer and the run's asks and handed to the project.
-- `run.h` — the whole run in the window it is handed (size and fullscreen): window, world, the project's types, the mixer and sound device, cooked scene and prefabs, the project's systems, its interface and a frame until the window closes or the interface ends the run; paused and restarted as the interface asks.
+- `run.h` — the game's whole run in the window it is handed, until the window closes or the interface ends it.
 - `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes; shared by the game and the editor.
