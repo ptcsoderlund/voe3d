@@ -11,7 +11,8 @@
 // which count this step's hits on the player before the hit shells go, then
 // the state, which scores this step's shots and sets won or lost, then
 // the spawner, which makes enemies on a timer, then the enemies, which drive,
-// fire at the lives' hull and run out. Not playing, of those only the state
+// fire at the lives' hull and run out, then the fade away, which fades a
+// wreck and removes it (0336 point 4). Not playing, of those only the state
 // runs. The light fade, which dims each flashed light (0322 point 6), then
 // the camera, which fits its lens to the window's shape (0291), always run.
 // The gun is after the turret so it fires along this step's aim; the light
@@ -30,13 +31,14 @@
 // loads this code as a library and calls only register (0242).
 //
 // Constraints: before the move, the control, hull, turret, gun, shell, lives,
-// state, spawner, enemy, light fade, then camera; after it, the scroll. The
+// state, spawner, enemy, fade away, light fade, then camera; after it, the scroll. The
 // order is the data flow. The phase is read once, before the step's first
 // system, so a round won or lost this step finishes the step.
 #include "tank_breakable.h"
 #include "tank_camera.h"
 #include "tank_control.h"
 #include "tank_enemy.h"
+#include "tank_fade_away.h"
 #include "tank_goal.h"
 #include "tank_gun.h"
 #include "tank_hull.h"
@@ -66,6 +68,7 @@ void voe_game_project_register(voe_ecs_world *world)
 	(void)tank_lives_register(world);
 	(void)tank_enemy_register(world);
 	(void)tank_spawner_register(world);
+	(void)tank_fade_away_register(world);
 	(void)tank_light_fade_register(world);
 	(void)tank_camera_register(world);
 	(void)tank_scroll_register(world);
@@ -100,6 +103,7 @@ void voe_game_project_systems_run(const voe_game_project_step *step)
 	if (playing) {
 		tank_spawner_system_run(step);
 		tank_enemy_system_run(step);
+		tank_fade_away_system_run(step);
 	}
 	tank_light_fade_system_run(step);
 	tank_camera_run(step);
