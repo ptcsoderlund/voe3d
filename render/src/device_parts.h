@@ -159,8 +159,14 @@ struct voe_render_transient_pool {
 // `sphere` BOUNDS THE MESH'S OWN VERTICES (xyz centre, w radius), taken once at
 // create; a point-shadow draw moves it under the world matrix to find the cube
 // faces the caster reaches (ADR-0325 point 2, point_shadow_faces.h).
+//
+// `box_min` AND `box_max` ARE THE SAME VERTICES' BOX, corner to corner in the
+// mesh's own space, taken in the same create; voe_render_geometry_box hands
+// them back to a caller fitting the bounce grid to where meshes stand (0332).
 struct voe_render_geometry_slot {
 	voe_math_float4 sphere;
+	voe_math_float3 box_min;
+	voe_math_float3 box_max;
 	uint32_t first_vertex;
 	uint32_t first_index;
 	uint32_t index_count;

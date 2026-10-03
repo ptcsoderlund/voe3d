@@ -905,6 +905,17 @@ void voe_render_device_destroy(voe_render_device *device);
 bool voe_render_geometry_destroy(voe_render_device *device,
 				 voe_render_geometry geometry);
 
+// The box of a mesh's own vertices, in its own space, taken once at create:
+// `min` and `max` its corners. False and nothing written for an id that names
+// nothing — destroyed, or a transient one from an earlier frame. No frame is
+// needed and no GPU is touched. It is for a caller fitting something to where
+// meshes stand, the bounce grid to the still casters (0332), where the sphere
+// render also keeps would turn a flat ground into a cube.
+[[nodiscard]] bool voe_render_geometry_box(const voe_render_device *device,
+					   voe_render_geometry geometry,
+					   voe_math_float3 *min,
+					   voe_math_float3 *max);
+
 // The same shape, for geometry that lives one frame: copies the vertices and the
 // indices into this frame's own pool and hands back an id that names them until
 // voe_render_frame_end. The next frame's begin makes every id this handed out

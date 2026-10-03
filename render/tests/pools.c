@@ -17,6 +17,9 @@
 // and shading record are; a freed mesh range is also checked to be reused, and
 // two freed neighbours to merge into one that a larger mesh fits.
 //
+// A MESH'S OWN BOX IS HANDED BACK EXACTLY (0332): vertices spanning (−1, 0, −2)
+// to (3, 5, 2) give that box, and once the mesh is destroyed the query is false.
+//
 // It includes render's internal header by relative path, as the other tests in
 // this folder do: what a geometry id resolves to is not public — a caller has an
 // id and a draw, and the range behind it is this folder's business — so the only
@@ -268,6 +271,41 @@ static void neighbouring_ranges_merge(voe_base_arena *arena)
 	voe_render_device_destroy(device);
 }
 
+// The box is the vertices' own corners, no corner a vertex: each axis' low and
+// high come from different vertices.
+static void a_mesh_hands_back_its_box(voe_base_arena *arena)
+{
+	static const voe_render_vertex SPREAD[3] = {
+		{ { -1.0f, 0.0f, 2.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+		{ { 3.0f, 1.0f, -2.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
+		{ { 0.0f, 5.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+	};
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_device *device;
+	voe_render_geometry geometry = { 0 };
+	voe_math_float3 min = { 9.0f, 9.0f, 9.0f };
+	voe_math_float3 max = { 9.0f, 9.0f, 9.0f };
+	voe_base_error error = VOE_BASE_OK;
+
+	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
+	if (device == NULL)
+		return;
+
+	VOE_TEST_CHECK(voe_render_geometry_create(device, SPREAD, 3,
+						  TRIANGLE_INDICES, 3,
+						  &geometry, &error));
+	VOE_TEST_CHECK(voe_render_geometry_box(device, geometry, &min, &max));
+	VOE_TEST_CHECK(min.x == -1.0f && min.y == 0.0f && min.z == -2.0f);
+	VOE_TEST_CHECK(max.x == 3.0f && max.y == 5.0f && max.z == 2.0f);
+
+	VOE_TEST_CHECK(voe_render_geometry_destroy(device, geometry));
+	min = (voe_math_float3){ 9.0f, 9.0f, 9.0f };
+	VOE_TEST_CHECK(!voe_render_geometry_box(device, geometry, &min, &max));
+	VOE_TEST_CHECK(min.x == 9.0f && min.y == 9.0f && min.z == 9.0f);
+
+	voe_render_device_destroy(device);
+}
+
 static void a_texture_id_names_one_texture(voe_render_device *device)
 {
 	voe_render_texture texture = { 0 };
@@ -388,6 +426,7 @@ int main(void)
 	a_full_pool_says_so(arena);
 	a_freed_range_is_reused(arena);
 	neighbouring_ranges_merge(arena);
+	a_mesh_hands_back_its_box(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

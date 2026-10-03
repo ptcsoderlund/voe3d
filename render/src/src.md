@@ -34,7 +34,8 @@ which file to open — what each one owns, and where the seams between them run.
   fills a device-local one at an offset. Its header says why every later upload
   is this.
 - `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
-  pair in every frame slot, and the ranges into all of them, each with its bounding sphere.
+  pair in every frame slot, and the ranges into all of them, each with its bounding sphere and its
+  vertex box, which `voe_render_geometry_box` hands back.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.
