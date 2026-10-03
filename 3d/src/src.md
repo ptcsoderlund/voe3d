@@ -80,10 +80,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model parts
-  from the frame's store and panels, the world's solids drawn as found, the held-back groups and the
-  marks in their order.
+  from the frame's store and panels, a fading model held blended and a gone one skipped, the world's
+  solids drawn as found, the held-back groups and the marks in their order.
 - `draw_shadows.c` — the shadow passes as one call: the sun's cascades, the point-shadow pass
-  and the probe bounce.
+  and the probe bounce, a gone model casting nothing.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.

@@ -450,7 +450,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
 // nothing. A model part in `frame->models` casts under the same rule, its
 // material the part's. A mesh whose shape, or a model whose row, has
-// `cast_shadows` false is no caster, though still drawn and shadowed. The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
+// `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
+// model row with `fade` at or above 1, and a fading one casts as ever (0336). The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
 // passes and 4 × the drawn objects more per view: every caster is drawn once
 // into each cascade.
 //
@@ -513,7 +514,10 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // WHOSE ENTRY IN `frame.models` IS LOADED draws each part (0277 point 3): in the
 // world layer, white in its object record, solid or blended by the part's
 // material. An empty path, a path the store lacks, a failed entry and a NULL
-// store draw nothing. THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
+// store draw nothing. A ROW'S `fade` (0336 point 3): at or above 1 the model
+// is gone and not drawn; above 0 and below 1 every part is blended at 1 − fade
+// with its part's twin, `faded`, sorted with the world's blended group; at or
+// below 0, or not a number, it draws as above. THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
 // names is not drawn however complete it is, mesh, panel, model or particle.
 //
 // EACH LIVE PARTICLE IS ONE BLENDED DRAW FROM `frame.models` (ADR-0298 point
@@ -538,7 +542,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // record carries a colour the shader multiplies into the material's base
 // colour: the entity's shape colour with alpha 1 when it has a shape, and
 // (1, 1, 1, 1) — the material as it is — when it has none or the world
-// registered no shapes. It is in the object's record and not the material's
+// registered no shapes. A fading model's part is (1, 1, 1, 1 − fade), its
+// row's fade as the alpha. It is in the object's record and not the material's
 // because an object's record is written every frame and a material's once.
 //
 // EVERY DRAWN OBJECT CARRIES A NORMAL MATRIX AS WELL AS A WORLD MATRIX, and this

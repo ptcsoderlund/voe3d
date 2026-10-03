@@ -34,6 +34,8 @@ again, or to find where a claim that has started failing is written down.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
   and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
   or without it. Skips without a graphics card.
+- `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
+  and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
