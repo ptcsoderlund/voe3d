@@ -2,6 +2,8 @@
 // Close afterwards. See the header for why only the log's tail is kept.
 #include "errors.h"
 
+#include "themes.h"
+
 #include <base/arena.h>
 #include <base/assert.h>
 
@@ -10,8 +12,8 @@
 #include <stdio.h>
 
 // The same plate, padding and gap preferences.c's panel uses. Millimetres.
-#define ERRORS_PAD 3.0f
-#define ERRORS_GAP 2.0f
+#define ERRORS_PAD (3.0f * VOE_EDITOR_SPACING)
+#define ERRORS_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // A block size for the log's bytes, not a limit (base/arena.h).
 #define ERRORS_SCRATCH (64u * 1024u)

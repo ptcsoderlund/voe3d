@@ -3,14 +3,16 @@
 // carried out, and why it is not undone.
 #include "project_panel.h"
 
+#include "themes.h"
+
 #include <base/assert.h>
 
 #include <stdio.h>
 
 // The same plate, padding and gaps preferences.c's panel uses, so the
 // floating panels read as one kind of thing. Millimetres.
-#define PROJECT_PANEL_PAD 3.0f
-#define PROJECT_PANEL_GAP 2.0f
+#define PROJECT_PANEL_PAD (3.0f * VOE_EDITOR_SPACING)
+#define PROJECT_PANEL_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // What one millimetre of drag across a size box is worth, in pixels.
 #define PROJECT_PANEL_STEP 1.0

@@ -7,6 +7,7 @@
 
 #include "drag_ghost.h"
 #include "inspector_place.h"
+#include "themes.h"
 
 #include <base/assert.h>
 #include <scene/identity_component.h>
@@ -17,7 +18,10 @@
 #include <string.h>
 
 // How far each level of the tree is indented, in millimetres.
-#define INDENT_PER_DEPTH 4.0f
+#define INDENT_PER_DEPTH (4.0f * VOE_EDITOR_SPACING)
+
+// The gap between an entity's name and its prefab's file name, in millimetres.
+#define PREFAB_NAME_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // How wide the drop rim round every row and the heading is, in millimetres.
 #define RIM_WIDTH 0.5f
@@ -140,7 +144,7 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	if (prefab == NULL) {
 		voe_ui_label(ui, rows[index].name);
 	} else {
-		voe_ui_row_begin(ui, (voe_ui_container){ .gap = 2.0f });
+		voe_ui_row_begin(ui, (voe_ui_container){ .gap = PREFAB_NAME_GAP });
 		voe_ui_label(ui, rows[index].name);
 		voe_ui_label_role(ui, prefab_file_name(prefab),
 				  VOE_UI_TEXT_ROLE_SECONDARY);

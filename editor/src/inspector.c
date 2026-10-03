@@ -36,6 +36,7 @@
 
 #include "entity_field.h"
 #include "inspector_value.h"
+#include "themes.h"
 
 #include <base/assert.h>
 
@@ -61,12 +62,12 @@
 
 // Inside a component's four edges, between its rows, and between the things on
 // one row. Millimetres.
-#define COMPONENT_PAD 2.0f
-#define COMPONENT_GAP 1.5f
-#define ROW_GAP 2.0f
+#define COMPONENT_PAD (2.0f * VOE_EDITOR_SPACING)
+#define COMPONENT_GAP (1.5f * VOE_EDITOR_SPACING)
+#define ROW_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // Round the open list's rows and between them. Millimetres.
-#define LIST_PAD 1.0f
+#define LIST_PAD (1.0f * VOE_EDITOR_SPACING)
 
 // The thickness a Y scrollbar lies over the content with — the right padding
 // ui's own example gives such an area (ui/widgets.h, THE SCROLL AREA). Kept off
@@ -78,7 +79,7 @@
 // area gives a panel's children (its PANEL_GAP): that column is the one child
 // the area holds now, so the space between the sections is this column's to
 // declare. Millimetres.
-#define CONTENT_GAP 2.0f
+#define CONTENT_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // What one millimetre of horizontal drag is worth, by what the control writes.
 // A real number moves in hundredths, a whole number in halves — so a millimetre

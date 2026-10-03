@@ -2,13 +2,15 @@
 // anchored panel, the name and the refusal's line (drag_ghost.h).
 #include "drag_ghost.h"
 
+#include "themes.h"
+
 #include <base/assert.h>
 
 // How far right of and below the pointer the ghost sits, in millimetres.
 #define GHOST_OFFSET 3.0f
 
 // The ghost's padding round its labels, in millimetres.
-#define GHOST_PAD 0.5f
+#define GHOST_PAD (0.5f * VOE_EDITOR_SPACING)
 
 void voe_editor_drag_ghost_draw(voe_ui_context *ui, const voe_ui_theme *dim,
 				const char *name, bool refused,
