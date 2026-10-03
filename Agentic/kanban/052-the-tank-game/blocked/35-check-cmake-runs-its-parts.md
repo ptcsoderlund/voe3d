@@ -28,3 +28,6 @@ exits 0.
 The human's, after `/drive` reports the suite passed:
 1. Open `examples/tank_game` in the editor and press Ship. No error shows, `Build/ship/` holds the
    game, and the shipped program runs and shows its menu.
+
+## Blocked
+The change is made and `## Done when` passes (8 includes, every part exists, no function or foreach, 75 lines), but `checks.sh --folder .` reports 22 findings, all on `README.md` (one heading only; does not list the subfolders), and they are there on the clean tree before this card too. Clearing them means rewriting the project README into a table of contents, which this card does not ask for and which is the human's call. Unblock by deciding whether the root's `README.md` is held to the folder-index rule (then a card of its own rewrites it) or `checks.sh` exempts the root, then move this card to `done/` as it stands.

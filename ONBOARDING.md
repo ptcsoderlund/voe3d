@@ -37,8 +37,8 @@ Tests are plain C programs, one per module, registered with CTest under their fo
     ctest --test-dir build/debug                 # everything
     ctest --test-dir build/debug -R '^math/'     # one folder
 
-To verify the whole tree — the tools, every folder building on its own, the tests and the static
-analyser — run from the repository root:
+To verify the whole tree — the tools, every folder building on its own, the whole tree building in
+Release as well as Debug, the tests and the static analyser — run from the repository root:
 
     cmake -P check.cmake
 
