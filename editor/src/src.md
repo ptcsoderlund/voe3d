@@ -242,5 +242,5 @@ carries it out.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural
   queue. Its header says the id and name rules.
-- `entities.c` — the new id and name, the queued rows, a tree's destroys, and the destroy that
-  undoes a half-made entity.
+- `entities.c` — the identity room check before a make, the new id and name, the queued rows, a
+  tree's destroys, and the destroy that undoes a half-made entity.
