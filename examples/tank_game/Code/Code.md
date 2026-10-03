@@ -13,6 +13,8 @@ the library the editor loads (0242).
 - `tank_shell_system.c` — flies each shell, stops it where it hits, swaps a breakable the player hit for its wreck, its shot row carrying the breakable's points, and removes it on a hit or when its life runs out, playing the hit sound, or the explosion at a wreck.
 - `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, and the points the player scores for wrecking it, default 100, that only the player's shell's hit swaps the thing for, once a step; an enemy's shell changes nothing.
 - `tank_breakable.c` — the breakable's key and registration; it has no system.
+- `tank_goal.h` — the Tank / Goal component the sponsor places at the level's end: the points the player scores, default 1000, on winning when its hull's z reaches the goal's world z; it needs a transform.
+- `tank_goal.c` — the goal's key and registration, with its need of a transform; it has no system.
 - `tank_lives.h` — the runtime-only lives row on the player's hull: 3 at the start, one off per shot that hits the hull, never below 0; the enemies read it for whom to fire at; the hull is made solid when it has no collider.
 - `tank_lives_system.c` — adds the lives row to the first hull, makes it solid with the enemy's box when it has no collider, takes a life for each shot that hit it this step, and draws `Lives N` in a HUD panel at the top left.
 - `tank_spawner.h` — the Tank / Spawner component, a wave: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, a count, default 4, 0 never ending, the wait to the next spawn and the spawns made.
@@ -27,4 +29,4 @@ the library the editor loads (0242).
 - `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
 - `tank_light_fade.h` — the Tank / Light fade component: a peak, default 4, the seconds it fades, default 0.12, and the seconds left; the call that restarts a fade from full, per shot, and the finder of the fade under a parent.
 - `tank_light_fade_system.c` — sets each faded point light to peak × left / seconds through its replace, only when it differs, then counts left down to 0.
-- `project.c` — the four entry points: registers all thirteen types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, light fade, then camera before the move, the scroll after; the interface is the lives' HUD.
+- `project.c` — the four entry points: registers all fourteen types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, light fade, then camera before the move, the scroll after; the interface is the lives' HUD.

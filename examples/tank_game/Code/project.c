@@ -14,7 +14,8 @@
 // window's shape (0291). The gun is after the turret so it fires along this
 // step's aim; the light fade is after the gun and the enemy so a shot fired
 // this step shows full this step. The
-// breakable has no system: the shells swap a hit one for its wreck.
+// breakable has no system: the shells swap a hit one for its wreck. The goal
+// has none either: it is the level's end the sponsor places.
 // systems_after_move is the scroll, which moves the camera forward with
 // where the hull went this step and finds the screen's edges on the ground
 // (0334 point 1). interface runs once a frame, after
@@ -32,6 +33,7 @@
 #include "tank_camera.h"
 #include "tank_control.h"
 #include "tank_enemy.h"
+#include "tank_goal.h"
 #include "tank_gun.h"
 #include "tank_hull.h"
 #include "tank_light_fade.h"
@@ -62,6 +64,7 @@ void voe_game_project_register(voe_ecs_world *world)
 	(void)tank_light_fade_register(world);
 	(void)tank_camera_register(world);
 	(void)tank_scroll_register(world);
+	(void)tank_goal_register(world);
 }
 
 void voe_game_project_systems_run(const voe_game_project_step *step)
