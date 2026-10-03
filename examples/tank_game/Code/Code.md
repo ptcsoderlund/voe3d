@@ -29,4 +29,6 @@ the library the editor loads (0242).
 - `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
 - `tank_light_fade.h` — the Tank / Light fade component: a peak, default 4, the seconds it fades, default 0.12, and the seconds left; the call that restarts a fade from full, per shot, and the finder of the fade under a parent.
 - `tank_light_fade_system.c` — sets each faded point light to peak × left / seconds through its replace, only when it differs, then counts left down to 0.
-- `project.c` — the four entry points: registers all fourteen types, runs the control first, then the hull, turret, gun, shell, lives, spawner, enemy, light fade, then camera before the move, the scroll after; the interface is the lives' HUD.
+- `tank_state.h` — the runtime-only round state row on the player's hull: the phase, menu, playing, paused, won or lost, and the score; a fresh world starts at the menu.
+- `tank_state_system.c` — adds the state row at the menu to the first hull and, while playing, adds this step's shot points, sets lost at 0 lives, and else won with the goal's points once the hull reaches the goal's z.
+- `project.c` — the four entry points: registers all fifteen types; while playing runs the control, hull, turret, gun, shell, lives, state, spawner and enemy before the move and the scroll after, else only the state; the light fade and camera always; the interface is the lives' HUD.
