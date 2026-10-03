@@ -50,6 +50,7 @@ struct voe_audio_mixer {
 	struct mixer_voice voices[VOE_AUDIO_VOICES];
 	uint64_t plays;
 	bool listening;
+	bool paused;
 	voe_audio_listener listener;
 	float pumped[VOE_PLATFORM_SOUND_QUEUE * MIXER_CHANNELS];
 };
@@ -72,6 +73,7 @@ voe_audio_mixer *voe_audio_mixer_new(const char *folder)
 	mixer->keep = keep;
 	mixer->scratch = voe_base_arena_new(MIXER_SCRATCH_BLOCK);
 	mixer->folder = copy_text(keep, folder);
+	mixer->paused = false;
 	return mixer;
 }
 
@@ -328,12 +330,21 @@ void voe_audio_mixer_sweep(voe_audio_mixer *mixer)
 	}
 }
 
+void voe_audio_mixer_pause(voe_audio_mixer *mixer, bool paused)
+{
+	VOE_BASE_ASSERT(mixer != NULL, "pause needs a mixer");
+	mixer->paused = paused;
+}
+
 void voe_audio_mixer_mix(voe_audio_mixer *mixer, float *out, uint32_t frames)
 {
 	VOE_BASE_ASSERT(mixer != NULL && out != NULL, "mix needs a mixer and somewhere to write");
 	const size_t count = (size_t)frames * MIXER_CHANNELS;
 
 	memset(out, 0, count * sizeof(float));
+	// Paused, no voice is aimed or summed, so each keeps its position and ramp.
+	if (mixer->paused)
+		return;
 	for (uint32_t v = 0; v < VOE_AUDIO_VOICES; v++) {
 		struct mixer_voice *voice = &mixer->voices[v];
 

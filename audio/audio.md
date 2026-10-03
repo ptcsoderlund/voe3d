@@ -10,7 +10,7 @@ device (ADR-0265), and the sound component a thing carries with its system
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/audio/mixer.h` — the mixer: start a voice by path and hold its
   handle to stop, tune or move it, loop, pitch, volume, placement from a
-  listener, the held sweep, mix, pump. Its header says why a stale handle is
+  listener, the held sweep, the pause, mix, pump. Its header says why a stale handle is
   harmless and which voice a full mixer takes.
 - `include/audio/place.h` — the listener made from a camera and the left and
   right gains a world point gets from it. Its header says why pan is screen x

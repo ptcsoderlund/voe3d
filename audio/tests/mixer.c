@@ -4,8 +4,9 @@
 // its length and fills both sides), overlap without cutting, the voice limit,
 // that a missing file is reported once and is silence, that "" is quiet, the
 // clamp at 1, and the voice handle: a seamless loop, pitch as read rate, a
-// ramped volume, stop and stale handles, the steal rule, the held sweep, and a
-// voice placed left of a listener heard louder on the left until it is cleared.
+// ramped volume, stop and stale handles, the steal rule, the held sweep, a
+// voice placed left of a listener heard louder on the left until it is cleared,
+// and the pause: silent, then going on exactly as an unpaused twin mixer does.
 //
 // Every clip is mono 16-bit, whose samples are exact in float, so the checks
 // can compare sums with a tight tolerance. The voice count is read through the
@@ -248,6 +249,48 @@ static void placed_left_is_louder_left_until_the_listener_goes(void)
 	voe_audio_mixer_destroy(mixer);
 }
 
+static void paused_is_silent_and_goes_on_where_it_held(void)
+{
+	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
+	voe_audio_mixer *twin = voe_audio_mixer_new(FOLDER);
+	float expected[7 * VOE_PLATFORM_SOUND_CHANNELS];
+
+	write_wav("short.wav", 48000, 10, 1000, 100);
+	const voe_audio_voice voice = start(mixer, "short.wav", true, false, 1.0f);
+
+	VOE_TEST_CHECK(start(twin, "short.wav", true, false, 1.0f).id != 0);
+	voe_audio_mixer_mix(mixer, out, 7);
+	voe_audio_mixer_mix(twin, expected, 7);
+	voe_audio_mixer_mix(twin, expected, 7);
+	voe_audio_mixer_pause(mixer, true);
+	voe_audio_mixer_mix(mixer, out, 7);
+	for (uint32_t f = 0; f < 7; f++)
+		VOE_TEST_CHECK_FLOAT(left(f) + right(f), 0.0f, 0.0f);
+	VOE_TEST_CHECK(voe_audio_mixer_playing(mixer, voice));
+	voe_audio_mixer_pause(mixer, false);
+	voe_audio_mixer_mix(mixer, out, 7);
+	for (uint32_t i = 0; i < 7 * VOE_PLATFORM_SOUND_CHANNELS; i++)
+		VOE_TEST_CHECK_FLOAT(out[i], expected[i], 0.0f);
+	voe_audio_mixer_destroy(twin);
+	voe_audio_mixer_destroy(mixer);
+}
+
+static void started_while_paused_waits_for_the_unpause(void)
+{
+	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
+
+	write_wav("steady.wav", 48000, 300, 8192, 0);
+	voe_audio_mixer_pause(mixer, true);
+	voe_audio_mixer_play(mixer, "steady.wav");
+	voe_audio_mixer_mix(mixer, out, 10);
+	VOE_TEST_CHECK_FLOAT(left(9) + right(9), 0.0f, 0.0f);
+	voe_audio_mixer_pause(mixer, false);
+	voe_audio_mixer_mix(mixer, out, 10);
+	VOE_TEST_CHECK_FLOAT(left(0), 0.25f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(right(9), 0.25f, TOLERANCE);
+	voe_audio_mixer_destroy(mixer);
+}
+
 static void missing_file_reports_once_and_is_silent(void)
 {
 	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
@@ -299,5 +342,7 @@ int main(void)
 	all_looping_refuses_and_a_one_shot_takes_the_oldest();
 	untuned_held_voice_stops_at_the_second_sweep();
 	placed_left_is_louder_left_until_the_listener_goes();
+	paused_is_silent_and_goes_on_where_it_held();
+	started_while_paused_waits_for_the_unpause();
 	return voe_test_result();
 }

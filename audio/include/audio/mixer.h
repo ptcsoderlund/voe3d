@@ -8,7 +8,13 @@
 //     voe_audio_mixer_tune(mixer, hum, 0.5f, 1.2f);          // while it plays
 //     ...once a frame, on the thread that plays:
 //     if (!voe_audio_mixer_pump(mixer, device)) ...           // the device went away
+//     voe_audio_mixer_pause(mixer, true);                     // under a pause menu
 //     voe_audio_mixer_destroy(mixer);
+//
+// PAUSED, IT IS SILENT AND HOLDS ITS PLACE (ADR-0333): a mix writes zeros, no
+// voice advances, ramps or ends; start, stop, tune, move and sweep act as ever,
+// a voice started paused waiting at its first frame. Unpaused, every voice goes
+// on from the frame it held. The pump still writes; the device never starves.
 //
 // EVERY SOUND GOES THROUGH HERE, IN FLOAT (ADR-0265). The device only receives
 // finished samples; effects are work in this folder, never in an OS backend.
@@ -117,6 +123,9 @@ void voe_audio_mixer_tune(voe_audio_mixer *mixer, voe_audio_voice voice,
 // Stops every held voice not tuned or moved since the last sweep, then clears
 // the marks.
 void voe_audio_mixer_sweep(voe_audio_mixer *mixer);
+
+// Pauses or resumes every voice. See "PAUSED" above.
+void voe_audio_mixer_pause(voe_audio_mixer *mixer, bool paused);
 
 // Writes frames stereo frames to out: every voice summed and clamped to ±1,
 // zeros where none plays. A voice past its end is free again.
