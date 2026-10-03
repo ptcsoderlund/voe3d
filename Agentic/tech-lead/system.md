@@ -57,4 +57,4 @@ workflow replaced specs.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
-- 0333–0340, 0342 — Pause, restart; waves, goal; identities; fade; Linux only; Release; copy.
+- 0333–0340, 0342, 0343 — Pause, restart; waves, goal; ids; fade; Linux; Release; copy; browse.
