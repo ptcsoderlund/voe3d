@@ -40,8 +40,10 @@
 // which are only ever on an authored entity, and its prefab rows, which are
 // only on an authored root and its parts. The editor's Scene panel lists
 // exactly this many rows. It stays small while the world grows because a thing
-// game code spawns carries no identity (0283 point 11).
-#define VOE_GAME_WORLD_AUTHORED 32
+// game code spawns carries no identity (0283 point 11). It is 128 to hold a
+// level several times the tank game's, which filled 32, while staying half
+// the drawn room so a full level still leaves draws for spawned things (0337).
+#define VOE_GAME_WORLD_AUTHORED 128
 
 // How many emitters, and so particles rows, a world holds: the room of drawn
 // things, because an effect sits on a drawn thing and a spawned wreck keeps
