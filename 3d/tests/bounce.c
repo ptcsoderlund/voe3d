@@ -36,6 +36,14 @@
 // one gives one; remembered again, unmoved, it marks none. The ground never
 // moves and marks nothing throughout.
 //
+// THE BOX OF THE STILL CASTERS (0332 point 1). A 40 × 0.1 × 40 ground at
+// y −0.05 and a 2 m cube at (5, 1, 0), the built-in cube a unit one, box
+// (−20, −0.1, −20) to (20, 2, 20) within 1e-4, the same with the eye at the
+// origin and at (10 km, 5, −10 km). The cube turned 45° about y, the ground
+// hidden, spans 5 ± √2 in x. A cube moved this step leaves the ground's box, a
+// ground with `cast_shadows` false the cube's, and both moved answer false
+// with the corners untouched.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/shadows.c does.
 #include "../src/draw_bounce.h"
@@ -60,6 +68,7 @@
 #include <scene/point_light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
+#include <math/quat.h>
 
 #include <testing/test.h>
 
@@ -341,6 +350,142 @@ static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
 	voe_base_arena_destroy(arena);
 }
 
+// A cube caster `at`, scaled by `scale` and turned `turn` radians about y,
+// casting when `casts`; the entity.
+static voe_ecs_entity add_a_caster(voe_ecs_world *world, voe_math_double3 at,
+				   voe_math_float3 scale, float turn, bool casts)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){
+			.position = at,
+			.rotation = voe_math_quat_from_axis_angle(
+				(voe_math_float3){ 0.0f, 1.0f, 0.0f }, turn),
+			.scale = scale }));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, entity,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = { 1.0f, 1.0f, 1.0f },
+				.cast_shadows = casts }));
+	return entity;
+}
+
+// The camera, the ground into `ground`, casting when `ground_casts`, and the
+// cube turned `turn` into `cube`, every transform remembered.
+static voe_ecs_world *a_level(voe_base_arena *arena, const voe_3d_shapes *shapes,
+			      float turn, bool ground_casts,
+			      voe_ecs_entity *ground, voe_ecs_entity *cube)
+{
+	voe_ecs_limits limits = {
+		.entities = 4,
+		.component_types = 16,
+		.intent_types = 16,
+		.structure_requests = 16,
+		.structure_bytes = 1024,
+	};
+	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
+	voe_ecs_entity camera = { 0 };
+
+	voe_scene_transform_register(world, 4);
+	voe_scene_transform_previous_register(world, 4);
+	voe_scene_camera_register(world, 1);
+	voe_scene_light_register(world, 1);
+	voe_3d_mesh_register(world, 4);
+	voe_3d_material_register(world, 4);
+	voe_3d_shape_register(world, 4);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, camera,
+		(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_camera_add(
+		world, camera,
+		(voe_scene_camera){ .fov_y = 1.0471976f,
+				    .near_plane = 0.1f,
+				    .far_plane = 100.0f }));
+	*ground = add_a_caster(world, (voe_math_double3){ 0.0, -0.05, 0.0 },
+			       (voe_math_float3){ 40.0f, 0.1f, 40.0f }, 0.0f,
+			       ground_casts);
+	*cube = add_a_caster(world, (voe_math_double3){ 5.0, 1.0, 0.0 },
+			     (voe_math_float3){ 2.0f, 2.0f, 2.0f }, turn, true);
+	voe_3d_shape_system_run(world, shapes);
+	voe_scene_transform_remember(world);
+	return world;
+}
+
+// Moves `entity` a metre along x this step.
+static void step_aside(voe_ecs_world *world, voe_ecs_entity entity)
+{
+	voe_scene_transform moved = *voe_scene_transform_get(world, entity);
+
+	moved.position.x += 1.0;
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ entity, moved }));
+	voe_scene_transform_system_run(world);
+}
+
+// Whether the still casters' box is `low` to `high` within 1e-4.
+static bool boxed(const voe_ecs_world *world, const voe_render_device *device,
+		  const voe_3d_frame *frame, voe_math_double3 low,
+		  voe_math_double3 high)
+{
+	voe_math_double3 min = { 0 };
+	voe_math_double3 max = { 0 };
+
+	if (!voe_3d_bounce_box(world, device, frame, &min, &max))
+		return false;
+	printf("box %g %g %g to %g %g %g\n", min.x, min.y, min.z, max.x, max.y,
+	       max.z);
+	return fabs(min.x - low.x) < 1e-4 && fabs(min.y - low.y) < 1e-4 &&
+	       fabs(min.z - low.z) < 1e-4 && fabs(max.x - high.x) < 1e-4 &&
+	       fabs(max.y - high.y) < 1e-4 && fabs(max.z - high.z) < 1e-4;
+}
+
+// The level's box at two eyes, turned, with a caster moved, not casting,
+// hidden, and with none still.
+static void still_casters_box_the_level(const voe_render_device *device,
+					const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	const double r = sqrt(2.0);
+	voe_math_double3 untouched = { 7.0, 7.0, 7.0 };
+	voe_math_double3 also = untouched;
+	voe_ecs_entity ground, cube;
+	voe_ecs_world *world = a_level(arena, shapes, 0.0f, true, &ground, &cube);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+
+	VOE_TEST_CHECK(boxed(world, device, &frame, (voe_math_double3){ -20, -0.1, -20 },
+			     (voe_math_double3){ 20, 2, 20 }));
+	frame.eye = (voe_math_double3){ 10000.0, 5.0, -10000.0 };
+	VOE_TEST_CHECK(boxed(world, device, &frame, (voe_math_double3){ -20, -0.1, -20 },
+			     (voe_math_double3){ 20, 2, 20 }));
+
+	world = a_level(arena, shapes, 0.78539816f, true, &ground, &cube);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	frame.hidden = ground;
+	VOE_TEST_CHECK(boxed(world, device, &frame, (voe_math_double3){ 5 - r, 0, -r },
+			     (voe_math_double3){ 5 + r, 2, r }));
+
+	world = a_level(arena, shapes, 0.0f, false, &ground, &cube);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	VOE_TEST_CHECK(boxed(world, device, &frame, (voe_math_double3){ 4, 0, -1 },
+			     (voe_math_double3){ 6, 2, 1 }));
+
+	world = a_level(arena, shapes, 0.0f, true, &ground, &cube);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	step_aside(world, cube);
+	VOE_TEST_CHECK(boxed(world, device, &frame, (voe_math_double3){ -20, -0.1, -20 },
+			     (voe_math_double3){ 20, 0, 20 }));
+	step_aside(world, ground);
+	VOE_TEST_CHECK(!voe_3d_bounce_box(world, device, &frame, &untouched, &also));
+	VOE_TEST_CHECK(untouched.x == 7.0 && also.z == 7.0);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -363,6 +508,7 @@ int main(void)
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
 	moved_casters_mark_spheres(&shapes);
+	still_casters_box_the_level(device, &shapes);
 	captures = voe_render_point_shadows_ready(device);
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);

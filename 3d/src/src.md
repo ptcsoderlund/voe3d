@@ -85,11 +85,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
-- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the cascades' caster
-  walk and casting test it shares; internal.
+- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
+  and the cascades' caster walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted, the target's bounce begun
   with the lights and stale spheres, the casters drawn into each capture pass and a casting sun's
-  own map, and the relight.
+  own map, and the relight; and the still casters' world box, corners placed in double.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.

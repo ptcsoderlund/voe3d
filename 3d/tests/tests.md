@@ -43,7 +43,8 @@ again, or to find where a claim that has started failing is written down.
   Skips without a graphics card.
 - `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
   that bounces, two views in one frame each drawing their sun map, and the stale spheres a moved
-  wall marks. Skips without a card.
+  wall marks, and the still casters' box at two eyes, turned, and without moved, hidden or
+  non-casting ones. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
   the ground it faces, its foot's shadow stays as at bounces 0, open ground stays even, the grid
   settles, and camera turns change nothing. Skips without a card.

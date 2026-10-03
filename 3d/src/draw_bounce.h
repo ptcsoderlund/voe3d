@@ -16,11 +16,14 @@
 // sphere of VOE_3D_BOUNCE_REACH at each place, about the frame's eye; render
 // captures the probes in it again. A world with no previous table, or a caster
 // never remembered, blends as its current row and marks nothing.
+//
+// THE STILL CASTERS' BOX is what the grid will be fitted to (0332 point 1).
 #pragma once
 
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <ecs/world.h>
+#include <math/double3.h>
 #include <math/float4.h>
 #include <render/device.h>
 
@@ -45,6 +48,15 @@ bool voe_3d_draw_light_casts(const voe_ecs_world *world);
 uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 			     const voe_3d_frame *frame, voe_math_float4 *spheres,
 			     uint32_t room);
+
+// The world box, in double about the world origin, of every caster drawn into
+// a capture pass (meshes and the frame's model parts) that did not move this
+// step, into `min` and `max`; false and nothing written when none is still. A
+// mesh whose id names nothing is skipped (0332 point 1).
+bool voe_3d_bounce_box(const voe_ecs_world *world,
+		       const voe_render_device *device,
+		       const voe_3d_frame *frame, voe_math_double3 *min,
+		       voe_math_double3 *max);
 
 // Fits the probe volume to the frame's eye, not its view, begins `frame->target`'s
 // bounce with this step's stale spheres, the frame's light with the light row's
