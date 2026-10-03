@@ -1,6 +1,6 @@
 // A PASS'S POINT LIGHTS LIGHT ITS SURFACES, AND ONLY WHERE THEY REACH (ADR-0320).
 // A grey ground quad seen straight down from 10 m, a sun of intensity 0 and no
-// fill, so whatever is not black is a point light's. Six cases:
+// fill, so whatever is not black is a point light's. Seven cases:
 //
 // 1. one red light 1 m above the quad's middle, range 3: the pixel under it red
 //    above 0.2 with green and blue near nought, and a pixel 5 m off black;
@@ -13,7 +13,9 @@
 //    the ground, about 0.85 of the reach, brighter at 0.25 than at 1 and at 1
 //    than at 4, and the pixel under the light no darker at 0.25 than at 1;
 // 6. the first light with `shadow` 3 and strength 1 (ADR-0325): the ground lit
-//    exactly as case 1, because this device has no point shadows.
+//    exactly as case 1, because this device has no point shadows;
+// 7. the first light with bounces 3 and bounce strength 2 (ADR-0326): the
+//    ground lit exactly as case 1, because the fields light nothing directly.
 //
 // Every light is falloff 1 but case 5's others, so cases 1 to 4 keep the
 // numbers they had before falloff.
@@ -40,7 +42,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 8
+#define CASES 9
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -272,6 +274,7 @@ int main(void)
 	const float falloffs[3] = { 0.25f, 1.0f, 4.0f };
 	voe_render_point_light bent[3];
 	voe_render_point_light slotted = middle[0];
+	voe_render_point_light bouncing = middle[0];
 	const voe_render_point_lights one = { middle, 1 };
 	const voe_render_point_lights none = { 0 };
 	const voe_render_point_lights two = { sides, 2 };
@@ -332,6 +335,11 @@ int main(void)
 	draw_case(device, ground, shading, dark,
 		  (voe_render_point_lights){ &slotted, 1 }, readback.buffer,
 		  IMAGE_BYTES * 7);
+	bouncing.bounces = 3;
+	bouncing.bounce_strength = 2.0f;
+	draw_case(device, ground, shading, dark,
+		  (voe_render_point_lights){ &bouncing, 1 }, readback.buffer,
+		  IMAGE_BYTES * 8);
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -355,6 +363,8 @@ int main(void)
 		VOE_TEST_CHECK(pixel_at(mapped, 4, SIDE / 2, SIDE / 2)[RED] >=
 			       pixel_at(mapped, 5, SIDE / 2, SIDE / 2)[RED]);
 		VOE_TEST_CHECK(memcmp(pixel_at(mapped, 7, 0, 0),
+				      pixel_at(mapped, 0, 0, 0), IMAGE_BYTES) == 0);
+		VOE_TEST_CHECK(memcmp(pixel_at(mapped, 8, 0, 0),
 				      pixel_at(mapped, 0, 0, 0), IMAGE_BYTES) == 0);
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}

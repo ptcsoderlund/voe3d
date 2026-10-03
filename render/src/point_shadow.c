@@ -7,8 +7,9 @@
 //
 // THE PASS is opened here through pass.c's start and light copy and closed by
 // its _pass_end, which calls voe_render_point_shadow_to_read. Its camera block
-// is a shadow pass's with no view: the vertex stage reads only the lights,
-// written into the pass's region at index slot − 1, so layer / 6 finds its own.
+// is a shadow pass's with no view and no probe volume, its spacing nought: the
+// vertex stage reads only the lights, written into the pass's region at index
+// slot − 1, so layer / 6 finds its own.
 //
 // THE LAYER OF SLOT s FACE f. Slot s is 1-based (0 is no shadow), faces are in
 // the order +X −X +Y −Y +Z −Z, f from 0: layer 6(s − 1) + f.
@@ -313,8 +314,6 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 	VOE_BASE_ASSERT(lights != NULL, "opening a point-shadow pass with no lights");
 	VOE_BASE_ASSERT(device->recording,
 			"opening a point-shadow pass with no frame open");
-	if (device->pass_open && device->pass_bounce)
-		voe_render_pass_end(device);
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a point-shadow pass while a pass is already open — passes do not nest");
 	VOE_BASE_ASSERT(voe_render_point_shadows_ready(device),
@@ -331,7 +330,6 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 	place_casters(device, frame, device->pass_count, lights);
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
 	block.region = device->pass_count;
 	block.lights = VOE_RENDER_POINT_SHADOWS;
 	extent = (VkExtent2D){ device->point_shadow_size,
@@ -352,7 +350,6 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 			      device->pipeline_point_shadow);
 	device->pass_camera = true;
 	device->pass_shadow = false;
-	device->pass_bounce = false;
 	device->pass_point_shadow = true;
 	return true;
 }

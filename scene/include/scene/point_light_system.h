@@ -23,7 +23,9 @@
 //
 // NOTHING IS NORMALIZED OR CORRECTED; A BAD LIGHT IS REFUSED. A number that is
 // not finite, a colour channel outside [0, 1], a negative intensity, a range of
-// nought or less, or a falloff outside LEAST..MOST has no nearest right answer,
+// nought or less, a falloff outside LEAST..MOST, bounces past
+// VOE_SCENE_LIGHT_BOUNCES_MAX or a negative bounce strength has no nearest
+// right answer,
 // so `add` asserts on one and the drain keeps the last valid row and says so on
 // stderr, one line per refused intent. An intent naming an entity with no light
 // is dropped silently: a destroyed entity is what a queue costs.
@@ -38,7 +40,8 @@
 #include <stdint.h>
 
 // Registers the table (default row white, intensity 1, range 5 m, falloff 1,
-// cast_shadows false; the transform it needs; its menu path; the whole-row intent as its replace)
+// cast_shadows false, bounces 0, bounce strength 1; the transform it needs; its
+// menu path; the whole-row intent as its replace)
 // with room for `capacity`. Once per world, after the transform table (it
 // asserts on none).
 void voe_scene_point_light_register(voe_ecs_world *world, uint32_t capacity);

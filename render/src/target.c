@@ -31,11 +31,6 @@
 // SHADER_READ_ONLY_OPTIMAL from the moment it is made, so every descriptor naming
 // it agrees with its image.
 //
-// EVERY TARGET HAS A BOUNCE GRID (ADR-0308 point 3), built here: three RGBA16F
-// 3D images cleared to nought in one one-off command and left in GENERAL, then
-// named at binding 6. One copy, not per slot. The window's is built by the
-// first voe_render_target_build and outlives every resize; target_own.c frees it.
-//
 // The targets of a caller's own are target_own.c's and the read back into an
 // arena is target_read.c's; both build on the image helpers here.
 #include "device_internal.h"
@@ -290,7 +285,7 @@ static void record_clears(VkCommandBuffer commands,
 
 // The one-shot shape copy_into_image in texture.c has, with its blunt masks for
 // the reason that file gives: nothing else is on the queue, and this idles.
-// `barriers`, then each of `clears` cleared; settle and the grid's build call it.
+// `barriers`, then each of `clears` cleared; the two settles call it.
 static bool submit_once(voe_render_device *device,
 			const VkImageMemoryBarrier2 *barriers, uint32_t count,
 			const VkImage *clears, uint32_t clear_count)
@@ -363,158 +358,12 @@ bool voe_render_target_settle(voe_render_device *device,
 	return submit_once(device, barriers, count, NULL, 0);
 }
 
-// One of a grid's three images: RGBA16F, VOE_RENDER_BOUNCE_PROBES³, storage and
-// sampled, and a transfer destination for its one clear. The 3D counterpart of
-// voe_render_target_image_build, with the same messages.
-static bool build_grid_image(voe_render_device *device,
-			     struct voe_render_allocated_image *out)
+bool voe_render_target_settle_cleared(voe_render_device *device,
+				      const VkImageMemoryBarrier2 *barriers,
+				      uint32_t count, const VkImage *clears,
+				      uint32_t clear_count)
 {
-	VkImageCreateInfo info = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_3D,
-		.format = VK_FORMAT_R16G16B16A16_SFLOAT,
-		.extent = { VOE_RENDER_BOUNCE_PROBES, VOE_RENDER_BOUNCE_PROBES,
-			    VOE_RENDER_BOUNCE_PROBES },
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-			 VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-	VkImageViewCreateInfo view = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.viewType = VK_IMAGE_VIEW_TYPE_3D,
-		.format = info.format,
-		.subresourceRange = {
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.levelCount = 1,
-			.layerCount = 1,
-		},
-	};
-	VkMemoryRequirements requirements;
-	VkMemoryAllocateInfo allocate = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-	};
-	VkResult result;
-
-	VOE_BASE_DEBUG_ASSERT(device != NULL && out != NULL,
-			      "building a grid image with no device or nowhere");
-	result = voe_render_vk.create_image(device->device, &info, NULL,
-					    &out->image);
-	if (result != VK_SUCCESS) {
-		VOE_BASE_ERROR("render",
-			       "vkCreateImage failed for a bounce grid (VkResult %d)",
-			       (int)result);
-		out->image = VK_NULL_HANDLE;
-		return false;
-	}
-	voe_render_vk.get_image_memory_requirements(device->device, out->image,
-						    &requirements);
-	allocate.allocationSize = requirements.size;
-	allocate.memoryTypeIndex = voe_render_memory_type(
-		device, requirements.memoryTypeBits,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	if (allocate.memoryTypeIndex == UINT32_MAX) {
-		VOE_BASE_ERROR("render",
-			       "this graphics card offers no device-local memory a bounce grid can live in");
-		return false;
-	}
-	result = voe_render_vk.allocate_memory(device->device, &allocate, NULL,
-					       &out->memory);
-	if (result != VK_SUCCESS) {
-		VOE_BASE_ERROR("render",
-			       "vkAllocateMemory failed for a bounce grid (VkResult %d)",
-			       (int)result);
-		out->memory = VK_NULL_HANDLE;
-		return false;
-	}
-	result = voe_render_vk.bind_image_memory(device->device, out->image,
-						 out->memory, 0);
-	view.image = out->image;
-	if (result == VK_SUCCESS)
-		result = voe_render_vk.create_image_view(device->device, &view,
-							 NULL, &out->view);
-	if (result != VK_SUCCESS) {
-		VOE_BASE_ERROR("render",
-			       "binding or viewing a bounce grid failed (VkResult %d)",
-			       (int)result);
-		out->view = VK_NULL_HANDLE;
-		return false;
-	}
-	return true;
-}
-
-void voe_render_bounce_grid_teardown(voe_render_device *device,
-				     struct voe_render_bounce_grid *grid)
-{
-	VOE_BASE_DEBUG_ASSERT(device != NULL && grid != NULL,
-			      "tearing down a grid with no device or grid");
-	for (uint32_t k = 0; k < 3; k++)
-		voe_render_target_image_teardown(device, &grid->sh[k]);
-	*grid = (struct voe_render_bounce_grid){ 0 };
-}
-
-bool voe_render_bounce_grid_build(voe_render_device *device,
-				  struct voe_render_bounce_grid *grid,
-				  uint32_t index)
-{
-	VkImageMemoryBarrier2 barriers[3];
-	VkImage images[3];
-
-	VOE_BASE_DEBUG_ASSERT(device != NULL && grid != NULL,
-			      "building a grid with no device or grid");
-	VOE_BASE_DEBUG_ASSERT(grid->sh[0].image == VK_NULL_HANDLE,
-			      "building a grid that is already built");
-
-	for (uint32_t k = 0; k < 3; k++) {
-		if (!build_grid_image(device, &grid->sh[k])) {
-			voe_render_bounce_grid_teardown(device, grid);
-			return false;
-		}
-		images[k] = grid->sh[k].image;
-		barriers[k] = (VkImageMemoryBarrier2){
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-			.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-			.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.newLayout = VK_IMAGE_LAYOUT_GENERAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = images[k],
-			.subresourceRange = {
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.levelCount = 1,
-				.layerCount = 1,
-			},
-		};
-	}
-	if (!submit_once(device, barriers, 3, images, 3)) {
-		voe_render_bounce_grid_teardown(device, grid);
-		return false;
-	}
-	grid->descriptor = 3 * index;
-	voe_render_descriptors_write_grid(device, grid, index);
-	return true;
-}
-
-// The window's grid, built once by the first voe_render_target_build. Its
-// views fill every grid's entries until that grid is built, so the whole of
-// binding 6 is valid descriptors from here on.
-static bool build_window_grid(voe_render_device *device)
-{
-	VOE_BASE_DEBUG_ASSERT(device != NULL, "a window grid on no device");
-	if (device->window_grid.sh[0].image != VK_NULL_HANDLE)
-		return true;
-	if (!voe_render_bounce_grid_build(device, &device->window_grid, 0))
-		return false;
-	for (uint32_t i = 1; i <= device->capacities.targets; i++)
-		voe_render_descriptors_write_grid(device, &device->window_grid,
-						  i);
-	return true;
+	return submit_once(device, barriers, count, clears, clear_count);
 }
 
 uint32_t voe_render_target_free_texture(const voe_render_device *device,
@@ -625,7 +474,7 @@ bool voe_render_target_build(voe_render_device *device, voe_platform_size size)
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a target for nothing");
 
 	voe_render_target_teardown(device);
-	if (!claim_window_depth_texture(device) || !build_window_grid(device))
+	if (!claim_window_depth_texture(device))
 		return false;
 
 	// A window with no area is a window nothing can be drawn for, and it is

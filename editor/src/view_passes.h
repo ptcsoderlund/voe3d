@@ -25,31 +25,31 @@
 // 3d/shape_system.h — and the model store's room on top (VOE_3D_MODELS_*,
 // 3d/models.h, ADR-0277). `objects` is per frame: every drawn entity is one
 // object in every view's pass, and a model part is an object too, so it is
-// twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's
-// — every project's world is registered with that much room for a mesh and a
-// material, so a device that draws one is sized from the same number), one more for the selected
-// entity's outline, which is drawn into every view's pass too, and two more
-// for the gizmo's handles at rest and its marked one, one for the camera's
-// marker, one for the sun's, one for the selection's collider and two for the
-// point lights' markers, times the room for views, and the drawn entities once more for the
-// preview's pass, which draws the world alone; and every caster once per
-// cascade, once for the bounce map and once for the lamps' point-shadow pass,
-// VOE_GAME_WORLD_MAX_DRAWN × (VOE_RENDER_SHADOW_CASCADES + 2), per view and
-// for the preview (0308, 0325 point 7); and every emitter's particles, VOE_GAME_WORLD_EMITTERS ×
-// VOE_3D_EMITTER_PARTICLES, an object each in every view's pass and the
-// preview's (0298 point 8); and every water, VOE_GAME_WORLD_WATERS, an object
-// each in every view's pass and the preview's — water casts no shadow, so it
-// adds nothing per cascade (0305). `passes` is a pass per view, the preview's and the
-// interface's, and a shadow pass per cascade, one bounce pass and one
-// point-shadow pass for each view and the preview (`shadow_size` is
-// VOE_3D_SHADOW_TEXELS, 3d/shadow_cascades.h, `point_shadow_size`
-// VOE_3D_POINT_SHADOW_TEXELS), and
-// `targets` a target per view and the preview's, each with its own probe grid
-// (0308 point 3), each two texture slots now, its colour and its depth copy
-// (0305 point 1) — both from the room for views, not the two in use, so a
-// third view is a leaf and not a capacity. The three transient numbers are
-// what the selection outline's quads are copied into: one outline per view's
-// pass, sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
+// twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's —
+// every project's world is registered with that much room for a mesh and a
+// material, so a device that draws one is sized from the same number), one more
+// for the selected entity's outline, drawn into every view's pass too, two for
+// the gizmo's handles at rest and its marked one, one for the camera's marker,
+// one for the sun's, one for the selection's collider and two for the point
+// lights' markers, times the room for views, and the drawn entities once more
+// for the preview's pass, which draws the world alone; and every caster once
+// per cascade, point-shadow pass, capture pass and bounce shadow pass (the
+// relight's sun map), per view and for the preview (0325 point 7, 0326 points
+// 3 and 8, 0329 point 3); and every emitter's particles, VOE_GAME_WORLD_EMITTERS
+// × VOE_3D_EMITTER_PARTICLES, and every water, VOE_GAME_WORLD_WATERS, an object
+// each in every view's pass and the preview's — neither casts a shadow, so they
+// add nothing per cascade (0298 point 8, 0305).
+// `passes` is a pass per view, the preview's and the interface's, and for each
+// view and the preview a shadow pass per cascade, one point-shadow pass, up to
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and one bounce shadow pass on
+// a frame that relights a casting sun (`shadow_size` is VOE_3D_SHADOW_TEXELS,
+// 3d/shadow_cascades.h, `point_shadow_size` VOE_3D_POINT_SHADOW_TEXELS), and
+// `targets` a target per view and the preview's, each with its own probe volume
+// (0326 point 2) and two texture slots, its colour and its depth copy (0305
+// point 1) — both from the room for views, not the two in use, so a third view
+// is a leaf and not a capacity. The three transient numbers are what the
+// selection outline's quads are copied into: one outline per view's pass,
+// sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
 // The gizmo's quads go there too: one gizmo per view's pass, two ranges and
 // two draws, its share the larger of the arrows' and the rings' so either
 // mode fits (ADR-0205, 0274, 3d/draw_system.h). So do the camera marker's:
@@ -122,7 +122,8 @@
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
-				   (VOE_RENDER_SHADOW_CASCADES + 2) *          \
+				   (VOE_RENDER_SHADOW_CASCADES + 1 +           \
+				    VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1) *    \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
@@ -130,7 +131,8 @@
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2 +                               \
-			  (VOE_RENDER_SHADOW_CASCADES + 2) *                   \
+			  (VOE_RENDER_SHADOW_CASCADES + 1 +                    \
+			   VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1) *             \
 				  (VOE_EDITOR_VIEWS + 1),                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,               \

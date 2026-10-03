@@ -91,6 +91,7 @@ static voe_ecs_world *small_world(voe_base_arena *arena)
 		.fill_intensity = 0.25f,
 		.bounces = 1,
 		.cast_shadows = true,
+		.bounce_strength = 0.5f,
 	}));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
 		.position = { 0.1, -0.0, 2.0 },
@@ -166,7 +167,8 @@ static void test_cook_exact_text(void)
 		".intensity = 0x1.8p+1f, "
 		".fill_colour = { 0x1p+0f, 0x1p+0f, 0x1p+0f }, "
 		".fill_intensity = 0x1p-2f, "
-		".bounces = 1u, .cast_shadows = true }))\n"
+		".bounces = 1u, .cast_shadows = true, "
+		".bounce_strength = 0x1p-1f }))\n"
 		"\t\treturn false;\n"
 		"\treturn true;\n"
 		"}\n");

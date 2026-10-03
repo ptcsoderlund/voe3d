@@ -320,13 +320,15 @@ typedef struct {
 	// (0277 point 3): with NULL no model draws and the model table is not
 	// read. _frame leaves it NULL; the caller sets it.
 	const voe_3d_models *models;
-	// The target this frame draws to, whose bounce grid the shadows call
-	// updates (0308 point 7). Zero, VOE_RENDER_TARGET_WINDOW, is the
+	// The target this frame draws to, whose probe volume the shadows call
+	// begins, captures and relights (0326 point 8). Zero, VOE_RENDER_TARGET_WINDOW, is the
 	// window, so a caller that sets nothing is unchanged; _frame sets that.
 	voe_render_target target;
 } voe_3d_frame;
 
-// Metres about a moved caster whose bounce probes go stale (0308 point 7).
+// The least metres about a moved caster whose probes in the volume are captured
+// again (0326 point 4); on a coarser grid the radius is 3 of its cells (0332
+// point 4).
 #define VOE_3D_BOUNCE_REACH 6.0f
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -407,7 +409,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // Fills `frame->points` from every point light whose entity has a transform
 // (0320 point 6): its world place at `frame->lag`, about `frame->eye` in float
 // (ADR-0250); its range and its falloff as authored (0322); its colour times
-// its intensity. A light of intensity 0 is left out, and past
+// its intensity; its `bounces` and `bounce_strength` copied as authored (0326
+// point 1). A light of intensity 0 is left out, and past
 // VOE_RENDER_POINT_LIGHTS the rest are left out in table order. The array is in `arena`. A world with no point light table
 // fills none and returns true. False with `points` zeroed when the arena is
 // full — which base's arena never is, since its push aborts rather than fails
@@ -451,22 +454,29 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // passes and 4 × the drawn objects more per view: every caster is drawn once
 // into each cascade.
 //
-// AND ONE BOUNCE PASS AFTER THE CASCADES (0308), only when it drew cascades and
-// the world's light, the row voe_3d_draw_system_light reads, has `bounces` of 1
-// or more (0319): it fits the bounce grid, draws the casters once more into the
-// bounce map and updates `frame->target`'s grid. At 0, or with no light, there
-// is no bounce pass, draw or update. Only for a light that bounces does a
-// caller's `passes` need 1 + cascades + 1 and its `objects` one more draw per
-// caster; false as before when any call fails. Stale spheres are marked where a caster moved this step (lag 1 against
-// lag 0), so a world without a previous table marks none and the grid catches
-// up by its cycle.
-//
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun cast: when
 // voe_render_point_shadows_ready and a light in `frame->points` has a slot, it
 // opens the pass for those lights and draws the same casters into it, so
 // `frame->points` is filled before this call. That is one more pass and at most
 // one more object per caster, a device's `point_shadow_size`
 // VOE_3D_POINT_SHADOW_TEXELS; false as before when render refuses.
+//
+// THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun cast, when the
+// frame is not blind and either the world's light row has `bounces` of 1 or
+// more with the frame's light of some strength and not `unshaded`, or a light
+// in `frame->points` has `bounces` of 1 or more. It fits the probe volume to
+// the still casters' box, not about `frame->eye`, so the camera never moves it
+// (0331, 0332); begins `frame->target`'s bounce, opens capture passes while
+// render has probes to capture, drawing the casters into each, and relights.
+// That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
+// objects per caster. On a frame that relights a sun that bounces and casts it
+// opens one more pass, and one more object per caster: the relight's own sun
+// map, fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
+// so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
+// volume and shows none. Stale spheres are marked where a caster moved this
+// step (lag 1 against lag 0), so a world without a previous table marks none.
+// When nothing bounces nothing is begun, built or drawn (0316); false as before
+// when any call fails.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);

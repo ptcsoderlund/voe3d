@@ -53,5 +53,5 @@ uint32_t voe_render_card_rank(const voe_render_card_facts *cards, uint32_t count
 					  voe_base_arena *arena);
 
 // Fills device->pipeline, device->pipeline_blended, device->pipeline_shadow,
-// device->pipeline_bounce and device->layout.
+// device->pipeline_point_shadow, device->pipeline_capture and device->layout.
 [[nodiscard]] bool voe_render_pipelines_create(voe_render_device *device);

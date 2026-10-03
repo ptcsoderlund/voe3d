@@ -10,10 +10,10 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
-- `bounce_grid.c` — that the grid stands 32 m ahead in whole cells, its corner
-  is its cell about the eye 10 km out, 2 m along x is one cell, its corners lie
-  in the light box and a 1 cm move keeps the origin on its 8-texel block. Needs
-  no graphics card.
+- `bounce_grid.c` — that the probe volume fits the level's box, not the eye:
+  the same cell and spacing from three eyes, a centre
+  across a cell edge one cell on, no box about the origin, and a sun view that
+  holds the volume and grows with the spacing. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -35,16 +35,19 @@ again, or to find where a claim that has started failing is written down.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
   and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
   or without it. Skips without a graphics card.
-- `point_lights.c` — that a frame's point lights are the table's about the eye, the nearest 16
+- `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces, the nearest 16
   casting lamps take the shadow slots, and one lights the ground under it. The picture skips
   without a graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
-- `bounce.c` — the shadows call's pass count with and without bounces, and the stale spheres a
-  moved wall marks. Skips without a graphics card.
-- `bounce_scene.c` — bug 01 through the editor's calls at sun 1 and π: the red box tints nearby
-  ground while its own shadow stays faint and no ground darkens. Skips without a graphics card.
+- `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
+  that bounces, two views in one frame each drawing their sun map, and the stale spheres a moved
+  wall marks, and the still casters' box at two eyes and turned. Skips without a card.
+- `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
+  the ground it faces, open ground stays even, the grid
+  settles, and camera turns and moves change nothing, nor does a far eye take the bounce. Skips
+  without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.

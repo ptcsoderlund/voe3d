@@ -1,4 +1,4 @@
-// The five mesh pipelines, solid, blended, shadow, bounce and point shadow, and the pipeline layout every
+// The five mesh pipelines, solid, blended, shadow, point shadow and capture, and the pipeline layout every
 // pipeline in this folder shares. A step of startup; device.c's open_device
 // calls voe_render_pipelines_create once, after the descriptors — see startup.h.
 //
@@ -17,10 +17,12 @@
 // does not blend; the blended one tests depth the same way, writes none, and
 // blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
 // the colour attachment, culls nothing, and biases the depth it writes away from
-// the sun. The bounce one (ADR-0308) culls as shadow does and writes flux and
-// normal into two RGBA16F attachments, unblended. The point-shadow one (ADR-0325)
+// the sun. The point-shadow one (ADR-0325)
 // is the shadow one with its own vertex stage, which writes the layer; it is
-// built only on a device with shaderOutputLayer. The shader module, the vertex input, the layout are shared, which is
+// built only on a device with shaderOutputLayer, as is the capture one (ADR-0326):
+// its own vertex stage writing the layer, its own fragment writing albedo (RGBA8
+// sRGB) and normal with distance (RGBA16F), nothing culled, unbiased, unblended.
+// The shader module, the vertex input, the layout are shared, which is
 // what keeps them from drifting apart: create_pipeline's `kind` is the whole of
 // the difference.
 //
@@ -63,16 +65,17 @@ static alignas(uint32_t) const unsigned char draw_spv[] = {
 // keeps these two strings true.
 #define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
 #define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
-#define DRAW_BOUNCE_ENTRY "voe_render_draw_bounce"
 #define POINT_SHADOW_VERTEX_ENTRY "voe_render_point_shadow_vertex"
+#define CAPTURE_VERTEX_ENTRY "voe_render_capture_vertex"
+#define CAPTURE_FRAGMENT_ENTRY "voe_render_capture_fragment"
 
 // Which of the five create_pipeline builds.
-enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_BOUNCE,
-		 MESH_POINT_SHADOW };
+enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_POINT_SHADOW,
+		 MESH_CAPTURE };
 
-// The bounce map's two colour attachments, flux and normal (bounce_map.c).
-static const VkFormat bounce_formats[2] = { VK_FORMAT_R16G16B16A16_SFLOAT,
-					    VK_FORMAT_R16G16B16A16_SFLOAT };
+// The capture scratch's two, albedo and normal with distance (bounce_capture.c).
+static const VkFormat capture_formats[2] = { VK_FORMAT_R8G8B8A8_SRGB,
+					     VK_FORMAT_R16G16B16A16_SFLOAT };
 
 // THE SHADOW PIPELINE'S DEPTH BIAS, AND BOTH ARE NEGATIVE BECAUSE DEPTH RUNS
 // BACKWARDS. Bias exists to push a caster's stored depth away from the sun, so a
@@ -96,8 +99,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// The point-shadow pipeline is the shadow one but for its vertex entry.
 	const bool point_shadow = kind == MESH_POINT_SHADOW;
 	const bool shadow = kind == MESH_SHADOW || point_shadow;
-	const bool bounce = kind == MESH_BOUNCE;
-	const uint32_t colours = shadow ? 0 : bounce ? 2 : 1;
+	const bool capture = kind == MESH_CAPTURE;
+	const uint32_t colours = shadow ? 0 : capture ? 2 : 1;
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.codeSize = sizeof(draw_spv),
@@ -188,13 +191,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	//
 	// THE SHADOW PIPELINE CULLS NOTHING: a plane or an open mesh seen from the
 	// sun's side may be wound away from it and still casts, and its depth is
-	// biased rather than front- or back-face picked. The bounce one culls as
-	// it does, for the same casters, and is not biased: it is not compared.
+	// biased rather than front- or back-face picked.
 	VkPipelineRasterizationStateCreateInfo raster = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = shadow || bounce ? VK_CULL_MODE_NONE :
-					       VK_CULL_MODE_BACK_BIT,
+		.cullMode = shadow || capture ? VK_CULL_MODE_NONE :
+						VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.depthBiasEnable = shadow ? VK_TRUE : VK_FALSE,
 		.depthBiasConstantFactor = shadow ? SHADOW_BIAS_CONSTANT : 0.0f,
@@ -293,13 +295,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// declared here instead. They have to match what frame.c attaches, and a
 	// depth format declared with no depth attachment — or the other way
 	// round — is invalid rather than merely wrong. A shadow pass attaches
-	// depth alone, the map's layer, in the same D32 format; a bounce pass
-	// two RGBA16F colours and D32.
+	// depth alone, the map's layer, in the same D32 format.
 	VkPipelineRenderingCreateInfo rendering = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
 		.colorAttachmentCount = colours,
-		.pColorAttachmentFormats = bounce ? bounce_formats :
-						    &device->format.format,
+		.pColorAttachmentFormats = capture ? capture_formats :
+						     &device->format.format,
 		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
 	// One set holding everything the shader reads, and one push constant
@@ -374,15 +375,17 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_VERTEX_BIT,
 		.module = module,
-		.pName = point_shadow ? POINT_SHADOW_VERTEX_ENTRY : DRAW_VERTEX_ENTRY,
+		.pName = point_shadow ? POINT_SHADOW_VERTEX_ENTRY :
+			 capture      ? CAPTURE_VERTEX_ENTRY :
+					DRAW_VERTEX_ENTRY,
 	};
 	stages[1] = (VkPipelineShaderStageCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 		.module = module,
-		.pName = bounce ? DRAW_BOUNCE_ENTRY : DRAW_FRAGMENT_ENTRY,
+		.pName = capture ? CAPTURE_FRAGMENT_ENTRY : DRAW_FRAGMENT_ENTRY,
 	};
-	// Neither of the bounce map's two attachments blends.
+	// Neither of the capture's two attachments blends.
 	attachments[0] = attachment;
 	attachments[1] = attachment;
 
@@ -413,8 +416,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		VOE_BASE_ERROR("render",
 			       "vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)",
 			       point_shadow ? "point shadow" :
-			       shadow ? "shadow" : bounce ? "bounce" :
-			       blended ? "blended" : "solid",
+			       capture ? "capture" :
+			       shadow ? "shadow" : blended ? "blended" : "solid",
 			       (int)result);
 		*out = VK_NULL_HANDLE;
 		return false;
@@ -429,8 +432,9 @@ bool voe_render_pipelines_create(voe_render_device *device)
 	return create_pipeline(device, MESH_SOLID, &device->pipeline) &&
 	       create_pipeline(device, MESH_BLENDED, &device->pipeline_blended) &&
 	       create_pipeline(device, MESH_SHADOW, &device->pipeline_shadow) &&
-	       create_pipeline(device, MESH_BOUNCE, &device->pipeline_bounce) &&
 	       (!device->output_layer ||
-		create_pipeline(device, MESH_POINT_SHADOW,
-				&device->pipeline_point_shadow));
+		(create_pipeline(device, MESH_POINT_SHADOW,
+				 &device->pipeline_point_shadow) &&
+		 create_pipeline(device, MESH_CAPTURE,
+				 &device->pipeline_capture)));
 }

@@ -51,12 +51,12 @@
 // metalness, roughness, occlusion, a normal map — is uploaded as
 // VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
 //
-// Passes onto the window or a target follow the sun's cascades and bounce pass,
+// Passes onto the window or a target follow the sun's cascades and captures,
 // lit by the sun and the pass's point lights (range, falloff; shadows per
 // point_shadow_size and voe_render_point_shadows_ready); a pass may copy its
-// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the bounce
-// grid, voe_render_bounce_update refreshes a target's grid from the bounce
-// map; a shading record may be water, with waves and sky in the object record.
+// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the probe
+// volume voe_render_bounce_begin builds, captures and relights per target;
+// a shading record may be water, with waves and sky in the object record.
 #pragma once
 
 #include <base/arena.h>
@@ -95,8 +95,10 @@ typedef struct voe_render_device voe_render_device;
 //
 // passes IS PER FRAME SLOT AND AT LEAST ONE. It bounds how many passes one frame
 // may open, and each costs one camera-and-sun block in the slot's uniform buffer.
-// A frame with shadows spends one per cascade, one on the bounce map and one per
-// camera pass. Nought asserts: a device that can open no pass can draw nothing.
+// A frame with shadows spends one per cascade, one per capture pass and one per
+// camera pass, and one more for each begin whose relight shadows a casting sun
+// (ADR-0329, ADR-0330).
+// Nought asserts: a device that can open no pass can draw nothing.
 //
 // AND IT IS SPENT ON LETTERS AS WELL AS ON FILLS, WHICH IS WHAT MAKES IT LARGER
 // THAN IT LOOKS. A glyph is an element, so a forty-character label is forty of
@@ -111,8 +113,11 @@ typedef struct voe_render_device voe_render_device;
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs two texture slots of the
 // 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
-// the window's depth copy takes one more. Each target also costs a probe grid
-// of 3 × 32³ × 8 bytes, about 786 kB (ADR-0308), and the window has one too.
+// the window's depth copy takes one more. A target or the window that voe_render_bounce_begin has begun also holds a
+// probe volume (ADR-0326) until 300 frames pass with no begin: three 1152 × 2304
+// atlases of 4, 8 and 4 bytes a texel and 22 3D images of 24 × 12 × 24, about
+// 43.6 MB. One that is never begun costs nothing (ADR-0316). The relight's sun
+// map is 4 MB of depth a frame slot, only with shaderOutputLayer (ADR-0329).
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
@@ -156,18 +161,27 @@ typedef struct {
 // holds the same number.
 #define VOE_RENDER_POINT_SHADOW_NEAR 0.05f
 
-// Texels a side of the sun's bounce map, per frame slot (ADR-0308): what
-// voe_render_bounce_pass_begin draws into. 512² × 20 bytes × frame slots.
-#define VOE_RENDER_BOUNCE_TEXELS 512
-
-// Probes a side of a target's bounce grid, addressed toroidally (ADR-0308).
-#define VOE_RENDER_BOUNCE_PROBES 32
-// Metres between neighbouring probes of the bounce grid.
+// Metres between neighbouring probes of the finest bounce grid, a grid's at 2^0
+// (0332); a volume's own spacing is its voe_render_bounce_begin's.
 #define VOE_RENDER_BOUNCE_SPACING 2.0f
-// Probes one bounce update refreshes beyond the cells a scroll brings in.
-#define VOE_RENDER_BOUNCE_BUDGET 4096
-// How much of a refreshed probe is new light, for one not just brought in.
-#define VOE_RENDER_BOUNCE_BLEND 0.5f
+// Probes along x and along z of a target's captured bounce grid (ADR-0326).
+#define VOE_RENDER_BOUNCE_PROBES_XZ 24
+// Probes along y of a target's captured bounce grid (ADR-0326).
+#define VOE_RENDER_BOUNCE_PROBES_Y 12
+// Probes one bounce capture pass captures (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_CAPTURE 16
+// Bounce capture passes a frame may open at most (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_CAPTURE_PASSES 4
+// The most point lights that bounce in one update, the first ones (ADR-0326).
+#define VOE_RENDER_BOUNCE_LAMPS 16
+// Texels a side of each of a probe's six cube faces (ADR-0326 point 3).
+#define VOE_RENDER_BOUNCE_FACE 8
+// Metres a probe sees out to at VOE_RENDER_BOUNCE_SPACING; past it a face holds
+// nothing (ADR-0326 point 3). A volume's reach is this × its spacing / the
+// finest, twelve of its cells (0332 point 4).
+#define VOE_RENDER_BOUNCE_REACH 24.0f
+// Texels a side of the relight's own sun map, per frame slot (ADR-0329).
+#define VOE_RENDER_BOUNCE_SHADOW_TEXELS 1024u
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
@@ -513,6 +527,9 @@ typedef struct {
 // The most point lights one pass carries (ADR-0320).
 #define VOE_RENDER_POINT_LIGHTS 256
 
+// The most bounces a light may have (ADR-0317).
+#define VOE_RENDER_BOUNCES_MAX 3
+
 // One point light, for one pass (ADR-0320).
 //
 // `position` IS IN THE SPACE THE PASS'S DRAWS PLACE VERTICES IN — about the eye,
@@ -537,6 +554,12 @@ typedef struct {
 // VOE_RENDER_POINT_SHADOWS, a slot two of a pass's lights name, and a strength
 // not finite or outside 0 to 1.
 //
+// `bounces` IS HOW MANY BOUNCES THIS LAMP'S LIGHT MAKES, 0 none, at most
+// VOE_RENDER_BOUNCES_MAX; `bounce_strength` scales its bounce and never its
+// direct light (ADR-0326). Zero is no bounce, so every initializer that names
+// neither draws as before. voe_render_pass_begin asserts bounces past
+// VOE_RENDER_BOUNCES_MAX and a strength not finite or below nought.
+//
 // A pass carries at most VOE_RENDER_POINT_LIGHTS. Padded to 48 bytes because the
 // shader reads an array of them.
 typedef struct {
@@ -546,7 +569,8 @@ typedef struct {
 	float falloff;
 	uint32_t shadow;
 	float shadow_strength;
-	uint32_t reserved[2];
+	uint32_t bounces;
+	float bounce_strength;
 } voe_render_point_light;
 
 static_assert(sizeof(voe_render_point_light) == 48,
@@ -884,6 +908,17 @@ void voe_render_device_destroy(voe_render_device *device);
 bool voe_render_geometry_destroy(voe_render_device *device,
 				 voe_render_geometry geometry);
 
+// The box of a mesh's own vertices, in its own space, taken once at create:
+// `min` and `max` its corners. False and nothing written for an id that names
+// nothing — destroyed, or a transient one from an earlier frame. No frame is
+// needed and no GPU is touched. It is for a caller fitting something to where
+// meshes stand, the bounce grid to the still casters (0332), where the sphere
+// render also keeps would turn a flat ground into a cube.
+[[nodiscard]] bool voe_render_geometry_box(const voe_render_device *device,
+					   voe_render_geometry geometry,
+					   voe_math_float3 *min,
+					   voe_math_float3 *max);
+
 // The same shape, for geometry that lives one frame: copies the vertices and the
 // indices into this frame's own pool and hands back an id that names them until
 // voe_render_frame_end. The next frame's begin makes every id this handed out
@@ -1196,7 +1231,7 @@ typedef struct {
 // opens no pass onto the window still presents the clear colour.
 //
 // PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
-// and so does a _frame_end — except an open bounce pass, which either closes.
+// and so does a _frame_end.
 [[nodiscard]] bool voe_render_pass_begin(voe_render_device *device,
 					 voe_render_target target,
 					 const voe_render_pass_camera *camera);
@@ -1237,54 +1272,100 @@ typedef struct {
 [[nodiscard]] bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 						      const voe_render_point_lights *lights);
 
-// Opens a bounce pass: one more pass of the sun, after the cascades, onto this
-// frame slot's bounce map (ADR-0308), VOE_RENDER_BOUNCE_TEXELS square, flux,
-// normal and depth cleared. `light` is the view the map is drawn from and `sun`
-// the light whose flux it holds. The draws in it are the casters, recorded as in
-// a shadow pass with the same voe_render_frame_draw, each writing the sun's colour
-// × intensity × its base colour and its world normal; they count against
-// `objects`, and the pass against `passes`.
+// Opens a bounce capture pass (ADR-0326 point 3): takes up to
+// VOE_RENDER_BOUNCE_CAPTURE queued probes of the target voe_render_bounce_begin
+// began this frame, nearest the eye first, and opens one pass drawing their six
+// faces each — albedo, and world normal with distance, out to the volume's
+// reach — copied into the target's probe pictures when
+// voe_render_pass_end closes it. Draw the casters into it as into the
+// point-shadow pass.
 //
-// THE NEXT PASS OR THE FRAME'S END CLOSES IT; voe_render_pass_end may as well.
-// The last one this frame is what a bounce update reads.
+// `opened` IS FALSE, and true is returned with nothing open, when no probe is
+// queued, the volume is not built, the card has no shaderOutputLayer, or
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES have run this frame. IT IS A PASS AND COUNTS
+// AGAINST `passes`, its draws against `objects`: false, with a line, when the
+// frame's passes are spent.
 //
-// False, with a line, inside no frame or when the frame's passes are spent;
-// nothing is open then. With another kind of pass open it asserts.
-[[nodiscard]] bool voe_render_bounce_pass_begin(voe_render_device *device,
-						const voe_render_view *light,
-						const voe_render_light *sun);
+// Calling this outside a frame, with a pass open, or with no bounce begin this
+// frame is the caller's bug and asserts.
+[[nodiscard]] bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
+							bool *opened);
 
-// Closes the open pass, a shadow or bounce pass included. Without one open it
+// Opens the bounce shadow pass (ADR-0329): the sun's map the relight shadows by,
+// VOE_RENDER_BOUNCE_SHADOW_TEXELS a side, depth cleared to the far plane, opened
+// after the begun target's capture passes. `light` is eye-relative with an
+// orthographic projection, as a cascade's. Draw the sun's casters into it.
+//
+// `opened` IS FALSE, and true is returned with nothing open, when the volume is
+// not built, the begun sun has no bounces, no intensity or is unshaded, or no
+// relight is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its
+// draws against `objects`: false, with a line, when the frame's passes are spent.
+// It may open once after each voe_render_bounce_begin, so every view draws this
+// begin's map for its own volume (ADR-0330).
+//
+// Calling this outside a frame, with a pass open, with no bounce begin this frame,
+// or a second time after one bounce begin is the caller's bug and asserts; once
+// per begin, not once per frame.
+[[nodiscard]] bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
+						       const voe_render_view *light,
+						       bool *opened);
+
+// Relights the target voe_render_bounce_begin began (ADR-0326 points 5 and 6),
+// after its capture passes, between passes: each probe captured or emptied since
+// the last relight gets its validity and distance moments, and (from card 09)
+// the grid is relit when a probe changed or the bouncing lights did. On a settled frame it
+// records nothing at all and only the read runs (ADR-0317 point 4); on a volume
+// not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
+// shadowed by this begin's bounce shadow map when one was drawn, lit outside its
+// box, and unshadowed when none was; never by the cascades (ADR-0329).
+//
+// Outside a frame, with a pass open, or with no bounce begin this frame it
 // asserts.
+void voe_render_bounce_relight(voe_render_device *device);
+
+// Closes the open pass, whatever kind it is. Without one open it asserts.
 void voe_render_pass_end(voe_render_device *device);
 
-// What a bounce update needs from the caller (ADR-0308 point 4). `cell` is the
-// grid's lowest world cell at VOE_RENDER_BOUNCE_SPACING, `corner` that cell's
-// lowest corner about the eye; `stale` holds `stale_count` spheres about the
-// eye, xyz centre and w radius, whose probes are refreshed early. A struct tag
-// and no typedef, because the call below has the name and C has one name space
-// for both.
-struct voe_render_bounce_update {
+// What one target's bounce is this frame (ADR-0326 point 8). `spacing` is the
+// metres between this volume's probes (0332 point 3), `cell` the volume's lowest
+// world cell counted in them and `corner` its lowest corner about the eye;
+// `stale` holds `stale_count` spheres about the eye, xyz centre and w radius,
+// whose probes are captured again. `sun` bounces `sun_bounces` times, scaled by
+// `sun_strength`; `points` are the frame's point lights, the first
+// VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag and no typedef,
+// because the call below has the name and C has one name space for both.
+struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
 	const voe_math_float4 *stale;
 	uint32_t stale_count;
+	voe_render_light sun;
+	uint32_t sun_bounces;
+	float sun_strength;
+	voe_render_point_lights points;
+	float spacing;
 };
 
-// Refreshes `target`'s bounce grid from this frame's last bounce pass: the map
-// reduced to virtual point lights once a frame, then the probes the grid's
-// schedule lists gathered from them and blended in. Recorded between passes;
-// an open bounce pass is closed first.
+// Records `target`'s bounce for this frame, between passes; the arrays are
+// copied, so the caller's are its own again when this returns. The volume is
+// placed, captured, relit and read at `frame->spacing`; a spacing other than its
+// last empties the whole grid, as a jump does (0332 point 3).
 //
-// A CAMERA PASS ON THAT TARGET LATER THIS FRAME READS THE GRID; one on a target
-// with no update this frame reads no bounce.
+// THE SUN IS SHADOWED IN THE RELIGHT BY THIS BEGIN'S BOUNCE SHADOW MAP when
+// voe_render_bounce_shadow_pass_begin opened it, lit outside its box, and
+// unshadowed when none was drawn (a sun that does not cast). The cascades never
+// reach the relight (ADR-0329).
 //
-// False, with a line, outside a frame, inside a camera or shadow pass, with no
-// bounce pass this frame, for a target that is not live, and on a second call
-// for one target in one frame: at most once a target a frame.
-[[nodiscard]] bool voe_render_bounce_update(voe_render_device *device,
-					    voe_render_target target,
-					    const struct voe_render_bounce_update *update);
+// THE FIRST BEGIN ONTO A TARGET BUILDS ITS PROBE VOLUME AT THE TOP OF THE NEXT
+// FRAME, the GPU idling once as a resize does, and this frame bounces nothing. A
+// volume with no begin for 300 frames is freed the same way (ADR-0316). On a card
+// without shaderOutputLayer nothing bounces and no volume is built.
+//
+// Outside a frame, with a pass open, on a target not live, for a target already
+// begun this frame, with `sun_bounces` past VOE_RENDER_BOUNCES_MAX, or with a
+// spacing not finite or not above nought it asserts.
+void voe_render_bounce_begin(voe_render_device *device, voe_render_target target,
+			     const struct voe_render_bounce_frame *frame);
 
 // Whether a pass is open: true from a _pass_begin that returned true until its
 // _pass_end. It exists so that a caller which issues draws on behalf of another —
@@ -1317,13 +1398,13 @@ struct voe_render_bounce_update {
 // caller draws every opaque and cutout object first and then its blended ones
 // furthest first — see voe_3d_draw_system_run, which is the one caller.
 //
-// IN A SHADOW PASS IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
+// IN A SHADOW PASS, OR THE BOUNCE SHADOW PASS, IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
 // vertex stage, no fragment stage, nothing culled, depth biased away from the
-// sun. The record's world matrix is all that is read. IN A BOUNCE PASS it draws
-// through the bounce pipeline, nothing culled, into the bounce map. IN A
-// POINT-SHADOW PASS it is one instanced draw over every slotted light's faces the
+// sun. The record's world matrix is all that is read. IN A POINT-SHADOW PASS it is one instanced draw over every slotted light's faces the
 // geometry's bounding sphere reaches under the world matrix, and none when it
-// reaches none: true then, with no object spent.
+// reaches none: true then, with no object spent. IN A CAPTURE PASS, as in a
+// point-shadow pass, it is one instanced draw over the probes' faces the sphere
+// reaches within the volume's reach.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
@@ -1342,7 +1423,7 @@ struct voe_render_bounce_update {
 // an opaque one draws solid. Both are the caller's mistake and neither fails.
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
-// asserts — and one more: in a shadow, point-shadow or bounce pass it asserts,
+// asserts — and one more: in a shadow, bounce shadow, point-shadow or capture pass it asserts,
 // because nothing see-through casts.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
@@ -1382,7 +1463,8 @@ struct voe_render_bounce_update {
 //
 // Calling this with no pass open, or in a pass opened with no camera, is the
 // caller's bug and asserts — the same mistakes voe_render_frame_draw asserts on.
-// So is calling it in a shadow or bounce pass, whose depth is the map being drawn.
+// So is calling it in a shadow, point-shadow or capture pass, whose depth is the
+// map being drawn.
 void voe_render_frame_clear_depth(voe_render_device *device);
 
 // Copies the open pass's depth, as it stands, into the sampled depth copy every
@@ -1390,7 +1472,8 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // camera block; until a pass copies, that word is ~0u.
 //
 // ONLY INSIDE AN OPEN CAMERA PASS. With no pass open, in a pass opened with no
-// camera, or in a shadow or bounce pass — whose depth is the map itself — it draws
+// camera, or in a shadow, point-shadow or capture pass — whose depth is the map
+// itself — it draws
 // nothing, writes a line on stderr and returns false.
 //
 // IT SPLITS THE PASS'S RENDERING BLOCK. It ends the block, copies with a barrier
@@ -1408,8 +1491,8 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 [[nodiscard]] bool voe_render_frame_is_open(const voe_render_device *device);
 
 // Ends the recording, submits it, and — where there is a window — copies the
-// target into the acquired swapchain image and presents it. An open bounce pass
-// is closed first; any other pass still open is the caller's bug and asserts.
+// target into the acquired swapchain image and presents it. A pass still open is
+// the caller's bug and asserts.
 //
 // False means the driver refused something no retry will fix. A swapchain that
 // went stale is handled here and returns true, with the rebuild happening at the
@@ -1503,7 +1586,7 @@ voe_render_frame_elements_submitted(const voe_render_device *device);
 //
 // It needs a pass open and does not need that pass to have a camera: the
 // transform is the whole of what places the elements. Calling it with no pass
-// open, or in a shadow or bounce pass, which has no colour to blend into, is the
+// open, or in a shadow or capture pass, which has no colour to blend into, is the
 // caller's bug and asserts.
 [[nodiscard]] bool
 voe_render_frame_draw_elements(voe_render_device *device,

@@ -48,7 +48,8 @@
 // empties everything.
 //
 // BOTH CREATES KEEP THE RANGE'S BOUNDING SPHERE, from point_shadow_faces.h, for
-// the point-shadow draw's face culling (ADR-0325 point 2).
+// the point-shadow draw's face culling (ADR-0325 point 2), and its vertex box,
+// which voe_render_geometry_box hands back with no frame and no GPU (0332).
 #include "device_internal.h"
 #include "point_shadow_faces.h"
 
@@ -284,6 +285,40 @@ voe_render_geometry_at(const voe_render_device *device,
 	return slot;
 }
 
+// The slot's bounds from its vertices: the sphere and the box, at create.
+static void slot_bounds(struct voe_render_geometry_slot *slot,
+			const voe_render_vertex *vertices, uint32_t count)
+{
+	VOE_BASE_DEBUG_ASSERT(count > 0, "bounding a mesh with no vertices");
+
+	slot->sphere = voe_render_point_shadow_sphere(vertices, count);
+	slot->box_min = vertices[0].position;
+	slot->box_max = vertices[0].position;
+	for (uint32_t i = 1; i < count; i++) {
+		slot->box_min = voe_math_float3_min(slot->box_min,
+						    vertices[i].position);
+		slot->box_max = voe_math_float3_max(slot->box_max,
+						    vertices[i].position);
+	}
+}
+
+bool voe_render_geometry_box(const voe_render_device *device,
+			     voe_render_geometry geometry,
+			     voe_math_float3 *min, voe_math_float3 *max)
+{
+	const struct voe_render_geometry_slot *slot;
+
+	VOE_BASE_DEBUG_ASSERT(min != NULL && max != NULL,
+			      "asking for a mesh's box into nothing");
+
+	slot = voe_render_geometry_at(device, geometry);
+	if (slot == NULL)
+		return false;
+	*min = slot->box_min;
+	*max = slot->box_max;
+	return true;
+}
+
 // Where `count` elements would go in a static pool, first fit: the index of the
 // lowest hole that holds them, hole_count for the end of what is spent, or
 // UINT32_MAX when neither has room. Finding is apart from taking so that both
@@ -454,7 +489,7 @@ bool voe_render_geometry_create(voe_render_device *device,
 	pool_take(&device->vertices, vertex_at, vertex_count);
 	pool_take(&device->indices, index_at, index_count);
 
-	slot->sphere = voe_render_point_shadow_sphere(vertices, vertex_count);
+	slot_bounds(slot, vertices, vertex_count);
 	slot->first_vertex = first_vertex;
 	slot->first_index = first_index;
 	slot->index_count = index_count;
@@ -593,7 +628,7 @@ bool voe_render_geometry_create_transient(voe_render_device *device,
 	// The generation is the one the slot already carries: the reset at the
 	// top of the next frame is what moves it on, and it is what makes this
 	// id stale then. See the header.
-	slot->sphere = voe_render_point_shadow_sphere(vertices, vertex_count);
+	slot_bounds(slot, vertices, vertex_count);
 	slot->first_vertex = vertex_pool->pool.used;
 	slot->first_index = index_pool->pool.used;
 	slot->index_count = index_count;

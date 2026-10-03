@@ -11,7 +11,8 @@ by reading the offscreen colour image back.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
 - `pools.c` — two meshes and two ranges, a full pool as a returned failure, and ids that stop
   naming anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose
-  range the next mesh takes, freed neighbours merging. Headless.
+  range the next mesh takes, and a mesh's own box handed back and refused once
+  destroyed. Headless.
 - `textures.c` — 1024 texture slots: at least 1000 one-pixel textures made before one is refused,
   and a quad wearing the last of them, in the highest slot, drawn in its colour. Headless.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
@@ -53,20 +54,25 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
-- `bounce_map.c` — the sun's bounce pass: false outside a frame, four cascades, a bounce pass and a
-  window pass in one frame with one more pass refused, and a red cube still red in the camera pass
-  after it. Headless.
-- `bounce_grid.c` — every target's probe grid built, kept and freed, and the update's refusals.
-  Headless.
-- `bounce.c` — lit surfaces reading the bounce: a red wall reddening the ground near it and not far
-  off, grey with no update, an unshaded pass the same either way, and the fill still a floor in the
-  wall's shadow. Headless.
-- `bounce_scene.c` — the bounce as the editor runs it, off the origin about the eye, holding
-  through scrolling and with two views in one frame, and the ground on the wall's shadow side
-  within 4/255 of unlit by it. Headless.
-- `bounce_schedule.c` — which probes an update lists, with no card: the whole grid first, at a
-  negative cell too, a cycle of 4096 covering it in eight, entered cells first after a move, a stale sphere before the cycle,
-  a changed light restarting it, and a small room truncating.
+- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, a
+  one-cell move queuing 288, a stale sphere queuing
+  only within at 2 and 4 m, a new spacing queuing all, a relight only on change and not for an eye
+  that moves, and the 17th bouncing lamp left out.
+- `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
+  window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
+  both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.
+- `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
+  fifth in a frame not open, refused with `passes` spent, a red cube in the albedo atlas, and at
+  spacing 4 a cube 30 m off one draw. Headless.
+- `bounce_shadow.c` — the relight's sun map: opened after a frame's captures with a cube one draw
+  and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
+  spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
+- `bounce_settle.c` — captured probes settling: beside a cube, validity 1 and a moments mean to its
+  face; inside it, validity 0; a settled frame dispatching nothing. Headless.
+- `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
+  a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
+- `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
+  lit side at spacing 2 and 4. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
@@ -78,4 +84,4 @@ by reading the offscreen colour image back.
   behind it. Headless.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: lit only where they
   reach, none when unshaded, falloff ordering brightness, and a shadow slot ignored with no point
-  shadows. Headless.
+  shadows, and bounces and bounce strength lighting nothing directly. Headless.

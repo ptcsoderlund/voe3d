@@ -104,10 +104,11 @@ static bool create_device(voe_render_device *device)
 	// from the one below rather than a stronger spelling of it. See the
 	// paragraph under it.
 	//
-	// The bounce grids at binding 6 are an unsized array whose entries for
-	// targets not yet made are never written (ADR-0308): reading it needs
-	// runtimeDescriptorArray and descriptorBindingPartiallyBound, both among
-	// the descriptor-indexing features Vulkan 1.3 requires, so not queried.
+	// The probe volumes at bindings 6 and 10 are unsized arrays whose entries
+	// for volumes not built are unwritten or name freed images (ADR-0326):
+	// reading them needs runtimeDescriptorArray and
+	// descriptorBindingPartiallyBound, both among the descriptor-indexing
+	// features Vulkan 1.3 requires, so not queried.
 	VkPhysicalDeviceVulkan12Features features12 = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &features13,
@@ -500,18 +501,25 @@ static void close_down(voe_render_device *device)
 		voe_render_vk.device_wait_idle(device->device);
 		voe_render_swapchain_teardown(device);
 		voe_render_target_teardown(device);
+		// Before the table that holds the targets' volumes goes.
+		voe_render_bounce_volume_teardown(device, &device->window_volume);
+		for (uint32_t i = 0; device->targets != NULL &&
+				     i < device->capacities.targets;
+		     i++)
+			voe_render_bounce_volume_teardown(device,
+							  &device->targets[i].volume);
 		voe_render_targets_shutdown(device);
 
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_capture != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_capture,
+						       NULL);
 		if (device->pipeline_point_shadow != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_point_shadow,
-						       NULL);
-		if (device->pipeline_bounce != VK_NULL_HANDLE)
-			voe_render_vk.destroy_pipeline(device->device,
-						       device->pipeline_bounce,
 						       NULL);
 		if (device->pipeline_shadow != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
@@ -537,8 +545,9 @@ static void close_down(voe_render_device *device)
 		voe_render_descriptors_teardown(device);
 		voe_render_shadow_shutdown(device);
 		voe_render_point_shadow_shutdown(device);
-		voe_render_bounce_grid_shutdown(device);
-		voe_render_bounce_shutdown(device);
+		voe_render_bounce_capture_shutdown(device);
+		voe_render_bounce_shadow_shutdown(device);
+		voe_render_bounce_relight_shutdown(device);
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
@@ -660,9 +669,10 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_point_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_bounce_startup(device))
+	if (!voe_render_bounce_capture_startup(device) ||
+	    !voe_render_bounce_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_bounce_grid_startup(device))
+	if (!voe_render_bounce_relight_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
 	if (!voe_render_descriptors_build(device))

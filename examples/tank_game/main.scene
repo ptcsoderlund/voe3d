@@ -3,7 +3,7 @@ name = "Ground"
 folded = false
 [1.voe_3d_shape]
 kind = 1
-colour = [0.42473766, 0.42473766, 0.42473766]
+colour = [0.31996205, 0.31996205, 0.31996205]
 cast_shadows = true
 [1.voe_physics_collider]
 kind = 1
@@ -22,7 +22,7 @@ fov_y = 1.0471976
 near_plane = 0.1
 far_plane = 100
 [2.voe_scene_transform]
-position = [-1.2579535855911672, 10.887444194406271, 14.62900831875595]
+position = [-1.2579528554342687, 11.943397925118916, 21.01424760324153]
 rotation = [-0.38268346, 0, 0, 0.9238796]
 scale = [1, 1, 1]
 
@@ -33,12 +33,13 @@ folded = false
 colour = [1, 0.58921766, 0.28265268]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
-fill_intensity = 0.15375003
-bounces = 0
+fill_intensity = 0.10823958
+bounces = 2
 cast_shadows = true
+bounce_strength = 1
 [3.voe_scene_transform]
-position = [0, 8, 0]
-rotation = [0.0767836, 0.2594808, 0.22888981, -0.93508476]
+position = [8.605420589447021e-07, 5.138881284743547, 7.879768788814545]
+rotation = [0.36317888, 0.009024888, -0.5412938, -0.75830126]
 scale = [1, 1, 1]
 
 [4]
@@ -126,7 +127,7 @@ colour = [0.44778705, 0.13911381, 0.49138713]
 cast_shadows = true
 [16.voe_scene_transform]
 position = [-8.179616930152406, 5.000000290572643, 7.211908042430878]
-rotation = [0, -0.40307653, 0, 0.91516626]
+rotation = [0.056250136, -0.29467446, 0.032848693, 0.95337504]
 scale = [2, 10, 1]
 
 [17]
@@ -143,7 +144,7 @@ scale = [2, 10, 1]
 
 [19]
 name = "Lights"
-folded = false
+folded = true
 
 [20]
 name = "Point1"
@@ -152,12 +153,14 @@ folded = false
 parent = 19
 [20.voe_scene_point_light]
 colour = [0, 0.31905842, 1]
-intensity = 20
-range = 5
-falloff = 3
+intensity = 10
+range = 3.0574996
+falloff = 4
 cast_shadows = true
+bounces = 0
+bounce_strength = 1
 [20.voe_scene_transform]
-position = [2.965726683905814, 0.7417545174248517, 1.95614057010971]
+position = [13.94373351946706, 1.151716602500528, 1.2226342482026666]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
@@ -169,9 +172,11 @@ parent = 19
 [22.voe_scene_point_light]
 colour = [0.27353722, 0, 1]
 intensity = 1
-range = 20
+range = 5
 falloff = 1
 cast_shadows = false
+bounces = 0
+bounce_strength = 1
 [22.voe_scene_transform]
 position = [-12.646546136587858, 1.3129296340048313, -12.013619443401694]
 rotation = [0, 0, 0, 1]
@@ -185,102 +190,44 @@ parent = 19
 [23.voe_scene_point_light]
 colour = [0, 1, 0.17092332]
 intensity = 4
-range = 20
+range = 5
 falloff = 0.3
-cast_shadows = false
+cast_shadows = true
+bounces = 0
+bounce_strength = 1
 [23.voe_scene_transform]
-position = [9.27141073718667, 1.3129289839416742, 9.3649026369676]
+position = [13.99125094525516, 3.320757689885795, 10.800229988060892]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
 
 [25]
 name = "House"
-folded = false
+folded = true
+[25.voe_scene_prefab]
+path = "Assets/prefabs/House.prefab"
 [25.voe_scene_transform]
-position = [-5.438923835754395e-07, 1.5, -4.470348358154297e-07]
-rotation = [0, 0, 0, 1]
+position = [15.887809079140425, 1.4999985918402672, 1.6072136163711548]
+rotation = [0, -0.40903267, 0, 0.91251975]
 scale = [1, 1, 1]
 
-[26]
-name = "BackWall"
+[34]
+name = "Obstacle 3"
 folded = false
-[26.voe_3d_shape]
+[34.voe_3d_shape]
 kind = 1
-colour = [0.7, 0.7, 0.7]
+colour = [0.5003842, 0.5003842, 0.5003842]
 cast_shadows = true
-[26.voe_scene_parent]
-parent = 25
-[26.voe_scene_transform]
-position = [0, 0, 0]
-rotation = [0, 0, 0, 1]
-scale = [4, 3, 0.3]
+[34.voe_scene_transform]
+position = [15.433657566827605, 5.000000001862645, 8.580536024644971]
+rotation = [0, 0.12585333, 0, 0.99204886]
+scale = [2, 10, 1]
 
-[27]
-name = "Sidewall1"
+[36]
+name = "House 2"
 folded = false
-[27.voe_3d_shape]
-kind = 1
-colour = [0.7, 0.7, 0.7]
-cast_shadows = true
-[27.voe_scene_parent]
-parent = 25
-[27.voe_scene_transform]
-position = [-2.151859300211072, 3.5390257835388184e-07, 1.857134710997343]
-rotation = [0, -0.7071067, 0, 0.7071069]
-scale = [4, 3, 0.3]
-
-[28]
-name = "Sidewall1 2"
-folded = false
-[28.voe_3d_shape]
-kind = 1
-colour = [0.7, 0.7, 0.7]
-cast_shadows = true
-[28.voe_scene_parent]
-parent = 25
-[28.voe_scene_transform]
-position = [2.1646672263741493, 2.0116567611694336e-07, 1.857134860008955]
-rotation = [0, -0.7071067, 0, 0.7071069]
-scale = [4, 3, 0.3]
-
-[29]
-name = "roof"
-folded = false
-[29.voe_3d_shape]
-kind = 1
-colour = [0.7, 0.7, 0.7]
-cast_shadows = true
-[29.voe_scene_parent]
-parent = 25
-[29.voe_scene_transform]
-position = [0.014467987246462144, 1.6505936495959759, 1.8571347780525684]
-rotation = [0.49999994, -0.49999997, 0.50000006, 0.5000001]
-scale = [4, 5, 0.3]
-
-[31]
-name = "frontwall1"
-folded = false
-[31.voe_3d_shape]
-kind = 1
-colour = [0.7, 0.7, 0.7]
-cast_shadows = true
-[31.voe_scene_parent]
-parent = 25
-[31.voe_scene_transform]
-position = [-1.1216283533722162, 5.755573511123657e-07, 3.6880256002768874]
-rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
-scale = [1.7641829, 3, 0.3]
-
-[32]
-name = "frontwall1 2"
-folded = false
-[32.voe_3d_shape]
-kind = 1
-colour = [0.7, 0.7, 0.7]
-cast_shadows = true
-[32.voe_scene_parent]
-parent = 25
-[32.voe_scene_transform]
-position = [1.5990546906739473, 5.159527063369751e-07, 3.6880259355530143]
-rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
-scale = [0.860047, 3, 0.3]
+[36.voe_scene_prefab]
+path = "Assets/prefabs/House.prefab"
+[36.voe_scene_transform]
+position = [-15.191090548750708, 1.5410072884569672, 6.581703119564736]
+rotation = [0, 0.118344694, 0, 0.9929726]
+scale = [1, 1, 1]

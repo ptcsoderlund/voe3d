@@ -12,17 +12,17 @@
 // IN THE POINT-SHADOW PASS (ADR-0325 point 2) the mask is every slotted light's
 // faces the geometry's sphere reaches under the world matrix, bit 6(s − 1) + f,
 // and the draw is one instance per set bit; a mask of nought draws nothing and
-// spends no object. In every other pass the mask is nought.
+// spends no object. A capture pass (ADR-0326) takes the same path, its probes
+// in the slots at the volume's reach. In every other pass the mask is nought.
 //
 // WHICH PIPELINE IS BOUND, AND WHICH POOLS. A pass opens with the solid
 // pipeline and the static pools bound (pass.c). A blended draw needs the other
 // pipeline and a transient mesh the other pool pair; draw_with rebinds either
 // only when it differs from what device->bound and device->bound_transient say
 // was bound last, so a run of draws of one kind costs one bind and a caller that
-// interleaves them is still drawn right. In a shadow pass (pass.c) every mesh draw
-// goes through the shadow pipeline, in a bounce pass through the bounce one, in
-// the point-shadow pass through that one; a blended draw and the depth clear
-// assert in each. The element pipeline (element.c) is
+// interleaves them is still drawn right. In a shadow pass (pass.c) and the bounce
+// shadow pass (bounce_shadow.c) every mesh draw goes through the shadow pipeline, in the point-shadow and capture passes through theirs; a blended draw and the
+// depth clear assert in each. The element pipeline (element.c) is
 // never bound here; it leaves `bound` different, and the next mesh rebinds.
 //
 // THIS FILE DOES NOT SORT. The order the blended draws arrive in is the order
@@ -105,8 +105,8 @@ static uint32_t caster_faces(const voe_render_device *device,
 		voe_render_point_shadow_sphere_moved(slot->sphere, world);
 	uint32_t count = 0;
 
-	VOE_BASE_DEBUG_ASSERT(device->pass_point_shadow,
-			      "culling by face outside the point-shadow pass");
+	VOE_BASE_DEBUG_ASSERT(device->pass_point_shadow || device->pass_capture,
+			      "culling by face outside the point-shadow and capture passes");
 	for (uint32_t s = 0; s < VOE_RENDER_POINT_SHADOWS; s++) {
 		const voe_render_point_light *light = &device->pass_casters[s];
 		uint32_t faces;
@@ -164,8 +164,9 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		return false;
 	}
 
-	// A caster no slotted light's face reaches draws nothing and is true.
-	if (device->pass_point_shadow) {
+	// A caster no slotted light's or probe's face reaches draws nothing and
+	// is true.
+	if (device->pass_point_shadow || device->pass_capture) {
 		instances = caster_faces(device, slot, object.world, &push[1]);
 		if (instances == 0)
 			return true;
@@ -180,12 +181,12 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 
 	frame = voe_render_frame_at(device, device->slot);
 	// A shadow pass draws depth alone, whichever draw call asked.
-	if (device->pass_shadow)
+	if (device->pass_shadow || device->pass_bounce_shadow)
 		pipeline = device->pipeline_shadow;
 	else if (device->pass_point_shadow)
 		pipeline = device->pipeline_point_shadow;
-	else if (device->pass_bounce)
-		pipeline = device->pipeline_bounce;
+	else if (device->pass_capture)
+		pipeline = device->pipeline_capture;
 
 	if (device->bound != pipeline) {
 		voe_render_vk.cmd_bind_pipeline(frame->commands,
@@ -253,12 +254,12 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 				   voe_render_object object)
 {
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
-	VOE_BASE_ASSERT(!device->pass_shadow,
+	VOE_BASE_ASSERT(!device->pass_shadow && !device->pass_bounce_shadow,
 			"drawing a blended mesh in a shadow pass — nothing see-through casts");
-	VOE_BASE_ASSERT(!device->pass_bounce,
-			"drawing a blended mesh in a bounce pass — nothing see-through bounces");
 	VOE_BASE_ASSERT(!device->pass_point_shadow,
 			"drawing a blended mesh in a point-shadow pass — nothing see-through casts");
+	VOE_BASE_ASSERT(!device->pass_capture,
+			"drawing a blended mesh in a capture pass — nothing see-through bounces");
 	return draw_with(device, geometry, object, device->pipeline_blended);
 }
 
@@ -310,12 +311,12 @@ void voe_render_frame_clear_depth(voe_render_device *device)
 			"clearing depth with no pass open — the clear is recorded into a pass's rendering block");
 	VOE_BASE_ASSERT(device->pass_camera,
 			"clearing depth in a pass opened with no camera — nothing in such a pass writes depth to clear");
-	VOE_BASE_ASSERT(!device->pass_shadow,
+	VOE_BASE_ASSERT(!device->pass_shadow && !device->pass_bounce_shadow,
 			"clearing depth in a shadow pass — its depth is the map being drawn");
-	VOE_BASE_ASSERT(!device->pass_bounce,
-			"clearing depth in a bounce pass — its depth is the map being drawn");
 	VOE_BASE_ASSERT(!device->pass_point_shadow,
 			"clearing depth in a point-shadow pass — its depth is the maps being drawn");
+	VOE_BASE_ASSERT(!device->pass_capture,
+			"clearing depth in a capture pass — its depth is the probes' pictures being drawn");
 
 	rect.rect.extent = device->pass_extent;
 

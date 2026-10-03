@@ -42,7 +42,8 @@ void voe_scene_light_register(voe_ecs_world *world, uint32_t capacity)
 				.fill_colour = { 1.0f, 1.0f, 1.0f },
 				.fill_intensity = 0.0f,
 				.bounces = 0,
-				.cast_shadows = false };
+				.cast_shadows = false,
+				.bounce_strength = 1.0f };
 
 	VOE_BASE_ASSERT(world != NULL, "registering lights in no world");
 
@@ -94,6 +95,8 @@ static const char *refused_field(voe_scene_light light)
 		return "fill_intensity";
 	if (light.bounces > VOE_SCENE_LIGHT_BOUNCES_MAX)
 		return "bounces";
+	if (!intensity_valid(light.bounce_strength))
+		return "bounce_strength";
 	return NULL;
 }
 
@@ -102,7 +105,7 @@ bool voe_scene_light_add(voe_ecs_world *world, voe_ecs_entity entity,
 {
 	VOE_BASE_DEBUG_ASSERT(world != NULL, "adding a light to no world");
 	VOE_BASE_DEBUG_ASSERT(refused_field(light) == NULL,
-			      "a light with a colour outside [0, 1], a negative intensity, too many bounces or a number that is not finite");
+			      "a light with a colour outside [0, 1], a negative intensity or bounce strength, too many bounces or a number that is not finite");
 
 	return voe_ecs_component_add(
 		world, voe_ecs_component_type(world, &voe_scene_light_key),

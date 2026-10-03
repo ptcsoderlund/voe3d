@@ -1,0 +1,131 @@
+// The bounce's one read (ADR-0326 point 7): E(n), the irradiance a surface at
+// `world` facing `n` takes from a probe volume. A part, included by
+// lighting.slangh after point_shadow.slangh, whose cube faces it shares; never
+// compiled alone. Every image and the placement are parameters, so the lit pass
+// reads its target's sum at bindings 6 and 10 and the relight reads a level on
+// images of its own through the same function.
+//
+// THE PLACEMENT. A probe stands at its cell's centre, corner + (i + 0.5) ×
+// spacing about the eye, and is stored at its toroidal index, (cell + i) wrapped
+// per axis into 24 × 12 × 24: `cell` the lowest cell already wrapped. Its picture
+// is in the atlases at x 48t.x + 8f, y 8(12t.z + t.y), face f in
+// point_shadow.slangh's order and texel orientation.
+//
+// THE EIGHT PROBES about the surface pushed 0.25 × spacing along n, so a
+// surface on a cell boundary is not read from the probes level with it. Each is
+// weighted by:
+// - trilinear, its share of the pushed point's place in its cell;
+// - validity, 0 for a probe with no picture or inside something (point 5);
+// - ((n · to-probe + 1) / 2)² + 0.2: a probe behind the surface counts less,
+//   but never nothing, so a corner with all eight behind still reads;
+// - Chebyshev visibility from its distance moments (mean, mean²) sampled
+//   bilinear on its face toward the surface, the uv held half a texel inside
+//   the face so the filter never reads a neighbouring face: full when the
+//   surface is nearer than the mean, else σ² / (σ² + (d − mean)²). This is what
+//   keeps a probe on the far side of a wall from lighting the near side (0312).
+// The sum is divided by the weights' sum; a sum of nought or not finite reads
+// nought, so a volume with nothing captured reads no bounce.
+//
+// E FROM SIX-AXIS IRRADIANCE (ADR-0327): a probe's E(n) = Σ_a n_a² ×
+// E(sign(n_a), axis a), from image a of the three at (2t.x, t.y, t.z) for + and
+// (2t.x + 1, t.y, t.z) for −, RGB. Along an axis that is the exact clamped
+// cosine, so a surface facing an axis takes nothing from behind its own plane:
+// flat ground under sunlit ground reads no light from below its horizon, which
+// first-order harmonics gave it. Never below nought.
+//
+// THE EDGE. E fades to nothing over the grid's outer cell on each side, from the
+// outermost probe in, and a probe outside the grid weighs nothing, so the
+// toroidal index never reads the far side into a surface past the edge.
+//
+// CONSTRAINTS. Eight probes, eight bilinear moment taps and 32 loads a call
+// (validity and the three axes, the side n faces on each); no
+// probe beyond the eight, so a grid of mostly invalid probes reads dark where
+// DDGI would search further.
+
+static const uint3 VOE_BOUNCE_READ_SIZE = uint3(24, 12, 24);
+static const float VOE_BOUNCE_READ_FACE = 8.0;
+static const float2 VOE_BOUNCE_READ_ATLAS = float2(1152.0, 2304.0);
+static const float VOE_BOUNCE_READ_PUSH = 0.25;
+
+// The bilinear mean and mean² of probe `t`'s distances along `d`, d its
+// probe-to-surface vector, from the moments atlas.
+float2 voe_render_bounce_read_moments(Sampler2D moments, uint3 t, float3 d)
+{
+	uint face = voe_render_point_shadow_face(d);
+	float3 view = voe_render_point_shadow_basis(d, face);
+	float2 uv = float2(view.x / view.z * 0.5 + 0.5, 0.5 - view.y / view.z * 0.5);
+	float half_texel = 0.5 / VOE_BOUNCE_READ_FACE;
+	float2 tile = float2(6 * t.x + face, VOE_BOUNCE_READ_SIZE.y * t.z + t.y);
+	float2 at = (tile + clamp(uv, half_texel, 1.0 - half_texel)) *
+		    VOE_BOUNCE_READ_FACE / VOE_BOUNCE_READ_ATLAS;
+
+	return moments.SampleLevel(at, 0.0).rg;
+}
+
+// Chebyshev's bound that a surface `reach` from a probe is seen by it.
+float voe_render_bounce_read_visibility(float2 moments, float reach)
+{
+	if (reach <= moments.x)
+		return 1.0;
+	float variance = max(moments.y - moments.x * moments.x, 1e-4);
+	float beyond = reach - moments.x;
+
+	return variance / (variance + beyond * beyond);
+}
+
+// E(n) at `world` facing unit `n` from the volume whose six-axis irradiance is
+// in `x_axis`, `y_axis` and `z_axis`, validity `validity` and moments
+// `moments`, placed at `corner`, `cell` and `spacing`. See the header.
+float3 voe_render_bounce_read(Sampler3D x_axis, Sampler3D y_axis, Sampler3D z_axis,
+			      Sampler3D validity, Sampler2D moments,
+			      float3 corner, uint3 cell, float spacing,
+			      float3 world, float3 n)
+{
+	float3 size = float3(VOE_BOUNCE_READ_SIZE);
+	float3 pushed = world + n * (VOE_BOUNCE_READ_PUSH * spacing);
+	float3 u = (pushed - corner) / spacing;
+	float3 edge = saturate(min(u, size - u) - 0.5);
+	float3 g = u - 0.5;
+	float3 low = floor(g);
+	float3 f = g - low;
+	float3 squared = n * n;
+	// The x texel of the side n faces on each axis: + at 2i, − at 2i + 1.
+	int3 side = int3(n.x < 0.0 ? 1 : 0, n.y < 0.0 ? 1 : 0, n.z < 0.0 ? 1 : 0);
+	float3 sum = float3(0.0, 0.0, 0.0);
+	float weights = 0.0;
+
+	for (uint k = 0; k < 8; k++) {
+		float3 o = float3(k & 1, (k >> 1) & 1, (k >> 2) & 1);
+		float3 i = low + o;
+
+		if (any(i < 0.0) || any(i >= size))
+			continue;
+		uint3 t = (cell + uint3(i)) % VOE_BOUNCE_READ_SIZE;
+		float3 centre = corner + (i + 0.5) * spacing;
+		float3 d = pushed - centre;
+		float far = length(d);
+		float3 to_probe = far > 0.0 ? -d / far : n;
+		float3 share = lerp(1.0 - f, f, o);
+		float facing = (dot(n, to_probe) + 1.0) * 0.5;
+		float w = share.x * share.y * share.z *
+			  validity.Load(int4(int3(t), 0)).r *
+			  (facing * facing + 0.2);
+
+		if (w <= 0.0)
+			continue;
+		w *= voe_render_bounce_read_visibility(
+			voe_render_bounce_read_moments(moments, t, d), far);
+		int4 at = int4(2 * int(t.x), int(t.y), int(t.z), 0);
+		sum += w * (squared.x * x_axis.Load(at + int4(side.x, 0, 0, 0)).rgb +
+			    squared.y * y_axis.Load(at + int4(side.y, 0, 0, 0)).rgb +
+			    squared.z * z_axis.Load(at + int4(side.z, 0, 0, 0)).rgb);
+		weights += w;
+	}
+	if (!(weights > 0.0) || !isfinite(weights))
+		return float3(0.0, 0.0, 0.0);
+	float3 e = sum / weights;
+
+	if (any(!isfinite(e)))
+		return float3(0.0, 0.0, 0.0);
+	return max(e, 0.0) * (edge.x * edge.y * edge.z);
+}

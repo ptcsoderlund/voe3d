@@ -27,16 +27,15 @@ which file to open — what each one owns, and where the seams between them run.
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the five mesh pipelines, solid, blended, shadow, bounce and point shadow, with their
+- `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture, with their
   embedded shader, depth and blend state, and the layout every pipeline shares.
-- `descriptors.c` — everything the shader reads and the one layout that describes it: ten bindings,
-  one set, a camera buffer holding a block per pass, object, element, point light and light bin
-  buffers, the shadow and point shadow maps per frame slot, and every bounce grid with its sampler.
+- `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
 - `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
-  pair in every frame slot, and the ranges into all of them, each with its bounding sphere.
+  pair in every frame slot, and the ranges into all of them, each with its bounding sphere and its
+  vertex box, which `voe_render_geometry_box` hands back.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.
@@ -44,11 +43,9 @@ which file to open — what each one owns, and where the seams between them run.
   slots that name its rows, freed and reused. Its header says why one buffer
   serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, the image build, settle and teardown every target shares, and the
-  bounce grids, built cleared.
+  depth with its sampled copy, the image build, settle and teardown every target shares.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy; each keeps
-  its bounce grid through a resize.
+  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
@@ -56,15 +53,21 @@ which file to open — what each one owns, and where the seams between them run.
 - `point_shadow.c` — the point lights' shadow maps: one D32 array image of 6 × 16 layers per frame
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.
-- `bounce_map.c` — the sun's bounce map: per frame slot a D32 depth and RGBA16F flux and normal
-  images, 512 square, the bounce pass's rendering, and its barriers to compute read.
-- `bounce_grid.c` — the bounce update: its two compute pipelines, set layout, pool, VPL and probe
-  list buffers, and the call that runs a grid's schedule, reduces the map once a frame, gathers
-  and marks the grid updated in the frame slot.
-- `bounce_schedule.h` — which bounce probes an update refreshes and how much: entered cells, then
-  stale spheres, then a strided cycle, in toroidal indices, and the one wrap of a world cell into
-  0..31 that pass.c and bounce_grid.c send shaders. Pure CPU.
-- `bounce_schedule.c` — that schedule's one call, its bit set against listing an index twice.
+- `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
+  which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
+- `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
+  about the corner, so an eye that moves relights nothing) and relit calls over bit sets.
+- `bounce_volume.c` — a target's probe volume: its atlases and six-axis irradiance 3D images, built at the top of the
+  frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10, freed after 300
+  frames unbegun, and that begin, which keeps its spacing per frame slot.
+- `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
+  depth, sixteen queued probes drawn into it as one layered pass at the volume's spacing and out
+  to its reach, twelve cells, then copied into the atlases.
+- `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
+  shadow pass that draws it once per bounce begin that relights a casting sun.
+- `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
+  lists and one record per volume, and the call that settles changed probes, relights each level in
+  use and sums them.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
@@ -79,12 +82,12 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c and point_shadow.c make across
-  one another; included by those five only.
+- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c, point_shadow.c,
+  bounce_capture.c and bounce_shadow.c make across one another; included by those seven only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
-- `pass.c` — a pass: one rendering block onto the window or a target with its camera block and its
-  point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
+- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
+  begun probe volume, and its point lights copied and binned, the clear colour, the first-clears-later-load rule, the depth
   copy, and the one Y flip in the viewport.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
   the point-shadow pass one instance per cube face reached, the depth clear between them, and the

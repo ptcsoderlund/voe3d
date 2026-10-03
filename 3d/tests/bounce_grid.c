@@ -1,161 +1,173 @@
-// The bounce grid fitted to a view: that its centre stands 32 m ahead of the
-// eye within a cell, that its corner is its whole cell about the eye 10 km out
-// too, that 2 m along x moves it one cell, that every grid corner lands inside
-// the light view's box, and that a 1 cm move keeps the world origin on a whole
-// 8-texel block of the bounce map. Needs no graphics card.
+// The probe volume fitted to the level, not the eye (0331, 0332 point 2): the
+// box (−20, −0.1, −20) to (20, 10, 20) fits at 2 m with its lowest cell
+// (−12, −4, −12), the same cell and spacing with the eye at the origin, at
+// (300, 5, −40) and 10 km out, `corner` that cell's lowest corner about each
+// eye; a 60 m wide box fits at 4 m and not at 2; a box whose centre crosses a
+// cell edge moves `cell` by one; no box fits at 2 m about the origin. The
+// relight's sun view puts the volume's centre in the map's middle within a
+// texel and its eight corners inside, for a sun at 45 degrees and one straight
+// down, and its sphere, half-diagonal plus the volume's reach, grows with the
+// spacing. Needs no graphics card.
 #include <3d/bounce_grid.h>
-#include <3d/projection.h>
 #include <math/double3.h>
-#include <math/float3.h>
-#include <math/float4.h>
 #include <math/float4x4.h>
-#include <math/quat.h>
-#include <scene/camera_component.h>
-#include <scene/transform_component.h>
 
 #include <testing/test.h>
 
 #include <math.h>
+#include <stdio.h>
 
-#define FOV_Y 1.0471976f
-#define ASPECT 1.7777778f
-#define SIDE ((float)VOE_RENDER_BOUNCE_PROBES * VOE_RENDER_BOUNCE_SPACING)
+static const voe_math_double3 LOW = { -20.0, -0.1, -20.0 };
+static const voe_math_double3 HIGH = { 20.0, 10.0, 20.0 };
 
-static voe_math_float3 a_sun(void)
+// Whether `grid` is at `spacing` with its lowest cell `x`, `y`, `z`.
+static bool fitted(voe_3d_bounce_grid grid, float spacing, int32_t x, int32_t y,
+		   int32_t z)
 {
-	return voe_math_float3_normalize((voe_math_float3){ 0.3f, -1.0f, 0.2f });
+	printf("spacing %g cell %d %d %d\n", grid.spacing, grid.cell[0],
+	       grid.cell[1], grid.cell[2]);
+	return grid.spacing == spacing && grid.cell[0] == x &&
+	       grid.cell[1] == y && grid.cell[2] == z;
 }
 
-// A camera at `at`, turned `turn` radians about Y, and its grid.
-static voe_3d_bounce_grid fit_at(voe_math_double3 at, float turn,
-				 voe_render_view *view)
+// The level's box seen from `eye`: the same cell and spacing, the corner the
+// lowest cell's lowest corner about the eye.
+static void the_eye_moves_nothing(voe_math_double3 eye)
 {
-	voe_scene_camera lens = { .fov_y = FOV_Y, .near_plane = 0.1f,
-				  .far_plane = 1000.0f };
-	voe_scene_transform pose = {
-		.position = at,
-		.rotation = voe_math_quat_from_axis_angle(
-			(voe_math_float3){ 0.0f, 1.0f, 0.0f }, turn),
-		.scale = { 1.0f, 1.0f, 1.0f },
-	};
+	voe_3d_bounce_grid grid = voe_3d_bounce_grid_fit(LOW, HIGH, eye);
+	const double at[3] = { eye.x, eye.y, eye.z };
+	const float corner[3] = { grid.corner.x, grid.corner.y, grid.corner.z };
 
-	VOE_TEST_CHECK(voe_3d_view(pose, lens, ASPECT, view));
-	return voe_3d_bounce_grid_fit(*view, at, a_sun());
+	VOE_TEST_CHECK(fitted(grid, 2.0f, -12, -4, -12));
+	for (int axis = 0; axis < 3; axis++) {
+		double lowest = (double)grid.cell[axis] * grid.spacing;
+
+		VOE_TEST_CHECK(fabs(at[axis] + (double)corner[axis] - lowest) < 1e-3);
+	}
 }
 
-static voe_math_float4 light_clip(voe_3d_bounce_grid grid, voe_math_float3 point)
+// 60 m wide does not fit at 2 m with a cell spare; it does at 4.
+static void a_wider_box_doubles_the_spacing(void)
+{
+	voe_3d_bounce_grid grid = voe_3d_bounce_grid_fit(
+		(voe_math_double3){ -30.0, 0.0, -30.0 },
+		(voe_math_double3){ 30.0, 1.0, 30.0 },
+		(voe_math_double3){ 0.0, 0.0, 0.0 });
+
+	VOE_TEST_CHECK(fitted(grid, 4.0f, -12, -6, -12));
+}
+
+// The centre at x 1.9 and at 2.1, either side of a 2 m cell edge.
+static void a_centre_across_a_cell_edge_moves_one_cell(void)
+{
+	voe_math_double3 eye = { 0.0, 0.0, 0.0 };
+	voe_3d_bounce_grid before = voe_3d_bounce_grid_fit(
+		(voe_math_double3){ -8.1, 0.0, -10.0 },
+		(voe_math_double3){ 11.9, 1.0, 10.0 }, eye);
+	voe_3d_bounce_grid after = voe_3d_bounce_grid_fit(
+		(voe_math_double3){ -7.9, 0.0, -10.0 },
+		(voe_math_double3){ 12.1, 1.0, 10.0 }, eye);
+
+	VOE_TEST_CHECK(fitted(before, 2.0f, -12, -6, -12));
+	VOE_TEST_CHECK(fitted(after, 2.0f, -11, -6, -12));
+}
+
+// Min above max: the finest spacing about the world origin, the corner about
+// the eye.
+static void no_box_is_the_origin(void)
+{
+	voe_3d_bounce_grid grid = voe_3d_bounce_grid_fit(
+		(voe_math_double3){ 1.0, 1.0, 1.0 },
+		(voe_math_double3){ 0.0, 0.0, 0.0 },
+		(voe_math_double3){ 300.0, 5.0, -40.0 });
+
+	VOE_TEST_CHECK(fitted(grid, 2.0f, -12, -6, -12));
+	VOE_TEST_CHECK(fabsf(grid.corner.x + 324.0f) < 1e-3f &&
+		       fabsf(grid.corner.y + 17.0f) < 1e-3f &&
+		       fabsf(grid.corner.z - 16.0f) < 1e-3f);
+}
+
+// `at`, about the eye, through `light` into the map: x and y across it, -1 to
+// 1, and z its depth.
+static voe_math_float4 in_the_map(voe_render_view light, voe_math_float3 at)
 {
 	return voe_math_float4x4_mul_float4(
-		voe_math_float4x4_mul(grid.light.projection, grid.light.view),
-		(voe_math_float4){ point.x, point.y, point.z, 1.0f });
+		voe_math_float4x4_mul(light.projection, light.view),
+		(voe_math_float4){ at.x, at.y, at.z, 1.0f });
 }
 
-static void the_centre_stands_ahead_of_the_eye(voe_math_double3 at, float turn)
+// The sun view of `grid` about `eye`, for a sun along `direction`: the
+// volume's centre in the map's middle within a texel, its eight corners
+// inside, and the map's half width the half-diagonal plus the volume's reach.
+static void the_sun_map_holds_the_volume(voe_3d_bounce_grid grid,
+					 voe_math_double3 eye,
+					 voe_math_float3 direction)
 {
-	voe_render_view view;
-	voe_3d_bounce_grid grid = fit_at(at, turn, &view);
-	float forward[3] = { -view.view.m[2][0], -view.view.m[2][1],
-			     -view.view.m[2][2] };
-	float corner[3] = { grid.corner.x, grid.corner.y, grid.corner.z };
+	voe_render_view light = voe_3d_bounce_grid_sun(grid, eye, direction);
+	const float sides[3] = {
+		(float)VOE_RENDER_BOUNCE_PROBES_XZ * grid.spacing,
+		(float)VOE_RENDER_BOUNCE_PROBES_Y * grid.spacing,
+		(float)VOE_RENDER_BOUNCE_PROBES_XZ * grid.spacing
+	};
+	float radius = 0.5f * sqrtf(sides[0] * sides[0] + sides[1] * sides[1] +
+				    sides[2] * sides[2]) +
+		       VOE_RENDER_BOUNCE_REACH * grid.spacing /
+			       VOE_RENDER_BOUNCE_SPACING;
+	float texel = 2.0f / (float)VOE_RENDER_BOUNCE_SHADOW_TEXELS;
+	voe_math_float4 middle = in_the_map(
+		light, (voe_math_float3){ grid.corner.x + 0.5f * sides[0],
+					  grid.corner.y + 0.5f * sides[1],
+					  grid.corner.z + 0.5f * sides[2] });
 
-	for (int axis = 0; axis < 3; axis++) {
-		float centre = corner[axis] + SIDE * 0.5f;
+	printf("middle %g %g texel %g half %g radius %g\n", middle.x, middle.y,
+	       texel, 1.0f / light.projection.m[0][0], radius);
+	VOE_TEST_CHECK(fabsf(middle.x) <= texel && fabsf(middle.y) <= texel);
+	VOE_TEST_CHECK(fabsf(1.0f / light.projection.m[0][0] - radius) <
+		       1e-3f * radius);
+	for (int corner = 0; corner < 8; corner++) {
+		voe_math_float4 at = in_the_map(
+			light,
+			(voe_math_float3){
+				grid.corner.x + (float)(corner & 1) * sides[0],
+				grid.corner.y + (float)((corner >> 1) & 1) * sides[1],
+				grid.corner.z + (float)((corner >> 2) & 1) * sides[2] });
 
-		VOE_TEST_CHECK(fabsf(centre - forward[axis] * VOE_3D_BOUNCE_AHEAD) <=
-			       VOE_RENDER_BOUNCE_SPACING);
+		VOE_TEST_CHECK(fabsf(at.x) < 1.0f && fabsf(at.y) < 1.0f);
+		VOE_TEST_CHECK(at.z > 0.0f && at.z < 1.0f);
 	}
 }
 
-static void the_corner_is_the_cell_about_the_eye(voe_math_double3 at)
+// The sun map at 2 m and at 4 m: the coarser one's sphere twice as wide.
+static void the_sun_map_grows_with_the_spacing(void)
 {
-	voe_render_view view;
-	voe_3d_bounce_grid grid = fit_at(at, 0.34906585f, &view);
-	double eye[3] = { at.x, at.y, at.z };
-	float corner[3] = { grid.corner.x, grid.corner.y, grid.corner.z };
+	voe_math_double3 eye = { 10001.3, 10.9, -2501.7 };
+	voe_3d_bounce_grid fine = voe_3d_bounce_grid_fit(LOW, HIGH, eye);
+	voe_3d_bounce_grid coarse = voe_3d_bounce_grid_fit(
+		(voe_math_double3){ -30.0, 0.0, -30.0 },
+		(voe_math_double3){ 30.0, 1.0, 30.0 }, eye);
+	voe_math_float3 down = { 0.0f, -1.0f, 0.0f };
 
-	for (int axis = 0; axis < 3; axis++) {
-		double world = eye[axis] + (double)corner[axis];
-		double cell = (double)grid.cell[axis] * VOE_RENDER_BOUNCE_SPACING;
-
-		VOE_TEST_CHECK(fabs(world - cell) < 1e-3);
-	}
-}
-
-static void two_metres_along_x_is_one_cell(void)
-{
-	voe_render_view view;
-	voe_3d_bounce_grid before =
-		fit_at((voe_math_double3){ 0.7, 1.5, -3.2 }, 0.0f, &view);
-	voe_3d_bounce_grid after =
-		fit_at((voe_math_double3){ 2.7, 1.5, -3.2 }, 0.0f, &view);
-
-	VOE_TEST_CHECK_FLOAT(view.view.m[2][2], 1.0f, 1e-6f);
-	VOE_TEST_CHECK_INT(after.cell[0], before.cell[0] + 1);
-	VOE_TEST_CHECK_INT(after.cell[1], before.cell[1]);
-	VOE_TEST_CHECK_INT(after.cell[2], before.cell[2]);
-}
-
-static void every_grid_corner_is_inside_the_light_box(voe_math_double3 at,
-						       float turn)
-{
-	voe_render_view view;
-	voe_3d_bounce_grid grid = fit_at(at, turn, &view);
-
-	for (int i = 0; i < 8; i++) {
-		voe_math_float3 point = voe_math_float3_add(grid.corner, (voe_math_float3){
-			(i & 1) ? SIDE : 0.0f, (i & 2) ? SIDE : 0.0f,
-			(i & 4) ? SIDE : 0.0f });
-		voe_math_float4 clip = light_clip(grid, point);
-
-		VOE_TEST_CHECK(fabsf(clip.x) <= 1.0f);
-		VOE_TEST_CHECK(fabsf(clip.y) <= 1.0f);
-		VOE_TEST_CHECK(clip.z >= 0.0f && clip.z <= 1.0f);
-		VOE_TEST_CHECK_FLOAT(clip.w, 1.0f, 1e-6f);
-	}
-}
-
-// The world origin's place on the map, in blocks of eight texels.
-static float origin_in_blocks(voe_3d_bounce_grid grid, voe_math_double3 at,
-			      int axis)
-{
-	voe_math_float4 clip = light_clip(
-		grid, voe_math_double3_to_float3(voe_math_double3_sub(
-			      (voe_math_double3){ 0.0, 0.0, 0.0 }, at)));
-	float value = axis == 0 ? clip.x : clip.y;
-
-	return (value * 0.5f + 0.5f) * (float)VOE_RENDER_BOUNCE_TEXELS / 8.0f;
-}
-
-static void a_centimetre_keeps_the_origin_on_its_block(void)
-{
-	voe_math_double3 at = { 3.3, 1.2, -5.7 };
-	voe_math_double3 moved = { 3.31, 1.2, -5.7 };
-	voe_render_view view;
-	voe_3d_bounce_grid before = fit_at(at, 0.34906585f, &view);
-	voe_3d_bounce_grid after = fit_at(moved, 0.34906585f, &view);
-
-	for (int axis = 0; axis < 2; axis++) {
-		float a = origin_in_blocks(before, at, axis);
-		float b = origin_in_blocks(after, moved, axis);
-
-		VOE_TEST_CHECK(fabsf(a - roundf(a)) < 1e-3f);
-		VOE_TEST_CHECK_FLOAT(b, a, 1e-3f);
-	}
+	VOE_TEST_CHECK(coarse.spacing == 2.0f * fine.spacing);
+	the_sun_map_holds_the_volume(fine, eye,
+				     (voe_math_float3){ -0.70710678f,
+							-0.70710678f, 0.0f });
+	the_sun_map_holds_the_volume(fine, eye, down);
+	the_sun_map_holds_the_volume(coarse, eye, down);
+	VOE_TEST_CHECK(
+		fabsf(voe_3d_bounce_grid_sun(fine, eye, down).projection.m[0][0] -
+		      2.0f * voe_3d_bounce_grid_sun(coarse, eye, down)
+				     .projection.m[0][0]) < 1e-6f);
 }
 
 int main(void)
 {
-	voe_math_double3 origin = { 0.0, 0.0, 0.0 };
-	voe_math_double3 far_out = { 10000.0, 3.0, -2500.0 };
-
-	the_centre_stands_ahead_of_the_eye(origin, 0.0f);
-	the_centre_stands_ahead_of_the_eye(far_out, 0.34906585f);
-	the_corner_is_the_cell_about_the_eye(origin);
-	the_corner_is_the_cell_about_the_eye(far_out);
-	two_metres_along_x_is_one_cell();
-	every_grid_corner_is_inside_the_light_box(origin, 0.0f);
-	every_grid_corner_is_inside_the_light_box(far_out, 0.34906585f);
-	a_centimetre_keeps_the_origin_on_its_block();
+	the_eye_moves_nothing((voe_math_double3){ 0.0, 0.0, 0.0 });
+	the_eye_moves_nothing((voe_math_double3){ 300.0, 5.0, -40.0 });
+	the_eye_moves_nothing((voe_math_double3){ 10000.0, 3.0, -10000.0 });
+	a_wider_box_doubles_the_spacing();
+	a_centre_across_a_cell_edge_moves_one_cell();
+	no_box_is_the_origin();
+	the_sun_map_grows_with_the_spacing();
 
 	return voe_test_result();
 }

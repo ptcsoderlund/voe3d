@@ -1,7 +1,8 @@
 // The innards of voe_render_device, shared by the files that make one: device.c
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
-// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights', bounce_map.c its bounce map, bounce_grid.c the grid updates, swapchain.c builds the images the window is made of, element.c
+// drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights',
+// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, bounce_shadow.c its sun map, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -170,16 +171,30 @@ struct voe_render_device {
 	// The point-shadow pass's: its own vertex stage writing the layer, then
 	// the shadow one's biased depth write. VK_NULL_HANDLE without output_layer.
 	VkPipeline pipeline_point_shadow;
-	// The bounce pass's: the solid one's vertex stage, a fragment writing
-	// flux and normal into two RGBA16F attachments, culling as shadow's.
-	VkPipeline pipeline_bounce;
-	// The bounce grid update's, bounce_grid.c's: its own set layout, layout
-	// and pool, and the two compute pipelines, reduce and gather.
-	VkDescriptorSetLayout bounce_set_layout;
-	VkPipelineLayout bounce_layout;
-	VkDescriptorPool bounce_pool;
-	VkPipeline bounce_reduce;
-	VkPipeline bounce_gather;
+	// The capture pass's: its own vertex stage writing the layer, a fragment
+	// writing albedo and normal with distance, nothing culled, no bias.
+	// VK_NULL_HANDLE without output_layer.
+	VkPipeline pipeline_capture;
+	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
+	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
+	// a mapped record buffer of (targets + 1) regions, volume n's at n ×
+	// `relight_record_stride` (the record's size rounded up to the card's
+	// uniform offset alignment, as `pass_stride` is), and one set per volume
+	// (calloc'd); and how many dispatches it has recorded. All nought without
+	// output_layer.
+	VkDescriptorSetLayout relight_set_layout;
+	VkPipelineLayout relight_layout;
+	VkDescriptorPool relight_pool;
+	VkPipeline relight_settle;
+	VkPipeline relight_levels;
+	VkPipeline relight_sum;
+	struct voe_render_buffer relight_lists[VOE_RENDER_FRAMES_IN_FLIGHT];
+	void *relight_mapped[VOE_RENDER_FRAMES_IN_FLIGHT];
+	struct voe_render_buffer relight_records[VOE_RENDER_FRAMES_IN_FLIGHT];
+	void *relight_records_mapped[VOE_RENDER_FRAMES_IN_FLIGHT];
+	VkDeviceSize relight_record_stride;
+	VkDescriptorSet *relight_sets[VOE_RENDER_FRAMES_IN_FLIGHT];
+	uint32_t relight_dispatches;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -209,10 +224,12 @@ struct voe_render_device {
 	// The comparison sampler every slot's shadow maps are read through at
 	// binding 5. shadow.c makes and destroys it.
 	VkSampler shadow_sampler;
-	// The trilinear, repeating sampler the bounce grids are read through at
-	// binding 6, repeat because a grid is addressed toroidally (ADR-0308).
-	// descriptors.c makes and destroys it.
+	// The linear, repeating sampler the probe volumes' sums are read through
+	// at binding 6, repeat because a volume is addressed toroidally, and the
+	// linear, clamping one their moments are read through at binding 10
+	// (ADR-0326). descriptors.c makes and destroys both.
 	VkSampler bounce_sampler;
+	VkSampler moments_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -283,10 +300,6 @@ struct voe_render_device {
 	// false.
 	bool pass_shadow;
 	uint32_t pass_cascade;
-	// Whether the open pass is a bounce pass: the draws read it to pick the
-	// bounce pipeline, _pass_end to hand the map to compute, and the next
-	// pass or the frame's end to close it.
-	bool pass_bounce;
 	// Whether the open pass is the point-shadow pass (ADR-0325): the draws read
 	// it to pick that pipeline and cull by face, _pass_end to hand the maps
 	// back. `pass_casters` is its lights by slot − 1, `pass_slots` bit s − 1
@@ -294,6 +307,19 @@ struct voe_render_device {
 	bool pass_point_shadow;
 	voe_render_point_light pass_casters[VOE_RENDER_POINT_SHADOWS];
 	uint32_t pass_slots;
+	// Whether the open pass is a capture pass (ADR-0326 point 3): the draws
+	// read it to pick that pipeline and cull by face over `pass_casters`, its
+	// probes by slot; _pass_end to copy `capture_count` probes, toroidal
+	// indices in `capture_probes` by slot, into `capture_volume`'s atlases.
+	// `capture_passes` counts this frame's, reset by voe_render_frame_begin.
+	bool pass_capture;
+	struct voe_render_bounce_volume *capture_volume;
+	uint32_t capture_probes[VOE_RENDER_BOUNCE_CAPTURE];
+	uint32_t capture_count;
+	uint32_t capture_passes;
+	// Whether the open pass is the bounce shadow pass (ADR-0329): the draws
+	// read it to take the shadow pass's path, _pass_end to hand the map back.
+	bool pass_bounce_shadow;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -303,10 +329,17 @@ struct voe_render_device {
 	// The texture slot that shows the window's depth copy, each frame slot
 	// its own; claimed by the first voe_render_target_build, never freed.
 	uint32_t window_depth_texture;
-	// The window's bounce grid, grid index 0: built by the first
-	// voe_render_target_build, kept through every resize, freed by
-	// voe_render_targets_shutdown.
-	struct voe_render_bounce_grid window_grid;
+	// The window's probe volume, built on the first begin onto the window.
+	struct voe_render_bounce_volume window_volume;
+
+	// This frame's last voe_render_bounce_begin, bounce_volume.c's: whether
+	// there was one, its target, and a copy of its record whose `stale` is
+	// none and whose `points` are `bounce_lamps`, the bouncing lamps — none
+	// while the target's volume is not built. Reset by voe_render_frame_begin.
+	bool bounce_begun;
+	voe_render_target bounce_target;
+	struct voe_render_bounce_frame bounce_frame;
+	voe_render_point_light bounce_lamps[VOE_RENDER_BOUNCE_LAMPS];
 
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a
@@ -468,15 +501,59 @@ voe_render_target_depth_copy_build(voe_render_device *device,
 [[nodiscard]] uint32_t
 voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
 
-// target.c, for target_own.c too. One bounce grid, grid index `index` (the
-// window 0, target n n): its three images built, cleared to nought in GENERAL
-// and named at binding 6. Idles. False with a message, nothing left behind.
-// _teardown is safe on a zeroed grid and leaves it zeroed; it does not wait.
-[[nodiscard]] bool voe_render_bounce_grid_build(voe_render_device *device,
-						struct voe_render_bounce_grid *grid,
-						uint32_t index);
-void voe_render_bounce_grid_teardown(voe_render_device *device,
-				     struct voe_render_bounce_grid *grid);
+// target.c: _settle's one-shot submit, then each of `clears` cleared to nought
+// in GENERAL, and idle. False with a message.
+[[nodiscard]] bool voe_render_target_settle_cleared(
+	voe_render_device *device, const VkImageMemoryBarrier2 *barriers,
+	uint32_t count, const VkImage *clears, uint32_t clear_count);
+
+// bounce_volume.c. _build makes one probe volume's images, cleared in GENERAL,
+// and idles; false with a message, nothing left behind. _teardown is safe on an
+// unbuilt volume, leaves it zeroed and does not wait. _apply, at the top of a
+// frame beside voe_render_targets_apply_resizes, builds every wanted volume and
+// frees every one with no begin for VOE_RENDER_BOUNCE_IDLE frames, over the
+// window and every live target, idling once only when one does; false when a
+// build failed.
+#define VOE_RENDER_BOUNCE_IDLE 300
+[[nodiscard]] bool
+voe_render_bounce_volume_build(voe_render_device *device,
+			       struct voe_render_bounce_volume *volume);
+void voe_render_bounce_volume_teardown(voe_render_device *device,
+				       struct voe_render_bounce_volume *volume);
+[[nodiscard]] bool voe_render_bounce_volumes_apply(voe_render_device *device);
+// bounce_volume.c. The volume `target` names, the window's or a live target's;
+// asserts on a target id that names none.
+struct voe_render_bounce_volume *
+voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target);
+
+// bounce_capture.c. Every frame slot's capture scratch on a device with
+// output_layer, none without; startup's, after the point shadow maps. False with
+// a message; _shutdown is safe on a device that never got that far. _end, from
+// voe_render_pass_end once the capture pass's rendering has ended, copies its
+// probes' faces into their volume's atlases.
+[[nodiscard]] bool voe_render_bounce_capture_startup(voe_render_device *device);
+void voe_render_bounce_capture_shutdown(voe_render_device *device);
+void voe_render_bounce_capture_end(voe_render_device *device);
+
+// bounce_relight.c. The relight's pipeline, set layout, pool, sets and every
+// slot's list buffer on a device with output_layer, none without; startup's,
+// after the capture scratch. False with a message; _shutdown is safe on a device
+// that never got that far.
+[[nodiscard]] bool voe_render_bounce_relight_startup(voe_render_device *device);
+void voe_render_bounce_relight_shutdown(voe_render_device *device);
+// bounce_relight.c. The bouncing lights this frame's begin placed, as
+// voe_render_bounce_probes_relight_needed compares them.
+void voe_render_bounce_begun_lights(const voe_render_device *device,
+				    voe_render_bounce_lights *lights);
+
+// bounce_shadow.c. Every frame slot's relight sun map on a device with
+// output_layer, settled where the relight reads it, none without; startup's,
+// beside the capture scratch. False with a message; _shutdown is safe on a device
+// that never got that far. _end, from voe_render_pass_end once the bounce shadow
+// pass's rendering has ended, hands the map to a compute read.
+[[nodiscard]] bool voe_render_bounce_shadow_startup(voe_render_device *device);
+void voe_render_bounce_shadow_shutdown(voe_render_device *device);
+void voe_render_bounce_shadow_end(voe_render_device *device);
 
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds
@@ -507,22 +584,6 @@ void voe_render_shadow_to_read(const struct voe_render_frame *frame,
 // message; _shutdown is safe on a device that never got that far.
 [[nodiscard]] bool voe_render_point_shadow_startup(voe_render_device *device);
 void voe_render_point_shadow_shutdown(voe_render_device *device);
-
-// bounce_map.c. Every frame slot's bounce map, made and settled where compute
-// reads it; startup's, after the frame objects. False with a message; _shutdown
-// is safe on a device that never got that far. _open records the barriers into
-// the attachments and begins the cleared rendering with viewport and scissor;
-// _to_read the barriers back after the rendering ends.
-[[nodiscard]] bool voe_render_bounce_startup(voe_render_device *device);
-void voe_render_bounce_shutdown(voe_render_device *device);
-void voe_render_bounce_open(const struct voe_render_frame *frame);
-void voe_render_bounce_to_read(const struct voe_render_frame *frame);
-
-// bounce_grid.c. The update's pipelines, set layout, pool, sets and every
-// slot's VPL and probe list buffers; startup's, after the frame objects. False
-// with a message; _shutdown is safe on a device that never got that far.
-[[nodiscard]] bool voe_render_bounce_grid_startup(voe_render_device *device);
-void voe_render_bounce_grid_shutdown(voe_render_device *device);
 
 // target_own.c. What a target id names, or NULL when it names nothing — the window's
 // id included, which is not in the table. The one place a target id is checked.
@@ -626,12 +687,14 @@ void voe_render_buffer_teardown(voe_render_device *device,
 [[nodiscard]] bool voe_render_descriptors_build(voe_render_device *device);
 void voe_render_descriptors_teardown(voe_render_device *device);
 
-// descriptors.c. Names `grid`'s three images, through the bounce sampler, at
-// binding 6's entries 3 × index to 3 × index + 2 of every slot's set. No frame
-// may be reading the sets: a grid is built outside one, and its build idles.
-void voe_render_descriptors_write_grid(voe_render_device *device,
-				       const struct voe_render_bounce_grid *grid,
-				       uint32_t index);
+// descriptors.c. Names built `volume`'s sum and validity at binding 6's entries
+// 4 × index to 4 × index + 3, and its moments atlas at binding 10's entry
+// `index`, of every slot's set: volume index 0 the window's, n target n's. No
+// frame may be reading the sets: a volume is built outside one, and its build
+// idles.
+void voe_render_descriptors_write_volume(
+	voe_render_device *device, const struct voe_render_bounce_volume *volume,
+	uint32_t index);
 
 // descriptors.c. Points a slot's set at the shared shading buffer. Called once
 // per slot at startup, after the buffer exists; a record written later needs no

@@ -2,9 +2,9 @@
 // descriptor set layout, the pool, and per frame slot one set, one mapped
 // uniform buffer holding a camera, a sun and a shadow record for every pass,
 // mapped buffers of per-object records, element records, point lights and their
-// bins, and the slot's shadow maps; and the bounce grids' sampler.
+// bins, and the slot's shadow maps; and the probe volumes' two samplers.
 //
-// TEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// ELEVEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
 //   0  the camera, the sun and its shadow record, one block per pass in one
 //      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
@@ -22,12 +22,16 @@
 //   5  the slot's shadow maps as one array, through shadow.c's comparison
 //      sampler, written once at startup. One per slot because each slot draws
 //      its own maps while the card may still be reading the other's
-//   6  the bounce grids, three images each, (targets + 1) × 3 entries, the
-//      window's first; written as each grid is built (ADR-0308 point 3)
+//   6  the probe volumes' sums, four images each (the x, y and z axis
+//      images of six-axis irradiance, then the validity),
+//      (targets + 1) × 4 entries, the window's first; written as each volume
+//      is built (ADR-0326 point 7), partially bound until then
 //   7  the point lights, 8 their tile and slice masks (ADR-0320): storage
 //      buffers per frame slot, one region per pass, written as each pass opens
 //   9  the slot's point shadow maps, all 96 layers, through binding 5's
 //      comparison sampler, written once at startup (ADR-0325)
+//  10  the probe volumes' moments atlases, one each, (targets + 1) entries,
+//      through a linear, clamping sampler; written with binding 6
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
@@ -156,8 +160,9 @@ static_assert(offsetof(voe_render_element, sheet) == 64,
 
 static bool build_layout(voe_render_device *device)
 {
-	const uint32_t grid_entries = (device->capacities.targets + 1) * 3;
-	VkDescriptorSetLayoutBinding bindings[10] = {
+	const uint32_t grid_entries = (device->capacities.targets + 1) * 4;
+	const uint32_t moment_entries = device->capacities.targets + 1;
+	VkDescriptorSetLayoutBinding bindings[11] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -235,21 +240,30 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
+		{
+			.binding = 10,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = moment_entries,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
-	// The grids of targets not yet made are never written, so binding 6 is
-	// partially bound: only the grid a pass names has to be valid.
-	const VkDescriptorBindingFlags flags[10] = {
+	// A volume not built is never written, or names images since freed, so
+	// bindings 6 and 10 are partially bound: only the volume a pass names
+	// has to be valid.
+	const VkDescriptorBindingFlags flags[11] = {
 		[6] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+		[10] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 	};
 	VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.bindingCount = 10,
+		.bindingCount = 11,
 		.pBindingFlags = flags,
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 		.pNext = &binding_flags,
-		.bindingCount = 10,
+		.bindingCount = 11,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -258,12 +272,12 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT,
 		},
 		{
-			// The texture array, the shadow maps, the grids and the
-			// point shadow maps.
+			// The texture array, the shadow maps, the volumes' sums,
+			// the point shadow maps and the volumes' moments.
 			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT *
 					   (VOE_RENDER_MAX_TEXTURES + 1 +
-					    grid_entries + 1),
+					    grid_entries + 1 + moment_entries),
 		},
 		{
 			// Five per set: the objects, the shadings, the
@@ -555,32 +569,49 @@ void voe_render_descriptors_write_shadings(voe_render_device *device,
 	voe_render_vk.update_descriptor_sets(device->device, 1, &write, 0, NULL);
 }
 
-// Trilinear, and REPEAT on all three axes because a grid is addressed
-// toroidally: a sample past its last cell reads its first (ADR-0308 point 3).
-static bool build_bounce_sampler(voe_render_device *device)
+// One linear sampler with `address` on all three axes, or VK_NULL_HANDLE with
+// a line naming `what`.
+static VkSampler build_sampler(voe_render_device *device,
+			       VkSamplerAddressMode address, const char *what)
 {
 	VkSamplerCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 		.magFilter = VK_FILTER_LINEAR,
 		.minFilter = VK_FILTER_LINEAR,
 		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeU = address,
+		.addressModeV = address,
+		.addressModeW = address,
 	};
+	VkSampler sampler = VK_NULL_HANDLE;
 	VkResult result;
 
-	VOE_BASE_DEBUG_ASSERT(device != NULL, "a bounce sampler on no device");
+	VOE_BASE_DEBUG_ASSERT(device != NULL && what != NULL,
+			      "a sampler on no device");
 	result = voe_render_vk.create_sampler(device->device, &info, NULL,
-					      &device->bounce_sampler);
+					      &sampler);
 	if (result != VK_SUCCESS) {
 		VOE_BASE_ERROR("render",
-			       "vkCreateSampler failed for the bounce grids (VkResult %d)",
-			       (int)result);
-		device->bounce_sampler = VK_NULL_HANDLE;
-		return false;
+			       "vkCreateSampler failed for the %s (VkResult %d)",
+			       what, (int)result);
+		return VK_NULL_HANDLE;
 	}
-	return true;
+	return sampler;
+}
+
+// Binding 6's REPEAT, because a volume is addressed toroidally (ADR-0326
+// point 2), and binding 10's CLAMP_TO_EDGE, because the read holds its uv half
+// a texel inside a face and an atlas does not wrap.
+static bool build_bounce_samplers(voe_render_device *device)
+{
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "bounce samplers on no device");
+	device->bounce_sampler = build_sampler(
+		device, VK_SAMPLER_ADDRESS_MODE_REPEAT, "probe volumes' sums");
+	device->moments_sampler =
+		build_sampler(device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			      "probe volumes' moments");
+	return device->bounce_sampler != VK_NULL_HANDLE &&
+	       device->moments_sampler != VK_NULL_HANDLE;
 }
 
 bool voe_render_descriptors_build(voe_render_device *device)
@@ -592,41 +623,58 @@ bool voe_render_descriptors_build(voe_render_device *device)
 			      "a device with room for no passes");
 
 	return build_layout(device) && build_slots(device) &&
-	       build_bounce_sampler(device);
+	       build_bounce_samplers(device);
 }
 
-void voe_render_descriptors_write_grid(voe_render_device *device,
-				       const struct voe_render_bounce_grid *grid,
-				       uint32_t index)
+void voe_render_descriptors_write_volume(
+	voe_render_device *device, const struct voe_render_bounce_volume *volume,
+	uint32_t index)
 {
-	VkDescriptorImageInfo images[3];
-	VkWriteDescriptorSet writes[VOE_RENDER_FRAMES_IN_FLIGHT];
+	VkDescriptorImageInfo sums[4];
+	VkDescriptorImageInfo moments = {
+		.sampler = device->moments_sampler,
+		.imageView = volume->moments.view,
+		.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+	};
+	VkWriteDescriptorSet writes[2 * VOE_RENDER_FRAMES_IN_FLIGHT];
 
-	VOE_BASE_DEBUG_ASSERT(device != NULL && grid != NULL,
-			      "writing a grid's descriptors with no device or grid");
+	VOE_BASE_DEBUG_ASSERT(device != NULL && volume != NULL && volume->built,
+			      "writing descriptors for no device or an unbuilt volume");
 	VOE_BASE_DEBUG_ASSERT(index <= device->capacities.targets,
-			      "writing a grid past binding 6's (targets + 1) × 3 entries");
+			      "writing a volume past binding 6's (targets + 1) × 4 entries");
 
-	for (uint32_t k = 0; k < 3; k++)
-		images[k] = (VkDescriptorImageInfo){
+	for (uint32_t k = 0; k < 4; k++)
+		sums[k] = (VkDescriptorImageInfo){
 			.sampler = device->bounce_sampler,
-			.imageView = grid->sh[k].view,
+			.imageView = k < 3 ? volume->irradiance[6][k].view :
+					     volume->validity.view,
 			.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
 		};
-	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
-		writes[i] = (VkWriteDescriptorSet){
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		writes[2 * i] = (VkWriteDescriptorSet){
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.dstSet = device->frames[i].descriptor,
 			.dstBinding = 6,
-			.dstArrayElement = 3 * index,
-			.descriptorCount = 3,
+			.dstArrayElement = 4 * index,
+			.descriptorCount = 4,
 			.descriptorType =
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			.pImageInfo = images,
+			.pImageInfo = sums,
 		};
+		writes[2 * i + 1] = (VkWriteDescriptorSet){
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = device->frames[i].descriptor,
+			.dstBinding = 10,
+			.dstArrayElement = index,
+			.descriptorCount = 1,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &moments,
+		};
+	}
 	voe_render_vk.update_descriptor_sets(device->device,
-					     VOE_RENDER_FRAMES_IN_FLIGHT, writes,
-					     0, NULL);
+					     2 * VOE_RENDER_FRAMES_IN_FLIGHT,
+					     writes, 0, NULL);
 }
 
 void voe_render_descriptors_teardown(voe_render_device *device)
@@ -683,6 +731,11 @@ void voe_render_descriptors_teardown(voe_render_device *device)
 		voe_render_vk.destroy_sampler(device->device,
 					      device->bounce_sampler, NULL);
 		device->bounce_sampler = VK_NULL_HANDLE;
+	}
+	if (device->moments_sampler != VK_NULL_HANDLE) {
+		voe_render_vk.destroy_sampler(device->device,
+					      device->moments_sampler, NULL);
+		device->moments_sampler = VK_NULL_HANDLE;
 	}
 	if (device->descriptor_pool != VK_NULL_HANDLE) {
 		voe_render_vk.destroy_descriptor_pool(device->device,

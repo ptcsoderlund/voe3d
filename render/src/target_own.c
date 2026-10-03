@@ -14,9 +14,6 @@
 // second slot shows the depth copy beside each depth image the same way
 // (ADR-0305), so a target costs two.
 //
-// EACH TARGET ALSO HAS A BOUNCE GRID, built once with it and kept through every
-// resize; it and the window's grid go back at shutdown.
-//
 // The images themselves are built and torn down by target.c's
 // voe_render_target_image_build and _teardown, so a caller's target and the
 // window's are one copy of that code and not two.
@@ -63,17 +60,12 @@ void voe_render_targets_shutdown(voe_render_device *device)
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "shutting targets down on no device");
 
 	// The caller of this has already waited for the card; see close_down in
-	// device.c. The window's grid goes here too: it outlives every resize,
-	// so voe_render_target_teardown must leave it.
-	voe_render_bounce_grid_teardown(device, &device->window_grid);
+	// device.c.
 	if (device->targets == NULL)
 		return;
 
-	for (uint32_t i = 0; i < device->capacities.targets; i++) {
+	for (uint32_t i = 0; i < device->capacities.targets; i++)
 		teardown_target_images(device, &device->targets[i]);
-		voe_render_bounce_grid_teardown(device,
-						&device->targets[i].grid);
-	}
 
 	free(device->targets);
 	device->targets = NULL;
@@ -259,12 +251,6 @@ bool voe_render_target_create(voe_render_device *device, uint32_t width,
 	if (!build_target_images(device, target,
 				 (VkExtent2D){ width, height }))
 		goto refused;
-	// Once, with the target: a resize rebuilds the images above, not this.
-	if (!voe_render_bounce_grid_build(device, &target->grid,
-					  target_index + 1)) {
-		teardown_target_images(device, target);
-		goto refused;
-	}
 
 	target->texture = texture_index;
 	target->depth_texture = depth_index;
