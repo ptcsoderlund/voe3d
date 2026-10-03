@@ -353,7 +353,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		}
 		if (voe_editor_assets_clicks_read(ui, &scene->assets))
 			voe_editor_browser_show(browser,
-						VOE_EDITOR_BROWSER_IMPORT,
+						VOE_EDITOR_BROWSER_IMPORT, NULL,
 						&session->notice);
 		if (scene->assets.opened[0] != '\0') {
 			voe_editor_session_prefab_open(session, scene,

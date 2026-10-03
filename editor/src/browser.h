@@ -6,14 +6,17 @@
 //
 // IT OWNS ITS OWN ARENA, MADE ONCE AND CLEARED ON EVERY NAVIGATION. The
 // folder's absolute path and its rows are pushed into `arena`; entering a row
-// or going up clears the whole thing and rebuilds it from the new folder, so
-// nothing here ever holds two folders' worth of names at once. `arena` is made
-// the first time the browser is shown and lives for the rest of the program —
-// there is no _destroy on a hide, because THE BROWSER KEEPS ITS FOLDER ACROSS
-// SHOWINGS, FOR THE SESSION. Close it over one project's folder, choose
-// Open again, and it opens back where it was left; only the very first
-// showing has no folder yet and picks one (voe_platform_folder_home, or
-// voe_platform_path_absolute(".") when the platform has no home to offer).
+// or going up clears it and rebuilds it from the new folder, so nothing here
+// holds two folders' worth of names at once. `arena` lives from the first
+// showing to the end of the program, because THE BROWSER KEEPS ITS FOLDER
+// ACROSS SHOWINGS, FOR THE SESSION, unless a showing is given `beside`: Import
+// passes none and opens back where it was left; the very first showing picks
+// voe_platform_folder_home, else voe_platform_path_absolute(".").
+//
+// A SHOWING BESIDE A FOLDER STARTS IN ITS PARENT WITH ITS ROW CHOSEN (0343),
+// so Open lands on the project in hand and Open again reopens it with no
+// click. A folder gone, or a parent that will not list, falls back to home as
+// a first showing does; any navigation clears the choice.
 //
 // A LISTING THAT FAILS CHANGES NOTHING. voe_editor_browser_enter and
 // voe_editor_browser_up build the candidate folder, list it into a scratch
@@ -31,7 +34,7 @@
 //
 // THIS FILE CARRIES OUT NO COMMAND OF ITS OWN, exactly as topbar.h's buttons
 // do not: voe_editor_browser_clicks_read says what fired — a row entered, Up,
-// Confirm (with the folder it names), Cancel, the name field's own Enter or
+// Confirm (on `target`), Cancel, the name field's own Enter or
 // Make folder (MAKE_FOLDER), a file row (IMPORT), or Escape read as a
 // Cancel — and what a click
 // MEANS, in particular what Confirm does to the project being worked on, is
@@ -68,6 +71,9 @@
 // How many folder rows one showing may hold — see the header above.
 #define VOE_EDITOR_BROWSER_ROWS 32
 
+// `chosen` when no row is.
+#define VOE_EDITOR_BROWSER_NO_ROW UINT32_MAX
+
 // Which the browser is for: a project to open, a folder to save into, or a
 // `.glb` to import (folders then `.glb` files, no Confirm).
 typedef enum {
@@ -102,6 +108,12 @@ typedef struct {
 
 	voe_editor_browser_row rows[VOE_EDITOR_BROWSER_ROWS];
 	uint32_t row_count;
+	// The row a showing beside a folder chose, an index into `rows`, or
+	// VOE_EDITOR_BROWSER_NO_ROW; every successful listing clears it.
+	uint32_t chosen;
+	// The folder Open's Confirm acts on, absolute, in `arena`: the chosen
+	// row's path while one is chosen in OPEN mode, else `folder`.
+	const char *target;
 
 	// The three buttons besides the rows, recorded as voe_editor_topbar's
 	// are.
@@ -129,19 +141,22 @@ typedef struct {
 	voe_ui_node make_button;
 } voe_editor_browser;
 
-// Shows browser in mode, keeping its folder if one is already set, or
-// starting at the home folder — else the current one — the first time this is
-// ever called. The folder is listed again in mode, since IMPORT's rows are
-// not OPEN's. A listing that fails at this point is reported through why and
-// the browser still shows, holding whatever folder and rows it had before
-// (nothing, on a first showing).
+// Shows browser in mode. `beside` is an absolute folder or NULL, copied and
+// never kept. Given, and its parent lists with a row of its name, the browser
+// starts in that parent with the row chosen (`target` that row's path in OPEN
+// mode). Given but either fails, it starts at the home folder, else the
+// current one, with nothing chosen. NULL keeps its folder if one is already
+// set, else starts as the given-but-failed case does. The folder is listed
+// again in mode, since IMPORT's rows are not OPEN's. A start that fails to
+// list is reported through why and the browser still shows, holding whatever
+// folder and rows it had before (nothing, on a first showing).
 //
 // A SAVE SHOWING ALSO ARMS `focus_name`, so the very next
 // voe_editor_browser_draw takes the keyboard to the name box — see the
 // struct above. `name` itself is untouched: it keeps whatever a previous
 // SAVE showing left in it, the same "for the session" the folder already is.
 void voe_editor_browser_show(voe_editor_browser *browser,
-			     voe_editor_browser_mode mode,
+			     voe_editor_browser_mode mode, const char *beside,
 			     voe_editor_notice *why);
 
 // Hides browser. Its folder and rows are kept for the next showing — see the
@@ -163,7 +178,8 @@ void voe_editor_browser_up(voe_editor_browser *browser, voe_editor_notice *why);
 // width — the area below the top bar, in the same column interface.c opens
 // over the dock (interface.h) — which is what puts it over the dock and under
 // nothing. The current path, an Up button, a scroll area of one button per
-// row (marked rows read " — project", file rows " — file"), then — IN SAVE
+// row (marked rows read " — project", file rows " — file", the chosen one a
+// choice row, inverted), then — IN SAVE
 // MODE ONLY — a name row holding the field and a Make folder button, then
 // Confirm ("Open" in OPEN mode, "Save here" in SAVE mode, not drawn in IMPORT
 // mode) and Cancel. Records every button into
@@ -192,7 +208,7 @@ typedef enum {
 // (VOE_EDITOR_BROWSER_MAKE_FOLDER, a pointer into browser->name — read it
 // before calling voe_editor_browser_make_folder, which may clear that same
 // buffer on success). NULL for every other action. Confirm names no folder of
-// its own: browser->folder already is the one to act on.
+// its own: browser->target already is the one Open acts on.
 typedef struct {
 	voe_editor_browser_action action;
 	const char *name;

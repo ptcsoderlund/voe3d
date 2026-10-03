@@ -100,9 +100,9 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its notice, its Play, Refresh and Ship, a prefab
-  opened and Back, the flags that say a different project or world is in place, and the one armed
-  command that makes Close, New, Open and Back each refuse once over unsaved work.
+- `session.h` — the project being worked on, its notice, Play, Refresh and Ship, a prefab opened
+  and Back, the armed command that makes Close, New, Open and Back refuse once over unsaved work,
+  and Open and Save starting beside the project's folder or the last project.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, and what a browser action does to the session.
@@ -124,9 +124,9 @@ carries it out.
   cut at 160 bytes, in a scroll area with Close, as an anchored panel over the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of Close afterwards.
-- `browser.h` — the editor's own file browser: a folder listing shown as an anchored panel over the
-  dock, its own arena for the current folder and its rows, in SAVE mode a name row with a focused
-  `ui` field and a Make folder button, and in IMPORT mode `.glb` files a press imports.
+- `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock,
+  its own arena, a start beside a given folder with its row chosen, in SAVE mode a name row with a
+  focused `ui` field and Make folder, and in IMPORT mode `.glb` files a press imports.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
