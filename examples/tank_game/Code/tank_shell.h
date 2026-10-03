@@ -25,7 +25,8 @@
 // tank's root, which its sweeps ignore. `from` is where the next sweep
 // starts: at the spawn the firing gun's world position, not the muzzle, so a
 // muzzle already past a wall still hits the wall. `hit` and `target` record
-// what the shot struck.
+// what the shot struck. `points` are the breakable's when this shot swapped
+// it for its wreck, else 0 (0334 point 4).
 //
 // Constraints: at most TANK_SHELL_ROWS rows of each. A refused shot row
 // leaves the spawned shell flying without one.
@@ -41,6 +42,7 @@
 #include <math/quat.h>
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #define TANK_SHELL_ROWS 256
 
@@ -56,6 +58,7 @@ typedef struct {
 	voe_math_double3 from;
 	bool hit;
 	voe_ecs_entity target;
+	int32_t points;
 } tank_shot;
 
 extern const struct voe_ecs_key tank_shell_key;

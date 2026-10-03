@@ -93,6 +93,18 @@ static void undo_create(voe_ecs_world *world, voe_ecs_entity entity)
 		voe_ecs_entity_destroy(world, entity);
 }
 
+// Whether the identity table has room for one more row; checked before any
+// entity is created, as the queue's apply would drop the identity silently
+// and leave the entity bare (0337 point 4).
+static bool identity_room(const voe_ecs_world *world)
+{
+	voe_ecs_type type =
+		voe_ecs_component_type(world, &voe_scene_identity_key);
+
+	return voe_ecs_component_count(world, type) <
+	       voe_ecs_component_capacity(world, type);
+}
+
 static bool queue_default(voe_ecs_world *world, voe_ecs_entity entity,
 			  voe_ecs_type type)
 {
@@ -126,7 +138,7 @@ static bool entity_make(voe_ecs_world *world, const char *base,
 	identity.id = next_id(world);
 	free_name(world, base, base_length, identity.name);
 
-	if (!voe_ecs_entity_create(world, &entity))
+	if (!identity_room(world) || !voe_ecs_entity_create(world, &entity))
 		return false;
 
 	if (!voe_ecs_structure_add(
@@ -337,7 +349,7 @@ bool voe_editor_entities_duplicate(voe_ecs_world *world, voe_ecs_entity source,
 
 	identity_type = voe_ecs_component_type(world, &voe_scene_identity_key);
 
-	if (!voe_ecs_entity_create(world, &entity))
+	if (!identity_room(world) || !voe_ecs_entity_create(world, &entity))
 		return false;
 
 	for (uint32_t i = 0; ok && i < voe_ecs_component_type_count(world);

@@ -13,6 +13,9 @@
 // an identity, a transform where it landed and the model row naming the file
 // (0277 point 8); and a prefab dropped the same way: the prefab row instead
 // (0283 point 7), the rest expanded onto it by the world step (prefabs.h).
+// Every entity this file makes has an identity, always (0335), so a make or a
+// duplicate refuses when the identity table is full (0337): the queue would
+// drop the identity and leave a bare entity no panel can name.
 //
 // ADD COMPONENT BRINGS WHAT A TYPE NEEDS (0302 point 3). A type needing one the
 // entity lacks (voe_ecs_component_needs) gets that type's default row first,
@@ -48,7 +51,8 @@
 // CONSTRAINTS. The ids and names are read from the identity table as it stands,
 // so two adds in one frame, before the queue is applied, would be given the
 // same id and name; one per frame is what the menu and a keyboard command can
-// ask for. Lifting that means counting the identities waiting in the queue too.
+// ask for, and it covers the identity room check, read the same way. Lifting
+// that means counting the identities waiting in the queue too.
 // Finding a name is a scan of the identity table per candidate, which the
 // table's VOE_EDITOR_SCENE_ROWS rows keep cheap.
 #pragma once
@@ -60,14 +64,15 @@
 
 // Makes an entity and queues its one row, an identity with a new id and the
 // name "Entity" by the rules above: no transform. Writes the entity to `out`.
-// False when the world or the queue is full, and then nothing is left of it.
+// False when the world, the identity table or the queue is full, and then
+// nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_add(voe_ecs_world *world,
 					   voe_ecs_entity *out);
 
 // As voe_editor_entities_add, named after `path`'s last name less `.glb`, the
 // transform at `position` and a model row naming `path` (shorter than
-// VOE_3D_MODEL_PATH, project-relative with `/`). False when the world or the
-// queue is full, and then nothing is left of it.
+// VOE_3D_MODEL_PATH, project-relative with `/`). False when the world, the
+// identity table or the queue is full, and then nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_model_add(voe_ecs_world *world,
 						 const char *path,
 						 voe_math_double3 position,
@@ -75,7 +80,8 @@
 
 // As voe_editor_entities_model_add, named after `path`'s last name less
 // `.prefab`, with a prefab row naming `path` (shorter than
-// VOE_SCENE_PREFAB_PATH) in place of the model row.
+// VOE_SCENE_PREFAB_PATH) in place of the model row. False when the world, the
+// identity table or the queue is full, and then nothing is left of it.
 [[nodiscard]] bool voe_editor_entities_prefab_add(voe_ecs_world *world,
 						  const char *path,
 						  voe_math_double3 position,
@@ -105,8 +111,9 @@
 // identity's id and name replaced by the rules above. A placed copy's root (a
 // prefab row) gives only its identity, transform, parent and prefab rows, the
 // four it is saved as (0283), so the world step expands the new copy from its
-// file the next frame (prefabs.h). Writes the copy to `out`.
-// False when the world or the queue is full, and then nothing is left of it.
+// file the next frame (prefabs.h). Writes the copy to `out`. False when the
+// world, the identity table or the queue is full, and then nothing is left of
+// it.
 [[nodiscard]] bool voe_editor_entities_duplicate(voe_ecs_world *world,
 						 voe_ecs_entity source,
 						 voe_ecs_entity *out);

@@ -4,9 +4,11 @@
 //
 //     voe_game_interface *interface = voe_game_interface_new(device, arena);
 //     ...each frame, after the steps:
+//     voe_game_project_asks asks = { 0 };              // kept by the run
 //     if (!voe_game_interface_run(interface, frame_arena, world, window, size,
-//                                 voe_game_project_interface))
+//                                 &asks, voe_game_project_interface))
 //             ...                                  // the project ended the run
+//     ...read asks.paused and asks.restart
 //     ...draw voe_game_interface_context(interface)'s element records
 //     voe_game_interface_destroy(interface);
 //
@@ -66,12 +68,13 @@ void voe_game_interface_destroy(voe_game_interface *interface);
 voe_math_float2 voe_game_interface_surface(voe_platform_size size);
 
 // Begins the ui frame in `frame_arena`, sets the pointer (not over when
-// `window` is NULL), calls `project_interface` and returns its answer: false
-// ends the run. `project_interface` ends the frame.
+// `window` is NULL), calls `project_interface` with `asks` in the frame and
+// returns its answer: false ends the run. `project_interface` ends the frame
+// and may write `asks`, which is never NULL.
 [[nodiscard]] bool voe_game_interface_run(
 	voe_game_interface *interface, voe_base_arena *frame_arena,
 	voe_ecs_world *world, voe_platform_window *window,
-	voe_platform_size size,
+	voe_platform_size size, voe_game_project_asks *asks,
 	bool (*project_interface)(const voe_game_project_frame *frame));
 
 // The context the frame was laid out in, for its element records.

@@ -96,13 +96,14 @@
 // drawn once more into each of the four cascades, with one share over, and the
 // four shadow passes and the point-shadow pass, with one over, before the
 // view's one, which the lamp case's two casters fit beside; room for the
-// model's 6 vertices, 6 indices, 2 geometries and 2 shading records.
+// model's 6 vertices, 6 indices, 2 geometries and 4 shading records, its two
+// parts' own and their blended twins.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES + 6,
 	.indices = VOE_3D_SHAPES_INDICES + 6,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES + 2,
 	.objects = 3 + (VOE_RENDER_SHADOW_CASCADES + 1) * 3,
-	.shadings = VOE_3D_SHAPES_SHADINGS + 2,
+	.shadings = VOE_3D_SHAPES_SHADINGS + 4,
 	.passes = 3 + VOE_RENDER_SHADOW_CASCADES,
 	.targets = 1,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,

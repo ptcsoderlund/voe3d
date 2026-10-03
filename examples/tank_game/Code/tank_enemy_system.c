@@ -15,8 +15,9 @@
 // `range` of the enemy, the turret turns toward it by tank_turret_turn_toward
 // for the step's seconds, which gives the barrel and the degrees left.
 //
-// The fire rule (0294 point 5, amended by 0297): `wait` counts down every
-// step; the enemy fires only when it is spent, the turn was not refused and
+// The fire rule (0294 point 5, amended by 0297): `wait` starts at the default
+// 1 s (0338), so a new enemy fires no sooner than 1 s after it appears, and
+// counts down every step; the enemy fires only when it is spent, the turn was not refused and
 // at most TANK_ENEMY_ON_TARGET degrees are left. The muzzle is turned by the
 // barrel and added to the turret's world position, and the shell spawns there
 // turned as the barrel through tank_shell_fire: `owner` the enemy, `from` its
@@ -76,7 +77,7 @@ static const tank_enemy tank_enemy_default = {
 	.rate = 0.5f,
 	.range = 30.0f,
 	.muzzle = { 0.0f, 0.5f, -3.0f },
-	.wait = 0.0f,
+	.wait = 1.0f,
 };
 
 // Whom the enemies fire at this step: the player's hull and where it is.

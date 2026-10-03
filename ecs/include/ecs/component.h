@@ -299,6 +299,13 @@ bool voe_ecs_component_remove(voe_ecs_world *world, voe_ecs_type type,
 
 uint32_t voe_ecs_component_count(const voe_ecs_world *world, voe_ecs_type type);
 
+// The capacity the type was registered with. With _count it tells a caller
+// whether a row will fit before it asks, which matters where a full table drops
+// a request silently (ecs/structure.h). An unregistered type asserts, as _count
+// does.
+uint32_t voe_ecs_component_capacity(const voe_ecs_world *world,
+				    voe_ecs_type type);
+
 // The rows, packed, `count` of them. Cast it to the component's own type; the
 // module that registered the type is the one that knows what it is.
 const void *voe_ecs_component_rows(const voe_ecs_world *world,

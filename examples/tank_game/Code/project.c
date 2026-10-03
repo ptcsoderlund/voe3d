@@ -2,40 +2,52 @@
 // component the game has; each fixed step has two slots, before the bodies'
 // move and after it (0256).
 //
-// systems_run is before the move: the control first, which reads the pad
+// systems_run is before the move. It reads the round's phase first (0334
+// point 6); while playing it runs the control first, which reads the pad
 // beside the keyboard and mouse into one row, the last touched winning; then
 // the hull, which drives on the row, then the turret, which aims at the
 // pointer or the right stick, then the gun, which fires while the row's fire
 // is held, then the shells, which fly, hit and run out, then the lives,
 // which count this step's hits on the player before the hit shells go, then
+// the state, which scores this step's shots and sets won or lost, then
 // the spawner, which makes enemies on a timer, then the enemies, which drive,
-// fire at the lives' hull and run out, then the light fade, which dims each
-// flashed light (0322 point 6), then the camera, which fits its lens to the
-// window's shape (0291). The gun is after the turret so it fires along this
-// step's aim; the light fade is after the gun and the enemy so a shot fired
-// this step shows full this step. The
-// breakable has no system: the shells swap a hit one for its wreck.
-// systems_after_move has nothing yet. interface runs once a frame, after
-// the steps (0259): the lives' HUD, which ends the ui frame game began and
-// returns true.
+// fire at the lives' hull and run out, then the fade away, which fades a
+// wreck and removes it (0336 point 4). Not playing, of those only the state
+// runs. The light fade, which dims each flashed light (0322 point 6), then
+// the camera, which fits its lens to the window's shape (0291), always run.
+// The gun is after the turret so it fires along this step's aim; the light
+// fade is after the gun and the enemy so a shot fired this step shows full
+// this step. The breakable has no system: the shells swap a hit one for its
+// wreck. The goal has none either: the state reads it.
+// systems_after_move is the scroll, only while playing, which moves the
+// camera forward with where the hull went this step and finds the screen's
+// edges on the ground (0334 point 1). interface runs once a frame, after
+// the steps (0259): the menu, which draws the phase's screen or the HUD,
+// ends the ui frame game began, pauses or restarts the run through its asks
+// (0333) and returns false at Quit.
 //
 // The game links all four and calls register once, after the engine's
 // types, both slots each fixed step and interface each frame; the editor
 // loads this code as a library and calls only register (0242).
 //
 // Constraints: before the move, the control, hull, turret, gun, shell, lives,
-// spawner, enemy, light fade, then camera; after it, nothing. The order is the
-// data flow.
+// state, spawner, enemy, fade away, light fade, then camera; after it, the scroll. The
+// order is the data flow. The phase is read once, before the step's first
+// system, so a round won or lost this step finishes the step.
 #include "tank_breakable.h"
 #include "tank_camera.h"
 #include "tank_control.h"
 #include "tank_enemy.h"
+#include "tank_fade_away.h"
+#include "tank_goal.h"
 #include "tank_gun.h"
 #include "tank_hull.h"
 #include "tank_light_fade.h"
 #include "tank_lives.h"
+#include "tank_scroll.h"
 #include "tank_shell.h"
 #include "tank_spawner.h"
+#include "tank_state.h"
 #include "tank_turret.h"
 
 #include <base/assert.h>
@@ -56,22 +68,43 @@ void voe_game_project_register(voe_ecs_world *world)
 	(void)tank_lives_register(world);
 	(void)tank_enemy_register(world);
 	(void)tank_spawner_register(world);
+	(void)tank_fade_away_register(world);
 	(void)tank_light_fade_register(world);
 	(void)tank_camera_register(world);
+	(void)tank_scroll_register(world);
+	(void)tank_goal_register(world);
+	(void)tank_state_register(world);
+}
+
+// Whether the round is being played; not before the state row is made.
+static bool tank_project_playing(const voe_ecs_world *world)
+{
+	const tank_state *state = tank_state_get(world);
+
+	return state != NULL && state->phase == TANK_PHASE_PLAYING;
 }
 
 void voe_game_project_systems_run(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
-	tank_control_run(step);
-	tank_hull_system_run(step->world, step->seconds);
-	tank_turret_system_run(step->world, step->window, step->seconds);
-	tank_gun_system_run(step);
-	tank_shell_system_run(step);
-	tank_lives_run(step);
-	tank_spawner_system_run(step);
-	tank_enemy_system_run(step);
+	const bool playing = tank_project_playing(step->world);
+
+	if (playing) {
+		tank_control_run(step);
+		tank_hull_system_run(step->world, step->seconds);
+		tank_turret_system_run(step->world, step->window,
+				       step->seconds);
+		tank_gun_system_run(step);
+		tank_shell_system_run(step);
+		tank_lives_run(step);
+	}
+	tank_state_run(step);
+	if (playing) {
+		tank_spawner_system_run(step);
+		tank_enemy_system_run(step);
+		tank_fade_away_system_run(step);
+	}
 	tank_light_fade_system_run(step);
 	tank_camera_run(step);
 }
@@ -80,11 +113,13 @@ void voe_game_project_systems_after_move(const voe_game_project_step *step)
 {
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"running the project's systems on no world");
+	if (tank_project_playing(step->world))
+		tank_scroll_run(step);
 }
 
 bool voe_game_project_interface(const voe_game_project_frame *frame)
 {
 	VOE_BASE_ASSERT(frame != NULL && frame->ui != NULL,
 			"drawing the project's interface in no frame");
-	return tank_lives_interface(frame);
+	return tank_menu_run(frame);
 }

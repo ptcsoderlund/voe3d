@@ -13,7 +13,9 @@
 // (tank_lives.h), the player's hull; with no row nothing fires. `prefab` is
 // the cooked prefab fired, default `shell`; `rate` is shots a second, default
 // 0.5, and at or below 0 never fires; `range` is metres, default 30. `wait` is
-// the seconds to the next shot, written only by the system.
+// the seconds to the next shot, written only by the system; its default, 1 s,
+// is the hold before a new enemy's first shot (0338), while it turns and
+// drives as ever.
 //
 // IT AIMS ITS TURRET FIRST (0297): its turret is its child with a tank_turret
 // row (tank_turret.h). With the player within range, the turret turns toward

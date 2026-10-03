@@ -48,9 +48,10 @@
 # program carries no symbols. `cmake --install` puts in the install root the
 # program, renamed VOE_GAME_NAME (default `game`, set by the tree's
 # CMakeLists.txt), and its licences, voe3d-LICENSE.txt and Oxanium-OFL.txt.
-# Shaders and the font are embedded; only the sounds and models are read.
+# Shaders and the font are embedded; only the sounds, models and pictures are read.
 #
-# Sounds and models (0266, 0277): every .wav and .glb under the project folder,
+# Sounds, models and pictures (0266, 0277, 0298): every .wav, .glb, .png and
+# .jpg under the project folder,
 # the tree's grandparent, is copied by the target `game_files` (which `game`
 # depends on) to the same relative path under CMAKE_BINARY_DIR, and installed
 # the same way. Relative, because the game resolves a file's project-relative
@@ -167,10 +168,11 @@ else()
         if(IS_DIRECTORY "${voe_entry}")
             if(NOT voe_entry_name MATCHES "^(Build|Cache)$")
                 file(GLOB_RECURSE voe_dir_files CONFIGURE_DEPENDS
-                    "${voe_entry}/*.wav" "${voe_entry}/*.glb")
+                    "${voe_entry}/*.wav" "${voe_entry}/*.glb"
+                    "${voe_entry}/*.png" "${voe_entry}/*.jpg")
                 list(APPEND voe_files ${voe_dir_files})
             endif()
-        elseif(voe_entry_name MATCHES "\\.(wav|glb)$")
+        elseif(voe_entry_name MATCHES "\\.(wav|glb|png|jpg)$")
             list(APPEND voe_files "${voe_entry}")
         endif()
     endforeach()

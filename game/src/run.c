@@ -1,6 +1,9 @@
 // The run's steps in the order game/include/game/run.h gives, each refusal a
 // line on stderr and a 1. Everything is released on every path out; a missing
 // sound device is not a refusal but a silent game.
+// - The interface runs each frame and may end the run.
+// - A restart asked makes the world again in its own arena; the mixer pauses
+//   with the run.
 #include <game/run.h>
 
 #include <game/frame.h>
@@ -29,7 +32,7 @@
 
 #include <stddef.h>
 
-// The app's and the world's arena, and the scratch startup and each frame's
+// The app's arena, the world's own, and the scratch startup and each frame's
 // draw system work in. Block sizes, not limits.
 #define RUN_ARENA (4u * 1024u * 1024u)
 #define RUN_SCRATCH (1u * 1024u * 1024u)
@@ -62,15 +65,35 @@ struct run_models {
 	const char *folder;
 };
 
-// The frames, until the window is closing or the project's interface ends
-// the run. False when one was refused. A device whose pump fails is destroyed
-// and the sound's device set to NULL, and the game goes on silent.
-static bool run_frames(voe_app *app, voe_ecs_world *world,
-		       const voe_3d_shapes *shapes, voe_base_arena *scratch,
-		       voe_game_interface *interface, struct run_sound *sound,
-		       const struct run_models *models)
+// The world in `world_arena` cleared, the project's types and the cooked
+// scene: at the start and at each restart (0333). NULL, with a line on
+// stderr, when the scene does not fit its world.
+static voe_ecs_world *run_world_make(voe_base_arena *world_arena)
 {
+	voe_ecs_world *world;
+
+	voe_base_arena_clear(world_arena);
+	world = voe_game_world_new(world_arena);
+	voe_game_project_register(world);
+	if (!voe_game_scene_build(world)) {
+		VOE_BASE_ERROR("game", "the scene does not fit its world");
+		return NULL;
+	}
+	return world;
+}
+
+// The frames, until the window is closing or the project's interface ends
+// the run. False, with a line on stderr, when one was refused. A device whose
+// pump fails is destroyed and the sound's device set to NULL, and the game
+// goes on silent. Paused, no step runs and the draw keeps the last lag.
+static bool run_frames(voe_app *app, voe_base_arena *world_arena,
+		       voe_ecs_world *world, const voe_3d_shapes *shapes,
+		       voe_base_arena *scratch, voe_game_interface *interface,
+		       struct run_sound *sound, const struct run_models *models)
+{
+	voe_game_project_asks asks = { 0 };
 	voe_game_steps steps = { 0 };
+	float lag = 1.0f;
 
 	// The built scene's models, before the first frame. Failures are on
 	// stderr and kept as failed entries, here and each frame.
@@ -78,18 +101,27 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 				     models->folder, scratch);
 	while (true) {
 		voe_app_frame frame = voe_app_frame_open(app);
-		float lag;
 
 		if (frame.closing)
 			return true;
 		if (frame.minimised)
 			continue;
-		lag = voe_game_steps_run(&steps, world, voe_app_window(app),
-					 sound->mixer, &voe_game_prefabs_cooked,
-					 shapes,
-					 frame.tick.step,
-					 voe_game_project_systems_run,
-					 voe_game_project_systems_after_move);
+		if (asks.restart) {
+			world = run_world_make(world_arena);
+			if (world == NULL)
+				return false;
+			steps = (voe_game_steps){ 0 };
+			(void)voe_game_models_update(world, models->store,
+						     voe_app_device(app),
+						     models->folder, scratch);
+			asks = (voe_game_project_asks){ 0 };
+		}
+		if (!asks.paused)
+			lag = voe_game_steps_run(
+				&steps, world, voe_app_window(app),
+				sound->mixer, &voe_game_prefabs_cooked, shapes,
+				frame.tick.step, voe_game_project_systems_run,
+				voe_game_project_systems_after_move);
 		(void)voe_game_models_update(world, models->store,
 					     voe_app_device(app),
 					     models->folder, scratch);
@@ -97,8 +129,9 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 		voe_base_arena_clear(scratch);
 		if (!voe_game_interface_run(interface, scratch, world,
 					    voe_app_window(app), frame.size,
-					    voe_game_project_interface))
+					    &asks, voe_game_project_interface))
 			return true;
+		voe_audio_mixer_pause(sound->mixer, asks.paused);
 		if (sound->device != NULL &&
 		    !voe_audio_mixer_pump(sound->mixer, sound->device)) {
 			voe_platform_sound_destroy(sound->device);
@@ -106,14 +139,17 @@ static bool run_frames(voe_app *app, voe_ecs_world *world,
 		}
 		if (!voe_game_frame(app, world, shapes, models->store, scratch,
 				    frame.size, lag,
-voe_game_interface_context(interface)))
+				    voe_game_interface_context(interface))) {
+			VOE_BASE_ERROR("game", "the device stopped drawing");
 			return false;
+		}
 	}
 }
 
 int voe_game_run(const char *title, voe_game_window window)
 {
 	voe_base_arena *arena = voe_base_arena_new(RUN_ARENA);
+	voe_base_arena *world_arena = voe_base_arena_new(RUN_ARENA);
 	voe_base_arena *scratch = voe_base_arena_new(RUN_SCRATCH);
 	voe_app_settings settings = { .width = window.width,
 				      .height = window.height,
@@ -147,34 +183,32 @@ int voe_game_run(const char *title, voe_game_window window)
 		goto closed;
 	}
 
-	world = voe_game_world_new(arena);
-	voe_game_project_register(world);
+	world = run_world_make(world_arena);
+	if (world == NULL)
+		goto unbuilt;
 	models.folder = sound_folder(arena);
 	models.store = voe_3d_models_new();
 	sound.mixer = voe_audio_mixer_new(models.folder);
 	// NULL is already reported; the game runs silent.
 	sound.device = voe_platform_sound_new();
-	if (!voe_game_scene_build(world)) {
-		VOE_BASE_ERROR("game", "the scene does not fit its world");
-	} else if (!voe_3d_shapes_upload(voe_app_device(app), &shapes,
-					 &error)) {
+	if (!voe_3d_shapes_upload(voe_app_device(app), &shapes, &error)) {
 		VOE_BASE_ERROR("game", "the shapes do not fit the device: %s",
 			       voe_base_error_string(error));
-	} else if (!run_frames(app, world, &shapes, scratch, interface,
-			       &sound, &models)) {
-		VOE_BASE_ERROR("game", "the device stopped drawing");
-	} else {
+	} else if (run_frames(app, world_arena, world, &shapes, scratch,
+			      interface, &sound, &models)) {
 		status = 0;
 	}
 	voe_platform_sound_destroy(sound.device);
 	voe_audio_mixer_destroy(sound.mixer);
 	voe_3d_models_clear(models.store, voe_app_device(app));
 	voe_3d_models_destroy(models.store);
+unbuilt:
 	voe_game_interface_destroy(interface);
 closed:
 	voe_app_destroy(app);
 released:
 	voe_base_arena_destroy(scratch);
+	voe_base_arena_destroy(world_arena);
 	voe_base_arena_destroy(arena);
 	return status;
 }

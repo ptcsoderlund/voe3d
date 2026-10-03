@@ -13,7 +13,9 @@
 
 const struct voe_ecs_key tank_breakable_key = { "tank_breakable" };
 
-static const tank_breakable tank_breakable_default = { .wreck = "" };
+static const tank_breakable tank_breakable_default = {
+	.wreck = "", .points = 100
+};
 
 bool tank_breakable_register(voe_ecs_world *world)
 {

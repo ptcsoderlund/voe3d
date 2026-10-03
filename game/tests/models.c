@@ -54,10 +54,11 @@
 #define PICTURE_ON_DISK FOLDER "/" PICTURE
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
-// shadings of the triangle, the picture and the dot.
+// shadings of the triangle, the picture and the dot, plus two blended twins:
+// one for each triangle part held at once over the reload (ADR-0336 point 2).
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 16, .indices = 16, .geometries = 4,
-	.objects = 1,   .shadings = 8, .passes = 1,
+	.objects = 1,   .shadings = 10, .passes = 1,
 };
 
 // A 1x1 white RGBA PNG: signature, IHDR, one zlib IDAT row, IEND.

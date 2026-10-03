@@ -45,13 +45,17 @@
 // store's one quad, both BLENDED on the picture: part 0 lit, part 1 unlit, the
 // glow, since `render` has no additive blend. Its shape is empty.
 //
-// THE SOFT DOT IS HELD APART, loaded by _load_dot and found at the empty path:
-// it is made in code and never re-read from a file, so it is not in _count or
-// _at, which is what the watch walks.
+// THE SOFT DOT AND THE WATER ARE HELD APART (ADR-0305 point 6), made in code
+// and never re-read, so not in _count or _at, which is what the watch walks:
+// the dot is loaded by _load_dot and found at the empty path; the water, one
+// part on the store's quad with one BLENDED `water` record, by _load_water and
+// read by _water. _clear frees both.
 //
-// THE WATER RECORD IS HELD APART AS THE DOT IS (ADR-0305 point 6): one part, the
-// store's quad and one BLENDED `water` shading record, made in code by
-// _load_water, read by _water, never re-read and freed by _clear.
+// EACH `.glb` PART NOT ALREADY BLENDED HAS A TWIN (ADR-0336 point 2): its
+// material with the alpha mode BLENDED, uploaded at load beside its own, so
+// uploads stay between frames, and freed with it on a replace, a failed load's
+// give-back and a clear. A blended part's, a picture's and the water's `faded`
+// is its own `shading`.
 #pragma once
 
 #include <3d/material_component.h>
@@ -69,18 +73,21 @@
 #define VOE_3D_MODEL_PARTS 16
 
 // The device room the store's models are given, which a program adds to its
-// own capacities: 2 M vertices, 6 M indices, and 512 geometries and shading
-// records, four parts for each of the VOE_3D_MODELS files, one geometry more for
-// the pictures' quad and one shading record more for the water.
+// own capacities: 2 M vertices, 6 M indices, 512 geometries, four parts for each
+// of the VOE_3D_MODELS files, and one geometry more for the pictures' quad; 1024
+// shading records, two for each of those parts (its own and its blended twin),
+// and one more for the water.
 #define VOE_3D_MODELS_VERTICES (1u << 21)
 #define VOE_3D_MODELS_INDICES (3u << 21)
 #define VOE_3D_MODELS_GEOMETRIES 513
-#define VOE_3D_MODELS_SHADINGS 513
+#define VOE_3D_MODELS_SHADINGS 1025
 
 // One material's worth of a model, in model space.
 typedef struct {
 	voe_render_geometry geometry;
 	voe_3d_material material;
+	// The record the part is drawn with while its row fades.
+	voe_render_shading faded;
 } voe_3d_model_part;
 
 // One file: loaded with its parts, or failed with none.

@@ -18,7 +18,9 @@
 // `hidden` is left out here as in _run. A model part in the frame's store casts
 // by the same rule, its material the part's, in the world layer as every part is.
 // A mesh whose shape, or a model whose row, has `cast_shadows` false casts
-// nothing (0324 point 5); a mesh with no shape casts by the rules above.
+// nothing (0324 point 5); a mesh with no shape casts by the rules above. A
+// model row with `fade` at or above 1 casts nothing, and a fading one casts
+// as ever (0336 point 3); the bounce shares this walk.
 //
 // THE CASCADES NEED A LIGHT THAT CASTS (0324 point 4): the world's one light
 // row with `cast_shadows` true. No light row casts nothing.
@@ -84,7 +86,8 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 		const voe_3d_model_entry *model;
 		voe_scene_transform drawn;
 
-		if (!rows[row].cast_shadows ||
+		// A gone row casts nothing; a fading one casts as ever (0336).
+		if (!rows[row].cast_shadows || rows[row].fade >= 1.0f ||
 		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;

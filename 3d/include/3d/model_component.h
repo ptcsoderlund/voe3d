@@ -27,6 +27,10 @@
 // default and in a file without it; zero is false, so a row built from a
 // literal names it.
 //
+// FADE 0 DRAWS AS EVER, 1 IS GONE, BETWEEN IS SEE-THROUGH BY THAT MUCH (0336).
+// 0 by default, in a file without it and in a literal, so nothing written
+// before it changes; game code fades a thing through the intent.
+//
 // It sits at "Rendering / Model" in Add component (ecs/component.h, 0221), and
 // its intent is its replace, the whole row, as the shape's is
 // (3d/shape_system.h).
@@ -52,7 +56,8 @@
 
 #define VOE_3D_MODEL_FIELDS(F, F_READ_ONLY)        \
 	F(char, path, CHAR, VOE_3D_MODEL_PATH) \
-	F(bool, cast_shadows, BOOL)
+	F(bool, cast_shadows, BOOL)            \
+	F(float, fade, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_3d_model, VOE_3D_MODEL_FIELDS)
 

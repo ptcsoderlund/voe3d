@@ -59,6 +59,7 @@
 #include "inspector.h"
 
 #include <ecs/world.h>
+#include <game/world.h>
 #include <math/float2.h>
 #include <math/float3.h>
 #include <ui/layout.h>
@@ -67,12 +68,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// How many authored entities the Scene panel will list, and therefore how many
-// identities the world is given room for — the two are the same number on
-// purpose, so that the list cannot outgrow the array the clicks are read out of.
-// Thirty-two is far more than the two this file builds and far fewer than the
-// interface's node budget would refuse.
-#define VOE_EDITOR_SCENE_ROWS 32
+// How many authored entities the Scene panel will list: the world's identity
+// room itself (game/world.h), so the list and the table are one number by
+// construction and the list cannot outgrow the array the clicks are read out
+// of. The interface's node and element budgets are counted for it (interface.h).
+#define VOE_EDITOR_SCENE_ROWS VOE_GAME_WORLD_AUTHORED
 
 // What the colour picker edits while it is open. Zeroed is a closed picker.
 typedef struct {

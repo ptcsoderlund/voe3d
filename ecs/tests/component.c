@@ -4,7 +4,9 @@
 // entity is made of without anyone naming a type, and that the two markers a
 // registration passes instead of a description answer differently. And that a
 // default row, an unsaid row and a needed type come back as they were set, and
-// as nothing when they were not.
+// as nothing when they were not. And that a type says the capacity it was
+// registered with, which its count reaching is the next add refused, and that a
+// menu path is unset until set and then set on that type only.
 //
 // THE ITERATION CHECK IS THE ONE THAT WOULD CATCH A BROKEN REMOVAL. A removal
 // swaps the last row into the hole, so the way to get it wrong is to leave the
@@ -560,6 +562,41 @@ static void a_need_comes_back_as_it_was_set(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_ecs_component_needs(world, types[1], &needed));
 }
 
+// The capacity is the registered one at every count, and the count reaching it
+// is exactly where the table starts refusing: one short, an add lands; at it,
+// the next is refused.
+static void a_type_says_its_capacity(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type type = voe_ecs_component_register(world, &marker_key,
+						       sizeof(struct marker),
+						       ROWS,
+						       &voe_ecs_runtime_only);
+	struct marker value = { .tag = 1 };
+	voe_ecs_entity extra = { 0 };
+
+	VOE_TEST_CHECK_INT(voe_ecs_component_capacity(world, type), ROWS);
+
+	while (voe_ecs_component_count(world, type) <
+	       voe_ecs_component_capacity(world, type)) {
+		voe_ecs_entity thing = { 0 };
+		uint32_t before = voe_ecs_component_count(world, type);
+
+		VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+		VOE_TEST_CHECK(voe_ecs_component_add(world, type, thing,
+						     &value));
+		// A failed add would loop forever; stop instead.
+		if (voe_ecs_component_count(world, type) == before)
+			break;
+	}
+
+	VOE_TEST_CHECK_INT(voe_ecs_component_count(world, type), ROWS);
+	VOE_TEST_CHECK_INT(voe_ecs_component_capacity(world, type), ROWS);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &extra));
+	VOE_TEST_CHECK(!voe_ecs_component_add(world, type, extra, &value));
+	VOE_TEST_CHECK_INT(voe_ecs_component_count(world, type), ROWS);
+}
+
 // The pointer, not a copy: the string is the declaring folder's.
 static void menu_path(voe_base_arena *arena)
 {
@@ -594,6 +631,7 @@ int main(void)
 	a_default_comes_back_as_it_was_set(arena);
 	an_unsaid_row_comes_back_as_it_was_set(arena);
 	a_need_comes_back_as_it_was_set(arena);
+	a_type_says_its_capacity(arena);
 	menu_path(arena);
 
 	voe_base_arena_destroy(arena);

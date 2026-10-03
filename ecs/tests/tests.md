@@ -5,9 +5,9 @@ module's promises from outside.
 
 - `world.c` — that an id names one thing and then nothing, including the
   case where its slot is live again.
-- `component.c` — a row in and out, iteration seeing each live row once across a removal, a
-  full table, an entity's makeup from every registered type, runtime-only registration, the editor's
-  typed intent round trip, a default and an unsaid row read back set and unset, and a menu path.
+- `component.c` — rows in and out, iteration across a removal, a full table and
+  a type's capacity, an entity's makeup, registration markers, the typed intent
+  round trip, defaults and unsaid rows, and a menu path.
 - `intent.c` — two submitters in one queue in submission order, and a full
   queue.
 - `structure.c` — structural requests landing only at apply, in submission

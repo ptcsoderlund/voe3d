@@ -3,12 +3,12 @@
 //
 // A LOAD IS FOUR STEPS, in the order ids are needed: `assets` reads the bytes
 // into a scratch arena, model_bake.h flattens them into parts, model_upload.h
-// puts the pictures and materials on the card, and each part becomes a geometry.
-// The CPU copy of the whole model, `shape`, is built last into the entry's own
+// puts the pictures and materials on the card, and each part becomes a geometry
+// and, unless it is BLENDED, a blended twin record. The CPU copy of the whole model, `shape`, is built last into the entry's own
 // arena. The scratch arena is the load's and is destroyed before it returns.
 //
-// A FAILED LOAD GIVES BACK WHAT IT UPLOADED, every texture, shading record and
-// geometry it had made, so that a file failing again and again does not fill
+// A FAILED LOAD GIVES BACK WHAT IT UPLOADED, every texture, shading record, twin
+// and geometry it had made, so that a file failing again and again does not fill
 // the device; its entry keeps the path and the stamp and nothing else.
 //
 // EACH ENTRY OWNS AN ARENA holding its path, its shape and the lists of the
@@ -83,6 +83,13 @@ voe_3d_models *voe_3d_models_new(void)
 	return models;
 }
 
+// Whether `part`'s `faded` is a twin record of its own and not its material's.
+static bool has_twin(const voe_3d_model_part *part)
+{
+	return part->faded.index != part->material.shading.index ||
+	       part->faded.generation != part->material.shading.generation;
+}
+
 // Everything `entry` put on the card and its memory, given back; a picture's
 // parts are on the store's quad, which is not the entry's to free.
 static void release(voe_render_device *device, const voe_3d_model_entry *entry,
@@ -91,6 +98,11 @@ static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 	for (uint32_t i = 0; !entry->picture && i < entry->part_count; i++)
 		(void)voe_render_geometry_destroy(device,
 						  entry->parts[i].geometry);
+	for (uint32_t i = 0; i < entry->part_count; i++) {
+		if (has_twin(&entry->parts[i]))
+			(void)voe_render_shading_destroy(
+				device, entry->parts[i].faded);
+	}
 	for (uint32_t i = 0; i < held->shading_count; i++)
 		(void)voe_render_shading_destroy(device, held->shadings[i]);
 	for (uint32_t i = 0; i < held->texture_count; i++)
@@ -216,8 +228,24 @@ static void build_shape(voe_base_arena *memory, const voe_3d_model_bake *bake,
 				    indices, bake->index_count, out);
 }
 
-// Every part a geometry; false at the first the device has no room for, with
-// `made` saying how many were.
+// `part`'s twin, its material with the alpha mode BLENDED, when it is not
+// BLENDED already; false, with `error` REFUSED, when the device has no room.
+static bool upload_twin(voe_render_device *device, voe_3d_model_part *part,
+			voe_base_error *error)
+{
+	voe_3d_material twin = part->material;
+
+	if (twin.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
+		return true;
+	twin.alpha_mode = VOE_RENDER_ALPHA_BLENDED;
+	if (!voe_3d_material_upload(device, &twin, error))
+		return false;
+	part->faded = twin.shading;
+	return true;
+}
+
+// Every part a geometry and a twin; false at the first the device has no room
+// for, with `made` saying how many parts have a geometry.
 static bool upload_parts(voe_render_device *device,
 			 const voe_3d_model_bake *bake,
 			 const voe_3d_model_upload *upload,
@@ -236,7 +264,10 @@ static bool upload_parts(voe_render_device *device,
 			return false;
 		entry->parts[p].material =
 			voe_3d_model_upload_material(upload, part->material);
+		entry->parts[p].faded = entry->parts[p].material.shading;
 		*made = p + 1;
+		if (!upload_twin(device, &entry->parts[p], error))
+			return false;
 	}
 	return true;
 }
@@ -246,9 +277,13 @@ static void give_back(voe_render_device *device,
 		      const voe_3d_model_upload *upload,
 		      const voe_3d_model_entry *entry, uint32_t geometries)
 {
-	for (uint32_t i = 0; i < geometries; i++)
+	for (uint32_t i = 0; i < geometries; i++) {
 		(void)voe_render_geometry_destroy(device,
 						  entry->parts[i].geometry);
+		if (has_twin(&entry->parts[i]))
+			(void)voe_render_shading_destroy(
+				device, entry->parts[i].faded);
+	}
 	for (uint32_t i = 0; i < upload->shading_count; i++)
 		(void)voe_render_shading_destroy(device, upload->shadings[i]);
 	for (uint32_t i = 0; i < upload->texture_count; i++)
@@ -336,6 +371,7 @@ static bool upload_picture(voe_3d_models *models, voe_render_device *device,
 		entry->parts[p] = (voe_3d_model_part){
 			.geometry = models->quad,
 			.material = upload.materials[p],
+			.faded = upload.materials[p].shading,
 		};
 	hold_upload(&upload, held);
 	entry->part_count = 2;
@@ -453,7 +489,8 @@ bool voe_3d_models_load_water(voe_3d_models *models, voe_render_device *device,
 		return false;
 	}
 	models->water = (voe_3d_model_part){ .geometry = models->quad,
-					     .material = material };
+					     .material = material,
+					     .faded = material.shading };
 	models->has_water = true;
 	return true;
 }

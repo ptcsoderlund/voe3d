@@ -27,7 +27,7 @@
 // COOKING ONE QUEUES STRUCTURE ADDS, NOT COMPONENT ADDS (0283 point 9): a spawn
 // lands mid-step, from game logic, so its rows go through ecs/structure.h and
 // appear at the step's structural apply. NO IDENTITY IS COOKED: spawned things
-// are not authored, and the identity table stays at 32 (0283 point 11). The
+// are not authored, and the identity table stays small (0283 point 11). The
 // caller makes the entities and owns the include line.
 #pragma once
 
@@ -53,7 +53,9 @@
 // transform, in a world that registered identities and prefab parts. The text
 // is validated whole first, as voe_authoring_scene_read does, and also refused
 // without exactly one `[N]` lacking a parent section, or holding a camera,
-// light, prefab or part section; refused, it creates nothing. Then `root` gets
+// light, prefab or part section, or when the identity table cannot take every
+// entity it would make, since an editor entity always has an identity (0335);
+// refused, it creates nothing. Then `root` gets
 // every row of the file's root it lacks, never identity, transform or parent;
 // every other entity is made in ascending file id, its identity the file's name
 // with id `first_id`, `first_id + 1`, ...; an ENTITY naming a file id names the
@@ -61,7 +63,8 @@
 // and every made entity get a part row naming `root`. `*out_next_id` is the id
 // after the last used. A section of an unregistered type is skipped, one
 // warning per type. The arena holds working memory, the caller's to rewind.
-// A world out of room returns false half-made, as voe_authoring_scene_read.
+// A world out of room in another table returns false half-made, as
+// voe_authoring_scene_read.
 [[nodiscard]] bool voe_authoring_prefab_read(const char *text, size_t size,
 					     voe_ecs_world *world,
 					     voe_ecs_entity root,

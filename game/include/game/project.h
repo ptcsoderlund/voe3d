@@ -41,6 +41,10 @@
 // sets the pointer; the project lays out, calls voe_ui_frame_end itself and
 // reads its buttons. False ends the run. A project with no interface ends the
 // frame and returns true.
+// It may pause the run and start the level again (0333) through the frame's
+// asks, read after it each frame: `paused` runs no step, drops the frame's
+// time and pauses the mixer; `restart` builds the cooked scene into a fresh
+// world at the next frame's start, then both asks are false.
 //
 // SPAWN AND REMOVE LAND AT THE STEP'S STRUCTURAL APPLY: the entities exist at
 // once, their rows and a removal only then. They live in project.c because
@@ -97,14 +101,21 @@ typedef struct {
 	double seconds;
 } voe_game_project_step;
 
+// What the project's interface asks of the run, as the header says.
+typedef struct {
+	bool paused;
+	bool restart;
+} voe_game_project_asks;
+
 // What one frame hands the project's interface. `window` is NULL headless;
 // `ui`'s frame is begun with the pointer set; `size` is the surface in
-// millimetres, the root's size.
+// millimetres, the root's size; `asks` is the run's, never NULL.
 typedef struct {
 	voe_ecs_world *world;
 	voe_platform_window *window;
 	voe_ui_context *ui;
 	voe_math_float2 size;
+	voe_game_project_asks *asks;
 } voe_game_project_frame;
 
 // One project type. `default_row` NULL is zeros; `menu` NULL is no menu path.

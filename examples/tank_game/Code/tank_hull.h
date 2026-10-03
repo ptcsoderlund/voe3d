@@ -10,7 +10,9 @@
 // given tread dust at its rear at run time (0299 point 3), which plays while
 // the drive is past 0.1 either way and stops when it falls back. A hull with
 // no sound is given the looping engine hum (0304 point 8), whose pitch glides
-// up with the drive's size.
+// up with the drive's size. Once the scroll row exists (tank_scroll.h), a
+// hull cannot back out of the screen: its z is held 3 m short of the
+// screen's bottom, and one already past is not pulled in (0334 point 2).
 //
 // Constraints: at most VOE_GAME_WORLD_AUTHORED rows.
 #pragma once

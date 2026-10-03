@@ -22,7 +22,8 @@
 // tank_breakable row, not yet swapped this step, has its `wreck` spawned at
 // its world place and, only when that is not refused, is removed with its
 // tree. Swapped targets are a local list, so many shells hitting one thing
-// swap it once.
+// swap it once. The shot row of a swap carries the breakable's `points`
+// (0334 point 4); any other hit's carries 0, as tank_shell_fire queues.
 //
 // THE SOUND (0304 point 5): a hit plays `Assets/sounds/hit.wav` at the hit
 // point through the step's mixer; a hit that swaps plays
@@ -101,7 +102,7 @@ bool tank_shell_fire(const voe_game_project_step *step, const char *prefab,
 	VOE_BASE_ASSERT(step != NULL && step->world != NULL,
 			"firing a shell in no world");
 	VOE_BASE_ASSERT(prefab != NULL, "firing no prefab");
-	const tank_shot shot = { .owner = owner, .from = from };
+	const tank_shot shot = { .owner = owner, .from = from, .points = 0 };
 	voe_ecs_entity root;
 
 	if (!voe_game_project_spawn(step, prefab, position, rotation, &root))
@@ -139,14 +140,16 @@ static bool swapped_has(const struct swapped *list, voe_ecs_entity entity)
 }
 
 // Spawns a breakable target's wreck at its world place and, when that is
-// not refused, removes the target and plays the explosion there. False, the
-// target left alone, when it was already swapped this step, is not
-// breakable, has no transform or an empty or unterminated wreck name, or the
-// spawn is refused.
+// not refused, removes the target, plays the explosion there and sets
+// `points` to the target's. False, the target left alone and `points`
+// untouched, when it was already swapped this step, is not breakable, has no
+// transform or an empty or unterminated wreck name, or the spawn is refused.
 static bool swap_for_wreck(const voe_game_project_step *step,
-			   voe_ecs_entity target, struct swapped *list)
+			   voe_ecs_entity target, struct swapped *list,
+			   int32_t *points)
 {
-	VOE_BASE_ASSERT(step != NULL && list != NULL, "swapping in nothing");
+	VOE_BASE_ASSERT(step != NULL && list != NULL && points != NULL,
+			"swapping in nothing");
 	const tank_breakable *breakable = voe_ecs_component_get(
 		step->world,
 		voe_ecs_component_type(step->world, &tank_breakable_key),
@@ -169,6 +172,7 @@ static bool swap_for_wreck(const voe_game_project_step *step,
 	VOE_BASE_ASSERT(list->count < TANK_SHELL_ROWS,
 			"more swaps than shells this step");
 	list->entities[list->count++] = target;
+	*points = breakable->points;
 	if (step->audio != NULL)
 		(void)voe_audio_mixer_play_at(step->audio,
 					      "Assets/sounds/explosion.wav",
@@ -226,14 +230,16 @@ static bool fly(const voe_game_project_step *step, voe_ecs_entity entity,
 			      shot.owner, &hit)) {
 		shot.hit = true;
 		shot.target = hit.entity;
-		shot_write(step->world, entity, row != NULL, &shot);
+		shot.points = 0;
 		// Refused: the queue is full, and next step tries again.
 		(void)voe_game_project_remove(step, entity);
 		const bool swapped =
 			row != NULL && player != NULL &&
 			voe_scene_parent_within(step->world, *player,
 						shot.owner) &&
-			swap_for_wreck(step, hit.entity, list);
+			swap_for_wreck(step, hit.entity, list, &shot.points);
+
+		shot_write(step->world, entity, row != NULL, &shot);
 
 		if (!swapped && step->audio != NULL)
 			(void)voe_audio_mixer_play_at(step->audio,

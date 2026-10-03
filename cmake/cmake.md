@@ -3,5 +3,5 @@
 The build functions every folder's CMakeLists.txt calls, and the build a game tree includes.
 
 - `voe.cmake` — `voe_module()`, `voe_executable()`, the dependency map, the flag set, and the platform, render and editor bills; render's shaders depend on every `.slangh` shader part.
-- `game.cmake` — a game tree's build: descriptions and folder databases off, the engine's `game` folder, the executable `game` and its release install with the licences and the project's `.wav` sounds and `.glb` models, which it also copies beside the program.
+- `game.cmake` — a game tree's build: descriptions and folder databases off, the engine's `game` folder, the executable `game` and its release install with the licences and the project's `.wav` sounds, `.glb` models and `.png`/`.jpg` pictures, which it also copies beside the program.
 - `exports.cmake` — the `.def` the editor links on Windows, skipping the members that call a project's entry points.

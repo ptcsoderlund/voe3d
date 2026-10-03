@@ -1,6 +1,7 @@
 // The model component and its drain: that the description is one CHAR field
-// `path` of 128 bytes and a BOOL `cast_shadows`, that the default row casts and
-// an intent with cast_shadows false lands, that a row added and then given a new path by an intent
+// `path` of 128 bytes, a BOOL `cast_shadows` and a FLOAT32 `fade`, that the
+// default row casts unfaded, an intent with cast_shadows false lands and one
+// with fade 0.5 reads back after a run, that a row added and then given a new path by an intent
 // reads that path back after a run, that a dead entity's intent is dropped,
 // and that a path with no end is cut to 127 bytes. Needs no graphics card.
 //
@@ -56,14 +57,14 @@ static voe_ecs_entity modelled(voe_ecs_world *world, const char *path)
 	return entity;
 }
 
-static void the_description_is_a_path_and_cast_shadows(void)
+static void the_description_is_a_path_cast_shadows_and_fade(void)
 {
 	const voe_base_struct_description *description =
 		voe_3d_model_description();
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_model") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 2);
-	if (description->field_count != 2)
+	VOE_TEST_CHECK_INT(description->field_count, 3);
+	if (description->field_count != 3)
 		return;
 	VOE_TEST_CHECK(strcmp(description->fields[0].name, "path") == 0);
 	VOE_TEST_CHECK_INT(description->fields[0].kind, VOE_BASE_FIELD_CHAR);
@@ -75,10 +76,14 @@ static void the_description_is_a_path_and_cast_shadows(void)
 	VOE_TEST_CHECK_INT(description->fields[1].kind, VOE_BASE_FIELD_BOOL);
 	VOE_TEST_CHECK_INT((long long)description->fields[1].offset,
 			   (long long)offsetof(voe_3d_model, cast_shadows));
+	VOE_TEST_CHECK(strcmp(description->fields[2].name, "fade") == 0);
+	VOE_TEST_CHECK_INT(description->fields[2].kind, VOE_BASE_FIELD_FLOAT32);
+	VOE_TEST_CHECK_INT((long long)description->fields[2].offset,
+			   (long long)offsetof(voe_3d_model, fade));
 }
 
-// The default row is the empty path, casting; an intent with cast_shadows
-// false lands as it is.
+// The default row is the empty path, casting, unfaded; an intent with
+// cast_shadows false lands as it is.
 static void the_default_casts_and_an_intent_turns_it_off(voe_base_arena *arena)
 {
 	voe_ecs_world *world = a_world(arena);
@@ -90,11 +95,27 @@ static void the_default_casts_and_an_intent_turns_it_off(voe_base_arena *arena)
 						  .cast_shadows = false } };
 
 	VOE_TEST_CHECK(row != NULL && row->path[0] == '\0' && row->cast_shadows);
+	VOE_TEST_CHECK(row != NULL && row->fade == 0.0f);
 	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
 	voe_3d_model_system_run(world);
 	VOE_TEST_CHECK(!voe_3d_model_get(world, entity)->cast_shadows);
 	VOE_TEST_CHECK(strcmp(voe_3d_model_get(world, entity)->path,
 			      "Assets/hull.glb") == 0);
+	voe_base_arena_clear(arena);
+}
+
+static void a_submitted_fade_reads_back(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity entity = modelled(world, "Assets/hull.glb");
+	voe_3d_model_intent intent = { .entity = entity,
+				       .model = { .path = "Assets/hull.glb",
+						  .cast_shadows = true,
+						  .fade = 0.5f } };
+
+	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
+	voe_3d_model_system_run(world);
+	VOE_TEST_CHECK_FLOAT(voe_3d_model_get(world, entity)->fade, 0.5f, 0.0f);
 	voe_base_arena_clear(arena);
 }
 
@@ -153,8 +174,9 @@ int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
-	the_description_is_a_path_and_cast_shadows();
+	the_description_is_a_path_cast_shadows_and_fade();
 	the_default_casts_and_an_intent_turns_it_off(arena);
+	a_submitted_fade_reads_back(arena);
 	a_submitted_path_reads_back(arena);
 	a_dead_entitys_intent_is_dropped(arena);
 	a_path_with_no_end_is_cut(arena);

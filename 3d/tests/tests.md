@@ -34,6 +34,8 @@ again, or to find where a claim that has started failing is written down.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
   and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
   or without it. Skips without a graphics card.
+- `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
+  and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
@@ -81,9 +83,8 @@ again, or to find where a claim that has started failing is written down.
   among them) and runs, each kind's own
   geometry, and the upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
-- `model_component.c` — the model's CHAR field `path` of 128 and BOOL `cast_shadows`, the default
-  casting and an intent turning it off, a submitted path read back after a run, a dead entity's
-  intent dropped and a path with no end cut. Needs no graphics card.
+- `model_component.c` — the model component's fields, its default and intents read back after a
+  run, a dead entity's intent dropped and a long path cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
@@ -92,5 +93,6 @@ again, or to find where a claim that has started failing is written down.
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
   colour, and a removed water's row gone. Needs no graphics card.
-- `models.c` — the model store: loads, failures kept as failed, replace, clear, pictures and
-  the uncounted dot, and a model drawn only with the store. Skips without a card.
+- `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
+  blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
+  store. Skips without a card.

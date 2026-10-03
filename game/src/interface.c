@@ -82,13 +82,14 @@ voe_math_float2 voe_game_interface_surface(voe_platform_size size)
 bool voe_game_interface_run(
 	voe_game_interface *interface, voe_base_arena *frame_arena,
 	voe_ecs_world *world, voe_platform_window *window,
-	voe_platform_size size,
+	voe_platform_size size, voe_game_project_asks *asks,
 	bool (*project_interface)(const voe_game_project_frame *frame))
 {
 	float scale = pixels_per_millimetre(size);
 	voe_ui_pointer pointer = { 0 };
 
 	VOE_BASE_ASSERT(interface != NULL, "running no interface");
+	VOE_BASE_ASSERT(asks != NULL, "an interface with no asks");
 	VOE_BASE_ASSERT(project_interface != NULL, "no project interface");
 
 	voe_ui_frame_begin(interface->ui, frame_arena);
@@ -109,6 +110,7 @@ bool voe_game_interface_run(
 		.window = window,
 		.ui = interface->ui,
 		.size = voe_game_interface_surface(size),
+		.asks = asks,
 	});
 }
 

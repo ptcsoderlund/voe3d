@@ -45,12 +45,13 @@
 //
 // CONSTRAINTS. Each line is VOE_EDITOR_UNDO_STEPS states of VOE_EDITOR_UNDO_TEXT
 // bytes, both pushed once out of the arena voe_editor_undo_create is handed —
-// two megabytes each, four in all — and a project's world holds at most
-// VOE_EDITOR_SCENE_ROWS authored entities, which is a fraction of one state. A scene text too long
+// four megabytes each, eight in all — and a project's world holds at most
+// VOE_EDITOR_SCENE_ROWS (128) authored entities, at about 300 bytes an entity
+// some 38 KB, which one state holds. A scene text too long
 // for a state empties the line rather than recording half of it; lifting that
 // means a text a state does not hold, which is a different structure and not a
 // larger number. Once the line is full, dropping the oldest state shifts the
-// whole array down one — one memmove of those two megabytes per step, which is
+// whole array down one — one memmove of those four megabytes per step, which is
 // the price of an array that a take can index straight into; a base index
 // turning it into a ring would lift it.
 #pragma once
@@ -67,7 +68,7 @@
 
 // How many scene texts the line holds, and how long one of them may be.
 #define VOE_EDITOR_UNDO_STEPS 64
-#define VOE_EDITOR_UNDO_TEXT (32u * 1024u)
+#define VOE_EDITOR_UNDO_TEXT (64u * 1024u)
 
 // One state of the line: a scene text, `size` bytes of `text` long.
 typedef struct {

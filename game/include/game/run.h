@@ -14,26 +14,32 @@
 // can be resized to any shape; the world is drawn at the window's aspect,
 // never stretched.
 //
-// THE ORDER: two arenas, voe_app_new with `window` and `title`, the interface (game/interface.h), the world (game/world.h), the
-// project's voe_game_project_register (game/project.h), the model store
-// (3d/models.h), the mixer (audio/mixer.h) on the program's folder and the
-// sound device (platform/sound.h), voe_game_scene_build (game/scene.h), the
-// built-in shapes uploaded, voe_game_models_update (game/models.h) from the
-// program's folder, then once a frame, skipping a minimised window, until it
-// is closing: the frame's elapsed seconds and the cooked prefabs
-// (game/prefabs.h) into voe_game_steps_run, which runs voe_game_project_systems_run and
+// THE ORDER: three arenas, voe_app_new with `window` and `title`, the
+// interface (game/interface.h), the world (game/world.h) in an arena of its
+// own, the project's voe_game_project_register (game/project.h),
+// voe_game_scene_build (game/scene.h), the model store (3d/models.h), the
+// mixer (audio/mixer.h) on the program's folder and the sound device
+// (platform/sound.h), the built-in shapes uploaded, voe_game_models_update
+// (game/models.h) from the program's folder, then once a frame, skipping a
+// minimised window, until it is closing: on a restart asked, the world's
+// arena cleared and the world, register and scene made again, the bank zeroed
+// and the models read, both asks false; unless paused, the frame's elapsed
+// seconds and the cooked prefabs (game/prefabs.h) into voe_game_steps_run,
+// which runs voe_game_project_systems_run and
 // voe_game_project_systems_after_move once per fixed step (game/steps.h), then
 // voe_game_models_update again for paths the step named, then
-// voe_game_interface_run with voe_game_project_interface in the cleared
-// scratch, then the mixer pumped into an open device, then voe_game_frame with
-// the lag, the store and the interface's context. The store is cleared and
-// destroyed before the window closes. A game with no sound device, or whose
-// device fails, runs silent; a model that will not read draws as nothing.
+// voe_game_interface_run with voe_game_project_interface and the asks in the
+// cleared scratch, the mixer paused as the asks say and pumped into an open
+// device, then voe_game_frame with the lag (the last one while paused), the
+// store and the interface's context. The store is cleared and destroyed
+// before the window closes. A game with no sound device, or whose device
+// fails, runs silent; a model that will not read draws as nothing.
 //
 // NO QUIT KEY (0234), BUT THE PROJECT'S INTERFACE MAY END THE RUN (0259).
 // Escape is the game's own, for its menus; the window's close, the system's
 // close key, the editor's Stop, or voe_game_project_interface answering false
-// ends the run.
+// ends the run. The interface may also pause the run and start the level
+// again (0333, game/project.h).
 //
 // Constraints: links only in a tree that has a cooked scene.c defining
 // voe_game_scene_build, a cooked prefabs.c defining voe_game_prefabs_cooked,
@@ -54,6 +60,7 @@ typedef struct voe_game_window {
 
 // 0 when the window was closed or the project's interface ended the run. 1
 // with a line on stderr when the window, device or interface would not open,
-// the scene did not fit its world, the shapes did not fit the device, or the
-// device stopped answering. `title` is the window's.
+// the scene did not fit its world (at the start or a restart), the shapes
+// did not fit the device, or the device stopped answering. `title` is the
+// window's.
 int voe_game_run(const char *title, voe_game_window window);
