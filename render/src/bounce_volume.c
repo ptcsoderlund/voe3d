@@ -17,7 +17,8 @@
 // the next frame builds it, and from then each frame top counts one idle frame.
 // Past VOE_RENDER_BOUNCE_IDLE of them it is freed and wants nothing until the
 // next begin. A begin onto an unbuilt volume bounces nothing that frame; onto a
-// built one it places the probes, queuing what card 04 says to capture.
+// built one it places the probes at its spacing, queuing what card 04 says to
+// capture; every slot's begin keeps its cell, corner and spacing for the read.
 //
 // WHY THE TOP OF A FRAME. Building or freeing images wants a card that reads
 // none of them, and the top of a frame is where nothing is recording: the same
@@ -31,6 +32,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <math.h>
 #include <string.h>
 
 // Atlas texels: a probe is six faces across and one face down.
@@ -327,6 +329,8 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 			"a bounce begin inside a pass — it records between passes");
 	VOE_BASE_ASSERT(frame->sun_bounces <= VOE_RENDER_BOUNCES_MAX,
 			"a bounce begin whose sun bounces past VOE_RENDER_BOUNCES_MAX");
+	VOE_BASE_ASSERT(isfinite(frame->spacing) && frame->spacing > 0.0f,
+			"a bounce begin whose spacing is not finite or not above nought");
 
 	volume = voe_render_bounce_volume_of(device, target);
 	begun = &volume->begun[device->slot];
@@ -339,6 +343,7 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	begun->corner[0] = frame->corner.x;
 	begun->corner[1] = frame->corner.y;
 	begun->corner[2] = frame->corner.z;
+	begun->spacing = frame->spacing;
 	if (!device->output_layer)
 		return;
 
@@ -355,7 +360,7 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 		return;
 
 	voe_render_bounce_probes_place(&volume->probes, frame->cell,
-				       frame->corner, VOE_RENDER_BOUNCE_SPACING,
+				       frame->corner, frame->spacing,
 				       frame->stale, frame->stale_count,
 				       &frame->sun,
 				       frame->sun_bounces, frame->sun_strength,

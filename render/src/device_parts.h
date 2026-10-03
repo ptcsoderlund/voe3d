@@ -342,12 +342,13 @@ static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      sizeof(struct voe_render_relight_record) == 928,
 	      "the relight record as bounce_relight.slang lays it out");
 
-// Whether one frame slot's frame began a probe volume, and the lowest cell and
-// corner that begin placed it at (ADR-0326 point 7).
+// Whether one frame slot's frame began a probe volume, and the lowest cell,
+// corner and spacing that begin placed it at (ADR-0326 point 7, 0332 point 3).
 struct voe_render_bounce_begun {
 	bool begun;
 	int32_t cell[3];
 	float corner[3];
+	float spacing;
 };
 
 // One target's probe volume, bounce_volume.c's (ADR-0326 points 2 to 6): the

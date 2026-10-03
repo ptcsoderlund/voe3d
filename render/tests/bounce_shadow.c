@@ -99,6 +99,7 @@ static struct voe_render_bounce_frame bounce(uint32_t sun_bounces, bool lamp)
 		.sun_bounces = sun_bounces,
 		.sun_strength = 1.0f,
 		.points = { .lights = lamp ? &LAMP : NULL, .count = lamp ? 1u : 0u },
+		.spacing = VOE_RENDER_BOUNCE_SPACING,
 	};
 }
 

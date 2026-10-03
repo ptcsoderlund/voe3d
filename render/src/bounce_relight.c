@@ -38,7 +38,8 @@
 // voe_render_relight_record is the uniform the relight reads: the begun sun, the
 // bounce shadow map's view × projection, its texel (the box's width over
 // VOE_RENDER_BOUNCE_SHADOW_TEXELS) and whether this frame drew it, the sun's
-// strength, the volume's placement and the bouncing lamps.
+// strength, the volume's placement (cell, corner and its begin's spacing) and the
+// bouncing lamps.
 //
 // device->relight_dispatches counts every dispatch recorded, for a test to read.
 //
@@ -411,7 +412,7 @@ static void write_record(voe_render_device *device, uint32_t index,
 				     0.0f,
 		.corner = { begun->corner.x, begun->corner.y, begun->corner.z },
 		.sun_strength = lights->sun_strength,
-		.spacing = VOE_RENDER_BOUNCE_SPACING,
+		.spacing = begun->spacing,
 	};
 
 	VOE_BASE_DEBUG_ASSERT(device->relight_records_mapped[device->slot] != NULL,

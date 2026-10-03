@@ -60,7 +60,7 @@ by reading the offscreen colour image back.
   that moves, and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
   window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
-  both relit in one frame each into its own record. Headless.
+  both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, and a red cube in the albedo atlas.
   Headless.

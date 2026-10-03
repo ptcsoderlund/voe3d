@@ -62,6 +62,7 @@ static const struct voe_render_bounce_frame BOUNCE = {
 	.sun = SUN,
 	.sun_bounces = 1,
 	.sun_strength = 1.0f,
+	.spacing = VOE_RENDER_BOUNCE_SPACING,
 };
 
 // Counter-clockwise from outside, four vertices a face, a unit cube.

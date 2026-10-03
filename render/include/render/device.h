@@ -161,7 +161,8 @@ typedef struct {
 // holds the same number.
 #define VOE_RENDER_POINT_SHADOW_NEAR 0.05f
 
-// Metres between neighbouring probes of the bounce grid.
+// Metres between neighbouring probes of the finest bounce grid, a grid's at 2^0
+// (0332); a volume's own spacing is its voe_render_bounce_begin's.
 #define VOE_RENDER_BOUNCE_SPACING 2.0f
 // Probes along x and along z of a target's captured bounce grid (ADR-0326).
 #define VOE_RENDER_BOUNCE_PROBES_XZ 24
@@ -1323,14 +1324,14 @@ void voe_render_bounce_relight(voe_render_device *device);
 // Closes the open pass, whatever kind it is. Without one open it asserts.
 void voe_render_pass_end(voe_render_device *device);
 
-// What one target's bounce is this frame (ADR-0326 point 8). `cell` is the
-// volume's lowest world cell at VOE_RENDER_BOUNCE_SPACING and `corner` its lowest
-// corner about the eye; `stale` holds `stale_count` spheres about the eye, xyz
-// centre and w radius, whose probes are captured again. `sun` bounces
-// `sun_bounces` times, scaled by `sun_strength`; `points` are the frame's point
-// lights, the first VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag
-// and no typedef, because the call below has the name and C has one name space
-// for both.
+// What one target's bounce is this frame (ADR-0326 point 8). `spacing` is the
+// metres between this volume's probes (0332 point 3), `cell` the volume's lowest
+// world cell counted in them and `corner` its lowest corner about the eye;
+// `stale` holds `stale_count` spheres about the eye, xyz centre and w radius,
+// whose probes are captured again. `sun` bounces `sun_bounces` times, scaled by
+// `sun_strength`; `points` are the frame's point lights, the first
+// VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag and no typedef,
+// because the call below has the name and C has one name space for both.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1340,10 +1341,13 @@ struct voe_render_bounce_frame {
 	uint32_t sun_bounces;
 	float sun_strength;
 	voe_render_point_lights points;
+	float spacing;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
-// copied, so the caller's are its own again when this returns.
+// copied, so the caller's are its own again when this returns. The volume is
+// placed, captured, relit and read at `frame->spacing`; a spacing other than its
+// last empties the whole grid, as a jump does (0332 point 3).
 //
 // THE SUN IS SHADOWED IN THE RELIGHT BY THIS BEGIN'S BOUNCE SHADOW MAP when
 // voe_render_bounce_shadow_pass_begin opened it, lit outside its box, and
@@ -1356,7 +1360,8 @@ struct voe_render_bounce_frame {
 // without shaderOutputLayer nothing bounces and no volume is built.
 //
 // Outside a frame, with a pass open, on a target not live, for a target already
-// begun this frame, or with `sun_bounces` past VOE_RENDER_BOUNCES_MAX it asserts.
+// begun this frame, with `sun_bounces` past VOE_RENDER_BOUNCES_MAX, or with a
+// spacing not finite or not above nought it asserts.
 void voe_render_bounce_begin(voe_render_device *device, voe_render_target target,
 			     const struct voe_render_bounce_frame *frame);
 

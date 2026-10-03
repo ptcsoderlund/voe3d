@@ -98,6 +98,7 @@ static const struct voe_render_bounce_frame BOUNCE = {
 		 .colour = { 1.0f, 1.0f, 1.0f } },
 	.sun_bounces = 1,
 	.sun_strength = 1.0f,
+	.spacing = VOE_RENDER_BOUNCE_SPACING,
 };
 
 static voe_render_object cube_object(voe_render_shading grey)

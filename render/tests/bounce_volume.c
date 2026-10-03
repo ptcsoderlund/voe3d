@@ -15,6 +15,11 @@
 // bounces 1, relighting each after its begin: that slot's record region 0 holds
 // the window's cell and the target's region its own, not the last one's.
 //
+// EACH AT ITS OWN SPACING (0332 point 3). The next frame begins the window's at
+// 2 m and the target's at 4, a new sun strength relighting both: that slot's
+// region 0 holds spacing 2 and the target's region spacing 4, as its slot's
+// begin keeps.
+//
 // A card without shaderOutputLayer bounces nothing and builds nothing: that is
 // checked instead, and said. A machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -46,6 +51,7 @@ static const struct voe_render_bounce_frame BOUNCE = {
 		 .colour = { 1.0f, 1.0f, 1.0f } },
 	.sun_bounces = 1,
 	.sun_strength = 1.0f,
+	.spacing = VOE_RENDER_BOUNCE_SPACING,
 };
 
 // One frame: begun onto the window and `target` as asked, then ended.
@@ -112,9 +118,10 @@ static void built_on_first_use(voe_render_device *device, voe_render_target id)
 	VOE_TEST_CHECK(!own->built && !own->wanted);
 }
 
-// Volume `index`'s region of the open slot's record buffer holds `cell`, wrapped.
+// Volume `index`'s region of the open slot's record buffer holds `cell`, wrapped,
+// and `spacing`.
 static void region_holds(const voe_render_device *device, uint32_t index,
-			 const int32_t cell[3])
+			 const int32_t cell[3], float spacing)
 {
 	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
 				   VOE_RENDER_BOUNCE_PROBES_Y,
@@ -124,11 +131,13 @@ static void region_holds(const voe_render_device *device, uint32_t index,
 				       device->relight_records_mapped[device->slot] +
 			       index * device->relight_record_stride);
 
-	printf("region %u holds cell %u %u %u\n", index, record->cell[0],
-	       record->cell[1], record->cell[2]);
+	printf("region %u holds cell %u %u %u at spacing %g\n", index,
+	       record->cell[0], record->cell[1], record->cell[2],
+	       (double)record->spacing);
 	for (uint32_t a = 0; a < 3; a++)
 		VOE_TEST_CHECK(record->cell[a] ==
 			       voe_render_bounce_probe_wrap(cell[a], size[a]));
+	VOE_TEST_CHECK(record->spacing == spacing);
 }
 
 static void each_relit_apart(voe_render_device *device, voe_render_target id)
@@ -150,8 +159,35 @@ static void each_relit_apart(voe_render_device *device, voe_render_target id)
 	voe_render_bounce_relight(device);
 	voe_render_bounce_begin(device, id, &moved);
 	voe_render_bounce_relight(device);
-	region_holds(device, 0, BOUNCE.cell);
-	region_holds(device, id.index, moved.cell);
+	region_holds(device, 0, BOUNCE.cell, VOE_RENDER_BOUNCE_SPACING);
+	region_holds(device, id.index, moved.cell, VOE_RENDER_BOUNCE_SPACING);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
+static void each_at_its_spacing(voe_render_device *device, voe_render_target id)
+{
+	struct voe_render_bounce_frame window = BOUNCE;
+	struct voe_render_bounce_frame coarse = BOUNCE;
+	bool drawing = false;
+
+	// A new sun strength relights the window; a new spacing empties the target.
+	window.sun_strength = 0.5f;
+	coarse.sun_strength = 0.5f;
+	coarse.spacing = 4.0f;
+	coarse.corner = (voe_math_float3){ -48.0f, -24.0f, -48.0f };
+	VOE_TEST_CHECK(voe_render_frame_begin(device, (voe_platform_size){ SIDE, SIDE },
+					      &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return;
+	voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &window);
+	voe_render_bounce_relight(device);
+	voe_render_bounce_begin(device, id, &coarse);
+	voe_render_bounce_relight(device);
+	region_holds(device, 0, window.cell, 2.0f);
+	region_holds(device, id.index, coarse.cell, 4.0f);
+	VOE_TEST_CHECK(device->targets[0].volume.begun[device->slot].spacing ==
+		       4.0f);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
@@ -188,6 +224,7 @@ int main(void)
 		if (device->output_layer) {
 			built_on_first_use(device, id);
 			each_relit_apart(device, id);
+			each_at_its_spacing(device, id);
 		} else {
 			nothing_without_output_layer(device, id);
 		}

@@ -17,7 +17,8 @@
 // coordinate, at x 48i + 8f, y 8(12k + j).
 //
 // THE BEGIN takes up to sixteen queued probes nearest the eye (card 04's take)
-// and writes them as the pass's point lights by slot, centre about the eye, range
+// and writes them as the pass's point lights by slot, centre about the eye at the
+// begun volume's spacing (its block's spacing too), range
 // VOE_RENDER_BOUNCE_REACH, and into device->pass_casters, so draw.c culls a
 // caster's faces as in the point-shadow pass. Colours clear to nought with the
 // normal's w the reach, depth to the far plane. THE END moves the scratch to
@@ -164,7 +165,8 @@ static bool any_queued(const voe_render_bounce_probes *p)
 	return false;
 }
 
-// Probe `probe`'s centre about the eye, from where `p` was last placed.
+// Probe `probe`'s centre about the eye, from where and at the spacing `p` was
+// last placed.
 static voe_math_float3 probe_centre(const voe_render_bounce_probes *p,
 				    uint32_t probe)
 {
@@ -181,7 +183,7 @@ static voe_math_float3 probe_centre(const voe_render_bounce_probes *p,
 			 voe_render_bounce_probe_wrap(p->cell[a], size[a])) %
 			size[a];
 
-		c[a] = corner[a] + ((float)local + 0.5f) * VOE_RENDER_BOUNCE_SPACING;
+		c[a] = corner[a] + ((float)local + 0.5f) * p->spacing;
 	}
 	return (voe_math_float3){ c[0], c[1], c[2] };
 }
@@ -337,7 +339,7 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	place_probes(device, frame, &volume->probes, taken, count);
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+	block.bounce.spacing = volume->probes.spacing;
 	block.region = device->pass_count;
 	block.lights = count;
 

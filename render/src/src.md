@@ -60,9 +60,10 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_volume.c` — a target's probe volume: its atlases and 3D images (six-axis irradiance
   grids, 48 × 12 × 24) built at the top of the
   frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10, freed after 300
-  frames unbegun, and that begin.
+  frames unbegun, and that begin, which keeps its spacing per frame slot.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
-  depth, sixteen queued probes drawn into it as one layered pass, then copied into the atlases.
+  depth, sixteen queued probes drawn into it as one layered pass at the volume's spacing, then
+  copied into the atlases.
 - `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
   shadow pass that draws it once per bounce begin that relights a casting sun.
 - `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe

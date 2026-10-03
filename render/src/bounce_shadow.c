@@ -22,7 +22,8 @@
 // THE BEGIN opens only when the begun target will relight (card 04's call) and
 // the begun sun bounces, shines and is shaded: the map from UNDEFINED into its
 // attachment layout, depth cleared to the far plane, the shadow pipeline, the
-// viewport and scissor at the map's side, `light` as the pass's camera. Its
+// viewport and scissor at the map's side, `light` as the pass's camera, the begun
+// volume's spacing in its block. Its
 // barrier out of UNDEFINED waits on the fragment tests and on the compute stage
 // as well: the slot has one map, so a second view's pass follows the previous
 // view's relight reading it this frame, and overwrites it only after. THE END
@@ -194,7 +195,7 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	block.bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+	block.bounce.spacing = device->bounce_frame.spacing;
 	record_open(frame);
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ TEXELS, TEXELS };

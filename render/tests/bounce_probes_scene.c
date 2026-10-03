@@ -583,6 +583,7 @@ static void run(struct scene *s)
 	s->bounce = (struct voe_render_bounce_frame){
 		.cell = { -12, -6, -12 },
 		.corner = { -24.0f, -12.0f, -24.0f },
+		.spacing = VOE_RENDER_BOUNCE_SPACING,
 	};
 	s->volume_light = sun_view(
 		voe_math_float3_add(
