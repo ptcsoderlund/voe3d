@@ -11,7 +11,7 @@ again, or to find where a claim that has started failing is written down.
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
 - `bounce_grid.c` — that the probe volume fits the level's box, not the eye:
-  the same cell and spacing from three eyes, a wider box at 4 m, a centre
+  the same cell and spacing from three eyes, a centre
   across a cell edge one cell on, no box about the origin, and a sun view that
   holds the volume and grows with the spacing. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
@@ -43,10 +43,9 @@ again, or to find where a claim that has started failing is written down.
   Skips without a graphics card.
 - `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
   that bounces, two views in one frame each drawing their sun map, and the stale spheres a moved
-  wall marks, and the still casters' box at two eyes, turned, and without moved, hidden or
-  non-casting ones. Skips without a card.
+  wall marks, and the still casters' box at two eyes and turned. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints
-  the ground it faces, its foot's shadow stays as at bounces 0, open ground stays even, the grid
+  the ground it faces, open ground stays even, the grid
   settles, and camera turns and moves change nothing, nor does a far eye take the bounce. Skips
   without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and

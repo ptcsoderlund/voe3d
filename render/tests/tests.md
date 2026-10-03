@@ -11,8 +11,8 @@ by reading the offscreen colour image back.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
 - `pools.c` — two meshes and two ranges, a full pool as a returned failure, and ids that stop
   naming anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose
-  range the next mesh takes, freed neighbours merging, and a mesh's own box handed back exactly
-  and refused once destroyed. Headless.
+  range the next mesh takes, and a mesh's own box handed back and refused once
+  destroyed. Headless.
 - `textures.c` — 1024 texture slots: at least 1000 one-pixel textures made before one is refused,
   and a quad wearing the last of them, in the highest slot, drawn in its colour. Headless.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
@@ -54,8 +54,8 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
-- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, the
-  16 nearest taken first, a one-cell move queuing 288, −1 wrapping to 23, a stale sphere queuing
+- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, a
+  one-cell move queuing 288, a stale sphere queuing
   only within at 2 and 4 m, a new spacing queuing all, a relight only on change and not for an eye
   that moves, and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
