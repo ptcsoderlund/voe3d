@@ -10,18 +10,18 @@ workflow replaced specs.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
-- **ecs** — entities, component tables, intent queues, a structural queue, a type's menu and unsaid row.
+- **ecs** — entities, component tables, intent and structural queues, a type's menu and unsaid row.
 - **platform** — the one OS-aware folder: window, input, pads, files, clock, processes, libs, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, identity.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
-- **audio** — the mixer: voices by handle, looped, pitched, placed by the camera; sound component.
+- **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
 - **render** — the one layer naming Vulkan: card, resources, passes, lights, shadows, bounce.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, models, shapes, particles, water, picks, outlines, light.
+- **3d** — scene to draws: meshes, fading models, shapes, particles, water, picks, outlines, light.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
 - **game** — a shipped game in the window it is handed: world types, 1/60 s steps, code, sound.
@@ -57,3 +57,4 @@ workflow replaced specs.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
+- 0333–0340, 0342 — Pause, restart; waves, goal; identities; fade; Linux only; Release; copy.

@@ -11,7 +11,7 @@ the library the editor loads (0242).
 - `tank_gun_system.c` — while fire holds, fires each ready gun's prefab at its muzzle along its turret's barrel; each shot bursts the gun's muzzle flash and restarts the fade of its light, a child at the flash, and plays the shot sound at the muzzle.
 - `tank_shell.h` — the Tank / Shell component: a speed, default 30 m/s, a life, default 3 s, and a radius, default 0.1 m; the runtime-only shot row: owner, where the sweep starts, what it hit, and the points of a breakable it wrecked.
 - `tank_shell_system.c` — flies each shell, stops it where it hits, swaps a breakable the player hit for its wreck, its shot row carrying the breakable's points, and removes it on a hit or when its life runs out, playing the hit sound, or the explosion at a wreck.
-- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, and the points the player scores for wrecking it, default 100, that only the player's shell's hit swaps the thing for, once a step; an enemy's shell changes nothing.
+- `tank_breakable.h` — the Tank / Breakable component: a wreck prefab, default empty, that only the player's shell's hit swaps the thing for, once a step, and the points the player scores for it, default 100; an enemy's shell changes nothing.
 - `tank_breakable.c` — the breakable's key and registration; it has no system.
 - `tank_goal.h` — the Tank / Goal component the sponsor places at the level's end: the points the player scores, default 1000, on winning when its hull's z reaches the goal's world z; it needs a transform.
 - `tank_goal.c` — the goal's key and registration, with its need of a transform; it has no system.
