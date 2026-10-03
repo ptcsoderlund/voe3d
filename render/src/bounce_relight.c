@@ -330,9 +330,11 @@ void voe_render_bounce_relight_shutdown(voe_render_device *device)
 }
 
 // The bouncing lights this frame's begin placed, as card 04 compares them.
-static void begun_lights(const voe_render_device *device,
-			 voe_render_bounce_lights *lights)
+void voe_render_bounce_begun_lights(const voe_render_device *device,
+				    voe_render_bounce_lights *lights)
 {
+	VOE_BASE_DEBUG_ASSERT(device != NULL && lights != NULL,
+			      "the begun lights of no device or into nowhere");
 	memset(lights, 0, sizeof(*lights));
 	lights->sun = device->bounce_frame.sun;
 	lights->sun_bounces = device->bounce_frame.sun_bounces;
@@ -621,7 +623,7 @@ void voe_render_bounce_relight(voe_render_device *device)
 	volume = voe_render_bounce_volume_of(device, device->bounce_target);
 	if (!volume->built)
 		return;
-	begun_lights(device, &lights);
+	voe_render_bounce_begun_lights(device, &lights);
 	if (!voe_render_bounce_probes_relight_needed(&volume->probes, &lights))
 		return;
 

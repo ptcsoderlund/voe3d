@@ -546,6 +546,7 @@ static void close_down(voe_render_device *device)
 		voe_render_shadow_shutdown(device);
 		voe_render_point_shadow_shutdown(device);
 		voe_render_bounce_capture_shutdown(device);
+		voe_render_bounce_shadow_shutdown(device);
 		voe_render_bounce_relight_shutdown(device);
 		// The command buffers are not freed one at a time: destroying the
 		// pool below takes every one of them with it.
@@ -668,7 +669,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_point_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_bounce_capture_startup(device))
+	if (!voe_render_bounce_capture_startup(device) ||
+	    !voe_render_bounce_shadow_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_bounce_relight_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);

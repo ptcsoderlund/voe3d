@@ -20,8 +20,8 @@
 // pipeline and a transient mesh the other pool pair; draw_with rebinds either
 // only when it differs from what device->bound and device->bound_transient say
 // was bound last, so a run of draws of one kind costs one bind and a caller that
-// interleaves them is still drawn right. In a shadow pass (pass.c) every mesh draw
-// goes through the shadow pipeline, in the point-shadow and capture passes through theirs; a blended draw and the
+// interleaves them is still drawn right. In a shadow pass (pass.c) and the bounce
+// shadow pass (bounce_shadow.c) every mesh draw goes through the shadow pipeline, in the point-shadow and capture passes through theirs; a blended draw and the
 // depth clear assert in each. The element pipeline (element.c) is
 // never bound here; it leaves `bound` different, and the next mesh rebinds.
 //
@@ -181,7 +181,7 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 
 	frame = voe_render_frame_at(device, device->slot);
 	// A shadow pass draws depth alone, whichever draw call asked.
-	if (device->pass_shadow)
+	if (device->pass_shadow || device->pass_bounce_shadow)
 		pipeline = device->pipeline_shadow;
 	else if (device->pass_point_shadow)
 		pipeline = device->pipeline_point_shadow;
@@ -254,7 +254,7 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 				   voe_render_object object)
 {
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
-	VOE_BASE_ASSERT(!device->pass_shadow,
+	VOE_BASE_ASSERT(!device->pass_shadow && !device->pass_bounce_shadow,
 			"drawing a blended mesh in a shadow pass — nothing see-through casts");
 	VOE_BASE_ASSERT(!device->pass_point_shadow,
 			"drawing a blended mesh in a point-shadow pass — nothing see-through casts");
@@ -311,7 +311,7 @@ void voe_render_frame_clear_depth(voe_render_device *device)
 			"clearing depth with no pass open — the clear is recorded into a pass's rendering block");
 	VOE_BASE_ASSERT(device->pass_camera,
 			"clearing depth in a pass opened with no camera — nothing in such a pass writes depth to clear");
-	VOE_BASE_ASSERT(!device->pass_shadow,
+	VOE_BASE_ASSERT(!device->pass_shadow && !device->pass_bounce_shadow,
 			"clearing depth in a shadow pass — its depth is the map being drawn");
 	VOE_BASE_ASSERT(!device->pass_point_shadow,
 			"clearing depth in a point-shadow pass — its depth is the maps being drawn");

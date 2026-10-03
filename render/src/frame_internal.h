@@ -1,7 +1,7 @@
 // The seam between a frame, its passes, its draws and its present: the calls
-// frame.c, pass.c, draw.c, present.c, point_shadow.c and bounce_capture.c (whose
-// passes open through pass.c's start) make across one another, and nothing else.
-// Included by those six files only; every other file in render reaches a frame through
+// frame.c, pass.c, draw.c, present.c, point_shadow.c, bounce_capture.c and
+// bounce_shadow.c (whose passes open through pass.c's start) make across one
+// another, and nothing else. Included by those seven files only; every other file in render reaches a frame through
 // device_internal.h, and outside render through device.h.
 //
 // These were static functions of one file until that file was split by what

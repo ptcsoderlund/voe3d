@@ -96,7 +96,8 @@ typedef struct voe_render_device voe_render_device;
 // passes IS PER FRAME SLOT AND AT LEAST ONE. It bounds how many passes one frame
 // may open, and each costs one camera-and-sun block in the slot's uniform buffer.
 // A frame with shadows spends one per cascade, one per capture pass and one per
-// camera pass. Nought asserts: a device that can open no pass can draw nothing.
+// camera pass, and one more on a frame that relights a casting sun (ADR-0329).
+// Nought asserts: a device that can open no pass can draw nothing.
 //
 // AND IT IS SPENT ON LETTERS AS WELL AS ON FILLS, WHICH IS WHAT MAKES IT LARGER
 // THAN IT LOOKS. A glyph is an element, so a forty-character label is forty of
@@ -114,7 +115,8 @@ typedef struct voe_render_device voe_render_device;
 // the window's depth copy takes one more. A target or the window that voe_render_bounce_begin has begun also holds a
 // probe volume (ADR-0326) until 300 frames pass with no begin: three 1152 × 2304
 // atlases of 4, 8 and 4 bytes a texel and 22 3D images of 24 × 12 × 24, about
-// 43.6 MB. One that is never begun costs nothing (ADR-0316).
+// 43.6 MB. One that is never begun costs nothing (ADR-0316). The relight's sun
+// map is 4 MB of depth a frame slot, only with shaderOutputLayer (ADR-0329).
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
@@ -174,6 +176,8 @@ typedef struct {
 #define VOE_RENDER_BOUNCE_FACE 8
 // Metres a probe sees out to; past it a face holds nothing (ADR-0326 point 3).
 #define VOE_RENDER_BOUNCE_REACH 24.0f
+// Texels a side of the relight's own sun map, per frame slot (ADR-0329).
+#define VOE_RENDER_BOUNCE_SHADOW_TEXELS 1024u
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
@@ -1272,6 +1276,22 @@ typedef struct {
 [[nodiscard]] bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 							bool *opened);
 
+// Opens the bounce shadow pass (ADR-0329): the sun's map the relight shadows by,
+// VOE_RENDER_BOUNCE_SHADOW_TEXELS a side, depth cleared to the far plane, opened
+// after the begun target's capture passes. `light` is eye-relative with an
+// orthographic projection, as a cascade's. Draw the sun's casters into it.
+//
+// `opened` IS FALSE, and true is returned with nothing open, when the volume is
+// not built, the begun sun has no bounces, no intensity or is unshaded, or no
+// relight is needed this frame. IT IS A PASS AND COUNTS AGAINST `passes`, its
+// draws against `objects`: false, with a line, when the frame's passes are spent.
+//
+// Calling this outside a frame, with a pass open, with no bounce begin this frame,
+// or a second time in a frame is the caller's bug and asserts.
+[[nodiscard]] bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
+						       const voe_render_view *light,
+						       bool *opened);
+
 // Relights the target voe_render_bounce_begin began (ADR-0326 points 5 and 6),
 // after its capture passes, between passes: each probe captured or emptied since
 // the last relight gets its validity and distance moments, and (from card 09)
@@ -1350,7 +1370,7 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 // caller draws every opaque and cutout object first and then its blended ones
 // furthest first — see voe_3d_draw_system_run, which is the one caller.
 //
-// IN A SHADOW PASS IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
+// IN A SHADOW PASS, OR THE BOUNCE SHADOW PASS, IT DRAWS DEPTH ONLY, through the shadow pipeline: the same
 // vertex stage, no fragment stage, nothing culled, depth biased away from the
 // sun. The record's world matrix is all that is read. IN A POINT-SHADOW PASS it is one instanced draw over every slotted light's faces the
 // geometry's bounding sphere reaches under the world matrix, and none when it
@@ -1375,7 +1395,7 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 // an opaque one draws solid. Both are the caller's mistake and neither fails.
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
-// asserts — and one more: in a shadow, point-shadow or capture pass it asserts,
+// asserts — and one more: in a shadow, bounce shadow, point-shadow or capture pass it asserts,
 // because nothing see-through casts.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT

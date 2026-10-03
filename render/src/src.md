@@ -61,6 +61,8 @@ which file to open — what each one owns, and where the seams between them run.
   frames unbegun, and that begin.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
   depth, sixteen queued probes drawn into it as one layered pass, then copied into the atlases.
+- `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
+  shadow pass that draws it once a frame that relights a casting sun.
 - `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
   lists and lights records, and the call that settles changed probes, relights each level in use and sums them.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
@@ -77,8 +79,8 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c, point_shadow.c and
-  bounce_capture.c make across one another; included by those six only.
+- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c, point_shadow.c,
+  bounce_capture.c and bounce_shadow.c make across one another; included by those seven only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its

@@ -2,7 +2,7 @@
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
 // drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights',
-// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, swapchain.c builds the images the window is made of, element.c
+// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, bounce_shadow.c its sun map, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct and the calls between files are here. Nothing
@@ -313,6 +313,9 @@ struct voe_render_device {
 	uint32_t capture_probes[VOE_RENDER_BOUNCE_CAPTURE];
 	uint32_t capture_count;
 	uint32_t capture_passes;
+	// Whether the open pass is the bounce shadow pass (ADR-0329): the draws
+	// read it to take the shadow pass's path, _pass_end to hand the map back.
+	bool pass_bounce_shadow;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -534,6 +537,19 @@ void voe_render_bounce_capture_end(voe_render_device *device);
 // that never got that far.
 [[nodiscard]] bool voe_render_bounce_relight_startup(voe_render_device *device);
 void voe_render_bounce_relight_shutdown(voe_render_device *device);
+// bounce_relight.c. The bouncing lights this frame's begin placed, as
+// voe_render_bounce_probes_relight_needed compares them.
+void voe_render_bounce_begun_lights(const voe_render_device *device,
+				    voe_render_bounce_lights *lights);
+
+// bounce_shadow.c. Every frame slot's relight sun map on a device with
+// output_layer, settled where the relight reads it, none without; startup's,
+// beside the capture scratch. False with a message; _shutdown is safe on a device
+// that never got that far. _end, from voe_render_pass_end once the bounce shadow
+// pass's rendering has ended, hands the map to a compute read.
+[[nodiscard]] bool voe_render_bounce_shadow_startup(voe_render_device *device);
+void voe_render_bounce_shadow_shutdown(voe_render_device *device);
+void voe_render_bounce_shadow_end(voe_render_device *device);
 
 // target_own.c. The targets of the caller's own, as distinct from the window's pair
 // above: the table of them made at startup, and every image any of them holds

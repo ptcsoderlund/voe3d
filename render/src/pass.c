@@ -21,6 +21,8 @@
 // THE POINT-SHADOW PASS (ADR-0325) opens in point_shadow.c through this file's
 // start and light copy, and is closed by the same _pass_end. A capture pass
 // (ADR-0326) opens the same way in bounce_capture.c; _pass_end calls its copy.
+// The bounce shadow pass (ADR-0329) opens in bounce_shadow.c; _pass_end calls its
+// end, and the depth copy refuses it as a shadow pass's.
 //
 // voe_render_frame_copy_depth (ADR-0305) splits a camera pass's block in two
 // round a copy of its depth into the sampled copy beside it, and names the copy's
@@ -271,6 +273,7 @@ void voe_render_pass_start(voe_render_device *device,
 	device->pass_count++;
 	device->pass_point_shadow = false;
 	device->pass_capture = false;
+	device->pass_bounce_shadow = false;
 }
 
 // The bounce record of a camera pass onto the target owning `volume`, volume
@@ -572,11 +575,14 @@ void voe_render_pass_end(voe_render_device *device)
 		voe_render_point_shadow_to_read(frame);
 	if (device->pass_capture)
 		voe_render_bounce_capture_end(device);
+	if (device->pass_bounce_shadow)
+		voe_render_bounce_shadow_end(device);
 	device->pass_open = false;
 	device->pass_camera = false;
 	device->pass_shadow = false;
 	device->pass_point_shadow = false;
 	device->pass_capture = false;
+	device->pass_bounce_shadow = false;
 	device->pass_target = NULL;
 }
 
@@ -705,7 +711,8 @@ bool voe_render_frame_copy_depth(voe_render_device *device)
 
 	VOE_BASE_ASSERT(device != NULL, "copying depth on no device");
 	if (!device->pass_open || !device->pass_camera || device->pass_shadow ||
-	    device->pass_point_shadow || device->pass_capture) {
+	    device->pass_point_shadow || device->pass_capture ||
+	    device->pass_bounce_shadow) {
 		VOE_BASE_ERROR("render",
 			       "copying depth outside an open camera pass — a shadow or capture pass's depth is the map itself");
 		return false;

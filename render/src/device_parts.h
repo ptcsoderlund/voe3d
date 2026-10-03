@@ -3,7 +3,8 @@
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
 // map point_shadow.c's; the probe volume bounce_volume.c's, the capture scratch
-// bounce_capture.c's; the swapchain image is swapchain.c's; the
+// bounce_capture.c's, the relight's sun map bounce_shadow.c's; the swapchain
+// image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
 //
@@ -296,6 +297,17 @@ struct voe_render_bounce_scratch {
 	struct voe_render_allocated_image depth;
 };
 
+// One frame slot's relight sun map, bounce_shadow.c's (ADR-0329): a D32 image
+// VOE_RENDER_BOUNCE_SHADOW_TEXELS square with its view, resting in
+// SHADER_READ_ONLY_OPTIMAL; `light` the view × projection this frame drew it with
+// and `drawn` whether it did, cleared as each frame opens. Zeroed without
+// shaderOutputLayer.
+struct voe_render_bounce_shadow {
+	struct voe_render_allocated_image map;
+	voe_math_float4x4 light;
+	bool drawn;
+};
+
 // Whether one frame slot's frame began a probe volume, and the lowest cell and
 // corner that begin placed it at (ADR-0326 point 7).
 struct voe_render_bounce_begun {
@@ -406,6 +418,8 @@ struct voe_render_frame {
 	struct voe_render_point_shadow_map point_shadow;
 	// The capture pass's scratch, per slot and startup's for the same reasons.
 	struct voe_render_bounce_scratch capture;
+	// The relight's sun map, per slot and startup's for the same reasons.
+	struct voe_render_bounce_shadow bounce_shadow;
 
 	// capacities.passes blocks, device->pass_stride bytes apart — the
 	// stride is the block rounded up to the card's uniform offset alignment.
