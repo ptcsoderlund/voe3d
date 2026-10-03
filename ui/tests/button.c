@@ -17,7 +17,8 @@
 // Those cases put a label on a control and so measure a string, which needs a
 // real font and so a device — a headless one, with no window and no compositor,
 // and a skip naming what did not run where there is no driver at all
-// (ADR-0106).
+// (ADR-0106). The last case pins that a button's pad follows the theme's
+// spacing (ADR-0344).
 //
 // ---- WHY THE CLICK CASES ARE THE ONES THAT MATTER ----
 //
