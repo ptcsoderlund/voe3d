@@ -66,9 +66,7 @@ by reading the offscreen colour image back.
   face; inside it, validity 0; a settled frame dispatching nothing. Headless.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
-- `bounce_probes_scene.c` — probes relit a level at a time, in the picture: a red wall's bounce on
-  its lit side and not in its shadow, a red box's shadow unlit, even open ground, bounce strength, a closed room dark, a
-  doorway's second bounce, a lamp's bounce past its reach, a settled frame dispatching nothing. Headless.
+- `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
