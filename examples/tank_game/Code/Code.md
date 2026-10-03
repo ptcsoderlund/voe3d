@@ -16,7 +16,7 @@ the library the editor loads (0242).
 - `tank_goal.h` — the Tank / Goal component the sponsor places at the level's end: the points the player scores, default 1000, on winning when its hull's z reaches the goal's world z; it needs a transform.
 - `tank_goal.c` — the goal's key and registration, with its need of a transform; it has no system.
 - `tank_lives.h` — the runtime-only lives row on the player's hull: 3 at the start, one off per shot that hits the hull, never below 0; the enemies read it for whom to fire at; the hull is made solid when it has no collider.
-- `tank_lives_system.c` — adds the lives row to the first hull, makes it solid with the enemy's box when it has no collider, takes a life for each shot that hit it this step, and draws `Lives N` in a HUD panel at the top left.
+- `tank_lives_system.c` — adds the lives row to the first hull, makes it solid with the enemy's box when it has no collider, and takes a life for each shot that hit it this step; the menu's HUD shows the count.
 - `tank_spawner.h` — the Tank / Spawner component, a wave: a prefab to spawn, default `enemy_tank`, a period, default 4 s, a most, default 6, a count, default 4, 0 never ending, the wait to the next spawn and the spawns made.
 - `tank_spawner_system.c` — wakes each wave when the screen's top reaches its z, then spawns its prefab at it, turned as it is, while the world holds fewer enemies than its most, until it has made its count.
 - `tank_enemy.h` — the Tank / Enemy component: a speed, default 2 m/s, a life, default 20 s, a prefab to fire, default `shell`, a rate, default 0.5 a second, a range, default 30 m, a muzzle offset and the wait to the next shot.
@@ -29,6 +29,7 @@ the library the editor loads (0242).
 - `tank_control_system.c` — reads the keyboard, mouse and lowest connected gamepad into the control row, with a radial dead zone on each stick.
 - `tank_light_fade.h` — the Tank / Light fade component: a peak, default 4, the seconds it fades, default 0.12, and the seconds left; the call that restarts a fade from full, per shot, and the finder of the fade under a parent.
 - `tank_light_fade_system.c` — sets each faded point light to peak × left / seconds through its replace, only when it differs, then counts left down to 0.
-- `tank_state.h` — the runtime-only round state row on the player's hull: the phase, menu, playing, paused, won or lost, and the score; a fresh world starts at the menu.
+- `tank_state.h` — the runtime-only round state row on the player's hull: the phase, menu, playing, paused, won or lost, the score, the screens' chosen item and last frame's input levels; a fresh world starts at the menu; the menu's entry point.
 - `tank_state_system.c` — adds the state row at the menu to the first hull and, while playing, adds this step's shot points, sets lost at 0 lives, and else won with the goal's points once the hull reaches the goal's z.
-- `project.c` — the four entry points: registers all fifteen types; while playing runs the control, hull, turret, gun, shell, lives, state, spawner and enemy before the move and the scroll after, else only the state; the light fade and camera always; the interface is the lives' HUD.
+- `tank_menu.c` — draws each phase's screen, the menu, the pause, won, lost, or the `Score N` and `Lives N` HUD, moves and presses the chosen item by keyboard, pad or click, pauses and resumes, and sets the run's paused and restart asks.
+- `project.c` — the four entry points: registers all fifteen types; while playing runs the control, hull, turret, gun, shell, lives, state, spawner and enemy before the move and the scroll after, else only the state; the light fade and camera always; the interface is the menu.

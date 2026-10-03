@@ -21,8 +21,9 @@
 // systems_after_move is the scroll, only while playing, which moves the
 // camera forward with where the hull went this step and finds the screen's
 // edges on the ground (0334 point 1). interface runs once a frame, after
-// the steps (0259): the lives' HUD, which ends the ui frame game began and
-// returns true.
+// the steps (0259): the menu, which draws the phase's screen or the HUD,
+// ends the ui frame game began, pauses or restarts the run through its asks
+// (0333) and returns false at Quit.
 //
 // The game links all four and calls register once, after the engine's
 // types, both slots each fixed step and interface each frame; the editor
@@ -116,5 +117,5 @@ bool voe_game_project_interface(const voe_game_project_frame *frame)
 {
 	VOE_BASE_ASSERT(frame != NULL && frame->ui != NULL,
 			"drawing the project's interface in no frame");
-	return tank_lives_interface(frame);
+	return tank_menu_run(frame);
 }

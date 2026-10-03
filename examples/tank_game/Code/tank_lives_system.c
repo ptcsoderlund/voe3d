@@ -1,6 +1,6 @@
-// The lives' step and HUD: registers tank_lives, adds it to the first hull,
-// makes that hull solid, takes a life for each shot that hit it this step,
-// and draws the count at the top left.
+// The lives' step: registers tank_lives, adds it to the first hull, makes
+// that hull solid and takes a life for each shot that hit it this step. The
+// menu's HUD shows the count (tank_menu.c).
 //
 // The collider: each step the first hull has none, a box of (4.64, 4, 2.62),
 // the enemy's, not a trigger, is queued onto it, lives row or not (0295). It
@@ -30,10 +30,6 @@
 #include <physics/collider_component.h>
 
 #include <scene/parent_component.h>
-
-#include <ui/widgets.h>
-
-#include <stdio.h>
 
 #define TANK_LIVES_START 3
 
@@ -122,36 +118,4 @@ void tank_lives_run(const voe_game_project_step *step)
 
 	VOE_BASE_ASSERT(written, "the lives row went missing");
 	VOE_BASE_DEBUG_ASSERT(row.lives >= 0, "lives below zero");
-}
-
-bool tank_lives_interface(const voe_game_project_frame *frame)
-{
-	VOE_BASE_ASSERT(frame != NULL && frame->ui != NULL &&
-				frame->world != NULL,
-			"drawing the lives in no frame");
-	const voe_ecs_type type =
-		voe_ecs_component_type(frame->world, &tank_lives_key);
-
-	if (voe_ecs_component_count(frame->world, type) == 0) {
-		(void)voe_ui_frame_end(frame->ui);
-		return true;
-	}
-	const tank_lives *row = voe_ecs_component_rows(frame->world, type);
-	char text[32];
-
-	(void)snprintf(text, sizeof(text), "Lives %d", (int)row->lives);
-	voe_ui_column_begin(frame->ui, (voe_ui_container){
-		.size = { .along = { VOE_UI_SIZE_FIXED, frame->size.y },
-			  .across = { VOE_UI_SIZE_FIXED, frame->size.x } },
-		.along = VOE_UI_ALONG_START,
-		.across = VOE_UI_ACROSS_START,
-		.pad = { 4.0f, 4.0f, 4.0f, 4.0f } });
-	voe_ui_panel_begin(frame->ui, "lives", 0, VOE_UI_SURFACE_RAISED,
-			   (voe_ui_container){ .pad = { 4.0f, 4.0f, 4.0f,
-							4.0f } });
-	voe_ui_label(frame->ui, text);
-	voe_ui_end(frame->ui);
-	voe_ui_end(frame->ui);
-	(void)voe_ui_frame_end(frame->ui);
-	return true;
 }
