@@ -20,7 +20,9 @@
 //   along x within 2/255 of each other; strength 0 the same picture as bounces
 //   0; strength 2 redder by the wall than 1, open ground within 1/255 at both.
 //   The first picture, nothing changed since settling, opens no capture pass
-//   and dispatches nothing.
+//   and dispatches nothing. With the grid at spacing 4, its lowest cell still
+//   (−12, −6, −12) about the scene, and its probes reaching 48 m, twelve
+//   cells, the lit side is still redder than ground 10 m off.
 // - A red box (0.6), 1 m a side at (0, 0.5, 0.5), sun 2, fill 0 (0.1 hid this
 //   leak): the ground in its shadow 0.25 m from its foot within 4/255 of
 //   bounces 0 (0312).
@@ -447,6 +449,19 @@ static void a_red_wall(struct scene *s)
 	VOE_TEST_CHECK(none.pixels != NULL && nought.pixels != NULL &&
 		       memcmp(none.pixels, nought.pixels, bytes) == 0);
 	VOE_TEST_CHECK(redness_at(s, &twice, lit) > redness_at(s, &one, lit));
+
+	// The same claim with the grid at spacing 4 about the origin, its probes
+	// reaching twelve of those cells, then the grid back at 2.
+	s->bounce.sun_strength = 1.0f;
+	s->bounce.spacing = 2.0f * VOE_RENDER_BOUNCE_SPACING;
+	s->bounce.corner = (voe_math_float3){ -48.0f, -24.0f, -48.0f };
+	settle(s, WALL_SCENE, 2);
+	one = picture_of(s);
+	printf("wall at spacing 4: redness lit %d, far %d\n",
+	       redness_at(s, &one, lit), redness_at(s, &one, far));
+	VOE_TEST_CHECK(redness_at(s, &one, lit) > redness_at(s, &one, far));
+	s->bounce.spacing = VOE_RENDER_BOUNCE_SPACING;
+	s->bounce.corner = (voe_math_float3){ -24.0f, -12.0f, -24.0f };
 }
 
 // The box's shadow on the ground runs x 0.5 to 1.25 m along the sun, z 0 to 1.

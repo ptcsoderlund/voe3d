@@ -13,7 +13,7 @@
 // faces the geometry's sphere reaches under the world matrix, bit 6(s − 1) + f,
 // and the draw is one instance per set bit; a mask of nought draws nothing and
 // spends no object. A capture pass (ADR-0326) takes the same path, its probes
-// in the slots at VOE_RENDER_BOUNCE_REACH. In every other pass the mask is nought.
+// in the slots at the volume's reach. In every other pass the mask is nought.
 //
 // WHICH PIPELINE IS BOUND, AND WHICH POOLS. A pass opens with the solid
 // pipeline and the static pools bound (pass.c). A blended draw needs the other

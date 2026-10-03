@@ -18,10 +18,11 @@
 //
 // THE BEGIN takes up to sixteen queued probes nearest the eye (card 04's take)
 // and writes them as the pass's point lights by slot, centre about the eye at the
-// begun volume's spacing (its block's spacing too), range
-// VOE_RENDER_BOUNCE_REACH, and into device->pass_casters, so draw.c culls a
-// caster's faces as in the point-shadow pass. Colours clear to nought with the
-// normal's w the reach, depth to the far plane. THE END moves the scratch to
+// begun volume's spacing (its block's spacing too), range the volume's reach,
+// twelve of its cells (VOE_RENDER_BOUNCE_REACH × spacing / the finest, 0332
+// point 4), and into device->pass_casters, so draw.c culls a caster's faces as
+// in the point-shadow pass. Colours clear to nought with the normal's w that
+// reach, depth to the far plane. THE END moves the scratch to
 // TRANSFER_SRC and both atlases from GENERAL to TRANSFER_DST, copies, and moves
 // the atlases back to GENERAL.
 //
@@ -156,6 +157,14 @@ void voe_render_bounce_capture_shutdown(voe_render_device *device)
 	}
 }
 
+// How far a probe of a volume at `spacing` sees: twelve of its cells, so a
+// coarser grid's probes still see past their neighbours (0332 point 4).
+static float volume_reach(float spacing)
+{
+	VOE_BASE_DEBUG_ASSERT(spacing > 0.0f, "the reach of a grid with no spacing");
+	return VOE_RENDER_BOUNCE_REACH * spacing / VOE_RENDER_BOUNCE_SPACING;
+}
+
 // Whether any probe of `p` is queued for a capture.
 static bool any_queued(const voe_render_bounce_probes *p)
 {
@@ -202,7 +211,7 @@ static void place_probes(voe_render_device *device,
 	device->pass_slots = 0;
 	for (uint32_t i = 0; i < count; i++) {
 		lights[i].position = probe_centre(p, taken[i]);
-		lights[i].range = VOE_RENDER_BOUNCE_REACH;
+		lights[i].range = volume_reach(p->spacing);
 		lights[i].falloff = 1.0f;
 		device->pass_casters[i] = lights[i];
 		device->capture_probes[i] = taken[i];
@@ -213,8 +222,9 @@ static void place_probes(voe_render_device *device,
 }
 
 // The scratch from UNDEFINED into its attachment layouts, after any earlier
-// copy out of it, and the cleared rendering of every layer begun.
-static void record_open(const struct voe_render_frame *frame)
+// copy out of it, and the cleared rendering of every layer begun, the normal's
+// w cleared to `reach`.
+static void record_open(const struct voe_render_frame *frame, float reach)
 {
 	const VkPipelineStageFlags2 tests =
 		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
@@ -241,7 +251,7 @@ static void record_open(const struct voe_render_frame *frame)
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 			.clearValue = { .color = { .float32 = {
-				0.0f, 0.0f, 0.0f, VOE_RENDER_BOUNCE_REACH } } },
+				0.0f, 0.0f, 0.0f, reach } } },
 		},
 	};
 	VkRenderingAttachmentInfo depth = {
@@ -343,7 +353,7 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	block.region = device->pass_count;
 	block.lights = count;
 
-	record_open(frame);
+	record_open(frame, volume_reach(volume->probes.spacing));
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ FACE, FACE };
 	voe_render_pass_start(device, frame, &block, device->pipeline_capture);

@@ -518,8 +518,10 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	return voe_render_premultiplied(lit, coverage);
 }
 
-// How far a probe's picture reaches: VOE_RENDER_BOUNCE_REACH in render/device.h.
-static const float VOE_RENDER_BOUNCE_REACH = 24.0;
+// How far a probe's picture reaches, in its volume's cells: the bounce
+// record's spacing times this is the volume's reach (0332 point 4), as
+// VOE_RENDER_BOUNCE_REACH / VOE_RENDER_BOUNCE_SPACING in render/device.h.
+static const float VOE_RENDER_BOUNCE_REACH_CELLS = 12.0;
 
 // What the capture vertex stage hands on (ADR-0326 point 3): the clip position
 // on one probe's face, the world normal, the position about the probe, the uv,
@@ -548,7 +550,7 @@ struct voe_render_capture_targets {
 
 // THE CAPTURE PASS'S VERTEX STAGE: the point-shadow one with the pass's probes
 // as its lights, slot layer / 6 + 1 read at index layer / 6 of this pass's
-// region, its face layer % 6, out to VOE_RENDER_BOUNCE_REACH.
+// region, its face layer % 6, out to the volume's reach.
 [shader("vertex")]
 voe_render_capture_out
 voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
@@ -562,8 +564,9 @@ voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
 	float4 world = mul(object.world, float4(vertex.position, 1.0));
 
 	out.about = world.xyz - probe.position;
-	out.position = voe_render_point_shadow_clip(out.about, layer % 6,
-						    VOE_RENDER_BOUNCE_REACH);
+	out.position = voe_render_point_shadow_clip(
+		out.about, layer % 6,
+		VOE_RENDER_BOUNCE_REACH_CELLS * voe_render_frame.bounce.spacing);
 	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
 	out.layer = layer;

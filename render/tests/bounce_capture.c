@@ -9,6 +9,11 @@
 // one draw; the same cube 100 m off adds none. Three more open, and a fifth says
 // it did not (VOE_RENDER_BOUNCE_CAPTURE_PASSES).
 //
+// A COARSER GRID SEES FURTHER. A begin at spacing 4 (cell (−12, −6, −12),
+// corner (−48, −24, −48)) empties the grid; its first capture pass's probes
+// stand about (2, 2, 2), and the same cube at (32, 1, 1), about 30 m off, adds
+// one draw: past 24 m, the reach at spacing 2, within 48 m, twelve cells at 4.
+//
 // PASSES SPENT. The next frame opens `passes` passes with no camera; a capture
 // pass is then false, and says nothing opened.
 //
@@ -134,6 +139,36 @@ static void four_passes(voe_render_device *device, voe_render_geometry cube,
 	opened = true;
 	VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
 	VOE_TEST_CHECK(!opened);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
+// A frame begun at spacing 4, whose first capture pass draws a cube about 30 m
+// from its probes.
+static void coarser_reach(voe_render_device *device, voe_render_geometry cube,
+			  voe_render_shading red)
+{
+	struct voe_render_bounce_frame coarse = BOUNCE;
+	bool drawing = false;
+	bool opened = false;
+	uint32_t before;
+
+	coarse.spacing = 2.0f * VOE_RENDER_BOUNCE_SPACING;
+	coarse.corner = (voe_math_float3){ -48.0f, -24.0f, -48.0f };
+	VOE_TEST_CHECK(voe_render_frame_begin(device, (voe_platform_size){ SIDE, SIDE },
+					      &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return;
+	voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &coarse);
+	VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
+	VOE_TEST_CHECK(opened);
+	if (opened) {
+		before = voe_render_frame_draw_count(device);
+		VOE_TEST_CHECK(voe_render_frame_draw(device, cube,
+						     cube_at(red, 32.0f)));
+		VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), before + 1);
+		voe_render_pass_end(device);
+	}
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
@@ -285,6 +320,7 @@ static void capture(voe_render_device *device)
 		VOE_TEST_CHECK(voe_render_frame_end(device));
 	four_passes(device, cube, red);
 	check_picture(device);
+	coarser_reach(device, cube, red);
 	passes_spent(device);
 }
 

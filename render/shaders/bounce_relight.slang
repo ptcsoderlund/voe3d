@@ -17,7 +17,8 @@
 //
 // relight: one workgroup of 64 per probe of the grid, over its 384 texels, into
 // level (chain, level) — grid chain(chain − 1)/2 + level − 1. Each texel weighs
-// its solid angle; no hit (distance at the reach) or a back face is nought;
+// its solid angle; no hit (distance at the volume's reach, 12 × the record's
+// spacing) or a back face is nought;
 // else at the surface point (probe + direction × distance) radiance = albedo ×
 // - level 1: the chain's lights, colour × intensity × bounce strength ×
 //   max(0, n·l) × shadow: the sun by the volume's own map (ADR-0329), one
@@ -57,7 +58,8 @@ static const uint GROUP = 64;
 static const uint HOLDS = 0x80000000u;
 static const uint LAMPS = 16;
 static const uint LEVELS = 6;
-static const float REACH = 24.0;
+// A probe's reach in its volume's cells; × the record's spacing, metres.
+static const float REACH_CELLS = 12.0;
 static const float PI = 3.14159265358979;
 
 struct relight_push {
@@ -337,6 +339,7 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 	uint3 placed = (t + SIZE - relight_lights.cell % SIZE) % SIZE;
 	float3 centre = relight_lights.corner +
 			(float3(placed) + 0.5) * relight_lights.spacing;
+	float reach = REACH_CELLS * relight_lights.spacing;
 	float3 e[6];
 
 	for (uint d = 0; d < 6; d++)
@@ -351,7 +354,7 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 				float3(2.0 * uv.x - 1.0, 1.0 - 2.0 * uv.y, 1.0), face));
 			float4 hit = relight_normal[texel];
 
-			if (hit.w >= REACH * 0.999 || !(dot(hit.xyz, direction) < 0.0))
+			if (hit.w >= reach * 0.999 || !(dot(hit.xyz, direction) < 0.0))
 				continue;
 			float3 world = centre + direction * hit.w;
 			float3 n = normalize(hit.xyz);

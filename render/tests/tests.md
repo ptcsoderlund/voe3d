@@ -62,8 +62,8 @@ by reading the offscreen colour image back.
   window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
   both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
-  fifth in a frame not open, refused with `passes` spent, and a red cube in the albedo atlas.
-  Headless.
+  fifth in a frame not open, refused with `passes` spent, a red cube in the albedo atlas, and at
+  spacing 4 a cube 30 m off one draw. Headless.
 - `bounce_shadow.c` — the relight's sun map: opened after a frame's captures with a cube one draw
   and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
   spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
@@ -71,7 +71,8 @@ by reading the offscreen colour image back.
   face; inside it, validity 0; a settled frame dispatching nothing. Headless.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
-- `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture. Headless.
+- `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
+  lit side at spacing 2 and 4. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.

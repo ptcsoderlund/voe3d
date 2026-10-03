@@ -176,7 +176,9 @@ typedef struct {
 #define VOE_RENDER_BOUNCE_LAMPS 16
 // Texels a side of each of a probe's six cube faces (ADR-0326 point 3).
 #define VOE_RENDER_BOUNCE_FACE 8
-// Metres a probe sees out to; past it a face holds nothing (ADR-0326 point 3).
+// Metres a probe sees out to at VOE_RENDER_BOUNCE_SPACING; past it a face holds
+// nothing (ADR-0326 point 3). A volume's reach is this × its spacing / the
+// finest, twelve of its cells (0332 point 4).
 #define VOE_RENDER_BOUNCE_REACH 24.0f
 // Texels a side of the relight's own sun map, per frame slot (ADR-0329).
 #define VOE_RENDER_BOUNCE_SHADOW_TEXELS 1024u
@@ -1273,8 +1275,8 @@ typedef struct {
 // Opens a bounce capture pass (ADR-0326 point 3): takes up to
 // VOE_RENDER_BOUNCE_CAPTURE queued probes of the target voe_render_bounce_begin
 // began this frame, nearest the eye first, and opens one pass drawing their six
-// faces each — albedo, and world normal with distance, out to
-// VOE_RENDER_BOUNCE_REACH — copied into the target's probe pictures when
+// faces each — albedo, and world normal with distance, out to the volume's
+// reach — copied into the target's probe pictures when
 // voe_render_pass_end closes it. Draw the casters into it as into the
 // point-shadow pass.
 //
@@ -1402,7 +1404,7 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 // geometry's bounding sphere reaches under the world matrix, and none when it
 // reaches none: true then, with no object spent. IN A CAPTURE PASS, as in a
 // point-shadow pass, it is one instanced draw over the probes' faces the sphere
-// reaches within VOE_RENDER_BOUNCE_REACH.
+// reaches within the volume's reach.
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);

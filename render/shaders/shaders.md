@@ -18,7 +18,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   normal map, the distance field, the alpha modes and three unlit exits, the
   third for a pass with no sun; its lit exit adds the point lights; the point-shadow vertex
   stage, one instance per face writing its layer; and the capture pass's two, albedo and normal
-  with distance from the probe.
+  with distance from the probe, out to twelve of the volume's cells.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector by its major axis and the
   90° reversed-depth clip position on a face, near 0.05 m, far the light's range; draw and lookup share it.
 - `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume's six-axis irradiance: eight probes
@@ -36,6 +36,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   copies the field's spread, the face's thinnest stroke and the median.
 - `bounce_relight.slang` — the relight's compute: `settle`, a listed probe's validity, nought with no
   picture or over a quarter of its texels on back faces, and each texel's distance moments over its 3×3;
-  `relight`, a probe's picture lit by a chain's lights or the level below into a level's six-axis irradiance (0327); `sum` (0326).
+  `relight`, a probe's picture, no hit past twelve cells, lit by a chain's lights or the level below into
+  a level's six-axis irradiance (0327); `sum` (0326).
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

@@ -62,8 +62,8 @@ which file to open — what each one owns, and where the seams between them run.
   frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10, freed after 300
   frames unbegun, and that begin, which keeps its spacing per frame slot.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
-  depth, sixteen queued probes drawn into it as one layered pass at the volume's spacing, then
-  copied into the atlases.
+  depth, sixteen queued probes drawn into it as one layered pass at the volume's spacing and out
+  to its reach, twelve cells, then copied into the atlases.
 - `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
   shadow pass that draws it once per bounce begin that relights a casting sun.
 - `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
