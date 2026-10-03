@@ -10,6 +10,11 @@
 // UNUSED, FREED. After VOE_RENDER_BOUNCE_IDLE (300) frames with no begin both are
 // still built; the top of the frame after frees them, and wants nothing more.
 //
+// EACH RELIT INTO ITS OWN RECORD (ADR-0330 point 2). Both wanted again and built,
+// one frame begins the window's and the target's at different cells, a sun of
+// bounces 1, relighting each after its begin: that slot's record region 0 holds
+// the window's cell and the target's region its own, not the last one's.
+//
 // A card without shaderOutputLayer bounces nothing and builds nothing: that is
 // checked instead, and said. A machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -107,6 +112,49 @@ static void built_on_first_use(voe_render_device *device, voe_render_target id)
 	VOE_TEST_CHECK(!own->built && !own->wanted);
 }
 
+// Volume `index`'s region of the open slot's record buffer holds `cell`, wrapped.
+static void region_holds(const voe_render_device *device, uint32_t index,
+			 const int32_t cell[3])
+{
+	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
+				   VOE_RENDER_BOUNCE_PROBES_Y,
+				   VOE_RENDER_BOUNCE_PROBES_XZ };
+	const struct voe_render_relight_record *record =
+		(const void *)((const unsigned char *)
+				       device->relight_records_mapped[device->slot] +
+			       index * device->relight_record_stride);
+
+	printf("region %u holds cell %u %u %u\n", index, record->cell[0],
+	       record->cell[1], record->cell[2]);
+	for (uint32_t a = 0; a < 3; a++)
+		VOE_TEST_CHECK(record->cell[a] ==
+			       voe_render_bounce_probe_wrap(cell[a], size[a]));
+}
+
+static void each_relit_apart(voe_render_device *device, voe_render_target id)
+{
+	struct voe_render_bounce_frame moved = BOUNCE;
+	bool drawing = false;
+
+	moved.cell[0] += 5;
+	moved.corner.x += 5 * VOE_RENDER_BOUNCE_SPACING;
+	one_frame(device, true, true, id);
+	VOE_TEST_CHECK(voe_render_frame_begin(device, (voe_platform_size){ SIDE, SIDE },
+					      &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return;
+	VOE_TEST_CHECK(device->window_volume.built &&
+		       device->targets[0].volume.built);
+	voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &BOUNCE);
+	voe_render_bounce_relight(device);
+	voe_render_bounce_begin(device, id, &moved);
+	voe_render_bounce_relight(device);
+	region_holds(device, 0, BOUNCE.cell);
+	region_holds(device, id.index, moved.cell);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
 static void nothing_without_output_layer(voe_render_device *device,
 					 voe_render_target id)
 {
@@ -137,10 +185,12 @@ int main(void)
 	if (device != NULL) {
 		VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &id,
 							&texture, &error));
-		if (device->output_layer)
+		if (device->output_layer) {
 			built_on_first_use(device, id);
-		else
+			each_relit_apart(device, id);
+		} else {
 			nothing_without_output_layer(device, id);
+		}
 		voe_render_device_destroy(device);
 	}
 	voe_base_arena_destroy(arena);

@@ -20,7 +20,8 @@
 // 21 images, storage; 5 the six levels' 18, 6 the validity and 7 the moments,
 // sampled through the device's bounce and moments samplers; 8 the albedo atlas,
 // sampled; 9 the slot's bounce shadow map (bounce_shadow.c's) and 10 its point
-// shadow maps, through the shadow sampler; 11 the slot's lights record. The volume's images rest in GENERAL,
+// shadow maps, through the shadow sampler; 11 its volume's region of the slot's
+// record buffer. The volume's images rest in GENERAL,
 // the maps where the shader reads them. One set per frame slot and volume (the
 // window 0, target n n), rewritten by every relight: a slot's fence says its
 // last use has finished, and a volume may have been rebuilt since.
@@ -28,9 +29,14 @@
 // PER SLOT, host-visible, coherent and mapped, written directly, the submit
 // making them visible: the list buffer, (targets + 1) ×
 // VOE_RENDER_BOUNCE_PROBES_TOTAL words, volume n's band at n × the total, a
-// word a toroidal probe index with bit 31 set when it holds a picture; and one
-// struct relight_record, the uniform the relight reads: the begun sun, the bounce
-// shadow map's view × projection, its texel (the box's width over
+// word a toroidal probe index with bit 31 set when it holds a picture; and the
+// record buffer, (targets + 1) regions device->relight_record_stride apart (the
+// record rounded up to the card's uniform offset alignment), volume n's at n ×
+// the stride, binding 11 of its set naming that region alone. One record per
+// volume and not per slot (ADR-0330 point 2): the CPU writes it at the relight,
+// so two volumes relit in one frame would both read the last one's. A struct
+// voe_render_relight_record is the uniform the relight reads: the begun sun, the
+// bounce shadow map's view × projection, its texel (the box's width over
 // VOE_RENDER_BOUNCE_SHADOW_TEXELS) and whether this frame drew it, the sun's
 // strength, the volume's placement and the bouncing lamps.
 //
@@ -75,29 +81,7 @@ struct relight_push {
 	uint32_t reserved;
 };
 
-// bounce_relight.slang's struct relight_record at binding 11, std140.
-struct relight_record {
-	voe_render_light sun;
-	voe_math_float4x4 sun_map;
-	float sun_texel;
-	uint32_t sun_drawn;
-	uint32_t reserved[2];
-	float corner[3];
-	float sun_strength;
-	uint32_t cell[3];
-	float spacing;
-	voe_render_point_light lamps[VOE_RENDER_BOUNCE_LAMPS];
-};
-
 static_assert(sizeof(struct relight_push) == 32, "relight push size");
-static_assert(offsetof(struct relight_record, sun_map) == 48 &&
-		      offsetof(struct relight_record, sun_texel) == 112 &&
-		      offsetof(struct relight_record, sun_drawn) == 116 &&
-		      offsetof(struct relight_record, corner) == 128 &&
-		      offsetof(struct relight_record, cell) == 144 &&
-		      offsetof(struct relight_record, lamps) == 160 &&
-		      sizeof(struct relight_record) == 928,
-	      "the relight record as bounce_relight.slang lays it out");
 static_assert(VOE_RENDER_BOUNCE_PROBES_TOTAL < HOLDS,
 	      "a probe index leaves bit 31 for the holds flag");
 static_assert(VOE_RENDER_BOUNCES_MAX == 3, "three chains of six levels");
@@ -236,8 +220,25 @@ static bool build_mapped(voe_render_device *device,
 	return true;
 }
 
+// The record rounded up to the card's uniform offset alignment, a power of two,
+// so each volume's region may be bound at its own offset.
+static VkDeviceSize record_stride(const voe_render_device *device)
+{
+	VkPhysicalDeviceProperties properties;
+	VkDeviceSize align;
+
+	voe_render_vk.get_physical_device_properties(device->physical,
+						     &properties);
+	align = properties.limits.minUniformBufferOffsetAlignment;
+	if (align == 0)
+		align = 1;
+	VOE_BASE_DEBUG_ASSERT((align & (align - 1)) == 0,
+			      "a uniform offset alignment that is not a power of two");
+	return (sizeof(struct voe_render_relight_record) + align - 1) & ~(align - 1);
+}
+
 // The pool, one set per frame slot and volume, and each slot's mapped list and
-// lights record.
+// record buffer, a region per volume.
 static bool create_sets_and_buffers(voe_render_device *device)
 {
 	const uint32_t sets = VOE_RENDER_FRAMES_IN_FLIGHT * volume_count(device);
@@ -263,6 +264,7 @@ static bool create_sets_and_buffers(voe_render_device *device)
 	const VkDeviceSize lists = (VkDeviceSize)volume_count(device) *
 				   VOE_RENDER_BOUNCE_PROBES_TOTAL * sizeof(uint32_t);
 
+	device->relight_record_stride = record_stride(device);
 	if (voe_render_vk.create_descriptor_pool(device->device, &pool_info, NULL,
 						 &device->relight_pool) != VK_SUCCESS) {
 		VOE_BASE_ERROR("render", "vkCreateDescriptorPool failed for the bounce relight");
@@ -288,7 +290,8 @@ static bool create_sets_and_buffers(voe_render_device *device)
 				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 				  &device->relight_mapped[s]) ||
 		    !build_mapped(device, &device->relight_records[s],
-				  sizeof(struct relight_record),
+				  volume_count(device) *
+					  device->relight_record_stride,
 				  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				  &device->relight_records_mapped[s]))
 			return false;
@@ -382,11 +385,12 @@ static uint32_t list_changed(const voe_render_bounce_probes *p, uint32_t *words)
 	return count;
 }
 
-// This slot's lights record from the begin: `lights`, the slot's bounce shadow
-// map and the volume's placement. The map's texel is the box's width over its
-// texels: the orthographic projection's x scale is 2 / width, and row 0 of view
-// × projection is that scale times a unit row of the view's rotation.
-static void write_record(voe_render_device *device,
+// Volume `index`'s region of this slot's record buffer from the begin: `lights`,
+// the slot's bounce shadow map and the volume's placement. The map's texel is the
+// box's width over its texels: the orthographic projection's x scale is 2 /
+// width, and row 0 of view × projection is that scale times a unit row of the
+// view's rotation.
+static void write_record(voe_render_device *device, uint32_t index,
 			 const voe_render_bounce_lights *lights)
 {
 	const struct voe_render_bounce_frame *begun = &device->bounce_frame;
@@ -398,7 +402,7 @@ static void write_record(voe_render_device *device,
 	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
 				   VOE_RENDER_BOUNCE_PROBES_Y,
 				   VOE_RENDER_BOUNCE_PROBES_XZ };
-	struct relight_record record = {
+	struct voe_render_relight_record record = {
 		.sun = lights->sun,
 		.sun_map = map->light,
 		.sun_drawn = map->drawn ? 1u : 0u,
@@ -412,17 +416,20 @@ static void write_record(voe_render_device *device,
 
 	VOE_BASE_DEBUG_ASSERT(device->relight_records_mapped[device->slot] != NULL,
 			      "a relight record never mapped");
+	VOE_BASE_DEBUG_ASSERT(index < volume_count(device), "a volume with no region");
 	for (uint32_t a = 0; a < 3; a++)
 		record.cell[a] = voe_render_bounce_probe_wrap(begun->cell[a], size[a]);
 	memcpy(record.lamps, lights->lamps, sizeof(record.lamps));
-	memcpy(device->relight_records_mapped[device->slot], &record,
-	       sizeof(record));
+	memcpy((unsigned char *)device->relight_records_mapped[device->slot] +
+		       index * device->relight_record_stride,
+	       &record, sizeof(record));
 }
 
-// Points `set` at `volume`'s images, slot `slot`'s maps, list and record.
+// Points `set` at `volume`'s images, slot `slot`'s maps and list, and volume
+// `index`'s region of its record buffer.
 static void write_set(voe_render_device *device,
 		      const struct voe_render_bounce_volume *volume,
-		      uint32_t slot, VkDescriptorSet set)
+		      uint32_t index, uint32_t slot, VkDescriptorSet set)
 {
 	const struct voe_render_frame *frame = &device->frames[slot];
 	VkDescriptorImageInfo storage[3 + GRID_IMAGES];
@@ -440,7 +447,9 @@ static void write_set(voe_render_device *device,
 	};
 	const VkDescriptorBufferInfo buffers[2] = {
 		{ device->relight_lists[slot].buffer, 0, VK_WHOLE_SIZE },
-		{ device->relight_records[slot].buffer, 0, VK_WHOLE_SIZE },
+		{ device->relight_records[slot].buffer,
+		  index * device->relight_record_stride,
+		  sizeof(struct voe_render_relight_record) },
 	};
 	const VkDescriptorImageInfo *images[BINDINGS] = {
 		&storage[0], &storage[1], &storage[2], NULL,
@@ -595,8 +604,8 @@ static void record_relight(voe_render_device *device,
 		.point_ready = voe_render_point_shadows_ready(device) ? 1u : 0u,
 	};
 
-	write_set(device, volume, device->slot, set);
-	write_record(device, lights);
+	write_set(device, volume, index, device->slot, set);
+	write_record(device, index, lights);
 	// The capture copy, this frame's shadow maps, and every earlier read or
 	// write of the volume's images.
 	record_barrier(commands,

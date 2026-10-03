@@ -177,8 +177,11 @@ struct voe_render_device {
 	VkPipeline pipeline_capture;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
-	// a mapped lights record and one set per volume (targets + 1, calloc'd);
-	// and how many dispatches it has recorded. All nought without output_layer.
+	// a mapped record buffer of (targets + 1) regions, volume n's at n ×
+	// `relight_record_stride` (the record's size rounded up to the card's
+	// uniform offset alignment, as `pass_stride` is), and one set per volume
+	// (calloc'd); and how many dispatches it has recorded. All nought without
+	// output_layer.
 	VkDescriptorSetLayout relight_set_layout;
 	VkPipelineLayout relight_layout;
 	VkDescriptorPool relight_pool;
@@ -189,6 +192,7 @@ struct voe_render_device {
 	void *relight_mapped[VOE_RENDER_FRAMES_IN_FLIGHT];
 	struct voe_render_buffer relight_records[VOE_RENDER_FRAMES_IN_FLIGHT];
 	void *relight_records_mapped[VOE_RENDER_FRAMES_IN_FLIGHT];
+	VkDeviceSize relight_record_stride;
 	VkDescriptorSet *relight_sets[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t relight_dispatches;
 

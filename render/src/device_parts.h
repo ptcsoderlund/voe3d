@@ -3,7 +3,8 @@
 // geometry.c's and descriptors.c's; the shading and texture slots are
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
 // map point_shadow.c's; the probe volume bounce_volume.c's, the capture scratch
-// bounce_capture.c's, the relight's sun map bounce_shadow.c's; the swapchain
+// bounce_capture.c's, the relight's sun map bounce_shadow.c's, its record
+// bounce_relight.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -19,6 +20,8 @@
 #include "loader.h"
 
 #include <render/device.h>
+
+#include <stddef.h>
 
 // Everything one pass is drawn with that is not a per-object record: the camera,
 // the sun and the sun's shadow record, in one block, and where its point lights
@@ -307,6 +310,31 @@ struct voe_render_bounce_shadow {
 	voe_math_float4x4 light;
 	bool drawn;
 };
+
+// bounce_relight.slang's struct relight_record at binding 11, std140: one
+// volume's region of a slot's record buffer (ADR-0330 point 2), here so a test
+// can read one.
+struct voe_render_relight_record {
+	voe_render_light sun;
+	voe_math_float4x4 sun_map;
+	float sun_texel;
+	uint32_t sun_drawn;
+	uint32_t reserved[2];
+	float corner[3];
+	float sun_strength;
+	uint32_t cell[3];
+	float spacing;
+	voe_render_point_light lamps[VOE_RENDER_BOUNCE_LAMPS];
+};
+
+static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
+		      offsetof(struct voe_render_relight_record, sun_texel) == 112 &&
+		      offsetof(struct voe_render_relight_record, sun_drawn) == 116 &&
+		      offsetof(struct voe_render_relight_record, corner) == 128 &&
+		      offsetof(struct voe_render_relight_record, cell) == 144 &&
+		      offsetof(struct voe_render_relight_record, lamps) == 160 &&
+		      sizeof(struct voe_render_relight_record) == 928,
+	      "the relight record as bounce_relight.slang lays it out");
 
 // Whether one frame slot's frame began a probe volume, and the lowest cell and
 // corner that begin placed it at (ADR-0326 point 7).
