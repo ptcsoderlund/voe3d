@@ -1,6 +1,9 @@
 // The run's steps in the order game/include/game/run.h gives, each refusal a
 // line on stderr and a 1. Everything is released on every path out; a missing
 // sound device is not a refusal but a silent game.
+// - The interface runs each frame and may end the run.
+// - A restart asked makes the world again in its own arena; the mixer pauses
+//   with the run.
 #include <game/run.h>
 
 #include <game/frame.h>

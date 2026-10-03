@@ -8,5 +8,5 @@
 - `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them and the asks put in.
-- `run.c` — the run's steps in the handed window and their refusals, the interface each frame and its end of the run, its asks (steps and mixer paused, the world made again in its own arena), the mixer and a sound device pumped or silent; the only file naming `voe_game_scene_build`, `voe_game_prefabs_cooked` and the project's entry points.
+- `run.c` — the run's steps in the handed window; the only file naming `voe_game_scene_build`, `voe_game_prefabs_cooked` and the project's entry points.
 - `models.c` — a path joined onto the folder, stamped, read into rewound scratch and loaded, the dot and the water record when the world needs them; each failure a stderr line and counted.
