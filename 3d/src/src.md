@@ -10,8 +10,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `light_box.h` — the sun's basis, the snap to whole texels in double and the
   look from the sun, used by the cascades; internal.
 - `light_box.c` — those three, moved out of shadow_cascades.c unchanged.
-- `bounce_grid.c` — the eye's cell in double, the probe volume's lowest cell
-  below it, its corner about the eye, and the relight's sun view of the volume.
+- `bounce_grid.c` — the smallest power-of-two spacing whose grid about the box
+  centre's cell holds the box with a cell spare, its corner about the eye, and
+  the relight's sun view of the volume.
 - `normal_matrix.c` — the inverse transpose, its derivation in three lines, and
   the one branch a flattened object needs.
 - `mesh_component.c` — the mesh table: its key, its registration as runtime-only,
@@ -87,7 +88,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
-- `draw_bounce.c` — run only when a light bounces: the volume fitted, the target's bounce begun
+- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the target's bounce begun
   with the lights and stale spheres, the casters drawn into each capture pass and a casting sun's
   own map, and the relight; and the still casters' world box, corners placed in double.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.

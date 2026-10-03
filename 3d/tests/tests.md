@@ -10,10 +10,10 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
-- `bounce_grid.c` — that the probe volume stands on the eye's cell in whole
-  cells, its corner is its cell about the eye 10 km out, 2 m along x is one
-  cell, a move inside the cell keeps it, and the sun view holds the volume.
-  Needs no graphics card.
+- `bounce_grid.c` — that the probe volume fits the level's box, not the eye:
+  the same cell and spacing from three eyes, a wider box at 4 m, a centre
+  across a cell edge one cell on, no box about the origin, and a sun view that
+  holds the volume and grows with the spacing. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled

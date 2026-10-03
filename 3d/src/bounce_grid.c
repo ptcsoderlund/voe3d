@@ -1,30 +1,72 @@
-// The fit of the probe volume to the eye: the eye's cell about the world origin
-// in double, the grid's lowest cell below it, and its corner about the eye; and
-// the relight's sun view of that volume through light_box.h. See
-// 3d/bounce_grid.h for why each step is there.
+// The fit of the probe volume to the still casters' box: the smallest
+// power-of-two spacing whose grid, its lowest cell the box centre's cell less
+// (12, 6, 12), holds the box's cells with one spare, in double about the world
+// origin, and its corner about the eye; and the relight's sun view of that
+// volume through light_box.h. See 3d/bounce_grid.h for why each step is there.
 #include "light_box.h"
 
 #include <3d/bounce_grid.h>
 #include <base/assert.h>
 
 #include <math.h>
+#include <stdbool.h>
 
-voe_3d_bounce_grid voe_3d_bounce_grid_fit(voe_math_double3 eye)
+// The largest k of the spacing VOE_RENDER_BOUNCE_SPACING × 2^k (0332 point 2).
+#define COARSEST 16
+
+// Whether the grid at `spacing` about the centre `centre` holds `min` to `max`
+// with a cell to spare each side; its lowest cell into `cell`.
+static bool holds(const double min[3], const double max[3],
+		  const double centre[3], double spacing, int32_t cell[3])
+{
+	const int32_t below[3] = { VOE_RENDER_BOUNCE_PROBES_XZ / 2,
+				   VOE_RENDER_BOUNCE_PROBES_Y / 2,
+				   VOE_RENDER_BOUNCE_PROBES_XZ / 2 };
+	const int32_t count[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
+				   VOE_RENDER_BOUNCE_PROBES_Y,
+				   VOE_RENDER_BOUNCE_PROBES_XZ };
+	bool held = true;
+
+	for (int axis = 0; axis < 3; axis++) {
+		cell[axis] = (int32_t)floor(centre[axis] / spacing) - below[axis];
+		held = held && floor(min[axis] / spacing) >= (double)cell[axis] + 1 &&
+		       floor(max[axis] / spacing) <=
+			       (double)cell[axis] + count[axis] - 2;
+	}
+	return held;
+}
+
+voe_3d_bounce_grid voe_3d_bounce_grid_fit(voe_math_double3 min,
+					  voe_math_double3 max,
+					  voe_math_double3 eye)
 {
 	voe_3d_bounce_grid grid = { 0 };
+	const double low[3] = { min.x, min.y, min.z };
+	const double high[3] = { max.x, max.y, max.z };
+	const double origin[3] = { eye.x, eye.y, eye.z };
+	bool boxed = min.x <= max.x && min.y <= max.y && min.z <= max.z;
+	double centre[3] = { 0.0, 0.0, 0.0 };
 	double spacing = (double)VOE_RENDER_BOUNCE_SPACING;
-	double origin[3] = { eye.x, eye.y, eye.z };
-	const int32_t below[3] = { VOE_RENDER_BOUNCE_PROBES_XZ / 2,
-				   VOE_3D_BOUNCE_BELOW,
-				   VOE_RENDER_BOUNCE_PROBES_XZ / 2 };
 	float corner[3];
 
 	VOE_BASE_ASSERT(isfinite(eye.x) && isfinite(eye.y) && isfinite(eye.z),
 			"an eye that is not a number");
-	for (int axis = 0; axis < 3; axis++) {
-		grid.cell[axis] = (int32_t)floor(origin[axis] / spacing) - below[axis];
-		corner[axis] = (float)((double)grid.cell[axis] * spacing - origin[axis]);
+	VOE_BASE_ASSERT(!boxed || (isfinite(min.x) && isfinite(min.y) &&
+				   isfinite(min.z) && isfinite(max.x) &&
+				   isfinite(max.y) && isfinite(max.z)),
+			"a box that is not a number");
+	for (int axis = 0; boxed && axis < 3; axis++)
+		centre[axis] = 0.5 * (low[axis] + high[axis]);
+	// No box is the origin alone, which every grid about it holds at k 0.
+	for (int k = 0; k <= COARSEST; k++) {
+		spacing = (double)VOE_RENDER_BOUNCE_SPACING * ldexp(1.0, k);
+		if (holds(boxed ? low : centre, boxed ? high : centre, centre,
+			  spacing, grid.cell))
+			break;
 	}
+	for (int axis = 0; axis < 3; axis++)
+		corner[axis] = (float)((double)grid.cell[axis] * spacing - origin[axis]);
+	grid.spacing = (float)spacing;
 	grid.corner = (voe_math_float3){ corner[0], corner[1], corner[2] };
 	VOE_BASE_ASSERT(isfinite(grid.corner.x) && isfinite(grid.corner.y) &&
 				isfinite(grid.corner.z),
@@ -39,15 +81,19 @@ voe_render_view voe_3d_bounce_grid_sun(voe_3d_bounce_grid grid,
 				       voe_math_float3 direction)
 {
 	voe_math_float3 half_sides = {
-		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_XZ * VOE_RENDER_BOUNCE_SPACING,
-		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_Y * VOE_RENDER_BOUNCE_SPACING,
-		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_XZ * VOE_RENDER_BOUNCE_SPACING
+		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_XZ * grid.spacing,
+		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_Y * grid.spacing,
+		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_XZ * grid.spacing
 	};
-	float radius = voe_math_float3_length(half_sides) + VOE_RENDER_BOUNCE_REACH;
+	float reach = VOE_RENDER_BOUNCE_REACH * grid.spacing /
+		      VOE_RENDER_BOUNCE_SPACING;
+	float radius = voe_math_float3_length(half_sides) + reach;
 	double texel = 2.0 * (double)radius / (double)VOE_RENDER_BOUNCE_SHADOW_TEXELS;
 	struct voe_3d_light_basis basis;
 	voe_math_float3 centre;
 
+	VOE_BASE_ASSERT(grid.spacing > 0.0f && isfinite(grid.spacing),
+			"a grid with no spacing");
 	VOE_BASE_ASSERT(fabsf(voe_math_float3_length(direction) - 1.0f) < 1e-3f,
 			"a sun whose direction is not unit length");
 	basis = voe_3d_light_box_basis(direction);

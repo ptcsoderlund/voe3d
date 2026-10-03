@@ -326,8 +326,9 @@ typedef struct {
 	voe_render_target target;
 } voe_3d_frame;
 
-// Metres about a moved caster whose probes in the volume are captured again
-// (0326 point 4).
+// The least metres about a moved caster whose probes in the volume are captured
+// again (0326 point 4); on a coarser grid the radius is 3 of its cells (0332
+// point 4).
 #define VOE_3D_BOUNCE_REACH 6.0f
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -463,8 +464,9 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun cast, when the
 // frame is not blind and either the world's light row has `bounces` of 1 or
 // more with the frame's light of some strength and not `unshaded`, or a light
-// in `frame->points` has `bounces` of 1 or more. It fits the probe volume about
-// `frame->eye`, begins `frame->target`'s bounce, opens capture passes while
+// in `frame->points` has `bounces` of 1 or more. It fits the probe volume to
+// the still casters' box, not about `frame->eye`, so the camera never moves it
+// (0331, 0332); begins `frame->target`'s bounce, opens capture passes while
 // render has probes to capture, drawing the casters into each, and relights.
 // That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
 // objects per caster. On a frame that relights a sun that bounces and casts it

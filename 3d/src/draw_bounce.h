@@ -13,11 +13,13 @@
 //
 // A STALE SPHERE IS WHERE A CASTER WAS AND IS. A caster whose transform at lag 1
 // (the previous table's) differs from lag 0 in position or rotation marks a
-// sphere of VOE_3D_BOUNCE_REACH at each place, about the frame's eye; render
-// captures the probes in it again. A world with no previous table, or a caster
-// never remembered, blends as its current row and marks nothing.
+// sphere at each place, about the frame's eye, of the larger of
+// VOE_3D_BOUNCE_REACH and 3 cells (0332 point 4); render captures the probes in
+// it again. A world with no previous table, or a caster never remembered,
+// blends as its current row and marks nothing.
 //
-// THE STILL CASTERS' BOX is what the grid will be fitted to (0332 point 1).
+// THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331): to the still casters'
+// box (0332 point 1), so a camera that moves never moves it.
 #pragma once
 
 #include <3d/draw_system.h>
@@ -43,11 +45,12 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 bool voe_3d_draw_light_casts(const voe_ecs_world *world);
 
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and
-// w VOE_3D_BOUNCE_REACH, two for each caster that moved; the count, never past
-// `room`. A moved caster that does not fit is left out.
+// w the larger of VOE_3D_BOUNCE_REACH and 3 × `spacing`, the grid's, two for
+// each caster that moved; the count, never past `room`. A moved caster that
+// does not fit is left out.
 uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
-			     const voe_3d_frame *frame, voe_math_float4 *spheres,
-			     uint32_t room);
+			     const voe_3d_frame *frame, float spacing,
+			     voe_math_float4 *spheres, uint32_t room);
 
 // The world box, in double about the world origin, of every caster drawn into
 // a capture pass (meshes and the frame's model parts) that did not move this
@@ -58,8 +61,9 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 		       const voe_3d_frame *frame, voe_math_double3 *min,
 		       voe_math_double3 *max);
 
-// Fits the probe volume to the frame's eye, not its view, begins `frame->target`'s
-// bounce with this step's stale spheres, the frame's light with the light row's
+// Fits the probe volume to the still casters' box (voe_3d_bounce_box), not the
+// eye, begins `frame->target`'s bounce at the fitted spacing with this step's
+// stale spheres, the frame's light with the light row's
 // `bounces` and `bounce_strength` (nought with no row) and `frame->points`;
 // then opens capture passes while render opens one, drawing the casters into
 // each. When the light row casts it opens the bounce shadow pass with the sun

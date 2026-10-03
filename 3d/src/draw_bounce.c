@@ -11,6 +11,10 @@
 // THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
 // view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
 //
+// THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
+// box goes to voe_3d_bounce_grid_fit, and its spacing to the begin and the
+// stale spheres, which are the larger of VOE_3D_BOUNCE_REACH and 3 cells.
+//
 // THE STILL CASTERS' BOX IS THE LEVEL (0332 point 1): the world box of every
 // caster draw_shadows.c draws that did not move this step, each geometry's own
 // box under its transform at lag 0. Still casters only, because a flying shell
@@ -58,11 +62,11 @@ static bool moved(const voe_ecs_world *world, voe_ecs_entity entity)
 	       1.0f - fabsf(dot) > 1e-6f;
 }
 
-// The two spheres of a moved `entity` into `spheres` from `count`, as many as
-// fit below `room`; the new count.
+// The two spheres of a moved `entity`, of radius `reach`, into `spheres` from
+// `count`, as many as fit below `room`; the new count.
 static uint32_t mark(const voe_ecs_world *world, const voe_3d_frame *frame,
-		     voe_ecs_entity entity, voe_math_float4 *spheres,
-		     uint32_t count, uint32_t room)
+		     voe_ecs_entity entity, float reach,
+		     voe_math_float4 *spheres, uint32_t count, uint32_t room)
 {
 	const float lags[2] = { 1.0f, 0.0f };
 
@@ -73,7 +77,7 @@ static uint32_t mark(const voe_ecs_world *world, const voe_3d_frame *frame,
 
 		spheres[count++] = (voe_math_float4){
 			(float)(at.x - frame->eye.x), (float)(at.y - frame->eye.y),
-			(float)(at.z - frame->eye.z), VOE_3D_BOUNCE_REACH
+			(float)(at.z - frame->eye.z), reach
 		};
 	}
 	VOE_BASE_ASSERT(count <= room, "more stale spheres than room");
@@ -96,8 +100,9 @@ static bool model_casts(const voe_3d_frame *frame, const voe_3d_model *row)
 
 // The model casters' spheres after the meshes', from `count`; the new count.
 static uint32_t stale_models(const voe_ecs_world *world,
-			     const voe_3d_frame *frame, voe_math_float4 *spheres,
-			     uint32_t count, uint32_t room)
+			     const voe_3d_frame *frame, float reach,
+			     voe_math_float4 *spheres, uint32_t count,
+			     uint32_t room)
 {
 	const voe_3d_model *rows = voe_3d_model_rows(world);
 	const voe_ecs_entity *owners = voe_3d_model_entities(world);
@@ -109,22 +114,26 @@ static uint32_t stale_models(const voe_ecs_world *world,
 		    voe_scene_transform_get(world, owners[row]) == NULL ||
 		    !model_casts(frame, &rows[row]) || !moved(world, owners[row]))
 			continue;
-		count = mark(world, frame, owners[row], spheres, count, room);
+		count = mark(world, frame, owners[row], reach, spheres, count,
+			     room);
 	}
 	return count;
 }
 
 uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
-			     const voe_3d_frame *frame, voe_math_float4 *spheres,
-			     uint32_t room)
+			     const voe_3d_frame *frame, float spacing,
+			     voe_math_float4 *spheres, uint32_t room)
 {
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
 	const voe_ecs_entity *owners = voe_3d_mesh_entities(world);
+	float reach = fmaxf(VOE_3D_BOUNCE_REACH, 3.0f * spacing);
 	uint32_t count = 0;
 
 	VOE_BASE_ASSERT(world != NULL && frame != NULL &&
 				(spheres != NULL || room == 0),
 			"marking stale spheres with no world, frame or room");
+	VOE_BASE_ASSERT(spacing > 0.0f && isfinite(spacing),
+			"stale spheres at no spacing");
 	for (uint32_t row = 0; row < voe_3d_mesh_count(world) && count < room;
 	     row++) {
 		const voe_3d_material *material;
@@ -137,10 +146,11 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 		    voe_scene_transform_get(world, owners[row]) == NULL ||
 		    !moved(world, owners[row]))
 			continue;
-		count = mark(world, frame, owners[row], spheres, count, room);
+		count = mark(world, frame, owners[row], reach, spheres, count,
+			     room);
 	}
 	if (frame->models != NULL)
-		count = stale_models(world, frame, spheres, count, room);
+		count = stale_models(world, frame, reach, spheres, count, room);
 	VOE_BASE_ASSERT(count <= room, "more stale spheres than room");
 	return count;
 }
@@ -296,6 +306,8 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			voe_3d_frame *frame)
 {
 	voe_math_float4 spheres[STALE_ROOM];
+	voe_math_double3 min = { 1.0, 1.0, 1.0 };
+	voe_math_double3 max = { 0.0, 0.0, 0.0 };
 	voe_3d_bounce_grid grid;
 	struct voe_render_bounce_frame bounce;
 	bool opened = true;
@@ -304,12 +316,16 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			"bouncing with no world, device or frame");
 	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
 			"the bounce goes between passes, none open");
-	grid = voe_3d_bounce_grid_fit(frame->eye);
+	// No still caster leaves min above max, which the fit takes as no box.
+	(void)voe_3d_bounce_box(world, device, frame, &min, &max);
+	grid = voe_3d_bounce_grid_fit(min, max, frame->eye);
 	bounce = (struct voe_render_bounce_frame){
+		.spacing = grid.spacing,
 		.cell = { grid.cell[0], grid.cell[1], grid.cell[2] },
 		.corner = grid.corner,
 		.stale = spheres,
-		.stale_count = voe_3d_bounce_stale(world, frame, spheres, STALE_ROOM),
+		.stale_count = voe_3d_bounce_stale(world, frame, grid.spacing,
+						   spheres, STALE_ROOM),
 		.sun = frame->light,
 		.points = frame->points,
 	};

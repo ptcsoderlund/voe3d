@@ -4,7 +4,8 @@
 // _run, frame end; then the window read. Nothing hand-fitted: the grid, the
 // casters, the stale spheres and the relight are 3d's and render's.
 //
-// THE WORLD. Grey ground (a flat box 60 m wide, top at y 0, 0.5 grey); a box
+// THE WORLD. Grey ground (a flat box 40 m wide, top at y 0, 0.5 grey, so the
+// grid fitted to it stays at 2 m as in the tank game's); a box
 // 2 m a side, strongly red, standing at (0.5, 1, 0.5), off the probe lattice's
 // odd metres so no probe sits on its faces; a sun of 1 shining down at 45
 // degrees along -x onto the box's +x face, bounces 1 and strength 1, no fill,
@@ -200,7 +201,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 				   .bounce_strength = 1.0f,
 				   .cast_shadows = true }));
 	(void)add_a_shape(s->world, (voe_math_double3){ 0.0, -0.05, 0.0 },
-			  (voe_math_float3){ 60.0f, 0.1f, 60.0f },
+			  (voe_math_float3){ 40.0f, 0.1f, 40.0f },
 			  (voe_math_float3){ 0.5f, 0.5f, 0.5f });
 	s->box = add_a_shape(s->world, (voe_math_double3){ 0.5, 1.0, 0.5 },
 			     (voe_math_float3){ 2.0f, 2.0f, 2.0f },

@@ -30,11 +30,12 @@
 // sun map (0330), and the capture passes the frame's budget of four gives,
 // all the first view's: true on exactly those, false on one fewer.
 //
-// THE STALE SPHERES. With no previous table nothing moved, so none. With one,
-// the wall remembered and then moved a metre along X marks two spheres of
-// VOE_3D_BOUNCE_REACH, at (2, 0, -5) and (3, 0, -5) about the eye; a room of
-// one gives one; remembered again, unmoved, it marks none. The ground never
-// moves and marks nothing throughout.
+// THE STALE SPHERES, at VOE_RENDER_BOUNCE_SPACING. With no previous table
+// nothing moved, so none. With one, the wall remembered and then moved a metre
+// along X marks two spheres of VOE_3D_BOUNCE_REACH, at (2, 0, -5) and (3, 0, -5)
+// about the eye; a room of one gives one; at a spacing of 8 m both are of 24 m,
+// 3 cells; remembered again, unmoved, it marks none. The ground never moves and
+// marks nothing throughout.
 //
 // THE BOX OF THE STILL CASTERS (0332 point 1). A 40 × 0.1 × 40 ground at
 // y −0.05 and a 2 m cube at (5, 1, 0), the built-in cube a unit one, box
@@ -330,7 +331,9 @@ static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_scene_transform moved;
 
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, spheres, 8), 0);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
+					       spheres, 8),
+			   0);
 
 	world = a_world(arena, shapes, true, 1, true, 0, &wall);
 	frame = voe_3d_draw_system_frame(world, size, 0.0f);
@@ -340,13 +343,21 @@ static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
 	VOE_TEST_CHECK(voe_scene_transform_submit(
 		world, (voe_scene_transform_intent){ wall, moved }));
 	voe_scene_transform_system_run(world);
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, spheres, 8), 2);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
+					       spheres, 8),
+			   2);
 	VOE_TEST_CHECK(centred(spheres[0], 2.0f));
 	VOE_TEST_CHECK(centred(spheres[1], 3.0f));
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, spheres, 1), 1);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
+					       spheres, 1),
+			   1);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, 8.0f, spheres, 8), 2);
+	VOE_TEST_CHECK(spheres[0].w == 24.0f && spheres[1].w == 24.0f);
 
 	voe_scene_transform_remember(world);
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, spheres, 8), 0);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
+					       spheres, 8),
+			   0);
 	voe_base_arena_destroy(arena);
 }
 
