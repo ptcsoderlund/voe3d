@@ -9,6 +9,8 @@ cast_shadows = true
 kind = 1
 size = [1, 1, 1]
 trigger = false
+[1.voe_scene_parent]
+parent = 64
 [1.voe_scene_transform]
 position = [-4.3213367462158203e-07, -0.05000010430812836, -21.3005258589983]
 rotation = [0, 0, 0, 1]
@@ -62,6 +64,8 @@ most = 6
 count = 4
 wait = 0
 made = 0
+[6.voe_scene_parent]
+parent = 78
 [6.voe_scene_transform]
 position = [4.0978193283081055e-08, 2, -15.000000476837158]
 rotation = [0, 1, 0, 0]
@@ -89,20 +93,12 @@ alpha_start = 1
 alpha_end = 0
 glow = 0
 texture = "Assets/images/P.png"
+[8.voe_scene_parent]
+parent = 64
 [8.voe_scene_transform]
 position = [12.090322668198496, 4.330971280112863, -6.539321430027485]
 rotation = [0, 0, 0, 1]
 scale = [2, 2, 2]
-
-[10]
-name = "GameState"
-folded = true
-
-[12]
-name = "PauseState"
-folded = false
-[12.voe_scene_parent]
-parent = 10
 
 [14]
 name = "Water"
@@ -127,6 +123,8 @@ folded = false
 kind = 1
 colour = [0.44778705, 0.13911381, 0.49138713]
 cast_shadows = true
+[16.voe_scene_parent]
+parent = 64
 [16.voe_scene_transform]
 position = [-18.551305452550878, 5.000000100582838, -5.431319508701563]
 rotation = [0.056250136, -0.29467446, 0.032848693, 0.95337504]
@@ -139,6 +137,8 @@ folded = false
 kind = 1
 colour = [0.5003842, 0.5003842, 0.5003842]
 cast_shadows = true
+[17.voe_scene_parent]
+parent = 64
 [17.voe_scene_transform]
 position = [-18.27789152339392, 5.000001613050699, -8.175423793611117]
 rotation = [0, -0.47231296, 0, 0.8814309]
@@ -205,6 +205,8 @@ scale = [1, 1, 1]
 [25]
 name = "House"
 folded = true
+[25.voe_scene_parent]
+parent = 64
 [25.voe_scene_prefab]
 path = "Assets/prefabs/House.prefab"
 [25.voe_scene_transform]
@@ -219,6 +221,8 @@ folded = false
 kind = 1
 colour = [0.5003842, 0.5003842, 0.5003842]
 cast_shadows = true
+[34.voe_scene_parent]
+parent = 64
 [34.voe_scene_transform]
 position = [15.433657656234573, 5.000000296160579, -31.65333358757198]
 rotation = [0, -0.23043266, 0, 0.9730883]
@@ -227,6 +231,8 @@ scale = [2, 10, 1]
 [36]
 name = "House 2"
 folded = true
+[36.voe_scene_parent]
+parent = 64
 [36.voe_scene_prefab]
 path = "Assets/prefabs/House.prefab"
 [36.voe_scene_transform]
@@ -241,10 +247,51 @@ folded = false
 prefab = "enemy_tank"
 every = 8
 most = 1
-count = 2
+count = 7
 wait = 0
 made = 0
+[50.voe_scene_parent]
+parent = 78
 [50.voe_scene_transform]
 position = [14.081337647512555, 2, -18.561293579638004]
 rotation = [0, 1, 0, -4.371139e-08]
+scale = [1, 1, 1]
+
+[64]
+name = "static_meshes"
+folded = true
+[64.voe_scene_transform]
+position = [0, 0, 0]
+rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[78]
+name = "Spawners"
+folded = true
+
+[79]
+name = "Spawner2 2"
+folded = false
+[79.tank_spawner]
+prefab = "enemy_tank"
+every = 4
+most = 2
+count = 5
+wait = 0
+made = 0
+[79.voe_scene_parent]
+parent = 78
+[79.voe_scene_transform]
+position = [-12.007920259609818, 2.0000021308660507, -34.056788973510265]
+rotation = [0, 1, 0, -4.371139e-08]
+scale = [1, 1, 1]
+
+[80]
+name = "End"
+folded = false
+[80.tank_goal]
+points = 1000
+[80.voe_scene_transform]
+position = [-1.5222305328934453, -2.466142177581787e-06, -38.61915572732687]
+rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
