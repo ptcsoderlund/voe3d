@@ -2,7 +2,8 @@
 // one: the surface of a 1280x720 window is 240x135 millimetres, and a run
 // hands back what a stand-in project interface answers. The one answering
 // false lays out a panel with a label and a button, ends the frame, and
-// leaves element records; the one answering true ends an empty frame.
+// leaves element records; the one answering true ends an empty frame; a third
+// sets both asks, and after the run the caller's asks read true (0333).
 //
 // A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
@@ -50,6 +51,17 @@ static bool going_on(const voe_game_project_frame *frame)
 	return true;
 }
 
+// An empty frame asking to pause and to start again; the run goes on.
+static bool asking(const voe_game_project_frame *frame)
+{
+	voe_ui_column_begin(frame->ui, (voe_ui_container){ 0 });
+	voe_ui_end(frame->ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(frame->ui));
+	frame->asks->paused = true;
+	frame->asks->restart = true;
+	return true;
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 23);
@@ -61,6 +73,7 @@ int main(void)
 				      .longest_step = 0.25 };
 	voe_base_error error = VOE_BASE_OK;
 	voe_math_float2 surface = voe_game_interface_surface(size);
+	voe_game_project_asks asks = { 0 };
 	voe_game_interface *interface;
 	voe_app *app;
 
@@ -84,12 +97,21 @@ int main(void)
 	VOE_TEST_CHECK(interface != NULL);
 	if (interface != NULL) {
 		VOE_TEST_CHECK(!voe_game_interface_run(interface, scratch, NULL,
-						       NULL, size, quitting));
+						       NULL, size, &asks,
+						       quitting));
 		VOE_TEST_CHECK(voe_ui_element_count(voe_game_interface_context(
 				       interface)) > 0);
 		voe_base_arena_clear(scratch);
 		VOE_TEST_CHECK(voe_game_interface_run(interface, scratch, NULL,
-						      NULL, size, going_on));
+						      NULL, size, &asks,
+						      going_on));
+		VOE_TEST_CHECK(!asks.paused && !asks.restart);
+		voe_base_arena_clear(scratch);
+		VOE_TEST_CHECK(voe_game_interface_run(interface, scratch, NULL,
+						      NULL, size, &asks,
+						      asking));
+		VOE_TEST_CHECK(asks.paused);
+		VOE_TEST_CHECK(asks.restart);
 		voe_game_interface_destroy(interface);
 	}
 

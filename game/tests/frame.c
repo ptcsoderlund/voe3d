@@ -266,13 +266,14 @@ static void interface_case(voe_app *app, voe_base_arena *arena,
 	voe_ecs_world *world = voe_game_world_new(arena);
 	voe_game_interface *interface =
 		voe_game_interface_new(voe_app_device(app), arena);
+	voe_game_project_asks asks = { 0 };
 
 	VOE_TEST_CHECK(interface != NULL);
 	if (interface == NULL)
 		return;
 	(void)build(world, true);
 	VOE_TEST_CHECK(voe_game_interface_run(interface, scratch, world, NULL,
-					      size, labelled));
+					      size, &asks, labelled));
 	VOE_TEST_CHECK(voe_ui_element_count(
 			       voe_game_interface_context(interface)) > 0);
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size, 0.0f,
