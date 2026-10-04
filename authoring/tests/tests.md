@@ -18,6 +18,9 @@ file; the rest hand the writer a world and the reader text held in memory.
 - `scene_read_unsaid.c` — a field a section does not mention read from the
   type's unsaid row, else its default, a said field kept, and a light with no
   `cast_shadows` reading true, and an 047 light keeping bounces 1 at strength 1.
+- `scene_read_former.c` — a blocker saved with `kind` read as its `block`,
+  written back as `block` alone, `block` winning over `kind` in either order,
+  and a blocker saying neither reading All.
 - `scene_cook.c` — the exact source for a small scene, the sun's bounces,
   `cast_shadows` and `bounce_strength` included, that source compiled by `clang`, the refusals leaving
   `*out` untouched, and an empty world.

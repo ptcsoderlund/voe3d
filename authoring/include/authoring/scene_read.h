@@ -43,19 +43,20 @@
 // and not a recursive call (CLAUDE.md rule 14). An ENUM field is refused, because
 // no value names exist to read one with. AN ENTITY is an authored id: `0` is no
 // entity, and an id with no `[N]` in the file is no entity and a warning. A field
-// the section does not mention starts from that field's bytes in the type's
-// unsaid row (voe_ecs_component_unsaid), else its default row
-// (voe_ecs_component_default), else zero, and is a warning — so a scene saved
+// the section does not mention starts from the type's unsaid row (_unsaid),
+// else its default row (_default), else zero, and is a warning — so a scene saved
 // before spec 010 opens its shapes grey, not black, and one saved before 049
 // keeps its sun's shadows, the unsaid row being first because what an old file
-// meant may differ from what a new row is (0324); a key naming no field is
-// ignored and a warning. A CHAR VALUE'S quotes
-// are the sectioned reader's to strip (assets/sectioned.h), so `name = Cube`
-// reads the same as `name = "Cube"`
-// — for a field of rank 1, one string. A field with more dimensions is an array
-// of strings, and there the sectioned reader has left the text exactly as the
-// file spelled it — an array is not one whole value to it — so this reader
-// strips each string's own quotes and undoes its own `\"` and `\\` escapes.
+// meant may differ from what a new row is (0324). A KEY MAY BE A FIELD'S FORMER
+// NAME (0353) and is read as that field, which it then says; when the section
+// also gives the current name, that value wins whatever the order, and the
+// former line is a warning. A key naming neither is ignored and a warning.
+// A CHAR VALUE'S quotes are the sectioned reader's to strip (assets/sectioned.h),
+// so `name = Cube` reads as `name = "Cube"` — for a field of rank 1, one
+// string. A field with more dimensions is an array of strings, and there the
+// sectioned reader has left the text as the file spelled it — an array is not
+// one whole value to it — so this reader strips each string's own quotes and
+// undoes its own `\"` and `\\` escapes.
 #pragma once
 
 #include <base/arena.h>
