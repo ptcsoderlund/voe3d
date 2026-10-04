@@ -5,14 +5,13 @@ editor and dev program in one tree. Every code folder is a standalone CMake proj
 `include/<folder>/`, `src/`, `tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`,
 linked as `voe::<folder>`, mapped by `<folder>/<folder>.md`. Dependencies point down this list and
 never back up; `cmake/voe.cmake` holds the allowed edges, so a change needing a new edge is a
-decision, not a card. The standing rules are decision 0168, named on every card; the Agentic
-workflow replaced specs.
+decision, not a card. The standing rules are decision 0168, named on every card.
 
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
-- **ecs** — entities, component tables, intent and structural queues, a type's menu and unsaid row.
+- **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
 - **platform** — the one OS-aware folder: window, input, pads, files, clock, processes, libs, sound.
-- **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, identity.
+- **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
@@ -21,7 +20,7 @@ workflow replaced specs.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, fading models, shapes, particles, water, picks, outlines, light.
+- **3d** — scene to draws: meshes, models, shapes, particles, water, picks, markers, blocked light.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — what a frame loop repeats: the paced frame, PNG capture, a headless start, start log.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, starting line.
@@ -58,3 +57,4 @@ workflow replaced specs.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0340, 0342, 0343, 0345, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
+- 0348, 0349, 0351–0355 — Block kinds; sun and moon; renamed fields; panels; markers; reveal.
