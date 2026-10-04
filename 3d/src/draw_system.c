@@ -118,6 +118,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.shadow = (voe_render_shadow){ 0 };
 	// No point light until voe_3d_draw_system_point_lights fills them (0320).
 	frame.points = (voe_render_point_lights){ 0 };
+	// No blocker until voe_3d_draw_system_light_blockers fills them (0347).
+	frame.blockers = (voe_render_light_blockers){ 0 };
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
 	// outline and the gizmo: a zeroed record outlines nothing and stands no

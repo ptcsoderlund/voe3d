@@ -87,6 +87,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
+- `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
+  rotation, and |scale| × size / 2 per axis.
+- `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
+  the eye, its rows and bounding sphere, flat ones and those past 32 left out.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the

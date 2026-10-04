@@ -8,11 +8,12 @@
 //             break;                          // the GPU stopped answering
 //     if (drawing) {
 //             (void)voe_3d_draw_system_point_lights(world, &frame, scratch);
+//             (void)voe_3d_draw_system_light_blockers(world, &frame, scratch);
 //             (void)voe_3d_draw_system_shadows(world, gpu, &frame);
 //                                             // false: unshadowed, said on stderr
 //             voe_render_pass_camera camera = { .view = frame.view,
 //                     .light = frame.light, .shadow = frame.shadow,
-//                     .points = frame.points };
+//                     .points = frame.points, .blockers = frame.blockers };
 //             ...                             // build what changes this frame
 //             if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
 //                     voe_3d_draw_system_run(world, gpu, scratch, frame);
@@ -224,6 +225,10 @@ typedef struct {
 	// voe_3d_draw_system_shadows reads its slots, and the loop hands it to
 	// the pass camera beside `shadow`.
 	voe_render_point_lights points;
+	// The light blockers the pass's light is kept out of (0347); zero is
+	// none. _frame leaves it zeroed, voe_3d_draw_system_light_blockers
+	// fills it, and the loop hands it to the pass camera beside `points`.
+	voe_render_light_blockers blockers;
 	// The camera's world position, in double, that `view` is about
 	// (ADR-0250): every object's matrix, the sort and every mark is taken
 	// about this point. _frame sets it; a frame built by hand sets it too.
@@ -344,10 +349,10 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `collider` and `points` all come back zeroed and `models` NULL
-// — hiding, outlining, standing a gizmo, marking a camera, a sun or the point
-// lights, drawing a collider,
-// lighting by point lights and drawing models are the caller's choice and it
+// `point_lights`, `collider`, `points` and `blockers` all come back zeroed and
+// `models` NULL — hiding, outlining, standing a gizmo, marking a camera, a sun
+// or the point lights, drawing a collider, lighting by point lights, keeping
+// light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
 // frame's light is the zeroed one and lit surfaces draw black — see below.
@@ -432,6 +437,22 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 [[nodiscard]] bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
 						   voe_3d_frame *frame,
 						   voe_base_arena *arena);
+
+// Fills `frame->blockers` from every light blocker whose entity has a transform
+// (0347 point 2), in table order, at most VOE_RENDER_LIGHT_BLOCKERS: its box
+// (voe_3d_light_blocker_shape) at `frame->lag`, about `frame->eye` in float
+// (ADR-0250), its rows by render/device.h's formula and its sphere the box's
+// centre and |half|. A box with a half of nought on any axis is left out. The
+// array is in `arena`. A world with no light blocker table fills none and
+// returns true; the arena's push never fails (base/arena.h), so today it is
+// always true.
+//
+// CALLED BEFORE voe_3d_draw_system_shadows, which hands the same blockers to
+// the bounce, and EVERY PICTURE OF A WORLD MAKES IT, so a house is dark inside
+// in the editor's views as in the game.
+[[nodiscard]] bool voe_3d_draw_system_light_blockers(const voe_ecs_world *world,
+						     voe_3d_frame *frame,
+						     voe_base_arena *arena);
 
 // The sun's shadow passes for `frame`, opened between the frame's begin and the
 // view's pass (ADR-0258). With the directional light shaded and of some
