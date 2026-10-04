@@ -204,7 +204,7 @@ scale = [1, 1, 1]
 
 [25]
 name = "House"
-folded = true
+folded = false
 [25.voe_scene_parent]
 parent = 64
 [25.voe_scene_prefab]
@@ -259,7 +259,7 @@ scale = [1, 1, 1]
 
 [64]
 name = "static_meshes"
-folded = true
+folded = false
 [64.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]
@@ -294,4 +294,26 @@ points = 1000
 [80.voe_scene_transform]
 position = [0.3771847666357644, -3.5800039768218994e-06, -36.52986656539724]
 rotation = [0, 0, 0, 1]
+scale = [1, 1, 1]
+
+[94]
+name = "HouseLightBlock"
+folded = false
+[94.voe_scene_light_blocker]
+size = [1, 1, 1]
+[94.voe_scene_parent]
+parent = 25
+[94.voe_scene_transform]
+position = [0.012236571232467306, -2.2724270820617676e-07, 1.8795203409327597]
+rotation = [0, 0.008522838, 0, 0.9999637]
+scale = [4.1241384, 3, 3.5743194]
+
+[108]
+name = "Lightblock2"
+folded = false
+[108.voe_scene_light_blocker]
+size = [1, 1, 1]
+[108.voe_scene_transform]
+position = [-10.36263306485489, 1.7021879013627768, -40.71811520308256]
+rotation = [0, 0.42905566, 0, 0.90327805]
 scale = [1, 1, 1]
