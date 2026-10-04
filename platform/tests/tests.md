@@ -3,7 +3,8 @@
 One plain C program per `platform` module, found by the build, each checking
 that module's promises from outside. None of them needs a window or a display.
 
-- `clock.c` — that the clock moves and never goes backwards. Its header says
+- `clock.c` — that the clock moves and never goes backwards, and in `launched_is_before_now`
+  that the launch is known and less than a minute before now. Its header says
   why nothing in it measures a duration against a duration.
 - `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
   write fails as it says, no `.partial` outlives a write, a stamp holds until a rewrite of

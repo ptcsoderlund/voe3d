@@ -1,5 +1,6 @@
 // What platform/clock.h promises, checked from outside: that the clock never
-// goes backwards, and that it does move. Needs no window and no display, so it
+// goes backwards, that it does move, and that the launch reading
+// (launched_is_before_now) comes before now. Needs no window and no display, so it
 // runs under ctest on a machine with neither.
 //
 // NOTHING HERE MEASURES A DURATION AGAINST A DURATION, AND THAT IS DELIBERATE. A
@@ -23,8 +24,23 @@
 // the end, and few enough that a stuck clock reports in well under a second.
 #define SPINS 20000000
 
+// The OS can say when this process started, and that was before now and not
+// a minute ago: a test program is far younger than that.
+static void launched_is_before_now(void)
+{
+	double at = 0.0;
+	bool known = voe_platform_clock_launched(&at);
+	double now = voe_platform_clock_now();
+
+	VOE_TEST_CHECK(known);
+	VOE_TEST_CHECK(at <= now);
+	VOE_TEST_CHECK(now - at < 60.0);
+}
+
 int main(void)
 {
+	launched_is_before_now();
+
 	double start = voe_platform_clock_now();
 	double now = start;
 	double previous;

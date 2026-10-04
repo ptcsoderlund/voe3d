@@ -28,6 +28,14 @@
 // NO ONE CALLS A SLEEP AND THIS HEADER OFFERS NONE. Waiting is not the same
 // question as measuring, and the wait is on the window, not here — see
 // voe_platform_window_wait, which wakes on the window's events as well as time.
+//
+// THE LAUNCH: voe_platform_clock_launched gives the reading of this same clock
+// at which the OS started the process, so `now - at` is the process's age. The
+// time before main — loading, a scan of a new program — is otherwise invisible
+// to the program's own code. Its resolution is the OS's tick (10 ms on Linux).
+// False, with *at untouched, when the OS cannot say. Linux only while Windows
+// is paused (decision 0339).
 #pragma once
 
 double voe_platform_clock_now(void);
+[[nodiscard]] bool voe_platform_clock_launched(double *at);

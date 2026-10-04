@@ -16,7 +16,8 @@ program's own arguments, and the sound device.
 - `include/platform/input.h` — the keyboard, the mouse and four gamepad slots: keys, motion, the
   wheel in notches, typed UTF-8 text, the pointer's position, buttons, shape and lock, and each
   pad's sticks, triggers and buttons. Its header says why it is polled state and a key is a place.
-- `include/platform/clock.h` — how long something took. Its header says why it is
+- `include/platform/clock.h` — how long something took, and the reading at which the OS
+  launched this process. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   the wait is on the window.
 - `include/platform/file.h` — reading a whole file into an arena, testing whether a
