@@ -294,7 +294,7 @@ int main(void)
 	};
 	const voe_render_point_lights no_points = { 0 };
 	const voe_render_light_blockers none = { 0 };
-	const voe_render_light_blockers boxed = { left, 1 };
+	const voe_render_light_blockers boxed = { .blockers = left, .count = 1 };
 	void *mapped = NULL;
 
 	unshaded.unshaded = 1;
@@ -338,10 +338,10 @@ int main(void)
 	draw_case(device, ground, shading, sun, no_points, boxed,
 		  readback.buffer, IMAGE_BYTES);
 	draw_case(device, ground, shading, sun, no_points,
-		  (voe_render_light_blockers){ left, 0 }, readback.buffer,
+		  (voe_render_light_blockers){ .blockers = left, .count = 0 }, readback.buffer,
 		  IMAGE_BYTES * 2);
 	draw_case(device, ground, shading, sun, no_points,
-		  (voe_render_light_blockers){ far, 1 }, readback.buffer,
+		  (voe_render_light_blockers){ .blockers = far, .count = 1 }, readback.buffer,
 		  IMAGE_BYTES * 3);
 	draw_case(device, ground, shading, dark,
 		  (voe_render_point_lights){ outside, 1 }, boxed,

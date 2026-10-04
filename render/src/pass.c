@@ -36,15 +36,15 @@
 // no surface reads a map nothing drew.
 //
 // ITS LIGHT BLOCKERS (ADR-0347) are copied into its region at binding 11 beside
-// each of its point lights' masks, worked out here, and its block names how
-// many; none is 0. A count past VOE_RENDER_LIGHT_BLOCKERS, NULL with a count or
-// a row not finite asserts.
+// each of its point lights' masks, worked out here, and its walls, indoors and
+// sun masks (ADR-0350), and its block names how many; none is 0. A count past
+// VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
+// indoors sharing a bit, or a kind or sun bit at or past the count asserts.
 //
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
 #include "light_bins.h"
-#include "light_blockers.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -385,19 +385,27 @@ static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 }
 
 // `blockers` into pass `region`'s struct voe_render_frame_blockers at binding
-// 11, each of `points`' masks beside them, and the count into `block`. The
-// masks are written even with no blockers, as 0, so no light reads a stale one.
+// 11, each of `points`' masks beside them, the kinds and the sun's mask after,
+// and the count into `block`. The masks are written even with no blockers, as
+// 0, so no light reads a stale one.
 static void place_blockers(const struct voe_render_frame *frame,
 			   uint32_t region, voe_render_light_blockers blockers,
 			   voe_render_point_lights points,
 			   struct voe_render_frame_block *block)
 {
 	struct voe_render_frame_blockers *placed;
+	const uint32_t past = blockers.count >= 32 ? 0u :
+				~((1u << blockers.count) - 1u);
 
 	VOE_BASE_ASSERT(blockers.count <= VOE_RENDER_LIGHT_BLOCKERS,
 			"a pass with more light blockers than VOE_RENDER_LIGHT_BLOCKERS");
 	VOE_BASE_ASSERT(blockers.blockers != NULL || blockers.count == 0,
 			"a pass with a light blocker count and no blockers");
+	VOE_BASE_ASSERT((blockers.walls & blockers.indoors) == 0,
+			"a light blocker that is both a Wall and Indoors");
+	VOE_BASE_ASSERT(((blockers.walls | blockers.indoors | blockers.sun) &
+			 past) == 0,
+			"a light blocker kind or sun bit at or past the blocker count");
 	for (uint32_t i = 0; i < blockers.count; i++)
 		for (uint32_t r = 0; r < 3; r++) {
 			const voe_math_float4 row = blockers.blockers[i].rows[r];
@@ -417,6 +425,9 @@ static void place_blockers(const struct voe_render_frame *frame,
 		placed->masks[i] = voe_render_light_blockers_mask(
 			blockers.blockers, blockers.count,
 			points.lights[i].position);
+	placed->walls = blockers.walls;
+	placed->indoors = blockers.indoors;
+	placed->sun = blockers.sun;
 	block->blockers = blockers.count;
 }
 

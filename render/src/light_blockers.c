@@ -1,8 +1,12 @@
 // The light blockers' one call: a point to the mask of the boxes holding it
-// (see light_blockers.h for the rule and why the sphere goes first).
+// (see voe_render_light_blockers_mask in render/device.h for the rule and why
+// the sphere goes first).
 //
 // Plain arithmetic over the caller's array; nothing is allocated or kept.
-#include "light_blockers.h"
+//
+// CONSTRAINTS. Cost is count × one compare, plus three dot products for each
+// sphere the point is in; at VOE_RENDER_LIGHT_BLOCKERS that is all it needs.
+#include <render/device.h>
 
 #include <assert.h>
 #include <math.h>

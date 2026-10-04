@@ -9,7 +9,8 @@ in; getting it wrong transposes every transform without failing to compile.
 A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its bounce record
-  and point light and blocker counts, object and shading records, the light blockers at 11, the probe volumes' sums at binding 6 and
+  and point light and blocker counts, object and shading records, the light blockers at 11 with
+  their kinds and the sun's mask, the probe volumes' sums at binding 6 and
   moments at 10, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
   bindings and the push constant, which holds the object and a 96-bit face mask, each matching its C
   struct.

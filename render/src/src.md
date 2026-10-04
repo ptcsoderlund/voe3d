@@ -16,8 +16,9 @@ which file to open — what each one owns, and where the seams between them run.
   `vulkan_win32.h` expects `windows.h` to have made. Its header says why each.
 - `device_internal.h` — the device struct the files below share, the calls between them, where
   the split runs, and the constants the whole folder reads.
-- `device_parts.h` — the records the device is built of: buffers, pools, slots, targets and the
-  one-frame record; included only through `device_internal.h`.
+- `device_parts.h` — the records the device is built of: buffers, pools, slots, targets, the
+  one-frame record and a pass's blocker region with its kinds; included only through
+  `device_internal.h`.
 - `device.c` — opening, and the one place its order is: the surface, the logical device, the
   format, timing, present modes, frame objects, the layout and element pipeline but no mesh
   pipeline, and close-down, plus the headless device the tests run on.
@@ -74,9 +75,8 @@ which file to open — what each one owns, and where the seams between them run.
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
-- `light_blockers.h` — the mask of the light blockers, boxes, that hold a point: bit i for
-  blocker i, the bounding sphere tested before the rows. Pure CPU.
-- `light_blockers.c` — that call: a sphere compare, then three rows, inclusive at the face.
+- `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes
+  holding a point, bit i for blocker i, a sphere compare, then three rows, inclusive at the face.
 - `point_shadow_faces.h` — a caster's bounding sphere from its vertices, moved under a world
   matrix, and the 6-bit mask of a point light's cube faces it reaches, +X −X +Y −Y +Z −Z. Pure CPU.
 - `point_shadow_faces.c` — those three calls: a box-centred sphere, its move under a world matrix,
@@ -92,7 +92,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
-  begun probe volume, its point lights copied and binned, its light blockers and lamp masks, the clear colour, the
+  begun probe volume, its point lights copied and binned, its light blockers, lamp masks, kinds and
+  sun mask, the clear colour, the
   first-clears-later-load rule, and the one Y flip in the viewport.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written

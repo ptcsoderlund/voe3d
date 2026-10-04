@@ -8,8 +8,8 @@
 // ON ITS FACE, NOT ONE 1.01 m OUT. A BOX TURNED 45° ABOUT Y HOLDS A POINT ALONG
 // ITS DIAGONAL AND NOT ONE JUST PAST ITS EDGE. A POINT IN TWO BOXES HAS BOTH
 // BITS. BLOCKER 31 SETS BIT 31. NOUGHT BLOCKERS IS MASK 0. A POINT INSIDE THE
-// SPHERE BUT OUTSIDE THE BOX IS 0.
-#include "../src/light_blockers.h"
+// SPHERE BUT OUTSIDE THE BOX IS 0. THE CALL IS REACHED THROUGH render/device.h.
+#include <render/device.h>
 
 #include <testing/test.h>
 
@@ -103,8 +103,19 @@ static void inside_the_sphere_outside_the_box_is_0(void)
 	VOE_TEST_CHECK_INT(mask_of(&b, 1, 1.2f, 1.2f, -5.0f), 0u);
 }
 
+// The public declaration is the one this file calls: its address taken
+// through render/device.h alone, as 3d does for the sun's mask.
+static void the_call_is_reached_through_device_h(void)
+{
+	uint32_t (*call)(const voe_render_light_blocker *, uint32_t,
+			 voe_math_float3) = voe_render_light_blockers_mask;
+
+	VOE_TEST_CHECK_INT(call(NULL, 0, centre), 0u);
+}
+
 int main(void)
 {
+	the_call_is_reached_through_device_h();
 	an_unrotated_box_holds_its_centre_and_face();
 	a_turned_box_holds_its_diagonal();
 	a_point_in_two_boxes_has_both_bits();

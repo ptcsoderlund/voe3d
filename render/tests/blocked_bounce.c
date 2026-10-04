@@ -368,12 +368,12 @@ static void a_blocked_patch(struct scene *s)
 	s->bounce.sun_strength = 1.0f;
 	settle(s);
 	plain = picture_of(s);
-	block_with(s, (voe_render_light_blockers){ patch, 1 });
+	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 1 });
 	one = picture_of(s);
 	s->bounce.sun_bounces = 0;
 	none = picture_of(s);
 	s->bounce.sun_bounces = 1;
-	block_with(s, (voe_render_light_blockers){ patch, 0 });
+	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 0 });
 	zeroed = picture_of(s);
 
 	printf("patch: redness %d unblocked, %d blocked; gap to bounces 0 %d; outside gaps %d by the wall (redness %d), %d far\n",
@@ -414,7 +414,7 @@ static void a_blocked_lamp(struct scene *s)
 	};
 	s->camera.points = (voe_render_point_lights){ &s->lamp, 1 };
 	s->bounce.points = s->camera.points;
-	block_with(s, (voe_render_light_blockers){ house, 1 });
+	block_with(s, (voe_render_light_blockers){ .blockers = house, .count = 1 });
 	one = picture_of(s);
 	s->lamp.bounces = 0;
 	none = picture_of(s);

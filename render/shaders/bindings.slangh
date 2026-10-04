@@ -135,10 +135,16 @@ struct voe_render_light_blocker {
 };
 
 // One pass's region: struct voe_render_frame_blockers in
-// render/src/device_parts.h, its blockers then light i's mask at masks[i].
+// render/src/device_parts.h, its blockers then light i's mask at masks[i], then
+// the Wall and Indoors kinds as masks, a Room in neither, and the mask of the
+// blockers holding the sun (ADR-0350 point 2).
 struct voe_render_blocker_region {
 	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
 	uint masks[VOE_RENDER_POINT_LIGHTS];
+	uint walls;
+	uint indoors;
+	uint sun;
+	uint reserved;
 };
 
 // Set 0, binding 11: this frame slot's blocker regions, one per pass, the

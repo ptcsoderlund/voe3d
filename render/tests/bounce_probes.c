@@ -285,7 +285,7 @@ static void blockers_relight_when_they_change(void)
 	const voe_math_float3 eye = { 3.0f, 3.0f, 3.0f };
 	const voe_math_float3 centre = { 2.0f, 1.0f, -3.0f };
 	voe_render_light_blocker box = box_at(centre, 0.5f);
-	const voe_render_light_blockers one = { &box, 1 };
+	const voe_render_light_blockers one = { .blockers = &box, .count = 1 };
 
 	memset(&p, 0, sizeof(p));
 	place_blocked(&p, CORNER, &NO_BLOCKERS);

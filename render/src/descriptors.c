@@ -115,7 +115,7 @@ static_assert(offsetof(struct voe_render_frame_block, region) == 504,
 	      "the point light region moved inside the per-pass block; draw.slang has it at 504");
 static_assert(offsetof(struct voe_render_frame_block, blockers) == 508,
 	      "the light blocker count moved inside the per-pass block; draw.slang has it at 508");
-static_assert(sizeof(struct voe_render_frame_blockers) == 32 * 64 + 256 * 4,
+static_assert(sizeof(struct voe_render_frame_blockers) == 32 * 64 + 256 * 4 + 4 * 4,
 	      "the blocker region no longer matches what draw.slang reads at binding 11");
 static_assert(sizeof(struct voe_render_light_bins) == 1408 * 4,
 	      "the light bins no longer match the 1408 words draw.slang reads at binding 8");

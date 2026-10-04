@@ -599,9 +599,10 @@ typedef struct {
 // far box costs one compare.
 //
 // A POINT'S MASK HAS BIT i SET WHEN BLOCKER i HOLDS IT (ADR-0347 point 3).
-// The sun's direct light and the fill reach a surface only when its mask is
-// nought. A point light reaches a surface only when the two masks are equal.
-// The bounce keeps the same rule for probes and texels (point 4).
+// Direct light from s reaches p when their Room bits match and no Wall or Room
+// not holding s lies between them; Indoors never stops it (ADR-0350 point 3).
+// Fill reaches p when its Room bits are the sun's and it is in no Indoors (4).
+// The bounce is direct light, from probe to surface and hit to probe (5).
 //
 // A SURFACE IS TESTED PUSHED VOE_RENDER_LIGHT_BLOCKER_PUSH ALONG ITS NORMAL, so
 // a wall on the box's face is inside on its inner side and outside on its outer
@@ -619,10 +620,32 @@ static_assert(sizeof(voe_render_light_blocker) == 64,
 
 // A pass's light blockers: `count` of them at `blockers`, at most
 // VOE_RENDER_LIGHT_BLOCKERS. NULL and nought is none.
+//
+// THE KINDS ARE MASKS (ADR-0350 point 2): bit i of `walls` or `indoors` is
+// blocker i, and a blocker in neither is a Room. `sun` is the mask of the
+// blockers holding the directional light's place, from
+// voe_render_light_blockers_mask below. All three nought is 0347's picture.
+// Walls and indoors sharing a bit, or any bit at or past `count` in the three,
+// asserts at pass begin.
 typedef struct {
 	const voe_render_light_blocker *blockers;
 	uint32_t count;
+	uint32_t walls;
+	uint32_t indoors;
+	uint32_t sun;
 } voe_render_light_blockers;
+
+// The mask of the blockers in `blockers[0, count)` that hold `point`, which is
+// in the pass's space (ADR-0347 point 3); 3d calls it for the sun's mask.
+//
+// BIT i IS BLOCKER i. A point inside two boxes has both bits; nought blockers,
+// or a point in none, is mask 0. THE SPHERE FIRST, THEN THE ROWS: a point
+// outside a blocker's sphere is outside with one compare; one inside is outside
+// unless every |row.xyz·p + row.w| is at most 1, the face counted as inside.
+// draw.slang and the relight test a point the same way, so the CPU's mask and
+// the shader's agree. Pure CPU; asserts count ≤ VOE_RENDER_LIGHT_BLOCKERS.
+uint32_t voe_render_light_blockers_mask(const voe_render_light_blocker *blockers,
+					uint32_t count, voe_math_float3 point);
 
 // Where the sun's shadow maps are, for one pass that reads them (ADR-0258).
 //
@@ -1262,7 +1285,9 @@ typedef struct {
 // VOE_RENDER_POINT_LIGHTS, or NULL with a count, asserts.
 //
 // `blockers` KEEP OUTSIDE LIGHT OUT OF THEIR BOXES (ADR-0347): the sun, the fill
-// and every point light reach a lit surface only by the masks above. Copied at
+// and every point light reach a lit surface only by the masks above, each
+// blocker a Wall, Indoors or a Room by `walls` and `indoors`, with the sun's
+// place in `sun` (ADR-0350). Copied at
 // _pass_begin, as `points` are. Zero is none, the old picture; more than
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, or a row not finite asserts.
 typedef struct {

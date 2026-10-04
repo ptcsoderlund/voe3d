@@ -79,10 +79,16 @@ struct voe_render_frame_block {
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
 // handed over, then each of its point lights' masks, light i's at masks[i],
-// worked out by voe_render_light_blockers_mask at the light's position.
+// worked out by voe_render_light_blockers_mask at the light's position; then
+// the pass's `walls`, `indoors` and `sun` masks as handed over (ADR-0350 point
+// 2), nought with no blockers, and a reserved word that rounds it to 16 bytes.
 struct voe_render_frame_blockers {
 	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
 	uint32_t masks[VOE_RENDER_POINT_LIGHTS];
+	uint32_t walls;
+	uint32_t indoors;
+	uint32_t sun;
+	uint32_t reserved;
 };
 
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
