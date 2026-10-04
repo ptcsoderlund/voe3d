@@ -1,10 +1,10 @@
-// A light blocker: a box that keeps light from outside out and light from
-// inside in (0347). Read by anyone, const; written only through
+// A light blocker: a box that stops light, how much named by its Block
+// (0347, 0348). Read by anyone, const; written only through
 // scene/light_blocker_system.h.
 //
-// WHAT IT SPLITS: a surface inside the box is not reached by the sun or by a
-// lamp outside it, and a lamp inside it lights nothing outside — the house
-// with a roof, lit by its own lamps, in a sunny world. The rule is the
+// WHAT ALL SPLITS: a surface inside a Block All box is not reached by the sun
+// or by a lamp outside it, and a lamp inside it lights nothing outside — the
+// house with a roof, lit by its own lamps, in a sunny world. The rule is the
 // renderer's; this row only says where the box is and what it blocks.
 //
 // BLOCK SAYS WHAT IT STOPS (0348, 0352); every value stops direct light that

@@ -27,7 +27,7 @@ stays on `scene/scene.md`.
   and the strength it shines with now.
 - `point_light_system.h` — the replace and flash intents, the direct call that
   creates one, and the run that fades it.
-- `light_blocker_component.h` — the box that keeps outside light out and inside
-  light in: its size along its transform's axes.
+- `light_blocker_component.h` — a box that stops light by its Block, All, Fill
+  or Direct: its size along its transform's axes and its Block.
 - `light_blocker_system.h` — the replace intent, the direct call that creates
   one, and the run that drains it.
