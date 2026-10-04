@@ -453,9 +453,16 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // (voe_3d_light_blocker_shape) at `frame->lag`, about `frame->eye` in float
 // (ADR-0250), its rows by render/device.h's formula and its sphere the box's
 // centre and |half|. A box with a half of nought on any axis is left out. The
-// array is in `arena`. A world with no light blocker table fills none and
-// returns true; the arena's push never fails (base/arena.h), so today it is
-// always true.
+// array is in `arena`.
+//
+// THE KINDS AND THE SUN'S MASK (0350 point 2): bit i of `walls` or `indoors` is
+// kept record i when its row is a Wall or an Indoors, a Room in neither, so a
+// box left out shifts the bits after it. `sun` is
+// voe_render_light_blockers_mask over the kept records at the light row's
+// entity's world place at `frame->lag`, about `frame->eye`; no light table, no
+// light row or no transform on it is 0. A world with no light blocker table
+// fills none and returns true; the arena's push never fails (base/arena.h), so
+// today it is always true.
 //
 // CALLED BEFORE voe_3d_draw_system_shadows, which hands the same blockers to
 // the bounce, and EVERY PICTURE OF A WORLD MAKES IT, so a house is dark inside

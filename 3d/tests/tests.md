@@ -40,8 +40,8 @@ again, or to find where a claim that has started failing is written down.
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
 - `light_blockers.c` — that a blocker's box follows its transform and parent, a frame records it
-  about the eye, its lines are 12 edges, the ground under one is black and a selected one is
-  outlined.
+  about the eye with its kind's bit and the sun's mask, its lines are 12 edges, the ground under
+  one is black, a Wall's shadow reads the fill and a selected one is outlined.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
