@@ -34,8 +34,9 @@
 // centre and half a metre out from it, lit at a corner, and plain grey where
 // the box's top edge stands: the game draws nothing for a blocker (0347).
 //
-// THE WALL CASE: the same ground under a low sun with a fill and a Wall
-// floating over it, its kind drained and cooked as any row's field (0350).
+// THE DIRECT CASE: the same ground under a low sun with a fill and a Direct
+// blocker floating over it, its block drained and cooked as any row's field
+// (0350, 0352).
 // Two frames, both true; read back, the ground in its shadow reads the fill,
 // not black and below sunlit ground clear of it, and its edge is plain grey.
 //
@@ -349,12 +350,12 @@ static void blocker_case(voe_app *app, voe_base_arena *arena,
 	}
 }
 
-// A 2 × 0.5 × 2 Wall floating at y = 1 under a sun along (1, -1, 0) with a
+// A 2 × 0.5 × 2 Direct blocker floating at y = 1 under a sun along (1, -1, 0) with a
 // fill, two frames, read back. Its shadow on the ground runs x 0.7 to 3.2,
 // z -1 to 1: column +24 sees x ≈ 1.9 in it, column 20 x ≈ -3.5 clear of it,
 // and column 41 is where its top edge at x = -1, y = 1.25 stands, about 22.7
 // pixels a metre there, over ground the sun reaches.
-static void wall_case(voe_app *app, voe_base_arena *arena,
+static void direct_case(voe_app *app, voe_base_arena *arena,
 		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
 	voe_platform_size size = { WIDTH, HEIGHT };
@@ -368,7 +369,7 @@ static void wall_case(voe_app *app, voe_base_arena *arena,
 				   .fill_colour = { 1.0f, 1.0f, 1.0f },
 				   .fill_intensity = 0.3f },
 		(voe_scene_light_blocker){ .size = { 2.0f, 0.5f, 2.0f },
-					   .kind = VOE_SCENE_LIGHT_BLOCKER_WALL },
+					   .block = VOE_SCENE_LIGHT_BLOCKER_DIRECT },
 		1.0f);
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
 				      0.0f, NULL));
@@ -481,7 +482,7 @@ int main(void)
 	shadow_case(app, arena, scratch, &shapes, false);
 	lamp_case(app, arena, scratch, &shapes);
 	blocker_case(app, arena, scratch, &shapes);
-	wall_case(app, arena, scratch, &shapes);
+	direct_case(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);
 	model_case(app, arena, scratch, &shapes);
 
