@@ -60,6 +60,13 @@
 # is per top-level folder, skipping those two, so the copies under Build/ never
 # count as a change and a build re-runs CMake only when the project's own files
 # change.
+#
+# The splash (0346, 0356): the project's Assets/splashscreen.png, else the
+# engine's game/src/splashscreen.png, is copied by `game_files` to
+# splashscreen.png in CMAKE_BINARY_DIR and installed to the root under that
+# name, because the game reads it beside its program. The engine's copy is a
+# configure dependency, so removing it reconfigures; with neither, a stale copy
+# is removed at configure and the game shows its plain start screen.
 
 include_guard(GLOBAL)
 
@@ -190,6 +197,23 @@ else()
         endif()
         install(FILES "${voe_file}" DESTINATION "${voe_file_dir}")
     endforeach()
+    set(voe_splash "${voe_project_root}/Assets/splashscreen.png")
+    if(NOT EXISTS "${voe_splash}")
+        set(voe_splash "${VOE_ENGINE}/game/src/splashscreen.png")
+        if(EXISTS "${voe_splash}")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${voe_splash}")
+        endif()
+    endif()
+    if(EXISTS "${voe_splash}")
+        add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/splashscreen.png"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${voe_splash}"
+                "${CMAKE_BINARY_DIR}/splashscreen.png"
+            DEPENDS "${voe_splash}" VERBATIM)
+        list(APPEND voe_file_copies "${CMAKE_BINARY_DIR}/splashscreen.png")
+        install(FILES "${voe_splash}" DESTINATION . RENAME splashscreen.png)
+    else()
+        file(REMOVE "${CMAKE_BINARY_DIR}/splashscreen.png")
+    endif()
     add_custom_target(game_files DEPENDS ${voe_file_copies})
     add_dependencies(game game_files)
 endif()
