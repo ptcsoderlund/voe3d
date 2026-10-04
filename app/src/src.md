@@ -6,6 +6,8 @@ in `include/app/`; what is here is the order.
 - `app.c` — the two startups, the frame's three readings, the two draw calls,
   and the capture's three steps. Its header says that what it holds is the order.
 - `clock.c` — the subtraction and the ceiling.
+- `start_log.c` — the marks, the sum, and the block put on stderr and appended
+  to the file.
 - `pace.h` — internal: one step of the pace — draw now, or wait this long —
   focused, out of focus, hidden or closing, as a pure function the caller loops
   over; its header says why (ADR-0215, ADR-0216).
