@@ -39,10 +39,9 @@ again, or to find where a claim that has started failing is written down.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
-- `light_blockers.c` — that a blocker's box follows a scaled, turned transform and a moved parent,
-  a frame's record holds the box about the eye, no transform, table or size leaves it out, its lines
-  are 12 edges, the ground under one is black and a selected one's edge is outlined. The pictures
-  skip without a graphics card.
+- `light_blockers.c` — that a blocker's box follows its transform and parent, a frame records it
+  about the eye, its lines are 12 edges, the ground under one is black and a selected one is
+  outlined.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
