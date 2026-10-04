@@ -15,9 +15,11 @@
 // never stretched.
 //
 // THE ORDER: three arenas, a start log begun (app/start_log.h), voe_app_new
-// with `window` and `title`, the interface (game/interface.h), the starting
-// line drawn while the device prepares (game/starting.h; a closing window or
-// a failed prepare ends the run as a close does), the world (game/world.h) in
+// with `window` and `title`, the interface (game/interface.h), splashscreen.png
+// read from the program's folder, the starting line drawn on it while the
+// device prepares (game/starting.h; the plain screen and a stderr line when it
+// will not read; a closing window or a failed prepare ends the run as a close
+// does) and its texture given back after, the world (game/world.h) in
 // an arena of its own, the project's voe_game_project_register
 // (game/project.h), voe_game_scene_build (game/scene.h), the model store
 // (3d/models.h), the mixer (audio/mixer.h) on the program's folder and the
