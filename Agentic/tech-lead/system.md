@@ -22,8 +22,8 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — scene to draws: meshes, models, shapes, particles, water, picks, markers, blocked light.
 - **sprite** — a sprite is a plane in the world and hands back a material.
-- **app** — what a frame loop repeats: the paced frame, PNG capture, a headless start, start log.
-- **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, starting line.
+- **app** — a frame loop's parts: the paced frame, PNGs out and in, a headless start, start log.
+- **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, the splash.
 - **editor** — top bar, Project panel, Scene list, Assets, prefabs, views, gizmo, Inspector, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
@@ -56,5 +56,5 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
-- 0333–0340, 0342, 0343, 0345, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
+- 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355 — Block kinds; sun and moon; renamed fields; panels; markers; reveal.

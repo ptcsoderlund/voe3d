@@ -7,8 +7,8 @@ itself, and not what a program decides — system order, a world, arenas, a
 readout, key bindings and the present mode are all the program's.
 
 - `include` — the public headers, in `include/app/`; each is listed below by path.
-- `src` — the implementation: the startups, the frame and draw calls, the
-  capture, and the clock's arithmetic; each file is listed on `src/src.md`.
+- `src` — the implementation, one file per public header; each is listed on
+  `src/src.md`.
 - `tests` — one plain C program per module, found by the build; each is listed on
   `tests/tests.md`.
 - `include/app/app.h` — the whole public surface: the two startups, frame open,

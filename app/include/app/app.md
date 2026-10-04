@@ -1,6 +1,6 @@
 # app
 
-The public headers, one entry each; the fuller account of both of them, and the
+The public headers, one entry each; the fuller account of each, and the
 questions each answers, stays on `app/app.md`.
 
 - `app.h` — the whole public surface: the two startups, frame open, draw open
