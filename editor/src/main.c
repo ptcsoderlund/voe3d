@@ -47,7 +47,8 @@
 //
 // THE START SHOWS A LINE WHILE RENDER PREPARES (0345): the font, themes and
 // interface are made right after the device, so game/starting.h draws its line
-// in the chosen theme until the mesh pipelines are built; a false there ends
+// in the chosen theme, in the box on the engine's splash (splash.h), until the
+// mesh pipelines are built; a false there ends
 // the program as a closed window does. The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
 // to `<settings>/voe3d/start.log`, stderr only under --capture.
@@ -72,6 +73,7 @@
 #include "session.h"
 #include "settings.h"
 #include "shortcuts.h"
+#include "splash.h"
 #include "startup.h"
 #include "themes.h"
 #include "undo.h"
@@ -216,6 +218,10 @@ int main(int argc, char *argv[])
 	voe_3d_shapes shapes;
 	// The one model store, destroyed before the device (models.h).
 	voe_editor_models *models = NULL;
+	// The engine's splash (splash.h), held for the start and given back
+	// before the device closes.
+	voe_app_picture splash;
+	bool splash_held = false;
 	// The one font the editor carries, Oxanium (ADR-0185); themes.h
 	// derives every palette with it.
 	voe_text_font *oxanium;
@@ -345,7 +351,11 @@ int main(int argc, char *argv[])
 	// a closing window or a failed build, already on stderr, and ends the
 	// program as a closed window does; a capture has no window to close, so
 	// there it is a failure.
-	if (!voe_game_starting_prepare(app, ui, scratch, STARTING_LINE)) {
+	// Over the engine's splash (splash.h), or the plain screen without it.
+	splash_held = voe_editor_splash_read(gpu, scratch, &splash);
+	if (!voe_game_starting_prepare(app, ui, scratch,
+				       splash_held ? &splash : NULL,
+				       STARTING_LINE)) {
 		status = options.capture != NULL ? 1 : 0;
 		goto stop;
 	}
@@ -765,6 +775,8 @@ stop:
 	// for, which is voe_editor_browser_destroy's to tell apart.
 	voe_editor_refresh_end(&session.refresh);
 	voe_editor_models_destroy(models, gpu);
+	if (splash_held)
+		voe_render_texture_destroy(gpu, splash.texture);
 	voe_app_destroy(app);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
