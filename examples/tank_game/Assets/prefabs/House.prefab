@@ -1,6 +1,6 @@
 [25]
 name = "House"
-folded = true
+folded = false
 [25.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]

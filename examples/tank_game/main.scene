@@ -41,7 +41,7 @@ cast_shadows = true
 bounce_strength = 0.5
 [3.voe_scene_transform]
 position = [8.605420589447021e-07, 5.138881284743547, 7.879768788814545]
-rotation = [0.49838924, 0.14122073, -0.49765673, -0.69570297]
+rotation = [-0.081032366, -0.45796067, -0.6996341, -0.5424186]
 scale = [1, 1, 1]
 
 [4]
@@ -176,7 +176,7 @@ colour = [0.27353722, 0, 1]
 intensity = 1
 range = 5
 falloff = 1
-cast_shadows = true
+cast_shadows = false
 bounces = 0
 bounce_strength = 1
 [22.voe_scene_transform]
@@ -204,7 +204,7 @@ scale = [1, 1, 1]
 
 [25]
 name = "House"
-folded = false
+folded = true
 [25.voe_scene_parent]
 parent = 64
 [25.voe_scene_prefab]
@@ -230,7 +230,7 @@ scale = [2, 10, 1]
 
 [36]
 name = "House 2"
-folded = true
+folded = false
 [36.voe_scene_parent]
 parent = 64
 [36.voe_scene_prefab]
@@ -259,7 +259,7 @@ scale = [1, 1, 1]
 
 [64]
 name = "static_meshes"
-folded = false
+folded = true
 [64.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]
@@ -301,19 +301,10 @@ name = "HouseLightBlock"
 folded = false
 [94.voe_scene_light_blocker]
 size = [1, 1, 1]
+kind = 0
 [94.voe_scene_parent]
 parent = 25
 [94.voe_scene_transform]
-position = [0.012236571232467306, -2.2724270820617676e-07, 1.8795203409327597]
+position = [0.012121739760031967, -3.4458935260772705e-07, 1.880211499289611]
 rotation = [0, 0.008522838, 0, 0.9999637]
-scale = [4.1241384, 3, 3.5743194]
-
-[108]
-name = "Lightblock2"
-folded = false
-[108.voe_scene_light_blocker]
-size = [1, 1, 1]
-[108.voe_scene_transform]
-position = [-10.36263306485489, 1.7021879013627768, -40.71811520308256]
-rotation = [0, 0.42905566, 0, 0.90327805]
-scale = [1, 1, 1]
+scale = [4.216355, 3.3486884, 3.8493636]
