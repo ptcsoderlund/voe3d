@@ -93,3 +93,6 @@ by reading the offscreen colour image back.
 - `blocked_light.c` — a light blocker over half a sunlit ground: that half black, the other and a
   far or uncounted box the old picture, a lamp outside lighting only outside and one inside only
   inside, and an unshaded pass unchanged. Headless.
+- `blocked_bounce.c` — the bounce kept by a blocker: a blocked patch by a red wall takes no red,
+  ground outside as before, a count of 0 the old picture, and a lamp inside with the wall bouncing
+  red onto the patch, one outside none. Headless.
