@@ -1,5 +1,5 @@
-// The systems, the point lights in `scratch`, rewound once the window pass
-// has copied them, the shadow passes (the sun's, the frame's target left zero,
+// The systems, the light blockers and the point lights in `scratch`, rewound
+// once the window pass has copied them, the shadow passes (the sun's, the frame's target left zero,
 // the window's, and the lamps'), then the bounce's capture passes, the
 // bounce's sun map when it relights, then the relight when a light bounces,
 // and the window pass with the interface over
@@ -23,6 +23,7 @@
 #include <physics/collider_system.h>
 
 #include <scene/identity_system.h>
+#include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
 #include <scene/transform_system.h>
 
@@ -40,6 +41,7 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	voe_scene_transform_system_run(world);
 	voe_scene_identity_system_run(world);
 	voe_scene_light_system_run(world);
+	voe_scene_light_blocker_system_run(world);
 	voe_3d_shape_system_run(world, shapes);
 	voe_3d_model_system_run(world);
 	voe_physics_collider_system_run(world);
@@ -102,6 +104,9 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	frame = voe_3d_draw_system_frame(world, size, lag);
 	frame.models = models;
 	mark = voe_base_arena_mark(scratch);
+	// False leaves the pass unblocked, which is no failed frame. Before
+	// the shadows: the bounce is handed the same blockers (0347 point 4).
+	(void)voe_3d_draw_system_light_blockers(world, &frame, scratch);
 	// False leaves the frame unlit by points, which is no failed frame.
 	// Before the shadows: their point-shadow pass reads the slots (0325).
 	(void)voe_3d_draw_system_point_lights(world, &frame, scratch);
@@ -109,7 +114,8 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	camera = (voe_render_pass_camera){ .view = frame.view,
 					   .light = frame.light,
 					   .shadow = frame.shadow,
-					   .points = frame.points };
+					   .points = frame.points,
+					   .blockers = frame.blockers };
 	passed = voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 				       &camera);
 	voe_base_arena_rewind(scratch, mark);

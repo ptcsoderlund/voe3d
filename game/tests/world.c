@@ -1,8 +1,8 @@
-// A fresh game world has every one of the twenty-two types registered: each
+// A fresh game world has every one of the twenty-three types registered: each
 // public key resolves through voe_ecs_component_type, which asserts on a key
-// nothing registered, the twenty-one answers, the parent, prefab, emitter,
-// particles, sound, sound voice, water, waves and point light tables' among
-// them, are twenty-one different types, and the world counts twenty-two, the
+// nothing registered, the twenty-two answers, the parent, prefab, emitter,
+// particles, sound, sound voice, water, waves, point light and light blocker
+// tables' among them, are twenty-two different types, and the world counts twenty-three, the
 // one more the transforms' previous table, whose key is scene's own. Needs no window and no graphics card.
 //
 // The keys come through game/scene.h, the one header a cooked scene.c sees,
@@ -24,7 +24,7 @@
 #include <testing/test.h>
 
 // The public keys; the previous table is the one more the world counts.
-#define TYPES 21
+#define TYPES 22
 
 // More colliders than the authored room, as spawned things carry.
 #define SPAWNED (2 * VOE_GAME_WORLD_AUTHORED)
@@ -70,7 +70,7 @@ int main(void)
 		&voe_3d_emitter_key,	  &voe_3d_particles_key,
 		&voe_audio_sound_key,	  &voe_audio_sound_voice_key,
 		&voe_3d_water_key,	  &voe_3d_waves_key,
-		&voe_scene_point_light_key,
+		&voe_scene_point_light_key, &voe_scene_light_blocker_key,
 	};
 	voe_base_arena *arena = voe_base_arena_new(1 << 20);
 	voe_ecs_world *world = voe_game_world_new(arena);

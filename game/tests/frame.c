@@ -28,6 +28,12 @@
 // tests/interface.c lays one out, is drawn over the world and the frame comes
 // back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
 //
+// THE BLOCKER CASE: a camera four metres over a grey ground under a sun and a
+// 1 m light blocker at its centre; between the two frames a replace grows it
+// to 2 m, drained by the second's step. The window, read back, is black at the
+// centre and half a metre out from it, lit at a corner, and plain grey where
+// the box's top edge stands: the game draws nothing for a blocker (0347).
+//
 // THE MODEL CASE: a store from voe_3d_models_new with nothing loaded, and a
 // thing whose model path the store lacks; two frames with that store come
 // back true, the thing drawing as nothing. The other cases pass no store.
@@ -52,6 +58,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
 #include <scene/point_light_system.h>
 #include <scene/transform_system.h>
@@ -70,6 +77,8 @@
 #define WIDTH 128
 #define HEIGHT 72
 #define CAPTURE_PATH "game_frame_test.png"
+// A channel at most this is black: a driver's rounding into an sRGB target.
+#define TOLERANCE 3
 
 // An unrotated pose at `position`, scale one.
 static voe_scene_transform placed(float x, float y, float z)
@@ -224,6 +233,102 @@ static void lamp_case(voe_app *app, voe_base_arena *arena,
 				      0.0f, NULL));
 }
 
+// The camera four metres up looking down, a sun, a ground whose top is at
+// y = -0.95 and a 1 m blocker about its centre. Returns the blocker.
+static voe_ecs_entity build_blocked(voe_ecs_world *world)
+{
+	voe_ecs_entity camera, light, ground, blocker;
+	voe_scene_transform eye = placed(0.0f, 4.0f, 0.0f);
+	voe_scene_transform sun = placed(0.0f, 0.0f, 0.0f);
+	voe_scene_transform flat = placed(0.0f, -1.0f, 0.0f);
+	const voe_scene_camera *lens = voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_camera_key));
+
+	eye.rotation = (voe_math_quat){ -0.70710678f, 0.0f, 0.0f, 0.70710678f };
+	sun.rotation = voe_scene_light_facing(
+		(voe_math_float3){ 0.4f, -1.0f, 0.3f });
+	flat.scale = (voe_math_float3){ 20.0f, 0.1f, 20.0f };
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, camera, eye));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, camera, *lens));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &light));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, light, sun));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, light,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 3.0f }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &ground));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, ground, flat));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, ground,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = VOE_3D_SHAPE_GREY }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &blocker));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, blocker,
+					       placed(0.0f, -1.0f, 0.0f)));
+	VOE_TEST_CHECK(voe_scene_light_blocker_add(
+		world, blocker,
+		(voe_scene_light_blocker){ .size = { 1.0f, 1.0f, 1.0f } }));
+	return blocker;
+}
+
+static const uint8_t *pixel_at(voe_render_picture picture, uint32_t column,
+			       uint32_t row)
+{
+	const uint8_t *pixel =
+		picture.pixels + ((size_t)row * picture.width + column) * 4;
+
+	printf("pixel %u %u: %u %u %u\n", column, row, pixel[0], pixel[1],
+	       pixel[2]);
+	return pixel;
+}
+
+// The blocked world, two frames with a 2 m replace between them, read back.
+static void blocker_case(voe_app *app, voe_base_arena *arena,
+			 voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_ecs_entity blocker = build_blocked(world);
+	voe_render_picture picture = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const voe_scene_light_blocker *row;
+
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
+	VOE_TEST_CHECK(voe_scene_light_blocker_submit(
+		world, (voe_scene_light_blocker_intent){
+			       .entity = blocker,
+			       .blocker = { .size = { 2.0f, 2.0f, 2.0f } } }));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL));
+	row = voe_scene_light_blocker_get(world, blocker);
+	VOE_TEST_CHECK(row != NULL && row->size.x == 2.0f);
+
+	VOE_TEST_CHECK(voe_render_target_read(voe_app_device(app),
+					      VOE_RENDER_TARGET_WINDOW, scratch,
+					      &picture, &error));
+	VOE_TEST_CHECK(picture.pixels != NULL);
+	if (picture.pixels == NULL)
+		return;
+
+	// About 12.6 pixels a metre on the ground, 15.6 at the box's top, y = 0:
+	// column +9 is 0.7 m out, inside the grown box and outside the first;
+	// column +16 is where its top edge at x = 1 stands, over lit ground.
+	const uint8_t *centre = pixel_at(picture, WIDTH / 2, HEIGHT / 2);
+	const uint8_t *grown = pixel_at(picture, WIDTH / 2 + 9, HEIGHT / 2);
+	const uint8_t *corner = pixel_at(picture, 0, 0);
+	const uint8_t *edge = pixel_at(picture, WIDTH / 2 + 16, HEIGHT / 2);
+
+	for (int channel = 0; channel < 3; channel++) {
+		VOE_TEST_CHECK(centre[channel] <= TOLERANCE);
+		VOE_TEST_CHECK(grown[channel] <= TOLERANCE);
+		VOE_TEST_CHECK(corner[channel] > 40);
+		VOE_TEST_CHECK(edge[channel] > 40);
+		VOE_TEST_CHECK(edge[channel] == edge[0]);
+	}
+}
+
 // A fresh lit world with a thing wearing a path an empty store lacks, two
 // frames drawn with that store, both true.
 static void model_case(voe_app *app, voe_base_arena *arena,
@@ -314,6 +419,7 @@ int main(void)
 	shadow_case(app, arena, scratch, &shapes, true);
 	shadow_case(app, arena, scratch, &shapes, false);
 	lamp_case(app, arena, scratch, &shapes);
+	blocker_case(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);
 	model_case(app, arena, scratch, &shapes);
 
