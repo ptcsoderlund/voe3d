@@ -9,12 +9,12 @@
 // DISARMING, so `armed` never outlives the one command it was for. CLOSE, NEW
 // and OPEN count the open prefab and the level set aside for it (0283 point 8).
 //
-// NEW, ONCE ALLOWED, puts a fresh untitled project in place of the old one
-// (project.h) and clears `scene`'s selection; its first Save is where it
-// browses. OPEN shows the browser in OPEN mode beside the project's folder,
-// or for an untitled scene the last project, its row chosen (0343); its
-// Confirm is voe_editor_session_browser_do's. Either ends a running refresh
-// and ship. SAVE NEVER ARMS: an opened project (or its open prefab) is written
+// NEW, ONCE ALLOWED, and OPEN's Confirm (voe_editor_session_browser_do) only
+// set `load_due`; voe_editor_session_load, a frame later behind a splash frame
+// (0356), puts the fresh untitled or the opened project in place, clears
+// `scene`'s selection and ends a running refresh and ship. OPEN shows the
+// browser beside the project's folder, or for an untitled scene the last
+// project, its row chosen (0343). SAVE NEVER ARMS: an opened project (or its open prefab) is written
 // over itself; an untitled one shows the browser in SAVE, starting as OPEN's
 // does, and Save here still means the shown folder.
 //
@@ -38,7 +38,7 @@
 //
 // REFRESH NEVER ARMS: it starts session->refresh now (refresh.h), unless one
 // runs. `refresh_due` asks for one the next step, set wherever a project with
-// a folder lands: Open's Confirm, a first Save, and startup.h.
+// a folder lands: Open's load, a first Save, and startup.h.
 //
 // voe_editor_session_step IS WHERE A REFRESH LANDS, once a frame at its top,
 // before the undo take and the structural queue: a due one started if the
@@ -55,9 +55,9 @@
 // inspector's edits are no command, so its caller calls this, which marks the
 // project unsaved, clears the notice and disarms.
 //
-// `replaced` IS A FLAG AND NOT A RETURN VALUE: NEW and OPEN's Confirm put a
-// different project in place; the loop reads and clears it (main.c empties the
-// undo history on it).
+// `replaced` IS A FLAG AND NOT A RETURN VALUE: voe_editor_session_load put a
+// different project in place, a frame after NEW or OPEN's Confirm; the loop
+// reads and clears it (main.c empties the undo history on it).
 #pragma once
 
 #include "browser.h"
@@ -70,6 +70,10 @@
 #include "ship.h"
 
 #include <stdint.h>
+
+// The longest folder Open's Confirm carries to the load, its terminator
+// included; a longer one is refused with a notice.
+#define VOE_EDITOR_SESSION_FOLDER 4096
 
 // The eight things a person can ask the session to do, and NONE for "nothing
 // was asked this frame" — which is never a valid argument to
@@ -116,6 +120,11 @@ typedef struct {
 	// by the call that did it and cleared by main.c.
 	bool prefab_opened;
 	bool prefab_closed;
+	// NEW or OPEN's Confirm asked for a load, which main.c does next frame
+	// through voe_editor_session_load. `load_folder` is Open's chosen
+	// folder, copied out of the browser; empty is NEW's untitled project.
+	bool load_due;
+	char load_folder[VOE_EDITOR_SESSION_FOLDER];
 } voe_editor_session;
 
 // Carries out command, or refuses it once — see the header above. `scene` is
@@ -123,7 +132,7 @@ typedef struct {
 // shows; neither is touched by any other command.
 //
 // TRUE ONLY FOR A CLOSE THAT GOES AHEAD. Every other command, refused or not,
-// answers false: NEW replaces `session->project`, OPEN shows `browser`, SAVE
+// answers false: NEW sets `load_due`, OPEN shows `browser`, SAVE
 // writes to the project, PLAY starts or ends session->play or a refresh,
 // REFRESH starts one, SHIP starts a ship or a refresh and BACK goes back to the
 // level (prefab_closed), none of which the caller has to be told happened, and a
@@ -180,17 +189,14 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // file into the Assets panel's shown folder (voe_editor_assets_import, a
 // failure in the notice) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
 // BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
-// voe_editor_project_new_opened on browser->target, and on success
-// session->project, scene->world and scene->selected are replaced exactly as
-// NEW replaces them, the last project is remembered (a failure to write that
-// is a notice and not a refusal), a refresh is due, and the browser hides; on
-// failure the notice is why, the browser stays and session->project is
-// untouched. IN SAVE MODE: voe_editor_project_save(session->project,
-// browser->folder, why) — the first save a project this session built
-// untitled ever gets — and on success the same "remembered, due, then hidden"
-// as OPEN's; on failure, INCLUDING "IS NOT EMPTY", the notice is why, nothing
-// was written and the browser stays, exactly as OPEN's own failure leaves
-// session->project untouched.
+// browser->target copied into `load_folder`, `load_due` set and the browser
+// hidden; voe_editor_session_load opens it next frame. A target too long to
+// copy is a notice and the browser stays. IN SAVE MODE:
+// voe_editor_project_save(session->project, browser->folder, why) — the first
+// save a project this session built untitled ever gets — and on success the
+// last project is remembered (a failure to write that is a notice and not a
+// refusal), a refresh is due and the browser hides; on failure, INCLUDING "IS
+// NOT EMPTY", the notice is why, nothing was written and the browser stays.
 //
 // EVERY BROWSER ACTION CLEARS THE NOTICE AND DISARMS, AS A COMMAND DOES — but
 // only when one actually fired: a call with result.action ==
@@ -201,3 +207,12 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 				   voe_editor_scene *scene,
 				   voe_editor_browser *browser,
 				   voe_editor_browser_result result);
+
+// The load `load_due` asked for, cleared here: a fresh untitled project for
+// NEW, voe_editor_project_new_opened on `load_folder` for Open. On success the
+// running refresh and ship end, session->project and scene->world are
+// replaced, the selection cleared and `replaced` set; an opened one is
+// remembered as the last project (a failed write is a notice) and a refresh is
+// due. A failed open's notice is why, and session->project is untouched.
+void voe_editor_session_load(voe_editor_session *session,
+			     voe_editor_scene *scene);
