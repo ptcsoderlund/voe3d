@@ -94,7 +94,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the
-  target's bounce begun with the lights and stale spheres, the casters drawn into each capture pass
+  target's bounce begun with the lights, blockers and stale spheres, the casters drawn into each capture pass
   and a casting sun's own map, and the relight; and the still casters' world box.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted

@@ -50,8 +50,8 @@ again, or to find where a claim that has started failing is written down.
   that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
   marks, and the still casters' box from two eyes and a turned one. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints the
-  ground it faces, open ground stays even, the grid settles, and camera turns and moves change
-  nothing, nor does a far eye take the bounce. Skips without a card.
+  ground it faces, open ground stays even, the grid settles, a light blocker keeps the tint out of
+  its patch, and camera turns and moves change nothing, nor does a far eye. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.

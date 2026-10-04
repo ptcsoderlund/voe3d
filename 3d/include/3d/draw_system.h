@@ -508,7 +508,9 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // volume and shows none. Stale spheres are marked where a caster moved this
 // step (lag 1 against lag 0), so a world without a previous table marks none.
 // When nothing bounces nothing is begun, built or drawn (0316); false as before
-// when any call fails.
+// when any call fails. The bounce is handed `frame->blockers` (0347 point 4), so
+// voe_3d_draw_system_light_blockers comes first, and a blocker that changes
+// relights.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);
