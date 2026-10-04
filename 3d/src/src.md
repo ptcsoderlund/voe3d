@@ -90,8 +90,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
   rotation, and |scale| × size / 2 per axis.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
-  the eye, its rows and bounding sphere, flat ones and those past 32 left out; the kept boxes' Wall
-  and Indoors bits, and the mask of those holding the sun's place.
+  the eye, its rows and bounding sphere, flat ones and those past 32 left out; the kept boxes' Direct
+  and Fill bits, and the mask of those holding the sun's place.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the

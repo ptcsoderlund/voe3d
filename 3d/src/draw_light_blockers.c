@@ -11,10 +11,10 @@
 // the half's length, the box's corner. A half of nought on any axis would
 // divide by nothing and holds no point, so that box is left out.
 //
-// THE KINDS ARE MASKS BY KEPT INDEX (0350 point 2): a kept record's bit is its
+// BLOCK IS MASKS BY KEPT INDEX (0350 point 2): a kept record's bit is its
 // place among the kept, not the table's, so a box left out shifts the bits
-// after it. A Wall's goes in `walls`, an Indoors' in `indoors`, a Room's in
-// neither. `sun` is voe_render_light_blockers_mask over the kept records at
+// after it. A Direct's goes in `walls`, a Fill's in `indoors`, an All's in
+// neither; those are render's names for the masks and keep them (0353). `sun` is voe_render_light_blockers_mask over the kept records at
 // the light row's entity's world place at the lag, about the eye in float as a
 // box's centre is; no light table, no row or no transform is 0.
 //
@@ -138,9 +138,9 @@ bool voe_3d_draw_system_light_blockers(const voe_ecs_world *world,
 		    !(box.half.x > 0.0f && box.half.y > 0.0f &&
 		      box.half.z > 0.0f))
 			continue;
-		if (rows[i].kind == VOE_SCENE_LIGHT_BLOCKER_WALL)
+		if (rows[i].block == VOE_SCENE_LIGHT_BLOCKER_DIRECT)
 			walls |= 1u << filled;
-		else if (rows[i].kind == VOE_SCENE_LIGHT_BLOCKER_INDOORS)
+		else if (rows[i].block == VOE_SCENE_LIGHT_BLOCKER_FILL)
 			indoors |= 1u << filled;
 		records[filled++] = record_of(box, frame->eye);
 	}

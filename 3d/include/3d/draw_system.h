@@ -455,9 +455,9 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // centre and |half|. A box with a half of nought on any axis is left out. The
 // array is in `arena`.
 //
-// THE KINDS AND THE SUN'S MASK (0350 point 2): bit i of `walls` or `indoors` is
-// kept record i when its row is a Wall or an Indoors, a Room in neither, so a
-// box left out shifts the bits after it. `sun` is
+// BLOCK AND THE SUN'S MASK (0350 point 2, 0353): bit i of `walls` or `indoors`
+// is kept record i when its row's Block is Direct or Fill, an All in neither,
+// so a box left out shifts the bits after it. `sun` is
 // voe_render_light_blockers_mask over the kept records at the light row's
 // entity's world place at `frame->lag`, about `frame->eye`; no light table, no
 // light row or no transform on it is 0. A world with no light blocker table

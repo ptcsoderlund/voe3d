@@ -13,7 +13,7 @@
 // side and not one off its short side; one with no transform and one of size 0
 // on an axis are left out; a world with no blocker table fills none and is true.
 //
-// THE KINDS AND THE SUN (0350 point 2): a Wall, an Indoors and a Room give their
+// BLOCK AND THE SUN (0350 point 2): a Direct, a Fill and an All give their
 // bits in `walls`, `indoors` and neither, by kept index, so one left out shifts
 // the bits after it; a light inside a blocker sets its bit in `sun`, outside it
 // none, and no light row or no transform is 0.
@@ -22,9 +22,9 @@
 // voe_3d_collider_marker_quads from an off-axis eye is 12 edges, 48 vertices.
 //
 // AND THREE PICTURES: a camera four metres over a grey ground cube under a sun,
-// a 2 m Room over the middle of it. Drawn through _frame, _light_blockers and
+// a 2 m All over the middle of it. Drawn through _frame, _light_blockers and
 // _run with `.blockers` in the pass camera, the centre is black and a corner
-// lit. A Wall floating over it under a low sun with a fill: the ground in its
+// lit. A Direct floating over it under a low sun with a fill: the ground in its
 // shadow reads the fill, not black and below sunlit ground clear of it. Then a
 // blocker over an empty view with `light_blocker` naming it: a box edge's
 // pixel is the outline colour, and with it zeroed it is not. All need a
@@ -91,10 +91,10 @@ static voe_ecs_world *world_of(voe_base_arena *arena, uint32_t rows)
 	return world;
 }
 
-// A blocker of `size` and `kind`, at `where` unless `placed` is false.
-static voe_ecs_entity kind_of_blocker(voe_ecs_world *world,
-				      voe_math_float3 size, uint32_t kind,
-				      bool placed, voe_scene_transform where)
+// A blocker of `size` and `block`, at `where` unless `placed` is false.
+static voe_ecs_entity block_of_blocker(voe_ecs_world *world,
+				       voe_math_float3 size, uint32_t block,
+				       bool placed, voe_scene_transform where)
 {
 	voe_ecs_entity blocker = { 0 };
 
@@ -103,16 +103,16 @@ static voe_ecs_entity kind_of_blocker(voe_ecs_world *world,
 		VOE_TEST_CHECK(voe_scene_transform_add(world, blocker, where));
 	VOE_TEST_CHECK(voe_scene_light_blocker_add(
 		world, blocker,
-		(voe_scene_light_blocker){ .size = size, .kind = kind }));
+		(voe_scene_light_blocker){ .size = size, .block = block }));
 	return blocker;
 }
 
-// A Room of `size`, at `where` unless `placed` is false.
+// An All of `size`, at `where` unless `placed` is false.
 static voe_ecs_entity blocker_of(voe_ecs_world *world, voe_math_float3 size,
 				 bool placed, voe_scene_transform where)
 {
-	return kind_of_blocker(world, size, VOE_SCENE_LIGHT_BLOCKER_ROOM, placed,
-			       where);
+	return block_of_blocker(world, size, VOE_SCENE_LIGHT_BLOCKER_ALL, placed,
+				where);
 }
 
 static voe_scene_transform placed_at(voe_math_double3 at)
@@ -230,23 +230,23 @@ static void the_table_becomes_the_passs_blockers(voe_base_arena *arena)
 	VOE_TEST_CHECK(!holds(long_box, (voe_math_float3){ 0.0f, 0.0f, 11.5f }));
 }
 
-// A Wall, an unplaced Wall, an Indoors and a Room: the unplaced one is left
-// out, so the Indoors is bit 1 and the Room, bit 2, is in neither. No light
+// A Direct, an unplaced Direct, a Fill and an All: the unplaced one is left
+// out, so the Fill is bit 1 and the All, bit 2, is in neither. No light
 // table: the sun's mask is 0.
-static void the_kinds_are_bits_of_the_kept(voe_base_arena *arena)
+static void the_blocks_are_bits_of_the_kept(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena, 8);
 	voe_math_float3 two = { 2, 2, 2 };
 	voe_3d_frame frame = { 0 };
 
-	(void)kind_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_WALL, true,
-			      placed_at((voe_math_double3){ 0.0, 0.0, 0.0 }));
-	(void)kind_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_WALL, false,
-			      UNMOVED);
-	(void)kind_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_INDOORS, true,
-			      placed_at((voe_math_double3){ 5.0, 0.0, 0.0 }));
-	(void)kind_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_ROOM, true,
-			      placed_at((voe_math_double3){ 10.0, 0.0, 0.0 }));
+	(void)block_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_DIRECT, true,
+			       placed_at((voe_math_double3){ 0.0, 0.0, 0.0 }));
+	(void)block_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_DIRECT, false,
+			       UNMOVED);
+	(void)block_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_FILL, true,
+			       placed_at((voe_math_double3){ 5.0, 0.0, 0.0 }));
+	(void)block_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_ALL, true,
+			       placed_at((voe_math_double3){ 10.0, 0.0, 0.0 }));
 
 	VOE_TEST_CHECK(voe_3d_draw_system_light_blockers(world, &frame, arena));
 	VOE_TEST_CHECK_INT(frame.blockers.count, 3);
@@ -255,7 +255,7 @@ static void the_kinds_are_bits_of_the_kept(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(frame.blockers.sun, 0u);
 }
 
-// The sun's mask of a Wall at (10, 0, 0) and a Room at (0, 0, 0), seen from an
+// The sun's mask of a Direct at (10, 0, 0) and an All at (0, 0, 0), seen from an
 // eye at (4, 0, 0), with a light row at `at` when `lit`, placed when `placed`.
 static uint32_t sun_of(voe_base_arena *arena, bool lit, bool placed,
 		       voe_math_double3 at)
@@ -266,10 +266,10 @@ static uint32_t sun_of(voe_base_arena *arena, bool lit, bool placed,
 	voe_ecs_entity light = { 0 };
 
 	voe_scene_light_register(world, 1);
-	(void)kind_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_WALL, true,
-			      placed_at((voe_math_double3){ 10.0, 0.0, 0.0 }));
-	(void)kind_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_ROOM, true,
-			      placed_at((voe_math_double3){ 0.0, 0.0, 0.0 }));
+	(void)block_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_DIRECT, true,
+			       placed_at((voe_math_double3){ 10.0, 0.0, 0.0 }));
+	(void)block_of_blocker(world, two, VOE_SCENE_LIGHT_BLOCKER_ALL, true,
+			       placed_at((voe_math_double3){ 0.0, 0.0, 0.0 }));
 	if (lit) {
 		VOE_TEST_CHECK(voe_ecs_entity_create(world, &light));
 		if (placed)
@@ -284,7 +284,7 @@ static uint32_t sun_of(voe_base_arena *arena, bool lit, bool placed,
 	return frame.blockers.sun;
 }
 
-// A light inside the Wall sets its bit, inside the Room the Room's, between
+// A light inside the Direct sets its bit, inside the All the All's, between
 // them none; one with no transform, and no light row, are 0.
 static void the_sun_is_masked_where_it_stands(voe_base_arena *arena)
 {
@@ -350,12 +350,12 @@ static void the_box_is_twelve_edges(voe_base_arena *arena)
 }
 
 // The camera four metres up looking down, `sun` shining `toward`, the ground
-// cube whose top is at y = -0.95, and a blocker of `kind` and `size` at `at`.
+// cube whose top is at y = -0.95, and a blocker of `block` and `size` at `at`.
 // The light stands at y = 50, outside every blocker, so the sun's mask is 0.
 static voe_ecs_world *a_blocked_world(voe_base_arena *arena,
 				      const voe_3d_shapes *shapes,
 				      voe_math_float3 toward,
-				      voe_scene_light sun, uint32_t kind,
+				      voe_scene_light sun, uint32_t block,
 				      voe_math_float3 size, voe_math_double3 at)
 {
 	voe_ecs_limits limits = {
@@ -411,7 +411,7 @@ static voe_ecs_world *a_blocked_world(voe_base_arena *arena,
 				.colour = { 0.5f, 0.5f, 0.5f } }));
 	voe_3d_shape_system_run(world, shapes);
 
-	(void)kind_of_blocker(world, size, kind, true, placed_at(at));
+	(void)block_of_blocker(world, size, block, true, placed_at(at));
 	return world;
 }
 
@@ -461,7 +461,7 @@ static voe_render_picture drawn_blocked(voe_ecs_world *world,
 	return picture;
 }
 
-// A 2 m Room about the ground's centre under a slanted sun.
+// A 2 m All about the ground's centre under a slanted sun.
 static void a_blocker_keeps_the_sun_out(voe_base_arena *arena,
 					voe_render_device *device,
 					const voe_3d_shapes *shapes)
@@ -470,7 +470,7 @@ static void a_blocker_keeps_the_sun_out(voe_base_arena *arena,
 		arena, shapes, (voe_math_float3){ 0.4f, -1.0f, 0.3f },
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f },
-		VOE_SCENE_LIGHT_BLOCKER_ROOM, (voe_math_float3){ 2, 2, 2 },
+		VOE_SCENE_LIGHT_BLOCKER_ALL, (voe_math_float3){ 2, 2, 2 },
 		(voe_math_double3){ 0.0, -1.0, 0.0 });
 	voe_render_picture picture = drawn_blocked(world, device, arena);
 
@@ -486,10 +486,10 @@ static void a_blocker_keeps_the_sun_out(voe_base_arena *arena,
 	}
 }
 
-// A 2 × 0.5 × 2 Wall floating at y = 1 under a sun shining along (1, -1, 0)
+// A 2 × 0.5 × 2 Direct floating at y = 1 under a sun shining along (1, -1, 0)
 // with a fill: its shadow on the ground runs x 0.7 to 3.2, z -1 to 1. Column
 // 26 sees x ≈ 1.9 in it, column 4 x ≈ -2 clear of it, both on row 16.
-static void a_wall_casts_a_filled_patch(voe_base_arena *arena,
+static void a_direct_casts_a_filled_patch(voe_base_arena *arena,
 					voe_render_device *device,
 					const voe_3d_shapes *shapes)
 {
@@ -499,7 +499,7 @@ static void a_wall_casts_a_filled_patch(voe_base_arena *arena,
 				   .intensity = 3.0f,
 				   .fill_colour = { 1.0f, 1.0f, 1.0f },
 				   .fill_intensity = 0.3f },
-		VOE_SCENE_LIGHT_BLOCKER_WALL, (voe_math_float3){ 2, 0.5f, 2 },
+		VOE_SCENE_LIGHT_BLOCKER_DIRECT, (voe_math_float3){ 2, 0.5f, 2 },
 		(voe_math_double3){ 0.0, 1.0, 0.0 });
 	voe_render_picture picture = drawn_blocked(world, device, arena);
 
@@ -631,7 +631,7 @@ int main(void)
 	the_box_follows_the_transform(arena);
 	the_table_becomes_the_passs_blockers(arena);
 	no_table_fills_none(arena);
-	the_kinds_are_bits_of_the_kept(arena);
+	the_blocks_are_bits_of_the_kept(arena);
 	the_sun_is_masked_where_it_stands(arena);
 	the_box_is_twelve_edges(arena);
 
@@ -647,7 +647,7 @@ int main(void)
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
 	a_blocker_keeps_the_sun_out(arena, device, &shapes);
-	a_wall_casts_a_filled_patch(arena, device, &shapes);
+	a_direct_casts_a_filled_patch(arena, device, &shapes);
 	the_selected_blocker_is_outlined(arena, device, &shapes);
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
