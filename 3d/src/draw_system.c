@@ -132,6 +132,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.sun = (voe_3d_sun_marked){ 0 };
 	frame.point_lights = (voe_3d_point_lights_marked){ 0 };
 	frame.collider = (voe_3d_collider_marked){ 0 };
+	frame.light_blocker = (voe_3d_collider_marked){ 0 };
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 
@@ -566,11 +567,12 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		(void)voe_3d_draw_group_draw(device, &overlay_blended);
 	}
 
-	// The outline and the collider's lines behind one depth clear, then the
+	// The outline, the collider's and the blocker's lines behind one depth clear, then the
 	// gizmo behind its own (3d/src/draw_marks.h); the first is the overlay's
 	// when it made one.
 	cleared = voe_3d_draw_marks_outline(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_collider(world, device, arena, frame, cleared);
+	voe_3d_draw_marks_light_blocker(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_gizmo(world, device, arena, frame);
 
 	// Everything above is this frame's, and the caller's arena is handed

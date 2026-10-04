@@ -13,17 +13,24 @@
 // side and not one off its short side; one with no transform and one of size 0
 // on an axis are left out; a world with no blocker table fills none and is true.
 //
-// AND ONE PICTURE: a camera four metres over a grey ground cube under a sun, a
+// THE EDITOR'S LINES (0347 point 5): the box through
+// voe_3d_collider_marker_quads from an off-axis eye is 12 edges, 48 vertices.
+//
+// AND TWO PICTURES: a camera four metres over a grey ground cube under a sun, a
 // 2 m blocker over the middle of it. Drawn through _frame, _light_blockers and
 // _run with `.blockers` in the pass camera, the centre is black and a corner
-// lit. It needs a graphics card and skips with a reason without one, as
+// lit. Then a blocker over an empty view with `light_blocker` naming it: a box
+// edge's pixel is the outline colour, and with it zeroed it is not. Both need
+// a graphics card and skip with a reason without one, as
 // 3d/tests/point_lights.c does.
+#include <3d/collider_marker.h>
 #include <3d/draw_system.h>
 #include <3d/light_blocker.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
 #include <3d/panel_component.h>
+#include <3d/projection.h>
 #include <3d/shape_component.h>
 #include <3d/shape_system.h>
 #include <base/arena.h>
@@ -224,6 +231,32 @@ static void no_table_fills_none(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(frame.blockers.count, 0);
 }
 
+// The lens every view here is seen through.
+static const voe_scene_camera LENS = { .fov_y = 1.0471976f,
+				       .near_plane = 0.1f,
+				       .far_plane = 100.0f };
+
+// A blocker's box seen from an eye off every axis is twelve edges' quads.
+static void the_box_is_twelve_edges(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena, 2);
+	voe_ecs_entity box = blocker_of(
+		world, (voe_math_float3){ 2, 2, 2 }, true,
+		placed_at((voe_math_double3){ 10.0, 0.0, 0.0 }));
+	voe_scene_transform eye = placed_at((voe_math_double3){ 11.0, 2.0, 5.0 });
+	voe_render_view view = { 0 };
+	voe_physics_shape shape = { 0 };
+	voe_3d_outline_mesh mesh = { 0 };
+
+	VOE_TEST_CHECK(voe_3d_view(eye, LENS, 1.0f, &view));
+	VOE_TEST_CHECK(voe_3d_light_blocker_shape(world, box, 0.0f, &shape));
+	VOE_TEST_CHECK(voe_3d_collider_marker_quads(
+		shape, view, eye.position, (voe_platform_size){ SIDE, SIDE },
+		2.0f, arena, &mesh));
+	VOE_TEST_CHECK_INT(mesh.vertex_count, 12 * 4);
+	VOE_TEST_CHECK_INT(mesh.index_count, 12 * 6);
+}
+
 // The camera four metres up looking down, a sun, the ground cube whose top is
 // at y = -0.95, and a 2 m blocker about the ground's centre.
 static voe_ecs_world *a_blocked_world(voe_base_arena *arena,
@@ -343,12 +376,108 @@ static void a_blocker_keeps_the_sun_out(voe_base_arena *arena,
 	}
 }
 
+// A camera at the origin looking down -Z, no light row, and a 2 m blocker 5 m
+// ahead: its front face's right edge stands at x = 1, z = -4.
+static voe_ecs_world *an_empty_view(voe_base_arena *arena,
+				    voe_ecs_entity *blocker)
+{
+	voe_ecs_world *world = voe_ecs_world_new(
+		arena, (voe_ecs_limits){ .entities = 4,
+					 .component_types = 16,
+					 .intent_types = 16,
+					 .structure_requests = 16,
+					 .structure_bytes = 1024 });
+	voe_ecs_entity camera = { 0 };
+
+	voe_scene_transform_register(world, 4);
+	voe_scene_camera_register(world, 1);
+	voe_scene_light_register(world, 1);
+	voe_scene_light_blocker_register(world, 1);
+	voe_3d_mesh_register(world, 1);
+	voe_3d_material_register(world, 1);
+	voe_3d_panel_register(world, 1);
+	voe_3d_model_register(world, 1);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, camera, UNMOVED));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, camera, LENS));
+	*blocker = blocker_of(world, (voe_math_float3){ 2, 2, 2 }, true,
+			      placed_at((voe_math_double3){ 0.0, 0.0, -5.0 }));
+	return world;
+}
+
+// The pixel on the box's front right edge after one frame of `world` with
+// `light_blocker` naming `marked`.
+static const uint8_t *edge_pixel(voe_ecs_world *world, voe_render_device *device,
+				 voe_base_arena *arena,
+				 const voe_3d_shapes *shapes,
+				 voe_ecs_entity marked)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_render_pass_camera camera;
+	voe_render_picture picture = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	bool drawing = false;
+
+	VOE_TEST_CHECK_INT(frame.light_blocker.entity.generation, 0);
+	frame.outlined.material = shapes->outline;
+	frame.outlined.colour = (voe_math_float3){ 1.0f, 0.0f, 1.0f };
+	frame.light_blocker = (voe_3d_collider_marked){ .entity = marked,
+							 .pixels = 4.0f,
+							 .size = size };
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return NULL;
+	camera = (voe_render_pass_camera){ .view = frame.view,
+					   .light = frame.light };
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	voe_3d_draw_system_run(world, device, arena, frame);
+	voe_render_pass_end(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
+					      arena, &picture, &error));
+	VOE_TEST_CHECK(picture.pixels != NULL);
+	if (picture.pixels == NULL)
+		return NULL;
+	// x = 1 at 4 m is 1 / (4 tan 30°) ≈ 0.43 across the half-width: column 22.
+	return pixel_at(picture, 22, SIDE / 2);
+}
+
+static bool is_the_outline_colour(const uint8_t *pixel)
+{
+	return pixel != NULL && pixel[0] > 200 && pixel[1] <= TOLERANCE &&
+	       pixel[2] > 200;
+}
+
+static void the_selected_blocker_is_outlined(voe_base_arena *arena,
+					     voe_render_device *device,
+					     const voe_3d_shapes *shapes)
+{
+	voe_ecs_entity blocker = { 0 };
+	voe_ecs_world *world = an_empty_view(arena, &blocker);
+	const uint8_t *marked;
+	const uint8_t *unmarked;
+
+	marked = edge_pixel(world, device, arena, shapes, blocker);
+	VOE_TEST_CHECK(is_the_outline_colour(marked));
+	unmarked = edge_pixel(world, device, arena, shapes,
+			      (voe_ecs_entity){ 0 });
+	VOE_TEST_CHECK(unmarked != NULL && !is_the_outline_colour(unmarked));
+}
+
+// The ground or the blocker's lines, one object, and one line set of this
+// frame's geometry (3d/draw_system.h).
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES,
 	.indices = VOE_3D_SHAPES_INDICES,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES,
 	.objects = 1,
 	.shadings = VOE_3D_SHAPES_SHADINGS,
+	.transient_vertices = VOE_3D_COLLIDER_MARKER_VERTICES,
+	.transient_indices = VOE_3D_COLLIDER_MARKER_INDICES,
+	.transient_geometries = 1,
 	.passes = 1,
 };
 
@@ -363,6 +492,7 @@ int main(void)
 	the_box_follows_the_transform(arena);
 	the_table_becomes_the_passs_blockers(arena);
 	no_table_fills_none(arena);
+	the_box_is_twelve_edges(arena);
 
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	if (device == NULL) {
@@ -376,6 +506,7 @@ int main(void)
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
 	a_blocker_keeps_the_sun_out(arena, device, &shapes);
+	the_selected_blocker_is_outlined(arena, device, &shapes);
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
