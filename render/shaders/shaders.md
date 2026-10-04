@@ -23,8 +23,9 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector by its major axis and the
   90° reversed-depth clip position on a face, near 0.05 m, far the light's range; draw and lookup
   share it.
-- `blockers.slangh` — which light blockers hold a point, sphere then rows, and the mask over a list
-  the includer supplies; the twin of `src/light_blockers.c` (0347).
+- `blockers.slangh` — which light blockers hold a point, sphere then rows, the mask over a list the
+  includer supplies, twin of `src/light_blockers.c` (0347); whether a segment meets a blocker and
+  direct light passes by Rooms and crossings, the sun's segment (0350).
 - `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume's six-axis irradiance:
   eight probes weighted by trilinear, validity, facing, Chebyshev visibility and a blocker mask equal
   to the surface's, normalised, faded at the edge (0326).
@@ -32,7 +33,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   cascades, its radiance, the bounce read from the pass's probe volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each fading
   to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325);
-  light blockers gate the sun, fill, lamps and bounce by mask (0347).
+  light blockers gate the sun and lamps by Rooms and crossings, the fill by Rooms and Indoors (0350), the bounce by mask.
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
