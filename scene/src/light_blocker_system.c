@@ -5,7 +5,7 @@
 // light is the renderer's, and where it is is its transform's.
 //
 // AN INTENT FOR AN ENTITY WITH NO BLOCKER IS DROPPED, silently — see the
-// header. A refused size says so once per intent on stderr, naming the entity
+// header. A refused size or kind says so once per intent on stderr, naming the entity
 // by its index and generation as the sun's drain does.
 #include <base/assert.h>
 #include <ecs/component.h>
@@ -37,7 +37,9 @@ void voe_scene_light_blocker_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_type type;
 	voe_ecs_type transform;
 	voe_ecs_intent intent;
-	const voe_scene_light_blocker row = { .size = { 1.0f, 1.0f, 1.0f } };
+	const voe_scene_light_blocker row = {
+		.size = { 1.0f, 1.0f, 1.0f }, .kind = VOE_SCENE_LIGHT_BLOCKER_ROOM
+	};
 
 	VOE_BASE_ASSERT(world != NULL, "registering light blockers in no world");
 
@@ -75,6 +77,8 @@ bool voe_scene_light_blocker_add(voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_DEBUG_ASSERT(world != NULL, "adding a light blocker to no world");
 	VOE_BASE_DEBUG_ASSERT(size_valid(blocker.size),
 			      "a light blocker size that is negative or not finite");
+	VOE_BASE_DEBUG_ASSERT(blocker.kind <= VOE_SCENE_LIGHT_BLOCKER_WALL,
+			      "a light blocker kind past Wall");
 
 	return voe_ecs_component_add(
 		world, voe_ecs_component_type(world, &voe_scene_light_blocker_key),
@@ -115,6 +119,13 @@ void voe_scene_light_blocker_system_run(voe_ecs_world *world)
 			fprintf(stderr,
 				"error: light blocker %uv%u: size refused, row kept\n",
 				entity.index, entity.generation);
+			continue;
+		}
+		if (intents[i].blocker.kind > VOE_SCENE_LIGHT_BLOCKER_WALL) {
+			fprintf(stderr,
+				"error: light blocker %uv%u: kind %u refused, row kept\n",
+				entity.index, entity.generation,
+				intents[i].blocker.kind);
 			continue;
 		}
 		(void)voe_ecs_component_set(world, type, entity,

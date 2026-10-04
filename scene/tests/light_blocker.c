@@ -1,8 +1,9 @@
 // The light blocker: what registration tells a tool (the menu path, the
-// transform it needs, the default size of one metre each way), that a row
-// arrives as given, that a replace lands only when the system runs, that a
-// negative, an infinite and a NaN size are each refused and keep the row, and
-// that adding to a dead entity is false.
+// transform it needs, the default size of one metre each way and a Room, the
+// kind's three names), that a row arrives as given, that a replace lands only
+// when the system runs, a replace to Wall included, that a negative, an
+// infinite and a NaN size and a kind past Wall are each refused and keep the
+// row, and that adding to a dead entity is false.
 //
 // EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
 // after each, so a refusal that let one through shows as that one.
@@ -47,7 +48,8 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 // No component one, so a default copied in shows as a wrong number.
 static voe_scene_light_blocker known(void)
 {
-	return (voe_scene_light_blocker){ .size = { 8.0f, 3.0f, 6.5f } };
+	return (voe_scene_light_blocker){ .size = { 8.0f, 3.0f, 6.5f },
+					  .kind = VOE_SCENE_LIGHT_BLOCKER_INDOORS };
 }
 
 static void check_blocker(const voe_scene_light_blocker *read,
@@ -59,6 +61,7 @@ static void check_blocker(const voe_scene_light_blocker *read,
 	VOE_TEST_CHECK_FLOAT(read->size.x, expected.size.x, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->size.y, expected.size.y, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->size.z, expected.size.z, 0.0f);
+	VOE_TEST_CHECK_INT(read->kind, expected.kind);
 }
 
 static void registration_says_what_a_blocker_is(voe_base_arena *arena)
@@ -70,13 +73,16 @@ static void registration_says_what_a_blocker_is(voe_base_arena *arena)
 	voe_ecs_type needed = { 0 };
 	const voe_base_struct_description *description =
 		voe_scene_light_blocker_description();
+	const voe_base_field_names *names;
 
 	VOE_TEST_CHECK(replace.set);
 	VOE_TEST_CHECK_INT(
 		(long long)replace.row_offset,
 		(long long)offsetof(voe_scene_light_blocker_intent, blocker));
 	check_blocker(voe_ecs_component_default(world, type),
-		      (voe_scene_light_blocker){ .size = { 1.0f, 1.0f, 1.0f } });
+		      (voe_scene_light_blocker){
+			      .size = { 1.0f, 1.0f, 1.0f },
+			      .kind = VOE_SCENE_LIGHT_BLOCKER_ROOM });
 	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
 	VOE_TEST_CHECK(voe_ecs_component_key(world, needed) ==
 		       &voe_scene_transform_key);
@@ -84,9 +90,24 @@ static void registration_says_what_a_blocker_is(voe_base_arena *arena)
 			      "Rendering / Light blocker") == 0);
 	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, type));
 
-	VOE_TEST_CHECK_INT(description->field_count, 1);
+	VOE_TEST_CHECK_INT(description->field_count, 2);
 	VOE_TEST_CHECK(strcmp(description->fields[0].name, "size") == 0);
 	VOE_TEST_CHECK_INT(description->fields[0].kind, VOE_BASE_FIELD_FLOAT3);
+	VOE_TEST_CHECK(strcmp(description->fields[1].name, "kind") == 0);
+	VOE_TEST_CHECK_INT(description->fields[1].kind, VOE_BASE_FIELD_UINT32);
+	VOE_TEST_CHECK(!description->fields[1].read_only);
+
+	names = voe_base_names_find(description, "kind");
+	VOE_TEST_CHECK(names != NULL);
+	if (names == NULL)
+		return;
+	VOE_TEST_CHECK_INT(names->value_count, 3);
+	VOE_TEST_CHECK(strcmp(names->values[VOE_SCENE_LIGHT_BLOCKER_ROOM],
+			      "Room") == 0);
+	VOE_TEST_CHECK(strcmp(names->values[VOE_SCENE_LIGHT_BLOCKER_INDOORS],
+			      "Indoors") == 0);
+	VOE_TEST_CHECK(strcmp(names->values[VOE_SCENE_LIGHT_BLOCKER_WALL],
+			      "Wall") == 0);
 }
 
 static void a_blocker_arrives_as_given(voe_base_arena *arena)
@@ -110,7 +131,8 @@ static void a_replace_lands_when_the_system_runs(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity house = { 0 };
-	voe_scene_light_blocker bigger = { .size = { 10.0f, 4.0f, 0.0f } };
+	voe_scene_light_blocker bigger = { .size = { 10.0f, 4.0f, 0.0f },
+					   .kind = VOE_SCENE_LIGHT_BLOCKER_WALL };
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &house));
 	VOE_TEST_CHECK(voe_scene_light_blocker_add(world, house, known()));
@@ -126,15 +148,16 @@ static void a_refused_size_keeps_the_row(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity house = { 0 };
-	voe_scene_light_blocker bad[3] = { known(), known(), known() };
+	voe_scene_light_blocker bad[4] = { known(), known(), known(), known() };
 
 	bad[0].size.x = -1.0f;
 	bad[1].size.y = INFINITY;
 	bad[2].size.z = NAN;
+	bad[3].kind = VOE_SCENE_LIGHT_BLOCKER_WALL + 1u;
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &house));
 	VOE_TEST_CHECK(voe_scene_light_blocker_add(world, house, known()));
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 4; i++) {
 		VOE_TEST_CHECK(voe_scene_light_blocker_submit(
 			world, (voe_scene_light_blocker_intent){
 				       .entity = house, .blocker = bad[i] }));

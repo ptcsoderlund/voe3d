@@ -20,5 +20,6 @@ module's promises from outside. None of them needs a window or a graphics card.
   shadows, and the conversions between a rotation and the direction it shines.
 - `point_light.c` — the point light's registration, refused and accepted
   replaces, falloff bounds, cast shadows, bounces and bounce strength.
-- `light_blocker.c` — the blocker's registration, a row read back, a replace
-  landing on a run, refused negative, infinite and NaN sizes, and a dead entity.
+- `light_blocker.c` — the blocker's registration with a Room default and the
+  kind's names, a row read back, a replace to Wall landing on a run, refused
+  negative, infinite and NaN sizes and a kind past Wall, and a dead entity.
