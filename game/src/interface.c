@@ -114,8 +114,7 @@ bool voe_game_interface_run(
 	});
 }
 
-const voe_ui_context *
-voe_game_interface_context(const voe_game_interface *interface)
+voe_ui_context *voe_game_interface_context(voe_game_interface *interface)
 {
 	VOE_BASE_ASSERT(interface != NULL, "no interface");
 	return interface->ui;

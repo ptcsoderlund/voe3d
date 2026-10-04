@@ -430,6 +430,10 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			       device->pass_count, device->capacities.passes);
 		return false;
 	}
+	// A camera pass may draw a mesh, so the device is prepared first; a pass
+	// with none draws elements alone and builds nothing.
+	if (camera != NULL && !voe_render_device_ready(device))
+		return false;
 
 	frame = voe_render_frame_at(device, device->slot);
 
@@ -475,8 +479,11 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 
 	// The solid pipeline, because a pass's opaque and cutout draws come
 	// first; a blended draw binds the other one and `bound` is what keeps a
-	// run of either kind to a single bind.
-	voe_render_pass_start(device, frame, &block, device->pipeline);
+	// run of either kind to a single bind. A pass with no camera draws only
+	// elements, on a device that may not have the solid one yet.
+	voe_render_pass_start(device, frame, &block,
+			      camera != NULL ? device->pipeline :
+					       device->pipeline_elements);
 	device->pass_camera = camera != NULL;
 	device->pass_shadow = false;
 	return true;
@@ -531,6 +538,9 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 			       device->pass_count, device->capacities.passes);
 		return false;
 	}
+
+	if (!voe_render_device_ready(device))
+		return false;
 
 	frame = voe_render_frame_at(device, device->slot);
 	extent = (VkExtent2D){ device->capacities.shadow_size,

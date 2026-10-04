@@ -331,6 +331,10 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 			"a bounce begin whose sun bounces past VOE_RENDER_BOUNCES_MAX");
 	VOE_BASE_ASSERT(isfinite(frame->spacing) && frame->spacing > 0.0f,
 			"a bounce begin whose spacing is not finite or not above nought");
+	// The relight and the passes after a begin want the device prepared; a
+	// failed prepare (said on stderr) refuses the begin, recording nothing.
+	if (!voe_render_device_ready(device))
+		return;
 
 	volume = voe_render_bounce_volume_of(device, target);
 	begun = &volume->begun[device->slot];

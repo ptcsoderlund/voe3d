@@ -1,10 +1,13 @@
 // Starting the GPU: the loader, the instance, the surface, the graphics card, the
-// logical device and the pipelines, in that order, because each one is what the
-// next is asked for. Everything here happens once. open_device below is the one
-// place that order is written; the steps that grew too long for this file are
-// beside it, declared in startup.h: the instance and validation in instance.c,
-// the card and the `render` line in card.c, the three mesh pipelines, the shader
-// bytes and depth in pipeline.c, the shadow maps in shadow.c and point_shadow.c. This file keeps the logical device, the format,
+// logical device, the pipeline layout and the element pipeline, in that order,
+// because each one is what the next is asked for. Everything here happens once.
+// open_device below is the one place that order is written; the steps that grew
+// too long for this file are beside it, declared in startup.h: the instance and
+// validation in instance.c, the card and the `render` line in card.c, the
+// pipeline layout in pipeline.c, the shadow maps in shadow.c and point_shadow.c.
+// A device opens unprepared: the mesh pipelines and the relight's startup are
+// built later by voe_render_device_prepare (pipeline.c), and close-down is safe
+// for every one never built. This file keeps the logical device, the format,
 // timing, present modes, the frame objects and close-down. The parts that happen
 // again live in target.c, swapchain.c and frame.c — see device_internal.h for
 // why the split is where it is.
@@ -659,8 +662,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// out of it. The descriptors come next, because the sets are what the
 	// shading buffer's and the textures' descriptors are written into — so
 	// both of those have to exist after the sets do, and the two writes after
-	// that. The pipelines come last because their layout names the descriptor
-	// set layout: build them first and it names a handle that is still null.
+	// that. The pipeline layout comes last because it names the descriptor
+	// set layout: build it first and it names a handle that is still null.
 	if (!create_frame_objects(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// The shadow maps are settled through the command pool and named by the
@@ -671,8 +674,6 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_bounce_capture_startup(device) ||
 	    !voe_render_bounce_shadow_startup(device))
-		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_bounce_relight_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
 	if (!voe_render_descriptors_build(device))
@@ -689,11 +690,10 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		voe_render_texture_write_descriptors(device, i);
 	}
 	voe_render_targets_startup(device);
-	if (!voe_render_pipelines_create(device))
+	if (!voe_render_pipeline_layout_create(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	// After them, and not beside them: the element pipeline shares the
-	// layout the two above make, so it cannot be built until one of them
-	// has.
+	// After the layout, because the element pipeline shares it. The mesh
+	// pipelines are not built here: voe_render_device_prepare's.
 	if (!voe_render_element_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// Targets before the swapchain, because the targets are the resolution

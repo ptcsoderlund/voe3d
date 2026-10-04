@@ -12,6 +12,7 @@
 #include <game/prefabs.h>
 #include <game/project.h>
 #include <game/scene.h>
+#include <game/starting.h>
 #include <game/steps.h>
 #include <game/world.h>
 
@@ -19,6 +20,7 @@
 #include <3d/shape_system.h>
 
 #include <app/app.h>
+#include <app/start_log.h>
 
 #include <audio/mixer.h>
 
@@ -85,20 +87,25 @@ static voe_ecs_world *run_world_make(voe_base_arena *world_arena)
 // The frames, until the window is closing or the project's interface ends
 // the run. False, with a line on stderr, when one was refused. A device whose
 // pump fails is destroyed and the sound's device set to NULL, and the game
-// goes on silent. Paused, no step runs and the draw keeps the last lag.
+// goes on silent. Paused, no step runs and the draw keeps the last lag. The
+// start's log gets its last two steps here and is written after the first
+// frame.
 static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		       voe_ecs_world *world, const voe_3d_shapes *shapes,
 		       voe_base_arena *scratch, voe_game_interface *interface,
-		       struct run_sound *sound, const struct run_models *models)
+		       struct run_sound *sound, const struct run_models *models,
+		       voe_app_start_log *log)
 {
 	voe_game_project_asks asks = { 0 };
 	voe_game_steps steps = { 0 };
 	float lag = 1.0f;
+	bool logged = false;
 
 	// The built scene's models, before the first frame. Failures are on
 	// stderr and kept as failed entries, here and each frame.
 	(void)voe_game_models_update(world, models->store, voe_app_device(app),
 				     models->folder, scratch);
+	voe_app_start_log_step(log, "models and sound");
 	while (true) {
 		voe_app_frame frame = voe_app_frame_open(app);
 
@@ -143,6 +150,14 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			VOE_BASE_ERROR("game", "the device stopped drawing");
 			return false;
 		}
+		if (!logged) {
+			voe_app_start_log_step(log, "first frame");
+			voe_base_arena_clear(scratch);
+			// With no path only stderr is written, which cannot
+			// fail.
+			(void)voe_app_start_log_write(log, "game", NULL, scratch);
+			logged = true;
+		}
 	}
 }
 
@@ -159,6 +174,7 @@ int voe_game_run(const char *title, voe_game_window window)
 				      .longest_step = LONGEST_STEP };
 	voe_base_error error = VOE_BASE_OK;
 	voe_game_interface *interface;
+	voe_app_start_log log;
 	struct run_models models;
 	struct run_sound sound;
 	voe_3d_shapes shapes;
@@ -168,6 +184,7 @@ int voe_game_run(const char *title, voe_game_window window)
 
 	VOE_BASE_ASSERT(window.width > 0 && window.height > 0,
 			"a game window with no width or height");
+	voe_app_start_log_begin(&log);
 	app = voe_app_new(arena, scratch, settings, &error);
 	if (app == NULL) {
 		VOE_BASE_ERROR("game", "the window would not open: %s",
@@ -176,16 +193,30 @@ int voe_game_run(const char *title, voe_game_window window)
 	}
 	// Startup keeps nothing in scratch (app/app.h).
 	voe_base_arena_clear(scratch);
+	voe_app_start_log_step(&log, "window and device");
 
 	interface = voe_game_interface_new(voe_app_device(app), arena);
 	if (interface == NULL) {
 		VOE_BASE_ERROR("game", "the interface would not open");
 		goto closed;
 	}
+	voe_app_start_log_step(&log, "interface");
+
+	// Text only, until the mesh pipelines are built (0345). A false here
+	// is a closing window or a failed build, already on stderr; the run
+	// ends as a closed window ends it.
+	if (!voe_game_starting_prepare(app,
+				       voe_game_interface_context(interface),
+				       scratch, "Starting - preparing shaders...")) {
+		status = 0;
+		goto unbuilt;
+	}
+	voe_app_start_log_step(&log, "preparing shaders");
 
 	world = run_world_make(world_arena);
 	if (world == NULL)
 		goto unbuilt;
+	voe_app_start_log_step(&log, "world and scene");
 	models.folder = sound_folder(arena);
 	models.store = voe_3d_models_new();
 	sound.mixer = voe_audio_mixer_new(models.folder);
@@ -195,7 +226,7 @@ int voe_game_run(const char *title, voe_game_window window)
 		VOE_BASE_ERROR("game", "the shapes do not fit the device: %s",
 			       voe_base_error_string(error));
 	} else if (run_frames(app, world_arena, world, &shapes, scratch,
-			      interface, &sound, &models)) {
+			      interface, &sound, &models, &log)) {
 		status = 0;
 	}
 	voe_platform_sound_destroy(sound.device);

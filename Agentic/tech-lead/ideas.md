@@ -84,3 +84,4 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   for kit-bashing. Set aside: prefabs (038) cover reuse for now. If it comes back, the sketch was:
   the camera and sun are left out of the copy, links inside the tree point at the copy's own parts,
   and a duplicated child stays under its parent. The whole copy is one undo step.
+- Splash customisation: box position, minimum time, fade, a splash per scene (0346 leaves these for later).

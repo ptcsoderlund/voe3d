@@ -1,8 +1,9 @@
 // The relight (ADR-0326 points 5 and 6): voe_render_bounce_relight, and the
 // compute pipelines it dispatches, shaders/bounce_relight.slang's settle,
-// relight and sum, with their own set layout, pool and push block. device.c
-// builds them after the capture scratch and tears them down beside it; none
-// without shaderOutputLayer.
+// relight and sum, with their own set layout, pool and push block. Prepare
+// (pipeline.c) builds them as its last step and device.c tears them down beside
+// the capture scratch, safely when they were never built; none without
+// shaderOutputLayer. Until they are, the relight does nothing.
 //
 // ONE RELIGHT, after the begun target's capture passes: nothing on a volume not
 // built, and nothing at all, not a barrier, when card 04 says no relight is
@@ -306,13 +307,17 @@ bool voe_render_bounce_relight_startup(voe_render_device *device)
 			"bounce relight startup before the logical device");
 	if (!device->output_layer)
 		return true;
-	return create_layouts(device) && create_pipelines(device) &&
-	       create_sets_and_buffers(device);
+	device->relight_started = create_layouts(device) &&
+				  create_pipelines(device) &&
+				  create_sets_and_buffers(device);
+	return device->relight_started;
 }
 
 void voe_render_bounce_relight_shutdown(voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "bounce relight shutdown on no device");
+	// Every handle below may be VK_NULL_HANDLE, which a vkDestroy takes.
+	device->relight_started = false;
 	for (uint32_t s = 0; s < VOE_RENDER_FRAMES_IN_FLIGHT; s++) {
 		voe_render_buffer_teardown(device, &device->relight_lists[s]);
 		voe_render_buffer_teardown(device, &device->relight_records[s]);
@@ -644,6 +649,8 @@ void voe_render_bounce_relight(voe_render_device *device)
 	VOE_BASE_ASSERT(device->recording, "a bounce relight with no frame open");
 	VOE_BASE_ASSERT(!device->pass_open,
 			"a bounce relight inside a pass — it records between passes");
+	if (!device->relight_started)
+		return;
 	// Without shaderOutputLayer a begin records nothing to assert on.
 	VOE_BASE_ASSERT(device->bounce_begun || !device->output_layer,
 			"a bounce relight with no voe_render_bounce_begin this frame");

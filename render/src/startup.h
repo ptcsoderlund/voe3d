@@ -1,5 +1,5 @@
 // The steps of startup that live beside device.c: create the instance, choose
-// the graphics card and say which, create the four mesh pipelines. Internal to
+// the graphics card and say which, create the pipeline layout. Internal to
 // render; device.c's open_device is the only caller of each, once per device.
 // voe_render_card_rank is also called by tests/card.c, which needs no card.
 //
@@ -8,11 +8,12 @@
 // each is a step that needs what the one before it made. The instance comes
 // straight after the loader is open, because every later call goes through it.
 // The card is chosen after the surface exists, because a card qualifies only if
-// one of its queue families presents to that surface. The pipelines come after
-// voe_render_descriptors_build, because their layout names the descriptor set
-// layout it makes — built first, they would name a null handle. The element
-// pipeline (element.c) comes after the pipelines, because it shares the layout
-// the solid one creates.
+// one of its queue families presents to that surface. The pipeline layout comes
+// after voe_render_descriptors_build, because it names the descriptor set layout
+// that makes — built first, it would name a null handle. The element pipeline
+// (element.c) comes after the layout, because it shares it. The mesh pipelines
+// and the relight's startup are not opened here: voe_render_device_prepare
+// builds them later, a step a call (pipeline.c).
 //
 // Each returns false after printing one line of why; open_device turns that
 // into the category a caller sees.
@@ -52,6 +53,6 @@ uint32_t voe_render_card_rank(const voe_render_card_facts *cards, uint32_t count
 [[nodiscard]] bool voe_render_card_choose(voe_render_device *device,
 					  voe_base_arena *arena);
 
-// Fills device->pipeline, device->pipeline_blended, device->pipeline_shadow,
-// device->pipeline_point_shadow, device->pipeline_capture and device->layout.
-[[nodiscard]] bool voe_render_pipelines_create(voe_render_device *device);
+// Fills device->layout, the one every graphics pipeline here shares. The mesh
+// pipelines themselves are voe_render_device_prepare's, pipeline.c's too.
+[[nodiscard]] bool voe_render_pipeline_layout_create(voe_render_device *device);

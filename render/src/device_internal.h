@@ -195,6 +195,12 @@ struct voe_render_device {
 	VkDeviceSize relight_record_stride;
 	VkDescriptorSet *relight_sets[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t relight_dispatches;
+	// Whether the relight's startup has finished, which prepare does
+	// (pipeline.c); until then the relight does nothing. Never true
+	// without output_layer.
+	bool relight_started;
+	// Whether a prepare step failed: every later prepare answers FAILED.
+	bool prepare_failed;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
@@ -536,11 +542,16 @@ void voe_render_bounce_capture_shutdown(voe_render_device *device);
 void voe_render_bounce_capture_end(voe_render_device *device);
 
 // bounce_relight.c. The relight's pipeline, set layout, pool, sets and every
-// slot's list buffer on a device with output_layer, none without; startup's,
-// after the capture scratch. False with a message; _shutdown is safe on a device
-// that never got that far.
+// slot's list buffer on a device with output_layer, none without; prepare's last
+// step (pipeline.c). False with a message; _shutdown is safe on a device that
+// never got that far or never started it.
 [[nodiscard]] bool voe_render_bounce_relight_startup(voe_render_device *device);
 void voe_render_bounce_relight_shutdown(voe_render_device *device);
+// pipeline.c. voe_render_device_prepare until nothing is left: true once
+// prepared, false when a step failed. Every pass that can use a mesh pipeline,
+// and voe_render_bounce_begin, calls this first.
+[[nodiscard]] bool voe_render_device_ready(voe_render_device *device);
+
 // bounce_relight.c. The bouncing lights this frame's begin placed, as
 // voe_render_bounce_probes_relight_needed compares them.
 void voe_render_bounce_begun_lights(const voe_render_device *device,
@@ -729,7 +740,8 @@ void voe_render_shading_shutdown(voe_render_device *device);
 
 // element.c. The element pipeline and nothing else — the per-slot record buffers
 // are descriptors.c's, because they are things the shader reads. Startup's, and
-// it has to run after create_pipelines because it shares device->layout.
+// it has to run after voe_render_pipeline_layout_create because it shares
+// device->layout.
 [[nodiscard]] bool voe_render_element_startup(voe_render_device *device);
 void voe_render_element_shutdown(voe_render_device *device);
 

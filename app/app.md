@@ -19,3 +19,6 @@ readout, key bindings and the present mode are all the program's.
   header says why it takes the reading rather than making one, why `elapsed` and
   `step` are separate numbers and what confusing them costs, and what the first
   tick reports.
+- `include/app/start_log.h` — a start's named steps, timed from the process's
+  launch and written to stderr and a file. Its header says why (0345), what the
+  first step is, that the steps add up, and the line's format.

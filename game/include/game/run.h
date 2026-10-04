@@ -14,11 +14,14 @@
 // can be resized to any shape; the world is drawn at the window's aspect,
 // never stretched.
 //
-// THE ORDER: three arenas, voe_app_new with `window` and `title`, the
-// interface (game/interface.h), the world (game/world.h) in an arena of its
-// own, the project's voe_game_project_register (game/project.h),
-// voe_game_scene_build (game/scene.h), the model store (3d/models.h), the
-// mixer (audio/mixer.h) on the program's folder and the sound device
+// THE ORDER: three arenas, a start log begun (app/start_log.h), voe_app_new
+// with `window` and `title`, the interface (game/interface.h), the starting
+// line drawn while the device prepares (game/starting.h; a closing window or
+// a failed prepare ends the run as a close does), the world (game/world.h) in
+// an arena of its own, the project's voe_game_project_register
+// (game/project.h), voe_game_scene_build (game/scene.h), the model store
+// (3d/models.h), the mixer (audio/mixer.h) on the program's folder and the
+// sound device
 // (platform/sound.h), the built-in shapes uploaded, voe_game_models_update
 // (game/models.h) from the program's folder, then once a frame, skipping a
 // minimised window, until it is closing: on a restart asked, the world's
@@ -31,8 +34,10 @@
 // voe_game_interface_run with voe_game_project_interface and the asks in the
 // cleared scratch, the mixer paused as the asks say and pumped into an open
 // device, then voe_game_frame with the lag (the last one while paused), the
-// store and the interface's context. The store is cleared and destroyed
-// before the window closes. A game with no sound device, or whose device
+// store and the interface's context; after the first, the log's steps
+// ("window and device", "interface", "preparing shaders", "world and scene",
+// "models and sound", "first frame") go to stderr as program "game". The
+// store is cleared and destroyed before the window closes. A game with no sound device, or whose device
 // fails, runs silent; a model that will not read draws as nothing.
 //
 // NO QUIT KEY (0234), BUT THE PROJECT'S INTERFACE MAY END THE RUN (0259).

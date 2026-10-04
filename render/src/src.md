@@ -18,17 +18,17 @@ which file to open — what each one owns, and where the seams between them run.
   the split runs, and the constants the whole folder reads.
 - `device_parts.h` — the records the device is built of: buffers, pools, slots, targets and the
   one-frame record; included only through `device_internal.h`.
-- `device.c` — starting up, and the one place its order is: the surface, the logical device, the
-  format, timing, present modes, frame objects and close-down, plus the headless device the tests
-  run on.
+- `device.c` — opening, and the one place its order is: the surface, the logical device, the
+  format, timing, present modes, frame objects, the layout and element pipeline but no mesh
+  pipeline, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
 - `instance.c` — the Vulkan instance, its extensions, and the validation layer and messenger in a
   debug build that has them.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
-- `pipeline.c` — the six mesh pipelines, solid, blended, shadow, bounce, point shadow and capture,
-  with their embedded shader, depth and blend state, and the layout every pipeline shares.
+- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
+  mesh pipelines, solid, blended, shadow, point shadow and capture, then the relight, a step a call.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload

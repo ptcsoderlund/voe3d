@@ -834,6 +834,9 @@ typedef struct {
 // saying exactly what happened. There are three ways this fails and a caller can
 // tell them apart: no Vulkan on the machine, no graphics card that meets what
 // the engine requires, and a driver that refused. error may be NULL.
+//
+// IT OPENS UNPREPARED: the pipeline layout and the element pipeline only, so a
+// line of text can be drawn at once. voe_render_device_prepare builds the rest.
 [[nodiscard]] voe_render_device *voe_render_device_new(voe_base_arena *arena,
 						       voe_platform_native native,
 						       voe_platform_size size,
@@ -856,6 +859,27 @@ voe_render_device_new_headless(voe_base_arena *arena, voe_platform_size size,
 			       voe_base_error *error);
 
 void voe_render_device_destroy(voe_render_device *device);
+
+// What voe_render_device_prepare answers.
+typedef enum {
+	VOE_RENDER_PREPARING,
+	VOE_RENDER_PREPARED,
+	VOE_RENDER_PREPARE_FAILED,
+} voe_render_prepare;
+
+// Each call builds the next thing this device still lacks, in the order solid,
+// blended, shadow, point shadow and capture pipelines (the last two only on a
+// card with shaderOutputLayer), then the relight's startup. PREPARING while
+// something is left, PREPARED once nothing is (and on every later call).
+// PREPARE_FAILED, with a line on stderr, when a step failed, and on every later
+// call; the device still draws elements.
+//
+// WHY ONE STEP A CALL (ADR-0345): building a pipeline takes the driver a while,
+// and a program shows a starting line between steps so the window is not blank.
+// A caller who never calls it loses nothing: a pass with a camera, a shadow,
+// point-shadow, capture or bounce shadow pass and voe_render_bounce_begin build
+// whatever is left first, and refuse when that fails.
+voe_render_prepare voe_render_device_prepare(voe_render_device *device);
 
 // --------------------------------------------------------------- geometry
 

@@ -175,13 +175,16 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 			"opening a bounce shadow pass with no frame open");
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a bounce shadow pass while a pass is already open — passes do not nest");
+	*opened = false;
+	// Before the begin's assert: a failed prepare also refused the begin.
+	if (!voe_render_device_ready(device))
+		return false;
 	// Without shaderOutputLayer a begin records nothing to assert on.
 	VOE_BASE_ASSERT(device->bounce_begun || !device->output_layer,
 			"opening a bounce shadow pass with no voe_render_bounce_begin this frame");
 	frame = voe_render_frame_at(device, device->slot);
 	VOE_BASE_ASSERT(!frame->bounce_shadow.drawn,
 			"opening a second bounce shadow pass after one voe_render_bounce_begin — it opens once per begin");
-	*opened = false;
 	if (!device->bounce_begun || !wanted(device))
 		return true;
 

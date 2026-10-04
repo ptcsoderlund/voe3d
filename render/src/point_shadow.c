@@ -325,6 +325,8 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 			       device->pass_count, device->capacities.passes);
 		return false;
 	}
+	if (!voe_render_device_ready(device))
+		return false;
 
 	frame = voe_render_frame_at(device, device->slot);
 	place_casters(device, frame, device->pass_count, lights);

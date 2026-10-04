@@ -77,6 +77,6 @@ voe_math_float2 voe_game_interface_surface(voe_platform_size size);
 	voe_platform_size size, voe_game_project_asks *asks,
 	bool (*project_interface)(const voe_game_project_frame *frame));
 
-// The context the frame was laid out in, for its element records.
-const voe_ui_context *
-voe_game_interface_context(const voe_game_interface *interface);
+// The context the frame was laid out in, for its element records, and for a
+// starting frame (game/starting.h) to lay its line out in.
+voe_ui_context *voe_game_interface_context(voe_game_interface *interface);
