@@ -87,13 +87,16 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, draw.c, present.c, point_shadow.c,
-  bounce_capture.c and bounce_shadow.c make across one another; included by those seven only.
+- `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, draw.c, present.c, point_shadow.c,
+  bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
   begun probe volume, its point lights copied and binned, its light blockers and lamp masks, the clear colour, the
-  first-clears-later-load rule, the depth copy, and the one Y flip in the viewport.
+  first-clears-later-load rule, and the one Y flip in the viewport.
+- `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
+  its depth into the sampled copy beside it, the second block loading, and the copy's slot written
+  into the pass's block.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
   the point-shadow pass one instance per cube face reached, the depth clear between them, and the
   rebinds only when pipeline or pool pair changes.
