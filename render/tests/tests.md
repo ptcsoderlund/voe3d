@@ -58,7 +58,7 @@ by reading the offscreen colour image back.
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
 - `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, 288
   on a one-cell move, only within a stale sphere, all on a new spacing, a relight only on change
-  (blockers too), and the 17th bouncing lamp left out.
+  (blockers, their kinds and the sun's mask too), and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
   window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
   both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.

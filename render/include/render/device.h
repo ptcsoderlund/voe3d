@@ -1432,12 +1432,15 @@ void voe_render_pass_end(voe_render_device *device);
 // because the call below has the name and C has one name space for both.
 //
 // `blockers` ARE THE WORLD'S LIGHT BLOCKERS, about the eye as `points` are, and
-// copied at the begin. The relight lights a texel by the sun only when its mask
-// is nought, by a lamp only when their masks are equal, and feeds a probe only
-// from a texel of its own mask (ADR-0347 point 4). Blockers that change relight
-// the grid; an eye that moves does not, for they are compared about `corner`.
-// Zero is none; more than VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, or a row
-// not finite asserts, as at _pass_begin.
+// copied at the begin with their `walls`, `indoors` and `sun` masks. The bounce
+// is direct light (ADR-0350 point 5): the relight lights a texel's hit by the
+// sun and by a lamp by point 3, and a texel feeds its probe only when point 3
+// passes with the probe as source and the hit as surface. Blockers that change,
+// or a change of kinds or of the sun's mask, relight the grid; an eye that moves
+// does not, for they are compared about `corner`. Zero is none; more than
+// VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
+// indoors sharing a bit, or a kind or sun bit at or past the count asserts, as
+// at _pass_begin.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;

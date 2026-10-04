@@ -27,7 +27,8 @@
 // last) lose their picture, are queued and marked changed; probes whose centre
 // at that spacing lies in a stale sphere are queued. It writes the bouncing
 // lights: the sun record with its bounces and strength, the first
-// VOE_RENDER_BOUNCE_LAMPS point lights with bounces, and every light blocker.
+// VOE_RENDER_BOUNCE_LAMPS point lights with bounces, and every light blocker
+// with the kinds and the sun's mask.
 //
 // A TAKE lists up to `room` queued probes, nearest the eye first (centre at
 // the cell's middle at the placed spacing, ties to the lower index), unqueues
@@ -42,6 +43,8 @@
 // likewise (ADR-0347 point 4): a different count relights, and so does a row's
 // xyz or the sphere's radius beyond 1e-4, its centre about the corner beyond a
 // millimetre, or row.w + row.xyz · corner beyond 1e-4, both eye-invariant.
+// Any of walls, indoors or the sun's mask that differs relights (ADR-0350
+// point 5).
 //
 // CONSTRAINTS. A place scans the whole grid once, and once more per stale
 // sphere; a take scans it once per probe taken, room × 6912 compares. Fine at
@@ -87,6 +90,11 @@ typedef struct voe_render_bounce_lights {
 	voe_render_point_light lamps[VOE_RENDER_BOUNCE_LAMPS];
 	uint32_t blocker_count;
 	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
+	// The blockers' kinds and the sun's mask (ADR-0350 point 2); `sun_mask`
+	// because `sun` is the light above.
+	uint32_t walls;
+	uint32_t indoors;
+	uint32_t sun_mask;
 } voe_render_bounce_lights;
 
 // One grid's state. Zeroed is "nothing yet"; only the calls below write it.

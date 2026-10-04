@@ -123,6 +123,12 @@ struct relight_record {
 	float spacing;
 	relight_lamp lamps[LAMPS];
 	relight_blocker blockers[BLOCKERS];
+	// The blockers' kinds and the sun's mask (ADR-0350 point 2); read from
+	// card 22.
+	uint walls;
+	uint indoors;
+	uint sun_mask;
+	uint pad;
 };
 
 [[vk::binding(0, 0)]]

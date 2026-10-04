@@ -124,6 +124,9 @@ static void pick_lights(const voe_render_light *sun, uint32_t sun_bounces,
 	if (blockers->count > 0)
 		memcpy(lights->blockers, blockers->blockers,
 		       blockers->count * sizeof(lights->blockers[0]));
+	lights->walls = blockers->walls;
+	lights->indoors = blockers->indoors;
+	lights->sun_mask = blockers->sun;
 	lights->sun = *sun;
 	lights->sun_bounces = sun_bounces;
 	lights->sun_strength = sun_strength;
@@ -273,7 +276,9 @@ bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 	    r->sun_bounces != lights->sun_bounces ||
 	    r->sun_strength != lights->sun_strength ||
 	    r->lamp_count != lights->lamp_count ||
-	    r->blocker_count != lights->blocker_count)
+	    r->blocker_count != lights->blocker_count ||
+	    r->walls != lights->walls || r->indoors != lights->indoors ||
+	    r->sun_mask != lights->sun_mask)
 		return true;
 	for (uint32_t i = 0; i < lights->lamp_count; i++)
 		if (!lamp_same(&lights->lamps[i], p->corner, &r->lamps[i],

@@ -58,8 +58,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
   which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
-  and light blockers about the corner, so an eye that moves relights nothing) and relit calls over
-  bit sets.
+  and light blockers about the corner, so an eye that moves relights nothing; a change of kinds or
+  the sun's mask relights) and relit calls over bit sets.
 - `bounce_volume.c` — a target's probe volume: its atlases and six-axis irradiance 3D images, built
   at the top of the frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10,
   freed after 300 frames unbegun, and that begin, which keeps its spacing per frame slot.
@@ -69,7 +69,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
   shadow pass that draws it once per bounce begin that relights a casting sun.
 - `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
-  lists and one record per volume with the begun light blockers, and the call that settles changed
+  lists and one record per volume with the begun light blockers, their kinds and the sun's mask,
+  and the call that settles changed
   probes, relights each level in use and sums them.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.

@@ -336,7 +336,9 @@ struct voe_render_bounce_shadow {
 // bounce_relight.slang's struct relight_record at binding 11, std140: one
 // volume's region of a slot's record buffer (ADR-0330 point 2), here so a test
 // can read one. `blocker_count` and `blockers` are the begun light blockers
-// (ADR-0347 point 4), the count in what was a reserved word.
+// (ADR-0347 point 4), the count in what was a reserved word; `walls`,
+// `indoors` and `sun_mask` their kinds and the sun's mask (ADR-0350 point 2),
+// after the blockers with a pad word rounding the record to 16 bytes.
 struct voe_render_relight_record {
 	voe_render_light sun;
 	voe_math_float4x4 sun_map;
@@ -350,6 +352,10 @@ struct voe_render_relight_record {
 	float spacing;
 	voe_render_point_light lamps[VOE_RENDER_BOUNCE_LAMPS];
 	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
+	uint32_t walls;
+	uint32_t indoors;
+	uint32_t sun_mask;
+	uint32_t pad;
 };
 
 static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
@@ -360,7 +366,10 @@ static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      offsetof(struct voe_render_relight_record, cell) == 144 &&
 		      offsetof(struct voe_render_relight_record, lamps) == 160 &&
 		      offsetof(struct voe_render_relight_record, blockers) == 928 &&
-		      sizeof(struct voe_render_relight_record) == 2976,
+		      offsetof(struct voe_render_relight_record, walls) == 2976 &&
+		      offsetof(struct voe_render_relight_record, indoors) == 2980 &&
+		      offsetof(struct voe_render_relight_record, sun_mask) == 2984 &&
+		      sizeof(struct voe_render_relight_record) == 2992,
 	      "the relight record as bounce_relight.slang lays it out");
 
 // Whether one frame slot's frame began a probe volume, and the lowest cell,
