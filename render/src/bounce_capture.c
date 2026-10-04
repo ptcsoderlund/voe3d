@@ -325,10 +325,13 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 			"opening a capture pass with no frame open");
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a capture pass while a pass is already open — passes do not nest");
+	*opened = false;
+	// Before the begin's assert: a failed prepare also refused the begin.
+	if (!voe_render_device_ready(device))
+		return false;
 	// Without shaderOutputLayer a begin records nothing to assert on.
 	VOE_BASE_ASSERT(device->bounce_begun || !device->output_layer,
 			"opening a capture pass with no voe_render_bounce_begin this frame");
-	*opened = false;
 	if (!device->bounce_begun ||
 	    device->capture_passes >= VOE_RENDER_BOUNCE_CAPTURE_PASSES)
 		return true;

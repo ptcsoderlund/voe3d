@@ -1,6 +1,14 @@
-// The five mesh pipelines, solid, blended, shadow, point shadow and capture, and the pipeline layout every
-// pipeline in this folder shares. A step of startup; device.c's open_device
-// calls voe_render_pipelines_create once, after the descriptors — see startup.h.
+// The five mesh pipelines, solid, blended, shadow, point shadow and capture, and
+// the pipeline layout every pipeline in this folder shares. device.c's
+// open_device calls voe_render_pipeline_layout_create once, after the
+// descriptors — see startup.h; the pipelines are not built at open.
+//
+// PREPARE BUILDS THEM, ONE PER CALL (ADR-0345). voe_render_device_prepare builds
+// the next one the device lacks, then the relight's startup (bounce_relight.c),
+// so a program can show a starting line between steps. voe_render_device_ready
+// calls it until nothing is left; every pass that can use one calls that first,
+// so a caller who never prepares gets them all on its first such pass. A failed
+// step is final: every later call answers FAILED, and elements still draw.
 //
 // THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/draw.slang into
 // the build tree and #embed puts the result in the binary below; nothing is read
@@ -30,7 +38,7 @@
 // element.c builds it: no vertex input at all, a triangle strip, nothing culled
 // and its own shader, which is four differences and nothing left of the shared
 // description. What it does share is the layout below, which is why
-// voe_render_element_startup runs after this in open_device and why this file's
+// voe_render_element_startup runs after the layout in open_device and why this file's
 // push constant range is a matrix wide rather than a word.
 //
 // DEPTH IS SET UP HERE AND IT RUNS BACKWARDS. GREATER, not LESS, because the
@@ -303,48 +311,6 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 						     &device->format.format,
 		.depthAttachmentFormat = VOE_RENDER_DEPTH_FORMAT,
 	};
-	// One set holding everything the shader reads, and one push constant
-	// range holding the one number that differs between two draws in a
-	// frame. descriptors.c made the set layout, which is why it has to have
-	// run before this function does; the range is described here because it
-	// belongs to the pipeline layout and to nothing else.
-	//
-	// BOTH STAGES, because both read the object's record: the vertex stage
-	// wants its world matrix and the fragment stage wants the shading index
-	// in it. A range that named one stage would make the other's read
-	// invalid.
-	//
-	// IT IS A MATRIX WIDE THOUGH A MESH DRAW PUSHES SIXTEEN BYTES — the
-	// object and a point-shadow draw's three words of face mask, nought in
-	// every other pass, the same sixteen through every mesh pipeline — AND
-	// THAT IS THE ELEMENT PIPELINE'S DOING. shaders/elements.slang pushes a
-	// sixty-four-byte surface transform through this same range, because
-	// that pipeline shares this layout — and it shares it so that the
-	// descriptor set frame.c binds as a pass opens stays bound
-	// across an element draw. Two layouts differing only in their push
-	// constant ranges are incompatible, and binding a pipeline with an
-	// incompatible layout disturbs the set for everything drawn afterwards.
-	//
-	// THE TWO BLOCKS ALIAS AND NEITHER EVER READS THE OTHER'S BYTES. Both
-	// start at offset nought, and each pipeline pushes its own immediately
-	// before its own draw — voe_render_frame_draw pushes the object number
-	// for every mesh it draws, and voe_render_element's draw pushes the
-	// transform for its one draw. There is no ordering in which a shader
-	// reads bytes the other left. Widening it further is free until 128,
-	// which is the smallest range Vulkan guarantees.
-	VkPushConstantRange push = {
-		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
-			      VK_SHADER_STAGE_FRAGMENT_BIT,
-		.offset = 0,
-		.size = sizeof(voe_math_float4x4),
-	};
-	VkPipelineLayoutCreateInfo layout = {
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-		.setLayoutCount = 1,
-		.pSetLayouts = &device->descriptor_layout,
-		.pushConstantRangeCount = 1,
-		.pPushConstantRanges = &push,
-	};
 	VkGraphicsPipelineCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.pNext = &rendering,
@@ -359,11 +325,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.pDepthStencilState = &depth,
 		.pColorBlendState = &blend,
 		.pDynamicState = &dynamic,
+		.layout = device->layout,
 	};
 	VkResult result;
 
-	VOE_BASE_DEBUG_ASSERT(device->descriptor_layout != VK_NULL_HANDLE,
-			      "building the pipeline before the descriptor layout exists");
+	VOE_BASE_DEBUG_ASSERT(device->layout != VK_NULL_HANDLE,
+			      "building a mesh pipeline before the pipeline layout exists");
 
 	if (voe_render_vk.create_shader_module(device->device, &module_info, NULL,
 					       &module) != VK_SUCCESS) {
@@ -389,20 +356,6 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	attachments[0] = attachment;
 	attachments[1] = attachment;
 
-	// ONE LAYOUT FOR ALL THREE PIPELINES, MADE BY WHICHEVER GETS HERE FIRST.
-	// All describe the same set and the same push constant, and the probe
-	// shares it as well — see device_internal.h. A second one would be a
-	// second handle for the same description and a leak the day only one of
-	// them was destroyed.
-	if (device->layout == VK_NULL_HANDLE &&
-	    voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
-						 &device->layout) != VK_SUCCESS) {
-		VOE_BASE_ERROR("render", "vkCreatePipelineLayout failed");
-		voe_render_vk.destroy_shader_module(device->device, module, NULL);
-		return false;
-	}
-	info.layout = device->layout;
-
 	result = voe_render_vk.create_graphics_pipelines(device->device,
 							 VK_NULL_HANDLE, 1, &info,
 							 NULL, out);
@@ -425,16 +378,115 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	return true;
 }
 
-// The solid one first, because it is the one that makes the layout and the one
-// every draw that is not see-through goes through.
-bool voe_render_pipelines_create(voe_render_device *device)
+// ONE LAYOUT FOR EVERY PIPELINE HERE, the element one and the probe's too — see
+// device_internal.h. One set holding everything the shader reads, and one push
+// constant range. descriptors.c made the set layout, which is why it has to have
+// run before this does; the range is described here because it belongs to the
+// pipeline layout and to nothing else.
+//
+// BOTH STAGES, because both read the object's record: the vertex stage wants its
+// world matrix and the fragment stage wants the shading index in it. A range
+// that named one stage would make the other's read invalid.
+//
+// IT IS A MATRIX WIDE THOUGH A MESH DRAW PUSHES SIXTEEN BYTES — the object and a
+// point-shadow draw's three words of face mask, nought in every other pass, the
+// same sixteen through every mesh pipeline — AND THAT IS THE ELEMENT PIPELINE'S
+// DOING. shaders/elements.slang pushes a sixty-four-byte surface transform
+// through this same range, because that pipeline shares this layout — and it
+// shares it so that the descriptor set frame.c binds as a pass opens stays bound
+// across an element draw. Two layouts differing only in their push constant
+// ranges are incompatible, and binding a pipeline with an incompatible layout
+// disturbs the set for everything drawn afterwards.
+//
+// THE TWO BLOCKS ALIAS AND NEITHER EVER READS THE OTHER'S BYTES. Both start at
+// offset nought, and each pipeline pushes its own immediately before its own
+// draw — voe_render_frame_draw pushes the object number for every mesh it draws,
+// and voe_render_element's draw pushes the transform for its one draw. Widening
+// it further is free until 128, which is the smallest range Vulkan guarantees.
+bool voe_render_pipeline_layout_create(voe_render_device *device)
 {
-	return create_pipeline(device, MESH_SOLID, &device->pipeline) &&
-	       create_pipeline(device, MESH_BLENDED, &device->pipeline_blended) &&
-	       create_pipeline(device, MESH_SHADOW, &device->pipeline_shadow) &&
+	VkPushConstantRange push = {
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+			      VK_SHADER_STAGE_FRAGMENT_BIT,
+		.offset = 0,
+		.size = sizeof(voe_math_float4x4),
+	};
+	VkPipelineLayoutCreateInfo layout = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 1,
+		.pSetLayouts = &device->descriptor_layout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &push,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(device->descriptor_layout != VK_NULL_HANDLE,
+			      "building the pipeline layout before the descriptor layout exists");
+	if (voe_render_vk.create_pipeline_layout(device->device, &layout, NULL,
+						 &device->layout) != VK_SUCCESS) {
+		VOE_BASE_ERROR("render", "vkCreatePipelineLayout failed");
+		return false;
+	}
+	return true;
+}
+
+// ------------------------------------------------------------------ prepare
+
+// Whether every step prepare takes has been taken: the three pipelines every
+// device has, and with shaderOutputLayer the point shadow, the capture and the
+// relight's startup.
+static bool prepared(const voe_render_device *device)
+{
+	return device->pipeline != VK_NULL_HANDLE &&
+	       device->pipeline_blended != VK_NULL_HANDLE &&
+	       device->pipeline_shadow != VK_NULL_HANDLE &&
 	       (!device->output_layer ||
-		(create_pipeline(device, MESH_POINT_SHADOW,
-				 &device->pipeline_point_shadow) &&
-		 create_pipeline(device, MESH_CAPTURE,
-				 &device->pipeline_capture)));
+		(device->pipeline_point_shadow != VK_NULL_HANDLE &&
+		 device->pipeline_capture != VK_NULL_HANDLE &&
+		 device->relight_started));
+}
+
+// The first step not yet taken, in the order the public header gives. The solid
+// one first, because every draw that is not see-through goes through it.
+static bool take_step(voe_render_device *device)
+{
+	if (device->pipeline == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_SOLID, &device->pipeline);
+	if (device->pipeline_blended == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_BLENDED,
+				       &device->pipeline_blended);
+	if (device->pipeline_shadow == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_SHADOW,
+				       &device->pipeline_shadow);
+	if (device->pipeline_point_shadow == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_POINT_SHADOW,
+				       &device->pipeline_point_shadow);
+	if (device->pipeline_capture == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_CAPTURE,
+				       &device->pipeline_capture);
+	return voe_render_bounce_relight_startup(device);
+}
+
+voe_render_prepare voe_render_device_prepare(voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "preparing no device");
+
+	if (device->prepare_failed)
+		return VOE_RENDER_PREPARE_FAILED;
+	if (!prepared(device) && !take_step(device)) {
+		device->prepare_failed = true;
+		VOE_BASE_ERROR("render",
+			       "preparing the mesh pipelines failed; this device draws elements and nothing else");
+		return VOE_RENDER_PREPARE_FAILED;
+	}
+	return prepared(device) ? VOE_RENDER_PREPARED : VOE_RENDER_PREPARING;
+}
+
+bool voe_render_device_ready(voe_render_device *device)
+{
+	voe_render_prepare state;
+
+	do
+		state = voe_render_device_prepare(device);
+	while (state == VOE_RENDER_PREPARING);
+	return state == VOE_RENDER_PREPARED;
 }

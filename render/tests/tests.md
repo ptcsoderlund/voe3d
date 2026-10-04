@@ -42,6 +42,9 @@ by reading the offscreen colour image back.
 - `water.c` — water over a depth copy: clear at the shore and darkened in the deep, waves that move
   with seconds and wrap at 60, the sun's glint at the mirror angle, a shadow on it, and `water` 0
   drawing as an ordinary blended surface. Headless.
+- `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
+  calls, a pass with no camera drawing an element before any, and a camera pass preparing it all.
+  Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.
