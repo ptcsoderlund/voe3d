@@ -17,14 +17,14 @@ workflow replaced specs.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — the one layer naming Vulkan: card, resources, passes, lights, shadows, bounce.
+- **render** — the one layer naming Vulkan: card, resources, passes, light, shadow, bounce, prepare.
 - **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — scene to draws: meshes, fading models, shapes, particles, water, picks, outlines, light.
 - **sprite** — a sprite is a plane in the world and hands back a material.
-- **app** — what a frame loop repeats: the paced frame, capture to a PNG, a headless start.
-- **game** — a shipped game in the window it is handed: world types, 1/60 s steps, code, sound.
+- **app** — what a frame loop repeats: the paced frame, PNG capture, a headless start, start log.
+- **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, starting line.
 - **editor** — top bar, Project panel, Scene list, Assets, prefabs, views, gizmo, Inspector, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
@@ -49,12 +49,12 @@ workflow replaced specs.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306, 0344 — Text scale; fit; mm panels; PC sizes.
 - 0192, 0193, 0195, 0198–0200, 0202–0207 — Queue; focus; dropdowns; overlays; picks; undo; gizmo.
-- 0201, 0214–0216, 0227, 0233 — Fastest card, named; unfocused 4 fps, hidden none; right flies.
-- 0189–0191, 0217, 0218, 0221, 0300, 0302, 0303 — A bare entity; needs brought along; one camera.
+- 0201, 0214–0216, 0227, 0233, 0189–0191, 0217, 0218, 0221, 0300, 0302, 0303 — Fastest card;
+  4 fps unfocused; right flies; a bare entity; needs brought along; one camera.
 - 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light: preview, black.
 - 0239–0248, 0263 — A project's C in `Code/`, loaded, Refreshed; `examples/`; `engine_assets/`.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
-- 0333–0340, 0342, 0343 — Pause, restart; waves, goal; ids; fade; Linux; Release; copy; browse.
+- 0333–0340, 0342, 0343, 0345, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
