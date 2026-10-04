@@ -1260,11 +1260,17 @@ typedef struct {
 // shadows are not ready it reads none. They are copied at _pass_begin, so the caller's array is
 // its own again when that returns. Zero is none; more than
 // VOE_RENDER_POINT_LIGHTS, or NULL with a count, asserts.
+//
+// `blockers` KEEP OUTSIDE LIGHT OUT OF THEIR BOXES (ADR-0347): the sun, the fill
+// and every point light reach a lit surface only by the masks above. Copied at
+// _pass_begin, as `points` are. Zero is none, the old picture; more than
+// VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, or a row not finite asserts.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
 	voe_render_shadow shadow;
 	voe_render_point_lights points;
+	voe_render_light_blockers blockers;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass

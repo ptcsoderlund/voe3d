@@ -37,7 +37,9 @@
 // `lights` AND `region` ARE THE PASS'S POINT LIGHTS (ADR-0320): `lights` how many
 // it carries, 0 for none, and `region` the pass's number, which picks its
 // VOE_RENDER_POINT_LIGHTS records at binding 7 and its struct
-// voe_render_light_bins at binding 8. The word after them is padding.
+// voe_render_light_bins at binding 8. `blockers` is how many light blockers the
+// pass carries (ADR-0347), 0 for none; the same `region` picks their struct
+// voe_render_frame_blockers at binding 11.
 //
 // ONE BUFFER AND A DYNAMIC OFFSET, NOT A SET PER PASS. Binding 0 is a dynamic
 // uniform buffer, so opening a pass binds the slot's one set with the offset of
@@ -71,8 +73,16 @@ struct voe_render_frame_block {
 	uint32_t depth_copy;
 	uint32_t lights;
 	uint32_t region;
-	uint32_t reserved;
+	uint32_t blockers;
 	struct voe_render_frame_bounce bounce;
+};
+
+// One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
+// handed over, then each of its point lights' masks, light i's at masks[i],
+// worked out by voe_render_light_blockers_mask at the light's position.
+struct voe_render_frame_blockers {
+	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
+	uint32_t masks[VOE_RENDER_POINT_LIGHTS];
 };
 
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
@@ -494,6 +504,10 @@ struct voe_render_frame {
 	void *point_lights_mapped;
 	struct voe_render_buffer light_bins;
 	void *light_bins_mapped;
+	// And its light blockers: capacities.passes struct
+	// voe_render_frame_blockers, the same lifetime and the same rules.
+	struct voe_render_buffer light_blockers;
+	void *light_blockers_mapped;
 
 	// This slot's transient geometry: the vertex pool and the index pool
 	// that voe_render_geometry_create_transient writes and the frame then

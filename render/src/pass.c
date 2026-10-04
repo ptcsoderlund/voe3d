@@ -37,10 +37,16 @@
 // On a device whose point shadows are not ready every slot is copied as 0, so
 // no surface reads a map nothing drew.
 //
+// ITS LIGHT BLOCKERS (ADR-0347) are copied into its region at binding 11 beside
+// each of its point lights' masks, worked out here, and its block names how
+// many; none is 0. A count past VOE_RENDER_LIGHT_BLOCKERS, NULL with a count or
+// a row not finite asserts.
+//
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
 #include "light_bins.h"
+#include "light_blockers.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -380,6 +386,42 @@ static void place_lights(const struct voe_render_frame *frame, uint32_t region,
 	       &bins, sizeof(bins));
 }
 
+// `blockers` into pass `region`'s struct voe_render_frame_blockers at binding
+// 11, each of `points`' masks beside them, and the count into `block`. The
+// masks are written even with no blockers, as 0, so no light reads a stale one.
+static void place_blockers(const struct voe_render_frame *frame,
+			   uint32_t region, voe_render_light_blockers blockers,
+			   voe_render_point_lights points,
+			   struct voe_render_frame_block *block)
+{
+	struct voe_render_frame_blockers *placed;
+
+	VOE_BASE_ASSERT(blockers.count <= VOE_RENDER_LIGHT_BLOCKERS,
+			"a pass with more light blockers than VOE_RENDER_LIGHT_BLOCKERS");
+	VOE_BASE_ASSERT(blockers.blockers != NULL || blockers.count == 0,
+			"a pass with a light blocker count and no blockers");
+	for (uint32_t i = 0; i < blockers.count; i++)
+		for (uint32_t r = 0; r < 3; r++) {
+			const voe_math_float4 row = blockers.blockers[i].rows[r];
+
+			VOE_BASE_ASSERT(isfinite(row.x) && isfinite(row.y) &&
+						isfinite(row.z) && isfinite(row.w),
+					"a light blocker whose row is not finite");
+		}
+	VOE_BASE_DEBUG_ASSERT(frame->light_blockers_mapped != NULL,
+			      "placing light blockers in a buffer that is not mapped");
+	placed = (struct voe_render_frame_blockers *)frame->light_blockers_mapped +
+		 region;
+	if (blockers.count > 0)
+		memcpy(placed->blockers, blockers.blockers,
+		       blockers.count * sizeof(*blockers.blockers));
+	for (uint32_t i = 0; i < points.count; i++)
+		placed->masks[i] = voe_render_light_blockers_mask(
+			blockers.blockers, blockers.count,
+			points.lights[i].position);
+	block->blockers = blockers.count;
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -457,6 +499,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		place_lights(frame, device->pass_count, &camera->view,
 			     camera->points,
 			     voe_render_point_shadows_ready(device), &block);
+		place_blockers(frame, device->pass_count, camera->blockers,
+			       camera->points, &block);
 	}
 
 	// The window's pair or this frame slot's pair of the target, each with

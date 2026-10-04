@@ -89,3 +89,6 @@ by reading the offscreen colour image back.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: lit only where they
   reach, none when unshaded, falloff ordering brightness, and a shadow slot ignored with no point
   shadows, and bounces and bounce strength lighting nothing directly. Headless.
+- `blocked_light.c` — a light blocker over half a sunlit ground: that half black, the other and a
+  far or uncounted box the old picture, a lamp outside lighting only outside and one inside only
+  inside, and an unshaded pass unchanged. Headless.

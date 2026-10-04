@@ -14,6 +14,15 @@
 // its face (point_shadow.slangh) at binding 9. No part in the fill's fade, none
 // in the bounce, and the water path does not call it.
 //
+// LIGHT BLOCKERS SPLIT LIGHT INTO INSIDE AND OUTSIDE (ADR-0347 point 3). The lit
+// path takes its surface's mask once, voe_render_surface_mask, at its position
+// pushed VOE_RENDER_LIGHT_BLOCKER_PUSH along its geometric normal: bit i when
+// blocker i holds it, sphere first then rows, as render/src/light_blockers.c.
+// The sun's direct term, its shadow included, and the fill are nought unless
+// that mask is 0; a point light's term is nought unless its mask, worked out at
+// pass begin, equals it. The bounce is not gated yet, and the water path takes
+// no mask, so mask 0. No blockers is every mask 0, the old picture.
+//
 // ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
 // sun arrives with the camera, once a frame, and every surface is lit from the
 // same direction with the same strength. What is not the sun is the indirect
@@ -142,12 +151,46 @@ float voe_render_sunlight(float3 world, float3 normal)
 	return lit / 9.0;
 }
 
+// The mask of the pass's blockers that hold `p`: voe_render_light_blockers_mask
+// in render/src/light_blockers.c, the same sphere, the same rows, face inside.
+uint voe_render_blocker_mask(float3 p)
+{
+	uint count = min(voe_render_frame.blockers, VOE_RENDER_LIGHT_BLOCKERS);
+	uint region = voe_render_frame.region;
+	uint mask = 0;
+
+	for (uint i = 0; i < count; i++) {
+		voe_render_light_blocker b = voe_render_light_blockers[region].blockers[i];
+		float3 d = p - b.sphere.xyz;
+
+		if (dot(d, d) > b.sphere.w * b.sphere.w)
+			continue;
+		if (abs(dot(b.rows[0].xyz, p) + b.rows[0].w) <= 1.0 &&
+		    abs(dot(b.rows[1].xyz, p) + b.rows[1].w) <= 1.0 &&
+		    abs(dot(b.rows[2].xyz, p) + b.rows[2].w) <= 1.0)
+			mask |= 1u << i;
+	}
+	return mask;
+}
+
+// The mask of a surface at `world` with geometric normal `surface`, pushed off
+// it so a wall on a box's face is inside on one side only. See the header.
+uint voe_render_surface_mask(float3 world, float3 surface)
+{
+	if (voe_render_frame.blockers == 0)
+		return 0;
+	return voe_render_blocker_mask(world + surface * VOE_RENDER_LIGHT_BLOCKER_PUSH);
+}
+
 // The sun's direct light at a surface it reaches by `reach`, N·L times its
-// shadow: its colour times its strength times that.
-float3 voe_render_sun_radiance(float reach)
+// shadow: its colour times its strength times that; nought for a surface whose
+// `mask` is not 0.
+float3 voe_render_sun_radiance(float reach, uint mask = 0)
 {
 	voe_render_light sun = voe_render_frame.light;
 
+	if (mask != 0)
+		return float3(0.0, 0.0, 0.0);
 	return sun.colour * sun.intensity * reach;
 }
 
@@ -170,10 +213,13 @@ float3 voe_render_bounce_irradiance(float3 world, float3 n)
 
 // What lights `colour` besides the sun: the bounce, with the fill as a floor
 // under it where the sun does not reach — whole at a reach of nought, faded
-// along a smoothstep, gone from VOE_FILL_FADE_REACH. See the header.
-float3 voe_render_indirect(float reach, float3 world, float3 n, float3 colour)
+// along a smoothstep, gone from VOE_FILL_FADE_REACH, and none for a surface
+// whose `mask` is not 0. See the header.
+float3 voe_render_indirect(float reach, float3 world, float3 n, float3 colour,
+			   uint mask = 0)
 {
-	float fill_weight = 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+	float fill_weight = mask != 0 ? 0.0 :
+			    1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
 	float3 bounce = voe_render_bounce_irradiance(world, n) / VOE_PI;
 
 	return colour * max(bounce, fill_weight * voe_render_frame.light.fill);
@@ -234,9 +280,10 @@ float voe_render_point_visibility(voe_render_point_light light, float3 world,
 // (`surface` its geometric normal, which places a shadow lookup) and seen along
 // `v`: the BRDF of each light its tile and slice both mark, times N·L, its
 // colour and saturate(1 − (d/range)^(2/falloff))², the light's falloff bending
-// its reach, and a slotted light's shadow. Nought with no lights. See the header.
+// its reach, and a slotted light's shadow; only the lights whose mask equals the
+// surface's `mask`. Nought with no lights. See the header.
 float3 voe_render_points(float3 world, float3 surface, float3 n, float3 v,
-			 float3 diffuse_colour, float3 f0, float alpha)
+			 float3 diffuse_colour, float3 f0, float alpha, uint mask)
 {
 	uint count = voe_render_frame.lights;
 
@@ -265,6 +312,9 @@ float3 voe_render_points(float3 world, float3 surface, float3 n, float3 v,
 		while (bits != 0) {
 			uint b = firstbitlow(bits);
 			bits &= bits - 1;
+			if (voe_render_light_blockers[voe_render_frame.region]
+				    .masks[w * 32 + b] != mask)
+				continue;
 			voe_render_point_light light =
 				voe_render_point_lights[first + w * 32 + b];
 			float3 to = light.position - world;

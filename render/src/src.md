@@ -91,7 +91,7 @@ which file to open — what each one owns, and where the seams between them run.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
-  begun probe volume, and its point lights copied and binned, the clear colour, the
+  begun probe volume, its point lights copied and binned, its light blockers and lamp masks, the clear colour, the
   first-clears-later-load rule, the depth copy, and the one Y flip in the viewport.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
   the point-shadow pass one instance per cube face reached, the depth clear between them, and the

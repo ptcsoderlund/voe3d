@@ -9,7 +9,7 @@ in; getting it wrong transposes every transform without failing to compile.
 A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its bounce record
-  and point light count, object and shading records, the probe volumes' sums at binding 6 and
+  and point light and blocker counts, object and shading records, the light blockers at 11, the probe volumes' sums at binding 6 and
   moments at 10, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
   bindings and the push constant, which holds the object and a 96-bit face mask, each matching its C
   struct.
@@ -28,7 +28,8 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms, its shadow by
   cascades, its radiance, the bounce read from the pass's probe volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each fading
-  to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325).
+  to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325);
+  light blockers gate the sun, fill and lamps by mask (0347).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
