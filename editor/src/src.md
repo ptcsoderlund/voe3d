@@ -102,10 +102,8 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its notice, Play, Refresh and Ship, a prefab opened
-  and Back, the armed command that makes Close, New, Open and Back refuse once over unsaved work,
-  Open and Save starting beside the project's folder or the last project, and New and Open's load
-  put off a frame, behind a splash frame.
+- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, and the
+  armed command that makes Close, New, Open and Back refuse once over unsaved work.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, what a browser action does to the session, and the load a frame later.

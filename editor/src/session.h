@@ -1,6 +1,5 @@
-// The project being worked on, its notice, its Play, Refresh and Ship, its open
-// prefab and the refuse-once rule that keeps unsaved work from being thrown
-// away by one click or one press of a shortcut.
+// The project being worked on, its notice, Play, Refresh and Ship, open prefab
+// and the refuse-once rule: no one click or shortcut throws unsaved work away.
 //
 // ONE ARMED COMMAND IS THE WHOLE OF THE RULE. With unsaved work, CLOSE, NEW,
 // OPEN and BACK are refused the first time: the notice says so and `armed`
@@ -14,9 +13,9 @@
 // (0356), puts the fresh untitled or the opened project in place, clears
 // `scene`'s selection and ends a running refresh and ship. OPEN shows the
 // browser beside the project's folder, or for an untitled scene the last
-// project, its row chosen (0343). SAVE NEVER ARMS: an opened project (or its open prefab) is written
-// over itself; an untitled one shows the browser in SAVE, starting as OPEN's
-// does, and Save here still means the shown folder.
+// project, its row chosen (0343). SAVE NEVER ARMS: an opened project (or its
+// open prefab) is written over itself; an untitled one shows the browser in
+// SAVE, starting as OPEN's does, and Save here still means the shown folder.
 //
 // A PREFAB IS OPENED BY voe_editor_session_prefab_open, refused while one is
 // open, and left by BACK, refused once while it is unsaved; with none open BACK
