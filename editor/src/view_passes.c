@@ -15,7 +15,8 @@
 // probe volume, begun, captured and relit by that call, and no view reads a
 // volume another view moved (0326 point 8). That volume stands on the view's
 // eye, so turning never moves it, and its relight shadows the sun by a sun
-// map of its own, never the view's cascades (0329 points 1 and 2).
+// map of its own, never the view's cascades (0329 points 1 and 2). The first
+// refused pass stops the frame there.
 #include "view_passes.h"
 
 #include <base/assert.h>
