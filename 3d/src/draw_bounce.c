@@ -22,6 +22,9 @@
 // scaled, turned and moved there and never through the eye-relative float
 // matrix, so where the eye stands cannot move the box by a rounding.
 //
+// THE BOUNCE KEEPS TO THE FRAME'S BLOCKERS (0347 point 4): the begin carries
+// `frame->blockers`, filled by voe_3d_draw_system_light_blockers before this.
+//
 // Constraints: at most STALE_ROOM spheres a frame, on the stack, because the
 // shadows call takes no arena. Sixty-four spheres of 6 m already queue more
 // probes than VOE_RENDER_BOUNCE_CAPTURE_PASSES × VOE_RENDER_BOUNCE_CAPTURE
@@ -328,6 +331,7 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 						   spheres, STALE_ROOM),
 		.sun = frame->light,
 		.points = frame->points,
+		.blockers = frame->blockers,
 	};
 	if (voe_scene_light_count(world) == 1) {
 		bounce.sun_bounces = voe_scene_light_rows(world)[0].bounces;

@@ -1,6 +1,6 @@
 [25]
 name = "House"
-folded = true
+folded = false
 [25.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]
@@ -74,7 +74,7 @@ parent = 25
 [31.voe_scene_transform]
 position = [-1.1216283533722162, 5.755573511123657e-07, 3.6880256002768874]
 rotation = [-2.6671334e-08, 0, 4.885318e-08, 1]
-scale = [1.7641829, 3.1469207, 0.40084815]
+scale = [2.1796618, 3.1469207, 0.40084815]
 
 [32]
 name = "frontwall1 2"

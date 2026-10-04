@@ -1,6 +1,7 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum, a
 // sun's circle and arrow, every point light's three circles, one entity's
-// silhouette, a collider's lines and the gizmo's two meshes, arrows or rings,
+// silhouette, a collider's and a light blocker's lines and the gizmo's two
+// meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
 // world place. See draw_marks.h.
 //
@@ -12,6 +13,7 @@
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
+#include <3d/light_blocker.h>
 #include <3d/outline.h>
 #include <3d/point_light_marker.h>
 #include <3d/sun_marker.h>
@@ -245,29 +247,25 @@ bool voe_3d_draw_marks_outline(const voe_ecs_world *world,
 	return true;
 }
 
-// THE COLLIDER'S LINES SHARE THE OUTLINE'S CLEAR AND ITS LOOK (0253). They are
-// drawn against the depth the outline was, clearing it only when nothing has,
-// so they show through what stands in front, in the outline's material and
-// colour. A zeroed entity, a dead one and one with no collider draw nothing;
-// so does a refused transient range, which render reports.
-void voe_3d_draw_marks_collider(const voe_ecs_world *world,
-				voe_render_device *device, voe_base_arena *arena,
-				voe_3d_frame frame, bool cleared)
+// THE COLLIDER'S AND THE BLOCKER'S LINES SHARE THE OUTLINE'S CLEAR AND ITS LOOK
+// (0253, 0347 point 5). `shape` is drawn as voe_3d_collider_marker_quads' lines
+// against the depth the outline was, clearing it only when nothing has, so they
+// show through what stands in front, in the outline's material and colour. A
+// refused transient range draws nothing, which render reports.
+static void draw_shape_lines(voe_render_device *device, voe_base_arena *arena,
+			     voe_3d_frame frame, voe_physics_shape shape,
+			     voe_3d_collider_marked marked, bool cleared)
 {
-	voe_physics_shape shape;
 	voe_3d_outline_mesh mesh;
 	voe_render_geometry quads;
 	voe_base_error error = VOE_BASE_OK;
 
-	VOE_BASE_ASSERT(device != NULL, "drawing a collider to no device");
-	VOE_BASE_ASSERT(arena != NULL, "a collider's lines with no arena");
+	VOE_BASE_ASSERT(device != NULL, "drawing shape lines to no device");
+	VOE_BASE_ASSERT(arena != NULL, "shape lines with no arena");
 
-	if (!voe_ecs_entity_alive(world, frame.collider.entity) ||
-	    !voe_physics_shape_of(world, frame.collider.entity, &shape))
-		return;
 	if (!voe_3d_collider_marker_quads(shape, frame.view, frame.eye,
-					  frame.collider.size,
-					  frame.collider.pixels, arena, &mesh) ||
+					  marked.size, marked.pixels, arena,
+					  &mesh) ||
 	    !voe_render_geometry_create_transient(
 		    device, mesh.vertices, mesh.vertex_count, mesh.indices,
 		    mesh.index_count, &quads, &error))
@@ -278,6 +276,45 @@ void voe_3d_draw_marks_collider(const voe_ecs_world *world,
 	(void)voe_render_frame_draw(device, quads,
 				    mark_object(frame.outlined.material,
 						frame.outlined.colour));
+}
+
+// The collider's lines (0253). A zeroed entity, a dead one and one with no
+// collider draw nothing.
+void voe_3d_draw_marks_collider(const voe_ecs_world *world,
+				voe_render_device *device, voe_base_arena *arena,
+				voe_3d_frame frame, bool cleared)
+{
+	voe_physics_shape shape;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a collider to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a collider's lines with no arena");
+
+	if (!voe_ecs_entity_alive(world, frame.collider.entity) ||
+	    !voe_physics_shape_of(world, frame.collider.entity, &shape))
+		return;
+	draw_shape_lines(device, arena, frame, shape, frame.collider, cleared);
+}
+
+// The selected blocker's box as the collider's lines (0347 point 5), the box
+// voe_3d_light_blocker_shape gives at the frame's lag, so the lines are the box
+// that blocks. A zeroed entity, a dead one and one with no blocker or no
+// transform draw nothing. A live entity needs the blocker table registered.
+void voe_3d_draw_marks_light_blocker(const voe_ecs_world *world,
+				     voe_render_device *device,
+				     voe_base_arena *arena, voe_3d_frame frame,
+				     bool cleared)
+{
+	voe_physics_shape shape;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a blocker to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a blocker's lines with no arena");
+
+	if (!voe_ecs_entity_alive(world, frame.light_blocker.entity) ||
+	    !voe_3d_light_blocker_shape(world, frame.light_blocker.entity,
+					frame.lag, &shape))
+		return;
+	draw_shape_lines(device, arena, frame, shape, frame.light_blocker,
+			 cleared);
 }
 
 // One of the gizmo's two meshes, as this frame's geometry and one draw. An

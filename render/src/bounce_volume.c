@@ -311,6 +311,12 @@ voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target)
 	return &own->volume;
 }
 
+// The bits at or past `count`, which no kind or sun mask may hold.
+static uint32_t past_count(uint32_t count)
+{
+	return count >= 32 ? 0u : ~((1u << count) - 1u);
+}
+
 void voe_render_bounce_begin(voe_render_device *device, voe_render_target target,
 			     const struct voe_render_bounce_frame *frame)
 {
@@ -331,6 +337,25 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 			"a bounce begin whose sun bounces past VOE_RENDER_BOUNCES_MAX");
 	VOE_BASE_ASSERT(isfinite(frame->spacing) && frame->spacing > 0.0f,
 			"a bounce begin whose spacing is not finite or not above nought");
+	VOE_BASE_ASSERT(frame->blockers.count <= VOE_RENDER_LIGHT_BLOCKERS,
+			"a bounce begin with more light blockers than VOE_RENDER_LIGHT_BLOCKERS");
+	VOE_BASE_ASSERT(frame->blockers.blockers != NULL ||
+				frame->blockers.count == 0,
+			"a bounce begin with a light blocker count and no blockers");
+	VOE_BASE_ASSERT((frame->blockers.walls & frame->blockers.indoors) == 0,
+			"a bounce begin with a light blocker that is both a Wall and Indoors");
+	VOE_BASE_ASSERT(((frame->blockers.walls | frame->blockers.indoors |
+			  frame->blockers.sun) &
+			 past_count(frame->blockers.count)) == 0,
+			"a bounce begin with a light blocker kind or sun bit at or past the blocker count");
+	for (uint32_t i = 0; i < frame->blockers.count; i++)
+		for (uint32_t r = 0; r < 3; r++) {
+			const voe_math_float4 row = frame->blockers.blockers[i].rows[r];
+
+			VOE_BASE_ASSERT(isfinite(row.x) && isfinite(row.y) &&
+						isfinite(row.z) && isfinite(row.w),
+					"a bounce begin with a light blocker whose row is not finite");
+		}
 	// The relight and the passes after a begin want the device prepared; a
 	// failed prepare (said on stderr) refuses the begin, recording nothing.
 	if (!voe_render_device_ready(device))
@@ -360,6 +385,8 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	device->bounce_frame.stale_count = 0;
 	device->bounce_frame.points =
 		(voe_render_point_lights){ .lights = device->bounce_lamps };
+	device->bounce_frame.blockers =
+		(voe_render_light_blockers){ .blockers = device->bounce_blockers };
 	if (!volume->built)
 		return;
 
@@ -368,7 +395,13 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 				       frame->stale, frame->stale_count,
 				       &frame->sun,
 				       frame->sun_bounces, frame->sun_strength,
-				       &frame->points, &lights);
+				       &frame->points, &frame->blockers, &lights);
 	memcpy(device->bounce_lamps, lights.lamps, sizeof(device->bounce_lamps));
 	device->bounce_frame.points.count = lights.lamp_count;
+	memcpy(device->bounce_blockers, lights.blockers,
+	       sizeof(device->bounce_blockers));
+	device->bounce_frame.blockers.count = lights.blocker_count;
+	device->bounce_frame.blockers.walls = lights.walls;
+	device->bounce_frame.blockers.indoors = lights.indoors;
+	device->bounce_frame.blockers.sun = lights.sun_mask;
 }

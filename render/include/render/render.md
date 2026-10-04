@@ -5,4 +5,5 @@ questions it answers, is `device.h`'s header.
 
 - `device.h` — the whole public surface of the device: opened unprepared and
   prepared a step at a time, geometry, textures, shading records and targets
-  uploaded for ids, and frames of lit passes drawn onto its window or a target.
+  uploaded for ids, and frames of passes, lit and light-blocked, drawn onto its
+  window or a target.

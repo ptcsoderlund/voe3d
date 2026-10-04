@@ -39,6 +39,9 @@ again, or to find where a claim that has started failing is written down.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
+- `light_blockers.c` — that a blocker's box follows its transform and parent, a frame records it
+  about the eye with its block's bit and the sun's mask, its lines are 12 edges, the ground under
+  one is black, a Direct's shadow reads the fill and a selected one is outlined.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
@@ -46,8 +49,8 @@ again, or to find where a claim that has started failing is written down.
   that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
   marks, and the still casters' box from two eyes and a turned one. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints the
-  ground it faces, open ground stays even, the grid settles, and camera turns and moves change
-  nothing, nor does a far eye take the bounce. Skips without a card.
+  ground it faces, open ground stays even, the grid settles, a light blocker keeps the tint out of
+  its patch, and camera turns and moves change nothing, nor does a far eye. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.

@@ -22,6 +22,12 @@
 // alike and two lamps' shadow slots swapped, needs none; a lamp moved 1 cm
 // about the corner, or one losing its slot, does.
 //
+// A LIGHT BLOCKER ADDED RELIGHTS; the same blockers again do not, nor with the
+// eye and the corner both moved 3 m; a blocker moved 1 cm does.
+//
+// A BLOCKER TURNED FROM ROOM TO WALL RELIGHTS; the same kinds again do not; a
+// sun mask changed from 0 to 1 relights (ADR-0350 point 5).
+//
 // THE 17th BOUNCING LAMP IS LEFT OUT, and lamps with no bounces are skipped.
 //
 // The tests set the marks by hand where taking all 6912 one by one would only
@@ -45,6 +51,7 @@ static const voe_render_light SUN = {
 static const int32_t CELL[3] = { -12, -6, -12 };
 static const voe_math_float3 CORNER = { -24.0f, -12.0f, -24.0f };
 static const voe_render_point_lights NONE = { 0 };
+static const voe_render_light_blockers NO_BLOCKERS = { 0 };
 
 static voe_render_bounce_lights lights;
 
@@ -54,7 +61,7 @@ static void place_at(voe_render_bounce_probes *p, voe_math_float3 corner,
 {
 	voe_render_bounce_probes_place(p, CELL, corner, spacing, stale,
 				       stale_count, &SUN, 1, 1.0f, lamps,
-				       &lights);
+				       &NO_BLOCKERS, &lights);
 }
 
 static void place(voe_render_bounce_probes *p, const int32_t cell[3],
@@ -64,7 +71,16 @@ static void place(voe_render_bounce_probes *p, const int32_t cell[3],
 	voe_render_bounce_probes_place(p, cell, CORNER,
 				       VOE_RENDER_BOUNCE_SPACING, stale,
 				       stale_count, &SUN, 1, 1.0f, lamps,
-				       &lights);
+				       &NO_BLOCKERS, &lights);
+}
+
+// `blockers` placed at `corner` with no lamps.
+static void place_blocked(voe_render_bounce_probes *p, voe_math_float3 corner,
+			  const voe_render_light_blockers *blockers)
+{
+	voe_render_bounce_probes_place(p, CELL, corner,
+				       VOE_RENDER_BOUNCE_SPACING, NULL, 0, &SUN,
+				       1, 1.0f, &NONE, blockers, &lights);
 }
 
 static uint32_t count(const uint32_t *bits)
@@ -255,6 +271,72 @@ static void an_eye_that_moves_relights_nothing(void)
 	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
 }
 
+// An axis-aligned box of centre `c` and half size `h` about the eye.
+static voe_render_light_blocker box_at(voe_math_float3 c, float h)
+{
+	return (voe_render_light_blocker){
+		.rows = { { 1.0f / h, 0, 0, -c.x / h },
+			  { 0, 1.0f / h, 0, -c.y / h },
+			  { 0, 0, 1.0f / h, -c.z / h } },
+		.sphere = { c.x, c.y, c.z, h * 1.7320508f },
+	};
+}
+
+static void blockers_relight_when_they_change(void)
+{
+	static voe_render_bounce_probes p;
+	const voe_math_float3 eye = { 3.0f, 3.0f, 3.0f };
+	const voe_math_float3 centre = { 2.0f, 1.0f, -3.0f };
+	voe_render_light_blocker box = box_at(centre, 0.5f);
+	const voe_render_light_blockers one = { .blockers = &box, .count = 1 };
+
+	memset(&p, 0, sizeof(p));
+	place_blocked(&p, CORNER, &NO_BLOCKERS);
+	capture_all(&p);
+	voe_render_bounce_probes_relit(&p, &lights);
+	place_blocked(&p, CORNER, &one);
+	VOE_TEST_CHECK_INT(lights.blocker_count, 1);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	voe_render_bounce_probes_relit(&p, &lights);
+	place_blocked(&p, CORNER, &one);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	// The eye 3 m off moves the box and the corner alike, about it.
+	box = box_at(shifted(centre, (voe_math_float3){ -eye.x, -eye.y, -eye.z }),
+		     0.5f);
+	place_blocked(&p, shifted(CORNER, (voe_math_float3){ -eye.x, -eye.y,
+							     -eye.z }),
+		      &one);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	box = box_at(shifted(centre, (voe_math_float3){ 0.01f, 0.0f, 0.0f }),
+		     0.5f);
+	place_blocked(&p, CORNER, &one);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+}
+
+static void kinds_and_the_sun_mask_relight(void)
+{
+	static voe_render_bounce_probes p;
+	const voe_render_light_blocker box =
+		box_at((voe_math_float3){ 2.0f, 1.0f, -3.0f }, 0.5f);
+	voe_render_light_blockers one = { .blockers = &box, .count = 1 };
+
+	memset(&p, 0, sizeof(p));
+	place_blocked(&p, CORNER, &one);
+	capture_all(&p);
+	voe_render_bounce_probes_relit(&p, &lights);
+	one.walls = 1;
+	place_blocked(&p, CORNER, &one);
+	VOE_TEST_CHECK_INT(lights.walls, 1);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	voe_render_bounce_probes_relit(&p, &lights);
+	place_blocked(&p, CORNER, &one);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	one.sun = 1;
+	place_blocked(&p, CORNER, &one);
+	VOE_TEST_CHECK_INT(lights.sun_mask, 1);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+}
+
 static void relight_follows_changes_and_lights(void)
 {
 	static voe_render_bounce_probes p;
@@ -305,6 +387,8 @@ int main(void)
 	a_new_spacing_queues_all();
 	relight_follows_changes_and_lights();
 	an_eye_that_moves_relights_nothing();
+	blockers_relight_when_they_change();
+	kinds_and_the_sun_mask_relight();
 	the_17th_bouncing_lamp_is_left_out();
 	return voe_test_result();
 }

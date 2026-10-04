@@ -11,13 +11,14 @@
 //             ...                        // the device stopped answering
 //
 // THE ORDER: the world step — the structural queue applied, the project's
-// replaces (game/project.h), the transform, identity and light systems, the
-// shape system, the model system, the collider and body systems, then the
+// replaces (game/project.h), the transform, identity, light and light blocker
+// systems, the shape system, the model system, the collider and body systems, then the
 // sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
-// point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,
+// light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
+// for them), the point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,
 // 0325), the sun's shadow passes and the lamps' one (voe_3d_draw_system_shadows,
 // 0258, 0325), one pass onto the window with
-// voe_3d_draw_system_frame's camera, sun, shadow and point lights, the draw
+// voe_3d_draw_system_frame's camera, sun, shadow, point lights and blockers, the draw
 // system, depth cleared and the interface's element records drawn in one
 // command over the surface of game/interface.h, the pass and the draw closed. The world step is its own call too, so
 // a fixed step runs the same owning systems in the same order.

@@ -1,0 +1,145 @@
+// Which light blockers hold a point (ADR-0347 point 3) and whether direct light
+// gets past them (ADR-0350 point 3), the shaders' one copy of each test. A part:
+// included by lighting.slangh (draw.slang's pass blockers at binding 11) and by
+// bounce_relight.slang (its record's), each before bounce_read.slangh, which
+// gates probes by it; never compiled alone.
+//
+// THE MASK HAS A TWIN: render/src/light_blockers.c on the CPU, checked by
+// tests/light_blockers.c: the same sphere, the same rows, the face counted as
+// inside, so a lamp's mask from pass begin and a surface's here agree. Change
+// one, change the other. The segment tests have no twin.
+//
+// A LIST IS WHATEVER THE INCLUDER SUPPLIES. voe_render_blocker_list hands out a
+// blocker's sphere and rows by index; the draw reads its pass's region, the
+// relight its record, and neither copies the array.
+//
+// THREE TESTS.
+// - Holds: outside its bounding sphere (xyz centre, w radius) is outside with
+//   one compare; inside it, inside when every row's |row.xyz · p + row.w| is at
+//   most 1. Bit i of a mask is blocker i; a count of nought is mask 0.
+// - Meets: a segment from → to meets blocker i when its nearest point to the
+//   sphere's centre is within the radius, then when slab clipping in the box's
+//   unit space, one row an axis, leaves some of [0, 1]; the face counts as met.
+// - Passes: light from source s reaches receiver p when the Room bits of their
+//   masks (in neither `walls` nor `indoors`) are equal and no Wall or Room
+//   blocker outside s's mask meets the segment p → s. Indoors stops nothing.
+//
+// THE SUN HAS NO PLACE, so its segment runs from p against its direction for
+// VOE_RENDER_SUN_SEGMENT metres. Blockers ride about the eye as point lights
+// do, and 10 km is past any a scene sets out at a precision the box test keeps:
+// a float there is a millimetre. A blocker farther along the ray is not met;
+// clipping the segment to each blocker's sphere instead would lift that.
+//
+// CONSTRAINTS. Holds: count × one compare a point, three dot products more per
+// sphere it is in. Meets: a projection and a compare, then six dot products and
+// three divides. Passes: one meets per Wall or Room not holding the source, per
+// light per pixel. At most 32 blockers, one bit each.
+
+// A list of blockers, at most 32: how many, and blocker i's sphere and row r.
+interface voe_render_blocker_list {
+	uint count();
+	float4 sphere(uint i);
+	float4 row(uint i, uint r);
+}
+
+// Metres the sun's segment runs from a surface. See the header.
+static const float VOE_RENDER_SUN_SEGMENT = 10000.0;
+
+// Whether blocker `i` of `list` holds `p`: the sphere first, then the rows.
+bool voe_render_blocker_holds<L : voe_render_blocker_list>(L list, uint i, float3 p)
+{
+	float4 sphere = list.sphere(i);
+	float3 d = p - sphere.xyz;
+
+	if (dot(d, d) > sphere.w * sphere.w)
+		return false;
+	for (uint r = 0; r < 3; r++) {
+		float4 row = list.row(i, r);
+
+		if (abs(dot(row.xyz, p) + row.w) > 1.0)
+			return false;
+	}
+	return true;
+}
+
+// The mask of the blockers of `list` that hold `p`, bit i for blocker i.
+uint voe_render_blockers_mask<L : voe_render_blocker_list>(L list, float3 p)
+{
+	uint count = min(list.count(), 32u);
+	uint mask = 0;
+
+	for (uint i = 0; i < count; i++)
+		if (voe_render_blocker_holds(list, i, p))
+			mask |= 1u << i;
+	return mask;
+}
+
+// Whether the segment `from` → `to` meets blocker `i` of `list`: the sphere's
+// distance to the segment first, then the slabs. See the header.
+bool voe_render_blocker_meets<L : voe_render_blocker_list>(L list, uint i,
+							  float3 from, float3 to)
+{
+	float4 sphere = list.sphere(i);
+	float3 d = to - from;
+	float length2 = dot(d, d);
+	float t = length2 > 0.0 ? saturate(dot(sphere.xyz - from, d) / length2) : 0.0;
+	float3 nearest = from + d * t - sphere.xyz;
+
+	if (dot(nearest, nearest) > sphere.w * sphere.w)
+		return false;
+	float low = 0.0;
+	float high = 1.0;
+
+	for (uint r = 0; r < 3; r++) {
+		float4 row = list.row(i, r);
+		float a = dot(row.xyz, from) + row.w;
+		float step = dot(row.xyz, to) + row.w - a;
+
+		if (step == 0.0) {
+			if (abs(a) > 1.0)
+				return false;
+			continue;
+		}
+		float t0 = (-1.0 - a) / step;
+		float t1 = (1.0 - a) / step;
+
+		low = max(low, min(t0, t1));
+		high = min(high, max(t0, t1));
+	}
+	return low <= high;
+}
+
+// Whether any blocker of `list` in `stoppers` and not in `source` meets the
+// segment `p` → `s`.
+bool voe_render_blockers_stop<L : voe_render_blocker_list>(L list, uint stoppers,
+							  uint source, float3 p,
+							  float3 s)
+{
+	uint count = min(list.count(), 32u);
+	uint candidates = stoppers & ~source;
+
+	for (uint i = 0; i < count; i++)
+		if ((candidates & (1u << i)) != 0 &&
+		    voe_render_blocker_meets(list, i, p, s))
+			return true;
+	return false;
+}
+
+// Whether direct light from a source of mask `source` at `s` reaches a
+// receiver of mask `receiver` at `p` (ADR-0350 point 3). See the header.
+bool voe_render_blockers_pass<L : voe_render_blocker_list>(L list, uint walls,
+							  uint indoors, uint source,
+							  uint receiver, float3 p,
+							  float3 s)
+{
+	uint rooms = ~(walls | indoors);
+
+	return (receiver & rooms) == (source & rooms) &&
+	       !voe_render_blockers_stop(list, ~indoors, source, p, s);
+}
+
+// The far end of the sun's segment from `p`, the sun travelling `direction`.
+float3 voe_render_sun_segment_end(float3 p, float3 direction)
+{
+	return p - direction * VOE_RENDER_SUN_SEGMENT;
+}

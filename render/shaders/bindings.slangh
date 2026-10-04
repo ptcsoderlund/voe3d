@@ -1,6 +1,6 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
-// depth copy, point lights), the object and shading records, the point lights
-// and their bins, the bindings of set 0 and the push constant that names the
+// depth copy, point lights, blockers), the object and shading records, the point
+// lights and their bins, the light blockers, the bindings of set 0 and the push constant that names the
 // object and a point-shadow draw's faces. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
 //
@@ -60,7 +60,8 @@ struct voe_render_shadow {
 // binding 10's grid / 4; corner its lowest corner about the eye; cell its
 // lowest cell wrapped per axis into 24 × 12 × 24. lighting.slangh reads it. lights is how many point lights the pass carries, 0 for none, and
 // region the pass's number, which picks its records at binding 7 and its bins
-// at binding 8 (ADR-0320).
+// at binding 8 (ADR-0320). blockers is how many light blockers it carries, 0
+// for none, in its region at binding 11 (ADR-0347).
 struct voe_render_frame_bounce {
 	float3 corner;
 	uint grid;
@@ -75,7 +76,7 @@ struct voe_render_frame_block {
 	uint depth_copy;
 	uint lights;
 	uint region;
-	uint reserved5;
+	uint blockers;
 	voe_render_frame_bounce bounce;
 };
 
@@ -121,6 +122,35 @@ static const uint VOE_RENDER_LIGHT_SLICE_WORDS =
 	VOE_RENDER_LIGHT_TILES_X * VOE_RENDER_LIGHT_TILES_Y * VOE_RENDER_LIGHT_WORDS;
 static const uint VOE_RENDER_LIGHT_REGION =
 	VOE_RENDER_LIGHT_SLICE_WORDS + VOE_RENDER_LIGHT_SLICES * VOE_RENDER_LIGHT_WORDS;
+
+// render/device.h's numbers, which these must equal (ADR-0347).
+static const uint VOE_RENDER_LIGHT_BLOCKERS = 32;
+static const float VOE_RENDER_LIGHT_BLOCKER_PUSH = 0.05;
+
+// One light blocker: voe_render_light_blocker in render/device.h, four float4s,
+// three rows into the box's unit space and its bounding sphere.
+struct voe_render_light_blocker {
+	float4 rows[3];
+	float4 sphere;
+};
+
+// One pass's region: struct voe_render_frame_blockers in
+// render/src/device_parts.h, its blockers then light i's mask at masks[i], then
+// the Wall and Indoors kinds as masks, a Room in neither, and the mask of the
+// blockers holding the sun (ADR-0350 point 2).
+struct voe_render_blocker_region {
+	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
+	uint masks[VOE_RENDER_POINT_LIGHTS];
+	uint walls;
+	uint indoors;
+	uint sun;
+	uint reserved;
+};
+
+// Set 0, binding 11: this frame slot's blocker regions, one per pass, the
+// pass's at `region`.
+[[vk::binding(11, 0)]]
+StructuredBuffer<voe_render_blocker_region> voe_render_light_blockers;
 
 // Set 0, binding 5: this frame slot's cascades, one layer each, read through a
 // comparison sampler whose border is lit (render/src/shadow.c).

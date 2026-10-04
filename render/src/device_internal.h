@@ -340,12 +340,14 @@ struct voe_render_device {
 
 	// This frame's last voe_render_bounce_begin, bounce_volume.c's: whether
 	// there was one, its target, and a copy of its record whose `stale` is
-	// none and whose `points` are `bounce_lamps`, the bouncing lamps — none
-	// while the target's volume is not built. Reset by voe_render_frame_begin.
+	// none and whose `points` are `bounce_lamps`, the bouncing lamps, and
+	// `blockers` `bounce_blockers` — none of either while the target's volume
+	// is not built. Reset by voe_render_frame_begin.
 	bool bounce_begun;
 	voe_render_target bounce_target;
 	struct voe_render_bounce_frame bounce_frame;
 	voe_render_point_light bounce_lamps[VOE_RENDER_BOUNCE_LAMPS];
+	voe_render_light_blocker bounce_blockers[VOE_RENDER_LIGHT_BLOCKERS];
 
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a

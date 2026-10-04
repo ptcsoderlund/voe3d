@@ -12,8 +12,8 @@ and the folder that owns a component's meaning is the folder that registers it.
   lives in an arena and has no destroy, and why capacities are fixed.
 - `include/ecs/component.h` — one table per component type, and the types a
   world holds with the key, capacity, description, replace intent, default and
-  unsaid rows, needed type and menu path; the two markers a registration passes
-  instead of a description. The file says why each is so.
+  unsaid rows, former field names, needed type and menu path; the two markers a
+  registration passes instead of a description.
 - `include/ecs/structure.h` — the world's structural queue: add a row with given
   bytes, remove a row, destroy an entity. Its header says who may submit, why the
   program applies it once a frame before its systems run, and why a request that

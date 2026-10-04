@@ -8,11 +8,12 @@
 //             break;                          // the GPU stopped answering
 //     if (drawing) {
 //             (void)voe_3d_draw_system_point_lights(world, &frame, scratch);
+//             (void)voe_3d_draw_system_light_blockers(world, &frame, scratch);
 //             (void)voe_3d_draw_system_shadows(world, gpu, &frame);
 //                                             // false: unshadowed, said on stderr
 //             voe_render_pass_camera camera = { .view = frame.view,
 //                     .light = frame.light, .shadow = frame.shadow,
-//                     .points = frame.points };
+//                     .points = frame.points, .blockers = frame.blockers };
 //             ...                             // build what changes this frame
 //             if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
 //                     voe_3d_draw_system_run(world, gpu, scratch, frame);
@@ -224,6 +225,10 @@ typedef struct {
 	// voe_3d_draw_system_shadows reads its slots, and the loop hands it to
 	// the pass camera beside `shadow`.
 	voe_render_point_lights points;
+	// The light blockers the pass's light is kept out of (0347); zero is
+	// none. _frame leaves it zeroed, voe_3d_draw_system_light_blockers
+	// fills it, and the loop hands it to the pass camera beside `points`.
+	voe_render_light_blockers blockers;
 	// The camera's world position, in double, that `view` is about
 	// (ADR-0250): every object's matrix, the sort and every mark is taken
 	// about this point. _frame sets it; a frame built by hand sets it too.
@@ -307,6 +312,15 @@ typedef struct {
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
+	// THE SELECTED LIGHT BLOCKER'S BOX AS LINES (0347 point 5), the entity
+	// zeroed for none. Only an editor's view sets it. The box is
+	// voe_3d_light_blocker_shape's at the frame's lag, drawn as the
+	// collider's lines are: after them, behind the outline's clear, in its
+	// material and colour. A zeroed entity, a dead one and one with no
+	// blocker or transform draw nothing. One more range and object, sized
+	// from VOE_3D_COLLIDER_MARKER_VERTICES and _INDICES; a pool too small
+	// draws nothing, as the outline does.
+	voe_3d_collider_marked light_blocker;
 	// TRUE WHEN THE CAMERA SEES NOTHING (0223): its transform has no
 	// inverse, a scale of nought on an axis, so voe_3d_view refused it and
 	// `view` is zeroed. _run draws no world for a blind frame. Zero means
@@ -344,10 +358,11 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `collider` and `points` all come back zeroed and `models` NULL
-// — hiding, outlining, standing a gizmo, marking a camera, a sun or the point
-// lights, drawing a collider,
-// lighting by point lights and drawing models are the caller's choice and it
+// `point_lights`, `collider`, `light_blocker`, `points` and `blockers` all come
+// back zeroed and `models` NULL — hiding, outlining, standing a gizmo, marking a
+// camera, a sun or the point lights, drawing a collider or a blocker's box,
+// lighting by point lights, keeping
+// light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer. Asserts on a world
 // without exactly one camera or with more than one light; with no light the
 // frame's light is the zeroed one and lit surfaces draw black — see below.
@@ -433,6 +448,29 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 						   voe_3d_frame *frame,
 						   voe_base_arena *arena);
 
+// Fills `frame->blockers` from every light blocker whose entity has a transform
+// (0347 point 2), in table order, at most VOE_RENDER_LIGHT_BLOCKERS: its box
+// (voe_3d_light_blocker_shape) at `frame->lag`, about `frame->eye` in float
+// (ADR-0250), its rows by render/device.h's formula and its sphere the box's
+// centre and |half|. A box with a half of nought on any axis is left out. The
+// array is in `arena`.
+//
+// BLOCK AND THE SUN'S MASK (0350 point 2, 0353): bit i of `walls` or `indoors`
+// is kept record i when its row's Block is Direct or Fill, an All in neither,
+// so a box left out shifts the bits after it. `sun` is
+// voe_render_light_blockers_mask over the kept records at the light row's
+// entity's world place at `frame->lag`, about `frame->eye`; no light table, no
+// light row or no transform on it is 0. A world with no light blocker table
+// fills none and returns true; the arena's push never fails (base/arena.h), so
+// today it is always true.
+//
+// CALLED BEFORE voe_3d_draw_system_shadows, which hands the same blockers to
+// the bounce, and EVERY PICTURE OF A WORLD MAKES IT, so a house is dark inside
+// in the editor's views as in the game.
+[[nodiscard]] bool voe_3d_draw_system_light_blockers(const voe_ecs_world *world,
+						     voe_3d_frame *frame,
+						     voe_base_arena *arena);
+
 // The sun's shadow passes for `frame`, opened between the frame's begin and the
 // view's pass (ADR-0258). With the directional light shaded and of some
 // strength, the frame not blind, and the world's light row, the one
@@ -477,7 +515,9 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // volume and shows none. Stale spheres are marked where a caster moved this
 // step (lag 1 against lag 0), so a world without a previous table marks none.
 // When nothing bounces nothing is begun, built or drawn (0316); false as before
-// when any call fails.
+// when any call fails. The bounce is handed `frame->blockers` (0347 point 4), so
+// voe_3d_draw_system_light_blockers comes first, and a blocker that changes
+// relights.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);
@@ -492,7 +532,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
 // a live camera with a transform, and `frame.sun`, when it names a live light
 // with a transform, are drawn with the world, and `frame.collider`, when it names one
-// with a collider, as lines after the outline. Calling it with no pass open is the caller's bug
+// with a collider, as lines after the outline, and `frame.light_blocker`, when
+// it names one with a blocker and a transform, as its box's lines after those. Calling it with no pass open is the caller's bug
 // and asserts.
 //
 // TWO KINDS OF DRAWABLE, AND THEY ARE SORTED TOGETHER. A mesh is a range in
@@ -602,7 +643,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // is _begin's and _end's to report, and both return false when it has.
 //
 // `arena` is scratch for this frame's sorts, the groups they order and the
-// outline's, the collider's and the gizmo's quads, and nothing survives the call: it is rewound to the mark
+// outline's, the collider's, the blocker's and the gizmo's quads, and nothing survives the call: it is rewound to the mark
 // this took on the way in, on every path out.
 //
 // IT WANTS AN ARENA BECAUSE THE SORTS NEED SOMEWHERE TO WORK. Working memory is

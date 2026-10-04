@@ -42,6 +42,12 @@
 // TURNED probing frames, each opening no capture pass and relighting nothing,
 // then moved back, the same pixels within 1/255: the grid is the level's.
 //
+// BLOCKED (0347 point 4): settled, a light blocker in both worlds around the
+// ground 0.4 to 1.6 m out from the box's sunlit face, not the box. Once settled
+// the ground 0.75 m out reads within BLOCKED/255 of the reference, and the
+// looked-at pixels, all outside it, within BLOCKED/255 of before; the blocker
+// destroyed, once settled that patch is within 1/255 of before again.
+//
 // FAR (bug 03, 0331): the eye 40 m further back along +z, still looking at the
 // origin, for TURNED probing frames, each true; the lit side, projected from
 // there, redder than the reference at the same eye by at least half of
@@ -66,6 +72,8 @@
 #include <render/device.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/light_blocker_component.h>
+#include <scene/light_blocker_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
 #include <scene/point_light_component.h>
@@ -85,6 +93,7 @@
 #define TINT 3
 #define SHADOW 4
 #define EVEN 2
+#define BLOCKED 2
 #define OPEN 5
 #define TURNED 3
 // The pixels TURN compares: the lit side, the shadow's foot and the open ground.
@@ -168,6 +177,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 	voe_3d_panel_register(s->world, 8);
 	voe_3d_shape_register(s->world, 8);
 	voe_3d_model_register(s->world, 8);
+	voe_scene_light_blocker_register(s->world, 2);
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(s->world, &s->camera));
 	VOE_TEST_CHECK(voe_scene_transform_add(
@@ -213,6 +223,8 @@ static voe_3d_frame begin_a_frame(scene *s, bool *drawing)
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(s->world, &frame,
 						       s->scratch));
+	VOE_TEST_CHECK(voe_3d_draw_system_light_blockers(s->world, &frame,
+							 s->scratch));
 	*drawing = false;
 	VOE_TEST_CHECK(voe_render_frame_begin(s->device, size, drawing));
 	VOE_TEST_CHECK(*drawing);
@@ -233,7 +245,8 @@ static voe_3d_frame a_full_frame(scene *s)
 		camera = (voe_render_pass_camera){ .view = frame.view,
 						   .light = frame.light,
 						   .shadow = frame.shadow,
-						   .points = frame.points };
+						   .points = frame.points,
+						   .blockers = frame.blockers };
 		VOE_TEST_CHECK(voe_render_pass_begin(
 			s->device, VOE_RENDER_TARGET_WINDOW, &camera));
 		voe_3d_draw_system_run(s->world, s->device, s->scratch, frame);
@@ -448,6 +461,84 @@ static void moving_moves_nothing(scene *s)
 	away_and_back_changes_nothing(s, moved, "moved");
 }
 
+// A light blocker of `size` at `at`, unturned; the entity.
+static voe_ecs_entity add_a_blocker(voe_ecs_world *world, voe_math_double3 at,
+				    voe_math_float3 size)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){ .position = at,
+				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_light_blocker_add(
+		world, entity, (voe_scene_light_blocker){ .size = size }));
+	return entity;
+}
+
+// BLOCKED: the patch keeps the bounce out while the blocker stands, the ground
+// outside it unchanged, and the tint back once it is gone.
+static void a_blocker_keeps_the_bounce_out(scene *s, scene *plain)
+{
+	const voe_scene_transform *box = voe_scene_transform_get(s->world, s->box);
+	voe_math_double3 centre = { box->position.x + 2.0, 0.0, box->position.z };
+	voe_math_float3 size = { 1.2f, 0.6f, 2.0f };
+	voe_math_float3 patch = { (float)box->position.x + 1.75f, 0.0f,
+				  (float)box->position.z };
+	voe_3d_frame frame = a_full_frame(s);
+	voe_render_picture picture = read_window(s);
+	voe_render_picture reference;
+	voe_ecs_entity blocker;
+	voe_ecs_entity plain_blocker;
+	uint8_t before[LOOKED][3];
+	uint8_t after[LOOKED][3];
+	uint8_t tinted[3];
+	const uint8_t *p;
+	const uint8_t *r;
+
+	the_pixels_looked_at(&picture, &frame, before);
+	p = pixel_at(&picture, &frame, patch);
+	for (int c = 0; c < 3; c++)
+		tinted[c] = p[c];
+	blocker = add_a_blocker(s->world, centre, size);
+	plain_blocker = add_a_blocker(plain->world, centre, size);
+	VOE_TEST_CHECK(settles(s));
+	frame = a_full_frame(s);
+	picture = read_window(s);
+	(void)a_full_frame(plain);
+	(void)a_full_frame(plain);
+	reference = read_window(plain);
+	p = pixel_at(&picture, &frame, patch);
+	r = pixel_at(&reference, &frame, patch);
+	printf("blocked patch: %d %d %d against %d %d %d, tinted %d %d %d\n",
+	       p[0], p[1], p[2], r[0], r[1], r[2], tinted[0], tinted[1],
+	       tinted[2]);
+	for (int c = 0; c < 3; c++)
+		VOE_TEST_CHECK(abs((int)p[c] - (int)r[c]) <= BLOCKED);
+	the_pixels_looked_at(&picture, &frame, after);
+	for (int i = 0; i < LOOKED; i++) {
+		printf("blocked %d: %d %d %d against %d %d %d\n", i, after[i][0],
+		       after[i][1], after[i][2], before[i][0], before[i][1],
+		       before[i][2]);
+		for (int c = 0; c < 3; c++)
+			VOE_TEST_CHECK(abs((int)after[i][c] - (int)before[i][c]) <=
+				       BLOCKED);
+	}
+
+	voe_ecs_entity_destroy(s->world, blocker);
+	voe_ecs_entity_destroy(plain->world, plain_blocker);
+	VOE_TEST_CHECK(settles(s));
+	frame = a_full_frame(s);
+	picture = read_window(s);
+	p = pixel_at(&picture, &frame, patch);
+	printf("unblocked patch: %d %d %d against %d %d %d\n", p[0], p[1], p[2],
+	       tinted[0], tinted[1], tinted[2]);
+	for (int c = 0; c < 3; c++)
+		VOE_TEST_CHECK(abs((int)p[c] - (int)tinted[c]) <= 1);
+}
+
 // FAR: both worlds' eyes 40 m further back along +z, looking down at the
 // origin; no capture pass opens there, and the ground 0.25 m out from the
 // box's +x face where it now stands, from there, is redder than the
@@ -567,6 +658,7 @@ static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 	VOE_TEST_CHECK(a_capture_was_wanted(s));
 	voe_scene_transform_remember(s->world);
 	VOE_TEST_CHECK(settles(s));
+	a_blocker_keeps_the_bounce_out(s, &plain);
 	turning_moves_nothing(s);
 	looking_away_relights_the_same(s);
 	moving_moves_nothing(s);

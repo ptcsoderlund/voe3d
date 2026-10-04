@@ -116,9 +116,17 @@ static void queue_sphere(voe_render_bounce_probes *p, const int32_t cell[3],
 static void pick_lights(const voe_render_light *sun, uint32_t sun_bounces,
 			float sun_strength,
 			const voe_render_point_lights *point_lights,
+			const voe_render_light_blockers *blockers,
 			voe_render_bounce_lights *lights)
 {
 	memset(lights, 0, sizeof(*lights));
+	lights->blocker_count = blockers->count;
+	if (blockers->count > 0)
+		memcpy(lights->blockers, blockers->blockers,
+		       blockers->count * sizeof(lights->blockers[0]));
+	lights->walls = blockers->walls;
+	lights->indoors = blockers->indoors;
+	lights->sun_mask = blockers->sun;
 	lights->sun = *sun;
 	lights->sun_bounces = sun_bounces;
 	lights->sun_strength = sun_strength;
@@ -138,6 +146,7 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 				    const voe_render_light *sun,
 				    uint32_t sun_bounces, float sun_strength,
 				    const voe_render_point_lights *point_lights,
+				    const voe_render_light_blockers *blockers,
 				    voe_render_bounce_lights *lights)
 {
 	assert(p != NULL && cell != NULL && sun != NULL && lights != NULL);
@@ -145,6 +154,9 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 	assert(stale != NULL || stale_count == 0);
 	assert(point_lights != NULL &&
 	       (point_lights->lights != NULL || point_lights->count == 0));
+	assert(blockers != NULL &&
+	       (blockers->blockers != NULL || blockers->count == 0) &&
+	       blockers->count <= VOE_RENDER_LIGHT_BLOCKERS);
 
 	enter(p, cell, spacing);
 	for (uint32_t i = 0; i < stale_count; i++)
@@ -153,7 +165,8 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 	p->corner = corner;
 	p->spacing = spacing;
 	p->placed = true;
-	pick_lights(sun, sun_bounces, sun_strength, point_lights, lights);
+	pick_lights(sun, sun_bounces, sun_strength, point_lights, blockers,
+		    lights);
 }
 
 // The queued probe nearest the eye, ties to the lower index; TOTAL for none.
@@ -222,11 +235,38 @@ static bool lamp_same(const voe_render_point_light *a, voe_math_float3 ca,
 	       a->bounce_strength == b->bounce_strength;
 }
 
+// Whether blocker `a` about corner `ca` is blocker `b` about `cb`. A row's w
+// shifts by row.xyz · d when the eye moves by d, so row.w + row.xyz · corner is
+// what stays put, as the sphere's centre about the corner does.
+static bool blocker_same(const voe_render_light_blocker *a, voe_math_float3 ca,
+			 const voe_render_light_blocker *b, voe_math_float3 cb)
+{
+	const float tiny = 1e-4f;
+	const float mm = 0.001f;
+
+	assert(a != NULL && b != NULL);
+	for (int r = 0; r < 3; r++) {
+		const voe_math_float4 ra = a->rows[r];
+		const voe_math_float4 rb = b->rows[r];
+
+		if (fabsf(ra.x - rb.x) > tiny || fabsf(ra.y - rb.y) > tiny ||
+		    fabsf(ra.z - rb.z) > tiny ||
+		    fabsf((ra.w + ra.x * ca.x + ra.y * ca.y + ra.z * ca.z) -
+			  (rb.w + rb.x * cb.x + rb.y * cb.y + rb.z * cb.z)) > tiny)
+			return false;
+	}
+	return fabsf(a->sphere.w - b->sphere.w) <= tiny &&
+	       fabsf((a->sphere.x - ca.x) - (b->sphere.x - cb.x)) <= mm &&
+	       fabsf((a->sphere.y - ca.y) - (b->sphere.y - cb.y)) <= mm &&
+	       fabsf((a->sphere.z - ca.z) - (b->sphere.z - cb.z)) <= mm;
+}
+
 bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 					     const voe_render_bounce_lights *lights)
 {
 	assert(p != NULL && lights != NULL);
 	assert(lights->lamp_count <= VOE_RENDER_BOUNCE_LAMPS);
+	assert(lights->blocker_count <= VOE_RENDER_LIGHT_BLOCKERS);
 	const voe_render_bounce_lights *r = &p->relit;
 
 	for (uint32_t i = 0; i < TOTAL / 32; i++)
@@ -235,11 +275,18 @@ bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 	if (memcmp(&r->sun, &lights->sun, sizeof(r->sun)) != 0 ||
 	    r->sun_bounces != lights->sun_bounces ||
 	    r->sun_strength != lights->sun_strength ||
-	    r->lamp_count != lights->lamp_count)
+	    r->lamp_count != lights->lamp_count ||
+	    r->blocker_count != lights->blocker_count ||
+	    r->walls != lights->walls || r->indoors != lights->indoors ||
+	    r->sun_mask != lights->sun_mask)
 		return true;
 	for (uint32_t i = 0; i < lights->lamp_count; i++)
 		if (!lamp_same(&lights->lamps[i], p->corner, &r->lamps[i],
 			       p->relit_corner))
+			return true;
+	for (uint32_t i = 0; i < lights->blocker_count; i++)
+		if (!blocker_same(&lights->blockers[i], p->corner, &r->blockers[i],
+				  p->relit_corner))
 			return true;
 	return false;
 }

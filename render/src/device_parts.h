@@ -37,7 +37,9 @@
 // `lights` AND `region` ARE THE PASS'S POINT LIGHTS (ADR-0320): `lights` how many
 // it carries, 0 for none, and `region` the pass's number, which picks its
 // VOE_RENDER_POINT_LIGHTS records at binding 7 and its struct
-// voe_render_light_bins at binding 8. The word after them is padding.
+// voe_render_light_bins at binding 8. `blockers` is how many light blockers the
+// pass carries (ADR-0347), 0 for none; the same `region` picks their struct
+// voe_render_frame_blockers at binding 11.
 //
 // ONE BUFFER AND A DYNAMIC OFFSET, NOT A SET PER PASS. Binding 0 is a dynamic
 // uniform buffer, so opening a pass binds the slot's one set with the offset of
@@ -71,8 +73,22 @@ struct voe_render_frame_block {
 	uint32_t depth_copy;
 	uint32_t lights;
 	uint32_t region;
-	uint32_t reserved;
+	uint32_t blockers;
 	struct voe_render_frame_bounce bounce;
+};
+
+// One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
+// handed over, then each of its point lights' masks, light i's at masks[i],
+// worked out by voe_render_light_blockers_mask at the light's position; then
+// the pass's `walls`, `indoors` and `sun` masks as handed over (ADR-0350 point
+// 2), nought with no blockers, and a reserved word that rounds it to 16 bytes.
+struct voe_render_frame_blockers {
+	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
+	uint32_t masks[VOE_RENDER_POINT_LIGHTS];
+	uint32_t walls;
+	uint32_t indoors;
+	uint32_t sun;
+	uint32_t reserved;
 };
 
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
@@ -319,27 +335,41 @@ struct voe_render_bounce_shadow {
 
 // bounce_relight.slang's struct relight_record at binding 11, std140: one
 // volume's region of a slot's record buffer (ADR-0330 point 2), here so a test
-// can read one.
+// can read one. `blocker_count` and `blockers` are the begun light blockers
+// (ADR-0347 point 4), the count in what was a reserved word; `walls`,
+// `indoors` and `sun_mask` their kinds and the sun's mask (ADR-0350 point 2),
+// after the blockers with a pad word rounding the record to 16 bytes.
 struct voe_render_relight_record {
 	voe_render_light sun;
 	voe_math_float4x4 sun_map;
 	float sun_texel;
 	uint32_t sun_drawn;
-	uint32_t reserved[2];
+	uint32_t blocker_count;
+	uint32_t reserved;
 	float corner[3];
 	float sun_strength;
 	uint32_t cell[3];
 	float spacing;
 	voe_render_point_light lamps[VOE_RENDER_BOUNCE_LAMPS];
+	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
+	uint32_t walls;
+	uint32_t indoors;
+	uint32_t sun_mask;
+	uint32_t pad;
 };
 
 static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      offsetof(struct voe_render_relight_record, sun_texel) == 112 &&
 		      offsetof(struct voe_render_relight_record, sun_drawn) == 116 &&
+		      offsetof(struct voe_render_relight_record, blocker_count) == 120 &&
 		      offsetof(struct voe_render_relight_record, corner) == 128 &&
 		      offsetof(struct voe_render_relight_record, cell) == 144 &&
 		      offsetof(struct voe_render_relight_record, lamps) == 160 &&
-		      sizeof(struct voe_render_relight_record) == 928,
+		      offsetof(struct voe_render_relight_record, blockers) == 928 &&
+		      offsetof(struct voe_render_relight_record, walls) == 2976 &&
+		      offsetof(struct voe_render_relight_record, indoors) == 2980 &&
+		      offsetof(struct voe_render_relight_record, sun_mask) == 2984 &&
+		      sizeof(struct voe_render_relight_record) == 2992,
 	      "the relight record as bounce_relight.slang lays it out");
 
 // Whether one frame slot's frame began a probe volume, and the lowest cell,
@@ -494,6 +524,10 @@ struct voe_render_frame {
 	void *point_lights_mapped;
 	struct voe_render_buffer light_bins;
 	void *light_bins_mapped;
+	// And its light blockers: capacities.passes struct
+	// voe_render_frame_blockers, the same lifetime and the same rules.
+	struct voe_render_buffer light_blockers;
+	void *light_blockers_mapped;
 
 	// This slot's transient geometry: the vertex pool and the index pool
 	// that voe_render_geometry_create_transient writes and the frame then

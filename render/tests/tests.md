@@ -56,9 +56,9 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
-- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, a
-  one-cell move queuing 288, a stale sphere queuing only within at 2 and 4 m, a new spacing queuing
-  all, a relight only on change and not for an eye that moves, and the 17th bouncing lamp left out.
+- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, 288
+  on a one-cell move, only within a stale sphere, all on a new spacing, a relight only on change
+  (blockers, their kinds and the sun's mask too), and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
   window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
   both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.
@@ -77,6 +77,9 @@ by reading the offscreen colour image back.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
+- `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
+  past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
+  inside the sphere but outside the box 0, the call reached through `render/device.h`.
 - `point_shadow_faces.c` — which cube faces a caster's sphere reaches, with no card: along +X bit 0,
   the +X/+Y diagonal bits 0 and 2, about the light all six, beyond range none, a cube's sphere, and
   one moved and scaled by a matrix.
@@ -86,3 +89,15 @@ by reading the offscreen colour image back.
 - `point_lights.c` — a pass's point lights on a ground quad under a dark sun: lit only where they
   reach, none when unshaded, falloff ordering brightness, and a shadow slot ignored with no point
   shadows, and bounces and bounce strength lighting nothing directly. Headless.
+- `blocked_light.c` — a light blocker over half a sunlit ground: that half black, the other and a
+  far or uncounted box the old picture, a lamp outside lighting only outside and one inside only
+  inside, and an unshaded pass unchanged. Headless.
+- `blocker_kinds.c` — kinds over a sunlit ground: a floating Wall's shadow the fill alone, ground
+  under and clear of it as before; a Wall stopping a lamp; Indoors keeping the sun, not the fill;
+  a Room holding the sun lit inside, black outside; zero kinds the old picture. Headless.
+- `blocked_bounce.c` — the bounce kept by a blocker: a blocked patch by a red wall takes no red,
+  ground outside as before, a count of 0 the old picture, and a lamp inside with the wall bouncing
+  red onto the patch, one outside none. Headless.
+- `blocker_kinds_bounce.c` — kinds gating the bounce by a red wall: a Wall slab between it and a
+  patch leaving the patch as with no bounce, ground on the wall's side red; an Indoors box round the
+  patch as with no blocker; a Room box with zero kinds as with no bounce. Headless.

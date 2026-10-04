@@ -39,8 +39,9 @@
 // voe_render_relight_record is the uniform the relight reads: the begun sun, the
 // bounce shadow map's view × projection, its texel (the box's width over
 // VOE_RENDER_BOUNCE_SHADOW_TEXELS) and whether this frame drew it, the sun's
-// strength, the volume's placement (cell, corner and its begin's spacing) and the
-// bouncing lamps.
+// strength, the volume's placement (cell, corner and its begin's spacing), the
+// bouncing lamps and the begun light blockers (ADR-0347 point 4) with their
+// kinds and the sun's mask (ADR-0350 point 2).
 //
 // device->relight_dispatches counts every dispatch recorded, for a test to read.
 //
@@ -359,6 +360,12 @@ void voe_render_bounce_begun_lights(const voe_render_device *device,
 	lights->lamp_count = device->bounce_frame.points.count;
 	memcpy(lights->lamps, device->bounce_lamps,
 	       lights->lamp_count * sizeof(lights->lamps[0]));
+	lights->blocker_count = device->bounce_frame.blockers.count;
+	memcpy(lights->blockers, device->bounce_blockers,
+	       lights->blocker_count * sizeof(lights->blockers[0]));
+	lights->walls = device->bounce_frame.blockers.walls;
+	lights->indoors = device->bounce_frame.blockers.indoors;
+	lights->sun_mask = device->bounce_frame.blockers.sun;
 }
 
 // The chains `lights` hold a light in, bit n for chain n.
@@ -418,6 +425,10 @@ static void write_record(voe_render_device *device, uint32_t index,
 		.corner = { begun->corner.x, begun->corner.y, begun->corner.z },
 		.sun_strength = lights->sun_strength,
 		.spacing = begun->spacing,
+		.blocker_count = lights->blocker_count,
+		.walls = lights->walls,
+		.indoors = lights->indoors,
+		.sun_mask = lights->sun_mask,
 	};
 
 	VOE_BASE_DEBUG_ASSERT(device->relight_records_mapped[device->slot] != NULL,
@@ -426,6 +437,7 @@ static void write_record(voe_render_device *device, uint32_t index,
 	for (uint32_t a = 0; a < 3; a++)
 		record.cell[a] = voe_render_bounce_probe_wrap(begun->cell[a], size[a]);
 	memcpy(record.lamps, lights->lamps, sizeof(record.lamps));
+	memcpy(record.blockers, lights->blockers, sizeof(record.blockers));
 	memcpy((unsigned char *)device->relight_records_mapped[device->slot] +
 		       index * device->relight_record_stride,
 	       &record, sizeof(record));

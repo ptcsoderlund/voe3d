@@ -232,6 +232,28 @@ void voe_ecs_component_unsaid_set(voe_ecs_world *world, voe_ecs_type type,
 const void *voe_ecs_component_unsaid(const voe_ecs_world *world,
 				     voe_ecs_type type);
 
+// A DESCRIBED TYPE MAY ALSO KEEP ITS FIELDS' FORMER NAMES (0353): a field was
+// renamed, and an old file's key still reaches it under the name it was saved
+// with. ecs never reads them; the reader of files does. The list and its strings
+// are the declaring folder's and must outlive the world, as a menu path does.
+//
+// One pair: the key a file once wrote, and the field it now is.
+typedef struct {
+	const char *former;
+	const char *field;
+} voe_ecs_former_name;
+
+// Sets the former names of `type`; the list is not copied. Once per type: a
+// second call, a NULL list, a count of 0 or a NULL string in it asserts.
+void voe_ecs_component_formerly_set(voe_ecs_world *world, voe_ecs_type type,
+				    const voe_ecs_former_name *names,
+				    uint32_t count);
+
+// The list and its count in `count`, or NULL and 0 when none was set.
+const voe_ecs_former_name *
+voe_ecs_component_formerly(const voe_ecs_world *world, voe_ecs_type type,
+			   uint32_t *count);
+
 // A DESCRIBED TYPE MAY ALSO NAME ONE TYPE ITS ROWS NEED (0193): a shape does
 // nothing without a transform on the same entity. Stored and handed back like the
 // rest, never read by ecs, never enforced — a tool shows it; nothing here refuses

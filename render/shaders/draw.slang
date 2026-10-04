@@ -53,7 +53,9 @@
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
-// direct term and the unshaded one does not, with the decisions in its header;
+// direct term and the unshaded one does not, and the light blockers that gate
+// the sun, the fill and the lamps by Rooms and crossings (ADR-0350), with the
+// decisions in its header;
 // it includes point_shadow.slangh, a cube face's pick and projection. water.slangh last,
 // after the vertex stage and voe_render_premultiplied, which it uses. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
@@ -504,15 +506,22 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// the light did not have.
 	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
 
-	float reach = n_dot_l * voe_render_sunlight(vertex.world, surface);
+	// Which light blockers hold the surface (ADR-0347), placed by the
+	// geometric normal as the shadow lookup is; the sun's reach is nought
+	// where they stop it (ADR-0350 point 3), and the fill reads that.
+	uint mask = voe_render_surface_mask(vertex.world, surface);
+	float reach = voe_render_sun_passes(vertex.world, surface, mask) ?
+			      n_dot_l * voe_render_sunlight(vertex.world, surface) :
+			      0.0;
 	float3 radiance = voe_render_sun_radiance(reach);
 	// The point lights beside the sun (ADR-0320), the bounce with the fill
 	// as its floor, and emission last, unshadowed and unoccluded (ADR-0278).
 	float3 direct = (diffuse + specular) * radiance +
 			voe_render_points(vertex.world, surface, n, v,
-					  diffuse_colour, f0, alpha);
+					  diffuse_colour, f0, alpha, mask);
 	float3 lit = direct * occlusion +
-		     voe_render_indirect(reach, vertex.world, n, base.rgb) +
+		     voe_render_indirect(reach, vertex.world, n, base.rgb, mask,
+					 voe_render_fill_reaches(mask)) +
 		     shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);

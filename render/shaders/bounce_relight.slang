@@ -33,6 +33,12 @@
 // plane, where first-order harmonics lit an upward normal from a ring below
 // its horizon. An
 // invalid probe writes nought.
+// BLOCKERS (ADR-0350 point 5), the record's by blockers.slangh's pass, with
+// its `walls` and `indoors`: a texel's p is its hit pushed PUSH along its
+// normal. It feeds its probe only when the pass holds from the probe to p;
+// level 1's sun lights it when the pass holds from the record's `sun` along
+// the sun's segment, a lamp from the lamp's mask and position; level k reads
+// through bounce_read.slangh's gated read.
 // THE TEXELS. Grid g's image 3g + a is axis a (x, y, z), 48 × 12 × 24: probe
 // t's E(+a) at (2t.x, t.y, t.z), E(−a) at (2t.x + 1, t.y, t.z), RGB, alpha 0.
 // sum: one thread per texel of the 48-wide images, grid 6 = the sum of grids 0
@@ -45,9 +51,12 @@
 // CONSTRAINTS. A workgroup of 64, under Vulkan's guaranteed 128. The grids are
 // written with unrolled constant indices: the device enables no dynamic
 // storage-image indexing. Nine loads a texel for its moments, and the level
-// read's eight probes a texel, where group-shared memory would take fewer.
+// read's eight probes a texel, where group-shared memory would take fewer; a
+// texel's blocker masks (its own, each lit lamp's) and pass tests are worked
+// out per texel.
 
 #include "point_shadow.slangh"
+#include "blockers.slangh"
 #include "bounce_read.slangh"
 
 static const uint3 SIZE = uint3(24, 12, 24);
@@ -57,9 +66,13 @@ static const uint TEXELS = 6 * FACE * FACE;
 static const uint GROUP = 64;
 static const uint HOLDS = 0x80000000u;
 static const uint LAMPS = 16;
+static const uint BLOCKERS = 32;
 static const uint LEVELS = 6;
 // A probe's reach in its volume's cells; × the record's spacing, metres.
 static const float REACH_CELLS = 12.0;
+// VOE_RENDER_LIGHT_BLOCKER_PUSH in render/device.h: a hit is masked this far
+// off its surface, along its normal.
+static const float PUSH = 0.05;
 static const float PI = 3.14159265358979;
 
 struct relight_push {
@@ -93,18 +106,31 @@ struct relight_lamp {
 	float bounce_strength;
 };
 
+// voe_render_light_blocker: three rows into the box's unit space and a bounding
+// sphere, about the eye.
+struct relight_blocker {
+	float4 rows[3];
+	float4 sphere;
+};
+
 struct relight_record {
 	relight_light sun;
 	float4x4 sun_map;
 	float sun_texel;
 	uint sun_drawn;
-	uint reserved0;
-	uint reserved1;
+	uint blocker_count;
+	uint reserved;
 	float3 corner;
 	float sun_strength;
 	uint3 cell;
 	float spacing;
 	relight_lamp lamps[LAMPS];
+	relight_blocker blockers[BLOCKERS];
+	// The blockers' kinds and the sun's mask (ADR-0350 point 2).
+	uint walls;
+	uint indoors;
+	uint sun_mask;
+	uint pad;
 };
 
 [[vk::binding(0, 0)]]
@@ -138,6 +164,22 @@ ConstantBuffer<relight_record> relight_lights;
 
 [[vk::push_constant]]
 ConstantBuffer<relight_push> relight_current;
+
+// The record's blockers as blockers.slangh's list.
+struct record_blockers : voe_render_blocker_list {
+	uint count()
+	{
+		return min(relight_lights.blocker_count, BLOCKERS);
+	}
+	float4 sphere(uint i)
+	{
+		return relight_lights.blockers[i].sphere;
+	}
+	float4 row(uint i, uint r)
+	{
+		return relight_lights.blockers[i].rows[r];
+	}
+};
 
 groupshared uint settle_back_faces;
 groupshared float3 relight_sums[6][GROUP];
@@ -259,13 +301,30 @@ float lamp_visibility(relight_lamp lamp, float3 world, float3 n)
 	return relight_point_shadow.SampleCmpLevelZero(float3(uv, layer), ndc.z);
 }
 
-// Level 1's light at `world` facing `n`: the chain's sun and lamps.
-float3 direct_light(float3 world, float3 n)
+// Whether the record's blockers pass light from a source of mask `source` at
+// `s` to a receiver of mask `receiver` at `p`.
+bool record_passes(uint source, uint receiver, float3 p, float3 s)
+{
+	record_blockers blockers;
+
+	return voe_render_blockers_pass(blockers, relight_lights.walls,
+					relight_lights.indoors, source, receiver,
+					p, s);
+}
+
+// Level 1's light at `world` facing `n`, whose mask is `mask`: the chain's sun
+// and its lamps, each where the blockers pass it to the hit pushed PUSH.
+float3 direct_light(float3 world, float3 n, uint mask)
 {
 	relight_push push = relight_current;
+	record_blockers blockers;
+	float3 p = world + n * PUSH;
 	float3 sum = float3(0.0, 0.0, 0.0);
 
-	if (push.sun_chain == push.chain) {
+	if (push.sun_chain == push.chain &&
+	    record_passes(relight_lights.sun_mask, mask, p,
+			  voe_render_sun_segment_end(
+				  p, relight_lights.sun.direction))) {
 		relight_light sun = relight_lights.sun;
 		float n_dot_l = saturate(dot(n, -sun.direction));
 
@@ -279,7 +338,10 @@ float3 direct_light(float3 world, float3 n)
 		float3 to = lamp.position - world;
 		float d = length(to);
 
-		if (lamp.bounces != push.chain || d >= lamp.range || d < 1e-7)
+		if (lamp.bounces != push.chain || d >= lamp.range || d < 1e-7 ||
+		    !record_passes(voe_render_blockers_mask(blockers,
+							    lamp.position),
+				   mask, p, lamp.position))
 			continue;
 		float n_dot_l = saturate(dot(n, to / d));
 		float fade = saturate(1.0 - pow(d / lamp.range, 2.0 / lamp.falloff));
@@ -295,10 +357,12 @@ float3 direct_light(float3 world, float3 n)
 	return sum;
 }
 
-// Level (chain, level − 1)'s E at `world` facing `n`, over π.
-float3 level_below(float3 world, float3 n)
+// Level (chain, level − 1)'s E at `world` facing `n`, whose mask is `mask`,
+// over π.
+float3 level_below(float3 world, float3 n, uint mask)
 {
 	relight_push push = relight_current;
+	record_blockers blockers;
 	uint below = 3 * (push.chain * (push.chain - 1) / 2 + push.level - 2);
 
 	return voe_render_bounce_read(relight_levels[below],
@@ -306,7 +370,9 @@ float3 level_below(float3 world, float3 n)
 				      relight_levels[below + 2],
 				      relight_validity_read, relight_moments_read,
 				      relight_lights.corner, relight_lights.cell,
-				      relight_lights.spacing, world, n) /
+				      relight_lights.spacing, blockers,
+				      relight_lights.walls, relight_lights.indoors,
+				      mask, world, n) /
 	       PI;
 }
 
@@ -340,6 +406,8 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 	float3 centre = relight_lights.corner +
 			(float3(placed) + 0.5) * relight_lights.spacing;
 	float reach = REACH_CELLS * relight_lights.spacing;
+	record_blockers blockers;
+	uint probe_mask = voe_render_blockers_mask(blockers, centre);
 	float3 e[6];
 
 	for (uint d = 0; d < 6; d++)
@@ -358,8 +426,13 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 				continue;
 			float3 world = centre + direction * hit.w;
 			float3 n = normalize(hit.xyz);
-			float3 light = push.level == 1 ? direct_light(world, n) :
-							 level_below(world, n);
+			float3 p = world + n * PUSH;
+			uint mask = voe_render_blockers_mask(blockers, p);
+
+			if (!record_passes(probe_mask, mask, p, centre))
+				continue;
+			float3 light = push.level == 1 ? direct_light(world, n, mask) :
+							 level_below(world, n, mask);
 			float3 radiance = relight_albedo.Load(int3(texel, 0)).rgb *
 					  light * texel_solid_angle(at);
 

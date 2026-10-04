@@ -9,7 +9,8 @@ in; getting it wrong transposes every transform without failing to compile.
 A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its bounce record
-  and point light count, object and shading records, the probe volumes' sums at binding 6 and
+  and point light and blocker counts, object and shading records, the light blockers at 11 with
+  their kinds and the sun's mask, the probe volumes' sums at binding 6 and
   moments at 10, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
   bindings and the push constant, which holds the object and a 96-bit face mask, each matching its C
   struct.
@@ -22,13 +23,18 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector by its major axis and the
   90° reversed-depth clip position on a face, near 0.05 m, far the light's range; draw and lookup
   share it.
+- `blockers.slangh` — which light blockers hold a point, sphere then rows, the mask over a list the
+  includer supplies, twin of `src/light_blockers.c` (0347); whether a segment meets a blocker and
+  direct light passes by Rooms and crossings, the sun's segment (0350).
 - `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume's six-axis irradiance:
-  eight probes weighted by trilinear, validity, facing and Chebyshev visibility, normalised, faded
-  at the edge (0326).
+  eight probes weighted by trilinear, validity, facing, Chebyshev visibility and the blockers'
+  pass from probe to surface (0350), normalised, faded at the edge (0326).
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms, its shadow by
   cascades, its radiance, the bounce read from the pass's probe volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each fading
-  to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325).
+  to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325);
+  light blockers gate the sun, lamps and bounce by Rooms and crossings, the fill by Rooms and
+  Indoors (0350).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
@@ -38,6 +44,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `bounce_relight.slang` — the relight's compute: `settle`, a listed probe's validity, nought with
   no picture or over a quarter of its texels on back faces, and each texel's distance moments over
   its 3×3; `relight`, a probe's picture, no hit past twelve cells, lit by a chain's lights or the
-  level below into a level's six-axis irradiance (0327); `sum` (0326).
+  level below, its lights and each texel gated by the blockers' pass (0350), into a level's six-axis
+  irradiance (0327); `sum`.
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

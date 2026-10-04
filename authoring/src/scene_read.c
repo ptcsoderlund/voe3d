@@ -24,7 +24,10 @@
 // sizeof; where _replace does know the size an assert holds the two to it.
 //
 // ONE FIELD'S VALUE IS field_read.c's, which reads the text without recursing
-// over it; this file decides which field of which row a key is.
+// over it; this file decides which field of which row a key is. A key naming
+// no field may be a former name (0353, voe_ecs_component_formerly) and is read
+// as that field, quietly; when the section also says the current name, that
+// value is kept whatever the line order, and the former line is a warning.
 //
 // PASS ONE IS SHARED through scene_scratch.h: prefab_read.c runs the same pass
 // and its own second one.
@@ -220,6 +223,43 @@ field_by_name(const voe_base_struct_description *description, const char *name,
 	return NULL;
 }
 
+// The field `name` once was (0353): the type's former names, then the field
+// it names now. NULL when `name` is no former name of a field.
+static const voe_base_field_description *
+field_by_former_name(const voe_authoring_scratch *reader,
+		     const voe_authoring_section *section, const char *name)
+{
+	uint32_t count = 0;
+	const voe_ecs_former_name *names =
+		voe_ecs_component_formerly(reader->world, section->type, &count);
+
+	for (uint32_t i = 0; i < count; i++)
+		if (strcmp(names[i].former, name) == 0)
+			return field_by_name(section->description,
+					     names[i].field,
+					     section->role ==
+						     VOE_AUTHORING_SECTION_ENTITY);
+	return NULL;
+}
+
+// Whether section `s` says `field`, by its name or by one it once had.
+static bool section_says(const voe_authoring_scratch *reader, uint32_t s,
+			 const char *field)
+{
+	uint32_t count = 0;
+	const voe_ecs_former_name *names = voe_ecs_component_formerly(
+		reader->world, reader->sections[s].type, &count);
+
+	if (voe_assets_sectioned_value(&reader->doc, s, field) != NULL)
+		return true;
+	for (uint32_t i = 0; i < count; i++)
+		if (strcmp(names[i].field, field) == 0 &&
+		    voe_assets_sectioned_value(&reader->doc, s,
+					       names[i].former) != NULL)
+			return true;
+	return false;
+}
+
 // Pass one, second half, for one `[N]` or `[N.<key>]` of a registered type.
 static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 {
@@ -258,6 +298,21 @@ static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 
 		site.line = reader->doc.keys[index].line;
 		if (field == NULL) {
+			field = field_by_former_name(reader, section, key->name);
+			if (field != NULL &&
+			    voe_assets_sectioned_value(&reader->doc, s,
+						       field->name) != NULL) {
+				VOE_BASE_WARNING(MODULE,
+						 "line %u: [%s] says both %s and "
+						 "its former name %s; %s is kept "
+						 "and the %s line is ignored",
+						 site.line, parsed->name,
+						 field->name, key->name,
+						 field->name, key->name);
+				continue;
+			}
+		}
+		if (field == NULL) {
 			VOE_BASE_WARNING(MODULE,
 					 "line %u: [%s] has no field %s; the "
 					 "line is ignored",
@@ -287,8 +342,7 @@ static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 
 		if (entity && field->offset == offsetof(voe_scene_identity, id))
 			continue;
-		if (voe_assets_sectioned_value(&reader->doc, s, field->name) !=
-		    NULL)
+		if (section_says(reader, s, field->name))
 			continue;
 		if (fallback != NULL)
 			memcpy((uint8_t *)section->row + field->offset,
