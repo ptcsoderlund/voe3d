@@ -44,6 +44,13 @@
 // capture.h. It first
 // waits out a running refresh (session.h), for at most 120 s of the frame clock.
 // EVERY READ OF THE WINDOW IS GUARDED.
+//
+// THE START SHOWS A LINE WHILE RENDER PREPARES (0345): the font, themes and
+// interface are made right after the device, so game/starting.h draws its line
+// in the chosen theme until the mesh pipelines are built; a false there ends
+// the program as a closed window does. The start's steps are timed
+// (app/start_log.h) and written after the first frame to stderr and appended
+// to `<settings>/voe3d/start.log`, stderr only under --capture.
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
@@ -76,16 +83,22 @@
 #include <3d/shape_system.h>
 
 #include <app/app.h>
+#include <app/start_log.h>
 
 #include <base/arena.h>
+#include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
 
 #include <ecs/world.h>
 
+#include <game/starting.h>
+
 #include <platform/arguments.h>
 #include <platform/clock.h>
+#include <platform/folder.h>
 #include <platform/input.h>
+#include <platform/path.h>
 #include <platform/window.h>
 
 #include <render/device.h>
@@ -123,8 +136,39 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
+// The line the starting frames show (game/starting.h): the font has no em
+// dash and no ellipsis.
+#define STARTING_LINE "Starting - preparing shaders..."
+
+// The start's log written once, after the first frame: stderr only under
+// --capture or with no settings folder, else appended to
+// `<settings>/voe3d/start.log` too. A failed write is platform's stderr line.
+static void start_log_write(const voe_app_start_log *log, bool capturing,
+			    voe_base_arena *scratch)
+{
+	const char *settings =
+		capturing ? NULL : voe_platform_folder_settings(scratch);
+	const char *path =
+		settings == NULL ?
+			NULL :
+			voe_platform_path_join(
+				scratch,
+				voe_platform_path_join(scratch, settings, "voe3d"),
+				"start.log");
+
+	VOE_BASE_ASSERT(log != NULL && scratch != NULL,
+			"writing the start's log with no log or scratch");
+	VOE_BASE_ASSERT(path == NULL || !capturing,
+			"a capture's start log goes to stderr only");
+	(void)voe_app_start_log_write(log, "editor", path, scratch);
+}
+
 int main(int argc, char *argv[])
 {
+	// The start's steps (app/start_log.h), begun before anything else and
+	// written once the first frame has drawn.
+	voe_app_start_log start;
+	bool start_logged = false;
 	// What the command line said (options.h), holding the window's size
 	// until --size says otherwise.
 	voe_editor_options options = { .wide = EDITOR_WIDE,
@@ -228,6 +272,7 @@ int main(int argc, char *argv[])
 	// argument costs nothing and says so straight away (options.h). It is
 	// read as UTF-8 (platform/arguments.h), into the arena on Windows, so
 	// the arena is the one thing made ahead of it.
+	voe_app_start_log_begin(&start);
 	arena = voe_base_arena_new(EDITOR_ARENA);
 	if (!voe_editor_options_read(
 		    voe_platform_arguments_read(argc, argv, arena), &options)) {
@@ -241,6 +286,7 @@ int main(int argc, char *argv[])
 		voe_base_arena_destroy(arena);
 		return 1;
 	}
+	voe_app_start_log_step(&start, "project");
 
 	voe_editor_undo_create(&undo, arena);
 
@@ -251,22 +297,60 @@ int main(int argc, char *argv[])
 				       .longest_step = MAX_FRAME_SECONDS };
 
 	// The device, with the window before it or with no window at all, in one
-	// call. Nothing is kept out of `scratch`, so it goes as soon as this
-	// returns, and nothing is printed on a failure: `app` says which piece
-	// refused and `render` says why, both on stderr, before it returns NULL.
+	// call. Nothing is kept out of `scratch`, which the starting frames and
+	// the start's log use after it, and nothing is printed on a failure:
+	// `app` says which piece refused and `render` says why, both on stderr,
+	// before it returns NULL.
 	scratch = voe_base_arena_new(STARTUP_SCRATCH);
 	app = options.capture != NULL ?
 		      voe_app_new_headless(arena, scratch, settings, &error) :
 		      voe_app_new(arena, scratch, settings, &error);
-	voe_base_arena_destroy(scratch);
+	voe_base_arena_clear(scratch);
 	if (app == NULL) {
+		voe_base_arena_destroy(scratch);
 		voe_base_arena_destroy(arena);
 		voe_editor_project_destroy(session.project);
 		return 1;
 	}
+	voe_app_start_log_step(&start, "window and device");
 
 	window = voe_app_window(app);
 	gpu = voe_app_device(app);
+
+	oxanium = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena,
+				    &error);
+	if (oxanium == NULL) {
+		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
+			       voe_base_error_string(error));
+		status = 1;
+		goto stop;
+	}
+
+	// A REMEMBERED THEME THAT IS GONE OR REFUSED IS A NOTICE, NOT A STOP:
+	// Near black is drawn instead and the bar says why, naming the file,
+	// as a failed open does. A last project's own notice, set above, is
+	// the one left standing when both failed — it says more about what is
+	// on screen.
+	if (!voe_editor_themes_load(&themes, oxanium) &&
+	    session.notice.text[0] == '\0')
+		voe_editor_notice_from_report(&session.notice,
+					      themes.remembered);
+
+	// Made in the chosen theme, so the starting frames below draw in it.
+	ui = voe_editor_interface_new(arena,
+				      &voe_editor_themes_chosen(&themes)->palette);
+	voe_app_start_log_step(&start, "font, themes and interface");
+
+	// A LINE ON SCREEN WHILE THE MESH PIPELINES ARE BUILT (0345). A false is
+	// a closing window or a failed build, already on stderr, and ends the
+	// program as a closed window does; a capture has no window to close, so
+	// there it is a failure.
+	if (!voe_game_starting_prepare(app, ui, scratch, STARTING_LINE)) {
+		status = options.capture != NULL ? 1 : 0;
+		goto stop;
+	}
+	voe_base_arena_clear(scratch);
+	voe_app_start_log_step(&start, "preparing shaders");
 
 	// Both upload, so both are startup operations and both come before the
 	// first frame. `render` says why on stderr when it refuses.
@@ -290,27 +374,6 @@ int main(int argc, char *argv[])
 	// The views open where the scene's camera is, not at the origin (0255).
 	voe_editor_views_focus_camera(&views, scene.world);
 
-	oxanium = voe_text_font_new(VOE_TEXT_TYPEFACE_OXANIUM, gpu, arena,
-				    &error);
-	if (oxanium == NULL) {
-		VOE_BASE_ERROR("editor", "the editor could not build its font: %s",
-			       voe_base_error_string(error));
-		status = 1;
-		goto stop;
-	}
-
-	// A REMEMBERED THEME THAT IS GONE OR REFUSED IS A NOTICE, NOT A STOP:
-	// Near black is drawn instead and the bar says why, naming the file,
-	// as a failed open does. A last project's own notice, set above, is
-	// the one left standing when both failed — it says more about what is
-	// on screen.
-	if (!voe_editor_themes_load(&themes, oxanium) &&
-	    session.notice.text[0] == '\0')
-		voe_editor_notice_from_report(&session.notice,
-					      themes.remembered);
-
-	ui = voe_editor_interface_new(arena,
-				      &voe_editor_themes_chosen(&themes)->palette);
 	roots[0].tree = voe_editor_dock_default();
 	// The default tree's sizes, then whatever the person left (settings.h);
 	// a capture reads them too, as it reads the themes.
@@ -340,6 +403,7 @@ int main(int argc, char *argv[])
 
 	voe_editor_startup_say_descriptions();
 	fflush(stdout);
+	voe_app_start_log_step(&start, "scene and shapes");
 
 	while (true) {
 		voe_app_frame opened;
@@ -652,6 +716,13 @@ int main(int argc, char *argv[])
 			status = 1;
 			break;
 		}
+		if (!start_logged) {
+			voe_app_start_log_step(&start, "first frame");
+			voe_base_arena_clear(scratch);
+			start_log_write(&start, options.capture != NULL,
+					scratch);
+			start_logged = true;
+		}
 
 		// A CAPTURE'S LOOP HAS TO STOP ITSELF (capture.h), counted here
 		// where a frame has actually been drawn and submitted. A
@@ -695,6 +766,7 @@ stop:
 	voe_editor_refresh_end(&session.refresh);
 	voe_editor_models_destroy(models, gpu);
 	voe_app_destroy(app);
+	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
 	voe_editor_browser_destroy(&browser);
