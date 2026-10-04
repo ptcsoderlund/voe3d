@@ -9,9 +9,8 @@
 //
 //   0  the camera, the sun and its shadow record, one block per pass in one
 //      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
-//      uniform buffer: every
-//      bind of the set names the offset of the pass's block, which is how one
-//      set serves every pass without a set per pass
+//      uniform buffer: every bind of the set names the offset of the pass's
+//      block, which is how one set serves every pass without a set per pass
 //   1  every texture at once, one descriptor array, rewritten when a texture
 //      is created or destroyed and never during a frame
 //   2  the per-object records, one storage buffer per frame slot, written as
@@ -50,12 +49,8 @@
 //
 // THE POOL IS SIZED EXACTLY AND NEVER GROWS. VOE_RENDER_FRAMES_IN_FLIGHT sets
 // are allocated once at startup and freed by destroying the pool; no set is
-// destroyed on its own anywhere in this folder.
-//
-// EVERY PER-SLOT BUFFER STAYS MAPPED FOR ITS WHOLE LIFE. All of them are
-// host-visible and coherent and all are written every frame, so mapping
-// and unmapping around each write would be two driver calls to say what one
-// pointer already says.
+// destroyed on its own anywhere in this folder. Every per-slot buffer stays
+// mapped for its whole life (see build_mapped).
 //
 // WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The cameras,
 // the suns, the object records and the element records a frame writes are in this
@@ -337,6 +332,11 @@ static bool build_layout(voe_render_device *device)
 // why this is a function and not two copies of eleven lines. Returns the
 // mapping, or NULL on the one way this fails (rule 13); a successful mapping
 // is never NULL, so the two cannot be confused.
+//
+// EVERY PER-SLOT BUFFER STAYS MAPPED FOR ITS WHOLE LIFE. All of them are
+// host-visible and coherent and all are written every frame, so mapping
+// and unmapping around each write would be two driver calls to say what one
+// pointer already says.
 [[nodiscard]] static void *build_mapped(voe_render_device *device,
 					struct voe_render_buffer *buffer,
 					VkDeviceSize size,
