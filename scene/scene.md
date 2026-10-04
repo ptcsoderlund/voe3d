@@ -54,3 +54,9 @@ space is.
 - `include/scene/point_light_system.h` — the whole-light intent as its replace,
   the direct call that creates one, and the run that drains it. Its header says
   what is refused and how game code fades a light.
+- `include/scene/light_blocker_component.h` — a box, placed, turned and scaled
+  by its transform, that keeps outside light out and inside light in: its size
+  in metres as a described field list, and the reads.
+- `include/scene/light_blocker_system.h` — the whole-row intent as its replace,
+  the direct call that creates one, and the run that drains it. Its header says
+  what size is refused and why the replace is queued.

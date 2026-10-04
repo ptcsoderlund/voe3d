@@ -29,3 +29,6 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `point_light_component.c` — the key and the reads.
 - `point_light_system.c` — registration, creation, and the run that applies whole
   lights, falloff included, or keeps the row over one it refuses.
+- `light_blocker_component.c` — the key and the reads.
+- `light_blocker_system.c` — registration, creation, and the run that applies a
+  whole row or keeps it over a size that is negative or not finite.
