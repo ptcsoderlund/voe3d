@@ -7,4 +7,5 @@
 - `steps.c` — the fixed steps and their lag on a game world, and what each step moves: bodies, followers, emitters, sounds, water and a point light's replace, as a fade sends it.
 - `frame.c` — headless game frames of a camera, lights and shapes, with and without a light, with sun and lamp shadows, an interface and a missing model, each coming back true. Skips without a graphics card.
 - `interface.c` — a 1280×720 surface is 240×135 mm; a run hands back a stand-in interface's answer and the asks it set, and a panel with a label and a button leaves element records. Skips without a graphics card.
+- `starting.c` — one starting frame leaves the theme's ground near a corner and the line across the middle row; after the prepare loop the device answers prepared. Skips without a graphics card.
 - `models.c` — the model loader on real files: a hand-built `.glb` loaded, missing and watched, an emitter's pictures loaded or missing, and the water record loaded only for a world with water. Skips without a graphics card.
