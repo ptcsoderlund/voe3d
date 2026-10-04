@@ -77,6 +77,9 @@ by reading the offscreen colour image back.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
+- `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
+  past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
+  inside the sphere but outside the box 0.
 - `point_shadow_faces.c` — which cube faces a caster's sphere reaches, with no card: along +X bit 0,
   the +X/+Y diagonal bits 0 and 2, about the light all six, beyond range none, a cube's sphere, and
   one moved and scaled by a matrix.

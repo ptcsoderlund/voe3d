@@ -583,6 +583,47 @@ typedef struct {
 	uint32_t count;
 } voe_render_point_lights;
 
+// The most light blockers one pass and one world carry (ADR-0347).
+#define VOE_RENDER_LIGHT_BLOCKERS 32
+// Metres a surface is pushed along its normal before its mask is worked out.
+#define VOE_RENDER_LIGHT_BLOCKER_PUSH 0.05f
+
+// One light blocker, a box, for one pass (ADR-0347 point 2).
+//
+// `rows` TAKE A POSITION IN THE PASS'S SPACE — about the eye, as a point light's
+// — TO THE BOX'S UNIT SPACE. For a box of centre c, unit axes a_i and half sizes
+// h_i, row i is (a_i / h_i, −a_i·c / h_i). A point p is inside when every
+// |row.xyz·p + row.w| is at most 1, the face included.
+//
+// `sphere` BOUNDS THE BOX, xyz centre and w radius, and is tested first, so a
+// far box costs one compare.
+//
+// A POINT'S MASK HAS BIT i SET WHEN BLOCKER i HOLDS IT (ADR-0347 point 3).
+// The sun's direct light and the fill reach a surface only when its mask is
+// nought. A point light reaches a surface only when the two masks are equal.
+// The bounce keeps the same rule for probes and texels (point 4).
+//
+// A SURFACE IS TESTED PUSHED VOE_RENDER_LIGHT_BLOCKER_PUSH ALONG ITS NORMAL, so
+// a wall on the box's face is inside on its inner side and outside on its outer
+// one, rather than flickering between the two.
+//
+// Nought blockers is the old picture: every mask nought, every gate passing.
+// A pass carries at most VOE_RENDER_LIGHT_BLOCKERS.
+typedef struct {
+	voe_math_float4 rows[3];
+	voe_math_float4 sphere;
+} voe_render_light_blocker;
+
+static_assert(sizeof(voe_render_light_blocker) == 64,
+	      "a light blocker is four float4s, as the shader reads it");
+
+// A pass's light blockers: `count` of them at `blockers`, at most
+// VOE_RENDER_LIGHT_BLOCKERS. NULL and nought is none.
+typedef struct {
+	const voe_render_light_blocker *blockers;
+	uint32_t count;
+} voe_render_light_blockers;
+
 // Where the sun's shadow maps are, for one pass that reads them (ADR-0258).
 //
 // THE NUMBERS ARE 3d's. `cascades[i]` takes a position in the world the objects'
