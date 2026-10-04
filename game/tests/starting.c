@@ -1,9 +1,14 @@
 // The starting frame on a headless device opened as tests/interface.c opens
-// one, at 640x360 so the line is some pixels tall. After one frame the window
-// target read back holds the default theme's ground, sRGB-encoded, near a
-// corner (inset past the panel's hairline border), and the middle row holds a
+// one, at 640x360 so the line is some pixels tall. After one plain frame the
+// window target read back holds the default theme's ground, sRGB-encoded, near
+// a corner (inset past the panel's hairline border), and the middle row holds a
 // pixel unlike it: the line. After the prepare loop the device answers
 // PREPARED.
+//
+// The splash cases open a device of their own, much wider and then much taller
+// than a 4x2 picture whose top-left texel is red and the rest blue: the margin
+// beside (above) the picture is red, the centre blue, and the bottom middle
+// 10 mm up the ground of the line's panel.
 //
 // A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
@@ -30,6 +35,9 @@
 #define WIDE 640
 #define HIGH 360
 #define LINE "Starting - preparing shaders..."
+
+static const int red[3] = { 255, 0, 0 };
+static const int blue[3] = { 0, 0, 255 };
 
 // A linear channel as the window's sRGB format stores it.
 static int srgb_byte(float linear)
@@ -85,7 +93,7 @@ static void starting_frame_draws_line(voe_app *app, voe_ui_context *ui,
 	bool line_seen = false;
 
 	ground_bytes(voe_app_device(app), arena, ground);
-	VOE_TEST_CHECK(voe_game_starting_frame(app, ui, scratch, LINE));
+	VOE_TEST_CHECK(voe_game_starting_frame(app, ui, scratch, NULL, LINE));
 	voe_base_arena_clear(scratch);
 	VOE_TEST_CHECK(voe_render_target_read(voe_app_device(app),
 					      VOE_RENDER_TARGET_WINDOW, scratch,
@@ -104,18 +112,98 @@ static void starting_frame_draws_line(voe_app *app, voe_ui_context *ui,
 static void starting_prepare_prepares(voe_app *app, voe_ui_context *ui,
 				      voe_base_arena *scratch)
 {
-	VOE_TEST_CHECK(voe_game_starting_prepare(app, ui, scratch, LINE));
+	VOE_TEST_CHECK(voe_game_starting_prepare(app, ui, scratch, NULL, LINE));
 	VOE_TEST_CHECK(voe_render_device_prepare(voe_app_device(app)) ==
 		       VOE_RENDER_PREPARED);
 	voe_base_arena_clear(scratch);
 }
 
-int main(void)
+// A 4x2 picture, its top-left texel red and the rest blue. False when the
+// upload was refused.
+static bool splash_make(voe_render_device *device, voe_app_picture *splash)
+{
+	uint8_t rgba[4 * 2 * 4];
+
+	for (int t = 0; t < 8; t++) {
+		const int *colour = t == 0 ? red : blue;
+
+		for (int c = 0; c < 3; c++)
+			rgba[t * 4 + c] = (uint8_t)colour[c];
+		rgba[t * 4 + 3] = 255;
+	}
+	splash->width = 4;
+	splash->height = 2;
+	return voe_render_texture_create(device, VOE_RENDER_TEXTURE_COLOUR,
+					 VOE_RENDER_SAMPLING_SHARP, 4, 2, rgba,
+					 &splash->texture, NULL);
+}
+
+// One splash frame read back: red at (`margin_x`, `margin_y`), blue in the
+// middle, the ground 10 mm above the bottom middle.
+static void splash_check(voe_app *app, voe_ui_context *ui,
+			 voe_base_arena *arena, voe_base_arena *scratch,
+			 uint32_t margin_x, uint32_t margin_y)
+{
+	voe_render_device *device = voe_app_device(app);
+	int ground[3] = { -1000, -1000, -1000 };
+	voe_app_picture splash;
+	voe_render_picture picture;
+	voe_platform_size size;
+	float millimetre;
+
+	ground_bytes(device, arena, ground);
+	VOE_TEST_CHECK(splash_make(device, &splash));
+	VOE_TEST_CHECK(voe_game_starting_frame(app, ui, scratch, &splash, LINE));
+	voe_base_arena_clear(scratch);
+	if (!voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW, scratch,
+				    &picture, NULL)) {
+		VOE_TEST_CHECK(false);
+		return;
+	}
+	size = (voe_platform_size){ (int)picture.width, (int)picture.height };
+	millimetre = (float)picture.height / voe_game_interface_surface(size).y;
+	VOE_TEST_CHECK(distance(&picture, margin_x, margin_y, red) <= 3);
+	VOE_TEST_CHECK(distance(&picture, picture.width / 2, picture.height / 2,
+				blue) <= 3);
+	VOE_TEST_CHECK(distance(&picture, picture.width / 2,
+				picture.height -
+					(uint32_t)lroundf(10.0f * millimetre),
+				ground) <= 3);
+	(void)voe_render_texture_destroy(device, splash.texture);
+	voe_base_arena_clear(scratch);
+}
+
+static void splash_fits_a_wide_window(voe_app *app, voe_ui_context *ui,
+				      voe_base_arena *arena,
+				      voe_base_arena *scratch)
+{
+	splash_check(app, ui, arena, scratch, 100, 160);
+}
+
+static void splash_fits_a_tall_window(voe_app *app, voe_ui_context *ui,
+				      voe_base_arena *arena,
+				      voe_base_arena *scratch)
+{
+	splash_check(app, ui, arena, scratch, 160, 100);
+}
+
+static void plain_cases(voe_app *app, voe_ui_context *ui,
+			voe_base_arena *arena, voe_base_arena *scratch)
+{
+	starting_frame_draws_line(app, ui, arena, scratch);
+	starting_prepare_prepares(app, ui, scratch);
+}
+
+// `cases` run on a headless device of `width` by `height` with an interface.
+// False when there is no usable Vulkan, said once.
+static bool on_device(int width, int height,
+		      void (*cases)(voe_app *, voe_ui_context *,
+				    voe_base_arena *, voe_base_arena *))
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 23);
 	voe_base_arena *scratch = voe_base_arena_new(1 << 20);
-	voe_app_settings settings = { .width = WIDE,
-				      .height = HIGH,
+	voe_app_settings settings = { .width = width,
+				      .height = height,
 				      .capacities = VOE_GAME_CAPACITIES,
 				      .longest_step = 0.25 };
 	voe_base_error error = VOE_BASE_OK;
@@ -124,29 +212,38 @@ int main(void)
 
 	app = voe_app_new_headless(arena, scratch, settings, &error);
 	if (app == NULL) {
-		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
-		    error == VOE_BASE_ERROR_UNSUPPORTED)
+		bool skip = error == VOE_BASE_ERROR_UNAVAILABLE ||
+			    error == VOE_BASE_ERROR_UNSUPPORTED;
+
+		if (skip)
 			printf("skip: %s\n", voe_base_error_string(error));
 		else
 			VOE_TEST_CHECK(app != NULL);
 		voe_base_arena_destroy(scratch);
 		voe_base_arena_destroy(arena);
-		return voe_test_result();
+		return false;
 	}
 	voe_base_arena_clear(scratch);
 
 	interface = voe_game_interface_new(voe_app_device(app), arena);
 	VOE_TEST_CHECK(interface != NULL);
 	if (interface != NULL) {
-		voe_ui_context *ui = voe_game_interface_context(interface);
-
-		starting_frame_draws_line(app, ui, arena, scratch);
-		starting_prepare_prepares(app, ui, scratch);
+		cases(app, voe_game_interface_context(interface), arena,
+		      scratch);
 		voe_game_interface_destroy(interface);
 	}
 
 	voe_app_destroy(app);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
+	return true;
+}
+
+int main(void)
+{
+	if (on_device(WIDE, HIGH, plain_cases)) {
+		(void)on_device(1280, 320, splash_fits_a_wide_window);
+		(void)on_device(320, 640, splash_fits_a_tall_window);
+	}
 	return voe_test_result();
 }

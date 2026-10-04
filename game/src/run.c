@@ -207,7 +207,8 @@ int voe_game_run(const char *title, voe_game_window window)
 	// ends as a closed window ends it.
 	if (!voe_game_starting_prepare(app,
 				       voe_game_interface_context(interface),
-				       scratch, "Starting - preparing shaders...")) {
+				       scratch, NULL,
+				       "Starting - preparing shaders...")) {
 		status = 0;
 		goto unbuilt;
 	}

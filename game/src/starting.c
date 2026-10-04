@@ -1,6 +1,8 @@
 // The starting frame and the prepare loop, as game/include/game/starting.h
 // gives. The element records reach the pass as frame.c's interface draw sends
 // them, less the depth clear: a pass with no camera has no depth to clear.
+// The splash is three layers under one surface-sized column: the edge image in
+// the flow, then two anchored containers painting over it in call order.
 #include <game/starting.h>
 
 #include <game/interface.h>
@@ -13,6 +15,7 @@
 
 #include <ui/widgets.h>
 
+#include <math.h>
 #include <stdint.h>
 
 // The window polled and its size, or the headless app's frame opened for the
@@ -32,12 +35,70 @@ static bool starting_size(voe_app *app, voe_platform_size *size)
 	return true;
 }
 
-// `line` centred on a GROUND panel as large as `surface`. False when the
-// frame was refused.
+// The splash's line panel: padding round the line, in millimetres, and its
+// lower edge's height above the surface's (0356).
+#define SPLASH_PAD 3.0f
+#define SPLASH_LIFT 8.0f
+
+// The splash under the root, which is `surface` large: its top-left texel
+// over the whole surface, the picture centred at the largest size that keeps
+// its aspect, and `line` on a GROUND panel at the bottom middle.
+static void starting_splash(voe_ui_context *ui, voe_math_float2 surface,
+			    const voe_app_picture *splash, const char *line)
+{
+	float wide = (float)splash->width;
+	float high = (float)splash->height;
+	float scale = fminf(surface.x / wide, surface.y / high);
+	voe_math_float4 edge = { 0.25f / wide, 0.25f / high, 0.5f / wide,
+				 0.5f / high };
+
+	(void)voe_ui_image(ui, splash->texture, edge, (voe_math_float2){ 0, 0 },
+			   (voe_ui_sizing){
+				   .along = { VOE_UI_SIZE_FIXED, surface.y },
+				   .across = { VOE_UI_SIZE_FIXED, surface.x } });
+	voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = { .along = { VOE_UI_SIZE_FIXED, wide * scale },
+				      .across = { VOE_UI_SIZE_FIXED,
+						  high * scale } },
+			    .anchor = { .anchored = true,
+					.x = { VOE_UI_ACROSS_CENTER, 0 },
+					.y = { VOE_UI_ACROSS_CENTER, 0 } } });
+	(void)voe_ui_image(ui, splash->texture, (voe_math_float4){ 0, 0, 1, 1 },
+			   (voe_math_float2){ 0, 0 },
+			   (voe_ui_sizing){
+				   .along = { VOE_UI_SIZE_FIXED, high * scale },
+				   .across = { VOE_UI_SIZE_FIXED, wide * scale } });
+	voe_ui_end(ui);
+	voe_ui_panel_begin(
+		ui, "starting", 0, VOE_UI_SURFACE_GROUND,
+		(voe_ui_container){
+			.pad = { SPLASH_PAD, SPLASH_PAD, SPLASH_PAD, SPLASH_PAD },
+			.anchor = { .anchored = true,
+				    .x = { VOE_UI_ACROSS_CENTER, 0 },
+				    .y = { VOE_UI_ACROSS_END, SPLASH_LIFT } } });
+	voe_ui_label(ui, line);
+	voe_ui_end(ui);
+}
+
+// `line` centred on a GROUND panel as large as `surface`, or the splash
+// when there is one. False when the frame was refused.
 static bool starting_layout(voe_ui_context *ui, voe_base_arena *frame_arena,
-			    voe_math_float2 surface, const char *line)
+			    voe_math_float2 surface,
+			    const voe_app_picture *splash, const char *line)
 {
 	voe_ui_frame_begin(ui, frame_arena);
+	if (splash != NULL) {
+		voe_ui_column_begin(
+			ui, (voe_ui_container){
+				    .size = { .along = { VOE_UI_SIZE_FIXED,
+							 surface.y },
+					      .across = { VOE_UI_SIZE_FIXED,
+							  surface.x } } });
+		starting_splash(ui, surface, splash, line);
+		voe_ui_end(ui);
+		return voe_ui_frame_end(ui);
+	}
 	voe_ui_panel_begin(
 		ui, "starting", 0, VOE_UI_SURFACE_GROUND,
 		(voe_ui_container){
@@ -74,7 +135,8 @@ static bool starting_draw(voe_render_device *device, const voe_ui_context *ui,
 }
 
 bool voe_game_starting_frame(voe_app *app, voe_ui_context *ui,
-			     voe_base_arena *frame_arena, const char *line)
+			     voe_base_arena *frame_arena,
+			     const voe_app_picture *splash, const char *line)
 {
 	voe_platform_size size;
 	bool drawing;
@@ -89,7 +151,7 @@ bool voe_game_starting_frame(voe_app *app, voe_ui_context *ui,
 	if (size.width <= 0 || size.height <= 0)
 		return true;
 	if (!starting_layout(ui, frame_arena, voe_game_interface_surface(size),
-			     line))
+			     splash, line))
 		return false;
 	if (!voe_app_draw_open(app, size, &drawing))
 		return false;
@@ -102,14 +164,16 @@ bool voe_game_starting_frame(voe_app *app, voe_ui_context *ui,
 }
 
 bool voe_game_starting_prepare(voe_app *app, voe_ui_context *ui,
-			       voe_base_arena *frame_arena, const char *line)
+			       voe_base_arena *frame_arena,
+			       const voe_app_picture *splash, const char *line)
 {
 	VOE_BASE_ASSERT(app != NULL && frame_arena != NULL,
 			"a starting prepare with no app or arena");
 
 	while (true) {
 		struct voe_base_arena_mark mark = voe_base_arena_mark(frame_arena);
-		bool shown = voe_game_starting_frame(app, ui, frame_arena, line);
+		bool shown = voe_game_starting_frame(app, ui, frame_arena,
+						     splash, line);
 
 		voe_base_arena_rewind(frame_arena, mark);
 		if (!shown)
