@@ -47,8 +47,10 @@
 //
 // THE START SHOWS A LINE WHILE RENDER PREPARES (0345): the font, themes and
 // interface are made right after the device, so game/starting.h draws its line
-// in the chosen theme until the mesh pipelines are built; a false there ends
-// the program as a closed window does. The start's steps are timed
+// in the chosen theme, in the box on the engine's splash (splash.h), until the
+// mesh pipelines are built; a false there ends
+// the program as a closed window does. New and Open's load draws one such
+// frame, "Loading scene...", before it (0356). The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
 // to `<settings>/voe3d/start.log`, stderr only under --capture.
 #include "assets_drag.h"
@@ -72,6 +74,7 @@
 #include "session.h"
 #include "settings.h"
 #include "shortcuts.h"
+#include "splash.h"
 #include "startup.h"
 #include "themes.h"
 #include "undo.h"
@@ -139,6 +142,7 @@
 // The line the starting frames show (game/starting.h): the font has no em
 // dash and no ellipsis.
 #define STARTING_LINE "Starting - preparing shaders..."
+#define LOADING_LINE "Loading scene..."
 
 // The start's log written once, after the first frame: stderr only under
 // --capture or with no settings folder, else appended to
@@ -216,6 +220,10 @@ int main(int argc, char *argv[])
 	voe_3d_shapes shapes;
 	// The one model store, destroyed before the device (models.h).
 	voe_editor_models *models = NULL;
+	// The engine's splash (splash.h), held for the start and given back
+	// before the device closes.
+	voe_app_picture splash;
+	bool splash_held = false;
 	// The one font the editor carries, Oxanium (ADR-0185); themes.h
 	// derives every palette with it.
 	voe_text_font *oxanium;
@@ -345,7 +353,11 @@ int main(int argc, char *argv[])
 	// a closing window or a failed build, already on stderr, and ends the
 	// program as a closed window does; a capture has no window to close, so
 	// there it is a failure.
-	if (!voe_game_starting_prepare(app, ui, scratch, STARTING_LINE)) {
+	// Over the engine's splash (splash.h), or the plain screen without it.
+	splash_held = voe_editor_splash_read(gpu, scratch, &splash);
+	if (!voe_game_starting_prepare(app, ui, scratch,
+				       splash_held ? &splash : NULL,
+				       STARTING_LINE)) {
 		status = options.capture != NULL ? 1 : 0;
 		goto stop;
 	}
@@ -430,6 +442,19 @@ int main(int argc, char *argv[])
 		// The light every view is shown with this frame (view.h), read
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
+
+		// NEW OR OPEN'S LOAD, BEHIND ONE SPLASH FRAME (0356); a false
+		// frame ends the program as the starting frames' does.
+		if (session.load_due) {
+			if (!voe_game_starting_frame(app, ui, scratch,
+						     splash_held ? &splash : NULL,
+						     LOADING_LINE)) {
+				status = options.capture != NULL ? 1 : 0;
+				break;
+			}
+			voe_editor_session_load(&session, &scene);
+			voe_base_arena_clear(scratch);
+		}
 
 		// A BUILT REFRESH LANDS HERE, before the undo take and the
 		// world step, so the new world's rows get their meshes before
@@ -765,6 +790,8 @@ stop:
 	// for, which is voe_editor_browser_destroy's to tell apart.
 	voe_editor_refresh_end(&session.refresh);
 	voe_editor_models_destroy(models, gpu);
+	if (splash_held)
+		voe_render_texture_destroy(gpu, splash.texture);
 	voe_app_destroy(app);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);

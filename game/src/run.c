@@ -20,6 +20,7 @@
 #include <3d/shape_system.h>
 
 #include <app/app.h>
+#include <app/picture.h>
 #include <app/start_log.h>
 
 #include <audio/mixer.h>
@@ -42,7 +43,7 @@
 // The ceiling on a frame's step, in seconds (app/clock.h).
 #define LONGEST_STEP 0.25
 
-// The folder sounds and models are read from: the running program's
+// The folder the splash, sounds and models are read from: the running program's
 // (ADR-0266, ADR-0277 point 4), or "."
 // when the system will not say where the program is.
 static const char *sound_folder(voe_base_arena *scratch)
@@ -82,6 +83,37 @@ static voe_ecs_world *run_world_make(voe_base_arena *world_arena)
 		return NULL;
 	}
 	return world;
+}
+
+// The starting prepare over splashscreen.png in `folder`, the plain screen
+// with a line on stderr when it will not read; the texture is given back once
+// the prepare is done, as a game changes no scene yet (0356). Scratch is
+// rewound after. voe_game_starting_prepare's answer.
+static bool run_starting(voe_app *app, voe_game_interface *interface,
+			 voe_base_arena *scratch, const char *folder)
+{
+	const char *path = voe_platform_path_join(scratch, folder,
+						  "splashscreen.png");
+	voe_base_error error = VOE_BASE_OK;
+	voe_app_picture splash;
+	bool read;
+	bool prepared;
+
+	VOE_BASE_ASSERT(app != NULL && interface != NULL && folder != NULL,
+			"a starting with no app, interface or folder");
+	read = voe_app_picture_read(voe_app_device(app), path, scratch,
+				    &splash, &error);
+	if (!read)
+		VOE_BASE_ERROR("game", "no splash at %s: %s", path,
+			       voe_base_error_string(error));
+	prepared = voe_game_starting_prepare(
+		app, voe_game_interface_context(interface), scratch,
+		read ? &splash : NULL, "Starting - preparing shaders...");
+	voe_base_arena_clear(scratch);
+	if (read && !voe_render_texture_destroy(voe_app_device(app),
+						splash.texture))
+		VOE_BASE_ERROR("game", "the splash's texture was already gone");
+	return prepared;
 }
 
 // The frames, until the window is closing or the project's interface ends
@@ -202,12 +234,12 @@ int voe_game_run(const char *title, voe_game_window window)
 	}
 	voe_app_start_log_step(&log, "interface");
 
-	// Text only, until the mesh pipelines are built (0345). A false here
-	// is a closing window or a failed build, already on stderr; the run
-	// ends as a closed window ends it.
-	if (!voe_game_starting_prepare(app,
-				       voe_game_interface_context(interface),
-				       scratch, "Starting - preparing shaders...")) {
+	// Text only, until the mesh pipelines are built (0345), over the splash
+	// beside the program when it reads (0356). A false here is a closing
+	// window or a failed build, already on stderr; the run ends as a closed
+	// window ends it.
+	models.folder = sound_folder(arena);
+	if (!run_starting(app, interface, scratch, models.folder)) {
 		status = 0;
 		goto unbuilt;
 	}
@@ -217,7 +249,6 @@ int voe_game_run(const char *title, voe_game_window window)
 	if (world == NULL)
 		goto unbuilt;
 	voe_app_start_log_step(&log, "world and scene");
-	models.folder = sound_folder(arena);
 	models.store = voe_3d_models_new();
 	sound.mixer = voe_audio_mixer_new(models.folder);
 	// NULL is already reported; the game runs silent.

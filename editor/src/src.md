@@ -5,8 +5,11 @@ and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
 - `main.c` — opens a project, the window and the device, makes the arena, font, themes and
-  interface, shows the starting line while render prepares, uploads the shapes, opens the views,
-  runs the loop until a close goes ahead or the picture is written, and logs the start's steps.
+  interface, shows the starting line on the splash while render prepares, uploads the shapes, opens
+  the views, runs the loop until a close goes ahead or the picture is written, and logs the start.
+- `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
+  time so a missing copy shows the plain screen, kept by the caller until the device closes.
+- `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
 - `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
@@ -99,12 +102,11 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its notice, Play, Refresh and Ship, a prefab opened
-  and Back, the armed command that makes Close, New, Open and Back refuse once over unsaved work,
-  and Open and Save starting beside the project's folder or the last project.
+- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, and the
+  armed command that makes Close, New, Open and Back refuse once over unsaved work.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
-  once a frame, and what a browser action does to the session.
+  once a frame, what a browser action does to the session, and the load a frame later.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
   Project, Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its
   content or as the person made it.

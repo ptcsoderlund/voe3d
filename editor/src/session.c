@@ -1,8 +1,8 @@
 // The refuse-once rule, the eight commands, a prefab opened and left, a refresh
 // started, polled and its library swapped in, Ship started after it and
 // polled, a failed build's Errors panel shown, Open and Save's browser shown
-// beside a folder, and what a browser action does
-// to the session. See the header for what each one does and why
+// beside a folder, what a browser action does to the session, and New's or
+// Open's load a frame after it was asked for. See the header for what each one does and why
 // only CLOSE ever answers true.
 #include "session.h"
 
@@ -17,6 +17,8 @@
 #include <ecs/world.h>
 
 #include <scene/identity_component.h>
+
+#include <string.h>
 
 // A step's working memory: the library's path and, for the compare, both
 // libraries' bytes. A block size, not a limit (base/arena.h).
@@ -442,9 +444,7 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		}
 		return false;
 
-	case VOE_EDITOR_COMMAND_NEW: {
-		voe_editor_project *fresh;
-
+	case VOE_EDITOR_COMMAND_NEW:
 		if (session_unsaved(session) && !repeat) {
 			voe_editor_notice_set(
 				&session->notice,
@@ -452,17 +452,10 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 			session->armed = VOE_EDITOR_COMMAND_NEW;
 			return false;
 		}
-
-		session_refresh_end(session);
-		voe_editor_ship_end(&session->ship);
-		fresh = voe_editor_project_new_untitled();
-		voe_editor_project_destroy(session->project);
-		session->project = fresh;
-		session->replaced = true;
-		scene->world = fresh->world;
-		scene->selected = (voe_ecs_entity){ 0 };
+		// Put off a frame, behind a splash frame (0356).
+		session->load_folder[0] = '\0';
+		session->load_due = true;
 		return false;
-	}
 
 	case VOE_EDITOR_COMMAND_OPEN:
 		if (session_unsaved(session) && !repeat) {
@@ -582,27 +575,15 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 
 	case VOE_EDITOR_BROWSER_CONFIRM:
 		if (browser->mode == VOE_EDITOR_BROWSER_OPEN) {
-			voe_editor_project *opened = voe_editor_project_new_opened(
-				browser->target, &session->notice);
-
-			if (opened == NULL)
+			// Copied: the browser's memory may not outlive the
+			// frame, and the load is a frame later (0356).
+			if (strlen(browser->target) >= sizeof session->load_folder) {
+				voe_editor_notice_set(&session->notice,
+						      "the folder's path is too long to open");
 				return;
-
-			session_refresh_end(session);
-			voe_editor_ship_end(&session->ship);
-			session->refresh_due = true;
-			voe_editor_project_destroy(session->project);
-			session->project = opened;
-			session->replaced = true;
-			scene->world = opened->world;
-			scene->selected = (voe_ecs_entity){ 0 };
-
-			if (!voe_editor_last_project_write(opened->folder))
-				voe_editor_notice_set(
-					&session->notice,
-					"could not remember %s as the last project opened",
-					opened->folder);
-
+			}
+			strcpy(session->load_folder, browser->target);
+			session->load_due = true;
 			voe_editor_browser_hide(browser);
 			return;
 		}
@@ -642,4 +623,40 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 		voe_editor_browser_hide(browser);
 		return;
 	}
+}
+
+void voe_editor_session_load(voe_editor_session *session,
+			     voe_editor_scene *scene)
+{
+	voe_editor_project *loaded;
+
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
+			"loading into a session with no project");
+	VOE_BASE_ASSERT(scene != NULL, "loading with no scene");
+	VOE_BASE_ASSERT(session->load_due, "loading with no load due");
+
+	session->load_due = false;
+	loaded = session->load_folder[0] == '\0' ?
+			 voe_editor_project_new_untitled() :
+			 voe_editor_project_new_opened(session->load_folder,
+						       &session->notice);
+	if (loaded == NULL)
+		return;
+
+	session_refresh_end(session);
+	voe_editor_ship_end(&session->ship);
+	voe_editor_project_destroy(session->project);
+	session->project = loaded;
+	session->replaced = true;
+	scene->world = loaded->world;
+	scene->selected = (voe_ecs_entity){ 0 };
+	if (loaded->folder == NULL)
+		return;
+
+	session->refresh_due = true;
+	if (!voe_editor_last_project_write(loaded->folder))
+		voe_editor_notice_set(
+			&session->notice,
+			"could not remember %s as the last project opened",
+			loaded->folder);
 }
