@@ -17,8 +17,10 @@
 // weighted by:
 // - trilinear, its share of the pushed point's place in its cell;
 // - validity, 0 for a probe with no picture or inside something (point 5);
-// - blockers (ADR-0347 point 4), 0 unless the mask of the probe's position
-//   equals the surface's, so light stays on its own side of a blocker's face;
+// - blockers (ADR-0350 point 5), 0 unless blockers.slangh's pass holds with
+//   the probe as source (its position's mask) and the surface, pushed
+//   VOE_BOUNCE_READ_BLOCKER_PUSH along n, as receiver: Room bits equal and no
+//   Wall or Room crossed between them, so the bounce is gated as direct light;
 // - ((n · to-probe + 1) / 2)² + 0.2: a probe behind the surface counts less,
 //   but never nothing, so a corner with all eight behind still reads;
 // - Chebyshev visibility from its distance moments (mean, mean²) sampled
@@ -42,7 +44,7 @@
 //
 // CONSTRAINTS. Eight probes, eight bilinear moment taps and 32 loads a call
 // (validity and the three axes, the side n faces on each), and eight blocker
-// masks, nothing with no blockers; no
+// masks and pass tests, nothing with no blockers; no
 // probe beyond the eight, so a grid of mostly invalid probes reads dark where
 // DDGI would search further.
 
@@ -50,6 +52,9 @@ static const uint3 VOE_BOUNCE_READ_SIZE = uint3(24, 12, 24);
 static const float VOE_BOUNCE_READ_FACE = 8.0;
 static const float2 VOE_BOUNCE_READ_ATLAS = float2(1152.0, 2304.0);
 static const float VOE_BOUNCE_READ_PUSH = 0.25;
+// VOE_RENDER_LIGHT_BLOCKER_PUSH in render/device.h: the surface's end of a
+// probe's segment, off its face.
+static const float VOE_BOUNCE_READ_BLOCKER_PUSH = 0.05;
 
 // The bilinear mean and mean² of probe `t`'s distances along `d`, d its
 // probe-to-surface vector, from the moments atlas.
@@ -80,14 +85,16 @@ float voe_render_bounce_read_visibility(float2 moments, float reach)
 // E(n) at `world` facing unit `n` from the volume whose six-axis irradiance is
 // in `x_axis`, `y_axis` and `z_axis`, validity `validity` and moments
 // `moments`, placed at `corner`, `cell` and `spacing`, for a surface whose
-// mask over `blockers` is `mask`. See the header.
+// mask over `blockers` is `mask`, of kinds `walls` and `indoors`. See the
+// header.
 float3 voe_render_bounce_read<L : voe_render_blocker_list>(
 	Sampler3D x_axis, Sampler3D y_axis, Sampler3D z_axis, Sampler3D validity,
 	Sampler2D moments, float3 corner, uint3 cell, float spacing, L blockers,
-	uint mask, float3 world, float3 n)
+	uint walls, uint indoors, uint mask, float3 world, float3 n)
 {
 	float3 size = float3(VOE_BOUNCE_READ_SIZE);
 	float3 pushed = world + n * (VOE_BOUNCE_READ_PUSH * spacing);
+	float3 p = world + n * VOE_BOUNCE_READ_BLOCKER_PUSH;
 	float3 u = (pushed - corner) / spacing;
 	float3 edge = saturate(min(u, size - u) - 0.5);
 	float3 g = u - 0.5;
@@ -107,7 +114,9 @@ float3 voe_render_bounce_read<L : voe_render_blocker_list>(
 			continue;
 		uint3 t = (cell + uint3(i)) % VOE_BOUNCE_READ_SIZE;
 		float3 centre = corner + (i + 0.5) * spacing;
-		if (voe_render_blockers_mask(blockers, centre) != mask)
+		if (!voe_render_blockers_pass(blockers, walls, indoors,
+					      voe_render_blockers_mask(blockers, centre),
+					      mask, p, centre))
 			continue;
 		float3 d = pushed - centre;
 		float far = length(d);

@@ -22,9 +22,10 @@
 // holds with the light's mask from pass begin as source and its position. The
 // fill reaches when p's Room bits are the sun's and p is in no Indoors box, its
 // fade reading the reach after the sun's gate, so a stopped patch reads the
-// whole fill. The bounce reads only probes whose mask equals p's
-// (bounce_read.slangh). The water path takes mask 0 and no gate. No blockers
-// is every gate passing, the old picture.
+// whole fill. The bounce reads only probes from which that rule passes to p,
+// handed the region's `walls` and `indoors` (bounce_read.slangh). The water
+// path takes mask 0 and no gate. No blockers is every gate passing, the old
+// picture.
 //
 // ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
 // sun arrives with the camera, once a frame, and every surface is lit from the
@@ -231,12 +232,13 @@ float3 voe_render_sun_radiance(float reach)
 }
 
 // The bounce's irradiance E(n) at `world` facing `n`, per channel, never below
-// nought, from the probes whose mask is the surface's `mask`; nought with no
-// volume named. See the header.
+// nought, from the probes the blockers pass to a surface of `mask`; nought
+// with no volume named. See the header.
 float3 voe_render_bounce_irradiance(float3 world, float3 n, uint mask)
 {
 	voe_render_frame_bounce bounce = voe_render_frame.bounce;
 	voe_render_pass_blockers blockers;
+	uint region = voe_render_frame.region;
 
 	if (bounce.grid == ~0u)
 		return float3(0.0, 0.0, 0.0);
@@ -246,7 +248,9 @@ float3 voe_render_bounce_irradiance(float3 world, float3 n, uint mask)
 				      voe_render_bounce_grids[bounce.grid + 3],
 				      voe_render_bounce_moments[bounce.grid / 4],
 				      bounce.corner, bounce.cell, bounce.spacing,
-				      blockers, mask, world, n);
+				      blockers, voe_render_light_blockers[region].walls,
+				      voe_render_light_blockers[region].indoors, mask,
+				      world, n);
 }
 
 // What lights `colour` besides the sun: the bounce, with the fill as a floor

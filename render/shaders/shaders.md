@@ -27,13 +27,14 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   includer supplies, twin of `src/light_blockers.c` (0347); whether a segment meets a blocker and
   direct light passes by Rooms and crossings, the sun's segment (0350).
 - `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume's six-axis irradiance:
-  eight probes weighted by trilinear, validity, facing, Chebyshev visibility and a blocker mask equal
-  to the surface's, normalised, faded at the edge (0326).
+  eight probes weighted by trilinear, validity, facing, Chebyshev visibility and the blockers'
+  pass from probe to surface (0350), normalised, faded at the edge (0326).
 - `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms, its shadow by
   cascades, its radiance, the bounce read from the pass's probe volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each fading
   to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325);
-  light blockers gate the sun and lamps by Rooms and crossings, the fill by Rooms and Indoors (0350), the bounce by mask.
+  light blockers gate the sun, lamps and bounce by Rooms and crossings, the fill by Rooms and
+  Indoors (0350).
 - `water.slangh` — the water path: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
@@ -43,6 +44,7 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `bounce_relight.slang` — the relight's compute: `settle`, a listed probe's validity, nought with
   no picture or over a quarter of its texels on back faces, and each texel's distance moments over
   its 3×3; `relight`, a probe's picture, no hit past twelve cells, lit by a chain's lights or the
-  level below, each texel gated by blocker masks, into a level's six-axis irradiance (0327); `sum`.
+  level below, its lights and each texel gated by the blockers' pass (0350), into a level's six-axis
+  irradiance (0327); `sum`.
 - `matrix_probe.slang` — reads a matrix and writes three of its elements
   out as colour, so that a test can tell which layout slangc used.

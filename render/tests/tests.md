@@ -98,3 +98,6 @@ by reading the offscreen colour image back.
 - `blocked_bounce.c` — the bounce kept by a blocker: a blocked patch by a red wall takes no red,
   ground outside as before, a count of 0 the old picture, and a lamp inside with the wall bouncing
   red onto the patch, one outside none. Headless.
+- `blocker_kinds_bounce.c` — kinds gating the bounce by a red wall: a Wall slab between it and a
+  patch leaving the patch as with no bounce, ground on the wall's side red; an Indoors box round the
+  patch as with no blocker; a Room box with zero kinds as with no bounce. Headless.
