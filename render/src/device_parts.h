@@ -329,27 +329,32 @@ struct voe_render_bounce_shadow {
 
 // bounce_relight.slang's struct relight_record at binding 11, std140: one
 // volume's region of a slot's record buffer (ADR-0330 point 2), here so a test
-// can read one.
+// can read one. `blocker_count` and `blockers` are the begun light blockers
+// (ADR-0347 point 4), the count in what was a reserved word.
 struct voe_render_relight_record {
 	voe_render_light sun;
 	voe_math_float4x4 sun_map;
 	float sun_texel;
 	uint32_t sun_drawn;
-	uint32_t reserved[2];
+	uint32_t blocker_count;
+	uint32_t reserved;
 	float corner[3];
 	float sun_strength;
 	uint32_t cell[3];
 	float spacing;
 	voe_render_point_light lamps[VOE_RENDER_BOUNCE_LAMPS];
+	voe_render_light_blocker blockers[VOE_RENDER_LIGHT_BLOCKERS];
 };
 
 static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      offsetof(struct voe_render_relight_record, sun_texel) == 112 &&
 		      offsetof(struct voe_render_relight_record, sun_drawn) == 116 &&
+		      offsetof(struct voe_render_relight_record, blocker_count) == 120 &&
 		      offsetof(struct voe_render_relight_record, corner) == 128 &&
 		      offsetof(struct voe_render_relight_record, cell) == 144 &&
 		      offsetof(struct voe_render_relight_record, lamps) == 160 &&
-		      sizeof(struct voe_render_relight_record) == 928,
+		      offsetof(struct voe_render_relight_record, blockers) == 928 &&
+		      sizeof(struct voe_render_relight_record) == 2976,
 	      "the relight record as bounce_relight.slang lays it out");
 
 // Whether one frame slot's frame began a probe volume, and the lowest cell,

@@ -57,6 +57,7 @@ static const uint TEXELS = 6 * FACE * FACE;
 static const uint GROUP = 64;
 static const uint HOLDS = 0x80000000u;
 static const uint LAMPS = 16;
+static const uint BLOCKERS = 32;
 static const uint LEVELS = 6;
 // A probe's reach in its volume's cells; × the record's spacing, metres.
 static const float REACH_CELLS = 12.0;
@@ -93,18 +94,26 @@ struct relight_lamp {
 	float bounce_strength;
 };
 
+// voe_render_light_blocker: three rows into the box's unit space and a bounding
+// sphere, about the eye. Nothing reads them yet.
+struct relight_blocker {
+	float4 rows[3];
+	float4 sphere;
+};
+
 struct relight_record {
 	relight_light sun;
 	float4x4 sun_map;
 	float sun_texel;
 	uint sun_drawn;
-	uint reserved0;
-	uint reserved1;
+	uint blocker_count;
+	uint reserved;
 	float3 corner;
 	float sun_strength;
 	uint3 cell;
 	float spacing;
 	relight_lamp lamps[LAMPS];
+	relight_blocker blockers[BLOCKERS];
 };
 
 [[vk::binding(0, 0)]]

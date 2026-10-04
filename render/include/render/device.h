@@ -1405,6 +1405,14 @@ void voe_render_pass_end(voe_render_device *device);
 // `sun_strength`; `points` are the frame's point lights, the first
 // VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag and no typedef,
 // because the call below has the name and C has one name space for both.
+//
+// `blockers` ARE THE WORLD'S LIGHT BLOCKERS, about the eye as `points` are, and
+// copied at the begin. The relight lights a texel by the sun only when its mask
+// is nought, by a lamp only when their masks are equal, and feeds a probe only
+// from a texel of its own mask (ADR-0347 point 4). Blockers that change relight
+// the grid; an eye that moves does not, for they are compared about `corner`.
+// Zero is none; more than VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, or a row
+// not finite asserts, as at _pass_begin.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1415,6 +1423,7 @@ struct voe_render_bounce_frame {
 	float sun_strength;
 	voe_render_point_lights points;
 	float spacing;
+	voe_render_light_blockers blockers;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
