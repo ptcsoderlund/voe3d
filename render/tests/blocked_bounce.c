@@ -429,6 +429,7 @@ static void a_blocked_lamp(struct scene *s)
 	VOE_TEST_CHECK(redness_at(s, &one, PATCH) >
 		       redness_at(s, &none, PATCH) + TOLERANCE);
 	VOE_TEST_CHECK(gap_at(s, &out, &out_none, PATCH) <= TOLERANCE);
+	block_with(s, (voe_render_light_blockers){ 0 });
 }
 
 static void run(struct scene *s)

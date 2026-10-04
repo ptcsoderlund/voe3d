@@ -56,10 +56,9 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
-- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, a
-  one-cell move queuing 288, a stale sphere queuing only within at 2 and 4 m, a new spacing queuing
-  all, a relight only on change (light blockers too) and not for an eye that moves, and the 17th
-  bouncing lamp left out.
+- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, 288
+  on a one-cell move, only within a stale sphere, all on a new spacing, a relight only on change
+  (blockers too), and the 17th bouncing lamp left out.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
   window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
   both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.
