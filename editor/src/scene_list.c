@@ -30,7 +30,7 @@
 // The `spacing` of the theme the entity rows are drawn under, so a row's
 // button pad is 0.5 mm, the rim's width, and rows sit a text line apart
 // (ADR-0344).
-#define LIST_ROW_SPACING 0.2f
+#define LIST_ROW_SPACING 0.8f
 
 // No identity parent: a root.
 #define NO_PARENT UINT32_MAX
