@@ -5,8 +5,9 @@
 // the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
 // (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every
-// point light's (0320). Before those, the preview's shadow passes and one pass
-// with the world's own camera (view.h). The point lights light every pass.
+// point light's (0320), and the selected light blocker's box (0347). Before
+// those, the preview's shadow passes and one pass with the world's own camera
+// (view.h). The point lights light every pass; the light blockers gate each.
 // main.c calls both each frame, between opening the draw and the window pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
@@ -25,14 +26,13 @@
 // 3d/shape_system.h — and the model store's room on top (VOE_3D_MODELS_*,
 // 3d/models.h, ADR-0277). `objects` is per frame: every drawn entity is one
 // object in every view's pass, and a model part is an object too, so it is
-// twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's —
-// every project's world is registered with that much room for a mesh and a
-// material, so a device that draws one is sized from the same number), one more
-// for the selected entity's outline, drawn into every view's pass too, two for
-// the gizmo's handles at rest and its marked one, one for the camera's marker,
-// one for the sun's, one for the selection's collider and two for the point
-// lights' markers, times the room for views, and the drawn entities once more
-// for the preview's pass, which draws the world alone; and every caster once
+// twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's,
+// the room every project's world is registered with), one more for the
+// selection's outline, two for the gizmo's handles at rest and its marked one,
+// one each for the camera's marker, the sun's, the selection's collider and its
+// light blocker's box, and two for the point lights' markers, times the room
+// for views, and the drawn entities once more for the preview's pass, which
+// draws the world alone; and every caster once
 // per cascade, point-shadow pass, capture pass and bounce shadow pass (the
 // relight's sun map), per view and for the preview (0325 point 7, 0326 points
 // 3 and 8, 0329 point 3); and every emitter's particles, VOE_GAME_WORLD_EMITTERS
@@ -47,17 +47,13 @@
 // `targets` a target per view and the preview's, each with its own probe volume
 // (0326 point 2) and two texture slots, its colour and its depth copy (0305
 // point 1) — both from the room for views, not the two in use, so a third view
-// is a leaf and not a capacity. The three transient numbers are what the
-// selection outline's quads are copied into: one outline per view's pass,
-// sized the way `passes` and `targets` are (ADR-0203, 3d/outline.h).
-// The gizmo's quads go there too: one gizmo per view's pass, two ranges and
-// two draws, its share the larger of the arrows' and the rings' so either
-// mode fits (ADR-0205, 0274, 3d/draw_system.h). So do the camera marker's:
-// one marker per view's pass, one range and one draw, sized the same way
-// (0223, 3d/camera_marker.h), the sun marker's (0274, 3d/sun_marker.h) and
-// the collider's, one more of each (0253, 3d/collider_marker.h), and the point
-// light markers': VOE_GAME_WORLD_POINT_LIGHTS lamps a view, in two ranges and
-// draws, the rest and the selected one (0320 point 9, 3d/point_light_marker.h).
+// is a leaf and not a capacity. The three transient numbers hold, per view's
+// pass, the selection outline's quads (ADR-0203, 3d/outline.h); the gizmo's,
+// two ranges, the larger of the arrows' and the rings' (ADR-0205, 0274); one
+// range each for the camera marker (0223), the sun marker (0274), the collider
+// and the blocker's box, the last two a collider marker each (0253, 0347 point
+// 5); and the point light markers', VOE_GAME_WORLD_POINT_LIGHTS lamps in two
+// ranges, the rest and the selected one (0320 point 9).
 #pragma once
 
 #include "dock.h"
@@ -118,7 +114,7 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 8) *                \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 9) *                \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
@@ -141,7 +137,7 @@
 				       VOE_EDITOR_GIZMO_VERTICES +             \
 				       VOE_3D_CAMERA_MARKER_VERTICES +         \
 				       VOE_3D_SUN_MARKER_VERTICES +            \
-				       VOE_3D_COLLIDER_MARKER_VERTICES +       \
+				       2 * VOE_3D_COLLIDER_MARKER_VERTICES +   \
 				       VOE_3D_POINT_LIGHT_MARKER_VERTICES *    \
 					       VOE_GAME_WORLD_POINT_LIGHTS) *  \
 				      VOE_EDITOR_VIEWS,                        \
@@ -149,11 +145,11 @@
 				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
 				      VOE_3D_SUN_MARKER_INDICES +              \
-				      VOE_3D_COLLIDER_MARKER_INDICES +         \
+				      2 * VOE_3D_COLLIDER_MARKER_INDICES +     \
 				      VOE_3D_POINT_LIGHT_MARKER_INDICES *      \
 					      VOE_GAME_WORLD_POINT_LIGHTS) *   \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 8 * VOE_EDITOR_VIEWS                   \
+		.transient_geometries = 9 * VOE_EDITOR_VIEWS                   \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

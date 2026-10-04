@@ -205,11 +205,12 @@ carries it out.
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
-  passes, lit by the point lights, with the world and its models, the selection's outline, collider
-  and gizmo, the camera's, sun's and point lights' markers, and the device capacities they need.
+  passes, lit by the point lights and gated by the light blockers, with the world and its models, the
+  selection's outline, collider, blocker box and gizmo, the markers, and the device capacities.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
-  view's shadow passes and pass through `3d`'s draw system, each lit by the point lights, camera,
-  sun and point lights marked, no gizmo on a part, stopping at the first refused pass.
+  view's shadow passes and pass through `3d`'s draw system, each lit by the point lights and kept
+  out of the light blockers, the selected blocker's box drawn, no gizmo on a part, stopping at the
+  first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.
