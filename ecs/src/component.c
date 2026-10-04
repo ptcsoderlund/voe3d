@@ -1,7 +1,7 @@
 // The component tables: registration, the two directions between an entity and
 // its row, and what a removal does to the order. Also what a registration is
 // given afterwards and only hands back: the replace intent, the default row, the
-// unsaid row, the type a type needs and the menu path.
+// unsaid row, the former field names, the type a type needs and the menu path.
 //
 // A ROW IS FOUND BY INDEXING TWICE AND NOT BY SEARCHING. row_of[entity.index] is
 // the row, and owners[row] is the entity — one load each way, no hashing and no
@@ -123,6 +123,8 @@ voe_ecs_type voe_ecs_component_register(
 	table->replace_set = false;
 	table->default_row = NULL;
 	table->unsaid_row = NULL;
+	table->formerly = NULL;
+	table->formerly_count = 0;
 	table->needs = (voe_ecs_type){ 0 };
 	table->needs_set = false;
 	table->menu = NULL;
@@ -286,6 +288,36 @@ const void *voe_ecs_component_unsaid(const voe_ecs_world *world,
 				     voe_ecs_type type)
 {
 	return table_at(world, type)->unsaid_row;
+}
+
+void voe_ecs_component_formerly_set(voe_ecs_world *world, voe_ecs_type type,
+				    const voe_ecs_former_name *names,
+				    uint32_t count)
+{
+	struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_ASSERT(names != NULL && count > 0,
+			"giving a component type an empty list of former names");
+	VOE_BASE_ASSERT(table->formerly == NULL,
+			"giving a component type a second list of former names");
+	for (uint32_t i = 0; i < count; i++)
+		VOE_BASE_ASSERT(names[i].former != NULL && names[i].field != NULL,
+				"a former name pair with a missing string");
+
+	table->formerly = names;
+	table->formerly_count = count;
+}
+
+const voe_ecs_former_name *
+voe_ecs_component_formerly(const voe_ecs_world *world, voe_ecs_type type,
+			   uint32_t *count)
+{
+	const struct voe_ecs_table *table = table_at(world, type);
+
+	VOE_BASE_DEBUG_ASSERT(count != NULL, "asking for former names into nothing");
+
+	*count = table->formerly_count;
+	return table->formerly;
 }
 
 void voe_ecs_component_needs_set(voe_ecs_world *world, voe_ecs_type type,

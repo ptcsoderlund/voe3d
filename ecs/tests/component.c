@@ -6,7 +6,8 @@
 // default row, an unsaid row and a needed type come back as they were set, and
 // as nothing when they were not. And that a type says the capacity it was
 // registered with, which its count reaching is the next add refused, and that a
-// menu path is unset until set and then set on that type only.
+// menu path and former field names are unset until set and then set on that type
+// only.
 //
 // THE ITERATION CHECK IS THE ONE THAT WOULD CATCH A BROKEN REMOVAL. A removal
 // swaps the last row into the hole, so the way to get it wrong is to leave the
@@ -613,6 +614,32 @@ static void menu_path(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_ecs_component_menu(world, types[1]) == NULL);
 }
 
+// The list, not a copy: the pairs are the declaring folder's, like a menu path.
+static void former_names(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_type types[TYPES];
+	static const voe_ecs_former_name names[] = {
+		{ .former = "kind", .field = "block" },
+		{ .former = "colour", .field = "color" },
+	};
+	uint32_t count = UINT32_MAX;
+
+	register_three(world, types);
+	VOE_TEST_CHECK(voe_ecs_component_formerly(world, types[0], &count) ==
+		       NULL);
+	VOE_TEST_CHECK_INT(count, 0);
+
+	voe_ecs_component_formerly_set(world, types[0], names, 2);
+
+	VOE_TEST_CHECK(voe_ecs_component_formerly(world, types[0], &count) ==
+		       names);
+	VOE_TEST_CHECK_INT(count, 2);
+	VOE_TEST_CHECK(voe_ecs_component_formerly(world, types[1], &count) ==
+		       NULL);
+	VOE_TEST_CHECK_INT(count, 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -633,6 +660,7 @@ int main(void)
 	a_need_comes_back_as_it_was_set(arena);
 	a_type_says_its_capacity(arena);
 	menu_path(arena);
+	former_names(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
