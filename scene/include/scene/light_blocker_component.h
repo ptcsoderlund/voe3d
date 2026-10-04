@@ -5,16 +5,17 @@
 // WHAT IT SPLITS: a surface inside the box is not reached by the sun or by a
 // lamp outside it, and a lamp inside it lights nothing outside — the house
 // with a roof, lit by its own lamps, in a sunny world. The rule is the
-// renderer's; this row only says where the box is and what kind it is.
+// renderer's; this row only says where the box is and what it blocks.
 //
-// KIND SAYS WHAT IT DOES TO LIGHT (0348); every kind stops direct light that
+// BLOCK SAYS WHAT IT STOPS (0348, 0352); every value stops direct light that
 // crosses it from a source outside it, and the rule is render's.
-//   Room    — its own place: nothing from outside gets in, nothing inside out.
-//   Indoors — no directional fill inside; direct light still comes through
-//             where no Wall or Room stops it.
-//   Wall    — a slab that stops direct light and nothing more; fill passes.
-// ROOM IS 0, so a new blocker, a zeroed one and a file saved before the field
-// existed are all Rooms. The names are indexed by the kind's own number.
+//   All    — keeps every outside light out and every inside light in.
+//   Fill   — keeps the directional fill out; direct light still comes
+//            through openings where no Direct or All stops it.
+//   Direct — stops direct light only; fill passes.
+// ALL IS 0, so a new blocker, a zeroed one and a file saved before the field
+// existed are all All. A file saved with `kind` is read by that former name
+// (0353). The names are indexed by the value's own number.
 //
 // THE BOX IS PLACED, TURNED AND SCALED BY ITS TRANSFORM, so a parent carries
 // it and the move, rotate and scale gizmos edit it with no case of their own.
@@ -42,24 +43,24 @@
 
 #include <stdint.h>
 
-// The kinds. A future kind is a new constant here, never a reuse of one of
-// these.
-#define VOE_SCENE_LIGHT_BLOCKER_ROOM 0u
-#define VOE_SCENE_LIGHT_BLOCKER_INDOORS 1u
-#define VOE_SCENE_LIGHT_BLOCKER_WALL 2u
+// The Block values. A future value is a new constant here, never a reuse of
+// one of these.
+#define VOE_SCENE_LIGHT_BLOCKER_ALL 0u
+#define VOE_SCENE_LIGHT_BLOCKER_FILL 1u
+#define VOE_SCENE_LIGHT_BLOCKER_DIRECT 2u
 
-// The name of each kind, indexed by the kind's own number.
-extern VOE_BASE_IMPORTED const char *const voe_scene_light_blocker_kind_names[3];
+// The name of each Block value, indexed by the value's own number.
+extern VOE_BASE_IMPORTED const char *const voe_scene_light_blocker_block_names[3];
 
 // size: metres along the box's local axes before scale, each finite and not
-// negative. kind: a UINT32 named by voe_scene_light_blocker_kind_names (0198),
-// so a scene holds it as its number.
+// negative. block: a UINT32 named by voe_scene_light_blocker_block_names
+// (0198), so a scene holds it as its number.
 #define VOE_SCENE_LIGHT_BLOCKER_FIELDS(F, F_READ_ONLY) \
 	F(voe_math_float3, size, FLOAT3)               \
-	F(uint32_t, kind, UINT32)
+	F(uint32_t, block, UINT32)
 
 #define VOE_SCENE_LIGHT_BLOCKER_NAMES(N) \
-	N(kind, voe_scene_light_blocker_kind_names)
+	N(block, voe_scene_light_blocker_block_names)
 
 VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_light_blocker,
 			       VOE_SCENE_LIGHT_BLOCKER_FIELDS,

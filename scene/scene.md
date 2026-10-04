@@ -55,9 +55,9 @@ space is.
   the direct call that creates one, and the run that drains it. Its header says
   what is refused and how game code fades a light.
 - `include/scene/light_blocker_component.h` — a box, placed, turned and scaled
-  by its transform, that stops light: its size in metres and its kind, Room,
-  Indoors or Wall, named, as a described field list, and the reads. Its header
-  says what each kind does to light.
+  by its transform, that stops light: its size in metres and its Block, All,
+  Fill or Direct, named, as a described field list, and the reads. Its header
+  says what each Block value stops.
 - `include/scene/light_blocker_system.h` — the whole-row intent as its replace,
   the direct call that creates one, and the run that drains it. Its header says
-  what size and kind are refused and why the replace is queued.
+  what size and Block are refused and why the replace is queued.

@@ -22,7 +22,7 @@
 // CREATION IS A DIRECT CALL AND NOT AN INTENT, as for every row in this
 // folder: an intent is applied to a component that exists.
 //
-// A SIZE WITH A COMPONENT NOT FINITE OR BELOW NOUGHT, OR A KIND PAST WALL, IS
+// A SIZE WITH A COMPONENT NOT FINITE OR BELOW NOUGHT, OR A BLOCK PAST DIRECT, IS
 // REFUSED, not clamped: neither has a nearest right answer. `add` asserts on
 // one; the drain keeps the
 // row and says so on stderr, one line per refused intent. An intent naming an
@@ -38,13 +38,14 @@
 #include <stdint.h>
 
 // Registers the table, the intent queue as its replace, the transform it needs
-// and the default row, size (1, 1, 1) and a Room. Call it once per world, after the
+// and the default row, size (1, 1, 1) and Block All, and sets the former name
+// "kind" for "block" (0353). Call it once per world, after the
 // transform table (it asserts on none) and before anything adds a blocker.
 // capacity is how many blockers the world may hold and also how many intents
 // may be waiting at once.
 void voe_scene_light_blocker_register(voe_ecs_world *world, uint32_t capacity);
 
-// Gives the entity its blocker, as given; a size or kind the drain would refuse
+// Gives the entity its blocker, as given; a size or block the drain would refuse
 // asserts. False when the table is full or the entity is not alive.
 [[nodiscard]] bool voe_scene_light_blocker_add(voe_ecs_world *world,
 					       voe_ecs_entity entity,

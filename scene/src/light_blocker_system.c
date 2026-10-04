@@ -5,8 +5,11 @@
 // light is the renderer's, and where it is is its transform's.
 //
 // AN INTENT FOR AN ENTITY WITH NO BLOCKER IS DROPPED, silently — see the
-// header. A refused size or kind says so once per intent on stderr, naming the entity
+// header. A refused size or block says so once per intent on stderr, naming the entity
 // by its index and generation as the sun's drain does.
+//
+// REGISTRATION SETS THE FORMER NAME "kind" FOR "block" (0353), so a file saved
+// before the rename still reaches the field.
 #include <base/assert.h>
 #include <ecs/component.h>
 #include <ecs/intent.h>
@@ -21,6 +24,11 @@
 // as long as the table.
 static const struct voe_ecs_key blocker_intent_key = {
 	"voe_scene_light_blocker_intent"
+};
+
+// The field's name before 0352; the reader of files looks a key up here.
+static const voe_ecs_former_name blocker_former_names[] = {
+	{ "kind", "block" },
 };
 
 static const voe_base_struct_description *blocker_description(void)
@@ -38,7 +46,7 @@ void voe_scene_light_blocker_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_type transform;
 	voe_ecs_intent intent;
 	const voe_scene_light_blocker row = {
-		.size = { 1.0f, 1.0f, 1.0f }, .kind = VOE_SCENE_LIGHT_BLOCKER_ROOM
+		.size = { 1.0f, 1.0f, 1.0f }, .block = VOE_SCENE_LIGHT_BLOCKER_ALL
 	};
 
 	VOE_BASE_ASSERT(world != NULL, "registering light blockers in no world");
@@ -57,6 +65,7 @@ void voe_scene_light_blocker_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_default_set(world, type, &row);
 	voe_ecs_component_needs_set(world, type, transform);
 	voe_ecs_component_menu_set(world, type, "Rendering / Light blocker");
+	voe_ecs_component_formerly_set(world, type, blocker_former_names, 1u);
 }
 
 // Finite and not negative. Written so a NaN fails it.
@@ -77,8 +86,8 @@ bool voe_scene_light_blocker_add(voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_DEBUG_ASSERT(world != NULL, "adding a light blocker to no world");
 	VOE_BASE_DEBUG_ASSERT(size_valid(blocker.size),
 			      "a light blocker size that is negative or not finite");
-	VOE_BASE_DEBUG_ASSERT(blocker.kind <= VOE_SCENE_LIGHT_BLOCKER_WALL,
-			      "a light blocker kind past Wall");
+	VOE_BASE_DEBUG_ASSERT(blocker.block <= VOE_SCENE_LIGHT_BLOCKER_DIRECT,
+			      "a light blocker block past Direct");
 
 	return voe_ecs_component_add(
 		world, voe_ecs_component_type(world, &voe_scene_light_blocker_key),
@@ -121,11 +130,11 @@ void voe_scene_light_blocker_system_run(voe_ecs_world *world)
 				entity.index, entity.generation);
 			continue;
 		}
-		if (intents[i].blocker.kind > VOE_SCENE_LIGHT_BLOCKER_WALL) {
+		if (intents[i].blocker.block > VOE_SCENE_LIGHT_BLOCKER_DIRECT) {
 			fprintf(stderr,
-				"error: light blocker %uv%u: kind %u refused, row kept\n",
+				"error: light blocker %uv%u: block %u past Direct refused, row kept\n",
 				entity.index, entity.generation,
-				intents[i].blocker.kind);
+				intents[i].blocker.block);
 			continue;
 		}
 		(void)voe_ecs_component_set(world, type, entity,
