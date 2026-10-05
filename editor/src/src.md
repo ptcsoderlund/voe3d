@@ -246,11 +246,11 @@ carries it out.
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
 - `undo.h` — the line of scene texts a step is taken from: an edit marked, a
-  settled edit recorded as the whole scene's text, Ctrl+Z or Ctrl+Y reading
-  a neighbouring one back into the project's world (ADR-0204), and the level's
-  line set aside while a prefab is open.
+  settled edit recorded as the whole scene's text, a settled reveal amending the state the world
+  is, Ctrl+Z or Ctrl+Y reading a neighbouring one back into the project's world (ADR-0204), and
+  the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
-  the state the world is, the throwing away of what could have been redone, and
+  the state the world is, a reveal's amend of it, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural

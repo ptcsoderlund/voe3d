@@ -1,5 +1,6 @@
 // The states pushed once, the two lines swapped, the compare a settled edit
-// makes against the state the world is, and the step a take moves by. See the
+// makes against the state the world is, a settled reveal's amend of that
+// state, and the step a take moves by. See the
 // header for what a step
 // is, what bounds it, where in the frame a take belongs and why the selection
 // is re-found by authored id.
@@ -96,6 +97,7 @@ void voe_editor_undo_aside(voe_editor_undo *undo)
 	undo->count = 0;
 	undo->at = 0;
 	undo->edited = false;
+	undo->revealed = false;
 	VOE_BASE_ASSERT(undo->states != undo->aside_states,
 			"a line set aside over itself");
 }
@@ -109,6 +111,7 @@ void voe_editor_undo_restore(voe_editor_undo *undo)
 	undo->aside_count = 0;
 	undo->aside_at = 0;
 	undo->edited = false;
+	undo->revealed = false;
 	VOE_BASE_ASSERT(undo->states != undo->aside_states,
 			"a line restored over itself");
 }
@@ -121,6 +124,15 @@ void voe_editor_undo_edited(voe_editor_undo *undo)
 	undo->edited = true;
 }
 
+void voe_editor_undo_revealed(voe_editor_undo *undo)
+{
+	VOE_BASE_ASSERT(undo != NULL, "marking no undo revealed");
+	VOE_BASE_ASSERT(undo->states != NULL,
+			"marking an uncreated undo revealed");
+
+	undo->revealed = true;
+}
+
 void voe_editor_undo_forget(voe_editor_undo *undo)
 {
 	VOE_BASE_ASSERT(undo != NULL, "forgetting no undo");
@@ -131,6 +143,7 @@ void voe_editor_undo_forget(voe_editor_undo *undo)
 	undo->aside_count = 0;
 	undo->aside_at = 0;
 	undo->edited = false;
+	undo->revealed = false;
 }
 
 void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
@@ -144,7 +157,8 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 	VOE_BASE_ASSERT(scratch != NULL, "settling an undo with no scratch arena");
 	VOE_BASE_ASSERT(undo->states != NULL, "settling an uncreated undo");
 
-	if (undo->count > 0 && !(undo->edited && at_rest))
+	if (undo->count > 0 &&
+	    !((undo->edited || undo->revealed) && at_rest))
 		return;
 
 	mark = voe_base_arena_mark(scratch);
@@ -153,6 +167,7 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 		// was: half a scene is not a state to go back to.
 		voe_base_arena_rewind(scratch, mark);
 		undo->edited = false;
+		undo->revealed = false;
 		return;
 	}
 
@@ -163,6 +178,11 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 		voe_editor_undo_state_set(undo, 0, text);
 		undo->count = 1;
 		undo->at = 0;
+	} else if (!undo->edited) {
+		// A REVEAL ALONE AMENDS THE STATE THE WORLD IS AT (0366):
+		// nothing pushed, and count kept, so what could be redone
+		// still can.
+		voe_editor_undo_state_set(undo, undo->at, text);
 	} else if (!voe_editor_undo_state_same(undo, text)) {
 		// THE STATE AFTER `at` IS WHERE IT LANDS, AND count FOLLOWS IT:
 		// everything that could have been redone is thrown away,
@@ -182,6 +202,7 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 
 	voe_base_arena_rewind(scratch, mark);
 	undo->edited = false;
+	undo->revealed = false;
 }
 
 bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
