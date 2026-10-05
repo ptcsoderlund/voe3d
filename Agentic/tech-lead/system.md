@@ -17,7 +17,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
 - **render** — the one layer naming Vulkan: card, resources, passes, light, shadow, bounce, prepare.
-- **text** — a glyph atlas as a distance field and one mesh per text block; Oxanium, the one face.
+- **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — scene to draws: meshes, models, shapes, particles, water, picks, markers, blocked light.
