@@ -14,6 +14,8 @@
 //
 // THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
 // view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
+// A capture draws every caster; sun i's map only those the blockers holding
+// sun i hold, as its cascades do (0361 point 2).
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
 // box goes to voe_3d_bounce_grid_fit, and its spacing to the begin and the
@@ -290,8 +292,9 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 }
 
 // Sun `sun`'s relight map (0329 point 2, 0357 point 4): the bounce shadow pass
-// with the view of `grid` along `direction`, the casters drawn into it when
-// render opens it. False when the pass or a draw is refused.
+// with the view of `grid` along `direction`, the casters the blockers holding
+// the sun hold drawn into it when render opens it (0361 point 2). False when
+// the pass or a draw is refused.
 static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, voe_3d_bounce_grid grid,
 			 uint32_t sun, voe_math_float3 direction)
@@ -306,7 +309,9 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 		return false;
 	if (!opened)
 		return true;
-	drawn = voe_3d_draw_casters(world, device, frame);
+	drawn = voe_3d_draw_casters(world, device, frame,
+				    sun == 0 ? frame->blockers.sun :
+					       frame->more_lights[sun - 1].blockers);
 	voe_render_pass_end(device);
 	return drawn;
 }
@@ -352,7 +357,7 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			return false;
 		if (!opened)
 			break;
-		drawn = voe_3d_draw_casters(world, device, frame);
+		drawn = voe_3d_draw_casters(world, device, frame, 0);
 		voe_render_pass_end(device);
 		if (!drawn)
 			return false;

@@ -83,7 +83,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   over meshes, model parts and panels: solids drawn as found, fading models held blended, then the
   held-back groups and the marks.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
-  its own slot, the point-shadow pass and the probe bounce, a gone model casting nothing.
+  its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
+  a gone model casting nothing.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.

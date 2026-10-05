@@ -1,8 +1,7 @@
 // The shadow passes: each casting directional light's cascades fitted to the
-// frame's view, every caster drawn once into each of its four (ADR-0258,
-// 0357), and the point lights'
-// one pass, then the probe bounce when a light bounces. The contract is
-// voe_3d_draw_system_shadows's in 3d/draw_system.h.
+// frame's view, its casters drawn once into each of its four (ADR-0258, 0357),
+// the point lights' one pass, then the probe bounce when a light bounces. The
+// contract is voe_3d_draw_system_shadows's in 3d/draw_system.h.
 //
 // IT IS ITS OWN CALL AND NOT A STEP INSIDE _run, BECAUSE A PASS DOES NOT NEST.
 // _run draws into the view's pass the loop has already opened, and a shadow
@@ -29,19 +28,20 @@
 // voe_render_shadow_lights_ready holds, slot s writing layers 4s to 4s + 3 and
 // its record's `slot`; a light past what is ready draws unshadowed that frame,
 // its record zeroed, and the array grows for the next. No light row casts
-// nothing.
+// nothing. A LIGHT A BLOCKER HOLDS CASTS ONLY WHAT THOSE BLOCKERS HOLD (0361
+// point 2): a caster whose world origin, masked as a light's place is, lacks a
+// bit of the light's mask is left out of its cascades, so the roof outside a
+// blocker never darkens its inside. A light no blocker holds casts every one.
 //
 // Each caster's record is draw_group.c's, the object's matrix about the frame's
 // eye at its lag, exactly as the view draws it; a cascade reads only the world
-// matrix. The record carries the shape's colour as the view's does, because a
-// probe's picture is the base colour times it: without it every shape bounced
-// white, and a red box tinted nothing (bug 01).
-// The mesh table is walked once per cascade: four linear walks, the same cost
-// as the view's own walk, and a culled list per cascade is a later card.
+// matrix. It carries the shape's colour, because a probe's picture is the base
+// colour times it: without it a red box tinted nothing (bug 01). The mesh
+// table is walked once per cascade, as linearly as the view's own walk.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun casts: when
-// the device's maps are ready and a light in the frame's points has a slot, the
-// same casters are drawn into it through the same walk, one instanced draw
+// the device's maps are ready and a light in the frame's points has a slot,
+// every caster is drawn into it through the same walk, one instanced draw
 // each over the faces render finds. A lamp's shadow is of what the sun's is of
 // (0324 point 5), so a shape or model with `cast_shadows` false casts for no
 // lamp either; sharing the walk is what keeps the two from disagreeing.
@@ -68,6 +68,7 @@
 #include <3d/shadow_cascades.h>
 #include <3d/shape_component.h>
 #include <base/assert.h>
+#include <math/double3.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -79,10 +80,29 @@ bool voe_3d_draw_casts(const voe_3d_material *material)
 	return !material->unlit && material->alpha_mode != VOE_RENDER_ALPHA_BLENDED;
 }
 
+// Whether the caster placed at `drawn` is held by every blocker in `within`:
+// its world origin about the eye, masked over the frame's kept blockers as a
+// light's place is (0361 point 2). `within` 0 holds every caster, unmasked.
+static bool held_within(const voe_3d_frame *frame,
+			const voe_scene_transform *drawn, uint32_t within)
+{
+	uint32_t mask;
+
+	VOE_BASE_ASSERT(frame != NULL && drawn != NULL, "masking no caster");
+	if (within == 0)
+		return true;
+	mask = voe_render_light_blockers_mask(
+		frame->blockers.blockers, frame->blockers.count,
+		voe_math_double3_to_float3(
+			voe_math_double3_sub(drawn->position, frame->eye)));
+	return (mask & within) == within;
+}
+
 // Every loaded model part that casts, drawn into the shadow pass that is open,
-// as draw_casters draws a mesh. Nothing with no store (0277 point 3).
+// as draw_casters draws a mesh, `within` as it takes it. Nothing with no store
+// (0277 point 3).
 static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
-			       const voe_3d_frame *frame)
+			       const voe_3d_frame *frame, uint32_t within)
 {
 	const voe_3d_model *rows = voe_3d_model_rows(world);
 	const voe_ecs_entity *owners = voe_3d_model_entities(world);
@@ -103,6 +123,8 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 		if (model == NULL || !model->loaded)
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
+		if (!held_within(frame, &drawn, within))
+			continue;
 		for (uint32_t part = 0; part < model->part_count; part++) {
 			const voe_3d_model_part *piece = &model->parts[part];
 
@@ -118,10 +140,10 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 }
 
 // Every caster in the world, drawn into the pass that is open, a cascade, the
-// point-shadow pass or a capture pass. False when render refuses a draw, which it has already
-// said on stderr.
+// point-shadow pass or a capture pass, those `within` holds (held_within).
+// False when render refuses a draw, which it has already said on stderr.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
-			 const voe_3d_frame *frame)
+			 const voe_3d_frame *frame, uint32_t within)
 {
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
 	const voe_ecs_entity *owners = voe_3d_mesh_entities(world);
@@ -150,13 +172,15 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			continue;
 		// Where it was `lag` of a step ago, as the view draws it (0254).
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
-		if (!voe_render_frame_draw(device, meshes[row].geometry,
+		if (held_within(frame, &drawn, within) &&
+		    !voe_render_frame_draw(device, meshes[row].geometry,
 					   voe_3d_draw_group_object_of(
 						   &drawn, material, shape,
 						   frame->eye)))
 			return false;
 	}
-	return frame->models == NULL || draw_model_casters(world, device, frame);
+	return frame->models == NULL ||
+	       draw_model_casters(world, device, frame, within);
 }
 
 // Whether anything bounces this frame (0326 point 8): the world's light, row
@@ -211,6 +235,14 @@ static voe_render_shadow *frame_shadow(voe_3d_frame *frame, uint32_t light)
 	return light == 0 ? &frame->shadow : &frame->more_lights[light - 1].shadow;
 }
 
+// The mask of the blockers holding light `light`'s place (0361 point 2).
+static uint32_t frame_light_blockers(const voe_3d_frame *frame, uint32_t light)
+{
+	VOE_BASE_ASSERT(light <= frame->more_count, "a light past the frame's");
+	return light == 0 ? frame->blockers.sun :
+			    frame->more_lights[light - 1].blockers;
+}
+
 // Every directional light's shadow record zeroed: none reads a map.
 static void zero_shadows(voe_3d_frame *frame)
 {
@@ -248,7 +280,8 @@ static bool draw_light_cascades(voe_ecs_world *world, voe_render_device *device,
 			    device, slot * VOE_RENDER_SHADOW_CASCADES + cascade,
 			    &cascades.light[cascade]))
 			return false;
-		drawn = voe_3d_draw_casters(world, device, frame);
+		drawn = voe_3d_draw_casters(world, device, frame,
+					    frame_light_blockers(frame, light));
 		voe_render_pass_end(device);
 		if (!drawn)
 			return false;
@@ -311,7 +344,7 @@ static bool draw_point_shadows(voe_ecs_world *world, voe_render_device *device,
 		return true;
 	if (!voe_render_point_shadow_pass_begin(device, &frame->points))
 		return false;
-	drawn = voe_3d_draw_casters(world, device, frame);
+	drawn = voe_3d_draw_casters(world, device, frame, 0);
 	voe_render_pass_end(device);
 	return drawn;
 }

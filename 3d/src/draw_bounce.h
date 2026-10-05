@@ -9,7 +9,8 @@
 // THE CASTERS ARE THE CASCADES' AND SO IS THE WALK. draw_shadows.c owns who
 // casts and how a caster is drawn; it is declared here, not copied, so the
 // probes' pictures and the shadow maps can never disagree about what stands
-// in the light.
+// in the light. A capture draws every caster; a sun's map only those the
+// blockers holding the sun hold, as its cascades (0361 point 2).
 //
 // A STALE SPHERE IS WHERE A CASTER WAS AND IS. A caster whose transform at lag 1
 // (the previous table's) differs from lag 0 in position or rotation marks a
@@ -36,9 +37,13 @@
 bool voe_3d_draw_casts(const voe_3d_material *material);
 
 // Every caster drawn into the shadow or capture pass that is open, at the
-// frame's lag about its eye. False when render refuses a draw. draw_shadows.c.
+// frame's lag about its eye. With `within` not 0, only a caster whose world
+// matrix's origin, about the eye at the lag as a light's place is, has a mask
+// over `frame->blockers`' kept records holding every bit of `within` (0361
+// point 2); `within` 0 draws every caster and takes no mask. False when render
+// refuses a draw. draw_shadows.c.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
-			 const voe_3d_frame *frame);
+			 const voe_3d_frame *frame, uint32_t within);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
 // the count. draw_shadows.c.
@@ -69,7 +74,8 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // passes while render opens one, drawing the casters into each. Then one bounce
 // shadow pass per casting sun: for sun i whose light row i casts, the sun view
 // of the fitted grid along its direction (voe_3d_bounce_grid_sun) and, when
-// render opens it, the casters drawn into it (0329, 0357 point 4); then
+// render opens it, the casters its blockers hold drawn into it (0329, 0357
+// point 4, 0361 point 2); then
 // relights. False when a pass or a draw is refused.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,
 				      voe_render_device *device,
