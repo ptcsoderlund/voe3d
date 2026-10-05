@@ -78,6 +78,16 @@ void voe_editor_project_panel_draw(voe_ui_context *ui,
 				    .y = { VOE_UI_ACROSS_START, top } },
 			.size = { .across = { VOE_UI_SIZE_FIXED, size.y } } });
 
+	// The title at the left and its × at the right (0363 point 2), spread
+	// apart along a row the panel stretches across, as a dock header is.
+	voe_ui_row_begin(ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
+						 .across = VOE_UI_ACROSS_CENTER });
+	voe_ui_label(ui, "Project");
+	panel->close_button = voe_ui_button_begin(ui, "close", 0);
+	voe_ui_label(ui, "×");
+	voe_ui_end(ui); // × button
+	voe_ui_end(ui); // title row
+
 	panel->width_box = size_row(ui, "Width", window.width,
 				    panel->width_text, sizeof panel->width_text);
 	panel->height_box = size_row(ui, "Height", window.height,
@@ -96,15 +106,6 @@ void voe_editor_project_panel_draw(voe_ui_context *ui,
 	voe_ui_label(ui, "Fullscreen");
 	voe_ui_end(ui); // fullscreen choice
 	voe_ui_end(ui); // choice row
-
-	// In a row of its own so it keeps its natural width, as
-	// preferences.c's Close does.
-	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
-						 .gap = PROJECT_PANEL_GAP });
-	panel->close_button = voe_ui_button_begin(ui, "close", 0);
-	voe_ui_label(ui, "Close");
-	voe_ui_end(ui); // close button
-	voe_ui_end(ui); // bottom row
 
 	voe_ui_end(ui); // panel
 }

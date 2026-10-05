@@ -59,8 +59,8 @@ carries it out.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
 - `settings.h` — the Scene list's and the Inspector's widths, the Assets panel's and the top bar's
-  heights and the views' share a person gave them, remembered at
-  `<settings>/voe3d/editor_settings`, one `<key> <number>` line each (ADR-0226).
+  heights, the views' share and the four dock panels' open flags a person left, remembered at
+  `<settings>/voe3d/editor_settings`, one `<key> <value>` line each (ADR-0226, 0363).
 - `settings.c` — that file read line by line as a key and a number in range, and written back with
   every other key's line kept, by making the two folders above it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
@@ -102,18 +102,24 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, and the
-  armed command that makes Close, New, Open and Back refuse once over unsaved work.
+- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, the Errors
+  panel shown from the build log, and the armed command that makes Close, New, Open and Back
+  refuse once over unsaved work.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, what a browser action does to the session, and the load a frame later.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
-  Project, Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its
-  content or as the person made it.
+  Project, Preferences, Panels and its list, the gizmo's mode, the name and unsaved mark, then the
+  notice, as tall as its content or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
-- `project_panel.h` — the Project panel: the game window's width and height as number boxes, a
-  Windowed / Fullscreen choice and Close, as an anchored panel over the dock, carrying out nothing.
+- `panels_menu.h` — the list Panels opens: one row per closable panel, an open one ticked with √ in
+  a column of its own, as an anchored panel below the button, closed by its caller.
+- `panels_menu.c` — the list's one frame of `ui` calls and the read of its rows, and whether the
+  pointer is on it, afterwards.
+- `project_panel.h` — the Project panel: a title row with its ×, the game window's width and height
+  as number boxes and a Windowed / Fullscreen choice, as an anchored panel over the dock, carrying
+  out nothing.
 - `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
   a number rounded and clamped to the project file's range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
@@ -122,20 +128,22 @@ carries it out.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
-  cut at 160 bytes, in a scroll area with Close, as an anchored panel over the dock.
+  cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
-  calls, and the read of Close afterwards.
+  calls, and the read of its × afterwards.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock,
   its own arena, a start beside a given folder with its row chosen, in SAVE mode a name row with a
   focused `ui` field and Make folder, and in IMPORT mode `.glb` files a press imports.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
-  panel's length or the views' share, every seam's place (the reached one lit), whether a point is
-  over a panel, and the walk.
-- `dock.c` — the arrangement, held lengths and the views' share clamped and set, the walk to one
-  frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
-  drag marks, the Inspector's call, and each scene view's camera preview.
+  panel's length or the views' share, the closable panels with a closed leaf not laid out, every
+  seam's place (the reached one lit), whether a point is over a panel, and the walk.
+- `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
+  and set, which views it shows and whether a point is over a panel.
+- `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each closable leaf's header of
+  name and ×, each leaf a panel and scroll area handed to its panel's draw with the palette for the Scene list's drag marks, the Inspector's
+  call, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
@@ -161,13 +169,17 @@ carries it out.
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
-  double-click timed on the caller's clock, and the three sizes written through `settings.h`.
+  double-click timed on the caller's clock.
+- `panels.h` — the editor's panels as the person left them: the default tree started with the
+  settings file read over it, the sizes remembered back into it when a drag ends, the toggle that
+  opens or closes a dock panel, Project or Errors, and whether one is open.
+- `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
+  written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project or the colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, Play and Ship
-  polled once a frame, and the one read of the frame's clicks carrying out the bar's, browser's and
-  Preferences' and Project's commands, the picker's changes, and a prefab made or opened.
+- `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
+  commands they fire are carried out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

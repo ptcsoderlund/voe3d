@@ -3,7 +3,8 @@
 // and the two scene views' (ADR-0228), and the top bar's lower edge. Each frame
 // voe_editor_resize_frame says whether the pointer is the borders' and which
 // shape it takes, writes a drag into the tree or the bar, and says when a
-// drag or a double-click ended so the caller can remember the sizes.
+// drag or a double-click ended so the caller remembers the sizes through
+// panels.h.
 //
 //     voe_editor_resize resize = { .held = UINT32_MAX };   // at rest
 //
@@ -24,8 +25,8 @@
 //
 // Constraints: a zeroed struct remembers a press on node 0 at the clock's
 // origin, which a monotonic clock started with the machine never comes within
-// VOE_EDITOR_RESIZE_DOUBLE of. Writing the sizes is a synchronous file write,
-// made once when a drag ends and never while one goes on.
+// VOE_EDITOR_RESIZE_DOUBLE of. Nothing here writes a file: the sizes are
+// remembered through panels.h when a drag ends, never while one goes on.
 #pragma once
 
 #include "dock.h"
@@ -73,10 +74,3 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 						 voe_editor_dock_root *root,
 						 voe_editor_topbar *bar,
 						 bool allowed, double now);
-
-// The Scene list's, the Inspector's and the Assets panel's lengths and the
-// views' share in `tree`
-// and the bar's `wanted`, written through voe_editor_settings_write. False
-// when that fails.
-[[nodiscard]] bool voe_editor_resize_remember(const voe_editor_dock_tree *tree,
-					      const voe_editor_topbar *bar);

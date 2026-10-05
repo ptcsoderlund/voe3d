@@ -259,13 +259,14 @@
 // "Shipping", its longer label. 2083 + 2 = 2085, 39632 + 10 = 39642.
 //
 // THE ERRORS PANEL (errors.h) ADDS FIFTY-FOUR NODES, counted on top though it
-// takes Preferences' place: the panel, one; its title, one; its scroll area,
-// one; up to VOE_EDITOR_ERRORS_LINES (48) line labels; Close's row, and Close
-// as a button and a label, three. 2085 + 54 = 2139 nodes. AND 7704 ELEMENTS:
-// the panel's border and fill, two; "Build errors", eleven; the scrollbars on
-// both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES (160)
-// characters, a byte at least apiece, 7680; Close, two and five. 39642 + 7704 =
-// 47346 elements. AND ONE MORE SCROLL AREA, its lines': five.
+// takes Preferences' place: the panel, one; its title row, the title label and
+// the × as a button and a label, four; its scroll area, one; up to
+// VOE_EDITOR_ERRORS_LINES (48) line labels. 2085 + 54 = 2139 nodes. AND 7700
+// ELEMENTS: the panel's border and fill, two; "Build errors", eleven; the ×'s
+// border and fill and its one character, three — the row draws none; the
+// scrollbars on both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES
+// (160) characters, a byte at least apiece, 7680. 39642 + 7700 = 47342
+// elements. AND ONE MORE SCROLL AREA, its lines': five.
 //
 // THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD 132 NODES:
 // a rim wrapper round each of VOE_EDITOR_SCENE_ROWS (128) rows and the heading,
@@ -273,37 +274,54 @@
 // label (drag_ghost.h; the panel is the column holding both), three. 2139 + 132
 // = 2271 nodes. AND EIGHTY-ONE ELEMENTS: the one lit rim's border and fill,
 // two; the ghost's border and fill, two, its name's 64 characters, and the 13
-// "Can't drop here" draws, its two spaces drawing nothing. 47346 + 81 = 47427.
+// "Can't drop here" draws, its two spaces drawing nothing. 47342 + 81 = 47423.
 //
 // THE BAR'S BACK BUTTON (topbar.h), while a prefab is open, ADDS TWO NODES, a
 // button and its label, and SIX ELEMENTS: its border and fill, and "Back".
-// 2271 + 2 = 2273 nodes, 47427 + 6 = 47433 elements.
+// 2271 + 2 = 2273 nodes, 47423 + 6 = 47429 elements.
 //
 // THE ASSETS PANEL'S GHOST (assets_drag.h) ADDS NO NODES: one ghost is drawn
 // at a time, a Scene list drag's or an Assets one's, so the three above are
 // its. But its name, a file's, is up to VOE_EDITOR_ASSETS_DRAG_PATH (128)
 // less "Assets/" and the zero, 120 characters against the 64 counted, so
-// FIFTY-SIX ELEMENTS MORE. 47433 + 56 = 47489.
+// FIFTY-SIX ELEMENTS MORE. 47429 + 56 = 47485.
 //
 // THE BAR'S PROJECT BUTTON (topbar.h) ADDS TWO NODES, a button and its label,
 // and NINE ELEMENTS: its border and fill, and the seven letters of "Project".
-// 2273 + 2 = 2275 nodes, 47489 + 9 = 47498 elements.
+// 2273 + 2 = 2275 nodes, 47485 + 9 = 47494 elements.
 //
 // THE PROJECT PANEL (project_panel.h) ADDS NOTHING, BECAUSE IT IS NEVER DRAWN
 // IN THE SAME FRAME AS THE BROWSER AND COSTS LESS. It takes the browser's
-// place: the panel, one; Width's and Height's rows, each a row, its name
+// place: the panel, one; its title row, the "Project" label and the × as a
+// button and a label, four; Width's and Height's rows, each a row, its name
 // label, the number box and the figure composed into it, eight; the choice
-// row and Windowed and Fullscreen as a choice and a label each, five; Close's
-// row, and Close as a button and a label, three — 17 nodes against the
-// browser's 111. Elements: the panel's border and fill, two; "Width" and
-// "Height", eleven; each box's fill, two, and its figure at most five digits,
-// "16384", ten; each choice's border and fill, four, "Windowed" and
-// "Fullscreen", eighteen; Close, two and five — 54; and, while one box is open
-// for typing, a caret, up to VOE_UI_FIELD_CAPACITY (256) typed characters and
-// "not a number", a generous 300 — 354 against the browser's 1504. No scroll
-// area.
-#define VOE_EDITOR_INTERFACE_NODES 2275
-#define VOE_EDITOR_INTERFACE_ELEMENTS 47498
+// row and Windowed and Fullscreen as a choice and a label each, five — 18
+// nodes against the browser's 111. Elements: the panel's border and fill, two;
+// "Project", seven; the ×'s border and fill and its one character, three;
+// "Width" and "Height", eleven; each box's fill, two, and its figure at most
+// five digits, "16384", ten; each choice's border and fill, four, "Windowed"
+// and "Fullscreen", eighteen — 57; and, while one box is open for typing, a
+// caret, up to VOE_UI_FIELD_CAPACITY (256) typed characters and "not a
+// number", a generous 300 — 357 against the browser's 1504. No scroll area.
+//
+// THE FOUR CLOSABLE DOCK LEAVES' HEADERS (dock_walk.c, 0363) ADD SIXTEEN
+// NODES: each a row, the name label, the × button and its label, four apiece.
+// 2275 + 16 = 2291 nodes. AND FIFTY-TWO ELEMENTS: each button's border and
+// fill, two, its ×, one, and the name at most "Bottom view"'s ten characters,
+// its space drawing nothing — the row draws none — thirteen apiece.
+// 47494 + 52 = 47546 elements. No scroll area: five stands.
+//
+// THE BAR'S PANELS BUTTON AND ITS LIST (topbar.h, panels_menu.h) ADD
+// THIRTY-FOUR NODES: the button and its label, two; the list's anchored
+// column and its panel, two; and six rows, each a button, the row in it, the
+// tick column and two labels, five apiece, thirty. 2291 + 34 = 2325 nodes.
+// AND EIGHTY-EIGHT ELEMENTS: Panels' border and fill and its six letters,
+// eight; the panel's border and fill, two; each row's border and fill, two,
+// √, one, and its name at most "Bottom view"'s ten characters, its space
+// drawing nothing, thirteen apiece, seventy-eight. 47546 + 88 = 47634. No
+// scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2325
+#define VOE_EDITOR_INTERFACE_ELEMENTS 47634
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -397,11 +415,11 @@ void voe_editor_interface_surface(voe_platform_size target,
 // AND NONE OF THE BROWSER, THE ERRORS PANEL AND PREFERENCES IS: one of the
 // three at a time, the bar's Project hiding Preferences and its Preferences
 // hiding Project. It shows the session's project's window; a changed one goes
-// to voe_editor_project_window_set, a failure into the notice; Close hides it.
+// to voe_editor_project_window_set, a failure into the notice; its × hides it.
 //
 // THE SESSION'S ERRORS PANEL (errors.h) IS DRAWN THE SAME WAY, WHEN IT IS
 // SHOWING AND THE BROWSER IS NOT, and covers Preferences, which is then not
-// drawn or read; its Close hides it.
+// drawn or read; its × hides it.
 //
 // THE COLOUR PICKER IS DRAWN OVER THE DOCK TOO, beside the Inspector column,
 // while scene.h's `picking` shows and neither the browser, Preferences nor
@@ -414,10 +432,21 @@ void voe_editor_interface_surface(voe_platform_size target,
 // the other. A row chosen on it is submitted at once as that row's replace
 // intent and counted the same way; `escape` closes it, as does a press outside
 // its rectangle. See interface.c.
+//
+// `roots` IS WRITTEN FOR ONE THING: a dock panel's × that fired closes it on
+// its own root through panels.h's voe_editor_panels_toggle, which remembers it
+// at once; a write that fails is said in the session's notice
+// ("editor_settings").
+//
+// THE BAR'S PANELS LIST (panels_menu.h) IS DRAWN LAST, OVER EVERYTHING, while
+// `bar->menu` is open, and the dock is then handed a pointer with `over`
+// false as under the other panels. Panels flips it; a fired row goes through
+// the same toggle and closes it; `escape`, a press off the list and Panels, or
+// the browser showing close it.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
-					     const voe_editor_dock_root *roots,
+					     voe_editor_dock_root *roots,
 					     uint32_t count,
 					     voe_editor_scene *scene,
 					     const voe_editor_assets_drag *drag,

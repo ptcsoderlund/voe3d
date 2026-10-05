@@ -17,10 +17,10 @@
 // and a resize shows one frame at the old size stretched to the new rectangle.
 // The alternative is laying the interface out twice a frame.
 //
-// A VIEW WHOSE LEAF IS NOT IN THE TREE IS NOT DRAWN. Its target would be filled
-// every frame and shown nowhere, which is a pass and a frame's worth of draws
-// spent on nothing; and its rectangle is whatever it was when it was last shown,
-// which is nothing a picture should be sized by. The loop asks the tree
+// A VIEW WHOSE LEAF IS NOT IN THE TREE, OR IS CLOSED (0363), IS NOT DRAWN. Its
+// target would be filled every frame and shown nowhere, which is a pass and a
+// frame's worth of draws spent on nothing; and its rectangle is zeroed by the
+// walk, so no click finds it. The loop asks the root
 // (voe_editor_dock_shows_view) before it opens a pass.
 //
 // WHERE A CLICK LANDS IS LAST FRAME'S RECTANGLE, FOR THE SAME REASON THE

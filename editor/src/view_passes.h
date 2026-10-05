@@ -13,7 +13,7 @@
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
 //                                            light, &scene, models);
-//     drawn = drawn && voe_editor_view_passes_draw(gpu, arena, world, &views, &tree,
+//     drawn = drawn && voe_editor_view_passes_draw(gpu, arena, world, &views, &root,
 //                                         light, &scene, &geometries, models,
 //                                         &shapes, palette, &gizmo, ppmm);
 //
@@ -174,12 +174,12 @@
 	voe_editor_views *views, voe_render_light light,
 	const voe_editor_scene *scene, const voe_3d_models *models);
 
-// Draws every view `tree` shows, in order, models and the selected model's
+// Draws every view `root`'s tree shows, in order, models and the selected model's
 // outline through `models` (NULL for none), and returns false at the first
 // pass the device refuses. Called inside an open draw, never inside a pass.
 [[nodiscard]] bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
-	const voe_editor_views *views, const voe_editor_dock_tree *tree,
+	const voe_editor_views *views, const voe_editor_dock_root *root,
 	voe_render_light light, const voe_editor_scene *scene,
 	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
 	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,

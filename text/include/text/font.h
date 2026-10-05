@@ -208,9 +208,11 @@ typedef struct {
 	bool drawn;
 } voe_text_glyph;
 
-// The metrics for one character. Never fails: a character the atlas does not
-// cover is the font's own missing-glyph box, which is what makes it visible
-// rather than absent, and there is nothing here the world can refuse.
+// The metrics for one character. Never fails: the atlas covers U+0020 to
+// U+00FF and a short list of symbols beyond it, √ among them, and a character
+// it does not cover is the font's own missing-glyph box, which is what makes
+// it visible rather than absent, and there is nothing here the world can
+// refuse.
 //
 // It is a copy and not a pointer into the font, so a caller may keep it.
 voe_text_glyph voe_text_font_glyph(const voe_text_font *font,
