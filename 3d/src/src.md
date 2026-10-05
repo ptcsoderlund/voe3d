@@ -109,7 +109,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
   waves at its clock and sky in the object record.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
-- `draw_marks.c` — the camera and sun markers, the outline, a collider's and a light blocker's
+- `draw_marks.c` — the camera's marker, every sun's and lamp's, the outline, a collider's and a light blocker's
   lines, written once, and the gizmo's arrows or rings, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.

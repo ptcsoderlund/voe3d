@@ -1,5 +1,6 @@
-// A marked camera or sun is one more draw than none, and a zeroed marker is the
-// same as none (0223, 0274).
+// A marked camera or the suns shown is one more draw than none, and a zeroed
+// marker is the same as none (0223, 0274). Two suns shown are one draw, one of
+// them selected two, and a ray through each sun's place picks it (0360).
 //
 // THE DRAW COUNT IS THE MEASUREMENT, BECAUSE A PICTURE SAYS LESS. What is
 // observable is voe_render_frame_draw_count — every mesh drawn is one command —
@@ -14,7 +15,9 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/panel_component.h>
+#include <3d/pick.h>
 #include <3d/shape_component.h>
+#include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -75,7 +78,8 @@ static void add_a_camera(voe_ecs_world *world)
 	VOE_TEST_CHECK(voe_scene_camera_add(world, eye, lens));
 }
 
-static void add_the_sun(voe_ecs_world *world)
+// A sun shining down from `position`, which only places its marker.
+static voe_ecs_entity add_a_sun(voe_ecs_world *world, voe_math_double3 position)
 {
 	voe_ecs_entity sun = { 0 };
 	voe_scene_light light = {
@@ -87,10 +91,12 @@ static void add_the_sun(voe_ecs_world *world)
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, sun,
 		(voe_scene_transform){
+			.position = position,
 			.rotation = voe_scene_light_facing(
 				(voe_math_float3){ 0.0f, -1.0f, 0.0f }),
 			.scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, light));
+	return sun;
 }
 
 // A transform `back` metres down the camera's line of sight, unrotated and
@@ -121,7 +127,7 @@ static uint32_t draws_with_a_marker(voe_ecs_world *world,
 	uint32_t drawn = 0;
 
 	VOE_TEST_CHECK_INT(frame.marker.entity.generation, 0);
-	VOE_TEST_CHECK_INT(frame.sun.entity.generation, 0);
+	VOE_TEST_CHECK(!frame.sun.shown);
 	frame.marker = marker;
 	frame.sun = sun;
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
@@ -137,26 +143,26 @@ static uint32_t draws_with_a_marker(voe_ecs_world *world,
 	return drawn;
 }
 
-// A marker on a live camera, or on a live sun, is one more draw than none, and
-// a marker on a zeroed entity is the same as none (0223, 0274). The marked
-// camera and sun are second ones, added after framing, because framing wants
-// exactly one camera and at most one light, and _run reads neither table.
+// A marker on a live camera, or the suns shown, is one more draw than none, and
+// a marker on a zeroed entity or suns not shown are the same as none (0223,
+// 0274). The marked camera is a second one, added after framing, because
+// framing wants exactly one camera, and _run reads no camera table.
 static void a_marked_camera_is_one_more_draw(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
 	voe_base_error error = VOE_BASE_OK;
 	// The shapes' pools, one object for the cube and one for the marker,
-	// and one marker's worth of this frame's geometry (3d/draw_system.h) —
-	// the sun's, which is the larger of the two.
+	// and one range of this frame's geometry (3d/draw_system.h) — the two
+	// suns' lines together, which is more than the camera's.
 	voe_render_capacities capacities = {
 		.vertices = VOE_3D_SHAPES_VERTICES,
 		.indices = VOE_3D_SHAPES_INDICES,
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,
 		.objects = 2,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
-		.transient_vertices = VOE_3D_SUN_MARKER_VERTICES,
-		.transient_indices = VOE_3D_SUN_MARKER_INDICES,
+		.transient_vertices = 2 * VOE_3D_SUN_MARKER_VERTICES,
+		.transient_indices = 2 * VOE_3D_SUN_MARKER_INDICES,
 		.transient_geometries = 1,
 		.passes = 1,
 	};
@@ -166,7 +172,6 @@ static void a_marked_camera_is_one_more_draw(void)
 	voe_ecs_world *world;
 	voe_ecs_entity cube = { 0 };
 	voe_ecs_entity marked = { 0 };
-	voe_ecs_entity shining = { 0 };
 	voe_3d_frame frame;
 	voe_3d_camera_marked marker;
 	voe_3d_sun_marked sun;
@@ -183,7 +188,7 @@ static void a_marked_camera_is_one_more_draw(void)
 	world = a_world(arena);
 	voe_3d_shape_register(world, 2);
 	add_a_camera(world);
-	add_the_sun(world);
+	(void)add_a_sun(world, (voe_math_double3){ 0.0, 2.0, -4.0 });
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, at_depth(6.0f)));
 	VOE_TEST_CHECK(voe_3d_shape_add(
@@ -208,16 +213,12 @@ static void a_marked_camera_is_one_more_draw(void)
 		.pixels = 2.0f,
 		.size = size,
 	};
-	VOE_TEST_CHECK(voe_ecs_entity_create(world, &shining));
-	VOE_TEST_CHECK(voe_scene_transform_add(world, shining, at_depth(3.0f)));
-	VOE_TEST_CHECK(voe_scene_light_add(
-		world, shining,
-		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
-				   .intensity = 1.0f }));
+	(void)add_a_sun(world, (voe_math_double3){ 0.0, 0.0, -3.0 });
 	sun = (voe_3d_sun_marked){
-		.entity = shining,
+		.shown = true,
 		.material = shapes.outline,
 		.colour = { 1.0f, 0.0f, 1.0f },
+		.selected_colour = { 1.0f, 1.0f, 0.0f },
 		.pixels = 2.0f,
 		.size = size,
 	};
@@ -232,7 +233,7 @@ static void a_marked_camera_is_one_more_draw(void)
 					       no_marker, sun),
 			   without + 1);
 	marker.entity = (voe_ecs_entity){ 0 };
-	sun.entity = (voe_ecs_entity){ 0 };
+	sun.shown = false;
 	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
 					       marker, sun),
 			   without);
@@ -241,8 +242,92 @@ static void a_marked_camera_is_one_more_draw(void)
 	voe_base_arena_destroy(arena);
 }
 
+// Two suns two metres either side of the line of sight and five down it: shown
+// with neither selected they are one draw more than not shown, with one
+// selected two (0360 point 1), and a ray down -Z through each one's place picks
+// that one and not the other (0360 point 3). The ray starts past the camera so
+// the camera's own box is behind it.
+static void every_sun_is_marked_and_picked(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	// Two draws, and room for both suns' lines in two ranges.
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.transient_vertices = 2 * VOE_3D_SUN_MARKER_VERTICES,
+		.transient_indices = 2 * VOE_3D_SUN_MARKER_INDICES,
+		.transient_geometries = 2,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	const voe_3d_camera_marked no_marker = { 0 };
+	const voe_math_double3 places[2] = { { -2.0, 0.0, -5.0 },
+					     { 2.0, 0.0, -5.0 } };
+	voe_3d_shape_geometries geometries;
+	voe_3d_shapes shapes;
+	voe_ecs_entity suns[2];
+	voe_ecs_world *world;
+	voe_3d_frame frame;
+	voe_3d_sun_marked marked;
+	uint32_t hidden;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+	voe_3d_shape_geometries_create(arena, &geometries);
+
+	world = a_world(arena);
+	voe_3d_shape_register(world, 2);
+	add_a_camera(world);
+	suns[0] = add_a_sun(world, places[0]);
+	suns[1] = add_a_sun(world, places[1]);
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	marked = (voe_3d_sun_marked){
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.selected_colour = { 1.0f, 1.0f, 0.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+
+	hidden = draws_with_a_marker(world, device, arena, frame, no_marker,
+				     marked);
+	marked.shown = true;
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       no_marker, marked),
+			   hidden + 1);
+	marked.selected = suns[1];
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       no_marker, marked),
+			   hidden + 2);
+
+	for (uint32_t i = 0; i < 2; i++) {
+		voe_3d_ray ray = {
+			.origin = { places[i].x, places[i].y, -2.0 },
+			.direction = { 0.0f, 0.0f, -1.0f },
+		};
+		voe_ecs_entity hit =
+			voe_3d_pick(world, &geometries, NULL, ray, NULL);
+
+		VOE_TEST_CHECK_INT(hit.index, suns[i].index);
+		VOE_TEST_CHECK_INT(hit.generation, suns[i].generation);
+	}
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	a_marked_camera_is_one_more_draw();
+	every_sun_is_marked_and_picked();
 	return voe_test_result();
 }

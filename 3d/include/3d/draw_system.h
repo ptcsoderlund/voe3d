@@ -150,17 +150,25 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_camera_marked;
 
-// The sun a pass draws as a marker (0274): its circle and arrow as line quads,
-// voe_3d_sun_marker_quads', in the world layer. Only an editor's view sets one.
+// The suns a pass draws as markers (0274, 0360): a circle and arrow each,
+// voe_3d_sun_marker_quads', in the world layer inside the world's depth. Only an
+// editor's view sets it. When `shown`, every light with a transform is marked,
+// in table order and past the fourth too, the `selected` one in its own colour,
+// `selected_colour`, and the rest in `colour`, as two transient geometries — the
+// rest together, the selected one alone — so the pool needs
+// VOE_3D_SUN_MARKER_VERTICES and _INDICES per light, two ranges and two objects;
+// a pool too small draws none, as the outline does.
 typedef struct {
-	// The light entity, zeroed for none. A zeroed entity, a dead one and
-	// one without a light and a transform draw nothing.
-	voe_ecs_entity entity;
+	// False marks none, which is what a zeroed record is.
+	bool shown;
+	// The sun drawn in `selected_colour`, zeroed for none.
+	voe_ecs_entity selected;
 	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
 	voe_3d_material material;
-	// Linear, and the whole of what the marker looks like: the outline's
-	// colour when selected, the gizmo's rest colour otherwise (0274).
+	// Linear: the gizmo's rest colour, for every sun but the selected one.
 	voe_math_float3 colour;
+	// Linear: the outline's colour, for the selected sun (0274's rule).
+	voe_math_float3 selected_colour;
 	// How wide a line is on the picture, in pixels, at any distance.
 	float pixels;
 	// The size of that picture, in pixels.
@@ -306,12 +314,9 @@ typedef struct {
 	// draws nothing, as the outline does. A pass whose `view` is the marked
 	// camera's own is the caller's to avoid.
 	voe_3d_camera_marked marker;
-	// A PASS MAY MARK ONE SUN (0274), drawn as the camera marker is: in the
-	// world layer inside the world's depth. A zeroed record, a dead entity
-	// and one without a light or a transform draw nothing. The quads go into
-	// this frame's transient pool, sized from VOE_3D_SUN_MARKER_VERTICES and
-	// _INDICES, one more range and one more object; a pool too small draws
-	// nothing, as the outline does.
+	// A PASS MAY MARK EVERY SUN (0274, 0360 point 1), drawn as the camera
+	// marker is: in the world layer inside the world's depth. A zeroed
+	// record marks none (voe_3d_sun_marked above).
 	voe_3d_sun_marked sun;
 	// EVERY POINT LIGHT, MARKED (0320 point 7), drawn as the sun's marker is
 	// and right after it (voe_3d_point_lights_marked above).
@@ -367,7 +372,7 @@ typedef struct {
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
 // `point_lights`, `collider`, `light_blocker`, `points` and `blockers` all come
 // back zeroed and `models` NULL — hiding, outlining, standing a gizmo, marking a
-// camera, a sun or the point lights, drawing a collider or a blocker's box,
+// camera, the suns or the point lights, drawing a collider or a blocker's box,
 // lighting by point lights, keeping
 // light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer, and `more_lights` and `more_count` come back
@@ -566,7 +571,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // layer, and `frame.outlined`, when it names one, is outlined after everything
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
-// a live camera with a transform, and `frame.sun`, when it names a live light
+// a live camera with a transform, and `frame.sun`, when `shown`, every light
 // with a transform, are drawn with the world, and `frame.collider`, when it names one
 // with a collider, as lines after the outline, and `frame.light_blocker`, when
 // it names one with a blocker and a transform, as its box's lines after those. Calling it with no pass open is the caller's bug

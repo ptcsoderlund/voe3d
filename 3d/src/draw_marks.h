@@ -1,5 +1,5 @@
 // What a pass draws on top of the world for an editor: a scene camera's marker,
-// a sun's, every point light's, the outline of one entity, a collider's and a
+// every sun's, every point light's, the outline of one entity, a collider's and a
 // light blocker's lines and the gizmo, arrows or rings. Internal to 3d:
 // voe_3d_draw_system_run calls each once, in this order, after the world.
 //
@@ -22,7 +22,7 @@
 // whether the buffer is emptied now, so both sets of lines share that clear.
 //
 // Each reads its own record off the frame; a zeroed record, a dead entity or a
-// missing transform draws nothing. Their quads are this frame's transient
+// missing transform draws nothing, and the suns and lamps mark every row. Their quads are this frame's transient
 // geometry and their scratch the caller's arena, which the caller rewinds; a
 // refused range draws nothing, and render has said so on stderr.
 #pragma once

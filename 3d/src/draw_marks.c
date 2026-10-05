@@ -1,5 +1,5 @@
-// The editor's marks drawn over the world: a scene camera's box and frustum, a
-// sun's circle and arrow, every point light's three circles, one entity's
+// The editor's marks drawn over the world: a scene camera's box and frustum,
+// every sun's circle and arrow, every point light's three circles, one entity's
 // silhouette, a collider's and a light blocker's lines and the gizmo's two
 // meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
@@ -75,66 +75,34 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 			mark_object(marker.material, marker.colour));
 }
 
-// The sun's marker, drawn as the camera's is (0274): this frame's geometry and
-// one draw, in world metres about the eye. A zeroed entity, a dead one, and one
-// without a light or a transform draw nothing; so does a refused range.
-void voe_3d_draw_marks_sun(const voe_ecs_world *world,
-			   voe_render_device *device, voe_base_arena *arena,
-			   voe_3d_frame frame)
-{
-	voe_3d_sun_marked sun = frame.sun;
-	voe_scene_transform pose;
-	voe_3d_outline_mesh mesh;
-	voe_render_geometry quads;
-	voe_base_error error = VOE_BASE_OK;
-
-	VOE_BASE_ASSERT(device != NULL, "drawing a sun marker to no device");
-	VOE_BASE_ASSERT(arena != NULL, "a sun marker with no arena");
-
-	if (!voe_ecs_entity_alive(world, sun.entity) ||
-	    voe_scene_light_get(world, sun.entity) == NULL)
-		return;
-	if (voe_scene_transform_get(world, sun.entity) == NULL)
-		return;
-	pose = voe_scene_transform_world(world, sun.entity);
-	if (voe_3d_sun_marker_quads(pose, frame.view, frame.eye, sun.size,
-				    sun.pixels, arena, &mesh) &&
-	    voe_render_geometry_create_transient(device, mesh.vertices,
-						 mesh.vertex_count, mesh.indices,
-						 mesh.index_count, &quads,
-						 &error))
-		(void)voe_render_frame_draw(device, quads,
-					    mark_object(sun.material,
-							sun.colour));
-}
-
-// Whether the world registered the point light table, walked as pick.c's
+// Whether the world registered the table under `key`, walked as pick.c's
 // has_store is, because voe_ecs_component_type asserts on a key nothing
 // registered.
-static bool has_point_lights(const voe_ecs_world *world)
+static bool has_store(const voe_ecs_world *world, const struct voe_ecs_key *key)
 {
 	uint32_t count = voe_ecs_component_type_count(world);
 
 	for (uint32_t i = 0; i < count; i++)
 		if (voe_ecs_component_key(world,
 					  voe_ecs_component_type_at(world, i)) ==
-		    &voe_scene_point_light_key)
+		    key)
 			return true;
 	return false;
 }
 
-// One mesh of lamp markers as this frame's geometry and one draw; an empty one
+// One mesh of light markers as this frame's geometry and one draw; an empty one
 // is no draw, and a refused range draws nothing, which render reports.
-static void draw_lamp_lines(voe_render_device *device, voe_3d_outline_mesh mesh,
-			    voe_3d_material material, voe_math_float3 colour)
+static void draw_marker_lines(voe_render_device *device,
+			      voe_3d_outline_mesh mesh,
+			      voe_3d_material material, voe_math_float3 colour)
 {
 	voe_render_geometry quads;
 	voe_base_error error = VOE_BASE_OK;
 
-	VOE_BASE_ASSERT(device != NULL, "drawing lamp markers to no device");
+	VOE_BASE_ASSERT(device != NULL, "drawing light markers to no device");
 	VOE_BASE_ASSERT(mesh.index_count == 0 ||
 				(mesh.vertices != NULL && mesh.indices != NULL),
-			"lamp markers with no arrays behind them");
+			"light markers with no arrays behind them");
 
 	if (mesh.index_count == 0)
 		return;
@@ -164,7 +132,7 @@ void voe_3d_draw_marks_point_lights(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(device != NULL, "drawing lamp markers to no device");
 	VOE_BASE_ASSERT(arena != NULL, "lamp markers with no arena");
 
-	if (!marked.shown || !has_point_lights(world))
+	if (!marked.shown || !has_store(world, &voe_scene_point_light_key))
 		return;
 	uint32_t count = voe_scene_point_light_count(world);
 	const voe_ecs_entity *owners = voe_scene_point_light_entities(world);
@@ -199,12 +167,74 @@ void voe_3d_draw_marks_point_lights(const voe_ecs_world *world,
 	}
 	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_POINT_LIGHT_MARKER_VERTICES,
 			"more lamp marker vertices than were made room for");
-	draw_lamp_lines(device,
-			(voe_3d_outline_mesh){ vertices, vertex_count, indices,
-					       index_count },
-			marked.material, marked.colour);
-	draw_lamp_lines(device, selected, marked.material,
-			marked.selected_colour);
+	draw_marker_lines(device,
+			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
+						 index_count },
+			  marked.material, marked.colour);
+	draw_marker_lines(device, selected, marked.material,
+			  marked.selected_colour);
+}
+
+// Every light row with a transform, marked as the point lights are (0360 point
+// 1) at its current world place, in table order and past the fourth too: the
+// selected one alone in `selected_colour`, the rest gathered into one geometry
+// in `colour`, each sun's indices moved past the vertices already gathered. Not
+// shown, no light table and a picture with no area draw none.
+void voe_3d_draw_marks_sun(const voe_ecs_world *world,
+			   voe_render_device *device, voe_base_arena *arena,
+			   voe_3d_frame frame)
+{
+	voe_3d_sun_marked marked = frame.sun;
+	voe_3d_outline_mesh selected = { 0 };
+	voe_render_vertex *vertices;
+	uint32_t *indices;
+	uint32_t vertex_count = 0;
+	uint32_t index_count = 0;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing sun markers to no device");
+	VOE_BASE_ASSERT(arena != NULL, "sun markers with no arena");
+
+	if (!marked.shown || !has_store(world, &voe_scene_light_key))
+		return;
+	uint32_t count = voe_scene_light_count(world);
+	const voe_ecs_entity *owners = voe_scene_light_entities(world);
+
+	if (count == 0)
+		return;
+	vertices = voe_base_arena_push(
+		arena, sizeof *vertices * count * VOE_3D_SUN_MARKER_VERTICES);
+	indices = voe_base_arena_push(
+		arena, sizeof *indices * count * VOE_3D_SUN_MARKER_INDICES);
+	for (uint32_t i = 0; i < count; i++) {
+		voe_3d_outline_mesh mesh;
+
+		if (voe_scene_transform_get(world, owners[i]) == NULL)
+			continue;
+		if (!voe_3d_sun_marker_quads(
+			    voe_scene_transform_world(world, owners[i]),
+			    frame.view, frame.eye, marked.size, marked.pixels,
+			    arena, &mesh))
+			return;
+		if (owners[i].index == marked.selected.index &&
+		    owners[i].generation == marked.selected.generation) {
+			selected = mesh;
+			continue;
+		}
+		for (uint32_t j = 0; j < mesh.index_count; j++)
+			indices[index_count + j] = mesh.indices[j] + vertex_count;
+		for (uint32_t j = 0; j < mesh.vertex_count; j++)
+			vertices[vertex_count + j] = mesh.vertices[j];
+		index_count += mesh.index_count;
+		vertex_count += mesh.vertex_count;
+	}
+	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_SUN_MARKER_VERTICES,
+			"more sun marker vertices than were made room for");
+	draw_marker_lines(device,
+			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
+						 index_count },
+			  marked.material, marked.colour);
+	draw_marker_lines(device, selected, marked.material,
+			  marked.selected_colour);
 }
 
 // THE OUTLINE IS DRAWN AFTER THE OVERLAY AND AGAINST AN EMPTY DEPTH BUFFER,
