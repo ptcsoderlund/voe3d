@@ -178,10 +178,8 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project or the colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, Play and Ship
-  polled once a frame, and the one read of the frame's clicks carrying out the bar's, browser's and
-  Preferences' and Project's commands, the picker's changes, a prefab made or opened, a fired × or
-  Panels row toggled on its root, and the Panels list drawn last.
+- `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
+  commands they fire are carried out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

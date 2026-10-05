@@ -4,7 +4,8 @@
 //
 // NOTHING IN HERE DECIDES WHAT IS ON A PANEL. It opens the frame, hands over the
 // pointer it was given, asks the dock to walk, and moves records into the
-// device; what a panel says is dock.c's `voe_editor_panel_draw`.
+// device; what a panel says is dock.c's `voe_editor_panel_draw`. It also polls
+// Play and Ship once a frame and draws a Scene list or Assets drag's ghost.
 //
 // IT DOES ASK ONE QUESTION ABOUT WHAT WAS CLICKED, AND THAT IS NOT THE SAME
 // THING. A `ui` widget answers what the pointer did to it only after
@@ -51,7 +52,8 @@
 // THE TOP BAR'S PANELS LIST (panels_menu.h) IS DRAWN HERE, LAST, over every
 // other panel, while the bar's `menu` is open; Panels flips it, a fired row
 // goes through panels.h's voe_editor_panels_toggle and closes it, and Escape,
-// a press off the list and Panels, or the browser showing close it.
+// a press off the list and Panels, or the browser showing close it. A fired
+// panel header's × goes through the same toggle on its root.
 #include "interface.h"
 
 #include "browser.h"
