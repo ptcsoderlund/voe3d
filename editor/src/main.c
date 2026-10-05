@@ -595,7 +595,7 @@ int main(int argc, char *argv[])
 				!project_panel.showing &&
 				!session.errors.showing &&
 				!scene.picking.open && !scene.dropdown.open &&
-				!flying,
+				!bar.menu.open && !flying,
 			voe_platform_clock_now());
 		roots[0].lit = resized.reached;
 		if (resized.taken) {
@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
 				      browser.showing || preferences.showing ||
 					      project_panel.showing ||
 					      session.errors.showing ||
-					      scene.picking.open);
+					      scene.picking.open || bar.menu.open);
 
 		// A held model row, released over a view or the Inspector
 		// (assets_drag.h), under the pick's own `blocked`.
@@ -642,7 +642,7 @@ int main(int argc, char *argv[])
 			browser.showing || preferences.showing ||
 				project_panel.showing ||
 				session.errors.showing || scene.picking.open ||
-				voe_editor_gizmo_taking(&gizmo));
+				bar.menu.open || voe_editor_gizmo_taking(&gizmo));
 
 		// Then a press over a view picks what is under it (pick.h). A
 		// press the gizmo or a drag took is not a press that selects,
@@ -653,7 +653,7 @@ int main(int argc, char *argv[])
 				     browser.showing || preferences.showing ||
 					     project_panel.showing ||
 					     session.errors.showing ||
-					     scene.picking.open ||
+					     scene.picking.open || bar.menu.open ||
 					     voe_editor_gizmo_taking(&gizmo) ||
 					     drag.holding);
 

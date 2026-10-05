@@ -310,8 +310,18 @@
 // fill, two, its ×, one, and the name at most "Bottom view"'s ten characters,
 // its space drawing nothing — the row draws none — thirteen apiece.
 // 47494 + 52 = 47546 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2291
-#define VOE_EDITOR_INTERFACE_ELEMENTS 47546
+//
+// THE BAR'S PANELS BUTTON AND ITS LIST (topbar.h, panels_menu.h) ADD
+// THIRTY-FOUR NODES: the button and its label, two; the list's anchored
+// column and its panel, two; and six rows, each a button, the row in it, the
+// tick column and two labels, five apiece, thirty. 2291 + 34 = 2325 nodes.
+// AND EIGHTY-EIGHT ELEMENTS: Panels' border and fill and its six letters,
+// eight; the panel's border and fill, two; each row's border and fill, two,
+// √, one, and its name at most "Bottom view"'s ten characters, its space
+// drawing nothing, thirteen apiece, seventy-eight. 47546 + 88 = 47634. No
+// scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2325
+#define VOE_EDITOR_INTERFACE_ELEMENTS 47634
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -427,6 +437,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // its own root through panels.h's voe_editor_panels_toggle, which remembers it
 // at once; a write that fails is said in the session's notice
 // ("editor_settings").
+//
+// THE BAR'S PANELS LIST (panels_menu.h) IS DRAWN LAST, OVER EVERYTHING, while
+// `bar->menu` is open, and the dock is then handed a pointer with `over`
+// false as under the other panels. Panels flips it; a fired row goes through
+// the same toggle and closes it; `escape`, a press off the list and Panels, or
+// the browser showing close it.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,

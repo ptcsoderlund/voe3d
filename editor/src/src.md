@@ -109,10 +109,14 @@ carries it out.
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, what a browser action does to the session, and the load a frame later.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
-  Project, Preferences, the gizmo's mode, the name and unsaved mark, then the notice, as tall as its
-  content or as the person made it.
+  Project, Preferences, Panels and its list, the gizmo's mode, the name and unsaved mark, then the
+  notice, as tall as its content or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
+- `panels_menu.h` — the list Panels opens: one row per closable panel, an open one ticked with √ in
+  a column of its own, as an anchored panel below the button, closed by its caller.
+- `panels_menu.c` — the list's one frame of `ui` calls and the read of its rows, and whether the
+  pointer is on it, afterwards.
 - `project_panel.h` — the Project panel: a title row with its ×, the game window's width and height
   as number boxes and a Windowed / Fullscreen choice, as an anchored panel over the dock, carrying
   out nothing.
@@ -176,8 +180,8 @@ carries it out.
   Project or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, Play and Ship
   polled once a frame, and the one read of the frame's clicks carrying out the bar's, browser's and
-  Preferences' and Project's commands, the picker's changes, a prefab made or opened, and a fired ×
-  toggled on its root.
+  Preferences' and Project's commands, the picker's changes, a prefab made or opened, a fired × or
+  Panels row toggled on its root, and the Panels list drawn last.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

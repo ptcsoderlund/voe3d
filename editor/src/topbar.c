@@ -118,6 +118,10 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	voe_ui_label(ui, "Preferences");
 	voe_ui_end(ui);
 
+	bar->panels_button = voe_ui_button_begin(ui, "panels", 0);
+	voe_ui_label(ui, "Panels");
+	voe_ui_end(ui);
+
 	voe_ui_label(ui, gizmo);
 	voe_ui_label(ui, unsaved ? unsaved_name(arena, name) : name);
 
@@ -159,6 +163,8 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 
 	if (bar->panel != VOE_UI_NODE_NONE)
 		bar->high = voe_ui_node_measured(ui, bar->panel).y;
+	if (bar->panels_button != VOE_UI_NODE_NONE)
+		bar->panels_under = voe_ui_node_rect(ui, bar->panels_button);
 }
 
 voe_editor_command voe_editor_topbar_clicks_read(const voe_ui_context *ui,
@@ -221,4 +227,14 @@ bool voe_editor_topbar_preferences_read(const voe_ui_context *ui,
 
 	return bar->preferences_button != VOE_UI_NODE_NONE &&
 	       voe_ui_button_action(ui, bar->preferences_button).fired;
+}
+
+bool voe_editor_topbar_panels_read(const voe_ui_context *ui,
+				   const voe_editor_topbar *bar)
+{
+	VOE_BASE_ASSERT(ui != NULL, "reading the clicks of no interface");
+	VOE_BASE_ASSERT(bar != NULL, "reading the clicks of no top bar");
+
+	return bar->panels_button != VOE_UI_NODE_NONE &&
+	       voe_ui_button_action(ui, bar->panels_button).fired;
 }

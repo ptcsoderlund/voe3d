@@ -47,14 +47,21 @@
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
 // button it hangs from (ADR-0199), and the only thing this file still does to it
 // is close it on Escape.
+//
+// THE TOP BAR'S PANELS LIST (panels_menu.h) IS DRAWN HERE, LAST, over every
+// other panel, while the bar's `menu` is open; Panels flips it, a fired row
+// goes through panels.h's voe_editor_panels_toggle and closes it, and Escape,
+// a press off the list and Panels, or the browser showing close it.
 #include "interface.h"
 
 #include "browser.h"
 #include "errors.h"
 #include "inspector.h"
 #include "inspector_edit.h"
+#include "inspector_place.h"
 #include "notice.h"
 #include "panels.h"
+#include "panels_menu.h"
 #include "prefabs.h"
 #include "preferences.h"
 #include "project.h"
@@ -182,6 +189,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The Project panel, in the same place, under all three.
 		bool projecting = project_panel->showing && !browsing &&
 				  !erroring && !preferring;
+		// The Panels list, closed by Escape or the browser showing.
+		bool menuing;
 		// The picker, when it shows, and what it edits: the target as
 		// it was when drawn, whatever this frame's clicks do to it.
 		voe_math_float3 colour;
@@ -203,8 +212,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_inspector_add_close(&scene->inspector);
 		}
 
+		if (browsing || escape)
+			bar->menu.open = false;
+		menuing = bar->menu.open;
+
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
-		if (browsing || preferring || erroring || projecting)
+		if (browsing || preferring || erroring || projecting || menuing)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -304,6 +317,18 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						      colour);
 			voe_ui_end(ui);
 		}
+		// The Panels list last, so it paints over every other panel,
+		// hanging below where Panels sat last frame, ticked as now.
+		if (menuing) {
+			bool open[VOE_EDITOR_CLOSABLE_COUNT];
+
+			for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
+				open[c] = voe_editor_panels_open(
+					(voe_editor_closable)c, root,
+					project_panel, session);
+			voe_editor_panels_menu_draw(ui, &bar->menu,
+						    bar->panels_under, open);
+		}
 		voe_ui_end(ui);
 
 		if (!voe_ui_frame_end(ui)) {
@@ -369,6 +394,25 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// A fired × closes its panel on this root, laid out so from the
 		// next frame, and remembers it as a drag's end does (main.c).
 		fired = voe_editor_dock_closes_read(ui, &closes);
+		// A row of the Panels list fired is toggled the same way and
+		// closes the list; so does a press off the list and Panels.
+		if (menuing) {
+			bool over;
+			voe_editor_closable chosen = voe_editor_panels_menu_read(
+				ui, &bar->menu, root->pointer.at, &over);
+
+			if (chosen != VOE_EDITOR_CLOSABLE_COUNT) {
+				fired = chosen;
+				bar->menu.open = false;
+			} else if (root->pointer.down && !over &&
+				   (bar->panels_button == VOE_UI_NODE_NONE ||
+				    !voe_editor_inspector_rect_contains(
+					    voe_ui_node_visible(
+						    ui, bar->panels_button),
+					    root->pointer.at))) {
+				bar->menu.open = false;
+			}
+		}
 		if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
 			voe_base_report_error_clear();
 			if (!voe_editor_panels_toggle(fired, root, bar,
@@ -410,6 +454,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_editor_project_panel_hide(project_panel);
 				voe_editor_preferences_show(preferences);
 			}
+			// Panels flips its list as it was drawn this frame.
+			if (voe_editor_topbar_panels_read(ui, bar))
+				bar->menu.open = !menuing;
 		}
 
 		// THE PROJECT PANEL, WHEN IT WAS DRAWN: a changed window is

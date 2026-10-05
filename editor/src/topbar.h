@@ -1,5 +1,5 @@
 // The bar across the top of the root surface: New, Open and Save, then Play,
-// then Refresh, then Ship, then Project, then Preferences, then a label naming the gizmo's
+// then Refresh, then Ship, then Project, then Preferences, then Panels, then a label naming the gizmo's
 // mode (Move or Rotate, the caller's), then the project's name and
 // whether it is unsaved, then whatever notice the session has to say. Play's
 // label is the caller's (the session's play state, play.h): Play, Building or
@@ -32,8 +32,13 @@
 // session command — each only shows its panel, project_panel.h's or
 // preferences.h's — so each is read on its own, by
 // voe_editor_topbar_project_read and voe_editor_topbar_preferences_read.
+// Panels only opens its list (panels_menu.h), read by
+// voe_editor_topbar_panels_read; the bar holds that list, so it lives across
+// frames, and the button's rectangle, kept by voe_editor_topbar_measure for
+// the list to hang below next frame.
 #pragma once
 
+#include "panels_menu.h"
 #include "session.h"
 
 #include <base/arena.h>
@@ -44,9 +49,10 @@
 // the surface's own millimetres.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's panel and nine buttons, recorded as they are drawn, and the height
-// it is laid out at. Zeroed is a bar that has drawn nothing yet; `high` nought
-// means VOE_EDITOR_TOPBAR_HIGH, `wanted` nought means fit the content.
+// The bar's panel and ten buttons, recorded as they are drawn, the height it
+// is laid out at, Panels' rectangle last frame and its list. Zeroed is a bar
+// that has drawn nothing yet; `high` nought means VOE_EDITOR_TOPBAR_HIGH,
+// `wanted` nought means fit the content.
 typedef struct {
 	voe_ui_node panel;
 	voe_ui_node back_button;
@@ -58,8 +64,11 @@ typedef struct {
 	voe_ui_node ship_button;
 	voe_ui_node project_button;
 	voe_ui_node preferences_button;
+	voe_ui_node panels_button;
 	float high;
 	float wanted;
+	voe_ui_rect panels_under;
+	voe_editor_panels_menu menu;
 } voe_editor_topbar;
 
 // The height the content measured last frame, or VOE_EDITOR_TOPBAR_HIGH on the
@@ -71,14 +80,15 @@ float voe_editor_topbar_least(const voe_editor_topbar *bar);
 // VOE_EDITOR_DOCK_VIEW_ROOM, never below nought. Millimetres.
 float voe_editor_topbar_high(const voe_editor_topbar *bar, float surface_high);
 
-// Keeps what the panel's content measured as the next frame's height. Called
-// after voe_ui_frame_end, in the window voe_editor_topbar_clicks_read uses; a
-// panel the frame had no room for leaves the height as it was.
+// Keeps what the panel's content measured as the next frame's height, and
+// where Panels came to sit as `panels_under`. Called after voe_ui_frame_end,
+// in the window voe_editor_topbar_clicks_read uses; a panel or button the
+// frame had no room for leaves its number as it was.
 void voe_editor_topbar_measure(const voe_ui_context *ui,
 			       voe_editor_topbar *bar);
 
 // Draws the bar as one row: Back when `back`, New, Open, Save, `play` as Play's label,
-// `refresh` as Refresh's, `ship` as Ship's, Project, Preferences, `gizmo` as a label,
+// `refresh` as Refresh's, `ship` as Ship's, Project, Preferences, Panels, `gizmo` as a label,
 // then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
 // is where " (unsaved)" is composed onto `name` — the frame's own, valid for
@@ -107,3 +117,8 @@ bool voe_editor_topbar_project_read(const voe_ui_context *ui,
 // voe_editor_topbar_clicks_read.
 bool voe_editor_topbar_preferences_read(const voe_ui_context *ui,
 					const voe_editor_topbar *bar);
+
+// Whether Panels fired this frame, in the same window as
+// voe_editor_topbar_clicks_read.
+bool voe_editor_topbar_panels_read(const voe_ui_context *ui,
+				   const voe_editor_topbar *bar);
