@@ -83,6 +83,9 @@ again, or to find where a claim that has started failing is written down.
 - `point_light_marker.c` — the marker's thirty-six edges seen off-axis, no area building nothing,
   a ray meeting the cube 0.25 m short and missing beside it, and a pick answering a lamp and the
   nearer of a lamp and a cube. Needs no graphics card.
+- `place_marker.c` — the diamond's twelve edges, no area building nothing, a ray meeting the cube
+  0.25 m short and missing 0.3 m aside, and who wears it, an unregistered table counting as no
+  row. Needs no graphics card.
 - `collider_marker.c` — a box's twelve edges, a sphere's and a capsule's counts, a box twice the
   size twice as far out, quads about the eye 100 km out, and the collider that fits each shape.
   Needs no graphics card.
