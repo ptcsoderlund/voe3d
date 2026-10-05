@@ -206,9 +206,9 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
-- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
-  passes, lit by every directional and point light and gated by the light blockers, with the world and its models, the
-  selection's outline, collider, blocker box and gizmo, the markers, and the device capacities.
+- `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
+  passes, lit by every light, with the world, its models, the selection's outline, collider,
+  blocker box and gizmo, the markers, and the device capacities.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
   view's shadow passes and pass, lit by every directional and point light and kept out of the light
   blockers,
