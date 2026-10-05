@@ -4,6 +4,13 @@
 // Beside it, which vendor's Best Practices messages the chosen card drops, on
 // made-up message ids.
 //
+// The cases: the discrete card over the integrated wherever it is listed; the
+// next one down when the fastest cannot present (and the fastest when headless);
+// a software rasteriser taken when alone; the larger memory between two of a
+// kind; a card without Vulkan 1.3 or a drawing queue never. An NVIDIA-tagged
+// message id dropped on an AMD card and kept on an NVIDIA one; an untagged one
+// kept.
+//
 // It includes render's internal startup.h by relative path, as the other tests
 // include device_internal.h: the ranking is not part of render's surface.
 #include "../src/startup.h"
