@@ -33,6 +33,8 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
+
 #define LAYERS (6u * VOE_RENDER_BOUNCE_CAPTURE)
 #define FACE ((uint32_t)VOE_RENDER_BOUNCE_FACE)
 #define XZ ((uint32_t)VOE_RENDER_BOUNCE_PROBES_XZ)
@@ -41,11 +43,14 @@
 static_assert(VOE_RENDER_BOUNCE_CAPTURE == VOE_RENDER_POINT_SHADOWS,
 	      "a capture pass's probes take the point-shadow pass's slots in draw.c");
 
-// One scratch image of every layer, its memory and its 2D-array view.
+// One scratch image of every layer, its memory and its 2D-array view, both
+// named "bounce capture `what` slot `slot`".
 static bool build_image(voe_render_device *device,
 			struct voe_render_allocated_image *out, VkFormat format,
-			VkImageUsageFlags usage, VkImageAspectFlags aspect)
+			VkImageUsageFlags usage, VkImageAspectFlags aspect,
+			const char *what, uint32_t slot)
 {
+	char name[64];
 	VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
@@ -81,6 +86,9 @@ static bool build_image(voe_render_device *device,
 		out->image = VK_NULL_HANDLE;
 		return false;
 	}
+	snprintf(name, sizeof name, "bounce capture %s slot %u", what, slot);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)out->image, name);
 	voe_render_vk.get_image_memory_requirements(device->device, out->image,
 						    &requirements);
 	allocate.allocationSize = requirements.size;
@@ -114,6 +122,8 @@ static bool build_image(voe_render_device *device,
 		out->view = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)out->view, name);
 	return true;
 }
 
@@ -131,14 +141,14 @@ bool voe_render_bounce_capture_startup(voe_render_device *device)
 
 		if (!build_image(device, &scratch->albedo,
 				 VK_FORMAT_R8G8B8A8_SRGB, colour,
-				 VK_IMAGE_ASPECT_COLOR_BIT) ||
+				 VK_IMAGE_ASPECT_COLOR_BIT, "albedo", i) ||
 		    !build_image(device, &scratch->normal,
 				 VK_FORMAT_R16G16B16A16_SFLOAT, colour,
-				 VK_IMAGE_ASPECT_COLOR_BIT) ||
+				 VK_IMAGE_ASPECT_COLOR_BIT, "normal", i) ||
 		    !build_image(device, &scratch->depth,
 				 VOE_RENDER_DEPTH_FORMAT,
 				 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-				 VK_IMAGE_ASPECT_DEPTH_BIT))
+				 VK_IMAGE_ASPECT_DEPTH_BIT, "depth", i))
 			return false;
 	}
 	return true;

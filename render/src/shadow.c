@@ -31,6 +31,8 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
+
 // One image of `layers` layers, every held light's cascades, with its memory,
 // device-local only: drawn by the card and sampled by it, never touched by the
 // CPU.
@@ -133,22 +135,32 @@ static bool build_view(voe_render_device *device, VkImage image,
 }
 
 // A map holding `lights` lights' cascades: the image, its array view and the
-// first lights × 4 layer views.
+// first lights × 4 layer views, each named for frame slot `slot`.
 static bool build_map(voe_render_device *device,
 		      struct voe_render_shadow_map *map, uint32_t side,
-		      uint32_t lights)
+		      uint32_t lights, uint32_t slot)
 {
 	const uint32_t layers = lights * VOE_RENDER_SHADOW_CASCADES;
+	char name[64];
 
 	if (!build_image(device, map, side, layers))
 		return false;
+	snprintf(name, sizeof name, "sun shadow map slot %u", slot);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)map->image, name);
 	if (!build_view(device, map->image, VK_IMAGE_VIEW_TYPE_2D_ARRAY, 0,
 			layers, &map->array))
 		return false;
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)map->array, name);
 	for (uint32_t i = 0; i < layers; i++) {
 		if (!build_view(device, map->image, VK_IMAGE_VIEW_TYPE_2D, i, 1,
 				&map->layers[i]))
 			return false;
+		snprintf(name, sizeof name, "sun shadow map slot %u layer %u",
+			 slot, i);
+		voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+				      (uint64_t)map->layers[i], name);
 	}
 	return true;
 }
@@ -317,7 +329,7 @@ bool voe_render_shadow_startup(voe_render_device *device)
 	device->shadow_lights_wanted = 1;
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
-		if (!build_map(device, &device->frames[i].shadow, side, 1))
+		if (!build_map(device, &device->frames[i].shadow, side, 1, i))
 			return false;
 	}
 	return build_sampler(device) && settle(device, 1);
@@ -370,7 +382,8 @@ bool voe_render_shadow_grow(voe_render_device *device)
 	voe_render_vk.device_wait_idle(device->device);
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		free_map(device, &device->frames[i].shadow);
-		if (!build_map(device, &device->frames[i].shadow, side, lights))
+		if (!build_map(device, &device->frames[i].shadow, side, lights,
+			       i))
 			return false;
 	}
 	if (!settle(device, lights))

@@ -205,6 +205,12 @@ static bool create_pipelines(voe_render_device *device)
 		VOE_BASE_ERROR("render", "vkCreateComputePipelines failed for the bounce relight");
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipelines[0], "relight settle pipeline");
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipelines[1], "relight levels pipeline");
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipelines[2], "relight sum pipeline");
 	return true;
 }
 
