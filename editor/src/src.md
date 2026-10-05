@@ -228,10 +228,8 @@ carries it out.
   view passes.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed.
-- `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, Add
-  entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
-  dropdown are open on, the gizmo's unsaved mode, the Scene list drag's threshold, target and
-  cancel, and the reveal of a selection made elsewhere.
+- `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
+  them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and
   dropdown targets, the Scene panel's rows and folds, asked after the frame has ended, and the
   reveal's unfold and scroll.
@@ -246,9 +244,7 @@ carries it out.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
-- `undo.h` — the line of scene texts a step is taken from: an edit marked, a
-  settled edit recorded as the whole scene's text, a settled reveal amending the state the world
-  is, Ctrl+Z or Ctrl+Y reading a neighbouring one back into the project's world (ADR-0204), and
+- `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), with
   the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
   the state the world is, a reveal's amend of it, the throwing away of what could have been redone, and

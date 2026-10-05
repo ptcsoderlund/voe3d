@@ -45,12 +45,12 @@
 // middle of `list_area` a frame later once it is drawn, and gives up when no
 // row was drawn.
 //
-// ADD ENTITY IS ONE BUTTON AND THE ONE WAY TO MAKE SOMETHING (ADR-0217). It
-// makes an entity with only an identity (0300); its components come from the
-// Inspector's Add component. A fired Add entity
-// is an entity added, selected, and counted in `structural`, which main.c reads
-// to mark the project unsaved. The Scene list's drag is held here too, across
-// frames, in the `list_` fields.
+// ADD ENTITY IS ONE BUTTON AND THE ONE WAY TO MAKE SOMETHING (ADR-0217): an
+// entity with only an identity (0300), selected; its components come from the
+// Inspector's Add component. Add entity, Delete and Duplicate each count one in
+// `structural`, which main.c reads to mark the project unsaved. Held here across
+// frames too: the colour picker's and the open dropdown's targets, and the Scene
+// list's drag in the `list_` fields: its threshold, drop target and cancel.
 //
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
 // never saved, never undone, and kept by a new project.
