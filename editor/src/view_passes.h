@@ -4,7 +4,7 @@
 // voe_editor_view_light gives (the world's or the preview) and those shadows:
 // the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
-// (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every
+// (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
 // point light's (0320), and the selected light blocker's box (0347). Before
 // those, the preview's shadow passes and one pass with the world's own camera
 // (view.h). Every directional and point light lights every pass; the light
@@ -30,8 +30,8 @@
 // twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's,
 // the room every project's world is registered with), one more for the
 // selection's outline, two for the gizmo's handles at rest and its marked one,
-// one each for the camera's marker, the sun's, the selection's collider and its
-// light blocker's box, and two for the point lights' markers, times the room
+// one each for the camera's marker, the selection's collider and its light
+// blocker's box, and two each for the suns' and point lights' markers, times the room
 // for views, and the drawn entities once more for the preview's pass, which
 // draws the world alone; and every caster once
 // per cascade of each of VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow
@@ -52,10 +52,11 @@
 // is a leaf and not a capacity. The three transient numbers hold, per view's
 // pass, the selection outline's quads (ADR-0203, 3d/outline.h); the gizmo's,
 // two ranges, the larger of the arrows' and the rings' (ADR-0205, 0274); one
-// range each for the camera marker (0223), the sun marker (0274), the collider
-// and the blocker's box, the last two a collider marker each (0253, 0347 point
-// 5); and the point light markers', VOE_GAME_WORLD_POINT_LIGHTS lamps in two
-// ranges, the rest and the selected one (0320 point 9).
+// range each for the camera marker (0223), the collider and the blocker's box,
+// the last two a collider marker each (0253, 0347 point 5); the sun markers',
+// VOE_EDITOR_SUN_MARKERS lights in two ranges, the rest and the selected one
+// (0360 point 2); and the point light markers', VOE_GAME_WORLD_POINT_LIGHTS
+// lamps in two ranges likewise (0320 point 9).
 #pragma once
 
 #include "dock.h"
@@ -108,6 +109,9 @@
 		 ? VOE_3D_GIZMO_INDICES                                \
 		 : VOE_3D_GIZMO_RING_INDICES)
 
+// How many directional lights a view's pool marks; more shows none (0360 point 2).
+#define VOE_EDITOR_SUN_MARKERS 16
+
 // What the device is opened with; the reasoning is at the top of this file.
 #define VOE_EDITOR_CAPACITIES                                                 \
 	(voe_render_capacities)                                               \
@@ -116,7 +120,7 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 9) *                \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 10) *               \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
@@ -142,7 +146,8 @@
 		.transient_vertices = (VOE_3D_OUTLINE_VERTICES +               \
 				       VOE_EDITOR_GIZMO_VERTICES +             \
 				       VOE_3D_CAMERA_MARKER_VERTICES +         \
-				       VOE_3D_SUN_MARKER_VERTICES +            \
+				       VOE_3D_SUN_MARKER_VERTICES *            \
+					       VOE_EDITOR_SUN_MARKERS +        \
 				       2 * VOE_3D_COLLIDER_MARKER_VERTICES +   \
 				       VOE_3D_POINT_LIGHT_MARKER_VERTICES *    \
 					       VOE_GAME_WORLD_POINT_LIGHTS) *  \
@@ -150,12 +155,13 @@
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
 				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
-				      VOE_3D_SUN_MARKER_INDICES +              \
+				      VOE_3D_SUN_MARKER_INDICES *              \
+					      VOE_EDITOR_SUN_MARKERS +         \
 				      2 * VOE_3D_COLLIDER_MARKER_INDICES +     \
 				      VOE_3D_POINT_LIGHT_MARKER_INDICES *      \
 					      VOE_GAME_WORLD_POINT_LIGHTS) *   \
 				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 9 * VOE_EDITOR_VIEWS                   \
+		.transient_geometries = 10 * VOE_EDITOR_VIEWS                  \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when
