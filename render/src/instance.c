@@ -3,10 +3,19 @@
 // device.c's open_device calls voe_render_instance_create once, after the
 // loader is open and before the surface exists — see startup.h for the order.
 //
-// VALIDATION IS DEBUG-ONLY AND NEVER REQUIRED. The layer comes with the Vulkan
-// SDK, which nobody has to install. A debug build asks for it when it is there
-// and says nothing when it is not; a release build never asks. What the layer
-// reports is printed through base's report, one line per message.
+// VALIDATION IS DEBUG-ONLY. A release build never asks for the layer. A debug
+// build asks for it with Best Practices on (ADR-0358, 0367 point 4): through
+// VK_EXT_layer_settings, asked of the layer by name, with the four vendor sets
+// (AMD, Arm, IMG, NVIDIA) when the layer offers it, else core Best Practices
+// through VkValidationFeaturesEXT; device->checks_on and ->vendor_checks say
+// which. A debug build without the layer still runs, and records the checks as
+// missing for best_practices.c's start line to say so.
+//
+// A NEW MESSAGE NOW COUNTS (0358). The messenger's user data is the device;
+// every message goes to best_practices.c's classifier, which drops another
+// vendor's and counts an error or a warning not on the allowlist as new. What
+// is kept is printed through base's report, one line with its id name and
+// whether it was allowed.
 //
 // DEBUG-UTILS IS ASKED FOR APART FROM VALIDATION, in every build, whenever the
 // instance offers it (ADR-0367): a capture tool reads the names and labels
@@ -22,6 +31,7 @@
 
 #include <base/report.h>
 
+#include <assert.h>
 #include <string.h>
 
 #define VALIDATION_LAYER "VK_LAYER_KHRONOS_validation"
@@ -36,26 +46,43 @@
 
 // ------------------------------------------------------------------ validation
 
+// The Best Practices settings the layer is handed when it offers
+// VK_EXT_layer_settings: core and the four vendor sets, each a VkBool32 true.
+static const char *const best_practices_settings[5] = {
+	"validate_best_practices",     "validate_best_practices_amd",
+	"validate_best_practices_arm", "validate_best_practices_img",
+	"validate_best_practices_nvidia",
+};
+
 // Vulkan calls this, so it is shaped the way Vulkan wants rather than the way
-// this engine writes functions. It prints and returns VK_FALSE, which is the
-// only value a messenger callback is allowed to return outside a layer's own
-// tests.
+// this engine writes functions. `user` is the device. It classifies, prints
+// what is kept and returns VK_FALSE, which is the only value a messenger
+// callback is allowed to return outside a layer's own tests.
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 debug_message(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	      VkDebugUtilsMessageTypeFlagsEXT types,
 	      const VkDebugUtilsMessengerCallbackDataEXT *data, void *user)
 {
+	const bool error = severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	enum voe_render_message_verdict verdict;
+
 	(void)types;
-	(void)user;
+	assert(user != NULL);
+	assert(data != NULL);
+
+	verdict = voe_render_best_practices_classify(user, error,
+						     data->pMessageIdName);
+	if (verdict == VOE_RENDER_MESSAGE_DROPPED)
+		return VK_FALSE;
 
 	// DEVIATION: card 062 "every one of these is VOE_BASE_ERROR", read as
 	// applying to the layer's own warnings too, so the layer's severity stays a
 	// word in the message; mapping it onto the report's level is a judgement the
 	// card reserves.
-	VOE_BASE_ERROR("render", "vulkan %s: %s",
-		       severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ? "error" :
-		       severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ? "warning" :
-										    "info",
+	VOE_BASE_ERROR("render", "vulkan %s %s (%s): %s",
+		       error ? "error" : "warning",
+		       data->pMessageIdName != NULL ? data->pMessageIdName : "(no id)",
+		       verdict == VOE_RENDER_MESSAGE_ALLOWED ? "allowed" : "new",
 		       data->pMessage);
 	return VK_FALSE;
 }
@@ -81,12 +108,15 @@ static bool has_layer(voe_base_arena *arena, const char *name)
 	return false;
 }
 
-static bool has_instance_extension(voe_base_arena *arena, const char *name)
+// `layer` NULL asks the implementation and the implicit layers; a layer's name
+// asks that layer for the extensions it provides itself.
+static bool has_instance_extension(voe_base_arena *arena, const char *layer,
+				   const char *name)
 {
 	uint32_t count = 0;
 	VkExtensionProperties *extensions;
 
-	if (voe_render_vk.enumerate_instance_extensions(NULL, &count, NULL) !=
+	if (voe_render_vk.enumerate_instance_extensions(layer, &count, NULL) !=
 	    VK_SUCCESS)
 		return false;
 	if (count == 0)
@@ -94,7 +124,7 @@ static bool has_instance_extension(voe_base_arena *arena, const char *name)
 
 	extensions = voe_base_arena_push(arena,
 					 (size_t)count * sizeof(*extensions));
-	if (voe_render_vk.enumerate_instance_extensions(NULL, &count,
+	if (voe_render_vk.enumerate_instance_extensions(layer, &count,
 							extensions) != VK_SUCCESS)
 		return false;
 
@@ -106,10 +136,8 @@ static bool has_instance_extension(voe_base_arena *arena, const char *name)
 }
 
 // Debug builds only, and only when the layer and the extension are both
-// installed. Neither is required of anyone: they come with the Vulkan SDK, the
-// SDK is optional, and a machine without one draws exactly the same picture. So
-// this is silent when it finds nothing — an absent layer is not a warning, it is
-// the normal case.
+// installed. A debug build without them still draws the same picture; the
+// caller records the checks as missing and best_practices.c says so.
 static bool wants_validation(voe_base_arena *arena)
 {
 	// A constant and not an #ifdef around the body, so that both calls below
@@ -120,7 +148,8 @@ static bool wants_validation(voe_base_arena *arena)
 		return false;
 
 	return has_layer(arena, VALIDATION_LAYER) &&
-	       has_instance_extension(arena, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	       has_instance_extension(arena, NULL,
+				      VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 }
 
 static void attach_messenger(voe_render_device *device)
@@ -134,6 +163,7 @@ static void attach_messenger(voe_render_device *device)
 			       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 			       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
 		.pfnUserCallback = debug_message,
+		.pUserData = device,
 	};
 
 	if (voe_render_vk.create_debug_messenger == NULL)
@@ -148,15 +178,75 @@ static void attach_messenger(voe_render_device *device)
 
 // -------------------------------------------------------------------- instance
 
+// The Best Practices half of the create info, chained onto `info` (ADR-0367
+// point 4): layer settings with the vendor sets when the layer offers them,
+// else validation features with the one bit. The structs are the caller's, so
+// they outlive the vkCreateInstance they are chained into.
+static void turn_on_best_practices(voe_render_device *device,
+				   voe_base_arena *arena,
+				   VkInstanceCreateInfo *info,
+				   const char **extensions,
+				   uint32_t *extension_count,
+				   VkLayerSettingEXT *settings,
+				   VkLayerSettingsCreateInfoEXT *layer_settings,
+				   VkValidationFeaturesEXT *features)
+{
+	static const VkBool32 on = VK_TRUE;
+	static const VkValidationFeatureEnableEXT best_practices =
+		VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT;
+
+	assert(device != NULL);
+	assert(info->pNext == NULL);
+
+	device->checks_on = true;
+	device->vendor_checks =
+		has_instance_extension(arena, VALIDATION_LAYER,
+				       VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+	if (device->vendor_checks) {
+		for (uint32_t i = 0; i < 5; i++)
+			settings[i] = (VkLayerSettingEXT){
+				.pLayerName = VALIDATION_LAYER,
+				.pSettingName = best_practices_settings[i],
+				.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+				.valueCount = 1,
+				.pValues = &on,
+			};
+		*layer_settings = (VkLayerSettingsCreateInfoEXT){
+			.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+			.settingCount = 5,
+			.pSettings = settings,
+		};
+		extensions[(*extension_count)++] =
+			VK_EXT_LAYER_SETTINGS_EXTENSION_NAME;
+		info->pNext = layer_settings;
+		return;
+	}
+
+	*features = (VkValidationFeaturesEXT){
+		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+		.enabledValidationFeatureCount = 1,
+		.pEnabledValidationFeatures = &best_practices,
+	};
+	if (has_instance_extension(arena, VALIDATION_LAYER,
+				   VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME))
+		extensions[(*extension_count)++] =
+			VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME;
+	info->pNext = features;
+	assert(info->pNext != NULL);
+}
+
 bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena)
 {
-	const char *extensions[3];
+	const char *extensions[4];
 	uint32_t extension_count = 0;
 	const char *layers[1] = { VALIDATION_LAYER };
 	bool validate = wants_validation(arena);
 	bool debug_utils = validate ||
-			   has_instance_extension(arena,
+			   has_instance_extension(arena, NULL,
 						  VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	VkLayerSettingEXT settings[5];
+	VkLayerSettingsCreateInfoEXT layer_settings;
+	VkValidationFeaturesEXT features;
 	VkApplicationInfo application = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pApplicationName = "voe3d",
@@ -178,6 +268,12 @@ bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena
 	}
 	if (debug_utils)
 		extensions[extension_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+
+	if (validate)
+		turn_on_best_practices(device, arena, &info, extensions,
+				       &extension_count, settings,
+				       &layer_settings, &features);
+	device->checks_missing = VALIDATION_IN_THIS_BUILD && !validate;
 
 	info.enabledExtensionCount = extension_count;
 	info.ppEnabledExtensionNames = extensions;

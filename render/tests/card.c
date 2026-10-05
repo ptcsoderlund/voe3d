@@ -1,6 +1,8 @@
 // Which graphics card the engine takes, proved on made-up facts: the ranking of
 // 0214 is a pure function, so this test needs no graphics card and never opens
 // Vulkan. Each claim is one a first-listed or kind-only choice would get wrong.
+// Beside it, which vendor's Best Practices messages the chosen card drops, on
+// made-up message ids.
 //
 // It includes render's internal startup.h by relative path, as the other tests
 // include device_internal.h: the ranking is not part of render's surface.
@@ -114,6 +116,18 @@ static void none_qualifying_is_uint32_max(void)
 	VOE_TEST_CHECK(voe_render_card_rank(cards, 0, false, &fastest) == UINT32_MAX);
 }
 
+// Best Practices drops a message only when its id names another vendor
+// (ADR-0367 point 4); an id with no vendor tag is every card's.
+static void another_vendors_message_is_told_apart(void)
+{
+	const char *nvidia_id = "BestPractices-NVIDIA-MadeUp-Message";
+
+	VOE_TEST_CHECK(voe_render_best_practices_other_vendor(0x1002, nvidia_id));
+	VOE_TEST_CHECK(!voe_render_best_practices_other_vendor(0x10DE, nvidia_id));
+	VOE_TEST_CHECK(!voe_render_best_practices_other_vendor(
+		0x1002, "BestPractices-vkMadeUp-untagged"));
+}
+
 int main(void)
 {
 	the_discrete_card_wins_wherever_it_is_listed();
@@ -122,5 +136,6 @@ int main(void)
 	of_two_discrete_cards_the_larger_memory_wins();
 	a_card_without_1_3_or_a_drawing_queue_is_never_taken();
 	none_qualifying_is_uint32_max();
+	another_vendors_message_is_told_apart();
 	return voe_test_result();
 }

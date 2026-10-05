@@ -7,7 +7,8 @@ by reading the offscreen colour image back.
 
 - `card.c` — which graphics card is taken, on made-up facts with no card: the discrete over the
   integrated wherever listed, the next one down when the fastest cannot present, a software
-  rasteriser alone, the larger memory, and a card without 1.3 or a drawing queue never.
+  rasteriser alone, the larger memory, and a card without 1.3 or a drawing queue never; and an
+  NVIDIA-tagged message id dropped on an AMD card, kept on an NVIDIA one, an untagged one kept.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
 - `pools.c` — two meshes and two ranges, a full pool as a returned failure, and ids that stop naming
   anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose range

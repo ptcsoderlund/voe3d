@@ -1,5 +1,6 @@
-// Starting the GPU: the loader, the instance, the surface, the graphics card, the
-// logical device, the pipeline layout and the element pipeline, in that order,
+// Starting the GPU: the loader, the instance, the surface, the graphics card and
+// the Best Practices line (best_practices.c), the logical device, the pipeline
+// layout and the element pipeline, in that order,
 // because each one is what the next is asked for. Everything here happens once.
 // open_device below is the one place that order is written; the steps that grew
 // too long for this file are beside it, declared in startup.h: the instance and
@@ -658,6 +659,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// differently, which is why it is a category of its own.
 	if (!voe_render_card_choose(device, arena))
 		return open_failed(device, error, VOE_BASE_ERROR_UNSUPPORTED);
+	// Once the vendor is known, on both paths (ADR-0367 point 7).
+	voe_render_best_practices_announce(device);
 
 	if (!create_device(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);

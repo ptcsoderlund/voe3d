@@ -26,12 +26,15 @@ which file to open — what each one owns, and where the seams between them run.
   pipeline, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
-- `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and the
-  validation layer and messenger in a debug build that has them.
+- `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
+  debug build the validation layer with Best Practices and vendor checks, its messenger, or the
+  checks recorded missing.
+- `best_practices.c` — the Best Practices allowlist, which vendor a message is for, the classifier
+  that counts new messages, and the start line saying the checks are on or missing.
 - `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
   capture tool; each does nothing without debug-utils.
-- `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
-  that says which and why.
+- `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
+  and the `render` line that says which and why.
 - `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
   mesh pipelines, solid, blended, shadow, point shadow and capture, then the relight, a step a call.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
