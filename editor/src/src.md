@@ -112,8 +112,9 @@ carries it out.
   content or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
-- `project_panel.h` — the Project panel: the game window's width and height as number boxes, a
-  Windowed / Fullscreen choice and Close, as an anchored panel over the dock, carrying out nothing.
+- `project_panel.h` — the Project panel: a title row with its ×, the game window's width and height
+  as number boxes and a Windowed / Fullscreen choice, as an anchored panel over the dock, carrying
+  out nothing.
 - `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
   a number rounded and clamped to the project file's range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
@@ -122,9 +123,9 @@ carries it out.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
-  cut at 160 bytes, in a scroll area with Close, as an anchored panel over the dock.
+  cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
-  calls, and the read of Close afterwards.
+  calls, and the read of its × afterwards.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock,
   its own arena, a start beside a given folder with its row chosen, in SAVE mode a name row with a
   focused `ui` field and Make folder, and in IMPORT mode `.glb` files a press imports.

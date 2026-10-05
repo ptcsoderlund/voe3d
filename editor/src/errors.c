@@ -1,5 +1,5 @@
 // The Errors panel's log read, its one frame of `ui` calls and the read of
-// Close afterwards. See the header for why only the log's tail is kept.
+// its × afterwards. See the header for why only the log's tail is kept.
 #include "errors.h"
 
 #include "themes.h"
@@ -126,7 +126,15 @@ void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
 				    .x = { VOE_UI_ACROSS_FILL, 0.0f },
 				    .y = { VOE_UI_ACROSS_START, top } },
 			.size = { .across = { VOE_UI_SIZE_FIXED, size.y } } });
+	// The title at the left and its × at the right (0363 point 2), spread
+	// apart along a row the panel stretches across, as a dock header is.
+	voe_ui_row_begin(ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
+						 .across = VOE_UI_ACROSS_CENTER });
 	voe_ui_label(ui, "Build errors");
+	errors->close_button = voe_ui_button_begin(ui, "errors_close", 0);
+	voe_ui_label(ui, "×");
+	voe_ui_end(ui); // × button
+	voe_ui_end(ui); // title row
 
 	// Both axes: a compiler's line is often wider than the panel.
 	voe_ui_scroll_begin(
@@ -138,14 +146,6 @@ void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
 	for (uint32_t i = 0; i < errors->count; i++)
 		voe_ui_label(ui, errors->lines[i]);
 	voe_ui_end(ui); // scroll area
-
-	// In a row of its own so it keeps its natural width.
-	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
-						 .gap = ERRORS_GAP });
-	errors->close_button = voe_ui_button_begin(ui, "errors_close", 0);
-	voe_ui_label(ui, "Close");
-	voe_ui_end(ui); // close button
-	voe_ui_end(ui); // bottom row
 
 	voe_ui_end(ui); // panel
 }

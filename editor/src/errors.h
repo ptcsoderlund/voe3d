@@ -1,8 +1,8 @@
 // The Errors panel: what a failed build said, shown in the editor so a person
 // reads the compiler's words without a terminal (ADR-0240, 0242 point 8). A
-// title, the last lines of <project>/Build/build.log in a scroll area, and
-// Close — an anchored panel over the dock below the bar, where preferences.h's
-// own panel goes.
+// title row with an × at its right (0363 point 2), then the last lines of
+// <project>/Build/build.log in a scroll area — an anchored panel over the dock
+// below the bar, where preferences.h's own panel goes.
 //
 //     voe_editor_errors errors = { 0 };
 //     voe_editor_errors_show(&errors, log);        // a refresh or Play failed
@@ -52,11 +52,11 @@ void voe_editor_errors_show(voe_editor_errors *errors, const char *log);
 void voe_editor_errors_hide(voe_editor_errors *errors);
 
 // Draws the panel filling top..size.y of `size`'s width, the area below the
-// bar, over the dock, and records Close. Asserts when it is not showing.
+// bar, over the dock, and records its ×. Asserts when it is not showing.
 void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
 			    float top, voe_math_float2 size);
 
-// Whether Close fired this frame. Called after voe_ui_frame_end and before
+// Whether the × fired this frame. Called after voe_ui_frame_end and before
 // the frame's arena is rewound — the one window in which a widget answers.
 bool voe_editor_errors_clicks_read(const voe_ui_context *ui,
 				   const voe_editor_errors *errors);

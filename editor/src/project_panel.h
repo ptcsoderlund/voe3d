@@ -1,7 +1,8 @@
-// The editor's Project panel: the game's window (0291 point 4) — a Width and
-// a Height number box showing the window it is handed, a Windowed /
-// Fullscreen choice and Close — shown as an anchored panel over the dock,
-// below the bar, exactly where preferences.h's and browser.h's go.
+// The editor's Project panel: the game's window (0291 point 4) — a "Project"
+// title row with an × at its right (0363 point 2), a Width and a Height number
+// box showing the window it is handed and a Windowed / Fullscreen choice —
+// shown as an anchored panel over the dock, below the bar, exactly where
+// preferences.h's and browser.h's go.
 //
 //     voe_editor_project_panel panel = { 0 };
 //     voe_editor_project_panel_show(&panel);             // the bar's Project
@@ -26,7 +27,7 @@
 // not: a `ui` widget answers only after voe_ui_frame_end, so the draw records
 // each control and voe_editor_project_panel_clicks_read says what it did.
 //
-// Constraints. The panel has no scroll area: its five rows fit the smallest
+// Constraints. The panel has no scroll area: its four rows fit the smallest
 // surface the dock allows. Drawing asserts when it is not showing.
 #pragma once
 
@@ -59,14 +60,15 @@ void voe_editor_project_panel_show(voe_editor_project_panel *panel);
 void voe_editor_project_panel_hide(voe_editor_project_panel *panel);
 
 // Draws the panel filling top..size.y of `size`'s width, the area below the
-// bar, over the dock: Width and Height rows, the choice, then Close, showing
+// bar, over the dock: the title row and its ×, Width and Height rows, then the
+// choice, showing
 // `window`. Records every control into panel. Asserts when it is not showing.
 void voe_editor_project_panel_draw(voe_ui_context *ui,
 				   voe_editor_project_panel *panel,
 				   voe_authoring_project_window window,
 				   float top, voe_math_float2 size);
 
-// What this frame did: Close fired, and whether a number was committed or the
+// What this frame did: the × fired, and whether a number was committed or the
 // other choice picked, with the window that makes.
 typedef struct {
 	bool closed;
