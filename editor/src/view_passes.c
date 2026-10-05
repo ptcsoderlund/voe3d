@@ -5,8 +5,11 @@
 // lines (0347 point 5) and gizmo (none for a prefab's part) and the scene
 // camera's, the sun's and every point light's markers, and the pass ended; and
 // the preview's shadow passes and pass, drawn with the world's camera while the
-// selected entity has one and marking nothing. Every pass is lit by the world's
-// point lights (0320 point 6) and kept out of its light blockers (0347), both
+// selected entity has one and marking nothing. Every pass is lit by every
+// directional light, the first as `light` and the rest from the frame (0357
+// point 1); the preview light is never joined by another, as a world with no
+// light row has none. Every pass is lit by the world's
+// point lights (0320 point 6) and kept out of its light blockers (0347), all
 // arrays in `arena` from before the shadow call, whose lamps' pass reads the
 // slots (0325 point 6) and whose bounce reads the blockers, until the pass is
 // open; a false from either call leaves that pass without them, which is no
@@ -91,16 +94,13 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	// failed frame. Before the shadows: their point-shadow pass reads the
 	// slots (0325) and their bounce the blockers (0347 point 4).
 	(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
+	(void)voe_3d_draw_system_lights(world, &frame, arena);
 	(void)voe_3d_draw_system_point_lights(world, &frame, arena);
 	if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
 		voe_base_arena_rewind(arena, mark);
 		return false;
 	}
-	camera = (voe_render_pass_camera){ .view = frame.view,
-					   .light = frame.light,
-					   .shadow = frame.shadow,
-					   .points = frame.points,
-					   .blockers = frame.blockers };
+	camera = voe_3d_draw_system_camera(&frame);
 	passed = voe_render_pass_begin(gpu, views->preview_target, &camera);
 	voe_base_arena_rewind(arena, mark);
 	if (!passed)
@@ -164,18 +164,18 @@ bool voe_editor_view_passes_draw(
 					.target = view->target };
 		// The points live until the pass has taken them, and come before
 		// the shadows, whose point-shadow pass reads their slots (0325), and
-		// so do the blockers, whose bounce reads them (0347 point 4); a false
+		// so do the blockers, whose bounce reads them (0347 point 4), and the
+		// lights after the first, which read the blockers' masks; a false
 		// leaves this pass unblocked or unlit by points, no failed frame.
 		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 		(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
+		(void)voe_3d_draw_system_lights(world, &frame, arena);
 		(void)voe_3d_draw_system_point_lights(world, &frame, arena);
 		if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
 			voe_base_arena_rewind(arena, mark);
 			return false;
 		}
-		camera.shadow = frame.shadow;
-		camera.points = frame.points;
-		camera.blockers = frame.blockers;
+		camera = voe_3d_draw_system_camera(&frame);
 		bool passed = voe_render_pass_begin(gpu, view->target, &camera);
 		voe_base_arena_rewind(arena, mark);
 		if (!passed)

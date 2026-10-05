@@ -7,7 +7,8 @@
 // (ADR-0205), the scene camera's marker (0223), the sun's (0274) and every
 // point light's (0320), and the selected light blocker's box (0347). Before
 // those, the preview's shadow passes and one pass with the world's own camera
-// (view.h). The point lights light every pass; the light blockers gate each.
+// (view.h). Every directional and point light lights every pass; the light
+// blockers gate each.
 // main.c calls both each frame, between opening the draw and the window pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
@@ -33,16 +34,17 @@
 // light blocker's box, and two for the point lights' markers, times the room
 // for views, and the drawn entities once more for the preview's pass, which
 // draws the world alone; and every caster once
-// per cascade, point-shadow pass, capture pass and bounce shadow pass (the
-// relight's sun map), per view and for the preview (0325 point 7, 0326 points
-// 3 and 8, 0329 point 3); and every emitter's particles, VOE_GAME_WORLD_EMITTERS
+// per cascade of each of VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow
+// pass, capture pass and bounce shadow pass (each sun's relight map), per view
+// and for the preview (0325 point 7, 0326 points 3 and 8, 0357 points 3 and 4); and every emitter's particles, VOE_GAME_WORLD_EMITTERS
 // × VOE_3D_EMITTER_PARTICLES, and every water, VOE_GAME_WORLD_WATERS, an object
 // each in every view's pass and the preview's — neither casts a shadow, so they
 // add nothing per cascade (0298 point 8, 0305).
 // `passes` is a pass per view, the preview's and the interface's, and for each
-// view and the preview a shadow pass per cascade, one point-shadow pass, up to
-// VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and one bounce shadow pass on
-// a frame that relights a casting sun (`shadow_size` is VOE_3D_SHADOW_TEXELS,
+// view and the preview a shadow pass per cascade of each of
+// VOE_RENDER_DIRECTIONAL_LIGHTS lights, one point-shadow pass, up to
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and one bounce shadow pass
+// per casting sun on a frame that relights (`shadow_size` is VOE_3D_SHADOW_TEXELS,
 // 3d/shadow_cascades.h, `point_shadow_size` VOE_3D_POINT_SHADOW_TEXELS), and
 // `targets` a target per view and the preview's, each with its own probe volume
 // (0326 point 2) and two texture slots, its colour and its depth copy (0305
@@ -118,8 +120,10 @@
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
-				   (VOE_RENDER_SHADOW_CASCADES + 1 +           \
-				    VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1) *    \
+				   (VOE_RENDER_SHADOW_CASCADES *               \
+					    VOE_RENDER_DIRECTIONAL_LIGHTS +    \
+				    1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +     \
+				    VOE_RENDER_DIRECTIONAL_LIGHTS) *           \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
@@ -127,8 +131,10 @@
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2 +                               \
-			  (VOE_RENDER_SHADOW_CASCADES + 1 +                    \
-			   VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1) *             \
+			  (VOE_RENDER_SHADOW_CASCADES *                        \
+				   VOE_RENDER_DIRECTIONAL_LIGHTS +             \
+			   1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +              \
+			   VOE_RENDER_DIRECTIONAL_LIGHTS) *                    \
 				  (VOE_EDITOR_VIEWS + 1),                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,               \
