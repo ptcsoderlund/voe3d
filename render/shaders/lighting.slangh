@@ -31,7 +31,7 @@
 // voe_render_blockers_pass holds with its own mask as source along its own
 // segment; a point light's with its mask from pass begin and its position. A
 // light's fill reaches when p's Room bits are its own and p is in no Indoors
-// box, its fade reading the reach after the gate. The bounce reads only probes
+// box but those holding the light (0361), its fade reading the reach after the gate. The bounce reads only probes
 // that rule passes to p (bounce_read.slangh). The water path takes mask 0 and
 // no gate. No blockers is every gate passing.
 //
@@ -230,8 +230,9 @@ bool voe_render_sun_passes(float3 world, float3 surface, uint mask, uint source,
 }
 
 // Whether the fill of a light whose place the blockers of `source` hold reaches
-// a surface whose mask is `mask` (ADR-0350 point 4): its Room bits the light's,
-// and in no Indoors box. See the header.
+// a surface whose mask is `mask` (ADR-0350 point 4, 0361 point 1): its Room
+// bits the light's, and in no Indoors box but those holding the light. A
+// `source` of nought is in none, so it fills no Indoors box. See the header.
 bool voe_render_fill_reaches(uint mask, uint source)
 {
 	uint region = voe_render_frame.region;
@@ -241,7 +242,7 @@ bool voe_render_fill_reaches(uint mask, uint source)
 	uint indoors = voe_render_light_blockers[region].indoors;
 	uint rooms = ~(voe_render_light_blockers[region].walls | indoors);
 
-	return (mask & rooms) == (source & rooms) && (mask & indoors) == 0;
+	return (mask & rooms) == (source & rooms) && (mask & indoors & ~source) == 0;
 }
 
 // `light`'s direct light at a surface it reaches by `reach`, N·L times its

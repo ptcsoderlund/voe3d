@@ -100,7 +100,8 @@ by reading the offscreen colour image back.
   inside, and an unshaded pass unchanged. Headless.
 - `directional_lights.c` — a moon beside the sun over a ground and box: no further light the old
   picture, a zeroed one too, a blue moon only adding, two shadows either side of the box, and a
-  Room giving each light its own half. Headless.
+  Room giving each light its own half, and a Fill box filled by the moon inside it, not the sun.
+  Headless.
 - `blocker_kinds.c` — kinds over a sunlit ground: a floating Wall's shadow the fill alone, ground
   under and clear of it as before; a Wall stopping a lamp; Indoors keeping the sun, not the fill;
   a Room holding the sun lit inside, black outside; zero kinds the old picture. Headless.

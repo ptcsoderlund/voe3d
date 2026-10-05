@@ -1,7 +1,7 @@
 // EVERY DIRECTIONAL LIGHT LIGHTS THE SURFACE (ADR-0357 point 2). A grey ground
 // quad seen straight down from 10 m and a box caster on it, 2 m square and 3 m
 // tall about x = 0, under a sun from +x at N·L 0.8 with fill 0.1, its cascade on
-// shadow slot 0. Five pictures:
+// shadow slot 0. Six pictures:
 //
 // 1. `more` empty: the reference;
 // 2. a zeroed `more` array with a count of 0: byte for byte the reference;
@@ -11,7 +11,11 @@
 //    has had a frame: the sun's patch, west of the box, without the sun's red,
 //    the moon's, east of it, without the moon's blue;
 // 5. a Room blocker over the left half, the sun's mask 0 and the moon's its
-//    bit: the left lit by the moon alone, the right by the sun alone.
+//    bit: the left lit by the moon alone, the right by the sun alone;
+// 6. that blocker a Fill box (ADR-0361 point 1), the sun's mask 0 and the
+//    moon's its bit, the moon unshadowed and level, N·L 0 on the ground so its
+//    fill is whole: the sun's patch, in the box, has the moon's blue fill and
+//    no red; the right has the sun's light as in case 1 and the moon's fill.
 //
 // Built as blocked_light.c builds its device, reading the window back through
 // voe_render_target_read as RGBA8 as shadow.c does. A cascade is a hand-built
@@ -35,7 +39,7 @@
 
 #define SIDE 64
 #define SHADOW_SIDE 256
-#define CASES 5
+#define CASES 6
 
 #define RED 0
 #define GREEN 1
@@ -340,6 +344,22 @@ static void check_rooms(const voe_render_picture *roomed)
 	}
 }
 
+// In the Fill box the sun's patch has the moon's fill and none of the sun's;
+// outside it the sun lights as in `reference` and the moon still fills.
+static void check_fill_box(const voe_render_picture *filled,
+			   const voe_render_picture *reference)
+{
+	const unsigned char *patch = pixel_at(filled, SUN_PATCH, MIDDLE);
+	const unsigned char *east = pixel_at(filled, EAST_LIT, MIDDLE);
+	const unsigned char *east_before = pixel_at(reference, EAST_LIT, MIDDLE);
+
+	VOE_TEST_CHECK(patch[RED] <= TOLERANCE);
+	VOE_TEST_CHECK(patch[GREEN] <= TOLERANCE);
+	VOE_TEST_CHECK(patch[BLUE] > TOLERANCE * 4);
+	VOE_TEST_CHECK(abs(east[RED] - east_before[RED]) <= TOLERANCE);
+	VOE_TEST_CHECK(east[BLUE] > east[RED]);
+}
+
 // An unturned box of centre `c` and half sizes `h`: rows (a_i / h_i,
 // −a_i·c / h_i) and a sphere of radius |h|.
 static voe_render_light_blocker box_blocker(voe_math_float3 c, voe_math_float3 h)
@@ -393,6 +413,9 @@ static void draw_and_check(struct scene *scene)
 	camera.blockers = (voe_render_light_blockers){ .blockers = room,
 						       .count = 1 };
 	pictures[4] = draw_case(scene, &camera, &sun_view, NULL);
+	moon[0].light.direction = (voe_math_float3){ 1.0f, 0.0f, 0.0f };
+	camera.blockers.indoors = 1u;
+	pictures[5] = draw_case(scene, &camera, &sun_view, NULL);
 
 	for (int i = 0; i < CASES; i++)
 		if (pictures[i].pixels == NULL)
@@ -402,6 +425,10 @@ static void draw_and_check(struct scene *scene)
 	check_moon_adds_blue(&pictures[2], &pictures[0]);
 	check_two_patches(&pictures[3]);
 	check_rooms(&pictures[4]);
+	check_fill_box(&pictures[5], &pictures[0]);
+	printf("fill box patch %d/%d\n",
+	       pixel_at(&pictures[5], SUN_PATCH, MIDDLE)[RED],
+	       pixel_at(&pictures[5], SUN_PATCH, MIDDLE)[BLUE]);
 	printf("sun patch %d/%d, moon patch %d/%d, lit west %d/%d, east %d/%d (red/blue)\n",
 	       pixel_at(&pictures[3], SUN_PATCH, MIDDLE)[RED],
 	       pixel_at(&pictures[3], SUN_PATCH, MIDDLE)[BLUE],
