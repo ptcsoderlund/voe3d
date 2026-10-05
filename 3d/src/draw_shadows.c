@@ -51,8 +51,10 @@
 // each capture pass render opens and, for a casting sun, into the relight's own
 // sun map (0329), and relights. Who bounces: the world's light
 // row, the one voe_3d_draw_system_light reads, with `bounces` of 1 or more while
-// the frame's light has intensity above nought and is not `unshaded`; or any
-// light in the frame's points with `bounces` of 1 or more. A blind frame bounces
+// the frame's light has intensity above nought and is not `unshaded`; any of
+// `more_lights` with `bounces` of 1 or more, intensity above nought and shaded
+// (0357 point 1); or any light in the frame's points with `bounces` of 1 or
+// more. A blind frame bounces
 // nothing. When nothing bounces nothing is called, so it costs nothing (0316):
 // no begin, no volume, no pass. A failure there is the call's.
 #include "draw_bounce.h"
@@ -159,18 +161,27 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 
 // Whether anything bounces this frame (0326 point 8): the world's light, row
 // zero as voe_3d_draw_system_light reads it, with bounces and a frame light of
-// some strength that is shaded, or a frame point light with bounces. A blind
-// frame never does.
+// some strength that is shaded, a further light likewise, or a frame point
+// light with bounces. A blind frame never does.
 static bool anything_bounces(const voe_ecs_world *world,
 			     const voe_3d_frame *frame)
 {
 	VOE_BASE_ASSERT(world != NULL, "bouncing no world");
+	VOE_BASE_ASSERT(frame->more_count == 0 || frame->more_lights != NULL,
+			"further lights with none to hold them");
 	if (frame->blind)
 		return false;
 	if (voe_scene_light_count(world) >= 1 &&
 	    voe_scene_light_rows(world)[0].bounces >= 1 &&
 	    frame->light.intensity > 0.0f && !frame->light.unshaded)
 		return true;
+	for (uint32_t i = 0; i < frame->more_count; i++) {
+		const voe_render_directional_light *more = &frame->more_lights[i];
+
+		if (more->bounces >= 1 && more->light.intensity > 0.0f &&
+		    !more->light.unshaded)
+			return true;
+	}
 	for (uint32_t i = 0; i < frame->points.count; i++)
 		if (frame->points.lights[i].bounces >= 1)
 			return true;

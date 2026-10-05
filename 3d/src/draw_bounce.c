@@ -1,7 +1,11 @@
 // The frame's probe bounce and this step's stale spheres (ADR-0326 points 2, 4
-// and 8), and the relight's own sun map (0329 point 2). The contract is
+// and 8), and the relight's own sun maps (0329 point 2). The contract is
 // draw_bounce.h's; voe_3d_draw_system_shadows in 3d/draw_system.h states what
 // the caller pays for it.
+//
+// THE BOUNCE TAKES EVERY SUN (0357 points 1 and 4): the first with row 0's
+// bounces and strength, the frame's further lights as the begin's `more`, and
+// each sun whose row casts draws its own map, sun i at its own direction.
 //
 // A CASTER MOVED WHEN LAG 1 AND LAG 0 DIFFER: its position by more than a
 // micrometre on an axis, or its rotation by more than 1e-6 off |q0 · q1| = 1,
@@ -285,18 +289,20 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 	return true;
 }
 
-// The relight's own sun map (0329 point 2): the bounce shadow pass with the sun
-// view of `grid`, the casters drawn into it when render opens it. False when
-// the pass or a draw is refused.
+// Sun `sun`'s relight map (0329 point 2, 0357 point 4): the bounce shadow pass
+// with the view of `grid` along `direction`, the casters drawn into it when
+// render opens it. False when the pass or a draw is refused.
 static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
-			 const voe_3d_frame *frame, voe_3d_bounce_grid grid)
+			 const voe_3d_frame *frame, voe_3d_bounce_grid grid,
+			 uint32_t sun, voe_math_float3 direction)
 {
 	voe_render_view light = voe_3d_bounce_grid_sun(grid, frame->eye,
-						       frame->light.direction);
+						       direction);
 	bool opened = false;
 	bool drawn;
 
-	if (!voe_render_bounce_shadow_pass_begin(device, 0, &light, &opened))
+	VOE_BASE_ASSERT(sun <= frame->more_count, "a sun past the frame's");
+	if (!voe_render_bounce_shadow_pass_begin(device, sun, &light, &opened))
 		return false;
 	if (!opened)
 		return true;
@@ -332,8 +338,9 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		.sun = frame->light,
 		.points = frame->points,
 		.blockers = frame->blockers,
+		.more = { frame->more_lights, frame->more_count },
 	};
-	if (voe_scene_light_count(world) == 1) {
+	if (voe_scene_light_count(world) >= 1) {
 		bounce.sun_bounces = voe_scene_light_rows(world)[0].bounces;
 		bounce.sun_strength = voe_scene_light_rows(world)[0].bounce_strength;
 	}
@@ -351,8 +358,13 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			return false;
 	}
 	if (voe_3d_draw_light_casts(world, 0) &&
-	    !draw_sun_map(world, device, frame, grid))
+	    !draw_sun_map(world, device, frame, grid, 0, frame->light.direction))
 		return false;
+	for (uint32_t i = 0; i < frame->more_count; i++)
+		if (voe_3d_draw_light_casts(world, i + 1) &&
+		    !draw_sun_map(world, device, frame, grid, i + 1,
+				  frame->more_lights[i].light.direction))
+			return false;
 	voe_render_bounce_relight(device);
 	return true;
 }

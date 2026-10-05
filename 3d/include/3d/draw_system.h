@@ -536,16 +536,18 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // VOE_3D_POINT_SHADOW_TEXELS; false as before when render refuses.
 //
 // THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun cast, when the
-// frame is not blind and either the world's light row has `bounces` of 1 or
-// more with the frame's light of some strength and not `unshaded`, or a light
-// in `frame->points` has `bounces` of 1 or more. It fits the probe volume to
+// frame is not blind and either a sun bounces — the world's first light row
+// with `bounces` of 1 or more and the frame's light of some strength and not
+// `unshaded`, or any of `more_lights` with `bounces` of 1 or more, some
+// strength and shaded — or a light in `frame->points` has `bounces` of 1 or
+// more. Every sun goes to the bounce (0357 point 1). It fits the probe volume to
 // the still casters' box, not about `frame->eye`, so the camera never moves it
 // (0331, 0332); begins `frame->target`'s bounce, opens capture passes while
 // render has probes to capture, drawing the casters into each, and relights.
 // That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
-// objects per caster. On a frame that relights a sun that bounces and casts it
-// opens one more pass, and one more object per caster: the relight's own sun
-// map, fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
+// objects per caster. On a frame that relights, for each sun that bounces and
+// casts it opens one more pass, and one more object per caster: that sun's
+// relight map (0357 point 4), fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
 // so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
 // volume and shows none. Stale spheres are marked where a caster moved this
 // step (lag 1 against lag 0), so a world without a previous table marks none.
