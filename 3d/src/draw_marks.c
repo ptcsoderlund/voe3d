@@ -1,11 +1,12 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum,
-// every sun's circle and arrow, every point light's three circles, one entity's
+// every sun's circle and arrow, every point light's three circles, every bare
+// place's diamond, one entity's
 // silhouette, a collider's and a light blocker's lines and the gizmo's two
 // meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
 // world place. See draw_marks.h.
 //
-// All six are in metres about the frame's eye already (ADR-0250), so every
+// All seven are in metres about the frame's eye already (ADR-0250), so every
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
 #include "draw_marks.h"
 
@@ -15,6 +16,7 @@
 #include <3d/gizmo_rings.h>
 #include <3d/light_blocker.h>
 #include <3d/outline.h>
+#include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
 #include <3d/sun_marker.h>
 #include <base/assert.h>
@@ -167,6 +169,67 @@ void voe_3d_draw_marks_point_lights(const voe_ecs_world *world,
 	}
 	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_POINT_LIGHT_MARKER_VERTICES,
 			"more lamp marker vertices than were made room for");
+	draw_marker_lines(device,
+			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
+						 index_count },
+			  marked.material, marked.colour);
+	draw_marker_lines(device, selected, marked.material,
+			  marked.selected_colour);
+}
+
+// Every transform's owner voe_3d_place_marker_wanted answers, marked as the
+// point lights are (0365 points 1-2) at its current world place: the selected
+// one alone in `selected_colour`, the rest gathered into one geometry in
+// `colour`. Not shown, no transform table and a picture with no area draw none.
+void voe_3d_draw_marks_places(const voe_ecs_world *world,
+			      voe_render_device *device, voe_base_arena *arena,
+			      voe_3d_frame frame)
+{
+	voe_3d_rows_marked marked = frame.places;
+	voe_3d_outline_mesh selected = { 0 };
+	voe_render_vertex *vertices;
+	uint32_t *indices;
+	uint32_t vertex_count = 0;
+	uint32_t index_count = 0;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing place markers to no device");
+	VOE_BASE_ASSERT(arena != NULL, "place markers with no arena");
+
+	if (!marked.shown || !has_store(world, &voe_scene_transform_key))
+		return;
+	uint32_t count = voe_scene_transform_count(world);
+	const voe_ecs_entity *owners = voe_scene_transform_entities(world);
+
+	if (count == 0)
+		return;
+	vertices = voe_base_arena_push(
+		arena, sizeof *vertices * count * VOE_3D_PLACE_MARKER_VERTICES);
+	indices = voe_base_arena_push(
+		arena, sizeof *indices * count * VOE_3D_PLACE_MARKER_INDICES);
+	for (uint32_t i = 0; i < count; i++) {
+		voe_3d_outline_mesh mesh;
+
+		if (!voe_3d_place_marker_wanted(world, owners[i]))
+			continue;
+		if (!voe_3d_place_marker_quads(
+			    voe_scene_transform_world(world, owners[i]).position,
+			    frame.view, frame.eye, marked.size, marked.pixels,
+			    arena, &mesh))
+			return;
+		if (owners[i].index == marked.selected.index &&
+		    owners[i].generation == marked.selected.generation) {
+			selected = mesh;
+			continue;
+		}
+		for (uint32_t j = 0; j < mesh.index_count; j++)
+			indices[index_count + j] = mesh.indices[j] + vertex_count;
+		for (uint32_t j = 0; j < mesh.vertex_count; j++)
+			vertices[vertex_count + j] = mesh.vertices[j];
+		index_count += mesh.index_count;
+		vertex_count += mesh.vertex_count;
+	}
+	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_PLACE_MARKER_VERTICES,
+			"more place marker vertices than were made room for");
 	draw_marker_lines(device,
 			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
 						 index_count },

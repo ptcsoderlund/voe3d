@@ -1,6 +1,7 @@
 // A marked camera or the suns shown is one more draw than none, and a zeroed
 // marker is the same as none (0223, 0274). Two suns shown are one draw, one of
-// them selected two, and a ray through each sun's place picks it (0360).
+// them selected two, and a ray through each sun's place picks it (0360). Places
+// shown mark the one bare transform, and not once it has a shape (0365).
 //
 // THE DRAW COUNT IS THE MEASUREMENT, BECAUSE A PICTURE SAYS LESS. What is
 // observable is voe_render_frame_draw_count — every mesh drawn is one command —
@@ -325,9 +326,101 @@ static void every_sun_is_marked_and_picked(void)
 	voe_base_arena_destroy(arena);
 }
 
+// How many commands one frame comes to with `places` set on it and no camera
+// marker or sun shown: draws_with_a_marker's count.
+static uint32_t draws_with_places(voe_ecs_world *world,
+				  voe_render_device *device,
+				  voe_base_arena *arena, voe_3d_frame frame,
+				  voe_3d_rows_marked places)
+{
+	const voe_3d_camera_marked no_marker = { 0 };
+	const voe_3d_sun_marked no_sun = { 0 };
+
+	VOE_TEST_CHECK(!frame.places.shown);
+	frame.places = places;
+	return draws_with_a_marker(world, device, arena, frame, no_marker,
+				   no_sun);
+}
+
+// A camera, a sun and one bare transform four metres down the line of sight:
+// places shown is one draw more than zeroed, the bare one marked; selected it
+// is still one more, because it is drawn alone and the rest, empty, draws none
+// (0365 points 1-2); given a shape it wears no marker and is none more.
+static void every_bare_place_is_marked(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	// Two draws, and room for one diamond in two ranges.
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.transient_vertices = VOE_3D_PLACE_MARKER_VERTICES,
+		.transient_indices = VOE_3D_PLACE_MARKER_INDICES,
+		.transient_geometries = 2,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	const voe_3d_rows_marked no_places = { 0 };
+	voe_3d_shapes shapes;
+	voe_ecs_world *world;
+	voe_ecs_entity bare = { 0 };
+	voe_3d_frame frame;
+	voe_3d_rows_marked places;
+	uint32_t without;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+
+	world = a_world(arena);
+	voe_3d_shape_register(world, 2);
+	add_a_camera(world);
+	(void)add_a_sun(world, (voe_math_double3){ 0.0, 2.0, -4.0 });
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &bare));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, bare, at_depth(4.0f)));
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	places = (voe_3d_rows_marked){
+		.shown = true,
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.selected_colour = { 1.0f, 1.0f, 0.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+
+	without = draws_with_places(world, device, arena, frame, no_places);
+	VOE_TEST_CHECK_INT(draws_with_places(world, device, arena, frame,
+					     places),
+			   without + 1);
+	places.selected = bare;
+	VOE_TEST_CHECK_INT(draws_with_places(world, device, arena, frame,
+					     places),
+			   without + 1);
+	// The shape's row alone, never run into a mesh, so the entity draws
+	// nothing itself and only the missing marker is counted.
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, bare,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
+				.colour = VOE_3D_SHAPE_GREY }));
+	VOE_TEST_CHECK_INT(draws_with_places(world, device, arena, frame,
+					     places),
+			   without);
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	a_marked_camera_is_one_more_draw();
 	every_sun_is_marked_and_picked();
+	every_bare_place_is_marked();
 	return voe_test_result();
 }

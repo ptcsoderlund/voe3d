@@ -65,6 +65,7 @@
 #include <3d/gizmo_rings.h>
 #include <3d/models.h>
 #include <3d/outline.h>
+#include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
 #include <3d/sun_marker.h>
 #include <base/arena.h>
@@ -200,6 +201,27 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_point_lights_marked;
 
+// Every row of a kind, one selected (0365 point 6): the record the frame's
+// `places` and `light_blockers` use. False `shown` marks none, which is what a
+// zeroed record is; the `selected` one is drawn alone in `selected_colour`, the
+// rest together in `colour`.
+typedef struct {
+	// False marks none, which is what a zeroed record is.
+	bool shown;
+	// The row drawn in `selected_colour`, zeroed for none.
+	voe_ecs_entity selected;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear: the colour of every row but the selected one.
+	voe_math_float3 colour;
+	// Linear: the outline's colour, for the selected row (0274's rule).
+	voe_math_float3 selected_colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_rows_marked;
+
 // The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
 // It is drawn after the outline, behind the outline's depth clear, with the
 // outline's material and colour (`frame.outlined`), so it shows through what
@@ -321,6 +343,15 @@ typedef struct {
 	// EVERY POINT LIGHT, MARKED (0320 point 7), drawn as the sun's marker is
 	// and right after it (voe_3d_point_lights_marked above).
 	voe_3d_point_lights_marked point_lights;
+	// EVERY PLACE WITH NO MESH, MARKED (0365 points 1-2), drawn as the point
+	// lights' markers are and right after them. Only an editor's view sets
+	// it. When `shown`, every entity voe_3d_place_marker_wanted answers is
+	// marked with voe_3d_place_marker_quads in the world layer inside the
+	// world's depth, the selected one alone in `selected_colour`, the rest as
+	// one geometry in `colour`, so the pool needs VOE_3D_PLACE_MARKER_VERTICES
+	// and _INDICES per marked entity, two ranges and two objects; a pool too
+	// small draws none.
+	voe_3d_rows_marked places;
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
@@ -370,9 +401,9 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `collider`, `light_blocker`, `points` and `blockers` all come
-// back zeroed and `models` NULL — hiding, outlining, standing a gizmo, marking a
-// camera, the suns or the point lights, drawing a collider or a blocker's box,
+// `point_lights`, `places`, `collider`, `light_blocker`, `points` and `blockers`
+// all come back zeroed and `models` NULL — hiding, outlining, standing a gizmo,
+// marking a camera, the suns, the point lights or the places, drawing a collider or a blocker's box,
 // lighting by point lights, keeping
 // light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer, and `more_lights` and `more_count` come back
@@ -572,7 +603,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
 // a live camera with a transform, and `frame.sun`, when `shown`, every light
-// with a transform, are drawn with the world, and `frame.collider`, when it names one
+// with a transform, are drawn with the world, `frame.places`, when `shown`,
+// with the world after the point lights, and `frame.collider`, when it names one
 // with a collider, as lines after the outline, and `frame.light_blocker`, when
 // it names one with a blocker and a transform, as its box's lines after those. Calling it with no pass open is the caller's bug
 // and asserts.
