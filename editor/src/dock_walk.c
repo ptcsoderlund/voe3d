@@ -24,24 +24,25 @@
 // node below. `sizing_in()` is the one place that turns a size into the pair
 // read correctly either way, the row's own included.
 //
-// A SCENE VIEW'S PANEL HAS NO PADDING, AND ITS PICTURE IS ITS WHOLE CHILD. The
-// picture fills the panel edge to edge, so the rectangle the picture came to is
-// the panel's own and is what the view's target is sized by; padding would be a
-// frame of panel colour round a picture that already has an edge. While the
-// camera preview is shown, the preview's picture sits over its bottom-right
-// corner at 30% of the view's width.
+// EVERY CLOSABLE LEAF STARTS WITH A HEADER ROW (0363 point 2): its name at the
+// left, an × at the right, recorded in the caller's voe_editor_dock_closes.
+// The top view has none; it never closes.
 //
-// EVERY LEAF THAT IS NOT A PICTURE IS A SCROLL AREA, AND THE PANEL AROUND IT IS
-// NOT (ADR-0153 point 11). The panel keeps the background, the size the walk
-// divided out and the padding; inside it one voe_ui_scroll_begin grows to fill
-// what the padding leaves and everything the leaf draws goes in there, so
-// nothing a panel says can reach past the panel's own edges and a column too
-// small for its content scrolls instead of spilling over its neighbour. The area
-// stretches its content across the flow, which is what gives a row that wraps a
-// width to wrap against (ui/layout.h, A RUN THAT WRAPS); the panel's gap moves
-// onto it, the panel being one child now. A scene view is left alone: its
-// picture is already sized to its panel, and a bar over it would be a bar over
-// the scene.
+// A SCENE VIEW'S PANEL HAS NO PADDING, AND ITS PICTURE TAKES ALL BUT THE
+// HEADER. The rectangle the picture came to is what the view's target is sized
+// by; padding would be a frame of panel colour round a picture that already
+// has an edge. While the camera preview is shown, its picture sits over the
+// view's bottom-right corner at 30% of the view's width.
+//
+// EVERY OTHER LEAF IS A SCROLL AREA UNDER ITS HEADER, AND THE PANEL AROUND IT
+// IS NOT (ADR-0153 point 11). The panel keeps the background, the size the walk
+// divided out and the padding; one voe_ui_scroll_begin grows to fill what is
+// left and everything the leaf draws goes in there, so nothing a panel says
+// reaches past the panel's edges and a column too small for its content
+// scrolls instead of spilling over its neighbour. The area stretches its
+// content across the flow, which is what gives a row that wraps a width to
+// wrap against (ui/layout.h, A RUN THAT WRAPS). The header stays put while it
+// scrolls.
 //
 // EVERY LEAF'S OWN SURFACE IS THE THEME'S ORDINARY SURFACE. The regions are
 // told apart by the seam between them and by where their headings start, not
@@ -141,12 +142,36 @@ static void seam_draw(voe_ui_context *ui, voe_editor_dock_axis axis,
 	voe_ui_end(ui);
 }
 
+// A closable leaf's header: its name at the left and its × at the right,
+// spread apart along a row the panel stretches across. Over a picture, which
+// has no padding of its own, the row carries the panel's.
+static void header_draw(voe_ui_context *ui, voe_editor_closable which,
+			bool picture, voe_editor_dock_closes *closes)
+{
+	float side = picture ? PANEL_PAD : 0.0f;
+
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_DOCKED,
+			"a header on a leaf that is not a closable dock panel");
+	VOE_BASE_ASSERT(closes != NULL, "a header with nowhere to record its ×");
+
+	voe_ui_row_begin(ui, (voe_ui_container){
+				     .along = VOE_UI_ALONG_SPREAD,
+				     .across = VOE_UI_ACROSS_CENTER,
+				     .pad = { side, picture ? PANEL_GAP : 0.0f,
+					      side, 0.0f } });
+	voe_ui_label(ui, voe_editor_closable_name(which));
+	closes->close[which] = voe_ui_button_begin(ui, "close", which);
+	voe_ui_label(ui, "×");
+	voe_ui_end(ui); // button
+	voe_ui_end(ui); // row
+}
+
 static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      const voe_editor_dock_arrangement *places,
 		      uint32_t index, voe_editor_dock_axis parent,
 		      voe_math_float2 size, uint32_t depth, uint32_t lit,
 		      const voe_ui_theme *palette, voe_editor_scene *scene,
-		      voe_editor_views *views)
+		      voe_editor_views *views, voe_editor_dock_closes *closes)
 {
 	const voe_editor_dock_node *node;
 	voe_math_float2 head;
@@ -164,6 +189,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	if (node->kind == VOE_EDITOR_DOCK_LEAF) {
 		bool picture = node->panel == VOE_EDITOR_PANEL_SCENE_VIEW;
 		float pad = picture ? 0.0f : PANEL_PAD;
+		voe_editor_closable which = voe_editor_dock_leaf_closable(node);
 
 		// Two leaves may show the same kind of panel, so a scene view is
 		// keyed by the view it shows as well as by its name.
@@ -173,11 +199,14 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 			(voe_ui_container){
 				.size = sizing_in(parent, size),
 				.across = VOE_UI_ACROSS_FILL,
-				// The gap between the things on a leaf is the
-				// scroll area's below; the panel holds one
-				// child and has nothing to space.
-				.gap = picture ? PANEL_GAP : 0.0f,
+				// Between the header and what is under it; the
+				// things on a leaf are spaced by its scroll
+				// area's own gap below.
+				.gap = PANEL_GAP,
 				.pad = { pad, pad, pad, pad } });
+
+		if (which != VOE_EDITOR_CLOSABLE_COUNT)
+			header_draw(ui, which, picture, closes);
 
 		if (picture) {
 			voe_editor_panel_draw(ui, node->panel, node->view,
@@ -217,7 +246,8 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		walk_node(ui, tree, places,
 			  places->nodes[node->first].laid ? node->first :
 							    node->second,
-			  parent, size, depth + 1, lit, palette, scene, views);
+			  parent, size, depth + 1, lit, palette, scene, views,
+			  closes);
 		return;
 	}
 
@@ -238,17 +268,17 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	}
 
 	walk_node(ui, tree, places, node->first, node->axis, head, depth + 1,
-		  lit, palette, scene, views);
+		  lit, palette, scene, views, closes);
 	seam_draw(ui, node->axis, palette, index == lit);
 	walk_node(ui, tree, places, node->second, node->axis, tail, depth + 1,
-		  lit, palette, scene, views);
+		  lit, palette, scene, views, closes);
 	voe_ui_end(ui);
 }
 
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
-			  voe_editor_views *views)
+			  voe_editor_views *views, voe_editor_dock_closes *closes)
 {
 	voe_editor_dock_arrangement places;
 
@@ -260,6 +290,11 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	VOE_BASE_ASSERT(palette != NULL, "walking a dock root with no palette");
 	VOE_BASE_ASSERT(scene != NULL, "walking a dock root with no scene");
 	VOE_BASE_ASSERT(views != NULL, "walking a dock root with no views");
+	VOE_BASE_ASSERT(closes != NULL, "walking a dock root with no closes");
+
+	// A leaf the walk does not reach draws no ×.
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_DOCKED; c++)
+		closes->close[c] = VOE_UI_NODE_NONE;
 
 	// Last frame's rows and pictures named last frame's nodes and the arena
 	// they were in has gone. The panels record this frame's as they draw.
@@ -281,8 +316,23 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 						 .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, &places, root->tree.root,
 		  VOE_EDITOR_DOCK_ROW, root->size, 0, root->lit, palette, scene,
-		  views);
+		  views, closes);
 	voe_ui_end(ui);
+}
+
+voe_editor_closable
+voe_editor_dock_closes_read(const voe_ui_context *ui,
+			    const voe_editor_dock_closes *closes)
+{
+	VOE_BASE_ASSERT(ui != NULL, "reading the closes of no interface");
+	VOE_BASE_ASSERT(closes != NULL, "reading no closes");
+
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_DOCKED; c++)
+		if (closes->close[c] != VOE_UI_NODE_NONE &&
+		    voe_ui_button_action(ui, closes->close[c]).fired)
+			return (voe_editor_closable)c;
+
+	return VOE_EDITOR_CLOSABLE_COUNT;
 }
 
 // WHAT IS ON THE INSPECTOR IS ONE CALL AND NOT A SECOND SCENE PANEL. It is

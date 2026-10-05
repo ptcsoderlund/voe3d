@@ -54,6 +54,7 @@
 #include "inspector.h"
 #include "inspector_edit.h"
 #include "notice.h"
+#include "panels.h"
 #include "prefabs.h"
 #include "preferences.h"
 #include "project.h"
@@ -63,6 +64,7 @@
 #include "topbar.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <platform/path.h>
 
@@ -114,7 +116,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 
 bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
-			       const voe_editor_dock_root *roots,
+			       voe_editor_dock_root *roots,
 			       uint32_t count, voe_editor_scene *scene,
 			       const voe_editor_assets_drag *drag,
 			       voe_editor_views *views,
@@ -150,7 +152,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	voe_editor_session_ship_poll(session);
 
 	for (uint32_t i = 0; i < count && ok; i++) {
-		const voe_editor_dock_root *root = &roots[i];
+		voe_editor_dock_root *root = &roots[i];
+		// Each header's ×, recorded by the walk (dock.h).
+		voe_editor_dock_closes closes;
+		voe_editor_closable fired;
 		// The dock tree's own root, its height cut down by the bar
 		// above it — dock.c's own tree is untouched, only the size
 		// its walk divides out.
@@ -246,7 +251,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       session->notice.text, prefab_open);
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
-				     scene, views);
+				     scene, views, &closes);
 		// A Scene list or Assets drag's ghost, anchored beside the
 		// pointer (ADR-0282, 0286); before the overlays, so they paint
 		// over it.
@@ -361,6 +366,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			scene->assets.opened[0] = '\0';
 		}
 		voe_editor_views_rects_read(views, ui);
+		// A fired × closes its panel on this root, laid out so from the
+		// next frame, and remembers it as a drag's end does (main.c).
+		fired = voe_editor_dock_closes_read(ui, &closes);
+		if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
+			voe_base_report_error_clear();
+			if (!voe_editor_panels_toggle(fired, root, bar))
+				voe_editor_notice_from_report(&session->notice,
+							      "editor_settings");
+		}
 		// Whatever the browser or Preferences show: the bar is drawn
 		// under both, and the next frame is laid out at this measure.
 		voe_editor_topbar_measure(ui, bar);

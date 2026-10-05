@@ -265,6 +265,20 @@ void voe_editor_dock_split_set(voe_editor_dock_tree *tree, uint32_t node,
 double voe_editor_dock_view_share(const voe_editor_dock_tree *tree);
 void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 
+// The × button in each docked closable's header, as the walk drew it this
+// frame (0363 point 2), indexed by voe_editor_closable; VOE_UI_NODE_NONE for a
+// leaf not drawn. Not zero: node zero is a frame's root and would read as a
+// button that is not one.
+typedef struct {
+	voe_ui_node close[VOE_EDITOR_CLOSABLE_DOCKED];
+} voe_editor_dock_closes;
+
+// The closable whose × fired this frame, VOE_EDITOR_CLOSABLE_COUNT for none.
+// Asked after voe_ui_frame_end and before the arena is rewound, as any button.
+voe_editor_closable
+voe_editor_dock_closes_read(const voe_ui_context *ui,
+			    const voe_editor_dock_closes *closes);
+
 // --- dock.c's and dock_walk.c's own, not for callers ---
 //
 // The space between the two children of a split, in millimetres: taken off
@@ -303,10 +317,12 @@ void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 //
 // `palette` is the one in force, read for every seam's colours (0231, 0232)
 // and handed to each panel, where only the Scene list reads it (0282).
+// `closes` is filled with every header's × this frame, for
+// voe_editor_dock_closes_read once the frame has ended.
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
-			  voe_editor_views *views);
+			  voe_editor_views *views, voe_editor_dock_closes *closes);
 
 // What is on one panel. One function, one `switch`, no table and no function
 // pointer; a panel's contents are ordinary `ui` calls and the tree above owns

@@ -1,7 +1,7 @@
 // The panels' start and remember: the default tree's sizes and every panel
 // open filled into a voe_editor_settings, the file read over them and set back
 // into the tree and `root->closed`, and the same fields written back through
-// settings.h.
+// settings.h; a toggle flips one flag and remembers at once.
 #include "panels.h"
 
 #include "settings.h"
@@ -67,4 +67,16 @@ bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 		.assets_open = !root->closed[VOE_EDITOR_CLOSABLE_ASSETS],
 		.inspector_open = !root->closed[VOE_EDITOR_CLOSABLE_INSPECTOR],
 		.view_open = !root->closed[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] });
+}
+
+bool voe_editor_panels_toggle(voe_editor_closable which,
+			      voe_editor_dock_root *root,
+			      const voe_editor_topbar *bar)
+{
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_DOCKED,
+			"toggling a panel that is not a dock panel");
+	VOE_BASE_ASSERT(root != NULL, "toggling a panel of no root");
+
+	root->closed[which] = !root->closed[which];
+	return voe_editor_panels_remember(root, bar);
 }

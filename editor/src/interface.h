@@ -302,8 +302,15 @@
 // for typing, a caret, up to VOE_UI_FIELD_CAPACITY (256) typed characters and
 // "not a number", a generous 300 — 354 against the browser's 1504. No scroll
 // area.
-#define VOE_EDITOR_INTERFACE_NODES 2275
-#define VOE_EDITOR_INTERFACE_ELEMENTS 47498
+//
+// THE FOUR CLOSABLE DOCK LEAVES' HEADERS (dock_walk.c, 0363) ADD SIXTEEN
+// NODES: each a row, the name label, the × button and its label, four apiece.
+// 2275 + 16 = 2291 nodes. AND FIFTY-TWO ELEMENTS: each button's border and
+// fill, two, its ×, one, and the name at most "Bottom view"'s ten characters,
+// its space drawing nothing — the row draws none — thirteen apiece.
+// 47498 + 52 = 47550 elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2291
+#define VOE_EDITOR_INTERFACE_ELEMENTS 47550
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -414,10 +421,15 @@ void voe_editor_interface_surface(voe_platform_size target,
 // the other. A row chosen on it is submitted at once as that row's replace
 // intent and counted the same way; `escape` closes it, as does a press outside
 // its rectangle. See interface.c.
+//
+// `roots` IS WRITTEN FOR ONE THING: a dock panel's × that fired closes it on
+// its own root through panels.h's voe_editor_panels_toggle, which remembers it
+// at once; a write that fails is said in the session's notice
+// ("editor_settings").
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
-					     const voe_editor_dock_root *roots,
+					     voe_editor_dock_root *roots,
 					     uint32_t count,
 					     voe_editor_scene *scene,
 					     const voe_editor_assets_drag *drag,

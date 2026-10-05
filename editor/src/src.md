@@ -135,8 +135,8 @@ carries it out.
   seam's place (the reached one lit), whether a point is over a panel, and the walk.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
   and set, which views it shows and whether a point is over a panel.
-- `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each leaf a panel and scroll
-  area handed to its panel's draw with the palette for the Scene list's drag marks, the Inspector's
+- `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each closable leaf's header of
+  name and ×, each leaf a panel and scroll area handed to its panel's draw with the palette for the Scene list's drag marks, the Inspector's
   call, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
@@ -165,7 +165,8 @@ carries it out.
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock.
 - `panels.h` — the editor's panels as the person left them: the default tree started with the
-  settings file read over it, and the sizes remembered back into it when a drag ends.
+  settings file read over it, the sizes remembered back into it when a drag ends, and the toggle
+  that opens or closes a dock panel and remembers it.
 - `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
   written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
@@ -173,7 +174,8 @@ carries it out.
   Project or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, the Scene list's or Assets drag's ghost, Play and Ship
   polled once a frame, and the one read of the frame's clicks carrying out the bar's, browser's and
-  Preferences' and Project's commands, the picker's changes, and a prefab made or opened.
+  Preferences' and Project's commands, the picker's changes, a prefab made or opened, and a fired ×
+  toggled on its root.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

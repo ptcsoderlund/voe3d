@@ -1,6 +1,7 @@
 // The editor's panels as the person left them: started from the default dock
 // tree with settings.h's file read over it, and remembered back into that file
-// when a drag of a border ends (resize.h says when).
+// when a drag of a border ends (resize.h says when) or a dock panel's × or
+// the toggle below opens or closes it.
 //
 //     voe_editor_panels_start(&roots[0], &bar);          // once, before the loop
 //     if (!voe_editor_panels_remember(&roots[0], &bar))   // a drag ended
@@ -32,3 +33,11 @@ void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 // which panels are open. False when that fails.
 [[nodiscard]] bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 					      const voe_editor_topbar *bar);
+
+// Opens a closed docked panel or closes an open one, `root->closed[which]`
+// flipped, and remembers it through voe_editor_panels_remember at once (0363
+// point 5). `which` is a dock panel; Project or Errors asserts. False when the
+// write fails; the flag stays flipped.
+[[nodiscard]] bool voe_editor_panels_toggle(voe_editor_closable which,
+					    voe_editor_dock_root *root,
+					    const voe_editor_topbar *bar);
