@@ -21,10 +21,10 @@
 // spacing) or a back face is nought;
 // else at the surface point (probe + direction × distance) radiance = albedo ×
 // - level 1: the chain's lights, colour × intensity × bounce strength ×
-//   max(0, n·l) × shadow: the sun by the volume's own map (ADR-0329), one
-//   compare pushed a texel along n, lit outside its box and when this frame
-//   drew none; a lamp faded as lighting.slangh's falloff, and with its slot's
-//   compare when the point shadows are ready;
+//   max(0, n·l) × shadow: every sun (the first, each `more` entry) by its own
+//   layer of the volume's map (ADR-0329, 0357), one compare pushed a texel
+//   along n, lit outside its box and when this frame drew none; a lamp faded
+//   as lighting.slangh's falloff, with its slot's compare when ready;
 // - level k > 1: bounce_read.slangh's E of level (chain, k − 1) / π;
 // summed as six-axis irradiance (ADR-0327): per axis a, radiance ×
 // max(0, direction_a) into E(+a) and × max(0, −direction_a) into E(−a), six RGB
@@ -36,8 +36,8 @@
 // BLOCKERS (ADR-0350 point 5), the record's by blockers.slangh's pass, with
 // its `walls` and `indoors`: a texel's p is its hit pushed PUSH along its
 // normal. It feeds its probe only when the pass holds from the probe to p;
-// level 1's sun lights it when the pass holds from the record's `sun` along
-// the sun's segment, a lamp from the lamp's mask and position; level k reads
+// level 1's sun lights it when the pass holds from that sun's mask along its
+// segment, a lamp from the lamp's mask and position; level k reads
 // through bounce_read.slangh's gated read.
 // THE TEXELS. Grid g's image 3g + a is axis a (x, y, z), 48 × 12 × 24: probe
 // t's E(+a) at (2t.x, t.y, t.z), E(−a) at (2t.x + 1, t.y, t.z), RGB, alpha 0.
@@ -68,6 +68,8 @@ static const uint HOLDS = 0x80000000u;
 static const uint LAMPS = 16;
 static const uint BLOCKERS = 32;
 static const uint LEVELS = 6;
+// VOE_RENDER_DIRECTIONAL_LIGHTS − 1: the further suns the record holds.
+static const uint MORE = 3;
 // A probe's reach in its volume's cells; × the record's spacing, metres.
 static const float REACH_CELLS = 12.0;
 // VOE_RENDER_LIGHT_BLOCKER_PUSH in render/device.h: a hit is masked this far
@@ -113,6 +115,21 @@ struct relight_blocker {
 	float4 sphere;
 };
 
+// struct voe_render_relight_sun: three pad words, not an array, which std140
+// would stride 16 bytes apart.
+struct relight_sun {
+	relight_light light;
+	float4x4 map;
+	float texel;
+	uint drawn;
+	float strength;
+	uint mask;
+	uint bounces;
+	uint pad0;
+	uint pad1;
+	uint pad2;
+};
+
 struct relight_record {
 	relight_light sun;
 	float4x4 sun_map;
@@ -131,6 +148,12 @@ struct relight_record {
 	uint indoors;
 	uint sun_mask;
 	uint pad;
+	// The further suns that bounce (ADR-0357 point 4), more[i] on layer i + 1.
+	uint more_count;
+	uint more_pad0;
+	uint more_pad1;
+	uint more_pad2;
+	relight_sun more[MORE];
 };
 
 [[vk::binding(0, 0)]]
@@ -264,20 +287,23 @@ float texel_solid_angle(int2 at)
 		   area_element(high.x, low.y) + area_element(high.x, high.y));
 }
 
-// How much of the sun reaches `world` facing `n`: one compare in the volume's
-// map, pushed a texel along n; 1 outside its box or when this frame drew none.
-float sun_visibility(float3 world, float3 n)
+// How much of a sun reaches `world` facing `n`: one compare in layer `layer` of
+// the volume's map, drawn with `map` at `texel`, pushed a texel along n; 1
+// outside its box or when this frame drew none (`drawn` 0).
+float sun_visibility(float4x4 map, float texel, uint drawn, uint layer,
+		     float3 world, float3 n)
 {
-	if (relight_lights.sun_drawn == 0)
+	if (drawn == 0)
 		return 1.0;
-	float3 pushed = world + n * relight_lights.sun_texel;
-	float4 clip = mul(relight_lights.sun_map, float4(pushed, 1.0));
+	float3 pushed = world + n * texel;
+	float4 clip = mul(map, float4(pushed, 1.0));
 	float3 ndc = clip.xyz / clip.w;
 
 	if (any(abs(ndc.xy) > 1.0) || ndc.z < 0.0 || ndc.z > 1.0)
 		return 1.0;
 	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-	return relight_sun_shadow.SampleCmpLevelZero(float3(uv, 0.0), ndc.z);
+	return relight_sun_shadow.SampleCmpLevelZero(float3(uv, float(layer)),
+						     ndc.z);
 }
 
 // lighting.slangh's voe_render_point_visibility on this file's binding.
@@ -312,7 +338,24 @@ bool record_passes(uint source, uint receiver, float3 p, float3 s)
 					p, s);
 }
 
-// Level 1's light at `world` facing `n`, whose mask is `mask`: the chain's sun
+// One sun's level 1 term at `world` facing `n`, whose mask is `mask`, `p` the
+// hit pushed PUSH: gated by the sun's own mask along its own segment and
+// shadowed by its own layer.
+float3 sun_light(relight_light sun, float strength, uint sun_mask,
+		 float4x4 map, float texel, uint drawn, uint layer,
+		 float3 world, float3 n, float3 p, uint mask)
+{
+	float n_dot_l = saturate(dot(n, -sun.direction));
+
+	if (n_dot_l <= 0.0 ||
+	    !record_passes(sun_mask, mask, p,
+			   voe_render_sun_segment_end(p, sun.direction)))
+		return float3(0.0, 0.0, 0.0);
+	return sun.colour * sun.intensity * strength * n_dot_l *
+	       sun_visibility(map, texel, drawn, layer, world, n);
+}
+
+// Level 1's light at `world` facing `n`, whose mask is `mask`: the chain's suns
 // and its lamps, each where the blockers pass it to the hit pushed PUSH.
 float3 direct_light(float3 world, float3 n, uint mask)
 {
@@ -321,17 +364,18 @@ float3 direct_light(float3 world, float3 n, uint mask)
 	float3 p = world + n * PUSH;
 	float3 sum = float3(0.0, 0.0, 0.0);
 
-	if (push.sun_chain == push.chain &&
-	    record_passes(relight_lights.sun_mask, mask, p,
-			  voe_render_sun_segment_end(
-				  p, relight_lights.sun.direction))) {
-		relight_light sun = relight_lights.sun;
-		float n_dot_l = saturate(dot(n, -sun.direction));
+	if (push.sun_chain == push.chain)
+		sum += sun_light(relight_lights.sun, relight_lights.sun_strength,
+				 relight_lights.sun_mask, relight_lights.sun_map,
+				 relight_lights.sun_texel, relight_lights.sun_drawn,
+				 0, world, n, p, mask);
+	for (uint s = 0; s < relight_lights.more_count && s < MORE; s++) {
+		relight_sun more = relight_lights.more[s];
 
-		if (n_dot_l > 0.0)
-			sum += sun.colour * sun.intensity *
-			       relight_lights.sun_strength * n_dot_l *
-			       sun_visibility(world, n);
+		if (more.bounces == push.chain)
+			sum += sun_light(more.light, more.strength, more.mask,
+					 more.map, more.texel, more.drawn, s + 1,
+					 world, n, p, mask);
 	}
 	for (uint i = 0; i < push.lamps && i < LAMPS; i++) {
 		relight_lamp lamp = relight_lights.lamps[i];

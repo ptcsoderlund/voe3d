@@ -10,8 +10,8 @@
 // needed. Otherwise, between barriers: the levels of a chain that lost its last
 // light cleared, once; every probe marked changed (captured or emptied) listed
 // into this slot's list and settled, one workgroup each; then for level k 1 to
-// 3, for each chain n ≥ k holding a light (the sun at its bounces, each lamp at
-// its own), relight over every probe, a barrier between levels; then sum; then
+// 3, for each chain n ≥ k holding a light (each sun and each lamp at its own
+// bounces), relight over every probe, a barrier between levels; then sum; then
 // the volume marked relit. The first barrier orders it after the capture copy,
 // this frame's shadow passes and the last frame's reads; the last before this
 // frame's fragment reads of the sum, validity and moments.
@@ -41,7 +41,9 @@
 // VOE_RENDER_BOUNCE_SHADOW_TEXELS) and whether this frame drew it, the sun's
 // strength, the volume's placement (cell, corner and its begin's spacing), the
 // bouncing lamps and the begun light blockers (ADR-0347 point 4) with their
-// kinds and the sun's mask (ADR-0350 point 2).
+// kinds and the sun's mask (ADR-0350 point 2); then the further suns that
+// bounce (ADR-0357 point 4), each with its own layer's map, texel and drawn
+// flag (layer i + 1 for the i-th), strength, mask and bounces.
 //
 // device->relight_dispatches counts every dispatch recorded, for a test to read.
 //
@@ -386,6 +388,11 @@ static uint32_t chains_held(const voe_render_bounce_lights *lights)
 	for (uint32_t i = 0; i < lights->lamp_count; i++)
 		if (lights->lamps[i].bounces > 0)
 			chains |= 1u << lights->lamps[i].bounces;
+	// A further sun with no bounces or no intensity holds no chain.
+	for (uint32_t i = 0; i < lights->more_count; i++)
+		if (lights->more[i].bounces > 0 &&
+		    lights->more[i].light.intensity > 0.0f)
+			chains |= 1u << lights->more[i].bounces;
 	VOE_BASE_DEBUG_ASSERT((chains & ~0xeu) == 0, "a chain past three");
 	return chains;
 }
@@ -406,20 +413,34 @@ static uint32_t list_changed(const voe_render_bounce_probes *p, uint32_t *words)
 	return count;
 }
 
+// Layer `layer`'s texel of `map`, nought when the begin drew none: the box's
+// width over its texels. The orthographic projection's x scale is 2 / width,
+// and row 0 of view × projection is that scale times a unit row of the view's
+// rotation.
+static float map_texel(const struct voe_render_bounce_shadow *map,
+		       uint32_t layer)
+{
+	const float *row;
+	float scale;
+
+	VOE_BASE_DEBUG_ASSERT(layer < VOE_RENDER_DIRECTIONAL_LIGHTS,
+			      "a sun map layer past the map");
+	row = map->light[layer].m[0];
+	scale = sqrtf(row[0] * row[0] + row[1] * row[1] + row[2] * row[2]);
+	return map->drawn[layer] && scale > 0.0f ?
+		       2.0f / (scale * VOE_RENDER_BOUNCE_SHADOW_TEXELS) :
+		       0.0f;
+}
+
 // Volume `index`'s region of this slot's record buffer from the begin: `lights`,
-// the slot's bounce shadow map and the volume's placement. The map's texel is the
-// box's width over its texels: the orthographic projection's x scale is 2 /
-// width, and row 0 of view × projection is that scale times a unit row of the
-// view's rotation.
+// the slot's bounce shadow map and the volume's placement; further sun i reads
+// layer i + 1, as the begin gave it.
 static void write_record(voe_render_device *device, uint32_t index,
 			 const voe_render_bounce_lights *lights)
 {
 	const struct voe_render_bounce_frame *begun = &device->bounce_frame;
 	const struct voe_render_bounce_shadow *map =
 		&device->frames[device->slot].bounce_shadow;
-	const float *row = map->light[0].m[0];
-	const float scale = sqrtf(row[0] * row[0] + row[1] * row[1] +
-				  row[2] * row[2]);
 	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
 				   VOE_RENDER_BOUNCE_PROBES_Y,
 				   VOE_RENDER_BOUNCE_PROBES_XZ };
@@ -427,9 +448,7 @@ static void write_record(voe_render_device *device, uint32_t index,
 		.sun = lights->sun,
 		.sun_map = map->light[0],
 		.sun_drawn = map->drawn[0] ? 1u : 0u,
-		.sun_texel = map->drawn[0] && scale > 0.0f ?
-				     2.0f / (scale * VOE_RENDER_BOUNCE_SHADOW_TEXELS) :
-				     0.0f,
+		.sun_texel = map_texel(map, 0),
 		.corner = { begun->corner.x, begun->corner.y, begun->corner.z },
 		.sun_strength = lights->sun_strength,
 		.spacing = begun->spacing,
@@ -437,11 +456,24 @@ static void write_record(voe_render_device *device, uint32_t index,
 		.walls = lights->walls,
 		.indoors = lights->indoors,
 		.sun_mask = lights->sun_mask,
+		.more_count = lights->more_count,
 	};
 
 	VOE_BASE_DEBUG_ASSERT(device->relight_records_mapped[device->slot] != NULL,
 			      "a relight record never mapped");
 	VOE_BASE_DEBUG_ASSERT(index < volume_count(device), "a volume with no region");
+	VOE_BASE_DEBUG_ASSERT(lights->more_count < VOE_RENDER_DIRECTIONAL_LIGHTS,
+			      "more further suns than the record holds");
+	for (uint32_t i = 0; i < lights->more_count; i++)
+		record.more[i] = (struct voe_render_relight_sun){
+			.light = lights->more[i].light,
+			.map = map->light[i + 1],
+			.texel = map_texel(map, i + 1),
+			.drawn = map->drawn[i + 1] ? 1u : 0u,
+			.strength = lights->more[i].strength,
+			.mask = lights->more[i].mask,
+			.bounces = lights->more[i].bounces,
+		};
 	for (uint32_t a = 0; a < 3; a++)
 		record.cell[a] = voe_render_bounce_probe_wrap(begun->cell[a], size[a]);
 	memcpy(record.lamps, lights->lamps, sizeof(record.lamps));

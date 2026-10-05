@@ -77,6 +77,9 @@ by reading the offscreen colour image back.
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
   lit side at spacing 2 and 4. Headless.
+- `bounce_suns.c` — every sun lighting the probes: a sun alone, an empty `more` the same bytes, a
+  dark sun's copy in `more` within 1%, a moon adding, a moon at bounces 0 nothing, a moon shadowed
+  behind a wall nothing. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
