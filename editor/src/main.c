@@ -52,7 +52,9 @@
 // the program as a closed window does. New and Open's load draws one such
 // frame, "Loading scene...", before it (0356). The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
-// to `<settings>/voe3d/start.log`, stderr only under --capture.
+// to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
+// lives in one arena made first; the built-in shapes are uploaded once after
+// render prepares, and the frame breakdown's timings are taken each frame.
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"

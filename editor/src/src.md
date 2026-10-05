@@ -4,10 +4,8 @@
 and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
-- `main.c` — opens a project, the window and the device, makes the arena, font, themes and
-  interface, shows the starting line on the splash while render prepares, uploads the shapes, opens
-  the views, runs the loop until a close goes ahead or the picture is written, takes the frame
-  breakdown's timings after each frame, and logs the start.
+- `main.c` — opens the project, window and device, and runs the loop until a close goes ahead or
+  the picture is written, taking the frame breakdown's timings each frame.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
