@@ -45,7 +45,8 @@ struct voe_render_shadow {
 	float4 splits;
 	float4 texels;
 	uint count;
-	uint reserved0;
+	// Which light's four layers the record reads (ADR-0357), nought the first.
+	uint slot;
 	uint reserved1;
 	uint reserved2;
 };
@@ -69,6 +70,10 @@ struct voe_render_frame_bounce {
 	float spacing;
 };
 
+// render/device.h's number, which this must equal: the most directional lights
+// a pass draws, the first and `more` (ADR-0357).
+static const uint VOE_RENDER_DIRECTIONAL_LIGHTS = 4;
+
 // A light after the pass's first (ADR-0357): struct voe_render_frame_light, its
 // light, shadow record and the mask of the blockers holding its place. Three
 // scalars and not an array, which a uniform block would stride by sixteen.
@@ -90,12 +95,12 @@ struct voe_render_frame_block {
 	uint region;
 	uint blockers;
 	voe_render_frame_bounce bounce;
-	// How many of `more` the pass carries; nothing reads them yet.
+	// How many of `more` the pass carries; lighting.slangh lights by them.
 	uint more_count;
 	uint more_reserved0;
 	uint more_reserved1;
 	uint more_reserved2;
-	voe_render_frame_light more[3];
+	voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
 };
 
 [[vk::binding(0, 0)]]

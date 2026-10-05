@@ -1,7 +1,7 @@
 // The engine's two pipelines: a vertex out of the shared pool, placed by three matrices —
 // two of them the camera's, shared by every draw in a frame, and one of them the
-// object's, read out of a buffer by the object's own number — lit by one
-// directional light and the pass's point lights, and shaded by a record read
+// object's, read out of a buffer by the object's own number — lit by the pass's
+// directional lights and its point lights, and shaded by a record read
 // the same way.
 //
 // ONE FILE, TWO PIPELINES. The solid one and the blended one are built from this
@@ -481,14 +481,6 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 		n = voe_render_mapped_normal(surface, tilt, world_dx, world_dy,
 					     uv_dx, uv_dy);
 	float3 v =normalize(voe_render_frame.camera.eye - vertex.world);
-	// Towards the light, which is the opposite of the way the light travels.
-	float3 l = -sun.direction;
-	float3 h = normalize(l + v);
-
-	float n_dot_l = saturate(dot(n, l));
-	float n_dot_v = saturate(dot(n, v));
-	float n_dot_h = saturate(dot(n, h));
-	float v_dot_h = saturate(dot(v, h));
 
 	// A metal has no diffuse response and reflects its own colour; a
 	// non-metal reflects four per cent of white and keeps its colour in the
@@ -498,30 +490,22 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 			 metallic);
 	float3 diffuse_colour = base.rgb * (1.0 - metallic);
 
-	float3 fresnel = voe_render_fresnel(f0, v_dot_h);
-	float3 specular = fresnel * voe_render_distribution(n_dot_h, alpha) *
-			  voe_render_visibility(n_dot_l, n_dot_v, alpha);
-	// What the Fresnel term did not reflect is what the diffuse half is left
-	// to work with, which is the whole of what keeps this from adding energy
-	// the light did not have.
-	float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
-
 	// Which light blockers hold the surface (ADR-0347), placed by the
-	// geometric normal as the shadow lookup is; the sun's reach is nought
-	// where they stop it (ADR-0350 point 3), and the fill reads that.
+	// geometric normal as the shadow lookup is; each directional light's
+	// reach is nought where they stop it (ADR-0350 point 3), and its fill
+	// reads that.
 	uint mask = voe_render_surface_mask(vertex.world, surface);
-	float reach = voe_render_sun_passes(vertex.world, surface, mask) ?
-			      n_dot_l * voe_render_sunlight(vertex.world, surface) :
-			      0.0;
-	float3 radiance = voe_render_sun_radiance(reach);
-	// The point lights beside the sun (ADR-0320), the bounce with the fill
-	// as its floor, and emission last, unshadowed and unoccluded (ADR-0278).
-	float3 direct = (diffuse + specular) * radiance +
+	float3 fill;
+	// The directional lights, the point lights beside them (ADR-0320), the
+	// bounce with the fills as its floor, and emission last, unshadowed and
+	// unoccluded (ADR-0278).
+	float3 direct = voe_render_directionals(vertex.world, surface, n, v,
+						diffuse_colour, f0, alpha, mask,
+						fill) +
 			voe_render_points(vertex.world, surface, n, v,
 					  diffuse_colour, f0, alpha, mask);
 	float3 lit = direct * occlusion +
-		     voe_render_indirect(reach, vertex.world, n, base.rgb, mask,
-					 voe_render_fill_reaches(mask)) +
+		     voe_render_indirect(fill, vertex.world, n, base.rgb, mask) +
 		     shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);
