@@ -32,12 +32,13 @@
 // the room every project's world is registered with), one more for the
 // selection's outline, two for the gizmo's handles at rest and its marked one,
 // one for the camera's marker and the selection's collider, and two each for
-// the suns', point lights' and places' markers and the blockers' boxes, times the room
-// for views, and the drawn entities once more for the preview's pass, which
-// draws the world alone; and every caster once
-// per cascade of each of VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow
-// pass, capture pass and bounce shadow pass (each sun's relight map), per view
-// and for the preview (0325 point 7, 0326 points 3 and 8, 0357 points 3 and 4); and every emitter's particles, VOE_GAME_WORLD_EMITTERS
+// the suns', point lights' and places' markers and the blockers' boxes, times
+// the room for views, and the drawn entities once more for the preview's pass,
+// which draws the world alone; and every caster once per cascade of each of
+// VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow pass, capture pass and
+// bounce shadow pass (each sun's relight map), per view and for the preview
+// (0325 point 7, 0326 points 3 and 8, 0357 points 3 and 4); and every
+// emitter's particles, VOE_GAME_WORLD_EMITTERS
 // × VOE_3D_EMITTER_PARTICLES, and every water, VOE_GAME_WORLD_WATERS, an object
 // each in every view's pass and the preview's — neither casts a shadow, so they
 // add nothing per cascade (0298 point 8, 0305).
@@ -50,17 +51,8 @@
 // `targets` a target per view and the preview's, each with its own probe volume
 // (0326 point 2) and two texture slots, its colour and its depth copy (0305
 // point 1) — both from the room for views, not the two in use, so a third view
-// is a leaf and not a capacity. The three transient numbers hold, per view's
-// pass, the selection outline's quads (ADR-0203, 3d/outline.h); the gizmo's,
-// two ranges, the larger of the arrows' and the rings' (ADR-0205, 0274); one
-// range each for the camera marker (0223), the collider and the selected
-// blocker's box, the last two a collider marker each (0253, 0347 point 5); the
-// sun markers', VOE_EDITOR_SUN_MARKERS lights in two ranges, the rest and the
-// selected one (0360 point 2); the point light markers',
-// VOE_GAME_WORLD_POINT_LIGHTS lamps in two ranges likewise (0320 point 9); the
-// places', in two ranges, sized by VOE_GAME_WORLD_AUTHORED because the
-// editor's world holds only authored entities (0365); and the other blockers'
-// boxes, VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more.
+// is a leaf and not a capacity. The three transient numbers are explained
+// above VOE_EDITOR_CAPACITIES.
 #pragma once
 
 #include "dock.h"
@@ -118,7 +110,18 @@
 #define VOE_EDITOR_SUN_MARKERS 16
 
 // What the device is opened with; the reasoning is at the top of this file.
-#define VOE_EDITOR_CAPACITIES                                                 \
+// The three transient numbers hold, per view's pass, the selection outline's
+// quads (ADR-0203, 3d/outline.h); the gizmo's, two ranges, the larger of the
+// arrows' and the rings' (ADR-0205, 0274); one range each for the camera
+// marker (0223), the collider and the selected blocker's box, the last two a
+// collider marker each (0253, 0347 point 5); the sun markers',
+// VOE_EDITOR_SUN_MARKERS lights in two ranges, the rest and the selected one
+// (0360 point 2); the point light markers', VOE_GAME_WORLD_POINT_LIGHTS lamps
+// in two ranges likewise (0320 point 9); the places', in two ranges, sized by
+// VOE_GAME_WORLD_AUTHORED because the editor's world holds only authored
+// entities (0365); and the other blockers' boxes,
+// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more.
+#define VOE_EDITOR_CAPACITIES                                                \
 	(voe_render_capacities)                                               \
 	{                                                                     \
 		.vertices = VOE_3D_SHAPES_VERTICES + VOE_3D_MODELS_VERTICES,   \

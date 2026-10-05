@@ -50,7 +50,9 @@
 // views' and never resized, because the game window's aspect is not known to
 // the editor and the marker's frustum is drawn at the same 16:9. Nothing but
 // voe_editor_view_passes_preview draws into it, and only while the selected
-// entity has a camera; `preview_shown` is that frame's answer.
+// entity has a camera; `preview_shown` is that frame's answer. A view can be
+// opened on that camera too. The colours a view is drawn with are here, a light
+// blocker's faint one among them.
 #pragma once
 
 #include <base/error.h>

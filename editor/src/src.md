@@ -212,10 +212,8 @@ carries it out.
   and why names and only authored ones.
 - `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
   label.
-- `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the
-  right-button fly, the view a pointer is over and where in its picture, the colours a view is drawn
-  with, a blocker's faint one among them, the 480×270 preview of what the world's camera sees, and
-  the views opened on that camera.
+- `view.h` — a scene view: its orbit, target and input, the view under the pointer, the colours
+  it is drawn with, and the preview of what the world's camera sees.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
