@@ -291,14 +291,17 @@ struct voe_render_target {
 };
 
 // One frame slot's shadow map, shadow.c's: one D32 image of
-// VOE_RENDER_SHADOW_CASCADES layers, the memory under it, a view of every layer
-// for the shader to read, and a view of each layer for a shadow pass to draw into.
-// Rests in SHADER_READ_ONLY_OPTIMAL outside a shadow pass.
+// VOE_RENDER_SHADOW_CASCADES layers per light the device holds
+// (device->shadow_lights, ADR-0357), the memory under it, a view of every layer
+// for the shader to read, and a view of each layer for a shadow pass to draw into;
+// room for every light's, of which the first held × 4 are made. Rests in
+// SHADER_READ_ONLY_OPTIMAL outside a shadow pass.
 struct voe_render_shadow_map {
 	VkImage image;
 	VkDeviceMemory memory;
 	VkImageView array;
-	VkImageView layers[VOE_RENDER_SHADOW_CASCADES];
+	VkImageView layers[VOE_RENDER_SHADOW_CASCADES *
+			   VOE_RENDER_DIRECTIONAL_LIGHTS];
 };
 
 // One frame slot's point shadow maps, point_shadow.c's (ADR-0325): one D32 image

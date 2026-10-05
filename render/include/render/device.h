@@ -122,7 +122,7 @@ typedef struct voe_render_device voe_render_device;
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
 // costs shadow_size² × 4 bytes × cascades × frame slots — 2048 is 128 MiB over
-// two slots. Nought is no shadow pass at all; one texel stays for the binding.
+// two slots — times the lights voe_render_shadow_lights_ready grew it to. Nought is no shadow pass at all; one texel stays for the binding.
 //
 // point_shadow_size IS THE FIFTH THAT MAY BE NOUGHT: texels a side of one cube
 // face of a point light's shadow, VOE_RENDER_POINT_SHADOWS lights of six faces
@@ -150,6 +150,10 @@ typedef struct {
 // How many depth maps the sun renders into, near to far: the layers of one frame
 // slot's shadow image, and the range voe_render_shadow_pass_begin's cascade is in.
 #define VOE_RENDER_SHADOW_CASCADES 4
+
+// The most directional lights drawn, in table order (ADR-0357); light slot s of a
+// frame slot's shadow image is its layers 4s to 4s + 3.
+#define VOE_RENDER_DIRECTIONAL_LIGHTS 4
 
 // How many point lights cast a shadow at once, the slots 1 to 16 of a frame
 // slot's point shadow image: slot s's six faces, +X −X +Y −Y +Z −Z, are its
@@ -670,7 +674,9 @@ typedef struct {
 	float splits[VOE_RENDER_SHADOW_CASCADES];
 	float texels[VOE_RENDER_SHADOW_CASCADES];
 	uint32_t count;
-	uint32_t reserved0;
+	// Which light's four layers the record reads (ADR-0357); nought is the
+	// first, as every zeroed record is.
+	uint32_t slot;
 	uint32_t reserved1;
 	uint32_t reserved2;
 } voe_render_shadow;
@@ -1332,21 +1338,33 @@ typedef struct {
 					 voe_render_target target,
 					 const voe_render_pass_camera *camera);
 
-// Opens a shadow pass onto cascade `cascade` of this frame slot's shadow map: its
-// depth cleared to the far plane, no colour, the viewport the map's size with the
-// same one Y flip every pass has. `light` is the camera block's view — the sun's
-// view and projection — and the block's sun is zeroed. Mesh draws in it write
-// depth only; closed by voe_render_pass_end like any pass (ADR-0258).
+// Opens a shadow pass onto layer `layer` of this frame slot's shadow map, which
+// is slot × 4 + cascade (ADR-0357): its depth cleared to the far plane, no
+// colour, the viewport the map's size with the same one Y flip every pass has.
+// `light` is the camera block's view — the sun's view and projection — and the
+// block's sun is zeroed. Mesh draws in it write depth only; closed by
+// voe_render_pass_end like any pass (ADR-0258).
 //
 // IT IS A PASS AND COUNTS AGAINST `passes`, its draws against `objects`. False,
 // with a line, when the frame's passes are spent; nothing is open then.
 //
-// Calling this outside a frame, with a pass already open, with a cascade not below
-// VOE_RENDER_SHADOW_CASCADES, or on a device whose shadow_size is nought is the
-// caller's bug and asserts.
+// Calling this outside a frame, with a pass already open, with a layer not below
+// 4 × the lights voe_render_shadow_lights_ready holds, or on a device whose
+// shadow_size is nought is the caller's bug and asserts.
 [[nodiscard]] bool voe_render_shadow_pass_begin(voe_render_device *device,
-						uint32_t cascade,
+						uint32_t layer,
 						const voe_render_view *light);
+
+// How many lights' shadow maps every frame slot's array holds now, from 1 to
+// VOE_RENDER_DIRECTIONAL_LIGHTS; nought on a device whose shadow_size is nought
+// (ADR-0357). A `wanted` above that, capped at the most, asks for growth at the
+// top of the next frame.
+//
+// GROWING IS ONE GPU WAIT, LIKE A RESIZE, and the array never shrinks before the
+// device closes. A frame that wants more than is ready draws with what is ready:
+// a light without a slot of its own draws unshadowed that frame.
+[[nodiscard]] uint32_t voe_render_shadow_lights_ready(voe_render_device *device,
+						      uint32_t wanted);
 
 // Whether this device has point shadow maps to draw and read: false when
 // point_shadow_size was nought or the card has no shaderOutputLayer (ADR-0325).

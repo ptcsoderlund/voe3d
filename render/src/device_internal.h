@@ -230,6 +230,11 @@ struct voe_render_device {
 	// The comparison sampler every slot's shadow maps are read through at
 	// binding 5. shadow.c makes and destroys it.
 	VkSampler shadow_sampler;
+	// How many lights' maps every slot's shadow array holds, from 1, and how
+	// many voe_render_shadow_lights_ready last asked for; shadow.c grows the
+	// first to the second at the top of a frame and never shrinks it.
+	uint32_t shadow_lights;
+	uint32_t shadow_lights_wanted;
 	// The linear, repeating sampler the probe volumes' sums are read through
 	// at binding 6, repeat because a volume is addressed toroidally, and the
 	// linear, clamping one their moments are read through at binding 10
@@ -300,12 +305,12 @@ struct voe_render_device {
 	struct voe_render_target_slot *pass_target;
 	VkExtent2D pass_extent;
 
-	// Whether the open pass is a shadow pass, and onto which cascade: the
+	// Whether the open pass is a shadow pass, and onto which layer: the
 	// draws read the first to pick the shadow pipeline, and _pass_end both to
 	// hand that layer back to the shader. Meaningless while `pass_open` is
 	// false.
 	bool pass_shadow;
-	uint32_t pass_cascade;
+	uint32_t pass_layer;
 	// Whether the open pass is the point-shadow pass (ADR-0325): the draws read
 	// it to pick that pipeline and cull by face, _pass_end to hand the maps
 	// back. `pass_casters` is its lights by slot − 1, `pass_slots` bit s − 1

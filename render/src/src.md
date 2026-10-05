@@ -53,9 +53,9 @@ which file to open — what each one owns, and where the seams between them run.
   GENERAL that lets one texture slot show them, and a second slot for their depth copy.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
-- `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
-  views, the barriers either side of a shadow pass, and the comparison sampler they are read
-  through.
+- `shadow.c` — the directional lights' shadow maps: one D32 array image of four cascades per held
+  light per frame slot, its views, its growth to up to four lights at the top of a frame, the
+  barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `point_shadow.c` — the point lights' shadow maps: one D32 array image of 6 × 16 layers per frame
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.

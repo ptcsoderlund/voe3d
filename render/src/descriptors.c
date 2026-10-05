@@ -19,9 +19,10 @@
 //      once per record at startup
 //   4  the element records, one storage buffer per frame slot, written as the
 //      frame submits them
-//   5  the slot's shadow maps as one array, through shadow.c's comparison
-//      sampler, written once at startup. One per slot because each slot draws
-//      its own maps while the card may still be reading the other's
+//   5  the slot's shadow maps as one array of every held light's layers,
+//      through shadow.c's comparison sampler, written at startup and again by
+//      shadow.c when the array grows (ADR-0357). One per slot because each
+//      slot draws its own maps while the card may still be reading the other's
 //   6  the probe volumes' sums, four images each (the x, y and z axis
 //      images of six-axis irradiance, then the validity),
 //      (targets + 1) × 4 entries, the window's first; written as each volume

@@ -280,9 +280,11 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	}
 	// Beside the window's rebuild and for the same reason: the top of a
 	// frame is where nothing is recording, and it waits for the card only
-	// when a target's size has actually changed.
+	// when a target's size has actually changed, or the shadow array has
+	// been asked for more lights than it holds.
 	if (!voe_render_targets_apply_resizes(device) ||
-	    !voe_render_bounce_volumes_apply(device))
+	    !voe_render_bounce_volumes_apply(device) ||
+	    !voe_render_shadow_grow(device))
 		return false;
 	if (!device->headless && device->swapchain == VK_NULL_HANDLE)
 		return true;

@@ -130,13 +130,20 @@ void voe_render_targets_shutdown(voe_render_device *device);
 [[nodiscard]] bool voe_render_shadow_startup(voe_render_device *device);
 void voe_render_shadow_shutdown(voe_render_device *device);
 
+// shadow.c. When voe_render_shadow_lights_ready asked for more lights than every
+// slot's array holds: the device goes idle, each array is made again at that
+// count and settled, and binding 5 of every set names the new view. Does nothing,
+// and does not wait, otherwise. False with a message. Called by
+// voe_render_frame_begin beside voe_render_bounce_volumes_apply and nowhere else.
+[[nodiscard]] bool voe_render_shadow_grow(voe_render_device *device);
+
 // shadow.c. The barriers either side of a shadow pass onto one layer of
 // `frame`'s map: into the depth attachment layout before, back to where the
 // shader reads it after.
 void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
-				     uint32_t cascade);
+				     uint32_t layer);
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
-			       uint32_t cascade);
+			       uint32_t layer);
 
 // point_shadow.c. Every frame slot's point shadow maps, made and settled where the
 // shader reads them; one texel a side when device->point_shadow_size is nought.

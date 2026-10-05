@@ -12,7 +12,7 @@
 // them at _begin and clears the window at _end if no pass did.
 //
 // A SHADOW PASS (voe_render_shadow_pass_begin, ADR-0258) is a pass onto one
-// cascade of the slot's shadow map instead: depth only, always cleared, drawn
+// layer of the slot's shadow map instead: depth only, always cleared, drawn
 // through the shadow pipeline, and closed by the same _pass_end.
 //
 // A camera pass names its target's probe volume in its block only when this
@@ -495,6 +495,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	if (camera != NULL) {
 		block.camera = camera->view;
 		block.light = camera->light;
+		VOE_BASE_ASSERT(camera->shadow.slot < device->shadow_lights,
+				"a camera whose shadow slot is past the lights the shadow array holds; ask voe_render_shadow_lights_ready first");
 		block.shadow = camera->shadow;
 	}
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
@@ -553,7 +555,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 // THE VIEWPORT IS THE ENGINE'S ONE, flip and all. The light's projection is built
 // by the same rules a camera's is, and card 04 reads the map back through the
 // same flip, so drawing it unflipped would put every shadow upside down.
-bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
+bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t layer,
 				  const voe_render_view *light)
 {
 	struct voe_render_frame *frame;
@@ -580,8 +582,8 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 			"opening a shadow pass with no frame open");
 	VOE_BASE_ASSERT(!device->pass_open,
 			"opening a shadow pass while a pass is already open — passes do not nest");
-	VOE_BASE_ASSERT(cascade < VOE_RENDER_SHADOW_CASCADES,
-			"opening a shadow pass onto a cascade the map does not have");
+	VOE_BASE_ASSERT(layer < VOE_RENDER_SHADOW_CASCADES * device->shadow_lights,
+			"opening a shadow pass onto a layer the map does not have; ask voe_render_shadow_lights_ready first");
 	VOE_BASE_ASSERT(device->capacities.shadow_size > 0,
 			"opening a shadow pass on a device made with shadow_size nought");
 
@@ -601,12 +603,12 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	depth.imageView = frame->shadow.layers[cascade];
+	depth.imageView = frame->shadow.layers[layer];
 	rendering.renderArea.extent = extent;
 	scissor.extent = extent;
 	viewport = voe_render_frame_viewport(extent);
 
-	voe_render_shadow_to_attachment(frame, cascade);
+	voe_render_shadow_to_attachment(frame, layer);
 	voe_render_vk.cmd_begin_rendering(frame->commands, &rendering);
 	voe_render_vk.cmd_set_viewport(frame->commands, 0, 1, &viewport);
 	voe_render_vk.cmd_set_scissor(frame->commands, 0, 1, &scissor);
@@ -616,7 +618,7 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t cascade,
 	voe_render_pass_start(device, frame, &block, device->pipeline_shadow);
 	device->pass_camera = true;
 	device->pass_shadow = true;
-	device->pass_cascade = cascade;
+	device->pass_layer = layer;
 	return true;
 }
 
@@ -634,7 +636,7 @@ void voe_render_pass_end(voe_render_device *device)
 	frame = voe_render_frame_at(device, device->slot);
 	voe_render_vk.cmd_end_rendering(frame->commands);
 	if (device->pass_shadow)
-		voe_render_shadow_to_read(frame, device->pass_cascade);
+		voe_render_shadow_to_read(frame, device->pass_layer);
 	if (device->pass_point_shadow)
 		voe_render_point_shadow_to_read(frame);
 	if (device->pass_capture)
