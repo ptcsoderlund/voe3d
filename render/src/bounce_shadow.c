@@ -43,6 +43,8 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
+
 #define TEXELS VOE_RENDER_BOUNCE_SHADOW_TEXELS
 #define SUNS VOE_RENDER_DIRECTIONAL_LIGHTS
 
@@ -77,10 +79,11 @@ static bool build_view(voe_render_device *device, VkImage image,
 
 // One slot's map: the image of every sun's layer in device-local memory, its
 // array view and a view per layer. False with a line; what was made is left for
-// the shutdown to free.
+// the shutdown to free. Each is named for frame slot `slot`.
 static bool build_map(voe_render_device *device,
-		      struct voe_render_bounce_shadow *shadow)
+		      struct voe_render_bounce_shadow *shadow, uint32_t slot)
 {
+	char name[64];
 	const VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
@@ -110,6 +113,9 @@ static bool build_map(voe_render_device *device,
 		map->image = VK_NULL_HANDLE;
 		return false;
 	}
+	snprintf(name, sizeof name, "bounce sun map slot %u", slot);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)map->image, name);
 	voe_render_vk.get_image_memory_requirements(device->device, map->image,
 						    &requirements);
 	allocate.allocationSize = requirements.size;
@@ -141,10 +147,17 @@ static bool build_map(voe_render_device *device,
 	if (!build_view(device, map->image, VK_IMAGE_VIEW_TYPE_2D_ARRAY, 0, SUNS,
 			&map->view))
 		return false;
-	for (uint32_t i = 0; i < SUNS; i++)
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)map->view, name);
+	for (uint32_t i = 0; i < SUNS; i++) {
 		if (!build_view(device, map->image, VK_IMAGE_VIEW_TYPE_2D, i, 1,
 				&shadow->layers[i]))
 			return false;
+		snprintf(name, sizeof name, "bounce sun map slot %u layer %u",
+			 slot, i);
+		voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+				      (uint64_t)shadow->layers[i], name);
+	}
 	return true;
 }
 
@@ -159,7 +172,7 @@ bool voe_render_bounce_shadow_startup(voe_render_device *device)
 		struct voe_render_bounce_shadow *shadow =
 			&device->frames[i].bounce_shadow;
 
-		if (!build_map(device, shadow))
+		if (!build_map(device, shadow, i))
 			return false;
 		settles[i] = voe_render_target_settle_copy(shadow->map.image);
 		settles[i].subresourceRange.layerCount = SUNS;
@@ -330,7 +343,8 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 	record_open(frame, layer);
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ TEXELS, TEXELS };
-	voe_render_pass_start(device, frame, &block, device->pipeline_shadow);
+	voe_render_pass_start(device, frame, &block, device->pipeline_shadow,
+			      "bounce sun shadow");
 	device->pass_camera = true;
 	device->pass_shadow = false;
 	device->pass_bounce_shadow = true;

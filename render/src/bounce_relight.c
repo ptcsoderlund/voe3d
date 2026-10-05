@@ -12,7 +12,8 @@
 // into this slot's list and settled, one workgroup each; then for level k 1 to
 // 3, for each chain n ≥ k holding a light (each sun and each lamp at its own
 // bounces), relight over every probe, a barrier between levels; then sum; then
-// the volume marked relit. The first barrier orders it after the capture copy,
+// the volume marked relit, all of it timed as the pass `bounce relight`
+// (pass_timing.c). The first barrier orders it after the capture copy,
 // this frame's shadow passes and the last frame's reads; the last before this
 // frame's fragment reads of the sum, validity and moments.
 //
@@ -205,17 +206,25 @@ static bool create_pipelines(voe_render_device *device)
 		VOE_BASE_ERROR("render", "vkCreateComputePipelines failed for the bounce relight");
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipelines[0], "relight settle pipeline");
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipelines[1], "relight levels pipeline");
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipelines[2], "relight sum pipeline");
 	return true;
 }
 
 // One slot's mapped buffer of `size` bytes and `usage`.
 static bool build_mapped(voe_render_device *device,
 			 struct voe_render_buffer *buffer, VkDeviceSize size,
-			 VkBufferUsageFlags usage, void **mapped)
+			 VkBufferUsageFlags usage, void **mapped,
+			 const char *name)
 {
 	if (!voe_render_buffer_build(device, buffer, size, usage,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     name))
 		return false;
 	if (voe_render_vk.map_memory(device->device, buffer->memory, 0,
 				     VK_WHOLE_SIZE, 0, mapped) != VK_SUCCESS) {
@@ -293,12 +302,14 @@ static bool create_sets_and_buffers(voe_render_device *device)
 			}
 		if (!build_mapped(device, &device->relight_lists[s], lists,
 				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-				  &device->relight_mapped[s]) ||
+				  &device->relight_mapped[s],
+				  "bounce relight lists") ||
 		    !build_mapped(device, &device->relight_records[s],
 				  volume_count(device) *
 					  device->relight_record_stride,
 				  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				  &device->relight_records_mapped[s]))
+				  &device->relight_records_mapped[s],
+				  "bounce relight records"))
 			return false;
 	}
 	return true;
@@ -721,6 +732,9 @@ void voe_render_bounce_relight(voe_render_device *device)
 	count = list_changed(&volume->probes,
 			     (uint32_t *)device->relight_mapped[device->slot] +
 				     (size_t)index * VOE_RENDER_BOUNCE_PROBES_TOTAL);
+	voe_render_pass_timing_open(device, voe_render_frame_open(device),
+				    "bounce relight");
 	record_relight(device, volume, index, count, &lights);
+	voe_render_pass_timing_close(device, voe_render_frame_open(device));
 	voe_render_bounce_probes_relit(&volume->probes, &lights);
 }

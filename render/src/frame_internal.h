@@ -27,11 +27,12 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 
 // pass.c. What every pass does once its rendering block is open: `block` into
 // the pass's block of the slot's uniform buffer, `pipeline` and the set and the
-// static pools bound, the pass counted and open, of no special kind.
+// static pools bound, the pass counted and open, of no special kind, and timed
+// and labelled as `name` (ADR-0367 point 1) until voe_render_pass_end.
 void voe_render_pass_start(voe_render_device *device,
-			   const struct voe_render_frame *frame,
+			   struct voe_render_frame *frame,
 			   const struct voe_render_frame_block *block,
-			   VkPipeline pipeline);
+			   VkPipeline pipeline, const char *name);
 
 // pass.c. `count` point lights into pass `region`'s records from index `first`.
 void voe_render_pass_copy_lights(const struct voe_render_frame *frame,

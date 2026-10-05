@@ -35,6 +35,8 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
+
 #define LAYERS (6 * VOE_RENDER_POINT_SHADOWS)
 
 // The image and the memory under it, device-local: drawn and sampled by the
@@ -133,16 +135,31 @@ static VkImageView build_view(voe_render_device *device, VkImage image)
 	return out;
 }
 
+// The image and both views, named for frame slot `slot`.
 static bool build_map(voe_render_device *device,
-		      struct voe_render_point_shadow_map *map, uint32_t side)
+		      struct voe_render_point_shadow_map *map, uint32_t side,
+		      uint32_t slot)
 {
+	char name[64];
+
 	if (!build_image(device, map, side))
 		return false;
+	snprintf(name, sizeof name, "point shadow map slot %u", slot);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)map->image, name);
 	map->sampled = build_view(device, map->image);
 	if (map->sampled == VK_NULL_HANDLE)
 		return false;
+	snprintf(name, sizeof name, "point shadow map slot %u sampled", slot);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)map->sampled, name);
 	map->attachment = build_view(device, map->image);
-	return map->attachment != VK_NULL_HANDLE;
+	if (map->attachment == VK_NULL_HANDLE)
+		return false;
+	snprintf(name, sizeof name, "point shadow map slot %u attachment", slot);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)map->attachment, name);
+	return true;
 }
 
 // Every layer of one slot's image out of UNDEFINED into where the shader reads it.
@@ -178,7 +195,7 @@ bool voe_render_point_shadow_startup(voe_render_device *device)
 
 	side = device->point_shadow_size > 0 ? device->point_shadow_size : 1;
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
-		if (!build_map(device, &device->frames[i].point_shadow, side))
+		if (!build_map(device, &device->frames[i].point_shadow, side, i))
 			return false;
 		barriers[i] = settle_barrier(device->frames[i].point_shadow.image);
 	}
@@ -349,7 +366,7 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 	device->pass_target = NULL;
 	device->pass_extent = extent;
 	voe_render_pass_start(device, frame, &block,
-			      device->pipeline_point_shadow);
+			      device->pipeline_point_shadow, "point shadows");
 	device->pass_camera = true;
 	device->pass_shadow = false;
 	device->pass_point_shadow = true;

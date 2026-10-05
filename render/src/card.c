@@ -20,6 +20,9 @@
 // on. The rate is the present mode, not hertz: the device opens on FIFO
 // (ADR-0131) and nothing in the engine knows the display's refresh.
 //
+// THE CHOSEN CARD'S VENDOR ID IS KEPT ON THE DEVICE, for best_practices.c to
+// drop another vendor's Best Practices messages by (ADR-0367 point 4).
+//
 // THE CHOSEN CARD IS REFUSED, NOT PASSED OVER, when its descriptor limits are
 // below the texture array (0278): startup fails with one line naming the limit.
 #include "startup.h"
@@ -289,6 +292,7 @@ bool voe_render_card_choose(voe_render_device *device, voe_base_arena *arena)
 		return false;
 
 	device->physical = cards[chosen];
+	device->vendor_id = properties[chosen].vendorID;
 	device->queue_family = graphics_family(device, cards[chosen], arena,
 					       !device->headless);
 	say_choice(device, properties, count, chosen, fastest);

@@ -364,7 +364,8 @@ static float relit(struct scene *s, uint16_t *halves)
 		s->device, &readback, READBACK_BYTES,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (readback.buffer == VK_NULL_HANDLE)
 		return -1.0f;
 	read_sum(s->device, &readback);

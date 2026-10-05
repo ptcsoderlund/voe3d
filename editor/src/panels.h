@@ -1,7 +1,8 @@
 // The editor's panels as the person left them: started from the default dock
 // tree with settings.h's file read over it, and remembered back into that file
 // when a drag of a border ends (resize.h says when) or a dock panel's × or
-// the toggle below opens or closes it.
+// the toggle below opens or closes it. The toggle also shows or hides Project,
+// Errors and the frame breakdown, which no file remembers.
 //
 //     voe_editor_panels_start(&roots[0], &bar);          // once, before the loop
 //     if (!voe_editor_panels_remember(&roots[0], &bar))   // a drag ended
@@ -19,6 +20,7 @@
 #pragma once
 
 #include "dock.h"
+#include "frame_breakdown.h"
 #include "preferences.h"
 #include "project_panel.h"
 #include "session.h"
@@ -44,17 +46,20 @@ void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 // shown is hidden, else voe_editor_session_errors_show reads the build log
 // and Project and Preferences hide (0363 point 4). Neither of the two writes
 // the settings file, so both answer true. A failed build still shows Errors
-// through the session whether or not it was closed here (0351).
+// through the session whether or not it was closed here (0351). FRAME:
+// `breakdown` shown or hidden, no other panel touched, true.
 [[nodiscard]] bool voe_editor_panels_toggle(voe_editor_closable which,
 					    voe_editor_dock_root *root,
 					    const voe_editor_topbar *bar,
 					    voe_editor_project_panel *project,
 					    voe_editor_preferences *preferences,
-					    voe_editor_session *session);
+					    voe_editor_session *session,
+					    voe_editor_frame_breakdown *breakdown);
 
 // Whether `which` is open: a dock panel not closed on `root`, the Project
-// panel or Errors showing. The Panels menu's tick.
+// panel, Errors or the frame breakdown showing. The Panels menu's tick.
 bool voe_editor_panels_open(voe_editor_closable which,
 			    const voe_editor_dock_root *root,
 			    const voe_editor_project_panel *project,
-			    const voe_editor_session *session);
+			    const voe_editor_session *session,
+			    const voe_editor_frame_breakdown *breakdown);

@@ -26,18 +26,23 @@ which file to open — what each one owns, and where the seams between them run.
   pipeline, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
-- `instance.c` — the Vulkan instance, its extensions, and the validation layer and messenger in a
-  debug build that has them.
-- `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
-  that says which and why.
+- `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
+  debug build the validation layer with Best Practices and vendor checks, its messenger, or the
+  checks recorded missing.
+- `best_practices.c` — the Best Practices allowlist, which vendor a message is for, the classifier
+  that counts new messages, and the start line saying the checks are on or missing.
+- `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
+  capture tool; each does nothing without debug-utils.
+- `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
+  and the `render` line that says which and why.
 - `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
   mesh pipelines, solid, blended, shadow, point shadow and capture, then the relight, a step a call.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
   reads agree, by size and member offset; no code.
-- `buffer.c` — a buffer with the memory under it, and the staging upload that
-  fills a device-local one at an offset. Its header says why every later upload
-  is this.
+- `buffer.c` — a named buffer with the memory under it, and the staging upload
+  that fills a device-local one at an offset. Its header says why every later
+  upload is this.
 - `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
   pair in every frame slot, and the ranges into all of them, each with its bounding sphere and its
   vertex box, which `voe_render_geometry_box` hands back.
@@ -95,11 +100,13 @@ which file to open — what each one owns, and where the seams between them run.
   the fallback to fifo happens.
 - `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, draw.c, present.c, point_shadow.c,
   bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
-- `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
-  rebuild on resize, end, submit and present.
+- `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured and
+  its passes through `pass_timing.c`, rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
-  first-clears-later-load rule, and the one Y flip.
+  first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
+- `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
+  slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.

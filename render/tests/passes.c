@@ -537,7 +537,8 @@ int main(void)
 		scene.device, &scene.readback, IMAGE_BYTES,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (scene.readback.buffer == VK_NULL_HANDLE) {
 		voe_render_device_destroy(scene.device);
 		voe_base_arena_destroy(arena);

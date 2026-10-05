@@ -26,7 +26,7 @@ const char *voe_editor_closable_name(voe_editor_closable which)
 {
 	static const char *const names[VOE_EDITOR_CLOSABLE_COUNT] = {
 		"Scene list", "Assets", "Inspector",
-		"Bottom view", "Project", "Errors"
+		"Bottom view", "Project", "Errors", "Frame breakdown"
 	};
 
 	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,

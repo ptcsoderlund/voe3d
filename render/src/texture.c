@@ -35,6 +35,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
 #include <string.h>
 
 // RGBA8 in the order assets hands it over, in one of two formats.
@@ -148,6 +149,10 @@ static bool build_texture_image(voe_render_device *device,
 	};
 	uint32_t type;
 	VkResult result;
+	char name[32];
+
+	snprintf(name, sizeof name, "texture %u",
+		 (uint32_t)(slot - device->textures));
 
 	// Kept because it is the one thing about a slot that cannot be read back
 	// off the image, and because it is what a reader of this file wants to
@@ -163,6 +168,8 @@ static bool build_texture_image(voe_render_device *device,
 		slot->image = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)slot->image, name);
 
 	voe_render_vk.get_image_memory_requirements(device->device, slot->image,
 						    &requirements);
@@ -205,6 +212,8 @@ static bool build_texture_image(voe_render_device *device,
 		slot->view = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)slot->view, name);
 
 	return true;
 }
@@ -398,7 +407,8 @@ bool voe_render_texture_create(voe_render_device *device,
 	if (!voe_render_buffer_build(device, &staging, size,
 				     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     "texture staging"))
 		goto refused;
 
 	{
@@ -627,7 +637,8 @@ bool voe_render_texture_startup(voe_render_device *device)
 			    device, &staging, sizeof(WHITE),
 			    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-				    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+				    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			    "white texture staging"))
 			return false;
 
 		result = voe_render_vk.map_memory(device->device,

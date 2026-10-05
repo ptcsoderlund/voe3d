@@ -692,7 +692,8 @@ int main(void)
 		scene.device, &scene.readback, IMAGE_BYTES,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (scene.readback.buffer != VK_NULL_HANDLE)
 		VOE_TEST_CHECK_INT(voe_render_vk.map_memory(scene.device->device,
 							    scene.readback.memory,

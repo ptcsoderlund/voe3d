@@ -478,6 +478,22 @@ struct voe_render_device {
 	// VOE_RENDER_FRAMES_IN_FLIGHT back and not the last one.
 	double gpu_seconds;
 	bool gpu_measured;
+	// The same frame's passes, read beside it: voe_render_timed_passes
+	// entries calloc'd at open, the first `pass_time_count` of them filled.
+	voe_render_pass_time *pass_times;
+	uint32_t pass_time_count;
+
+	// ---- the Best Practices checks (ADR-0367 points 4 to 7).
+
+	// Whether instance.c turned them on, or found a debug build without the
+	// layer (never both; a release build is neither), and whether the four
+	// vendor sets came with them. The chosen card's PCI vendor id, card.c's.
+	// How many messages best_practices.c counted as new.
+	bool checks_on;
+	bool checks_missing;
+	bool vendor_checks;
+	uint32_t vendor_id;
+	uint32_t new_messages;
 };
 
 #include "device_calls.h"

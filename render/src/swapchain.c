@@ -28,6 +28,8 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
+
 // Which Vulkan mode a voe_render_present is, and the fallback that makes the
 // public enum honest. FIFO is required of every driver, so it is always
 // available and is what everything falls back to; MAILBOX is optional and
@@ -140,6 +142,7 @@ static bool collect_images(voe_render_device *device)
 	}
 
 	for (uint32_t i = 0; i < count; i++) {
+		char name[32];
 		VkImageViewCreateInfo view = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			.image = images[i],
@@ -153,12 +156,17 @@ static bool collect_images(voe_render_device *device)
 		};
 
 		device->images[i].image = images[i];
+		snprintf(name, sizeof name, "swapchain image %u", i);
+		voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+				      (uint64_t)images[i], name);
 		if (voe_render_vk.create_image_view(device->device, &view, NULL,
 						    &device->images[i].view) !=
 		    VK_SUCCESS) {
 			VOE_BASE_ERROR("render", "vkCreateImageView failed");
 			return false;
 		}
+		voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+				      (uint64_t)device->images[i].view, name);
 		if (voe_render_vk.create_semaphore(device->device, &semaphore,
 						   NULL,
 						   &device->images[i].drawn) !=

@@ -243,14 +243,16 @@ static bool build_layout(voe_render_device *device)
 [[nodiscard]] static void *build_mapped(voe_render_device *device,
 					struct voe_render_buffer *buffer,
 					VkDeviceSize size,
-					VkBufferUsageFlags usage)
+					VkBufferUsageFlags usage,
+					const char *name)
 {
 	void *mapped;
 	VkResult result;
 
 	if (!voe_render_buffer_build(device, buffer, size, usage,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     name))
 		return NULL;
 
 	result = voe_render_vk.map_memory(device->device, buffer->memory, 0,
@@ -435,32 +437,32 @@ static bool build_slots(voe_render_device *device)
 			device, &frame->uniforms,
 			(VkDeviceSize)device->capacities.passes *
 				device->pass_stride,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, "slot uniforms");
 		if (frame->uniforms_mapped == NULL)
 			return false;
 		frame->objects_mapped = build_mapped(
 			device, &frame->objects, objects.range,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot objects");
 		if (frame->objects_mapped == NULL)
 			return false;
 		frame->elements_mapped = build_mapped(
 			device, &frame->elements, elements.range,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot elements");
 		if (frame->elements_mapped == NULL)
 			return false;
 		frame->point_lights_mapped = build_mapped(
 			device, &frame->point_lights, lights.range,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot point lights");
 		if (frame->point_lights_mapped == NULL)
 			return false;
 		frame->light_bins_mapped = build_mapped(
 			device, &frame->light_bins, bins.range,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot light bins");
 		if (frame->light_bins_mapped == NULL)
 			return false;
 		frame->light_blockers_mapped = build_mapped(
 			device, &frame->light_blockers, blockers.range,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot light blockers");
 		if (frame->light_blockers_mapped == NULL)
 			return false;
 

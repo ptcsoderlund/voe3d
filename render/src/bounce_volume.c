@@ -33,6 +33,7 @@
 #include <base/report.h>
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 // Atlas texels: a probe is six faces across and one face down.
@@ -100,9 +101,11 @@ static bool build_image(voe_render_device *device,
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 	};
 	VkResult result;
+	char name[64];
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL && out != NULL,
 			      "building a volume image with no device or nowhere");
+	snprintf(name, sizeof name, "bounce volume %s", what);
 	result = voe_render_vk.create_image(device->device, &info, NULL,
 					    &out->image);
 	if (result != VK_SUCCESS) {
@@ -112,6 +115,8 @@ static bool build_image(voe_render_device *device,
 		out->image = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)out->image, name);
 	voe_render_vk.get_image_memory_requirements(device->device, out->image,
 						    &requirements);
 	allocate.allocationSize = requirements.size;
@@ -147,6 +152,8 @@ static bool build_image(voe_render_device *device,
 		out->view = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)out->view, name);
 	return true;
 }
 
@@ -170,6 +177,8 @@ static void list_images(struct voe_render_bounce_volume *volume,
 static bool build_listed(voe_render_device *device,
 			 struct voe_render_allocated_image *image, uint32_t i)
 {
+	char grid[48];
+
 	switch (i) {
 	case 0:
 		return build_image(device, image, ATLAS,
@@ -190,9 +199,10 @@ static bool build_listed(voe_render_device *device,
 		return build_image(device, image, VALIDITY, VK_FORMAT_R16_SFLOAT,
 				   0, 0, "validity");
 	default:
+		snprintf(grid, sizeof grid, "six-axis irradiance grid %u axis %u",
+			 (i - 4) / 3, (i - 4) % 3);
 		return build_image(device, image, GRID,
-				   VK_FORMAT_R16G16B16A16_SFLOAT, 0, 0,
-				   "six-axis irradiance grid");
+				   VK_FORMAT_R16G16B16A16_SFLOAT, 0, 0, grid);
 	}
 }
 

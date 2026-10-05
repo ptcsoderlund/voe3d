@@ -18,6 +18,10 @@
 // A SETTLED FRAME. One more frame of begin, a capture pass that does not open,
 // and relight records no dispatch.
 //
+// THE BREAKDOWN. Read VOE_RENDER_FRAMES_IN_FLIGHT frames after one that
+// relit, it holds `bounce relight`; after the settled frame, it does not. A card
+// that writes no timestamps skips this with a line.
+//
 // A card without shaderOutputLayer settles nothing: relight is called and said.
 // A machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -251,7 +255,8 @@ static void check_settled(voe_render_device *device)
 	VOE_TEST_CHECK(voe_render_buffer_build(
 		device, &readback, READBACK_BYTES, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (readback.buffer == VK_NULL_HANDLE)
 		return;
 	read_volume(device, &readback);
@@ -282,12 +287,25 @@ static void check_settled(voe_render_device *device)
 	voe_render_buffer_teardown(device, &readback);
 }
 
+// Whether the newest breakdown names the relight.
+static bool breakdown_relit(const voe_render_device *device)
+{
+	voe_render_pass_time times[8];
+	const uint32_t count = voe_render_frame_pass_times(device, times, 8);
+
+	for (uint32_t i = 0; i < count; i++)
+		if (strcmp(times[i].name, "bounce relight") == 0)
+			return true;
+	return false;
+}
+
 static void settle(voe_render_device *device)
 {
 	voe_base_error error = VOE_BASE_OK;
 	voe_render_geometry cube;
 	voe_render_shading grey;
 	uint32_t frames = 0;
+	uint32_t passes;
 	uint32_t before;
 
 	VOE_TEST_CHECK(voe_render_shading_create(device, GREY, &grey, &error));
@@ -298,7 +316,16 @@ static void settle(voe_render_device *device)
 	VOE_TEST_CHECK(device->window_volume.wanted);
 	for (; frames < FRAMES_MAX; frames++) {
 		before = device->relight_dispatches;
-		if (one_frame(device, cube, grey) == 0)
+		passes = one_frame(device, cube, grey);
+		// This frame's begin read the frame VOE_RENDER_FRAMES_IN_FLIGHT
+		// back, a capturing one once this loop has run that many.
+		if (frames == VOE_RENDER_FRAMES_IN_FLIGHT) {
+			if (device->timestamps)
+				VOE_TEST_CHECK(breakdown_relit(device));
+			else
+				printf("note: no timestamps, so no breakdown to read\n");
+		}
+		if (passes == 0)
 			break;
 		VOE_TEST_CHECK(device->relight_dispatches > before);
 	}
@@ -309,6 +336,11 @@ static void settle(voe_render_device *device)
 	before = device->relight_dispatches;
 	VOE_TEST_CHECK_INT(one_frame(device, cube, grey), 0);
 	VOE_TEST_CHECK_INT(device->relight_dispatches, before);
+	// The settled frame's breakdown, read that many settled frames on.
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		VOE_TEST_CHECK_INT(one_frame(device, cube, grey), 0);
+	VOE_TEST_CHECK_INT(device->relight_dispatches, before);
+	VOE_TEST_CHECK(!breakdown_relit(device));
 }
 
 static void nothing_without_output_layer(voe_render_device *device)

@@ -51,7 +51,8 @@ bool voe_render_shading_startup(voe_render_device *device)
 			    sizeof(voe_render_shading_values),
 		    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 		    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+			    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		    "shading records"))
 		return false;
 
 	if (voe_render_vk.map_memory(device->device, device->shadings.memory, 0,

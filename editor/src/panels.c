@@ -2,7 +2,8 @@
 // open filled into a voe_editor_settings, the file read over them and set back
 // into the tree and `root->closed`, and the same fields written back through
 // settings.h; a toggle flips one dock flag and remembers at once, or shows or
-// hides Project or Errors, and the open test reads the same state.
+// hides Project, Errors or the frame breakdown, and the open test reads the
+// same state.
 #include "panels.h"
 
 #include "settings.h"
@@ -75,16 +76,23 @@ bool voe_editor_panels_toggle(voe_editor_closable which,
 			      const voe_editor_topbar *bar,
 			      voe_editor_project_panel *project,
 			      voe_editor_preferences *preferences,
-			      voe_editor_session *session)
+			      voe_editor_session *session,
+			      voe_editor_frame_breakdown *breakdown)
 {
 	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
 			"toggling a panel that is not closable");
 	VOE_BASE_ASSERT(root != NULL, "toggling a panel of no root");
 	VOE_BASE_ASSERT(project != NULL && preferences != NULL &&
-				session != NULL,
-			"toggling with no project panel, preferences or session");
+				session != NULL && breakdown != NULL,
+			"toggling with no project panel, preferences, session or breakdown");
 
 	switch (which) {
+	case VOE_EDITOR_CLOSABLE_FRAME:
+		if (breakdown->showing)
+			voe_editor_frame_breakdown_hide(breakdown);
+		else
+			voe_editor_frame_breakdown_show(breakdown);
+		return true;
 	case VOE_EDITOR_CLOSABLE_PROJECT:
 		if (project->showing) {
 			voe_editor_project_panel_hide(project);
@@ -112,13 +120,17 @@ bool voe_editor_panels_toggle(voe_editor_closable which,
 bool voe_editor_panels_open(voe_editor_closable which,
 			    const voe_editor_dock_root *root,
 			    const voe_editor_project_panel *project,
-			    const voe_editor_session *session)
+			    const voe_editor_session *session,
+			    const voe_editor_frame_breakdown *breakdown)
 {
 	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
 			"asking after a panel that is not closable");
-	VOE_BASE_ASSERT(root != NULL && project != NULL && session != NULL,
-			"asking after a panel with no root, project panel or session");
+	VOE_BASE_ASSERT(root != NULL && project != NULL && session != NULL &&
+				breakdown != NULL,
+			"asking after a panel with no root, project panel, session or breakdown");
 
+	if (which == VOE_EDITOR_CLOSABLE_FRAME)
+		return breakdown->showing;
 	if (which == VOE_EDITOR_CLOSABLE_PROJECT)
 		return project->showing;
 	if (which == VOE_EDITOR_CLOSABLE_ERRORS)

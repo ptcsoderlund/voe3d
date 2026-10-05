@@ -52,6 +52,7 @@
 #include <base/report.h>
 
 #include <stddef.h>
+#include <stdio.h>
 
 // ------------------------------------------------------------------- pipeline
 
@@ -327,6 +328,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.pDynamicState = &dynamic,
 		.layout = device->layout,
 	};
+	const char *what = point_shadow ? "point shadow" :
+			   capture	? "capture" :
+			   shadow	? "shadow" :
+			   blended	? "blended" :
+					  "solid";
+	char name[32];
 	VkResult result;
 
 	VOE_BASE_DEBUG_ASSERT(device->layout != VK_NULL_HANDLE,
@@ -368,13 +375,13 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	if (result != VK_SUCCESS) {
 		VOE_BASE_ERROR("render",
 			       "vkCreateGraphicsPipelines failed on the %s pipeline (VkResult %d)",
-			       point_shadow ? "point shadow" :
-			       capture ? "capture" :
-			       shadow ? "shadow" : blended ? "blended" : "solid",
-			       (int)result);
+			       what, (int)result);
 		*out = VK_NULL_HANDLE;
 		return false;
 	}
+	snprintf(name, sizeof name, "%s pipeline", what);
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE, (uint64_t)*out,
+			      name);
 	return true;
 }
 

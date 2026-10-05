@@ -254,6 +254,9 @@ bool voe_render_element_startup(voe_render_device *device)
 		device->pipeline_elements = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)device->pipeline_elements,
+			      "element pipeline");
 	return true;
 }
 

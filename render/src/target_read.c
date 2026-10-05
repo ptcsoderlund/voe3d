@@ -234,7 +234,8 @@ bool voe_render_target_read(voe_render_device *device, voe_render_target target,
 	if (!voe_render_buffer_build(device, &staging, bytes,
 				     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     "target read staging"))
 		goto refused;
 
 	if (!copy_out(device, colour->image, layout, transition, extent,

@@ -954,6 +954,9 @@ voe_render_device_new_headless(voe_base_arena *arena, voe_platform_size size,
 			       voe_render_capacities capacities,
 			       voe_base_error *error);
 
+// Closes the device. IN A DEBUG BUILD IT IS THE BEST PRACTICES GATE (ADR-0367):
+// a device that counted a validation error, or a warning not on render's
+// allowlist, prints the count here and asserts, so any test that drew one fails.
 void voe_render_device_destroy(voe_render_device *device);
 
 // What voe_render_device_prepare answers.
@@ -1464,7 +1467,8 @@ typedef struct {
 // records nothing at all and only the read runs (ADR-0317 point 4); on a volume
 // not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
 // shadowed by this begin's bounce shadow map when one was drawn, lit outside its
-// box, and unshadowed when none was; never by the cascades (ADR-0329).
+// box, and unshadowed when none was; never by the cascades (ADR-0329). A relight
+// that records appears in voe_render_frame_pass_times as `bounce relight`.
 //
 // Outside a frame, with a pass open, or with no bounce begin this frame it
 // asserts.
@@ -1891,6 +1895,31 @@ voe_render_element_surface_size(voe_platform_size target,
 // presentation engine does with the result afterwards, is outside them.
 [[nodiscard]] bool voe_render_frame_gpu_time(const voe_render_device *device,
 					     double *seconds);
+
+// The longest pass name, in bytes with the NUL.
+#define VOE_RENDER_PASS_NAME 32
+
+// One timed pass: its name and how long the card spent on it, in seconds.
+typedef struct {
+	char name[VOE_RENDER_PASS_NAME];
+	double seconds;
+} voe_render_pass_time;
+
+// The passes of the newest measured frame, in the order they ran, into `times`:
+// at most `capacity` of them, and how many were written. Nought when no frame
+// has been measured or the card cannot write timestamps.
+//
+// IT IS THE SAME FRAME AS voe_render_frame_gpu_time's, WITH THE SAME LAG:
+// VOE_RENDER_FRAMES_IN_FLIGHT frames back. A pass that frame did not run is
+// absent, not listed at nought. The names are render's, from the pass's kind
+// (ADR-0367 point 1): `view window`, `view target N`, `interface window`,
+// `interface target N`, `shadow light L cascade C`, `point shadows`,
+// `bounce capture N`, `bounce sun shadow`, `bounce relight`; the same name labels
+// the pass in a capture tool. Each pass is timed from when everything before it
+// has finished to when it has, so their sum is not above the frame's GPU time.
+[[nodiscard]] uint32_t voe_render_frame_pass_times(const voe_render_device *device,
+						   voe_render_pass_time *times,
+						   uint32_t capacity);
 
 // ----------------------------------------------------------------- present
 

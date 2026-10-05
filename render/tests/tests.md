@@ -5,9 +5,8 @@ and registered nowhere. A reader is here to find which file already makes a clai
 again. A test marked *headless* runs on the headless device — no window, no compositor — and checks
 by reading the offscreen colour image back.
 
-- `card.c` — which graphics card is taken, on made-up facts with no card: the discrete over the
-  integrated wherever listed, the next one down when the fastest cannot present, a software
-  rasteriser alone, the larger memory, and a card without 1.3 or a drawing queue never.
+- `card.c` — which graphics card is taken, and which vendor-tagged Best Practices message ids it
+  drops, on made-up facts with no card.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
 - `pools.c` — two meshes and two ranges, a full pool as a returned failure, and ids that stop naming
   anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose range
@@ -42,6 +41,12 @@ by reading the offscreen colour image back.
 - `water.c` — water over a depth copy: clear at the shore and darkened in the deep, waves that move
   with seconds and wrap at 60, the sun's glint at the mirror angle, a shadow on it, and `water` 0
   drawing as an ordinary blended surface. Headless.
+- `pass_times.c` — the frame breakdown: a shadow pass on cascade 0 then a window pass listed by
+  name in that order, each above nought and their sum not above the frame's GPU time, a frame with
+  no shadow pass listing the window alone, and a capacity of 1 writing one. Headless.
+- `best_practices.c` — the Best Practices gate: in a debug build the checks on, and a frame of a
+  shadow pass and a camera pass with a depth copy and an element closing with no new message; a
+  release build says so and passes. Headless.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
   calls, a pass with no camera drawing an element before any, and a camera pass preparing it all.
   Headless.
@@ -72,7 +77,8 @@ by reading the offscreen colour image back.
   and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
   spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
 - `bounce_settle.c` — captured probes settling: beside a cube, validity 1 and a moments mean to its
-  face; inside it, validity 0; a settled frame dispatching nothing. Headless.
+  face; inside it, validity 0; a settled frame dispatching nothing; `bounce relight` in the
+  breakdown of a relit frame and not of the settled one. Headless.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's

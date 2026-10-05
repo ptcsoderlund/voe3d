@@ -449,7 +449,8 @@ static bool build_lookup(struct scene *scene)
 		scene->device, &scene->readback, IMAGE_BYTES * CASES,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	return scene->copy_image_to_buffer != NULL &&
 	       scene->readback.buffer != VK_NULL_HANDLE;
 }

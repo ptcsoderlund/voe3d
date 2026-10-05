@@ -165,6 +165,8 @@ VkPipeline voe_render_probe_pipeline_new(voe_render_device *device)
 			       (int)result);
 		return VK_NULL_HANDLE;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_PIPELINE,
+			      (uint64_t)pipeline, "matrix probe pipeline");
 	return pipeline;
 }
 

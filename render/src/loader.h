@@ -70,10 +70,16 @@ typedef struct {
 	PFN_vkGetPhysicalDeviceSurfaceFormatsKHR get_surface_formats;
 	PFN_vkGetPhysicalDeviceSurfacePresentModesKHR get_surface_present_modes;
 
-	// Both NULL unless the debug-utils extension was there to enable. Every
-	// use of them is guarded on that, and nothing fails when they are absent.
+	// VK_EXT_debug_utils', all five NULL when the instance did not offer it.
+	// The extension is enabled whenever offered, in every build; the
+	// messenger pair is only called beside the validation layer, which is
+	// debug-only. The other three are debug_names.c's, which does nothing
+	// when its entry is NULL. Nothing fails when any of them is absent.
 	PFN_vkCreateDebugUtilsMessengerEXT create_debug_messenger;
 	PFN_vkDestroyDebugUtilsMessengerEXT destroy_debug_messenger;
+	PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name;
+	PFN_vkCmdBeginDebugUtilsLabelEXT cmd_begin_debug_utils_label;
+	PFN_vkCmdEndDebugUtilsLabelEXT cmd_end_debug_utils_label;
 
 	// Resolved from the device, which is where a driver can hand out the
 	// direct entry point rather than one that has to dispatch.

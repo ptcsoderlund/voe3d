@@ -1,5 +1,5 @@
-// The interface's content: a heading, two buttons and three number boxes on a
-// semitransparent panel. See the header for why it is one draw command and why that is the
+// The interface's content: a heading, three buttons and three number boxes on a
+// semitransparent panel, and the frame breakdown when its Frame button shows it. See the header for why it is one draw command and why that is the
 // point of it.
 //
 // THE TWO BUTTONS DO DIFFERENT THINGS ON PURPOSE. One counts and shows its
@@ -148,7 +148,7 @@ voe_ui_context *voe_dev_interface_new(voe_base_arena *arena,
 }
 
 bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
-			    voe_base_arena *arena, voe_platform_size target,
+			    voe_dev_breakdown *breakdown, voe_base_arena *arena, voe_platform_size target,
 			    voe_platform_pointer pointer, bool down, bool fine,
 			    uint32_t *elements)
 {
@@ -184,6 +184,7 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	voe_math_float2 millimetres;
 	struct voe_base_arena_mark mark;
 	voe_ui_node count_button;
+	voe_ui_node frame_button;
 	voe_ui_node alpha_number;
 	voe_ui_node text_number;
 	voe_ui_node gap_number;
@@ -193,6 +194,7 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 	VOE_BASE_ASSERT(gpu != NULL, "drawing the interface on no device");
 	VOE_BASE_ASSERT(ui != NULL, "drawing no interface");
+	VOE_BASE_ASSERT(breakdown != NULL, "drawing an interface with no breakdown");
 
 	if (target.height == 0 || target.width == 0)
 		return true;
@@ -254,6 +256,11 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	voe_ui_label(ui, "Or this one");
 	voe_ui_end(ui);
 
+	// Toggles the frame breakdown, read after the frame ends.
+	frame_button = voe_ui_button_begin(ui, "frame", 0);
+	voe_ui_label(ui, "Frame");
+	voe_ui_end(ui);
+
 	voe_ui_end(ui);
 
 	// THE THREE NUMBER BOXES. Each is handed the value this file is holding
@@ -284,6 +291,9 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	voe_ui_end(ui);
 
 	voe_ui_end(ui);
+	// In the root, anchored to its top right, painted over what is there.
+	if (breakdown->shown)
+		voe_dev_breakdown_draw(ui, breakdown);
 	voe_ui_end(ui);
 
 	if (!voe_ui_frame_end(ui)) {
@@ -297,6 +307,8 @@ bool voe_dev_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	// second apart.
 	if (voe_ui_button_action(ui, count_button).fired)
 		clicks++;
+	if (voe_ui_button_action(ui, frame_button).fired)
+		voe_dev_breakdown_toggle(breakdown);
 
 	// EACH VALUE IS WRITTEN BACK WHOLE AND NEVER ACCUMULATED HERE. What
 	// comes out of a number box is the value it was handed plus this

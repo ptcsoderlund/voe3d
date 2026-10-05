@@ -52,11 +52,14 @@
 // the program as a closed window does. New and Open's load draws one such
 // frame, "Loading scene...", before it (0356). The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
-// to `<settings>/voe3d/start.log`, stderr only under --capture.
+// to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
+// lives in one arena made first; the built-in shapes are uploaded once after
+// render prepares, and the frame breakdown's timings are taken each frame.
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
 #include "dock.h"
+#include "frame_breakdown.h"
 #include "frame_commands.h"
 #include "gizmo.h"
 #include "inspector_edit.h"
@@ -206,6 +209,9 @@ int main(int argc, char *argv[])
 	voe_editor_preferences preferences = { 0 };
 	// Shown by the bar's Project, hidden the same ways (project_panel.h).
 	voe_editor_project_panel project_panel = { 0 };
+	// Shown from the Panels list, hidden by it or its ×; never shown in a
+	// capture, so its take there copies nothing (frame_breakdown.h).
+	voe_editor_frame_breakdown breakdown = { 0 };
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -704,7 +710,7 @@ int main(int argc, char *argv[])
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &drag, &views, &session, &bar, &browser,
 				&preferences, &project_panel, &themes,
-				commands.escape_free);
+				&breakdown, commands.escape_free);
 			// The acts that wait for the draw (frame_commands.h).
 			voe_editor_frame_commands_after_draw(&commands);
 			voe_render_pass_end(gpu);
@@ -721,6 +727,9 @@ int main(int argc, char *argv[])
 			status = 1;
 			break;
 		}
+		// Once a frame, after it ends, with the frame's seconds.
+		voe_editor_frame_breakdown_take(&breakdown, gpu,
+						(float)opened.tick.step);
 		if (!start_logged) {
 			voe_app_start_log_step(&start, "first frame");
 			voe_base_arena_clear(scratch);

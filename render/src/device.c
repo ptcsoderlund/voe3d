@@ -1,5 +1,6 @@
-// Starting the GPU: the loader, the instance, the surface, the graphics card, the
-// logical device, the pipeline layout and the element pipeline, in that order,
+// Starting the GPU: the loader, the instance, the surface, the graphics card and
+// the Best Practices line (best_practices.c), the logical device, the pipeline
+// layout and the element pipeline, in that order,
 // because each one is what the next is asked for. Everything here happens once.
 // open_device below is the one place that order is written; the steps that grew
 // too long for this file are beside it, declared in startup.h: the instance and
@@ -431,7 +432,7 @@ static bool create_frame_objects(voe_render_device *device)
 	VkQueryPoolCreateInfo queries = {
 		.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
 		.queryType = VK_QUERY_TYPE_TIMESTAMP,
-		.queryCount = VOE_RENDER_TIMESTAMPS_PER_FRAME,
+		.queryCount = voe_render_timestamps_per_frame(device),
 	};
 
 	if (voe_render_vk.create_command_pool(device->device, &pool, NULL,
@@ -451,8 +452,20 @@ static bool create_frame_objects(voe_render_device *device)
 		return false;
 	}
 
+	// The breakdown last read, and each slot's room for its passes' names
+	// below (ADR-0367 point 2), whether or not the card can time.
+	device->pass_times = calloc(voe_render_timed_passes(device),
+				    sizeof(*device->pass_times));
+	VOE_BASE_ASSERT(device->pass_times != NULL,
+			"out of memory making room for the pass times");
+
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		device->frames[i].commands = buffers[i];
+		device->frames[i].pass_names =
+			calloc(voe_render_timed_passes(device),
+			       sizeof(*device->frames[i].pass_names));
+		VOE_BASE_ASSERT(device->frames[i].pass_names != NULL,
+				"out of memory making room for a frame's pass names");
 
 		if (voe_render_vk.create_semaphore(device->device, &semaphore,
 						   NULL,
@@ -573,6 +586,10 @@ static void close_down(voe_render_device *device)
 		voe_render_vk.destroy_device(device->device, NULL);
 	}
 
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		free(device->frames[i].pass_names);
+	free(device->pass_times);
+
 	if (device->surface != VK_NULL_HANDLE)
 		voe_render_vk.destroy_surface(device->instance, device->surface,
 					      NULL);
@@ -581,7 +598,11 @@ static void close_down(voe_render_device *device)
 						      device->messenger, NULL);
 	if (device->instance != VK_NULL_HANDLE)
 		voe_render_vk.destroy_instance(device->instance, NULL);
+}
 
+// After close_down, which leaves the record for the caller to read.
+static void release(voe_render_device *device)
+{
 	free(device);
 	voe_render_loader_close();
 }
@@ -591,6 +612,7 @@ static voe_render_device *open_failed(voe_render_device *device,
 {
 	report(error, code);
 	close_down(device);
+	release(device);
 	return NULL;
 }
 
@@ -642,6 +664,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// differently, which is why it is a category of its own.
 	if (!voe_render_card_choose(device, arena))
 		return open_failed(device, error, VOE_BASE_ERROR_UNSUPPORTED);
+	// Once the vendor is known, on both paths (ADR-0367 point 7).
+	voe_render_best_practices_announce(device);
 
 	if (!create_device(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
@@ -733,9 +757,25 @@ voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
 	return open_device(arena, native, size, capacities, error, true);
 }
 
+// THE BEST PRACTICES GATE IS HERE (ADR-0367 point 6). Every test in every folder
+// that opens a device closes it, so a new message anywhere fails that test,
+// without a check per folder; and a person's debug session is not aborted at
+// the message, only told the count when the device goes. The count is read
+// after close_down, so a message the teardown itself raised is counted too.
 void voe_render_device_destroy(voe_render_device *device)
 {
+	uint32_t new_messages;
+
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a NULL device");
 
 	close_down(device);
+	new_messages = device->new_messages;
+	release(device);
+
+	if (new_messages > 0)
+		VOE_BASE_ERROR("render",
+			       "%u new validation messages this device: fix each, or add it to the allowlist by a decision (render/src/best_practices.c)",
+			       new_messages);
+	VOE_BASE_DEBUG_ASSERT(new_messages == 0,
+			      "a validation error or a Best Practices warning not on the allowlist was raised; see the lines above");
 }

@@ -113,12 +113,14 @@ struct voe_render_frame *voe_render_frame_open(voe_render_device *device)
 // writing them. Reading them any sooner means waiting for the GPU, and a program
 // that waits for the GPU in order to time the GPU is timing something else. See
 // voe_render_frame_gpu_time.
+//
+// THE PASSES ARE READ HERE TOO, out of the same pool and after the same fence
+// (pass_timing.c), so the breakdown describes the frame this time does; a pair
+// that will not read keeps both the previous time and the previous breakdown.
 static void read_gpu_time(voe_render_device *device,
 			  const struct voe_render_frame *frame)
 {
-	uint64_t stamps[VOE_RENDER_TIMESTAMPS_PER_FRAME];
-	uint64_t mask = UINT64_MAX;
-	uint64_t ticks;
+	uint64_t stamps[VOE_RENDER_FRAME_TIMESTAMPS];
 
 	if (!device->timestamps || !frame->timed)
 		return;
@@ -129,29 +131,17 @@ static void read_gpu_time(voe_render_device *device,
 	// rather than to invent one.
 	if (voe_render_vk.get_query_pool_results(device->device,
 						 frame->timestamps, 0,
-						 VOE_RENDER_TIMESTAMPS_PER_FRAME,
+						 VOE_RENDER_FRAME_TIMESTAMPS,
 						 sizeof(stamps), stamps,
 						 sizeof(stamps[0]),
 						 VK_QUERY_RESULT_64_BIT) !=
 	    VK_SUCCESS)
 		return;
 
-	if (device->timestamp_valid_bits < 64)
-		mask = ((uint64_t)1 << device->timestamp_valid_bits) - 1;
-
-	stamps[0] &= mask;
-	stamps[1] &= mask;
-
-	if (stamps[1] >= stamps[0])
-		ticks = stamps[1] - stamps[0];
-	else
-		ticks = (mask - stamps[0]) + stamps[1] + 1;
-
-	// The period is nanoseconds per tick, and the engine's unit is the
-	// second.
-	device->gpu_seconds = (double)ticks *
-			      (double)device->timestamp_period / 1e9;
+	device->gpu_seconds =
+		voe_render_timestamp_seconds(device, stamps[0], stamps[1]);
 	device->gpu_measured = true;
+	voe_render_pass_timing_read(device, frame);
 }
 
 // Where the two lifetimes meet: this waits on the slot's acquire semaphore,
@@ -356,10 +346,14 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	// writes, because a query pool is created and left in an undefined state
 	// rather than an empty one and a query written twice without a reset
 	// between is undefined. Here is the only place both are true.
+	// The whole pool, the passes' pairs with the frame's, and none of them
+	// timed yet: last lap's were read above.
+	frame->pass_timed = 0;
+	frame->pass_timing = false;
 	if (device->timestamps) {
 		voe_render_vk.cmd_reset_query_pool(frame->commands,
 						   frame->timestamps, 0,
-						   VOE_RENDER_TIMESTAMPS_PER_FRAME);
+						   voe_render_timestamps_per_frame(device));
 		// TOP_OF_PIPE, which for a timestamp means as soon as this
 		// command is reached in submission order — the earliest point in
 		// this frame's work that the card can name.

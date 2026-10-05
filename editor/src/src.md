@@ -4,9 +4,8 @@
 and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
-- `main.c` — opens a project, the window and the device, makes the arena, font, themes and
-  interface, shows the starting line on the splash while render prepares, uploads the shapes, opens
-  the views, runs the loop until a close goes ahead or the picture is written, and logs the start.
+- `main.c` — opens the project, window and device, and runs the loop until a close goes ahead or
+  the picture is written, taking the frame breakdown's timings each frame.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
@@ -131,6 +130,11 @@ carries it out.
   cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of its × afterwards.
+- `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds and the total,
+  copied from render's lagging timings four times a second, under a title row with its ×, anchored
+  at a point.
+- `frame_breakdown.c` — the quarter-second copy keeping the last on no measurement, the panel's one
+  frame of `ui` calls, and the read of its × afterwards.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock,
   its own arena, a start beside a given folder with its row chosen, in SAVE mode a name row with a
   focused `ui` field and Make folder, and in IMPORT mode `.glb` files a press imports.
@@ -172,12 +176,12 @@ carries it out.
   double-click timed on the caller's clock.
 - `panels.h` — the editor's panels as the person left them: the default tree started with the
   settings file read over it, the sizes remembered back into it when a drag ends, the toggle that
-  opens or closes a dock panel, Project or Errors, and whether one is open.
+  opens or closes a dock panel, Project, Errors or the frame breakdown, and whether one is open.
 - `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
   written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
-  Project or the colour picker over it, and one draw command per root.
+  Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
   commands they fire are carried out, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct

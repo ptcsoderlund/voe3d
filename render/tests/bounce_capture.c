@@ -285,7 +285,8 @@ static void check_picture(voe_render_device *device)
 	VOE_TEST_CHECK(voe_render_buffer_build(
 		device, &readback, STRIP_BYTES, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (readback.buffer == VK_NULL_HANDLE)
 		return;
 	read_strip(device, &readback);

@@ -135,7 +135,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_editor_browser *browser,
 			       voe_editor_preferences *preferences,
 			       voe_editor_project_panel *project_panel,
-			       voe_editor_themes *themes, bool escape)
+			       voe_editor_themes *themes,
+			       voe_editor_frame_breakdown *breakdown, bool escape)
 {
 	struct voe_base_arena_mark mark;
 	bool ok = true;
@@ -155,6 +156,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(project_panel != NULL,
 			"drawing an interface with no project panel");
 	VOE_BASE_ASSERT(themes != NULL, "drawing an interface with no themes");
+	VOE_BASE_ASSERT(breakdown != NULL,
+			"drawing an interface with no frame breakdown");
 
 	// Once a frame, before any root is built, so every root's bar reads
 	// the same label (interface.h).
@@ -192,6 +195,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The Project panel, in the same place, under all three.
 		bool projecting = project_panel->showing && !browsing &&
 				  !erroring && !preferring;
+		// The frame breakdown, under all four, the dock still live.
+		bool framing = breakdown->showing && !browsing && !erroring &&
+			       !preferring && !projecting;
 		// The Panels list, closed by Escape or the browser showing.
 		bool menuing;
 		// The picker, when it shows, and what it edits: the target as
@@ -298,6 +304,14 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					       voe_editor_topbar_high(
 						       bar, root->size.y),
 					       below_bar.size);
+		// At the left under the bar, over the Scene list.
+		if (framing)
+			voe_editor_frame_breakdown_draw(
+				ui, breakdown,
+				(voe_math_float2){
+					PICKER_GAP,
+					voe_editor_topbar_high(bar, root->size.y) +
+						PICKER_GAP });
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
 		// carries the anchor, the picker being a panel of its own.
@@ -328,7 +342,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
 				open[c] = voe_editor_panels_open(
 					(voe_editor_closable)c, root,
-					project_panel, session);
+					project_panel, session, breakdown);
 			voe_editor_panels_menu_draw(ui, &bar->menu,
 						    bar->panels_under, open);
 		}
@@ -422,7 +436,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_base_report_error_clear();
 			if (!voe_editor_panels_toggle(fired, root, bar,
 						      project_panel, preferences,
-						      session))
+						      session, breakdown))
 				voe_editor_notice_from_report(&session->notice,
 							      "editor_settings");
 		}
@@ -484,6 +498,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (erroring &&
 		    voe_editor_errors_clicks_read(ui, &session->errors))
 			voe_editor_errors_hide(&session->errors);
+
+		// THE FRAME BREAKDOWN, WHEN IT WAS DRAWN: its × hides it.
+		if (framing &&
+		    voe_editor_frame_breakdown_clicks_read(ui, breakdown))
+			voe_editor_frame_breakdown_hide(breakdown);
 
 		// PREFERENCES, WHEN IT WAS DRAWN. A theme chosen here is set on
 		// the context after this frame's records were built, so it

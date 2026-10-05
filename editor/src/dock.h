@@ -134,8 +134,8 @@ typedef struct {
 } voe_editor_dock_tree;
 
 // The panels a person can close, in the Panels menu's order (0351, 0363). The
-// first VOE_EDITOR_CLOSABLE_DOCKED are dock leaves; Project and Errors are
-// panels over the dock and are not.
+// first VOE_EDITOR_CLOSABLE_DOCKED are dock leaves; Project, Errors and the
+// Frame breakdown are panels over the dock and are not.
 typedef enum {
 	VOE_EDITOR_CLOSABLE_SCENE_LIST,
 	VOE_EDITOR_CLOSABLE_ASSETS,
@@ -143,13 +143,14 @@ typedef enum {
 	VOE_EDITOR_CLOSABLE_BOTTOM_VIEW,
 	VOE_EDITOR_CLOSABLE_PROJECT,
 	VOE_EDITOR_CLOSABLE_ERRORS,
+	VOE_EDITOR_CLOSABLE_FRAME,
 	VOE_EDITOR_CLOSABLE_COUNT
 } voe_editor_closable;
 
 #define VOE_EDITOR_CLOSABLE_DOCKED 4
 
 // The name a closable panel is shown by: "Scene list", "Assets", "Inspector",
-// "Bottom view", "Project", "Errors".
+// "Bottom view", "Project", "Errors", "Frame breakdown".
 const char *voe_editor_closable_name(voe_editor_closable which);
 
 // The closable `leaf` is, or VOE_EDITOR_CLOSABLE_COUNT for the top view (a

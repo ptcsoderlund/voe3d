@@ -54,6 +54,7 @@
 #include <base/report.h>
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 // The colour behind everything drawn. It is deliberately none of the colours a
@@ -257,15 +258,19 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 // Every static mesh is a range inside them, which is what makes one bind serve
 // all of those; a transient range makes draw_with (draw.c) bind the other pair,
 // and `bound_transient` is what keeps that to one bind per run.
+//
+// THE PASS IS TIMED AND LABELLED HERE (pass_timing.c), its first stamp written
+// before anything it binds, and closed by voe_render_pass_end.
 void voe_render_pass_start(voe_render_device *device,
-			   const struct voe_render_frame *frame,
+			   struct voe_render_frame *frame,
 			   const struct voe_render_frame_block *block,
-			   VkPipeline pipeline)
+			   VkPipeline pipeline, const char *name)
 {
 	const uint32_t offset = device->pass_count * (uint32_t)device->pass_stride;
 
 	VOE_BASE_DEBUG_ASSERT(frame->uniforms_mapped != NULL,
 			      "opening a pass whose uniform buffer is not mapped");
+	voe_render_pass_timing_open(device, frame, name);
 	memcpy((unsigned char *)frame->uniforms_mapped + offset, block,
 	       sizeof(*block));
 
@@ -524,6 +529,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	struct voe_render_frame *frame;
 	struct voe_render_frame_block block = { 0 };
 	struct voe_render_target_slot *own = NULL;
+	char name[VOE_RENDER_PASS_NAME];
 
 	VOE_BASE_ASSERT(device != NULL, "opening a pass on no device");
 	VOE_BASE_ASSERT(device->recording,
@@ -595,13 +601,24 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	}
 	device->pass_target = own;
 
+	// The name from the kind (ADR-0367 point 1): a camera pass is a view, one
+	// with none an interface, onto the window or target N.
+	if (own == NULL)
+		(void)snprintf(name, sizeof(name), "%s window",
+			       camera != NULL ? "view" : "interface");
+	else
+		(void)snprintf(name, sizeof(name), "%s target %u",
+			       camera != NULL ? "view" : "interface",
+			       target.index);
+
 	// The solid pipeline, because a pass's opaque and cutout draws come
 	// first; a blended draw binds the other one and `bound` is what keeps a
 	// run of either kind to a single bind. A pass with no camera draws only
 	// elements, on a device that may not have the solid one yet.
 	voe_render_pass_start(device, frame, &block,
 			      camera != NULL ? device->pipeline :
-					       device->pipeline_elements);
+					       device->pipeline_elements,
+			      name);
 	device->pass_camera = camera != NULL;
 	device->pass_shadow = false;
 	return true;
@@ -638,6 +655,7 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t layer,
 	};
 	VkViewport viewport;
 	VkRect2D scissor = { 0 };
+	char name[VOE_RENDER_PASS_NAME];
 
 	VOE_BASE_ASSERT(device != NULL, "opening a shadow pass on no device");
 	VOE_BASE_ASSERT(light != NULL, "opening a shadow pass with no light view");
@@ -678,7 +696,11 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t layer,
 
 	device->pass_target = NULL;
 	device->pass_extent = extent;
-	voe_render_pass_start(device, frame, &block, device->pipeline_shadow);
+	(void)snprintf(name, sizeof(name), "shadow light %u cascade %u",
+		       layer / VOE_RENDER_SHADOW_CASCADES,
+		       layer % VOE_RENDER_SHADOW_CASCADES);
+	voe_render_pass_start(device, frame, &block, device->pipeline_shadow,
+			      name);
 	device->pass_camera = true;
 	device->pass_shadow = true;
 	device->pass_layer = layer;
@@ -706,6 +728,8 @@ void voe_render_pass_end(voe_render_device *device)
 		voe_render_bounce_capture_end(device);
 	if (device->pass_bounce_shadow)
 		voe_render_bounce_shadow_end(device);
+	// After the hand-backs, so a pass's time holds its whole cost.
+	voe_render_pass_timing_close(device, frame);
 	device->pass_open = false;
 	device->pass_camera = false;
 	device->pass_shadow = false;
