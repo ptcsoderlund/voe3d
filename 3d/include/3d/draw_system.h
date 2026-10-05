@@ -502,18 +502,22 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // and the lights after the first as `more`.
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 
-// The sun's shadow passes for `frame`, opened between the frame's begin and the
-// view's pass (ADR-0258). With the directional light shaded and of some
-// strength, the frame not blind, and the world's light row, the one
-// voe_3d_draw_system_light reads, casting (`cast_shadows`, 0324), it fits
-// the four cascades to `frame->view`, `frame->eye` and the light's direction at
-// VOE_3D_SHADOW_TEXELS, sets `frame->shadow`, and opens one shadow pass per
-// cascade that draws every caster at the frame's lag; otherwise it leaves
-// `shadow` zeroed and opens none of the sun's passes: a world with no light row casts nothing,
-// so neither does the editor's preview light. A caller that never calls it draws as
-// before, with no shadow. False when a pass or a draw is refused, with render's
-// line on stderr; `shadow` is zeroed then, so the view draws unshadowed. Called
-// with a pass open, it asserts.
+// The directional lights' shadow passes for `frame`, opened between the frame's
+// begin and the view's pass (ADR-0258, 0357 point 3). Each casting light of the
+// frame, `light` and each of `more_lights` — shaded and of some strength, the
+// frame not blind, and its light row casting (`cast_shadows`, 0324) — casts:
+// in table order each takes a slot, up to what voe_render_shadow_lights_ready
+// holds, fits four cascades to `frame->view`, `frame->eye` and its direction at
+// VOE_3D_SHADOW_TEXELS, opens one shadow pass per cascade at layer
+// slot × 4 + cascade that draws every caster at the frame's lag, and sets its
+// record (`shadow`, or the entry's) with that slot. A light that does not cast,
+// or past what is ready, keeps a zeroed record and draws unshadowed; the
+// device's array grows the first frame it is short, so the next frame has its
+// slot. A world with no light row casts nothing, so neither does the editor's
+// preview light. A caller that never calls it draws as before, with no shadow.
+// False when a pass or a draw is refused, with render's line on stderr; every
+// record is zeroed then, so the view draws unshadowed. Called with a pass
+// open, it asserts.
 //
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
 // frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
@@ -521,8 +525,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // material the part's. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
 // model row with `fade` at or above 1, and a fading one casts as ever (0336). The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
-// passes and 4 × the drawn objects more per view: every caster is drawn once
-// into each cascade.
+// passes and 4 × the drawn objects more per casting light per view: every
+// caster is drawn once into each of its cascades.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun cast: when
 // voe_render_point_shadows_ready and a light in `frame->points` has a slot, it

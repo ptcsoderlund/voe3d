@@ -48,6 +48,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
+- `shadow_lights.c` — that a sun and a moon each cast their own shadow on the floor from the second
+  frame, a sun that does not cast leaves only the moon's, and one casting light fits one light's
+  passes without growing the array. Skips without a graphics card.
 - `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
   that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
   marks, and the still casters' box from two eyes and a turned one. Skips without a card.

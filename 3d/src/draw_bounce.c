@@ -350,7 +350,7 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		if (!drawn)
 			return false;
 	}
-	if (voe_3d_draw_light_casts(world) &&
+	if (voe_3d_draw_light_casts(world, 0) &&
 	    !draw_sun_map(world, device, frame, grid))
 		return false;
 	voe_render_bounce_relight(device);

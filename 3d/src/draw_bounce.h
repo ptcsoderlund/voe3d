@@ -40,9 +40,9 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame);
 
-// Whether the world's light row casts (0324 point 4); no row never does.
-// draw_shadows.c.
-bool voe_3d_draw_light_casts(const voe_ecs_world *world);
+// Whether light row `light`, in table order, casts (0324 point 4); false past
+// the count. draw_shadows.c.
+bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light);
 
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and
 // w the larger of VOE_3D_BOUNCE_REACH and 3 × `spacing`, the grid's, two for
