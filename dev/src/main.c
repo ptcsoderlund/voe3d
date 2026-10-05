@@ -2,7 +2,8 @@
 // do: a window holding a world of cubes, a model read out of a `.glb` file,
 // see-through quads, a dozen sprites off a sheet built in code, writing, element
 // panels, a plate and ticks mapped onto the window, an interface with a heading,
-// two buttons and three number boxes answering the mouse, a screen off to the
+// three buttons and three number boxes answering the mouse, the frame breakdown
+// its Frame button shows, a screen off to the
 // left showing a second camera's view, one sun going round it all, and a camera
 // that either orbits or is flown. There is one of these and it always shows the current state, so
 // what is here now is deleted rather than kept behind a flag when the next thing
@@ -634,7 +635,8 @@ int main(void)
 			// which is what submission order means on this path.
 			elements_ok = voe_dev_interface_draw(
 					      program.gpu, program.interface,
-					      program.arena, now_size,
+					      &program.breakdown, program.arena,
+					      now_size,
 					      voe_platform_input_pointer(
 						      program.window),
 					      voe_platform_input_button_down(
@@ -750,6 +752,9 @@ int main(void)
 			voe_base_samples_add(&program.timing.gpu, gpu_seconds);
 			program.timing.gpu_timed = true;
 		}
+		// And the frame breakdown's copy of the same frame, by pass.
+		voe_dev_breakdown_take(&program.breakdown, program.gpu,
+				       (float)opened.tick.elapsed);
 
 		// The mode is asked for every period rather than remembered,
 		// because a rebuild is what puts a requested mode in force and

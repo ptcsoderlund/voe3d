@@ -18,6 +18,7 @@
 // the same three destroys a close takes.
 #pragma once
 
+#include "breakdown.h"
 #include "monitor.h"
 #include "readout.h"
 #include "sprites.h"
@@ -88,6 +89,9 @@ struct voe_dev_program {
 	// is destroyed before the device closes; the context is the arena's.
 	voe_text_font *font;
 	voe_ui_context *interface;
+	// The frame breakdown the interface's Frame button toggles; zeroed is
+	// hidden.
+	voe_dev_breakdown breakdown;
 	// How big the heads-up line came out, which is what the transforms
 	// placing it and the panel behind it are worked out from.
 	voe_math_float2 hud_size;

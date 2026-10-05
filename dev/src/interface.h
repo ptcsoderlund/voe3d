@@ -1,4 +1,4 @@
-// The first real interface: a semitransparent panel with a heading, two buttons
+// The first real interface: a semitransparent panel with a heading, three buttons
 // and three number boxes on it, laid out by `ui`, hit tested against the mouse,
 // and drawn in ONE draw command however many letters are on it.
 //
@@ -33,6 +33,8 @@
 // the exhibit that writes element records by hand.
 #pragma once
 
+#include "breakdown.h"
+
 #include <base/arena.h>
 #include <platform/input.h>
 #include <platform/window.h>
@@ -48,9 +50,11 @@
 // panel and a button now draw (ADR-0171) is a second element record on the
 // same node, never a new node, so it moves VOE_DEV_INTERFACE_ELEMENTS by three
 // — one for the panel, one for each of the two buttons — and leaves
-// VOE_DEV_INTERFACE_NODES untouched.
-#define VOE_DEV_INTERFACE_NODES 48
-#define VOE_DEV_INTERFACE_ELEMENTS 131
+// VOE_DEV_INTERFACE_NODES untouched. The Frame button adds two nodes (the
+// button and its label) and seven records (border, fill, five letters), and
+// the frame breakdown its stated 197 nodes and 2971 records (src/breakdown.h).
+#define VOE_DEV_INTERFACE_NODES (48 + 2 + 197)
+#define VOE_DEV_INTERFACE_ELEMENTS (131 + 7 + 2971)
 
 // Makes the context the interface is built in, once. It lives in `arena` and is
 // freed with it; the font must outlive it.
@@ -73,12 +77,16 @@ voe_ui_context *voe_dev_interface_new(voe_base_arena *arena,
 // `elements` comes back with how many records the interface emitted, for the
 // console line that says what one draw command was worth.
 //
+// `breakdown` is drawn at the surface's right when shown, and the panel's Frame
+// button toggles it.
+//
 // False when the frame was refused — more nodes or more records than the two
 // numbers above — or when a submit or the draw was refused. All of those are
 // this program's numbers being wrong and are worth stopping over; whichever it
 // was has already said so on stderr.
 [[nodiscard]] bool voe_dev_interface_draw(voe_render_device *gpu,
 					  voe_ui_context *ui,
+					  voe_dev_breakdown *breakdown,
 					  voe_base_arena *arena,
 					  voe_platform_size target,
 					  voe_platform_pointer pointer,

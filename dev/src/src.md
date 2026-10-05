@@ -5,7 +5,7 @@ and every other code file is a `.h` saying what it owns and why beside the `.c`
 that carries it out. The pictures and the model it embeds sit here too.
 
 - `main.c` — the loop: every frame it takes the keys, moves the eye and the sun, runs the systems
-  in order and draws the world twice, until the window closes. Its header gives that order, and what
+  in order, draws the world twice and takes the frame breakdown, until the window closes. Its header gives that order, and what
   is wrong if the picture looks wrong and what there is to try stand above `main()`.
 - `startup.h` — the program's state: one member per thing the loop reads, written before the first
   frame and by the loop, and read nowhere else.
@@ -21,10 +21,14 @@ that carries it out. The pictures and the model it embeds sit here too.
   badge's five, submitted every frame and each drawn by one command.
 - `elements.c` — those eighty elements in the order they are painted — the backing panel, the bars,
   the thirty-two squares and two lines of writing — and then the badge's five.
-- `interface.h` — the first real interface: a semitransparent panel with a heading, two buttons and
-  three number boxes on it, laid out by `ui` and answering the mouse.
-- `interface.c` — the panel's contents and the one division that turns the mouse's pixels into the
-  surface's millimetres.
+- `interface.h` — the first real interface: a semitransparent panel with a heading, three buttons
+  and three number boxes on it, laid out by `ui` and answering the mouse; Frame toggles the
+  breakdown.
+- `interface.c` — the panel's contents, the breakdown drawn when shown, and the one division that
+  turns the mouse's pixels into the surface's millimetres.
+- `breakdown.h` — the frame breakdown: each pass's GPU milliseconds by render's name and the total,
+  copied four times a second, and its cost in the interface's budget.
+- `breakdown.c` — that copy and the panel anchored at the interface's top right, a row per pass.
 - `surface.h` — the screen-filling surface: a plate, a square and a row of ticks mapped straight
   onto the window, and `VOE_DEV_UI_SCALE`, the only calibration this engine has.
 - `surface.c` — those rectangles and the one multiplication that turns the window's height into
