@@ -98,7 +98,7 @@ which file to open — what each one owns, and where the seams between them run.
   rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
   begun probe volume, its point lights copied and binned, its light blockers, lamp masks, kinds and
-  sun mask, the clear colour, the
+  sun mask, the further directional lights, the clear colour, the
   first-clears-later-load rule, and the one Y flip in the viewport.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written

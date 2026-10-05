@@ -59,11 +59,24 @@
 // none; `corner` its lowest corner about the eye, `cell` its lowest cell wrapped
 // per axis into 24 × 12 × 24, and `spacing` the metres between probes. Only a
 // camera pass whose volume this frame slot began and is built names one.
+//
+// `more_count` AND `more` ARE THE PASS'S LIGHTS AFTER THE FIRST (ADR-0357 point
+// 1): how many of `more` a camera pass carries, nought in every other pass, and
+// each one's light, shadow record and the mask of the blockers holding its
+// place, cut to the pass's blocker count. Three reserved words round the count
+// to sixteen bytes.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
 	uint32_t cell[3];
 	float spacing;
+};
+
+struct voe_render_frame_light {
+	voe_render_light light;
+	voe_render_shadow shadow;
+	uint32_t blockers;
+	uint32_t reserved[3];
 };
 
 struct voe_render_frame_block {
@@ -75,6 +88,9 @@ struct voe_render_frame_block {
 	uint32_t region;
 	uint32_t blockers;
 	struct voe_render_frame_bounce bounce;
+	uint32_t more_count;
+	uint32_t reserved[3];
+	struct voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as

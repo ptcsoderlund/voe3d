@@ -28,8 +28,16 @@ static_assert(sizeof(voe_render_light) == 48,
 	      "voe_render_light no longer matches the shader's light block");
 static_assert(sizeof(voe_render_shadow) == 304,
 	      "voe_render_shadow no longer matches the shader's shadow block");
-static_assert(sizeof(struct voe_render_frame_block) == 544,
+static_assert(sizeof(voe_render_directional_light) == 368,
+	      "voe_render_directional_light is no longer the frame light and its bounce words");
+static_assert(sizeof(struct voe_render_frame_light) == 368,
+	      "the frame light no longer matches bindings.slangh's");
+static_assert(sizeof(struct voe_render_frame_block) == 560 + 3 * 368,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
+static_assert(offsetof(struct voe_render_frame_block, more_count) == 544,
+	      "the further light count moved inside the per-pass block; draw.slang has it at 544");
+static_assert(offsetof(struct voe_render_frame_block, more) == 560,
+	      "the further lights moved inside the per-pass block; draw.slang has them at 560");
 
 // And the offsets, because the sizes above can stay right while the order goes
 // wrong. Every member a buffer layout rule would have moved is named here: the

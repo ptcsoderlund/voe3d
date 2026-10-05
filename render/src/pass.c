@@ -41,6 +41,10 @@
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
 // indoors sharing a bit, or a kind or sun bit at or past the count asserts.
 //
+// ITS FURTHER LIGHTS (ADR-0357) go into its block's `more`, each one's blockers
+// cut to the pass's count; a light not finite, a shadow slot past the lights
+// ready or shared with another shadowed light asserts. Every other pass has none.
+//
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
@@ -431,6 +435,64 @@ static void place_blockers(const struct voe_render_frame *frame,
 	block->blockers = blockers.count;
 }
 
+static bool light_is_finite(voe_render_light light)
+{
+	const float values[] = { light.direction.x, light.direction.y,
+				 light.direction.z, light.intensity,
+				 light.colour.x,    light.colour.y,
+				 light.colour.z,    light.fill.x,
+				 light.fill.y,      light.fill.z };
+
+	static_assert(sizeof(values) / sizeof(values[0]) == 10,
+		      "a light is ten floats");
+	for (uint32_t i = 0; i < sizeof(values) / sizeof(values[0]); i++)
+		if (!isfinite(values[i]))
+			return false;
+	return true;
+}
+
+// `camera`'s lights after the first into `block->more` (ADR-0357 point 1),
+// each one's blockers cut to the pass's blocker count; checked as the first is,
+// against the lights the shadow array holds, and no two shadowed lights, the
+// first included, on one slot.
+static void place_further_lights(const voe_render_device *device,
+				 const voe_render_pass_camera *camera,
+				 struct voe_render_frame_block *block)
+{
+	const voe_render_directional_lights more = camera->more;
+	const uint32_t count = camera->blockers.count;
+	const uint32_t held = count >= 32 ? ~0u : (1u << count) - 1u;
+	bool slots[VOE_RENDER_DIRECTIONAL_LIGHTS] = { false };
+
+	VOE_BASE_ASSERT(more.count <= VOE_RENDER_DIRECTIONAL_LIGHTS - 1,
+			"a pass with more directional lights than VOE_RENDER_DIRECTIONAL_LIGHTS");
+	VOE_BASE_ASSERT(more.lights != NULL || more.count == 0,
+			"a pass with a further light count and no lights");
+	if (camera->shadow.count > 0 &&
+	    camera->shadow.slot < VOE_RENDER_DIRECTIONAL_LIGHTS)
+		slots[camera->shadow.slot] = true;
+	for (uint32_t i = 0; i < more.count; i++) {
+		const voe_render_directional_light *light = &more.lights[i];
+		struct voe_render_frame_light *placed = &block->more[i];
+
+		VOE_BASE_ASSERT(light_is_finite(light->light),
+				"a further directional light that is not finite");
+		if (light->shadow.count > 0) {
+			VOE_BASE_ASSERT(light->shadow.slot < device->shadow_lights,
+					"a further light whose shadow slot is past the lights the shadow array holds; ask voe_render_shadow_lights_ready first");
+			VOE_BASE_ASSERT(!slots[light->shadow.slot],
+					"two directional lights in one pass on the same shadow slot");
+			slots[light->shadow.slot] = true;
+		}
+		placed->light = light->light;
+		placed->shadow = light->shadow;
+		placed->blockers = light->blockers & held;
+	}
+	block->more_count = more.count;
+	VOE_BASE_DEBUG_ASSERT(block->more_count < VOE_RENDER_DIRECTIONAL_LIGHTS,
+			      "placed more further lights than the block holds");
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -512,6 +574,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			     voe_render_point_shadows_ready(device), &block);
 		place_blockers(frame, device->pass_count, camera->blockers,
 			       camera->points, &block);
+		place_further_lights(device, camera, &block);
 	}
 
 	// The window's pair or this frame slot's pair of the target, each with

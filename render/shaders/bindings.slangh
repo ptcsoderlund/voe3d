@@ -1,5 +1,5 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
-// depth copy, point lights, blockers), the object and shading records, the point
+// depth copy, point lights, blockers, the further lights), the object and shading records, the point
 // lights and their bins, the light blockers, the bindings of set 0 and the push constant that names the
 // object and a point-shadow draw's faces. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
@@ -69,6 +69,18 @@ struct voe_render_frame_bounce {
 	float spacing;
 };
 
+// A light after the pass's first (ADR-0357): struct voe_render_frame_light, its
+// light, shadow record and the mask of the blockers holding its place. Three
+// scalars and not an array, which a uniform block would stride by sixteen.
+struct voe_render_frame_light {
+	voe_render_light light;
+	voe_render_shadow shadow;
+	uint blockers;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
+};
+
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
@@ -78,6 +90,12 @@ struct voe_render_frame_block {
 	uint region;
 	uint blockers;
 	voe_render_frame_bounce bounce;
+	// How many of `more` the pass carries; nothing reads them yet.
+	uint more_count;
+	uint more_reserved0;
+	uint more_reserved1;
+	uint more_reserved2;
+	voe_render_frame_light more[3];
 };
 
 [[vk::binding(0, 0)]]

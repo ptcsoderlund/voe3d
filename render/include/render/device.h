@@ -681,6 +681,32 @@ typedef struct {
 	uint32_t reserved2;
 } voe_render_shadow;
 
+// One directional light after a pass's first (ADR-0357 point 1): its light and
+// its shadow record, as the first light's `light` and `shadow` are.
+//
+// `blockers` IS THE MASK OF THE PASS'S BLOCKERS HOLDING THIS LIGHT'S PLACE, as
+// the blockers' `sun` is the first light's; bits at or past the pass's blocker
+// count are dropped. `bounces` and `bounce_strength` are read by a bounce begin
+// (card 08), not by a pass. A `shadow` with `count` reads its own `slot`, which
+// is below what voe_render_shadow_lights_ready holds and named by no other
+// shadowed light of the pass, the first included; a light not finite asserts.
+typedef struct {
+	voe_render_light light;
+	voe_render_shadow shadow;
+	uint32_t blockers;
+	uint32_t bounces;
+	float bounce_strength;
+	uint32_t reserved;
+} voe_render_directional_light;
+
+// The directional lights after a pass's first, in light table order, copied at
+// _pass_begin. Zero is none; NULL with a count, or a count above
+// VOE_RENDER_DIRECTIONAL_LIGHTS − 1, asserts.
+typedef struct {
+	const voe_render_directional_light *lights;
+	uint32_t count;
+} voe_render_directional_lights;
+
 // One drawn object's record: the two matrices it is drawn with, the shading
 // record it wears and the colour it is tinted by. `shading` is the index half of
 // a voe_render_shading id; the shader reads the record it names.
@@ -1296,12 +1322,16 @@ typedef struct {
 // place in `sun` (ADR-0350). Copied at
 // _pass_begin, as `points` are. Zero is none, the old picture; more than
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, or a row not finite asserts.
+//
+// `more` ARE THE LIGHTS AFTER THE FIRST (ADR-0357 point 1); zero is the old
+// picture, byte for byte.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
 	voe_render_shadow shadow;
 	voe_render_point_lights points;
 	voe_render_light_blockers blockers;
+	voe_render_directional_lights more;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
