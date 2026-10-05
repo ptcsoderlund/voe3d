@@ -43,10 +43,8 @@ again, or to find where a claim that has started failing is written down.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
-- `light_blockers.c` — that a blocker's box follows its transform and parent, a frame records it
-  about the eye with its block's bit and the sun's mask, its lines are 12 edges, the ground under
-  one is black, a Direct's shadow reads the fill, a selected one is outlined, an unselected one
-  is lined in the rest colour and none when not shown.
+- `light_blockers.c` — that a blocker's box follows its transform, a frame records it with its
+  block's bit and the sun's mask, and the editor lines it in the selected or rest colour.
 - `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
   with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
   mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.
