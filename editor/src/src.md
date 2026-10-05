@@ -13,7 +13,7 @@ carries it out.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
 - `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
-  Ctrl+D, R and the edit marked after the interface has drawn.
+  Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
@@ -179,7 +179,7 @@ carries it out.
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
-  commands they fire are carried out.
+  commands they fire are carried out, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
@@ -228,12 +228,11 @@ carries it out.
   view passes.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed.
-- `scene.h` — the current project's world, the selection in it, the rows the Scene panel drew, Add
-  entity, Delete and Duplicate, what the Inspector drew, what the colour picker and the open
-  dropdown are open on, the gizmo's unsaved mode, and the Scene list drag's threshold, target and
-  cancel.
+- `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
+  them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and
-  dropdown targets, and the Scene panel's rows and folds, asked after the frame has ended.
+  dropdown targets, the Scene panel's rows and folds, asked after the frame has ended, and the
+  reveal's unfold and scroll.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
   ray and what it meets are `3d`'s (ADR-0202, 0354).
@@ -245,12 +244,10 @@ carries it out.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
-- `undo.h` — the line of scene texts a step is taken from: an edit marked, a
-  settled edit recorded as the whole scene's text, Ctrl+Z or Ctrl+Y reading
-  a neighbouring one back into the project's world (ADR-0204), and the level's
-  line set aside while a prefab is open.
+- `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), with
+  the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
-  the state the world is, the throwing away of what could have been redone, and
+  the state the world is, a reveal's amend of it, the throwing away of what could have been redone, and
   the selection re-found by its authored id after a step.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural

@@ -22,8 +22,8 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   drag past the edge goes on moving it, the dead zone moves nothing, and a box scrolled away
   mid-drag keeps dragging.
 - `scroll.c` — that a scroll area remembers its offset and clamps it, forgets it when it is not
-  called, passes outward what it cannot take, and draws a bar only when it has to, whose thumb
-  drags, pages and stands in front of a button.
+  called, passes outward what it cannot take, centres a node a program names, and draws a bar
+  only when it has to, whose thumb drags, pages and stands in front of a button.
 - `slider.c` — that the thumb is against the track's left edge at the range's bottom, its right edge
   at the top and halfway between at the middle, that a drag past the dead zone moves the value by
   the distance times the range over the width, and that an untouched frame hands the value back.

@@ -37,7 +37,8 @@
 // scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
 // over the Assets leaf it makes a prefab (prefabs.h), one structural change;
 // whether the Assets leaf takes it is !voe_editor_prefab_make_refused for the
-// session's project, which the ghost shows as refused or not.
+// session's project, which the ghost shows as refused or not. Then scene.h's
+// reveal shows a selection made elsewhere in the list.
 //
 // A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT, through
 // voe_editor_session_prefab_open, beside where Import shows the browser; the
@@ -383,6 +384,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				scene->structural++;
 			scene->list_made = (voe_ecs_entity){ 0 };
 		}
+		// After every read that can move the selection this frame.
+		voe_editor_scene_reveal(scene, ui);
 		if (voe_editor_assets_clicks_read(ui, &scene->assets))
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT, NULL,

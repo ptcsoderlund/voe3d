@@ -14,8 +14,9 @@
 // is absent when content fits — including when it fits only because it wrapped,
 // which is the case that catches an ancestor's stale measure — has a thumb of
 // known length at known offsets,
-// drags and pages by known amounts and stands in front of a button; and one area
-// too many refuses the frame. Every one of these makes its own context, so what
+// drags and pages by known amounts and stands in front of a button; one area
+// too many refuses the frame; and a node a program centres lands in the middle,
+// clamped, or stays put when already seen. Every one of these makes its own context, so what
 // one remembers cannot leak into the next.
 //
 // THE GEOMETRY IS WORKED OUT BY HAND AND WRITTEN AS NUMBERS. The bar and its
@@ -442,6 +443,85 @@ static void a_thumb_hides_the_button_beneath_it(voe_base_arena *arena)
 			 0.0f, true);
 }
 
+// A list for centring: an area at the origin 40 wide and 50 tall, scrolling Y,
+// no gap or pad, over twenty boxes 20 x 10 — box i spans i x 10 to i x 10 + 10,
+// the content is 200 tall and the range 150.
+#define LIST_ROWS 20
+#define LIST_HIGH 50.0f
+
+struct list_frame {
+	voe_ui_node area;
+	voe_ui_node rows[LIST_ROWS];
+};
+
+static struct list_frame build_list(voe_ui_context *ui, voe_base_arena *arena)
+{
+	struct list_frame f;
+
+	voe_ui_frame_begin(ui, arena);
+	f.area = voe_ui_scroll_begin(
+		ui, "list", 0,
+		(voe_ui_container){ .size = { { VOE_UI_SIZE_FIXED, LIST_HIGH },
+					      { VOE_UI_SIZE_FIXED, AREA_WIDE } } },
+		(voe_ui_scroll_axes){ .y = true });
+	for (uint32_t i = 0; i < LIST_ROWS; i++)
+		f.rows[i] = voe_ui_box(ui, (voe_math_float2){ 20.0f, 10.0f },
+				       (voe_ui_sizing){ 0 });
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	return f;
+}
+
+// The offset the next frame is laid out at after centring row `row` along
+// `axes` from a fresh area at nought.
+static voe_math_float2 centred_offset(voe_base_arena *arena, uint32_t row,
+				      voe_ui_scroll_axes axes)
+{
+	voe_ui_context *ui = scroll_context(arena, 4);
+	struct list_frame f = build_list(ui, arena);
+
+	voe_ui_scroll_centre(ui, f.area, f.rows[row], axes);
+	f = build_list(ui, arena);
+	return voe_ui_node_scroll(ui, f.area);
+}
+
+// Box 15's centre is 155 and the visible centre 25: the offset is 130.
+static void centring_a_node_meets_the_visible_centre(voe_base_arena *arena)
+{
+	voe_math_float2 offset =
+		centred_offset(arena, 15, (voe_ui_scroll_axes){ .y = true });
+
+	VOE_TEST_CHECK_FLOAT(offset.y, 130.0f, 0.001f);
+}
+
+// Box 19 wants 195 - 25 = 170, past the range: clamped to 150.
+static void centring_the_last_node_clamps_to_the_end(voe_base_arena *arena)
+{
+	voe_math_float2 offset =
+		centred_offset(arena, 19, (voe_ui_scroll_axes){ .y = true });
+
+	VOE_TEST_CHECK_FLOAT(offset.y, 150.0f, 0.001f);
+}
+
+// Box 1, 10 to 20, is wholly within 0 to 50: nothing moves.
+static void centring_a_node_already_seen_moves_nothing(voe_base_arena *arena)
+{
+	voe_math_float2 offset =
+		centred_offset(arena, 1, (voe_ui_scroll_axes){ .y = true });
+
+	VOE_TEST_CHECK_FLOAT(offset.y, 0.0f, 0.001f);
+}
+
+// Box 15 centred along X only: Y, not asked for, stays at nought.
+static void centring_leaves_an_axis_not_asked_for(voe_base_arena *arena)
+{
+	voe_math_float2 offset =
+		centred_offset(arena, 15, (voe_ui_scroll_axes){ .x = true });
+
+	VOE_TEST_CHECK_FLOAT(offset.x, 0.0f, 0.001f);
+	VOE_TEST_CHECK_FLOAT(offset.y, 0.0f, 0.001f);
+}
+
 // Room for one scroll area and two called: refused, and the next frame with one
 // is fine.
 static void too_many_scroll_areas_refuses_the_frame(voe_base_arena *arena)
@@ -486,6 +566,10 @@ int main(void)
 	pressing_the_track_pages_once(arena);
 	a_thumb_hides_the_button_beneath_it(arena);
 	too_many_scroll_areas_refuses_the_frame(arena);
+	centring_a_node_meets_the_visible_centre(arena);
+	centring_the_last_node_clamps_to_the_end(arena);
+	centring_a_node_already_seen_moves_nothing(arena);
+	centring_leaves_an_axis_not_asked_for(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
