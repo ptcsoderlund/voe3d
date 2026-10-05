@@ -65,6 +65,7 @@
 #include <3d/gizmo_rings.h>
 #include <3d/models.h>
 #include <3d/outline.h>
+#include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
 #include <3d/sun_marker.h>
 #include <base/arena.h>
@@ -200,6 +201,27 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_point_lights_marked;
 
+// Every row of a kind, one selected (0365 point 6): the record the frame's
+// `places` and `light_blockers` use. False `shown` marks none, which is what a
+// zeroed record is; the `selected` one is drawn alone in `selected_colour`, the
+// rest together in `colour`.
+typedef struct {
+	// False marks none, which is what a zeroed record is.
+	bool shown;
+	// The row drawn in `selected_colour`, zeroed for none.
+	voe_ecs_entity selected;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear: the colour of every row but the selected one.
+	voe_math_float3 colour;
+	// Linear: the outline's colour, for the selected row (0274's rule).
+	voe_math_float3 selected_colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_rows_marked;
+
 // The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
 // It is drawn after the outline, behind the outline's depth clear, with the
 // outline's material and colour (`frame.outlined`), so it shows through what
@@ -321,18 +343,29 @@ typedef struct {
 	// EVERY POINT LIGHT, MARKED (0320 point 7), drawn as the sun's marker is
 	// and right after it (voe_3d_point_lights_marked above).
 	voe_3d_point_lights_marked point_lights;
+	// EVERY PLACE WITH NO MESH, MARKED (0365 points 1-2), drawn as the point
+	// lights' markers are and right after them. Only an editor's view sets
+	// it. When `shown`, every entity voe_3d_place_marker_wanted answers is
+	// marked with voe_3d_place_marker_quads in the world layer inside the
+	// world's depth, the selected one alone in `selected_colour`, the rest as
+	// one geometry in `colour`, so the pool needs VOE_3D_PLACE_MARKER_VERTICES
+	// and _INDICES per marked entity, two ranges and two objects; a pool too
+	// small draws none.
+	voe_3d_rows_marked places;
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
-	// THE SELECTED LIGHT BLOCKER'S BOX AS LINES (0347 point 5), the entity
-	// zeroed for none. Only an editor's view sets it. The box is
-	// voe_3d_light_blocker_shape's at the frame's lag, drawn as the
-	// collider's lines are: after them, behind the outline's clear, in its
-	// material and colour. A zeroed entity, a dead one and one with no
-	// blocker or transform draw nothing. One more range and object, sized
-	// from VOE_3D_COLLIDER_MARKER_VERTICES and _INDICES; a pool too small
-	// draws nothing, as the outline does.
-	voe_3d_collider_marked light_blocker;
+	// EVERY LIGHT BLOCKER'S BOX AS LINES (0347 point 5, 0365 point 5). Only
+	// an editor's view sets it. When `shown`, every blocker row with a
+	// transform is lined from voe_3d_light_blocker_shape at the frame's lag
+	// with voe_3d_collider_marker_quads: the ones not selected as one
+	// geometry in `colour` in the world layer inside the world's depth, with
+	// the markers, so a wall in front hides them; the `selected` one after
+	// the collider's lines, behind the outline's clear, in `selected_colour`
+	// and `material`, so it shows through. The pool needs
+	// VOE_3D_COLLIDER_MARKER_VERTICES and _INDICES per blocker, two ranges
+	// and two objects; a pool too small draws none, as the outline does.
+	voe_3d_rows_marked light_blockers;
 	// TRUE WHEN THE CAMERA SEES NOTHING (0223): its transform has no
 	// inverse, a scale of nought on an axis, so voe_3d_view refused it and
 	// `view` is zeroed. _run draws no world for a blind frame. Zero means
@@ -370,9 +403,9 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `collider`, `light_blocker`, `points` and `blockers` all come
-// back zeroed and `models` NULL — hiding, outlining, standing a gizmo, marking a
-// camera, the suns or the point lights, drawing a collider or a blocker's box,
+// `point_lights`, `places`, `collider`, `light_blockers`, `points` and `blockers`
+// all come back zeroed and `models` NULL — hiding, outlining, standing a gizmo,
+// marking a camera, the suns, the point lights or the places, drawing a collider or the blockers' boxes,
 // lighting by point lights, keeping
 // light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer, and `more_lights` and `more_count` come back
@@ -572,9 +605,11 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
 // a live camera with a transform, and `frame.sun`, when `shown`, every light
-// with a transform, are drawn with the world, and `frame.collider`, when it names one
-// with a collider, as lines after the outline, and `frame.light_blocker`, when
-// it names one with a blocker and a transform, as its box's lines after those. Calling it with no pass open is the caller's bug
+// with a transform, are drawn with the world, `frame.places`, when `shown`,
+// with the world after the point lights, `frame.light_blockers`, when `shown`,
+// every blocker but the selected one as its box's lines with the world after the
+// places, and `frame.collider`, when it names one with a collider, as lines
+// after the outline, and the selected blocker's box lines after those. Calling it with no pass open is the caller's bug
 // and asserts.
 //
 // TWO KINDS OF DRAWABLE, AND THEY ARE SORTED TOGETHER. A mesh is a range in
@@ -684,7 +719,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // is _begin's and _end's to report, and both return false when it has.
 //
 // `arena` is scratch for this frame's sorts, the groups they order and the
-// outline's, the collider's, the blocker's and the gizmo's quads, and nothing survives the call: it is rewound to the mark
+// outline's, the collider's, the blockers' and the gizmo's quads, and nothing survives the call: it is rewound to the mark
 // this took on the way in, on every path out.
 //
 // IT WANTS AN ARENA BECAUSE THE SORTS NEED SOMEWHERE TO WORK. Working memory is

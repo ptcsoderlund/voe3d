@@ -1,7 +1,10 @@
 // A left click in a scene view selects the frontmost entity under the pointer,
 // and a click on nothing clears the selection — the same selection a row in
-// `Scene` moves (scene.h). Shapes and models are picked alike, a model on its
-// loaded triangles (ADR-0277). The ray, and what it meets, are `3d`'s
+// `Scene` moves (scene.h). Every placed thing is picked (0354): one with a mesh
+// on it — a shape, a model on its loaded triangles (ADR-0277), water — and
+// every other on its marker, and a marker under the pointer beats a mesh
+// whichever is nearer, so a lamp inside a house is still clicked. A blocker
+// is picked by its marker, never inside its box. The ray, and what it meets, are `3d`'s
 // (3d/pick.h, ADR-0202); what is here is the press edge and which view was
 // clicked.
 //

@@ -212,19 +212,17 @@ carries it out.
   and why names and only authored ones.
 - `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
   label.
-- `view.h` — a scene view: its orbit's pose and lens, its target, the middle-button drag and the
-  right-button fly, the view a pointer is over and where in its picture, the colours a view is drawn
-  with, the 480×270 preview of what the world's camera sees, and the views opened on that camera.
+- `view.h` — a scene view: its orbit, target and input, the view under the pointer, the colours
+  it is drawn with, and the preview of what the world's camera sees.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
-  outline colour, dimmed for a gizmo handle at rest.
+  outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
-  passes, lit by every light, with the world, its models, the selection's outline, collider,
-  blocker box and gizmo, the markers, and the device capacities.
+  passes, lit by every light, with the world, its models, the selection's outline, collider and
+  gizmo, every blocker's box, the markers, every meshless place's too, and the device capacities.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
   view's shadow passes and pass, lit by every directional and point light and kept out of the light
-  blockers,
-  stopping at the first refused pass.
+  blockers, every place marked and every blocker lined, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the
   view passes.
@@ -236,8 +234,9 @@ carries it out.
   cancel.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and
   dropdown targets, and the Scene panel's rows and folds, asked after the frame has ended.
-- `pick.h` — a left click in a scene view selects the frontmost entity under the pointer, a model's
-  too, and a click on nothing clears the selection; the ray and what it meets are `3d`'s (ADR-0202).
+- `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
+  its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
+  ray and what it meets are `3d`'s (ADR-0202, 0354).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the

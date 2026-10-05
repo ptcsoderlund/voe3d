@@ -1,5 +1,5 @@
 // The views: their cameras, their targets and the preview's, the middle-button drag, and the
-// light, the outline colour and the gizmo's colour a view is drawn with. See
+// light, the outline colour, the gizmo's colour and a blocker's faint colour a view is drawn with. See
 // the header for why the camera is not an entity, why the light is the world's and not the views' to
 // hold, why the picture lags the layout by a frame, and why a view nobody shows
 // is not drawn.
@@ -212,6 +212,17 @@ voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette)
 // while staying well above the near-black ground a view is cleared to.
 #define VOE_EDITOR_VIEW_GIZMO_REST 0.55f
 
+// What an unselected light blocker's box is dimmed to (0365 point 5), below a
+// handle at rest so the lines never compete with the gizmo.
+#define VOE_EDITOR_VIEW_FAINT 0.3f
+// C23 has no floating comparison in a constant expression; clang, the one
+// compiler (ADR-0026), folds this one, so the extension is allowed here only.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-folding-constant"
+static_assert(VOE_EDITOR_VIEW_FAINT < VOE_EDITOR_VIEW_GIZMO_REST,
+	      "a blocker's faint lines must be fainter than a handle at rest");
+#pragma clang diagnostic pop
+
 voe_math_float3 voe_editor_view_gizmo_colour(const voe_ui_theme *palette,
 					     bool marked)
 {
@@ -221,6 +232,14 @@ voe_math_float3 voe_editor_view_gizmo_colour(const voe_ui_theme *palette,
 	return marked ? colour :
 			voe_math_float3_scale(colour,
 					      VOE_EDITOR_VIEW_GIZMO_REST);
+}
+
+voe_math_float3 voe_editor_view_faint_colour(const voe_ui_theme *palette)
+{
+	VOE_BASE_ASSERT(palette != NULL, "a faint colour out of no palette");
+
+	return voe_math_float3_scale(voe_editor_view_outline_colour(palette),
+				     VOE_EDITOR_VIEW_FAINT);
 }
 
 voe_render_pass_camera voe_editor_view_pass_camera(const voe_editor_view *view,

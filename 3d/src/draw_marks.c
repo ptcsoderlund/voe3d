@@ -1,11 +1,12 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum,
-// every sun's circle and arrow, every point light's three circles, one entity's
-// silhouette, a collider's and a light blocker's lines and the gizmo's two
+// every sun's circle and arrow, every point light's three circles, every bare
+// place's diamond, every light blocker's box, one entity's
+// silhouette, a collider's and the selected blocker's lines and the gizmo's two
 // meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
 // world place. See draw_marks.h.
 //
-// All six are in metres about the frame's eye already (ADR-0250), so every
+// All of them are in metres about the frame's eye already (ADR-0250), so every
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
 #include "draw_marks.h"
 
@@ -15,6 +16,7 @@
 #include <3d/gizmo_rings.h>
 #include <3d/light_blocker.h>
 #include <3d/outline.h>
+#include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
 #include <3d/sun_marker.h>
 #include <base/assert.h>
@@ -22,6 +24,7 @@
 #include <ecs/component.h>
 #include <physics/shape.h>
 #include <scene/camera_component.h>
+#include <scene/light_blocker_component.h>
 #include <scene/light_component.h>
 #include <scene/point_light_component.h>
 #include <scene/transform_component.h>
@@ -175,6 +178,67 @@ void voe_3d_draw_marks_point_lights(const voe_ecs_world *world,
 			  marked.selected_colour);
 }
 
+// Every transform's owner voe_3d_place_marker_wanted answers, marked as the
+// point lights are (0365 points 1-2) at its current world place: the selected
+// one alone in `selected_colour`, the rest gathered into one geometry in
+// `colour`. Not shown, no transform table and a picture with no area draw none.
+void voe_3d_draw_marks_places(const voe_ecs_world *world,
+			      voe_render_device *device, voe_base_arena *arena,
+			      voe_3d_frame frame)
+{
+	voe_3d_rows_marked marked = frame.places;
+	voe_3d_outline_mesh selected = { 0 };
+	voe_render_vertex *vertices;
+	uint32_t *indices;
+	uint32_t vertex_count = 0;
+	uint32_t index_count = 0;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing place markers to no device");
+	VOE_BASE_ASSERT(arena != NULL, "place markers with no arena");
+
+	if (!marked.shown || !has_store(world, &voe_scene_transform_key))
+		return;
+	uint32_t count = voe_scene_transform_count(world);
+	const voe_ecs_entity *owners = voe_scene_transform_entities(world);
+
+	if (count == 0)
+		return;
+	vertices = voe_base_arena_push(
+		arena, sizeof *vertices * count * VOE_3D_PLACE_MARKER_VERTICES);
+	indices = voe_base_arena_push(
+		arena, sizeof *indices * count * VOE_3D_PLACE_MARKER_INDICES);
+	for (uint32_t i = 0; i < count; i++) {
+		voe_3d_outline_mesh mesh;
+
+		if (!voe_3d_place_marker_wanted(world, owners[i]))
+			continue;
+		if (!voe_3d_place_marker_quads(
+			    voe_scene_transform_world(world, owners[i]).position,
+			    frame.view, frame.eye, marked.size, marked.pixels,
+			    arena, &mesh))
+			return;
+		if (owners[i].index == marked.selected.index &&
+		    owners[i].generation == marked.selected.generation) {
+			selected = mesh;
+			continue;
+		}
+		for (uint32_t j = 0; j < mesh.index_count; j++)
+			indices[index_count + j] = mesh.indices[j] + vertex_count;
+		for (uint32_t j = 0; j < mesh.vertex_count; j++)
+			vertices[vertex_count + j] = mesh.vertices[j];
+		index_count += mesh.index_count;
+		vertex_count += mesh.vertex_count;
+	}
+	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_PLACE_MARKER_VERTICES,
+			"more place marker vertices than were made room for");
+	draw_marker_lines(device,
+			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
+						 index_count },
+			  marked.material, marked.colour);
+	draw_marker_lines(device, selected, marked.material,
+			  marked.selected_colour);
+}
+
 // Every light row with a transform, marked as the point lights are (0360 point
 // 1) at its current world place, in table order and past the fourth too: the
 // selected one alone in `selected_colour`, the rest gathered into one geometry
@@ -277,14 +341,73 @@ bool voe_3d_draw_marks_outline(const voe_ecs_world *world,
 	return true;
 }
 
-// THE COLLIDER'S AND THE BLOCKER'S LINES SHARE THE OUTLINE'S CLEAR AND ITS LOOK
+// Every light blocker with a transform but the selected one, its box at the
+// frame's lag as voe_3d_collider_marker_quads' lines gathered into one geometry
+// in `colour`, in the world's depth so a wall in front hides them (0365 point
+// 5). Not shown, no blocker table and a picture with no area draw none.
+void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
+				      voe_render_device *device,
+				      voe_base_arena *arena, voe_3d_frame frame)
+{
+	voe_3d_rows_marked marked = frame.light_blockers;
+	voe_render_vertex *vertices;
+	uint32_t *indices;
+	uint32_t vertex_count = 0;
+	uint32_t index_count = 0;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing blocker lines to no device");
+	VOE_BASE_ASSERT(arena != NULL, "blocker lines with no arena");
+
+	if (!marked.shown || !has_store(world, &voe_scene_light_blocker_key))
+		return;
+	uint32_t count = voe_scene_light_blocker_count(world);
+	const voe_ecs_entity *owners = voe_scene_light_blocker_entities(world);
+
+	if (count == 0)
+		return;
+	vertices = voe_base_arena_push(
+		arena, sizeof *vertices * count * VOE_3D_COLLIDER_MARKER_VERTICES);
+	indices = voe_base_arena_push(
+		arena, sizeof *indices * count * VOE_3D_COLLIDER_MARKER_INDICES);
+	for (uint32_t i = 0; i < count; i++) {
+		voe_physics_shape shape;
+		voe_3d_outline_mesh mesh;
+
+		if (owners[i].index == marked.selected.index &&
+		    owners[i].generation == marked.selected.generation)
+			continue;
+		if (!voe_3d_light_blocker_shape(world, owners[i], frame.lag,
+						&shape))
+			continue;
+		if (!voe_3d_collider_marker_quads(shape, frame.view, frame.eye,
+						  marked.size, marked.pixels,
+						  arena, &mesh))
+			return;
+		for (uint32_t j = 0; j < mesh.index_count; j++)
+			indices[index_count + j] = mesh.indices[j] + vertex_count;
+		for (uint32_t j = 0; j < mesh.vertex_count; j++)
+			vertices[vertex_count + j] = mesh.vertices[j];
+		index_count += mesh.index_count;
+		vertex_count += mesh.vertex_count;
+	}
+	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_COLLIDER_MARKER_VERTICES,
+			"more blocker line vertices than were made room for");
+	draw_marker_lines(device,
+			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
+						 index_count },
+			  marked.material, marked.colour);
+}
+
+// THE COLLIDER'S AND THE SELECTED BLOCKER'S LINES SHARE THE OUTLINE'S CLEAR
 // (0253, 0347 point 5). `shape` is drawn as voe_3d_collider_marker_quads' lines
-// against the depth the outline was, clearing it only when nothing has, so they
-// show through what stands in front, in the outline's material and colour. A
-// refused transient range draws nothing, which render reports.
+// `pixels` wide on a picture of `size` against the depth the outline was,
+// clearing it only when nothing has, so they show through what stands in
+// front, in `material` and `colour`. A refused transient range draws nothing,
+// which render reports.
 static void draw_shape_lines(voe_render_device *device, voe_base_arena *arena,
 			     voe_3d_frame frame, voe_physics_shape shape,
-			     voe_3d_collider_marked marked, bool cleared)
+			     voe_3d_material material, voe_math_float3 colour,
+			     float pixels, voe_platform_size size, bool cleared)
 {
 	voe_3d_outline_mesh mesh;
 	voe_render_geometry quads;
@@ -293,9 +416,8 @@ static void draw_shape_lines(voe_render_device *device, voe_base_arena *arena,
 	VOE_BASE_ASSERT(device != NULL, "drawing shape lines to no device");
 	VOE_BASE_ASSERT(arena != NULL, "shape lines with no arena");
 
-	if (!voe_3d_collider_marker_quads(shape, frame.view, frame.eye,
-					  marked.size, marked.pixels, arena,
-					  &mesh) ||
+	if (!voe_3d_collider_marker_quads(shape, frame.view, frame.eye, size,
+					  pixels, arena, &mesh) ||
 	    !voe_render_geometry_create_transient(
 		    device, mesh.vertices, mesh.vertex_count, mesh.indices,
 		    mesh.index_count, &quads, &error))
@@ -304,8 +426,7 @@ static void draw_shape_lines(voe_render_device *device, voe_base_arena *arena,
 	if (!cleared)
 		voe_render_frame_clear_depth(device);
 	(void)voe_render_frame_draw(device, quads,
-				    mark_object(frame.outlined.material,
-						frame.outlined.colour));
+				    mark_object(material, colour));
 }
 
 // The collider's lines (0253). A zeroed entity, a dead one and one with no
@@ -322,28 +443,33 @@ void voe_3d_draw_marks_collider(const voe_ecs_world *world,
 	if (!voe_ecs_entity_alive(world, frame.collider.entity) ||
 	    !voe_physics_shape_of(world, frame.collider.entity, &shape))
 		return;
-	draw_shape_lines(device, arena, frame, shape, frame.collider, cleared);
+	draw_shape_lines(device, arena, frame, shape, frame.outlined.material,
+			 frame.outlined.colour, frame.collider.pixels,
+			 frame.collider.size, cleared);
 }
 
 // The selected blocker's box as the collider's lines (0347 point 5), the box
 // voe_3d_light_blocker_shape gives at the frame's lag, so the lines are the box
-// that blocks. A zeroed entity, a dead one and one with no blocker or no
-// transform draw nothing. A live entity needs the blocker table registered.
+// that blocks, in `light_blockers`' selected colour and material. Not shown, a
+// zeroed entity, a dead one and one with no blocker or no transform draw
+// nothing. A live entity needs the blocker table registered.
 void voe_3d_draw_marks_light_blocker(const voe_ecs_world *world,
 				     voe_render_device *device,
 				     voe_base_arena *arena, voe_3d_frame frame,
 				     bool cleared)
 {
+	voe_3d_rows_marked marked = frame.light_blockers;
 	voe_physics_shape shape;
 
 	VOE_BASE_ASSERT(device != NULL, "drawing a blocker to no device");
 	VOE_BASE_ASSERT(arena != NULL, "a blocker's lines with no arena");
 
-	if (!voe_ecs_entity_alive(world, frame.light_blocker.entity) ||
-	    !voe_3d_light_blocker_shape(world, frame.light_blocker.entity,
-					frame.lag, &shape))
+	if (!marked.shown || !voe_ecs_entity_alive(world, marked.selected) ||
+	    !voe_3d_light_blocker_shape(world, marked.selected, frame.lag,
+					&shape))
 		return;
-	draw_shape_lines(device, arena, frame, shape, frame.light_blocker,
+	draw_shape_lines(device, arena, frame, shape, marked.material,
+			 marked.selected_colour, marked.pixels, marked.size,
 			 cleared);
 }
 

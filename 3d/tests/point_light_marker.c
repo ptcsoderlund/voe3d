@@ -1,7 +1,7 @@
 // The point light marker: every edge built seen from off every circle's plane,
 // nothing on a picture with no area, a ray meeting its cube head-on and missing
-// beside it, and voe_3d_pick answering a lamp under the ray and the nearer of a
-// lamp and a cube. Needs no graphics card: the marker and the pick are
+// beside it, and voe_3d_pick answering a lamp under the ray, before a cube and
+// behind one. Needs no graphics card: the marker and the pick are
 // arithmetic into an arena.
 #include <3d/pick.h>
 #include <3d/point_light_marker.h>
@@ -140,7 +140,8 @@ static voe_ecs_entity add_a_cube(voe_ecs_world *world, float z)
 }
 
 // A lamp alone is picked on its cube; before a cube at the origin it wins at
-// 5 - 2.25, and behind one it loses to the cube's face at 4.5.
+// 5 - 2.25, and behind one it still wins, a marker over a mesh (0354), at its
+// own cube's face, 5 + 1.75.
 static void the_pick_answers_the_nearer_lamp_or_cube(
 	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
 {
@@ -163,12 +164,13 @@ static void the_pick_answers_the_nearer_lamp_or_cube(
 	VOE_TEST_CHECK_FLOAT(distance, 5.0f - 2.25f, 1e-3f);
 
 	world = a_world(arena);
-	(void)add_a_lamp(world, -2.0f);
-	voe_ecs_entity cube = add_a_cube(world, 0.0f);
+	lamp = add_a_lamp(world, -2.0f);
+	(void)add_a_cube(world, 0.0f);
 	hit = voe_3d_pick(world, geometries, NULL, down_minus_z_from(0.0),
 			  &distance);
-	VOE_TEST_CHECK_INT(hit.index, cube.index);
-	VOE_TEST_CHECK_FLOAT(distance, 4.5f, 1e-3f);
+	VOE_TEST_CHECK_INT(hit.index, lamp.index);
+	VOE_TEST_CHECK_INT(hit.generation, lamp.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 5.0f + 1.75f, 1e-3f);
 }
 
 int main(void)

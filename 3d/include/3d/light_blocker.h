@@ -11,7 +11,7 @@
 // nought; who reads the box decides what that means.
 //
 // ONE ANSWER FOR THE PASS AND THE EDITOR. The pass's records
-// (voe_3d_draw_system_light_blockers) and the editor's lines for the selected
+// (voe_3d_draw_system_light_blockers) and the editor's lines for every
 // blocker both start here, so the lines drawn are the box that blocks.
 //
 // A PHYSICS SHAPE AND NOT A TYPE OF ITS OWN, because the collider's lines

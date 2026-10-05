@@ -6,7 +6,7 @@
 //     voe_ecs_entity hit = voe_3d_pick(world, &geometries, models, ray,
 //                                      &distance);
 //     if (hit.generation != 0)
-//             ... // the frontmost shape, model, camera, sun or lamp it met
+//             ... // the shape, model, water, camera, sun, lamp or place
 //
 // IT IS THIS FOLDER'S QUESTION AND NOT THE EDITOR'S. Answering it needs the
 // shape table, the transform table and the projection matrix, and this is the
@@ -15,14 +15,19 @@
 // that wants a click named calls this, the way it already calls
 // voe_3d_draw_system_frame to draw.
 //
-// IT WALKS THE SHAPES, THE MODELS, THE CAMERAS, THE SUNS AND THE POINT LIGHTS
-// (ADR-0202, 0223, 0274, 0277, 0320). A mesh is runtime-only; models are tested
-// on their loaded entry's own triangles (3d/models.h) as a shape is, and a NULL
-// store walks none. A camera is hit on its marker's box (3d/camera_marker.h), a
-// sun and a point light on their marker's cube (3d/sun_marker.h,
-// 3d/point_light_marker.h), never their lines, and all compete on distance; a
-// world with no camera, light or point light store walks none of that kind, nor
-// a light or lamp with no transform.
+// IT WALKS THE SHAPES, MODELS, WATERS, CAMERAS, SUNS, POINT LIGHTS AND PLACES
+// (ADR-0202, 0223, 0274, 0277, 0320, 0365). A mesh is runtime-only; models are
+// tested on their loaded entry's own triangles (3d/models.h) as a shape is, and
+// a NULL store walks none. A water is hit on its plane, either face. A camera is
+// hit on its marker's box (3d/camera_marker.h), a sun, a point light and every
+// place marker (3d/place_marker.h) on their marker's cube, never their lines; a
+// world with no store of a kind walks none of it, nor a row with no transform.
+//
+// A MARKER BEATS A MESH, WHICHEVER IS NEARER (0354). Markers compete among
+// themselves on distance and the meshes among themselves, but any marker hit is
+// the answer over any mesh hit, and the distance handed back is the answer's. A
+// marker is small, so a click on it was meant; and a marker inside a house stays
+// reachable by a click instead of only from the Scene list.
 //
 // HOW A HIT IS MEASURED. The matrix of the entity's world place about the ray's
 // origin (ADR-0250: the origin is double, the test float about it) is inverted
@@ -37,7 +42,8 @@
 // because it is nowhere and the draw system does not draw it either
 // (3d/shape_component.h); a kind this build does not know, which draws nothing
 // and so picks nothing (3d/shape_geometry.h); a model with no loaded entry; and
-// one whose world matrix has a determinant of nothing, which is a thing scaled away to nothing — it is drawn as nothing, its
+// a shape, model or water whose world matrix has a determinant of nothing, which
+// is a thing scaled away to nothing — it is drawn as nothing, its
 // matrix cannot be inverted (math/float4x4.h asserts on a singular one), and
 // there is no ray in its space to cast.
 //
@@ -92,7 +98,7 @@ typedef struct {
 voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_math_double3 eye,
 			   voe_platform_size size, voe_math_float2 point);
 
-// The frontmost entity `ray` meets, or a zeroed entity when it meets none — and
+// The nearest marker `ray` meets, else the frontmost mesh, or a zeroed entity when it meets none — and
 // a zeroed entity is never a live one (ecs/world.h), which is what clears a
 // selection.
 //

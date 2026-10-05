@@ -1,10 +1,11 @@
 // The per-view passes view_passes.h describes: the dock tree asked which views
 // show, the sun's shadow passes fitted to each one's camera, then a pass begun
 // on each one's target with that camera and the shadows, the world and its
-// models drawn with the selection's outline, collider, light blocker's box
-// lines (0347 point 5) and gizmo (none for a prefab's part) and the scene
-// camera's, every directional light's and every point light's markers (0360),
-// the selected one's in the outline's colour, and the pass ended; and
+// models drawn with the selection's outline, collider, every light blocker's
+// box lines, faint but the selected one's (0347 point 5, 0365 point 5), and
+// gizmo (none for a prefab's part) and the scene camera's, every directional
+// light's, every point light's (0360) and every meshless place's (0365)
+// markers, the selected one's in the outline's colour, and the pass ended; and
 // the preview's shadow passes and pass, drawn with the world's camera while the
 // selected entity has one and marking nothing. Every pass is lit by every
 // directional light, the first as `light` and the rest from the frame (0357
@@ -232,6 +233,20 @@ bool voe_editor_view_passes_draw(
 						  pixels_per_millimetre,
 					.size = { (int)view->width,
 						  (int)view->height } },
+				// Every place with no mesh (0365 points 1-2).
+				.places = {
+					.shown = true,
+					.selected = selected,
+					.material = shapes->outline,
+					.colour = voe_editor_view_gizmo_colour(
+						palette, false),
+					.selected_colour =
+						voe_editor_view_outline_colour(
+							palette),
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
 				// The selection; one without a collider draws none.
 				.collider = {
 					.entity = selected,
@@ -239,9 +254,16 @@ bool voe_editor_view_passes_draw(
 						  pixels_per_millimetre,
 					.size = { (int)view->width,
 						  (int)view->height } },
-				// The selection; one without a blocker draws none.
-				.light_blocker = {
-					.entity = selected,
+				// Every blocker faint, the selected one bright (0365 point 5).
+				.light_blockers = {
+					.shown = true,
+					.selected = selected,
+					.material = shapes->outline,
+					.colour = voe_editor_view_faint_colour(
+						palette),
+					.selected_colour =
+						voe_editor_view_outline_colour(
+							palette),
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,

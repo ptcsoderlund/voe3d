@@ -62,6 +62,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   its cube's hit.
 - `point_light_marker.c` — a point light's three circles of 12 in world axes about its position,
   and its world-axis cube's hit.
+- `place_marker.c` — a place's octahedron of 12 edges in world axes about its position, its
+  world-axis cube's hit, and the eight tables an entity must have no row in to wear it.
 - `marker_lines.h` — the markers' shared line quads and box slab test, and why they are outline.h's
   quads; internal.
 - `marker_lines.c` — each segment's quad with a half width per end and its winding towards the eye,
@@ -109,9 +111,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   in it, why the quad is turned and why it casts no shadow; internal.
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
   waves at its clock and sky in the object record.
-- `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
-- `draw_marks.c` — the camera's marker, every sun's and lamp's, the outline, a collider's and a light blocker's
-  lines, written once, and the gizmo's arrows or rings, each as transient quads.
+- `draw_marks.h` — the editor's marks over the world, bare places' and every blocker's among them,
+  and why each has its own depth; internal.
+- `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, every blocker's lines,
+  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows
+  or rings, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.
 - `model_upload.c` — each picture once per colour space wanted, a record per material and
