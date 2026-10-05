@@ -1,10 +1,7 @@
 // The borders' hover, press, drag, double-click and release, each frame
-// against the tree laid out below the bar, and the sizes written when one
-// ends. A border's band is found by walking the tree's nodes once, at most
-// VOE_EDITOR_DOCK_NODES of them.
+// against the tree laid out below the bar. A border's band is found by walking
+// the tree's nodes once, at most VOE_EDITOR_DOCK_NODES of them.
 #include "resize.h"
-
-#include "settings.h"
 
 #include <base/assert.h>
 
@@ -221,21 +218,4 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 	}
 	resize->was_down = pointer.down;
 	return result;
-}
-
-bool voe_editor_resize_remember(const voe_editor_dock_tree *tree,
-				const voe_editor_topbar *bar)
-{
-	VOE_BASE_ASSERT(tree != NULL, "remembering the sizes of no tree");
-	VOE_BASE_ASSERT(bar != NULL, "remembering the sizes of no bar");
-
-	return voe_editor_settings_write(&(voe_editor_settings){
-		.scene_wide = voe_editor_dock_panel_length(
-			tree, VOE_EDITOR_PANEL_SCENE),
-		.inspector_wide = voe_editor_dock_panel_length(
-			tree, VOE_EDITOR_PANEL_INSPECTOR),
-		.assets_tall = voe_editor_dock_panel_length(
-			tree, VOE_EDITOR_PANEL_ASSETS),
-		.topbar_high = bar->wanted,
-		.view_share = voe_editor_dock_view_share(tree) });
 }

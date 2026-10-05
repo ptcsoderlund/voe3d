@@ -161,7 +161,11 @@ carries it out.
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
-  double-click timed on the caller's clock, and the three sizes written through `settings.h`.
+  double-click timed on the caller's clock.
+- `panels.h` — the editor's panels as the person left them: the default tree started with the
+  settings file read over it, and the sizes remembered back into it when a drag ends.
+- `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
+  written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project or the colour picker over it, and one draw command per root.
