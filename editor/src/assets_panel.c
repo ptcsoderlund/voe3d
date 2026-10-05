@@ -205,8 +205,13 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 	VOE_BASE_ASSERT(assets != NULL, "updating no Assets panel");
 	VOE_BASE_ASSERT(now >= 0.0, "a frame clock before its own start");
 
-	if (assets->arena == NULL)
+	// A zeroed panel's buttons are node 0, not none: a first frame with the
+	// panel closed would read them before any draw forgets them.
+	if (assets->arena == NULL) {
 		assets->arena = voe_base_arena_new(ASSETS_ARENA);
+		assets->up_button = VOE_UI_NODE_NONE;
+		assets->import_button = VOE_UI_NODE_NONE;
+	}
 	if (!assets->listed_once ||
 	    !same_folder(project_folder, assets->project)) {
 		relist(assets, project_folder, "", NULL, false);

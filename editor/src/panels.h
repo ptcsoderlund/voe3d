@@ -21,12 +21,14 @@
 #include "topbar.h"
 
 // Sets `root->tree` to the default tree, its lengths and the views' share to
-// whatever the file holds over the default's, and `bar->wanted` to the bar's
+// whatever the file holds over the default's, `root->closed` from the file's
+// open flags (open where it has none), and `bar->wanted` to the bar's
 // remembered height (nought, fitting its content, when there is none).
 void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar);
 
 // The Scene list's, the Inspector's and the Assets panel's lengths and the
-// views' share in `root`'s tree and the bar's `wanted`, written through
-// voe_editor_settings_write. False when that fails.
+// views' share in `root`'s tree, the open flags from `root->closed` and the
+// bar's `wanted`, written through voe_editor_settings_write, so a resize keeps
+// which panels are open. False when that fails.
 [[nodiscard]] bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 					      const voe_editor_topbar *bar);

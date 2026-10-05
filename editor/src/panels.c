@@ -1,6 +1,7 @@
-// The panels' start and remember: the default tree's sizes filled into a
-// voe_editor_settings, the file read over them and set back, and the same
-// fields written back through settings.h.
+// The panels' start and remember: the default tree's sizes and every panel
+// open filled into a voe_editor_settings, the file read over them and set back
+// into the tree and `root->closed`, and the same fields written back through
+// settings.h.
 #include "panels.h"
 
 #include "settings.h"
@@ -22,8 +23,16 @@ void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 			&root->tree, VOE_EDITOR_PANEL_INSPECTOR),
 		.view_share = voe_editor_dock_view_share(&root->tree),
 		.assets_tall = VOE_EDITOR_DOCK_ASSETS_TALL,
+		.scene_open = true,
+		.assets_open = true,
+		.inspector_open = true,
+		.view_open = true,
 	};
 	voe_editor_settings_read(&sizes);
+	root->closed[VOE_EDITOR_CLOSABLE_SCENE_LIST] = !sizes.scene_open;
+	root->closed[VOE_EDITOR_CLOSABLE_ASSETS] = !sizes.assets_open;
+	root->closed[VOE_EDITOR_CLOSABLE_INSPECTOR] = !sizes.inspector_open;
+	root->closed[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] = !sizes.view_open;
 	voe_editor_dock_panel_length_set(&root->tree, VOE_EDITOR_PANEL_SCENE,
 					 sizes.scene_wide);
 	voe_editor_dock_panel_length_set(&root->tree, VOE_EDITOR_PANEL_INSPECTOR,
@@ -53,5 +62,9 @@ bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 		.assets_tall = voe_editor_dock_panel_length(
 			tree, VOE_EDITOR_PANEL_ASSETS),
 		.topbar_high = bar->wanted,
-		.view_share = voe_editor_dock_view_share(tree) });
+		.view_share = voe_editor_dock_view_share(tree),
+		.scene_open = !root->closed[VOE_EDITOR_CLOSABLE_SCENE_LIST],
+		.assets_open = !root->closed[VOE_EDITOR_CLOSABLE_ASSETS],
+		.inspector_open = !root->closed[VOE_EDITOR_CLOSABLE_INSPECTOR],
+		.view_open = !root->closed[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] });
 }

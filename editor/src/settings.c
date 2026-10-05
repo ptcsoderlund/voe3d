@@ -1,4 +1,5 @@
-// `<settings>/voe3d/editor_settings`: read line by line as a key and a number,
+// `<settings>/voe3d/editor_settings`: read line by line as a key and a number
+// or a `0`/`1` flag,
 // written back with every other key's line kept, by making the two folders
 // above it as needed. See the header for the shape of the contract.
 #include "settings.h"
@@ -29,17 +30,43 @@
 // The largest size a line may hold, in millimetres.
 #define SETTINGS_MOST 1000.0f
 
-// Room for the five lines this file writes: each key and any finite double
+// Room for the nine lines this file writes: each key and any finite double
 // `%.3f` prints, which is under 330 characters.
-#define SETTINGS_OWN_ROOM (5u * 352u)
+#define SETTINGS_OWN_ROOM (9u * 352u)
 
-// The five keys, in the order they are written.
-static const char *const KEYS[] = { "scene_wide", "inspector_wide",
-				    "assets_tall", "topbar_high",
-				    "view_share" };
+// The nine keys, in the order they are written: the sizes, then from
+// KEY_FIRST_FLAG the open flags.
+static const char *const KEYS[] = { "scene_wide",     "inspector_wide",
+				    "assets_tall",    "topbar_high",
+				    "view_share",     "scene_open",
+				    "assets_open",    "inspector_open",
+				    "view_open" };
 #define KEY_COUNT (sizeof KEYS / sizeof KEYS[0])
 #define KEY_TOPBAR 3u
 #define KEY_SHARE 4u
+#define KEY_FIRST_FLAG 5u
+
+// The open flag KEYS[key] names; key is KEY_FIRST_FLAG or after.
+static bool *flag(voe_editor_settings *settings, size_t key)
+{
+	VOE_BASE_ASSERT(key >= KEY_FIRST_FLAG && key < KEY_COUNT,
+			"no open flag for that key");
+	return key == 5 ? &settings->scene_open :
+	       key == 6 ? &settings->assets_open :
+	       key == 7 ? &settings->inspector_open :
+			  &settings->view_open;
+}
+
+// The flag a line's text after its key gives, as 0 or 1, or -1 when that text
+// is not exactly one `0` or `1` between blanks.
+static int flag_value(const char *rest)
+{
+	rest += strspn(rest, " \t");
+	if ((*rest != '0' && *rest != '1') ||
+	    rest[1 + strspn(rest + 1, " \t\r")] != '\0')
+		return -1;
+	return *rest - '0';
+}
 
 // The size field KEYS[key] names; key is not KEY_SHARE.
 static float *field(voe_editor_settings *settings, size_t key)
@@ -110,6 +137,7 @@ void voe_editor_settings_read(voe_editor_settings *settings)
 	char *rest;
 	size_t key;
 	double value;
+	int open;
 
 	VOE_BASE_ASSERT(settings != NULL, "reading settings into nothing");
 
@@ -123,6 +151,12 @@ void voe_editor_settings_read(voe_editor_settings *settings)
 		key = key_of(line);
 		if (key == KEY_COUNT)
 			continue;
+		if (key >= KEY_FIRST_FLAG) {
+			open = flag_value(line + strlen(KEYS[key]));
+			if (open >= 0)
+				*flag(settings, key) = open == 1;
+			continue;
+		}
 		value = strtod(line + strlen(KEYS[key]), &rest);
 		if (rest == line + strlen(KEYS[key]) ||
 		    rest[strspn(rest, " \t\r")] != '\0')
@@ -186,13 +220,17 @@ bool voe_editor_settings_write(const voe_editor_settings *settings)
 			used += length;
 			text[used++] = '\n';
 		}
-		for (key = 0; key < KEY_COUNT; key++)
+		for (key = 0; key < KEY_FIRST_FLAG; key++)
 			used += (size_t)snprintf(text + used, capacity - used,
 						 "%s %.3f\n", KEYS[key],
 						 key == KEY_SHARE ?
 							 copy.view_share :
 							 (double)*field(&copy,
 									key));
+		for (; key < KEY_COUNT; key++)
+			used += (size_t)snprintf(text + used, capacity - used,
+						 "%s %d\n", KEYS[key],
+						 *flag(&copy, key) ? 1 : 0);
 		ok = voe_platform_file_write(
 			voe_platform_path_join(scratch, dir, SETTINGS_FILE),
 			(const uint8_t *)text, used, NULL);
@@ -201,7 +239,7 @@ bool voe_editor_settings_write(const voe_editor_settings *settings)
 
 	if (!ok)
 		VOE_BASE_ERROR("editor",
-			       "the panel sizes could not be written to "
+			       "the panel layout could not be written to "
 			       "<settings>/%s/%s",
 			       SETTINGS_FOLDER, SETTINGS_FILE);
 	return ok;
