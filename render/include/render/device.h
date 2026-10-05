@@ -1464,7 +1464,8 @@ typedef struct {
 // records nothing at all and only the read runs (ADR-0317 point 4); on a volume
 // not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
 // shadowed by this begin's bounce shadow map when one was drawn, lit outside its
-// box, and unshadowed when none was; never by the cascades (ADR-0329).
+// box, and unshadowed when none was; never by the cascades (ADR-0329). A relight
+// that records appears in voe_render_frame_pass_times as `bounce relight`.
 //
 // Outside a frame, with a pass open, or with no bounce begin this frame it
 // asserts.

@@ -12,7 +12,8 @@
 // into this slot's list and settled, one workgroup each; then for level k 1 to
 // 3, for each chain n ≥ k holding a light (each sun and each lamp at its own
 // bounces), relight over every probe, a barrier between levels; then sum; then
-// the volume marked relit. The first barrier orders it after the capture copy,
+// the volume marked relit, all of it timed as the pass `bounce relight`
+// (pass_timing.c). The first barrier orders it after the capture copy,
 // this frame's shadow passes and the last frame's reads; the last before this
 // frame's fragment reads of the sum, validity and moments.
 //
@@ -731,6 +732,9 @@ void voe_render_bounce_relight(voe_render_device *device)
 	count = list_changed(&volume->probes,
 			     (uint32_t *)device->relight_mapped[device->slot] +
 				     (size_t)index * VOE_RENDER_BOUNCE_PROBES_TOTAL);
+	voe_render_pass_timing_open(device, voe_render_frame_open(device),
+				    "bounce relight");
 	record_relight(device, volume, index, count, &lights);
+	voe_render_pass_timing_close(device, voe_render_frame_open(device));
 	voe_render_bounce_probes_relit(&volume->probes, &lights);
 }
