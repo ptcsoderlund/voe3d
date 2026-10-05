@@ -31,6 +31,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
   mesh pipelines, solid, blended, shadow, point shadow and capture, then the relight, a step a call.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
+- `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
+  reads agree, by size and member offset; no code.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
