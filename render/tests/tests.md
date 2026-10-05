@@ -46,6 +46,9 @@ by reading the offscreen colour image back.
 - `pass_times.c` — the frame breakdown: a shadow pass on cascade 0 then a window pass listed by
   name in that order, each above nought and their sum not above the frame's GPU time, a frame with
   no shadow pass listing the window alone, and a capacity of 1 writing one. Headless.
+- `best_practices.c` — the Best Practices gate: in a debug build the checks on, and a frame of a
+  shadow pass and a camera pass with a depth copy and an element closing with no new message; a
+  release build says so and passes. Headless.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
   calls, a pass with no camera drawing an element before any, and a camera pass preparing it all.
   Headless.

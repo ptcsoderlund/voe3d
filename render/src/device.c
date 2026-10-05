@@ -598,7 +598,11 @@ static void close_down(voe_render_device *device)
 						      device->messenger, NULL);
 	if (device->instance != VK_NULL_HANDLE)
 		voe_render_vk.destroy_instance(device->instance, NULL);
+}
 
+// After close_down, which leaves the record for the caller to read.
+static void release(voe_render_device *device)
+{
 	free(device);
 	voe_render_loader_close();
 }
@@ -608,6 +612,7 @@ static voe_render_device *open_failed(voe_render_device *device,
 {
 	report(error, code);
 	close_down(device);
+	release(device);
 	return NULL;
 }
 
@@ -752,9 +757,25 @@ voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
 	return open_device(arena, native, size, capacities, error, true);
 }
 
+// THE BEST PRACTICES GATE IS HERE (ADR-0367 point 6). Every test in every folder
+// that opens a device closes it, so a new message anywhere fails that test,
+// without a check per folder; and a person's debug session is not aborted at
+// the message, only told the count when the device goes. The count is read
+// after close_down, so a message the teardown itself raised is counted too.
 void voe_render_device_destroy(voe_render_device *device)
 {
+	uint32_t new_messages;
+
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a NULL device");
 
 	close_down(device);
+	new_messages = device->new_messages;
+	release(device);
+
+	if (new_messages > 0)
+		VOE_BASE_ERROR("render",
+			       "%u new validation messages this device: fix each, or add it to the allowlist by a decision (render/src/best_practices.c)",
+			       new_messages);
+	VOE_BASE_DEBUG_ASSERT(new_messages == 0,
+			      "a validation error or a Best Practices warning not on the allowlist was raised; see the lines above");
 }

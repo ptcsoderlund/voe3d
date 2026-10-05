@@ -954,6 +954,9 @@ voe_render_device_new_headless(voe_base_arena *arena, voe_platform_size size,
 			       voe_render_capacities capacities,
 			       voe_base_error *error);
 
+// Closes the device. IN A DEBUG BUILD IT IS THE BEST PRACTICES GATE (ADR-0367):
+// a device that counted a validation error, or a warning not on render's
+// allowlist, prints the count here and asserts, so any test that drew one fails.
 void voe_render_device_destroy(voe_render_device *device);
 
 // What voe_render_device_prepare answers.

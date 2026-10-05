@@ -24,13 +24,43 @@
 // ----------------------------------------------------------------- the lists
 
 // One allowed warning: its id name and one line why it stands. Ends at the row
-// with no id; card 06 fills it with today's warnings.
+// with no id. Today's warnings as of 062, on an NVIDIA card: every test of
+// every folder and the editor's capture of examples/tank_game. Each is a cost
+// the breakdown has not yet ranked, so fixing it waits for a measurement (0358).
 struct allowance {
 	const char *id_name;
 	const char *why;
 };
 
 static const struct allowance allowlist[] = {
+	{ "BestPractices-ImageBarrierAccessLayout",
+	  "barriers name MEMORY_READ|WRITE rather than the layout's own access; the barrier review is its own card" },
+	{ "BestPractices-ImageMemoryBarrier-TransitionUndefinedToReadOnly",
+	  "an image is settled from UNDEFINED straight to read-only so an unwritten slot is valid to bind (default texture, empty maps)" },
+	{ "BestPractices-NVIDIA-AllocateMemory-ReuseAllocations",
+	  "a resize or a volume freed and rebuilt reallocates; reuse needs an allocator the engine does not have yet" },
+	{ "BestPractices-NVIDIA-AllocateMemory-SetPriority",
+	  "no VK_EXT_memory_priority asked for; a hint whose worth the breakdown has not shown" },
+	{ "BestPractices-NVIDIA-ClearColor-NotCompressed",
+	  "the clear colour is the scene's own, not 0 or 1; changing it changes the picture" },
+	{ "BestPractices-NVIDIA-CreateDevice-PageableDeviceLocalMemory",
+	  "VK_EXT_pageable_device_local_memory is not asked for; an extension the engine has not decided to take" },
+	{ "BestPractices-NVIDIA-CreateImage-Depth32Format",
+	  "D32_SFLOAT is chosen on purpose for reversed depth's precision (device_internal.h)" },
+	{ "BestPractices-NVIDIA-CreatePipelineLayout-LargePipelineLayout",
+	  "one shared layout for every mesh and element pipeline; splitting it is a descriptor redesign" },
+	{ "BestPractices-Pipeline-SortAndBind",
+	  "a pipeline is rebound once per pass, as every pass opens its own rendering; draws are not sorted across passes" },
+	{ "BestPractices-PushConstants",
+	  "the range is shared by the element and mesh pipelines and a mesh draw pushes only its own part" },
+	{ "BestPractices-vkBindBufferMemory-small-dedicated-allocation",
+	  "every buffer has its own allocation; sub-allocation is the allocator the review asked for, not this feature" },
+	{ "BestPractices-vkBindImageMemory-small-dedicated-allocation",
+	  "every image has its own allocation; sub-allocation is the allocator the review asked for, not this feature" },
+	{ "BestPractices-vkCmdDrawIndexed-many-small-indexed-drawcalls",
+	  "an Arm and IMG check with no vendor tag in its id; tests draw tiny meshes, which is what they are for" },
+	{ "BestPractices-vkCreateComputePipelines-multiple-pipelines-no-cache",
+	  "no pipeline cache yet; startup cost is measured by prepare's steps, not here" },
 	{ NULL, NULL },
 };
 
