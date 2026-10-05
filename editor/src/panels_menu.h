@@ -12,6 +12,12 @@
 // not "open". It sits in a column of its own, as wide with or without it, so
 // the names line up.
 //
+// EVERY ROW IS `rows_wide` WIDE, the widest row's content as the read measured
+// it, so the names line up and the panel spans the longest. Not GROW: a grow
+// child adds nothing to its parent's natural width, so the panel came out the
+// tick column wide. The first frame after the list first opens draws the rows
+// natural, names centred, the background still whole.
+//
 // IT IS AN ANCHORED PANEL HANGING BELOW `under`, the Panels button's rectangle
 // last frame, in the root column's millimetres, and it takes the pointer, so
 // nothing under it hovers or takes a click.
@@ -33,13 +39,17 @@
 
 #include <stdbool.h>
 
-// Whether the list shows, and its panel and rows as drawn this frame, for the
-// read after voe_ui_frame_end; VOE_UI_NODE_NONE for a node not drawn. Zeroed
-// is closed: a closed list is never read.
+// Whether the list shows, and its panel, rows (buttons) and names (the row in
+// each button) as drawn this frame, for the read after voe_ui_frame_end;
+// VOE_UI_NODE_NONE for a node not drawn. `rows_wide` is the widest name row's
+// content in the last frame drawn, millimetres, nought until one has been.
+// Zeroed is closed: a closed list is never read.
 typedef struct {
 	bool open;
 	voe_ui_node panel;
 	voe_ui_node rows[VOE_EDITOR_CLOSABLE_COUNT];
+	voe_ui_node names[VOE_EDITOR_CLOSABLE_COUNT];
+	float rows_wide;
 } voe_editor_panels_menu;
 
 // Draws the list below `under`, each row ticked when `open` says so, and
@@ -50,7 +60,8 @@ void voe_editor_panels_menu_draw(voe_ui_context *ui, voe_editor_panels_menu *men
 
 // The row that fired this frame, VOE_EDITOR_CLOSABLE_COUNT for none, and in
 // `over` whether `at` is on the list's visible rectangle, for the press
-// outside. Called after voe_ui_frame_end, in the frame the list was drawn.
+// outside; sets `rows_wide` for the next draw. Called after voe_ui_frame_end,
+// in the frame the list was drawn.
 voe_editor_closable voe_editor_panels_menu_read(const voe_ui_context *ui,
-						const voe_editor_panels_menu *menu,
+						voe_editor_panels_menu *menu,
 						voe_math_float2 at, bool *over);

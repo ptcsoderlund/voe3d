@@ -1,9 +1,10 @@
 // The Panels list's one frame of `ui` calls and the read of its rows
 // afterwards. See the header for why the tick is √ and who closes the list.
 //
-// Each row is a button holding a row that grows to the button's width, so its
-// content starts at the left rather than centred, and in it the tick column at
-// a fixed width and the panel's name.
+// Each row is a button holding a row fixed at the widest row's content as
+// measured last frame (natural until then), so every button centres the same
+// width and the names start at one left edge, and in it the tick column at a
+// fixed width and the panel's name.
 #include "panels_menu.h"
 
 #include "inspector_place.h"
@@ -42,13 +43,15 @@ void voe_editor_panels_menu_draw(voe_ui_context *ui, voe_editor_panels_menu *men
 				    .pad = { MENU_PAD, MENU_PAD, MENU_PAD,
 					     MENU_PAD },
 				    .blocks_pointer = true });
+	voe_ui_size row_wide = { VOE_UI_SIZE_NATURAL, 0.0f };
+	if (menu->rows_wide > 0.0f)
+		row_wide = (voe_ui_size){ VOE_UI_SIZE_FIXED, menu->rows_wide };
 	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_COUNT; i++) {
 		menu->rows[i] = voe_ui_button_begin(ui, "panels menu row", i);
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .size = { .along = { VOE_UI_SIZE_GROW,
-								  1.0f } },
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = MENU_PAD });
+		menu->names[i] = voe_ui_row_begin(
+			ui, (voe_ui_container){ .size = { .along = row_wide },
+						.across = VOE_UI_ACROSS_CENTER,
+						.gap = MENU_PAD });
 		voe_ui_column_begin(ui, (voe_ui_container){
 						.size = { .along = { VOE_UI_SIZE_FIXED,
 								     TICK_WIDE } },
@@ -65,10 +68,11 @@ void voe_editor_panels_menu_draw(voe_ui_context *ui, voe_editor_panels_menu *men
 }
 
 voe_editor_closable voe_editor_panels_menu_read(const voe_ui_context *ui,
-						const voe_editor_panels_menu *menu,
+						voe_editor_panels_menu *menu,
 						voe_math_float2 at, bool *over)
 {
 	voe_editor_closable fired = VOE_EDITOR_CLOSABLE_COUNT;
+	float wide = 0.0f;
 
 	VOE_BASE_ASSERT(ui != NULL, "reading the Panels list of no interface");
 	VOE_BASE_ASSERT(menu != NULL && over != NULL,
@@ -84,6 +88,13 @@ voe_editor_closable voe_editor_panels_menu_read(const voe_ui_context *ui,
 		    menu->rows[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, menu->rows[i]).fired)
 			fired = (voe_editor_closable)i;
+	// The measured content ignores the row's own FIXED width (layout.h), so
+	// a longer name widens the next frame and nothing ratchets.
+	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_COUNT; i++)
+		if (menu->names[i] != VOE_UI_NODE_NONE &&
+		    voe_ui_node_measured(ui, menu->names[i]).x > wide)
+			wide = voe_ui_node_measured(ui, menu->names[i]).x;
+	menu->rows_wide = wide;
 
 	VOE_BASE_ASSERT(fired <= VOE_EDITOR_CLOSABLE_COUNT,
 			"a Panels row past the closables");
