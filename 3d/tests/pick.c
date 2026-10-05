@@ -3,9 +3,10 @@
 //
 // THE ARITHMETIC HALF NEEDS NO GRAPHICS CARD. A ray is two matrices and a walk
 // over triangles the CPU already holds, so the distance to a cube, the ray that
-// meets nothing, the frontmost of two in either order, a camera's box or a
-// sun's cube beating or losing to a cube, a ray through the frustum and not
-// the box picking nothing, and the entities that are skipped are all checkable
+// meets nothing, the frontmost of two in either order, a camera's box, a sun's
+// cube or a bare place's marker winning over a cube in front of it or behind
+// it, a water met on its plane and missed beyond it, a ray through the frustum
+// and not the box picking nothing, and the entities skipped are all checkable
 // on a build box with no Vulkan, and so is a child hit at its world place as
 // its parent moves. A model's case needs one to load the model.
 //
@@ -29,6 +30,7 @@
 #include <3d/shape_component.h>
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
+#include <3d/water_component.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/component.h>
@@ -127,6 +129,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	voe_3d_panel_register(world, 4);
 	voe_3d_shape_register(world, 8);
 	voe_3d_model_register(world, 4);
+	voe_3d_water_register(world, 2);
 	return world;
 }
 
@@ -254,9 +257,10 @@ static voe_ecs_entity add_a_camera(voe_ecs_world *world, float x, float y,
 	return entity;
 }
 
-// A camera competes with the shapes on distance (0223): in front of the cube
-// its box, 0.15 m deep, is met at 4.9 - 2.15; behind the cube it loses.
-static void a_camera_competes_with_the_cube_on_distance(
+// A camera's marker wins over a shape, whichever is nearer (0223, 0354): in
+// front of the cube its box, 0.15 m deep, is met at 4.9 - 2.15; behind the cube
+// it is still the answer, at its own box's face, 4.9 + 1.85.
+static void a_camera_marker_wins_over_the_cube(
 	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
 {
 	voe_platform_size size = { WIDTH, HEIGHT };
@@ -283,9 +287,10 @@ static void a_camera_competes_with_the_cube_on_distance(
 		voe_ecs_entity hit =
 			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
-		(void)camera;
-		VOE_TEST_CHECK_INT(hit.index, cube.index);
-		VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+		(void)cube;
+		VOE_TEST_CHECK_INT(hit.index, camera.index);
+		VOE_TEST_CHECK_INT(hit.generation, camera.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.9f + 1.85f, 1e-3f);
 	}
 }
 
@@ -304,10 +309,10 @@ static voe_ecs_entity add_a_sun(voe_ecs_world *world, float x, float y,
 	return entity;
 }
 
-// A sun competes with the shapes on distance (0274): in front of the cube its
-// marker's cube, 0.25 m in half extent, is met at 4.9 - 2.25; behind the cube
-// it loses.
-static void a_sun_competes_with_the_cube_on_distance(
+// A sun's marker wins over a shape, whichever is nearer (0274, 0354): in front
+// of the cube its marker's cube, 0.25 m in half extent, is met at 4.9 - 2.25;
+// behind the cube it is still the answer, at 4.9 + 1.75.
+static void a_sun_marker_wins_over_the_cube(
 	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
 {
 	voe_platform_size size = { WIDTH, HEIGHT };
@@ -334,8 +339,87 @@ static void a_sun_competes_with_the_cube_on_distance(
 		voe_ecs_entity hit =
 			voe_3d_pick(world, geometries, NULL, ray, &distance);
 
-		(void)sun;
+		(void)cube;
+		VOE_TEST_CHECK_INT(hit.index, sun.index);
+		VOE_TEST_CHECK_INT(hit.generation, sun.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.9f + 1.75f, 1e-3f);
+	}
+}
+
+// A water 4 m wide and 6 m long at the origin, seen straight down from 3 m up,
+// is met on its plane at 3 m; 2.5 m aside along X, past its half width, the same
+// ray meets nothing. Either face counts, so from 3 m below it is met too.
+static void a_water_is_hit_on_its_plane_and_missed_beyond_it(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity water = { 0 };
+	voe_3d_water body = { .width = 4.0f, .length = 6.0f };
+	voe_3d_ray ray = { .origin = { 0.0, 3.0, 0.0 },
+			   .direction = { 0.0f, -1.0f, 0.0f } };
+	float distance = -1.0f;
+	voe_ecs_entity hit;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &water));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, water,
+					       at(0.0f, 0.0f, 0.0f)));
+	VOE_TEST_CHECK(voe_3d_water_add(world, water, body));
+
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, water.index);
+	VOE_TEST_CHECK_INT(hit.generation, water.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 3.0f, 1e-4f);
+
+	ray.origin.y = -3.0;
+	ray.direction.y = 1.0f;
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, water.index);
+	VOE_TEST_CHECK_FLOAT(distance, 3.0f, 1e-4f);
+
+	ray.origin.x = 2.5;
+	distance = -1.0f;
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.generation, 0);
+	VOE_TEST_CHECK_FLOAT(distance, -1.0f, 1e-6f);
+}
+
+// A bare transform behind a cube is the answer on its place marker's cube, at
+// 4.9 + 1.75 (0354, 0365); one a metre beside the ray is not, and the cube is.
+static void a_place_marker_wins_over_the_cube(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_3d_ray ray = voe_3d_pick_ray(
+		the_view(size), EYE, size,
+		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
+	float distance = -1.0f;
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity place = { 0 };
+		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity hit;
+
+		VOE_TEST_CHECK(voe_ecs_entity_create(world, &place));
+		VOE_TEST_CHECK(voe_scene_transform_add(world, place,
+						       at(0.0f, 0.0f, -2.0f)));
+		hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+		(void)cube;
+		VOE_TEST_CHECK_INT(hit.index, place.index);
+		VOE_TEST_CHECK_INT(hit.generation, place.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.9f + 1.75f, 1e-3f);
+	}
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity place = { 0 };
+		voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity hit;
+
+		VOE_TEST_CHECK(voe_ecs_entity_create(world, &place));
+		VOE_TEST_CHECK(voe_scene_transform_add(world, place,
+						       at(1.0f, 0.0f, -2.0f)));
+		hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 		VOE_TEST_CHECK_INT(hit.index, cube.index);
+		VOE_TEST_CHECK_INT(hit.generation, cube.generation);
 		VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
 	}
 }
@@ -506,10 +590,9 @@ static void a_pixel_the_cube_covers_picks_the_cube(
 
 	// The eye's own marker box holds every pick ray's origin, so it would
 	// answer every pixel (0223); an editor picks from its orbit, not from a
-	// camera in the world, so the eye's camera goes before the picks.
-	VOE_TEST_CHECK(voe_ecs_component_remove(
-		world, voe_ecs_component_type(world, &voe_scene_camera_key),
-		eye));
+	// camera in the world, so the eye goes before the picks — all of it, or
+	// its bare transform's place marker would answer instead (0365).
+	voe_ecs_entity_destroy(world, eye);
 
 	VOE_TEST_CHECK(found);
 	if (found) {
@@ -673,8 +756,10 @@ int main(void)
 	the_centre_ray_hits_a_cube_at_the_origin(arena, &geometries);
 	the_nearer_of_two_wins_in_either_order(arena, &geometries);
 	a_cube_off_centre_is_found_at_its_own_pixel(arena, &geometries);
-	a_camera_competes_with_the_cube_on_distance(arena, &geometries);
-	a_sun_competes_with_the_cube_on_distance(arena, &geometries);
+	a_camera_marker_wins_over_the_cube(arena, &geometries);
+	a_sun_marker_wins_over_the_cube(arena, &geometries);
+	a_water_is_hit_on_its_plane_and_missed_beyond_it(arena, &geometries);
+	a_place_marker_wins_over_the_cube(arena, &geometries);
 	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);
 	a_pixel_the_cube_covers_picks_the_cube(arena, &geometries);
 	a_model_is_hit_at_its_distance_and_missed_beside_it(arena, &geometries);

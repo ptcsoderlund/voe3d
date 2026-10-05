@@ -2,17 +2,21 @@
 // question is answered here and against which table.
 //
 // The view's two matrices are inverted once per pick. The walk carries the ray
-// into each shape's or model's own space, from its world place, and tests its
-// triangles; the triangle test is written out once, its derivation in a comment
-// above it. The cameras' marker boxes, the suns' marker cubes and the point
-// lights' are tested after the shapes and the models, on the same distance.
+// into each shape's, model's or water's own space, from its world place, and
+// tests its triangles or, for a water, its plane; the triangle test is written
+// out once, its derivation in a comment above it. The markers — cameras' boxes,
+// suns', point lights' and place markers' cubes — are tested as one group, and
+// its nearest hit wins over any mesh hit; the meshes are walked only when no
+// marker is met.
 #include <3d/camera_marker.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/pick.h>
+#include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
 #include <3d/shape_component.h>
 #include <3d/sun_marker.h>
+#include <3d/water_component.h>
 
 #include <base/assert.h>
 
@@ -26,6 +30,7 @@
 #include <scene/point_light_component.h>
 #include <scene/transform_component.h>
 
+#include <math.h>
 #include <stddef.h>
 
 // Nearer than this along the ray is the surface the origin is already sitting
@@ -158,18 +163,14 @@ voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_math_double3 eye,
 							 near_point)) };
 }
 
-// The nearest hit along `ray` of `geometry` placed by `transform`, in metres,
-// false when it is missed or scaled away to nothing. Shapes and models alike.
-static bool geometry_hit(voe_scene_transform transform,
-			 const voe_3d_shape_geometry *geometry, voe_3d_ray ray,
-			 float *nearest)
+// `ray` carried into the own space of an entity placed by `transform`, false
+// when it is scaled away to nothing. Shapes, models and waters alike.
+static bool carried_into(voe_scene_transform transform, voe_3d_ray ray,
+			 struct local_ray *local)
 {
 	voe_math_float4x4 matrix;
-	struct local_ray local;
-	bool hit = false;
 
-	VOE_BASE_ASSERT(geometry != NULL, "a ray against no geometry");
-	VOE_BASE_ASSERT(nearest != NULL, "a hit measured into nothing");
+	VOE_BASE_ASSERT(local != NULL, "a ray carried into nothing");
 
 	// About the ray's origin, so the ray starts at nought and only the
 	// entity's small offset from it is narrowed (ADR-0250).
@@ -180,11 +181,57 @@ static bool geometry_hit(voe_scene_transform transform,
 		return false;
 
 	matrix = voe_math_float4x4_inverse(matrix);
-	// The direction is carried over and not normalised again, so `t` below
-	// is the same number in both spaces — see the header.
-	local.origin = voe_math_float4x4_transform_point(
+	// The direction is carried over and not normalised again, so a `t` is
+	// the same number in both spaces — see the header.
+	local->origin = voe_math_float4x4_transform_point(
 		matrix, (voe_math_float3){ 0.0f, 0.0f, 0.0f });
-	local.direction = voe_math_float4x4_transform_dir(matrix, ray.direction);
+	local->direction =
+		voe_math_float4x4_transform_dir(matrix, ray.direction);
+	return true;
+}
+
+// Where `ray` crosses a water's plane, its own y = 0 within half its width
+// along x and half its length along z, from either face (0365 point 3).
+static bool water_hit(voe_scene_transform transform, voe_3d_water water,
+		      voe_3d_ray ray, float *t)
+{
+	struct local_ray local;
+	float hit;
+	float x;
+	float z;
+
+	VOE_BASE_ASSERT(t != NULL, "a hit measured into nothing");
+
+	if (!carried_into(transform, ray, &local))
+		return false;
+	// A ray along the plane never crosses it, and would divide by nothing.
+	if (local.direction.y > -PARALLEL && local.direction.y < PARALLEL)
+		return false;
+	hit = -local.origin.y / local.direction.y;
+	if (hit <= NEAR_ENOUGH_TO_BE_HERE)
+		return false;
+	x = local.origin.x + hit * local.direction.x;
+	z = local.origin.z + hit * local.direction.z;
+	if (fabsf(x) > water.width * 0.5f || fabsf(z) > water.length * 0.5f)
+		return false;
+	*t = hit;
+	return true;
+}
+
+// The nearest hit along `ray` of `geometry` placed by `transform`, in metres,
+// false when it is missed or scaled away to nothing. Shapes and models alike.
+static bool geometry_hit(voe_scene_transform transform,
+			 const voe_3d_shape_geometry *geometry, voe_3d_ray ray,
+			 float *nearest)
+{
+	struct local_ray local;
+	bool hit = false;
+
+	VOE_BASE_ASSERT(geometry != NULL, "a ray against no geometry");
+	VOE_BASE_ASSERT(nearest != NULL, "a hit measured into nothing");
+
+	if (!carried_into(transform, ray, &local))
+		return false;
 
 	for (uint32_t j = 0; j + 2 < geometry->index_count; j += 3) {
 		float t;
@@ -204,31 +251,45 @@ static bool geometry_hit(voe_scene_transform transform,
 	return hit;
 }
 
-voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
-			   const voe_3d_shape_geometries *geometries,
-			   const voe_3d_models *models, voe_3d_ray ray,
-			   float *distance)
+// The nearest hit of one group so far: zeroed until something is met.
+struct nearest_hit {
+	voe_ecs_entity entity;
+	float distance;
+};
+
+// Keeps `entity` at `t` when it is the group's first hit or nearer than it.
+static void keep_nearer(struct nearest_hit *best, voe_ecs_entity entity,
+			float t)
+{
+	VOE_BASE_ASSERT(best != NULL, "a hit kept in nothing");
+	VOE_BASE_ASSERT(entity.generation != 0, "a hit on no entity");
+
+	if (best->entity.generation != 0 && t >= best->distance)
+		return;
+	best->entity = entity;
+	best->distance = t;
+}
+
+// The shapes, models and waters: everything clicked on its own surface.
+static struct nearest_hit mesh_hit(const voe_ecs_world *world,
+				   const voe_3d_shape_geometries *geometries,
+				   const voe_3d_models *models, voe_3d_ray ray)
 {
 	uint32_t count = voe_3d_shape_count(world);
 	const voe_3d_shape *rows = voe_3d_shape_rows(world);
 	const voe_ecs_entity *entities = voe_3d_shape_entities(world);
-	voe_ecs_entity hit = { 0 };
-	float nearest = 0.0f;
+	struct nearest_hit best = { 0 };
 
 	for (uint32_t i = 0; i < count; i++) {
 		const voe_3d_shape_geometry *geometry =
 			voe_3d_shape_geometry_of(geometries, rows[i].kind);
 		float t;
 
-		if (voe_scene_transform_get(world, entities[i]) == NULL ||
-		    geometry == NULL ||
-		    !geometry_hit(voe_scene_transform_world(world, entities[i]),
-				  geometry, ray, &t))
-			continue;
-		if (hit.generation != 0 && t >= nearest)
-			continue;
-		nearest = t;
-		hit = entities[i];
+		if (voe_scene_transform_get(world, entities[i]) != NULL &&
+		    geometry != NULL &&
+		    geometry_hit(voe_scene_transform_world(world, entities[i]),
+				 geometry, ray, &t))
+			keep_nearer(&best, entities[i], t);
 	}
 
 	// A model row is tested on its loaded entry's own triangles, exactly as
@@ -243,21 +304,44 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 				voe_3d_models_find(models, worn[i].path);
 			float t;
 
-			if (voe_scene_transform_get(world, owners[i]) == NULL ||
-			    entry == NULL || !entry->loaded ||
-			    !geometry_hit(voe_scene_transform_world(world,
-								    owners[i]),
-					  &entry->shape, ray, &t))
-				continue;
-			if (hit.generation != 0 && t >= nearest)
-				continue;
-			nearest = t;
-			hit = owners[i];
+			if (voe_scene_transform_get(world, owners[i]) != NULL &&
+			    entry != NULL && entry->loaded &&
+			    geometry_hit(voe_scene_transform_world(world,
+								   owners[i]),
+					 &entry->shape, ray, &t))
+				keep_nearer(&best, owners[i], t);
 		}
 	}
 
-	// The cameras compete on the same distance: their box, never their
-	// frustum (0223, 3d/camera_marker.h).
+	// A water on its plane, never its waves, which only bend the shading
+	// (3d/water_component.h).
+	if (has_store(world, &voe_3d_water_key)) {
+		uint32_t waters = voe_3d_water_count(world);
+		const voe_3d_water *bodies = voe_3d_water_rows(world);
+		const voe_ecs_entity *owners = voe_3d_water_entities(world);
+
+		for (uint32_t i = 0; i < waters; i++) {
+			float t;
+
+			if (voe_scene_transform_get(world, owners[i]) != NULL &&
+			    water_hit(voe_scene_transform_world(world, owners[i]),
+				      bodies[i], ray, &t))
+				keep_nearer(&best, owners[i], t);
+		}
+	}
+	return best;
+}
+
+// The cameras, suns, point lights and places: everything clicked on a marker.
+static struct nearest_hit marker_hit(const voe_ecs_world *world,
+				     voe_3d_ray ray)
+{
+	struct nearest_hit best = { 0 };
+
+	VOE_BASE_ASSERT(world != NULL, "a pick in no world");
+
+	// The cameras on their box, never their frustum (0223,
+	// 3d/camera_marker.h).
 	if (has_store(world, &voe_scene_camera_key)) {
 		uint32_t cameras = voe_scene_camera_count(world);
 		const voe_ecs_entity *owners = voe_scene_camera_entities(world);
@@ -265,19 +349,15 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		for (uint32_t i = 0; i < cameras; i++) {
 			float t;
 
-			if (voe_scene_transform_get(world, owners[i]) == NULL ||
-			    !voe_3d_camera_marker_hit(
+			if (voe_scene_transform_get(world, owners[i]) != NULL &&
+			    voe_3d_camera_marker_hit(
 				    voe_scene_transform_world(world, owners[i]),
 				    ray, &t))
-				continue;
-			if (hit.generation != 0 && t >= nearest)
-				continue;
-			nearest = t;
-			hit = owners[i];
+				keep_nearer(&best, owners[i], t);
 		}
 	}
 
-	// So do the suns, on their marker's cube, never its lines (0274,
+	// The suns on their marker's cube, never its lines (0274,
 	// 3d/sun_marker.h).
 	if (has_store(world, &voe_scene_light_key)) {
 		uint32_t lights = voe_scene_light_count(world);
@@ -286,19 +366,15 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		for (uint32_t i = 0; i < lights; i++) {
 			float t;
 
-			if (voe_scene_transform_get(world, owners[i]) == NULL ||
-			    !voe_3d_sun_marker_hit(
+			if (voe_scene_transform_get(world, owners[i]) != NULL &&
+			    voe_3d_sun_marker_hit(
 				    voe_scene_transform_world(world, owners[i]),
 				    ray, &t))
-				continue;
-			if (hit.generation != 0 && t >= nearest)
-				continue;
-			nearest = t;
-			hit = owners[i];
+				keep_nearer(&best, owners[i], t);
 		}
 	}
 
-	// And the point lights, on their marker's world-axis cube at their world
+	// The point lights on their marker's world-axis cube at their world
 	// place (0320 point 7, 3d/point_light_marker.h).
 	if (has_store(world, &voe_scene_point_light_key)) {
 		uint32_t lamps = voe_scene_point_light_count(world);
@@ -308,20 +384,48 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 		for (uint32_t i = 0; i < lamps; i++) {
 			float t;
 
-			if (voe_scene_transform_get(world, owners[i]) == NULL ||
-			    !voe_3d_point_light_marker_hit(
+			if (voe_scene_transform_get(world, owners[i]) != NULL &&
+			    voe_3d_point_light_marker_hit(
 				    voe_scene_transform_world(world, owners[i])
 					    .position,
 				    ray, &t))
-				continue;
-			if (hit.generation != 0 && t >= nearest)
-				continue;
-			nearest = t;
-			hit = owners[i];
+				keep_nearer(&best, owners[i], t);
 		}
 	}
 
-	if (hit.generation != 0 && distance != NULL)
-		*distance = nearest;
-	return hit;
+	// Every other place on its diamond's cube: the transform table's owners
+	// that wear it, the one answer the draw asks too (3d/place_marker.h).
+	{
+		uint32_t places = voe_scene_transform_count(world);
+		const voe_ecs_entity *owners =
+			voe_scene_transform_entities(world);
+
+		for (uint32_t i = 0; i < places; i++) {
+			float t;
+
+			if (voe_3d_place_marker_wanted(world, owners[i]) &&
+			    voe_3d_place_marker_hit(
+				    voe_scene_transform_world(world, owners[i])
+					    .position,
+				    ray, &t))
+				keep_nearer(&best, owners[i], t);
+		}
+	}
+	return best;
+}
+
+voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
+			   const voe_3d_shape_geometries *geometries,
+			   const voe_3d_models *models, voe_3d_ray ray,
+			   float *distance)
+{
+	struct nearest_hit marker = marker_hit(world, ray);
+	struct nearest_hit answer =
+		marker.entity.generation != 0 ?
+			marker :
+			mesh_hit(world, geometries, models, ray);
+
+	if (answer.entity.generation != 0 && distance != NULL)
+		*distance = answer.distance;
+	return answer.entity;
 }

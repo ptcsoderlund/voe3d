@@ -70,8 +70,9 @@ again, or to find where a claim that has started failing is written down.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
-- `pick.c` — that the pick ray meets the nearest cube, camera box, sun cube, model or child at the
-  right distance and nothing where nothing is, and that a drawn pixel the cube covers picks it.
+- `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
+  distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
+  it or behind it, and a drawn pixel the cube covers picks it.
 - `outline.c` — the silhouette edge counts, the quads' corners, width and winding for cubes,
   children and models, and that a hidden cube's outline shows through when drawn.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
@@ -81,8 +82,8 @@ again, or to find where a claim that has started failing is written down.
   turned -Z, a scaled sun building the same quads, and a ray meeting the cube square on, turned and
   not at all. Needs no graphics card.
 - `point_light_marker.c` — the marker's thirty-six edges seen off-axis, no area building nothing,
-  a ray meeting the cube 0.25 m short and missing beside it, and a pick answering a lamp and the
-  nearer of a lamp and a cube. Needs no graphics card.
+  a ray meeting the cube 0.25 m short and missing beside it, and a pick answering a lamp alone and
+  before or behind a cube, a marker over a mesh. Needs no graphics card.
 - `place_marker.c` — the diamond's twelve edges, no area building nothing, a ray meeting the cube
   0.25 m short and missing 0.3 m aside, and who wears it, an unregistered table counting as no
   row. Needs no graphics card.
