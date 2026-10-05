@@ -97,10 +97,9 @@ which file to open — what each one owns, and where the seams between them run.
   bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
-- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
-  begun probe volume, its point lights copied and binned, its light blockers, lamp masks, kinds and
-  sun mask, the further directional lights, the clear colour, the
-  first-clears-later-load rule, and the one Y flip in the viewport.
+- `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
+  volume, point lights, light blockers and further lights, the clear colour, the
+  first-clears-later-load rule, and the one Y flip.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.

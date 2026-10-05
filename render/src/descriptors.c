@@ -43,10 +43,8 @@
 // draw and every element draw. Vulkan does not require a shader to declare
 // every binding its layout has.
 //
-// The one thing a mesh draw is told that the draw beside it is not is its object
-// number, and that is still the only push constant a mesh draw uses; the element
-// pipeline pushes its surface transform through the same range. See the range in
-// device.c.
+// A mesh draw's only push constant is its object number; the element pipeline
+// pushes its surface transform through the same range (see device.c).
 //
 // THE POOL IS SIZED EXACTLY AND NEVER GROWS. VOE_RENDER_FRAMES_IN_FLIGHT sets
 // are allocated once at startup and freed by destroying the pool; no set is
