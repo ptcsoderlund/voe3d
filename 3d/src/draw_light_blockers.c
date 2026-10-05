@@ -18,6 +18,10 @@
 // the light row's entity's world place at the lag, about the eye in float as a
 // box's centre is; no light table, no row or no transform is 0.
 //
+// THE LIGHTS AFTER THE FIRST (0357 point 1) are voe_3d_draw_system_lights':
+// light rows 2 to 4, each made as draw_system.c makes the first and masked at
+// its place as `sun` is, by the same code; rows past the fourth left out.
+//
 // Constraints: the tables are looked for by a walk of the world's types, as
 // draw_point_lights.c's has_point_lights does, because
 // voe_ecs_component_type asserts on a key nothing registered; twice per call.
@@ -50,16 +54,13 @@ static bool has_table(const voe_ecs_world *world, const struct voe_ecs_key *key)
 	return false;
 }
 
-// The mask of `records` holding the light row's entity's place, 0 for none.
-static uint32_t sun_mask(const voe_ecs_world *world, const voe_3d_frame *frame,
-			 const voe_render_light_blocker *records,
-			 uint32_t count)
+// The mask of `records` holding `lit`'s world place at the frame's lag, about
+// its eye; 0 with no transform.
+static uint32_t mask_at(const voe_ecs_world *world, const voe_3d_frame *frame,
+			const voe_render_light_blocker *records, uint32_t count,
+			voe_ecs_entity lit)
 {
-	if (!has_table(world, &voe_scene_light_key) ||
-	    voe_scene_light_count(world) == 0)
-		return 0;
-	voe_ecs_entity lit = voe_scene_light_entities(world)[0];
-
+	VOE_BASE_ASSERT(count == 0 || records != NULL, "a mask of no records");
 	if (voe_scene_transform_get(world, lit) == NULL)
 		return 0;
 	voe_scene_transform place =
@@ -69,6 +70,39 @@ static uint32_t sun_mask(const voe_ecs_world *world, const voe_3d_frame *frame,
 		records, count,
 		voe_math_double3_to_float3(
 			voe_math_double3_sub(place.position, frame->eye)));
+}
+
+// The mask of `records` holding the light row's entity's place, 0 for none.
+static uint32_t sun_mask(const voe_ecs_world *world, const voe_3d_frame *frame,
+			 const voe_render_light_blocker *records,
+			 uint32_t count)
+{
+	if (!has_table(world, &voe_scene_light_key) ||
+	    voe_scene_light_count(world) == 0)
+		return 0;
+	return mask_at(world, frame, records, count,
+		       voe_scene_light_entities(world)[0]);
+}
+
+// Light row `row` as voe_3d_draw_system_light makes the first (draw_system.c):
+// its transform rotation's -Z, -Z with none, the fill colour times intensity.
+static voe_render_light light_of(const voe_ecs_world *world, uint32_t row)
+{
+	VOE_BASE_ASSERT(row < voe_scene_light_count(world), "a light row past the table");
+	voe_scene_light light = voe_scene_light_rows(world)[row];
+	voe_ecs_entity lit = voe_scene_light_entities(world)[row];
+
+	return (voe_render_light){
+		.direction = voe_scene_transform_get(world, lit) ?
+				     voe_scene_light_direction(
+					     voe_scene_transform_world(world, lit)
+						     .rotation) :
+				     (voe_math_float3){ 0.0f, 0.0f, -1.0f },
+		.fill = voe_math_float3_scale(light.fill_colour,
+					      light.fill_intensity),
+		.intensity = light.intensity,
+		.colour = light.colour,
+	};
 }
 
 // One row of the box's unit space: `axis` over `half`, its w −axis·centre
@@ -152,5 +186,44 @@ bool voe_3d_draw_system_light_blockers(const voe_ecs_world *world,
 		.indoors = indoors,
 		.sun = sun_mask(world, frame, records, filled),
 	};
+	return true;
+}
+
+bool voe_3d_draw_system_lights(const voe_ecs_world *world, voe_3d_frame *frame,
+			       voe_base_arena *arena)
+{
+	VOE_BASE_ASSERT(world != NULL, "lights of no world");
+	VOE_BASE_ASSERT(frame != NULL, "lights into no frame");
+	VOE_BASE_ASSERT(arena != NULL, "lights into no arena");
+
+	frame->more_lights = NULL;
+	frame->more_count = 0;
+	if (!has_table(world, &voe_scene_light_key))
+		return true;
+
+	uint32_t count = voe_scene_light_count(world);
+	uint32_t kept = count < VOE_RENDER_DIRECTIONAL_LIGHTS ?
+				count :
+				VOE_RENDER_DIRECTIONAL_LIGHTS;
+	if (kept <= 1)
+		return true;
+
+	const voe_scene_light *rows = voe_scene_light_rows(world);
+	const voe_ecs_entity *owners = voe_scene_light_entities(world);
+	voe_render_directional_light *more =
+		voe_base_arena_push(arena, sizeof(*more) * (kept - 1));
+
+	for (uint32_t row = 1; row < kept; row++)
+		more[row - 1] = (voe_render_directional_light){
+			.light = light_of(world, row),
+			.blockers = mask_at(world, frame, frame->blockers.blockers,
+					    frame->blockers.count, owners[row]),
+			.bounces = rows[row].bounces,
+			.bounce_strength = rows[row].bounce_strength,
+		};
+	frame->more_lights = more;
+	frame->more_count = kept - 1;
+	VOE_BASE_ASSERT(frame->more_count < VOE_RENDER_DIRECTIONAL_LIGHTS,
+			"more lights than a pass holds");
 	return true;
 }

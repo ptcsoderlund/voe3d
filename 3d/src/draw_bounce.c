@@ -296,7 +296,7 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 	bool opened = false;
 	bool drawn;
 
-	if (!voe_render_bounce_shadow_pass_begin(device, &light, &opened))
+	if (!voe_render_bounce_shadow_pass_begin(device, 0, &light, &opened))
 		return false;
 	if (!opened)
 		return true;

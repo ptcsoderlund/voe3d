@@ -42,6 +42,9 @@ again, or to find where a claim that has started failing is written down.
 - `light_blockers.c` — that a blocker's box follows its transform and parent, a frame records it
   about the eye with its block's bit and the sun's mask, its lines are 12 edges, the ground under
   one is black, a Direct's shadow reads the fill and a selected one is outlined.
+- `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
+  with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
+  mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.

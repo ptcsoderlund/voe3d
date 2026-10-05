@@ -79,7 +79,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
-- `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model parts
+- `draw_system.c` — the camera's view, the first light row and the frame's pass camera, and the run: the walk over meshes, model parts
   from the frame's store and panels, a fading model held blended and a gone one skipped, the world's
   solids drawn as found, the held-back groups and the marks in their order.
 - `draw_shadows.c` — the shadow passes as one call: the sun's cascades, the point-shadow pass
@@ -91,7 +91,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   rotation, and |scale| × size / 2 per axis.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
   the eye, its rows and bounding sphere, flat ones and those past 32 left out; the kept boxes' Direct
-  and Fill bits, and the mask of those holding the sun's place.
+  and Fill bits, and the mask of those holding the sun's place; and light rows 2 to 4 as the
+  frame's further lights, each masked at its own place.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the
