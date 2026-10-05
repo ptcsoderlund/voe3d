@@ -93,3 +93,4 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   pipeline cache is taken by 0362), more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
   Precise in-frame barriers and leaving GENERAL layouts are planner's work once they can be measured.
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
+- **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.
