@@ -66,13 +66,13 @@ static void session_browser_show(voe_editor_session *session,
 	VOE_BASE_ASSERT(browser->showing, "a shown browser hides");
 }
 
-// The Errors panel shown from the project's Build/build.log. A project with
-// no folder has no log, and a failed build always had one.
-static void session_errors_show(voe_editor_session *session)
+// A project with no folder has no log, and a failed build always had one.
+void voe_editor_session_errors_show(voe_editor_session *session)
 {
 	voe_base_arena *scratch;
 
-	VOE_BASE_ASSERT(session->project != NULL, "showing errors of no project");
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
+			"showing errors of no project");
 	if (session->project->folder == NULL)
 		return;
 	scratch = voe_base_arena_new(SESSION_SCRATCH);
@@ -261,7 +261,7 @@ bool voe_editor_session_step(voe_editor_session *session,
 		voe_editor_notice_set(
 			&session->notice,
 			"The project's code did not build — see Build/build.log");
-		session_errors_show(session);
+		voe_editor_session_errors_show(session);
 		return false;
 	case VOE_EDITOR_REFRESH_BUILT:
 		break;
@@ -288,7 +288,7 @@ void voe_editor_session_play_poll(voe_editor_session *session)
 
 	failed = voe_editor_play_poll(&session->play);
 	if (failed)
-		session_errors_show(session);
+		voe_editor_session_errors_show(session);
 	VOE_BASE_ASSERT(!failed || session->play.stage == VOE_EDITOR_PLAY_IDLE,
 			"a failed play still runs");
 }
@@ -319,7 +319,7 @@ void voe_editor_session_ship_poll(voe_editor_session *session)
 		session->notice = told;
 		break;
 	case VOE_EDITOR_SHIP_FAILED:
-		session_errors_show(session);
+		voe_editor_session_errors_show(session);
 		break;
 	}
 }

@@ -1,7 +1,8 @@
 // The panels' start and remember: the default tree's sizes and every panel
 // open filled into a voe_editor_settings, the file read over them and set back
 // into the tree and `root->closed`, and the same fields written back through
-// settings.h; a toggle flips one flag and remembers at once.
+// settings.h; a toggle flips one dock flag and remembers at once, or shows or
+// hides Project or Errors, and the open test reads the same state.
 #include "panels.h"
 
 #include "settings.h"
@@ -71,12 +72,56 @@ bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 
 bool voe_editor_panels_toggle(voe_editor_closable which,
 			      voe_editor_dock_root *root,
-			      const voe_editor_topbar *bar)
+			      const voe_editor_topbar *bar,
+			      voe_editor_project_panel *project,
+			      voe_editor_preferences *preferences,
+			      voe_editor_session *session)
 {
-	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_DOCKED,
-			"toggling a panel that is not a dock panel");
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
+			"toggling a panel that is not closable");
 	VOE_BASE_ASSERT(root != NULL, "toggling a panel of no root");
+	VOE_BASE_ASSERT(project != NULL && preferences != NULL &&
+				session != NULL,
+			"toggling with no project panel, preferences or session");
 
-	root->closed[which] = !root->closed[which];
-	return voe_editor_panels_remember(root, bar);
+	switch (which) {
+	case VOE_EDITOR_CLOSABLE_PROJECT:
+		if (project->showing) {
+			voe_editor_project_panel_hide(project);
+			return true;
+		}
+		voe_editor_preferences_hide(preferences);
+		voe_editor_errors_hide(&session->errors);
+		voe_editor_project_panel_show(project);
+		return true;
+	case VOE_EDITOR_CLOSABLE_ERRORS:
+		if (session->errors.showing) {
+			voe_editor_errors_hide(&session->errors);
+			return true;
+		}
+		voe_editor_project_panel_hide(project);
+		voe_editor_preferences_hide(preferences);
+		voe_editor_session_errors_show(session);
+		return true;
+	default:
+		root->closed[which] = !root->closed[which];
+		return voe_editor_panels_remember(root, bar);
+	}
+}
+
+bool voe_editor_panels_open(voe_editor_closable which,
+			    const voe_editor_dock_root *root,
+			    const voe_editor_project_panel *project,
+			    const voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
+			"asking after a panel that is not closable");
+	VOE_BASE_ASSERT(root != NULL && project != NULL && session != NULL,
+			"asking after a panel with no root, project panel or session");
+
+	if (which == VOE_EDITOR_CLOSABLE_PROJECT)
+		return project->showing;
+	if (which == VOE_EDITOR_CLOSABLE_ERRORS)
+		return session->errors.showing;
+	return !root->closed[which];
 }

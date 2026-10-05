@@ -19,6 +19,9 @@
 #pragma once
 
 #include "dock.h"
+#include "preferences.h"
+#include "project_panel.h"
+#include "session.h"
 #include "topbar.h"
 
 // Sets `root->tree` to the default tree, its lengths and the views' share to
@@ -34,10 +37,24 @@ void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 [[nodiscard]] bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 					      const voe_editor_topbar *bar);
 
-// Opens a closed docked panel or closes an open one, `root->closed[which]`
-// flipped, and remembers it through voe_editor_panels_remember at once (0363
-// point 5). `which` is a dock panel; Project or Errors asserts. False when the
-// write fails; the flag stays flipped.
+// Opens a closed panel or closes an open one. A dock panel: `root->closed`
+// flipped and remembered through voe_editor_panels_remember at once (0363
+// point 5); false when the write fails, the flag staying flipped. PROJECT:
+// shown is hidden, else shown with Preferences and Errors hidden. ERRORS:
+// shown is hidden, else voe_editor_session_errors_show reads the build log
+// and Project and Preferences hide (0363 point 4). Neither of the two writes
+// the settings file, so both answer true. A failed build still shows Errors
+// through the session whether or not it was closed here (0351).
 [[nodiscard]] bool voe_editor_panels_toggle(voe_editor_closable which,
 					    voe_editor_dock_root *root,
-					    const voe_editor_topbar *bar);
+					    const voe_editor_topbar *bar,
+					    voe_editor_project_panel *project,
+					    voe_editor_preferences *preferences,
+					    voe_editor_session *session);
+
+// Whether `which` is open: a dock panel not closed on `root`, the Project
+// panel or Errors showing. The Panels menu's tick.
+bool voe_editor_panels_open(voe_editor_closable which,
+			    const voe_editor_dock_root *root,
+			    const voe_editor_project_panel *project,
+			    const voe_editor_session *session);

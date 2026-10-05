@@ -102,8 +102,9 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, and the
-  armed command that makes Close, New, Open and Back refuse once over unsaved work.
+- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, the Errors
+  panel shown from the build log, and the armed command that makes Close, New, Open and Back
+  refuse once over unsaved work.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, what a browser action does to the session, and the load a frame later.
@@ -166,8 +167,8 @@ carries it out.
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock.
 - `panels.h` — the editor's panels as the person left them: the default tree started with the
-  settings file read over it, the sizes remembered back into it when a drag ends, and the toggle
-  that opens or closes a dock panel and remembers it.
+  settings file read over it, the sizes remembered back into it when a drag ends, the toggle that
+  opens or closes a dock panel, Project or Errors, and whether one is open.
 - `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
   written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre

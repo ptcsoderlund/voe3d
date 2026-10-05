@@ -155,6 +155,10 @@ bool voe_editor_session_step(voe_editor_session *session,
 // failed on this poll shows `errors` from the project's build log.
 void voe_editor_session_play_poll(voe_editor_session *session);
 
+// `errors` shown from the project's Build/build.log, as a failed build shows
+// it; panels.h's toggle calls it too. Nothing for a project with no folder.
+void voe_editor_session_errors_show(voe_editor_session *session);
+
 // "Building" while a refresh with `play_after` runs, else
 // voe_editor_play_label.
 const char *voe_editor_session_play_label(const voe_editor_session *session);

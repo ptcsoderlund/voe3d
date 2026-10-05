@@ -371,7 +371,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		fired = voe_editor_dock_closes_read(ui, &closes);
 		if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
 			voe_base_report_error_clear();
-			if (!voe_editor_panels_toggle(fired, root, bar))
+			if (!voe_editor_panels_toggle(fired, root, bar,
+						      project_panel, preferences,
+						      session))
 				voe_editor_notice_from_report(&session->notice,
 							      "editor_settings");
 		}
