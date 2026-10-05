@@ -478,6 +478,10 @@ struct voe_render_device {
 	// VOE_RENDER_FRAMES_IN_FLIGHT back and not the last one.
 	double gpu_seconds;
 	bool gpu_measured;
+	// The same frame's passes, read beside it: voe_render_timed_passes
+	// entries calloc'd at open, the first `pass_time_count` of them filled.
+	voe_render_pass_time *pass_times;
+	uint32_t pass_time_count;
 };
 
 #include "device_calls.h"

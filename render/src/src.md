@@ -97,11 +97,13 @@ which file to open — what each one owns, and where the seams between them run.
   the fallback to fifo happens.
 - `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, draw.c, present.c, point_shadow.c,
   bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
-- `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
-  rebuild on resize, end, submit and present.
+- `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured and
+  its passes through `pass_timing.c`, rebuild on resize, end, submit and present.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
-  first-clears-later-load rule, and the one Y flip.
+  first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
+- `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
+  slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.

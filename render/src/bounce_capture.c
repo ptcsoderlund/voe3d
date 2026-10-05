@@ -328,6 +328,7 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	struct voe_render_frame_block block = { 0 };
 	uint32_t taken[VOE_RENDER_BOUNCE_CAPTURE];
 	uint32_t count;
+	char name[VOE_RENDER_PASS_NAME];
 
 	VOE_BASE_ASSERT(device != NULL && opened != NULL,
 			"opening a capture pass on no device or with nowhere to say so");
@@ -369,7 +370,11 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	record_open(frame, volume_reach(volume->probes.spacing));
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ FACE, FACE };
-	voe_render_pass_start(device, frame, &block, device->pipeline_capture);
+	// Numbered from 1 in the frame (ADR-0367 point 1).
+	(void)snprintf(name, sizeof(name), "bounce capture %u",
+		       device->capture_passes + 1);
+	voe_render_pass_start(device, frame, &block, device->pipeline_capture,
+			      name);
 	device->pass_camera = true;
 	device->pass_shadow = false;
 	device->pass_capture = true;

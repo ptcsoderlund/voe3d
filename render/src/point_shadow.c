@@ -366,7 +366,7 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 	device->pass_target = NULL;
 	device->pass_extent = extent;
 	voe_render_pass_start(device, frame, &block,
-			      device->pipeline_point_shadow);
+			      device->pipeline_point_shadow, "point shadows");
 	device->pass_camera = true;
 	device->pass_shadow = false;
 	device->pass_point_shadow = true;

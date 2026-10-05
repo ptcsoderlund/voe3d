@@ -431,7 +431,7 @@ static bool create_frame_objects(voe_render_device *device)
 	VkQueryPoolCreateInfo queries = {
 		.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
 		.queryType = VK_QUERY_TYPE_TIMESTAMP,
-		.queryCount = VOE_RENDER_TIMESTAMPS_PER_FRAME,
+		.queryCount = voe_render_timestamps_per_frame(device),
 	};
 
 	if (voe_render_vk.create_command_pool(device->device, &pool, NULL,
@@ -451,8 +451,20 @@ static bool create_frame_objects(voe_render_device *device)
 		return false;
 	}
 
+	// The breakdown last read, and each slot's room for its passes' names
+	// below (ADR-0367 point 2), whether or not the card can time.
+	device->pass_times = calloc(voe_render_timed_passes(device),
+				    sizeof(*device->pass_times));
+	VOE_BASE_ASSERT(device->pass_times != NULL,
+			"out of memory making room for the pass times");
+
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		device->frames[i].commands = buffers[i];
+		device->frames[i].pass_names =
+			calloc(voe_render_timed_passes(device),
+			       sizeof(*device->frames[i].pass_names));
+		VOE_BASE_ASSERT(device->frames[i].pass_names != NULL,
+				"out of memory making room for a frame's pass names");
 
 		if (voe_render_vk.create_semaphore(device->device, &semaphore,
 						   NULL,
@@ -572,6 +584,10 @@ static void close_down(voe_render_device *device)
 							   device->pool, NULL);
 		voe_render_vk.destroy_device(device->device, NULL);
 	}
+
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		free(device->frames[i].pass_names);
+	free(device->pass_times);
 
 	if (device->surface != VK_NULL_HANDLE)
 		voe_render_vk.destroy_surface(device->instance, device->surface,

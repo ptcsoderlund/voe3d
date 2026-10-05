@@ -597,8 +597,10 @@ struct voe_render_frame {
 	// its own anywhere in here.
 	VkDescriptorSet descriptor;
 
-	// Two timestamps: one written as this slot's command buffer starts and
-	// one as it finishes, which is how long the card spent on that frame.
+	// voe_render_timestamps_per_frame timestamps (ADR-0367 point 2): at 0 one
+	// written as this slot's command buffer starts and at 1 one as it
+	// finishes, which is how long the card spent on that frame; then a pair
+	// per timed pass in the order run, pass i's at 2 + 2i, pass_timing.c's.
 	// Per slot for exactly the reason everything else here is — the pool is
 	// written by the card while the frame is running, and reading it is only
 	// safe once this slot's fence says the card has finished.
@@ -607,6 +609,13 @@ struct voe_render_frame {
 	// resets it, nothing writes into it and nothing reads it; see
 	// device->timestamps.
 	VkQueryPool timestamps;
+	// The names of this frame's timed passes, voe_render_timed_passes of
+	// them calloc'd with the slot, and how many have a pair; `pass_timing`
+	// says the open pass has its first stamp written and wants its second.
+	// The count is reset by voe_render_frame_begin after the last lap's read.
+	char (*pass_names)[VOE_RENDER_PASS_NAME];
+	uint32_t pass_timed;
+	bool pass_timing;
 
 	// Whether this slot's pool holds a pair worth reading. False until the
 	// slot has been submitted once, because a pool that has never been

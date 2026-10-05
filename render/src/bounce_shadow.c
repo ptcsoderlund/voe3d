@@ -343,7 +343,8 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 	record_open(frame, layer);
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ TEXELS, TEXELS };
-	voe_render_pass_start(device, frame, &block, device->pipeline_shadow);
+	voe_render_pass_start(device, frame, &block, device->pipeline_shadow,
+			      "bounce sun shadow");
 	device->pass_camera = true;
 	device->pass_shadow = false;
 	device->pass_bounce_shadow = true;

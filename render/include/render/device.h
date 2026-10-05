@@ -1892,6 +1892,31 @@ voe_render_element_surface_size(voe_platform_size target,
 [[nodiscard]] bool voe_render_frame_gpu_time(const voe_render_device *device,
 					     double *seconds);
 
+// The longest pass name, in bytes with the NUL.
+#define VOE_RENDER_PASS_NAME 32
+
+// One timed pass: its name and how long the card spent on it, in seconds.
+typedef struct {
+	char name[VOE_RENDER_PASS_NAME];
+	double seconds;
+} voe_render_pass_time;
+
+// The passes of the newest measured frame, in the order they ran, into `times`:
+// at most `capacity` of them, and how many were written. Nought when no frame
+// has been measured or the card cannot write timestamps.
+//
+// IT IS THE SAME FRAME AS voe_render_frame_gpu_time's, WITH THE SAME LAG:
+// VOE_RENDER_FRAMES_IN_FLIGHT frames back. A pass that frame did not run is
+// absent, not listed at nought. The names are render's, from the pass's kind
+// (ADR-0367 point 1): `view window`, `view target N`, `interface window`,
+// `interface target N`, `shadow light L cascade C`, `point shadows`,
+// `bounce capture N`, `bounce sun shadow`, `bounce relight`; the same name labels
+// the pass in a capture tool. Each pass is timed from when everything before it
+// has finished to when it has, so their sum is not above the frame's GPU time.
+[[nodiscard]] uint32_t voe_render_frame_pass_times(const voe_render_device *device,
+						   voe_render_pass_time *times,
+						   uint32_t capacity);
+
 // ----------------------------------------------------------------- present
 
 // How a finished frame reaches the display.

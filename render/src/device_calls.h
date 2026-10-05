@@ -205,11 +205,38 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 [[nodiscard]] bool voe_render_device_choose_format(voe_render_device *device,
 						   voe_base_arena *arena);
 
-// How many timestamps one frame writes: one as its command buffer starts and one
-// as it finishes. Named because 2 appears in the create, in the reset, in the
-// read and in the size of the buffer read into, and four literal 2s meaning the
-// same thing is three chances for them to stop meaning it.
-#define VOE_RENDER_TIMESTAMPS_PER_FRAME 2
+// The frame's own pair of timestamps: one as its command buffer starts and one
+// as it finishes, at 0 and 1 of the slot's pool. Named so the read, the buffer
+// read into and the first pass's index say the same 2.
+#define VOE_RENDER_FRAME_TIMESTAMPS 2
+
+// pass_timing.c's group (ADR-0367 point 2). How many passes a frame may time,
+// `passes` and one for the relight, and so how many timestamps one frame's pool
+// holds: the frame's pair, then a pair per timed pass.
+static inline uint32_t voe_render_timed_passes(const voe_render_device *device)
+{
+	return device->capacities.passes + 1;
+}
+
+static inline uint32_t
+voe_render_timestamps_per_frame(const voe_render_device *device)
+{
+	return VOE_RENDER_FRAME_TIMESTAMPS + 2 * voe_render_timed_passes(device);
+}
+
+// pass_timing.c. _open labels a pass `name` and writes its first timestamp;
+// _close writes its second and ends the label; a pass past the room, or on a
+// card without timestamps, is labelled and not timed. _read, after the slot's
+// fence, turns `frame`'s pairs into device->pass_times. _seconds is the time
+// between two readings, masked to the valid bits and wrapped, in seconds.
+void voe_render_pass_timing_open(voe_render_device *device,
+				 struct voe_render_frame *frame, const char *name);
+void voe_render_pass_timing_close(voe_render_device *device,
+				  struct voe_render_frame *frame);
+void voe_render_pass_timing_read(voe_render_device *device,
+				 const struct voe_render_frame *frame);
+[[nodiscard]] double voe_render_timestamp_seconds(const voe_render_device *device,
+						  uint64_t start, uint64_t end);
 
 // debug_names.c. An object's name and a command buffer's labelled span, for a
 // capture tool to read; each does nothing when VK_EXT_debug_utils is absent.
