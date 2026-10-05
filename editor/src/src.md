@@ -206,11 +206,12 @@ carries it out.
 - `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest.
-- `view_passes.h` — what a frame draws into the views: a pass per shown view, after its shadow
-  passes, lit by the point lights and gated by the light blockers, with the world and its models, the
-  selection's outline, collider, blocker box and gizmo, the markers, and the device capacities.
+- `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
+  passes, lit by every light, with the world, its models, the selection's outline, collider,
+  blocker box and gizmo, the markers, and the device capacities.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
-  view's shadow passes and pass, lit by the point lights and kept out of the light blockers,
+  view's shadow passes and pass, lit by every directional and point light and kept out of the light
+  blockers,
   stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, and handed to picking and the

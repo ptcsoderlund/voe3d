@@ -30,6 +30,10 @@
 //
 // THE 17th BOUNCING LAMP IS LEFT OUT, and lamps with no bounces are skipped.
 //
+// A MOON ADDED RELIGHTS; the same moon again does not; its intensity, its mask
+// or its bounces changed does, and so does the moon taken away. A moon with no
+// bounces is none (ADR-0357 points 1 and 4).
+//
 // The tests set the marks by hand where taking all 6912 one by one would only
 // be slow: a grid with every probe captured is the state those claims start in.
 #include "../src/bounce_probes.h"
@@ -52,6 +56,7 @@ static const int32_t CELL[3] = { -12, -6, -12 };
 static const voe_math_float3 CORNER = { -24.0f, -12.0f, -24.0f };
 static const voe_render_point_lights NONE = { 0 };
 static const voe_render_light_blockers NO_BLOCKERS = { 0 };
+static const voe_render_directional_lights NO_MORE = { 0 };
 
 static voe_render_bounce_lights lights;
 
@@ -60,8 +65,8 @@ static void place_at(voe_render_bounce_probes *p, voe_math_float3 corner,
 		     uint32_t stale_count, const voe_render_point_lights *lamps)
 {
 	voe_render_bounce_probes_place(p, CELL, corner, spacing, stale,
-				       stale_count, &SUN, 1, 1.0f, lamps,
-				       &NO_BLOCKERS, &lights);
+				       stale_count, &SUN, 1, 1.0f, &NO_MORE,
+				       lamps, &NO_BLOCKERS, &lights);
 }
 
 static void place(voe_render_bounce_probes *p, const int32_t cell[3],
@@ -70,8 +75,8 @@ static void place(voe_render_bounce_probes *p, const int32_t cell[3],
 {
 	voe_render_bounce_probes_place(p, cell, CORNER,
 				       VOE_RENDER_BOUNCE_SPACING, stale,
-				       stale_count, &SUN, 1, 1.0f, lamps,
-				       &NO_BLOCKERS, &lights);
+				       stale_count, &SUN, 1, 1.0f, &NO_MORE,
+				       lamps, &NO_BLOCKERS, &lights);
 }
 
 // `blockers` placed at `corner` with no lamps.
@@ -80,7 +85,18 @@ static void place_blocked(voe_render_bounce_probes *p, voe_math_float3 corner,
 {
 	voe_render_bounce_probes_place(p, CELL, corner,
 				       VOE_RENDER_BOUNCE_SPACING, NULL, 0, &SUN,
-				       1, 1.0f, &NONE, blockers, &lights);
+				       1, 1.0f, &NO_MORE, &NONE, blockers,
+				       &lights);
+}
+
+// `more` placed beside the sun with `blockers` and no lamps.
+static void place_suns(voe_render_bounce_probes *p,
+		       const voe_render_light_blockers *blockers,
+		       const voe_render_directional_lights *more)
+{
+	voe_render_bounce_probes_place(p, CELL, CORNER,
+				       VOE_RENDER_BOUNCE_SPACING, NULL, 0, &SUN,
+				       1, 1.0f, more, &NONE, blockers, &lights);
 }
 
 static uint32_t count(const uint32_t *bits)
@@ -377,6 +393,52 @@ static void the_17th_bouncing_lamp_is_left_out(void)
 	VOE_TEST_CHECK(lights.lamps[15].range == 16.0f);
 }
 
+static void a_moon_relights_when_it_changes(void)
+{
+	static voe_render_bounce_probes p;
+	const voe_render_light_blocker box =
+		box_at((voe_math_float3){ 2.0f, 1.0f, -3.0f }, 0.5f);
+	const voe_render_light_blockers one = { .blockers = &box, .count = 1 };
+	voe_render_directional_light moon = {
+		.light = { .direction = { 0.0f, -1.0f, 0.0f }, .intensity = 0.2f,
+			   .colour = { 0.6f, 0.7f, 1.0f } },
+		.bounces = 1,
+		.bounce_strength = 1.0f,
+	};
+	const voe_render_directional_lights with_moon = { &moon, 1 };
+
+	memset(&p, 0, sizeof(p));
+	place_suns(&p, &one, &NO_MORE);
+	capture_all(&p);
+	voe_render_bounce_probes_relit(&p, &lights);
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK_INT(lights.more_count, 1);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	voe_render_bounce_probes_relit(&p, &lights);
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	moon.light.intensity = 0.3f;
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	moon.light.intensity = 0.2f;
+	moon.blockers = 1;
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK_INT(lights.more[0].mask, 1);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	moon.blockers = 0;
+	moon.bounces = 2;
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	moon.bounces = 1;
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	place_suns(&p, &one, &NO_MORE);
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	moon.bounces = 0;
+	place_suns(&p, &one, &with_moon);
+	VOE_TEST_CHECK_INT(lights.more_count, 0);
+}
+
 int main(void)
 {
 	the_first_place_queues_all();
@@ -390,5 +452,6 @@ int main(void)
 	blockers_relight_when_they_change();
 	kinds_and_the_sun_mask_relight();
 	the_17th_bouncing_lamp_is_left_out();
+	a_moon_relights_when_it_changes();
 	return voe_test_result();
 }

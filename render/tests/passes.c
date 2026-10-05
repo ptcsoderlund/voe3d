@@ -28,6 +28,9 @@
 // A PASS WITH NO CAMERA DRAWS ELEMENTS. A solid red element over the left half,
 // in a pass opened with NULL, lands exactly on the left half.
 //
+// A CAMERA CARRIES FURTHER LIGHTS (ADR-0357). Two after the first, one shadowed
+// on slot 1 of an array grown to two, open, draw and end on a device of its own.
+//
 // IDENTITY CAMERA, UNLIT RECORDS, AS tests/transient.c HAS THEM. A vertex is
 // already in clip space, so a quad from x = -1 to x = 0 is exactly the left
 // half, and its z is its depth: larger is nearer, under the GREATER test this
@@ -434,6 +437,59 @@ static void the_pass_capacity_is_per_frame(voe_base_arena *arena)
 	voe_render_device_destroy(device);
 }
 
+// Two further lights, the second shadowed on slot 1 of an array grown to two,
+// with blocker bits past the pass's none; the pass opens, draws and ends.
+static void a_camera_carries_further_lights(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_capacities room = CAPACITIES;
+	voe_render_device *device;
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_shading red;
+	voe_render_geometry left;
+	voe_render_vertex vertices[4];
+	uint32_t indices[6];
+	voe_render_directional_light further[2] = {
+		{ .light = { .direction = { 1.0f, 0.0f, 0.0f },
+			     .intensity = 0.5f,
+			     .colour = { 1.0f, 1.0f, 1.0f } },
+		  .blockers = 1 },
+		{ .light = { .direction = { 0.0f, 0.0f, -1.0f },
+			     .intensity = 0.25f,
+			     .colour = { 1.0f, 0.5f, 0.25f } },
+		  .shadow = { .splits = { 100.0f }, .count = 1, .slot = 1 } },
+	};
+	voe_render_pass_camera camera = camera_shifted(0.0f);
+
+	room.shadow_size = 16;
+	device = voe_render_device_new_headless(arena, size, room, &error);
+	VOE_TEST_CHECK(device != NULL);
+	if (device == NULL)
+		return;
+	quad(-1.0f, 0.0f, NEAR_DEPTH, vertices, indices);
+	VOE_TEST_CHECK(voe_render_shading_create(device, RED, &red, &error));
+	VOE_TEST_CHECK(voe_render_geometry_create(device, vertices, 4, indices,
+						  6, &left, &error));
+	further[1].shadow.cascades[0] = voe_math_float4x4_identity();
+	camera.more = (voe_render_directional_lights){ further, 2 };
+
+	VOE_TEST_CHECK_INT(voe_render_shadow_lights_ready(device, 2), 1);
+	if (open_frame(device))
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK_INT(voe_render_shadow_lights_ready(device, 2), 2);
+
+	if (open_frame(device)) {
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			device, VOE_RENDER_TARGET_WINDOW, &camera));
+		VOE_TEST_CHECK(voe_render_frame_draw(device, left, wearing(red)));
+		voe_render_pass_end(device);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+		VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
+	}
+
+	voe_render_device_destroy(device);
+}
+
 static bool upload(struct scene *scene, float x0, float x1, float z,
 		   voe_render_geometry *out)
 {
@@ -518,6 +574,7 @@ int main(void)
 	voe_render_device_destroy(scene.device);
 
 	the_pass_capacity_is_per_frame(arena);
+	a_camera_carries_further_lights(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

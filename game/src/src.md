@@ -4,7 +4,7 @@
 `prefabs.h`, which a project's cooked `scene.c` and `prefabs.c` define.
 
 - `world.c` — the twenty-three registrations and fifteen intent queues, the emitter, its particles, the sound, its voice row, the water, its waves, the point light and the light blocker among them, their capacities and the room for a project's types.
-- `frame.c` — the world step's drains in order, the sounds last with no mixer, and the frame: that step, the light blockers, the point lights, the shadow passes, the sun's and the lamps', then the window pass lit by them with the interface's records over the world.
+- `frame.c` — the world step's drains in order and the frame: that step, the light blockers, the point lights, the lights after the first, the shadow passes, then the window pass lit by them with the interface over the world.
 - `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them and the asks put in.

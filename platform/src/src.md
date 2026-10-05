@@ -9,7 +9,7 @@ header.
 - `clock_wayland.c` — CLOCK_MONOTONIC. Linux only despite the name, as every
   `_wayland` file here is; its header says why the adjusted clock and not the
   raw one.
-- `clock_win32.c` — the performance counter, and the frequency asked for once.
+- `clock_win32.c` — the performance counter, the frequency asked for once, and the launch from the process's creation time.
   Its header says why not the millisecond tick counts.
 - `file_wayland.c` — open, read/write, close, and the rename that makes a write
   atomic. Its header says why the name says wayland, why the read and write

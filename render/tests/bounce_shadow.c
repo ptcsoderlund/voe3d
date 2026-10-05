@@ -22,6 +22,12 @@
 // bounces 0 and a lamp of bounces 1: its pass does not open and its record says
 // not drawn.
 //
+// A MOON (ADR-0357 point 4). The sun and a moon in `more`, both bouncing once:
+// sun 0 and sun 1 each open, the cube one draw, and both layers say drawn. The
+// slot's layer 1 holds the moon's depth, seen from 5 m higher, and layer 0 the
+// sun's: the nearest texels 5/19 apart. Then the moon of bounces 0: sun 0 opens
+// and sun 1 says opened false.
+//
 // A card without shaderOutputLayer opens nothing: checked instead, and said. A
 // machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -33,6 +39,7 @@
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stdio.h>
 
 #define SIDE 16
@@ -44,6 +51,8 @@
 #define HEIGHT 10.0f
 #define NEAR 1.0f
 #define FAR 20.0f
+// The moon's view stands this high, so its depths are 5/19 below the sun's.
+#define MOON_HEIGHT 15.0f
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 8,
@@ -103,17 +112,17 @@ static struct voe_render_bounce_frame bounce(uint32_t sun_bounces, bool lamp)
 	};
 }
 
-// The sun's view: from HEIGHT above the eye straight down, orthographic and
-// reverse-Z, depth one at NEAR and nought at FAR.
-static voe_render_view sun_view(void)
+// A sun's view: from `height` above the eye straight down, orthographic and
+// reverse-Z, depth one NEAR below it and nought FAR below.
+static voe_render_view sun_view(float height)
 {
-	voe_render_view light = { .eye = { 0.0f, HEIGHT, 0.0f } };
+	voe_render_view light = { .eye = { 0.0f, height, 0.0f } };
 	const float span = FAR - NEAR;
 
 	light.view.m[0][0] = 1.0f;
 	light.view.m[1][2] = -1.0f;
 	light.view.m[2][1] = 1.0f;
-	light.view.m[2][3] = -HEIGHT;
+	light.view.m[2][3] = -height;
 	light.view.m[3][3] = 1.0f;
 	light.projection.m[0][0] = 1.0f / HALF;
 	light.projection.m[1][1] = 1.0f / HALF;
@@ -154,26 +163,29 @@ static voe_render_object cube_object(voe_render_shading grey)
 static void not_opened(voe_render_device *device,
 		       const struct voe_render_bounce_frame *frame)
 {
-	const voe_render_view light = sun_view();
+	const voe_render_view light = sun_view(HEIGHT);
 	bool opened = true;
 
 	if (!open_frame(device, frame))
 		return;
-	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, &light, &opened));
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, 0, &light, &opened));
 	VOE_TEST_CHECK(!opened);
 	voe_render_bounce_relight(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
-// The bounce shadow pass asked for: opened when `expected`, the cube one draw.
-static void shadow_pass(voe_render_device *device, voe_render_geometry cube,
-			voe_render_shading grey, bool expected)
+// Sun `sun`'s bounce shadow pass asked for, seen from `height`: opened when
+// `expected`, the cube one draw.
+static void sun_pass(voe_render_device *device, uint32_t sun, float height,
+		     voe_render_geometry cube, voe_render_shading grey,
+		     bool expected)
 {
-	const voe_render_view light = sun_view();
+	const voe_render_view light = sun_view(height);
 	bool opened = !expected;
 	uint32_t before;
 
-	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, &light, &opened));
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, sun, &light,
+							   &opened));
 	VOE_TEST_CHECK(opened == expected);
 	if (!opened)
 		return;
@@ -181,6 +193,13 @@ static void shadow_pass(voe_render_device *device, voe_render_geometry cube,
 	VOE_TEST_CHECK(voe_render_frame_draw(device, cube, cube_object(grey)));
 	VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), before + 1);
 	voe_render_pass_end(device);
+}
+
+// The first sun's pass, from HEIGHT.
+static void shadow_pass(voe_render_device *device, voe_render_geometry cube,
+			voe_render_shading grey, bool expected)
+{
+	sun_pass(device, 0, HEIGHT, cube, grey, expected);
 }
 
 // A frame begun with the window's bounce under a sun that bounces once, the
@@ -204,7 +223,7 @@ static bool window_relit(voe_render_device *device, voe_render_geometry cube,
 		voe_render_pass_end(device);
 	}
 	shadow_pass(device, cube, grey, true);
-	VOE_TEST_CHECK(device->frames[device->slot].bounce_shadow.drawn);
+	VOE_TEST_CHECK(device->frames[device->slot].bounce_shadow.drawn[0]);
 	voe_render_bounce_relight(device);
 	return true;
 }
@@ -274,9 +293,9 @@ static void two_targets(voe_render_device *device, voe_render_geometry cube,
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
-// Slot `slot`'s map into `readback`, once the card is idle, and back where it
-// rests.
-static void read_map(voe_render_device *device, uint32_t slot,
+// Layer `layer` of slot `slot`'s map into `readback`, once the card is idle, and
+// back where it rests.
+static void read_map(voe_render_device *device, uint32_t slot, uint32_t layer,
 		     const struct voe_render_buffer *readback)
 {
 	PFN_vkCmdCopyImageToBuffer copy = (PFN_vkCmdCopyImageToBuffer)
@@ -295,6 +314,7 @@ static void read_map(voe_render_device *device, uint32_t slot,
 	};
 	VkBufferImageCopy region = {
 		.imageSubresource = { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+				      .baseArrayLayer = layer,
 				      .layerCount = 1 },
 		.imageExtent = { TEXELS, TEXELS, 1 },
 	};
@@ -312,6 +332,7 @@ static void read_map(voe_render_device *device, uint32_t slot,
 			.image = device->frames[slot].bounce_shadow.map.image,
 			.subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
 					      .levelCount = 1,
+					      .baseArrayLayer = layer,
 					      .layerCount = 1 },
 		},
 	};
@@ -375,20 +396,21 @@ static void read_map(voe_render_device *device, uint32_t slot,
 					   &commands);
 }
 
-// Whether slot `slot`'s map holds a texel other than the clear.
-static void check_map(voe_render_device *device, uint32_t slot)
+// The nearest depth in layer `layer` of slot `slot`'s map: reverse-Z, so the
+// largest, and the clear when nothing was drawn or it could not be read.
+static float nearest(voe_render_device *device, uint32_t slot, uint32_t layer)
 {
 	struct voe_render_buffer readback = { 0 };
 	void *mapped = NULL;
-	bool drawn = false;
+	float best = VOE_RENDER_DEPTH_CLEAR;
 
 	VOE_TEST_CHECK(voe_render_buffer_build(
 		device, &readback, MAP_BYTES, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
 	if (readback.buffer == VK_NULL_HANDLE)
-		return;
-	read_map(device, slot, &readback);
+		return best;
+	read_map(device, slot, layer, &readback);
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
 						    VK_WHOLE_SIZE, 0, &mapped),
@@ -396,19 +418,79 @@ static void check_map(voe_render_device *device, uint32_t slot)
 	if (mapped != NULL) {
 		const float *texels = mapped;
 
-		for (size_t i = 0; !drawn && i < (size_t)TEXELS * TEXELS; i++)
-			drawn = texels[i] != VOE_RENDER_DEPTH_CLEAR;
-		VOE_TEST_CHECK(drawn);
+		for (size_t i = 0; i < (size_t)TEXELS * TEXELS; i++)
+			if (texels[i] > best)
+				best = texels[i];
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 	voe_render_buffer_teardown(device, &readback);
+	return best;
+}
+
+// Whether slot `slot`'s first layer holds a texel other than the clear.
+static void check_map(voe_render_device *device, uint32_t slot)
+{
+	VOE_TEST_CHECK(nearest(device, slot, 0) > VOE_RENDER_DEPTH_CLEAR);
+}
+
+// A frame of the window's bounce under the sun and `moon`: the capture passes
+// with the cube, then sun 0's pass from HEIGHT and sun 1's from MOON_HEIGHT,
+// opened when `moon_opens`, each the cube one draw, and the relight. Returns the
+// frame's slot.
+static uint32_t with_moon(voe_render_device *device, voe_render_geometry cube,
+			  voe_render_shading grey,
+			  const voe_render_directional_light *moon, bool moon_opens)
+{
+	struct voe_render_bounce_frame frame = bounce(1, false);
+	const uint32_t slot = device->slot;
+	bool opened = false;
+
+	frame.more = (voe_render_directional_lights){ moon, 1 };
+	if (!open_frame(device, &frame))
+		return slot;
+	for (int i = 0; i < VOE_RENDER_BOUNCE_CAPTURE_PASSES; i++) {
+		VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
+		if (!opened)
+			break;
+		VOE_TEST_CHECK(voe_render_frame_draw(device, cube, cube_object(grey)));
+		voe_render_pass_end(device);
+	}
+	sun_pass(device, 0, HEIGHT, cube, grey, true);
+	sun_pass(device, 1, MOON_HEIGHT, cube, grey, moon_opens);
+	VOE_TEST_CHECK(device->frames[slot].bounce_shadow.drawn[0]);
+	VOE_TEST_CHECK(device->frames[slot].bounce_shadow.drawn[1] == moon_opens);
+	voe_render_bounce_relight(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	return slot;
+}
+
+// A moon in `more`: each sun its own layer; then the moon not bouncing.
+static void moon_layers(voe_render_device *device, voe_render_geometry cube,
+			voe_render_shading grey)
+{
+	voe_render_directional_light moon = {
+		.light = { .direction = { 0.0f, -1.0f, 0.0f }, .intensity = 1.0f,
+			   .colour = { 1.0f, 1.0f, 1.0f } },
+		.bounces = 1,
+		.bounce_strength = 1.0f,
+	};
+	const uint32_t slot = with_moon(device, cube, grey, &moon, true);
+	const float sun_near = nearest(device, slot, 0);
+	const float moon_near = nearest(device, slot, 1);
+
+	VOE_TEST_CHECK(sun_near > VOE_RENDER_DEPTH_CLEAR);
+	VOE_TEST_CHECK(moon_near > VOE_RENDER_DEPTH_CLEAR);
+	VOE_TEST_CHECK(fabsf(sun_near - moon_near -
+			     (MOON_HEIGHT - HEIGHT) / (FAR - NEAR)) < 0.01f);
+	moon.bounces = 0;
+	with_moon(device, cube, grey, &moon, false);
 }
 
 // A frame whose passes are spent before the bounce shadow pass is asked for.
 static void passes_spent(voe_render_device *device)
 {
 	const struct voe_render_bounce_frame frame = bounce(1, false);
-	const voe_render_view light = sun_view();
+	const voe_render_view light = sun_view(HEIGHT);
 	bool opened = true;
 
 	if (!open_frame(device, &frame))
@@ -418,7 +500,7 @@ static void passes_spent(voe_render_device *device)
 						     NULL));
 		voe_render_pass_end(device);
 	}
-	VOE_TEST_CHECK(!voe_render_bounce_shadow_pass_begin(device, &light, &opened));
+	VOE_TEST_CHECK(!voe_render_bounce_shadow_pass_begin(device, 0, &light, &opened));
 	VOE_TEST_CHECK(!opened);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
@@ -441,6 +523,7 @@ static void sun_map(voe_render_device *device)
 	not_opened(device, &lamp);
 	passes_spent(device);
 	two_targets(device, cube, grey);
+	moon_layers(device, cube, grey);
 }
 
 static void nothing_without_output_layer(voe_render_device *device)

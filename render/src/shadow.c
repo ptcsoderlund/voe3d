@@ -1,14 +1,19 @@
 // The sun's shadow maps (ADR-0258): per frame slot one D32 image of
-// VOE_RENDER_SHADOW_CASCADES layers, a view of the whole array for the shader
-// and one view per layer for a shadow pass to draw into, the two barriers
-// round such a pass, and the comparison sampler binding 5 reads them through.
+// VOE_RENDER_SHADOW_CASCADES layers per directional light held (ADR-0357), a
+// view of the whole array for the shader and one view per layer for a shadow pass
+// to draw into, the two barriers round such a pass, the comparison sampler
+// binding 5 reads them through, and the growth to more lights' maps.
 // pass.c opens and closes shadow passes; this file owns the images, their
 // layouts and the sampler.
 //
-// LIFETIME: STARTUP TO SHUTDOWN. The maps' size is capacities.shadow_size, which
-// no resize changes, so unlike target.c's images nothing here is rebuilt.
-// open_device builds them after the frame objects, whose command pool settles them,
-// and before the descriptors, which are what will name the array view.
+// LIFETIME: STARTUP TO SHUTDOWN, GROWN AT THE TOP OF A FRAME. The maps' side is
+// capacities.shadow_size, which no resize changes. Startup holds one light's;
+// voe_render_shadow_lights_ready asks for more, up to
+// VOE_RENDER_DIRECTIONAL_LIGHTS, and frame begin's voe_render_shadow_grow then
+// waits for the device once, as a resize does, makes every slot's image again
+// at that count and rewrites binding 5. It never shrinks. open_device builds
+// them after the frame objects, whose command pool settles them, and before the
+// descriptors, which are what will name the array view.
 //
 // PER SLOT, because a frame in flight may still be sampling its slot's maps while
 // the next frame draws into its own; one shared image would be drawn over while
@@ -26,10 +31,12 @@
 #include <base/assert.h>
 #include <base/report.h>
 
-// One image of every cascade with its memory, device-local only: drawn by the
-// card and sampled by it, never touched by the CPU.
+// One image of `layers` layers, every held light's cascades, with its memory,
+// device-local only: drawn by the card and sampled by it, never touched by the
+// CPU.
 static bool build_image(voe_render_device *device,
-			struct voe_render_shadow_map *map, uint32_t side)
+			struct voe_render_shadow_map *map, uint32_t side,
+			uint32_t layers)
 {
 	VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -37,7 +44,7 @@ static bool build_image(voe_render_device *device,
 		.format = VOE_RENDER_DEPTH_FORMAT,
 		.extent = { side, side, 1 },
 		.mipLevels = 1,
-		.arrayLayers = VOE_RENDER_SHADOW_CASCADES,
+		.arrayLayers = layers,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
 		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
@@ -125,15 +132,20 @@ static bool build_view(voe_render_device *device, VkImage image,
 	return true;
 }
 
+// A map holding `lights` lights' cascades: the image, its array view and the
+// first lights × 4 layer views.
 static bool build_map(voe_render_device *device,
-		      struct voe_render_shadow_map *map, uint32_t side)
+		      struct voe_render_shadow_map *map, uint32_t side,
+		      uint32_t lights)
 {
-	if (!build_image(device, map, side))
+	const uint32_t layers = lights * VOE_RENDER_SHADOW_CASCADES;
+
+	if (!build_image(device, map, side, layers))
 		return false;
 	if (!build_view(device, map->image, VK_IMAGE_VIEW_TYPE_2D_ARRAY, 0,
-			VOE_RENDER_SHADOW_CASCADES, &map->array))
+			layers, &map->array))
 		return false;
-	for (uint32_t i = 0; i < VOE_RENDER_SHADOW_CASCADES; i++) {
+	for (uint32_t i = 0; i < layers; i++) {
 		if (!build_view(device, map->image, VK_IMAGE_VIEW_TYPE_2D, i, 1,
 				&map->layers[i]))
 			return false;
@@ -193,9 +205,9 @@ static void record_barrier(VkCommandBuffer commands,
 }
 
 // Every slot's every layer out of UNDEFINED into the layout it rests in, in one
-// submit the device waits for — startup's, so the wait costs nothing that
-// matters, and the maps are then valid to read before any shadow pass has run.
-static bool settle(voe_render_device *device)
+// submit the device waits for — startup's or a growth's, both already waits, and
+// the maps are then valid to read before any shadow pass has run.
+static bool settle(voe_render_device *device, uint32_t lights)
 {
 	VkImageMemoryBarrier2 barriers[VOE_RENDER_FRAMES_IN_FLIGHT];
 	VkCommandBufferAllocateInfo allocate = {
@@ -221,7 +233,7 @@ static bool settle(voe_render_device *device)
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
 		barriers[i] = layout_barrier(device->frames[i].shadow.image, 0,
-					     VOE_RENDER_SHADOW_CASCADES,
+					     lights * VOE_RENDER_SHADOW_CASCADES,
 					     VK_IMAGE_LAYOUT_UNDEFINED,
 					     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -301,38 +313,96 @@ bool voe_render_shadow_startup(voe_render_device *device)
 
 	side = device->capacities.shadow_size > 0 ?
 		       device->capacities.shadow_size : 1;
+	device->shadow_lights = 1;
+	device->shadow_lights_wanted = 1;
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
-		if (!build_map(device, &device->frames[i].shadow, side))
+		if (!build_map(device, &device->frames[i].shadow, side, 1))
 			return false;
 	}
-	return build_sampler(device) && settle(device);
+	return build_sampler(device) && settle(device, 1);
+}
+
+// Everything one map holds, whatever of it was made, and the map zeroed.
+static void free_map(voe_render_device *device, struct voe_render_shadow_map *map)
+{
+	for (uint32_t j = 0; j < VOE_RENDER_SHADOW_CASCADES * VOE_RENDER_DIRECTIONAL_LIGHTS;
+	     j++) {
+		if (map->layers[j] != VK_NULL_HANDLE)
+			voe_render_vk.destroy_image_view(device->device,
+							 map->layers[j], NULL);
+	}
+	if (map->array != VK_NULL_HANDLE)
+		voe_render_vk.destroy_image_view(device->device, map->array, NULL);
+	if (map->image != VK_NULL_HANDLE)
+		voe_render_vk.destroy_image(device->device, map->image, NULL);
+	// Last, because the image was living in it.
+	if (map->memory != VK_NULL_HANDLE)
+		voe_render_vk.free_memory(device->device, map->memory, NULL);
+	*map = (struct voe_render_shadow_map){ 0 };
+}
+
+uint32_t voe_render_shadow_lights_ready(voe_render_device *device, uint32_t wanted)
+{
+	VOE_BASE_ASSERT(device != NULL, "asking for shadow lights on no device");
+
+	if (device->capacities.shadow_size == 0)
+		return 0;
+	if (wanted > VOE_RENDER_DIRECTIONAL_LIGHTS)
+		wanted = VOE_RENDER_DIRECTIONAL_LIGHTS;
+	if (wanted > device->shadow_lights_wanted)
+		device->shadow_lights_wanted = wanted;
+	return device->shadow_lights;
+}
+
+// The views are freed with the images, so binding 5 of every set is written
+// again before anything records: nothing is, at the top of a frame.
+bool voe_render_shadow_grow(voe_render_device *device)
+{
+	const uint32_t lights = device->shadow_lights_wanted;
+	const uint32_t side = device->capacities.shadow_size;
+
+	VOE_BASE_ASSERT(!device->recording,
+			"growing the shadow maps while a frame is recording");
+	if (lights <= device->shadow_lights)
+		return true;
+
+	voe_render_vk.device_wait_idle(device->device);
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		free_map(device, &device->frames[i].shadow);
+		if (!build_map(device, &device->frames[i].shadow, side, lights))
+			return false;
+	}
+	if (!settle(device, lights))
+		return false;
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		VkDescriptorImageInfo shadow = {
+			.sampler = device->shadow_sampler,
+			.imageView = device->frames[i].shadow.array,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		VkWriteDescriptorSet write = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = device->frames[i].descriptor,
+			.dstBinding = 5,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &shadow,
+		};
+
+		voe_render_vk.update_descriptor_sets(device->device, 1, &write, 0,
+						     NULL);
+	}
+	device->shadow_lights = lights;
+	return true;
 }
 
 void voe_render_shadow_shutdown(voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "taking shadow maps from no device");
 
-	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
-		struct voe_render_shadow_map *map = &device->frames[i].shadow;
-
-		for (uint32_t j = 0; j < VOE_RENDER_SHADOW_CASCADES; j++) {
-			if (map->layers[j] != VK_NULL_HANDLE)
-				voe_render_vk.destroy_image_view(device->device,
-								 map->layers[j], NULL);
-		}
-		if (map->array != VK_NULL_HANDLE)
-			voe_render_vk.destroy_image_view(device->device,
-							 map->array, NULL);
-		if (map->image != VK_NULL_HANDLE)
-			voe_render_vk.destroy_image(device->device, map->image,
-						    NULL);
-		// Last, because the image was living in it.
-		if (map->memory != VK_NULL_HANDLE)
-			voe_render_vk.free_memory(device->device, map->memory,
-						  NULL);
-		*map = (struct voe_render_shadow_map){ 0 };
-	}
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		free_map(device, &device->frames[i].shadow);
 	if (device->shadow_sampler != VK_NULL_HANDLE)
 		voe_render_vk.destroy_sampler(device->device,
 					      device->shadow_sampler, NULL);
@@ -340,30 +410,34 @@ void voe_render_shadow_shutdown(voe_render_device *device)
 }
 
 void voe_render_shadow_to_attachment(const struct voe_render_frame *frame,
-				     uint32_t cascade)
+				     uint32_t layer)
 {
 	VkImageMemoryBarrier2 barrier;
 
 	VOE_BASE_ASSERT(frame != NULL, "a shadow barrier on no frame slot");
-	VOE_BASE_ASSERT(cascade < VOE_RENDER_SHADOW_CASCADES,
-			"a shadow barrier on a cascade the map does not have");
+	VOE_BASE_ASSERT(layer < VOE_RENDER_SHADOW_CASCADES *
+					VOE_RENDER_DIRECTIONAL_LIGHTS &&
+				frame->shadow.layers[layer] != VK_NULL_HANDLE,
+			"a shadow barrier on a layer the map does not have");
 
-	barrier = layout_barrier(frame->shadow.image, cascade, 1,
+	barrier = layout_barrier(frame->shadow.image, layer, 1,
 				 VK_IMAGE_LAYOUT_UNDEFINED,
 				 VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 	record_barrier(frame->commands, &barrier, 1);
 }
 
 void voe_render_shadow_to_read(const struct voe_render_frame *frame,
-			       uint32_t cascade)
+			       uint32_t layer)
 {
 	VkImageMemoryBarrier2 barrier;
 
 	VOE_BASE_ASSERT(frame != NULL, "a shadow barrier on no frame slot");
-	VOE_BASE_ASSERT(cascade < VOE_RENDER_SHADOW_CASCADES,
-			"a shadow barrier on a cascade the map does not have");
+	VOE_BASE_ASSERT(layer < VOE_RENDER_SHADOW_CASCADES *
+					VOE_RENDER_DIRECTIONAL_LIGHTS &&
+				frame->shadow.layers[layer] != VK_NULL_HANDLE,
+			"a shadow barrier on a layer the map does not have");
 
-	barrier = layout_barrier(frame->shadow.image, cascade, 1,
+	barrier = layout_barrier(frame->shadow.image, layer, 1,
 				 VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 				 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	record_barrier(frame->commands, &barrier, 1);

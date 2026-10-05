@@ -348,6 +348,18 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 			  frame->blockers.sun) &
 			 past_count(frame->blockers.count)) == 0,
 			"a bounce begin with a light blocker kind or sun bit at or past the blocker count");
+	VOE_BASE_ASSERT(frame->more.count <= VOE_RENDER_DIRECTIONAL_LIGHTS - 1,
+			"a bounce begin with more further suns than VOE_RENDER_DIRECTIONAL_LIGHTS − 1");
+	VOE_BASE_ASSERT(frame->more.count == 0 || frame->more.lights != NULL,
+			"a bounce begin with further suns and no array");
+	for (uint32_t i = 0; i < frame->more.count; i++) {
+		const voe_render_directional_light *m = &frame->more.lights[i];
+
+		VOE_BASE_ASSERT(m->bounces <= VOE_RENDER_BOUNCES_MAX,
+				"a bounce begin whose further sun bounces past VOE_RENDER_BOUNCES_MAX");
+		VOE_BASE_ASSERT((m->blockers & past_count(frame->blockers.count)) == 0,
+				"a bounce begin with a further sun's mask bit at or past the blocker count");
+	}
 	for (uint32_t i = 0; i < frame->blockers.count; i++)
 		for (uint32_t r = 0; r < 3; r++) {
 			const voe_math_float4 row = frame->blockers.blockers[i].rows[r];
@@ -366,8 +378,9 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	VOE_BASE_ASSERT(!begun->begun,
 			"a second bounce begin for one target in one frame");
 	begun->begun = true;
-	// The sun map opens once per begin (ADR-0330 point 1).
-	device->frames[device->slot].bounce_shadow.drawn = false;
+	// The sun map opens once per sun per begin (ADR-0330 point 1).
+	memset(device->frames[device->slot].bounce_shadow.drawn, 0,
+	       sizeof(device->frames[device->slot].bounce_shadow.drawn));
 	memcpy(begun->cell, frame->cell, sizeof(begun->cell));
 	begun->corner[0] = frame->corner.x;
 	begun->corner[1] = frame->corner.y;
@@ -380,6 +393,18 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	volume->idle = 0;
 	device->bounce_begun = true;
 	device->bounce_target = target;
+	// Each sun's sun map layer: a further sun that bounces takes the next, in
+	// the order place keeps them in bounce_suns.
+	device->bounce_sun_count = 1 + frame->more.count;
+	device->bounce_sun_layers[0] = 0;
+	for (uint32_t i = 0, layer = 1; i < frame->more.count; i++) {
+		const voe_render_directional_light *m = &frame->more.lights[i];
+
+		device->bounce_sun_layers[i + 1] =
+			m->bounces > 0 && m->light.intensity > 0.0f ?
+				layer++ :
+				VOE_RENDER_NO_SUN_LAYER;
+	}
 	device->bounce_frame = *frame;
 	device->bounce_frame.stale = NULL;
 	device->bounce_frame.stale_count = 0;
@@ -387,6 +412,8 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 		(voe_render_point_lights){ .lights = device->bounce_lamps };
 	device->bounce_frame.blockers =
 		(voe_render_light_blockers){ .blockers = device->bounce_blockers };
+	device->bounce_frame.more =
+		(voe_render_directional_lights){ .lights = device->bounce_suns };
 	if (!volume->built)
 		return;
 
@@ -395,7 +422,18 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 				       frame->stale, frame->stale_count,
 				       &frame->sun,
 				       frame->sun_bounces, frame->sun_strength,
-				       &frame->points, &frame->blockers, &lights);
+				       &frame->more, &frame->points,
+				       &frame->blockers, &lights);
+	// The further suns beside the first, their masks with blockers.sun.
+	memset(device->bounce_suns, 0, sizeof(device->bounce_suns));
+	for (uint32_t i = 0; i < lights.more_count; i++)
+		device->bounce_suns[i] = (voe_render_directional_light){
+			.light = lights.more[i].light,
+			.blockers = lights.more[i].mask,
+			.bounces = lights.more[i].bounces,
+			.bounce_strength = lights.more[i].strength,
+		};
+	device->bounce_frame.more.count = lights.more_count;
 	memcpy(device->bounce_lamps, lights.lamps, sizeof(device->bounce_lamps));
 	device->bounce_frame.points.count = lights.lamp_count;
 	memcpy(device->bounce_blockers, lights.blockers,

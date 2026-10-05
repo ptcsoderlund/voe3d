@@ -9,11 +9,10 @@
 //     if (drawing) {
 //             (void)voe_3d_draw_system_point_lights(world, &frame, scratch);
 //             (void)voe_3d_draw_system_light_blockers(world, &frame, scratch);
+//             (void)voe_3d_draw_system_lights(world, &frame, scratch);
 //             (void)voe_3d_draw_system_shadows(world, gpu, &frame);
 //                                             // false: unshadowed, said on stderr
-//             voe_render_pass_camera camera = { .view = frame.view,
-//                     .light = frame.light, .shadow = frame.shadow,
-//                     .points = frame.points, .blockers = frame.blockers };
+//             voe_render_pass_camera camera = voe_3d_draw_system_camera(&frame);
 //             ...                             // build what changes this frame
 //             if (voe_render_pass_begin(gpu, VOE_RENDER_TARGET_WINDOW, &camera)) {
 //                     voe_3d_draw_system_run(world, gpu, scratch, frame);
@@ -26,15 +25,17 @@
 // THE LOOP OWNS THE FRAME AND THIS SYSTEM DRAWS INTO IT (ADR-0098). Begin and
 // end are the program's calls, made from its loop exactly as render's own header
 // shows, and the phases inside a frame are ordered there: begin; the point
-// lights (voe_3d_draw_system_point_lights); the shadow passes, the sun's one
-// per cascade and the lamps' one (voe_3d_draw_system_shadows); build what
-// changes this frame — a readout, a user interface — which is the only world
-// write after the systems have run; a pass opened with the frame's camera; this
-// system walks the world; the pass closed; end, which presents. That order exists because geometry built for one frame
+// lights (voe_3d_draw_system_point_lights); the light blockers and the lights
+// after the first (voe_3d_draw_system_light_blockers, then
+// voe_3d_draw_system_lights); the shadow passes, the sun's one per cascade and
+// the lamps' one (voe_3d_draw_system_shadows); build what changes this frame —
+// a readout, a user interface — which is the only world write after the
+// systems have run; a pass opened with the frame's camera
+// (voe_3d_draw_system_camera); this system walks the world; the pass closed;
+// end, which presents. That order exists because geometry built for one frame
 // (voe_render_geometry_create_transient) can only be built once a frame is open
 // and has to be in the mesh table before this walk; a draw system that opened
-// and closed the frame itself left no moment for that, which is what this used
-// to do.
+// and closed the frame itself left no moment for that.
 //
 // ONE DRAW PER MESH, FROM THE CPU. No instancing, no indirect command buffer, no
 // culling, and no extract step into a second layout. Each of those is a change
@@ -149,17 +150,25 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_camera_marked;
 
-// The sun a pass draws as a marker (0274): its circle and arrow as line quads,
-// voe_3d_sun_marker_quads', in the world layer. Only an editor's view sets one.
+// The suns a pass draws as markers (0274, 0360): a circle and arrow each,
+// voe_3d_sun_marker_quads', in the world layer inside the world's depth. Only an
+// editor's view sets it. When `shown`, every light with a transform is marked,
+// in table order and past the fourth too, the `selected` one in its own colour,
+// `selected_colour`, and the rest in `colour`, as two transient geometries — the
+// rest together, the selected one alone — so the pool needs
+// VOE_3D_SUN_MARKER_VERTICES and _INDICES per light, two ranges and two objects;
+// a pool too small draws none, as the outline does.
 typedef struct {
-	// The light entity, zeroed for none. A zeroed entity, a dead one and
-	// one without a light and a transform draw nothing.
-	voe_ecs_entity entity;
+	// False marks none, which is what a zeroed record is.
+	bool shown;
+	// The sun drawn in `selected_colour`, zeroed for none.
+	voe_ecs_entity selected;
 	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
 	voe_3d_material material;
-	// Linear, and the whole of what the marker looks like: the outline's
-	// colour when selected, the gizmo's rest colour otherwise (0274).
+	// Linear: the gizmo's rest colour, for every sun but the selected one.
 	voe_math_float3 colour;
+	// Linear: the outline's colour, for the selected sun (0274's rule).
+	voe_math_float3 selected_colour;
 	// How wide a line is on the picture, in pixels, at any distance.
 	float pixels;
 	// The size of that picture, in pixels.
@@ -229,6 +238,12 @@ typedef struct {
 	// none. _frame leaves it zeroed, voe_3d_draw_system_light_blockers
 	// fills it, and the loop hands it to the pass camera beside `points`.
 	voe_render_light_blockers blockers;
+	// The directional lights after the first (0357 point 1), `more_count`
+	// of them; none is NULL and 0. _frame leaves them zeroed,
+	// voe_3d_draw_system_lights fills them, and voe_3d_draw_system_shadows
+	// sets their shadow records.
+	voe_render_directional_light *more_lights;
+	uint32_t more_count;
 	// The camera's world position, in double, that `view` is about
 	// (ADR-0250): every object's matrix, the sort and every mark is taken
 	// about this point. _frame sets it; a frame built by hand sets it too.
@@ -299,12 +314,9 @@ typedef struct {
 	// draws nothing, as the outline does. A pass whose `view` is the marked
 	// camera's own is the caller's to avoid.
 	voe_3d_camera_marked marker;
-	// A PASS MAY MARK ONE SUN (0274), drawn as the camera marker is: in the
-	// world layer inside the world's depth. A zeroed record, a dead entity
-	// and one without a light or a transform draw nothing. The quads go into
-	// this frame's transient pool, sized from VOE_3D_SUN_MARKER_VERTICES and
-	// _INDICES, one more range and one more object; a pool too small draws
-	// nothing, as the outline does.
+	// A PASS MAY MARK EVERY SUN (0274, 0360 point 1), drawn as the camera
+	// marker is: in the world layer inside the world's depth. A zeroed
+	// record marks none (voe_3d_sun_marked above).
 	voe_3d_sun_marked sun;
 	// EVERY POINT LIGHT, MARKED (0320 point 7), drawn as the sun's marker is
 	// and right after it (voe_3d_point_lights_marked above).
@@ -360,11 +372,12 @@ typedef struct {
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
 // `point_lights`, `collider`, `light_blocker`, `points` and `blockers` all come
 // back zeroed and `models` NULL — hiding, outlining, standing a gizmo, marking a
-// camera, a sun or the point lights, drawing a collider or a blocker's box,
+// camera, the suns or the point lights, drawing a collider or a blocker's box,
 // lighting by point lights, keeping
 // light out of blockers and drawing models are the caller's choice and it
-// sets the field on the answer. Asserts on a world
-// without exactly one camera or with more than one light; with no light the
+// sets the field on the answer, and `more_lights` and `more_count` come back
+// zeroed for voe_3d_draw_system_lights to fill. Asserts on a world
+// without exactly one camera; with no light the
 // frame's light is the zeroed one and lit surfaces draw black — see below.
 //
 // THE CAMERA AND THE SUN ARE COMPUTED ONCE, BEFORE THE PASS, AND HANDED BACK.
@@ -382,10 +395,9 @@ typedef struct {
 // that introduces a viewport; until then a world with two of them has a mistake
 // in it and this says so.
 //
-// AND AT MOST ONE LIGHT, FOR A DIFFERENT REASON: THERE IS ONE DIRECTIONAL
-// LIGHT. This engine lights a frame with one directional light
-// (render/device.h), so a second one in the world would be silently ignored —
-// which is worse than being told, and this asserts on it. A world with none is
+// THE FIRST LIGHT ROW IS `light` (0357 point 1). The ones after it, up to
+// VOE_RENDER_DIRECTIONAL_LIGHTS in all, are voe_3d_draw_system_lights'. A
+// world with none is
 // still a choice and never asserts (ADR-0287): its light is the zeroed one, so
 // lit surfaces draw black while unlit materials, text and panels draw as
 // before, and it casts no shadow. The light comes from
@@ -407,10 +419,11 @@ typedef struct {
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size, float lag);
 
-// The world's one light in the shape `render` takes it; with none, the zeroed
+// The world's first light row, in table order, in the shape `render` takes it;
+// with none, the zeroed
 // light, every field nought and `unshaded` too, which draws lit surfaces black
-// (ADR-0287, 0290). Asserts on more than one, because render has one
-// directional light. The direction is the light entity's
+// (ADR-0287, 0290). The rows after it are voe_3d_draw_system_lights' (0357
+// point 1). The direction is the light entity's
 // transform rotation's -Z (scene's voe_scene_light_direction), -Z with no
 // transform; the fill is fill_colour times fill_intensity (ADR-0273).
 //
@@ -471,18 +484,44 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 						     voe_3d_frame *frame,
 						     voe_base_arena *arena);
 
-// The sun's shadow passes for `frame`, opened between the frame's begin and the
-// view's pass (ADR-0258). With the directional light shaded and of some
-// strength, the frame not blind, and the world's light row, the one
-// voe_3d_draw_system_light reads, casting (`cast_shadows`, 0324), it fits
-// the four cascades to `frame->view`, `frame->eye` and the light's direction at
-// VOE_3D_SHADOW_TEXELS, sets `frame->shadow`, and opens one shadow pass per
-// cascade that draws every caster at the frame's lag; otherwise it leaves
-// `shadow` zeroed and opens none of the sun's passes: a world with no light row casts nothing,
-// so neither does the editor's preview light. A caller that never calls it draws as
-// before, with no shadow. False when a pass or a draw is refused, with render's
-// line on stderr; `shadow` is zeroed then, so the view draws unshadowed. Called
-// with a pass open, it asserts.
+// Fills `frame->more_lights` and `more_count` from the 2nd to the 4th light
+// rows in table order (0357 point 1), each light made as
+// voe_3d_draw_system_light makes the first. Each entry's `blockers` is the
+// mask of `frame->blockers` holding its entity's world place at `frame->lag`,
+// as `sun` is the first light's; no transform is 0. Its `bounces` and
+// `bounce_strength` are its row's and its shadow is zeroed. Rows past the
+// VOE_RENDER_DIRECTIONAL_LIGHTS-th are left out. The array is in `arena`; one
+// light, none or no light table fills none.
+//
+// CALLED AFTER voe_3d_draw_system_light_blockers, whose masks it reads, AND
+// BEFORE voe_3d_draw_system_shadows, which sets the shadows. EVERY PICTURE OF
+// A WORLD MAKES IT, so a moon lights the editor's views as the game. The
+// arena's push never fails (base/arena.h), so as the blockers' call it is
+// always true today.
+[[nodiscard]] bool voe_3d_draw_system_lights(const voe_ecs_world *world,
+					     voe_3d_frame *frame,
+					     voe_base_arena *arena);
+
+// The pass camera of `frame`: its view, light, shadow, point lights, blockers
+// and the lights after the first as `more`.
+voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
+
+// The directional lights' shadow passes for `frame`, opened between the frame's
+// begin and the view's pass (ADR-0258, 0357 point 3). Each casting light of the
+// frame, `light` and each of `more_lights` — shaded and of some strength, the
+// frame not blind, and its light row casting (`cast_shadows`, 0324) — casts:
+// in table order each takes a slot, up to what voe_render_shadow_lights_ready
+// holds, fits four cascades to `frame->view`, `frame->eye` and its direction at
+// VOE_3D_SHADOW_TEXELS, opens one shadow pass per cascade at layer
+// slot × 4 + cascade that draws every caster at the frame's lag, and sets its
+// record (`shadow`, or the entry's) with that slot. A light that does not cast,
+// or past what is ready, keeps a zeroed record and draws unshadowed; the
+// device's array grows the first frame it is short, so the next frame has its
+// slot. A world with no light row casts nothing, so neither does the editor's
+// preview light. A caller that never calls it draws as before, with no shadow.
+// False when a pass or a draw is refused, with render's line on stderr; every
+// record is zeroed then, so the view draws unshadowed. Called with a pass
+// open, it asserts.
 //
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
 // frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
@@ -490,8 +529,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // material the part's. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
 // model row with `fade` at or above 1, and a fading one casts as ever (0336). The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
-// passes and 4 × the drawn objects more per view: every caster is drawn once
-// into each cascade.
+// passes and 4 × the drawn objects more per casting light per view: every
+// caster is drawn once into each of its cascades.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun cast: when
 // voe_render_point_shadows_ready and a light in `frame->points` has a slot, it
@@ -501,16 +540,18 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // VOE_3D_POINT_SHADOW_TEXELS; false as before when render refuses.
 //
 // THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun cast, when the
-// frame is not blind and either the world's light row has `bounces` of 1 or
-// more with the frame's light of some strength and not `unshaded`, or a light
-// in `frame->points` has `bounces` of 1 or more. It fits the probe volume to
+// frame is not blind and either a sun bounces — the world's first light row
+// with `bounces` of 1 or more and the frame's light of some strength and not
+// `unshaded`, or any of `more_lights` with `bounces` of 1 or more, some
+// strength and shaded — or a light in `frame->points` has `bounces` of 1 or
+// more. Every sun goes to the bounce (0357 point 1). It fits the probe volume to
 // the still casters' box, not about `frame->eye`, so the camera never moves it
 // (0331, 0332); begins `frame->target`'s bounce, opens capture passes while
 // render has probes to capture, drawing the casters into each, and relights.
 // That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
-// objects per caster. On a frame that relights a sun that bounces and casts it
-// opens one more pass, and one more object per caster: the relight's own sun
-// map, fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
+// objects per caster. On a frame that relights, for each sun that bounces and
+// casts it opens one more pass, and one more object per caster: that sun's
+// relight map (0357 point 4), fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
 // so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
 // volume and shows none. Stale spheres are marked where a caster moved this
 // step (lag 1 against lag 0), so a world without a previous table marks none.
@@ -530,7 +571,7 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // layer, and `frame.outlined`, when it names one, is outlined after everything
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
-// a live camera with a transform, and `frame.sun`, when it names a live light
+// a live camera with a transform, and `frame.sun`, when `shown`, every light
 // with a transform, are drawn with the world, and `frame.collider`, when it names one
 // with a collider, as lines after the outline, and `frame.light_blocker`, when
 // it names one with a blocker and a transform, as its box's lines after those. Calling it with no pass open is the caller's bug

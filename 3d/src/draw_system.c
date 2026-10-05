@@ -1,5 +1,6 @@
-// The draw system: the camera, the sun, the matrices each object is drawn with,
-// and one draw per drawable into the frame the loop has opened.
+// The draw system: the camera, the first light, the pass camera a frame opens
+// with, the matrices each object is drawn with, and one draw per drawable into
+// the frame the loop has opened.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
 // BY ENTITY; a model row's parts come from the frame's store, the particles
@@ -43,13 +44,12 @@
 // The direction is the light entity's world rotation's -Z, unit length from
 // voe_scene_light_direction, and -Z itself with no transform (ADR-0273); the
 // fill is its colour times its strength. No light is the zeroed light, which
-// draws lit surfaces black (ADR-0287, 0290 point 1).
+// draws lit surfaces black (ADR-0287, 0290 point 1). The first row in table
+// order; the rest are voe_3d_draw_system_lights' (0357 point 1).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "lighting no world");
 	uint32_t count = voe_scene_light_count(world);
-	VOE_BASE_ASSERT(count <= 1,
-			"a world to draw has at most one light — see 3d/draw_system.h");
 	if (count == 0)
 		return (voe_render_light){ 0 };
 
@@ -69,6 +69,23 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 	};
 
 	return sun;
+}
+
+voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame)
+{
+	VOE_BASE_ASSERT(frame != NULL, "the camera of no frame");
+	VOE_BASE_ASSERT(frame->more_count < VOE_RENDER_DIRECTIONAL_LIGHTS &&
+				(frame->more_count == 0 || frame->more_lights != NULL),
+			"more lights than a pass holds, or a count with none");
+	return (voe_render_pass_camera){
+		.view = frame->view,
+		.light = frame->light,
+		.shadow = frame->shadow,
+		.points = frame->points,
+		.blockers = frame->blockers,
+		.more = { .lights = frame->more_lights,
+			  .count = frame->more_count },
+	};
 }
 
 // THE CAMERA IS REQUIRED AND THE DIRECTIONAL LIGHT IS NOT. Row zero of the
@@ -120,6 +137,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.points = (voe_render_point_lights){ 0 };
 	// No blocker until voe_3d_draw_system_light_blockers fills them (0347).
 	frame.blockers = (voe_render_light_blockers){ 0 };
+	// No light after the first until voe_3d_draw_system_lights (0357).
+	frame.more_lights = NULL;
+	frame.more_count = 0;
 	// Nothing is hidden unless the caller says so, and zero is the way of
 	// saying nothing — see `hidden` in 3d/draw_system.h. The same for the
 	// outline and the gizmo: a zeroed record outlines nothing and stands no

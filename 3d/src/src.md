@@ -79,24 +79,25 @@ here is included from outside the folder — `include/3d/` is the whole public s
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
-- `draw_system.c` — the camera's view and the sun, and the run: the walk over meshes, model parts
-  from the frame's store and panels, a fading model held blended and a gone one skipped, the world's
-  solids drawn as found, the held-back groups and the marks in their order.
-- `draw_shadows.c` — the shadow passes as one call: the sun's cascades, the point-shadow pass
-  and the probe bounce, a gone model casting nothing.
+- `draw_system.c` — the camera's view, the first light row, the frame's pass camera, and the run
+  over meshes, model parts and panels: solids drawn as found, fading models held blended, then the
+  held-back groups and the marks.
+- `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
+  its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
+  a gone model casting nothing.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
   rotation, and |scale| × size / 2 per axis.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
-  the eye, its rows and bounding sphere, flat ones and those past 32 left out; the kept boxes' Direct
-  and Fill bits, and the mask of those holding the sun's place.
+  the eye with its rows and sphere, flat ones and those past 32 left out, the Direct and Fill bits,
+  the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
-- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the
-  target's bounce begun with the lights, blockers and stale spheres, the casters drawn into each capture pass
-  and a casting sun's own map, and the relight; and the still casters' world box.
+- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' world
+  box, the bounce begun with every sun, lamp, blocker and stale sphere, the casters drawn into each
+  capture pass and casting sun's map, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
@@ -109,7 +110,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
   waves at its clock and sky in the object record.
 - `draw_marks.h` — the editor's marks over the world and why each has its own depth; internal.
-- `draw_marks.c` — the camera and sun markers, the outline, a collider's and a light blocker's
+- `draw_marks.c` — the camera's marker, every sun's and lamp's, the outline, a collider's and a light blocker's
   lines, written once, and the gizmo's arrows or rings, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.

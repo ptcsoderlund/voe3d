@@ -27,8 +27,12 @@ again, or to find where a claim that has started failing is written down.
   Skips without a graphics card.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
-  frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
-  or sun marker is one draw more. Skips without a graphics card.
+  frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
+- `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
+  without a graphics card.
+- `draw_markers.c` — that a marked camera or sun is one draw more and a zeroed marker none, that
+  two suns are one draw and one selected two, and that a ray picks each sun. Skips without a
+  graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, and that a glowing one is unlit. Skips without a graphics card.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
@@ -42,9 +46,18 @@ again, or to find where a claim that has started failing is written down.
 - `light_blockers.c` — that a blocker's box follows its transform and parent, a frame records it
   about the eye with its block's bit and the sun's mask, its lines are 12 edges, the ground under
   one is black, a Direct's shadow reads the fill and a selected one is outlined.
+- `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
+  with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
+  mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
+- `shadow_lights.c` — that a sun and a moon each cast their own shadow on the floor from the second
+  frame, a sun that does not cast leaves only the moon's, and one casting light fits one light's
+  passes without growing the array. Skips without a graphics card.
+- `blocked_shadows.c` — that a moon inside an All, Direct or Fill box, or alone inside an All, is
+  not shadowed by a roof outside it yet casts the cube inside, and that with no box the roof shadows
+  the floor. Skips without a graphics card.
 - `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
   that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
   marks, and the still casters' box from two eyes and a turned one. Skips without a card.

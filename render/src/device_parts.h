@@ -59,11 +59,24 @@
 // none; `corner` its lowest corner about the eye, `cell` its lowest cell wrapped
 // per axis into 24 × 12 × 24, and `spacing` the metres between probes. Only a
 // camera pass whose volume this frame slot began and is built names one.
+//
+// `more_count` AND `more` ARE THE PASS'S LIGHTS AFTER THE FIRST (ADR-0357 point
+// 1): how many of `more` a camera pass carries, nought in every other pass, and
+// each one's light, shadow record and the mask of the blockers holding its
+// place, cut to the pass's blocker count. Three reserved words round the count
+// to sixteen bytes.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
 	uint32_t cell[3];
 	float spacing;
+};
+
+struct voe_render_frame_light {
+	voe_render_light light;
+	voe_render_shadow shadow;
+	uint32_t blockers;
+	uint32_t reserved[3];
 };
 
 struct voe_render_frame_block {
@@ -75,6 +88,9 @@ struct voe_render_frame_block {
 	uint32_t region;
 	uint32_t blockers;
 	struct voe_render_frame_bounce bounce;
+	uint32_t more_count;
+	uint32_t reserved[3];
+	struct voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
@@ -93,6 +109,7 @@ struct voe_render_frame_blockers {
 
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
 #define VOE_RENDER_NO_BOUNCE (~0u)
+#define VOE_RENDER_NO_SUN_LAYER (~0u)
 
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
@@ -291,14 +308,17 @@ struct voe_render_target {
 };
 
 // One frame slot's shadow map, shadow.c's: one D32 image of
-// VOE_RENDER_SHADOW_CASCADES layers, the memory under it, a view of every layer
-// for the shader to read, and a view of each layer for a shadow pass to draw into.
-// Rests in SHADER_READ_ONLY_OPTIMAL outside a shadow pass.
+// VOE_RENDER_SHADOW_CASCADES layers per light the device holds
+// (device->shadow_lights, ADR-0357), the memory under it, a view of every layer
+// for the shader to read, and a view of each layer for a shadow pass to draw into;
+// room for every light's, of which the first held × 4 are made. Rests in
+// SHADER_READ_ONLY_OPTIMAL outside a shadow pass.
 struct voe_render_shadow_map {
 	VkImage image;
 	VkDeviceMemory memory;
 	VkImageView array;
-	VkImageView layers[VOE_RENDER_SHADOW_CASCADES];
+	VkImageView layers[VOE_RENDER_SHADOW_CASCADES *
+			   VOE_RENDER_DIRECTIONAL_LIGHTS];
 };
 
 // One frame slot's point shadow maps, point_shadow.c's (ADR-0325): one D32 image
@@ -322,15 +342,19 @@ struct voe_render_bounce_scratch {
 	struct voe_render_allocated_image depth;
 };
 
-// One frame slot's relight sun map, bounce_shadow.c's (ADR-0329): a D32 image
-// VOE_RENDER_BOUNCE_SHADOW_TEXELS square with its view, resting in
-// SHADER_READ_ONLY_OPTIMAL; `light` the view × projection it was last drawn with
-// and `drawn` whether the current begin drew it, cleared by each
-// voe_render_bounce_begin (ADR-0330). Zeroed without shaderOutputLayer.
+// One frame slot's relight sun map, bounce_shadow.c's (ADR-0329, 0357 point 4): a
+// D32 image of VOE_RENDER_DIRECTIONAL_LIGHTS layers VOE_RENDER_BOUNCE_SHADOW_TEXELS
+// square, 16 MiB, `map.view` a 2D-array view of every layer for the relight and
+// `layers` one attachment view each, resting in SHADER_READ_ONLY_OPTIMAL. Layer i
+// holds the begin's bouncing sun i (device->bounce_sun_layers); `light[i]` the
+// view × projection it was last drawn with and `drawn[i]` whether the current
+// begin drew it, cleared by each voe_render_bounce_begin (ADR-0330). Zeroed
+// without shaderOutputLayer.
 struct voe_render_bounce_shadow {
 	struct voe_render_allocated_image map;
-	voe_math_float4x4 light;
-	bool drawn;
+	VkImageView layers[VOE_RENDER_DIRECTIONAL_LIGHTS];
+	voe_math_float4x4 light[VOE_RENDER_DIRECTIONAL_LIGHTS];
+	bool drawn[VOE_RENDER_DIRECTIONAL_LIGHTS];
 };
 
 // bounce_relight.slang's struct relight_record at binding 11, std140: one
@@ -338,7 +362,21 @@ struct voe_render_bounce_shadow {
 // can read one. `blocker_count` and `blockers` are the begun light blockers
 // (ADR-0347 point 4), the count in what was a reserved word; `walls`,
 // `indoors` and `sun_mask` their kinds and the sun's mask (ADR-0350 point 2),
-// after the blockers with a pad word rounding the record to 16 bytes.
+// after the blockers with a pad word rounding the record to 16 bytes. `more_count`
+// and `more` are the further suns that bounce (ADR-0357 points 1 and 4), each
+// with its layer of the sun map's view × projection, texel and drawn flag, its
+// strength, place mask and bounces; three pad words round the count to 16 bytes.
+struct voe_render_relight_sun {
+	voe_render_light light;
+	voe_math_float4x4 map;
+	float texel;
+	uint32_t drawn;
+	float strength;
+	uint32_t mask;
+	uint32_t bounces;
+	uint32_t pad[3];
+};
+
 struct voe_render_relight_record {
 	voe_render_light sun;
 	voe_math_float4x4 sun_map;
@@ -356,8 +394,16 @@ struct voe_render_relight_record {
 	uint32_t indoors;
 	uint32_t sun_mask;
 	uint32_t pad;
+	uint32_t more_count;
+	uint32_t more_pad[3];
+	struct voe_render_relight_sun more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
 };
 
+static_assert(offsetof(struct voe_render_relight_sun, map) == 48 &&
+		      offsetof(struct voe_render_relight_sun, texel) == 112 &&
+		      offsetof(struct voe_render_relight_sun, bounces) == 128 &&
+		      sizeof(struct voe_render_relight_sun) == 144,
+	      "a relight sun as bounce_relight.slang lays it out");
 static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      offsetof(struct voe_render_relight_record, sun_texel) == 112 &&
 		      offsetof(struct voe_render_relight_record, sun_drawn) == 116 &&
@@ -369,7 +415,9 @@ static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      offsetof(struct voe_render_relight_record, walls) == 2976 &&
 		      offsetof(struct voe_render_relight_record, indoors) == 2980 &&
 		      offsetof(struct voe_render_relight_record, sun_mask) == 2984 &&
-		      sizeof(struct voe_render_relight_record) == 2992,
+		      offsetof(struct voe_render_relight_record, more_count) == 2992 &&
+		      offsetof(struct voe_render_relight_record, more) == 3008 &&
+		      sizeof(struct voe_render_relight_record) == 3440,
 	      "the relight record as bounce_relight.slang lays it out");
 
 // Whether one frame slot's frame began a probe volume, and the lowest cell,

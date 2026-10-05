@@ -32,10 +32,11 @@
 // rectangle's; see voe_editor_views_under.
 //
 // THE LIGHT IS THE OPPOSITE: THE WORLD'S AND NEVER THE VIEW'S OWN. Every view
-// is lit the same way, by whichever light the world holds — an authored entity,
+// is lit the same way, by the lights the world holds — authored entities,
 // selectable, editable and saved, the way `Cube` is (scene.h) — so a view keeps
-// no light of its own and its pass is simply handed one; see
-// voe_editor_view_pass_camera. A world with no directional light is shown by
+// no light of its own: its pass is handed the world's first light as `light`
+// (voe_editor_view_pass_camera) and the others come with the frame (0357
+// point 1). A world with no directional light is shown by
 // the editor's preview light instead (0287), never an entity; see
 // voe_editor_view_light.
 //
@@ -170,8 +171,9 @@ void voe_editor_views_focus_camera(voe_editor_views *views,
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
 			 float pixels_per_millimetre);
 
-// The light every view and the preview are shown with, once a frame: the
-// world's directional light as `3d` gives it (voe_3d_draw_system_light). A
+// The light every view and the preview take as `light`, once a frame: the
+// world's first directional light as `3d` gives it (voe_3d_draw_system_light);
+// the others come with the frame (voe_3d_draw_system_lights). A
 // world (level or open prefab) with no light is shown by the preview light
 // (voe_editor_project_preview_light), which casts no shadows, and a light added
 // replaces it at once; Play and the game draw such a world black (0287).

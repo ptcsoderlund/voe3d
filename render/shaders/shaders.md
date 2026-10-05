@@ -9,7 +9,7 @@ in; getting it wrong transposes every transform without failing to compile.
 A `.slangh` is a part, included by a shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its bounce record
-  and point light and blocker counts, object and shading records, the light blockers at 11 with
+  and point light and blocker counts, the further directional lights, object and shading records, the light blockers at 11 with
   their kinds and the sun's mask, the probe volumes' sums at binding 6 and
   moments at 10, the point lights and their bins at 7 and 8, the point shadow maps at 9, set 0's
   bindings and the push constant, which holds the object and a 96-bit face mask, each matching its C
@@ -29,13 +29,13 @@ A `.slangh` is a part, included by a shader and never compiled alone.
 - `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume's six-axis irradiance:
   eight probes weighted by trilinear, validity, facing, Chebyshev visibility and the blockers'
   pass from probe to surface (0350), normalised, faded at the edge (0326).
-- `lighting.slangh` — the sun's light: glTF's metalness-roughness BRDF terms, its shadow by
+- `lighting.slangh` — every directional light, each by its own shadow slot, mask and fill: glTF's metalness-roughness BRDF terms, its shadow by
   cascades, its radiance, the bounce read from the pass's probe volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each fading
   to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325);
-  light blockers gate the sun, lamps and bounce by Rooms and crossings, the fill by Rooms and
-  Indoors (0350).
-- `water.slangh` — the water path: wave normals, fresnel to the sky and
+  light blockers gate each light, lamps and bounce by Rooms and crossings, the fill by Rooms and
+  Indoors (0350), the light's own Indoors boxes filled (0361).
+- `water.slangh` — the water path, lit by directional light 0 alone: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per
   instance built from a vertex index, a clip test, and a glyph's coverage across

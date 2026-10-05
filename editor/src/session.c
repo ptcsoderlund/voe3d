@@ -18,6 +18,7 @@
 
 #include <scene/identity_component.h>
 
+#include <stdio.h>
 #include <string.h>
 
 // A step's working memory: the library's path and, for the compare, both
@@ -582,7 +583,8 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 						      "the folder's path is too long to open");
 				return;
 			}
-			strcpy(session->load_folder, browser->target);
+			snprintf(session->load_folder, sizeof session->load_folder,
+				 "%s", browser->target);
 			session->load_due = true;
 			voe_editor_browser_hide(browser);
 			return;

@@ -56,6 +56,9 @@ by reading the offscreen colour image back.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.
+- `shadow_lights.c` — the shadow array growing: one light ready at first and none without
+  `shadow_size`, a second ready the frame after it is wanted, layer 7 drawn and slot 1 read, nine
+  capped at four, and nought shrinking nothing. Headless.
 - `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, 288
   on a one-cell move, only within a stale sphere, all on a new spacing, a relight only on change
   (blockers, their kinds and the sun's mask too), and the 17th bouncing lamp left out.
@@ -74,6 +77,9 @@ by reading the offscreen colour image back.
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
   lit side at spacing 2 and 4. Headless.
+- `bounce_suns.c` — every sun lighting the probes: a sun alone, an empty `more` the same bytes, a
+  dark sun's copy in `more` within 1%, a moon adding, a moon at bounces 0 nothing, a moon shadowed
+  behind a wall nothing. Headless.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
@@ -92,6 +98,9 @@ by reading the offscreen colour image back.
 - `blocked_light.c` — a light blocker over half a sunlit ground: that half black, the other and a
   far or uncounted box the old picture, a lamp outside lighting only outside and one inside only
   inside, and an unshaded pass unchanged. Headless.
+- `directional_lights.c` — a moon beside the sun over a ground and box: no further light the old
+  picture, a zeroed one too, a blue moon only adding, two shadows either side of the box, a Room
+  giving each light its own half, and a Fill box filled by the moon inside it. Headless.
 - `blocker_kinds.c` — kinds over a sunlit ground: a floating Wall's shadow the fill alone, ground
   under and clear of it as before; a Wall stopping a lamp; Indoors keeping the sun, not the fill;
   a Room holding the sun lit inside, black outside; zero kinds the old picture. Headless.

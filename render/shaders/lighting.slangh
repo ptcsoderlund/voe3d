@@ -1,68 +1,60 @@
-// The sun and what it lights by: glTF's BRDF terms, the shadow lookup over the
-// cascades, the sun's radiance, the bounce, the fill and the point lights. A part
-// (ADR-0308): included by draw.slang after bindings.slangh, whose frame block,
-// light, cascades, bounce volumes, point lights and blockers it reads; includes
-// point_shadow.slangh, blockers.slangh and bounce_read.slangh; never compiled
-// alone. draw.slang's fragment stage and water.slangh both light through it.
+// The directional lights and what they light by: glTF's BRDF terms, the shadow
+// lookup over the cascades, each light's radiance, the bounce, the fills and the
+// point lights. A part (ADR-0308): included by draw.slang after bindings.slangh,
+// whose frame block, lights, cascades, bounce volumes, point lights and blockers
+// it reads; includes point_shadow.slangh, blockers.slangh and bounce_read.slangh;
+// never compiled alone. draw.slang's fragment stage and water.slangh light by it.
 //
-// POINT LIGHTS ADD TO THE SUN'S DIRECT TERM (ADR-0320): voe_render_points, the
-// same BRDF towards each light, times N·L, its colour and saturate(1 −
-// (d/range)^(2/falloff))² (ADR-0322; falloff 1 is (1 − (d/range)²)²), over the
-// lights its tile's and slice's masks hold (binding 8, render/src/light_bins.c).
-// Point lights cast (0325): a slotted light's term times lerp(1, visibility,
-// strength), one compare on its face (point_shadow.slangh) at binding 9. No
-// part in the fill's fade or the bounce; the water path does not call it.
+// SEVERAL DIRECTIONAL LIGHTS, EACH GATED, SHADOWED AND FILLED BY ITS OWN
+// (ADR-0357 point 2). Light 0 is the frame block's `light`, `shadow` and the
+// region's `sun` mask; light i is `more[i − 1]`. voe_render_directionals loops
+// over 1 + more_count of them, a fixed VOE_RENDER_DIRECTIONAL_LIGHTS with an
+// early break, and sums each one's BRDF times its radiance by its reach, N·L
+// times its shadow. The indirect term is `base colour × max(E/π, Σ fill weight ×
+// fill)` per channel: E the bounce's irradiance out of the pass's probe volume
+// (ADR-0326 point 7), no gain (0317), and the fills a floor under it (0307). A
+// light's weight is whole where it does not reach, fading as its reach rises and
+// gone from 0.3 (ADR-0276); a fill of zero is no floor. more_count 0 is the
+// picture of one light. The water path lights by light 0 alone.
+//
+// POINT LIGHTS ADD TO THE DIRECT TERM (ADR-0320): voe_render_points, the same
+// BRDF towards each light, times N·L, its colour and saturate(1 −
+// (d/range)^(2/falloff))² (ADR-0322), over the lights its tile's and slice's
+// masks hold (binding 8, render/src/light_bins.c). A slotted light's term is
+// times lerp(1, visibility, strength), one compare on its face at binding 9
+// (0325). No part in the fills or the bounce; the water path does not call it.
 //
 // LIGHT BLOCKERS GATE LIGHT BY ROOMS AND CROSSINGS (ADR-0350 points 3, 4). The
-// lit path takes its surface's mask once, voe_render_surface_mask, at its
-// position p pushed VOE_RENDER_LIGHT_BLOCKER_PUSH along its geometric normal, by
-// blockers.slangh over the pass's region at binding 11. The sun's direct term,
-// its shadow included, is nought unless voe_render_blockers_pass holds with the
-// region's `sun` as source along the sun's segment; a point light's unless it
-// holds with the light's mask from pass begin as source and its position. The
-// fill reaches when p's Room bits are the sun's and p is in no Indoors box, its
-// fade reading the reach after the sun's gate, so a stopped patch reads the
-// whole fill. The bounce reads only probes from which that rule passes to p,
-// handed the region's `walls` and `indoors` (bounce_read.slangh). The water
-// path takes mask 0 and no gate. No blockers is every gate passing, the old
-// picture.
+// lit path takes its surface's mask once, voe_render_surface_mask, at p pushed
+// VOE_RENDER_LIGHT_BLOCKER_PUSH along its geometric normal, over the pass's
+// region at binding 11. A light's direct term is nought unless
+// voe_render_blockers_pass holds with its own mask as source along its own
+// segment; a point light's with its mask from pass begin and its position. A
+// light's fill reaches when p's Room bits are its own and p is in no Indoors
+// box but those holding the light (0361), its fade reading the reach after the gate. The bounce reads only probes
+// that rule passes to p (bounce_read.slangh). The water path takes mask 0 and
+// no gate. No blockers is every gate passing.
 //
-// ONE DIRECTIONAL LIGHT, ITS BOUNCE AND A FILL, NO IMAGE-BASED ANYTHING. The
-// sun arrives with the camera, once a frame, and every surface is lit from the
-// same direction with the same strength. What is not the sun is the indirect
-// term, `base colour × max(E/π, fill weight × fill)` per channel: E the
-// bounce's irradiance out of the pass's probe volume (ADR-0307 point 5, 0326
-// point 7), no gain (0317 point 5), and the fill (ADR-0273) a floor under it
-// (0307 amends 0275). The fill weight is
-// whole where the sun does not reach, fading out as N·L × shadow rises and gone
-// from a reach of 0.3 (ADR-0276); a fill of zero is no floor.
+// THE BOUNCE IS READ ONLY WHEN THE PASS NAMES A VOLUME: grid ~0u is none.
+// Otherwise bounce_read.slangh reads its sum at binding 6's four entries from
+// `grid` and its moments at binding 10's grid / 4, with visibility (ADR-0312).
 //
-// THE BOUNCE IS READ ONLY WHEN THE PASS NAMES A VOLUME: the record's grid ~0u,
-// as on every pass whose target was not begun this frame or is not built, is no
-// bounce. Otherwise bounce_read.slangh reads the volume's sum at binding 6's
-// four entries from `grid` and its moments at binding 10's entry grid / 4, with
-// visibility, so the bounce stays on the lit side (ADR-0312).
+// EACH LIGHT CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258, 0357 point 3). With
+// its shadow `count` above nought, a lit surface picks the first cascade whose
+// split is past its view distance, pushes itself one texel along its normal,
+// projects into that cascade and averages a 3×3 of comparison lookups on layer
+// slot × 4 + cascade; past the last split it is fully lit. The direct term and
+// the reach that turns the fill away are both multiplied by it.
 //
-// THE SUN CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258). With the pass's shadow
-// `count` above nought, a lit surface picks the first cascade whose split is past
-// its view distance, pushes its position one texel along its normal so it does
-// not shadow itself, projects it into that cascade and averages a 3×3 of
-// comparison lookups; past the last split it is fully lit. The sun's direct
-// term is multiplied by the result, and so is the sun's reach that turns the
-// fill away, so a shadowed surface still reads its fill and nothing more.
+// METALNESS-ROUGHNESS, glTF'S MODEL AND THEREFORE THE IMPORTER'S: base colour,
+// metalness, roughness and occlusion from the shading record and three maps.
 //
-// METALNESS-ROUGHNESS, WHICH IS glTF'S MODEL AND THEREFORE THE IMPORTER'S. The
-// base colour, the metalness, the roughness and the occlusion come out of the
-// shading record and the three maps; a second shading model would mean
-// converting every file this engine can read, so there is one.
-//
-// THE ARITHMETIC IS THE glTF SPECIFICATION'S BRDF, WRITTEN OUT. A GGX
-// distribution, Smith's height-correlated visibility with the specular
-// denominator folded into it, and Schlick's Fresnel; the diffuse half is
-// Lambert, scaled by what the Fresnel term did not reflect. The one place to
-// look when a highlight is wrong is `roughness * roughness`: alpha is roughness
-// squared and using roughness directly is the classic mistake — it makes every
-// surface too shiny and no maths goes wrong to say so.
+// THE ARITHMETIC IS THE glTF SPECIFICATION'S BRDF, WRITTEN OUT. GGX, Smith's
+// height-correlated visibility with the specular denominator folded in, and
+// Schlick's Fresnel; the diffuse half is Lambert, scaled by what the Fresnel
+// term did not reflect. When a highlight is wrong, look at `roughness *
+// roughness`: alpha is roughness squared, and using roughness directly makes
+// every surface too shiny with no maths going wrong to say so.
 
 #include "point_shadow.slangh"
 #include "blockers.slangh"
@@ -119,14 +111,42 @@ float voe_render_visibility(float n_dot_l, float n_dot_v, float alpha)
 	return 0.5 / max(lambda_l + lambda_v, VOE_LEAST);
 }
 
-// How much of the sun reaches `world`, nought to one. See the header's cascade
+// Directional light `i` of the pass: the frame block's `light` for nought,
+// `more[i − 1]` after it (ADR-0357).
+voe_render_light voe_render_directional(uint i)
+{
+	if (i == 0)
+		return voe_render_frame.light;
+	return voe_render_frame.more[i - 1].light;
+}
+
+// Directional light `i`'s shadow record, as voe_render_directional picks.
+voe_render_shadow voe_render_directional_shadow(uint i)
+{
+	if (i == 0)
+		return voe_render_frame.shadow;
+	return voe_render_frame.more[i - 1].shadow;
+}
+
+// The mask of the blockers holding directional light `i`'s place: the region's
+// `sun` for nought, nought with no blockers.
+uint voe_render_directional_source(uint i)
+{
+	if (voe_render_frame.blockers == 0)
+		return 0;
+	if (i == 0)
+		return voe_render_light_blockers[voe_render_frame.region].sun;
+	return voe_render_frame.more[i - 1].blockers;
+}
+
+// How much of the light whose cascades `shadow` holds reaches `world`, nought
+// to one, read from layer slot × 4 + cascade. See the header's cascade
 // paragraph; one is the answer with no cascades and past the last split.
 //
 // THE ONE Y FLIP: clip +y is row 0 of the map, because the shadow pass drew
 // through the engine's flipped viewport, so v runs opposite to clip y.
-float voe_render_sunlight(float3 world, float3 normal)
+float voe_render_sunlight(voe_render_shadow shadow, float3 world, float3 normal)
 {
-	voe_render_shadow shadow = voe_render_frame.shadow;
 	float distance = -mul(voe_render_frame.camera.view, float4(world, 1.0)).z;
 	uint cascade = 0;
 
@@ -145,11 +165,12 @@ float voe_render_sunlight(float3 world, float3 normal)
 
 	voe_render_shadow_maps.GetDimensions(width, height, layers);
 	float2 step = float2(1.0 / width, 1.0 / height);
+	float layer = float(shadow.slot * 4 + cascade);
 	float lit = 0.0;
 
 	for (int y = -1; y <= 1; y++) {
 		for (int x = -1; x <= 1; x++) {
-			float3 at = float3(uv + float2(x, y) * step, cascade);
+			float3 at = float3(uv + float2(x, y) * step, layer);
 			lit += voe_render_shadow_maps.SampleCmpLevelZero(at, ndc.z);
 		}
 	}
@@ -188,9 +209,12 @@ uint voe_render_surface_mask(float3 world, float3 surface)
 		blockers, world + surface * VOE_RENDER_LIGHT_BLOCKER_PUSH);
 }
 
-// Whether the sun's direct light reaches a surface at `world` with geometric
-// normal `surface` and mask `mask` (ADR-0350 point 3). See the header.
-bool voe_render_sun_passes(float3 world, float3 surface, uint mask)
+// Whether the direct light of a directional light travelling `direction`, its
+// place held by the blockers of `source`, reaches a surface at `world` with
+// geometric normal `surface` and mask `mask` along the light's own segment
+// (ADR-0350 point 3). See the header.
+bool voe_render_sun_passes(float3 world, float3 surface, uint mask, uint source,
+			   float3 direction)
 {
 	voe_render_pass_blockers blockers;
 	uint region = voe_render_frame.region;
@@ -201,14 +225,15 @@ bool voe_render_sun_passes(float3 world, float3 surface, uint mask)
 
 	return voe_render_blockers_pass(
 		blockers, voe_render_light_blockers[region].walls,
-		voe_render_light_blockers[region].indoors,
-		voe_render_light_blockers[region].sun, mask, p,
-		voe_render_sun_segment_end(p, voe_render_frame.light.direction));
+		voe_render_light_blockers[region].indoors, source, mask, p,
+		voe_render_sun_segment_end(p, direction));
 }
 
-// Whether the fill reaches a surface whose mask is `mask` (ADR-0350 point 4):
-// its Room bits the sun's, and in no Indoors box. See the header.
-bool voe_render_fill_reaches(uint mask)
+// Whether the fill of a light whose place the blockers of `source` hold reaches
+// a surface whose mask is `mask` (ADR-0350 point 4, 0361 point 1): its Room
+// bits the light's, and in no Indoors box but those holding the light. A
+// `source` of nought is in none, so it fills no Indoors box. See the header.
+bool voe_render_fill_reaches(uint mask, uint source)
 {
 	uint region = voe_render_frame.region;
 
@@ -217,18 +242,26 @@ bool voe_render_fill_reaches(uint mask)
 	uint indoors = voe_render_light_blockers[region].indoors;
 	uint rooms = ~(voe_render_light_blockers[region].walls | indoors);
 
-	return (mask & rooms) == (voe_render_light_blockers[region].sun & rooms) &&
-	       (mask & indoors) == 0;
+	return (mask & rooms) == (source & rooms) && (mask & indoors & ~source) == 0;
 }
 
-// The sun's direct light at a surface it reaches by `reach`, N·L times its
+// `light`'s direct light at a surface it reaches by `reach`, N·L times its
 // shadow, nought where its gate stops it: its colour times its strength times
 // that.
-float3 voe_render_sun_radiance(float reach)
+float3 voe_render_sun_radiance(voe_render_light light, float reach)
 {
-	voe_render_light sun = voe_render_frame.light;
+	return light.colour * light.intensity * reach;
+}
 
-	return sun.colour * sun.intensity * reach;
+// `light`'s fill as a floor under the bounce at a surface it reaches by
+// `reach`: whole at nought, faded along a smoothstep, gone from
+// VOE_FILL_FADE_REACH, and none unless `reaches`. See the header.
+float3 voe_render_fill(voe_render_light light, float reach, bool reaches)
+{
+	float weight = !reaches ? 0.0 :
+			      1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+
+	return weight * light.fill;
 }
 
 // The bounce's irradiance E(n) at `world` facing `n`, per channel, never below
@@ -253,18 +286,58 @@ float3 voe_render_bounce_irradiance(float3 world, float3 n, uint mask)
 				      world, n);
 }
 
-// What lights `colour` besides the sun: the bounce, with the fill as a floor
-// under it where the sun does not reach — whole at a reach of nought, faded
-// along a smoothstep, gone from VOE_FILL_FADE_REACH, and none unless `fill`
-// reaches; the bounce from the probes of `mask`. See the header.
-float3 voe_render_indirect(float reach, float3 world, float3 n, float3 colour,
-			   uint mask = 0, bool fill = true)
+// What lights `colour` besides the direct terms: the bounce from the probes of
+// `mask`, with `fill`, the lights' summed voe_render_fill, a floor under it.
+// See the header.
+float3 voe_render_indirect(float3 fill, float3 world, float3 n, float3 colour,
+			   uint mask = 0)
 {
-	float fill_weight = !fill ? 0.0 :
-			    1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
 	float3 bounce = voe_render_bounce_irradiance(world, n, mask) / VOE_PI;
 
-	return colour * max(bounce, fill_weight * voe_render_frame.light.fill);
+	return colour * max(bounce, fill);
+}
+
+// What the pass's directional lights give a surface at `world` (`surface` its
+// geometric normal, `mask` its blockers) facing `n`, seen along `v`: the sum of
+// each light's BRDF times its radiance by its reach, N·L times its own shadow,
+// nought where its own gate stops it; and into `fill` the sum of each one's
+// fill by that reach and its own gate. See the header.
+float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
+			       float3 diffuse_colour, float3 f0, float alpha,
+			       uint mask, out float3 fill)
+{
+	float n_dot_v = saturate(dot(n, v));
+	float3 sum = float3(0.0, 0.0, 0.0);
+
+	fill = float3(0.0, 0.0, 0.0);
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i > voe_render_frame.more_count)
+			break;
+		voe_render_light light = voe_render_directional(i);
+		uint source = voe_render_directional_source(i);
+		// Towards the light, the opposite of the way it travels.
+		float3 l = -light.direction;
+		float3 h = normalize(l + v);
+		float n_dot_l = saturate(dot(n, l));
+		float3 fresnel = voe_render_fresnel(f0, saturate(dot(v, h)));
+		float3 specular = fresnel *
+				  voe_render_distribution(saturate(dot(n, h)), alpha) *
+				  voe_render_visibility(n_dot_l, n_dot_v, alpha);
+		// What the Fresnel term did not reflect is what the diffuse half
+		// has, which keeps this from adding energy the light did not have.
+		float3 diffuse = (1.0 - fresnel) * diffuse_colour / VOE_PI;
+		float reach = 0.0;
+
+		if (voe_render_sun_passes(world, surface, mask, source,
+					  light.direction))
+			reach = n_dot_l *
+				voe_render_sunlight(voe_render_directional_shadow(i),
+						    world, surface);
+		sum += (diffuse + specular) * voe_render_sun_radiance(light, reach);
+		fill += voe_render_fill(light, reach,
+					voe_render_fill_reaches(mask, source));
+	}
+	return sum;
 }
 
 // The depth slice of view distance `distance`: voe_render_light_slice in

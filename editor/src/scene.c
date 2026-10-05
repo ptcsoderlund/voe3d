@@ -4,7 +4,7 @@
 // outlive the call that drew them.
 //
 // Delete takes a whole tree and Duplicate one entity; both refuse a part and
-// the camera, and Duplicate refuses a light. The colour picker and dropdown
+// the camera, and a light is copied as a second sun (0357 point 5). The colour picker and dropdown
 // open, close and are placed where the Inspector measured them. A fold is
 // submitted as the entity's identity with `folded` flipped.
 //
@@ -21,7 +21,6 @@
 
 #include <scene/camera_component.h>
 #include <scene/identity_system.h>
-#include <scene/light_component.h>
 #include <scene/parent_component.h>
 
 #include <ui/widgets.h>
@@ -192,8 +191,7 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene)
 
 	if (selected.generation == 0 ||
 	    voe_editor_inspector_is_part(scene->world, selected, NULL) ||
-	    voe_scene_camera_get(scene->world, selected) != NULL ||
-	    voe_scene_light_get(scene->world, selected) != NULL)
+	    voe_scene_camera_get(scene->world, selected) != NULL)
 		return;
 	if (!voe_editor_entities_duplicate(scene->world, selected, &made)) {
 		scene->full = true;

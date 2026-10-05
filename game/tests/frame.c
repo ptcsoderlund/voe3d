@@ -20,6 +20,11 @@
 // VOE_GAME_CAPACITIES every pass and object fits and the frame comes back
 // true, lit or not (0258).
 //
+// THE SUN AND MOON CASE: the shadow case's cube and capsule under a sun and a
+// moon from opposite sides, both casting and bouncing once. Three frames, each
+// true with VOE_GAME_CAPACITIES: the first asks for the second light's maps,
+// the second draws with them, and the third relights (0357 points 3 and 4).
+//
 // THE LAMP CASE: a cube, a floor under it and a point light with
 // cast_shadows beside them; the lamp takes slot 1, the point-shadow pass
 // opens after the sun's, and both frames come back true (0325).
@@ -202,6 +207,50 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 				      0.0f, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
 				      0.0f, NULL));
+}
+
+// A light at the origin facing `toward`, casting and bouncing once.
+static void add_bouncing_light(voe_ecs_world *world, voe_math_float3 toward)
+{
+	voe_scene_transform pose = placed(0.0f, 0.0f, 0.0f);
+	voe_ecs_entity light;
+
+	pose.rotation = voe_scene_light_facing(toward);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &light));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, light, pose));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, light,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 3.0f,
+				   .cast_shadows = true,
+				   .bounces = 1,
+				   .bounce_strength = 1.0f }));
+}
+
+// An unlit world with a capsule over the cube, a sun and a moon from opposite
+// sides added, three frames, each true: every light's passes fit.
+static void sun_and_moon_case(voe_app *app, voe_base_arena *arena,
+			      voe_base_arena *scratch,
+			      const voe_3d_shapes *shapes)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_ecs_entity capsule;
+
+	(void)build(world, false);
+	add_bouncing_light(world, (voe_math_float3){ -0.4f, -1.0f, -0.6f });
+	add_bouncing_light(world, (voe_math_float3){ 0.4f, -1.0f, 0.6f });
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &capsule));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, capsule,
+					       placed(0.0f, 2.0f, 0.0f)));
+	VOE_TEST_CHECK(voe_3d_shape_add(
+		world, capsule,
+		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CAPSULE,
+				.colour = VOE_3D_SHAPE_GREY,
+				.cast_shadows = true }));
+	for (int frame = 0; frame < 3; frame++)
+		VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch,
+					      size, 0.0f, NULL));
 }
 
 // A fresh lit world with a floor under the cube and a casting lamp beside
@@ -480,6 +529,7 @@ int main(void)
 	draw_case(app, arena, scratch, &shapes, false);
 	shadow_case(app, arena, scratch, &shapes, true);
 	shadow_case(app, arena, scratch, &shapes, false);
+	sun_and_moon_case(app, arena, scratch, &shapes);
 	lamp_case(app, arena, scratch, &shapes);
 	blocker_case(app, arena, scratch, &shapes);
 	direct_case(app, arena, scratch, &shapes);

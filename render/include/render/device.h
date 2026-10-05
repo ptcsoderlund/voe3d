@@ -122,7 +122,7 @@ typedef struct voe_render_device voe_render_device;
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
 // sun's VOE_RENDER_SHADOW_CASCADES depth maps, per frame slot (ADR-0258). It
 // costs shadow_size² × 4 bytes × cascades × frame slots — 2048 is 128 MiB over
-// two slots. Nought is no shadow pass at all; one texel stays for the binding.
+// two slots — times the lights voe_render_shadow_lights_ready grew it to. Nought is no shadow pass at all; one texel stays for the binding.
 //
 // point_shadow_size IS THE FIFTH THAT MAY BE NOUGHT: texels a side of one cube
 // face of a point light's shadow, VOE_RENDER_POINT_SHADOWS lights of six faces
@@ -150,6 +150,10 @@ typedef struct {
 // How many depth maps the sun renders into, near to far: the layers of one frame
 // slot's shadow image, and the range voe_render_shadow_pass_begin's cascade is in.
 #define VOE_RENDER_SHADOW_CASCADES 4
+
+// The most directional lights drawn, in table order (ADR-0357); light slot s of a
+// frame slot's shadow image is its layers 4s to 4s + 3.
+#define VOE_RENDER_DIRECTIONAL_LIGHTS 4
 
 // How many point lights cast a shadow at once, the slots 1 to 16 of a frame
 // slot's point shadow image: slot s's six faces, +X −X +Y −Y +Z −Z, are its
@@ -670,10 +674,38 @@ typedef struct {
 	float splits[VOE_RENDER_SHADOW_CASCADES];
 	float texels[VOE_RENDER_SHADOW_CASCADES];
 	uint32_t count;
-	uint32_t reserved0;
+	// Which light's four layers the record reads (ADR-0357); nought is the
+	// first, as every zeroed record is.
+	uint32_t slot;
 	uint32_t reserved1;
 	uint32_t reserved2;
 } voe_render_shadow;
+
+// One directional light after a pass's first (ADR-0357 point 1): its light and
+// its shadow record, as the first light's `light` and `shadow` are.
+//
+// `blockers` IS THE MASK OF THE PASS'S BLOCKERS HOLDING THIS LIGHT'S PLACE, as
+// the blockers' `sun` is the first light's; bits at or past the pass's blocker
+// count are dropped. `bounces` and `bounce_strength` are read by a bounce begin
+// (card 08), not by a pass. A `shadow` with `count` reads its own `slot`, which
+// is below what voe_render_shadow_lights_ready holds and named by no other
+// shadowed light of the pass, the first included; a light not finite asserts.
+typedef struct {
+	voe_render_light light;
+	voe_render_shadow shadow;
+	uint32_t blockers;
+	uint32_t bounces;
+	float bounce_strength;
+	uint32_t reserved;
+} voe_render_directional_light;
+
+// The directional lights after a pass's first, in light table order, copied at
+// _pass_begin. Zero is none; NULL with a count, or a count above
+// VOE_RENDER_DIRECTIONAL_LIGHTS − 1, asserts.
+typedef struct {
+	const voe_render_directional_light *lights;
+	uint32_t count;
+} voe_render_directional_lights;
 
 // One drawn object's record: the two matrices it is drawn with, the shading
 // record it wears and the colour it is tinted by. `shading` is the index half of
@@ -1290,12 +1322,16 @@ typedef struct {
 // place in `sun` (ADR-0350). Copied at
 // _pass_begin, as `points` are. Zero is none, the old picture; more than
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, or a row not finite asserts.
+//
+// `more` ARE THE LIGHTS AFTER THE FIRST (ADR-0357 point 1); zero is the old
+// picture, byte for byte.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
 	voe_render_shadow shadow;
 	voe_render_point_lights points;
 	voe_render_light_blockers blockers;
+	voe_render_directional_lights more;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1332,21 +1368,33 @@ typedef struct {
 					 voe_render_target target,
 					 const voe_render_pass_camera *camera);
 
-// Opens a shadow pass onto cascade `cascade` of this frame slot's shadow map: its
-// depth cleared to the far plane, no colour, the viewport the map's size with the
-// same one Y flip every pass has. `light` is the camera block's view — the sun's
-// view and projection — and the block's sun is zeroed. Mesh draws in it write
-// depth only; closed by voe_render_pass_end like any pass (ADR-0258).
+// Opens a shadow pass onto layer `layer` of this frame slot's shadow map, which
+// is slot × 4 + cascade (ADR-0357): its depth cleared to the far plane, no
+// colour, the viewport the map's size with the same one Y flip every pass has.
+// `light` is the camera block's view — the sun's view and projection — and the
+// block's sun is zeroed. Mesh draws in it write depth only; closed by
+// voe_render_pass_end like any pass (ADR-0258).
 //
 // IT IS A PASS AND COUNTS AGAINST `passes`, its draws against `objects`. False,
 // with a line, when the frame's passes are spent; nothing is open then.
 //
-// Calling this outside a frame, with a pass already open, with a cascade not below
-// VOE_RENDER_SHADOW_CASCADES, or on a device whose shadow_size is nought is the
-// caller's bug and asserts.
+// Calling this outside a frame, with a pass already open, with a layer not below
+// 4 × the lights voe_render_shadow_lights_ready holds, or on a device whose
+// shadow_size is nought is the caller's bug and asserts.
 [[nodiscard]] bool voe_render_shadow_pass_begin(voe_render_device *device,
-						uint32_t cascade,
+						uint32_t layer,
 						const voe_render_view *light);
+
+// How many lights' shadow maps every frame slot's array holds now, from 1 to
+// VOE_RENDER_DIRECTIONAL_LIGHTS; nought on a device whose shadow_size is nought
+// (ADR-0357). A `wanted` above that, capped at the most, asks for growth at the
+// top of the next frame.
+//
+// GROWING IS ONE GPU WAIT, LIKE A RESIZE, and the array never shrinks before the
+// device closes. A frame that wants more than is ready draws with what is ready:
+// a light without a slot of its own draws unshadowed that frame.
+[[nodiscard]] uint32_t voe_render_shadow_lights_ready(voe_render_device *device,
+						      uint32_t wanted);
 
 // Whether this device has point shadow maps to draw and read: false when
 // point_shadow_size was nought or the card has no shaderOutputLayer (ADR-0325).
@@ -1387,22 +1435,25 @@ typedef struct {
 [[nodiscard]] bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 							bool *opened);
 
-// Opens the bounce shadow pass (ADR-0329): the sun's map the relight shadows by,
-// VOE_RENDER_BOUNCE_SHADOW_TEXELS a side, depth cleared to the far plane, opened
-// after the begun target's capture passes. `light` is eye-relative with an
-// orthographic projection, as a cascade's. Draw the sun's casters into it.
+// Opens the bounce shadow pass (ADR-0329, 0357 point 4): sun `sun`'s map the
+// relight shadows by, VOE_RENDER_BOUNCE_SHADOW_TEXELS a side, depth cleared to the
+// far plane, opened after the begun target's capture passes. Sun 0 is the begin's
+// first sun and sun i its `more[i − 1]`. `light` is eye-relative with an
+// orthographic projection, as a cascade's. Draw that sun's casters into it.
 //
 // `opened` IS FALSE, and true is returned with nothing open, when the volume is
-// not built, the begun sun has no bounces, no intensity or is unshaded, or no
-// relight is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its
-// draws against `objects`: false, with a line, when the frame's passes are spent.
-// It may open once after each voe_render_bounce_begin, so every view draws this
-// begin's map for its own volume (ADR-0330).
+// not built, that sun has no bounces, no intensity or is unshaded, or no relight
+// is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its draws
+// against `objects`: false, with a line, when the frame's passes are spent. It
+// may open once per sun after each voe_render_bounce_begin, so every view draws
+// this begin's maps for its own volume (ADR-0330).
 //
 // Calling this outside a frame, with a pass open, with no bounce begin this frame,
-// or a second time after one bounce begin is the caller's bug and asserts; once
-// per begin, not once per frame.
+// for a sun at or past 1 + the begin's `more.count`, or a second time for one sun
+// after one bounce begin is the caller's bug and asserts; once per sun per begin,
+// not once per frame.
 [[nodiscard]] bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
+						       uint32_t sun,
 						       const voe_render_view *light,
 						       bool *opened);
 
@@ -1441,6 +1492,13 @@ void voe_render_pass_end(voe_render_device *device);
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
 // indoors sharing a bit, or a kind or sun bit at or past the count asserts, as
 // at _pass_begin.
+//
+// `more` ARE THE FURTHER SUNS (ADR-0357 points 1 and 4), copied at the begin:
+// each entry's `light`, `bounces`, `bounce_strength` and `blockers`, its place
+// mask, are read, its `shadow` is not. They bounce as the first sun does, and a
+// change to any of them relights. A count past VOE_RENDER_DIRECTIONAL_LIGHTS − 1,
+// NULL with a count, bounces past VOE_RENDER_BOUNCES_MAX, or a mask bit at or
+// past the blocker count asserts. Zero is none, the old picture.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1452,6 +1510,7 @@ struct voe_render_bounce_frame {
 	voe_render_point_lights points;
 	float spacing;
 	voe_render_light_blockers blockers;
+	voe_render_directional_lights more;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are

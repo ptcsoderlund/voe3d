@@ -3,10 +3,14 @@
 // on each one's target with that camera and the shadows, the world and its
 // models drawn with the selection's outline, collider, light blocker's box
 // lines (0347 point 5) and gizmo (none for a prefab's part) and the scene
-// camera's, the sun's and every point light's markers, and the pass ended; and
+// camera's, every directional light's and every point light's markers (0360),
+// the selected one's in the outline's colour, and the pass ended; and
 // the preview's shadow passes and pass, drawn with the world's camera while the
-// selected entity has one and marking nothing. Every pass is lit by the world's
-// point lights (0320 point 6) and kept out of its light blockers (0347), both
+// selected entity has one and marking nothing. Every pass is lit by every
+// directional light, the first as `light` and the rest from the frame (0357
+// point 1); the preview light is never joined by another, as a world with no
+// light row has none. Every pass is lit by the world's
+// point lights (0320 point 6) and kept out of its light blockers (0347), all
 // arrays in `arena` from before the shadow call, whose lamps' pass reads the
 // slots (0325 point 6) and whose bounce reads the blockers, until the pass is
 // open; a false from either call leaves that pass without them, which is no
@@ -25,8 +29,8 @@
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 
-// A marker's colour, the camera's and the sun's alike (0223, 0274), and the rule
-// the point light markers are given as their two colours (0320 point 7): the
+// The camera marker's colour (0223), and the rule every sun and point light
+// marker is given as its two colours (0320 point 7, 0360 point 1): the
 // outline's while `marked` is the selection, the gizmo's rest colour otherwise.
 static voe_math_float3 marker_colour(const voe_ui_theme *palette,
 				     voe_ecs_entity marked,
@@ -37,17 +41,6 @@ static voe_math_float3 marker_colour(const voe_ui_theme *palette,
 			   marked.generation == selected.generation;
 	return is_selected ? voe_editor_view_outline_colour(palette)
 			   : voe_editor_view_gizmo_colour(palette, false);
-}
-
-// The world's first light with a transform, zeroed for none: the one sun a
-// view marks (0274).
-static voe_ecs_entity first_placed_light(const voe_ecs_world *world)
-{
-	const voe_ecs_entity *lights = voe_scene_light_entities(world);
-	for (uint32_t i = 0; i < voe_scene_light_count(world); i++)
-		if (voe_scene_transform_get(world, lights[i]) != NULL)
-			return lights[i];
-	return (voe_ecs_entity){ 0 };
 }
 
 bool voe_editor_view_passes_preview(voe_render_device *gpu,
@@ -91,16 +84,13 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	// failed frame. Before the shadows: their point-shadow pass reads the
 	// slots (0325) and their bounce the blockers (0347 point 4).
 	(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
+	(void)voe_3d_draw_system_lights(world, &frame, arena);
 	(void)voe_3d_draw_system_point_lights(world, &frame, arena);
 	if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
 		voe_base_arena_rewind(arena, mark);
 		return false;
 	}
-	camera = (voe_render_pass_camera){ .view = frame.view,
-					   .light = frame.light,
-					   .shadow = frame.shadow,
-					   .points = frame.points,
-					   .blockers = frame.blockers };
+	camera = voe_3d_draw_system_camera(&frame);
 	passed = voe_render_pass_begin(gpu, views->preview_target, &camera);
 	voe_base_arena_rewind(arena, mark);
 	if (!passed)
@@ -127,17 +117,13 @@ bool voe_editor_view_passes_draw(
 				palette != NULL && gizmo != NULL,
 			"drawing views with no shapes, palette or gizmo");
 
-	// The world's camera and sun, zeroed for none; outline-coloured while
-	// selected.
+	// The world's camera, zeroed for none; outline-coloured while selected.
 	voe_ecs_entity camera_entity = { 0 };
 	if (voe_scene_camera_count(world) > 0)
 		camera_entity = voe_scene_camera_entities(world)[0];
-	voe_ecs_entity sun_entity = first_placed_light(world);
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 	voe_math_float3 camera_colour =
 		marker_colour(palette, camera_entity, selected);
-	voe_math_float3 sun_colour =
-		marker_colour(palette, sun_entity, selected);
 	// A prefab's part keeps its outline but has no gizmo (0283 point 5).
 	voe_ecs_entity gizmo_entity =
 		voe_editor_inspector_is_part(world, selected, NULL) ?
@@ -164,18 +150,18 @@ bool voe_editor_view_passes_draw(
 					.target = view->target };
 		// The points live until the pass has taken them, and come before
 		// the shadows, whose point-shadow pass reads their slots (0325), and
-		// so do the blockers, whose bounce reads them (0347 point 4); a false
+		// so do the blockers, whose bounce reads them (0347 point 4), and the
+		// lights after the first, which read the blockers' masks; a false
 		// leaves this pass unblocked or unlit by points, no failed frame.
 		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 		(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
+		(void)voe_3d_draw_system_lights(world, &frame, arena);
 		(void)voe_3d_draw_system_point_lights(world, &frame, arena);
 		if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
 			voe_base_arena_rewind(arena, mark);
 			return false;
 		}
-		camera.shadow = frame.shadow;
-		camera.points = frame.points;
-		camera.blockers = frame.blockers;
+		camera = voe_3d_draw_system_camera(&frame);
 		bool passed = voe_render_pass_begin(gpu, view->target, &camera);
 		voe_base_arena_rewind(arena, mark);
 		if (!passed)
@@ -221,9 +207,14 @@ bool voe_editor_view_passes_draw(
 					.size = { (int)view->width,
 						  (int)view->height } },
 				.sun = {
-					.entity = sun_entity,
+					.shown = true,
+					.selected = selected,
 					.material = shapes->outline,
-					.colour = sun_colour,
+					.colour = voe_editor_view_gizmo_colour(
+						palette, false),
+					.selected_colour =
+						voe_editor_view_outline_colour(
+							palette),
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,

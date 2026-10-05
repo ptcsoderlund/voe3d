@@ -39,6 +39,8 @@ fill_intensity = 0.10823958
 bounces = 1
 cast_shadows = true
 bounce_strength = 0.5
+[3.voe_scene_parent]
+parent = 19
 [3.voe_scene_transform]
 position = [8.605420589447021e-07, 5.138881284743547, 7.879768788814545]
 rotation = [-0.081032366, -0.45796067, -0.6996341, -0.5424186]
@@ -146,7 +148,7 @@ scale = [2, 10, 1]
 
 [19]
 name = "Lights"
-folded = true
+folded = false
 
 [20]
 name = "Point1"
@@ -301,10 +303,28 @@ name = "HouseLightBlock"
 folded = false
 [94.voe_scene_light_blocker]
 size = [1, 1, 1]
-kind = 0
+block = 0
 [94.voe_scene_parent]
 parent = 25
 [94.voe_scene_transform]
 position = [0.012121739760031967, -3.4458935260772705e-07, 1.880211499289611]
 rotation = [0, 0.008522838, 0, 0.9999637]
 scale = [4.216355, 3.3486884, 3.8493636]
+
+[108]
+name = "Moon"
+folded = false
+[108.voe_scene_light]
+colour = [0.16122088, 0.3686375, 1]
+intensity = 0.3
+fill_colour = [1, 1, 1]
+fill_intensity = 0
+bounces = 1
+cast_shadows = false
+bounce_strength = 0.5
+[108.voe_scene_parent]
+parent = 19
+[108.voe_scene_transform]
+position = [0.0734074842184782, 1.813296902924776, -41.349000244401395]
+rotation = [0.04545277, -0.94106156, -0.30425906, -0.14058366]
+scale = [1, 1, 1]

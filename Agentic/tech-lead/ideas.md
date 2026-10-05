@@ -85,3 +85,11 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   the camera and sun are left out of the copy, links inside the tree point at the copy's own parts,
   and a duplicated child stays under its parent. The whole copy is one undo step.
 - Splash customisation: box position, minimum time, fade, a splash per scene (0346 leaves these for later).
+- **Renderer work parked from the Vulkan review** (2026-10-05, see 0358): rank by 062's frame breakdown before
+  building any. Runtime `vkDeviceWaitIdle`s go (timeline semaphores, a deletion queue, a staging ring,
+  update-after-bind textures) with the first work order that loads content during play, i.e. streaming. A
+  suballocator, written by us (ADR-0023), not VMA, when allocations near the 4096 floor. Block-compressed textures
+  (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue (the
+  pipeline cache is taken by 0362), more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
+  Precise in-frame barriers and leaving GENERAL layouts are planner's work once they can be measured.
+- Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.

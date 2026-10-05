@@ -33,8 +33,7 @@
 // at which the OS started the process, so `now - at` is the process's age. The
 // time before main — loading, a scan of a new program — is otherwise invisible
 // to the program's own code. Its resolution is the OS's tick (10 ms on Linux).
-// False, with *at untouched, when the OS cannot say. Linux only while Windows
-// is paused (decision 0339).
+// False, with *at untouched, when the OS cannot say.
 #pragma once
 
 double voe_platform_clock_now(void);

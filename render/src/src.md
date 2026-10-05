@@ -14,8 +14,10 @@ which file to open — what each one owns, and where the seams between them run.
   types here and its header says why.
 - `backend_win32.c` — the Windows backend, and the seven Windows typedefs
   `vulkan_win32.h` expects `windows.h` to have made. Its header says why each.
-- `device_internal.h` — the device struct the files below share, the calls between them, where
-  the split runs, and the constants the whole folder reads.
+- `device_internal.h` — the device struct the files below share, where the split runs, and the
+  constants the whole folder reads.
+- `device_calls.h` — the calls one file here makes into another, grouped by the file that owns
+  each; included only through the end of `device_internal.h`.
 - `device_parts.h` — the records the device is built of: buffers, pools, slots, targets, the
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
@@ -31,6 +33,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
   mesh pipelines, solid, blended, shadow, point shadow and capture, then the relight, a step a call.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
+- `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
+  reads agree, by size and member offset; no code.
 - `buffer.c` — a buffer with the memory under it, and the staging upload that
   fills a device-local one at an offset. Its header says why every later upload
   is this.
@@ -49,14 +53,15 @@ which file to open — what each one owns, and where the seams between them run.
   GENERAL that lets one texture slot show them, and a second slot for their depth copy.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
-- `shadow.c` — the sun's shadow maps: one D32 array image of four cascades per frame slot, its
-  views, the barriers either side of a shadow pass, and the comparison sampler they are read
-  through.
+- `shadow.c` — the directional lights' shadow maps: one D32 array image of four cascades per held
+  light per frame slot, its views, its growth to up to four lights at the top of a frame, the
+  barriers either side of a shadow pass, and the comparison sampler they are read through.
 - `point_shadow.c` — the point lights' shadow maps: one D32 array image of 6 × 16 layers per frame
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
-  which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
+  which probes hold a picture or are queued, the bouncing lights, every sun among them, and when to
+  relight. Pure CPU.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
   and light blockers about the corner, so an eye that moves relights nothing; a change of kinds or
   the sun's mask relights) and relit calls over bit sets.
@@ -66,8 +71,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
   depth, sixteen queued probes drawn into it as one layered pass at the volume's spacing and out
   to its reach, twelve cells, then copied into the atlases.
-- `bounce_shadow.c` — the relight's own sun map: per frame slot a 1024-texel D32 image, and the
-  shadow pass that draws it once per bounce begin that relights a casting sun.
+- `bounce_shadow.c` — the relight's own sun maps: per frame slot a 1024-texel D32 image of a layer per sun,
+  and the shadow pass that draws one sun's layer once per bounce begin that relights it.
 - `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
   lists and one record per volume with the begun light blockers, their kinds and the sun's mask,
   and the call that settles changed
@@ -92,10 +97,9 @@ which file to open — what each one owns, and where the seams between them run.
   bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured,
   rebuild on resize, end, submit and present.
-- `pass.c` — a pass: one rendering block onto the window or a target with its camera block, its
-  begun probe volume, its point lights copied and binned, its light blockers, lamp masks, kinds and
-  sun mask, the clear colour, the
-  first-clears-later-load rule, and the one Y flip in the viewport.
+- `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
+  volume, point lights, light blockers and further lights, the clear colour, the
+  first-clears-later-load rule, and the one Y flip.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.

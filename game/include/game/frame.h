@@ -16,9 +16,10 @@
 // sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
 // light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
 // for them), the point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,
-// 0325), the sun's shadow passes and the lamps' one (voe_3d_draw_system_shadows,
-// 0258, 0325), one pass onto the window with
-// voe_3d_draw_system_frame's camera, sun, shadow, point lights and blockers, the draw
+// 0325), the lights after the first (voe_3d_draw_system_lights, 0357), each
+// casting light's shadow passes and the lamps' one (voe_3d_draw_system_shadows,
+// 0258, 0325), one pass onto the window with voe_3d_draw_system_camera's
+// camera, lights, shadows, point lights and blockers, the draw
 // system, depth cleared and the interface's element records drawn in one
 // command over the surface of game/interface.h, the pass and the draw closed. The world step is its own call too, so
 // a fixed step runs the same owning systems in the same order.
@@ -30,7 +31,8 @@
 // editor's, and the frame comes back with them zeroed.
 //
 // Constraints: the world is one voe_game_world_new made, with exactly one
-// camera and at most one light; a world with none draws every lit surface
+// camera; at most VOE_RENDER_DIRECTIONAL_LIGHTS lights are drawn, in table
+// order, the rest left out (0357 point 1); a world with none draws every lit surface
 // black, the background colour and the interface as before (0287). The device
 // was opened with VOE_GAME_CAPACITIES and the shapes and models uploaded onto it.
 // `scratch` is rewound by the draw system and keeps nothing. Called outside a
@@ -61,17 +63,18 @@
 // What the device must hold for one frame: the built-in shapes' geometry and
 // their two records, and the model store's room beside them (3d/models.h);
 // two objects per drawn entity, a shape's or a model part's, in the window
-// pass, in each cascade, in the point-shadow pass, in each of the bounce's
-// capture passes and in its shadow pass, every caster drawn at most once
-// into each; each emitter's
+// pass, in each cascade of each of VOE_RENDER_DIRECTIONAL_LIGHTS lights, in the
+// point-shadow pass, in each of the bounce's capture passes and in each sun's
+// shadow pass, every caster drawn at most once into each; each emitter's
 // VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
 // shadow (0298 points 6 and 8); one per water, VOE_GAME_WORLD_WATERS, in the
 // window pass alone, since water casts no shadow (0305 point 7); the window
-// pass, one shadow pass per cascade, the lamps' point-shadow pass (0325 point
-// 7), and up to VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes after it, the
-// bounce map pass gone (0326 points 3 and 8), then the bounce shadow pass,
-// the relight's sun map, on a frame that relights a casting sun (0329 point
-// 3); the sun's maps at VOE_3D_SHADOW_TEXELS a side and the lamps'
+// pass, one shadow pass per cascade per casting light (0357 point 3), the
+// lamps' point-shadow pass (0325 point 7), and up to
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes after it, the bounce map
+// pass gone (0326 points 3 and 8), then one bounce shadow pass per sun, its
+// relight map, on a frame that relights a casting sun (0329 point 3, 0357
+// point 4); the sun's maps at VOE_3D_SHADOW_TEXELS a side and the lamps'
 // faces at VOE_3D_POINT_SHADOW_TEXELS; the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
 // transient and no targets: the game draws no outline and nothing off screen.
 #define VOE_GAME_CAPACITIES                                                  \
@@ -82,13 +85,16 @@
 		.geometries = VOE_3D_SHAPES_GEOMETRIES +                      \
 			      VOE_3D_MODELS_GEOMETRIES,                       \
 		.objects = 2 * VOE_GAME_WORLD_MAX_DRAWN *                     \
-				   (3 + VOE_RENDER_SHADOW_CASCADES +         \
-				    VOE_RENDER_BOUNCE_CAPTURE_PASSES) +      \
+				   (2 + VOE_RENDER_DIRECTIONAL_LIGHTS *       \
+						(VOE_RENDER_SHADOW_CASCADES + 1) + \
+					    VOE_RENDER_BOUNCE_CAPTURE_PASSES) +      \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES + \
 			   VOE_GAME_WORLD_WATERS,                               \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,  \
-		.passes = 1 + VOE_RENDER_SHADOW_CASCADES + 1 +                \
-			  VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1,               \
+		.passes = 1 + VOE_RENDER_SHADOW_CASCADES *                    \
+				      VOE_RENDER_DIRECTIONAL_LIGHTS +         \
+			  1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +              \
+			  VOE_RENDER_DIRECTIONAL_LIGHTS,                      \
 		.elements = VOE_GAME_INTERFACE_ELEMENTS,                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                          \
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS               \

@@ -49,3 +49,35 @@ double voe_platform_clock_now(void)
 
 	return (double)now.QuadPart / ticks_per_second;
 }
+
+// THE LAUNCH IS THE PROCESS'S CREATION TIME, MOVED ONTO THIS CLOCK. Windows
+// keeps it as a FILETIME, the time of day in hundreds of nanoseconds, so the age
+// is the time of day now less that, and the launch is this clock's now less the
+// age. A change to the time of day between the two would move it; nothing here
+// needs better than the 10 ms Linux gives.
+bool voe_platform_clock_launched(double *at)
+{
+	FILETIME created;
+	FILETIME exited;
+	FILETIME kernel;
+	FILETIME user;
+	FILETIME wall;
+	ULARGE_INTEGER from;
+	ULARGE_INTEGER to;
+	double now;
+
+	VOE_BASE_ASSERT(at != nullptr, "voe_platform_clock_launched needs somewhere to put it");
+	if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user))
+		return false;
+	now = voe_platform_clock_now();
+	GetSystemTimePreciseAsFileTime(&wall);
+	from.LowPart = created.dwLowDateTime;
+	from.HighPart = created.dwHighDateTime;
+	to.LowPart = wall.dwLowDateTime;
+	to.HighPart = wall.dwHighDateTime;
+	if (to.QuadPart < from.QuadPart)
+		return false;
+
+	*at = now - (double)(to.QuadPart - from.QuadPart) / 1e7;
+	return true;
+}

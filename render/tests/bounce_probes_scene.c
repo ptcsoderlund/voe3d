@@ -278,7 +278,7 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 		passes++;
 	}
 	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(
-		s->device, &s->volume_light, &opened));
+		s->device, 0, &s->volume_light, &opened));
 	if (opened) {
 		draw_boxes(s);
 		voe_render_pass_end(s->device);

@@ -48,8 +48,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306, 0344 — Text scale; fit; mm panels; PC sizes.
 - 0192, 0193, 0195, 0198–0200, 0202–0207 — Queue; focus; dropdowns; overlays; picks; undo; gizmo.
-- 0201, 0214–0216, 0227, 0233, 0189–0191, 0217, 0218, 0221, 0300, 0302, 0303 — Fastest card;
-  4 fps unfocused; right flies; a bare entity; needs brought along; one camera.
+- 0189–0191, 0201, 0214–0218, 0221, 0227, 0233, 0300, 0302, 0303 — Fastest card; 4 fps; one camera.
 - 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light: preview, black.
 - 0239–0248, 0263 — A project's C in `Code/`, loaded, Refreshed; `examples/`; `engine_assets/`.
 - 0249, 0253–0257, 0293 — Colliders, overlap, sweep, kinematic body; 60 steps a second; two slots.
@@ -58,3 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355 — Block kinds; sun and moon; renamed fields; panels; markers; reveal.
+- 0358, 0359 — The GPU timed and named per pass; Best Practices is a gate; textures mipped when far.
