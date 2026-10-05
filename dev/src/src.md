@@ -5,8 +5,7 @@ and every other code file is a `.h` saying what it owns and why beside the `.c`
 that carries it out. The pictures and the model it embeds sit here too.
 
 - `main.c` — the loop: every frame it takes the keys, moves the eye and the sun, runs the systems
-  in order, draws the world twice and takes the frame breakdown, until the window closes. Its header gives that order, and what
-  is wrong if the picture looks wrong and what there is to try stand above `main()`.
+  in order, draws the world twice and takes the frame breakdown, until the window closes.
 - `startup.h` — the program's state: one member per thing the loop reads, written before the first
   frame and by the loop, and read nowhere else.
 - `startup.c` — everything built before that frame, in the order it has to happen in: the arenas,
