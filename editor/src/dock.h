@@ -227,6 +227,12 @@ void voe_editor_dock_split_set(voe_editor_dock_tree *tree, uint32_t node,
 double voe_editor_dock_view_share(const voe_editor_dock_tree *tree);
 void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 
+// --- dock.c's and dock_walk.c's own, not for callers ---
+//
+// The space between the two children of a split, in millimetres: taken off
+// the split's length by the arrangement and drawn as a border by the walk.
+#define VOE_EDITOR_DOCK_SEAM 1.0f
+
 // Emits `root`'s tree into `ui` as one row or column whose two children are
 // given fixed sizes in millimetres, on down to a leaf's panel with
 // `voe_editor_panel_draw`'s contents in it.
@@ -236,7 +242,7 @@ void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 // deeper nodes, and for the same reason: a `voe_ui_container.size.along` and
 // `.across` on a child are read against its PARENT's flow, never its own
 // (ui/layout.h), and this call's own row is a child exactly like every split
-// below it once anything wraps it. `sizing_in()`, this file's one place that
+// below it once anything wraps it. `sizing_in()`, dock_walk.c's one place that
 // turns a plain voe_math_float2 into the pair read correctly either way, is
 // what this call uses too. interface.c opens a column over the top bar and
 // this tree, so it passes VOE_EDITOR_DOCK_COLUMN; a caller that opens no
@@ -270,7 +276,7 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 // everything it emits is a child of that panel.
 //
 // AND INSIDE THE SCROLL AREA THAT PANEL HOLDS, unless the panel is a scene view
-// — see dock.c's header. So what is emitted here is clipped to the leaf and
+// — see dock_walk.c's header. So what is emitted here is clipped to the leaf and
 // scrolls when there is more of it than fits, and a panel need not ask for
 // either.
 //

@@ -133,9 +133,11 @@ carries it out.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
   panel's length or the views' share, every seam's place (the reached one lit), whether a point is
   over a panel, and the walk.
-- `dock.c` — the arrangement, held lengths and the views' share clamped and set, the walk to one
-  frame of `ui` calls, each leaf handed to its panel's draw with the palette for the Scene list's
-  drag marks, the Inspector's call, and each scene view's camera preview.
+- `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
+  and set, which views it shows and whether a point is over a panel.
+- `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each leaf a panel and scroll
+  area handed to its panel's draw with the palette for the Scene list's drag marks, the Inspector's
+  call, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
