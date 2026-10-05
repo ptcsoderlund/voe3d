@@ -89,6 +89,6 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   building any. Runtime `vkDeviceWaitIdle`s go (timeline semaphores, a deletion queue, a staging ring,
   update-after-bind textures) with the first work order that loads content during play, i.e. streaming. A
   suballocator, written by us (ADR-0023), not VMA, when allocations near the 4096 floor. Block-compressed textures
-  (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue, a
-  pipeline cache, more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
+  (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue (the
+  pipeline cache is taken by 0362), more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
   Precise in-frame barriers and leaving GENERAL layouts are planner's work once they can be measured.
