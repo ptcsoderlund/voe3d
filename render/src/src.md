@@ -14,8 +14,10 @@ which file to open — what each one owns, and where the seams between them run.
   types here and its header says why.
 - `backend_win32.c` — the Windows backend, and the seven Windows typedefs
   `vulkan_win32.h` expects `windows.h` to have made. Its header says why each.
-- `device_internal.h` — the device struct the files below share, the calls between them, where
-  the split runs, and the constants the whole folder reads.
+- `device_internal.h` — the device struct the files below share, where the split runs, and the
+  constants the whole folder reads.
+- `device_calls.h` — the calls one file here makes into another, grouped by the file that owns
+  each; included only through the end of `device_internal.h`.
 - `device_parts.h` — the records the device is built of: buffers, pools, slots, targets, the
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
