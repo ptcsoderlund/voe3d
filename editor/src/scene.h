@@ -2,13 +2,11 @@
 // panel drew this frame.
 //
 // THIS FILE DOES NOT BUILD A WORLD. What a fresh project holds is project.h's
-// decision — the untitled scene's two entities among them — and what an opened
-// one holds is authoring/scene_read.h's; scene.world is set from whichever the
-// current project's world is (main.c, and session.c when a NEW goes ahead
-// replaces it). The one thing this file does to it is Add entity,
-// handed to entities.h, which queues the new entity's rows (ADR-0193). session.c writes `selected` too, on that same NEW, back to a zeroed
-// entity — the one other place outside this file that touches either field,
-// and for the reason the next paragraph gives.
+// decision and what an opened one holds is authoring/scene_read.h's; main.c and
+// session.c set scene.world from the current project's. What this file does to
+// it is Add entity, handed to entities.h, which queues the new entity's rows
+// (ADR-0193), a fold and a reveal's unfold. session.c writes `selected` too, on
+// a NEW, back to a zeroed entity, for the reason the next paragraph gives.
 //
 // SELECTION BELONGS TO THE EDITOR AND NOT TO THE DOCK TREE. It is held here,
 // beside the roots in main.c, and a panel reads it; voe_editor_dock_tree does
@@ -33,12 +31,19 @@
 // Scene panel records each button and the entity it names, and the clicks are
 // read out afterwards, inside the same frame, by voe_editor_scene_clicks_read.
 //
-// AND SO DOES WHAT THE INSPECTOR DREW, WHICH IS THE SAME SENTENCE AND IS WHY IT
-// IS IN HERE TOO. The Scene and Inspector panels are handed this struct and
-// nothing else of the editor's (dock.h), so this is where they keep what they
-// have to be asked about after the frame; the inspector's own is one field below
-// and inspector.h owns every line of what is in it. A scene view's panel keeps
-// its picture in view.h's struct instead, because a view is not the scene's.
+// AND SO DOES WHAT THE INSPECTOR DREW, for the same reason: the Scene and
+// Inspector panels are handed this struct and nothing else of the editor's
+// (dock.h); inspector.h owns every line of `inspector`. A scene view's panel
+// keeps its picture in view.h's struct instead, because a view is not the scene's.
+//
+// A SELECTION MADE ELSEWHERE IS REVEALED (0355, 0366). A live selection other
+// than `revealed` (a view click, Add entity, Duplicate, a drop, undo's re-found
+// selection: every outside path at once) is revealed by voe_editor_scene_reveal;
+// a row click sets `revealed` too, so the list's own never moves it. It waits
+// while the entity's identity is still queued, unfolds every folded ancestor
+// (counted in `unfolded`: unsaved but no undo step), scrolls the row to the
+// middle of `list_area` a frame later once it is drawn, and gives up when no
+// row was drawn.
 //
 // ADD ENTITY IS ONE BUTTON AND THE ONE WAY TO MAKE SOMETHING (ADR-0217). It
 // makes an entity with only an identity (0300); its components come from the
@@ -48,8 +53,7 @@
 // frames, in the `list_` fields.
 //
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
-// move or turn is how someone is working, not what the scene is, so it is never
-// saved and never undone, and a new project keeps it.
+// never saved, never undone, and kept by a new project.
 //
 // THE ASSETS PANEL'S STATE IS HERE TOO, in `assets`, so the dock reaches it
 // with no parameter of its own (assets_panel.h); nothing in scene.c reads it.
@@ -120,6 +124,14 @@ typedef struct voe_editor_scene {
 	// Whether a Delete, Duplicate, Remove or Add component was refused
 	// this frame because the world or its queue is full. Zeroed with the rows, every frame.
 	bool full;
+	// The selection the Scene list last showed, kept across frames and not
+	// cleared with the rows: a live selection other than it is revealed.
+	voe_ecs_entity revealed;
+	// The Scene leaf's scroll area as drawn this frame, or VOE_UI_NODE_NONE.
+	voe_ui_node list_area;
+	// Parents a reveal opened this frame. They mark the project unsaved but,
+	// unlike `structural`, are no undo edit. Zeroed with the rows.
+	uint32_t unfolded;
 	// The Scene list's drag, owned by scene_list.c, kept across frames and
 	// not cleared with the rows; the release zeroes all seven. `list_held` is
 	// the row held down (a world swapped under it by New, Open or undo
@@ -213,8 +225,8 @@ void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity);
 bool voe_editor_scene_is_selected(const voe_editor_scene *scene,
 				  voe_ecs_entity entity);
 
-// Forgets what the Scene panel drew last frame, the Add entity button among it,
-// and zeroes `structural` and `full`. Called before the panel draws, because the nodes it
+// Forgets what the Scene panel drew last frame, the Add entity button and the
+// list's area among it, and zeroes `structural`, `full` and `unfolded`. Called before the panel draws, because the nodes it
 // holds name this frame's tree and last frame's are gone.
 void voe_editor_scene_rows_clear(voe_editor_scene *scene);
 
@@ -242,6 +254,13 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 // caller says "The scene is full." and nothing was counted.
 [[nodiscard]] bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 						const voe_ui_context *ui);
+
+// Reveals a selection made elsewhere (see the header): nothing when it is not
+// alive, is `revealed` or has no identity row yet; else unfolds its folded
+// ancestors and returns, or, none folded, centres its drawn row in `list_area`
+// and sets `revealed`. Called after the clicks and the drop are read, in the
+// same window as voe_editor_scene_clicks_read.
+void voe_editor_scene_reveal(voe_editor_scene *scene, voe_ui_context *ui);
 
 // DELETE AND DUPLICATE ACT ON THE SELECTION, and are this file's so that the
 // Delete key and Ctrl+D (main.c) and the Inspector's two buttons (inspector.c)

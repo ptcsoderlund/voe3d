@@ -1,6 +1,7 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
 // calls them: the history's step, the keyboard's read and acts, and the acts
-// that wait for the interface to have drawn. See frame_commands.h.
+// that wait for the interface to have drawn, a reveal's unfold marked among
+// them. See frame_commands.h.
 #include "frame_commands.h"
 
 #include "errors.h"
@@ -164,5 +165,11 @@ void voe_editor_frame_commands_after_draw(voe_editor_frame_commands *commands)
 	    commands->gizmo->moved > 0) {
 		voe_editor_session_edited(commands->session);
 		voe_editor_undo_edited(commands->undo);
+	}
+	// A reveal's unfold reached the project: unsaved, but it amends the
+	// undo state instead of being a step (undo.h).
+	if (scene->unfolded > 0) {
+		voe_editor_session_edited(commands->session);
+		voe_editor_undo_revealed(commands->undo);
 	}
 }

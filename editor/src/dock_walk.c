@@ -232,6 +232,9 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		// (ADR-0200, inspector.h).
 		if (node->panel == VOE_EDITOR_PANEL_INSPECTOR)
 			voe_editor_inspector_area_set(&scene->inspector, area);
+		// The Scene list's, which a reveal scrolls its row into (scene.h).
+		if (node->panel == VOE_EDITOR_PANEL_SCENE)
+			scene->list_area = area;
 
 		voe_editor_panel_draw(ui, node->panel, node->view,
 				      palette, scene, views);

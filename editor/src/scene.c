@@ -6,12 +6,14 @@
 // Delete takes a whole tree and Duplicate one entity; both refuse a part and
 // the camera, and a light is copied as a second sun (0357 point 5). The colour picker and dropdown
 // open, close and are placed where the Inspector measured them. A fold is
-// submitted as the entity's identity with `folded` flipped.
+// submitted as the entity's identity with `folded` flipped; a reveal's unfold
+// as its ancestors' with `folded` false, then its row centred a frame later
+// through ui/widgets.h's voe_ui_scroll_centre.
 //
 // NOTHING IN HERE DRAWS AND NOTHING IN HERE LAYS ANYTHING OUT. It holds `ui`
-// nodes because that is what a widget answers through, and it asks `ui` exactly
-// one question — what did the pointer do to this button — after the frame has
-// ended. What Add entity makes, and what Delete and Duplicate queue, is
+// nodes because that is what a widget answers through, and after the frame has
+// ended it asks `ui` one question — what did the pointer do to this button —
+// and makes one request, a reveal's scroll. What Add entity makes, and what Delete and Duplicate queue, is
 // entities.h's.
 #include "scene.h"
 
@@ -67,8 +69,10 @@ void voe_editor_scene_rows_clear(voe_editor_scene *scene)
 	scene->listed_count = 0;
 	scene->add = VOE_UI_NODE_NONE;
 	scene->heading = VOE_UI_NODE_NONE;
+	scene->list_area = VOE_UI_NODE_NONE;
 	scene->structural = 0;
 	scene->full = false;
+	scene->unfolded = 0;
 }
 
 void voe_editor_scene_add_record(voe_editor_scene *scene, voe_ui_node add)
@@ -139,8 +143,10 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 		if (scene->listed[i].node == VOE_UI_NODE_NONE)
 			continue;
 		if (voe_ui_button_action(ui, scene->listed[i].node).fired &&
-		    !scene->list_dragging && !scene->list_cancelled)
+		    !scene->list_dragging && !scene->list_cancelled) {
 			scene->selected = scene->listed[i].entity;
+			scene->revealed = scene->listed[i].entity;
+		}
 		if (action_of(ui, scene->listed[i].fold).fired)
 			fold_flip(scene, scene->listed[i].entity);
 	}
@@ -152,6 +158,75 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 	scene->selected = made;
 	scene->structural++;
 	return true;
+}
+
+// Every folded ancestor of `entity` submitted with `folded` false, as
+// fold_flip submits; how many were, a refused one setting `full`.
+static uint32_t ancestors_unfold(voe_editor_scene *scene, voe_ecs_entity entity)
+{
+	uint32_t submitted = 0;
+
+	for (uint32_t depth = 0; depth < VOE_SCENE_PARENT_DEPTH_MAX; depth++) {
+		const voe_scene_parent *link =
+			voe_scene_parent_get(scene->world, entity);
+		const voe_scene_identity *identity;
+		voe_scene_identity opened;
+
+		if (link == NULL || !voe_ecs_entity_alive(scene->world,
+							  link->parent))
+			break;
+		entity = link->parent;
+		identity = voe_scene_identity_get(scene->world, entity);
+		if (identity == NULL || !identity->folded)
+			continue;
+		opened = *identity;
+		opened.folded = false;
+		if (!voe_scene_identity_submit(scene->world,
+					       (voe_scene_identity_intent){
+						       .entity = entity,
+						       .identity = opened }))
+			scene->full = true;
+		else
+			submitted++;
+	}
+
+	VOE_BASE_ASSERT(submitted <= VOE_SCENE_PARENT_DEPTH_MAX,
+			"more parents unfolded than a walk follows");
+	return submitted;
+}
+
+void voe_editor_scene_reveal(voe_editor_scene *scene, voe_ui_context *ui)
+{
+	voe_ecs_entity selected = voe_editor_scene_selected(scene);
+	uint32_t opened;
+
+	VOE_BASE_ASSERT(ui != NULL, "revealing into no interface");
+
+	// A new entity's identity is still queued: its row is drawn a frame on.
+	if (selected.generation == 0 ||
+	    (selected.index == scene->revealed.index &&
+	     selected.generation == scene->revealed.generation) ||
+	    voe_scene_identity_get(scene->world, selected) == NULL)
+		return;
+
+	// The row is drawn next frame, under its parents opened; scroll then.
+	opened = ancestors_unfold(scene, selected);
+	scene->unfolded += opened;
+	if (opened > 0)
+		return;
+
+	// No row drawn (the Scene panel closed) gives the reveal up.
+	for (uint32_t i = 0; i < scene->listed_count; i++)
+		if (scene->listed[i].entity.index == selected.index &&
+		    scene->listed[i].entity.generation == selected.generation &&
+		    scene->listed[i].node != VOE_UI_NODE_NONE &&
+		    scene->list_area != VOE_UI_NODE_NONE) {
+			voe_ui_scroll_centre(ui, scene->list_area,
+					     scene->listed[i].node,
+					     (voe_ui_scroll_axes){ .y = true });
+			break;
+		}
+	scene->revealed = selected;
 }
 
 // The camera anywhere in the selection's tree refuses the whole delete.
