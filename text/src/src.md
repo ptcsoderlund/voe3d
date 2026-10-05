@@ -19,6 +19,7 @@ whole public surface.
 - `utf8.c` — the decoder: one character forward, with every malformed shape
   turned into one replacement character.
 - `font.c` — the one embedded face, Oxanium, the sheet built once per font at a
-  resolution that is a fact of that face, the glyph table both creates and the
+  resolution that is a fact of that face, Latin-1 plus a short list of symbols
+  beyond it, the glyph table both creates and the
   public metrics read, and the one layout they share; the file where the three
   scales and the three Y axes are pinned down.

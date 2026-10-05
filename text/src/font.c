@@ -78,21 +78,34 @@ static const uint8_t OXANIUM_TTF[] = {
 };
 
 // The characters the atlas holds: Basic Latin from the space up, and the Latin-1
-// supplement, which is where `é`, `ü` and `å` live. One contiguous run, so the
-// table below is indexed by subtraction rather than searched.
+// supplement, which is where `é`, `ü` and `å` live, as one contiguous run
+// indexed by subtraction — and then a short list of symbols beyond it, each
+// with a slot of its own after the run, found by a search of the list (0364).
 //
 // IT IS A RANGE AND NOT THE WHOLE FONT BECAUSE THE ATLAS IS FIXED AND BUILT
 // ONCE. Oxanium carries three hundred and seventy-five glyphs and most of them
 // are for languages nothing in this engine writes; the day something needs one,
 // the card that needs it is the card that decides how the atlas grows.
+//
+// A LIST AND NOT A WIDER RUN, because the symbols an editor wants sit far above
+// Latin-1: widening the run to √ alone would be eight thousand slots for one
+// glyph. A card that needs another symbol Oxanium carries adds one entry here,
+// in codepoint order; a whole script is still a decision of its own.
 #define FIRST_CHARACTER 0x20u
 #define LAST_CHARACTER 0xffu
 #define CHARACTER_COUNT (LAST_CHARACTER - FIRST_CHARACTER + 1u)
 
-// One past the last character's slot, holding the face's own missing-glyph box.
-// Anything not in the range above is drawn as this, which is what makes a
-// character the active face does not carry visible rather than absent.
-#define NOTDEF_SLOT CHARACTER_COUNT
+static const uint32_t EXTRA_CHARACTERS[] = {
+	0x221au, // √, the Panels menu's tick
+};
+#define EXTRA_COUNT ((uint32_t)(sizeof EXTRA_CHARACTERS / \
+				sizeof EXTRA_CHARACTERS[0]))
+
+// One past the last listed character's slot, holding the face's own
+// missing-glyph box. Anything neither in the run nor on the list is drawn as
+// this, which is what makes a character the active face does not carry
+// visible rather than absent.
+#define NOTDEF_SLOT (CHARACTER_COUNT + EXTRA_COUNT)
 
 // How big the sheet is and at what resolution a glyph's shape is measured into
 // it. How finely is a fact of the face, and these are Oxanium's.
@@ -124,7 +137,8 @@ static const uint8_t OXANIUM_TTF[] = {
 // of the SAMPLER, not of text. There is no mipmap chain in this engine at all
 // any more, so there is nothing left to be read out of. Do not re-derive it.
 //
-// FIVE HUNDRED AND TWELVE SQUARE, WHICH THE RANGE ABOVE FITS IN WITH ROOM. One
+// FIVE HUNDRED AND TWELVE SQUARE, WHICH THE RANGE AND THE LIST OF SYMBOLS
+// ABOVE FIT IN WITH ROOM. One
 // megabyte on the graphics card, once, for a program that draws any text at all.
 #define ATLAS_PIXELS 512u
 #define ATLAS_EM 32.0f
@@ -180,7 +194,7 @@ struct voe_text_font {
 	// origin IS a baseline — and voe_text_font_measure does, because a
 	// surface hands text a rectangle instead of a pen.
 	float ascender;
-	struct glyph glyphs[CHARACTER_COUNT + 1];
+	struct glyph glyphs[NOTDEF_SLOT + 1];
 };
 
 // Where the next glyph goes in the atlas. Shelf packing: glyphs go along a row
@@ -401,7 +415,7 @@ voe_text_font *voe_text_font_new(voe_text_typeface typeface,
 	}
 
 	// The missing-glyph box first, so that it is in the atlas whatever
-	// happens to the rest, and then the range.
+	// happens to the rest, then the range, then the listed symbols.
 	ok = add_glyph(&ttf, 0, arena, bitmap, pixels, &shelf,
 		       &font->glyphs[NOTDEF_SLOT], error);
 	for (uint32_t c = 0; ok && c < CHARACTER_COUNT; c++) {
@@ -410,6 +424,13 @@ voe_text_font *voe_text_font_new(voe_text_typeface typeface,
 
 		ok = add_glyph(&ttf, index, arena, bitmap, pixels, &shelf,
 			       &font->glyphs[c], error);
+	}
+	for (uint32_t e = 0; ok && e < EXTRA_COUNT; e++) {
+		uint16_t index = voe_text_truetype_glyph(&ttf,
+							 EXTRA_CHARACTERS[e]);
+
+		ok = add_glyph(&ttf, index, arena, bitmap, pixels, &shelf,
+			       &font->glyphs[CHARACTER_COUNT + e], error);
 	}
 
 	// DATA and FIELD, and neither is optional: see the header. A sheet
@@ -445,15 +466,20 @@ voe_render_texture voe_text_font_atlas(const voe_text_font *font)
 	return font->atlas;
 }
 
-// Which slot a character is drawn from. Anything outside the range the atlas
-// holds is the missing-glyph box, which is the whole of what this engine does
-// about a character Oxanium does not carry.
+// Which slot a character is drawn from: the run by subtraction, a listed symbol
+// by a scan of the list — which is a handful long, so a scan is the search; a
+// list grown past a few dozen would want a binary one. Anything else is the
+// missing-glyph box, which is the whole of what this engine does about a
+// character Oxanium does not carry.
 static const struct glyph *glyph_of(const voe_text_font *font,
 				    uint32_t codepoint)
 {
-	if (codepoint < FIRST_CHARACTER || codepoint > LAST_CHARACTER)
-		return &font->glyphs[NOTDEF_SLOT];
-	return &font->glyphs[codepoint - FIRST_CHARACTER];
+	if (codepoint >= FIRST_CHARACTER && codepoint <= LAST_CHARACTER)
+		return &font->glyphs[codepoint - FIRST_CHARACTER];
+	for (uint32_t e = 0; e < EXTRA_COUNT; e++)
+		if (EXTRA_CHARACTERS[e] == codepoint)
+			return &font->glyphs[CHARACTER_COUNT + e];
+	return &font->glyphs[NOTDEF_SLOT];
 }
 
 voe_text_glyph voe_text_font_glyph(const voe_text_font *font,
