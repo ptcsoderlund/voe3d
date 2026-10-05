@@ -28,7 +28,7 @@ pointer and the keyboard have been at it. Nothing here is included from outside 
 - `scroll.c` — the scroll area: the table of offsets that outlives a frame, the
   bars over its content against the pointer and into the records, and every way
   an offset moves — a thumb dragged, a track pressed, the pointer's scroll
-  passed outward.
+  passed outward, a node centred by a program.
 - `slider.c` — the slider: a number box holding a fixed-width track with the
   thumb anchored at the value's place in the range, and the clamp that keeps a
   drag from taking the value out of it.

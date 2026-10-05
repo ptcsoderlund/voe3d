@@ -28,5 +28,5 @@ pointer and the keyboard are values it is given.
   widget pads and gaps), `voe_ui_theme_default_inputs` and `voe_ui_theme_derive`, which turns the one into the other in OKLab.
 - `include/ui/widgets.h` — the theme set on the context or pushed over a
   subtree, the panel, the label, the button, the choice, the number box, the
-  text field, the image and the scroll area, the pointer and the keyboard they
-  are given, and this frame's element records read back.
+  text field, the image, the scroll area and a node centred in it, the pointer
+  and keyboard they are given, and the element records read back.

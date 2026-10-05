@@ -715,13 +715,34 @@ typedef struct {
 // the thumb moves one arranged length towards the pointer, once per press, and
 // holds nothing.
 //
-// No scrolling by a program and no scrolling to a node yet: both wait on a
-// focus that reaches a scroll area, which this one does not — a field's
-// focus is its own. No dragging the content itself, no smooth scrolling, and
-// no offset saved beyond the context.
+// A program brings a node into view with voe_ui_scroll_centre below. No
+// scrolling by a length from a program yet: it waits on a focus that reaches a
+// scroll area, which this one does not — a field's focus is its own. No
+// dragging the content itself, no smooth scrolling, and no offset saved beyond
+// the context.
 voe_ui_node voe_ui_scroll_begin(voe_ui_context *ui, const char *name,
 				uint32_t index, voe_ui_container container,
 				voe_ui_scroll_axes axes);
+
+// Scrolls `node` into the middle of `area`. Called after voe_ui_frame_end, where
+// rectangles are readable; `area` is a node voe_ui_scroll_begin handed back this
+// frame and `node` one inside it.
+//
+//     if (!voe_ui_frame_end(ui)) ...
+//     voe_ui_scroll_centre(ui, list, rows[selected],
+//                          (voe_ui_scroll_axes){ .y = true });
+//
+// On each axis in `axes` that the area scrolls and where `node`'s rectangle is
+// not wholly within the area's visible rectangle, the remembered offset is set
+// so the node's centre meets the visible centre. A node already wholly seen
+// moves nothing. It lands in the next frame's layout, clamped there, like the
+// pointer's scroll; an area not called next frame forgets it as any offset.
+//
+// Refused as voe_ui_node_rect is: VOE_UI_NODE_NONE or a node this frame did
+// not make, for either, is the caller's bug and asserts, as is an `area` that
+// is not a scroll area.
+void voe_ui_scroll_centre(voe_ui_context *ui, voe_ui_node area, voe_ui_node node,
+			  voe_ui_scroll_axes axes);
 
 // --------------------------------------------------------------- the image
 

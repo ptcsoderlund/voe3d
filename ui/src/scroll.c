@@ -23,7 +23,8 @@
 // voe_ui_scroll_by will expose when focus gives it a caller. An area's outer
 // neighbour is found by the tree's shape and not by a stored parent: areas are
 // listed in call order, so the nearest earlier one whose subtree holds this one
-// is the one around it.
+// is the one around it. A program's voe_ui_scroll_centre, called after
+// frame_end, is the last way: it sets one area's offset and passes nothing on.
 //
 // THE BAR PAINTS STRAIGHT AFTER THE LAST NODE OF ITS AREA'S SUBTREE, which is
 // where "after the area's children" is in paint order: a subtree fills the
@@ -522,6 +523,41 @@ static void page(voe_ui_context *ui)
 
 	component_set(&ui->scroll_memory[ui->page_area].offset, y,
 		      clamp_offset(offset, scroll_range(ui, a->node, y)));
+}
+
+// From the offset this frame was laid out at, which is where the rectangles read
+// here are, and straight into the table: a program's centring passes nothing
+// outward, so it is not scroll_by.
+void voe_ui_scroll_centre(voe_ui_context *ui, voe_ui_node area, voe_ui_node node,
+			  voe_ui_scroll_axes axes)
+{
+	voe_ui_rect rect = voe_ui_node_rect(ui, node);
+	voe_ui_rect visible = voe_ui_node_visible(ui, area);
+	uint32_t s = 0;
+
+	while (s < ui->scroll_count && ui->scroll_areas[s].node != area)
+		s++;
+	VOE_BASE_ASSERT(s < ui->scroll_count,
+			"centring in a node that is not a scroll area this "
+			"frame made");
+
+	for (int axis = 0; axis < 2; axis++) {
+		bool y = axis == 1;
+		const struct voe_ui_scroll_area *a = &ui->scroll_areas[s];
+		float low = component(rect.min, y);
+		float high = low + component(rect.size, y);
+		float seen_low = component(visible.min, y);
+		float seen_high = seen_low + component(visible.size, y);
+		float offset;
+
+		if (!scrolls_on(axes, y) || !scrolls_on(a->axes, y) ||
+		    (low >= seen_low && high <= seen_high))
+			continue;
+		offset = component(ui->nodes[area].scrolled, y) +
+			 (low + high) / 2.0f - (seen_low + seen_high) / 2.0f;
+		component_set(&ui->scroll_memory[s].offset, y,
+			      clamp_offset(offset, scroll_range(ui, area, y)));
+	}
 }
 
 void voe_ui_scrolls_move(voe_ui_context *ui)
