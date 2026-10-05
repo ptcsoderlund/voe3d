@@ -378,8 +378,9 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	VOE_BASE_ASSERT(!begun->begun,
 			"a second bounce begin for one target in one frame");
 	begun->begun = true;
-	// The sun map opens once per begin (ADR-0330 point 1).
-	device->frames[device->slot].bounce_shadow.drawn = false;
+	// The sun map opens once per sun per begin (ADR-0330 point 1).
+	memset(device->frames[device->slot].bounce_shadow.drawn, 0,
+	       sizeof(device->frames[device->slot].bounce_shadow.drawn));
 	memcpy(begun->cell, frame->cell, sizeof(begun->cell));
 	begun->corner[0] = frame->corner.x;
 	begun->corner[1] = frame->corner.y;
@@ -392,6 +393,18 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	volume->idle = 0;
 	device->bounce_begun = true;
 	device->bounce_target = target;
+	// Each sun's sun map layer: a further sun that bounces takes the next, in
+	// the order place keeps them in bounce_suns.
+	device->bounce_sun_count = 1 + frame->more.count;
+	device->bounce_sun_layers[0] = 0;
+	for (uint32_t i = 0, layer = 1; i < frame->more.count; i++) {
+		const voe_render_directional_light *m = &frame->more.lights[i];
+
+		device->bounce_sun_layers[i + 1] =
+			m->bounces > 0 && m->light.intensity > 0.0f ?
+				layer++ :
+				VOE_RENDER_NO_SUN_LAYER;
+	}
 	device->bounce_frame = *frame;
 	device->bounce_frame.stale = NULL;
 	device->bounce_frame.stale_count = 0;

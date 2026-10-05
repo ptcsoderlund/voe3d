@@ -20,9 +20,9 @@
 // atlas, 1 the moments, 2 the validity, storage; 3 the list; 4 the seven grids'
 // 21 images, storage; 5 the six levels' 18, 6 the validity and 7 the moments,
 // sampled through the device's bounce and moments samplers; 8 the albedo atlas,
-// sampled; 9 the slot's bounce shadow map (bounce_shadow.c's) and 10 its point
-// shadow maps, through the shadow sampler; 11 its volume's region of the slot's
-// record buffer. The volume's images rest in GENERAL,
+// sampled; 9 every layer of the slot's bounce shadow map (bounce_shadow.c's)
+// and 10 its point shadow maps, through the shadow sampler; 11 its volume's
+// region of the slot's record buffer. The volume's images rest in GENERAL,
 // the maps where the shader reads them. One set per frame slot and volume (the
 // window 0, target n n), rewritten by every relight: a slot's fence says its
 // last use has finished, and a volume may have been rebuilt since.
@@ -417,7 +417,7 @@ static void write_record(voe_render_device *device, uint32_t index,
 	const struct voe_render_bounce_frame *begun = &device->bounce_frame;
 	const struct voe_render_bounce_shadow *map =
 		&device->frames[device->slot].bounce_shadow;
-	const float *row = map->light.m[0];
+	const float *row = map->light[0].m[0];
 	const float scale = sqrtf(row[0] * row[0] + row[1] * row[1] +
 				  row[2] * row[2]);
 	const uint32_t size[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
@@ -425,9 +425,9 @@ static void write_record(voe_render_device *device, uint32_t index,
 				   VOE_RENDER_BOUNCE_PROBES_XZ };
 	struct voe_render_relight_record record = {
 		.sun = lights->sun,
-		.sun_map = map->light,
-		.sun_drawn = map->drawn ? 1u : 0u,
-		.sun_texel = map->drawn && scale > 0.0f ?
+		.sun_map = map->light[0],
+		.sun_drawn = map->drawn[0] ? 1u : 0u,
+		.sun_texel = map->drawn[0] && scale > 0.0f ?
 				     2.0f / (scale * VOE_RENDER_BOUNCE_SHADOW_TEXELS) :
 				     0.0f,
 		.corner = { begun->corner.x, begun->corner.y, begun->corner.z },

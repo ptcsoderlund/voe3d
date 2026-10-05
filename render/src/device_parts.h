@@ -109,6 +109,7 @@ struct voe_render_frame_blockers {
 
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
 #define VOE_RENDER_NO_BOUNCE (~0u)
+#define VOE_RENDER_NO_SUN_LAYER (~0u)
 
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
@@ -341,15 +342,19 @@ struct voe_render_bounce_scratch {
 	struct voe_render_allocated_image depth;
 };
 
-// One frame slot's relight sun map, bounce_shadow.c's (ADR-0329): a D32 image
-// VOE_RENDER_BOUNCE_SHADOW_TEXELS square with its view, resting in
-// SHADER_READ_ONLY_OPTIMAL; `light` the view × projection it was last drawn with
-// and `drawn` whether the current begin drew it, cleared by each
-// voe_render_bounce_begin (ADR-0330). Zeroed without shaderOutputLayer.
+// One frame slot's relight sun map, bounce_shadow.c's (ADR-0329, 0357 point 4): a
+// D32 image of VOE_RENDER_DIRECTIONAL_LIGHTS layers VOE_RENDER_BOUNCE_SHADOW_TEXELS
+// square, 16 MiB, `map.view` a 2D-array view of every layer for the relight and
+// `layers` one attachment view each, resting in SHADER_READ_ONLY_OPTIMAL. Layer i
+// holds the begin's bouncing sun i (device->bounce_sun_layers); `light[i]` the
+// view × projection it was last drawn with and `drawn[i]` whether the current
+// begin drew it, cleared by each voe_render_bounce_begin (ADR-0330). Zeroed
+// without shaderOutputLayer.
 struct voe_render_bounce_shadow {
 	struct voe_render_allocated_image map;
-	voe_math_float4x4 light;
-	bool drawn;
+	VkImageView layers[VOE_RENDER_DIRECTIONAL_LIGHTS];
+	voe_math_float4x4 light[VOE_RENDER_DIRECTIONAL_LIGHTS];
+	bool drawn[VOE_RENDER_DIRECTIONAL_LIGHTS];
 };
 
 // bounce_relight.slang's struct relight_record at binding 11, std140: one

@@ -156,7 +156,7 @@ Sampler2D relight_moments_read;
 [[vk::binding(8, 0)]]
 Texture2D<float4> relight_albedo;
 [[vk::binding(9, 0)]]
-Sampler2DShadow relight_sun_shadow;
+Sampler2DArrayShadow relight_sun_shadow;
 [[vk::binding(10, 0)]]
 Sampler2DArrayShadow relight_point_shadow;
 [[vk::binding(11, 0)]]
@@ -277,7 +277,7 @@ float sun_visibility(float3 world, float3 n)
 	if (any(abs(ndc.xy) > 1.0) || ndc.z < 0.0 || ndc.z > 1.0)
 		return 1.0;
 	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-	return relight_sun_shadow.SampleCmpLevelZero(uv, ndc.z);
+	return relight_sun_shadow.SampleCmpLevelZero(float3(uv, 0.0), ndc.z);
 }
 
 // lighting.slangh's voe_render_point_visibility on this file's binding.

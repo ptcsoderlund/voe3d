@@ -330,7 +330,9 @@ struct voe_render_device {
 	uint32_t capture_passes;
 	// Whether the open pass is the bounce shadow pass (ADR-0329): the draws
 	// read it to take the shadow pass's path, _pass_end to hand the map back.
+	// `pass_bounce_layer` is the layer of the map the open pass's sun draws on.
 	bool pass_bounce_shadow;
+	uint32_t pass_bounce_layer;
 
 	// The targets of the caller's own: capacities.targets of them, calloc'd
 	// with the device like `geometries` and NULL when that is nought. A slot is
@@ -355,6 +357,11 @@ struct voe_render_device {
 	voe_render_point_light bounce_lamps[VOE_RENDER_BOUNCE_LAMPS];
 	voe_render_light_blocker bounce_blockers[VOE_RENDER_LIGHT_BLOCKERS];
 	voe_render_directional_light bounce_suns[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
+	// The begin's suns, 1 + its `more.count`, and the relight sun map layer
+	// of each (ADR-0357 point 4): sun 0's 0, a further sun's its place in
+	// `bounce_suns` + 1, VOE_RENDER_NO_SUN_LAYER for one that does not bounce.
+	uint32_t bounce_sun_count;
+	uint32_t bounce_sun_layers[VOE_RENDER_DIRECTIONAL_LIGHTS];
 
 	// How far apart the per-pass blocks are in a slot's uniform buffer: the
 	// block's size rounded up to minUniformBufferOffsetAlignment, because a

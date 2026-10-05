@@ -1435,22 +1435,25 @@ typedef struct {
 [[nodiscard]] bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 							bool *opened);
 
-// Opens the bounce shadow pass (ADR-0329): the sun's map the relight shadows by,
-// VOE_RENDER_BOUNCE_SHADOW_TEXELS a side, depth cleared to the far plane, opened
-// after the begun target's capture passes. `light` is eye-relative with an
-// orthographic projection, as a cascade's. Draw the sun's casters into it.
+// Opens the bounce shadow pass (ADR-0329, 0357 point 4): sun `sun`'s map the
+// relight shadows by, VOE_RENDER_BOUNCE_SHADOW_TEXELS a side, depth cleared to the
+// far plane, opened after the begun target's capture passes. Sun 0 is the begin's
+// first sun and sun i its `more[i − 1]`. `light` is eye-relative with an
+// orthographic projection, as a cascade's. Draw that sun's casters into it.
 //
 // `opened` IS FALSE, and true is returned with nothing open, when the volume is
-// not built, the begun sun has no bounces, no intensity or is unshaded, or no
-// relight is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its
-// draws against `objects`: false, with a line, when the frame's passes are spent.
-// It may open once after each voe_render_bounce_begin, so every view draws this
-// begin's map for its own volume (ADR-0330).
+// not built, that sun has no bounces, no intensity or is unshaded, or no relight
+// is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its draws
+// against `objects`: false, with a line, when the frame's passes are spent. It
+// may open once per sun after each voe_render_bounce_begin, so every view draws
+// this begin's maps for its own volume (ADR-0330).
 //
 // Calling this outside a frame, with a pass open, with no bounce begin this frame,
-// or a second time after one bounce begin is the caller's bug and asserts; once
-// per begin, not once per frame.
+// for a sun at or past 1 + the begin's `more.count`, or a second time for one sun
+// after one bounce begin is the caller's bug and asserts; once per sun per begin,
+// not once per frame.
 [[nodiscard]] bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
+						       uint32_t sun,
 						       const voe_render_view *light,
 						       bool *opened);
 
