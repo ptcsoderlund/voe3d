@@ -92,3 +92,4 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue (the
   pipeline cache is taken by 0362), more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
   Precise in-frame barriers and leaving GENERAL layouts are planner's work once they can be measured.
+- Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
