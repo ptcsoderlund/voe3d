@@ -27,16 +27,15 @@
 // shows, and the phases inside a frame are ordered there: begin; the point
 // lights (voe_3d_draw_system_point_lights); the light blockers and the lights
 // after the first (voe_3d_draw_system_light_blockers, then
-// voe_3d_draw_system_lights); the shadow passes, the sun's one
-// per cascade and the lamps' one (voe_3d_draw_system_shadows); build what
-// changes this frame — a readout, a user interface — which is the only world
-// write after the systems have run; a pass opened with the frame's camera
-// (voe_3d_draw_system_camera); this
-// system walks the world; the pass closed; end, which presents. That order exists because geometry built for one frame
+// voe_3d_draw_system_lights); the shadow passes, the sun's one per cascade and
+// the lamps' one (voe_3d_draw_system_shadows); build what changes this frame —
+// a readout, a user interface — which is the only world write after the
+// systems have run; a pass opened with the frame's camera
+// (voe_3d_draw_system_camera); this system walks the world; the pass closed;
+// end, which presents. That order exists because geometry built for one frame
 // (voe_render_geometry_create_transient) can only be built once a frame is open
 // and has to be in the mesh table before this walk; a draw system that opened
-// and closed the frame itself left no moment for that, which is what this used
-// to do.
+// and closed the frame itself left no moment for that.
 //
 // ONE DRAW PER MESH, FROM THE CPU. No instancing, no indirect command buffer, no
 // culling, and no extract step into a second layout. Each of those is a change
