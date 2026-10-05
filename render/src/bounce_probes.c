@@ -113,8 +113,30 @@ static void queue_sphere(voe_render_bounce_probes *p, const int32_t cell[3],
 			}
 }
 
+// The further suns that bounce: those with bounces and intensity, as a sun
+// with neither lights no bounce.
+static void pick_suns(const voe_render_directional_lights *more,
+		      voe_render_bounce_lights *lights)
+{
+	assert(more->count <= VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	for (uint32_t i = 0; i < more->count; i++) {
+		const voe_render_directional_light *m = &more->lights[i];
+
+		if (m->bounces == 0 || !(m->light.intensity > 0.0f))
+			continue;
+		lights->more[lights->more_count++] = (voe_render_bounce_sun){
+			.light = m->light,
+			.bounces = m->bounces,
+			.strength = m->bounce_strength,
+			.mask = m->blockers,
+		};
+	}
+	assert(lights->more_count <= more->count);
+}
+
 static void pick_lights(const voe_render_light *sun, uint32_t sun_bounces,
 			float sun_strength,
+			const voe_render_directional_lights *more,
 			const voe_render_point_lights *point_lights,
 			const voe_render_light_blockers *blockers,
 			voe_render_bounce_lights *lights)
@@ -130,6 +152,7 @@ static void pick_lights(const voe_render_light *sun, uint32_t sun_bounces,
 	lights->sun = *sun;
 	lights->sun_bounces = sun_bounces;
 	lights->sun_strength = sun_strength;
+	pick_suns(more, lights);
 	for (uint32_t i = 0; i < point_lights->count &&
 			     lights->lamp_count < VOE_RENDER_BOUNCE_LAMPS;
 	     i++)
@@ -145,11 +168,14 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 				    uint32_t stale_count,
 				    const voe_render_light *sun,
 				    uint32_t sun_bounces, float sun_strength,
+				    const voe_render_directional_lights *more,
 				    const voe_render_point_lights *point_lights,
 				    const voe_render_light_blockers *blockers,
 				    voe_render_bounce_lights *lights)
 {
 	assert(p != NULL && cell != NULL && sun != NULL && lights != NULL);
+	assert(more != NULL && (more->lights != NULL || more->count == 0) &&
+	       more->count <= VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
 	assert(spacing > 0.0f && isfinite(spacing));
 	assert(stale != NULL || stale_count == 0);
 	assert(point_lights != NULL &&
@@ -165,8 +191,8 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 	p->corner = corner;
 	p->spacing = spacing;
 	p->placed = true;
-	pick_lights(sun, sun_bounces, sun_strength, point_lights, blockers,
-		    lights);
+	pick_lights(sun, sun_bounces, sun_strength, more, point_lights,
+		    blockers, lights);
 }
 
 // The queued probe nearest the eye, ties to the lower index; TOTAL for none.
@@ -267,6 +293,7 @@ bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 	assert(p != NULL && lights != NULL);
 	assert(lights->lamp_count <= VOE_RENDER_BOUNCE_LAMPS);
 	assert(lights->blocker_count <= VOE_RENDER_LIGHT_BLOCKERS);
+	assert(lights->more_count <= VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
 	const voe_render_bounce_lights *r = &p->relit;
 
 	for (uint32_t i = 0; i < TOTAL / 32; i++)
@@ -278,8 +305,18 @@ bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 	    r->lamp_count != lights->lamp_count ||
 	    r->blocker_count != lights->blocker_count ||
 	    r->walls != lights->walls || r->indoors != lights->indoors ||
-	    r->sun_mask != lights->sun_mask)
+	    r->sun_mask != lights->sun_mask ||
+	    r->more_count != lights->more_count)
 		return true;
+	for (uint32_t i = 0; i < lights->more_count; i++) {
+		const voe_render_bounce_sun *a = &r->more[i];
+		const voe_render_bounce_sun *b = &lights->more[i];
+
+		if (memcmp(&a->light, &b->light, sizeof(a->light)) != 0 ||
+		    a->bounces != b->bounces || a->strength != b->strength ||
+		    a->mask != b->mask)
+			return true;
+	}
 	for (uint32_t i = 0; i < lights->lamp_count; i++)
 		if (!lamp_same(&lights->lamps[i], p->corner, &r->lamps[i],
 			       p->relit_corner))

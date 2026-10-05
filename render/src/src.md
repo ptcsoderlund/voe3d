@@ -60,7 +60,8 @@ which file to open — what each one owns, and where the seams between them run.
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
-  which probes hold a picture or are queued, the bouncing lights, and when to relight. Pure CPU.
+  which probes hold a picture or are queued, the bouncing lights, every sun among them, and when to
+  relight. Pure CPU.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
   and light blockers about the corner, so an eye that moves relights nothing; a change of kinds or
   the sun's mask relights) and relit calls over bit sets.

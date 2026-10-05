@@ -1489,6 +1489,13 @@ void voe_render_pass_end(voe_render_device *device);
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
 // indoors sharing a bit, or a kind or sun bit at or past the count asserts, as
 // at _pass_begin.
+//
+// `more` ARE THE FURTHER SUNS (ADR-0357 points 1 and 4), copied at the begin:
+// each entry's `light`, `bounces`, `bounce_strength` and `blockers`, its place
+// mask, are read, its `shadow` is not. They bounce as the first sun does, and a
+// change to any of them relights. A count past VOE_RENDER_DIRECTIONAL_LIGHTS − 1,
+// NULL with a count, bounces past VOE_RENDER_BOUNCES_MAX, or a mask bit at or
+// past the blocker count asserts. Zero is none, the old picture.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1500,6 +1507,7 @@ struct voe_render_bounce_frame {
 	voe_render_point_lights points;
 	float spacing;
 	voe_render_light_blockers blockers;
+	voe_render_directional_lights more;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
