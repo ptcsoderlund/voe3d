@@ -153,7 +153,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.point_lights = (voe_3d_point_lights_marked){ 0 };
 	frame.places = (voe_3d_rows_marked){ 0 };
 	frame.collider = (voe_3d_collider_marked){ 0 };
-	frame.light_blocker = (voe_3d_collider_marked){ 0 };
+	frame.light_blockers = (voe_3d_rows_marked){ 0 };
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 
@@ -562,6 +562,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_draw_marks_sun(world, device, arena, frame);
 	voe_3d_draw_marks_point_lights(world, device, arena, frame);
 	voe_3d_draw_marks_places(world, device, arena, frame);
+	voe_3d_draw_marks_light_blockers(world, device, arena, frame);
 	// The world's solids are all down, so the depth the water fades against
 	// is copied now, once, and only when water is held (0305 point 7). A
 	// refused copy stops the blended group as a refused draw stops its own:

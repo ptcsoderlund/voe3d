@@ -26,8 +26,9 @@
 // _run with `.blockers` in the pass camera, the centre is black and a corner
 // lit. A Direct floating over it under a low sun with a fill: the ground in its
 // shadow reads the fill, not black and below sunlit ground clear of it. Then a
-// blocker over an empty view with `light_blocker` naming it: a box edge's
-// pixel is the outline colour, and with it zeroed it is not. All need a
+// blocker over an empty view with `light_blockers` shown and selecting it: a
+// box edge's pixel is the selected colour, and with none selected it is not
+// but the rest colour; not shown, it is the background. All need a
 // graphics card and skip with a reason without one, as
 // 3d/tests/point_lights.c does.
 #include <3d/collider_marker.h>
@@ -545,11 +546,13 @@ static voe_ecs_world *an_empty_view(voe_base_arena *arena,
 }
 
 // The pixel on the box's front right edge after one frame of `world` with
-// `light_blocker` naming `marked`.
+// `light_blockers` shown when `shown`, `marked` selected, the rest green and
+// the selected one magenta; in `*corner` the top left pixel, which no line
+// reaches.
 static const uint8_t *edge_pixel(voe_ecs_world *world, voe_render_device *device,
 				 voe_base_arena *arena,
-				 const voe_3d_shapes *shapes,
-				 voe_ecs_entity marked)
+				 const voe_3d_shapes *shapes, bool shown,
+				 voe_ecs_entity marked, const uint8_t **corner)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
@@ -558,12 +561,16 @@ static const uint8_t *edge_pixel(voe_ecs_world *world, voe_render_device *device
 	voe_base_error error = VOE_BASE_OK;
 	bool drawing = false;
 
-	VOE_TEST_CHECK_INT(frame.light_blocker.entity.generation, 0);
-	frame.outlined.material = shapes->outline;
-	frame.outlined.colour = (voe_math_float3){ 1.0f, 0.0f, 1.0f };
-	frame.light_blocker = (voe_3d_collider_marked){ .entity = marked,
-							 .pixels = 4.0f,
-							 .size = size };
+	VOE_TEST_CHECK(!frame.light_blockers.shown);
+	frame.light_blockers = (voe_3d_rows_marked){
+		.shown = shown,
+		.selected = marked,
+		.material = shapes->outline,
+		.colour = { 0.0f, 1.0f, 0.0f },
+		.selected_colour = { 1.0f, 0.0f, 1.0f },
+		.pixels = 4.0f,
+		.size = size,
+	};
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
@@ -580,6 +587,7 @@ static const uint8_t *edge_pixel(voe_ecs_world *world, voe_render_device *device
 	VOE_TEST_CHECK(picture.pixels != NULL);
 	if (picture.pixels == NULL)
 		return NULL;
+	*corner = pixel_at(picture, 0, 0);
 	// x = 1 at 4 m is 1 / (4 tan 30°) ≈ 0.43 across the half-width: column 22.
 	return pixel_at(picture, 22, SIDE / 2);
 }
@@ -590,33 +598,64 @@ static bool is_the_outline_colour(const uint8_t *pixel)
 	       pixel[2] > 200;
 }
 
+static bool is_the_rest_colour(const uint8_t *pixel)
+{
+	return pixel != NULL && pixel[0] <= TOLERANCE && pixel[1] > 200 &&
+	       pixel[2] <= TOLERANCE;
+}
+
 static void the_selected_blocker_is_outlined(voe_base_arena *arena,
 					     voe_render_device *device,
 					     const voe_3d_shapes *shapes)
 {
 	voe_ecs_entity blocker = { 0 };
 	voe_ecs_world *world = an_empty_view(arena, &blocker);
+	const uint8_t *corner = NULL;
 	const uint8_t *marked;
 	const uint8_t *unmarked;
 
-	marked = edge_pixel(world, device, arena, shapes, blocker);
+	marked = edge_pixel(world, device, arena, shapes, true, blocker,
+			    &corner);
 	VOE_TEST_CHECK(is_the_outline_colour(marked));
-	unmarked = edge_pixel(world, device, arena, shapes,
-			      (voe_ecs_entity){ 0 });
+	unmarked = edge_pixel(world, device, arena, shapes, true,
+			      (voe_ecs_entity){ 0 }, &corner);
 	VOE_TEST_CHECK(unmarked != NULL && !is_the_outline_colour(unmarked));
 }
 
-// The ground or the blocker's lines, one object, and one line set of this
-// frame's geometry (3d/draw_system.h).
+// Shown with nothing selected the box is in the rest colour; not shown, its
+// edge is the background a corner no line reaches is.
+static void every_blocker_is_lined_at_rest(voe_base_arena *arena,
+					   voe_render_device *device,
+					   const voe_3d_shapes *shapes)
+{
+	voe_ecs_entity blocker = { 0 };
+	voe_ecs_world *world = an_empty_view(arena, &blocker);
+	const uint8_t *corner = NULL;
+	const uint8_t *edge;
+
+	edge = edge_pixel(world, device, arena, shapes, true,
+			  (voe_ecs_entity){ 0 }, &corner);
+	VOE_TEST_CHECK(is_the_rest_colour(edge));
+	edge = edge_pixel(world, device, arena, shapes, false,
+			  (voe_ecs_entity){ 0 }, &corner);
+	VOE_TEST_CHECK(edge != NULL && corner != NULL);
+	if (edge == NULL || corner == NULL)
+		return;
+	for (int channel = 0; channel < 3; channel++)
+		VOE_TEST_CHECK_INT(edge[channel], corner[channel]);
+}
+
+// The ground or the blockers' lines in two objects, the rest and the selected,
+// and two line sets of this frame's geometry (3d/draw_system.h).
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES,
 	.indices = VOE_3D_SHAPES_INDICES,
 	.geometries = VOE_3D_SHAPES_GEOMETRIES,
-	.objects = 1,
+	.objects = 2,
 	.shadings = VOE_3D_SHAPES_SHADINGS,
-	.transient_vertices = VOE_3D_COLLIDER_MARKER_VERTICES,
-	.transient_indices = VOE_3D_COLLIDER_MARKER_INDICES,
-	.transient_geometries = 1,
+	.transient_vertices = 2 * VOE_3D_COLLIDER_MARKER_VERTICES,
+	.transient_indices = 2 * VOE_3D_COLLIDER_MARKER_INDICES,
+	.transient_geometries = 2,
 	.passes = 1,
 };
 
@@ -649,6 +688,7 @@ int main(void)
 	a_blocker_keeps_the_sun_out(arena, device, &shapes);
 	a_direct_casts_a_filled_patch(arena, device, &shapes);
 	the_selected_blocker_is_outlined(arena, device, &shapes);
+	every_blocker_is_lined_at_rest(arena, device, &shapes);
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
