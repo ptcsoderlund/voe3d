@@ -1,6 +1,7 @@
 // The borders' hover, press, drag, double-click and release, each frame
 // against the tree laid out below the bar. A border's band is found by walking
-// the tree's nodes once, at most VOE_EDITOR_DOCK_NODES of them.
+// the tree's nodes once, at most VOE_EDITOR_DOCK_NODES of them; only a seamed
+// split, both children laid, is a border.
 #include "resize.h"
 
 #include <base/assert.h>
@@ -69,7 +70,8 @@ static uint32_t border_under(const voe_editor_dock_root *root,
 		const voe_editor_dock_node *node = &root->tree.nodes[i];
 		voe_ui_rect band = places->nodes[i].seam;
 
-		if (node->kind != VOE_EDITOR_DOCK_SPLIT)
+		if (node->kind != VOE_EDITOR_DOCK_SPLIT ||
+		    !places->nodes[i].seamed)
 			continue;
 		if (node->axis == VOE_EDITOR_DOCK_ROW) {
 			band.min.x -= reach;
@@ -185,7 +187,7 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 	pointer = root->pointer;
 	high = voe_editor_topbar_high(bar, root->size.y);
 	voe_editor_dock_arrange(
-		&root->tree,
+		&root->tree, root->closed,
 		(voe_ui_rect){ .min = { 0.0f, high },
 			       .size = { root->size.x, root->size.y - high } },
 		&places);

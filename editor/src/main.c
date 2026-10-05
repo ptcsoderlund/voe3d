@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
 		// applied by this frame's begin and the picture is drawn at the
 		// size it is shown at — last frame's rectangle, see view.h.
 		for (uint32_t v = 0; v < views.count; v++)
-			if (voe_editor_dock_shows_view(&roots[0].tree, v))
+			if (voe_editor_dock_shows_view(&roots[0], v))
 				voe_editor_view_fit(&views.views[v], gpu,
 						    pixels_per_millimetre);
 
@@ -688,7 +688,7 @@ int main(int argc, char *argv[])
 				light, &scene, voe_editor_models_store(models)) &&
 			voe_editor_view_passes_draw(
 			gpu, arena, session.project->world, &views,
-			&roots[0].tree, light, &scene, &geometries,
+			&roots[0], light, &scene, &geometries,
 			voe_editor_models_store(models), &shapes,
 			&voe_editor_themes_chosen(&themes)->palette, &gizmo,
 			pixels_per_millimetre);

@@ -6,7 +6,8 @@
 //
 // AND THAT IS WORTH A TREE BEFORE ANYTHING CAN BE DRAGGED, WHICH IS THE THING A
 // READER ARRIVING TODAY WILL DOUBT. Nothing here is rearrangeable: no tab bar,
-// no moving or closing a panel; only a border's place. An interface laid out by call
+// no moving a panel; only a border's place, and a leaf can be closed and is
+// then not laid out (0363). An interface laid out by call
 // order looks identical on screen and costs less to write. The difference is
 // what it takes to CHANGE it — with call order, a splitter has to rewrite the
 // function that draws the frame, which is the function every panel's contents
@@ -132,6 +133,30 @@ typedef struct {
 	uint32_t root;
 } voe_editor_dock_tree;
 
+// The panels a person can close, in the Panels menu's order (0351, 0363). The
+// first VOE_EDITOR_CLOSABLE_DOCKED are dock leaves; Project and Errors are
+// panels over the dock and are not.
+typedef enum {
+	VOE_EDITOR_CLOSABLE_SCENE_LIST,
+	VOE_EDITOR_CLOSABLE_ASSETS,
+	VOE_EDITOR_CLOSABLE_INSPECTOR,
+	VOE_EDITOR_CLOSABLE_BOTTOM_VIEW,
+	VOE_EDITOR_CLOSABLE_PROJECT,
+	VOE_EDITOR_CLOSABLE_ERRORS,
+	VOE_EDITOR_CLOSABLE_COUNT
+} voe_editor_closable;
+
+#define VOE_EDITOR_CLOSABLE_DOCKED 4
+
+// The name a closable panel is shown by: "Scene list", "Assets", "Inspector",
+// "Bottom view", "Project", "Errors".
+const char *voe_editor_closable_name(voe_editor_closable which);
+
+// The closable `leaf` is, or VOE_EDITOR_CLOSABLE_COUNT for the top view (a
+// SCENE_VIEW leaf of view 0), which never closes.
+voe_editor_closable
+voe_editor_dock_leaf_closable(const voe_editor_dock_node *leaf);
+
 // A surface with a tree on it: how big it is in the surface's own millimetres,
 // the pointer in those same millimetres, and this frame's keyboard (task 14).
 // All three are the caller's to fill in — nothing in this folder asks a
@@ -146,6 +171,11 @@ typedef struct {
 // editor holds an array of them and the loop walks every one, so the shape is
 // already here.
 //
+// `closed` IS APART FROM THE TREE ON PURPOSE (0351, 0363): one flag per
+// closable dock leaf, zeroed for all open. Where a leaf sits and whether it is
+// open are two facts, so a later docking feature moves leaves without touching
+// this, and a close never writes a length or a share.
+//
 // THAT DOES NOT MAKE A SECOND OS WINDOW CHEAP, AND SAYING SO IS THE POINT OF
 // THIS PARAGRAPH. `platform` opens one window, `render` opens one device onto
 // one surface and `app` brackets one frame for it; a second root that is its own
@@ -158,6 +188,7 @@ typedef struct {
 	voe_ui_pointer pointer;
 	voe_ui_keyboard keyboard;
 	uint32_t lit;
+	bool closed[VOE_EDITOR_CLOSABLE_DOCKED];
 } voe_editor_dock_root;
 
 // The tree the editor opens on: three columns — `Scene` above `Assets`, held
@@ -168,23 +199,28 @@ typedef struct {
 // at all is for.
 voe_editor_dock_tree voe_editor_dock_default(void);
 
-// Whether a leaf in `tree` shows view `view`. The loop asks before it draws a
-// view, because a view nobody shows is not drawn — see view.h.
-bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view);
+// Whether an open leaf in `root`'s tree shows view `view`. The loop asks
+// before it draws a view, because a view nobody shows is not drawn — see view.h.
+bool voe_editor_dock_shows_view(const voe_editor_dock_root *root, uint32_t view);
 
-// Where one node is, and for a split where its seam is. `rect` is the node's
-// own rectangle; `seam` is the gap between a split's two children. For every
-// split, `least` and `most` are the bounds a drag may write and `shown` the
-// length laid out, `most` winning and never below nought: the held child's
-// length, or for a FRACTION split the first child's — `fraction` of the divided
-// length, between its need and the divided length less the second's need. All
-// three are nought for a leaf.
+// Where one node is, and for a split where its seam is. `laid` is whether the
+// node has a rectangle at all: a closed leaf has none, nor a split whose two
+// children are both not laid. `seamed` is a split with both children laid; a
+// split with one gives it its whole `rect` and has no seam. `rect` is the
+// node's own rectangle; `seam` is the gap between a seamed split's two
+// children. For a seamed split, `least` and `most` are the bounds a drag may
+// write and `shown` the length laid out, `most` winning and never below nought:
+// the held child's length, or for a FRACTION split the first child's —
+// `fraction` of the divided length, between its need and the divided length
+// less the second's need. All three are nought otherwise.
 typedef struct {
 	voe_ui_rect rect;
 	voe_ui_rect seam;
 	float least;
 	float most;
 	float shown;
+	bool laid;
+	bool seamed;
 } voe_editor_dock_place;
 
 // Every node's place, indexed as the tree's nodes are. A node the root does
@@ -197,12 +233,14 @@ typedef struct {
 // draws — the walk takes every child's size from this, so the two cannot
 // disagree. A held length is clamped as 0226 says: no less than what the held
 // child needs, never so much the other side has less than it needs, and where
-// both cannot hold the other side wins.
-void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
-			     voe_editor_dock_arrangement *out);
+// both cannot hold the other side wins. A leaf `closed` names is not laid,
+// and needs nothing of its parent; nothing in the tree is written.
+void voe_editor_dock_arrange(const voe_editor_dock_tree *tree,
+			     const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
+			     voe_ui_rect area, voe_editor_dock_arrangement *out);
 
-// Whether `pointer` is over a leaf of `panel` in `root`'s tree laid out below
-// `top`, the top bar's height, all in the root's millimetres.
+// Whether `pointer` is over a laid leaf of `panel` in `root`'s tree laid out
+// below `top`, the top bar's height, all in the root's millimetres.
 bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
 				voe_editor_panel panel, voe_math_float2 pointer);
 

@@ -131,8 +131,8 @@ carries it out.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
-  panel's length or the views' share, every seam's place (the reached one lit), whether a point is
-  over a panel, and the walk.
+  panel's length or the views' share, the closable panels with a closed leaf not laid out, every
+  seam's place (the reached one lit), whether a point is over a panel, and the walk.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
   and set, which views it shows and whether a point is over a panel.
 - `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each leaf a panel and scroll

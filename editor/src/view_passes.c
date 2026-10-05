@@ -103,7 +103,7 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 
 bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
-	const voe_editor_views *views, const voe_editor_dock_tree *tree,
+	const voe_editor_views *views, const voe_editor_dock_root *root,
 	voe_render_light light, const voe_editor_scene *scene,
 	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
 	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
@@ -111,8 +111,8 @@ bool voe_editor_view_passes_draw(
 {
 	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL,
 			"drawing views with no device, arena or world");
-	VOE_BASE_ASSERT(views != NULL && tree != NULL && scene != NULL,
-			"drawing views with no views, tree or scene");
+	VOE_BASE_ASSERT(views != NULL && root != NULL && scene != NULL,
+			"drawing views with no views, root or scene");
 	VOE_BASE_ASSERT(geometries != NULL && shapes != NULL &&
 				palette != NULL && gizmo != NULL,
 			"drawing views with no shapes, palette or gizmo");
@@ -137,7 +137,7 @@ bool voe_editor_view_passes_draw(
 		voe_render_pass_camera camera;
 		voe_3d_frame frame;
 
-		if (!voe_editor_dock_shows_view(tree, v))
+		if (!voe_editor_dock_shows_view(root, v))
 			continue;
 
 		// This view's own view and eye first: its cascades are fitted

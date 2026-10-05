@@ -12,17 +12,87 @@
 // A SEAM IS A MILLIMETRE NEITHER CHILD FILLS. It is taken off the split's
 // length before it is divided, and the arrangement's `seam` is the rectangle
 // resize.h hit-tests for a border; dock_walk.c draws it.
+//
+// A CLOSED LEAF IS NOT LAID (0363): a split with one laid child gives it the
+// whole rectangle and no seam, with none is not laid itself. `length` and
+// `fraction` are only read here, so a reopened panel comes back at its size.
 #include "dock.h"
 
 #include <base/assert.h>
 
 #include <math.h>
 
+const char *voe_editor_closable_name(voe_editor_closable which)
+{
+	static const char *const names[VOE_EDITOR_CLOSABLE_COUNT] = {
+		"Scene list", "Assets", "Inspector",
+		"Bottom view", "Project", "Errors"
+	};
+
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
+			"naming a panel that is not closable");
+	return names[which];
+}
+
+voe_editor_closable
+voe_editor_dock_leaf_closable(const voe_editor_dock_node *leaf)
+{
+	VOE_BASE_ASSERT(leaf != NULL && leaf->kind == VOE_EDITOR_DOCK_LEAF,
+			"asking the closable of a node that is not a leaf");
+
+	switch (leaf->panel) {
+	case VOE_EDITOR_PANEL_SCENE:
+		return VOE_EDITOR_CLOSABLE_SCENE_LIST;
+	case VOE_EDITOR_PANEL_ASSETS:
+		return VOE_EDITOR_CLOSABLE_ASSETS;
+	case VOE_EDITOR_PANEL_INSPECTOR:
+		return VOE_EDITOR_CLOSABLE_INSPECTOR;
+	case VOE_EDITOR_PANEL_SCENE_VIEW:
+		return leaf->view == 0 ? VOE_EDITOR_CLOSABLE_COUNT :
+					 VOE_EDITOR_CLOSABLE_BOTTOM_VIEW;
+	case VOE_EDITOR_PANEL_COUNT:
+		break;
+	}
+	VOE_BASE_ASSERT(false, "a dock leaf naming no panel");
+	return VOE_EDITOR_CLOSABLE_COUNT;
+}
+
+static bool leaf_closed(const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
+			const voe_editor_dock_node *leaf)
+{
+	voe_editor_closable which = voe_editor_dock_leaf_closable(leaf);
+
+	VOE_BASE_ASSERT(closed != NULL, "asking whether a leaf is closed of no flags");
+	return which < VOE_EDITOR_CLOSABLE_DOCKED && closed[which];
+}
+
+// Whether a subtree is laid at all: an open leaf, or a split with a laid child.
+static bool node_laid(const voe_editor_dock_tree *tree,
+		      const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
+		      uint32_t index, uint32_t depth)
+{
+	const voe_editor_dock_node *node;
+
+	VOE_BASE_ASSERT(depth < VOE_EDITOR_DOCK_DEPTH,
+			"a dock tree deeper than VOE_EDITOR_DOCK_DEPTH — the child indices are a cycle");
+	VOE_BASE_ASSERT(index < tree->count,
+			"a dock node naming a child past the end of the tree");
+
+	node = &tree->nodes[index];
+	if (node->kind == VOE_EDITOR_DOCK_LEAF)
+		return !leaf_closed(closed, node);
+	return node_laid(tree, closed, node->first, depth + 1) ||
+	       node_laid(tree, closed, node->second, depth + 1);
+}
+
 // What a subtree needs along `axis` (0226): a scene view VIEW_ROOM, another
-// leaf PANEL_MIN; along a split its children's needs and the seam, a held child
-// needing at least its own length; across a split the larger of the two.
-static float need_along(const voe_editor_dock_tree *tree, uint32_t index,
-			voe_editor_dock_axis axis, uint32_t depth)
+// leaf PANEL_MIN, one not laid nothing; along a split its children's needs and
+// the seam, a held child needing at least its own length, or the one laid
+// child's need alone; across a split the larger of the two.
+static float need_along(const voe_editor_dock_tree *tree,
+			const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
+			uint32_t index, voe_editor_dock_axis axis,
+			uint32_t depth)
 {
 	const voe_editor_dock_node *node;
 	float first;
@@ -34,13 +104,18 @@ static float need_along(const voe_editor_dock_tree *tree, uint32_t index,
 			"a dock node naming a child past the end of the tree");
 
 	node = &tree->nodes[index];
+	if (!node_laid(tree, closed, index, depth))
+		return 0.0f;
 	if (node->kind == VOE_EDITOR_DOCK_LEAF)
 		return node->panel == VOE_EDITOR_PANEL_SCENE_VIEW ?
 			       VOE_EDITOR_DOCK_VIEW_ROOM :
 			       VOE_EDITOR_DOCK_PANEL_MIN;
 
-	first = need_along(tree, node->first, axis, depth + 1);
-	second = need_along(tree, node->second, axis, depth + 1);
+	first = need_along(tree, closed, node->first, axis, depth + 1);
+	second = need_along(tree, closed, node->second, axis, depth + 1);
+	if (!node_laid(tree, closed, node->first, depth + 1) ||
+	    !node_laid(tree, closed, node->second, depth + 1))
+		return first + second;
 	if (node->axis != axis)
 		return fmaxf(first, second);
 
@@ -61,8 +136,9 @@ static float clamp_to_place(const voe_editor_dock_place *place, float length)
 	return fmaxf(fminf(fmaxf(length, place->least), place->most), 0.0f);
 }
 
-static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
-			 voe_ui_rect rect, uint32_t depth,
+static void arrange_node(const voe_editor_dock_tree *tree,
+			 const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
+			 uint32_t index, voe_ui_rect rect, uint32_t depth,
 			 voe_editor_dock_arrangement *out)
 {
 	const voe_editor_dock_node *node;
@@ -75,6 +151,8 @@ static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 	float wanted;
 	float first;
 	bool sized_first;
+	bool first_laid;
+	bool second_laid;
 
 	VOE_BASE_ASSERT(depth < VOE_EDITOR_DOCK_DEPTH,
 			"a dock tree deeper than VOE_EDITOR_DOCK_DEPTH — the child indices are a cycle, or this is not the shallow tree a dock is");
@@ -83,9 +161,22 @@ static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 
 	node = &tree->nodes[index];
 	place = &out->nodes[index];
+	if (!node_laid(tree, closed, index, depth))
+		return;
 	place->rect = rect;
+	place->laid = true;
 	if (node->kind == VOE_EDITOR_DOCK_LEAF)
 		return;
+
+	// One child laid takes the split's whole rectangle and there is no seam.
+	first_laid = node_laid(tree, closed, node->first, depth + 1);
+	second_laid = node_laid(tree, closed, node->second, depth + 1);
+	if (!first_laid || !second_laid) {
+		arrange_node(tree, closed, first_laid ? node->first : node->second,
+			     rect, depth + 1, out);
+		return;
+	}
+	place->seamed = true;
 
 	// The seam comes off the length before it is divided, so the two
 	// children and the gap between them add up to exactly what this node
@@ -107,10 +198,12 @@ static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 		wanted = node->length;
 	}
 	sized_first = node->hold != VOE_EDITOR_DOCK_HOLD_SECOND;
-	place->least = need_along(tree, sized_first ? node->first : node->second,
+	place->least = need_along(tree, closed,
+				  sized_first ? node->first : node->second,
 				  node->axis, depth + 1);
 	place->most = along - VOE_EDITOR_DOCK_SEAM -
-		      need_along(tree, sized_first ? node->second : node->first,
+		      need_along(tree, closed,
+				 sized_first ? node->second : node->first,
 				 node->axis, depth + 1);
 	place->shown = clamp_to_place(place, wanted);
 	first = sized_first ? place->shown : share - place->shown;
@@ -130,19 +223,21 @@ static void arrange_node(const voe_editor_dock_tree *tree, uint32_t index,
 		tail.size.y = share - first;
 	}
 
-	arrange_node(tree, node->first, head, depth + 1, out);
-	arrange_node(tree, node->second, tail, depth + 1, out);
+	arrange_node(tree, closed, node->first, head, depth + 1, out);
+	arrange_node(tree, closed, node->second, tail, depth + 1, out);
 }
 
-void voe_editor_dock_arrange(const voe_editor_dock_tree *tree, voe_ui_rect area,
-			     voe_editor_dock_arrangement *out)
+void voe_editor_dock_arrange(const voe_editor_dock_tree *tree,
+			     const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
+			     voe_ui_rect area, voe_editor_dock_arrangement *out)
 {
 	VOE_BASE_ASSERT(tree != NULL, "arranging no tree");
+	VOE_BASE_ASSERT(closed != NULL, "arranging a tree with no closed flags");
 	VOE_BASE_ASSERT(out != NULL, "arranging a tree into nothing");
 	VOE_BASE_ASSERT(tree->count > 0, "arranging an empty dock tree");
 
 	*out = (voe_editor_dock_arrangement){ 0 };
-	arrange_node(tree, tree->root, area, 0, out);
+	arrange_node(tree, closed, tree->root, area, 0, out);
 }
 
 bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
@@ -152,7 +247,7 @@ bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
 
 	VOE_BASE_ASSERT(root != NULL, "asking where a panel is on no root");
 	voe_editor_dock_arrange(
-		&root->tree,
+		&root->tree, root->closed,
 		(voe_ui_rect){ .min = { 0.0f, top },
 			       .size = { root->size.x, root->size.y - top } },
 		&places);
@@ -161,7 +256,7 @@ bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
 		voe_ui_rect r = places.nodes[i].rect;
 
 		if (node->kind == VOE_EDITOR_DOCK_LEAF && node->panel == panel &&
-		    pointer.x >= r.min.x && pointer.x < r.min.x + r.size.x &&
+		    places.nodes[i].laid && pointer.x >= r.min.x && pointer.x < r.min.x + r.size.x &&
 		    pointer.y >= r.min.y && pointer.y < r.min.y + r.size.y)
 			return true;
 	}
@@ -232,16 +327,19 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 // Every node and not a walk from the root: a leaf the root cannot reach is not
 // laid out either, but a tree with one in it is a tree nobody built on purpose,
 // and the walk already asserts on the shapes that would make one.
-bool voe_editor_dock_shows_view(const voe_editor_dock_tree *tree, uint32_t view)
+bool voe_editor_dock_shows_view(const voe_editor_dock_root *root, uint32_t view)
 {
-	VOE_BASE_ASSERT(tree != NULL, "asking no tree what it shows");
+	const voe_editor_dock_tree *tree;
 
+	VOE_BASE_ASSERT(root != NULL, "asking no root what it shows");
+
+	tree = &root->tree;
 	for (uint32_t i = 0; i < tree->count; i++) {
 		const voe_editor_dock_node *node = &tree->nodes[i];
 
 		if (node->kind == VOE_EDITOR_DOCK_LEAF &&
 		    node->panel == VOE_EDITOR_PANEL_SCENE_VIEW &&
-		    node->view == view)
+		    node->view == view && !leaf_closed(root->closed, node))
 			return true;
 	}
 

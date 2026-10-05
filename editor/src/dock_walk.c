@@ -6,7 +6,8 @@
 // each child is told the number it came to. The alternative — weights and
 // VOE_UI_SIZE_GROW — hands the division to `ui` and then a splitter has to read
 // a rectangle back out to find out what it is dragging. voe_editor_dock_arrange
-// is the one division both the walk and a drag read.
+// is the one division both the walk and a drag read. A node it did not lay
+// emits nothing, and a split with one laid child emits that child alone.
 //
 // A SEAM IS DRAWN IN THE BORDER COLOUR, so it reads like every other border;
 // the reached one is drawn as the inverse pair, `inverse_ink` beside
@@ -157,6 +158,8 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 			"a dock node naming a child past the end of the tree");
 
 	node = &tree->nodes[index];
+	if (!places->nodes[index].laid)
+		return;
 
 	if (node->kind == VOE_EDITOR_DOCK_LEAF) {
 		bool picture = node->panel == VOE_EDITOR_PANEL_SCENE_VIEW;
@@ -208,6 +211,16 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		return;
 	}
 
+	// One laid child is emitted alone at the split's size, with no
+	// container and no seam of the split's own around it.
+	if (!places->nodes[index].seamed) {
+		walk_node(ui, tree, places,
+			  places->nodes[node->first].laid ? node->first :
+							    node->second,
+			  parent, size, depth + 1, lit, palette, scene, views);
+		return;
+	}
+
 	// The children's sizes are the arrangement's, which is the one division
 	// there is (see voe_editor_dock_arrange).
 	head = places->nodes[node->first].rect.size;
@@ -256,8 +269,13 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	// sizing_in(parent, root->size) IS root->size READ IN WHATEVER AXES
 	// `parent` FLOWS IN — see the header on why this row needs that now
 	// that it is not always the frame's own root.
-	voe_editor_dock_arrange(&root->tree,
+	voe_editor_dock_arrange(&root->tree, root->closed,
 				(voe_ui_rect){ .size = root->size }, &places);
+	// A view the walk does not show keeps no rectangle, so
+	// voe_editor_views_under (view.h) cannot find it under the pointer.
+	for (uint32_t v = 0; v < views->count; v++)
+		if (!voe_editor_dock_shows_view(root, v))
+			views->views[v].rect = (voe_ui_rect){ 0 };
 	voe_ui_row_begin(ui, (voe_ui_container){ .size = sizing_in(
 							 parent, root->size),
 						 .across = VOE_UI_ACROSS_FILL });
