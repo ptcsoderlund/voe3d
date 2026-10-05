@@ -27,8 +27,11 @@ again, or to find where a claim that has started failing is written down.
   Skips without a graphics card.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
-  frames blind, a red shape reads red, a gizmo's arrows and rings show through a cube and a camera
-  or sun marker is one draw more. Skips without a graphics card.
+  frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
+- `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
+  without a graphics card.
+- `draw_markers.c` — that a marked camera or sun is one draw more and a zeroed marker none. Skips
+  without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, and that a glowing one is unlit. Skips without a graphics card.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
