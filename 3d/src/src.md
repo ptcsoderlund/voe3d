@@ -79,9 +79,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
-- `draw_system.c` — the camera's view, the first light row and the frame's pass camera, and the run: the walk over meshes, model parts
-  from the frame's store and panels, a fading model held blended and a gone one skipped, the world's
-  solids drawn as found, the held-back groups and the marks in their order.
+- `draw_system.c` — the camera's view, the first light row, the frame's pass camera, and the run
+  over meshes, model parts and panels: solids drawn as found, fading models held blended, then the
+  held-back groups and the marks.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot, the point-shadow pass and the probe bounce, a gone model casting nothing.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
@@ -90,14 +90,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
   rotation, and |scale| × size / 2 per axis.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
-  the eye, its rows and bounding sphere, flat ones and those past 32 left out; the kept boxes' Direct
-  and Fill bits, and the mask of those holding the sun's place; and light rows 2 to 4 as the
-  frame's further lights, each masked at its own place.
+  the eye with its rows and sphere, flat ones and those past 32 left out, the Direct and Fill bits,
+  the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
   and the cascades' caster walk and casting test it shares; internal.
-- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' box, the
-  target's bounce begun with every sun, the lamps, blockers and stale spheres, the casters drawn into each
-  capture pass and each casting sun's own map, and the relight; and the still casters' world box.
+- `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' world
+  box, the bounce begun with every sun, lamp, blocker and stale sphere, the casters drawn into each
+  capture pass and casting sun's map, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
