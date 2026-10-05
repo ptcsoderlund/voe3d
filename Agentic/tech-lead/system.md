@@ -56,5 +56,5 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
-- 0348, 0349, 0351–0355, 0361, 0363 — Block kinds; sun, moon; fields; panels closed; markers.
+- 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
 - 0358, 0359, 0362 — GPU timed per pass; Best Practices a gate; far textures mipped; splash worker.
