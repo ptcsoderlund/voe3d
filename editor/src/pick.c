@@ -1,5 +1,5 @@
 // The press edge and the view it landed in, handed to `3d` as a ray against
-// the shapes and the models. See the
+// every mesh and marker, a marker before a mesh (0354). See the
 // header for why the middle button is not read here, what `blocked` is for, why
 // a press and not a release selects, and why a click over no view leaves the
 // selection alone.

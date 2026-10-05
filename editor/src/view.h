@@ -198,6 +198,14 @@ voe_math_float3 voe_editor_view_outline_colour(const voe_ui_theme *palette);
 voe_math_float3 voe_editor_view_gizmo_colour(const voe_ui_theme *palette,
 					     bool marked);
 
+// The colour a light blocker's box is lined in while it is not selected (0365
+// point 5): the outline's colour times VOE_EDITOR_VIEW_FAINT. A lightness step
+// on the outline's colour, not a new role, for the gizmo's rest colour's
+// reason: the theme keeps one hue, and the outline's colour is the one known
+// to show on a view's near-black ground. Fainter than a handle at rest, so a
+// level full of rooms stays readable and a box never reads as a handle.
+voe_math_float3 voe_editor_view_faint_colour(const voe_ui_theme *palette);
+
 // The camera and `light` the view's pass is opened with, the aspect ratio from
 // the view's own size. `light` is the caller's to find — what
 // voe_editor_view_light gives — because a
