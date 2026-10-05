@@ -6,7 +6,7 @@
 // window pass, its camera voe_3d_draw_system_camera's, with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
-// once.
+// once. The world step drains in order, the sounds last with no mixer.
 #include <game/frame.h>
 
 #include <audio/sound_system.h>
