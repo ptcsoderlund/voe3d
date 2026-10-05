@@ -131,6 +131,11 @@ carries it out.
   cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of its × afterwards.
+- `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds and the total,
+  copied from render's lagging timings four times a second, under a title row with its ×, anchored
+  at a point.
+- `frame_breakdown.c` — the quarter-second copy keeping the last on no measurement, the panel's one
+  frame of `ui` calls, and the read of its × afterwards.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock,
   its own arena, a start beside a given folder with its row chosen, in SAVE mode a name row with a
   focused `ui` field and Make folder, and in IMPORT mode `.glb` files a press imports.
