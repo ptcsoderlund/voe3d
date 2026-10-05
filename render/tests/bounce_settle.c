@@ -251,7 +251,8 @@ static void check_settled(voe_render_device *device)
 	VOE_TEST_CHECK(voe_render_buffer_build(
 		device, &readback, READBACK_BYTES, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (readback.buffer == VK_NULL_HANDLE)
 		return;
 	read_volume(device, &readback);

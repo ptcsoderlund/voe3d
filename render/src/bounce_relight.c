@@ -211,11 +211,13 @@ static bool create_pipelines(voe_render_device *device)
 // One slot's mapped buffer of `size` bytes and `usage`.
 static bool build_mapped(voe_render_device *device,
 			 struct voe_render_buffer *buffer, VkDeviceSize size,
-			 VkBufferUsageFlags usage, void **mapped)
+			 VkBufferUsageFlags usage, void **mapped,
+			 const char *name)
 {
 	if (!voe_render_buffer_build(device, buffer, size, usage,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     name))
 		return false;
 	if (voe_render_vk.map_memory(device->device, buffer->memory, 0,
 				     VK_WHOLE_SIZE, 0, mapped) != VK_SUCCESS) {
@@ -293,12 +295,14 @@ static bool create_sets_and_buffers(voe_render_device *device)
 			}
 		if (!build_mapped(device, &device->relight_lists[s], lists,
 				  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-				  &device->relight_mapped[s]) ||
+				  &device->relight_mapped[s],
+				  "bounce relight lists") ||
 		    !build_mapped(device, &device->relight_records[s],
 				  volume_count(device) *
 					  device->relight_record_stride,
 				  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				  &device->relight_records_mapped[s]))
+				  &device->relight_records_mapped[s],
+				  "bounce relight records"))
 			return false;
 	}
 	return true;

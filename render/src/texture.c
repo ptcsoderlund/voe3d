@@ -398,7 +398,8 @@ bool voe_render_texture_create(voe_render_device *device,
 	if (!voe_render_buffer_build(device, &staging, size,
 				     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     "texture staging"))
 		goto refused;
 
 	{
@@ -627,7 +628,8 @@ bool voe_render_texture_startup(voe_render_device *device)
 			    device, &staging, sizeof(WHITE),
 			    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-				    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+				    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			    "white texture staging"))
 			return false;
 
 		result = voe_render_vk.map_memory(device->device,

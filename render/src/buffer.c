@@ -5,7 +5,8 @@
 // THE UPLOAD PATTERN MATTERS MORE THAN THE CUBE DOES. A vertex buffer the GPU
 // reads every frame belongs in device-local memory, which on a discrete card the
 // CPU cannot write; so the bytes go into a host-visible staging buffer first and
-// a queue copies them across. Every later upload is this — a texture, a mesh out
+// a queue copies them across, and every buffer is named for a capture tool
+// (debug_names.c). Every later upload is this — a texture, a mesh out
 // of a glTF file, anything at all — so it is one function with a contract rather
 // than four lines repeated per caller.
 //
@@ -36,7 +37,7 @@
 bool voe_render_buffer_build(voe_render_device *device,
 			     struct voe_render_buffer *buffer,
 			     VkDeviceSize size, VkBufferUsageFlags usage,
-			     VkMemoryPropertyFlags properties)
+			     VkMemoryPropertyFlags properties, const char *name)
 {
 	VkBufferCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -66,6 +67,8 @@ bool voe_render_buffer_build(voe_render_device *device,
 		buffer->buffer = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_BUFFER,
+			      (uint64_t)buffer->buffer, name);
 
 	voe_render_vk.get_buffer_memory_requirements(device->device,
 						     buffer->buffer,
@@ -138,7 +141,8 @@ static bool fill_staging(voe_render_device *device,
 	if (!voe_render_buffer_build(device, staging, size,
 				     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     "upload staging"))
 		return false;
 
 	result = voe_render_vk.map_memory(device->device, staging->memory, 0,

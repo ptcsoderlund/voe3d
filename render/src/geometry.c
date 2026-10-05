@@ -63,7 +63,7 @@
 // the bound device_parts.h gives for voe_render_pool.
 static bool build_pool(voe_render_device *device, struct voe_render_pool *pool,
 		       uint32_t capacity, size_t element,
-		       VkBufferUsageFlags usage)
+		       VkBufferUsageFlags usage, const char *name)
 {
 	pool->capacity = capacity;
 	pool->used = 0;
@@ -76,7 +76,7 @@ static bool build_pool(voe_render_device *device, struct voe_render_pool *pool,
 	return voe_render_buffer_build(device, &pool->buffer,
 				       (VkDeviceSize)capacity * element,
 				       usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, name);
 }
 
 // One transient pool: host-visible and coherent, mapped once here and left
@@ -86,7 +86,7 @@ static bool build_pool(voe_render_device *device, struct voe_render_pool *pool,
 static bool build_transient_pool(voe_render_device *device,
 				 struct voe_render_transient_pool *pool,
 				 uint32_t capacity, size_t element,
-				 VkBufferUsageFlags usage)
+				 VkBufferUsageFlags usage, const char *name)
 {
 	VkResult result;
 
@@ -97,7 +97,8 @@ static bool build_transient_pool(voe_render_device *device,
 	if (!voe_render_buffer_build(device, &pool->pool.buffer,
 				     (VkDeviceSize)capacity * element, usage,
 				     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+					     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				     name))
 		return false;
 
 	// vkMapMemory hands its pointer back through a void **, which is
@@ -171,9 +172,10 @@ bool voe_render_geometry_startup(voe_render_device *device)
 
 	if (!build_pool(device, &device->vertices, device->capacities.vertices,
 			sizeof(voe_render_vertex),
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT) ||
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, "vertex pool") ||
 	    !build_pool(device, &device->indices, device->capacities.indices,
-			sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
+			sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			"index pool"))
 		return false;
 
 	if (device->capacities.transient_geometries == 0)
@@ -185,11 +187,13 @@ bool voe_render_geometry_startup(voe_render_device *device)
 		if (!build_transient_pool(device, &frame->transient_vertices,
 					  device->capacities.transient_vertices,
 					  sizeof(voe_render_vertex),
-					  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT) ||
+					  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+					  "transient vertex pool") ||
 		    !build_transient_pool(device, &frame->transient_indices,
 					  device->capacities.transient_indices,
 					  sizeof(uint32_t),
-					  VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
+					  VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+					  "transient index pool"))
 			return false;
 	}
 	return true;

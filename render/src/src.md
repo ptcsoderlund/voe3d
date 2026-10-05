@@ -26,8 +26,10 @@ which file to open — what each one owns, and where the seams between them run.
   pipeline, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
-- `instance.c` — the Vulkan instance, its extensions, and the validation layer and messenger in a
-  debug build that has them.
+- `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and the
+  validation layer and messenger in a debug build that has them.
+- `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
+  capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, and the `render` line
   that says which and why.
 - `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
@@ -35,9 +37,9 @@ which file to open — what each one owns, and where the seams between them run.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
   reads agree, by size and member offset; no code.
-- `buffer.c` — a buffer with the memory under it, and the staging upload that
-  fills a device-local one at an offset. Its header says why every later upload
-  is this.
+- `buffer.c` — a named buffer with the memory under it, and the staging upload
+  that fills a device-local one at an offset. Its header says why every later
+  upload is this.
 - `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
   pair in every frame slot, and the ranges into all of them, each with its bounding sphere and its
   vertex box, which `voe_render_geometry_box` hands back.

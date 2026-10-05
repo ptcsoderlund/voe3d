@@ -407,7 +407,8 @@ static float nearest(voe_render_device *device, uint32_t slot, uint32_t layer)
 	VOE_TEST_CHECK(voe_render_buffer_build(
 		device, &readback, MAP_BYTES, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 	if (readback.buffer == VK_NULL_HANDLE)
 		return best;
 	read_map(device, slot, layer, &readback);

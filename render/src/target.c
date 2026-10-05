@@ -64,9 +64,10 @@ uint32_t voe_render_memory_type(const voe_render_device *device, uint32_t mask,
 
 // One image, its memory and its view. Everything that differs between the
 // colour target and the depth target is a parameter, so there is one copy of
-// this and not two that drift apart. `what` appears only in the messages, and
-// it is there because "vkCreateImage failed" without it does not say which of
-// the two images a person should be looking at.
+// this and not two that drift apart. `what` names the image and its view for a
+// capture tool (debug_names.c) and appears in the messages, because
+// "vkCreateImage failed" without it does not say which of the two images a
+// person should be looking at.
 //
 // ONE ALLOCATION PER IMAGE, AND THAT DOES NOT SCALE. A driver is allowed to
 // refuse after a few thousand vkAllocateMemory calls and each one is expensive,
@@ -118,6 +119,8 @@ bool voe_render_target_image_build(voe_render_device *device,
 		out->image = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE,
+			      (uint64_t)out->image, what);
 
 	voe_render_vk.get_image_memory_requirements(device->device, out->image,
 						    &requirements);
@@ -167,6 +170,8 @@ bool voe_render_target_image_build(voe_render_device *device,
 		out->view = VK_NULL_HANDLE;
 		return false;
 	}
+	voe_render_debug_name(device, VK_OBJECT_TYPE_IMAGE_VIEW,
+			      (uint64_t)out->view, what);
 
 	return true;
 }

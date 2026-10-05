@@ -262,7 +262,8 @@ int main(void)
 	VOE_TEST_CHECK(voe_render_buffer_build(
 		device, &readback, IMAGE_BYTES, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		"test readback"));
 
 	pipeline = voe_render_probe_pipeline_new(device);
 	VOE_TEST_CHECK(pipeline != VK_NULL_HANDLE);

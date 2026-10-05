@@ -163,12 +163,17 @@ void voe_render_loader_instance(VkInstance instance, bool surface)
 	}
 
 	// Absent whenever the debug-utils extension was not enabled, which is
-	// the normal case on a machine with no Vulkan SDK. Left NULL and never
-	// called.
+	// when the instance did not offer it. Left NULL and never called.
 	OPTIONAL_INSTANCE_FUNCTION(create_debug_messenger,
 				   vkCreateDebugUtilsMessengerEXT);
 	OPTIONAL_INSTANCE_FUNCTION(destroy_debug_messenger,
 				   vkDestroyDebugUtilsMessengerEXT);
+	OPTIONAL_INSTANCE_FUNCTION(set_debug_utils_object_name,
+				   vkSetDebugUtilsObjectNameEXT);
+	OPTIONAL_INSTANCE_FUNCTION(cmd_begin_debug_utils_label,
+				   vkCmdBeginDebugUtilsLabelEXT);
+	OPTIONAL_INSTANCE_FUNCTION(cmd_end_debug_utils_label,
+				   vkCmdEndDebugUtilsLabelEXT);
 }
 
 void voe_render_loader_device(VkDevice device, bool swapchain)

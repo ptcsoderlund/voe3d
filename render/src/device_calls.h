@@ -28,7 +28,7 @@ void voe_render_swapchain_teardown(voe_render_device *device);
 void voe_render_target_teardown(voe_render_device *device);
 
 // target.c, and used by target_own.c as well: one device-local image, its memory
-// and its view, with `what` naming it in the messages; false with a message.
+// and its view, with `what` naming both and the messages; false with a message.
 // _teardown gives back whatever a build made, is safe on a zeroed struct and on
 // one whose build stopped part way, and leaves it zeroed. Neither waits.
 [[nodiscard]] bool
@@ -211,9 +211,17 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // same thing is three chances for them to stop meaning it.
 #define VOE_RENDER_TIMESTAMPS_PER_FRAME 2
 
+// debug_names.c. An object's name and a command buffer's labelled span, for a
+// capture tool to read; each does nothing when VK_EXT_debug_utils is absent.
+// Begin and end pair inside one command buffer.
+void voe_render_debug_name(const voe_render_device *device, VkObjectType type,
+			   uint64_t handle, const char *name);
+void voe_render_debug_label_begin(VkCommandBuffer commands, const char *name);
+void voe_render_debug_label_end(VkCommandBuffer commands);
+
 // buffer.c. A buffer of size with usage, in memory that has properties, and the
-// one allocation under it. build/teardown rather than new/destroy because the
-// struct is the caller's and only what is inside it belongs to these — the same
+// one allocation under it, the buffer named `name` (debug_names.c).
+// build/teardown rather than new/destroy because the struct is the caller's and only what is inside it belongs to these — the same
 // shape voe_render_target_build has, for the same reason.
 //
 // Teardown is safe on a zeroed struct and on one whose build failed part way,
@@ -224,7 +232,8 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 					   struct voe_render_buffer *buffer,
 					   VkDeviceSize size,
 					   VkBufferUsageFlags usage,
-					   VkMemoryPropertyFlags properties);
+					   VkMemoryPropertyFlags properties,
+					   const char *name);
 void voe_render_buffer_teardown(voe_render_device *device,
 				struct voe_render_buffer *buffer);
 

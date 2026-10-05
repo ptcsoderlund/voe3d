@@ -3,11 +3,15 @@
 // device.c's open_device calls voe_render_instance_create once, after the
 // loader is open and before the surface exists — see startup.h for the order.
 //
-// VALIDATION IS DEBUG-ONLY AND NEVER REQUIRED. The layer and the debug-utils
-// extension come with the Vulkan SDK, which nobody has to install. A debug build
-// asks for both when both are there and says nothing when they are not; a
-// release build never asks. What the layer reports is printed through base's
-// report, one line per message.
+// VALIDATION IS DEBUG-ONLY AND NEVER REQUIRED. The layer comes with the Vulkan
+// SDK, which nobody has to install. A debug build asks for it when it is there
+// and says nothing when it is not; a release build never asks. What the layer
+// reports is printed through base's report, one line per message.
+//
+// DEBUG-UTILS IS ASKED FOR APART FROM VALIDATION, in every build, whenever the
+// instance offers it (ADR-0367): a capture tool reads the names and labels
+// debug_names.c gives buffers, images and passes, and a release build is the
+// one worth capturing. The messenger still needs both the layer and it.
 //
 // A HEADLESS INSTANCE NAMES NO WINDOW SYSTEM. This is the first of the places a
 // headless device differs (device.c's header lists them): no surface extension,
@@ -150,6 +154,9 @@ bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena
 	uint32_t extension_count = 0;
 	const char *layers[1] = { VALIDATION_LAYER };
 	bool validate = wants_validation(arena);
+	bool debug_utils = validate ||
+			   has_instance_extension(arena,
+						  VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	VkApplicationInfo application = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pApplicationName = "voe3d",
@@ -169,7 +176,7 @@ bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena
 		extensions[extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
 		extensions[extension_count++] = voe_render_backend_extension();
 	}
-	if (validate)
+	if (debug_utils)
 		extensions[extension_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 
 	info.enabledExtensionCount = extension_count;
