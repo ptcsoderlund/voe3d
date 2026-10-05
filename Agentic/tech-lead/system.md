@@ -16,7 +16,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — the one layer naming Vulkan: card, resources, passes, light, shadow, bounce, prepare.
+- **render** — all of Vulkan: card, resources, timed passes, light, shadow, bounce, Best Practices.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -24,7 +24,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: the paced frame, PNGs out and in, a headless start, start log.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, the splash.
-- **editor** — top bar, Project panel, Scene list, Assets, prefabs, views, gizmo, Inspector, Play.
+- **editor** — top bar, Project, Scene list, Assets, prefabs, views, gizmo, Inspector, Play, GPU ms.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
