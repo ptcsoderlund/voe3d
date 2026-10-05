@@ -1,6 +1,6 @@
 // The list the top bar's Panels button opens (0351, 0363 point 3): one row per
 // closable panel in voe_editor_closable's order, Scene list, Assets, Inspector,
-// Bottom view, Project, Errors, an open one ticked.
+// Bottom view, Project, Errors, Frame breakdown, an open one ticked.
 //
 //     if (menu.open)
 //             voe_editor_panels_menu_draw(ui, &menu, under, open);

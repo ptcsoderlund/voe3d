@@ -21,6 +21,7 @@
 #include "assets_drag.h"
 #include "browser.h"
 #include "dock.h"
+#include "frame_breakdown.h"
 #include "preferences.h"
 #include "project_panel.h"
 #include "session.h"
@@ -320,8 +321,17 @@
 // √, one, and its name at most "Bottom view"'s ten characters, its space
 // drawing nothing, thirteen apiece, seventy-eight. 47546 + 88 = 47634. No
 // scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2325
-#define VOE_EDITOR_INTERFACE_ELEMENTS 47634
+//
+// THE FRAME BREAKDOWN (frame_breakdown.h) ADDS 200 NODES AND 2974 ELEMENTS,
+// the most its own header counts, on top though it is drawn only while the
+// browser, Preferences, Project and Errors are not. ITS ROW IN THE PANELS
+// LIST, a seventh, ADDS FIVE NODES, and "Frame breakdown"'s fourteen
+// characters, its space drawing nothing, are now the longest name: seven rows
+// of at most two, one and fourteen, 119 against the seventy-eight above,
+// FORTY-ONE ELEMENTS MORE. 2325 + 200 + 5 = 2530 nodes, 47634 + 2974 + 41 =
+// 50649 elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2530
+#define VOE_EDITOR_INTERFACE_ELEMENTS 50649
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -443,6 +453,12 @@ void voe_editor_interface_surface(voe_platform_size target,
 // false as under the other panels. Panels flips it; a fired row goes through
 // the same toggle and closes it; `escape`, a press off the list and Panels, or
 // the browser showing close it.
+//
+// `breakdown` (frame_breakdown.h) IS DRAWN AT THE LEFT JUST BELOW THE BAR,
+// over the Scene list, while it shows and none of the browser, Preferences,
+// Project and Errors does. The dock keeps its pointer, so the views and the
+// Inspector stay usable beside it; its × hides it, and the Panels list's
+// Frame breakdown row shows or hides it through the same toggle.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
@@ -457,4 +473,5 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     voe_editor_preferences *preferences,
 					     voe_editor_project_panel *project_panel,
 					     voe_editor_themes *themes,
+					     voe_editor_frame_breakdown *breakdown,
 					     bool escape);
