@@ -1,8 +1,9 @@
-// The systems, the light blockers and the point lights in `scratch`, rewound
-// once the window pass has copied them, the shadow passes (the sun's, the frame's target left zero,
-// the window's, and the lamps'), then the bounce's capture passes, the
-// bounce's sun map when it relights, then the relight when a light bounces,
-// and the window pass with the interface over
+// The systems, the light blockers, the point lights and the lights after the
+// first in `scratch`, rewound once the window pass has copied them, the shadow
+// passes (each casting light's cascades, the frame's target left zero, the
+// window's, and the lamps'), then the bounce's capture passes, each bouncing
+// sun's map when it relights, then the relight when a light bounces, and the
+// window pass, its camera voe_3d_draw_system_camera's, with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
 // once.
@@ -110,12 +111,12 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	// False leaves the frame unlit by points, which is no failed frame.
 	// Before the shadows: their point-shadow pass reads the slots (0325).
 	(void)voe_3d_draw_system_point_lights(world, &frame, scratch);
+	// False leaves the frame lit by the first light alone, which is no
+	// failed frame. After the blockers, whose masks it reads, and before
+	// the shadows, which set its lights' shadows (0357 point 1).
+	(void)voe_3d_draw_system_lights(world, &frame, scratch);
 	shadowed = voe_3d_draw_system_shadows(world, device, &frame);
-	camera = (voe_render_pass_camera){ .view = frame.view,
-					   .light = frame.light,
-					   .shadow = frame.shadow,
-					   .points = frame.points,
-					   .blockers = frame.blockers };
+	camera = voe_3d_draw_system_camera(&frame);
 	passed = voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 				       &camera);
 	voe_base_arena_rewind(scratch, mark);
