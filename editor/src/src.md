@@ -230,10 +230,9 @@ carries it out.
   label.
 - `view.h` — a scene view: its orbit, target and input, the glide to a focus, the view under the
   pointer, the colours it is drawn with, and the preview of what the world's camera sees.
-- `view.c` — the views' orbit, which owns the eye, the drag's and fly's rates, the glide,
-  their targets,
-  the focus set to the world camera's position, the world's first light row and the selection's
-  outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
+- `view.c` — the views' orbit, which owns the eye, the drag's and fly's rates, the glide, their
+  targets, the focus set to the world camera's position, the world's first light row and the
+  selection's outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
   passes, lit by every light, with the world, its models, the selection's outline, collider and
   gizmo, every blocker's box, the markers, every meshless place's too, and the device capacities.
