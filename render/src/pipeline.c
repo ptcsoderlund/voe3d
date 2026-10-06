@@ -10,6 +10,8 @@
 // so a caller who never prepares gets them all on its first such pass. A failed
 // step is final: every later call answers FAILED, and elements still draw.
 // voe_render_device_prepare_steps counts them: three, six with shaderOutputLayer.
+// Every build passes the device's pipeline cache (pipeline_cache.c), which a
+// caller may have seeded with an earlier run's bytes.
 //
 // PREPARE MAY RUN ON ONE OTHER THREAD WHILE THE OWNER DRAWS ELEMENT FRAMES
 // (ADR-0370 point 5). A pipeline build takes no guard: it writes only its own
@@ -71,10 +73,11 @@
 // alignas because vkCreateShaderModule takes a const uint32_t *, and #embed can
 // only fill an array of bytes. A char array is aligned for a char; handing a
 // misaligned pointer to the driver is undefined behaviour that happens to work
-// until the day it does not.
-static alignas(uint32_t) const unsigned char draw_spv[] = {
+// until the day it does not. Not static: pipeline_cache.c hashes it.
+alignas(uint32_t) const unsigned char voe_render_draw_spv[] = {
 #embed "draw.spv"
 };
+const size_t voe_render_draw_spv_size = sizeof(voe_render_draw_spv);
 
 // Both entry points live in the one module above, spelled exactly as the shader
 // spells them — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
@@ -119,8 +122,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	const uint32_t colours = shadow ? 0 : capture ? 2 : 1;
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = sizeof(draw_spv),
-		.pCode = (const uint32_t *)draw_spv,
+		.codeSize = sizeof(voe_render_draw_spv),
+		.pCode = (const uint32_t *)voe_render_draw_spv,
 	};
 	VkShaderModule module = VK_NULL_HANDLE;
 	VkPipelineShaderStageCreateInfo stages[2];
@@ -371,8 +374,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	attachments[1] = attachment;
 
 	result = voe_render_vk.create_graphics_pipelines(device->device,
-							 VK_NULL_HANDLE, 1, &info,
-							 NULL, out);
+							 device->pipeline_cache,
+							 1, &info, NULL, out);
 
 	// The module is the compiler's input and the pipeline has finished
 	// reading it, so it goes away here whether or not the pipeline was made.

@@ -152,6 +152,11 @@ typedef struct {
 	PFN_vkCreatePipelineLayout create_pipeline_layout;
 	PFN_vkDestroyPipelineLayout destroy_pipeline_layout;
 	PFN_vkCreateGraphicsPipelines create_graphics_pipelines;
+	// The device's pipeline cache, handed out and taken back as bytes; see
+	// pipeline_cache.c.
+	PFN_vkCreatePipelineCache create_pipeline_cache;
+	PFN_vkDestroyPipelineCache destroy_pipeline_cache;
+	PFN_vkGetPipelineCacheData get_pipeline_cache_data;
 	// The relight's compute pipelines and their dispatches.
 	PFN_vkCreateComputePipelines create_compute_pipelines;
 	PFN_vkCmdDispatch cmd_dispatch;

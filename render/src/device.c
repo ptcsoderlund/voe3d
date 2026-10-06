@@ -1,6 +1,6 @@
 // Starting the GPU: the loader, the instance, the surface, the graphics card and
 // the Best Practices line (best_practices.c), the logical device, the pipeline
-// layout and the element pipeline, in that order,
+// layout, the empty pipeline cache and the element pipeline, in that order,
 // because each one is what the next is asked for. Everything here happens once.
 // open_device below is the one place that order is written; the steps that grew
 // too long for this file are beside it, declared in startup.h: the instance and
@@ -565,6 +565,10 @@ static void close_down(voe_render_device *device)
 		if (device->pipeline != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline, NULL);
+		if (device->pipeline_cache != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline_cache(device->device,
+							     device->pipeline_cache,
+							     NULL);
 		if (device->layout != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline_layout(device->device,
 							      device->layout, NULL);
@@ -762,7 +766,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		voe_render_texture_write_descriptors(device, i);
 	}
 	voe_render_targets_startup(device);
-	if (!voe_render_pipeline_layout_create(device))
+	if (!voe_render_pipeline_layout_create(device) ||
+	    !voe_render_pipeline_cache_create(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// After the layout, because the element pipeline shares it. The mesh
 	// pipelines are not built here: voe_render_device_prepare's.

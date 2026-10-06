@@ -989,6 +989,30 @@ voe_render_prepare voe_render_device_prepare(voe_render_device *device);
 // show "2/6" as the steps are taken.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
 
+// THE PIPELINE CACHE, AS BYTES OUT AND IN (ADR-0370 point 6). Every mesh
+// pipeline prepare builds goes through the device's cache; a caller keeps its
+// bytes between runs so the next start builds faster. The bytes are render's own
+// header and then the driver's cache: a magic, a version, the card's vendor and
+// device ids and pipelineCacheUUID, a 64-bit hash of every shader this build
+// embeds, the payload's size and its checksum.
+//
+// A STALE CACHE IS NEVER AN ERROR. Bytes from another build, another card,
+// another driver, cut short or corrupted are refused quietly and the device
+// starts empty, which costs only the time the cache would have saved.
+
+// Takes bytes voe_render_device_cache_bytes handed out, before the first prepare
+// step only (asserted; seeding more than once before it is allowed). True when
+// they are this build's on this card and the cache now holds them; false, the
+// cache left empty, on any mismatch, a short buffer, or NULL and 0.
+[[nodiscard]] bool voe_render_device_cache_seed(voe_render_device *device,
+						const void *bytes, size_t size);
+
+// The cache behind render's header, pushed into `arena`, its length in *size.
+// NULL, *size 0, when the driver will not hand it out. Call it once prepare has
+// answered PREPARED, on the thread that prepared or after it is joined.
+const void *voe_render_device_cache_bytes(voe_render_device *device,
+					  voe_base_arena *arena, size_t *size);
+
 // --------------------------------------------------------------- geometry
 
 // Appends the vertices and the indices to the pools and hands back the id that

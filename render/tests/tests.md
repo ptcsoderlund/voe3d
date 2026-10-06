@@ -52,6 +52,9 @@ by reading the offscreen colour image back.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
   calls and one more than the step count says, a pass with no camera drawing an element before any,
   a camera pass preparing it all, and prepare on a thread while element frames draw. Headless.
+- `pipeline_cache.c` — the pipeline cache as bytes: one device's handed out and taken by a second,
+  which prepares; one payload byte flipped, 10 bytes, or none refused, and that device still
+  prepares. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.

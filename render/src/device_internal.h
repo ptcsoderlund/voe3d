@@ -212,6 +212,10 @@ struct voe_render_device {
 	bool relight_started;
 	// Whether a prepare step failed: every later prepare answers FAILED.
 	bool prepare_failed;
+	// What every mesh pipeline build passes, pipeline_cache.c's: made empty at
+	// open, replaced by a seeded one before the first prepare step, destroyed
+	// at close.
+	VkPipelineCache pipeline_cache;
 
 	// How much room the caller asked for, kept because every _create below
 	// compares against it and because a full pool has to say what it was
