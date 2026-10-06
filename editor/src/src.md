@@ -21,6 +21,10 @@ carries it out.
   borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
 - `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
   the three left-press readers under one shared block.
+- `frame_selection.h` — F: the view under the pointer glides to the selection's size from `3d`, or
+  to a sizeless thing's place at a fixed 3 m, nothing saved or undone.
+- `frame_selection.c` — the selection and view checked, the bounds or world position, the distance
+  and the glide.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.

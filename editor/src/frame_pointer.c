@@ -3,6 +3,7 @@
 // Assets drag and the pick, in the order frame_pointer.h gives. See there.
 #include "frame_pointer.h"
 
+#include "frame_selection.h"
 #include "notice.h"
 #include "panels.h"
 #include "view_passes.h"
@@ -143,6 +144,13 @@ voe_editor_frame_pointer_read(voe_editor_frame_pointer *frame,
 	result.keyboard = voe_editor_frame_commands_read(
 		frame->commands, input->keyboard, input->text, left,
 		result.flying);
+	// F: the view under the pointer glides to the selection
+	// (frame_selection.h), against what the pick is handed.
+	if (frame->commands->shortcuts.frame_selection)
+		voe_editor_frame_selection(
+			frame->views, frame->scene, frame->geometries,
+			voe_editor_models_store(frame->models),
+			frame->root->pointer.at);
 	if (result.flying) {
 		frame->root->pointer.over = false;
 		frame->root->pointer.down = false;

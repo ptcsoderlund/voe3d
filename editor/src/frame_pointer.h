@@ -12,8 +12,9 @@
 // 1. The right button flies the view it went down over (view.h). A flying
 //    view keeps every key from the shortcuts and `ui`, so it is read first.
 // 2. The shortcuts, Escape's order and `ui`'s keyboard (frame_commands.h),
-//    told whether a view flies; a flying view then takes `ui`'s pointer and
-//    the left button.
+//    told whether a view flies, then F's frame of the selection in the view
+//    under the pointer (frame_selection.h); a flying view then takes `ui`'s
+//    pointer and the left button.
 // 3. The borders (resize.h): a seam is a fill the walk draws, not a widget,
 //    so they are asked before anything else that reads the left button; one
 //    they have takes `ui`'s pointer and the left button too.
