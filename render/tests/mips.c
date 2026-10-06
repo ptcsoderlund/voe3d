@@ -1,13 +1,19 @@
 // A SMOOTH texture's mip chain (ADR-0359), checked in the picture: hard texels
 // when it is magnified, a blend of black and white when it is minified far.
 //
-// Two cases, each one quad facing the camera wearing a black and white one-texel
+// The first two cases are each one quad facing the camera wearing a black and white one-texel
 // checker, unlit so no light moves the numbers. Up close a 4×4 checker fills the
 // whole 64×64 picture, sixteen pixels a texel, and every pixel must be within 2
 // of pure black or pure white: magnification is NEAREST. Far, a 256×256 checker
 // on a quad 16 pixels across, so a pixel spans sixteen texels; every pixel inside
 // its edge must be between 64 and 220, which one level read NEAREST never gives.
 // The linear-light average of black and white is 188 in the sRGB target.
+//
+// A third case is low-angle (ADR-0369): the same checker tiled 64×16 times over
+// a plane 200 wide and 90 deep, one unit below the eye, from 1 to 91 ahead. It
+// fills the picture's lower half; its far half, the 16 rows by the horizon, is
+// minified two texels or more on both axes and must be the same blend, which is
+// anisotropic filtering with its mips and not a smear or a crawl.
 //
 // The camera sits at the origin looking down −Z with a 90° field of view, so
 // at a distance of 1 the picture is exactly 2 units across: a quad of half-side
@@ -39,7 +45,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 2,
+	.shadings = 3,
 	.passes = 1,
 };
 
@@ -91,16 +97,42 @@ static voe_render_view the_camera(void)
 	return view;
 }
 
-// One texture, one record, one quad of the given half-side at z = −1, drawn
-// and read back into `buffer` at `offset`.
+// The quad facing the camera at z = −1, of the given half-side.
+static voe_math_float4x4 facing(float half)
+{
+	voe_math_float4x4 world = voe_math_float4x4_identity();
+
+	world.m[0][0] = half;
+	world.m[1][1] = half;
+	world.m[2][3] = -1.0f;
+	return world;
+}
+
+// The quad laid flat one unit below the eye, its top side up: x stays x, its y
+// runs away down −Z from z = −1 to −91, and 200 wide so it spans the picture.
+static voe_math_float4x4 low_angle(void)
+{
+	voe_math_float4x4 world = { 0 };
+
+	world.m[0][0] = 100.0f;
+	world.m[1][2] = 1.0f;
+	world.m[1][3] = -1.0f;
+	world.m[2][1] = -45.0f;
+	world.m[2][3] = -46.0f;
+	world.m[3][3] = 1.0f;
+	return world;
+}
+
+// One texture, one record, one quad placed by `world`, drawn and read back
+// into `buffer` at `offset`.
 static void draw_case(voe_render_device *device, voe_render_geometry quad,
-		      voe_render_shading shading, float half,
+		      voe_render_shading shading, voe_math_float4x4 world,
 		      VkBuffer buffer, VkDeviceSize offset)
 {
 	const struct voe_render_frame *frame = voe_render_frame_current(device);
 	voe_platform_size size = { SIDE, SIDE };
 	voe_render_object object = {
-		.world = voe_math_float4x4_identity(),
+		.world = world,
 		.normal = voe_math_float4x4_identity(),
 		.shading = shading.index,
 		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
@@ -146,10 +178,6 @@ static void draw_case(voe_render_device *device, voe_render_geometry quad,
 		.pCommandBufferInfos = &submit_commands,
 	};
 	bool drawing = false;
-
-	object.world.m[0][0] = half;
-	object.world.m[1][1] = half;
-	object.world.m[2][3] = -1.0f;
 
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
@@ -206,14 +234,15 @@ static void check_hard(const uint8_t *image)
 	VOE_TEST_CHECK(whites > 0);
 }
 
-// The quad covers pixels 24 .. 39; its inside, one pixel in from each edge,
+// Every pixel in rows `top` .. `bottom` − 1 and columns `left` .. `right` − 1
 // must be a blend on every channel.
-static void check_blend(const uint8_t *image)
+static void check_blend(const uint8_t *image, uint32_t left, uint32_t top,
+			uint32_t right, uint32_t bottom)
 {
 	uint32_t outside = 0;
 
-	for (uint32_t y = 25; y < 39; y++) {
-		for (uint32_t x = 25; x < 39; x++) {
+	for (uint32_t y = top; y < bottom; y++) {
+		for (uint32_t x = left; x < right; x++) {
 			const uint8_t *p = image + ((size_t)y * SIDE + x) * 4;
 
 			for (uint32_t c = 0; c < 3; c++) {
@@ -225,14 +254,16 @@ static void check_blend(const uint8_t *image)
 	VOE_TEST_CHECK_INT(outside, 0);
 }
 
-static bool make_case(voe_render_device *device, uint32_t side,
-		      voe_render_shading *out, voe_base_error *error)
+// A checker of `side` texels tiled `across` × `along` times over the quad.
+static bool make_case(voe_render_device *device, uint32_t side, float across,
+		      float along, voe_render_shading *out,
+		      voe_base_error *error)
 {
 	voe_render_texture texture = { 0 };
 	voe_render_shading_values values = {
 		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 		.roughness = 1.0f,
-		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
+		.base_colour_uv_rect = { 0.0f, 0.0f, across, along },
 		.unlit = 1,
 	};
 
@@ -254,6 +285,7 @@ int main(void)
 	voe_render_geometry quad = { 0 };
 	voe_render_shading near_case = { 0 };
 	voe_render_shading far_case = { 0 };
+	voe_render_shading low_case = { 0 };
 	void *mapped = NULL;
 
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
@@ -274,7 +306,7 @@ int main(void)
 						  "vkCmdCopyImageToBuffer");
 	VOE_TEST_CHECK(copy_image_to_buffer != NULL);
 	VOE_TEST_CHECK(voe_render_buffer_build(
-		device, &readback, IMAGE_BYTES * 2,
+		device, &readback, IMAGE_BYTES * 3,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -282,13 +314,19 @@ int main(void)
 	VOE_TEST_CHECK(voe_render_geometry_create(device, QUAD_VERTICES, 4,
 						  QUAD_INDICES, 6, &quad,
 						  &error));
-	VOE_TEST_CHECK(make_case(device, 4, &near_case, &error));
-	VOE_TEST_CHECK(make_case(device, FAR_TEXELS, &far_case, &error));
+	VOE_TEST_CHECK(make_case(device, 4, 1.0f, 1.0f, &near_case, &error));
+	VOE_TEST_CHECK(make_case(device, FAR_TEXELS, 1.0f, 1.0f, &far_case,
+				 &error));
+	VOE_TEST_CHECK(make_case(device, FAR_TEXELS, 64.0f, 16.0f, &low_case,
+				 &error));
 
 	if (copy_image_to_buffer != NULL && readback.buffer != VK_NULL_HANDLE) {
-		draw_case(device, quad, near_case, 1.0f, readback.buffer, 0);
-		draw_case(device, quad, far_case, 0.25f, readback.buffer,
-			  IMAGE_BYTES);
+		draw_case(device, quad, near_case, facing(1.0f),
+			  readback.buffer, 0);
+		draw_case(device, quad, far_case, facing(0.25f),
+			  readback.buffer, IMAGE_BYTES);
+		draw_case(device, quad, low_case, low_angle(), readback.buffer,
+			  IMAGE_BYTES * 2);
 
 		VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 							    readback.memory, 0,
@@ -297,8 +335,12 @@ int main(void)
 				   VK_SUCCESS);
 		if (mapped != NULL) {
 			check_hard(mapped);
-			check_blend((const uint8_t *)mapped + IMAGE_BYTES);
-			voe_render_vk.unmap_memory(device->device,
+			// The far quad's inside, one pixel in from its edges.
+			check_blend((const uint8_t *)mapped + IMAGE_BYTES, 25,
+				    25, 39, 39);
+			// The plane's far half: the 16 rows below the horizon.
+			check_blend((const uint8_t *)mapped + IMAGE_BYTES * 2,
+				    0, SIDE / 2, SIDE, SIDE * 3 / 4);			voe_render_vk.unmap_memory(device->device,
 						   readback.memory);
 		}
 	}
