@@ -47,7 +47,7 @@ carries it out.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
   once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
   with acting on one left to the caller.
-- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D, R and F, the
   rest a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
   `--capture`'s path, `--size`'s picture, `--frames`' count and `--capture-view`'s path, or one
