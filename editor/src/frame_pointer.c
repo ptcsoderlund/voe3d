@@ -1,5 +1,5 @@
 // main.c's loop's run of pointer and view reads, moved here with its comments:
-// the fly and the shortcuts, the borders, then the middle drag, the gizmo, the
+// the glide, the fly and the shortcuts, the borders, then the middle drag, the gizmo, the
 // Assets drag and the pick, in the order frame_pointer.h gives. See there.
 #include "frame_pointer.h"
 
@@ -134,6 +134,7 @@ voe_editor_frame_pointer_read(voe_editor_frame_pointer *frame,
 			"a pointer read with no keyboard or text");
 	left = input->left;
 
+	voe_editor_views_glide(frame->views, input->seconds);
 	result.flying = fly(frame, input);
 
 	// The shortcuts read and acted on, Escape's order, and the keyboard
