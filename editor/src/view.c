@@ -1,4 +1,4 @@
-// The views: their cameras, their targets and the preview's, the middle-button drag, and the
+// The views: their cameras, their targets and the preview's, the middle-button drag, the glide, and the
 // light, the outline colour, the gizmo's colour and a blocker's faint colour a view is drawn with. See
 // the header for why the camera is not an entity, why the light is the world's and not the views' to
 // hold, why the picture lags the layout by a frame, and why a view nobody shows
@@ -149,9 +149,65 @@ void voe_editor_views_focus_camera(voe_editor_views *views,
 	}
 
 	for (uint32_t i = 0; i < views->count; i++) {
+		views->views[i].gliding = false;
 		views->views[i].focus = focus;
 		orbit_place(&views->views[i]);
 	}
+}
+
+void voe_editor_view_glide_to(voe_editor_view *view, voe_math_double3 focus,
+			      float distance)
+{
+	VOE_BASE_ASSERT(view != NULL, "gliding no view");
+	VOE_BASE_ASSERT(isfinite(distance), "gliding to no distance");
+
+	view->gliding = true;
+	view->glide_from_focus = view->focus;
+	view->glide_from_distance = view->distance;
+	view->glide_to_focus = focus;
+	view->glide_to_distance = distance < CLOSEST ? CLOSEST : distance;
+	view->glide_seconds = 0.0f;
+	VOE_BASE_ASSERT(view->glide_to_distance >= CLOSEST,
+			"a glide closer than the orbit allows");
+}
+
+// One gliding view moved on by `seconds`: smoothstep of the share of the glide
+// gone, the focus lerped per component in double so a far scene stays exact.
+static void glide_view(voe_editor_view *view, float seconds)
+{
+	view->glide_seconds += seconds;
+	if (view->glide_seconds >= VOE_EDITOR_VIEW_GLIDE_SECONDS) {
+		view->focus = view->glide_to_focus;
+		view->distance = view->glide_to_distance;
+		view->gliding = false;
+	} else {
+		double t = (double)(view->glide_seconds /
+				    VOE_EDITOR_VIEW_GLIDE_SECONDS);
+		double s = t * t * (3.0 - 2.0 * t);
+		voe_math_double3 a = view->glide_from_focus;
+		voe_math_double3 b = view->glide_to_focus;
+
+		view->focus = (voe_math_double3){ a.x + (b.x - a.x) * s,
+						  a.y + (b.y - a.y) * s,
+						  a.z + (b.z - a.z) * s };
+		view->distance = view->glide_from_distance +
+				 (view->glide_to_distance -
+				  view->glide_from_distance) *
+					 (float)s;
+	}
+	orbit_place(view);
+}
+
+void voe_editor_views_glide(voe_editor_views *views, float seconds)
+{
+	VOE_BASE_ASSERT(views != NULL, "gliding no views");
+	VOE_BASE_ASSERT(seconds >= 0.0f, "gliding for a time before now");
+
+	for (uint32_t i = 0; i < views->count; i++)
+		if (views->views[i].gliding)
+			glide_view(&views->views[i], seconds);
+	VOE_BASE_ASSERT(views->count <= VOE_EDITOR_VIEWS,
+			"more views in use than there is room for");
 }
 
 void voe_editor_view_fit(voe_editor_view *view, voe_render_device *gpu,
@@ -333,11 +389,13 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 {
 	VOE_BASE_ASSERT(views != NULL, "dragging no views");
 
-	if (middle && !views->middle_was_down)
+	if (middle && !views->middle_was_down) {
 		views->captured = views->flying == VOE_EDITOR_VIEW_NONE ?
 					  view_under(views, pointer) :
 					  VOE_EDITOR_VIEW_NONE;
-	else if (middle && views->captured != VOE_EDITOR_VIEW_NONE)
+		if (views->captured != VOE_EDITOR_VIEW_NONE)
+			views->views[views->captured].gliding = false;
+	} else if (middle && views->captured != VOE_EDITOR_VIEW_NONE)
 		drag_view(&views->views[views->captured],
 			  voe_math_float2_sub(pointer, views->pointer), shift,
 			  control);
@@ -398,11 +456,13 @@ bool voe_editor_views_fly(voe_editor_views *views, voe_math_float2 pointer,
 	VOE_BASE_ASSERT(views != NULL, "flying no views");
 	VOE_BASE_ASSERT(seconds >= 0.0f, "flying for a time before now");
 
-	if (right && !views->right_was_down)
+	if (right && !views->right_was_down) {
 		views->flying = views->captured == VOE_EDITOR_VIEW_NONE ?
 					view_under(views, pointer) :
 					VOE_EDITOR_VIEW_NONE;
-	else if (!right)
+		if (views->flying != VOE_EDITOR_VIEW_NONE)
+			views->views[views->flying].gliding = false;
+	} else if (!right)
 		views->flying = VOE_EDITOR_VIEW_NONE;
 
 	if (views->flying != VOE_EDITOR_VIEW_NONE)

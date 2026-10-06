@@ -42,11 +42,12 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 	// typing or the browser shows.
 	out.delete_entity = keys->pressed[VOE_PLATFORM_KEY_DELETE] && !quiet;
 	out.duplicate = control && keys->pressed[VOE_PLATFORM_KEY_D] && !quiet;
-	// R, WITH NO MODIFIER, UNDER DELETE'S GUARD AND WITH NOTHING OPEN THAT
-	// A KEY MIGHT BELONG TO: no picker, no dropdown.
-	out.gizmo_switch = keys->pressed[VOE_PLATFORM_KEY_R] && !control &&
-			   !shift && !quiet && !guards.picker_open &&
-			   !guards.dropdown_open;
+	// R AND F, WITH NO MODIFIER, UNDER DELETE'S GUARD AND WITH NOTHING OPEN
+	// THAT A KEY MIGHT BELONG TO: no picker, no dropdown.
+	const bool bare = !control && !shift && !quiet && !guards.picker_open &&
+			  !guards.dropdown_open;
+	out.gizmo_switch = keys->pressed[VOE_PLATFORM_KEY_R] && bare;
+	out.frame_selection = keys->pressed[VOE_PLATFORM_KEY_F] && bare;
 
 	// CTRL+Z AND CTRL+SHIFT+Z OR CTRL+Y ARE THE SAME SHAPE OF EDGE AGAIN,
 	// and beyond `quiet` they ask for the rest a step is recorded at

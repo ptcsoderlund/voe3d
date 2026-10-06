@@ -17,6 +17,14 @@ carries it out.
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
 - `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
   Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
+- `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
+  borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
+- `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
+  the three left-press readers under one shared block.
+- `frame_selection.h` — F: the view under the pointer glides to the selection's size from `3d`, or
+  to a sizeless thing's place at a fixed 3 m, nothing saved or undone.
+- `frame_selection.c` — the selection and view checked, the bounds or world position, the distance
+  and the glide.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
@@ -43,7 +51,7 @@ carries it out.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
   once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
   with acting on one left to the caller.
-- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D and R, the
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D, R and F, the
   rest a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
   `--capture`'s path, `--size`'s picture, `--frames`' count and `--capture-view`'s path, or one
@@ -220,9 +228,10 @@ carries it out.
   and why names and only authored ones.
 - `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
   label.
-- `view.h` — a scene view: its orbit, target and input, the view under the pointer, the colours
-  it is drawn with, and the preview of what the world's camera sees.
-- `view.c` — the views' orbit, which owns the eye, the drag's and the fly's rates, their targets,
+- `view.h` — a scene view: its orbit, target and input, the glide to a focus, the view under the
+  pointer, the colours it is drawn with, and the preview of what the world's camera sees.
+- `view.c` — the views' orbit, which owns the eye, the drag's and fly's rates, the glide,
+  their targets,
   the focus set to the world camera's position, the world's first light row and the selection's
   outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow

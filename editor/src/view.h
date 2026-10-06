@@ -40,10 +40,12 @@
 // the editor's preview light instead (0287), never an entity; see
 // voe_editor_view_light.
 //
-// A VIEW IS MOVED TWO WAYS, ONE VIEW AT A TIME: the middle-button drag and the
-// right-button fly (0233). Each holds the view it started over until its button
-// comes up, and neither starts while the other holds one. Neither is written
-// anywhere — not to the world, not to undo, not to settings.
+// A VIEW IS MOVED THREE WAYS: the middle-button drag and the right-button fly
+// (0233), each holding the view it started over until its button comes up and
+// neither starting while the other holds one, and the glide to a focus (0371).
+// A drag or fly starting on a view ends its glide where it is; the views opening
+// on the camera end every glide. None is saved — not to the world, not to undo,
+// not to settings.
 //
 // THE PREVIEW IS WHAT THE WORLD'S CAMERA SEES, AT ONE FIXED SIZE (0223): a
 // 16:9 target of VOE_EDITOR_PREVIEW_WIDTH by _HEIGHT pixels, made beside the
@@ -85,6 +87,9 @@
 #define VOE_EDITOR_PREVIEW_WIDTH 480
 #define VOE_EDITOR_PREVIEW_HEIGHT 270
 
+// How long a glide takes, in seconds (0371 point 3).
+#define VOE_EDITOR_VIEW_GLIDE_SECONDS 0.25f
+
 // One view. `eye` is worked out from the focus, the distance, `yaw` and
 // `pitch` by the orbit and is never set on its own; the fly moves it only by
 // moving the focus with it, so the orbit's sum stays true. Zero yaw looks down −Z,
@@ -100,6 +105,15 @@ typedef struct {
 	// the eye stands from it. The distance is always above nought.
 	voe_math_double3 focus;
 	float distance;
+
+	// The glide: whether one is under way, the focus and distance it left
+	// and is going to, and the seconds gone since it began.
+	bool gliding;
+	voe_math_double3 glide_from_focus;
+	float glide_from_distance;
+	voe_math_double3 glide_to_focus;
+	float glide_to_distance;
+	float glide_seconds;
 
 	voe_render_target target;
 	voe_render_texture texture;
@@ -233,6 +247,16 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 bool voe_editor_views_fly(voe_editor_views *views, voe_math_float2 pointer,
 			  bool right, voe_math_float2 turn,
 			  voe_editor_fly_keys keys, float seconds);
+
+// Starts the view gliding from where it is now to orbit `focus` at `distance`,
+// the distance clamped to the orbit's closest; yaw and pitch stay (0371).
+void voe_editor_view_glide_to(voe_editor_view *view, voe_math_double3 focus,
+			      float distance);
+
+// Once a frame: every gliding view moves by smoothstep of the time gone over
+// VOE_EDITOR_VIEW_GLIDE_SECONDS, the focus lerped in double and the eye put back
+// by the orbit; at the end it lands exactly on the target and stops gliding.
+void voe_editor_views_glide(voe_editor_views *views, float seconds);
 
 // Which view the pointer is over and where in that view's picture, in the
 // picture's own pixels — x right, y down from its top-left corner, which is

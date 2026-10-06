@@ -77,6 +77,8 @@ static voe_platform_key key_of(WPARAM virtual_key)
 		return VOE_PLATFORM_KEY_Y;
 	case 'R':
 		return VOE_PLATFORM_KEY_R;
+	case 'F':
+		return VOE_PLATFORM_KEY_F;
 	default:
 		return VOE_PLATFORM_KEY_COUNT;
 	}
@@ -195,6 +197,7 @@ void voe_platform_seat_focus_gained(voe_platform_window *window)
 		[VOE_PLATFORM_KEY_Z] = 'Z',
 		[VOE_PLATFORM_KEY_Y] = 'Y',
 		[VOE_PLATFORM_KEY_R] = 'R',
+		[VOE_PLATFORM_KEY_F] = 'F',
 	};
 
 	for (int key = 0; key < VOE_PLATFORM_KEY_COUNT; key++)
