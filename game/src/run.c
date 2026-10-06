@@ -136,7 +136,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 	// The built scene's models, before the first frame. Failures are on
 	// stderr and kept as failed entries, here and each frame.
 	(void)voe_game_models_update(world, models->store, voe_app_device(app),
-				     models->folder, scratch);
+				     models->folder, scratch, NULL);
 	voe_app_start_log_step(log, "models and sound");
 	while (true) {
 		voe_app_frame frame = voe_app_frame_open(app);
@@ -152,8 +152,9 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			steps = (voe_game_steps){ 0 };
 			(void)voe_game_models_update(world, models->store,
 						     voe_app_device(app),
-						     models->folder, scratch);
-			asks = (voe_game_project_asks){ 0 };
+						     models->folder, scratch,
+						     NULL);
+			asks =(voe_game_project_asks){ 0 };
 		}
 		if (!asks.paused)
 			lag = voe_game_steps_run(
@@ -163,7 +164,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 				voe_game_project_systems_after_move);
 		(void)voe_game_models_update(world, models->store,
 					     voe_app_device(app),
-					     models->folder, scratch);
+					     models->folder, scratch, NULL);
 		// The ui frame is laid out in scratch and gone by the next.
 		voe_base_arena_clear(scratch);
 		if (!voe_game_interface_run(interface, scratch, world,

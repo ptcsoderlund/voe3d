@@ -17,9 +17,14 @@
 // THE WATER, on a third world and store: with no water an update loads no
 // water record; with one, it loads it.
 //
+// THE PROGRESS, on a fourth world and store: two rows naming the `.glb` update
+// with a progress to total 1 and done 1; with stop already asked an update
+// reads nothing, and a second one without a progress loads the file.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
+#include <game/progress.h>
 #include <game/world.h>
 
 #include <3d/emitter_component.h>
@@ -41,6 +46,7 @@
 
 #include <testing/test.h>
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -152,7 +158,8 @@ static void check_pictures(voe_ecs_world *world, voe_render_device *device,
 
 	// ---- an emitter naming a PNG: a picture entry and the dot
 	emit(world, PICTURE);
-	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	entry = voe_3d_models_find(models, PICTURE);
 	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->picture);
@@ -162,7 +169,8 @@ static void check_pictures(voe_ecs_world *world, voe_render_device *device,
 
 	// ---- an emitter naming a missing file: one failure, named
 	emit(world, NO_PICTURE);
-	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&
 		       strcmp(failures.first, NO_PICTURE) == 0);
@@ -178,7 +186,8 @@ static void check_water(voe_ecs_world *world, voe_render_device *device,
 	voe_game_models_failures failures;
 
 	// ---- no water: no record
-	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(voe_3d_models_water(models) == NULL);
 
@@ -186,7 +195,8 @@ static void check_water(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(voe_3d_water_add(world, place(world),
 					(voe_3d_water){ .width = 20.0f,
 							.length = 20.0f }));
-	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(voe_3d_models_water(models) != NULL);
 
@@ -204,6 +214,40 @@ static bool loaded_at(const voe_3d_models *models, uint64_t *stamp)
 	return entry->loaded;
 }
 
+static void check_progress(voe_ecs_world *world, voe_render_device *device,
+			   voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_progress progress = { 0 };
+	voe_game_models_failures failures;
+	uint64_t stamp = 0;
+
+	// ---- with a progress: one file counted, and done at the end
+	wear(world, GOOD);
+	wear(world, GOOD);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  &progress);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(loaded_at(models, &stamp));
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 1);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 1);
+	voe_3d_models_clear(models, device);
+
+	// ---- stop already asked: nothing read; a later call reads it
+	atomic_store(&progress.stop, true);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  &progress);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(loaded_at(models, &stamp));
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -214,7 +258,8 @@ static void check_files(voe_ecs_world *world, voe_render_device *device,
 
 	// ---- a row naming the file: no failure, a loaded entry
 	wear(world, GOOD);
-	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(failures.first == NULL);
 	VOE_TEST_CHECK(loaded_at(models, &first));
@@ -222,7 +267,8 @@ static void check_files(voe_ecs_world *world, voe_render_device *device,
 
 	// ---- a row naming a missing file: one failure, named
 	wear(world, MISSING);
-	failures = voe_game_models_update(world, models, device, FOLDER, scratch);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&
 		       strcmp(failures.first, MISSING) == 0);
@@ -279,6 +325,7 @@ int main(void)
 	check_files(voe_game_world_new(arena), device, scratch, glb, length);
 	check_pictures(voe_game_world_new(arena), device, scratch);
 	check_water(voe_game_world_new(arena), device, scratch);
+	check_progress(voe_game_world_new(arena), device, scratch);
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(FOLDER);
