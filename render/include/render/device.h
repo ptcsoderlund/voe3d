@@ -977,7 +977,17 @@ typedef enum {
 // A caller who never calls it loses nothing: a pass with a camera, a shadow,
 // point-shadow, capture or bounce shadow pass and voe_render_bounce_begin build
 // whatever is left first, and refuse when that fails.
+//
+// ONE OTHER THREAD MAY CALL IT WHILE THE OWNER DRAWS ONLY ELEMENT PASSES, passes
+// with no camera (ADR-0370). A pass that would build pipelines — any of those
+// named above — must not be drawn until that thread is done.
 voe_render_prepare voe_render_device_prepare(voe_render_device *device);
+
+// How many steps voe_render_device_prepare takes on this card from an unprepared
+// device: the solid, blended and shadow pipelines, and with shaderOutputLayer
+// the point shadow and capture ones and the relight's startup. So a caller can
+// show "2/6" as the steps are taken.
+uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
 
 // --------------------------------------------------------------- geometry
 

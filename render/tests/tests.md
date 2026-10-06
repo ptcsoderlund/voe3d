@@ -50,8 +50,8 @@ by reading the offscreen colour image back.
   shadow pass and a camera pass with a depth copy and an element closing with no new message; a
   release build says so and passes. Headless.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
-  calls, a pass with no camera drawing an element before any, and a camera pass preparing it all.
-  Headless.
+  calls and one more than the step count says, a pass with no camera drawing an element before any,
+  a camera pass preparing it all, and prepare on a thread while element frames draw. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.

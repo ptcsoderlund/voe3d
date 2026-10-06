@@ -9,6 +9,13 @@
 // calls it until nothing is left; every pass that can use one calls that first,
 // so a caller who never prepares gets them all on its first such pass. A failed
 // step is final: every later call answers FAILED, and elements still draw.
+// voe_render_device_prepare_steps counts them: three, six with shaderOutputLayer.
+//
+// PREPARE MAY RUN ON ONE OTHER THREAD WHILE THE OWNER DRAWS ELEMENT FRAMES
+// (ADR-0370 point 5). A pipeline build takes no guard: it writes only its own
+// handle, which no element pass reads. The relight's startup allocates and
+// writes descriptor sets, so it takes the device's guard around itself and
+// waits while a frame is open on the other thread.
 //
 // THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/draw.slang into
 // the build tree and #embed puts the result in the binary below; nothing is read
@@ -493,6 +500,14 @@ voe_render_prepare voe_render_device_prepare(voe_render_device *device)
 		return VOE_RENDER_PREPARE_FAILED;
 	}
 	return prepared(device) ? VOE_RENDER_PREPARED : VOE_RENDER_PREPARING;
+}
+
+// Matches prepared() above: the three every device has, then two pipelines and
+// the relight's startup only with shaderOutputLayer.
+uint32_t voe_render_device_prepare_steps(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "counting the prepare steps of no device");
+	return device->output_layer ? 6u : 3u;
 }
 
 bool voe_render_device_ready(voe_render_device *device)
