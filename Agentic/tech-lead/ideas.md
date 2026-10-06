@@ -89,8 +89,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   building any. Runtime `vkDeviceWaitIdle`s go (timeline semaphores, a deletion queue, a staging ring,
   update-after-bind textures) with the first work order that loads content during play, i.e. streaming. A
   suballocator, written by us (ADR-0023), not VMA, when allocations near the 4096 floor. Block-compressed textures
-  (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue (the
-  pipeline cache is taken by 0362), more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
+  (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue,
+  more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
   Precise in-frame barriers and leaving GENERAL layouts are planner's work once they can be measured.
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
 - **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.

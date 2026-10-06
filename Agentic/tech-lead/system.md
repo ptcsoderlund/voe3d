@@ -16,14 +16,14 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text (game window too) read and written; cooked to C.
-- **render** — all of Vulkan: card, resources, mipped textures, timed passes, light, shadow, bounce.
+- **render** — all of Vulkan: card, resources, mipped textures, passes, light, bounce, pipeline cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — scene to draws: meshes, models, shapes, particles, water, picks, markers, blocked light.
 - **sprite** — a sprite is a plane in the world and hands back a material.
-- **app** — a frame loop's parts: the paced frame, PNGs out and in, a headless start, start log.
-- **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, the splash.
+- **app** — a frame loop's parts: paced frame, PNGs out and in, headless start, start log, cache file.
+- **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash on a worker.
 - **editor** — top bar, Project, Scene list, Assets, prefabs, views, gizmo, Inspector, Play, GPU ms.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
@@ -57,4 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
-- 0358, 0359, 0362, 0368 — GPU timed per pass; Best Practices gate; far mips; splash; 0.3 Bistro.
+- 0358, 0359, 0362, 0368, 0370 — GPU timed per pass; Best Practices; far mips; splash worker; Bistro.
