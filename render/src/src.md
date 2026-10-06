@@ -92,8 +92,10 @@ which file to open — what each one owns, and where the seams between them run.
   matrix, and the 6-bit mask of a point light's cube faces it reaches, +X −X +Y −Y +Z −Z. Pure CPU.
 - `point_shadow_faces.c` — those three calls: a box-centred sphere, its move under a world matrix,
   and the face mask against one light's widened pyramids; plain arithmetic, no state.
-- `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, the
-  two samplers, and the slot table the ids name.
+- `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, a mip
+  chain for a SMOOTH texture, the three samplers, and the slot table the ids name.
+- `texture_levels.c` — a texture's mip chain, blitted level by level from the upload inside its
+  one submission, every level left ready for the shader.
 - `swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where

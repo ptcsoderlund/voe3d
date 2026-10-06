@@ -10,26 +10,21 @@
 // moves is a barrier and forgetting one is a validation error rather than a
 // wrong picture, which is the good kind of mistake.
 //
-// THERE ARE NO MIPMAPS AND NO LINEAR FILTERING, AND THAT IS THE ENGINE'S RULE
-// RATHER THAN THIS FILE'S OPINION. Every texture is one level, sampled NEAREST,
-// magnified and minified. Both of the things removed here were antialiasing —
-// a mipmap chain exists to stop a minified texture shimmering, and a linear
-// filter exists to stop a magnified one showing its texels — and this engine has
-// decided it does not want antialiasing anywhere. A texture therefore shows its
-// texels close up and shimmers at a distance, and both are the intended picture.
+// A MATERIAL TEXTURE HAS A MIP CHAIN AND KEEPS ITS HARD TEXELS UP CLOSE
+// (ADR-0359). A SMOOTH texture — every model and material picture — gets every
+// level down to 1x1, built on the GPU in the same submission as the upload
+// (texture_levels.c), and is read trilinear when minified, so a distant surface
+// stops sparkling and crawling as the camera moves, and NEAREST when magnified,
+// so up close it shows the texels it always did.
 //
-// WHAT THAT COSTS, WRITTEN DOWN SO NOBODY REDISCOVERS IT AS A BUG. A texture
-// minified past about one texel per pixel aliases, and the aliasing moves as the
-// camera moves. That is the thing mipmaps were for and it will look like a fault
-// in the sampler to anybody who does not know. It is not: see
-// voe_render_sampling.
+// SHEETS AND GLYPHS STAY ONE LEVEL. A SHARP sheet is indexed by rectangle and a
+// lower level would bleed one sprite into the next; a FIELD glyph atlas holds
+// distances that are cut hard afterwards, and is drawn at about its own size.
+// Neither is minified far enough to shimmer, so neither pays for a chain.
 //
-// TWO SAMPLERS, ONE PER MODE, MADE ONCE AT STARTUP. A slot remembers which mode
-// it was created with and the descriptor write reads that back, so the
-// descriptor path is still one loop over the whole table and there is still no
-// per-draw sampler anywhere. With filtering gone the two differ only in how they
-// address outside 0..1 — see voe_render_sampling, whose names now say less than
-// they did.
+// ONE SAMPLER PER MODE, MADE ONCE AT STARTUP. A slot remembers which mode it
+// was created with and the descriptor write reads that back, so the descriptor
+// path is still one loop over the whole table and there is no per-draw sampler.
 #include "device_internal.h"
 
 #include <base/assert.h>
@@ -113,23 +108,22 @@ static void transition(VkCommandBuffer commands, VkImage image,
 static bool build_texture_image(voe_render_device *device,
 				struct voe_render_texture_slot *slot,
 				VkFormat format, uint32_t width,
-				uint32_t height)
+				uint32_t height, uint32_t levels)
 {
 	VkImageCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
 		.format = format,
 		.extent = { width, height, 1 },
-		// One level, always. There are no mipmaps in this engine — see
-		// the header.
-		.mipLevels = 1,
+		.mipLevels = levels,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		// TRANSFER_DST and no TRANSFER_SRC: the only thing that ever
-		// read a texture back out of itself was the mipmap blit chain.
+		// TRANSFER_SRC only with a chain: each level is blitted out of
+		// the one above it.
 		.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-			 VK_IMAGE_USAGE_SAMPLED_BIT,
+			 VK_IMAGE_USAGE_SAMPLED_BIT |
+			 (levels > 1 ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0),
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
@@ -143,7 +137,7 @@ static bool build_texture_image(voe_render_device *device,
 		.format = format,
 		.subresourceRange = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.levelCount = 1,
+			.levelCount = levels,
 			.layerCount = 1,
 		},
 	};
@@ -225,7 +219,7 @@ static bool build_texture_image(voe_render_device *device,
 static bool copy_into_image(voe_render_device *device,
 			    struct voe_render_texture_slot *slot,
 			    const struct voe_render_buffer *staging,
-			    uint32_t width, uint32_t height)
+			    uint32_t width, uint32_t height, uint32_t levels)
 {
 	VkCommandBufferAllocateInfo allocate = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -266,17 +260,22 @@ static bool copy_into_image(voe_render_device *device,
 
 	voe_render_vk.begin_command_buffer(commands, &begin);
 
-	// One level in, one level out. This was a chain of transitions around a
-	// blit chain until the engine stopped having mipmaps.
+	// Every level to TRANSFER_DST, the picture into level 0, then either the
+	// chain blitted down from it or the one level straight to the shader.
 	transition(commands, slot->image, VK_IMAGE_LAYOUT_UNDEFINED,
-		   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, 1);
+		   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, levels);
 
 	voe_render_vk.cmd_copy_buffer_to_image(
 		commands, staging->buffer, slot->image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	transition(commands, slot->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 1);
+	if (levels > 1)
+		voe_render_texture_levels_record(device, commands, slot->image,
+						 width, height, levels);
+	else
+		transition(commands, slot->image,
+			   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 1);
 
 	voe_render_vk.end_command_buffer(commands);
 
@@ -374,6 +373,7 @@ bool voe_render_texture_create(voe_render_device *device,
 	struct voe_render_texture_slot *slot = NULL;
 	VkFormat format = format_for(kind);
 	uint32_t index = 0;
+	uint32_t levels = 1;
 	VkDeviceSize size;
 	bool uploaded;
 
@@ -401,7 +401,16 @@ bool voe_render_texture_create(voe_render_device *device,
 
 	size = (VkDeviceSize)width * height * 4;
 
-	if (!build_texture_image(device, slot, format, width, height))
+	// A SMOOTH texture's chain runs down to 1x1: floor(log2(max side)) + 1
+	// levels, counted by halving, at most 32 for a 32-bit side.
+	if (sampling == VOE_RENDER_SAMPLING_SMOOTH) {
+		levels = 0;
+		for (uint32_t side = width > height ? width : height; side > 0;
+		     side >>= 1)
+			levels++;
+	}
+
+	if (!build_texture_image(device, slot, format, width, height, levels))
 		goto refused;
 
 	if (!voe_render_buffer_build(device, &staging, size,
@@ -428,7 +437,8 @@ bool voe_render_texture_create(voe_render_device *device,
 		voe_render_vk.unmap_memory(device->device, staging.memory);
 	}
 
-	uploaded = copy_into_image(device, slot, &staging, width, height);
+	uploaded = copy_into_image(device, slot, &staging, width, height,
+				   levels);
 	voe_render_buffer_teardown(device, &staging);
 	if (!uploaded)
 		goto refused;
@@ -529,14 +539,14 @@ bool voe_render_texture_startup(voe_render_device *device)
 	// One per voe_render_sampling, in that enum's order, so a slot's mode is
 	// the subscript.
 	//
-	// NO PICTURE IS FILTERED AND ONE FIELD IS, AND BOTH HALVES OF THAT ARE
-	// DELIBERATE. A linear filter over a picture is a blur and a mipmap
-	// chain is a blur chosen in advance; both are antialiasing and card 026
-	// removed them, so SMOOTH and SHARP are NEAREST over one level and the
-	// only thing left to choose between them is what happens outside 0..1.
+	// SMOOTH IS MIPPED AND MAGNIFIED NEAREST, SHARP IS ONE LEVEL NEAREST
+	// (ADR-0359). A material texture seen smaller than itself is filtered
+	// across texels and between levels, which is what stops it shimmering;
+	// seen larger it keeps its hard texels, which is the look. A sheet is
+	// one level and point-sampled: see the header for why.
 	//
-	// A SIGNED DISTANCE FIELD IS NOT A PICTURE AND THE SAME SENTENCE IS
-	// FALSE OF IT. Its texels are distances, not colours: interpolating
+	// A SIGNED DISTANCE FIELD IS NOT A PICTURE, AND FIELD IS LINEAR AT BOTH
+	// ENDS OVER ONE LEVEL. Its texels are distances, not colours: interpolating
 	// between two of them says where the outline crosses between the two
 	// texel centres, which is information the field was written to carry
 	// and point sampling throws away — a plateau per texel, and an edge
@@ -544,29 +554,27 @@ bool voe_render_texture_startup(voe_render_device *device)
 	// moves the edge onto the outline; it does not soften it, because what
 	// reads the field cuts it hard afterwards.
 	//
-	// NO CHAIN IN ANY OF THE THREE. maxLod is 0 everywhere and none is
-	// generated or uploaded; nothing here is an opening for one.
+	// Only SMOOTH reads past level 0; SHARP and FIELD textures have one.
 	VkSamplerCreateInfo infos[VOE_RENDER_SAMPLING_COUNT] = {
-		// REPEAT, because a texture on a cube face runs 0..1 exactly and
-		// what happens outside it is a question nothing asks.
+		// Trilinear minified, NEAREST magnified, every level the image
+		// has. REPEAT, because a material texture tiles.
 		[VOE_RENDER_SAMPLING_SMOOTH] = {
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 			.magFilter = VK_FILTER_NEAREST,
-			.minFilter = VK_FILTER_NEAREST,
-			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.minFilter = VK_FILTER_LINEAR,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			.anisotropyEnable = VK_FALSE,
 			.maxAnisotropy = 1.0f,
 			.minLod = 0.0f,
-			.maxLod = 0.0f,
+			.maxLod = VK_LOD_CLAMP_NONE,
 			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 		},
-		// CLAMP_TO_EDGE, and it still earns its place with the filtering
-		// gone: a sheet is not tiled, and REPEAT lets a coordinate a
-		// hair outside the border wrap to the far side of the atlas and
-		// fetch a different glyph entirely.
+		// One level, NEAREST, CLAMP_TO_EDGE: a sheet is not tiled, and
+		// REPEAT lets a coordinate a hair outside the border wrap to the
+		// far side of the atlas and fetch a different glyph entirely.
 		[VOE_RENDER_SAMPLING_SHARP] = {
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 			.magFilter = VK_FILTER_NEAREST,
@@ -581,11 +589,10 @@ bool voe_render_texture_startup(voe_render_device *device)
 			.maxLod = 0.0f,
 			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 		},
-		// The only filtered sampler in the engine, and CLAMP_TO_EDGE
-		// for the same reason SHARP has it: the sheet it serves is an
-		// atlas. LINEAR here reconstructs where the outline falls
-		// between texel centres — see the block above for why that is
-		// not the blur card 026 removed.
+		// LINEAR over one level, and CLAMP_TO_EDGE for the same reason
+		// SHARP has it: the sheet it serves is an atlas. LINEAR here
+		// reconstructs where the outline falls between texel centres —
+		// see the block above.
 		[VOE_RENDER_SAMPLING_FIELD] = {
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 			.magFilter = VK_FILTER_LINEAR,
@@ -606,10 +613,8 @@ bool voe_render_texture_startup(voe_render_device *device)
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "starting textures on no device");
 
-	// Anisotropy is off in all three, and for two reasons: it is a device
-	// feature nothing has asked for at device creation, and it is itself
-	// antialiasing, so it is not coming back — not even alongside the one
-	// linear filter above, which is a different thing entirely.
+	// Anisotropy is off in all three: it is a device feature nothing has
+	// asked for at device creation yet.
 	for (uint32_t i = 0; i < VOE_RENDER_SAMPLING_COUNT; i++) {
 		result = voe_render_vk.create_sampler(device->device, &infos[i],
 						      NULL,
@@ -631,7 +636,8 @@ bool voe_render_texture_startup(voe_render_device *device)
 		void *mapped = NULL;
 		bool ok;
 
-		if (!build_texture_image(device, slot, TEXTURE_DATA_FORMAT, 1, 1))
+		if (!build_texture_image(device, slot, TEXTURE_DATA_FORMAT, 1, 1,
+					 1))
 			return false;
 		if (!voe_render_buffer_build(
 			    device, &staging, sizeof(WHITE),
@@ -654,7 +660,7 @@ bool voe_render_texture_startup(voe_render_device *device)
 		memcpy(mapped, WHITE, sizeof(WHITE));
 		voe_render_vk.unmap_memory(device->device, staging.memory);
 
-		ok = copy_into_image(device, slot, &staging, 1, 1);
+		ok = copy_into_image(device, slot, &staging, 1, 1, 1);
 		voe_render_buffer_teardown(device, &staging);
 		if (!ok)
 			return false;

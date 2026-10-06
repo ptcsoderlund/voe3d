@@ -373,6 +373,14 @@ void voe_render_texture_shutdown(voe_render_device *device);
 void voe_render_texture_write_descriptors(voe_render_device *device,
 					  uint32_t slot);
 
+// texture_levels.c. Record the blits that fill levels 1 .. level_count - 1 of
+// a texture from level 0, into the upload's own command buffer. Level 0 and
+// every other level arrive in TRANSFER_DST and all leave in SHADER_READ_ONLY.
+void voe_render_texture_levels_record(voe_render_device *device,
+				      VkCommandBuffer commands, VkImage image,
+				      uint32_t width, uint32_t height,
+				      uint32_t level_count);
+
 // probe.c. The pipeline that reads a matrix and reports what it saw, built on
 // demand and owned by the caller — VK_NULL_HANDLE on failure, and destroyed with
 // voe_render_vk.destroy_pipeline. It shares the device's pipeline layout, so it
