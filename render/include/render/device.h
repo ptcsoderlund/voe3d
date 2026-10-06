@@ -249,16 +249,14 @@ typedef enum {
 // questions are "what do these bytes mean" and "how is this texture read", and
 // only the second one is here.
 //
-// NO PICTURE IN THIS ENGINE IS FILTERED, AND THAT IS NOT WHAT THESE NAMES
-// SUGGEST. SMOOTH and SHARP are both NEAREST over one level, with no mipmap
-// chain anywhere (card 026). What is genuinely left to choose between them is
-// what happens outside 0..1 — REPEAT for a picture on a surface, CLAMP_TO_EDGE
-// for a sheet something indexes into. The two names are older than that and
-// promise more than they deliver; read the values below, not the words.
+// A MATERIAL TEXTURE IS MIPPED AND A SHEET IS NOT (ADR-0359). SMOOTH gets a
+// full mip chain, read trilinear when minified so a distant surface does not
+// shimmer, and NEAREST when magnified so up close it keeps its hard texels.
+// SHARP is one level read NEAREST, for a sheet something indexes into, where a
+// lower level would bleed one rectangle into the next.
 //
-// FIELD IS THE ONE FILTERED MODE AND IT IS NOT A PICTURE. Interpolating between
-// two colours is a blur, and a blur is the antialiasing card 026 removed.
-// Interpolating between two distances is reconstruction of where the edge is,
+// FIELD IS LINEAR AND IT IS NOT A PICTURE. Interpolating between two distances
+// is reconstruction of where the edge is,
 // which is the whole of what makes a signed distance field a field rather than
 // a grid of plateaus. That distinction is the rule: a texture asking for FIELD
 // is asserting its texels are numbers on a continuum, and nothing whose texels
@@ -267,8 +265,9 @@ typedef enum {
 // SMOOTH IS 0, SO A CALLER THAT MEANT NOTHING IN PARTICULAR GETS WHAT EVERY
 // TEXTURE IN THIS ENGINE HAD BEFORE THERE WAS A CHOICE.
 typedef enum {
-	// NEAREST magnification and minification of one level, REPEAT. A
-	// picture on a surface in the world, which is nearly everything.
+	// A full mip chain, trilinear when minified, NEAREST when magnified,
+	// REPEAT. A picture on a surface in the world, which is nearly
+	// everything.
 	VOE_RENDER_SAMPLING_SMOOTH = 0,
 	// NEAREST magnification and minification of one level, CLAMP_TO_EDGE.
 	// A sheet something indexes into: it is not tiled, and REPEAT lets a
@@ -1078,9 +1077,8 @@ bool voe_render_geometry_destroy(voe_render_device *device,
 // `kind` says whether the bytes are colour or numbers — see
 // voe_render_texture_kind, which is the one thing here that is easy to get wrong
 // and impossible to see. `sampling` says how the picture is addressed
-// outside 0..1 — see voe_render_sampling. Every texture is one level sampled
-// NEAREST whichever is passed; there are no mipmaps in this engine and no linear
-// filtering anywhere.
+// and filtered — see voe_render_sampling. A SMOOTH texture's mip chain is built
+// here, on the GPU, in the same submission as the upload.
 //
 // The pixels are copied and the caller's buffer is its own again the moment this
 // returns — which is what lets the arena a decoder used be rewound immediately.

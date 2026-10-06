@@ -192,6 +192,22 @@ static bool create_device(voe_render_device *device)
 		VOE_BASE_ERROR("render",
 			       "this graphics card cannot index a texture array differently per element; text drawn as elements will be wrong where a frame uses more than one sheet");
 
+	// What the material sampler reads at (ADR-0369): 8×, or the card's own
+	// ceiling if lower. Queried for the same reason as the two above, and a
+	// card without it is not refused: it reads trilinear alone, at 1.
+	device->max_anisotropy = 1.0f;
+	if (available.features.samplerAnisotropy) {
+		VkPhysicalDeviceProperties properties;
+
+		voe_render_vk.get_physical_device_properties(device->physical,
+							     &properties);
+		features.features.samplerAnisotropy = VK_TRUE;
+		device->max_anisotropy =
+			properties.limits.maxSamplerAnisotropy < 8.0f ?
+				properties.limits.maxSamplerAnisotropy :
+				8.0f;
+	}
+
 	// What the point shadow pass's vertex stage needs to pick a layer
 	// (ADR-0325). Queried for the same reason: a card without it runs
 	// everything else, with the point shadow maps' side taken as nought.

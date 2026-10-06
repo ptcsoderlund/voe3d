@@ -161,11 +161,9 @@ static bool textured_material(voe_render_device *gpu, voe_base_arena *arena,
 
 	ok = voe_assets_png_decode(png, size, arena, &picture, error);
 	// AND THEN HALVED UNTIL IT IS A SENSIBLE SIZE, WHICH IS dev's OWN DOING
-	// AND NOT THE ENGINE'S. The two pictures here are far bigger than any
-	// face they land on, and this engine samples one level with no mip
-	// chain, so the level the file happened to ship is the level that gets
-	// sampled. src/shrink.h is the whole argument, including why this is
-	// not mipmapping and what it does not fix.
+	// AND NOT THE ENGINE'S. The engine mips the texture, so the shimmer is the
+	// sampler's job; this only drops top levels no face is big enough to read,
+	// to save memory and upload time. src/shrink.h gives the numbers.
 	if (ok)
 		voe_dev_image_shrink(&picture, VOE_DEV_SHRINK_LONG_SIDE);
 	// A colour, so it goes up in the sRGB format and the hardware decodes it

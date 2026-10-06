@@ -3,36 +3,25 @@
 // happens to embed and NOT a rule about textures, and nothing in the engine
 // grew one because of it.
 //
-// ---- IT IS NOT MIPMAPPING, AND THE DIFFERENCE MATTERS ----
+// ---- IT IS NOT WHAT STOPS THE SHIMMER ----
 //
-// THIS ENGINE HAS NO MIPMAPS AND THAT IS A DECISION, not a gap: every texture
-// is one level, sampled NEAREST, magnified and minified, and render/src/texture.c
-// says so at the top and says what it costs. Nothing here changes that. What
-// this file does is pick a BETTER SINGLE LEVEL than the file happened to ship,
-// which is the only lever a caller has when there is one level to pick.
+// Material textures get a mip chain and are read trilinear when minified
+// (0359), so a picture seen smaller than itself is filtered by the sampler, at
+// whatever size it is uploaded. This file only picks a SMALLER TOP LEVEL than
+// the file happened to ship: the levels above it would never be read on a
+// cube face, and they cost memory and upload time for nothing.
 //
 // The construction is a mip chain's — each step is an exact 2x2 box average of
-// the step before — and it simply stops at the first level that fits instead of
-// keeping every level and letting the sampler choose. So it is one level off a
-// mip chain, computed once at startup, and the sampler is none the wiser.
+// the step before — and it stops at the first level that fits; the engine then
+// builds its own chain below that level.
 //
 // ---- WHY BOTHER, IN NUMBERS ----
 //
 // The wordmark ships at 4800 by 2000 and lands on a cube face a few hundred
-// pixels across. That is minification of better than ten to one, and with
-// NEAREST and no mip chain it means most of the picture is never sampled and
-// what IS sampled changes as the camera moves: the caption under the wordmark
-// came out as a moving smear of dots rather than as text. Halved twice to
-// 1200 by 500 it is minified about three to one, and the caption reads.
-//
-// IT REDUCES THE ALIASING AND DOES NOT REMOVE IT. Anything minified past about
-// one texel per pixel still aliases and still shimmers as the camera moves —
-// removing that is what a mip chain is for and this engine has decided against
-// one. Do not read a quieter picture as a fixed one.
-//
-// And it is cheaper three times over: the decoded picture is 38 megabytes of
-// the frame arena at 4800 by 2000 and under 3 at 1200 by 500, the upload is the
-// same ratio, and so is what the card holds afterwards.
+// pixels across. Halved twice it is 1200 by 500, and it is cheaper three times
+// over: the decoded picture is 38 megabytes of the frame arena at 4800 by 2000
+// and under 3 at 1200 by 500, the upload is the same ratio, and so is what the
+// card holds afterwards.
 //
 // ---- WHAT IT DOES NOT DO ----
 //
@@ -54,7 +43,7 @@
 // IT IS DELIBERATELY MORE THAN A CUBE FACE IS WORTH. What is actually on screen
 // is a few hundred pixels, so the honest number is much smaller — but the cubes
 // can be flown right up to, the window can be a 4K one, and a picture that is
-// too small is a blurry mess that cannot be fixed by moving closer while one
+// too small is a blurry mess that moving closer does not fix, while one
 // that is too big only costs memory.
 #define VOE_DEV_SHRINK_LONG_SIDE 1920
 

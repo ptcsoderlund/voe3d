@@ -227,6 +227,10 @@ struct voe_render_device {
 	// instead of to something undefined.
 	struct voe_render_texture_slot textures[VOE_RENDER_MAX_TEXTURES];
 	VkSampler samplers[VOE_RENDER_SAMPLING_COUNT];
+	// The anisotropy the SMOOTH sampler reads at (ADR-0369): min(8, the
+	// card's maxSamplerAnisotropy) where create_device enabled
+	// samplerAnisotropy, 1 where the card has none.
+	float max_anisotropy;
 	// The comparison sampler every slot's shadow maps are read through at
 	// binding 5. shadow.c makes and destroys it.
 	VkSampler shadow_sampler;
