@@ -22,6 +22,9 @@ readout, key bindings and the present mode are all the program's.
 - `include/app/picture.h` — a PNG file read into a colour texture with its size,
   for the splash. Its header says the three steps, what fails, the scratch it
   needs, and why it lives here (0356).
+- `include/app/pipeline_cache.h` — the device's pipeline cache loaded from and
+  saved to `<settings>/voe3d/<name>`. Its header says why the settings folder
+  and that no failure here fails a start (0370).
 - `include/app/start_log.h` — a start's named steps, timed from the process's
   launch and written to stderr and a file. Its header says why (0345), what the
   first step is, that the steps add up, and the line's format.
