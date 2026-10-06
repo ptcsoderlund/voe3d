@@ -72,6 +72,9 @@ again, or to find where a claim that has started failing is written down.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
   it or behind it, and a drawn pixel the cube covers picks it.
+- `bounds.c` — a scaled cube's centre and radius, a parent's box from its child and round a far
+  child, a bare transform with none, a cube 100 km out to the millimetre, and the framing distance
+  √2 for a square picture and more for a tall one. Needs no graphics card.
 - `outline.c` — the silhouette edge counts, the quads' corners, width and winding for cubes,
   children and models, and that a hidden cube's outline shows through when drawn.
 - `camera_marker.c` — the marker's twenty edges' worth of geometry, a camera scaled to nothing
