@@ -6,7 +6,7 @@
 // device:
 //
 //     models = voe_editor_models_new();
-//     voe_editor_models_update(models, &session, gpu, arena, now);  // a frame
+//     voe_editor_models_update(models, &session, gpu, arena, now, NULL);
 //     voe_editor_pick_read(..., voe_editor_models_store(models), ...);
 //     voe_editor_models_destroy(models, gpu);
 //
@@ -20,7 +20,9 @@
 //
 // BETWEEN FRAMES, because a load waits for the card to go idle
 // (game/models.h): the update runs after the world step, so this frame's rows
-// are read, and before the frame's draw opens.
+// are read, and before the frame's draw opens. During a splash wait a worker
+// may call it instead (0370 point 4), with the wait's progress, which
+// game/models.h reports into and stops on; every other call passes NULL.
 //
 // ONCE A SECOND the store's files are asked for their stamps (0277 point 5):
 // often enough for a person exporting from Blender, and not a file system
@@ -40,6 +42,8 @@
 
 #include <base/arena.h>
 
+#include <game/progress.h>
+
 #include <render/device.h>
 
 typedef struct voe_editor_models voe_editor_models;
@@ -55,11 +59,12 @@ void voe_editor_models_destroy(voe_editor_models *models,
 // Once a frame, between frames: empties the store on a different folder, then
 // reads the paths it lacks and, a second past the last look, re-reads changed
 // files. `scratch` holds one file at a time and is rewound; `now` is the frame
-// clock's, in seconds.
+// clock's, in seconds. `progress` is the splash wait's, NULL outside one.
 void voe_editor_models_update(voe_editor_models *models,
 			      voe_editor_session *session,
 			      voe_render_device *device,
-			      voe_base_arena *scratch, double now);
+			      voe_base_arena *scratch, double now,
+			      voe_game_progress *progress);
 
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

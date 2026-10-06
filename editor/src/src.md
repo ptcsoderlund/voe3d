@@ -228,8 +228,8 @@ carries it out.
   view's shadow passes and pass, lit by every directional and point light and kept out of the light
   blockers, every place marked and every blocker lined, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file said in the notice, and handed to picking and the
-  view passes.
+  emptied on a different project, a broken file said in the notice, progress passed on during a
+  splash wait, and handed to picking and the view passes.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on

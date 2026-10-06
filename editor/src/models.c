@@ -93,7 +93,8 @@ static void say_failure(voe_editor_notice *notice,
 void voe_editor_models_update(voe_editor_models *models,
 			      voe_editor_session *session,
 			      voe_render_device *device,
-			      voe_base_arena *scratch, double now)
+			      voe_base_arena *scratch, double now,
+			      voe_game_progress *progress)
 {
 	VOE_BASE_ASSERT(models != NULL && session != NULL,
 			"updating no store or no session");
@@ -107,7 +108,7 @@ void voe_editor_models_update(voe_editor_models *models,
 	say_failure(&session->notice,
 		    voe_game_models_update(session->project->world,
 					   models->store, device,
-					   models->folder, scratch));
+					   models->folder, scratch, progress));
 	if (now - models->looked < WATCH_SECONDS)
 		return;
 	models->looked = now;
