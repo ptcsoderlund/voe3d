@@ -3,7 +3,8 @@
 //
 //     voe_app_picture splash;
 //     bool held = voe_editor_splash_read(device, scratch, &splash);
-//     ... voe_game_starting_prepare(app, ui, scratch, held ? &splash : NULL, line)
+//     ... voe_game_starting_wait(app, ui, scratch, held ? &splash : NULL,
+//                                work, &context)
 //     if (held)
 //             voe_render_texture_destroy(device, splash.texture);
 //

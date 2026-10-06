@@ -4,8 +4,12 @@
 and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
-- `main.c` — opens the project, window and device, and runs the loop until a close goes ahead or
-  the picture is written, taking the frame breakdown's timings each frame.
+- `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
+  live splash, and runs the loop until a close goes ahead or the picture is written, taking the
+  frame breakdown's timings each frame.
+- `loading.h` — the start's and a New or Open load's works for a splash wait: shaders with the
+  editor's pipeline cache, shapes and models, or the scene and its models, and what the worker owns.
+- `loading.c` — the two works, each step after a stop check, in the worker's own scratch.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.

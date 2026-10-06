@@ -45,16 +45,16 @@
 // waits out a running refresh (session.h), for at most 120 s of the frame clock.
 // EVERY READ OF THE WINDOW IS GUARDED.
 //
-// THE START SHOWS A LINE WHILE RENDER PREPARES (0345): the font, themes and
-// interface are made right after the device, so game/starting.h draws its line
-// in the chosen theme, in the box on the engine's splash (splash.h), until the
-// mesh pipelines are built; a false there ends
-// the program as a closed window does. New and Open's load draws one such
-// frame, "Loading scene...", before it (0356). The start's steps are timed
+// THE START AND NEW AND OPEN'S LOADS RUN ON A WORKER BEHIND A LIVE SPLASH
+// (0362, 0370): the font, themes and interface are made right after the
+// device, so game/starting.h's wait draws its progress line in the chosen
+// theme on the engine's splash (splash.h) while loading.h's work prepares the
+// shaders, kept in `<settings>/voe3d/pipelines_editor.cache`, uploads the
+// shapes and reads the models, or loads the scene and its models. A false
+// wait ends the program as a closed window does. The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
 // to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
-// lives in one arena made first; the built-in shapes are uploaded once after
-// render prepares, and the frame breakdown's timings are taken each frame.
+// lives in one arena made first; the frame breakdown's timings are taken each frame.
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
@@ -65,6 +65,7 @@
 #include "inspector_edit.h"
 #include "interface.h"
 #include "keys.h"
+#include "loading.h"
 #include "models.h"
 #include "preferences.h"
 #include "notice.h"
@@ -142,11 +143,6 @@
 // millimetres.
 #define WHEEL_MILLIMETRES 10.0f
 
-// The line the starting frames show (game/starting.h): the font has no em
-// dash and no ellipsis.
-#define STARTING_LINE "Starting - preparing shaders..."
-#define LOADING_LINE "Loading scene..."
-
 // The start's log written once, after the first frame: stderr only under
 // --capture or with no settings folder, else appended to
 // `<settings>/voe3d/start.log` too. A failed write is platform's stderr line.
@@ -215,6 +211,10 @@ int main(int argc, char *argv[])
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
+	// A splash wait's worker's own scratch (loading.h).
+	voe_base_arena *worker_scratch;
+	voe_editor_loading_start loading_start;
+	voe_editor_loading_load loading_load;
 	voe_app *app;
 	voe_base_error error;
 	voe_platform_window *window;
@@ -314,11 +314,13 @@ int main(int argc, char *argv[])
 	// `app` says which piece refused and `render` says why, both on stderr,
 	// before it returns NULL.
 	scratch = voe_base_arena_new(STARTUP_SCRATCH);
-	app = options.capture != NULL ?
+	worker_scratch = voe_base_arena_new(STARTUP_SCRATCH);
+	app =options.capture != NULL ?
 		      voe_app_new_headless(arena, scratch, settings, &error) :
 		      voe_app_new(arena, scratch, settings, &error);
 	voe_base_arena_clear(scratch);
 	if (app == NULL) {
+		voe_base_arena_destroy(worker_scratch);
 		voe_base_arena_destroy(scratch);
 		voe_base_arena_destroy(arena);
 		voe_editor_project_destroy(session.project);
@@ -353,29 +355,36 @@ int main(int argc, char *argv[])
 				      &voe_editor_themes_chosen(&themes)->palette);
 	voe_app_start_log_step(&start, "font, themes and interface");
 
-	// A LINE ON SCREEN WHILE THE MESH PIPELINES ARE BUILT (0345). A false is
-	// a closing window or a failed build, already on stderr, and ends the
-	// program as a closed window does; a capture has no window to close, so
-	// there it is a failure.
-	// Over the engine's splash (splash.h), or the plain screen without it.
+	// THE SHADERS, SHAPES AND MODELS ON A WORKER BEHIND THE SPLASH (loading.h),
+	// over the engine's splash (splash.h) or the plain screen without it. A
+	// false is a closing window or a failed prepare, already on stderr, and
+	// ends the program as a closed window does; a capture has no window to
+	// close, so there it is a failure. A refused shapes upload is a 1, with
+	// `render`'s line on stderr.
 	splash_held = voe_editor_splash_read(gpu, scratch, &splash);
-	if (!voe_game_starting_prepare(app, ui, scratch,
-				       splash_held ? &splash : NULL,
-				       STARTING_LINE)) {
-		status = options.capture != NULL ? 1 : 0;
+	voe_base_arena_clear(scratch);
+	models = voe_editor_models_new();
+	loading_start = (voe_editor_loading_start){ .device = gpu,
+						    .scratch = worker_scratch,
+						    .log = &start,
+						    .session = &session,
+						    .models = models,
+						    .shapes = &shapes };
+	if (!voe_game_starting_wait(app, ui, scratch,
+				    splash_held ? &splash : NULL,
+				    voe_editor_loading_start_work,
+				    &loading_start)) {
+		status = options.capture != NULL || loading_start.failed ? 1 : 0;
 		goto stop;
 	}
 	voe_base_arena_clear(scratch);
-	voe_app_start_log_step(&start, "preparing shaders");
 
-	// Both upload, so both are startup operations and both come before the
+	// An upload too, on the main thread now the worker is joined, before the
 	// first frame. `render` says why on stderr when it refuses.
-	if (!voe_3d_shapes_upload(gpu, &shapes, &error) ||
-	    !voe_editor_views_create(&views, gpu, &error)) {
+	if (!voe_editor_views_create(&views, gpu, &error)) {
 		status = 1;
 		goto stop;
 	}
-	models = voe_editor_models_new();
 
 	// The same three kinds on the CPU, for the ray a click is cast as
 	// (pick.h). No device in it, and the kept arena because the store is
@@ -429,16 +438,20 @@ int main(int argc, char *argv[])
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
 
-		// NEW OR OPEN'S LOAD, BEHIND ONE SPLASH FRAME (0356); a false
-		// frame ends the program as the starting frames' does.
+		// NEW OR OPEN'S LOAD ON A WORKER BEHIND THE SPLASH (loading.h);
+		// a false wait ends the program as the start's does.
 		if (session.load_due) {
-			if (!voe_game_starting_frame(app, ui, scratch,
-						     splash_held ? &splash : NULL,
-						     LOADING_LINE)) {
+			loading_load = (voe_editor_loading_load){
+				.device = gpu, .scratch = worker_scratch,
+				.session = &session, .scene = &scene,
+				.models = models };
+			if (!voe_game_starting_wait(app, ui, scratch,
+						    splash_held ? &splash : NULL,
+						    voe_editor_loading_load_work,
+						    &loading_load)) {
 				status = options.capture != NULL ? 1 : 0;
 				break;
 			}
-			voe_editor_session_load(&session, &scene);
 			voe_base_arena_clear(scratch);
 		}
 
@@ -782,6 +795,7 @@ stop:
 	if (splash_held)
 		voe_render_texture_destroy(gpu, splash.texture);
 	voe_app_destroy(app);
+	voe_base_arena_destroy(worker_scratch);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
 	voe_editor_project_destroy(session.project);
