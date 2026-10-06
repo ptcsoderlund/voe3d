@@ -100,6 +100,15 @@ void voe_render_bounce_relight_shutdown(voe_render_device *device);
 // prepared, false when a step failed. Every pass that can use a mesh pipeline,
 // and voe_render_bounce_begin, calls this first.
 [[nodiscard]] bool voe_render_device_ready(voe_render_device *device);
+// pipeline.c and element.c. Their embedded shaders, which pipeline_cache.c
+// hashes into its header so a cache from another build is refused.
+extern const unsigned char voe_render_draw_spv[];
+extern const size_t voe_render_draw_spv_size;
+extern const unsigned char voe_render_elements_spv[];
+extern const size_t voe_render_elements_spv_size;
+// pipeline_cache.c. The device's empty cache, made at open; false with a
+// message. device.c destroys it at close.
+[[nodiscard]] bool voe_render_pipeline_cache_create(voe_render_device *device);
 
 // bounce_relight.c. The bouncing lights this frame's begin placed, as
 // voe_render_bounce_probes_relight_needed compares them.
@@ -204,6 +213,13 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 // once because the surface does not change when the window resizes.
 [[nodiscard]] bool voe_render_device_choose_format(voe_render_device *device,
 						   voe_base_arena *arena);
+
+// device.c. The guard (device_internal.h): _take locks it, first waiting while
+// a frame is open on a thread other than the caller's; _give wakes every waiter
+// and unlocks. A frame open on the caller's own thread does not wait. Each take
+// has its give on every path out, and neither nests.
+void voe_render_device_guard_take(voe_render_device *device);
+void voe_render_device_guard_give(voe_render_device *device);
 
 // The frame's own pair of timestamps: one as its command buffer starts and one
 // as it finishes, at 0 and 1 of the slot's pool. Named so the read, the buffer

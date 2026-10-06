@@ -249,6 +249,9 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(create_pipeline_layout, vkCreatePipelineLayout);
 	DEVICE_FUNCTION(destroy_pipeline_layout, vkDestroyPipelineLayout);
 	DEVICE_FUNCTION(create_graphics_pipelines, vkCreateGraphicsPipelines);
+	DEVICE_FUNCTION(create_pipeline_cache, vkCreatePipelineCache);
+	DEVICE_FUNCTION(destroy_pipeline_cache, vkDestroyPipelineCache);
+	DEVICE_FUNCTION(get_pipeline_cache_data, vkGetPipelineCacheData);
 	DEVICE_FUNCTION(create_compute_pipelines, vkCreateComputePipelines);
 	DEVICE_FUNCTION(cmd_dispatch, vkCmdDispatch);
 	DEVICE_FUNCTION(destroy_pipeline, vkDestroyPipeline);

@@ -35,21 +35,21 @@
 //     }
 //     voe_render_device_destroy(gpu);
 //
-// NOTHING IN HERE KNOWS ABOUT A SCENE, AN ENTITY OR A FILE, AND THAT IS THE
-// BOUNDARY THIS FOLDER IS FOR. It holds buffers, images, a pipeline and a frame;
-// what a thing is, where it came from and why it is being drawn is `3d`'s. Every
-// function below exists because a line in `3d` calls it, and a gap in this API
-// is filled here rather than reached around.
+// NOTHING IN HERE KNOWS ABOUT A SCENE, AN ENTITY OR A FILE: what a thing is and
+// why it is drawn is `3d`'s, and a gap in this API is filled here, not reached
+// around.
 //
 // EVERY COLOUR THAT CROSSES THIS BOUNDARY IS LINEAR, AND sRGB LIVES AT THE TWO
-// ENDS. A picture full of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and
-// the hardware decodes it on every read; the frame is drawn in linear light and
-// encoded once, by the target's own format, on the way to the window. So a
-// factor, a light's colour and a clear colour are all linear numbers, and the
-// only two places an sRGB curve is applied are inside the GPU where nobody has
-// to write it down. A picture that holds numbers rather than colour —
-// metalness, roughness, occlusion, a normal map — is uploaded as
-// VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
+// ENDS. A picture of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and decoded
+// on every read; the frame is drawn in linear light and encoded once, by the
+// target's format. So factors, lights' colours and clear colours are linear. A
+// picture of numbers — metalness, roughness, occlusion, a normal map — is
+// uploaded as VOE_RENDER_TEXTURE_DATA and read exactly as written.
+//
+// ONE OTHER THREAD MAY CALL voe_render_device_prepare AND THE geometry, texture,
+// shading AND target CREATE, DESTROY, RESIZE AND READ WHILE THE OWNER DRAWS
+// FRAMES (ADR-0370). Each that uploads waits while a frame is open on another
+// thread; the owner's own never wait. Everything else is the owner's alone.
 //
 // Passes onto the window or a target follow the sun's cascades and captures,
 // lit by the sun and the pass's point lights (range, falloff; shadows per
@@ -977,7 +977,41 @@ typedef enum {
 // A caller who never calls it loses nothing: a pass with a camera, a shadow,
 // point-shadow, capture or bounce shadow pass and voe_render_bounce_begin build
 // whatever is left first, and refuse when that fails.
+//
+// ONE OTHER THREAD MAY CALL IT WHILE THE OWNER DRAWS ONLY ELEMENT PASSES, passes
+// with no camera (ADR-0370). A pass that would build pipelines — any of those
+// named above — must not be drawn until that thread is done.
 voe_render_prepare voe_render_device_prepare(voe_render_device *device);
+
+// How many steps voe_render_device_prepare takes on this card from an unprepared
+// device: the solid, blended and shadow pipelines, and with shaderOutputLayer
+// the point shadow and capture ones and the relight's startup. So a caller can
+// show "2/6" as the steps are taken.
+uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
+
+// THE PIPELINE CACHE, AS BYTES OUT AND IN (ADR-0370 point 6). Every mesh
+// pipeline prepare builds goes through the device's cache; a caller keeps its
+// bytes between runs so the next start builds faster. The bytes are render's own
+// header and then the driver's cache: a magic, a version, the card's vendor and
+// device ids and pipelineCacheUUID, a 64-bit hash of every shader this build
+// embeds, the payload's size and its checksum.
+//
+// A STALE CACHE IS NEVER AN ERROR. Bytes from another build, another card,
+// another driver, cut short or corrupted are refused quietly and the device
+// starts empty, which costs only the time the cache would have saved.
+
+// Takes bytes voe_render_device_cache_bytes handed out, before the first prepare
+// step only (asserted; seeding more than once before it is allowed). True when
+// they are this build's on this card and the cache now holds them; false, the
+// cache left empty, on any mismatch, a short buffer, or NULL and 0.
+[[nodiscard]] bool voe_render_device_cache_seed(voe_render_device *device,
+						const void *bytes, size_t size);
+
+// The cache behind render's header, pushed into `arena`, its length in *size.
+// NULL, *size 0, when the driver will not hand it out. Call it once prepare has
+// answered PREPARED, on the thread that prepared or after it is joined.
+const void *voe_render_device_cache_bytes(voe_render_device *device,
+					  voe_base_arena *arena, size_t *size);
 
 // --------------------------------------------------------------- geometry
 

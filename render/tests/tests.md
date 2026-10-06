@@ -16,6 +16,8 @@ by reading the offscreen colour image back.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
   drawing different contents, a static and a transient range in one frame, and an overrun refused
   without corrupting the frame. Headless.
+- `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
+  main thread runs 100 element-only frames, every call true and the thread joined. Headless.
 - `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways
   round, the blend, the capacity refused, a mesh after them, an empty frame and two ranges with two
   matrices. Headless.
@@ -48,8 +50,11 @@ by reading the offscreen colour image back.
   shadow pass and a camera pass with a depth copy and an element closing with no new message; a
   release build says so and passes. Headless.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
-  calls, a pass with no camera drawing an element before any, and a camera pass preparing it all.
-  Headless.
+  calls and one more than the step count says, a pass with no camera drawing an element before any,
+  a camera pass preparing it all, and prepare on a thread while element frames draw. Headless.
+- `pipeline_cache.c` — the pipeline cache as bytes: one device's handed out and taken by a second,
+  which prepares; one payload byte flipped, 10 bytes, or none refused, and that device still
+  prepares. Headless.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.

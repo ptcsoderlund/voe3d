@@ -176,9 +176,9 @@ static bool copy_out(voe_render_device *device, VkImage image,
 	return result == VK_SUCCESS;
 }
 
-bool voe_render_target_read(voe_render_device *device, voe_render_target target,
-			    voe_base_arena *arena, voe_render_picture *out,
-			    voe_base_error *error)
+static bool read_target(voe_render_device *device, voe_render_target target,
+			voe_base_arena *arena, voe_render_picture *out,
+			voe_base_error *error)
 {
 	const struct voe_render_allocated_image *colour;
 	struct voe_render_buffer staging = { 0 };
@@ -267,4 +267,19 @@ refused:
 	if (error != NULL)
 		*error = VOE_BASE_ERROR_REFUSED;
 	return false;
+}
+
+// Under the device's guard (ADR-0370): it uses the queue outside a frame.
+bool voe_render_target_read(voe_render_device *device, voe_render_target target,
+			    voe_base_arena *arena, voe_render_picture *out,
+			    voe_base_error *error)
+{
+	bool read;
+
+	VOE_BASE_ASSERT(device != NULL, "reading a target back off no device");
+
+	voe_render_device_guard_take(device);
+	read = read_target(device, target, arena, out, error);
+	voe_render_device_guard_give(device);
+	return read;
 }

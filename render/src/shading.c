@@ -90,9 +90,9 @@ void voe_render_shading_shutdown(voe_render_device *device)
 	device->shading_slots = NULL;
 }
 
-bool voe_render_shading_create(voe_render_device *device,
-			       voe_render_shading_values values,
-			       voe_render_shading *out, voe_base_error *error)
+static bool create_shading(voe_render_device *device,
+			   voe_render_shading_values values,
+			   voe_render_shading *out, voe_base_error *error)
 {
 	struct voe_render_shading_slot *slot = NULL;
 	uint32_t index = 0;
@@ -133,11 +133,26 @@ bool voe_render_shading_create(voe_render_device *device,
 	return true;
 }
 
+// Under the device's guard (ADR-0370), as is the destroy.
+bool voe_render_shading_create(voe_render_device *device,
+			       voe_render_shading_values values,
+			       voe_render_shading *out, voe_base_error *error)
+{
+	bool created;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "making a shading record on no device");
+
+	voe_render_device_guard_take(device);
+	created = create_shading(device, values, out, error);
+	voe_render_device_guard_give(device);
+	return created;
+}
+
 // The row's bytes are left as they are: nothing may draw with the old id, and
 // the next create of this slot overwrites them. The wait is the create's, for
 // the same reason: that overwrite may not land while a frame reads the row.
-bool voe_render_shading_destroy(voe_render_device *device,
-				voe_render_shading shading)
+static bool destroy_shading(voe_render_device *device,
+			    voe_render_shading shading)
 {
 	struct voe_render_shading_slot *slot;
 
@@ -155,4 +170,17 @@ bool voe_render_shading_destroy(voe_render_device *device,
 	slot->generation++;
 	slot->live = false;
 	return true;
+}
+
+bool voe_render_shading_destroy(voe_render_device *device,
+				voe_render_shading shading)
+{
+	bool destroyed;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a shading record on no device");
+
+	voe_render_device_guard_take(device);
+	destroyed = destroy_shading(device, shading);
+	voe_render_device_guard_give(device);
+	return destroyed;
 }

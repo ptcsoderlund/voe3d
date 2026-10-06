@@ -9,6 +9,15 @@
 // calls it until nothing is left; every pass that can use one calls that first,
 // so a caller who never prepares gets them all on its first such pass. A failed
 // step is final: every later call answers FAILED, and elements still draw.
+// voe_render_device_prepare_steps counts them: three, six with shaderOutputLayer.
+// Every build passes the device's pipeline cache (pipeline_cache.c), which a
+// caller may have seeded with an earlier run's bytes.
+//
+// PREPARE MAY RUN ON ONE OTHER THREAD WHILE THE OWNER DRAWS ELEMENT FRAMES
+// (ADR-0370 point 5). A pipeline build takes no guard: it writes only its own
+// handle, which no element pass reads. The relight's startup allocates and
+// writes descriptor sets, so it takes the device's guard around itself and
+// waits while a frame is open on the other thread.
 //
 // THE SHADER IS IN THIS FILE, AS BYTES. slangc compiles shaders/draw.slang into
 // the build tree and #embed puts the result in the binary below; nothing is read
@@ -64,10 +73,11 @@
 // alignas because vkCreateShaderModule takes a const uint32_t *, and #embed can
 // only fill an array of bytes. A char array is aligned for a char; handing a
 // misaligned pointer to the driver is undefined behaviour that happens to work
-// until the day it does not.
-static alignas(uint32_t) const unsigned char draw_spv[] = {
+// until the day it does not. Not static: pipeline_cache.c hashes it.
+alignas(uint32_t) const unsigned char voe_render_draw_spv[] = {
 #embed "draw.spv"
 };
+const size_t voe_render_draw_spv_size = sizeof(voe_render_draw_spv);
 
 // Both entry points live in the one module above, spelled exactly as the shader
 // spells them — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
@@ -112,8 +122,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	const uint32_t colours = shadow ? 0 : capture ? 2 : 1;
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = sizeof(draw_spv),
-		.pCode = (const uint32_t *)draw_spv,
+		.codeSize = sizeof(voe_render_draw_spv),
+		.pCode = (const uint32_t *)voe_render_draw_spv,
 	};
 	VkShaderModule module = VK_NULL_HANDLE;
 	VkPipelineShaderStageCreateInfo stages[2];
@@ -364,8 +374,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	attachments[1] = attachment;
 
 	result = voe_render_vk.create_graphics_pipelines(device->device,
-							 VK_NULL_HANDLE, 1, &info,
-							 NULL, out);
+							 device->pipeline_cache,
+							 1, &info, NULL, out);
 
 	// The module is the compiler's input and the pipeline has finished
 	// reading it, so it goes away here whether or not the pipeline was made.
@@ -453,9 +463,13 @@ static bool prepared(const voe_render_device *device)
 }
 
 // The first step not yet taken, in the order the public header gives. The solid
-// one first, because every draw that is not see-through goes through it.
+// one first, because every draw that is not see-through goes through it. Only
+// the relight's startup takes the device's guard (ADR-0370 point 5): it
+// allocates and writes sets, where a pipeline build writes only its own handle.
 static bool take_step(voe_render_device *device)
 {
+	bool started;
+
 	if (device->pipeline == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_SOLID, &device->pipeline);
 	if (device->pipeline_blended == VK_NULL_HANDLE)
@@ -470,7 +484,10 @@ static bool take_step(voe_render_device *device)
 	if (device->pipeline_capture == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_CAPTURE,
 				       &device->pipeline_capture);
-	return voe_render_bounce_relight_startup(device);
+	voe_render_device_guard_take(device);
+	started = voe_render_bounce_relight_startup(device);
+	voe_render_device_guard_give(device);
+	return started;
 }
 
 voe_render_prepare voe_render_device_prepare(voe_render_device *device)
@@ -486,6 +503,14 @@ voe_render_prepare voe_render_device_prepare(voe_render_device *device)
 		return VOE_RENDER_PREPARE_FAILED;
 	}
 	return prepared(device) ? VOE_RENDER_PREPARED : VOE_RENDER_PREPARING;
+}
+
+// Matches prepared() above: the three every device has, then two pipelines and
+// the relight's startup only with shaderOutputLayer.
+uint32_t voe_render_device_prepare_steps(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "counting the prepare steps of no device");
+	return device->output_layer ? 6u : 3u;
 }
 
 bool voe_render_device_ready(voe_render_device *device)

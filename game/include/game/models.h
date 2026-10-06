@@ -2,7 +2,7 @@
 // 4 and 5): the one loader the game and the editor share.
 //
 //     voe_game_models_failures failures = voe_game_models_update(
-//             world, models, device, folder, scratch);
+//             world, models, device, folder, scratch, NULL);
 //     if (failures.count > 0)
 //             ... // failures.first is the first path that would not load
 //     voe_game_models_watch(models, device, folder, scratch);  // re-exports
@@ -15,6 +15,12 @@
 // emitter row's texture is read the same way, the store making a picture of a
 // `.png` or `.jpg` (0298 point 5); when the world has any emitter, the soft dot
 // is loaded at "" if the store lacks it, a failure counted with first "".
+//
+// PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
+// distinct paths the call will read are counted first, then "Loading models"
+// done/total is set before each file and once at the end. Once stop is asked
+// the call returns before the next file, the failures so far counted, and
+// loads no dot or water; the paths left unread are read by a later call.
 //
 // WATCH asks every entry's file for its stamp again, pictures as models. A
 // stamp that differs from the entry's is read and loaded again: a success
@@ -47,6 +53,8 @@
 
 #include <ecs/world.h>
 
+#include <game/progress.h>
+
 #include <render/device.h>
 
 #include <stdint.h>
@@ -58,12 +66,14 @@ typedef struct {
 } voe_game_models_failures;
 
 // Reads and loads every model row's path and emitter's texture the store
-// lacks, and the dot for any emitter. See the header.
+// lacks, and the dot for any emitter, reporting into `progress` (NULL for
+// none) and stopping when it asks. See the header.
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
 						const char *folder,
-						voe_base_arena *scratch);
+						voe_base_arena *scratch,
+						voe_game_progress *progress);
 
 // Reads and loads again every entry whose file's stamp changed. See the header.
 voe_game_models_failures voe_game_models_watch(voe_3d_models *models,

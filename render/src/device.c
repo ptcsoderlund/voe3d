@@ -1,6 +1,6 @@
 // Starting the GPU: the loader, the instance, the surface, the graphics card and
 // the Best Practices line (best_practices.c), the logical device, the pipeline
-// layout and the element pipeline, in that order,
+// layout, the empty pipeline cache and the element pipeline, in that order,
 // because each one is what the next is asked for. Everything here happens once.
 // open_device below is the one place that order is written; the steps that grew
 // too long for this file are beside it, declared in startup.h: the instance and
@@ -9,7 +9,8 @@
 // A device opens unprepared: the mesh pipelines and the relight's startup are
 // built later by voe_render_device_prepare (pipeline.c), and close-down is safe
 // for every one never built. This file keeps the logical device, the format,
-// timing, present modes, the frame objects and close-down. The parts that happen
+// timing, present modes, the frame objects, the guard (device_internal.h says
+// what it excludes) and close-down. The parts that happen
 // again live in target.c, swapchain.c and frame.c — see device_internal.h for
 // why the split is where it is.
 //
@@ -564,6 +565,10 @@ static void close_down(voe_render_device *device)
 		if (device->pipeline != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline, NULL);
+		if (device->pipeline_cache != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline_cache(device->device,
+							     device->pipeline_cache,
+							     NULL);
 		if (device->layout != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline_layout(device->device,
 							      device->layout, NULL);
@@ -616,9 +621,37 @@ static void close_down(voe_render_device *device)
 		voe_render_vk.destroy_instance(device->instance, NULL);
 }
 
-// After close_down, which leaves the record for the caller to read.
+// ------------------------------------------------------------------ the guard
+
+void voe_render_device_guard_take(voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "taking the guard of no device");
+	VOE_BASE_ASSERT(mtx_lock(&device->guard) == thrd_success,
+			"the device's guard would not lock");
+
+	// Bounded by the owner's frame: its end clears frame_open and wakes us.
+	while (device->frame_open &&
+	       !thrd_equal(device->frame_thread, thrd_current()))
+		VOE_BASE_ASSERT(cnd_wait(&device->frame_closed, &device->guard) ==
+					thrd_success,
+				"waiting on the device's guard failed");
+}
+
+void voe_render_device_guard_give(voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL, "giving back the guard of no device");
+	VOE_BASE_ASSERT(cnd_broadcast(&device->frame_closed) == thrd_success,
+			"waking the device guard's waiters failed");
+	VOE_BASE_ASSERT(mtx_unlock(&device->guard) == thrd_success,
+			"the device's guard would not unlock");
+}
+
+// After close_down, which leaves the record for the caller to read. The guard
+// goes here, so a device whose open failed gives it back too.
 static void release(voe_render_device *device)
 {
+	cnd_destroy(&device->frame_closed);
+	mtx_destroy(&device->guard);
 	free(device);
 	voe_render_loader_close();
 }
@@ -658,6 +691,9 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	VOE_BASE_ASSERT(device != NULL, "out of memory opening a device");
 	device->headless = headless;
 	device->capacities = capacities;
+	VOE_BASE_ASSERT(mtx_init(&device->guard, mtx_plain) == thrd_success &&
+				cnd_init(&device->frame_closed) == thrd_success,
+			"out of resources making the device's guard");
 
 	// No Vulkan on the machine at all. The one failure a person can fix by
 	// installing something, and the reason this function returns a pointer
@@ -730,7 +766,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		voe_render_texture_write_descriptors(device, i);
 	}
 	voe_render_targets_startup(device);
-	if (!voe_render_pipeline_layout_create(device))
+	if (!voe_render_pipeline_layout_create(device) ||
+	    !voe_render_pipeline_cache_create(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	// After the layout, because the element pipeline shares it. The mesh
 	// pipelines are not built here: voe_render_device_prepare's.

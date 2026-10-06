@@ -38,6 +38,9 @@
 // there is nothing to acquire, nothing to blit into and nothing to present, so
 // _end submits and returns. That is what lets a test drive the same recording
 // path the window does and then read the target itself.
+//
+// BEGIN AND END HOLD THE DEVICE'S GUARD (ADR-0370): a frame is open from a begin
+// that answers drawing to its end, and another thread's upload waits for that.
 #include "frame_internal.h"
 
 #include <base/assert.h>
@@ -239,8 +242,8 @@ static bool rebuild(voe_render_device *device, voe_platform_size size)
 // fence makes safe is this slot's own command buffer, its own acquire semaphore,
 // its own target, its own uniform buffer, its own object buffer and its own
 // element buffer, and nothing else.
-bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
-			    bool *drawing)
+static bool begin_frame(voe_render_device *device, voe_platform_size size,
+			bool *drawing)
 {
 	struct voe_render_frame *frame;
 	VkCommandBufferBeginInfo begin = {
@@ -386,6 +389,25 @@ bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
 	return true;
 }
 
+// Under the guard; the frame is open, on this thread, only when it draws.
+bool voe_render_frame_begin(voe_render_device *device, voe_platform_size size,
+			    bool *drawing)
+{
+	bool answered;
+
+	VOE_BASE_ASSERT(device != NULL, "beginning a frame on no device");
+	VOE_BASE_ASSERT(drawing != NULL, "beginning a frame with nowhere to say so");
+
+	voe_render_device_guard_take(device);
+	answered = begin_frame(device, size, drawing);
+	if (answered && *drawing) {
+		device->frame_open = true;
+		device->frame_thread = thrd_current();
+	}
+	voe_render_device_guard_give(device);
+	return answered;
+}
+
 bool voe_render_frame_is_open(const voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "asking no device whether a frame is open");
@@ -395,7 +417,7 @@ bool voe_render_frame_is_open(const voe_render_device *device)
 // A FRAME WITH NO PASS ONTO THE WINDOW STILL CLEARS IT. _end records an empty
 // rendering block with the clear load operations when no pass has, so the image
 // presented is the clear colour and not whatever the slot held last lap.
-bool voe_render_frame_end(voe_render_device *device)
+static bool end_frame(voe_render_device *device)
 {
 	struct voe_render_frame *frame;
 	struct voe_render_image *image = NULL;
@@ -479,4 +501,19 @@ bool voe_render_frame_end(voe_render_device *device)
 	}
 
 	return true;
+}
+
+// Under the guard for submit and present; the frame is closed, and the waiters
+// woken, whatever end_frame answered.
+bool voe_render_frame_end(voe_render_device *device)
+{
+	bool ended;
+
+	VOE_BASE_ASSERT(device != NULL, "ending a frame on no device");
+
+	voe_render_device_guard_take(device);
+	ended = end_frame(device);
+	device->frame_open = false;
+	voe_render_device_guard_give(device);
+	return ended;
 }

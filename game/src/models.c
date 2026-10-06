@@ -3,7 +3,8 @@
 // handed to the store, the soft dot loaded when any emitter is there and the
 // water record when any water is, each
 // failure one line on stderr and counted. Scratch is rewound to where it stood after each
-// file, so a caller's own scratch data survives the call.
+// file, so a caller's own scratch data survives the call. With a progress, the
+// distinct unread paths are counted first and the stop flag asked before each.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
@@ -18,6 +19,7 @@
 #include <platform/path.h>
 
 #include <stddef.h>
+#include <string.h>
 
 // Counts one failure of `path`, the store's copy kept when it is the first.
 static void count_failure(voe_game_models_failures *failures,
@@ -74,47 +76,78 @@ static bool load_changed(voe_3d_models *models, voe_render_device *device,
 	return loaded;
 }
 
-// Loads `path` when it is not empty and the store lacks it, counting a
-// failure. False when the store is full, which ends the update.
-static bool load_new(voe_3d_models *models, voe_render_device *device,
-		     const char *folder, const char *path,
-		     voe_base_arena *scratch,
-		     voe_game_models_failures *failures)
+// The path of the world's `index`th file: the model rows' paths, then the
+// emitters' textures.
+static const char *path_at(const voe_ecs_world *world, uint32_t index)
 {
-	voe_base_error error;
+	uint32_t rows = voe_3d_model_count(world);
 
-	VOE_BASE_ASSERT(path != NULL, "loading no path");
-	VOE_BASE_ASSERT(failures != NULL, "counting into no failures");
-	if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
-		return true;
-	if (voe_3d_models_count(models) == VOE_3D_MODELS)
-		return false;
-	if (!load_changed(models, device, folder, path, 0, scratch, &error))
-		count_failure(failures, models, path, error);
-	return true;
+	if (index < rows)
+		return voe_3d_model_rows(world)[index].path;
+	return voe_3d_emitter_rows(world)[index - rows].texture;
+}
+
+// Whether `path` is one an update reads: not empty and not in the store.
+static bool unread(const voe_3d_models *models, const char *path)
+{
+	VOE_BASE_ASSERT(path != NULL, "asking after no path");
+	return path[0] != '\0' && voe_3d_models_find(models, path) == NULL;
+}
+
+// How many distinct paths of `paths` files an update reads. Each path is
+// compared with every earlier one, so a path named twice counts once; a
+// lookup set of the paths would lift that square.
+static unsigned count_unread(const voe_ecs_world *world,
+			     const voe_3d_models *models, uint32_t paths)
+{
+	unsigned total = 0;
+
+	for (uint32_t i = 0; i < paths; i++) {
+		const char *path = path_at(world, i);
+		bool earlier = false;
+
+		for (uint32_t j = 0; !earlier && j < i; j++)
+			earlier = strcmp(path_at(world, j), path) == 0;
+		total += !earlier && unread(models, path);
+	}
+	return total;
 }
 
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
 						const char *folder,
-						voe_base_arena *scratch)
+						voe_base_arena *scratch,
+						voe_game_progress *progress)
 {
-	const voe_3d_model *rows = voe_3d_model_rows(world);
-	const voe_3d_emitter *emitters = voe_3d_emitter_rows(world);
+	uint32_t paths = voe_3d_model_count(world) + voe_3d_emitter_count(world);
 	voe_game_models_failures failures = { 0 };
-	bool room = true;
+	unsigned done = 0;
+	unsigned total = 0;
 	voe_base_error error;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
-	for (uint32_t row = 0; room && row < voe_3d_model_count(world); row++)
-		room = load_new(models, device, folder, rows[row].path, scratch,
-				&failures);
-	for (uint32_t row = 0; room && row < voe_3d_emitter_count(world); row++)
-		room = load_new(models, device, folder, emitters[row].texture,
-				scratch, &failures);
+	if (progress != NULL)
+		total = count_unread(world, models, paths);
+	for (uint32_t i = 0; i < paths; i++) {
+		const char *path = path_at(world, i);
+
+		if (!unread(models, path))
+			continue;
+		if (voe_game_progress_stopped(progress))
+			return failures;
+		// A full store said so once; the update ends.
+		if (voe_3d_models_count(models) == VOE_3D_MODELS)
+			break;
+		voe_game_progress_set(progress, "Loading models", done, total);
+		if (!load_changed(models, device, folder, path, 0, scratch,
+				  &error))
+			count_failure(&failures, models, path, error);
+		done++;
+	}
+	voe_game_progress_set(progress, "Loading models", done, total);
 	if (voe_3d_emitter_count(world) > 0 &&
 	    voe_3d_models_find(models, "") == NULL &&
 	    !voe_3d_models_load_dot(models, device, &error))

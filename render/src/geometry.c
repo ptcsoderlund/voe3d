@@ -416,11 +416,11 @@ static void pool_give(struct voe_render_pool *pool, uint32_t offset,
 	}
 }
 
-bool voe_render_geometry_create(voe_render_device *device,
-				const voe_render_vertex *vertices,
-				uint32_t vertex_count, const uint32_t *indices,
-				uint32_t index_count, voe_render_geometry *out,
-				voe_base_error *error)
+static bool create_geometry(voe_render_device *device,
+			    const voe_render_vertex *vertices,
+			    uint32_t vertex_count, const uint32_t *indices,
+			    uint32_t index_count, voe_render_geometry *out,
+			    voe_base_error *error)
 {
 	struct voe_render_geometry_slot *slot = NULL;
 	uint32_t index = 0;
@@ -507,10 +507,28 @@ bool voe_render_geometry_create(voe_render_device *device,
 	return true;
 }
 
+// Under the device's guard (ADR-0370), as are the destroy and nothing transient.
+bool voe_render_geometry_create(voe_render_device *device,
+				const voe_render_vertex *vertices,
+				uint32_t vertex_count, const uint32_t *indices,
+				uint32_t index_count, voe_render_geometry *out,
+				voe_base_error *error)
+{
+	bool created;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "uploading a mesh to no device");
+
+	voe_render_device_guard_take(device);
+	created = create_geometry(device, vertices, vertex_count, indices,
+				  index_count, out, error);
+	voe_render_device_guard_give(device);
+	return created;
+}
+
 // Waits for idle before giving the ranges back, because the next create may
 // upload over them while a frame in flight is still drawing from them.
-bool voe_render_geometry_destroy(voe_render_device *device,
-				 voe_render_geometry geometry)
+static bool destroy_geometry(voe_render_device *device,
+			     voe_render_geometry geometry)
 {
 	struct voe_render_geometry_slot *slot;
 
@@ -537,6 +555,19 @@ bool voe_render_geometry_destroy(voe_render_device *device,
 	slot->generation++;
 	slot->live = false;
 	return true;
+}
+
+bool voe_render_geometry_destroy(voe_render_device *device,
+				 voe_render_geometry geometry)
+{
+	bool destroyed;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a mesh on no device");
+
+	voe_render_device_guard_take(device);
+	destroyed = destroy_geometry(device, geometry);
+	voe_render_device_guard_give(device);
+	return destroyed;
 }
 
 // THE TRANSIENT POOLS NEED NO BARRIER AND NO WAIT, AND ONE APPEARING HERE WOULD

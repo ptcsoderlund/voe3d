@@ -1,6 +1,13 @@
 // The run's steps in the order game/include/game/run.h gives, each refusal a
 // line on stderr and a 1. Everything is released on every path out; a missing
 // sound device is not a refusal but a silent game.
+// - WHICH THREAD DOES WHAT (0370 point 4). The main thread opens the window,
+//   the interface and the splash, then only polls and draws splash frames
+//   while one worker (game/starting.h) prepares the shaders, makes the world
+//   and scene, uploads the shapes and reads the models, in its own scratch,
+//   never the main thread's. Once it is joined, the main thread alone has the
+//   world, the store and the log: it gives the splash back, opens the mixer
+//   and sound device, runs the frames and writes the log.
 // - The interface runs each frame and may end the run.
 // - A restart asked makes the world again in its own arena; the mixer pauses
 //   with the run.
@@ -10,6 +17,7 @@
 #include <game/interface.h>
 #include <game/models.h>
 #include <game/prefabs.h>
+#include <game/progress.h>
 #include <game/project.h>
 #include <game/scene.h>
 #include <game/starting.h>
@@ -21,6 +29,7 @@
 
 #include <app/app.h>
 #include <app/picture.h>
+#include <app/pipeline_cache.h>
 #include <app/start_log.h>
 
 #include <audio/mixer.h>
@@ -35,8 +44,9 @@
 
 #include <stddef.h>
 
-// The app's arena, the world's own, and the scratch startup and each frame's
-// draw system work in. Block sizes, not limits.
+// The app's arena, the world's own, the scratch startup and each frame's
+// draw system work in, and the start's worker's own scratch. Block sizes, not
+// limits.
 #define RUN_ARENA (4u * 1024u * 1024u)
 #define RUN_SCRATCH (1u * 1024u * 1024u)
 
@@ -85,43 +95,105 @@ static voe_ecs_world *run_world_make(voe_base_arena *world_arena)
 	return world;
 }
 
-// The starting prepare over splashscreen.png in `folder`, the plain screen
-// with a line on stderr when it will not read; the texture is given back once
-// the prepare is done, as a game changes no scene yet (0356). Scratch is
-// rewound after. voe_game_starting_prepare's answer.
-static bool run_starting(voe_app *app, voe_game_interface *interface,
-			 voe_base_arena *scratch, const char *folder)
+// What the start's worker is handed and what it makes. The worker owns it
+// during the wait; the main thread reads it only once the wait has joined.
+// `failed` tells a failed step, already on stderr, from a stop.
+struct run_start {
+	voe_render_device *device;
+	voe_base_arena *scratch;
+	voe_base_arena *world_arena;
+	const char *folder;
+	voe_app_start_log *log;
+	voe_ecs_world *world;
+	voe_3d_shapes shapes;
+	voe_3d_models *store;
+	bool failed;
+};
+
+// The start's work, on the wait's worker (0370 point 4): the shaders with the
+// game's cache, the world and scene, the shapes and the scene's models, each
+// part's log step taken where it ends. False once stopped, or with `failed`
+// set on a failed step. Only the worker's own scratch is used, kept empty.
+static bool run_start_work(void *context, voe_game_progress *progress)
 {
-	const char *path = voe_platform_path_join(scratch, folder,
+	struct run_start *start = context;
+	voe_base_error error = VOE_BASE_OK;
+	const char *cache = voe_app_pipeline_cache_path(start->scratch,
+							"pipelines_game.cache");
+	bool prepared = voe_game_starting_shaders(start->device, cache,
+						  start->scratch, progress);
+
+	voe_base_arena_clear(start->scratch);
+	if (voe_game_progress_stopped(progress))
+		return false;
+	if (!prepared) {
+		VOE_BASE_ERROR("game", "the shaders would not prepare");
+		start->failed = true;
+		return false;
+	}
+	voe_app_start_log_step(start->log, "preparing shaders");
+	voe_game_progress_set(progress, "Loading scene", 0, 0);
+	start->world = run_world_make(start->world_arena);
+	if (start->world == NULL) {
+		start->failed = true;
+		return false;
+	}
+	voe_app_start_log_step(start->log, "world and scene");
+	if (voe_game_progress_stopped(progress))
+		return false;
+	if (!voe_3d_shapes_upload(start->device, &start->shapes, &error)) {
+		VOE_BASE_ERROR("game", "the shapes do not fit the device: %s",
+			       voe_base_error_string(error));
+		start->failed = true;
+		return false;
+	}
+	start->store = voe_3d_models_new();
+	// Failures are on stderr and kept as failed entries.
+	(void)voe_game_models_update(start->world, start->store, start->device,
+				     start->folder, start->scratch, progress);
+	if (voe_game_progress_stopped(progress))
+		return false;
+	voe_app_start_log_step(start->log, "shapes and models");
+	return true;
+}
+
+// The wait on the start's worker over splashscreen.png in `start`'s folder,
+// the plain screen with a line on stderr when it will not read; the texture
+// is given back once the wait has ended, as a game changes no scene yet
+// (0356). The frames lay out in scratch, rewound after. The wait's answer.
+static bool run_starting(voe_app *app, voe_game_interface *interface,
+			 voe_base_arena *scratch, struct run_start *start)
+{
+	const char *path = voe_platform_path_join(scratch, start->folder,
 						  "splashscreen.png");
 	voe_base_error error = VOE_BASE_OK;
 	voe_app_picture splash;
 	bool read;
-	bool prepared;
+	bool started;
 
-	VOE_BASE_ASSERT(app != NULL && interface != NULL && folder != NULL,
-			"a starting with no app, interface or folder");
+	VOE_BASE_ASSERT(app != NULL && interface != NULL && start != NULL,
+			"a starting with no app, interface or start");
 	read = voe_app_picture_read(voe_app_device(app), path, scratch,
 				    &splash, &error);
 	if (!read)
 		VOE_BASE_ERROR("game", "no splash at %s: %s", path,
 			       voe_base_error_string(error));
-	prepared = voe_game_starting_prepare(
-		app, voe_game_interface_context(interface), scratch,
-		read ? &splash : NULL, "Starting - preparing shaders...");
+	started = voe_game_starting_wait(app,
+					 voe_game_interface_context(interface),
+					 scratch, read ? &splash : NULL,
+					 run_start_work, start);
 	voe_base_arena_clear(scratch);
 	if (read && !voe_render_texture_destroy(voe_app_device(app),
 						splash.texture))
 		VOE_BASE_ERROR("game", "the splash's texture was already gone");
-	return prepared;
+	return started;
 }
 
 // The frames, until the window is closing or the project's interface ends
 // the run. False, with a line on stderr, when one was refused. A device whose
 // pump fails is destroyed and the sound's device set to NULL, and the game
 // goes on silent. Paused, no step runs and the draw keeps the last lag. The
-// start's log gets its last two steps here and is written after the first
-// frame.
+// start's log gets its last step here and is written after the first frame.
 static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		       voe_ecs_world *world, const voe_3d_shapes *shapes,
 		       voe_base_arena *scratch, voe_game_interface *interface,
@@ -133,11 +205,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 	float lag = 1.0f;
 	bool logged = false;
 
-	// The built scene's models, before the first frame. Failures are on
-	// stderr and kept as failed entries, here and each frame.
-	(void)voe_game_models_update(world, models->store, voe_app_device(app),
-				     models->folder, scratch);
-	voe_app_start_log_step(log, "models and sound");
+	// Failures are on stderr and kept as failed entries, each frame.
 	while (true) {
 		voe_app_frame frame = voe_app_frame_open(app);
 
@@ -152,8 +220,9 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			steps = (voe_game_steps){ 0 };
 			(void)voe_game_models_update(world, models->store,
 						     voe_app_device(app),
-						     models->folder, scratch);
-			asks = (voe_game_project_asks){ 0 };
+						     models->folder, scratch,
+						     NULL);
+			asks =(voe_game_project_asks){ 0 };
 		}
 		if (!asks.paused)
 			lag = voe_game_steps_run(
@@ -163,7 +232,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 				voe_game_project_systems_after_move);
 		(void)voe_game_models_update(world, models->store,
 					     voe_app_device(app),
-					     models->folder, scratch);
+					     models->folder, scratch, NULL);
 		// The ui frame is laid out in scratch and gone by the next.
 		voe_base_arena_clear(scratch);
 		if (!voe_game_interface_run(interface, scratch, world,
@@ -198,6 +267,7 @@ int voe_game_run(const char *title, voe_game_window window)
 	voe_base_arena *arena = voe_base_arena_new(RUN_ARENA);
 	voe_base_arena *world_arena = voe_base_arena_new(RUN_ARENA);
 	voe_base_arena *scratch = voe_base_arena_new(RUN_SCRATCH);
+	voe_base_arena *worker_scratch = voe_base_arena_new(RUN_SCRATCH);
 	voe_app_settings settings = { .width = window.width,
 				      .height = window.height,
 				      .fullscreen = window.fullscreen,
@@ -207,10 +277,9 @@ int voe_game_run(const char *title, voe_game_window window)
 	voe_base_error error = VOE_BASE_OK;
 	voe_game_interface *interface;
 	voe_app_start_log log;
+	struct run_start start;
 	struct run_models models;
 	struct run_sound sound;
-	voe_3d_shapes shapes;
-	voe_ecs_world *world;
 	voe_app *app;
 	int status = 1;
 
@@ -234,41 +303,38 @@ int voe_game_run(const char *title, voe_game_window window)
 	}
 	voe_app_start_log_step(&log, "interface");
 
-	// Text only, until the mesh pipelines are built (0345), over the splash
-	// beside the program when it reads (0356). A false here is a closing
-	// window or a failed build, already on stderr; the run ends as a closed
-	// window ends it.
+	// The start's work on a worker behind the splash beside the program
+	// (0356, 0370). A closing window ends the run as a close does; a failed
+	// step, already on stderr, is a 1. Whatever the worker made is released.
 	models.folder = sound_folder(arena);
-	if (!run_starting(app, interface, scratch, models.folder)) {
-		status = 0;
-		goto unbuilt;
-	}
-	voe_app_start_log_step(&log, "preparing shaders");
-
-	world = run_world_make(world_arena);
-	if (world == NULL)
-		goto unbuilt;
-	voe_app_start_log_step(&log, "world and scene");
-	models.store = voe_3d_models_new();
-	sound.mixer = voe_audio_mixer_new(models.folder);
-	// NULL is already reported; the game runs silent.
-	sound.device = voe_platform_sound_new();
-	if (!voe_3d_shapes_upload(voe_app_device(app), &shapes, &error)) {
-		VOE_BASE_ERROR("game", "the shapes do not fit the device: %s",
-			       voe_base_error_string(error));
-	} else if (run_frames(app, world_arena, world, &shapes, scratch,
-			      interface, &sound, &models, &log)) {
+	start = (struct run_start){ .device = voe_app_device(app),
+				    .scratch = worker_scratch,
+				    .world_arena = world_arena,
+				    .folder = models.folder,
+				    .log = &log };
+	if (run_starting(app, interface, scratch, &start)) {
+		models.store = start.store;
+		sound.mixer = voe_audio_mixer_new(models.folder);
+		// NULL is already reported; the game runs silent.
+		sound.device = voe_platform_sound_new();
+		voe_app_start_log_step(&log, "sound");
+		if (run_frames(app, world_arena, start.world, &start.shapes,
+			       scratch, interface, &sound, &models, &log))
+			status = 0;
+		voe_platform_sound_destroy(sound.device);
+		voe_audio_mixer_destroy(sound.mixer);
+	} else if (!start.failed) {
 		status = 0;
 	}
-	voe_platform_sound_destroy(sound.device);
-	voe_audio_mixer_destroy(sound.mixer);
-	voe_3d_models_clear(models.store, voe_app_device(app));
-	voe_3d_models_destroy(models.store);
-unbuilt:
+	if (start.store != NULL) {
+		voe_3d_models_clear(start.store, voe_app_device(app));
+		voe_3d_models_destroy(start.store);
+	}
 	voe_game_interface_destroy(interface);
 closed:
 	voe_app_destroy(app);
 released:
+	voe_base_arena_destroy(worker_scratch);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(world_arena);
 	voe_base_arena_destroy(arena);

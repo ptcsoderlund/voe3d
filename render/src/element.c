@@ -67,10 +67,12 @@
 // The compiled element shader, in the binary, by the same route draw.spv takes:
 // slangc writes it into the build tree and cmake/voe.cmake puts that directory
 // on this file's embed path. alignas for the reason device.c gives — the driver
-// is handed a const uint32_t * and #embed can only fill bytes.
-static alignas(uint32_t) const unsigned char elements_spv[] = {
+// is handed a const uint32_t * and #embed can only fill bytes. Not static:
+// pipeline_cache.c hashes it.
+alignas(uint32_t) const unsigned char voe_render_elements_spv[] = {
 #embed "elements.spv"
 };
+const size_t voe_render_elements_spv_size = sizeof(voe_render_elements_spv);
 
 // Spelled exactly as shaders/elements.slang spells them; -fvk-use-entrypoint-name
 // in cmake/voe.cmake is what keeps these two strings true.
@@ -94,8 +96,8 @@ bool voe_render_element_startup(voe_render_device *device)
 {
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = sizeof(elements_spv),
-		.pCode = (const uint32_t *)elements_spv,
+		.codeSize = sizeof(voe_render_elements_spv),
+		.pCode = (const uint32_t *)voe_render_elements_spv,
 	};
 	VkShaderModule module = VK_NULL_HANDLE;
 	VkPipelineShaderStageCreateInfo stages[2];
