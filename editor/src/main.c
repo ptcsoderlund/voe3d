@@ -22,7 +22,8 @@
 // asked what the pointer did; a window close still asks session.h what it has.
 //
 // WHAT THIS FRAME'S KEYBOARD ASKED FOR, THE ACTS ON IT AND ESCAPE'S ORDER ARE
-// frame_commands.h's, called at three points of the loop.
+// frame_commands.h's, called at three points of the loop; the fly, borders,
+// middle drag, gizmo, Assets drag and pick, in order, are frame_pointer.h's.
 //
 // IT IS A CALL SITE AND EVERYTHING IN IT IS WIRING, the same standing dev/ has:
 // the window's size, the loop and the one division that turns
@@ -61,6 +62,7 @@
 #include "dock.h"
 #include "frame_breakdown.h"
 #include "frame_commands.h"
+#include "frame_pointer.h"
 #include "gizmo.h"
 #include "inspector_edit.h"
 #include "interface.h"
@@ -71,9 +73,7 @@
 #include "notice.h"
 #include "options.h"
 #include "panels.h"
-#include "pick.h"
 #include "project.h"
-#include "resize.h"
 #include "scene.h"
 #include "scene_list.h"
 #include "session.h"
@@ -102,7 +102,6 @@
 #include <game/starting.h>
 
 #include <platform/arguments.h>
-#include <platform/clock.h>
 #include <platform/folder.h>
 #include <platform/input.h>
 #include <platform/path.h>
@@ -245,9 +244,6 @@ int main(int argc, char *argv[])
 	// Beside the scene and not in it: a view's camera is the editor's and
 	// never the world's (view.h).
 	voe_editor_views views = { 0 };
-	// The left press in a view that moves the selection (pick.h), beside
-	// the drag it shares the pointer with.
-	voe_editor_pick pick = { 0 };
 	// A model row held from the Assets panel (assets_drag.h).
 	voe_editor_assets_drag drag = { 0 };
 	// A GIZMO DRAG IS ONE MORE READER OF THE POINTER (gizmo.h, ADR-0205).
@@ -257,9 +253,6 @@ int main(int argc, char *argv[])
 	// here: the held button keeps `at_rest` false for every frame of it, so
 	// undo.h settles on the release.
 	voe_editor_gizmo gizmo = { 0 };
-	// The borders between the root's panels, at rest (resize.h).
-	voe_editor_resize resize = { .held = UINT32_MAX };
-	voe_editor_resize_result resized;
 	// The line of scene texts Ctrl+Z steps back through, made out of
 	// `arena` below (undo.h). Beside the scene and the views because the
 	// history is the editor's and never the world's.
@@ -267,9 +260,9 @@ int main(int argc, char *argv[])
 	// The keyboard's commands and the edges they carry to the next frame
 	// (frame_commands.h), pointed at the parts above once they exist.
 	voe_editor_frame_commands commands = { 0 };
-	// Whether a view flew last frame, so the pointer's lock is asked for
-	// only on the frame that changes (platform/input.h).
-	bool flew = false;
+	// The pointer's and the views' reads, with the fly's edge, the borders
+	// and the pick they keep (frame_pointer.h), filled beside `commands`.
+	voe_editor_frame_pointer reads = { 0 };
 	// Last frame's step, clamped, which this frame's world step runs the
 	// emitters by: the step comes before this frame's clock is read. 0 on
 	// the first frame and in a capture, so its picture is the same each time.
@@ -407,6 +400,13 @@ int main(int argc, char *argv[])
 		.session = &session, .scene = &scene, .browser = &browser,
 		.preferences = &preferences, .project_panel = &project_panel,
 		.views = &views, .undo = &undo, .gizmo = &gizmo, .ui = ui };
+	reads = (voe_editor_frame_pointer){
+		.commands = &commands, .session = &session, .scene = &scene,
+		.browser = &browser, .preferences = &preferences,
+		.project_panel = &project_panel, .views = &views, .undo = &undo,
+		.gizmo = &gizmo, .drag = &drag, .root = &roots[0], .bar = &bar,
+		.geometries = &geometries, .models = models, .window = window,
+		.resize = { .held = UINT32_MAX } };
 
 	voe_editor_startup_say_descriptions();
 	fflush(stdout);
@@ -424,9 +424,6 @@ int main(int argc, char *argv[])
 		bool middle = false;
 		bool right = false;
 		voe_platform_motion motion = { 0 };
-		// Whether a view flies this frame (view.h), read before the
-		// shortcuts so a flying view's keys command nothing.
-		bool flying;
 		// This frame's keyboard, read once below (keys.h).
 		voe_editor_keys_frame keyboard;
 		bool shift;
@@ -572,109 +569,22 @@ int main(int argc, char *argv[])
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
 
-		// THE RIGHT BUTTON FLIES THE VIEW IT WENT DOWN OVER (view.h),
-		// never while the browser shows, turned by the mouse's motion and
-		// moved by W, S, A, D, E and Q, Shift three times as fast. While it
-		// flies the pointer is locked and hidden, and put back where it
-		// was on the frame it stops.
-		flying = voe_editor_views_fly(
-			&views, roots[0].pointer.at, right && !browser.showing,
-			(voe_math_float2){ motion.x, motion.y },
-			(voe_editor_fly_keys){
-				.forward = keyboard.down[VOE_PLATFORM_KEY_W],
-				.back = keyboard.down[VOE_PLATFORM_KEY_S],
-				.left = keyboard.down[VOE_PLATFORM_KEY_A],
-				.right = keyboard.down[VOE_PLATFORM_KEY_D],
-				.up = keyboard.down[VOE_PLATFORM_KEY_E],
-				.down = keyboard.down[VOE_PLATFORM_KEY_Q],
-				.fast = shift },
-			(float)opened.tick.step);
-		if (flying != flew && window != NULL)
-			voe_platform_input_lock_pointer(window, flying);
-		flew = flying;
-
-		// The shortcuts read and acted on, Escape's order, and the
-		// keyboard `ui` gets (frame_commands.h); a flying view keeps
-		// the pointer from `ui` too.
-		roots[0].keyboard = voe_editor_frame_commands_read(
-			&commands, &keyboard, &text, left, flying);
-		if (flying) {
-			roots[0].pointer.over = false;
-			roots[0].pointer.down = false;
-			left = false;
-		}
-
-		// THE BORDERS ARE ASKED FIRST (resize.h): a seam is a fill the
-		// walk draws, not a widget, so no widget answers for it. While
-		// they have the pointer, `ui` sees no pointer and pick and the
-		// gizmo no left button; the border they reach is drawn lit.
-		resized = voe_editor_resize_frame(
-			&resize, &roots[0], &bar,
-			!browser.showing && !preferences.showing &&
-				!project_panel.showing &&
-				!session.errors.showing &&
-				!scene.picking.open && !scene.dropdown.open &&
-				!bar.menu.open && !flying,
-			voe_platform_clock_now());
-		roots[0].lit = resized.reached;
-		if (resized.taken) {
-			roots[0].pointer.over = false;
-			roots[0].pointer.down = false;
-			left = false;
-		}
-		if (window != NULL)
-			voe_platform_input_cursor(window, resized.cursor);
-		if (resized.ended) {
-			voe_base_report_error_clear();
-			if (!voe_editor_panels_remember(&roots[0], &bar))
-				voe_editor_notice_from_report(&session.notice,
-							      "editor_settings");
-		}
-
-		// The middle button is the views' and the left is the
-		// interface's, so the two never compete for one press. Never
-		// while the browser shows — "views get no drag" (browser.h) —
-		// so a press that started before it opened does not carry on
-		// moving a camera underneath it.
-		voe_editor_views_drag(&views, roots[0].pointer.at,
-				      middle && !browser.showing, shift,
-				      control);
-
-		// The left half of the same division: a press on an arrow of
-		// the selected entity's gizmo drags it (gizmo.h), unless a panel
-		// over the views has the press instead.
-		voe_editor_gizmo_read(&gizmo, &scene, &views,
-				      VOE_EDITOR_GIZMO_MILLIMETRES *
-					      pixels_per_millimetre,
-				      roots[0].pointer.at, left && pointer.over,
-				      browser.showing || preferences.showing ||
-					      project_panel.showing ||
-					      session.errors.showing ||
-					      scene.picking.open || bar.menu.open);
-
-		// A held model row, released over a view or the Inspector
-		// (assets_drag.h), under the pick's own `blocked`.
-		voe_editor_assets_drag_read(
-			&drag, &session, &undo, &scene, &views, &roots[0], &bar,
-			&geometries, voe_editor_models_store(models),
-			roots[0].pointer.at, left && pointer.over,
-			browser.showing || preferences.showing ||
-				project_panel.showing ||
-				session.errors.showing || scene.picking.open ||
-				bar.menu.open || voe_editor_gizmo_taking(&gizmo));
-
-		// Then a press over a view picks what is under it (pick.h). A
-		// press the gizmo or a drag took is not a press that selects,
-		// and the order is the point: the gizmo is asked first.
-		voe_editor_pick_read(&pick, &scene, &views, &geometries,
-				     voe_editor_models_store(models),
-				     roots[0].pointer.at, left && pointer.over,
-				     browser.showing || preferences.showing ||
-					     project_panel.showing ||
-					     session.errors.showing ||
-					     scene.picking.open || bar.menu.open ||
-					     voe_editor_gizmo_taking(&gizmo) ||
-					     drag.holding);
+		// The fly, the shortcuts, the borders, the middle drag, the
+		// gizmo, the Assets drag and the pick, in that order
+		// (frame_pointer.h); `ui`'s keyboard comes back.
+		roots[0].keyboard =
+			voe_editor_frame_pointer_read(
+				&reads,
+				&(voe_editor_frame_pointer_input){
+					.pointer = pointer, .motion = motion,
+					.keyboard = &keyboard, .text = &text,
+					.left = left, .middle = middle,
+					.right = right, .shift = shift,
+					.control = control,
+					.pixels_per_millimetre =
+						pixels_per_millimetre,
+					.seconds = (float)opened.tick.step })
+				.keyboard;
 
 		// Before the draw is opened, so a resize asked for here is
 		// applied by this frame's begin and the picture is drawn at the

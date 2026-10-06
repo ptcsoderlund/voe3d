@@ -17,6 +17,10 @@ carries it out.
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
 - `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
   Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
+- `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
+  borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
+- `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
+  the three left-press readers under one shared block.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
